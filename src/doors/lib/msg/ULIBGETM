@@ -1,0 +1,52 @@
+NAME
+
+ulibGetMsgData - Returns information about a message
+
+
+SYNOPSIS
+
+long ulibGetMsgData(struct Msg *m, long AccessType, long *DataSize)
+                          a0             d0               a1
+
+
+DESCRIPTION
+
+This function returns information about the message pointed to by <m>.
+
+The <AccessType> parameter may be any one of the #define'd XMD_ codes in
+xenolink.h (such as XMD_NUMBER, XMD_SECTION, XMD_TO_USER, etc.)
+
+<DataSize> is valid only for the string variables:
+
+   XMD_FROM_USER      Message author
+   XMD_TO_USER        Message recipient
+   XMD_SUBJECT        Message subject
+
+If <DataSize> is not NULL, it should point to a long integer into which the
+maximum allowable length of the string (including null terminator) will be
+placed (e.g. USERNAME_LENGTH).
+
+
+NOTES
+
+Usage of <DataSize> is unnecessary and not recommended, since the maximum
+string lengths of message data strings is provided in xenolink.h.  These
+numbers are highly unlikely to change!
+
+
+RETURNS
+
+This function returns the requested information as either:
+
+   1. A signed long integer (for integral message fields)
+      (Note that all integral return values are promoted to signed long
+      integers)
+
+   2. A pointer to a string (for string variables such as To, From, Subject)
+
+   3. A pointer to a (struct TimeDate) (for XMD_DATE_SENT, XMD_DATE_RECEIVED).
+
+
+SEE ALSO
+
+ulibSetMsgData

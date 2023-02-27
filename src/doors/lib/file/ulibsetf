@@ -1,0 +1,53 @@
+NAME
+
+ulibSetFileData - Change file catalogue entry information
+
+
+SYNOPSIS
+
+void ulibSetFileData(struct FileCat *f, long AccessType, long Data)
+                            a0               d0             d1
+
+
+DESCRIPTION
+
+This function sets a variable in the file catalogue structure pointed to by
+<f> to the value of <Data>.
+
+The <AccessType> parameter may be any one of the #define'd XFD_ codes in
+xenolink.h (such as XFD_NAME, XFD_DESCRIPTION, etc.)
+
+The <Data> parameter is either:
+
+   1. An integer (for integral file fields)
+
+   2. A pointer to a string (for certain string variables such FileName,
+      Uploader, Description).
+
+   3. A pointer to a (struct TimeDate) (for XFD_DATE_UPLOADED,
+      XFD_LAST_DOWNLOADED).
+
+
+CAUTION!  In the case of setting the file description, Xenolink will first
+free an existing file description pointed to by <f->Description> (unless
+<f->Description> is NULL), before allocating space for the new description.
+
+It is recommended that you use ulibSetFileData() and ulibFreeFileData() to
+handle file descriptions, rather than using the XFD_DESCRIPTION parameter
+to this function, to avoid confusing yourself.
+
+
+NOTE: This function does no checking on the data you give it, so you must
+      ensure that you do not pass it too long a string.
+
+      Check the various #define's for constants used in the file structure;
+      for example, USERNAME_LENGTH characters are reserved for the file
+      uploader's name; since this includes the null-terminator, the maximum
+      length of the uploader's name is (USERNAME_LENGTH-1) characters.
+
+      The situation is analagous for the other string fields.
+
+
+SEE ALSO
+
+ulibGetFileData

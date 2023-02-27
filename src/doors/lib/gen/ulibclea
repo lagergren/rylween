@@ -1,0 +1,24 @@
+NAME
+
+ulibClearMem - Clears an area of memory
+
+
+SYNOPSIS
+
+void ulibClearMem(UBYTE *Memory, long Size)
+                       a0           d0
+
+
+DESCRIPTION
+
+This function clears a block of memory of size <Size> starting at <Memory>.
+
+
+NOTES
+
+While this function will always be supported, it is recommended that your C
+compiler's bzero() or memset() function be used instead.  These functions are
+usually inlined by the compiler for faster operation.
+
+Under Xenolink Z.4 this function is not optimised for clearing large memory
+blocks.

@@ -1,0 +1,21 @@
+; These are the files this archive should contain:
+
+; Rylween     - The executable
+;*Rylween.DOC - The user documentation for the game
+; OptData     - Rylween user file optimization program
+; Screen.ANS  - The Rylween gamescreen ANSI picture
+; Title.ANS   - The Rylween title ANSI picture
+; MAP.DAT     - Data for the Rylween map.
+; Files.TXT   - This file.
+; Sysop.TXT   - Installation and maintenance instructions for the sysop.
+
+; Rylween will create the following files:
+
+; Doors:Rylween/Realm.DAT   - The user data + realm information
+; Doors:Rylween/NPC.DAT     - Data for the non player characters
+; Doors:Rylween/Journal     - Data file for journal entries.
+;*Doors:Rylween/Score.TXT   - Scoreboard for Rylween
+;*Doors:Rylween/Heroes.TXT  - Previous conquerors
+;*Doors:Rylween/Rylween.LOG - Log file
+
+; * = should be availible for the users to read.

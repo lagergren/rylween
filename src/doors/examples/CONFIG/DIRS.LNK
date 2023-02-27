@@ -1,0 +1,8 @@
+FROM LIB:c.o "Dirs.o"
+TO "Dirs"
+LIB LIB:sc.lib LIB:amiga.lib
+SMALLCODE
+SMALLDATA
+NODEBUG
+NOICONS
+

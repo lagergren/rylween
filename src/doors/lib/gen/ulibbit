@@ -1,0 +1,44 @@
+NAME
+
+ulibBit - Returns the value of a bit in a bit field
+
+
+SYNOPSIS
+
+UBYTE ulibBit(UBYTE *StartByte, long Position)
+                     a0              d0
+
+
+DESCRIPTION
+
+This function returns the value of bit number <Position> of the memory array
+pointed to by <StartByte>.
+
+Note that in this case bitfields run in a rather strange manner, since
+<StartByte> is an unbounded array (an array of unknown length).  Example:
+
+MemLoc    7  6  5  4  3  2  1  0
+MemLoc+1  7  6  5  4  3  2  1  0
+
+Result = ulibBit(MemLoc, 0);  /* Gets value of bit MemLoc   "0" */
+Result = ulibBit(MemLoc, 1);  /* Gets value of bit MemLoc   "1" */
+Result = ulibBit(MemLoc, 8);  /* Gets value of bit MemLoc+1 "0" */
+Result = ulibBit(MemLoc, 12); /* Gets value of bit MemLoc+1 "4" */
+
+
+NOTES
+
+This function is used internally by Xenolink, and will not be useful to
+application developers.  This function will most likely be discontinued in
+version 2.0 of Xenolink.
+
+
+RETURNS
+
+0 if the bit is not set.
+1 if the bit is set.
+
+
+SEE ALSO
+
+ulibSetBit

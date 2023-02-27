@@ -1,0 +1,29 @@
+NAME
+
+ulibUpdateFile - Updates a file catalogue entry to disk
+
+
+SYNOPSIS
+
+UBYTE ulibUpdateFile(struct FileCat *File1)
+                              a0
+
+
+DESCRIPTION
+
+This function updates the file catalogue entry <File1> (stored in memory) to
+disk.
+
+<File1> must already be present in the catalogue, and its date uploaded,
+section number, and name must NOT have been changed; in order to change these
+elements, the ulibRelinkFile() function must be used.
+
+This function simply overwrites the disk based version of the file catalogue
+entry with the provided version.  No key linking or unlinking is performed,
+thus the need for the above restrictions.
+
+
+RETURN VALUES
+
+0 - Failure (usually because the file is not present in the catalogue)
+1 - Success

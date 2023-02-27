@@ -1,0 +1,38 @@
+NAME
+
+ulibFreeFileData - Frees the memory used by a file's description
+
+
+SYNOPSIS
+
+void ulibFreeFileData(struct FileCat *f)
+                             a0
+
+
+DESCRIPTION
+
+This function frees the memory occupied by a file's description.
+
+If <f->Description> is a NULL pointer, then no action is taken.  Otherwise,
+Xenolink will free the description memory.
+
+This function will set <f->Description> to NULL after it has freed the
+memory.
+
+
+NOTES
+
+Xenolink frees the memory with the following command:
+
+   FreeMem(f->Description, strlen(f->Description)+1);
+
+That is, the amount of memory freed is the string length of the file
+description, plus one, for the null terminator.  This information will be
+important to you if you are specifically allocating file description memory,
+without using the ulibStoreFileData() function.  It is not recommended that
+you do this.
+
+
+SEE ALSO
+
+ulibStoreFileData

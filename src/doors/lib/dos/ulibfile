@@ -1,0 +1,34 @@
+NAME
+
+ulibFileExists - Determines whether a shared lock could be obtained on a file
+
+
+SYNOPSIS
+
+UBYTE ulibFileExists(UBYTE *FileToOpen)
+                            a0
+
+
+DESCRIPTION
+
+This function attempts to obtain a shared lock on the file provided.  If it
+is successful, the lock is removed.
+
+This function can be used to see if a file exists, although it is possible
+that the file did exist, but it was not possible to obtain a lock.
+
+
+NOTES
+
+This function is generally not too useful to door programmers; it was
+previously used by Xenolink to check if a file needed to be created, or if an
+existing file could simply be appended to.
+
+Xenolink now uses MODE_READWRITE, which can be used to append to an existing
+file, or create a file if it does not already exist.
+
+
+RETURNS
+
+0 - Was unable to obtain a shared lock
+1 - Was able to obtain a shared lock (which has now been released)

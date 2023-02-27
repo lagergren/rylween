@@ -1,0 +1,41 @@
+NAME
+
+ulibMatchFidoNetAddress - Finds an AKA to match a zone
+
+
+SYNOPSIS
+
+UBYTE ulibMatchFidoNetAddress(struct FidoNetAddress *Source,
+                                           a0
+
+                              struct FidoNetAddress *Dest)
+                                           a1
+
+
+DESCRIPTION
+
+This function will search the configuration for a FidoNet address which has
+<Source->Zone> as a zone number.  The configuration is searched in the
+following order:
+
+The XFIDONET:AKA.XLK file
+Message section addresses (EchoMail/NetMail)
+Primary addresses (from xenolink.cfg)
+Any primary address
+
+The matched address is returned in <Dest>,
+
+This function is useful when it is not known which address to use as the
+source address when generating mail to a destination; for example, if you
+wished to send mail to 14:1/2, this function would return the Sysop's
+zone 14 AKA (if the Sysop has one) or his default FidoNet address if not.
+
+
+RETURNS
+
+0 - Failure, no address found whatsoever
+1 - Success, matched an address in AKA.XLK
+2 - Success, matched a message section address
+3 - Success, matched a primary address (from xenolink.cfg)
+4 - Success, didn't match any of the above, and defaulted to the first
+      available primary address

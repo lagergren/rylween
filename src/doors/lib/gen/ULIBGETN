@@ -1,0 +1,19 @@
+NAME
+
+ulibGetNodeConfigData - Returns node configuration information
+
+
+SYNOPSIS
+
+long ulibGetNodeConfigData(struct NodeConfig *NodeConfig, long AccessType)
+                                        a0                       d0
+
+
+DESCRIPTION
+
+This function returns information about a node's configuration, specified by
+<NodeConfig>.
+
+The <AccessType> parameter may be any one of the #define'd XGNCD_ codes in
+xenolink.h (such as XGNCD_MY_ZONE [the Sysop's default FidoNet zone] for
+example).

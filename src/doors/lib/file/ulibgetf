@@ -1,0 +1,84 @@
+NAME
+
+ulibGetFileData - Returns information about a file catalogue entry
+
+
+SYNOPSIS
+
+long ulibGetFileData(struct FileCat *f, long AccessType, long *DataSize)
+                          a0                d0                 a1
+
+
+DESCRIPTION
+
+This function returns information about the file catalogue entry pointed to
+by <f>.
+
+The <AccessType> parameter may be any one of the #define'd XFD_ codes in
+xenolink.h (such as XFD_NAME, XFD_UPLOADER, XFD_DESCRIPTION, for example).
+
+<DataSize> is valid only for certain string variables:
+
+   XFD_NAME         File name
+   XFD_UPLOADER     Name/alias of uploader
+
+If <DataSize> is not NULL, it should point to a long integer into which the
+maximum allowable length of the string (including null terminator) will be
+placed (e.g. FILENAME_LENGTH or USERNAME_LENGTH).
+
+Note that although FILENAME_LENGTH is the maximum allowable length of the
+name of a file catalogue entry (including the null terminator), the Sysop
+may have set up his system such that filenames may not exceed a certain
+length, in particular sections.
+
+It is up to you to ensure that if you change a file's name, or add a new file
+to the catalogue, that you do not create too long a name; doing so will not
+damage the system in any way, but will:
+
+   1. Cause the file catalogue listing to look untidy.
+   2. Annoy the Sysop.
+   3. Possibly prevent users of PC compatible computers from downloading the
+      file, if the filename does not fit into the PC's 8.3 filename format
+      (assuming the PC user is using a primitive terminal).
+
+To obtain the maximum length of a filename in a particular section, use the
+ulibGetSystemData(XSD_FILE_MAX_NAME_LEN, SectionNumber) function call.
+
+The Sysop may have set an additional restriction for filenames; Xenolink
+allows sections to be configured to use the PC's 8.3 filename format.  To
+check for the presence of this flag in a file section, use the
+ulibGetSystemData(XSD_FILE_MSDOS_FILENAMES, SectionNumber) function call.
+
+If the Sysop has indeed configured filenames for the PC's 8.3 format, you
+must ensure that your filename follows this format.
+
+Using the XFD_DESCRIPTION parameter will return a pointer to the file's
+description if <f->Description> is not NULL.  Xenolink will NOT load the
+file's description from disk; ulibGetFileData() only operates on data already
+in memory.
+
+
+NOTES
+
+Usage of <DataSize> is unnecessary and not recommended, since the maximum
+string lengths of file data strings is provided in xenolink.h.  These numbers
+are highly unlikely to change!
+
+
+RETURNS
+
+This function returns the requested information as either:
+
+   1. A signed long integer (for integral file fields)
+      (Note that all integral return values are promoted to signed long
+      integers)
+
+   2. A pointer to a string (for string variables such as FileName, Uploader)
+
+   3. A pointer to a (struct TimeDate) (for XFD_DATE_UPLOADED,
+      XFD_LAST_DOWNLOADED).
+
+
+SEE ALSO
+
+ulibSetFileData

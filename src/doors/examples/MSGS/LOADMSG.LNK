@@ -1,0 +1,8 @@
+FROM LIB:c.o "LoadMsg.o"
+TO "LoadMsg"
+LIB LIB:sc.lib LIB:amiga.lib
+SMALLCODE
+SMALLDATA
+NODEBUG
+NOICONS
+

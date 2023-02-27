@@ -1,0 +1,52 @@
+NAME
+
+ulibAddFile - Adds an entry to the file catalogue
+
+
+SYNOPSIS
+
+UBYTE ulibAddFile(struct CatCommand *NewFile)
+
+
+DESCRIPTION
+
+This function adds an entry to the file catalogue.
+
+The following elements of the CatCommand structure are used:
+
+   <File1>
+        A pointer to the (struct FileCat) to be added.
+
+        The file description (File1->Description) and file description length
+        (File1->DescriptionLength) fields MUST be valid.
+
+        The section to add the file to is taken from (File1->Section)
+
+   <SubDir>
+        The number of the file subdirectory (not to be confused with Section)
+        in which the physical file resides; this parameter is required so that
+        this function can auto-filenote the file with its description if
+        the Sysop has configured Xenolink this way.
+
+        If <SubDir> is negative one (-1), this function will search all
+        subdirectories in the file's section.  If the physical file still
+        cannot be found, the file will not be filenoted (of course), but the
+        addition of the file to the catalogue will proceed normally.
+
+   <Flags>
+        Quick - If set, Xenolink will NOT check to see if the file already
+                exists, but will instead add it to the catalogue right away.
+                Do not use this option in a multi-node environment where other
+                programs can change the catalogue without your notice; what was
+                true a second ago may no longer be true!
+
+                Xenolink uses this option internally when moving a file from
+                one section to another (internally, the file is deleted from
+                the catalogue and then added to a new section, as one atomic
+                operation).
+
+
+RETURNS
+
+0        - Success
+Non-zero - Failure, file already in catalogue

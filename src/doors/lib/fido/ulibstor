@@ -1,0 +1,37 @@
+NAME
+
+ulibStoreProductName - Returns the name associated with a FidoNet product code
+
+
+SYNOPSIS
+
+void ulibStoreProductName(UBYTE *String, long ProductCode)
+                                a0              d0
+
+
+DESCRIPTION
+
+This function stores the name associated with the provided FidoNet product code
+<ProductCode>, in the string <String>.
+
+The <String> variable must be able to accomodate up to 64 bytes (63 characters
+plus a null terminator).
+
+All 256 product codes have already been allocated names by the FTSC, and
+Xenolink is aware of the product names for all 256 (the last two are specified
+as "reserved").
+
+Xenolink will supply "Unknown" for unknown product codes, and "Dropped" for
+codes which have been officially dropped.
+
+Xenolink's own product code is 170; in the "xenolink.h" include file it is
+defined as:
+
+   #define XENOLINK_PRODUCT_CODE 0xAA
+
+(0xAA is hexedecimal for 170).
+
+
+RETURNS
+
+None

@@ -1,0 +1,30 @@
+NAME
+
+ulibFindFileSubDir - Finds the subdirectory a file is in
+
+
+SYNOPSIS
+
+long ulibFindFileSubDir(long Section, char *Name)
+                             d0           a0
+
+
+DESCRIPTION
+
+This function returns the number of the subdirectory a particular file
+catalogue entry is in, given the section number of the file, <Section>, and its
+name, <Name>.
+
+NOTE:  Once the file is located, the ulibFileSubDir() routine can be used to
+       obtain the subdirectory's path, and thus the full path name of the file.
+
+
+RETURNS
+
+-1   - Physical file not found (i.e. file not currently online)
+>= 0 - Number of subdirectory
+
+
+SEE ALSO
+
+ulibFileSubDir

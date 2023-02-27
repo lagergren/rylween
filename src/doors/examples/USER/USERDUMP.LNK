@@ -1,0 +1,8 @@
+FROM LIB:c.o "UserDump.o"
+TO "UserDump"
+LIB LIB:sc.lib LIB:amiga.lib
+SMALLCODE
+SMALLDATA
+NODEBUG
+NOICONS
+

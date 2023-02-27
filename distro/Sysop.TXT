@@ -1,0 +1,142 @@
+Welcome, dear Xenolink sysop.
+
+There is love in this work.
+There is blood, sweat and tears.
+There is a total of 5 months of work buried in the executable you now
+have downloaded.
+
+And it was both wonderful and horrible to code this game.
+
+Adventurers of Rylween - Part I, the Rise and Fall of Baron Ydarg
+is a fantasy roleplaying game for Xenolink BBS.
+
+---
+
+Install it like this for Xenolink BBS:
+
+1. Create a directory called Doors:Rylween/
+2. Copy the files Rylween, MAP.DAT and all the #?.ANS files to it.
+3. Edit your doormenu: XenolinkDoor "^20000^1^Rylween/Rylween"
+   It runs fine without any specific stack allocations on my system,
+   but do this just to be on the safe side. If two nodes use Rylween
+   at once, nice unpredictable effects will be created.
+4. Make it possible for the users to download and read through
+   the manual before they start playing.
+5. Read the manual.
+6. Have fun!
+
+---
+
+As a CLI door, run it like this:
+
+RYLWEEN <cli> <username>
+
+Example:
+
+Rylween CLI "Marcus Lagergren"
+Rylween CLI Testuser
+
+The Xenolink door is a bit faster and checks baud rate and ANSI
+graphics before running Rylween. Find another way to do this for 
+the CLI door.
+
+See above for other information.
+
+---
+
+This is a very complex game, and there is no point in starting playing
+it before you have read the manual, at least once. It is also a good
+idea to print the manual, so that you can use it as a reference during
+the game.
+
+---
+
+The unregistered version will grant all players 100 moves / day.
+The registered version will grant all players 200 moves / day.
+When playing the unregistered version, you will encounter some
+of my most fiendish beasties now and then, so it is a good idea
+to register if you want your characters to be beaten up ;-)
+
+Registration is $20 or 120 Swedish crowns.
+
+Se special update file for more info about registering.
+
+Send the money to the following address and I will send you a reg
+file:
+
+Marcus Lagergren
+Vallmovagen 22a
+S-125 52 Alvsjo
+Sweden
+
+Please register - encourage me to write "Heroes of Rylween - The Second
+Coming".
+
+Please register before August -93, I will then move to Canada for
+nine months, and if I bring my computer & board to Canada I will 
+give you my new address.
+
+---
+
+My fidonet address is 2:201/351.0 if you want to send netmails with
+bug reports and suggestions.
+
+---
+
+I want to thank the following people for beta testing/suggestions/ideas
+support/help/beer etc.
+
+Zak Ashraf       - For calling my board from the UK just to play AOR!
+Magnus Andersson - For being the laziest cosysop in the world.
+Mattias Bergvall - Well... er... hmm.... oops, fergot.
+Anders Blixt     - The first one to get hooked on AOR.
+Niklas Blomqvist - Creator of the original Rylween realm.
+David Borin      - Have fun in Luleå, man.
+Martin Darsenius - For being the almost-perfect user!
+Per Eklund       - For being the perfect user!
+Niklas Eriksson  - For constantly complaining.
+Jonathan Forbes  - For keeping my adrenalin level high. :-)
+Tommy Green      - For receiving all the complaints.
+Magnus Gustafson - For answering Marcus Hirt's letters.
+Holger Hellebro  - My first beta tester.
+Marcus Hirt      - For cluttering up my msg bases with strange discussions.
+Bob Hurst        - For Hack&Slash. (It inspired me to create AOR).
+Patrik Jarnefelt - Beta tester. Solna-dweller.
+Marcus Lagergren - For egocentricity :) - Otherwise I wouldn't have made it.
+Joakim Larsson   - Another Rylween-o-phile. (But he grew tired of it).
+Matias Larsson   - Graphics Wizard. The best of them all!
+Magnus Lilja     - For keeping my adrenalin level high. ;->
+H.P. Lovecraft   - For contributing to the atmosphere.
+Alex May         - Splooty! (And I believe you did some beta testing too?)
+Lars Siden       - Thanks for everything.
+Michael Sinz     - The creator of Enforcer.
+Karl Skagerberg  - Beta tester.
+Stefan Stark     - Another Rylween enthusiast.
+Oskar Sundberg   - For staying out of the way.
+Oskar Sodergren  - For hints and transportation.
+Dalina Steneros  - For cheering me up.
+Ron Teague       - For great support, encouragement and beta testing.
+Peter Tidestrom  - For the beer.
+Nicolaus Wirth   - For designing the Pascal language... (JUST KIDDING!!!)
+
+---
+
+Optdata: Run this every midnight or whenever you feel for it. It will
+         optimize the user data for Rylween, remove bad records, 
+         remove inactive players (with 0 experience points), these
+         have obviously only played the game once, and quickly
+         quit when they found it too complex.
+
+---
+
+Reset_Rylween: Run this script to nuke a campaign in progress or restart
+               the game when someone has won. Think twice before using 
+               it, being wiped out when you have reached level 20 will
+               effectively keep a user from calling your board again.
+
+---
+
+That's all folks! Happy gaming! And this is an adventure of EPIC
+proportions!
+
+---

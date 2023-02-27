@@ -1,0 +1,30 @@
+NAME
+
+ulibGetGlobalSectionData - Returns message/file section information
+
+
+SYNOPSIS
+
+void ulibGetGlobalSectionData(long *MsgSections, long *FileSections,
+                                       a0                a1
+
+                              long **MsgList, long **FileList)
+                                      a2             a3
+
+
+DESCRIPTION
+
+This function returns message section and file section information.
+
+After this function returns, <MsgSections> and <FileSections> will point
+to the number of configured message and file sections, respectively.
+
+<MsgList> and <FileList> will point to an array of long integers, which are
+the section numbers of the configured message and file sections.  Both lists
+are ordered from lowest to highest.
+
+
+NOTES
+
+As with almost all xenolink.library functions, the Xenolink Manager must be
+running for the values returned by this function to be valid.

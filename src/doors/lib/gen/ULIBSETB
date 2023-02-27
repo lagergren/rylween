@@ -1,0 +1,30 @@
+NAME
+
+ulibSetBit - Sets the value of a bit in a bit field
+
+
+SYNOPSIS
+
+void ulibSetBit(UBYTE *StartByte, long Position, long Value)
+                       a0              d0            d1
+
+
+DESCRIPTION
+
+This function works in the same way as ulibBit(), except that it sets bit
+number <Position> to <Value> (where <Value> is 0 or 1).
+
+<StartByte> points to the beginning of an unbounded array, and bitfields run
+in a rather strange manner (see the description of ulibBit() above).
+
+
+NOTES
+
+This function is used internally by Xenolink, and will not be useful to
+application developers.  This function will most likely be discontinued in
+version 2.0 of Xenolink.
+
+
+SEE ALSO
+
+ulibBit

@@ -1,0 +1,14 @@
+NO LONGER OPERATIONAL
+
+ulibGetXenolinkHandles
+ulibGetHandle
+ulibMemSeekToEndOfKeyFile
+ulibGetNodeConfigData
+
+
+NOT RECOMMENDED
+
+ulibClearMem
+ulibFindNewFileName
+ulibGetBit
+ulibSetBit

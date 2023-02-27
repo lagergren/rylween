@@ -1,0 +1,8 @@
+FROM LIB:c.o "HelloDOS.o"
+TO "HelloDOS"
+LIB LIB:sc.lib LIB:amiga.lib
+SMALLCODE
+SMALLDATA
+NODEBUG
+NOICONS
+

@@ -1,0 +1,76 @@
+HEY! THIS IS IMPORTANT! PLEASE READ THE WHOLE FILE!
+---------------------------------------------------
+
+1. Registration!
+
+Firstly, I want to thank all of my registered Rylween users. I am glad
+that my game has become this popular.
+
+BUT! On the 24th of August -93 I will move to Canada for 9 months!
+This means that I won't have access to my computer anymore. I have
+thought of buying a cheap NTSC machine in Canada and handle the
+registration from over there, but that's just a thought. SO PLEASE!
+Do NOT send in any registration money after the 10th of August this
+year, I will probably not get them. I will get in touch with you
+folks from the other side of the ocean some time in the middle of
+September again if all goes as planned. If I have acquired another
+computer by then I will continue to distribute the registration
+files from Canada. Otherwise my friend and fellow sysop Lars Siden
+will handle the registrations from his BBS. I repeat: DO NOT SEND
+MORE MONEY AFTER THE 10TH OF AUGUST UNTIL YOU HAVE RECEIVED
+ANOTHER MESSAGE TELLING YOU IT IS OK AGAIN.
+
+Until then, send US $20 or 120 SEK to this address!
+
+Marcus Lagergren
+Vallmovagen 22 A
+125 52 Alvsjo
+Sweden.
+
+Please try to send cash, I hate cheques.
+
+2. Changes!
+
+These are the changes I've made in this version:
+
+* RYLWEEN IS NOW ALSO A CLI DOOR! This means that it's not restricted
+  to XENOLINK anymore! To run Rylween as a CLI door, use the
+  following syntax: RYLWEEN <CLI> <Username>
+
+  For Example:
+
+  Rylween cli "Marcus Lagergren"
+  Rylween cli TestUser
+
+  It is still runnable as a XLK door though.
+	If you for some strange reason want to run Rylween as a CLI door
+  from _within_ Xenolink, use this command:
+
+  CLIDOOR "Rylween CLI ~100"
+
+  The CLI-Door does not check baud rate or ANSI compatibility. Find
+  another way to restrict entry.
+  The CLI-Door updates its graphics a bit slower than the Xeno door.
+
+* You can no longer press the wrong key in combat and skip a character
+  by mistake. Thanks to Mike Soucy for reporting this bug.
+
+* There is a more prompt after the title screen.
+
+* You can no longer talk to people who don't exist.
+  Bug report by Per Wennerstrom.
+
+* You can no longer walk around with four dead characters who
+  have all starved to death. Bug report by Per Wennerstrom & Vicente
+  Nicola.
+
+* There is now a 50% chance of a mana point regenerating each turn.
+  The previous 33% regenereated mana too slowly.
+
+* Various other small changes.
+
+Thanks go to these registered people:
+--
+Per Wennerstrom (First One), Micke Persson, David Hartje, Stephen Price.
+
+--- EOF

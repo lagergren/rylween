@@ -1,0 +1,60 @@
+NAME
+
+ulibLoadMessage - Loads a message header/message text from disk
+
+
+SYNOPSIS
+
+UBYTE ulibLoadMessage(struct LoadMessageCommand *MsgCmd)
+                                     a0
+
+
+DESCRIPTION
+
+This function accesses the message files and retrieves a message header and
+possibly message text also.
+
+The following fields of <MsgCmd> are used:
+
+   <Section>
+        The number of the section the message is in.
+
+   <Number>
+        The number of the message to load.
+
+   <Where>
+        A pointer to a (struct Msg) where the message header will be stored.
+        If this is NULL, then the message header will not be stored anywhere.
+
+   <Flags>
+        LoadText - If set, the message text will be read from disk and stored
+                   in a block of memory allocated by this function with the
+                   AllocMem() function.  The pointer to this memory block is
+                   stored in <MessageText>.
+
+                   To free this memory when done, you should use the following
+                   command:
+
+                   /* The +1 is for the null terminator */
+                   FreeMem(MsgCmd.MessageText,
+                        ulibGetMsgData(Msg, XMD_LENGTH, NULL) + 1);
+
+
+        NoSoft   - If set, this will cause all soft return pairs (0x8D 0x8D)
+                   in the message to be turned into spaces.
+
+        NoFido   - If set, all FidoNet technology lines (beginning with ^A)
+                   will be removed.  Unless you are writing a FidoNet-related
+                   program, you should set this flag.
+
+
+RETURNS
+
+0 - Failure
+1 - Success
+
+
+SEE ALSO
+
+ulibSaveMessage
+ulibUpdateMessage
