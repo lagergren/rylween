@@ -128,16 +128,21 @@ void rumour() {
             tx("Seek the holy handgrenade!\r\n");
             break;
         case 25:
-            if (npc[15].towne == 1)
+            if (npc[15].towne == 1) {
                 snprintf(str, sizeof str, "in Thord");
-            if (npc[15].towne == 2)
+            }
+            if (npc[15].towne == 2) {
                 snprintf(str, sizeof str, "in Ollk");
-            if (npc[15].towne == 3)
+            }
+            if (npc[15].towne == 3) {
                 snprintf(str, sizeof str, "in Wilor");
-            if (npc[15].towne == 4)
+            }
+            if (npc[15].towne == 4) {
                 snprintf(str, sizeof str, "in Murn");
-            if (npc[15].towne == 0)
+            }
+            if (npc[15].towne == 0) {
                 snprintf(str, sizeof str, "at %dx%d", npc[15].x, npc[15].y);
+            }
             tx("A man named %s\r\n", name[15]);
             tx("knows of the Crown.\r\n");
             tx("He lives %s!\r\n", str);
@@ -147,16 +152,21 @@ void rumour() {
             tx("somewhere near 50x30!\r\n");
             break;
         case 27:
-            if (npc[13].towne == 1)
+            if (npc[13].towne == 1) {
                 snprintf(str, sizeof str, "in Thord");
-            if (npc[13].towne == 2)
+            }
+            if (npc[13].towne == 2) {
                 snprintf(str, sizeof str, "in Ollk");
-            if (npc[13].towne == 3)
+            }
+            if (npc[13].towne == 3) {
                 snprintf(str, sizeof str, "in Wilor");
-            if (npc[13].towne == 4)
+            }
+            if (npc[13].towne == 4) {
                 snprintf(str, sizeof str, "in Murn");
-            if (npc[13].towne == 0)
+            }
+            if (npc[13].towne == 0) {
                 snprintf(str, sizeof str, "at %dx%d", npc[13].x, npc[13].y);
+            }
             tx("Seek %s if you\r\n", name[13]);
             tx("search the Temple of\r\n");
             tx("Thun! He lives %s\r\n", str);
@@ -187,7 +197,7 @@ void rumour() {
     }
     tx("\r\n");
 }
-int obdamage(int nr) {
+int32_t obdamage(int32_t nr) {
     switch (nr) {
         case 0:
             return 1;
@@ -250,7 +260,7 @@ int obdamage(int nr) {
     }
     return 0;
 }
-long obcost(int nr) {
+int32_t obcost(int32_t nr) {
     switch (nr) {
         case 0:
             return 0;
@@ -374,7 +384,7 @@ long obcost(int nr) {
     }
     return 0;
 }
-char *object(int nr) {
+char *object(int32_t nr) {
     switch (nr) {
             /* 0-19 - Weapons */
 
@@ -509,7 +519,7 @@ char *object(int nr) {
 
 void enter() {
     char c, twnname[80];
-    int i, x, y, tax;
+    int32_t i, x, y, tax;
 
     //printf("%dx%d - map: %c\n",p[cpl].x,p[cpl].y,map[p[cpl].y][p[cpl].x]);
 
@@ -550,8 +560,9 @@ void enter() {
         tax = 8;
     }
 
-    if (!twn)
+    if (!twn) {
         return;
+    }
     switch (twn) {
         case 1:
             strcpy(twnname, "Thord");
@@ -574,26 +585,25 @@ void enter() {
     if (p[cpl].lv[1] >= 5) {
         clw();
         tx("Welcome to %s\r\n", twnname);
-		tx("Our current tax rate\r\n");
-		tx("is %d%% - In order to\r\n",tax);
-		tx("enter, we must request\r\n");
-		tx("you pay %d au.\r\n\r\n",(p[cpl].gold*tax)/100);
-		tx("(P)ay to Enter\r\n");
-		tx("(L)eave\r\n");
-		c=key();
-		c=toupper(c);
-		if(c=='P')
-		{
+        tx("Our current tax rate\r\n");
+        tx("is %d%% - In order to\r\n", tax);
+        tx("enter, we must request\r\n");
+        tx("you pay %d au.\r\n\r\n", (p[cpl].gold * tax) / 100);
+        tx("(P)ay to Enter\r\n");
+        tx("(L)eave\r\n");
+        c = key();
+        c = toupper(c);
+        if (c == 'P') {
             clw();
             tx("Thank you!");
             Delay(100);
             p[cpl].gold -= (p[cpl].gold * tax) / 100;
-		}
-		else {
+        } else {
             clw();
             clr_map_window();
             update_map();
-            return; }
+            return;
+        }
     }
 
     clr_map_window();
@@ -602,42 +612,54 @@ void enter() {
         blitgfx(citypic);
         clw();
         statusline();
-        if (twn != 3)
+        if (twn != 3) {
             tx("Village of %s\r\n", twnname);
-        if (twn == 3)
+        }
+        if (twn == 3) {
             tx("City of %s\r\n", twnname);
+        }
         tx("=======================\r\n\r\n");
         tx("(M)erchant  (I)nn\r\n");
         tx("(T)avern    (G)uild\r\n");
-        if (twn != 1 && twn != 3)
+        if (twn != 1 && twn != 3) {
             tx("(S)mith\r\n");
-        if (twn == 1 || twn == 3)
+        }
+        if (twn == 1 || twn == 3) {
             tx("(S)mith     (C)hurch\r\n");
+        }
         tx("(L)eave\r\n\r\n");
 
         tx(": ");
 
         c = key();
-        if (toupper(c) == 'C' && (twn == 1 || twn == 3))
+        if (toupper(c) == 'C' && (twn == 1 || twn == 3)) {
             church();
-        if (toupper(c) == 'S')
+        }
+        if (toupper(c) == 'S') {
             smith();
-        if (toupper(c) == 'I')
+        }
+        if (toupper(c) == 'I') {
             inn();
-        if (toupper(c) == 'M')
+        }
+        if (toupper(c) == 'M') {
             merchant();
-        if (toupper(c) == 'T')
+        }
+        if (toupper(c) == 'T') {
             tavern();
-        if (toupper(c) == 'G' && !stricmp(global_name, "Marcus Lagergren"))
+        }
+        if (toupper(c) == 'G' && !stricmp(global_name, "Marcus Lagergren")) {
             guild();
+        }
         if (toupper(c) == 'L') {
             for (i = 1, x = 0; i < 17; i++) {
-                if (p[cpl].inventory[i] >= 1 && p[cpl].inventory[i] <= 19)
+                if (p[cpl].inventory[i] >= 1 && p[cpl].inventory[i] <= 19) {
                     x = 1;
+                }
             }
             for (i = 1, y = 0; i < 5; i++) {
-                if (!p[cpl].dead[i] && !p[cpl].wp[i])
+                if (!p[cpl].dead[i] && !p[cpl].wp[i]) {
                     y = 1;
+                }
             }
             if (x && y) {
                 clw();
@@ -648,17 +670,20 @@ void enter() {
                 tx("(N)o\r\n");
                 c = key();
                 c = toupper(c);
-                if (c == 'Y')
+                if (c == 'Y') {
                     weaponr();
+                }
             }
 
             for (i = 1, x = 0; i < 17; i++) {
-                if (p[cpl].inventory[i] >= 20 && p[cpl].inventory[i] <= 30)
+                if (p[cpl].inventory[i] >= 20 && p[cpl].inventory[i] <= 30) {
                     x = 1;
+                }
             }
             for (i = 1, y = 0; i < 5; i++) {
-                if (!p[cpl].dead[i] && !p[cpl].ar[i])
+                if (!p[cpl].dead[i] && !p[cpl].ar[i]) {
                     y = 1;
+                }
             }
             if (x && y) {
                 clw();
@@ -669,8 +694,9 @@ void enter() {
                 tx("(N)o\r\n");
                 c = key();
                 c = toupper(c);
-                if (c == 'Y')
+                if (c == 'Y') {
                     armourr();
+                }
             }
 
             clw();
@@ -682,15 +708,17 @@ void enter() {
 }
 
 void hut() {
-    int i, vem = 0;
+    int32_t i, vem = 0;
     char c;
 
     for (i = 1; i < 40; i++) {
-        if (npc[i].x == p[cpl].x && npc[i].y == p[cpl].y)
+        if (npc[i].x == p[cpl].x && npc[i].y == p[cpl].y) {
             vem = i;
+        }
     }
-    if (!vem)
+    if (!vem) {
         return; /* Error */
+    }
     //printf("vem: %d\n",vem);
 
     clr_map_window();
@@ -713,14 +741,15 @@ void hut() {
             update_map();
             return;
         }
-        if (c == 'T')
-            speak(0, 0, p[cpl].x, p[cpl].y);
+        if (c == 'T') {
+            speak(0, 0);
+        }
     }
 }
 
 void church() {
     char c, d, f;
-    long cost;
+    int32_t cost;
 
     clr_map_window();
     blitgfx(churchpic);
@@ -766,8 +795,9 @@ void church() {
                     } else {
                         clw();
                         cost = p[cpl].lv[d - 48] * (p[cpl].wi[d - 48] - p[cpl].ma[d - 48]) * 2;
-                        if (!cost)
+                        if (!cost) {
                             cost = p[cpl].lv[d - 48] * 2;
+                        }
                         tx("- That will be %d\r\n", cost);
                         tx("gold coins, please.\r\n\r\n");
                         tx("(P)ay\r\n");
@@ -880,12 +910,14 @@ void church() {
 }
 void smith() {
     char b, c, d;
-    int i, x, oc, pr;
-    int menu = 1;
+    int32_t i, x, oc;
+    int32_t pr;
+    int32_t menu = 1;
 
     tid++;
-    if (tid == 25)
+    if (tid == 25) {
         tid = 1;
+    }
 
     if (tid > 18 || tid < 6) {
         clw();
@@ -1002,11 +1034,12 @@ void smith() {
                         Delay(50);
                     } else {
                         clw();
-                        for (i = 1, x = 0; i < 17; i++)
+                        for (i = 1, x = 0; i < 17; i++) {
                             if (p[cpl].inventory[i] == 0) {
                                 x = i;
                                 break;
                             }
+                        }
                         if (!x) {
                             tx("You cannot carry more.\r\n");
                             Delay(50);
@@ -1043,14 +1076,19 @@ void smith() {
                         }
                         d = key();
                         d = toupper(d);
-                        if (d == 'N')
-                            if (menu == 1)
+                        if (d == 'N') {
+                            if (menu == 1) {
                                 menu = 2;
-                        if (d == 'P')
-                            if (menu == 2)
+                            }
+                        }
+                        if (d == 'P') {
+                            if (menu == 2) {
                                 menu = 1;
-                        if (d != 'N' && d != 'P')
+                            }
+                        }
+                        if (d != 'N' && d != 'P') {
                             break;
+                        }
                     }
                     oc = 0;
                     pr = 0;
@@ -1110,11 +1148,12 @@ void smith() {
                         Delay(50);
                     } else {
                         clw();
-                        for (i = 1, x = 0; i < 16; i++)
+                        for (i = 1, x = 0; i < 16; i++) {
                             if (p[cpl].inventory[i] == 0) {
                                 x = i;
                                 break;
                             }
+                        }
                         if (!x) {
                             tx("You cannot carry more.\r\n");
                             Delay(50);
@@ -1161,10 +1200,12 @@ void smith() {
                             }
                             if (b == 'B') {
                                 i = rand() % 100;
-                                if (i > 90)
+                                if (i > 90) {
                                     pr += pr / 4;
-                                if (i > 75)
+                                }
+                                if (i > 75) {
                                     pr += pr / 6;
+                                }
                                 if (i < 76) {
                                     clw();
                                     tx("No thanks.\r\n");
@@ -1172,8 +1213,9 @@ void smith() {
                                     break;
                                 }
                             }
-                            if (b == 'N')
+                            if (b == 'N') {
                                 break;
+                            }
                         }
                     }
                 }
@@ -1184,12 +1226,14 @@ void smith() {
 }
 void tavern() {
     char c, d, b;
-    int i, j, x, st, pr, xs;
-    int rumours = 0;
+    int32_t i, j, x, st, xs;
+    int32_t pr;
+    int32_t rumours = 0;
 
     tid++;
-    if (tid == 25)
+    if (tid == 25) {
         tid = 1;
+    }
 
     if (tid < 6 && tid > 1) {
         clw();
@@ -1201,9 +1245,11 @@ void tavern() {
     clr_map_window();
     blitgfx(tavernpic);
 
-    for (i = 1, x = 0; i < 5; i++)
-        if (p[cpl].cl[i] == 5)
+    for (i = 1, x = 0; i < 5; i++) {
+        if (p[cpl].cl[i] == 5) {
             x += p[cpl].ch[i] / 10;
+        }
+    }
 
     if ((rand() % 100) <= (4 + x)) {
         clw();
@@ -1286,8 +1332,9 @@ void tavern() {
         while (1) {
             c = key();
             c = toupper(c);
-            if (c == 'N' || c == 'B')
+            if (c == 'N' || c == 'B') {
                 break;
+            }
         }
         clw();
         if (c == 'B') {
@@ -1338,7 +1385,7 @@ void tavern() {
             return;
         }
         if (c == 'S') {
-            speak(1, twn, 0, 0);
+            speak(1, twn);
         }
         if (c == 'T') {
             clw();
@@ -1370,12 +1417,15 @@ void tavern() {
                     if (b == 'B') {
                         st = 100;
                     }
-                    if (p[cpl].cl[d - 48] == 5)
+                    if (p[cpl].cl[d - 48] == 5) {
                         st += 100;
-                    if (p[cpl].ch[d - 48] > 90)
+                    }
+                    if (p[cpl].ch[d - 48] > 90) {
                         st += 50;
-                    if (p[cpl].ch[d - 48] > 70)
+                    }
+                    if (p[cpl].ch[d - 48] > 70) {
                         st += 50;
+                    }
                     xs = (rand() % 150) + 1;
                     st += xs;
                     if (b == 'B') {
@@ -1386,8 +1436,9 @@ void tavern() {
                             Delay(100);
                             tx("You are thrown out.\r\n");
                             p[cpl].ch[d - 48] -= 10;
-                            if (p[cpl].ch[d - 48] < 0)
+                            if (p[cpl].ch[d - 48] < 0) {
                                 p[cpl].ch[d - 48] = 0;
+                            }
                             clr_map_window();
                             return;
                         }
@@ -1414,24 +1465,27 @@ void tavern() {
                     if (st > 100 && st < 151) {
                         tx("The mob is bored.\r\n\r\n");
                         ryl_pause();
-                        if (p[cpl].ch[d - 48])
+                        if (p[cpl].ch[d - 48]) {
                             p[cpl].ch[d - 48]--;
+                        }
                     }
                     if (st < 101) {
                         tx("Most of the crowd\r\n");
                         tx("falls asleep. The rest\r\n");
                         tx("beg you to stop.\r\n\r\n");
                         ryl_pause();
-                        if (p[cpl].ch[d - 48] >= 3)
+                        if (p[cpl].ch[d - 48] >= 3) {
                             p[cpl].ch[d - 48] -= 3;
+                        }
                     }
                 }
             }
         }
         if (c == 'R') {
             clw();
-            if (rumours < 5)
+            if (rumours < 5) {
                 rumours++;
+            }
             if (rumours > 4) {
                 tx("The tavern has suddenly\r\n");
                 tx("become very quiet.\r\n\r\n");
@@ -1510,8 +1564,9 @@ void tavern() {
                     p[cpl].gold -= pr;
                     for (i = 1; i < 5; i++) {
                         p[cpl].hp[i] += ((pr / 2) + 1);
-                        if (p[cpl].hp[i] > p[cpl].h[i])
+                        if (p[cpl].hp[i] > p[cpl].h[i]) {
                             p[cpl].hp[i] = p[cpl].h[i];
+                        }
                     }
                 }
             }
@@ -1520,11 +1575,12 @@ void tavern() {
 }
 void inn() {
     char c, d;
-    int i, pr = 0;
+    int32_t i, pr = 0;
 
     tid++;
-    if (tid == 25)
+    if (tid == 25) {
         tid = 1;
+    }
 
     clr_map_window();
     blitgfx(innpic);
@@ -1552,10 +1608,12 @@ void inn() {
                 tx("tasting dinner. Some\r\n");
                 tx("of your health returns.\r\n\r\n");
                 for (i = 1; i < 5; i++) {
-                    if (!p[cpl].dead[i])
+                    if (!p[cpl].dead[i]) {
                         p[cpl].hp[i] += 6;
-                    if (p[cpl].hp[i] > p[cpl].h[i])
+                    }
+                    if (p[cpl].hp[i] > p[cpl].h[i]) {
                         p[cpl].hp[i] = p[cpl].h[i];
+                    }
                 }
                 ryl_pause();
             }
@@ -1601,16 +1659,18 @@ void inn() {
             } else {
                 p[cpl].gold -= pr;
                 clw();
-                if (d != 'E')
+                if (d != 'E') {
                     tx("Ahh...!\r\n");
-                else
+                } else {
                     tx("The other guests giggle.\r\n");
+                }
                 Delay(50);
                 for (i = 1; i < 5; i++) {
                     if (!p[cpl].dead[i]) {
                         p[cpl].hp[i] += ((pr / 2) + 1);
-                        if (p[cpl].hp[i] > p[cpl].h[i])
+                        if (p[cpl].hp[i] > p[cpl].h[i]) {
                             p[cpl].hp[i] = p[cpl].h[i];
+                        }
                     }
                 }
             }
@@ -1657,10 +1717,12 @@ void inn() {
             ryl_pause();
             tid = 5;
             for (i = 1; i < 5; i++) {
-                if (!p[cpl].dead[i])
+                if (!p[cpl].dead[i]) {
                     p[cpl].hp[i] += p[cpl].h[i] / 4;
-                if (p[cpl].hp[i] > p[cpl].h[i])
+                }
+                if (p[cpl].hp[i] > p[cpl].h[i]) {
                     p[cpl].hp[i] = p[cpl].h[i];
+                }
             }
             clr_map_window();
             return;
@@ -1674,7 +1736,7 @@ void inn() {
             c = toupper(c);
 
             if (c == 'C') {
-                speak(2, twn, 0, 0);
+                speak(2, twn);
             } else {
                 clw();
                 clr_map_window();
@@ -1686,12 +1748,13 @@ void inn() {
 void merchant() /* HOS THE MERCHANT */
 {
     char c, d, f;
-    int i, x, y, oc, pr;
+    int32_t i, x, y, oc, pr;
     char str[10];
 
     tid++;
-    if (tid == 25)
+    if (tid == 25) {
         tid = 1;
+    }
 
     if (tid > 18 || tid < 6) {
         clw();
@@ -1771,16 +1834,19 @@ void merchant() /* HOS THE MERCHANT */
                 c = toupper(c);
                 oc = c - 64;
                 oc += 30;
-                if (oc == 37)
+                if (oc == 37) {
                     oc = 47;
+                }
                 if (oc != 47) {
-                    if (oc < 31 || oc > 36)
+                    if (oc < 31 || oc > 36) {
                         break;  // The availible items
-                                // There are others, but they
+                    }
+                    // There are others, but they
                 }  // Aren't purchasable here.
                 pr = obcost(oc);
-                if (oc == 36)
+                if (oc == 36) {
                     pr += p[cpl].lv[1] * 3;
+                }
                 clw();
                 switch (oc) {
                     case 31:
@@ -1839,9 +1905,11 @@ void merchant() /* HOS THE MERCHANT */
                         }
                     }
                     if (oc == 32) {
-                        for (i = 1, y = 0; i < 17; i++)
-                            if (p[cpl].inventory[i] == 47)
+                        for (i = 1, y = 0; i < 17; i++) {
+                            if (p[cpl].inventory[i] == 47) {
                                 y++;
+                            }
+                        }
                         // 150 + y*150 = 150(y + 1)
                         if (x + p[cpl].food > (150 + y * 150)) {
                             clw();
@@ -1851,29 +1919,35 @@ void merchant() /* HOS THE MERCHANT */
                             x = (150 + y * 150) - p[cpl].food;
                         }
                     }
-                    if (x < 0)
+                    if (x < 0) {
                         x = 0;
+                    }
                     if (p[cpl].gold < pr * x) {
                         clw();
                         tx("Too expensive!\r\n");
                         Delay(50);
                     } else {
                         p[cpl].gold -= pr * x;
-                        if (oc == 31)
+                        if (oc == 31) {
                             p[cpl].torches += x;
-                        if (oc == 32)
+                        }
+                        if (oc == 32) {
                             p[cpl].food += x;
+                        }
                         clw();
-                        if (oc == 31 || oc == 32 && x)
+                        if (oc == 31 || (oc == 32 && x)) {
                             tx("Deal!");
-                        if (oc != 31 && oc != 32)
+                        }
+                        if (oc != 31 && oc != 32) {
                             tx("Deal!");
+                        }
                         Delay(50);
                     }
                 } else {
                     pr = obcost(oc);
-                    if (oc == 36)
+                    if (oc == 36) {
                         pr += p[cpl].lv[1] * 3;
+                    }
                     tx("Price: %d\r\n\r\n", pr);
                     tx("(P)ay\r\n");
                     tx("(N)one\r\n");
@@ -1886,11 +1960,12 @@ void merchant() /* HOS THE MERCHANT */
                             tx("Too expensive!\r\n");
                             Delay(50);
                         } else {
-                            for (i = 1, x = 0; i < 17; i++)
+                            for (i = 1, x = 0; i < 17; i++) {
                                 if (p[cpl].inventory[i] == 0) {
                                     x = i;
                                     break;
                                 }
+                            }
                             if (!x) {
                                 tx("You cannot carry more.\r\n");
                                 Delay(50);

@@ -1,13 +1,13 @@
 #include <stdio.h>
 
 extern struct person {
-    int job;  // 1 Merchant
+    int32_t job;  // 1 Merchant
 
-    int nr;                     // Reference number 1-40
-    int towne;                  // What town? 0=wilderness
-    int bl;                     // What building? 1=inn, 2=tavern. Not valid for wilderness
-    int x;                      // What X coord.
-    int y;                      // What Y coord. Not valid for townes.
+    int32_t nr;                 // Reference number 1-40
+    int32_t towne;              // What town? 0=wilderness
+    int32_t bl;                 // What building? 1=inn, 2=tavern. Not valid for wilderness
+    int32_t x;                  // What X coord.
+    int32_t y;                  // What Y coord. Not valid for townes.
                                 // The wilderness X&Y coord automagically become
                                 // HH (hut), if they are set for a character
     unsigned char visited[26];  // Start at 0. Visited before???
@@ -15,11 +15,12 @@ extern struct person {
 
 main() {
     FILE *fh;
-    int i;
+    int32_t i;
     struct person p;
 
-    if (!(fh = fopen("data/npc.dat", "rb")))
+    if (!(fh = fopen("data/npc.dat", "rb"))) {
         exit(1);
+    }
 
     for (i = 1; i < 40; i++) {
         fread((char *) &p, sizeof(p), 1, fh);

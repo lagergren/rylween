@@ -7,61 +7,64 @@ void editdate(void);
 void menu(void);
 void main(void);
 
-int i, antal_spelare, senaste_dagen, dx[15], dy[15];
+int32_t i, antal_spelare, senaste_dagen, dx[15], dy[15];
 
 struct party {
     char player[30];
     char partyname[30];
     char name[5][30];
 
-    int flag[40];
+    int32_t flag[40];
 
-    int fireshield;
-    int bracelets;
-    int mastercrown;
-    int jazzyfoot;
-    int silverkey;
+    int32_t fireshield;
+    int32_t bracelets;
+    int32_t mastercrown;
+    int32_t jazzyfoot;
+    int32_t silverkey;
 
-    int pl; /* How many are they */
-    int x;
-    int y;
+    int32_t pl; /* How many are they */
+    int32_t x;
+    int32_t y;
     unsigned long gold;
-    int torches;
-    int food;
-    int tid_kvar;
+    int32_t torches;
+    int32_t food;
+    int32_t tid_kvar;
 
-    int inventory[17];
+    int32_t inventory[17];
 
-    int ws[5]; /* Wisdom */
-    int h[5];  /* Health */
-    int hp[5]; /* HitPts */
-    int wi[5]; /* Wisdom */
-    int ma[5]; /* Magic  */
-    int ch[5]; /* Charis */
+    int32_t ws[5]; /* Wisdom */
+    int32_t h[5];  /* Health */
+    int32_t hp[5]; /* HitPts */
+    int32_t wi[5]; /* Wisdom */
+    int32_t ma[5]; /* Magic  */
+    int32_t ch[5]; /* Charis */
 
-    int cl[5]; /* Class  */
-    int ra[5]; /* Race   */
-    int lv[5]; /* Level  */
+    int32_t cl[5]; /* Class  */
+    int32_t ra[5]; /* Race   */
+    int32_t lv[5]; /* Level  */
 
-    int ar[5]; /* Ready Armour */
-    int wp[5]; /* Ready Weapon */
+    int32_t ar[5]; /* Ready Armour */
+    int32_t wp[5]; /* Ready Weapon */
     unsigned long exp[5];
 
-    int dead[5]; /* Dead | Alive */
+    int32_t dead[5]; /* Dead | Alive */
 };
 struct party p[26];
 
 void main() {
     FILE *fh;
 
-    if (!(fh = fopen("data/realm.dat", "rb")))
+    if (!(fh = fopen("data/realm.dat", "rb"))) {
         exit(10);
+    }
     fread((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
     fread((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
-    for (i = 1; i < 15; i++)
+    for (i = 1; i < 15; i++) {
         fread((char *) &dx[i], sizeof(dx[i]), 1, fh);
-    for (i = 1; i < 15; i++)
+    }
+    for (i = 1; i < 15; i++) {
         fread((char *) &dy[i], sizeof(dy[i]), 1, fh);
+    }
     for (i = 1; i < antal_spelare + 1; i++) {
         fread((char *) &p[i], sizeof(p[i]), 1, fh);
     }
@@ -95,18 +98,21 @@ void menu() {
 void editdate() {
 }
 void editplrs() {
-    int i, nr;
+    int32_t i, nr;
     char str[80];
 
     printf("%cEdit Player:\n\n", 12);
-    for (i = 1; i < antal_spelare + 1; i++)
+    for (i = 1; i < antal_spelare + 1; i++) {
         printf("%2d. %-20s (%-20s)\n", i, p[i].partyname, p[i].player);
+    }
     printf("\n: ");
     gets(str);
-    if (str[0] == 0)
+    if (str[0] == 0) {
         return;
-    if (atoi(str[0]) > antal_spelare || atoi(str[0]) < 1)
+    }
+    if (atoi(str[0]) > antal_spelare || atoi(str[0]) < 1) {
         return;
+    }
     nr = atoi(str[0]);
 
     while (1) {

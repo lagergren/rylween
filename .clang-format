@@ -11,6 +11,7 @@ AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
 AllowShortBlocksOnASingleLine: Never
+InsertBraces: true
 IndentCaseLabels: true
 SpaceAfterCStyleCast: true
 AlignAfterOpenBracket: Align

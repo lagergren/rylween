@@ -2,7 +2,7 @@
 
 void reganim() {
     uint8_t i;
-    long t;
+    time_t t;
 
     time(&t);
     srand((unsigned int) t);
@@ -10,8 +10,9 @@ void reganim() {
     /* Please Register */
     /* Blit 15 times with a 30 tick delay */
 
-    if (rand() % 2)
+    if (rand() % 2) {
         return;
+    }
 
     cl();
 
@@ -24,25 +25,27 @@ void reganim() {
     tx("\x1b[31mPLEASE REGISTER!");
     Delay(150);
     c(30, 12);
-    tx("\x1b[32m%c", 219);
+    tx("\x1b[32m█");
     Delay(10);
     for (i = 30; i < 48; i++) {
         c(i, 11);
-        if (i % 2)
-            tx("\x1b[32m%c", 219);
-        else
-            tx("\x1b[33m%c", 219);
+        if (i % 2) {
+            tx("\x1b[32m█");
+        } else {
+            tx("\x1b[33m█");
+        }
         Delay(10);
     }
     c(47, 12);
-    tx("\x1b[33m%c", 219);
+    tx("\x1b[33m█");
     Delay(10);
     for (i = 47; i > 29; i--) {
         c(i, 13);
-        if (i % 2)
-            tx("\x1b[32m%c", 219);
-        else
-            tx("\x1b[33m%c", 219);
+        if (i % 2) {
+            tx("\x1b[32m█");
+        } else {
+            tx("\x1b[33m█");
+        }
         Delay(10);
     }
     Delay(100);

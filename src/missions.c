@@ -1,7 +1,7 @@
 #include "ryl.h"
 
 uint8_t mission_control() {
-    int i, gems;
+    int32_t i, gems;
     char send[144];
     char c;
 
@@ -23,8 +23,9 @@ uint8_t mission_control() {
             dungeon(12, 8);
             clr_map_window();
             update_map();
-        } else
+        } else {
             clw();
+        }
     }
 
     /******************************************************************/
@@ -42,8 +43,9 @@ uint8_t mission_control() {
             dungeon(7, 7);
             clr_map_window();
             update_map();
-        } else
+        } else {
             clw();
+        }
     }
     /******************************************************************/
     if (p[cpl].flag[1] == 1 && rand() % 100 > 90) {
@@ -121,9 +123,11 @@ uint8_t mission_control() {
             clw();
             return 1;
         }
-        for (i = 1, gems = 0; i < 17; i++)
-            if (p[cpl].inventory[i] >= 39 && p[cpl].inventory[i] <= 41)
+        for (i = 1, gems = 0; i < 17; i++) {
+            if (p[cpl].inventory[i] >= 39 && p[cpl].inventory[i] <= 41) {
                 gems++;
+            }
+        }
         if (gems < 5) {
             clw();
             tx("You don't have five\r\n");
@@ -305,21 +309,24 @@ uint8_t mission_control() {
         ryl_pause();
         clw();
         p[cpl].gold += 3578;
-        for (i = 1; i < 17; i++)
+        for (i = 1; i < 17; i++) {
             if (p[cpl].inventory[i] == 0) {
                 p[cpl].inventory[i] = 39;
                 break;
             }
-        for (i = 1; i < 17; i++)
+        }
+        for (i = 1; i < 17; i++) {
             if (p[cpl].inventory[i] == 0) {
                 p[cpl].inventory[i] = 40;
                 break;
             }
-        for (i = 1; i < 17; i++)
+        }
+        for (i = 1; i < 17; i++) {
             if (p[cpl].inventory[i] == 0) {
                 p[cpl].inventory[i] = 41;
                 break;
             }
+        }
         p[cpl].flag[23] = 8;
     }
     if (p[cpl].flag[23] == 9 && p[cpl].x == dx[6] && p[cpl].y == dy[6]) {
@@ -391,8 +398,9 @@ uint8_t mission_control() {
             clw();
             p[cpl].gold += 5645;
             for (i = 1; i < 17; i++) {
-                if (p[cpl].inventory[i] == 0)
+                if (p[cpl].inventory[i] == 0) {
                     p[cpl].inventory[i] = 25;
+                }
                 break;
             }
             tx("...There is however no\r\n");

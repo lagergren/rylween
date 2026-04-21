@@ -1,5 +1,5 @@
 CC      ?= cc
-CFLAGS  ?= -std=c99 -O0 -g -Wall -Wextra -Wno-parentheses -Werror=format-security -Isrc
+CFLAGS  ?= -std=c99 -O0 -g -Wall -Wextra -Werror=format-security -Isrc
 
 # Engine sources. Auxiliary Amiga helpers (npclist.c, reveal.c, rylreg.c,
 # optdata.c, scan.c) each carry their own main() and aren't linked into the

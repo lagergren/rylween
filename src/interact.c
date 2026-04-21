@@ -30,10 +30,12 @@ void guild() {
         while (1) {
             f = key();
             f = toupper(f);
-            if (f == 'L')
+            if (f == 'L') {
                 return;
-            if (f == 'B' || f == 'Q' || f == 'S' || f == 'T' || f == 'V')
+            }
+            if (f == 'B' || f == 'Q' || f == 'S' || f == 'T' || f == 'V') {
                 break;
+            }
         }
 
         // * ACTION * //
@@ -63,8 +65,9 @@ void guild() {
                         str[0] = 0;
                         fgets((char *) &str, sizeof(str), fh);
                         tx("%s\r", str);
-                        if (str[0] == 0)
+                        if (str[0] == 0) {
                             break;
+                        }
                     }
                     fclose(fh);
                     tx("\r\n");
@@ -82,8 +85,9 @@ void guild() {
                     fclose(fh);
                     x = atoi(str2);
                     x++;
-                    if (x == 4)
+                    if (x == 4) {
                         x = 1;
+                    }
                     snprintf(str2, sizeof str2, "data/external/bull%d.dat", x);
                     cl();
                     c(0, 0);
@@ -109,8 +113,9 @@ void guild() {
                 cl();
                 c(0, 0);
                 x = select_party();
-                if (x == cpl)
+                if (x == cpl) {
                     break;
+                }
 
                 snprintf(str2, sizeof str2, "data/internal/msg%d.dat", x);
                 tx("%s\n", str2);
@@ -137,14 +142,18 @@ void guild() {
                 clw();
                 tx("%s\r\n", p[x].partyname);
                 if (map[p[x].y][p[x].x] == '0') {
-                    if (p[x].x == 12 && p[x].y == 11)
+                    if (p[x].x == 12 && p[x].y == 11) {
                         strcpy(twn, "Thord");
-                    if (p[x].x == 48 && p[x].y == 12)
+                    }
+                    if (p[x].x == 48 && p[x].y == 12) {
                         strcpy(twn, "Ollk");
-                    if (p[x].x == 43 && p[x].y == 20)
+                    }
+                    if (p[x].x == 43 && p[x].y == 20) {
                         strcpy(twn, "Wilor");
-                    if (p[x].x == 55 && p[x].y == 29)
+                    }
+                    if (p[x].x == 55 && p[x].y == 29) {
                         strcpy(twn, "Murn");
+                    }
                     tx("are in %s.\r\n\r\n", twn);
                 } else {
                     xx = p[x].x + rand() % 5;
@@ -163,10 +172,11 @@ void guild() {
                 tx("             #        Name                 Leader             Avg Lvl          \r\n");
                 tx("            =========================================================          \r\n\r\n");
                 for (i = 1; i < antal_spelare + 1; i++) {
-                    if (p[i].x == p[cpl].x && p[i].y == p[cpl].y)
+                    if (p[i].x == p[cpl].x && p[i].y == p[cpl].y) {
                         tx("[40m             [33m%c.       [35m%-20s  [31m%-15s   [34m%3d\r\n",
                            64 + i, p[i].partyname, p[i].name[1],
                            (p[i].lv[1] + p[i].lv[2] + p[i].lv[3] + p[i].lv[4]) / 4);
+                    }
                     if (i == 20) {
                         tx("[37m<MORE>\r\n");
                         key();
@@ -206,8 +216,9 @@ uint8_t select_party() {
     while (1) {
         d = key();
         d = toupper(d);
-        if (d >= 'A' && d <= 64 + antal_spelare)
+        if (d >= 'A' && d <= 64 + antal_spelare) {
             break;
+        }
     }
     return (uint8_t) (d - 64);
 }
@@ -263,23 +274,25 @@ void editor(char *outfile, uint8_t bulletin) {
 
     if (bulletin) {
         fh2 = fopen(outfile, "w");
-        if (!fh2)
+        if (!fh2) {
             return;
+        }
     } else {
         tx("OPENING %s\r\n", outfile);
         Delay(200);
         fh2 = fopen(outfile, "a+");
-        if (!fh2)
+        if (!fh2) {
             return;
+        }
     }
 
     if (!bulletin) {
         snprintf(str2, sizeof str2, "%s, the leader of %s sent you this message:\n\n", p[cpl].name[1],
-                p[cpl].partyname);
+                 p[cpl].partyname);
         fputs(str2, fh2);
     } else {
         snprintf(str2, sizeof str2, "[37m%s, [36mthe leader of %s posted this bulletin %s %d 19%d\n",
-                p[cpl].name[1], p[cpl].partyname, mnt, kl[3], kl[1] + 80);
+                 p[cpl].name[1], p[cpl].partyname, mnt, kl[3], kl[1] + 80);
         fputs(str2, fh2);
         fputs("===============================================================================\n[37m",
               fh2);
@@ -289,19 +302,22 @@ void editor(char *outfile, uint8_t bulletin) {
     for (i = 1; i < 6; i++) {
         tx("[33m%d[34m>[37m  ", i);
         strcpy(str, getstr(75));
-        if (str[0] == 0)
+        if (str[0] == 0) {
             break;
+        }
         fputs(str, fh2);
         fputs("\n", fh2);
     }
     // SAVE
-    if (!bulletin)
+    if (!bulletin) {
         fputs("#\n", fh2);
+    }
     tx("\r\n");
-    if (!bulletin)
+    if (!bulletin) {
         tx("[37mMessage Sent...\r\n");
-    else
+    } else {
         tx("[37mBulletin Registered...\r\n");
+    }
     Delay(20);
 
     fclose(fh2);
@@ -317,8 +333,9 @@ void attackhandler() {
         }
     }
 
-    if (!x)
+    if (!x) {
         return;
+    }
 
     clw();
     tx("You have stumbled upon\r\n");
@@ -351,10 +368,12 @@ void read_internal_mail() {
 
 // TERRAIN DESCRIPTIONS - PUT HERE TO EVEN OUT THE FILE LENGTHS //
 void check_terrain(char old, char new) {
-    if (old == new)
+    if (old == new) {
         return;
-    if ((rand() % 100) > 8)
+    }
+    if ((rand() % 100) > 8) {
         return;
+    }
 
     clw();
 

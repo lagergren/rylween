@@ -14,8 +14,9 @@ void Delay(uint32_t ticks) {
             us -= chunk;
             continue;
         }
-        if (errno == EINTR)
+        if (errno == EINTR) {
             continue;
+        }
         break;
     }
 }
@@ -25,8 +26,9 @@ void getclk(char *kl) {
     struct tm *tm = localtime(&now);
 
     memset(kl, 0, 8);
-    if (!tm)
+    if (!tm) {
         return;
+    }
 
     kl[1] = (char) (tm->tm_year - 80);
     kl[2] = (char) (tm->tm_mon + 1);
@@ -39,6 +41,7 @@ void getclk(char *kl) {
 
 void str_append(char *dst, size_t dst_sz, const char *src) {
     size_t n = strlen(dst);
-    if (n + 1 < dst_sz)
+    if (n + 1 < dst_sz) {
         snprintf(dst + n, dst_sz - n, "%s", src);
+    }
 }

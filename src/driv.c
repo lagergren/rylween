@@ -6,7 +6,7 @@ extern void statusline();
 
 void spelet() {
     char cc, d;
-    int i;
+    int32_t i;
 
     clw();
     tid = 5;
@@ -48,8 +48,9 @@ void spelet() {
             while (1) {
                 cc = key();
                 cc = toupper(cc);
-                if (cc == 'S' || cc == 'Q')
+                if (cc == 'S' || cc == 'Q') {
                     break;
+                }
             }
             if (cc == 'S') {
                 clw();
@@ -173,14 +174,17 @@ void spelet() {
                 tx("Who? (1-4/Q/A)\r\n");
                 while (1) {
                     d = key();
-                    if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A')
+                    if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A') {
                         break;
+                    }
                 }
-                if (d >= '1' && d <= '4')
+                if (d >= '1' && d <= '4') {
                     show(d - 48);
+                }
                 if (toupper(d) == 'A') {
-                    for (i = 1; i < 5; i++)
+                    for (i = 1; i < 5; i++) {
                         show(i);
+                    }
                 }
                 clw();
                 break;
@@ -243,11 +247,12 @@ uint8_t drop_option() {
 void read_journal() {
     FILE *j;
     char str[90], str2[88], plrstr[6];
-    int plr = 0;
+    int32_t plr = 0;
     unsigned char line = 0;
 
-    if (!(j = fopen("data/journal", "r")))
+    if (!(j = fopen("data/journal", "r"))) {
         return;
+    }
 
     tx("\r\n============================= TRAVELLER'S JOURNAL ==============================\r\n\r\n");
 
@@ -284,43 +289,51 @@ void statusline() {
     char str[256];
     char stline[256];
 
-    if (p[cpl].food < 0)
+    if (p[cpl].food < 0) {
         p[cpl].food = 0;
+    }
     stline[0] = 0;
-    if (tid >= 6 && tid < 12)
+    if (tid >= 6 && tid < 12) {
         snprintf(stline, sizeof stline, "TIME: [33mDAWN[32m      ");
-    if (tid >= 12 && tid < 18)
+    }
+    if (tid >= 12 && tid < 18) {
         snprintf(stline, sizeof stline, "TIME: [33mMIDDAY[32m    ");
-    if (tid >= 18 && tid < 24)
+    }
+    if (tid >= 18 && tid < 24) {
         snprintf(stline, sizeof stline, "TIME: [33mTWILIGHT[32m  ");
-    if (tid == 24 || tid < 6)
+    }
+    if (tid == 24 || tid < 6) {
         snprintf(stline, sizeof stline, "TIME: [33mMIDNIGHT[32m  ");
-    if (p[cpl].food < p[cpl].pl * 3 && p[cpl].food)
+    }
+    if (p[cpl].food < p[cpl].pl * 3 && p[cpl].food) {
         str_append(stline, sizeof stline, "ST: [35mHUNGRY  ");
-    if (!p[cpl].food)
+    }
+    if (!p[cpl].food) {
         str_append(stline, sizeof stline, "ST: [31mSTARVING[32m ");
-    if (p[cpl].food && p[cpl].food >= p[cpl].pl * 3)
+    }
+    if (p[cpl].food && p[cpl].food >= p[cpl].pl * 3) {
         str_append(stline, sizeof stline, "ST: [33mOK    ");
+    }
     snprintf(str, sizeof str, "[32m X: [33m%2d   [32mY: [33m%2d[32m     ", p[cpl].x, p[cpl].y);
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "FD: [33m%4ld[32m  ", p[cpl].food);
+    snprintf(str, sizeof str, "FD: [33m%4d[32m  ", p[cpl].food);
     str_append(stline, sizeof stline, str);
     snprintf(str, sizeof str, "MV: [33m%3d[32m  ", p[cpl].tid_kvar);
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "AU: [33m%6lu[32m", p[cpl].gold);
+    snprintf(str, sizeof str, "AU: [33m%6d[32m", p[cpl].gold);
     str_append(stline, sizeof stline, str);
     c(3, 21);
     tx("[32m%s    ", stline);
     snprintf(stline, sizeof stline, "H1: [33m%3d/%3d   [32mH2: [33m%3d/%3d   [32mH3: [33m%3d/%3d   [32mH4: [33m%3d/%3d[37m",
-            p[cpl].hp[1], p[cpl].h[1], p[cpl].hp[2], p[cpl].h[2], p[cpl].hp[3], p[cpl].h[3],
-            p[cpl].hp[4], p[cpl].h[4]);
+             p[cpl].hp[1], p[cpl].h[1], p[cpl].hp[2], p[cpl].h[2], p[cpl].hp[3], p[cpl].h[3],
+             p[cpl].hp[4], p[cpl].h[4]);
     c(13, 22);
     tx("%s\r\n", stline);
     c(49, 6);
 }
 void position_locations() {
-    long t;
-    int i;
+    time_t t;
+    int32_t i;
 
     for (i = 0; i < 15; i++) {
         dx[i] = 0;
@@ -335,8 +348,9 @@ void position_locations() {
             dx[i] = (rand() % 70) + 5;
             dy[i] = (rand() % 30) + 5;
             if (map[dy[i]][dx[i]] != 'w' && map[dy[i]][dx[i]] != 'm' && map[dy[i]][dx[i]] != '0' &&
-                map[dy[i]][dx[i]] != '1' && map[dy[i]][dx[i]] != '2')
+                map[dy[i]][dx[i]] != '1' && map[dy[i]][dx[i]] != '2') {
                 break;
+            }
         }
     }
 }
@@ -345,9 +359,6 @@ void init() {
     char str[90], kl[8], d, ch;
     FILE *fh;
     uint8_t abort = 0, x = 0, i, j = 0;
-
-    char regnamn[50];
-    uint32_t checksum = 0, verify = 0;
 
     tx("[30m%c%c%c%c%c[37m", 27, 91, 48, 32, 112);
 
@@ -358,8 +369,9 @@ void init() {
         ryl_pause();
         cleanexit();
     }
-    for (i = 1; i < 41; i++)
+    for (i = 1; i < 41; i++) {
         fgets((char *) map[i], sizeof(map[i]), fh);
+    }
     fclose(fh);
 
     if (!(fh = fopen("data/realm.dat", "rb"))) {
@@ -367,22 +379,26 @@ void init() {
         senaste_dagen = 0;
         position_locations();
 
-        if (!(fh = fopen("data/realm.dat", "wb")))
+        if (!(fh = fopen("data/realm.dat", "wb"))) {
             cleanexit();
+        }
 
         fwrite((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
         fwrite((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
-        for (i = 1; i < 15; i++)
+        for (i = 1; i < 15; i++) {
             fwrite((char *) &dx[i], sizeof(dx[i]), 1, fh);
-        for (i = 1; i < 15; i++)
+        }
+        for (i = 1; i < 15; i++) {
             fwrite((char *) &dy[i], sizeof(dy[i]), 1, fh);
+        }
 
         fclose(fh);
 
         place_npcs();
     }
-    if (fh)
+    if (fh) {
         fclose(fh);
+    }
 
     cl();
     disptext("data/ansi/title.ans");
@@ -390,30 +406,7 @@ void init() {
     tx("[37m<MORE>\r\n");
     key();
 
-    /* ============================= REG FILE ============================ */
-
-    reg = 0;
-    if (fh = fopen("data/rylween.reg", "rb")) {
-        fread((char *) regnamn, sizeof(regnamn), 1, fh);
-        fread((char *) &checksum, sizeof(checksum), 1, fh);
-        fclose(fh);
-        for (i = 0; i < strlen(regnamn); i++)
-            verify += regnamn[i];
-        verify *= 5;
-        verify += strlen(regnamn) * strlen(regnamn);
-        verify += 'd';
-        verify += 'a';
-        verify += 'l';
-        verify += 'i';
-        verify += 'n';
-        verify += 'a';
-        if (verify == checksum)
-            reg = 1;
-        if (verify != checksum)
-            reg = 2;
-    }
-
-    /* =================================================================== */
+    reg = 1;
 
     load();
     getclk(kl);
@@ -428,10 +421,12 @@ void init() {
 
         for (i = 1; i < antal_spelare + 1; i++) {
             tx(".");
-            if (!reg)
+            if (!reg) {
                 p[i].tid_kvar = 75;
-            if (reg == 1)
+            }
+            if (reg == 1) {
                 p[i].tid_kvar = 175;
+            }
             Delay(2);
         }
         getclk(kl);
@@ -456,7 +451,7 @@ void init() {
                 tx("   [31mUNREGISTERED[37m copy!\r\n\r\n");
                 break;
             case 1:
-                tx("%s's copy.\r\n\r\n", regnamn);
+                tx("%s's copy.\r\n\r\n", global_name);
                 break;
             case 2:
                 cl();
@@ -470,9 +465,11 @@ void init() {
 
         /* =================================================================== */
 
-        for (i = 1, x = 0; i < antal_spelare + 1; i++)
-            if (!stricmp(global_name, p[i].player))
+        for (i = 1, x = 0; i < antal_spelare + 1; i++) {
+            if (!stricmp(global_name, p[i].player)) {
                 x = i;
+            }
+        }
         for (i = 1; i < antal_spelare + 1; i++) {
             if (p[i].silverkey == 2) {
                 tx("The struggle is over.\r\n");
@@ -485,12 +482,15 @@ void init() {
                 cleanexit();
             }
         }
-        if (!x)
+        if (!x) {
             tx("N. Create New Party\r\n");
-        if (x)
+        }
+        if (x) {
             tx("C. Continue Saved Game\r\n");
-        if (x)
+        }
+        if (x) {
             tx("T. Terminate Party\r\n");
+        }
         tx("S. View Currect Scores\r\n");
         tx("H. View Hall of Fame\r\n");
         tx("D. View Documentation\r\n");
@@ -508,7 +508,7 @@ void init() {
         switch (toupper(ch)) {
             case 'S':
                 cl();
-                                disptext("data/score.txt");
+                disptext("data/score.txt");
                 tx("\r\n");
                 tx("[37m<MORE>\r\n");
                 key();
@@ -523,7 +523,7 @@ void init() {
                 d = toupper(d);
                 if (d == 'Y') {
                     cl();
-                                        disptext("data/vscore.txt");
+                    disptext("data/vscore.txt");
                     tx("\r\n");
                     tx("[37m<MORE>\r\n");
                     key();
@@ -541,7 +541,7 @@ void init() {
                 tx("buffer now...\r\n\r\n");
                 ryl_pause();
                 cl();
-                                disptext("data/rylween.doc");
+                disptext("data/rylween.doc");
                 tx("\r\n");
                 tx("[37m<MORE>\r\n");
                 key();
@@ -553,7 +553,7 @@ void init() {
 
             case 'H':
                 cl();
-                                disptext("data/heroes.txt");
+                disptext("data/heroes.txt");
                 tx("\r\n");
                 tx("[37m<MORE>\r\n");
                 key();
@@ -574,8 +574,9 @@ void init() {
                     ryl_pause();
                     clw();
                     createparty();
-                } else
+                } else {
                     cleanexit();
+                }
                 break;
             case 'C':
                 if (x) {
@@ -587,17 +588,20 @@ void init() {
                     while (1) {
                         str[0] = 0;
                         fread((char *) str, sizeof(str), 1, fh);
-                        if (str[0] == 0)
+                        if (str[0] == 0) {
                             break;
-                        if (!stricmp(str, global_name))
+                        }
+                        if (!stricmp(str, global_name)) {
                             i++;
+                        }
                     }
                     fclose(fh);
                     if ((reg == 1 && i >= 4) || (reg == 0 && i >= 2)) {
-                        if (reg == 1)
+                        if (reg == 1) {
                             j = 4;
-                        else
+                        } else {
                             j = 2;
+                        }
                         clw();
                         tx("Sorry! You can't enter\r\n");
                         tx("the realm again today.\r\n");
@@ -620,10 +624,8 @@ void init() {
                     load();
                     abort = 1;
                     snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", p[cpl].name[1],
-                            sextext(1, 3), p[cpl].partyname);
+                             sextext(1, 3), p[cpl].partyname);
                     ryl_log(str);
-                    if (!reg)
-                        reganim();
                     last_terrain = 0;
                 } else {
                     clw();
@@ -648,18 +650,22 @@ void init() {
                     if (d == 'Y') {
                         clw();
                         tx("Editing REALM.DAT...");
-                        if (!(fh = fopen("data/realm.dat", "wb")))
+                        if (!(fh = fopen("data/realm.dat", "wb"))) {
                             cleanexit();
+                        }
                         antal_spelare--;
                         fwrite((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
                         fwrite((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
-                        for (i = 1; i < 15; i++)
+                        for (i = 1; i < 15; i++) {
                             fwrite((char *) &dx[i], sizeof(dx[i]), 1, fh);
-                        for (i = 1; i < 15; i++)
+                        }
+                        for (i = 1; i < 15; i++) {
                             fwrite((char *) &dy[i], sizeof(dy[i]), 1, fh);
+                        }
                         for (i = 1; i < antal_spelare + 2; i++) {
-                            if (i != x)
+                            if (i != x) {
                                 fwrite((char *) &p[i], sizeof(p[i]), 1, fh);
+                            }
                         }
                         fclose(fh);
                         Delay(50);
@@ -675,8 +681,9 @@ void init() {
 
                         clw();
                         tx("Editing NPC.DAT...");
-                        if (!(fh = fopen("data/npc.dat", "wb")))
+                        if (!(fh = fopen("data/npc.dat", "wb"))) {
                             cleanexit();
+                        }
                         // Om I > x (ditt party) och i for:as till antal_spelare (ej +1)
                         // npc[i].visited[x] = npc[i].visited[x+1];
                         for (i = 1; i < 40; i++) {
@@ -705,7 +712,7 @@ void init() {
 
 void save() {
     FILE *fh;
-    int i;
+    int32_t i;
     char kl[8];
 
     getclk(kl);
@@ -723,10 +730,12 @@ void save() {
 
     fwrite((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
     fwrite((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
-    for (i = 1; i < 15; i++)
+    for (i = 1; i < 15; i++) {
         fwrite((char *) &dx[i], sizeof(dx[i]), 1, fh);
-    for (i = 1; i < 15; i++)
+    }
+    for (i = 1; i < 15; i++) {
         fwrite((char *) &dy[i], sizeof(dy[i]), 1, fh);
+    }
 
     if (antal_spelare) {
         for (i = 1; i < antal_spelare + 1; i++) {
@@ -742,13 +751,14 @@ void save() {
         ryl_pause();
         cleanexit();
     }
-    for (i = 1; i < 40; i++)
+    for (i = 1; i < 40; i++) {
         fwrite((char *) &npc[i], sizeof(npc[i]), 1, fh);
+    }
     fclose(fh);
 }
 void load() {
     FILE *fh;
-    int i;
+    int32_t i;
 
     if (!(fh = fopen("data/realm.dat", "rb"))) {
         c(49, 6);
@@ -760,10 +770,12 @@ void load() {
 
     fread((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
     fread((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
-    for (i = 1; i < 15; i++)
+    for (i = 1; i < 15; i++) {
         fread((char *) &dx[i], sizeof(dx[i]), 1, fh);
-    for (i = 1; i < 15; i++)
+    }
+    for (i = 1; i < 15; i++) {
         fread((char *) &dy[i], sizeof(dy[i]), 1, fh);
+    }
 
     if (antal_spelare) {
         for (i = 1; i < antal_spelare + 1; i++) {
@@ -771,9 +783,11 @@ void load() {
         }
     }
     fclose(fh);
-    for (i = 1; i < antal_spelare + 1; i++)
-        if (!stricmp(global_name, p[i].player))
+    for (i = 1; i < antal_spelare + 1; i++) {
+        if (!stricmp(global_name, p[i].player)) {
             cpl = i;
+        }
+    }
 
     if (!(fh = fopen("data/npc.dat", "rb"))) {
         c(49, 6);
@@ -782,8 +796,9 @@ void load() {
         ryl_pause();
         cleanexit();
     }
-    for (i = 1; i < 40; i++)
+    for (i = 1; i < 40; i++) {
         fread((char *) &npc[i], sizeof(npc[i]), 1, fh);
+    }
     fclose(fh);
 
     if (!(fh = fopen("data/map.dat", "rb"))) {
@@ -794,34 +809,41 @@ void load() {
         cleanexit();
     }
 
-    for (i = 1; i < 41; i++)
+    for (i = 1; i < 41; i++) {
         fgets((char *) map[i], sizeof(map[i]), fh);
+    }
     fclose(fh);
 }
 
 char *sextext(uint8_t nr, uint8_t xx) {
     switch (p[cpl].sex[nr]) {
         case 1:
-            if (xx == 1)
+            if (xx == 1) {
                 return "he";
-            if (xx == 2)
+            }
+            if (xx == 2) {
                 return "him";
-            if (xx == 3)
+            }
+            if (xx == 3) {
                 return "his";
+            }
             break;
         case 2:
-            if (xx == 1)
+            if (xx == 1) {
                 return "she";
-            if (xx > 1)
+            }
+            if (xx > 1) {
                 return "her";
+            }
             break;
     }
     return "";
 }
 
 void createparty() {
-    int i, a, g, passed;
-    long t, tries = 0;
+    int32_t i, a, g, passed;
+    time_t t;
+    int32_t tries = 0;
     char str[80];
 
     clw();
@@ -850,8 +872,9 @@ void createparty() {
             antal_spelare--;
             cpl = 0;
             return;
-        } else
+        } else {
             break;
+        }
     }
 
     g = 1;
@@ -883,8 +906,9 @@ void createparty() {
                     antal_spelare--;
                     cpl = 0;
                     return;
-                } else
+                } else {
                     break;
+                }
             }
             p[a].name[g][0] = toupper(p[a].name[g][0]);
 
@@ -931,8 +955,9 @@ void createparty() {
                     if (p[a].ws[g] < 50) {
                         tx("Weap. skill must be > 50.\r\n");
                         Delay(50);
-                    } else
+                    } else {
                         passed = 1;
+                    }
                     break;
                 case 2:
                     passed = 1;
@@ -941,22 +966,25 @@ void createparty() {
                     if (p[a].wi[g] < 50) {
                         tx("Wisdom must be > 50.\r\n");
                         Delay(50);
-                    } else
+                    } else {
                         passed = 1;
+                    }
                     break;
                 case 4:
                     if (p[a].wi[g] < 50) {
                         tx("Wisdom must be > 50.\r\n");
                         Delay(50);
-                    } else
+                    } else {
                         passed = 1;
+                    }
                     break;
                 case 5:
                     if (p[a].ch[g] < 50) {
                         tx("Charisma must be > 50.\r\n");
                         Delay(50);
-                    } else
+                    } else {
                         passed = 1;
+                    }
                     break;
                 case 6:
                     passed = 1;
@@ -964,10 +992,11 @@ void createparty() {
             }
             if (passed) {
                 passed = 0;
-                if (p[a].cl[g] == 3 || p[a].cl[g] == 4)
+                if (p[a].cl[g] == 3 || p[a].cl[g] == 4) {
                     p[a].ma[g] = p[a].wi[g];
-                else
+                } else {
                     p[a].ma[g] = 0;
+                }
                 show(g);
                 g++;
             }
@@ -978,10 +1007,11 @@ void createparty() {
     p[a].gold = 1000;
     p[a].torches = 5;
     p[a].food = 100;
-    if (reg == 1)
+    if (reg == 1) {
         p[a].tid_kvar = 200;
-    else
+    } else {
         p[a].tid_kvar = 100;
+    }
     p[a].pl = 4;
     p[a].fireshield = 0;
     p[a].bracelets = 0;
@@ -994,16 +1024,21 @@ void createparty() {
     for (i = 0; i < 40; i++) {
         p[a].flag[i] = 0;
     }
-    for (i = 1; i < 5; i++)
+    for (i = 1; i < 5; i++) {
         p[a].lv[i] = 1;
-    for (i = 1; i < 5; i++)
+    }
+    for (i = 1; i < 5; i++) {
         p[a].ar[i] = 0;
-    for (i = 1; i < 5; i++)
+    }
+    for (i = 1; i < 5; i++) {
         p[a].lv[i] = 1;
-    for (i = 1; i < 5; i++)
+    }
+    for (i = 1; i < 5; i++) {
         p[a].exp[i] = 0;
-    for (i = 1; i < 5; i++)
+    }
+    for (i = 1; i < 5; i++) {
         p[a].dead[i] = 0;
+    }
     strcpy(p[a].player, global_name);
     clw();
     tx("Saving...\r\n");
@@ -1013,19 +1048,24 @@ void createparty() {
 
 void showparty() {
     clw();
-    tx("%d torches.\r\n", p[cpl].torches);
+    tx("%u torches.\r\n", p[cpl].torches);
     tx("%d rations.\r\n", p[cpl].food);
     tx("%d gold.\r\n\r\n", p[cpl].gold);
-    if (p[cpl].fireshield)
+    if (p[cpl].fireshield) {
         tx("You have the Shield.\r\n");
-    if (p[cpl].bracelets)
+    }
+    if (p[cpl].bracelets) {
         tx("You have the Bracelets.\r\n");
-    if (p[cpl].mastercrown)
+    }
+    if (p[cpl].mastercrown) {
         tx("You have the Crown.\r\n");
-    if (p[cpl].jazzyfoot)
+    }
+    if (p[cpl].jazzyfoot) {
         tx("You have the Foot.\r\n");
-    if (p[cpl].silverkey)
+    }
+    if (p[cpl].silverkey) {
         tx("You have the Key.\r\n");
+    }
 
     ryl_pause();
     clw();
@@ -1036,7 +1076,7 @@ void showparty() {
 
 void invlist() {
     char item[20][80];
-    int i;
+    int32_t i;
 
     for (i = 1; i < 17; i++) {
         strncpy(item[i], object(p[cpl].inventory[i]), 9);
@@ -1048,7 +1088,7 @@ void invlist() {
     }
 }
 
-void show(int nr) {
+void show(int32_t nr) {
     char race[5][15];
     char clss[7][15];
     char str[10];
@@ -1080,12 +1120,13 @@ void show(int nr) {
     tx("Level     : %d\r\n", p[cpl].lv[nr]);
     tx("Weapon    : %s\r\n", object(p[cpl].wp[nr]));
     tx("Armour    : %s\r\n\r\n", object(p[cpl].ar[nr]));
-    if (p[cpl].dead[nr])
+    if (p[cpl].dead[nr]) {
         strcpy(str, "Dead.");
-    else
+    } else {
         strcpy(str, "Alive.");
+    }
     tx("Status    : %s\r\n\r\n", str);
-    tx("Exp       : %d\r\n\r\n", p[cpl].exp[nr]);
+    tx("Exp       : %u\r\n\r\n", p[cpl].exp[nr]);
     ryl_pause();
 }
 
@@ -1093,12 +1134,13 @@ void journal(char *send_me) {
     FILE *fh;
     char str[90];
 
-    if (fh = fopen("data/journal", "r")) {
+    if ((fh = fopen("data/journal", "r"))) {
         while (1) {
             str[0] = 0;
             fgets((char *) str, sizeof(str), fh);
-            if (str[0] == 0)
+            if (str[0] == 0) {
                 break;
+            }
             if (!stricmp(str, send_me)) {
                 /* Match */
                 fclose(fh);
@@ -1108,8 +1150,9 @@ void journal(char *send_me) {
         fclose(fh);
     }
 
-    if (!(fh = fopen("data/journal", "a+")))
+    if (!(fh = fopen("data/journal", "a+"))) {
         return;
+    }
     fputs(send_me, fh);
     fclose(fh);
 }
@@ -1119,16 +1162,18 @@ void clrjr(uint8_t nr) {
     uint32_t byte[50];
     uint8_t i, j, k, current;
 
-    if (!(fh = fopen("data/journal", "r")))
+    if (!(fh = fopen("data/journal", "r"))) {
         exit(0);
+    }
 
     i = 1;
 
     while (1) {
         str[0] = 0;
         fgets((char *) str, sizeof(str), fh);
-        if (str[0] == 0)
+        if (str[0] == 0) {
             break;
+        }
         sscanf(str, "%s %s", a, b);
         if (atoi(a) == nr) {
             byte[i] = ftell(fh);
@@ -1138,8 +1183,9 @@ void clrjr(uint8_t nr) {
         }
     }
 
-    if (!(fh = fopen("data/journal", "r+")))
+    if (!(fh = fopen("data/journal", "r+"))) {
         exit(0);
+    }
 
     for (j = 1; j < i + 1; j++) {
         fseek(fh, byte[j], 0);
@@ -1154,8 +1200,9 @@ void clrjr(uint8_t nr) {
 
     current = nr + 1;
 
-    if (!(fh = fopen("data/journal", "r")))
+    if (!(fh = fopen("data/journal", "r"))) {
         exit(0);
+    }
 
     for (k = current; k < antal_spelare + 1; k++) {
         i = 1;
@@ -1163,8 +1210,9 @@ void clrjr(uint8_t nr) {
         while (1) {
             str[0] = 0;
             fgets((char *) str, sizeof(str), fh);
-            if (str[0] == 0)
+            if (str[0] == 0) {
                 break;
+            }
             sscanf(str, "%s %s", a, b);
             if (atoi(a) == current) {
                 byte[i] = ftell(fh);
@@ -1174,8 +1222,9 @@ void clrjr(uint8_t nr) {
             }
         }
 
-        if (!(fh = fopen("data/journal", "r+")))
+        if (!(fh = fopen("data/journal", "r+"))) {
             exit(0);
+        }
 
         for (j = 1; j < i + 1; j++) {
             fseek(fh, byte[j], 0);

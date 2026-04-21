@@ -29,8 +29,8 @@
 void place_npcs() {
     /* NPC: People to talk to. There are others, but not as interesting. */
 
-    int i, j, x, ut = 0;
-    long t;
+    int32_t i, j, x, ut = 0;
+    time_t t;
     FILE *fh;
 
     // Random people //
@@ -42,32 +42,38 @@ void place_npcs() {
         Delay(30);
         time(&t);
         srand((unsigned int) t + i);
-        if (j == 13)
+        if (j == 13) {
             j = 1;
+        }
         npc[i].job = j;
         npc[i].nr = i;
         npc[i].towne = (rand() % 5);
         if (npc[i].towne) {
             npc[i].bl = (rand() % 2);
             npc[i].bl++;
-        } else
+        } else {
             npc[i].bl = 0;
+        }
         if (!npc[i].towne) {
             while (1) {
                 npc[i].x = (rand() % 50) + 8;
                 npc[i].y = (rand() % 20) + 8;
-                if (npc[i].x == 48)
+                if (npc[i].x == 48) {
                     npc[i].x++;  // No hermit collisions
+                }
                 for (x = 1, ut = 0; x < i + 1; x++) {
-                    if ((npc[x].x == npc[i].x) && (npc[x].y == npc[i].y))
+                    if ((npc[x].x == npc[i].x) && (npc[x].y == npc[i].y)) {
                         ut++;
+                    }
                 }
                 if (map[npc[i].y][npc[i].x] != '0' && map[npc[i].y][npc[i].x] != '1' &&
                     map[npc[i].y][npc[i].x] != '2' && map[npc[i].y][npc[i].x] != 'm' &&
-                    map[npc[i].y][npc[i].x] != 'w')
+                    map[npc[i].y][npc[i].x] != 'w') {
                     ut++;
-                if (ut > 1)
+                }
+                if (ut > 1) {
                     break;
+                }
             }
         } else {
             npc[i].x = 0;
@@ -177,8 +183,9 @@ void place_npcs() {
         }
     }
 
-    if (!(fh = fopen("data/npc.dat", "wb")))
+    if (!(fh = fopen("data/npc.dat", "wb"))) {
         cleanexit();
+    }
     for (i = 1; i < 40; i++) {
         fwrite((char *) &npc[i], sizeof(npc[i]), 1, fh);
     }

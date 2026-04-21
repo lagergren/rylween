@@ -26,13 +26,13 @@
 #define guildpic 19
 #define encounterpic 40 /* Addera random sedan +x */
 
-extern int tid, cpl, antal_spelare, global_x, senaste_dagen, twn;
-extern int hours_pigg;
-extern int banished;
-extern int dx[15], dy[15];
+extern int32_t tid, cpl, antal_spelare, global_x, senaste_dagen, twn;
+extern int32_t hours_pigg;
+extern int32_t banished;
+extern int32_t dx[15], dy[15];
 extern char map[42][82];
-extern int reg;
-extern int day_at_game_start;
+extern int32_t reg;
+extern int32_t day_at_game_start;
 extern char global_name[30];
 extern char last_terrain;
 
@@ -42,29 +42,29 @@ extern char *jobname[];
 extern char *_version_string;
 
 struct person {
-    int job; /* 1 Merchant */
-             /* 2 Ranger   */
-             /* 3 Fighter  */
-             /* 4 Wizard   */
-             /* 5 Priest   */
-             /* 6 Thief    */
-             /* 7 Peasant  */
-             /* 8 Bard     */
-             /* 9 Drifter  */
-             /* 10Half-Orc */
-             /* 11Half-Elf */
-             /* 12Smith    */
+    int32_t job; /* 1 Merchant */
+                 /* 2 Ranger   */
+                 /* 3 Fighter  */
+                 /* 4 Wizard   */
+                 /* 5 Priest   */
+                 /* 6 Thief    */
+                 /* 7 Peasant  */
+                 /* 8 Bard     */
+                 /* 9 Drifter  */
+                 /* 10Half-Orc */
+                 /* 11Half-Elf */
+                 /* 12Smith    */
 
     /* 13Bargirl (special)*/
     /* 14Innkeeper (special)*/
     /* 15Tavernkeeper (special)*/
     /* 16Hermit*/
 
-    int nr;                    /* Reference number 1-40*/
-    int towne;                 /* What town? 0=wilderness*/
-    int bl;                    /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
-    int x;                     /* What X coord.*/
-    int y;                     /* What Y coord. Not valid for townes.*/
+    int32_t nr;                /* Reference number 1-40*/
+    int32_t towne;             /* What town? 0=wilderness*/
+    int32_t bl;                /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
+    int32_t x;                 /* What X coord.*/
+    int32_t y;                 /* What Y coord. Not valid for townes.*/
                                /* The wilderness X&Y coord automagically become*/
                                /* HH (hut), if they are set for a character*/
     unsigned char visited[26]; /* Start at 0. Visited before???*/
@@ -86,31 +86,31 @@ struct party {
     unsigned char silverkey;
 
     unsigned char pl; /* How many are they */
-    int x;
-    int y;
-    unsigned long gold;
-    unsigned long torches;
-    long food;
-    int tid_kvar;
+    int32_t x;
+    int32_t y;
+    int32_t gold;
+    uint32_t torches;
+    int32_t food;
+    int32_t tid_kvar;
 
-    int inventory[17];
+    int32_t inventory[17];
 
-    int ws[5]; /* Wisdom */
-    int h[5];  /* Health */
-    int hp[5]; /* HitPts */
-    int wi[5]; /* Wisdom */
-    int ma[5]; /* Magic  */
-    int ch[5]; /* Charis */
+    int32_t ws[5]; /* Wisdom */
+    int32_t h[5];  /* Health */
+    int32_t hp[5]; /* HitPts */
+    int32_t wi[5]; /* Wisdom */
+    int32_t ma[5]; /* Magic  */
+    int32_t ch[5]; /* Charis */
 
-    int cl[5]; /* Class  */
-    int ra[5]; /* Race   */
-    int lv[5]; /* Level  */
+    int32_t cl[5]; /* Class  */
+    int32_t ra[5]; /* Race   */
+    int32_t lv[5]; /* Level  */
 
-    int ar[5]; /* Ready Armour */
-    int wp[5]; /* Ready Weapon */
-    unsigned long exp[5];
+    int32_t ar[5]; /* Ready Armour */
+    int32_t wp[5]; /* Ready Weapon */
+    uint32_t exp[5];
 
-    int dead[5];                    /* Dead | Alive - dead[0] contains number of times door was opened today */
+    int32_t dead[5];                /* Dead | Alive - dead[0] contains number of times door was opened today */
     unsigned char sex[5];           /* 1= male , 2 = female */
     unsigned char attack_today[26]; /* parties attacked today */
                                     /* turns to zero every time the attacked
@@ -118,13 +118,13 @@ struct party {
     unsigned char waiting_mail;     /* For the guild */
     unsigned char attacked;         /* Attack bulletin to display upon login */
 
-    unsigned long kills;
+    uint32_t kills;
 
-    int empty1;
-    int empty2;
-    int empty3;
-    int empty4;
-    int empty5;
+    int32_t empty1;
+    int32_t empty2;
+    int32_t empty3;
+    int32_t empty4;
+    int32_t empty5;
 };
 
 extern struct party p[26];
@@ -147,7 +147,7 @@ void render_at(const char *, uint8_t, uint8_t);
 
 void init(void);
 void createparty(void);
-void show(int);
+void show(int32_t);
 void load(void);
 void save(void);
 char key(void);
@@ -162,7 +162,7 @@ void enter(void);
 uint8_t drop(void);
 uint8_t drop_option(void);
 void camp(void);
-void spell(int);
+void spell(int32_t);
 void quaff(void);
 char *sextext(uint8_t, uint8_t);
 void smith(void);
@@ -171,27 +171,27 @@ void inn(void);
 void merchant(void);
 void rumour(void);
 void place_npcs(void);
-void speak(int, int, int, int);
-void reply_chitchat(int, int);
-char *object(int);
-long obcost(int);
-int obdamage(int);
-void encounter(int, int);
+void speak(int32_t, int32_t);
+void reply_chitchat(int32_t, int32_t);
+char *object(int32_t);
+int32_t obcost(int32_t);
+int32_t obdamage(int32_t);
+void encounter(int32_t, int32_t);
 void losegame(void);
 void expcheck(void);
 void showparty(void);
 void church(void);
 void hut(void);
-void dungeon(int, int);
-void flaggkoll(int);
-int frg(char);
+void dungeon(int32_t, int32_t);
+void flaggkoll(int32_t);
+int32_t frg(char);
 void position_locations(void);
 char *kar(char);
 void ydarg(void);
 void confrontation(void);
 void invlist(void);
 void statusline(void);
-char cf(int);
+char cf(int32_t);
 void scorelist(void);
 void hunt(void);
 void journal(char *);

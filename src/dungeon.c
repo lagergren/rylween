@@ -1,14 +1,15 @@
 #include "ryl.h"
 
-void dungeon(int levels, int flag) {
+void dungeon(int32_t levels, int32_t flag) {
     /*
 	** The flag determines if it is a special dungeon.
 	** Set to 0 if it's a randomly discovered one.
 	*/
 
-    int i, cl, oc, lvl[26];
+    int32_t i, cl, oc, lvl[26];
     char c, d, ans[80];
-    long t, x = 0;
+    time_t t;
+    int32_t x = 0;
 
     blitgfx(insidecavepic);
 
@@ -214,7 +215,7 @@ void dungeon(int levels, int flag) {
                 if (c == 'O') {
                     lvl[cl] = 0;
                     x = 4;
-                    for (i = 1; i < 5; i++)
+                    for (i = 1; i < 5; i++) {
                         if (p[cpl].cl[i] == 2) {
                             clw();
                             tx("%s checks the\r\n", p[cpl].name[i]);
@@ -223,6 +224,7 @@ void dungeon(int levels, int flag) {
                             x = 2;
                             break;
                         }
+                    }
                     if ((rand() % 10) < x) {
                         clw();
                         tx("A TRAP!\r\n");
@@ -256,8 +258,9 @@ void dungeon(int levels, int flag) {
                         }
                         for (i = 1; i < 5; i++) {
                             p[cpl].hp[i] -= 4 * p[cpl].lv[i];
-                            if (p[cpl].hp[i] < 1)
+                            if (p[cpl].hp[i] < 1) {
                                 p[cpl].hp[i] = 1;
+                            }
                         }
                         ryl_pause();
                     }
@@ -470,8 +473,9 @@ void dungeon(int levels, int flag) {
                 tx("7. Violet Square\r\n");
                 while (1) {
                     c = key();
-                    if (c >= '1' && c <= '7')
+                    if (c >= '1' && c <= '7') {
                         break;
+                    }
                 }
                 if ((cl == 13 && c == '7') || (cl == 14 && c == '6') || (cl == 15 && c == '5') ||
                     (cl == 16 && c == '4') || (cl == 17 && c == '3') || (cl == 18 && c == '2') ||
@@ -805,8 +809,9 @@ void dungeon(int levels, int flag) {
 
         /* Pick an alternative - Encounter over */
 
-        if (cl >= 20)
+        if (cl >= 20) {
             lvl[cl] = 0;
+        }
         while (1) {
             clw();
             statusline();
@@ -816,26 +821,35 @@ void dungeon(int levels, int flag) {
             c = key();
             c = toupper(c);
 
-            if (c == '?')
+            if (c == '?') {
                 help();
-            if (c == 'L')
+            }
+            if (c == 'L') {
                 drop();
-            if (c == 'T')
+            }
+            if (c == 'T') {
                 armouroff();
-            if (c == 'P')
+            }
+            if (c == 'P') {
                 weaponoff();
-            if (c == 'W')
+            }
+            if (c == 'W') {
                 weaponr();
-            if (c == 'R')
+            }
+            if (c == 'R') {
                 armourr();
-            if (c == 'Q')
+            }
+            if (c == 'Q') {
                 quaff();
+            }
             if (c == 'Z') {
                 spell(1); /* 0 means over ground */
                 if (banished) {
-                    for (i = 1; i < levels; i++)
-                        if (lvl[i] >= 3 && lvl[i] <= 5)
+                    for (i = 1; i < levels; i++) {
+                        if (lvl[i] >= 3 && lvl[i] <= 5) {
                             lvl[i] = 0;
+                        }
+                    }
                 }
             }
             if (c == 'V') {
@@ -844,14 +858,17 @@ void dungeon(int levels, int flag) {
                 tx("Who? (1-4/Q/A)\r\n");
                 while (1) {
                     d = key();
-                    if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A')
+                    if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A') {
                         break;
+                    }
                 }
-                if (d >= '1' && d <= '4')
+                if (d >= '1' && d <= '4') {
                     show(d - 48);
+                }
                 if (toupper(d) == 'A') {
-                    for (i = 1; i < 5; i++)
+                    for (i = 1; i < 5; i++) {
                         show(i);
+                    }
                 }
                 clw();
             }
@@ -865,8 +882,9 @@ void dungeon(int levels, int flag) {
                     ryl_pause();
                     clw();
                 } else {
-                    if (cl < levels)
+                    if (cl < levels) {
                         p[cpl].torches--;
+                    }
                     if (cl == levels) {
                         clw();
                         tx("The cave doesn't\r\n");

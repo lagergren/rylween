@@ -7,19 +7,19 @@
 ** The last one breaks the double dome
 */
 
-void encounter(int foe, int mandatory) {
+void encounter(int32_t foe, int32_t mandatory) {
     char fn[80], str[80], b, c, d;
-    int n1, n2; /* Min & Max nr */
-    int h1, h2; /* Min & Max hp */
-    int sp;     /* Fire frost hold */
-    int im;     /* Immune to magic? */
-    int ws;     /* WS */
-    int x, i, mh[15], deadc[15], vem, dp, g, noc, mhtemp, spelldamage;
-    int oc;
-    long t;
+    int32_t n1, n2; /* Min & Max nr */
+    int32_t h1, h2; /* Min & Max hp */
+    int32_t sp;     /* Fire frost hold */
+    int32_t im;     /* Immune to magic? */
+    int32_t ws;     /* WS */
+    int32_t x, i, mh[15], deadc[15], vem, dp, g, noc, mhtemp, spelldamage;
+    int32_t oc;
+    time_t t;
     uint8_t defend = 0;
 
-    int antimagic = 0, confused = 0, held = 0, playerheld = 0, playerconfused = 0;
+    int32_t antimagic = 0, confused = 0, held = 0, playerheld = 0, playerconfused = 0;
 
     clw();
     tx("ENCOUNTER!\r\n\r\n");
@@ -617,32 +617,38 @@ void encounter(int foe, int mandatory) {
 
     noc = (rand() % n2);
     noc++;
-    if (noc < n1)
+    if (noc < n1) {
         noc = n1;
+    }
     h1 += ((p[cpl].lv[1] + p[cpl].lv[2] + p[cpl].lv[3] + p[cpl].lv[4]) / 4) * 2;
-    if (p[cpl].lv[1] > 2)
+    if (p[cpl].lv[1] > 2) {
         h1 += p[cpl].lv[1] * 2;
+    }
     h2 += p[cpl].lv[1] * 3;
-    if (h1 > h2)
+    if (h1 > h2) {
         h1 = h2;
+    }
 
-    if (noc > 8)
+    if (noc > 8) {
         noc = 8;
+    }
 
     ws += p[cpl].lv[1];
 
     for (i = 1; i < noc + 1; i++) {
         mhtemp = (rand() % h2);
         mhtemp++;
-        if (mhtemp < h1)
+        if (mhtemp < h1) {
             mhtemp = h1;
+        }
         mh[i] = mhtemp;
         deadc[i] = 0;
     }
 
     snprintf(str, sizeof str, "%d %s", noc, fn);
-    if (noc > 1)
+    if (noc > 1) {
         str_append(str, sizeof str, "s");
+    }
     while (1) {
         clw();
         tx("You face\r\n");
@@ -652,8 +658,9 @@ void encounter(int foe, int mandatory) {
 
         c = key();
         c = toupper(c);
-        if (c == 'F' || c == 'R')
+        if (c == 'F' || c == 'R') {
             break;
+        }
     }
     if (c == 'R') {
         if (!mandatory) {
@@ -695,13 +702,15 @@ void encounter(int foe, int mandatory) {
             tx("(D)efend\r\n");
             tx("(U)se Item\r\n");
             tx("(B)attle Cry\r\n");
-            if (p[cpl].cl[g] == 3)
+            if (p[cpl].cl[g] == 3) {
                 tx("(C)ast Spell\r\n");
+            }
             while (1) {
                 c = key();
                 c = toupper(c);
-                if (c == 'U' || c == 'D' || c == 'A' || c == 'B' || c == 'C')
+                if (c == 'U' || c == 'D' || c == 'A' || c == 'B' || c == 'C') {
                     break;
+                }
             }
 
             /****************************************************************************/
@@ -732,11 +741,12 @@ void encounter(int foe, int mandatory) {
                             switch (oc) {
                                 case 100:
                                     p[cpl].inventory[d - 64] = 0;
-                                    for (i = 1, vem = 0; i < noc + 1; i++)
+                                    for (i = 1, vem = 0; i < noc + 1; i++) {
                                         if (!deadc[i]) {
                                             vem = i;
                                             break;
                                         }
+                                    }
                                     if (vem) {
                                         spelldamage = 5 + (rand() % 7) + p[cpl].lv[g];
                                         clw();
@@ -806,11 +816,12 @@ void encounter(int foe, int mandatory) {
 
                                 case 104:
                                     p[cpl].inventory[d - 64] = 0;
-                                    for (i = 1, vem = 0; i < noc + 1; i++)
+                                    for (i = 1, vem = 0; i < noc + 1; i++) {
                                         if (!deadc[i]) {
                                             vem = i;
                                             break;
                                         }
+                                    }
                                     if (vem) {
                                         clw();
                                         tx("%s summons death\r\n", p[cpl].name[g]);
@@ -831,8 +842,9 @@ void encounter(int foe, int mandatory) {
                                     tx("On Whom? (1-4)\r\n");
                                     while (1) {
                                         d = key();
-                                        if (d >= '1' && d <= '4')
+                                        if (d >= '1' && d <= '4') {
                                             break;
+                                        }
                                     }
                                     p[cpl].hp[d - 48] = p[cpl].h[d - 48];
                                     clw();
@@ -866,9 +878,11 @@ void encounter(int foe, int mandatory) {
                                     tx("healed!\r\n\r\n");
                                     ryl_pause();
                                     clw();
-                                    for (i = 1; i < 5; i++)
-                                        if (!p[cpl].dead[i])
+                                    for (i = 1; i < 5; i++) {
+                                        if (!p[cpl].dead[i]) {
                                             p[cpl].hp[i] = p[cpl].h[i];
+                                        }
+                                    }
                                     break;
 
                                 case 108:
@@ -876,8 +890,9 @@ void encounter(int foe, int mandatory) {
                                     tx("On Whom? (1-4)\r\n");
                                     while (1) {
                                         b = key();
-                                        if (b >= '1' && b <= '4')
+                                        if (b >= '1' && b <= '4') {
                                             break;
+                                        }
                                     }
                                     if (p[cpl].dead[b - 48]) {
                                         p[cpl].dead[b - 48] = 0;
@@ -913,9 +928,11 @@ void encounter(int foe, int mandatory) {
                                     tx("cry, you attack the\r\n");
                                     tx("mortally wounded foes!\r\n");
                                     Delay(150);
-                                    for (i = 1; i < noc + 1; i++)
-                                        if (!deadc[i])
+                                    for (i = 1; i < noc + 1; i++) {
+                                        if (!deadc[i]) {
                                             mh[i] = 1 + (rand() % 3);
+                                        }
+                                    }
                                     break;
 
                                 case 110:
@@ -929,11 +946,12 @@ void encounter(int foe, int mandatory) {
                                     tx("KA-BLAM!\r\n\r\n");
                                     Delay(75);
                                     clw();
-                                    for (i = 1; i < noc + 1; i++)
+                                    for (i = 1; i < noc + 1; i++) {
                                         if (!deadc[i]) {
                                             mh[i] /= 4;
                                             mh[i]++;
                                         }
+                                    }
                                     break;
 
                                 case 111:
@@ -966,8 +984,9 @@ void encounter(int foe, int mandatory) {
                     tx("7. Abort\r\n");
                     while (1) {
                         d = key();
-                        if (d >= '1' && d <= '7')
+                        if (d >= '1' && d <= '7') {
                             break;
+                        }
                     }
                     if (im) {
                         clw();
@@ -988,16 +1007,18 @@ void encounter(int foe, int mandatory) {
                                 clw();
                                 tx("Who?\r\n\r\n");
                                 for (i = 1; i < noc + 1; i++) {
-                                    if (deadc[i])
+                                    if (deadc[i]) {
                                         strcpy(str, "Dead.");
-                                    else
+                                    } else {
                                         strcpy(str, "Alive.");
+                                    }
                                     tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
                                 }
                                 d = key();
                                 d = toupper(d);
-                                if (d >= 'A' && d <= 64 + noc && !deadc[d - 64])
+                                if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
                                     break;
+                                }
                             }
                             vem = d - 64;
                             spelldamage = p[cpl].lv[g] * ((rand() % 7) + 2);
@@ -1073,16 +1094,18 @@ void encounter(int foe, int mandatory) {
                                 clw();
                                 tx("Who?\r\n\r\n");
                                 for (i = 1; i < noc + 1; i++) {
-                                    if (deadc[i])
+                                    if (deadc[i]) {
                                         strcpy(str, "Dead.");
-                                    else
+                                    } else {
                                         strcpy(str, "Alive.");
+                                    }
                                     tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
                                 }
                                 d = key();
                                 d = toupper(d);
-                                if (d >= 'A' && d <= 64 + noc && !deadc[d - 64])
+                                if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
                                     break;
+                                }
                             }
                             vem = d - 64;
                             if (rand() % 200 < mh[vem]) {
@@ -1151,16 +1174,18 @@ void encounter(int foe, int mandatory) {
                 tx("(You manage to scare your\r\n");
                 tx(" enemies enough to get\r\n");
                 tx(" them off guard.)\r\n");
-                if (ws > 4)
+                if (ws > 4) {
                     ws -= 4;
+                }
                 Delay(75);
             }
             /****************************************************************************/
             if (c == 'D') {
-                if (p[cpl].hp[g] + (p[cpl].lv[g]) > p[cpl].h[g])
+                if (p[cpl].hp[g] + (p[cpl].lv[g]) > p[cpl].h[g]) {
                     p[cpl].hp[g] = p[cpl].h[g];
-                else
+                } else {
                     p[cpl].hp[g] += (p[cpl].lv[g]);
+                }
                 clw();
                 if (defend < 5) {
                     tx("You gain some hits pts\r\n");
@@ -1172,10 +1197,12 @@ void encounter(int foe, int mandatory) {
                     Delay(50);
                 }
                 defend++;
-                if (defend > 250)
+                if (defend > 250) {
                     defend = 250;
-                if (ws > 2)
+                }
+                if (ws > 2) {
                     ws -= 2;
+                }
             }
             /****************************************************************************/
             if (c == 'A') {
@@ -1183,21 +1210,24 @@ void encounter(int foe, int mandatory) {
                     clw();
                     tx("Who?\r\n\r\n");
                     for (i = 1; i < noc + 1; i++) {
-                        if (deadc[i])
+                        if (deadc[i]) {
                             strcpy(str, "Dead.");
-                        else
+                        } else {
                             strcpy(str, "Alive.");
+                        }
                         tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
                     }
                     d = key();
                     d = toupper(d);
-                    if (d >= 'A' && d <= 64 + noc && !deadc[d - 64])
+                    if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
                         break;
+                    }
                 }
                 vem = d - 64;
                 x = p[cpl].ws[g];
-                if (playerconfused)
+                if (playerconfused) {
                     x /= 3;
+                }
                 if (rand() % 100 <= x) {
                     /* HIT */
                     dp = obdamage(p[cpl].wp[g]);
@@ -1223,9 +1253,11 @@ void encounter(int foe, int mandatory) {
             }
             /* SLUTET */
 
-            for (i = 1, x = 0; i < noc + 1; i++)
-                if (!deadc[i])
+            for (i = 1, x = 0; i < noc + 1; i++) {
+                if (!deadc[i]) {
                     x = 1;
+                }
+            }
             if (!x) {
                 /* WIN */
                 /* 100-111, 36-46 */
@@ -1239,18 +1271,20 @@ void encounter(int foe, int mandatory) {
                 tx("and %d gold pieces.\r\n\r\n", ((noc * (h2 / 7) * (ws / 4)) / 4));
                 Delay(50);
                 p[cpl].kills += noc;
-                for (i = 1, x = 0; i < 17; i++)
+                for (i = 1, x = 0; i < 17; i++) {
                     if (p[cpl].inventory[i] == 0) {
                         x = i;
                         break;
                     }
+                }
                 i = 0;
                 if (x) {
                     if (rand() % 100 < 5) {
-                        if (rand() % 100 > 40)
+                        if (rand() % 100 > 40) {
                             i = 36 + (rand() % 11);
-                        else
+                        } else {
                             i = 100 + (rand() % 12);
+                        }
                         clw();
                         tx("You find a\r\n");
                         tx("%s.\r\n", object(i));
@@ -1259,9 +1293,11 @@ void encounter(int foe, int mandatory) {
                     }
                 }
                 p[cpl].gold += (noc * (h2 / 7) * (ws / 4));
-                for (i = 1; i < 5; i++)
-                    if (!p[cpl].dead[i])
+                for (i = 1; i < 5; i++) {
+                    if (!p[cpl].dead[i]) {
                         p[cpl].exp[i] += ((noc * (h2 / 4) * (ws / 4)) + sp * 3);
+                    }
+                }
                 expcheck();
                 clr_map_window();
                 clw();
@@ -1277,8 +1313,9 @@ void encounter(int foe, int mandatory) {
             g = 1;
             x = 1;
             while (x < noc + 1) {
-                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4])
+                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4]) {
                     losegame();
+                }
                 if (!deadc[x] && !held) {
                     if (!antimagic && sp &&
                         (rand() % 100) < (15 + sp / 2)) /* MOSTERS PRACTICE NASTY MAGIC */
@@ -1291,8 +1328,9 @@ void encounter(int foe, int mandatory) {
                                 tx("Frost Finger\r\n");
                                 while (1) {
                                     vem = (rand() % 4) + 1;
-                                    if (!p[cpl].dead[vem])
+                                    if (!p[cpl].dead[vem]) {
                                         break;
+                                    }
                                 }
                                 tx("on %s!\r\n", p[cpl].name[vem]);
                                 Delay(50);
@@ -1350,8 +1388,9 @@ void encounter(int foe, int mandatory) {
                     } else {
                         while (1) {
                             vem = (rand() % 4) + 1;
-                            if (!p[cpl].dead[vem])
+                            if (!p[cpl].dead[vem]) {
                                 break;
+                            }
                         }
                         clw();
                         tx("%s attacks\r\n", fn);
@@ -1361,14 +1400,16 @@ void encounter(int foe, int mandatory) {
                             dp = mh[x] / 6;
                             dp += rand() % 10;
                             dp -= obdamage(p[cpl].ar[vem]);
-                            if (dp < 1)
+                            if (dp < 1) {
                                 dp = 1;
+                            }
                             tx("And hits for\r\n");
                             tx("%d damage pts!!!\r\n", dp);
                             p[cpl].hp[vem] -= dp;
                             if (p[cpl].hp[vem] <= 0) {
-                                if (p[cpl].pl)
+                                if (p[cpl].pl) {
                                     p[cpl].pl--;
+                                }
                                 p[cpl].hp[vem] = 0;
                                 p[cpl].dead[vem] = 1;
                                 tx("[31m%s DIES!!![37m\r\n", p[cpl].name[vem]);
@@ -1394,24 +1435,29 @@ void encounter(int foe, int mandatory) {
                 tx("PARTY IS HELD!\r\n");
                 Delay(50);
             } else {
-                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4])
+                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4]) {
                     losegame();
+                }
                 statusline();
                 tx("You still face\r\n");
-                for (i = 1, x = 0; i < noc + 1; i++)
-                    if (!deadc[i])
+                for (i = 1, x = 0; i < noc + 1; i++) {
+                    if (!deadc[i]) {
                         x++;
+                    }
+                }
                 snprintf(str, sizeof str, "%d %s", x, fn);
-                if (x > 1)
+                if (x > 1) {
                     str_append(str, sizeof str, "s");
+                }
                 tx("%s\r\n\r\n", str);
                 tx("(F)ight\r\n");
                 tx("(R)un\r\n");
                 while (1) {
                     c = key();
                     c = toupper(c);
-                    if (c == 'F')
+                    if (c == 'F') {
                         break;
+                    }
                     if (c == 'R') {
                         if (rand() % 100 <= 30 || mandatory) {
                             clw();
@@ -1435,69 +1481,97 @@ void encounter(int foe, int mandatory) {
 /****************************************************************************/
 
 void expcheck() {
-    int i, l, add[5];
-    unsigned long e;
+    int32_t i, l, add[5];
+    uint32_t e;
 
-    for (i = 1; i < 5; i++)
+    for (i = 1; i < 5; i++) {
         add[i] = 0;
+    }
 
     for (i = 1; i < 5; i++) {
         l = p[cpl].lv[i];
         e = p[cpl].exp[i];
-        if (l < 2 && e >= 2000)
+        if (l < 2 && e >= 2000) {
             add[i]++;
-        if (l < 3 && e >= 4000)
+        }
+        if (l < 3 && e >= 4000) {
             add[i]++;
-        if (l < 4 && e >= 8000)
+        }
+        if (l < 4 && e >= 8000) {
             add[i]++;
-        if (l < 5 && e >= 12000)
+        }
+        if (l < 5 && e >= 12000) {
             add[i]++;
-        if (l < 6 && e >= 20000)
+        }
+        if (l < 6 && e >= 20000) {
             add[i]++;
-        if (l < 7 && e >= 28000)
+        }
+        if (l < 7 && e >= 28000) {
             add[i]++;
-        if (l < 8 && e >= 36000)
+        }
+        if (l < 8 && e >= 36000) {
             add[i]++;
-        if (l < 9 && e >= 48000)
+        }
+        if (l < 9 && e >= 48000) {
             add[i]++;
-        if (l < 10 && e >= 54000)
+        }
+        if (l < 10 && e >= 54000) {
             add[i]++;
-        if (l < 11 && e >= 64000)
+        }
+        if (l < 11 && e >= 64000) {
             add[i]++;
-        if (l < 12 && e >= 74000)
+        }
+        if (l < 12 && e >= 74000) {
             add[i]++;
-        if (l < 13 && e >= 86000)
+        }
+        if (l < 13 && e >= 86000) {
             add[i]++;
-        if (l < 14 && e >= 98000)
+        }
+        if (l < 14 && e >= 98000) {
             add[i]++;
-        if (l < 15 && e >= 110000)
+        }
+        if (l < 15 && e >= 110000) {
             add[i]++;
-        if (l < 16 && e >= 125000)
+        }
+        if (l < 16 && e >= 125000) {
             add[i]++;
-        if (l < 17 && e >= 150000)
+        }
+        if (l < 17 && e >= 150000) {
             add[i]++;
-        if (l < 18 && e >= 180000)
+        }
+        if (l < 18 && e >= 180000) {
             add[i]++;
-        if (l < 19 && e >= 240000)
+        }
+        if (l < 19 && e >= 240000) {
             add[i]++;
-        if (l < 20 && e >= 300000)
+        }
+        if (l < 20 && e >= 300000) {
             add[i]++;
-        if (l < 21 && e >= 400000)
+        }
+        if (l < 21 && e >= 400000) {
             add[i]++;
-        if (l < 22 && e >= 550000)
+        }
+        if (l < 22 && e >= 550000) {
             add[i]++;
-        if (l < 23 && e >= 700000)
+        }
+        if (l < 23 && e >= 700000) {
             add[i]++;
-        if (l < 24 && e >= 900000)
+        }
+        if (l < 24 && e >= 900000) {
             add[i]++;
-        if (l < 25 && e >= 1100000)
+        }
+        if (l < 25 && e >= 1100000) {
             add[i]++;
-        if (l < 26 && e >= 1500000)
+        }
+        if (l < 26 && e >= 1500000) {
             add[i]++;
-        if (l < 27 && e >= 2000000)
+        }
+        if (l < 27 && e >= 2000000) {
             add[i]++;
-        if (l < 28 && e >= 2800000)
+        }
+        if (l < 28 && e >= 2800000) {
             add[i]++;
+        }
     }
 
     for (i = 1; i < 5; i++) {
@@ -1513,48 +1587,54 @@ void expcheck() {
                     p[cpl].h[i] += 8;
                     p[cpl].wi[i] += 1;
                     p[cpl].ch[i] += 1;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3)
+                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
                         p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    }
                     break;
                 case 2:
                     p[cpl].ws[i] += 1;
                     p[cpl].h[i] += 5;
                     p[cpl].wi[i] += 1;
                     p[cpl].ch[i] += 2;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3)
+                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
                         p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    }
                     break;
                 case 3:
                     p[cpl].ws[i] += 1;
                     p[cpl].h[i] += 4;
                     p[cpl].wi[i] += 7;
                     p[cpl].ch[i] += 2;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3)
+                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
                         p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    }
                     break;
                 case 4:
                     p[cpl].ws[i] += 1;
                     p[cpl].h[i] += 5;
                     p[cpl].wi[i] += 8;
                     p[cpl].ch[i] += 3;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3)
+                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
                         p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    }
                     break;
                 case 5:
                     p[cpl].ws[i] += 2;
                     p[cpl].h[i] += 7;
                     p[cpl].wi[i] += 2;
                     p[cpl].ch[i] += 6;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3)
+                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
                         p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    }
                     break;
                 case 6:
                     p[cpl].ws[i] += 2;
                     p[cpl].h[i] += 8;
                     p[cpl].wi[i] += 3;
                     p[cpl].ch[i] += 3;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3)
+                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
                         p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    }
                     break;
             }
         }

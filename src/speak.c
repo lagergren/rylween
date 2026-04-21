@@ -87,10 +87,10 @@
 **
 */
 
-void speak(int bld, int tow, int xxx, int yyy) {
-    int talk, i, j, x, reference[40];
+void speak(int32_t bld, int32_t tow) {
+    int32_t talk, i, j, x, reference[40];
     char c, d;
-    int rumours = 0;
+    int32_t rumours = 0;
 
     clw();
     if (tow) {
@@ -111,27 +111,33 @@ void speak(int bld, int tow, int xxx, int yyy) {
         tx("\r\n");
         c = key();
         c = toupper(c);
-        if (c < 65 || c > (j + 63))
+        if (c < 65 || c > (j + 63)) {
             return;
+        }
         talk = reference[c - 64];
     } else {
-        for (i = 1, talk = 0; i < 40; i++)
-            if (npc[i].x == p[cpl].x && npc[i].y == p[cpl].y)
+        for (i = 1, talk = 0; i < 40; i++) {
+            if (npc[i].x == p[cpl].x && npc[i].y == p[cpl].y) {
                 talk = i;
-        if (!talk)
+            }
+        }
+        if (!talk) {
             return; /* Error */
+        }
     }
 
     if (npc[talk].visited[cpl]) {
         clw();
         tx("%s nods as\r\n", name[talk]);
-        if (npc[talk].job != 13)
+        if (npc[talk].job != 13) {
             tx("he recognizes you.\r\n");
-        else
+        } else {
             tx("she recognizes you.\r\n");
+        }
         Delay(40);
-    } else
+    } else {
         npc[talk].visited[cpl] = 1;
+    }
 
     while (1) {
         /* Flag-koll */
@@ -441,9 +447,11 @@ void speak(int bld, int tow, int xxx, int yyy) {
                             tx("exhausting hour\r\n");
                             tx("upstairs.\r\n");
                             tx("(PERVERT!) ;-)\r\n\r\n");
-                            for (i = 1; i < 5; i++)
-                                if (p[cpl].hp[i] > 1)
+                            for (i = 1; i < 5; i++) {
+                                if (p[cpl].hp[i] > 1) {
                                     p[cpl].hp[i]--;
+                                }
+                            }
                             break;
                         }
                         break;
@@ -467,7 +475,7 @@ void speak(int bld, int tow, int xxx, int yyy) {
     }
 }
 
-void reply_chitchat(int subj, int jb) {
+void reply_chitchat(int32_t subj, int32_t jb) {
     if (subj == 0) {
         switch (jb) {
             case 1:
@@ -649,8 +657,8 @@ void reply_chitchat(int subj, int jb) {
         }
     }
 }
-void flaggkoll(int vem) {
-    int i, x, oc;
+void flaggkoll(int32_t vem) {
+    int32_t i, x, oc;
     char str[80];
     char send[144];
     char c, d;
@@ -712,16 +720,21 @@ void flaggkoll(int vem) {
         /*****************************************************************/
         case 2:
             if (p[cpl].flag[2] == 0) {
-                if (npc[14].towne == 1)
+                if (npc[14].towne == 1) {
                     snprintf(str, sizeof str, "in Thord");
-                if (npc[14].towne == 2)
+                }
+                if (npc[14].towne == 2) {
                     snprintf(str, sizeof str, "in Ollk");
-                if (npc[14].towne == 3)
+                }
+                if (npc[14].towne == 3) {
                     snprintf(str, sizeof str, "in Wilor");
-                if (npc[14].towne == 4)
+                }
+                if (npc[14].towne == 4) {
                     snprintf(str, sizeof str, "in Murn");
-                if (npc[14].towne == 0)
+                }
+                if (npc[14].towne == 0) {
                     snprintf(str, sizeof str, "at %dx%d", npc[14].x, npc[14].y);
+                }
                 tx("- Greetings, adventurers.\r\n");
                 tx("I have a mission for you.\r\n");
                 tx("He hands you a letter.\r\n\r\n");
@@ -742,16 +755,21 @@ void flaggkoll(int vem) {
         /*****************************************************************/
         case 3:
             if (p[cpl].flag[3] == 0) {
-                if (npc[5].towne == 1)
+                if (npc[5].towne == 1) {
                     snprintf(str, sizeof str, "in Thord");
-                if (npc[5].towne == 2)
+                }
+                if (npc[5].towne == 2) {
                     snprintf(str, sizeof str, "in Ollk");
-                if (npc[5].towne == 3)
+                }
+                if (npc[5].towne == 3) {
                     snprintf(str, sizeof str, "in Wilor");
-                if (npc[5].towne == 4)
+                }
+                if (npc[5].towne == 4) {
                     snprintf(str, sizeof str, "in Murn");
-                if (npc[5].towne == 0)
+                }
+                if (npc[5].towne == 0) {
                     snprintf(str, sizeof str, "at %dx%d", npc[5].x, npc[5].y);
+                }
                 clw();
                 tx("- Greetings. Once upon\r\n");
                 tx("a time, I was a mighty\r\n");
@@ -923,8 +941,9 @@ void flaggkoll(int vem) {
                     ryl_pause();
                     clw();
                     break;
-                } else
+                } else {
                     clw();
+                }
                 break;
             }
             break;
@@ -990,16 +1009,21 @@ void flaggkoll(int vem) {
                 tx("and seek out my friend\r\n");
                 tx("%s. He is also a\r\n", name[20]);
                 tx("minstrel.\r\n");
-                if (npc[20].towne == 1)
+                if (npc[20].towne == 1) {
                     snprintf(str, sizeof str, "%s lives in Thord.\n", name[20]);
-                if (npc[20].towne == 2)
+                }
+                if (npc[20].towne == 2) {
                     snprintf(str, sizeof str, "%s lives in Ollk.\n", name[20]);
-                if (npc[20].towne == 3)
+                }
+                if (npc[20].towne == 3) {
                     snprintf(str, sizeof str, "%s lives in Wilor.\n", name[20]);
-                if (npc[20].towne == 4)
+                }
+                if (npc[20].towne == 4) {
                     snprintf(str, sizeof str, "%s lives in Murn.\n", name[20]);
-                if (npc[20].towne == 0)
+                }
+                if (npc[20].towne == 0) {
                     snprintf(str, sizeof str, "%s lives at %dx%d.\n", name[20], npc[20].x, npc[20].y);
+                }
                 tx("%s\r\r\n", str);
                 snprintf(send, sizeof send, "%d %s", cpl, str);
                 journal(send);
@@ -1066,8 +1090,9 @@ void flaggkoll(int vem) {
                     ryl_pause();
                     clw();
                     break;
-                } else
+                } else {
                     clw();
+                }
                 break;
             }
             break;
@@ -1113,16 +1138,21 @@ void flaggkoll(int vem) {
         /*****************************************************************/
         case 15:
             if (p[cpl].flag[15] == 0) {
-                if (npc[23].towne == 1)
+                if (npc[23].towne == 1) {
                     snprintf(str, sizeof str, "in Thord");
-                if (npc[23].towne == 2)
+                }
+                if (npc[23].towne == 2) {
                     snprintf(str, sizeof str, "in Ollk");
-                if (npc[23].towne == 3)
+                }
+                if (npc[23].towne == 3) {
                     snprintf(str, sizeof str, "in Wilor");
-                if (npc[23].towne == 4)
+                }
+                if (npc[23].towne == 4) {
                     snprintf(str, sizeof str, "in Murn");
-                if (npc[23].towne == 0)
+                }
+                if (npc[23].towne == 0) {
                     snprintf(str, sizeof str, "at %dx%d", npc[23].x, npc[23].y);
+                }
                 clw();
                 tx("I heard that a man called\r\n");
                 tx("%s knows of the\r\n", name[23]);
@@ -1222,36 +1252,41 @@ void flaggkoll(int vem) {
                 clw();
                 p[cpl].flag[19] = 3;
                 p[cpl].gold += 3000;
-                for (i = 1, x = 0; i < 17; i++)
+                for (i = 1, x = 0; i < 17; i++) {
                     if (p[cpl].inventory[i] == 0) {
                         p[cpl].inventory[i] = 26;
                         x++;
                         break;
                     }
-                for (i = 1; i < 17; i++)
+                }
+                for (i = 1; i < 17; i++) {
                     if (p[cpl].inventory[i] == 0) {
                         p[cpl].inventory[i] = 110;
                         x++;
                         break;
                     }
-                for (i = 1; i < 17; i++)
+                }
+                for (i = 1; i < 17; i++) {
                     if (p[cpl].inventory[i] == 0) {
                         p[cpl].inventory[i] = 38;
                         x++;
                         break;
                     }
-                for (i = 1; i < 17; i++)
+                }
+                for (i = 1; i < 17; i++) {
                     if (p[cpl].inventory[i] == 0) {
                         p[cpl].inventory[i] = 101;
                         x++;
                         break;
                     }
-                for (i = 1; i < 17; i++)
+                }
+                for (i = 1; i < 17; i++) {
                     if (p[cpl].inventory[i] == 0) {
                         p[cpl].inventory[i] = 45;
                         x++;
                         break;
                     }
+                }
                 if (x < 5) {
                     clw();
                     tx("You can't carry all the\r\n");
@@ -1272,12 +1307,13 @@ void flaggkoll(int vem) {
                 tx("and produces a purple\r\n");
                 tx("cloak.\r\n\r\n");
                 ryl_pause();
-                for (i = 1, x = 0; i < 17; i++)
+                for (i = 1, x = 0; i < 17; i++) {
                     if (p[cpl].inventory[i] == 0) {
                         p[cpl].inventory[i] = 28;
                         x++;
                         break;
                     }
+                }
                 if (!x) {
                     clw();
                     tx("You can't carry it!\r\n\r\n");

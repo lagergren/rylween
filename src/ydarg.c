@@ -1,8 +1,8 @@
 #include "ryl.h"
 
 void ydarg() {
-    int room[8][8];
-    int xl, yl, lvl, n, s, e, w, i, j, x, oc;
+    int32_t room[8][8];
+    int32_t xl, yl, lvl, n, s, e, w, i, j, x, oc;
     char c, d;
 
     clr_map_window();
@@ -243,8 +243,9 @@ void ydarg() {
                     while (1) {
                         d = key();
                         d = toupper(d);
-                        if (d == 'T' || d == 'G' || d == 'L')
+                        if (d == 'T' || d == 'G' || d == 'L') {
                             break;
+                        }
                     }
                     if (d == 'L') {
                         clw();
@@ -275,8 +276,9 @@ void ydarg() {
                     tx("5. Nothing\r\n");
                     while (1) {
                         d = key();
-                        if (d >= '1' && d <= '5')
+                        if (d >= '1' && d <= '5') {
                             break;
+                        }
                     }
                     j = 0;
                     switch (d - 48) {
@@ -336,8 +338,9 @@ void ydarg() {
                         xl = 1;
                         yl = 1;
                         lvl++;
-                        if (lvl == 5)
+                        if (lvl == 5) {
                             confrontation();
+                        }
                         break;
                     }
                 }
@@ -366,26 +369,34 @@ void ydarg() {
         s = 0;
         e = 0;
         w = 0;
-        if (yl > 1)
+        if (yl > 1) {
             n = 1;
-        if (xl > 1)
+        }
+        if (xl > 1) {
             w = 1;
-        if (xl < 5)
+        }
+        if (xl < 5) {
             e = 1;
-        if (yl < 5)
+        }
+        if (yl < 5) {
             s = 1;
+        }
         if (n) {
             tx("    8  North  \r\n");
             tx("    |\r\n");
-        } else
+        } else {
             tx("\r\n\r\n");
+        }
 
-        if (e && w)
+        if (e && w) {
             tx(" 4 -+- 6  East/West\r\n");
-        if (e && !w)
+        }
+        if (e && !w) {
             tx("    +- 6  East\r\n");
-        if (!e && w)
+        }
+        if (!e && w) {
             tx(" 4 -+     West\r\n");
+        }
         if (s) {
             tx("    |\r\n");
             tx("    2  South  \r\n");
@@ -421,36 +432,47 @@ void ydarg() {
             clw();
             xl--;
         }
-        if (c == '?')
+        if (c == '?') {
             help();
-        if (c == 'T')
+        }
+        if (c == 'T') {
             armouroff();
-        if (c == 'P')
+        }
+        if (c == 'P') {
             weaponoff();
-        if (c == 'L')
+        }
+        if (c == 'L') {
             drop();
-        if (c == 'W')
+        }
+        if (c == 'W') {
             weaponr();
-        if (c == 'R')
+        }
+        if (c == 'R') {
             armourr();
-        if (c == 'Q')
+        }
+        if (c == 'Q') {
             quaff();
-        if (c == 'Z')
+        }
+        if (c == 'Z') {
             spell(0); /* 0 means over ground */
+        }
         if (c == 'V') {
             showparty();
             clw();
             tx("Who? (1-4/Q/A)\r\n");
             while (1) {
                 d = key();
-                if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A')
+                if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A') {
                     break;
+                }
             }
-            if (d >= '1' && d <= '4')
+            if (d >= '1' && d <= '4') {
                 show(d - 48);
+            }
             if (toupper(d) == 'A') {
-                for (i = 1; i < 5; i++)
+                for (i = 1; i < 5; i++) {
                     show(i);
+                }
             }
             clw();
         }
@@ -599,8 +621,9 @@ void confrontation() {
         fclose(fh);
     }
 
-    if (!(fh = fopen("data/heroes.txt", "a+")))
+    if (!(fh = fopen("data/heroes.txt", "a+"))) {
         return;
+    }
 
     getclk(kl);
 
@@ -644,7 +667,7 @@ void confrontation() {
     }
 
     snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", p[cpl].partyname, mstr, kl[3],
-            kl[1] + 80);
+             kl[1] + 80);
     fputs(str, fh);
     fclose(fh);
     cleanexit();

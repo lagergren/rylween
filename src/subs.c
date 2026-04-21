@@ -2,17 +2,19 @@
 
 void timehandler() {
     tid++;
-    if (tid == 25)
+    if (tid == 25) {
         tid = 1;
+    }
 }
 void foodhandler() {
-    int i;
+    int32_t i;
 
     // Regenerate mana //
     for (i = 1; i < 5; i++) {
         if (p[cpl].cl[i] == 3 || p[cpl].cl[i] == 4) {
-            if (p[cpl].ma[i] < p[cpl].wi[i] && !(rand() % 2))
+            if (p[cpl].ma[i] < p[cpl].wi[i] && !(rand() % 2)) {
                 p[cpl].ma[i]++;
+            }
         }
     }
 
@@ -20,14 +22,16 @@ void foodhandler() {
         p[cpl].food -= p[cpl].pl;
         p[cpl].food -= p[cpl].lv[1] / 4;
     }
-    if (p[cpl].food < 0)
+    if (p[cpl].food < 0) {
         p[cpl].food = 0;
+    }
     // Starving routine //
 
     if (p[cpl].food == 0) {
         for (i = 1; i < 5; i++) {
-            if (!p[cpl].dead[i])
+            if (!p[cpl].dead[i]) {
                 p[cpl].hp[i] -= 2;
+            }
             if (p[cpl].hp[i] < 1 && !p[cpl].dead[i]) {
                 p[cpl].hp[i] = 0;
                 clw();
@@ -36,8 +40,9 @@ void foodhandler() {
                 Delay(50);
                 clw();
                 p[cpl].dead[i] = 1;
-                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4])
+                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4]) {
                     losegame();
+                }
             }
         }
     }
@@ -52,18 +57,22 @@ void foodhandler() {
     if (hours_pigg == -4) {
         clw();
         tx("You are exhausted!!!\r\n");
-        for (i = 1; i < 5; i++)
-            if (p[cpl].hp[i] > 1)
+        for (i = 1; i < 5; i++) {
+            if (p[cpl].hp[i] > 1) {
                 p[cpl].hp[i]--;
+            }
+        }
         return;
     }
     if (hours_pigg == -8) {
         clw();
         tx("You begin to feel weak\r\n");
         tx("from lack of sleep.\r\n\r\n");
-        for (i = 1; i < 5; i++)
-            if (p[cpl].hp[i] > 1)
+        for (i = 1; i < 5; i++) {
+            if (p[cpl].hp[i] > 1) {
                 p[cpl].hp[i]--;
+            }
+        }
         ryl_pause();
         clw();
         return;
@@ -72,15 +81,17 @@ void foodhandler() {
         clw();
         tx("You faint from lack\r\n");
         tx("of well needed sleep.\r\n");
-        for (i = 1; i < 5; i++)
-            if (p[cpl].hp[i] > 1)
+        for (i = 1; i < 5; i++) {
+            if (p[cpl].hp[i] > 1) {
                 p[cpl].hp[i]--;
+            }
+        }
     }
 }
 void slumpvis() {
-    long t;
+    time_t t;
     char c, kl[8];
-    int r;
+    int32_t r;
     uint8_t rflag = 0;
 
     getclk(kl);
@@ -88,11 +99,13 @@ void slumpvis() {
     r = rand() % 100;
 
     rflag = mission_control();
-    if (rflag)
+    if (rflag) {
         return;
+    }
 
-    if (!(p[cpl].tid_kvar % 101) && !stricmp(global_name, "Karl Skagerberg"))
+    if (!(p[cpl].tid_kvar % 101) && !stricmp(global_name, "Karl Skagerberg")) {
         encounter(90, 1);
+    }
 
     if (!(p[cpl].tid_kvar % 60) && p[cpl].tid_kvar) {
         if (!reg) {
@@ -146,8 +159,9 @@ void slumpvis() {
             tx("version.\r\n\r\n");
             ryl_pause();
             clw();
-            if (p[cpl].tid_kvar)
+            if (p[cpl].tid_kvar) {
                 p[cpl].tid_kvar--;
+            }
         }
     }
 
@@ -166,15 +180,16 @@ void slumpvis() {
         while (1) {
             c = key();
             c = toupper(c);
-            if (c == 'L' || c == 'E')
+            if (c == 'L' || c == 'E') {
                 break;
+            }
         }
         time(&t);
         srand((unsigned int) t);
         if (c == 'E') {
-            if (p[cpl].tid_kvar > 10)
+            if (p[cpl].tid_kvar > 10) {
                 p[cpl].tid_kvar -= 10;
-            else {
+            } else {
                 clw();
                 tx("You don't have enough\r\n");
                 tx("moves left to explore\r\n");
@@ -265,7 +280,7 @@ void update_map() {
        kar(map[p[cpl].y + 2][p[cpl].x + 1]), frg(map[p[cpl].y + 2][p[cpl].x + 2]),
        kar(map[p[cpl].y + 2][p[cpl].x + 2]));
 }
-int frg(char t) {
+int32_t frg(char t) {
     switch (t) {
         case 'm':
             return 37;
@@ -318,7 +333,7 @@ char *kar(char t) {
 
 void weaponoff() {
     char c;
-    int i, x;
+    int32_t i, x;
 
     clw();
     tx("Who? (1-4)\r\n");
@@ -357,7 +372,7 @@ void weaponoff() {
 }
 void armouroff() {
     char c;
-    int i, x;
+    int32_t i, x;
 
     clw();
     tx("Who? (1-4)\r\n");
@@ -395,7 +410,7 @@ void armouroff() {
     clw();
 }
 void weaponr() {
-    int oc, temp;
+    int32_t oc, temp;
     char d, b;
 
     clw();
@@ -440,7 +455,7 @@ void weaponr() {
     return;
 }
 void armourr() {
-    int oc, temp;
+    int32_t oc, temp;
     char d, b;
 
     clw();
@@ -486,7 +501,7 @@ void armourr() {
 }
 uint8_t drop() {
     char d;
-    int i, y;
+    int32_t i, y;
 
     clw();
     invlist();
@@ -499,9 +514,11 @@ uint8_t drop() {
             tx("%s.\r\n", object(p[cpl].inventory[d - 64]));
             Delay(50);
             if (p[cpl].inventory[d - 64] == 47) {
-                for (i = 1, y = 0; i < 17; i++)
-                    if (p[cpl].inventory[i] == 47)
+                for (i = 1, y = 0; i < 17; i++) {
+                    if (p[cpl].inventory[i] == 47) {
                         y++;
+                    }
+                }
                 y--;
                 if (p[cpl].food > (150 + 150 * y)) {
                     clw();
@@ -529,7 +546,7 @@ uint8_t drop() {
     }
 }
 void camp() {
-    int i, death, guard = 0, temperature, x;
+    int32_t i, death, guard = 0, temperature, x;
     char c, d;
 
     if (hours_pigg > 0) {
@@ -540,19 +557,23 @@ void camp() {
         return;
     }
 
-    if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4])
+    if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4]) {
         return;
+    }
 
     clr_map_window();
 
-    for (i = 1, x = 0; i < 17; i++)
-        if (p[cpl].inventory[i] == 34)
+    for (i = 1, x = 0; i < 17; i++) {
+        if (p[cpl].inventory[i] == 34) {
             x = 1;
+        }
+    }
 
-    if (x)
+    if (x) {
         blitgfx(17);
-    else
+    } else {
         blitgfx(18);
+    }
     clw();
 
     tx("Camp.\r\n\r\n");
@@ -568,9 +589,9 @@ void camp() {
             d = key();
             d = toupper(d);
             if (d >= '1' && d <= '4') {
-                if (!(p[cpl].dead[d - 48]))
+                if (!(p[cpl].dead[d - 48])) {
                     break;
-                else {
+                } else {
                     clw();
                     tx("Dead.\r\n");
                     Delay(50);
@@ -612,8 +633,9 @@ void camp() {
             Delay(75);
             for (i = 1; i < 5; i++) {
                 p[cpl].hp[i] -= 5;
-                if (p[cpl].hp[i] < 1)
+                if (p[cpl].hp[i] < 1) {
                     p[cpl].hp[i] = 1;
+                }
             }
         }
     }
@@ -632,8 +654,9 @@ void camp() {
             Delay(75);
             for (i = 1; i < 5; i++) {
                 p[cpl].hp[i] -= 5;
-                if (p[cpl].hp[i] < 1)
+                if (p[cpl].hp[i] < 1) {
                     p[cpl].hp[i] = 1;
+                }
             }
         }
     }
@@ -642,22 +665,27 @@ void camp() {
 
     for (i = 1; i < 9; i++) {
         tid++;
-        if (tid == 25)
+        if (tid == 25) {
             tid = 1;
+        }
     }
     hours_pigg = 14;
-    if (p[cpl].food < 4 * p[cpl].pl)
+    if (p[cpl].food < 4 * p[cpl].pl) {
         p[cpl].food = 0;
-    else
+    } else {
         p[cpl].food -= 4 * p[cpl].pl;
-    if (p[cpl].food < 0)
+    }
+    if (p[cpl].food < 0) {
         p[cpl].food = 0;
+    }
     for (i = 1; i < 5; i++) {
         if (i != guard) {
-            if (!p[cpl].dead[i])
+            if (!p[cpl].dead[i]) {
                 p[cpl].hp[i] += 15;
-            if (p[cpl].hp[i] > p[cpl].h[i])
+            }
+            if (p[cpl].hp[i] > p[cpl].h[i]) {
                 p[cpl].hp[i] = p[cpl].h[i];
+            }
         }
     }
     if (rand() % 100 > 80) {
@@ -688,7 +716,7 @@ void camp() {
     update_map();
 }
 void quaff() {
-    int oc;
+    int32_t oc;
     char c, d;
 
     clw();
@@ -720,9 +748,9 @@ void quaff() {
         c = key();
         c = toupper(c);
         if (c >= '1' && c <= '4') {
-            if (!p[cpl].dead[c - 48])
+            if (!p[cpl].dead[c - 48]) {
                 break;
-            else {
+            } else {
                 clw();
                 tx("Dead.\r\n");
                 Delay(30);
@@ -742,8 +770,9 @@ void quaff() {
             ryl_pause();
             clw();
             p[cpl].hp[c - 48] += (15 + p[cpl].lv[c - 48]);
-            if (p[cpl].hp[c - 48] > p[cpl].h[c - 48])
+            if (p[cpl].hp[c - 48] > p[cpl].h[c - 48]) {
                 p[cpl].hp[c - 48] = p[cpl].h[c - 48];
+            }
             break;
 
         case 37:
@@ -753,8 +782,9 @@ void quaff() {
             ryl_pause();
             clw();
             p[cpl].hp[c - 48] -= (15 + p[cpl].lv[c - 48]);
-            if (p[cpl].hp[c - 48] < 1)
+            if (p[cpl].hp[c - 48] < 1) {
                 p[cpl].hp[c - 48] = 1;
+            }
             break;
 
         case 38:
@@ -776,7 +806,7 @@ void quaff() {
 }
 void hunt() {
     char c;
-    int fdplus;
+    int32_t fdplus;
 
     while (1) {
         clw();
@@ -784,9 +814,9 @@ void hunt() {
         c = key();
         c = toupper(c);
         if (c >= '1' && c <= '4') {
-            if (!p[cpl].dead[c - 48])
+            if (!p[cpl].dead[c - 48]) {
                 break;
-            else {
+            } else {
                 clw();
                 tx("Dead.\r\n");
                 Delay(30);
@@ -824,17 +854,18 @@ void hunt() {
     ryl_pause();
     clw();
 }
-void spell(int place) {
+void spell(int32_t place) {
     char b, c, d;
-    int i, vem, x, oc;
-    long t;
+    int32_t i, vem, x, oc;
+    time_t t;
 
     clw();
     tx("Who? (1-4)\r\n");
     while (1) {
         c = key();
-        if (c >= '1' && c <= '4')
+        if (c >= '1' && c <= '4') {
             break;
+        }
     }
     vem = (c - 48);
 
@@ -870,8 +901,9 @@ void spell(int place) {
 
     while (1) {
         c = key();
-        if (c >= '1' && c <= '8')
+        if (c >= '1' && c <= '8') {
             break;
+        }
     }
 
     if (c == '8') {
@@ -892,8 +924,9 @@ void spell(int place) {
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
-                if (d >= '1' && d <= '4')
+                if (d >= '1' && d <= '4') {
                     break;
+                }
             }
             x = (rand() % 10) + 10 + (p[cpl].lv[vem] * 2);
             if (p[cpl].dead[d - 48]) {
@@ -904,8 +937,9 @@ void spell(int place) {
                 break;
             }
             p[cpl].hp[d - 48] += x;
-            if (p[cpl].hp[d - 48] > p[cpl].h[d - 48])
+            if (p[cpl].hp[d - 48] > p[cpl].h[d - 48]) {
                 p[cpl].hp[d - 48] = p[cpl].h[d - 48];
+            }
             clw();
             tx("%s heals\r\n", p[cpl].name[vem]);
             tx("%s\r\n", p[cpl].name[d - 48]);
@@ -926,8 +960,9 @@ void spell(int place) {
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
-                if (d >= '1' && d <= '4')
+                if (d >= '1' && d <= '4') {
                     break;
+                }
             }
             p[cpl].hp[d - 48] = p[cpl].h[d - 48];
             clw();
@@ -949,8 +984,9 @@ void spell(int place) {
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
-                if (d >= '1' && d <= '4')
+                if (d >= '1' && d <= '4') {
                     break;
+                }
             }
             if (!p[cpl].dead[d - 48]) {
                 tx("%s is alive and\r\n", p[cpl].name[d - 48]);
@@ -1087,8 +1123,9 @@ void spell(int place) {
             tx("an hour chanting mantras\r\n");
             tx("and burning blue candles.\r\n\r\n");
             tid++;
-            if (tid == 25)
+            if (tid == 25) {
                 tid = 1;
+            }
             ryl_pause();
             clw();
             tx("%s picks up a stone slab\r\n", sextext(vem, 1));
@@ -1105,37 +1142,47 @@ void spell(int place) {
             tx("   2\r\n\r\n");
             while (1) {
                 d = key();
-                if (d == '8' || d == '4' || d == '6' || d == '2')
+                if (d == '8' || d == '4' || d == '6' || d == '2') {
                     break;
+                }
             }
             clw();
             tx("How many miles do you\r\n");
             tx("want to travel? (1-9)\r\n");
             while (1) {
                 b = key();
-                if (b >= '1' && b <= '9')
+                if (b >= '1' && b <= '9') {
                     break;
+                }
             }
             switch (d) {
                 case '2':
-                    for (i = 1; i < ((b - 48) * 2) + 1; i++)
-                        if (map[p[cpl].y + 1][p[cpl].x] != 'm')
+                    for (i = 1; i < ((b - 48) * 2) + 1; i++) {
+                        if (map[p[cpl].y + 1][p[cpl].x] != 'm') {
                             p[cpl].y++;
+                        }
+                    }
                     break;
                 case '4':
-                    for (i = 1; i < ((b - 48) * 2) + 1; i++)
-                        if (map[p[cpl].y][p[cpl].x - 1] != 'm')
+                    for (i = 1; i < ((b - 48) * 2) + 1; i++) {
+                        if (map[p[cpl].y][p[cpl].x - 1] != 'm') {
                             p[cpl].x--;
+                        }
+                    }
                     break;
                 case '6':
-                    for (i = 1; i < ((b - 48) * 2) + 1; i++)
-                        if (map[p[cpl].y][p[cpl].x + 1] != 'm')
+                    for (i = 1; i < ((b - 48) * 2) + 1; i++) {
+                        if (map[p[cpl].y][p[cpl].x + 1] != 'm') {
                             p[cpl].x++;
+                        }
+                    }
                     break;
                 case '8':
-                    for (i = 1; i < ((b - 48) * 2) + 1; i++)
-                        if (map[p[cpl].y - 1][p[cpl].x] != 'm')
+                    for (i = 1; i < ((b - 48) * 2) + 1; i++) {
+                        if (map[p[cpl].y - 1][p[cpl].x] != 'm') {
                             p[cpl].y--;
+                        }
+                    }
                     break;
             }
             tx("You appear to be\r\n");
@@ -1177,15 +1224,16 @@ void spell(int place) {
             while (1) {
                 c = key();
                 c = toupper(c);
-                if (c == 'L' || c == 'E')
+                if (c == 'L' || c == 'E') {
                     break;
+                }
             }
             time(&t);
             srand((unsigned int) t);
             if (c == 'E') {
-                if (p[cpl].tid_kvar > 10)
+                if (p[cpl].tid_kvar > 10) {
                     p[cpl].tid_kvar -= 10;
-                else {
+                } else {
                     clw();
                     tx("You don't have enough\r\n");
                     tx("moves left to explore\r\n");
@@ -1227,8 +1275,9 @@ void scorelist() {
         item[i][3] = p[i].mastercrown;
         item[i][4] = p[i].silverkey;
         item[i][5] = p[i].jazzyfoot;
-        for (j = 1; j < 5; j++)
+        for (j = 1; j < 5; j++) {
             cls[i][j] = p[i].cl[j];
+        }
         pnr[i] = i;
     }
 
@@ -1281,8 +1330,9 @@ void scorelist() {
         }
     }
 
-    if (!(fh = fopen("data/vscore.txt", "w")))
+    if (!(fh = fopen("data/vscore.txt", "w"))) {
         return;
+    }
 
     snprintf(str, sizeof str, "%c\n", 12);
     fputs(str, fh);
@@ -1318,8 +1368,9 @@ void scorelist() {
                     str_append(str, sizeof str, "Ranger");
                     break;
             }
-            if (j < 4)
+            if (j < 4) {
                 str_append(str, sizeof str, ", ");
+            }
         }
         str_append(str, sizeof str, "\n");
         fputs(str, fh);
@@ -1328,28 +1379,37 @@ void scorelist() {
         fputs(str, fh);
         fputs("  Power Items        :\n\n", fh);
         xx = 0;
-        for (j = 1; j < 6; j++)
-            if (item[i][j])
+        for (j = 1; j < 6; j++) {
+            if (item[i][j]) {
                 xx = 1;
-        if (item[i][1])
+            }
+        }
+        if (item[i][1]) {
             fputs("  Fire Shield\n", fh);
-        if (item[i][2])
+        }
+        if (item[i][2]) {
             fputs("  Bracelets of Thun\n", fh);
-        if (item[i][3])
+        }
+        if (item[i][3]) {
             fputs("  Master Crown\n", fh);
-        if (item[i][4])
+        }
+        if (item[i][4]) {
             fputs("  Silver Key\n", fh);
-        if (item[i][5])
+        }
+        if (item[i][5]) {
             fputs("  Jazzy's Foot\n", fh);
-        if (!xx)
+        }
+        if (!xx) {
             fputs("  None.\n", fh);
+        }
         fputs(" +----------------------------------------------------------------------------+\n\n",
               fh);
     }
     fclose(fh);
 
-    if (!(fh = fopen("data/score.txt", "w")))
+    if (!(fh = fopen("data/score.txt", "w"))) {
         return;
+    }
 
     snprintf(str, sizeof str, "%c\n", 12);
     fputs(str, fh);
