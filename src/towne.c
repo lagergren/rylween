@@ -1,4 +1,5 @@
 #include "ryl.h"
+#include "res.h"
 
 void rumour() {
     char kl[8], str[40];
@@ -70,12 +71,12 @@ void rumour() {
             tx("a powerful reagent.\r\n");
             break;
         case 12:
-            tx("A man named %s\r\n", name[1]);
+            tx("A man named %s\r\n", res_enum("name", 1));
             tx("will pay you for\r\n");
             tx("killing some bandits.\r\n");
             break;
         case 13:
-            tx("A hunter called %s\r\n", name[2]);
+            tx("A hunter called %s\r\n", res_enum("name", 2));
             tx("seeks a brave party\r\n");
             tx("of adventurers.\r\n");
             break;
@@ -143,7 +144,7 @@ void rumour() {
             if (state.npc[15].towne == 0) {
                 snprintf(str, sizeof str, "at %dx%d", state.npc[15].x, state.npc[15].y);
             }
-            tx("A man named %s\r\n", name[15]);
+            tx("A man named %s\r\n", res_enum("name", 15));
             tx("knows of the Crown.\r\n");
             tx("He lives %s!\r\n", str);
             break;
@@ -167,7 +168,7 @@ void rumour() {
             if (state.npc[13].towne == 0) {
                 snprintf(str, sizeof str, "at %dx%d", state.npc[13].x, state.npc[13].y);
             }
-            tx("Seek %s if you\r\n", name[13]);
+            tx("Seek %s if you\r\n", res_enum("name", 13));
             tx("search the Temple of\r\n");
             tx("Thun! He lives %s\r\n", str);
             break;
@@ -728,9 +729,9 @@ void hut() {
     Delay(30);
     while (1) {
         clw();
-        tx("A %s who\r\n", jobname[state.npc[vem].job]);
+        tx("A %s who\r\n", res_enum("jobname", state.npc[vem].job));
         tx("introduces himself as\r\n");
-        tx("%s, greets you.\r\n\r\n", name[vem]);
+        tx("%s, greets you.\r\n\r\n", res_enum("name", vem));
         tx("(T)alk\r\n");
         tx("(L)eave\r\n");
         c = key();
@@ -1369,7 +1370,7 @@ void tavern() {
     while (1) {
         clw();
         tx("- Welcome! Have a seat\r\n");
-        tx("%s, the keeper\r\n", name[28 + state.twn]);
+        tx("%s, the keeper\r\n", res_enum("name", 28 + state.twn));
         tx("of the tavern greets\r\n");
         tx("you...\r\n\r\n");
         tx("(O)rder drink\r\n");
@@ -1587,7 +1588,7 @@ void inn() {
 
     while (1) {
         clw();
-        tx("%s, the Innkeeper\r\n", name[24 + state.twn]);
+        tx("%s, the Innkeeper\r\n", res_enum("name", 24 + state.twn));
         tx("welcomes you.\r\n\r\n");
         tx("Do you want supper,\r\n");
         tx("travellers?\r\n\r\n");

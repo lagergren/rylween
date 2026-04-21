@@ -1,4 +1,5 @@
 #include "ryl.h"
+#include "res.h"
 
 uint8_t mission_control() {
     int32_t i, gems;
@@ -34,7 +35,7 @@ uint8_t mission_control() {
         tx("There is a cave entrance\r\n");
         tx("in the foothills to the\r\n");
         tx("east. Is this the place\r\n");
-        tx("%s talked about?\r\n\r\n", name[19]);
+        tx("%s talked about?\r\n\r\n", res_enum("name", 19));
         tx("(E)nter\r\n");
         tx("(L)eave\r\n");
         c = key();

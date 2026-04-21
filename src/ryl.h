@@ -26,9 +26,6 @@
 #define guildpic 19
 #define encounterpic 40 /* Addera random sedan +x */
 
-extern char *name[];
-extern char *jobname[];
-
 extern char *_version_string;
 
 struct person {

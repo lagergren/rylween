@@ -1,4 +1,5 @@
 #include "ryl.h"
+#include "res.h"
 
 void dungeon(int32_t levels, int32_t flag) {
     /*
@@ -562,10 +563,10 @@ void dungeon(int32_t levels, int32_t flag) {
                 ryl_pause();
                 clw();
                 tx("'Guild Master: This is\r\n");
-                tx("the proof that I, %s\r\n", name[18]);
+                tx("the proof that I, %s\r\n", res_enum("name", 18));
                 tx("am worthy of the title\r\n");
                 tx("Master Thief.'\r\n");
-                tx("      - %s\r\n\r\n", name[18]);
+                tx("      - %s\r\n\r\n", res_enum("name", 18));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[6] = 2;

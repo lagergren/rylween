@@ -1,4 +1,5 @@
 #include "ryl.h"
+#include "res.h"
 
 /* Random coords:
 **
@@ -96,7 +97,7 @@ void speak(int32_t bld, int32_t tow) {
     if (tow) {
         for (i = 1, j = 1, x = 0; i < 40; i++) {
             if (state.npc[i].bl == bld && state.npc[i].towne == tow) {
-                tx("%c. %-8s (%s)\r\n", j + 64, name[state.npc[i].nr], jobname[state.npc[i].job]);
+                tx("%c. %-8s (%s)\r\n", j + 64, res_enum("name", state.npc[i].nr), res_enum("jobname", state.npc[i].job));
                 reference[j] = state.npc[i].nr;
                 j++;
                 x = 1;
@@ -128,7 +129,7 @@ void speak(int32_t bld, int32_t tow) {
 
     if (state.npc[talk].visited[state.cpl]) {
         clw();
-        tx("%s nods as\r\n", name[talk]);
+        tx("%s nods as\r\n", res_enum("name", talk));
         if (state.npc[talk].job != 13) {
             tx("he recognizes you.\r\n");
         } else {
@@ -146,7 +147,7 @@ void speak(int32_t bld, int32_t tow) {
 
         clw();
         tx("Chatting with\r\n");
-        tx("%s:\r\n\r\n", name[talk]);
+        tx("%s:\r\n\r\n", res_enum("name", talk));
 
         /* Passed */
 
@@ -164,7 +165,7 @@ void speak(int32_t bld, int32_t tow) {
         if (c == 'R') {
             clw();
             if (!rumours) {
-                tx("%s tells you:\r\n\r\n", name[talk]);
+                tx("%s tells you:\r\n\r\n", res_enum("name", talk));
                 rumour();
                 ryl_pause();
                 rumours = 1;
@@ -254,7 +255,7 @@ void speak(int32_t bld, int32_t tow) {
                         break;
                     case 8:
                         tx("- Rumour has it that a\r\n");
-                        tx("fighter called %s\r\n", name[3]);
+                        tx("fighter called %s\r\n", res_enum("name", 3));
                         tx("has a mission for you.\r\n");
                         break;
                     case 9:
@@ -741,13 +742,13 @@ void flaggkoll(int32_t vem) {
                 ryl_pause();
                 clw();
                 tx("- If you deliver this\r\n");
-                tx("to my brother, %s,\r\n", name[14]);
+                tx("to my brother, %s,\r\n", res_enum("name", 14));
                 tx("who lives %s,\r\n", str);
                 tx("he will give you\r\n");
                 tx("a great weapon!\r\n\r\n");
                 ryl_pause();
                 clw();
-                snprintf(send, sizeof send, "%d %s, the Ranger lives %s\n", state.cpl, name[14], str);
+                snprintf(send, sizeof send, "%d %s, the Ranger lives %s\n", state.cpl, res_enum("name", 14), str);
                 journal(send);
                 state.p[state.cpl].flag[2] = 1;
             }
@@ -784,7 +785,7 @@ void flaggkoll(int32_t vem) {
                 tx("anymore, and I will give\r\n");
                 tx("it to you, if you do me a\r\n");
                 tx("small favour. A priest\r\n");
-                tx("named %s has got\r\n", name[5]);
+                tx("named %s has got\r\n", res_enum("name", 5));
                 tx("one of my books. We are\r\n");
                 tx("old friends, and I lended\r\n");
                 tx("it to him. However, I\r\n");
@@ -792,9 +793,9 @@ void flaggkoll(int32_t vem) {
                 tx("him lately.\r\n\r\n");
                 ryl_pause();
                 clw();
-                tx("%s lives\r\n", name[5]);
+                tx("%s lives\r\n", res_enum("name", 5));
                 tx("%s.\r\n\r\n", str);
-                snprintf(send, sizeof send, "%d %s, %s's friend lives %s\n", state.cpl, name[5], name[3], str);
+                snprintf(send, sizeof send, "%d %s, %s's friend lives %s\n", state.cpl, res_enum("name", 5), res_enum("name", 3), str);
                 journal(send);
                 ryl_pause();
                 clw();
@@ -856,7 +857,7 @@ void flaggkoll(int32_t vem) {
                 tx("a bit embarrased.\r\n");
                 tx("- Yes, I know. I happened\r\n");
                 tx("to lose it. A wizard\r\n");
-                tx("called %s stole it\r\n", name[4]);
+                tx("called %s stole it\r\n", res_enum("name", 4));
                 tx("from my bedroom a week\r\n");
                 tx("ago...\r\n\r\n");
                 ryl_pause();
@@ -872,7 +873,7 @@ void flaggkoll(int32_t vem) {
                 tx("I don't know his\r\n");
                 tx("whereabouts, but please\r\n");
                 tx("find the book and\r\n");
-                tx("take it back to %s\r\n", name[3]);
+                tx("take it back to %s\r\n", res_enum("name", 3));
                 tx("if you can.\r\n\r\n");
                 ryl_pause();
                 clw();
@@ -1007,22 +1008,22 @@ void flaggkoll(int32_t vem) {
                 clw();
                 tx("- Take this note here\r\n");
                 tx("and seek out my friend\r\n");
-                tx("%s. He is also a\r\n", name[20]);
+                tx("%s. He is also a\r\n", res_enum("name", 20));
                 tx("minstrel.\r\n");
                 if (state.npc[20].towne == 1) {
-                    snprintf(str, sizeof str, "%s lives in Thord.\n", name[20]);
+                    snprintf(str, sizeof str, "%s lives in Thord.\n", res_enum("name", 20));
                 }
                 if (state.npc[20].towne == 2) {
-                    snprintf(str, sizeof str, "%s lives in Ollk.\n", name[20]);
+                    snprintf(str, sizeof str, "%s lives in Ollk.\n", res_enum("name", 20));
                 }
                 if (state.npc[20].towne == 3) {
-                    snprintf(str, sizeof str, "%s lives in Wilor.\n", name[20]);
+                    snprintf(str, sizeof str, "%s lives in Wilor.\n", res_enum("name", 20));
                 }
                 if (state.npc[20].towne == 4) {
-                    snprintf(str, sizeof str, "%s lives in Murn.\n", name[20]);
+                    snprintf(str, sizeof str, "%s lives in Murn.\n", res_enum("name", 20));
                 }
                 if (state.npc[20].towne == 0) {
-                    snprintf(str, sizeof str, "%s lives at %dx%d.\n", name[20], state.npc[20].x, state.npc[20].y);
+                    snprintf(str, sizeof str, "%s lives at %dx%d.\n", res_enum("name", 20), state.npc[20].x, state.npc[20].y);
                 }
                 tx("%s\r\r\n", str);
                 snprintf(send, sizeof send, "%d %s", state.cpl, str);
@@ -1155,7 +1156,7 @@ void flaggkoll(int32_t vem) {
                 }
                 clw();
                 tx("I heard that a man called\r\n");
-                tx("%s knows of the\r\n", name[23]);
+                tx("%s knows of the\r\n", res_enum("name", 23));
                 tx("Crown. I have roamed the\r\n");
                 tx("land in search for him,\r\n");
                 tx("since I want this item\r\n");
@@ -1165,9 +1166,9 @@ void flaggkoll(int32_t vem) {
                 tx("for this mission than me.\r\n\r\n");
                 ryl_pause();
                 clw();
-                tx("%s lives\r\n", name[23]);
+                tx("%s lives\r\n", res_enum("name", 23));
                 tx("%s\r\n\r\n", str);
-                snprintf(send, sizeof send, "%d %s lives %s.\n", state.cpl, name[23], str);
+                snprintf(send, sizeof send, "%d %s lives %s.\n", state.cpl, res_enum("name", 23), str);
                 journal(send);
                 state.p[state.cpl].flag[15] = 1;
                 ryl_pause();
@@ -1194,7 +1195,7 @@ void flaggkoll(int32_t vem) {
                 tx("of his teeth, he also\r\n");
                 tx("willinly reveals that\r\n");
                 tx("the smith went by the\r\n");
-                tx("name of %s...\r\n\r\n", name[24]);
+                tx("name of %s...\r\n\r\n", res_enum("name", 24));
                 ryl_pause();
                 clw();
                 tx("You let go of your grip\r\n");
@@ -1301,7 +1302,7 @@ void flaggkoll(int32_t vem) {
             if (state.p[state.cpl].flag[8] == 3) {
                 clw();
                 tx("After reading the note\r\n");
-                tx("%s cries tears\r\n", name[20]);
+                tx("%s cries tears\r\n", res_enum("name", 20));
                 tx("of happiness. He\r\n");
                 tx("shakes all your hands\r\n");
                 tx("and produces a purple\r\n");
@@ -1332,7 +1333,7 @@ void flaggkoll(int32_t vem) {
                 tx("He bids you farewell\r\n");
                 tx("and tells you that\r\n");
                 tx("he'll travel to\r\n");
-                tx("%s the very\r\n", name[8]);
+                tx("%s the very\r\n", res_enum("name", 8));
                 tx("next day...\r\n\r\n");
                 ryl_pause();
                 clw();
