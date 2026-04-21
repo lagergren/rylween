@@ -27,4 +27,9 @@ void getclk(char *kl);
 /* Bounded append: dst must already be NUL-terminated within [0, dst_sz). */
 void str_append(char *dst, size_t dst_sz, const char *src);
 
+/* Path for runtime state file <leaf> under $HOME/.rylween/ (dir created 0700
+   on first call). Falls back to "data/<leaf>" if HOME is unset or mkdir fails.
+   Returns a pointer to a static buffer; each call overwrites the prior one. */
+char *ryl_state_path(const char *leaf);
+
 #endif

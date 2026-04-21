@@ -183,7 +183,7 @@ void place_npcs() {
         }
     }
 
-    if (!(fh = fopen("data/npc.dat", "wb"))) {
+    if (!(fh = fopen(ryl_state_path("npc.dat"), "wb"))) {
         cleanexit();
     }
     for (i = 1; i < 40; i++) {

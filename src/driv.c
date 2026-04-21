@@ -383,12 +383,12 @@ void init() {
     }
     fclose(fh);
 
-    if (!(fh = fopen("data/realm.dat", "rb"))) {
+    if (!(fh = fopen(ryl_state_path("realm.dat"), "rb"))) {
         antal_spelare = 0;
         senaste_dagen = 0;
         position_locations();
 
-        if (!(fh = fopen("data/realm.dat", "wb"))) {
+        if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
             cleanexit();
         }
 
@@ -425,7 +425,7 @@ void init() {
 
         // Clear entry file
 
-        fh = fopen("data/entry.dat", "wb");
+        fh = fopen(ryl_state_path("entry.dat"), "wb");
         fclose(fh);
 
         for (i = 1; i < antal_spelare + 1; i++) {
@@ -592,7 +592,7 @@ void init() {
                     // Check ENTRY.DAT for 2-4 present names. Add one more
                     // if less.
 
-                    fh = fopen("data/entry.dat", "rb");
+                    fh = fopen(ryl_state_path("entry.dat"), "rb");
                     i = 0;
                     while (1) {
                         str[0] = 0;
@@ -623,7 +623,7 @@ void init() {
 
                     // Append name to file
 
-                    fh = fopen("data/entry.dat", "ab");
+                    fh = fopen(ryl_state_path("entry.dat"), "ab");
                     strcpy(str, global_name);
                     fwrite((char *) str, sizeof(str), 1, fh);
                     fclose(fh);
@@ -659,7 +659,7 @@ void init() {
                     if (d == 'Y') {
                         clw();
                         tx("Editing REALM.DAT...");
-                        if (!(fh = fopen("data/realm.dat", "wb"))) {
+                        if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
                             cleanexit();
                         }
                         antal_spelare--;
@@ -690,7 +690,7 @@ void init() {
 
                         clw();
                         tx("Editing NPC.DAT...");
-                        if (!(fh = fopen("data/npc.dat", "wb"))) {
+                        if (!(fh = fopen(ryl_state_path("npc.dat"), "wb"))) {
                             cleanexit();
                         }
                         // Om I > x (ditt party) och i for:as till antal_spelare (ej +1)
@@ -729,7 +729,7 @@ void save() {
     //senaste_dagen = day_at_game_start;
     senaste_dagen = kl[3];
 
-    if (!(fh = fopen("data/realm.dat", "wb"))) {
+    if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
         c(49, 6);
         clw();
         tx("\r\nUnable to save data!!!\r\n");
@@ -753,7 +753,7 @@ void save() {
     }
     fclose(fh);
 
-    if (!(fh = fopen("data/npc.dat", "wb"))) {
+    if (!(fh = fopen(ryl_state_path("npc.dat"), "wb"))) {
         c(49, 6);
         clw();
         tx("\r\nUnable to save NPCs!!!\r\n");
@@ -769,7 +769,7 @@ void load() {
     FILE *fh;
     int32_t i;
 
-    if (!(fh = fopen("data/realm.dat", "rb"))) {
+    if (!(fh = fopen(ryl_state_path("realm.dat"), "rb"))) {
         c(49, 6);
         clw();
         tx("Unable to load data!!!\r\n");
@@ -798,7 +798,7 @@ void load() {
         }
     }
 
-    if (!(fh = fopen("data/npc.dat", "rb"))) {
+    if (!(fh = fopen(ryl_state_path("npc.dat"), "rb"))) {
         c(49, 6);
         clw();
         tx("\r\nUnable to load NPCs!!!\r\n");

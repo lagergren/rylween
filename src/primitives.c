@@ -238,7 +238,7 @@ void ryl_log(char *st) {
     snprintf(str, sizeof str, "%s %2d %2d:%02d %s\n",
              months[m], (int32_t) kl[3], (int32_t) kl[4], (int32_t) kl[5], st);
 
-    if (!(fh = fopen("data/rylween.log", "a+"))) {
+    if (!(fh = fopen(ryl_state_path("rylween.log"), "a+"))) {
         return;
     }
     fputs(str, fh);

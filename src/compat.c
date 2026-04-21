@@ -2,7 +2,9 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -44,4 +46,30 @@ void str_append(char *dst, size_t dst_sz, const char *src) {
     if (n + 1 < dst_sz) {
         snprintf(dst + n, dst_sz - n, "%s", src);
     }
+}
+
+char *ryl_state_path(const char *leaf) {
+    static char buf[512];
+    static char base[480];
+    static int8_t state = -1; /* -1 uninit, 0 fallback to data/, 1 home-dir ready */
+
+    if (state < 0) {
+        const char *home = getenv("HOME");
+        state = 0;
+        if (home && *home) {
+            int n = snprintf(base, sizeof base, "%s/.rylween", home);
+            if (n > 0 && (size_t) n < sizeof base) {
+                if (mkdir(base, 0700) == 0 || errno == EEXIST) {
+                    state = 1;
+                }
+            }
+        }
+    }
+
+    if (state == 1) {
+        snprintf(buf, sizeof buf, "%s/%s", base, leaf);
+    } else {
+        snprintf(buf, sizeof buf, "data/%s", leaf);
+    }
+    return buf;
 }
