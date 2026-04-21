@@ -7,7 +7,6 @@ int32_t tid, cpl, antal_spelare, global_x, senaste_dagen, twn;
 int32_t hours_pigg;
 int32_t banished;
 int32_t dx[15], dy[15];
-int32_t reg;
 int32_t day_at_game_start;
 char map[42][82];
 char global_name[30];

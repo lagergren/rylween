@@ -107,64 +107,6 @@ void slumpvis() {
         encounter(90, 1);
     }
 
-    if (!(p[cpl].tid_kvar % 60) && p[cpl].tid_kvar) {
-        if (!reg) {
-            clw();
-            tx("Aw! Shucks! Fergot!\r\n");
-            tx("This is the standard\r\n");
-            tx("'Unregistered Game\r\n");
-            tx(" painful delay!'\r\n");
-            Delay(300);
-            clw();
-            tx("Five.\r\n");
-            Delay(150);
-            tx("Four.\r\n");
-            Delay(150);
-            tx("Three.\r\n");
-            Delay(150);
-            tx("Two.\r\n");
-            Delay(150);
-            tx("One.\r\n");
-            Delay(150);
-            clw();
-            tx("Please encourage your\r\n");
-            tx("sysop to register!\r\n");
-        }
-    }
-
-    if (!(p[cpl].tid_kvar % 41) && p[cpl].tid_kvar) {
-        if (!reg) {
-            clw();
-            tx("Suddenly some gnolls\r\n");
-            tx("appear out of nowhere.\r\n");
-            tx("The leader speaks:\r\n");
-            tx("- Tell ze sysop to\r\n");
-            tx("  register, or we'll tear\r\n");
-            tx("  yar guts out!!!\r\n\r\n");
-            ryl_pause();
-            clw();
-            tx("- Ah, guess we can do\r\n");
-            tx("  anyway...\r\n\r\n");
-            ryl_pause();
-            encounter(31, 1);
-            update_map();
-            clw();
-            tx("Wiping the blood of your\r\n");
-            tx("weapons, you think it\r\n");
-            tx("might be a good idea to\r\n");
-            tx("get this thing registered.\r\n\r\n");
-            tx("You know that you'll get\r\n");
-            tx("100 extra moves per\r\n");
-            tx("day with the registered\r\n");
-            tx("version.\r\n\r\n");
-            ryl_pause();
-            clw();
-            if (p[cpl].tid_kvar) {
-                p[cpl].tid_kvar--;
-            }
-        }
-    }
-
     if (r < 94 && r >= 3) {
         // Nothing special, see if terrain has changed and display nice message //
         check_terrain(last_terrain, map[p[cpl].y][p[cpl].x]);

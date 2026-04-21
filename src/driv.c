@@ -415,8 +415,6 @@ void init() {
     tx("[37m<MORE>\r\n");
     key();
 
-    reg = 1;
-
     load();
     getclk(kl);
     if (kl[3] != senaste_dagen) {
@@ -430,12 +428,7 @@ void init() {
 
         for (i = 1; i < antal_spelare + 1; i++) {
             tx(".");
-            if (!reg) {
-                p[i].tid_kvar = 75;
-            }
-            if (reg == 1) {
-                p[i].tid_kvar = 175;
-            }
+            p[i].tid_kvar = 175;
             Delay(2);
         }
         getclk(kl);
@@ -453,26 +446,7 @@ void init() {
 
         tx("ADVENTURERS of RYLWEEN\r\n\r\n");
 
-        /* ============================= REG FILE ============================ */
-
-        switch (reg) {
-            case 0:
-                tx("   [31mUNREGISTERED[37m copy!\r\n\r\n");
-                break;
-            case 1:
-                tx("%s's copy.\r\n\r\n", global_name);
-                break;
-            case 2:
-                cl();
-                c(1, 1);
-                tx("[31m!CORRUPTED REGISTRATION FILE![37m RYLWEEN WILL REFUSE TO RUN UNTIL IT HAS BEEN\r\n");
-                tx("REMOVED. YOU'LL NEVER GUESS HOW IT'S DONE, SO QUIT FOOLING AROUND OR I'LL\r\n");
-                tx("STRANGLE YOUR PETS! - YOU IMMORAL LITTLE BASTARD, YOU! EAT $#!T!!!!!!!!!!\r\n");
-                while (1)
-                    ;
-        }
-
-        /* =================================================================== */
+        tx("%s's copy.\r\n\r\n", global_name);
 
         for (i = 1, x = 0; i < antal_spelare + 1; i++) {
             if (!stricmp(global_name, p[i].player)) {
@@ -605,12 +579,8 @@ void init() {
                         }
                     }
                     fclose(fh);
-                    if ((reg == 1 && i >= 4) || (reg == 0 && i >= 2)) {
-                        if (reg == 1) {
-                            j = 4;
-                        } else {
-                            j = 2;
-                        }
+                    if (i >= 4) {
+                        j = 4;
                         clw();
                         tx("Sorry! You can't enter\r\n");
                         tx("the realm again today.\r\n");
@@ -1016,11 +986,7 @@ void createparty() {
     p[a].gold = 1000;
     p[a].torches = 5;
     p[a].food = 100;
-    if (reg == 1) {
-        p[a].tid_kvar = 200;
-    } else {
-        p[a].tid_kvar = 100;
-    }
+    p[a].tid_kvar = 200;
     p[a].pl = 4;
     p[a].fireshield = 0;
     p[a].bracelets = 0;
