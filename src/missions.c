@@ -8,7 +8,7 @@ uint8_t mission_control() {
     /* Mission Control */
 
     /******************************************************************/
-    if (p[cpl].flag[8] == 1 && p[cpl].x == 6 && p[cpl].y == 20) {
+    if (state.p[state.cpl].flag[8] == 1 && state.p[state.cpl].x == 6 && state.p[state.cpl].y == 20) {
         clw();
         tx("Here is the temple of\r\n");
         tx("the chaos lord Erethor.\r\n");
@@ -29,7 +29,7 @@ uint8_t mission_control() {
     }
 
     /******************************************************************/
-    if (p[cpl].flag[19] == 1 && p[cpl].x == 42 && p[cpl].y == 23) {
+    if (state.p[state.cpl].flag[19] == 1 && state.p[state.cpl].x == 42 && state.p[state.cpl].y == 23) {
         clw();
         tx("There is a cave entrance\r\n");
         tx("in the foothills to the\r\n");
@@ -48,7 +48,7 @@ uint8_t mission_control() {
         }
     }
     /******************************************************************/
-    if (p[cpl].flag[1] == 1 && rand() % 100 > 90) {
+    if (state.p[state.cpl].flag[1] == 1 && rand() % 100 > 90) {
         clw();
         tx("You come across the\r\n");
         tx("camp of the bandits.\r\n");
@@ -63,10 +63,10 @@ uint8_t mission_control() {
         tx("you to bring him.\r\n\r\n");
         ryl_pause();
         clw();
-        p[cpl].flag[1] = 2;
+        state.p[state.cpl].flag[1] = 2;
     }
     /******************************************************************/
-    if (p[cpl].flag[33] == 1 && rand() % 100 > 90) {
+    if (state.p[state.cpl].flag[33] == 1 && rand() % 100 > 90) {
         encounter(3, 1);
         update_map();
         clw();
@@ -77,9 +77,9 @@ uint8_t mission_control() {
         tx("backpack.\r\n\r\n");
         ryl_pause();
         clw();
-        p[cpl].flag[33] = 2;
+        state.p[state.cpl].flag[33] = 2;
     }
-    if (p[cpl].flag[33] == 3 && p[cpl].x == dx[1] && p[cpl].y == dy[1]) {
+    if (state.p[state.cpl].flag[33] == 3 && state.p[state.cpl].x == state.dx[1] && state.p[state.cpl].y == state.dy[1]) {
         clw();
         tx("You have found a dungeon.\r\n");
         tx("The entrance has been\r\n");
@@ -96,7 +96,7 @@ uint8_t mission_control() {
         }
     }
     /******************************************************************/
-    if (p[cpl].flag[13] == 1 && p[cpl].x == dx[2] && p[cpl].y == dy[2]) {
+    if (state.p[state.cpl].flag[13] == 1 && state.p[state.cpl].x == state.dx[2] && state.p[state.cpl].y == state.dy[2]) {
         clw();
         tx("You stand before the\r\n");
         tx("ancient temple of Thun.\r\n");
@@ -124,7 +124,7 @@ uint8_t mission_control() {
             return 1;
         }
         for (i = 1, gems = 0; i < 17; i++) {
-            if (p[cpl].inventory[i] >= 39 && p[cpl].inventory[i] <= 41) {
+            if (state.p[state.cpl].inventory[i] >= 39 && state.p[state.cpl].inventory[i] <= 41) {
                 gems++;
             }
         }
@@ -149,7 +149,7 @@ uint8_t mission_control() {
         }
     }
     /******************************************************************/
-    if (p[cpl].flag[23] == 1 && p[cpl].x == dx[3] && p[cpl].y == dy[3]) {
+    if (state.p[state.cpl].flag[23] == 1 && state.p[state.cpl].x == state.dx[3] && state.p[state.cpl].y == state.dy[3]) {
         clw();
         tx("The kobold village lies\r\n");
         tx("ahead. You can hear the\r\n");
@@ -197,10 +197,10 @@ uint8_t mission_control() {
             tx("to prove the bloody deed.\r\n\r\n");
             ryl_pause();
             clw();
-            p[cpl].flag[23] = 2;
+            state.p[state.cpl].flag[23] = 2;
         }
     }
-    if (p[cpl].flag[23] == 3 && map[p[cpl].y][p[cpl].x] == 't') {
+    if (state.p[state.cpl].flag[23] == 3 && state.map[state.p[state.cpl].y][state.p[state.cpl].x] == 't') {
         clw();
         tx("On the ground before you\r\n");
         tx("grows the skullweed plant.\r\n");
@@ -208,9 +208,9 @@ uint8_t mission_control() {
         tx("and put in your backpack.\r\n\r\n");
         ryl_pause();
         clw();
-        p[cpl].flag[23] = 4;
+        state.p[state.cpl].flag[23] = 4;
     }
-    if (p[cpl].flag[23] == 5 && p[cpl].x == dx[4] && p[cpl].y == dy[4]) {
+    if (state.p[state.cpl].flag[23] == 5 && state.p[state.cpl].x == state.dx[4] && state.p[state.cpl].y == state.dy[4]) {
         clw();
         tx("You arrive at a village\r\n");
         tx("which looks typically\r\n");
@@ -262,15 +262,15 @@ uint8_t mission_control() {
         ryl_pause();
         clw();
         tx("- Nolrim's crypt is at\r\n");
-        tx("%dx%d. Be careful, and\r\n", dx[5], dy[5]);
+        tx("%dx%d. Be careful, and\r\n", state.dx[5], state.dy[5]);
         tx("fare the well.\r\n\r\n");
         ryl_pause();
         clw();
-        snprintf(send, sizeof send, "%d Nolrim's Crypt is at %dx%d.\n", cpl, dx[5], dy[5]);
+        snprintf(send, sizeof send, "%d Nolrim's Crypt is at %dx%d.\n", state.cpl, state.dx[5], state.dy[5]);
         journal(send);
-        p[cpl].flag[23] = 6;
+        state.p[state.cpl].flag[23] = 6;
     }
-    if (p[cpl].flag[23] == 6 && p[cpl].x == dx[5] && p[cpl].y == dy[5]) {
+    if (state.p[state.cpl].flag[23] == 6 && state.p[state.cpl].x == state.dx[5] && state.p[state.cpl].y == state.dy[5]) {
         clw();
         tx("Before you is the crypt\r\n");
         tx("of Nolrim. After levering\r\n");
@@ -290,7 +290,7 @@ uint8_t mission_control() {
             return 1;
         }
     }
-    if (p[cpl].flag[23] == 7 && p[cpl].x == dx[4] && p[cpl].y == dy[4]) {
+    if (state.p[state.cpl].flag[23] == 7 && state.p[state.cpl].x == state.dx[4] && state.p[state.cpl].y == state.dy[4]) {
         clw();
         tx("Borin greets you. He\r\n");
         tx("can hardly believe his\r\n");
@@ -308,28 +308,28 @@ uint8_t mission_control() {
         tx("you a purple dwarf stone.\r\n\r\n");
         ryl_pause();
         clw();
-        p[cpl].gold += 3578;
+        state.p[state.cpl].gold += 3578;
         for (i = 1; i < 17; i++) {
-            if (p[cpl].inventory[i] == 0) {
-                p[cpl].inventory[i] = 39;
+            if (state.p[state.cpl].inventory[i] == 0) {
+                state.p[state.cpl].inventory[i] = 39;
                 break;
             }
         }
         for (i = 1; i < 17; i++) {
-            if (p[cpl].inventory[i] == 0) {
-                p[cpl].inventory[i] = 40;
+            if (state.p[state.cpl].inventory[i] == 0) {
+                state.p[state.cpl].inventory[i] = 40;
                 break;
             }
         }
         for (i = 1; i < 17; i++) {
-            if (p[cpl].inventory[i] == 0) {
-                p[cpl].inventory[i] = 41;
+            if (state.p[state.cpl].inventory[i] == 0) {
+                state.p[state.cpl].inventory[i] = 41;
                 break;
             }
         }
-        p[cpl].flag[23] = 8;
+        state.p[state.cpl].flag[23] = 8;
     }
-    if (p[cpl].flag[23] == 9 && p[cpl].x == dx[6] && p[cpl].y == dy[6]) {
+    if (state.p[state.cpl].flag[23] == 9 && state.p[state.cpl].x == state.dx[6] && state.p[state.cpl].y == state.dy[6]) {
         clw();
         tx("Before you is the dungeon\r\n");
         tx("where the ancients hid the\r\n");
@@ -348,7 +348,7 @@ uint8_t mission_control() {
             return 1;
         }
     }
-    if (p[cpl].flag[22] == 1 && p[cpl].x == dx[7] && p[cpl].y == dy[7]) {
+    if (state.p[state.cpl].flag[22] == 1 && state.p[state.cpl].x == state.dx[7] && state.p[state.cpl].y == state.dy[7]) {
         clw();
         tx("You find a the cave the\r\n");
         tx("half-orc told you about.\r\n");
@@ -396,17 +396,17 @@ uint8_t mission_control() {
             tx("warrior has left here.\r\n\r\n");
             ryl_pause();
             clw();
-            p[cpl].gold += 5645;
+            state.p[state.cpl].gold += 5645;
             for (i = 1; i < 17; i++) {
-                if (p[cpl].inventory[i] == 0) {
-                    p[cpl].inventory[i] = 25;
+                if (state.p[state.cpl].inventory[i] == 0) {
+                    state.p[state.cpl].inventory[i] = 25;
                 }
                 break;
             }
             tx("...There is however no\r\n");
             tx("trace of the Foot. Just\r\n");
             tx("as you are about to give\r\n");
-            tx("up, %s finds a note!\r\n", p[cpl].name[2]);
+            tx("up, %s finds a note!\r\n", state.p[state.cpl].name[2]);
             tx("It is written in shaky\r\n");
             tx("hand with a strange\r\n");
             tx("brown ink...\r\n\r\n");
@@ -425,13 +425,13 @@ uint8_t mission_control() {
             tx("You leave the cave.\r\n\r\n");
             ryl_pause();
             clw();
-            p[cpl].flag[22] = 2;
+            state.p[state.cpl].flag[22] = 2;
         } else {
             clw();
             return 1;
         }
     }
-    if (p[cpl].flag[22] == 2 && map[p[cpl].y][p[cpl].x] == 'f') {
+    if (state.p[state.cpl].flag[22] == 2 && state.map[state.p[state.cpl].y][state.p[state.cpl].x] == 'f') {
         clw();
         tx("Something about this whole\r\n");
         tx("area is weird. The air\r\n");
@@ -484,10 +484,10 @@ uint8_t mission_control() {
         tx("nothing happens.\r\n\r\n");
         ryl_pause();
         clw();
-        p[cpl].flag[22] = 3;
-        p[cpl].jazzyfoot = 1;
+        state.p[state.cpl].flag[22] = 3;
+        state.p[state.cpl].jazzyfoot = 1;
     }
-    if (p[cpl].flag[6] == 1 && p[cpl].x == dx[8] && p[cpl].y == dy[8]) {
+    if (state.p[state.cpl].flag[6] == 1 && state.p[state.cpl].x == state.dx[8] && state.p[state.cpl].y == state.dy[8]) {
         clw();
         tx("Here lies the dungeon\r\n");
         tx("of the Silver Key.\r\n");
@@ -509,7 +509,7 @@ uint8_t mission_control() {
         }
     }
     /******************************************************************/
-    if (p[cpl].flag[6] == 4 && rand() % 100 > 90) {
+    if (state.p[state.cpl].flag[6] == 4 && rand() % 100 > 90) {
         clw();
         tx("Just before you is a\r\n");
         tx("caravan of hobgoblins on\r\n");
@@ -533,7 +533,7 @@ uint8_t mission_control() {
         tx("about the key. The foul\r\n");
         tx("creature blurts:\r\n");
         tx("- Boss has it! In ze cave!\r\n");
-        tx("at home, yess, %dx%d...\r\n", dx[9], dy[9]);
+        tx("at home, yess, %dx%d...\r\n", state.dx[9], state.dy[9]);
         tx("pleeez sirs, don't kill\r\n");
         tx("me...\r\n\r\n");
         ryl_pause();
@@ -542,11 +542,11 @@ uint8_t mission_control() {
         tx(" his carotid artery).\r\n\r\n");
         ryl_pause();
         clw();
-        snprintf(send, sizeof send, "%d The hobgoblin cave is at %dx%d.\n", cpl, dx[9], dy[9]);
+        snprintf(send, sizeof send, "%d The hobgoblin cave is at %dx%d.\n", state.cpl, state.dx[9], state.dy[9]);
         journal(send);
-        p[cpl].flag[6] = 5;
+        state.p[state.cpl].flag[6] = 5;
     }
-    if (p[cpl].flag[6] == 5 && p[cpl].x == dx[9] && p[cpl].y == dy[9]) {
+    if (state.p[state.cpl].flag[6] == 5 && state.p[state.cpl].x == state.dx[9] && state.p[state.cpl].y == state.dy[9]) {
         clw();
         tx("This is a hobgoblin cave.\r\n");
         tx("Smoke drifts out of a pit\r\n");

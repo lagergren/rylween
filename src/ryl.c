@@ -3,17 +3,7 @@
 #include "io.h"
 #include "ryl.h"
 
-int32_t tid, cpl, antal_spelare, global_x, senaste_dagen, twn;
-int32_t hours_pigg;
-int32_t banished;
-int32_t dx[15], dy[15];
-int32_t day_at_game_start;
-char map[42][82];
-char global_name[30];
-char last_terrain;
-
-struct party p[26];
-struct person npc[41];
+struct ryl_state state;
 
 char *jobname[] = {"", "Merchant", "Ranger", "Fighter", "Wizard", "Priest",
                    "Thief", "Peasant", "Bard", "Drifter", "Half-Orc", "Half-Elf",
@@ -38,16 +28,16 @@ int main(int argc, char **argv) {
 
     io_init_tty();
 
-    global_name[0] = 0;
-    strncpy(global_name, argv[1], sizeof global_name - 1);
+    state.global_name[0] = 0;
+    strncpy(state.global_name, argv[1], sizeof state.global_name - 1);
     for (i = 2; i < argc; i++) {
-        size_t used = strlen(global_name);
-        if (used + 1 >= sizeof global_name) {
+        size_t used = strlen(state.global_name);
+        if (used + 1 >= sizeof state.global_name) {
             break;
         }
-        global_name[used] = ' ';
-        global_name[used + 1] = 0;
-        strncat(global_name, argv[i], sizeof global_name - strlen(global_name) - 1);
+        state.global_name[used] = ' ';
+        state.global_name[used + 1] = 0;
+        strncat(state.global_name, argv[i], sizeof state.global_name - strlen(state.global_name) - 1);
     }
 
     init();

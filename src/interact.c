@@ -3,7 +3,7 @@
 void guild() {
     char f, d, str2[80], str[80];
     uint8_t i, x, xx, yy;
-    char twn[10];
+    char townname[10];
     FILE *fh;
 
     clr_map_window();
@@ -12,7 +12,7 @@ void guild() {
     while (1) {
         clw();
         statusline();
-        if (p[cpl].waiting_mail) {
+        if (state.p[state.cpl].waiting_mail) {
             tx("- We have messages\r\n");
             tx("  for you, Sirs...\r\n\r\n");
             ryl_pause();
@@ -113,7 +113,7 @@ void guild() {
                 cl();
                 c(0, 0);
                 x = select_party();
-                if (x == cpl) {
+                if (x == state.cpl) {
                     break;
                 }
 
@@ -123,7 +123,7 @@ void guild() {
                 cl();
                 c(0, 0);
                 editor(str2, 0);
-                p[x].waiting_mail = 1;
+                state.p[x].waiting_mail = 1;
 
                 cl();
                 c(49, 6);
@@ -140,24 +140,24 @@ void guild() {
                 disptext("data/ansi/screen.ans");
                 blitgfx(guildpic);
                 clw();
-                tx("%s\r\n", p[x].partyname);
-                if (map[p[x].y][p[x].x] == '0') {
-                    if (p[x].x == 12 && p[x].y == 11) {
-                        strcpy(twn, "Thord");
+                tx("%s\r\n", state.p[x].partyname);
+                if (state.map[state.p[x].y][state.p[x].x] == '0') {
+                    if (state.p[x].x == 12 && state.p[x].y == 11) {
+                        strcpy(townname, "Thord");
                     }
-                    if (p[x].x == 48 && p[x].y == 12) {
-                        strcpy(twn, "Ollk");
+                    if (state.p[x].x == 48 && state.p[x].y == 12) {
+                        strcpy(townname, "Ollk");
                     }
-                    if (p[x].x == 43 && p[x].y == 20) {
-                        strcpy(twn, "Wilor");
+                    if (state.p[x].x == 43 && state.p[x].y == 20) {
+                        strcpy(townname, "Wilor");
                     }
-                    if (p[x].x == 55 && p[x].y == 29) {
-                        strcpy(twn, "Murn");
+                    if (state.p[x].x == 55 && state.p[x].y == 29) {
+                        strcpy(townname, "Murn");
                     }
-                    tx("are in %s.\r\n\r\n", twn);
+                    tx("are in %s.\r\n\r\n", townname);
                 } else {
-                    xx = p[x].x + rand() % 5;
-                    yy = p[x].y + rand() % 5;
+                    xx = state.p[x].x + rand() % 5;
+                    yy = state.p[x].y + rand() % 5;
                     tx("were last seen in\r\n");
                     tx("the area around %dx%d.\r\n\r\n", xx, yy);
                 }
@@ -171,11 +171,11 @@ void guild() {
                 tx("[37m[44m            ==================== PARTIES IN TOWN ====================          \r\n");
                 tx("             #        Name                 Leader             Avg Lvl          \r\n");
                 tx("            =========================================================          \r\n\r\n");
-                for (i = 1; i < antal_spelare + 1; i++) {
-                    if (p[i].x == p[cpl].x && p[i].y == p[cpl].y) {
+                for (i = 1; i < state.antal_spelare + 1; i++) {
+                    if (state.p[i].x == state.p[state.cpl].x && state.p[i].y == state.p[state.cpl].y) {
                         tx("[40m             [33m%c.       [35m%-20s  [31m%-15s   [34m%3d\r\n",
-                           64 + i, p[i].partyname, p[i].name[1],
-                           (p[i].lv[1] + p[i].lv[2] + p[i].lv[3] + p[i].lv[4]) / 4);
+                           64 + i, state.p[i].partyname, state.p[i].name[1],
+                           (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4);
                     }
                     if (i == 20) {
                         tx("[37m<MORE>\r\n");
@@ -203,20 +203,20 @@ uint8_t select_party() {
     tx("[37m[44m            ==================== SELECT A PARTY =====================          \r\n");
     tx("             #        Name                 Leader             Avg Lvl          \r\n");
     tx("            =========================================================          \r\n\r\n");
-    for (i = 1; i < antal_spelare + 1; i++) {
+    for (i = 1; i < state.antal_spelare + 1; i++) {
         tx("[40m             [33m%c.[35m       %-20s  [31m%-15s   [34m%3d\r\n", 64 + i,
-           p[i].partyname, p[i].name[1], (p[i].lv[1] + p[i].lv[2] + p[i].lv[3] + p[i].lv[4]) / 4);
+           state.p[i].partyname, state.p[i].name[1], (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4);
         if (i == 20) {
             tx("[37m<MORE>\r\n");
             key();
         }
     }
     tx("[37m\r\n");
-    tx("Who? (A-%c)\r\n", 64 + antal_spelare);
+    tx("Who? (A-%c)\r\n", 64 + state.antal_spelare);
     while (1) {
         d = key();
         d = toupper(d);
-        if (d >= 'A' && d <= 64 + antal_spelare) {
+        if (d >= 'A' && d <= 64 + state.antal_spelare) {
             break;
         }
     }
@@ -287,12 +287,12 @@ void editor(char *outfile, uint8_t bulletin) {
     }
 
     if (!bulletin) {
-        snprintf(str2, sizeof str2, "%s, the leader of %s sent you this message:\n\n", p[cpl].name[1],
-                 p[cpl].partyname);
+        snprintf(str2, sizeof str2, "%s, the leader of %s sent you this message:\n\n", state.p[state.cpl].name[1],
+                 state.p[state.cpl].partyname);
         fputs(str2, fh2);
     } else {
         snprintf(str2, sizeof str2, "[37m%s, [36mthe leader of %s posted this bulletin %s %d 19%d\n",
-                 p[cpl].name[1], p[cpl].partyname, mnt, kl[3], kl[1] + 80);
+                 state.p[state.cpl].name[1], state.p[state.cpl].partyname, mnt, kl[3], kl[1] + 80);
         fputs(str2, fh2);
         fputs("===============================================================================\n[37m",
               fh2);
@@ -326,8 +326,8 @@ void editor(char *outfile, uint8_t bulletin) {
 void attackhandler() {
     uint8_t i, x;
 
-    for (i = 1, x = 0; i < antal_spelare + 1; i++) {
-        if (i != cpl && p[i].x == p[cpl].x && p[i].y == p[cpl].y) {
+    for (i = 1, x = 0; i < state.antal_spelare + 1; i++) {
+        if (i != state.cpl && state.p[i].x == state.p[state.cpl].x && state.p[i].y == state.p[state.cpl].y) {
             x = 1;
             break;
         }
@@ -340,9 +340,9 @@ void attackhandler() {
     clw();
     tx("You have stumbled upon\r\n");
     tx("the camp of\r\n");
-    tx("%s!\r\n\r\n", p[i].partyname);
-    tx("They are %d level\r\n", p[i].pl);
-    tx("%d adventurers.\r\n\r\n", (p[i].lv[1] + p[i].lv[2] + p[i].lv[3] + p[i].lv[4]) / 4);
+    tx("%s!\r\n\r\n", state.p[i].partyname);
+    tx("They are %d level\r\n", state.p[i].pl);
+    tx("%d adventurers.\r\n\r\n", (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4);
     ryl_pause();
     clw();
     tx("Do you want to:\r\n\r\n");
@@ -363,7 +363,7 @@ void guild_title(char *title) {
 void trade() {
 }
 void read_internal_mail() {
-    p[cpl].waiting_mail = 0;
+    state.p[state.cpl].waiting_mail = 0;
 }
 
 // TERRAIN DESCRIPTIONS - PUT HERE TO EVEN OUT THE FILE LENGTHS //

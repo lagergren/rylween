@@ -8,7 +8,7 @@ void ydarg() {
     clr_map_window();
     blitgfx(ydargpic);
     clw();
-    if (p[cpl].silverkey == 2) {
+    if (state.p[state.cpl].silverkey == 2) {
         tx("The once so mighty\r\n");
         tx("castle Zadraz is now\r\n");
         tx("nothing but a ruin.\r\n");
@@ -46,7 +46,7 @@ void ydarg() {
     tx("have the Silver Key!\r\n\r\n");
     ryl_pause();
     clw();
-    if (!p[cpl].silverkey) {
+    if (!state.p[state.cpl].silverkey) {
         tx("- You don't have the\r\n");
         tx("Key. The gate will\r\n");
         tx("remain sealed.\r\n\r\n");
@@ -124,17 +124,17 @@ void ydarg() {
 
             case 2: /* Pitfall */
                 room[xl][yl] = 0;
-                tx("%s springs a\r\n", p[cpl].name[(rand() % 4) + 1]);
+                tx("%s springs a\r\n", state.p[state.cpl].name[(rand() % 4) + 1]);
                 tx("trap!!!\r\n");
                 Delay(75);
                 clw();
                 j = 0;
                 for (i = 1; i < 5; i++) {
-                    if (p[cpl].cl[i] == 2) {
-                        tx("%s tries to\r\n", p[cpl].name[i]);
+                    if (state.p[state.cpl].cl[i] == 2) {
+                        tx("%s tries to\r\n", state.p[state.cpl].name[i]);
                         tx("disarm it...\r\n\r\n");
                         Delay(75);
-                        if (rand() % 100 < p[cpl].wi[i]) {
+                        if (rand() % 100 < state.p[state.cpl].wi[i]) {
                             tx("AND SUCCEEDS!\r\n");
                             Delay(50);
                             j = 1;
@@ -165,8 +165,8 @@ void ydarg() {
                     }
                     ryl_pause();
                     for (i = 1; i < 5; i++) {
-                        if (!p[cpl].dead[i]) {
-                            p[cpl].hp[i] -= p[cpl].hp[i] / 6;
+                        if (!state.p[state.cpl].dead[i]) {
+                            state.p[state.cpl].hp[i] -= state.p[state.cpl].hp[i] / 6;
                         }
                     }
                 }
@@ -201,8 +201,8 @@ void ydarg() {
                 c = toupper(c);
                 if (c == 'T') {
                     for (i = 1, x = 0; i < 17; i++) {
-                        if (!p[cpl].inventory[i]) {
-                            p[cpl].inventory[i] = oc;
+                        if (!state.p[state.cpl].inventory[i]) {
+                            state.p[state.cpl].inventory[i] = oc;
                             x = 1;
                             break;
                         }
@@ -283,43 +283,43 @@ void ydarg() {
                     j = 0;
                     switch (d - 48) {
                         case 1:
-                            if (!p[cpl].fireshield) {
+                            if (!state.p[state.cpl].fireshield) {
                                 clw();
                                 tx("You don't have it!\r\n");
                                 Delay(75);
                                 break;
                             }
-                            p[cpl].fireshield = 0;
+                            state.p[state.cpl].fireshield = 0;
                             j = 1;
                             break;
                         case 2:
-                            if (!p[cpl].mastercrown) {
+                            if (!state.p[state.cpl].mastercrown) {
                                 clw();
                                 tx("You don't have it!\r\n");
                                 Delay(75);
                                 break;
                             }
-                            p[cpl].mastercrown = 0;
+                            state.p[state.cpl].mastercrown = 0;
                             j = 1;
                             break;
                         case 3:
-                            if (!p[cpl].jazzyfoot) {
+                            if (!state.p[state.cpl].jazzyfoot) {
                                 clw();
                                 tx("You don't have it!\r\n");
                                 Delay(75);
                                 break;
                             }
-                            p[cpl].jazzyfoot = 0;
+                            state.p[state.cpl].jazzyfoot = 0;
                             j = 1;
                             break;
                         case 4:
-                            if (!p[cpl].bracelets) {
+                            if (!state.p[state.cpl].bracelets) {
                                 clw();
                                 tx("You don't have them!\r\n");
                                 Delay(75);
                                 break;
                             }
-                            p[cpl].bracelets = 0;
+                            state.p[state.cpl].bracelets = 0;
                             j = 1;
                             break;
                     }
@@ -534,7 +534,7 @@ void confrontation() {
     ryl_pause();
     clw();
     tx("Suddenly! You feel someone\r\n");
-    tx("else near. %s turns\r\n", p[cpl].name[1]);
+    tx("else near. %s turns\r\n", state.p[state.cpl].name[1]);
     tx("around and discovers the\r\n");
     tx("four grey-clad mages!\r\n");
     tx("They simultaneously raise\r\n");
@@ -594,7 +594,7 @@ void confrontation() {
     tx("reset the game.\r\n\r\n");
     ryl_pause();
     clw();
-    p[cpl].silverkey = 2;
+    state.p[state.cpl].silverkey = 2;
     save();
     tx("Be ready for:\r\n");
     tx("[31mHEROES OF RYLWEEN[37m\r\n");
@@ -666,7 +666,7 @@ void confrontation() {
             break;
     }
 
-    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", p[cpl].partyname, mstr, kl[3],
+    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", state.p[state.cpl].partyname, mstr, kl[3],
              kl[1] + 80);
     fputs(str, fh);
     fclose(fh);

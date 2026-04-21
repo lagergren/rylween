@@ -26,15 +26,6 @@
 #define guildpic 19
 #define encounterpic 40 /* Addera random sedan +x */
 
-extern int32_t tid, cpl, antal_spelare, global_x, senaste_dagen, twn;
-extern int32_t hours_pigg;
-extern int32_t banished;
-extern int32_t dx[15], dy[15];
-extern char map[42][82];
-extern int32_t day_at_game_start;
-extern char global_name[30];
-extern char last_terrain;
-
 extern char *name[];
 extern char *jobname[];
 
@@ -69,7 +60,7 @@ struct person {
     unsigned char visited[26]; /* Start at 0. Visited before???*/
 };
 
-extern struct person npc[41];
+/* `struct person npc[41]` now lives inside `struct ryl_state` below. */
 
 struct party {
     char player[30];
@@ -126,7 +117,35 @@ struct party {
     int32_t empty5;
 };
 
-extern struct party p[26];
+/* `struct party p[26]` now lives inside `struct ryl_state` below. */
+
+struct ryl_state {
+    /* Per-session transient state. */
+    int32_t tid;
+    int32_t cpl;
+    int32_t twn;
+    int32_t hours_pigg;
+    int32_t banished;
+    int32_t global_x;
+    char last_terrain;
+
+    /* Per-boot configuration. */
+    int32_t antal_spelare;
+    int32_t senaste_dagen;
+    int32_t day_at_game_start;
+    char global_name[30];
+
+    /* Location tables (set at init, read thereafter). */
+    int32_t dx[15];
+    int32_t dy[15];
+
+    /* Persistent game data (flushed to realm.dat / npc.dat). */
+    char map[42][82];
+    struct party p[26];
+    struct person npc[41];
+};
+
+extern struct ryl_state state;
 
 /* TERMINAL PRIMITIVES — all live in primitives.c as io->... wrappers */
 

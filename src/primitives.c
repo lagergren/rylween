@@ -19,7 +19,7 @@ void c(uint8_t x, uint8_t y) {
     char pos[16];
     int32_t n;
 
-    global_x = x;
+    state.global_x = x;
     n = snprintf(pos, sizeof pos, "\x1b[%d;0H", y);
     io->write(pos, (size_t) n);
 }
@@ -30,7 +30,7 @@ uint32_t tx(const char *fmtstr, ...) {
     va_list var_args;
     int32_t n;
 
-    n = snprintf(jump, sizeof jump, "\x1b[%dC", global_x);
+    n = snprintf(jump, sizeof jump, "\x1b[%dC", state.global_x);
     if (n > 0) {
         io->write(jump, (size_t) n);
     }
@@ -115,26 +115,26 @@ char key(void) {
     }
 
     /* Local sysop backdoors — preserved from the Amiga original. */
-    if (!stricmp(global_name, "Marcus Lagergren")) {
+    if (!stricmp(state.global_name, "Marcus Lagergren")) {
         switch (ch) {
             case '/':
-                p[cpl].tid_kvar += 50;
+                state.p[state.cpl].tid_kvar += 50;
                 statusline();
                 break;
             case '(':
-                p[cpl].inventory[12] = 104;
+                state.p[state.cpl].inventory[12] = 104;
                 break;
             case ')':
-                p[cpl].inventory[11] = 108;
+                state.p[state.cpl].inventory[11] = 108;
                 break;
             case '&':
-                p[cpl].inventory[10] = 109;
+                state.p[state.cpl].inventory[10] = 109;
                 break;
             case '*':
-                p[cpl].inventory[9] = 110;
+                state.p[state.cpl].inventory[9] = 110;
                 break;
             case '+':
-                p[cpl].gold += 1000;
+                state.p[state.cpl].gold += 1000;
                 statusline();
                 break;
         }

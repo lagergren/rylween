@@ -1,9 +1,9 @@
 #include "ryl.h"
 
 void timehandler() {
-    tid++;
-    if (tid == 25) {
-        tid = 1;
+    state.tid++;
+    if (state.tid == 25) {
+        state.tid = 1;
     }
 }
 void foodhandler() {
@@ -11,36 +11,36 @@ void foodhandler() {
 
     // Regenerate mana //
     for (i = 1; i < 5; i++) {
-        if (p[cpl].cl[i] == 3 || p[cpl].cl[i] == 4) {
-            if (p[cpl].ma[i] < p[cpl].wi[i] && !(rand() % 2)) {
-                p[cpl].ma[i]++;
+        if (state.p[state.cpl].cl[i] == 3 || state.p[state.cpl].cl[i] == 4) {
+            if (state.p[state.cpl].ma[i] < state.p[state.cpl].wi[i] && !(rand() % 2)) {
+                state.p[state.cpl].ma[i]++;
             }
         }
     }
 
-    if (!(p[cpl].tid_kvar % 5)) {
-        p[cpl].food -= p[cpl].pl;
-        p[cpl].food -= p[cpl].lv[1] / 4;
+    if (!(state.p[state.cpl].tid_kvar % 5)) {
+        state.p[state.cpl].food -= state.p[state.cpl].pl;
+        state.p[state.cpl].food -= state.p[state.cpl].lv[1] / 4;
     }
-    if (p[cpl].food < 0) {
-        p[cpl].food = 0;
+    if (state.p[state.cpl].food < 0) {
+        state.p[state.cpl].food = 0;
     }
     // Starving routine //
 
-    if (p[cpl].food == 0) {
+    if (state.p[state.cpl].food == 0) {
         for (i = 1; i < 5; i++) {
-            if (!p[cpl].dead[i]) {
-                p[cpl].hp[i] -= 2;
+            if (!state.p[state.cpl].dead[i]) {
+                state.p[state.cpl].hp[i] -= 2;
             }
-            if (p[cpl].hp[i] < 1 && !p[cpl].dead[i]) {
-                p[cpl].hp[i] = 0;
+            if (state.p[state.cpl].hp[i] < 1 && !state.p[state.cpl].dead[i]) {
+                state.p[state.cpl].hp[i] = 0;
                 clw();
-                tx("%s starved\r\n", p[cpl].name[i]);
+                tx("%s starved\r\n", state.p[state.cpl].name[i]);
                 tx("to death!!!\r\n");
                 Delay(50);
                 clw();
-                p[cpl].dead[i] = 1;
-                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4]) {
+                state.p[state.cpl].dead[i] = 1;
+                if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
                     losegame();
                 }
             }
@@ -48,42 +48,42 @@ void foodhandler() {
     }
 
     // Time routine //
-    hours_pigg--;
-    if (hours_pigg == 0) {
+    state.hours_pigg--;
+    if (state.hours_pigg == 0) {
         clw();
         tx("You begin to feel tired\r\n");
         return;
     }
-    if (hours_pigg == -4) {
+    if (state.hours_pigg == -4) {
         clw();
         tx("You are exhausted!!!\r\n");
         for (i = 1; i < 5; i++) {
-            if (p[cpl].hp[i] > 1) {
-                p[cpl].hp[i]--;
+            if (state.p[state.cpl].hp[i] > 1) {
+                state.p[state.cpl].hp[i]--;
             }
         }
         return;
     }
-    if (hours_pigg == -8) {
+    if (state.hours_pigg == -8) {
         clw();
         tx("You begin to feel weak\r\n");
         tx("from lack of sleep.\r\n\r\n");
         for (i = 1; i < 5; i++) {
-            if (p[cpl].hp[i] > 1) {
-                p[cpl].hp[i]--;
+            if (state.p[state.cpl].hp[i] > 1) {
+                state.p[state.cpl].hp[i]--;
             }
         }
         ryl_pause();
         clw();
         return;
     }
-    if (hours_pigg < -8) {
+    if (state.hours_pigg < -8) {
         clw();
         tx("You faint from lack\r\n");
         tx("of well needed sleep.\r\n");
         for (i = 1; i < 5; i++) {
-            if (p[cpl].hp[i] > 1) {
-                p[cpl].hp[i]--;
+            if (state.p[state.cpl].hp[i] > 1) {
+                state.p[state.cpl].hp[i]--;
             }
         }
     }
@@ -103,13 +103,13 @@ void slumpvis() {
         return;
     }
 
-    if (!(p[cpl].tid_kvar % 101) && !stricmp(global_name, "Karl Skagerberg")) {
+    if (!(state.p[state.cpl].tid_kvar % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
         encounter(90, 1);
     }
 
     if (r < 94 && r >= 3) {
         // Nothing special, see if terrain has changed and display nice message //
-        check_terrain(last_terrain, map[p[cpl].y][p[cpl].x]);
+        check_terrain(state.last_terrain, state.map[state.p[state.cpl].y][state.p[state.cpl].x]);
         return;
     }
     if (r < 3) {
@@ -129,8 +129,8 @@ void slumpvis() {
         time(&t);
         srand((unsigned int) t);
         if (c == 'E') {
-            if (p[cpl].tid_kvar > 10) {
-                p[cpl].tid_kvar -= 10;
+            if (state.p[state.cpl].tid_kvar > 10) {
+                state.p[state.cpl].tid_kvar -= 10;
             } else {
                 clw();
                 tx("You don't have enough\r\n");
@@ -155,7 +155,7 @@ void slumpvis() {
     // slumpmote //
 
     time(&t);
-    srand((unsigned int) t - tid + p[cpl].x);
+    srand((unsigned int) t - state.tid + state.p[state.cpl].x);
 
     // 40-53 //
 
@@ -184,43 +184,43 @@ void losegame() {
 
 void update_map() {
     c(9, 6);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(map[p[cpl].y - 2][p[cpl].x - 2]),
-       kar(map[p[cpl].y - 2][p[cpl].x - 2]), frg(map[p[cpl].y - 2][p[cpl].x - 1]),
-       kar(map[p[cpl].y - 2][p[cpl].x - 1]), frg(map[p[cpl].y - 2][p[cpl].x]),
-       kar(map[p[cpl].y - 2][p[cpl].x]), frg(map[p[cpl].y - 2][p[cpl].x + 1]),
-       kar(map[p[cpl].y - 2][p[cpl].x + 1]), frg(map[p[cpl].y - 2][p[cpl].x + 2]),
-       kar(map[p[cpl].y - 2][p[cpl].x + 2]));
+    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x]), frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 1]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 1]), frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 2]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 2]));
 
     c(9, 8);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(map[p[cpl].y - 1][p[cpl].x - 2]),
-       kar(map[p[cpl].y - 1][p[cpl].x - 2]), frg(map[p[cpl].y - 1][p[cpl].x - 1]),
-       kar(map[p[cpl].y - 1][p[cpl].x - 1]), frg(map[p[cpl].y - 1][p[cpl].x]),
-       kar(map[p[cpl].y - 1][p[cpl].x]), frg(map[p[cpl].y - 1][p[cpl].x + 1]),
-       kar(map[p[cpl].y - 1][p[cpl].x + 1]), frg(map[p[cpl].y - 1][p[cpl].x + 2]),
-       kar(map[p[cpl].y - 1][p[cpl].x + 2]));
+    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x]), frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 1]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 1]), frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 2]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 2]));
 
     c(9, 10);
-    tx("[%dm%s [%dm%s [44m[%dm%s[40m [%dm%s [%dm%s", frg(map[p[cpl].y][p[cpl].x - 2]),
-       kar(map[p[cpl].y][p[cpl].x - 2]), frg(map[p[cpl].y][p[cpl].x - 1]),
-       kar(map[p[cpl].y][p[cpl].x - 1]), frg(map[p[cpl].y][p[cpl].x]), kar(map[p[cpl].y][p[cpl].x]),
-       frg(map[p[cpl].y][p[cpl].x + 1]), kar(map[p[cpl].y][p[cpl].x + 1]),
-       frg(map[p[cpl].y][p[cpl].x + 2]), kar(map[p[cpl].y][p[cpl].x + 2]));
+    tx("[%dm%s [%dm%s [44m[%dm%s[40m [%dm%s [%dm%s", frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x]),
+       frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1]),
+       frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 2]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 2]));
 
     c(9, 12);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(map[p[cpl].y + 1][p[cpl].x - 2]),
-       kar(map[p[cpl].y + 1][p[cpl].x - 2]), frg(map[p[cpl].y + 1][p[cpl].x - 1]),
-       kar(map[p[cpl].y + 1][p[cpl].x - 1]), frg(map[p[cpl].y + 1][p[cpl].x]),
-       kar(map[p[cpl].y + 1][p[cpl].x]), frg(map[p[cpl].y + 1][p[cpl].x + 1]),
-       kar(map[p[cpl].y + 1][p[cpl].x + 1]), frg(map[p[cpl].y + 1][p[cpl].x + 2]),
-       kar(map[p[cpl].y + 1][p[cpl].x + 2]));
+    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x]), frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 1]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 1]), frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 2]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 2]));
 
     c(9, 14);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s[37m", frg(map[p[cpl].y + 2][p[cpl].x - 2]),
-       kar(map[p[cpl].y + 2][p[cpl].x - 2]), frg(map[p[cpl].y + 2][p[cpl].x - 1]),
-       kar(map[p[cpl].y + 2][p[cpl].x - 1]), frg(map[p[cpl].y + 2][p[cpl].x]),
-       kar(map[p[cpl].y + 2][p[cpl].x]), frg(map[p[cpl].y + 2][p[cpl].x + 1]),
-       kar(map[p[cpl].y + 2][p[cpl].x + 1]), frg(map[p[cpl].y + 2][p[cpl].x + 2]),
-       kar(map[p[cpl].y + 2][p[cpl].x + 2]));
+    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s[37m", frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x]), frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 1]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 1]), frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 2]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 2]));
 }
 int32_t frg(char t) {
     switch (t) {
@@ -281,7 +281,7 @@ void weaponoff() {
     tx("Who? (1-4)\r\n");
     c = key();
     if (c >= '1' && c <= '4') {
-        if (p[cpl].wp[c - 48] == 0) {
+        if (state.p[state.cpl].wp[c - 48] == 0) {
             clw();
             tx("%s has no weapon!\r\n", sextext(c - 48, 1));
             Delay(40);
@@ -289,7 +289,7 @@ void weaponoff() {
             return;
         }
         for (i = 1, x = 0; i < 17; i++) {
-            if (!p[cpl].inventory[i]) {
+            if (!state.p[state.cpl].inventory[i]) {
                 x = i;
                 break;
             }
@@ -302,10 +302,10 @@ void weaponoff() {
             return;
         } else {
             clw();
-            tx("%s removed.\r\n", object(p[cpl].wp[c - 48]));
+            tx("%s removed.\r\n", object(state.p[state.cpl].wp[c - 48]));
             Delay(40);
-            p[cpl].inventory[x] = p[cpl].wp[c - 48];
-            p[cpl].wp[c - 48] = 0;
+            state.p[state.cpl].inventory[x] = state.p[state.cpl].wp[c - 48];
+            state.p[state.cpl].wp[c - 48] = 0;
             clw();
             return;
         }
@@ -320,7 +320,7 @@ void armouroff() {
     tx("Who? (1-4)\r\n");
     c = key();
     if (c >= '1' && c <= '4') {
-        if (p[cpl].ar[c - 48] == 0) {
+        if (state.p[state.cpl].ar[c - 48] == 0) {
             clw();
             tx("%s has no armour!\r\n", sextext(c - 48, 1));
             Delay(40);
@@ -328,7 +328,7 @@ void armouroff() {
             return;
         }
         for (i = 1, x = 0; i < 17; i++) {
-            if (!p[cpl].inventory[i]) {
+            if (!state.p[state.cpl].inventory[i]) {
                 x = i;
                 break;
             }
@@ -341,10 +341,10 @@ void armouroff() {
             return;
         } else {
             clw();
-            tx("%s removed.\r\n", object(p[cpl].ar[c - 48]));
+            tx("%s removed.\r\n", object(state.p[state.cpl].ar[c - 48]));
             Delay(40);
-            p[cpl].inventory[x] = p[cpl].ar[c - 48];
-            p[cpl].ar[c - 48] = 0;
+            state.p[state.cpl].inventory[x] = state.p[state.cpl].ar[c - 48];
+            state.p[state.cpl].ar[c - 48] = 0;
             clw();
             return;
         }
@@ -361,7 +361,7 @@ void weaponr() {
     d = toupper(d);
     oc = 0;
     if (d >= 'A' && d <= 'P') {
-        oc = p[cpl].inventory[d - 64];
+        oc = state.p[state.cpl].inventory[d - 64];
         if (oc > 19 || oc == 0) {
             clw();
             tx("Not a valid weapon.\r\n");
@@ -382,14 +382,14 @@ void weaponr() {
         return;
     }
 
-    if (p[cpl].dead[b - 48]) {
+    if (state.p[state.cpl].dead[b - 48]) {
         clw();
         tx("Dead.\r\n");
         return;
     }
-    temp = p[cpl].wp[b - 48];
-    p[cpl].wp[b - 48] = p[cpl].inventory[d - 64];
-    p[cpl].inventory[d - 64] = temp;
+    temp = state.p[state.cpl].wp[b - 48];
+    state.p[state.cpl].wp[b - 48] = state.p[state.cpl].inventory[d - 64];
+    state.p[state.cpl].inventory[d - 64] = temp;
     clw();
     tx("Weapon changed.\r\n");
     Delay(30);
@@ -406,7 +406,7 @@ void armourr() {
     d = toupper(d);
     oc = 0;
     if (d >= 'A' && d <= 'P') {
-        oc = p[cpl].inventory[d - 64];
+        oc = state.p[state.cpl].inventory[d - 64];
         if (oc < 20 || oc > 29 || oc == 0) {
             clw();
             tx("Not a valid armour.\r\n");
@@ -427,14 +427,14 @@ void armourr() {
         return;
     }
 
-    if (p[cpl].dead[b - 48]) {
+    if (state.p[state.cpl].dead[b - 48]) {
         clw();
         tx("Dead.\r\n");
         return;
     }
-    temp = p[cpl].ar[b - 48];
-    p[cpl].ar[b - 48] = p[cpl].inventory[d - 64];
-    p[cpl].inventory[d - 64] = temp;
+    temp = state.p[state.cpl].ar[b - 48];
+    state.p[state.cpl].ar[b - 48] = state.p[state.cpl].inventory[d - 64];
+    state.p[state.cpl].inventory[d - 64] = temp;
     clw();
     tx("Armour changed.\r\n");
     Delay(30);
@@ -451,27 +451,27 @@ uint8_t drop() {
     d = toupper(d);
     if (d >= 'A' && d <= 'P') {
         clw();
-        if (p[cpl].inventory[d - 64]) {
+        if (state.p[state.cpl].inventory[d - 64]) {
             tx("You drop the\r\n");
-            tx("%s.\r\n", object(p[cpl].inventory[d - 64]));
+            tx("%s.\r\n", object(state.p[state.cpl].inventory[d - 64]));
             Delay(50);
-            if (p[cpl].inventory[d - 64] == 47) {
+            if (state.p[state.cpl].inventory[d - 64] == 47) {
                 for (i = 1, y = 0; i < 17; i++) {
-                    if (p[cpl].inventory[i] == 47) {
+                    if (state.p[state.cpl].inventory[i] == 47) {
                         y++;
                     }
                 }
                 y--;
-                if (p[cpl].food > (150 + 150 * y)) {
+                if (state.p[state.cpl].food > (150 + 150 * y)) {
                     clw();
                     tx("You are forced to\r\n");
                     tx("leave some of your\r\n");
                     tx("food behind...\r\n");
                     Delay(50);
-                    p[cpl].food = (150 + 150 * y);
+                    state.p[state.cpl].food = (150 + 150 * y);
                 }
             }
-            p[cpl].inventory[d - 64] = 0;
+            state.p[state.cpl].inventory[d - 64] = 0;
             clw();
             return (uint8_t) (d - 64);
         } else {
@@ -491,7 +491,7 @@ void camp() {
     int32_t i, death, guard = 0, temperature, x;
     char c, d;
 
-    if (hours_pigg > 0) {
+    if (state.hours_pigg > 0) {
         clw();
         tx("Not tired.\r\n");
         Delay(30);
@@ -499,14 +499,14 @@ void camp() {
         return;
     }
 
-    if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4]) {
+    if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
         return;
     }
 
     clr_map_window();
 
     for (i = 1, x = 0; i < 17; i++) {
-        if (p[cpl].inventory[i] == 34) {
+        if (state.p[state.cpl].inventory[i] == 34) {
             x = 1;
         }
     }
@@ -531,7 +531,7 @@ void camp() {
             d = key();
             d = toupper(d);
             if (d >= '1' && d <= '4') {
-                if (!(p[cpl].dead[d - 48])) {
+                if (!(state.p[state.cpl].dead[d - 48])) {
                     break;
                 } else {
                     clw();
@@ -546,7 +546,7 @@ void camp() {
         }
         guard = d - 48;
         clw();
-        tx("%s stands guard.\r\n", p[cpl].name[d - 48]);
+        tx("%s stands guard.\r\n", state.p[state.cpl].name[d - 48]);
         tx("%s won't get any\r\n", sextext(d - 48, 1));
         tx("health back during\r\n");
         tx("this rest.\r\n\r\n");
@@ -564,7 +564,7 @@ void camp() {
         tx("Low Temperature.\r\n");
         Delay(30);
         for (i = 1, x = 0; i < 17; i++) {
-            if (p[cpl].inventory[i] == 33 || p[cpl].inventory[i] == 34) {
+            if (state.p[state.cpl].inventory[i] == 33 || state.p[state.cpl].inventory[i] == 34) {
                 x = 1;
                 break;
             }
@@ -574,9 +574,9 @@ void camp() {
             tx("Party loses 5 health.\r\n");
             Delay(75);
             for (i = 1; i < 5; i++) {
-                p[cpl].hp[i] -= 5;
-                if (p[cpl].hp[i] < 1) {
-                    p[cpl].hp[i] = 1;
+                state.p[state.cpl].hp[i] -= 5;
+                if (state.p[state.cpl].hp[i] < 1) {
+                    state.p[state.cpl].hp[i] = 1;
                 }
             }
         }
@@ -584,7 +584,7 @@ void camp() {
     if (temperature >= 10) {
         tx("Very low temperature.\r\n");
         for (i = 1, x = 0; i < 17; i++) {
-            if (p[cpl].inventory[i] == 34) {
+            if (state.p[state.cpl].inventory[i] == 34) {
                 x = 1;
                 break;
             }
@@ -595,9 +595,9 @@ void camp() {
             tx("Party loses 10 health.\r\n");
             Delay(75);
             for (i = 1; i < 5; i++) {
-                p[cpl].hp[i] -= 5;
-                if (p[cpl].hp[i] < 1) {
-                    p[cpl].hp[i] = 1;
+                state.p[state.cpl].hp[i] -= 5;
+                if (state.p[state.cpl].hp[i] < 1) {
+                    state.p[state.cpl].hp[i] = 1;
                 }
             }
         }
@@ -606,27 +606,27 @@ void camp() {
     /* INCREASE TIME */
 
     for (i = 1; i < 9; i++) {
-        tid++;
-        if (tid == 25) {
-            tid = 1;
+        state.tid++;
+        if (state.tid == 25) {
+            state.tid = 1;
         }
     }
-    hours_pigg = 14;
-    if (p[cpl].food < 4 * p[cpl].pl) {
-        p[cpl].food = 0;
+    state.hours_pigg = 14;
+    if (state.p[state.cpl].food < 4 * state.p[state.cpl].pl) {
+        state.p[state.cpl].food = 0;
     } else {
-        p[cpl].food -= 4 * p[cpl].pl;
+        state.p[state.cpl].food -= 4 * state.p[state.cpl].pl;
     }
-    if (p[cpl].food < 0) {
-        p[cpl].food = 0;
+    if (state.p[state.cpl].food < 0) {
+        state.p[state.cpl].food = 0;
     }
     for (i = 1; i < 5; i++) {
         if (i != guard) {
-            if (!p[cpl].dead[i]) {
-                p[cpl].hp[i] += 15;
+            if (!state.p[state.cpl].dead[i]) {
+                state.p[state.cpl].hp[i] += 15;
             }
-            if (p[cpl].hp[i] > p[cpl].h[i]) {
-                p[cpl].hp[i] = p[cpl].h[i];
+            if (state.p[state.cpl].hp[i] > state.p[state.cpl].h[i]) {
+                state.p[state.cpl].hp[i] = state.p[state.cpl].h[i];
             }
         }
     }
@@ -634,15 +634,15 @@ void camp() {
         clw();
         tx("Ambush!!!\r\n");
         Delay(50);
-        if (!guard && p[cpl].pl > 1) {
+        if (!guard && state.p[state.cpl].pl > 1) {
             death = rand() % 4;
             death++;
-            tx("%s is dead\r\n", p[cpl].name[death]);
+            tx("%s is dead\r\n", state.p[state.cpl].name[death]);
             tx("before you can\r\n");
             tx("react!!!\r\n\r\n");
-            p[cpl].hp[death] = 0;
-            p[cpl].dead[death] = 1;
-            p[cpl].pl--;
+            state.p[state.cpl].hp[death] = 0;
+            state.p[state.cpl].dead[death] = 1;
+            state.p[state.cpl].pl--;
             ryl_pause();
         }
         encounter((rand() % 10) + 1, 0);
@@ -669,7 +669,7 @@ void quaff() {
         d = toupper(d);
         oc = 0;
         if (d >= 'A' && d <= 'P') {
-            oc = p[cpl].inventory[d - 64];
+            oc = state.p[state.cpl].inventory[d - 64];
             if (oc < 36 || oc > 38) {
                 clw();
                 tx("Not valid.\r\n");
@@ -690,7 +690,7 @@ void quaff() {
         c = key();
         c = toupper(c);
         if (c >= '1' && c <= '4') {
-            if (!p[cpl].dead[c - 48]) {
+            if (!state.p[state.cpl].dead[c - 48]) {
                 break;
             } else {
                 clw();
@@ -700,7 +700,7 @@ void quaff() {
             }
         }
     }
-    p[cpl].inventory[d - 64] = 0;
+    state.p[state.cpl].inventory[d - 64] = 0;
     clw();
     tx("Gulp!\r\n\r\n");
     Delay(30);
@@ -711,9 +711,9 @@ void quaff() {
             tx("%s inside...\r\n\r\n", sextext(c - 48, 2));
             ryl_pause();
             clw();
-            p[cpl].hp[c - 48] += (15 + p[cpl].lv[c - 48]);
-            if (p[cpl].hp[c - 48] > p[cpl].h[c - 48]) {
-                p[cpl].hp[c - 48] = p[cpl].h[c - 48];
+            state.p[state.cpl].hp[c - 48] += (15 + state.p[state.cpl].lv[c - 48]);
+            if (state.p[state.cpl].hp[c - 48] > state.p[state.cpl].h[c - 48]) {
+                state.p[state.cpl].hp[c - 48] = state.p[state.cpl].h[c - 48];
             }
             break;
 
@@ -723,20 +723,20 @@ void quaff() {
             tx("begins to work.\r\n\r\n");
             ryl_pause();
             clw();
-            p[cpl].hp[c - 48] -= (15 + p[cpl].lv[c - 48]);
-            if (p[cpl].hp[c - 48] < 1) {
-                p[cpl].hp[c - 48] = 1;
+            state.p[state.cpl].hp[c - 48] -= (15 + state.p[state.cpl].lv[c - 48]);
+            if (state.p[state.cpl].hp[c - 48] < 1) {
+                state.p[state.cpl].hp[c - 48] = 1;
             }
             break;
 
         case 38:
-            if (p[cpl].cl[c - 48] == 3 || p[cpl].cl[c - 48] == 4) {
+            if (state.p[state.cpl].cl[c - 48] == 3 || state.p[state.cpl].cl[c - 48] == 4) {
                 tx("It tingles slightly in\r\n");
                 tx("%s body, as all his\r\n", sextext(c - 48, 3));
                 tx("spell points return.\r\n\r\n");
                 ryl_pause();
                 clw();
-                p[cpl].ma[c - 48] = p[cpl].wi[c - 48];
+                state.p[state.cpl].ma[c - 48] = state.p[state.cpl].wi[c - 48];
             } else {
                 tx("The potion has no special\r\n");
                 tx("effect on this character.\r\n\r\n");
@@ -756,7 +756,7 @@ void hunt() {
         c = key();
         c = toupper(c);
         if (c >= '1' && c <= '4') {
-            if (!p[cpl].dead[c - 48]) {
+            if (!state.p[state.cpl].dead[c - 48]) {
                 break;
             } else {
                 clw();
@@ -765,7 +765,7 @@ void hunt() {
             }
         }
     }
-    if (p[cpl].cl[c - 48] != 6) {
+    if (state.p[state.cpl].cl[c - 48] != 6) {
         clw();
         tx("%s is not a ranger.\r\n", sextext(c - 48, 1));
         Delay(35);
@@ -773,21 +773,21 @@ void hunt() {
         return;
     }
     clw();
-    if (p[cpl].tid_kvar < 5) {
+    if (state.p[state.cpl].tid_kvar < 5) {
         tx("Too few moves for that.\r\n");
         Delay(50);
         return;
     }
-    p[cpl].tid_kvar -= 5;
-    tx("%s tries\r\n", p[cpl].name[c - 48]);
+    state.p[state.cpl].tid_kvar -= 5;
+    tx("%s tries\r\n", state.p[state.cpl].name[c - 48]);
     tx("to trap a rabbit...\r\n");
     Delay(70);
     if (rand() % 100 < 45) {
-        fdplus = 10 + (rand() % 10) + p[cpl].lv[1];
+        fdplus = 10 + (rand() % 10) + state.p[state.cpl].lv[1];
         tx("...and succeeds.\r\n");
         tx("The party gains\r\n");
         tx("%d food rations.\r\n\r\n", fdplus);
-        p[cpl].food += fdplus;
+        state.p[state.cpl].food += fdplus;
         ryl_pause();
         clw();
         return;
@@ -812,33 +812,33 @@ void spell(int32_t place) {
     vem = (c - 48);
 
     clw();
-    if (p[cpl].cl[vem] == 3) {
+    if (state.p[state.cpl].cl[vem] == 3) {
         tx("Sorry. Mage spells are\r\n");
         tx("combat-only.\r\n");
         Delay(75);
         clw();
         return;
     }
-    if (p[cpl].cl[vem] != 4) {
+    if (state.p[state.cpl].cl[vem] != 4) {
         tx("Wrong class.\r\n");
         Delay(50);
         clw();
         return;
     }
-    if (p[cpl].dead[vem]) {
+    if (state.p[state.cpl].dead[vem]) {
         clw();
         tx("Dead.\r\n");
         Delay(30);
         return;
     }
 
-    tx("1. Healing     (%3d/%3d)\r\n", 8 + p[cpl].lv[vem], p[cpl].ma[vem]);
-    tx("2. Restoration (%3d/%3d)\r\n", 20 + p[cpl].lv[vem], p[cpl].ma[vem]);
-    tx("3. Rebirth     (%3d/%3d)\r\n", 90 + p[cpl].lv[vem], p[cpl].ma[vem]);
-    tx("4. Banish Evil (%3d/%3d)\r\n", 85 + p[cpl].lv[vem], p[cpl].ma[vem]);
-    tx("5. Revelation  (%3d/%3d)\r\n", 40 + p[cpl].lv[vem], p[cpl].ma[vem]);
-    tx("6. Teleport    (%3d/%3d)\r\n", 35 + p[cpl].lv[vem], p[cpl].ma[vem]);
-    tx("7. Earthquake  (%3d/%3d)\r\n", 55 + p[cpl].lv[vem], p[cpl].ma[vem]);
+    tx("1. Healing     (%3d/%3d)\r\n", 8 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
+    tx("2. Restoration (%3d/%3d)\r\n", 20 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
+    tx("3. Rebirth     (%3d/%3d)\r\n", 90 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
+    tx("4. Banish Evil (%3d/%3d)\r\n", 85 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
+    tx("5. Revelation  (%3d/%3d)\r\n", 40 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
+    tx("6. Teleport    (%3d/%3d)\r\n", 35 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
+    tx("7. Earthquake  (%3d/%3d)\r\n", 55 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
     tx("8. Abort\r\n");
 
     while (1) {
@@ -856,13 +856,13 @@ void spell(int32_t place) {
     switch (c - 48) {
         case 1:
             clw();
-            if (p[cpl].ma[vem] < (8 + p[cpl].lv[vem])) {
+            if (state.p[state.cpl].ma[vem] < (8 + state.p[state.cpl].lv[vem])) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
                 break;
             }
-            p[cpl].ma[vem] -= (8 + p[cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (8 + state.p[state.cpl].lv[vem]);
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
@@ -870,21 +870,21 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            x = (rand() % 10) + 10 + (p[cpl].lv[vem] * 2);
-            if (p[cpl].dead[d - 48]) {
+            x = (rand() % 10) + 10 + (state.p[state.cpl].lv[vem] * 2);
+            if (state.p[state.cpl].dead[d - 48]) {
                 clw();
                 tx("Dead.\r\n");
                 Delay(30);
                 clw();
                 break;
             }
-            p[cpl].hp[d - 48] += x;
-            if (p[cpl].hp[d - 48] > p[cpl].h[d - 48]) {
-                p[cpl].hp[d - 48] = p[cpl].h[d - 48];
+            state.p[state.cpl].hp[d - 48] += x;
+            if (state.p[state.cpl].hp[d - 48] > state.p[state.cpl].h[d - 48]) {
+                state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
             }
             clw();
-            tx("%s heals\r\n", p[cpl].name[vem]);
-            tx("%s\r\n", p[cpl].name[d - 48]);
+            tx("%s heals\r\n", state.p[state.cpl].name[vem]);
+            tx("%s\r\n", state.p[state.cpl].name[d - 48]);
             tx("for %d hit points...\r\n", x);
             Delay(75);
             clw();
@@ -892,13 +892,13 @@ void spell(int32_t place) {
 
         case 2:
             clw();
-            if (p[cpl].ma[vem] < (20 + p[cpl].lv[vem])) {
+            if (state.p[state.cpl].ma[vem] < (20 + state.p[state.cpl].lv[vem])) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
                 break;
             }
-            p[cpl].ma[vem] -= (20 + p[cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (20 + state.p[state.cpl].lv[vem]);
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
@@ -906,10 +906,10 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            p[cpl].hp[d - 48] = p[cpl].h[d - 48];
+            state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
             clw();
-            tx("%s heals\r\n", p[cpl].name[vem]);
-            tx("%s\r\n", p[cpl].name[d - 48]);
+            tx("%s heals\r\n", state.p[state.cpl].name[vem]);
+            tx("%s\r\n", state.p[state.cpl].name[d - 48]);
             tx("fully...\r\n");
             Delay(75);
             clw();
@@ -917,7 +917,7 @@ void spell(int32_t place) {
 
         case 3:
             clw();
-            if (p[cpl].ma[vem] < (90 + p[cpl].lv[vem])) {
+            if (state.p[state.cpl].ma[vem] < (90 + state.p[state.cpl].lv[vem])) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
@@ -930,17 +930,17 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            if (!p[cpl].dead[d - 48]) {
-                tx("%s is alive and\r\n", p[cpl].name[d - 48]);
+            if (!state.p[state.cpl].dead[d - 48]) {
+                tx("%s is alive and\r\n", state.p[state.cpl].name[d - 48]);
                 tx("healthy.\r\n");
                 Delay(75);
                 break;
             }
-            p[cpl].ma[vem] -= (90 + p[cpl].lv[vem]);
-            p[cpl].dead[d - 48] = 0;
-            p[cpl].hp[d - 48] = 1;
+            state.p[state.cpl].ma[vem] -= (90 + state.p[state.cpl].lv[vem]);
+            state.p[state.cpl].dead[d - 48] = 0;
+            state.p[state.cpl].hp[d - 48] = 1;
             clw();
-            tx("%s's eyelids\r\n", p[cpl].name[d - 48]);
+            tx("%s's eyelids\r\n", state.p[state.cpl].name[d - 48]);
             tx("flicker, and finally\r\n");
             tx("%s opens %s eyes!\r\n", sextext(d - 48, 1), sextext(d - 48, 3));
             Delay(85);
@@ -949,7 +949,7 @@ void spell(int32_t place) {
 
         case 4:
             clw();
-            if (p[cpl].ma[vem] < (85 + p[cpl].lv[vem])) {
+            if (state.p[state.cpl].ma[vem] < (85 + state.p[state.cpl].lv[vem])) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
@@ -964,9 +964,9 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            p[cpl].ma[vem] -= (85 + p[cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (85 + state.p[state.cpl].lv[vem]);
             clw();
-            tx("%s raises %s hands.\r\n", p[cpl].name[vem], sextext(vem, 3));
+            tx("%s raises %s hands.\r\n", state.p[state.cpl].name[vem], sextext(vem, 3));
             tx("%s gathers divine power\r\n", sextext(vem, 1));
             tx("between %s palms, and\r\n", sextext(vem, 3));
             tx("suddenly clasps them.\r\n");
@@ -977,12 +977,12 @@ void spell(int32_t place) {
             tx("in the dungeon below...\r\n\r\n");
             ryl_pause();
             clw();
-            banished = 1;
+            state.banished = 1;
             break;
 
         case 5:
             clw();
-            if (p[cpl].ma[vem] < (40 + p[cpl].lv[vem])) {
+            if (state.p[state.cpl].ma[vem] < (40 + state.p[state.cpl].lv[vem])) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
@@ -997,7 +997,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            p[cpl].ma[vem] -= (40 + p[cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (40 + state.p[state.cpl].lv[vem]);
             if (rand() % 100 > 40) {
                 clw();
                 tx("There is nothing\r\n");
@@ -1032,8 +1032,8 @@ void spell(int32_t place) {
             c = toupper(c);
             if (c == 'T') {
                 for (i = 1, x = 0; i < 17; i++) {
-                    if (!p[cpl].inventory[i]) {
-                        p[cpl].inventory[i] = oc;
+                    if (!state.p[state.cpl].inventory[i]) {
+                        state.p[state.cpl].inventory[i] = oc;
                         x = 1;
                         break;
                     }
@@ -1051,22 +1051,22 @@ void spell(int32_t place) {
             break;
 
         case 6:
-            if (p[cpl].ma[vem] < (35 + p[cpl].lv[vem])) {
+            if (state.p[state.cpl].ma[vem] < (35 + state.p[state.cpl].lv[vem])) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
                 break;
             }
-            p[cpl].ma[vem] -= (35 + p[cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (35 + state.p[state.cpl].lv[vem]);
             clw();
-            tx("%s carefully\r\n", p[cpl].name[vem]);
+            tx("%s carefully\r\n", state.p[state.cpl].name[vem]);
             tx("prepares the ritual of\r\n");
             tx("Teleportation. %s spends\r\n", sextext(vem, 1));
             tx("an hour chanting mantras\r\n");
             tx("and burning blue candles.\r\n\r\n");
-            tid++;
-            if (tid == 25) {
-                tid = 1;
+            state.tid++;
+            if (state.tid == 25) {
+                state.tid = 1;
             }
             ryl_pause();
             clw();
@@ -1100,29 +1100,29 @@ void spell(int32_t place) {
             switch (d) {
                 case '2':
                     for (i = 1; i < ((b - 48) * 2) + 1; i++) {
-                        if (map[p[cpl].y + 1][p[cpl].x] != 'm') {
-                            p[cpl].y++;
+                        if (state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'm') {
+                            state.p[state.cpl].y++;
                         }
                     }
                     break;
                 case '4':
                     for (i = 1; i < ((b - 48) * 2) + 1; i++) {
-                        if (map[p[cpl].y][p[cpl].x - 1] != 'm') {
-                            p[cpl].x--;
+                        if (state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'm') {
+                            state.p[state.cpl].x--;
                         }
                     }
                     break;
                 case '6':
                     for (i = 1; i < ((b - 48) * 2) + 1; i++) {
-                        if (map[p[cpl].y][p[cpl].x + 1] != 'm') {
-                            p[cpl].x++;
+                        if (state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'm') {
+                            state.p[state.cpl].x++;
                         }
                     }
                     break;
                 case '8':
                     for (i = 1; i < ((b - 48) * 2) + 1; i++) {
-                        if (map[p[cpl].y - 1][p[cpl].x] != 'm') {
-                            p[cpl].y--;
+                        if (state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'm') {
+                            state.p[state.cpl].y--;
                         }
                     }
                     break;
@@ -1143,14 +1143,14 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            if (p[cpl].ma[vem] < (55 + p[cpl].lv[vem])) {
+            if (state.p[state.cpl].ma[vem] < (55 + state.p[state.cpl].lv[vem])) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
                 break;
             }
-            p[cpl].ma[vem] -= (55 + p[cpl].lv[vem]);
-            tx("%s utters\r\n", p[cpl].name[vem]);
+            state.p[state.cpl].ma[vem] -= (55 + state.p[state.cpl].lv[vem]);
+            tx("%s utters\r\n", state.p[state.cpl].name[vem]);
             tx("three syllabels in an\r\n");
             tx("archaic tongue...\r\n\r\n");
             Delay(100);
@@ -1173,8 +1173,8 @@ void spell(int32_t place) {
             time(&t);
             srand((unsigned int) t);
             if (c == 'E') {
-                if (p[cpl].tid_kvar > 10) {
-                    p[cpl].tid_kvar -= 10;
+                if (state.p[state.cpl].tid_kvar > 10) {
+                    state.p[state.cpl].tid_kvar -= 10;
                 } else {
                     clw();
                     tx("You don't have enough\r\n");
@@ -1206,27 +1206,27 @@ void scorelist() {
     char pname[26][30], lname[26][30], temp_string[30];
     uint8_t cls[26][5], item[26][6], pnr[26], temp_ubyte[26];
 
-    for (i = 1; i < antal_spelare + 1; i++) {
-        pts[i] = (p[i].exp[1] + p[i].exp[2] + p[i].exp[3] + p[i].exp[4]) / 4;
-        lvl[i] = (p[i].lv[1] + p[i].lv[2] + p[i].lv[3] + p[i].lv[4]) / 4;
-        kills[i] = p[i].kills;
-        strcpy(pname[i], p[i].partyname);
-        strcpy(lname[i], p[i].name[1]);
-        item[i][1] = p[i].fireshield;
-        item[i][2] = p[i].bracelets;
-        item[i][3] = p[i].mastercrown;
-        item[i][4] = p[i].silverkey;
-        item[i][5] = p[i].jazzyfoot;
+    for (i = 1; i < state.antal_spelare + 1; i++) {
+        pts[i] = (state.p[i].exp[1] + state.p[i].exp[2] + state.p[i].exp[3] + state.p[i].exp[4]) / 4;
+        lvl[i] = (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4;
+        kills[i] = state.p[i].kills;
+        strcpy(pname[i], state.p[i].partyname);
+        strcpy(lname[i], state.p[i].name[1]);
+        item[i][1] = state.p[i].fireshield;
+        item[i][2] = state.p[i].bracelets;
+        item[i][3] = state.p[i].mastercrown;
+        item[i][4] = state.p[i].silverkey;
+        item[i][5] = state.p[i].jazzyfoot;
         for (j = 1; j < 5; j++) {
-            cls[i][j] = p[i].cl[j];
+            cls[i][j] = state.p[i].cl[j];
         }
         pnr[i] = i;
     }
 
     // SORT!
 
-    n = antal_spelare - 1;
-    o = antal_spelare - 1;
+    n = state.antal_spelare - 1;
+    o = state.antal_spelare - 1;
 
     for (i = 1; i < n + 1; i++) {
         for (j = 1; j < o + 1; j++) {
@@ -1283,7 +1283,7 @@ void scorelist() {
     fputs(" +============================================================================+\n\n",
           fh);
 
-    for (i = 1; i < antal_spelare + 1; i++) {
+    for (i = 1; i < state.antal_spelare + 1; i++) {
         snprintf(str, sizeof str, "%2d. %-30s\n", i, pname[i]);
         fputs(str, fh);
         fputs(" +----------------------------------------------------------------------------+\n",
@@ -1361,7 +1361,7 @@ void scorelist() {
           fh);
     fputs("         #     Party Name                    Experience       Level\n\n", fh);
 
-    for (i = 1; i < antal_spelare + 1; i++) {
+    for (i = 1; i < state.antal_spelare + 1; i++) {
         snprintf(str, sizeof str, "        %2d.    %-30s  %6d          %3d\n", i, pname[i], pts[i], lvl[i]);
         fputs(str, fh);
     }

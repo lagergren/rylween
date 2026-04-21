@@ -10,8 +10,8 @@ void spelet() {
     int32_t i;
 
     clw();
-    tid = 5;
-    hours_pigg = 14;
+    state.tid = 5;
+    state.hours_pigg = 14;
 
     tx(" ADVENTURERS of RYLWEEN\r\n\r\n");
 
@@ -27,8 +27,8 @@ void spelet() {
     /* Prep map for positions of huts/cottages */
 
     for (i = 1; i < 40; i++) {
-        if (!npc[i].towne) {
-            map[npc[i].y][npc[i].x] = '1';
+        if (!state.npc[i].towne) {
+            state.map[state.npc[i].y][state.npc[i].x] = '1';
         }
     }
 
@@ -48,7 +48,7 @@ void spelet() {
         attackhandler();
         statusline();
 
-        if (!p[cpl].tid_kvar) {
+        if (!state.p[state.cpl].tid_kvar) {
             clw();
             tx("You are out of moves\r\n");
             tx("for today.\r\n\r\n");
@@ -85,59 +85,59 @@ void spelet() {
                 tx("Pass...\r\n");
                 break;
             case '8':
-                if (!p[cpl].tid_kvar) {
+                if (!state.p[state.cpl].tid_kvar) {
                     clw();
                     tx("No moves left!\r\n");
                     break;
                 }
-                if (map[p[cpl].y - 1][p[cpl].x] != 'm' && map[p[cpl].y - 1][p[cpl].x] != 'w') {
-                    last_terrain = map[p[cpl].y][p[cpl].x];
-                    p[cpl].y--;
+                if (state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'm' && state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'w') {
+                    state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+                    state.p[state.cpl].y--;
                     update_map();
                     slumpvis();
-                    p[cpl].tid_kvar--;
+                    state.p[state.cpl].tid_kvar--;
                 }
                 break;
             case '4':
-                if (!p[cpl].tid_kvar) {
+                if (!state.p[state.cpl].tid_kvar) {
                     clw();
                     tx("No moves left!\r\n");
                     break;
                 }
-                if (map[p[cpl].y][p[cpl].x - 1] != 'm' && map[p[cpl].y][p[cpl].x - 1] != 'w') {
-                    last_terrain = map[p[cpl].y][p[cpl].x];
-                    p[cpl].x--;
+                if (state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'm' && state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'w') {
+                    state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+                    state.p[state.cpl].x--;
                     update_map();
                     slumpvis();
-                    p[cpl].tid_kvar--;
+                    state.p[state.cpl].tid_kvar--;
                 }
                 break;
             case '2':
-                if (!p[cpl].tid_kvar) {
+                if (!state.p[state.cpl].tid_kvar) {
                     clw();
                     tx("No moves left!\r\n");
                     break;
                 }
-                if (map[p[cpl].y + 1][p[cpl].x] != 'm' && map[p[cpl].y + 1][p[cpl].x] != 'w') {
-                    last_terrain = map[p[cpl].y][p[cpl].x];
-                    p[cpl].y++;
+                if (state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'm' && state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'w') {
+                    state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+                    state.p[state.cpl].y++;
                     update_map();
                     slumpvis();
-                    p[cpl].tid_kvar--;
+                    state.p[state.cpl].tid_kvar--;
                 }
                 break;
             case '6':
-                if (!p[cpl].tid_kvar) {
+                if (!state.p[state.cpl].tid_kvar) {
                     clw();
                     tx("No moves left!\r\n");
                     break;
                 }
-                if (map[p[cpl].y][p[cpl].x + 1] != 'm' && map[p[cpl].y][p[cpl].x + 1] != 'w') {
-                    last_terrain = map[p[cpl].y][p[cpl].x];
-                    p[cpl].x++;
+                if (state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'm' && state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'w') {
+                    state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+                    state.p[state.cpl].x++;
                     update_map();
                     slumpvis();
-                    p[cpl].tid_kvar--;
+                    state.p[state.cpl].tid_kvar--;
                 }
                 break;
 
@@ -275,7 +275,7 @@ void read_journal() {
         sscanf(str, "%s %s", plrstr, str2);
         plr = atoi(plrstr);
 
-        if (plr == cpl) {
+        if (plr == state.cpl) {
             str[0] = '-';
             if (plr > 9) {
                 str[1] = '-';
@@ -298,44 +298,44 @@ void statusline() {
     char str[256];
     char stline[256];
 
-    if (p[cpl].food < 0) {
-        p[cpl].food = 0;
+    if (state.p[state.cpl].food < 0) {
+        state.p[state.cpl].food = 0;
     }
     stline[0] = 0;
-    if (tid >= 6 && tid < 12) {
+    if (state.tid >= 6 && state.tid < 12) {
         snprintf(stline, sizeof stline, "TIME: [33mDAWN[32m      ");
     }
-    if (tid >= 12 && tid < 18) {
+    if (state.tid >= 12 && state.tid < 18) {
         snprintf(stline, sizeof stline, "TIME: [33mMIDDAY[32m    ");
     }
-    if (tid >= 18 && tid < 24) {
+    if (state.tid >= 18 && state.tid < 24) {
         snprintf(stline, sizeof stline, "TIME: [33mTWILIGHT[32m  ");
     }
-    if (tid == 24 || tid < 6) {
+    if (state.tid == 24 || state.tid < 6) {
         snprintf(stline, sizeof stline, "TIME: [33mMIDNIGHT[32m  ");
     }
-    if (p[cpl].food < p[cpl].pl * 3 && p[cpl].food) {
+    if (state.p[state.cpl].food < state.p[state.cpl].pl * 3 && state.p[state.cpl].food) {
         str_append(stline, sizeof stline, "ST: [35mHUNGRY  ");
     }
-    if (!p[cpl].food) {
+    if (!state.p[state.cpl].food) {
         str_append(stline, sizeof stline, "ST: [31mSTARVING[32m ");
     }
-    if (p[cpl].food && p[cpl].food >= p[cpl].pl * 3) {
+    if (state.p[state.cpl].food && state.p[state.cpl].food >= state.p[state.cpl].pl * 3) {
         str_append(stline, sizeof stline, "ST: [33mOK    ");
     }
-    snprintf(str, sizeof str, "[32m X: [33m%2d   [32mY: [33m%2d[32m     ", p[cpl].x, p[cpl].y);
+    snprintf(str, sizeof str, "[32m X: [33m%2d   [32mY: [33m%2d[32m     ", state.p[state.cpl].x, state.p[state.cpl].y);
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "FD: [33m%4d[32m  ", p[cpl].food);
+    snprintf(str, sizeof str, "FD: [33m%4d[32m  ", state.p[state.cpl].food);
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "MV: [33m%3d[32m  ", p[cpl].tid_kvar);
+    snprintf(str, sizeof str, "MV: [33m%3d[32m  ", state.p[state.cpl].tid_kvar);
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "AU: [33m%6d[32m", p[cpl].gold);
+    snprintf(str, sizeof str, "AU: [33m%6d[32m", state.p[state.cpl].gold);
     str_append(stline, sizeof stline, str);
     c(3, 21);
     tx("[32m%s    ", stline);
     snprintf(stline, sizeof stline, "H1: [33m%3d/%3d   [32mH2: [33m%3d/%3d   [32mH3: [33m%3d/%3d   [32mH4: [33m%3d/%3d[37m",
-             p[cpl].hp[1], p[cpl].h[1], p[cpl].hp[2], p[cpl].h[2], p[cpl].hp[3], p[cpl].h[3],
-             p[cpl].hp[4], p[cpl].h[4]);
+             state.p[state.cpl].hp[1], state.p[state.cpl].h[1], state.p[state.cpl].hp[2], state.p[state.cpl].h[2], state.p[state.cpl].hp[3], state.p[state.cpl].h[3],
+             state.p[state.cpl].hp[4], state.p[state.cpl].h[4]);
     c(13, 22);
     tx("%s\r\n", stline);
     c(49, 6);
@@ -345,8 +345,8 @@ void position_locations() {
     int32_t i;
 
     for (i = 0; i < 15; i++) {
-        dx[i] = 0;
-        dy[i] = 0;
+        state.dx[i] = 0;
+        state.dy[i] = 0;
     }
 
     time(&t);
@@ -354,10 +354,10 @@ void position_locations() {
 
     for (i = 1; i < 10; i++) {
         while (1) {
-            dx[i] = (rand() % 70) + 5;
-            dy[i] = (rand() % 30) + 5;
-            if (map[dy[i]][dx[i]] != 'w' && map[dy[i]][dx[i]] != 'm' && map[dy[i]][dx[i]] != '0' &&
-                map[dy[i]][dx[i]] != '1' && map[dy[i]][dx[i]] != '2') {
+            state.dx[i] = (rand() % 70) + 5;
+            state.dy[i] = (rand() % 30) + 5;
+            if (state.map[state.dy[i]][state.dx[i]] != 'w' && state.map[state.dy[i]][state.dx[i]] != 'm' && state.map[state.dy[i]][state.dx[i]] != '0' &&
+                state.map[state.dy[i]][state.dx[i]] != '1' && state.map[state.dy[i]][state.dx[i]] != '2') {
                 break;
             }
         }
@@ -379,26 +379,26 @@ void init() {
         cleanexit();
     }
     for (i = 1; i < 41; i++) {
-        fgets((char *) map[i], sizeof(map[i]), fh);
+        fgets((char *) state.map[i], sizeof(state.map[i]), fh);
     }
     fclose(fh);
 
     if (!(fh = fopen(ryl_state_path("realm.dat"), "rb"))) {
-        antal_spelare = 0;
-        senaste_dagen = 0;
+        state.antal_spelare = 0;
+        state.senaste_dagen = 0;
         position_locations();
 
         if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
             cleanexit();
         }
 
-        fwrite((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
-        fwrite((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
+        fwrite((char *) &state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+        fwrite((char *) &state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
         for (i = 1; i < 15; i++) {
-            fwrite((char *) &dx[i], sizeof(dx[i]), 1, fh);
+            fwrite((char *) &state.dx[i], sizeof(state.dx[i]), 1, fh);
         }
         for (i = 1; i < 15; i++) {
-            fwrite((char *) &dy[i], sizeof(dy[i]), 1, fh);
+            fwrite((char *) &state.dy[i], sizeof(state.dy[i]), 1, fh);
         }
 
         fclose(fh);
@@ -417,7 +417,7 @@ void init() {
 
     load();
     getclk(kl);
-    if (kl[3] != senaste_dagen) {
+    if (kl[3] != state.senaste_dagen) {
         cl();
         tx("First Game of the Day... Updating... Please Wait...");
 
@@ -426,17 +426,17 @@ void init() {
         fh = fopen(ryl_state_path("entry.dat"), "wb");
         fclose(fh);
 
-        for (i = 1; i < antal_spelare + 1; i++) {
+        for (i = 1; i < state.antal_spelare + 1; i++) {
             tx(".");
-            p[i].tid_kvar = 175;
+            state.p[i].tid_kvar = 175;
             Delay(2);
         }
         getclk(kl);
-        day_at_game_start = kl[3];
+        state.day_at_game_start = kl[3];
         save();
     }
     getclk(kl);
-    day_at_game_start = kl[3];
+    state.day_at_game_start = kl[3];
 
     cl();
     disptext("data/ansi/screen.ans");
@@ -446,17 +446,17 @@ void init() {
 
         tx("ADVENTURERS of RYLWEEN\r\n\r\n");
 
-        tx("%s's copy.\r\n\r\n", global_name);
+        tx("%s's copy.\r\n\r\n", state.global_name);
 
-        for (i = 1, x = 0; i < antal_spelare + 1; i++) {
-            if (!stricmp(global_name, p[i].player)) {
+        for (i = 1, x = 0; i < state.antal_spelare + 1; i++) {
+            if (!stricmp(state.global_name, state.p[i].player)) {
                 x = i;
             }
         }
-        for (i = 1; i < antal_spelare + 1; i++) {
-            if (p[i].silverkey == 2) {
+        for (i = 1; i < state.antal_spelare + 1; i++) {
+            if (state.p[i].silverkey == 2) {
                 tx("The struggle is over.\r\n");
-                tx("[31m%s[37m have\r\n", p[i].partyname);
+                tx("[31m%s[37m have\r\n", state.p[i].partyname);
                 tx("defeated Baron Ydarg.\r\n");
                 tx("Please ask the SysOp\r\n");
                 tx("to reset Rylween\r\n\r\n");
@@ -574,7 +574,7 @@ void init() {
                         if (str[0] == 0) {
                             break;
                         }
-                        if (!stricmp(str, global_name)) {
+                        if (!stricmp(str, state.global_name)) {
                             i++;
                         }
                     }
@@ -594,7 +594,7 @@ void init() {
                     // Append name to file
 
                     fh = fopen(ryl_state_path("entry.dat"), "ab");
-                    strcpy(str, global_name);
+                    strcpy(str, state.global_name);
                     fwrite((char *) str, sizeof(str), 1, fh);
                     fclose(fh);
 
@@ -602,10 +602,10 @@ void init() {
 
                     load();
                     abort = 1;
-                    snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", p[cpl].name[1],
-                             sextext(1, 3), p[cpl].partyname);
+                    snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", state.p[state.cpl].name[1],
+                             sextext(1, 3), state.p[state.cpl].partyname);
                     ryl_log(str);
-                    last_terrain = 0;
+                    state.last_terrain = 0;
                 } else {
                     clw();
                     tx("No game available.\r\n");
@@ -632,18 +632,18 @@ void init() {
                         if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
                             cleanexit();
                         }
-                        antal_spelare--;
-                        fwrite((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
-                        fwrite((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
+                        state.antal_spelare--;
+                        fwrite((char *) &state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+                        fwrite((char *) &state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
                         for (i = 1; i < 15; i++) {
-                            fwrite((char *) &dx[i], sizeof(dx[i]), 1, fh);
+                            fwrite((char *) &state.dx[i], sizeof(state.dx[i]), 1, fh);
                         }
                         for (i = 1; i < 15; i++) {
-                            fwrite((char *) &dy[i], sizeof(dy[i]), 1, fh);
+                            fwrite((char *) &state.dy[i], sizeof(state.dy[i]), 1, fh);
                         }
-                        for (i = 1; i < antal_spelare + 2; i++) {
+                        for (i = 1; i < state.antal_spelare + 2; i++) {
                             if (i != x) {
-                                fwrite((char *) &p[i], sizeof(p[i]), 1, fh);
+                                fwrite((char *) &state.p[i], sizeof(state.p[i]), 1, fh);
                             }
                         }
                         fclose(fh);
@@ -666,10 +666,10 @@ void init() {
                         // Om I > x (ditt party) och i for:as till antal_spelare (ej +1)
                         // npc[i].visited[x] = npc[i].visited[x+1];
                         for (i = 1; i < 40; i++) {
-                            for (j = 1; j < antal_spelare; j++) {
-                                npc[i].visited[x] = npc[i].visited[x + 1];
+                            for (j = 1; j < state.antal_spelare; j++) {
+                                state.npc[i].visited[x] = state.npc[i].visited[x + 1];
                             }
-                            fwrite((char *) &npc[i], sizeof(npc[i]), 1, fh);
+                            fwrite((char *) &state.npc[i], sizeof(state.npc[i]), 1, fh);
                         }
                         fclose(fh);
                         Delay(50);
@@ -697,7 +697,7 @@ void save() {
     getclk(kl);
 
     //senaste_dagen = day_at_game_start;
-    senaste_dagen = kl[3];
+    state.senaste_dagen = kl[3];
 
     if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
         c(49, 6);
@@ -707,18 +707,18 @@ void save() {
         cleanexit();
     }
 
-    fwrite((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
-    fwrite((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
+    fwrite((char *) &state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+    fwrite((char *) &state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
     for (i = 1; i < 15; i++) {
-        fwrite((char *) &dx[i], sizeof(dx[i]), 1, fh);
+        fwrite((char *) &state.dx[i], sizeof(state.dx[i]), 1, fh);
     }
     for (i = 1; i < 15; i++) {
-        fwrite((char *) &dy[i], sizeof(dy[i]), 1, fh);
+        fwrite((char *) &state.dy[i], sizeof(state.dy[i]), 1, fh);
     }
 
-    if (antal_spelare) {
-        for (i = 1; i < antal_spelare + 1; i++) {
-            fwrite((char *) &p[i], sizeof(p[i]), 1, fh);
+    if (state.antal_spelare) {
+        for (i = 1; i < state.antal_spelare + 1; i++) {
+            fwrite((char *) &state.p[i], sizeof(state.p[i]), 1, fh);
         }
     }
     fclose(fh);
@@ -731,7 +731,7 @@ void save() {
         cleanexit();
     }
     for (i = 1; i < 40; i++) {
-        fwrite((char *) &npc[i], sizeof(npc[i]), 1, fh);
+        fwrite((char *) &state.npc[i], sizeof(state.npc[i]), 1, fh);
     }
     fclose(fh);
 }
@@ -747,24 +747,24 @@ void load() {
         cleanexit();
     }
 
-    fread((char *) &antal_spelare, sizeof(antal_spelare), 1, fh);
-    fread((char *) &senaste_dagen, sizeof(senaste_dagen), 1, fh);
+    fread((char *) &state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+    fread((char *) &state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
     for (i = 1; i < 15; i++) {
-        fread((char *) &dx[i], sizeof(dx[i]), 1, fh);
+        fread((char *) &state.dx[i], sizeof(state.dx[i]), 1, fh);
     }
     for (i = 1; i < 15; i++) {
-        fread((char *) &dy[i], sizeof(dy[i]), 1, fh);
+        fread((char *) &state.dy[i], sizeof(state.dy[i]), 1, fh);
     }
 
-    if (antal_spelare) {
-        for (i = 1; i < antal_spelare + 1; i++) {
-            fread((char *) &p[i], sizeof(p[i]), 1, fh);
+    if (state.antal_spelare) {
+        for (i = 1; i < state.antal_spelare + 1; i++) {
+            fread((char *) &state.p[i], sizeof(state.p[i]), 1, fh);
         }
     }
     fclose(fh);
-    for (i = 1; i < antal_spelare + 1; i++) {
-        if (!stricmp(global_name, p[i].player)) {
-            cpl = i;
+    for (i = 1; i < state.antal_spelare + 1; i++) {
+        if (!stricmp(state.global_name, state.p[i].player)) {
+            state.cpl = i;
         }
     }
 
@@ -776,7 +776,7 @@ void load() {
         cleanexit();
     }
     for (i = 1; i < 40; i++) {
-        fread((char *) &npc[i], sizeof(npc[i]), 1, fh);
+        fread((char *) &state.npc[i], sizeof(state.npc[i]), 1, fh);
     }
     fclose(fh);
 
@@ -789,13 +789,13 @@ void load() {
     }
 
     for (i = 1; i < 41; i++) {
-        fgets((char *) map[i], sizeof(map[i]), fh);
+        fgets((char *) state.map[i], sizeof(state.map[i]), fh);
     }
     fclose(fh);
 }
 
 char *sextext(uint8_t nr, uint8_t xx) {
-    switch (p[cpl].sex[nr]) {
+    switch (state.p[state.cpl].sex[nr]) {
         case 1:
             if (xx == 1) {
                 return "he";
@@ -829,7 +829,7 @@ void createparty() {
 
     tx("Party Creation\r\n\r\n");
 
-    if (antal_spelare == 25) {
+    if (state.antal_spelare == 25) {
         tx("Sorry. Maximum number of\r\n");
         tx("players reached. Play\r\n");
         tx("again later on.\r\n\r\n");
@@ -837,19 +837,19 @@ void createparty() {
         cleanexit();
     }
 
-    antal_spelare++;
-    a = antal_spelare;
-    cpl = a;
+    state.antal_spelare++;
+    a = state.antal_spelare;
+    state.cpl = a;
 
     while (1) {
         tx("What is the name of your\r\n");
         tx("party?\r\n\r\n");
         tx(": ");
 
-        strcpy(p[a].partyname, getstr(18));
-        if (!p[a].partyname[0]) {
-            antal_spelare--;
-            cpl = 0;
+        strcpy(state.p[a].partyname, getstr(18));
+        if (!state.p[a].partyname[0]) {
+            state.antal_spelare--;
+            state.cpl = 0;
             return;
         } else {
             break;
@@ -864,15 +864,15 @@ void createparty() {
         srand((unsigned int) t + tries);
         tries++;
         tx("Stats for char: %d\r\n\r\n", g);
-        p[a].ws[g] = (rand() % 56) + 15;
-        p[a].wi[g] = (rand() % 56) + 15;
-        p[a].h[g] = (rand() % 56) + 15;
-        p[a].hp[g] = p[a].h[g];
-        p[a].ch[g] = (rand() % 56) + 15;
-        tx("Weapon Skill : %2d\r\n", p[a].ws[g]);
-        tx("Health       : %2d\r\n", p[a].h[g]);
-        tx("Wisdom       : %2d\r\n", p[a].wi[g]);
-        tx("Charisma     : %2d\r\n\r\n", p[a].ch[g]);
+        state.p[a].ws[g] = (rand() % 56) + 15;
+        state.p[a].wi[g] = (rand() % 56) + 15;
+        state.p[a].h[g] = (rand() % 56) + 15;
+        state.p[a].hp[g] = state.p[a].h[g];
+        state.p[a].ch[g] = (rand() % 56) + 15;
+        tx("Weapon Skill : %2d\r\n", state.p[a].ws[g]);
+        tx("Health       : %2d\r\n", state.p[a].h[g]);
+        tx("Wisdom       : %2d\r\n", state.p[a].wi[g]);
+        tx("Charisma     : %2d\r\n\r\n", state.p[a].ch[g]);
         tx("Reroll (y/N) ");
         if (!hotkey()) {
             while (1) {
@@ -880,20 +880,20 @@ void createparty() {
                 tx("Give Character %d a name!\r\n", g);
                 tx(": ");
                 str[0] = 0;
-                strcpy(p[a].name[g], getstr(12));
-                if (!p[a].name[g][0]) {
-                    antal_spelare--;
-                    cpl = 0;
+                strcpy(state.p[a].name[g], getstr(12));
+                if (!state.p[a].name[g][0]) {
+                    state.antal_spelare--;
+                    state.cpl = 0;
                     return;
                 } else {
                     break;
                 }
             }
-            p[a].name[g][0] = toupper(p[a].name[g][0]);
+            state.p[a].name[g][0] = toupper(state.p[a].name[g][0]);
 
             clw();
             tx("What sex is\r\n");
-            tx("%s?\r\n\r\n", p[a].name[g]);
+            tx("%s?\r\n\r\n", state.p[a].name[g]);
             tx("1. Male\r\n");
             tx("2. Female\r\n");
             str[0] = 0;
@@ -901,11 +901,11 @@ void createparty() {
                 tx(": ");
                 strcpy(str, getstr(2));
             }
-            p[a].sex[g] = str[0] - 48;
+            state.p[a].sex[g] = str[0] - 48;
 
             clw();
             tx("What race is\r\n");
-            tx("%s?\r\n\r\n", p[a].name[g]);
+            tx("%s?\r\n\r\n", state.p[a].name[g]);
             tx("1. Human  2. Dwarf\r\n");
             tx("3. Elf    4. Halfling\r\n");
             str[0] = 0;
@@ -913,7 +913,7 @@ void createparty() {
                 tx(": ");
                 strcpy(str, getstr(2));
             }
-            p[a].ra[g] = str[0] - 48;
+            state.p[a].ra[g] = str[0] - 48;
 
             clw();
             tx("Pick a class for this\r\n");
@@ -926,12 +926,12 @@ void createparty() {
                 tx(": ");
                 strcpy(str, getstr(2));
             }
-            p[a].cl[g] = str[0] - 48;
+            state.p[a].cl[g] = str[0] - 48;
             clw();
             passed = 0;
-            switch (p[a].cl[g]) {
+            switch (state.p[a].cl[g]) {
                 case 1:
-                    if (p[a].ws[g] < 50) {
+                    if (state.p[a].ws[g] < 50) {
                         tx("Weap. skill must be > 50.\r\n");
                         Delay(50);
                     } else {
@@ -942,7 +942,7 @@ void createparty() {
                     passed = 1;
                     break;
                 case 3:
-                    if (p[a].wi[g] < 50) {
+                    if (state.p[a].wi[g] < 50) {
                         tx("Wisdom must be > 50.\r\n");
                         Delay(50);
                     } else {
@@ -950,7 +950,7 @@ void createparty() {
                     }
                     break;
                 case 4:
-                    if (p[a].wi[g] < 50) {
+                    if (state.p[a].wi[g] < 50) {
                         tx("Wisdom must be > 50.\r\n");
                         Delay(50);
                     } else {
@@ -958,7 +958,7 @@ void createparty() {
                     }
                     break;
                 case 5:
-                    if (p[a].ch[g] < 50) {
+                    if (state.p[a].ch[g] < 50) {
                         tx("Charisma must be > 50.\r\n");
                         Delay(50);
                     } else {
@@ -971,50 +971,50 @@ void createparty() {
             }
             if (passed) {
                 passed = 0;
-                if (p[a].cl[g] == 3 || p[a].cl[g] == 4) {
-                    p[a].ma[g] = p[a].wi[g];
+                if (state.p[a].cl[g] == 3 || state.p[a].cl[g] == 4) {
+                    state.p[a].ma[g] = state.p[a].wi[g];
                 } else {
-                    p[a].ma[g] = 0;
+                    state.p[a].ma[g] = 0;
                 }
                 show(g);
                 g++;
             }
         }
     }
-    p[a].x = 12;
-    p[a].y = 9;
-    p[a].gold = 1000;
-    p[a].torches = 5;
-    p[a].food = 100;
-    p[a].tid_kvar = 200;
-    p[a].pl = 4;
-    p[a].fireshield = 0;
-    p[a].bracelets = 0;
-    p[a].mastercrown = 0;
-    p[a].jazzyfoot = 0;
-    p[a].silverkey = 0;
+    state.p[a].x = 12;
+    state.p[a].y = 9;
+    state.p[a].gold = 1000;
+    state.p[a].torches = 5;
+    state.p[a].food = 100;
+    state.p[a].tid_kvar = 200;
+    state.p[a].pl = 4;
+    state.p[a].fireshield = 0;
+    state.p[a].bracelets = 0;
+    state.p[a].mastercrown = 0;
+    state.p[a].jazzyfoot = 0;
+    state.p[a].silverkey = 0;
     for (i = 0; i < 17; i++) {
-        p[a].inventory[i] = 0;
+        state.p[a].inventory[i] = 0;
     }
     for (i = 0; i < 40; i++) {
-        p[a].flag[i] = 0;
+        state.p[a].flag[i] = 0;
     }
     for (i = 1; i < 5; i++) {
-        p[a].lv[i] = 1;
+        state.p[a].lv[i] = 1;
     }
     for (i = 1; i < 5; i++) {
-        p[a].ar[i] = 0;
+        state.p[a].ar[i] = 0;
     }
     for (i = 1; i < 5; i++) {
-        p[a].lv[i] = 1;
+        state.p[a].lv[i] = 1;
     }
     for (i = 1; i < 5; i++) {
-        p[a].exp[i] = 0;
+        state.p[a].exp[i] = 0;
     }
     for (i = 1; i < 5; i++) {
-        p[a].dead[i] = 0;
+        state.p[a].dead[i] = 0;
     }
-    strcpy(p[a].player, global_name);
+    strcpy(state.p[a].player, state.global_name);
     clw();
     tx("Saving...\r\n");
     save();
@@ -1023,22 +1023,22 @@ void createparty() {
 
 void showparty() {
     clw();
-    tx("%u torches.\r\n", p[cpl].torches);
-    tx("%d rations.\r\n", p[cpl].food);
-    tx("%d gold.\r\n\r\n", p[cpl].gold);
-    if (p[cpl].fireshield) {
+    tx("%u torches.\r\n", state.p[state.cpl].torches);
+    tx("%d rations.\r\n", state.p[state.cpl].food);
+    tx("%d gold.\r\n\r\n", state.p[state.cpl].gold);
+    if (state.p[state.cpl].fireshield) {
         tx("You have the Shield.\r\n");
     }
-    if (p[cpl].bracelets) {
+    if (state.p[state.cpl].bracelets) {
         tx("You have the Bracelets.\r\n");
     }
-    if (p[cpl].mastercrown) {
+    if (state.p[state.cpl].mastercrown) {
         tx("You have the Crown.\r\n");
     }
-    if (p[cpl].jazzyfoot) {
+    if (state.p[state.cpl].jazzyfoot) {
         tx("You have the Foot.\r\n");
     }
-    if (p[cpl].silverkey) {
+    if (state.p[state.cpl].silverkey) {
         tx("You have the Key.\r\n");
     }
 
@@ -1054,7 +1054,7 @@ void invlist() {
     int32_t i;
 
     for (i = 1; i < 17; i++) {
-        strncpy(item[i], object(p[cpl].inventory[i]), 9);
+        strncpy(item[i], object(state.p[state.cpl].inventory[i]), 9);
         item[i][9] = 0;
     }
 
@@ -1080,28 +1080,28 @@ void show(int32_t nr) {
     strcpy(clss[6], "Ranger");
 
     clw();
-    tx("Name      : %s\r\n", p[cpl].name[nr]);
-    tx("Race      : %s\r\n", race[p[cpl].ra[nr]]);
-    tx("Class     : %s\r\n", clss[p[cpl].cl[nr]]);
+    tx("Name      : %s\r\n", state.p[state.cpl].name[nr]);
+    tx("Race      : %s\r\n", race[state.p[state.cpl].ra[nr]]);
+    tx("Class     : %s\r\n", clss[state.p[state.cpl].cl[nr]]);
     tx("\r\n");
-    tx("Skill     : %d\r\n", p[cpl].ws[nr]);
-    tx("Hp/H      : %d/%d\r\n", p[cpl].hp[nr], p[cpl].h[nr]);
-    tx("Wisdom    : %d\r\n", p[cpl].wi[nr]);
-    tx("Charisma  : %d\r\n", p[cpl].ch[nr]);
-    tx("Magic     : %d\r\n", p[cpl].ma[nr]);
+    tx("Skill     : %d\r\n", state.p[state.cpl].ws[nr]);
+    tx("Hp/H      : %d/%d\r\n", state.p[state.cpl].hp[nr], state.p[state.cpl].h[nr]);
+    tx("Wisdom    : %d\r\n", state.p[state.cpl].wi[nr]);
+    tx("Charisma  : %d\r\n", state.p[state.cpl].ch[nr]);
+    tx("Magic     : %d\r\n", state.p[state.cpl].ma[nr]);
     tx("\r\n");
     ryl_pause();
     clw();
-    tx("Level     : %d\r\n", p[cpl].lv[nr]);
-    tx("Weapon    : %s\r\n", object(p[cpl].wp[nr]));
-    tx("Armour    : %s\r\n\r\n", object(p[cpl].ar[nr]));
-    if (p[cpl].dead[nr]) {
+    tx("Level     : %d\r\n", state.p[state.cpl].lv[nr]);
+    tx("Weapon    : %s\r\n", object(state.p[state.cpl].wp[nr]));
+    tx("Armour    : %s\r\n\r\n", object(state.p[state.cpl].ar[nr]));
+    if (state.p[state.cpl].dead[nr]) {
         strcpy(str, "Dead.");
     } else {
         strcpy(str, "Alive.");
     }
     tx("Status    : %s\r\n\r\n", str);
-    tx("Exp       : %u\r\n\r\n", p[cpl].exp[nr]);
+    tx("Exp       : %u\r\n\r\n", state.p[state.cpl].exp[nr]);
     ryl_pause();
 }
 
@@ -1179,7 +1179,7 @@ void clrjr(uint8_t nr) {
         exit(0);
     }
 
-    for (k = current; k < antal_spelare + 1; k++) {
+    for (k = current; k < state.antal_spelare + 1; k++) {
         i = 1;
 
         while (1) {

@@ -405,7 +405,7 @@ void encounter(int32_t foe, int32_t mandatory) {
         case 31:
             strcpy(fn, "Gnoll");
             n1 = 2;
-            n2 = 2 + p[cpl].lv[1] / 2;
+            n2 = 2 + state.p[state.cpl].lv[1] / 2;
             h1 = 60;
             h2 = 80;
             ws = 70;
@@ -620,11 +620,11 @@ void encounter(int32_t foe, int32_t mandatory) {
     if (noc < n1) {
         noc = n1;
     }
-    h1 += ((p[cpl].lv[1] + p[cpl].lv[2] + p[cpl].lv[3] + p[cpl].lv[4]) / 4) * 2;
-    if (p[cpl].lv[1] > 2) {
-        h1 += p[cpl].lv[1] * 2;
+    h1 += ((state.p[state.cpl].lv[1] + state.p[state.cpl].lv[2] + state.p[state.cpl].lv[3] + state.p[state.cpl].lv[4]) / 4) * 2;
+    if (state.p[state.cpl].lv[1] > 2) {
+        h1 += state.p[state.cpl].lv[1] * 2;
     }
-    h2 += p[cpl].lv[1] * 3;
+    h2 += state.p[state.cpl].lv[1] * 3;
     if (h1 > h2) {
         h1 = h2;
     }
@@ -633,7 +633,7 @@ void encounter(int32_t foe, int32_t mandatory) {
         noc = 8;
     }
 
-    ws += p[cpl].lv[1];
+    ws += state.p[state.cpl].lv[1];
 
     for (i = 1; i < noc + 1; i++) {
         mhtemp = (rand() % h2);
@@ -694,15 +694,15 @@ void encounter(int32_t foe, int32_t mandatory) {
     g = 1;
     while (1) {
         clw();
-        if (!p[cpl].dead[g] && !playerheld) {
+        if (!state.p[state.cpl].dead[g] && !playerheld) {
         combat:
-            tx("%s\r\n", p[cpl].name[g]);
+            tx("%s\r\n", state.p[state.cpl].name[g]);
             tx("What now?\r\n\r\n");
             tx("(A)ttack\r\n");
             tx("(D)efend\r\n");
             tx("(U)se Item\r\n");
             tx("(B)attle Cry\r\n");
-            if (p[cpl].cl[g] == 3) {
+            if (state.p[state.cpl].cl[g] == 3) {
                 tx("(C)ast Spell\r\n");
             }
             while (1) {
@@ -722,7 +722,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 d = toupper(d);
                 oc = 0;
                 if (d >= 'A' && d <= 'P') {
-                    oc = p[cpl].inventory[d - 64];
+                    oc = state.p[state.cpl].inventory[d - 64];
                     if (oc < 100) {
                         clw();
                         tx("Not possible.\r\n");
@@ -731,7 +731,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         goto combat;
                     } else {
                         if (im) {
-                            p[cpl].inventory[d - 64] = 0;
+                            state.p[state.cpl].inventory[d - 64] = 0;
                             clw();
                             tx("The magic item doesn't seem\r\n");
                             tx("to work on this enemy!!!\r\n");
@@ -740,7 +740,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         } else {
                             switch (oc) {
                                 case 100:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     for (i = 1, vem = 0; i < noc + 1; i++) {
                                         if (!deadc[i]) {
                                             vem = i;
@@ -748,9 +748,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         }
                                     }
                                     if (vem) {
-                                        spelldamage = 5 + (rand() % 7) + p[cpl].lv[g];
+                                        spelldamage = 5 + (rand() % 7) + state.p[state.cpl].lv[g];
                                         clw();
-                                        tx("%s chills %s\r\n", p[cpl].name[g], fn);
+                                        tx("%s chills %s\r\n", state.p[state.cpl].name[g], fn);
                                         tx("for %d damage pts.\r\n", spelldamage);
                                         Delay(50);
                                         mh[vem] -= spelldamage;
@@ -764,12 +764,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 101:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     for (i = 1; i < noc + 1; i++) {
-                                        spelldamage = p[cpl].lv[g] * ((rand() % 6) + 3);
+                                        spelldamage = state.p[state.cpl].lv[g] * ((rand() % 6) + 3);
                                         if (!deadc[i]) {
                                             clw();
-                                            tx("%s burns %s\r\n", p[cpl].name[g], fn);
+                                            tx("%s burns %s\r\n", state.p[state.cpl].name[g], fn);
                                             tx("for %d pts!\r\n", spelldamage);
                                             Delay(50);
                                             mh[i] -= spelldamage;
@@ -784,9 +784,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 102:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s throws the\r\n", p[cpl].name[g]);
+                                    tx("%s throws the\r\n", state.p[state.cpl].name[g]);
                                     tx("at the enemy. It\r\n");
                                     tx("breaks before them in\r\n");
                                     tx("a rain of sparks.\r\n");
@@ -799,9 +799,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 103:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s throws the\r\n", p[cpl].name[g]);
+                                    tx("%s throws the\r\n", state.p[state.cpl].name[g]);
                                     tx("gem at the enemy.\r\n");
                                     tx("It breaks, releasing\r\n");
                                     tx("a brilliant cloud\r\n");
@@ -815,7 +815,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 104:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     for (i = 1, vem = 0; i < noc + 1; i++) {
                                         if (!deadc[i]) {
                                             vem = i;
@@ -824,7 +824,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     }
                                     if (vem) {
                                         clw();
-                                        tx("%s summons death\r\n", p[cpl].name[g]);
+                                        tx("%s summons death\r\n", state.p[state.cpl].name[g]);
                                         tx("to take a %s\r\n", fn);
                                         tx("away...\r\n");
                                         Delay(100);
@@ -837,7 +837,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 105:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
                                     tx("On Whom? (1-4)\r\n");
                                     while (1) {
@@ -846,16 +846,16 @@ void encounter(int32_t foe, int32_t mandatory) {
                                             break;
                                         }
                                     }
-                                    p[cpl].hp[d - 48] = p[cpl].h[d - 48];
+                                    state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
                                     clw();
-                                    tx("%s is fully\r\n", p[cpl].name[d - 48]);
+                                    tx("%s is fully\r\n", state.p[state.cpl].name[d - 48]);
                                     tx("healed.\r\n");
                                     Delay(50);
                                     clw();
                                     break;
 
                                 case 106:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
                                     tx("The party feels their\r\n");
                                     tx("spirits grow. You are\r\n");
@@ -864,23 +864,23 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     ryl_pause();
                                     clw();
                                     for (i = 1; i < 5; i++) {
-                                        p[cpl].ws[i] += 3;
-                                        p[cpl].h[i] += 3;
-                                        p[cpl].ch[i] += 3;
-                                        p[cpl].wi[i] += 3;
+                                        state.p[state.cpl].ws[i] += 3;
+                                        state.p[state.cpl].h[i] += 3;
+                                        state.p[state.cpl].ch[i] += 3;
+                                        state.p[state.cpl].wi[i] += 3;
                                     }
                                     break;
 
                                 case 107:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
                                     tx("The party is fully\r\n");
                                     tx("healed!\r\n\r\n");
                                     ryl_pause();
                                     clw();
                                     for (i = 1; i < 5; i++) {
-                                        if (!p[cpl].dead[i]) {
-                                            p[cpl].hp[i] = p[cpl].h[i];
+                                        if (!state.p[state.cpl].dead[i]) {
+                                            state.p[state.cpl].hp[i] = state.p[state.cpl].h[i];
                                         }
                                     }
                                     break;
@@ -894,28 +894,28 @@ void encounter(int32_t foe, int32_t mandatory) {
                                             break;
                                         }
                                     }
-                                    if (p[cpl].dead[b - 48]) {
-                                        p[cpl].dead[b - 48] = 0;
+                                    if (state.p[state.cpl].dead[b - 48]) {
+                                        state.p[state.cpl].dead[b - 48] = 0;
                                         clw();
-                                        tx("%s opens %s eyes!\r\n", p[cpl].name[b - 48],
+                                        tx("%s opens %s eyes!\r\n", state.p[state.cpl].name[b - 48],
                                            sextext(b - 48, 3));
                                         Delay(50);
-                                        p[cpl].pl++;
-                                        p[cpl].dead[b - 48] = 0;
-                                        p[cpl].hp[b - 48] = 1;
-                                        p[cpl].inventory[d - 64] = 0;
+                                        state.p[state.cpl].pl++;
+                                        state.p[state.cpl].dead[b - 48] = 0;
+                                        state.p[state.cpl].hp[b - 48] = 1;
+                                        state.p[state.cpl].inventory[d - 64] = 0;
                                     } else {
                                         clw();
-                                        tx("%s is not dead.\r\n", p[cpl].name[b - 48]);
+                                        tx("%s is not dead.\r\n", state.p[state.cpl].name[b - 48]);
                                         Delay(50);
                                         goto combat;
                                     }
                                     break;
 
                                 case 109:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s throws Kael's\r\n", p[cpl].name[g]);
+                                    tx("%s throws Kael's\r\n", state.p[state.cpl].name[g]);
                                     tx("axe at the enemy!\r\n\r\n");
                                     Delay(75);
                                     tx("It wounds them severely\r\n");
@@ -936,9 +936,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 110:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s pulls the\r\n", p[cpl].name[g]);
+                                    tx("%s pulls the\r\n", state.p[state.cpl].name[g]);
                                     tx("holy pin, and lobbeth\r\n");
                                     tx("the holy handgrenade\r\n");
                                     tx("at the foes...\r\n\r\n");
@@ -955,9 +955,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 111:
-                                    p[cpl].inventory[d - 64] = 0;
+                                    state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s plays the\r\n", p[cpl].name[g]);
+                                    tx("%s plays the\r\n", state.p[state.cpl].name[g]);
                                     tx("Flute of Madness.\r\n");
                                     tx("It produces a shrill,\r\n");
                                     tx("fragile sound, and breaks.\r\n");
@@ -971,16 +971,16 @@ void encounter(int32_t foe, int32_t mandatory) {
                 }
             }
             /****************************************************************************/
-            if (c == 'C' && p[cpl].cl[g] == 3) {
-                if (p[cpl].cl[g] == 3) /* Wizard Spells */
+            if (c == 'C' && state.p[state.cpl].cl[g] == 3) {
+                if (state.p[state.cpl].cl[g] == 3) /* Wizard Spells */
                 {
                     clw();
-                    tx("1. Frost Finger (%3d/%3d)\r\n", 8 + (p[cpl].lv[g]), p[cpl].ma[g]);
-                    tx("2. Fire Cloud   (%3d/%3d)\r\n", 25 + (p[cpl].lv[g]), p[cpl].ma[g]);
-                    tx("3. Confusion    (%3d/%3d)\r\n", 17 + p[cpl].lv[g], p[cpl].ma[g]);
-                    tx("4. Death Strike (%3d/%3d)\r\n", 78 + p[cpl].lv[g], p[cpl].ma[g]);
-                    tx("5. Hold Enemies (%3d/%3d)\r\n", 43 + p[cpl].lv[g], p[cpl].ma[g]);
-                    tx("6. Anti Magic   (%3d/%3d)\r\n", 28 + p[cpl].lv[g], p[cpl].ma[g]);
+                    tx("1. Frost Finger (%3d/%3d)\r\n", 8 + (state.p[state.cpl].lv[g]), state.p[state.cpl].ma[g]);
+                    tx("2. Fire Cloud   (%3d/%3d)\r\n", 25 + (state.p[state.cpl].lv[g]), state.p[state.cpl].ma[g]);
+                    tx("3. Confusion    (%3d/%3d)\r\n", 17 + state.p[state.cpl].lv[g], state.p[state.cpl].ma[g]);
+                    tx("4. Death Strike (%3d/%3d)\r\n", 78 + state.p[state.cpl].lv[g], state.p[state.cpl].ma[g]);
+                    tx("5. Hold Enemies (%3d/%3d)\r\n", 43 + state.p[state.cpl].lv[g], state.p[state.cpl].ma[g]);
+                    tx("6. Anti Magic   (%3d/%3d)\r\n", 28 + state.p[state.cpl].lv[g], state.p[state.cpl].ma[g]);
                     tx("7. Abort\r\n");
                     while (1) {
                         d = key();
@@ -997,12 +997,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                     /*************************** FROST ************************/
                     if (d == '1' && !im) {
-                        if (p[cpl].ma[g] < (8 + p[cpl].lv[g])) {
+                        if (state.p[state.cpl].ma[g] < (8 + state.p[state.cpl].lv[g])) {
                             clw();
                             tx("Not enough magic!\r\n");
                             Delay(50);
                         } else {
-                            p[cpl].ma[g] -= (8 + p[cpl].lv[g]);
+                            state.p[state.cpl].ma[g] -= (8 + state.p[state.cpl].lv[g]);
                             while (1) {
                                 clw();
                                 tx("Who?\r\n\r\n");
@@ -1021,9 +1021,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 }
                             }
                             vem = d - 64;
-                            spelldamage = p[cpl].lv[g] * ((rand() % 7) + 2);
+                            spelldamage = state.p[state.cpl].lv[g] * ((rand() % 7) + 2);
                             clw();
-                            tx("%s chills the\r\n", p[cpl].name[g]);
+                            tx("%s chills the\r\n", state.p[state.cpl].name[g]);
                             tx("opponent for %d\r\n", spelldamage);
                             tx("damage pts.\r\n");
                             Delay(80);
@@ -1038,19 +1038,19 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                     /*************************** FIRE *************************/
                     if (d == '2' && !im) {
-                        if (p[cpl].ma[g] < (25 + p[cpl].lv[g])) {
+                        if (state.p[state.cpl].ma[g] < (25 + state.p[state.cpl].lv[g])) {
                             clw();
                             tx("Not enough magic!\r\n");
                             Delay(50);
                         } else {
-                            p[cpl].ma[g] -= (25 + p[cpl].lv[g]);
+                            state.p[state.cpl].ma[g] -= (25 + state.p[state.cpl].lv[g]);
                             for (i = 1; i < noc + 1; i++) {
                                 time(&t);
                                 srand((unsigned int) t);
-                                spelldamage = p[cpl].lv[g] * ((rand() % 4) + 1);
+                                spelldamage = state.p[state.cpl].lv[g] * ((rand() % 4) + 1);
                                 if (!deadc[i]) {
                                     clw();
-                                    tx("%s burns %s\r\n", p[cpl].name[g], fn);
+                                    tx("%s burns %s\r\n", state.p[state.cpl].name[g], fn);
                                     tx("for %d pts!\r\n", spelldamage);
                                     Delay(50);
                                     mh[i] -= spelldamage;
@@ -1066,14 +1066,14 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                     /*********************** CONFUSION ************************/
                     if (d == '3' && !im) {
-                        if (p[cpl].ma[g] < (17 + p[cpl].lv[g])) {
+                        if (state.p[state.cpl].ma[g] < (17 + state.p[state.cpl].lv[g])) {
                             clw();
                             tx("Not enough magic!\r\n");
                             Delay(50);
                         } else {
-                            p[cpl].ma[g] -= (17 + p[cpl].lv[g]);
+                            state.p[state.cpl].ma[g] -= (17 + state.p[state.cpl].lv[g]);
                             clw();
-                            tx("%s utters a word.\r\n", p[cpl].name[g]);
+                            tx("%s utters a word.\r\n", state.p[state.cpl].name[g]);
                             tx("Your images wavers and\r\n");
                             tx("blurs in front of your\r\n");
                             tx("enemies\r\n");
@@ -1084,12 +1084,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                     /************************ DEATH ***************************/
                     if (d == '4' && !im) {
-                        if (p[cpl].ma[g] < (78 + p[cpl].lv[g])) {
+                        if (state.p[state.cpl].ma[g] < (78 + state.p[state.cpl].lv[g])) {
                             clw();
                             tx("Not enough magic!\r\n");
                             Delay(50);
                         } else {
-                            p[cpl].ma[g] -= (78 + p[cpl].lv[g]);
+                            state.p[state.cpl].ma[g] -= (78 + state.p[state.cpl].lv[g]);
                             while (1) {
                                 clw();
                                 tx("Who?\r\n\r\n");
@@ -1129,14 +1129,14 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                     /************************  HOLD  ***************************/
                     if (d == '5' && !im) {
-                        if (p[cpl].ma[g] < (43 + p[cpl].lv[g])) {
+                        if (state.p[state.cpl].ma[g] < (43 + state.p[state.cpl].lv[g])) {
                             clw();
                             tx("Not enough magic!\r\n");
                             Delay(50);
                         } else {
-                            p[cpl].ma[g] -= (43 + p[cpl].lv[g]);
+                            state.p[state.cpl].ma[g] -= (43 + state.p[state.cpl].lv[g]);
                             clw();
-                            tx("%s utters a word.\r\n", p[cpl].name[g]);
+                            tx("%s utters a word.\r\n", state.p[state.cpl].name[g]);
                             tx("The enemies freeze dead\r\n");
                             tx("in their tracks.\r\n");
                             Delay(100);
@@ -1145,14 +1145,14 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                     /********************** ANTI-MAGIC *************************/
                     if (d == '6' && !im) {
-                        if (p[cpl].ma[g] < (28 + p[cpl].lv[g])) {
+                        if (state.p[state.cpl].ma[g] < (28 + state.p[state.cpl].lv[g])) {
                             clw();
                             tx("Not enough magic!\r\n");
                             Delay(50);
                         } else {
-                            p[cpl].ma[g] -= (28 + p[cpl].lv[g]);
+                            state.p[state.cpl].ma[g] -= (28 + state.p[state.cpl].lv[g]);
                             clw();
-                            tx("%s utters a word.\r\n", p[cpl].name[g]);
+                            tx("%s utters a word.\r\n", state.p[state.cpl].name[g]);
                             tx("The enemy is now\r\n");
                             tx("stopped from using magic.\r\n");
                             tx("against you this round.\r\n");
@@ -1181,10 +1181,10 @@ void encounter(int32_t foe, int32_t mandatory) {
             }
             /****************************************************************************/
             if (c == 'D') {
-                if (p[cpl].hp[g] + (p[cpl].lv[g]) > p[cpl].h[g]) {
-                    p[cpl].hp[g] = p[cpl].h[g];
+                if (state.p[state.cpl].hp[g] + (state.p[state.cpl].lv[g]) > state.p[state.cpl].h[g]) {
+                    state.p[state.cpl].hp[g] = state.p[state.cpl].h[g];
                 } else {
-                    p[cpl].hp[g] += (p[cpl].lv[g]);
+                    state.p[state.cpl].hp[g] += (state.p[state.cpl].lv[g]);
                 }
                 clw();
                 if (defend < 5) {
@@ -1224,17 +1224,17 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                 }
                 vem = d - 64;
-                x = p[cpl].ws[g];
+                x = state.p[state.cpl].ws[g];
                 if (playerconfused) {
                     x /= 3;
                 }
                 if (rand() % 100 <= x) {
                     /* HIT */
-                    dp = obdamage(p[cpl].wp[g]);
+                    dp = obdamage(state.p[state.cpl].wp[g]);
                     dp += rand() % 5;
-                    dp += p[cpl].hp[g] / 12;
+                    dp += state.p[state.cpl].hp[g] / 12;
                     clw();
-                    tx("%s hits for\r\n", p[cpl].name[g]);
+                    tx("%s hits for\r\n", state.p[state.cpl].name[g]);
                     tx("%d damage pts!\r\n", dp);
                     Delay(30);
                     mh[vem] -= dp;
@@ -1247,7 +1247,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 } else {
                     /* MISS */
                     clw();
-                    tx("%s misses!\r\n", p[cpl].name[g]);
+                    tx("%s misses!\r\n", state.p[state.cpl].name[g]);
                     Delay(30);
                 }
             }
@@ -1270,9 +1270,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                 tx("%d experience pts\r\n", ((noc * (h2 / 4) * (ws / 4)) + sp * 3));
                 tx("and %d gold pieces.\r\n\r\n", ((noc * (h2 / 7) * (ws / 4)) / 4));
                 Delay(50);
-                p[cpl].kills += noc;
+                state.p[state.cpl].kills += noc;
                 for (i = 1, x = 0; i < 17; i++) {
-                    if (p[cpl].inventory[i] == 0) {
+                    if (state.p[state.cpl].inventory[i] == 0) {
                         x = i;
                         break;
                     }
@@ -1289,13 +1289,13 @@ void encounter(int32_t foe, int32_t mandatory) {
                         tx("You find a\r\n");
                         tx("%s.\r\n", object(i));
                         Delay(75);
-                        p[cpl].inventory[x] = i;
+                        state.p[state.cpl].inventory[x] = i;
                     }
                 }
-                p[cpl].gold += (noc * (h2 / 7) * (ws / 4));
+                state.p[state.cpl].gold += (noc * (h2 / 7) * (ws / 4));
                 for (i = 1; i < 5; i++) {
-                    if (!p[cpl].dead[i]) {
-                        p[cpl].exp[i] += ((noc * (h2 / 4) * (ws / 4)) + sp * 3);
+                    if (!state.p[state.cpl].dead[i]) {
+                        state.p[state.cpl].exp[i] += ((noc * (h2 / 4) * (ws / 4)) + sp * 3);
                     }
                 }
                 expcheck();
@@ -1313,7 +1313,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             g = 1;
             x = 1;
             while (x < noc + 1) {
-                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4]) {
+                if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
                     losegame();
                 }
                 if (!deadc[x] && !held) {
@@ -1328,22 +1328,22 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 tx("Frost Finger\r\n");
                                 while (1) {
                                     vem = (rand() % 4) + 1;
-                                    if (!p[cpl].dead[vem]) {
+                                    if (!state.p[state.cpl].dead[vem]) {
                                         break;
                                     }
                                 }
-                                tx("on %s!\r\n", p[cpl].name[vem]);
+                                tx("on %s!\r\n", state.p[state.cpl].name[vem]);
                                 Delay(50);
                                 dp = h2 / 5 + rand() % 4;
                                 tx("and does %d pts\r\n", dp);
                                 tx("of damage!\r\n");
                                 Delay(50);
-                                p[cpl].hp[vem] -= dp;
-                                if (p[cpl].hp[vem] <= 0) {
-                                    p[cpl].hp[vem] = 0;
-                                    p[cpl].dead[vem] = 1;
-                                    p[cpl].pl--;
-                                    tx("[31m%s DIES![37m\r\n", p[cpl].name[vem]);
+                                state.p[state.cpl].hp[vem] -= dp;
+                                if (state.p[state.cpl].hp[vem] <= 0) {
+                                    state.p[state.cpl].hp[vem] = 0;
+                                    state.p[state.cpl].dead[vem] = 1;
+                                    state.p[state.cpl].pl--;
+                                    tx("[31m%s DIES![37m\r\n", state.p[state.cpl].name[vem]);
                                     Delay(50);
                                 }
                                 break;
@@ -1351,18 +1351,18 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 tx("Cloud of Fire!\r\n");
                                 Delay(50);
                                 for (i = 1; i < 5; i++) {
-                                    if (!p[cpl].dead[i]) {
+                                    if (!state.p[state.cpl].dead[i]) {
                                         clw();
-                                        tx("%s is burnt for\r\n", p[cpl].name[i]);
+                                        tx("%s is burnt for\r\n", state.p[state.cpl].name[i]);
                                         dp = h2 / 5 + rand() % 5;
                                         tx("%d damage pts!\r\n", dp);
                                         Delay(50);
-                                        p[cpl].hp[i] -= dp;
-                                        if (p[cpl].hp[i] <= 0) {
-                                            p[cpl].hp[i] = 0;
-                                            p[cpl].dead[i] = 1;
-                                            p[cpl].pl--;
-                                            tx("[31m%s DIES![37m\r\n", p[cpl].name[i]);
+                                        state.p[state.cpl].hp[i] -= dp;
+                                        if (state.p[state.cpl].hp[i] <= 0) {
+                                            state.p[state.cpl].hp[i] = 0;
+                                            state.p[state.cpl].dead[i] = 1;
+                                            state.p[state.cpl].pl--;
+                                            tx("[31m%s DIES![37m\r\n", state.p[state.cpl].name[i]);
                                             Delay(50);
                                         }
                                     }
@@ -1388,31 +1388,31 @@ void encounter(int32_t foe, int32_t mandatory) {
                     } else {
                         while (1) {
                             vem = (rand() % 4) + 1;
-                            if (!p[cpl].dead[vem]) {
+                            if (!state.p[state.cpl].dead[vem]) {
                                 break;
                             }
                         }
                         clw();
                         tx("%s attacks\r\n", fn);
-                        tx("%s!\r\n", p[cpl].name[vem]);
+                        tx("%s!\r\n", state.p[state.cpl].name[vem]);
                         Delay(20);
                         if (rand() % 100 <= ws) {
                             dp = mh[x] / 6;
                             dp += rand() % 10;
-                            dp -= obdamage(p[cpl].ar[vem]);
+                            dp -= obdamage(state.p[state.cpl].ar[vem]);
                             if (dp < 1) {
                                 dp = 1;
                             }
                             tx("And hits for\r\n");
                             tx("%d damage pts!!!\r\n", dp);
-                            p[cpl].hp[vem] -= dp;
-                            if (p[cpl].hp[vem] <= 0) {
-                                if (p[cpl].pl) {
-                                    p[cpl].pl--;
+                            state.p[state.cpl].hp[vem] -= dp;
+                            if (state.p[state.cpl].hp[vem] <= 0) {
+                                if (state.p[state.cpl].pl) {
+                                    state.p[state.cpl].pl--;
                                 }
-                                p[cpl].hp[vem] = 0;
-                                p[cpl].dead[vem] = 1;
-                                tx("[31m%s DIES!!![37m\r\n", p[cpl].name[vem]);
+                                state.p[state.cpl].hp[vem] = 0;
+                                state.p[state.cpl].dead[vem] = 1;
+                                tx("[31m%s DIES!!![37m\r\n", state.p[state.cpl].name[vem]);
                                 Delay(50);
                             }
                             Delay(50);
@@ -1435,7 +1435,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 tx("PARTY IS HELD!\r\n");
                 Delay(50);
             } else {
-                if (p[cpl].dead[1] && p[cpl].dead[2] && p[cpl].dead[3] && p[cpl].dead[4]) {
+                if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
                     losegame();
                 }
                 statusline();
@@ -1489,8 +1489,8 @@ void expcheck() {
     }
 
     for (i = 1; i < 5; i++) {
-        l = p[cpl].lv[i];
-        e = p[cpl].exp[i];
+        l = state.p[state.cpl].lv[i];
+        e = state.p[state.cpl].exp[i];
         if (l < 2 && e >= 2000) {
             add[i]++;
         }
@@ -1577,63 +1577,63 @@ void expcheck() {
     for (i = 1; i < 5; i++) {
         if (add[i]) {
             clw();
-            tx("%s gains >%d<\r\n", p[cpl].name[i], add[i]);
+            tx("%s gains >%d<\r\n", state.p[state.cpl].name[i], add[i]);
             tx("experience levels.\r\n");
             Delay(30);
-            p[cpl].lv[i] += add[i];
-            switch (p[cpl].cl[i]) {
+            state.p[state.cpl].lv[i] += add[i];
+            switch (state.p[state.cpl].cl[i]) {
                 case 1:
-                    p[cpl].ws[i] += 3;
-                    p[cpl].h[i] += 8;
-                    p[cpl].wi[i] += 1;
-                    p[cpl].ch[i] += 1;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
-                        p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    state.p[state.cpl].ws[i] += 3;
+                    state.p[state.cpl].h[i] += 8;
+                    state.p[state.cpl].wi[i] += 1;
+                    state.p[state.cpl].ch[i] += 1;
+                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
+                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
                     }
                     break;
                 case 2:
-                    p[cpl].ws[i] += 1;
-                    p[cpl].h[i] += 5;
-                    p[cpl].wi[i] += 1;
-                    p[cpl].ch[i] += 2;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
-                        p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    state.p[state.cpl].ws[i] += 1;
+                    state.p[state.cpl].h[i] += 5;
+                    state.p[state.cpl].wi[i] += 1;
+                    state.p[state.cpl].ch[i] += 2;
+                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
+                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
                     }
                     break;
                 case 3:
-                    p[cpl].ws[i] += 1;
-                    p[cpl].h[i] += 4;
-                    p[cpl].wi[i] += 7;
-                    p[cpl].ch[i] += 2;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
-                        p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    state.p[state.cpl].ws[i] += 1;
+                    state.p[state.cpl].h[i] += 4;
+                    state.p[state.cpl].wi[i] += 7;
+                    state.p[state.cpl].ch[i] += 2;
+                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
+                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
                     }
                     break;
                 case 4:
-                    p[cpl].ws[i] += 1;
-                    p[cpl].h[i] += 5;
-                    p[cpl].wi[i] += 8;
-                    p[cpl].ch[i] += 3;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
-                        p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    state.p[state.cpl].ws[i] += 1;
+                    state.p[state.cpl].h[i] += 5;
+                    state.p[state.cpl].wi[i] += 8;
+                    state.p[state.cpl].ch[i] += 3;
+                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
+                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
                     }
                     break;
                 case 5:
-                    p[cpl].ws[i] += 2;
-                    p[cpl].h[i] += 7;
-                    p[cpl].wi[i] += 2;
-                    p[cpl].ch[i] += 6;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
-                        p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    state.p[state.cpl].ws[i] += 2;
+                    state.p[state.cpl].h[i] += 7;
+                    state.p[state.cpl].wi[i] += 2;
+                    state.p[state.cpl].ch[i] += 6;
+                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
+                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
                     }
                     break;
                 case 6:
-                    p[cpl].ws[i] += 2;
-                    p[cpl].h[i] += 8;
-                    p[cpl].wi[i] += 3;
-                    p[cpl].ch[i] += 3;
-                    if (p[cpl].hp[i] < (p[cpl].h[i] * 2) / 3) {
-                        p[cpl].hp[i] = (p[cpl].h[i] * 2) / 3;
+                    state.p[state.cpl].ws[i] += 2;
+                    state.p[state.cpl].h[i] += 8;
+                    state.p[state.cpl].wi[i] += 3;
+                    state.p[state.cpl].ch[i] += 3;
+                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
+                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
                     }
                     break;
             }

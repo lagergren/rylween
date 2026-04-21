@@ -13,7 +13,7 @@ void dungeon(int32_t levels, int32_t flag) {
 
     blitgfx(insidecavepic);
 
-    banished = 0;
+    state.banished = 0;
 
     time(&t);
     srand((unsigned int) t);
@@ -142,8 +142,8 @@ void dungeon(int32_t levels, int32_t flag) {
                 c = toupper(c);
                 if (c == 'T') {
                     for (i = 1, x = 0; i < 17; i++) {
-                        if (!p[cpl].inventory[i]) {
-                            p[cpl].inventory[i] = oc;
+                        if (!state.p[state.cpl].inventory[i]) {
+                            state.p[state.cpl].inventory[i] = oc;
                             x = 1;
                             break;
                         }
@@ -164,7 +164,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 x = (rand() % 300) + 40;
                 tx("You find %d\r\n", x);
                 tx("gold pieces.\r\n\r\n");
-                p[cpl].gold += x;
+                state.p[state.cpl].gold += x;
                 lvl[cl] = 0;
                 ryl_pause();
                 break;
@@ -216,9 +216,9 @@ void dungeon(int32_t levels, int32_t flag) {
                     lvl[cl] = 0;
                     x = 4;
                     for (i = 1; i < 5; i++) {
-                        if (p[cpl].cl[i] == 2) {
+                        if (state.p[state.cpl].cl[i] == 2) {
                             clw();
-                            tx("%s checks the\r\n", p[cpl].name[i]);
+                            tx("%s checks the\r\n", state.p[state.cpl].name[i]);
                             tx("chest for traps.\r\n");
                             Delay(50);
                             x = 2;
@@ -257,9 +257,9 @@ void dungeon(int32_t levels, int32_t flag) {
                                 break;
                         }
                         for (i = 1; i < 5; i++) {
-                            p[cpl].hp[i] -= 4 * p[cpl].lv[i];
-                            if (p[cpl].hp[i] < 1) {
-                                p[cpl].hp[i] = 1;
+                            state.p[state.cpl].hp[i] -= 4 * state.p[state.cpl].lv[i];
+                            if (state.p[state.cpl].hp[i] < 1) {
+                                state.p[state.cpl].hp[i] = 1;
                             }
                         }
                         ryl_pause();
@@ -268,10 +268,10 @@ void dungeon(int32_t levels, int32_t flag) {
                     tx("The chest contained\r\n");
                     x = rand() % 100;
                     x += 20;
-                    x += p[cpl].exp[1] / 500;
+                    x += state.p[state.cpl].exp[1] / 500;
                     x += 300;
                     tx("%d pieces of gold.\r\n\r\n", x);
-                    p[cpl].gold += x;
+                    state.p[state.cpl].gold += x;
                     ryl_pause();
                 }
                 break;
@@ -281,7 +281,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 x = (rand() % 3);
                 x += 2;
                 tx("You find %d torches.\r\n\r\n", x);
-                p[cpl].torches += x;
+                state.p[state.cpl].torches += x;
                 lvl[cl] = 0;
                 ryl_pause();
                 break;
@@ -318,8 +318,8 @@ void dungeon(int32_t levels, int32_t flag) {
                 ryl_pause();
                 lvl[cl] = 0;
                 clw();
-                p[cpl].fireshield = 1;
-                p[cpl].flag[33] = 4;
+                state.p[state.cpl].fireshield = 1;
+                state.p[state.cpl].flag[33] = 4;
                 break;
 
             case 22:
@@ -437,8 +437,8 @@ void dungeon(int32_t levels, int32_t flag) {
                 lvl[cl] = 0;
                 ryl_pause();
                 clw();
-                p[cpl].bracelets = 1;
-                p[cpl].flag[13] = 2;
+                state.p[state.cpl].bracelets = 1;
+                state.p[state.cpl].flag[13] = 2;
                 break;
 
             case 26:
@@ -508,7 +508,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("dagger you seek. You put\r\n");
                 tx("it in your backpack.\r\n\r\n");
                 ryl_pause();
-                p[cpl].flag[23] = 7;
+                state.p[state.cpl].flag[23] = 7;
                 lvl[cl] = 0;
                 break;
 
@@ -534,8 +534,8 @@ void dungeon(int32_t levels, int32_t flag) {
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
-                p[cpl].flag[23] = 10;
-                p[cpl].mastercrown = 1;
+                state.p[state.cpl].flag[23] = 10;
+                state.p[state.cpl].mastercrown = 1;
                 lvl[cl] = 0;
                 break;
 
@@ -568,7 +568,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("      - %s\r\n\r\n", name[18]);
                 ryl_pause();
                 clw();
-                p[cpl].flag[6] = 2;
+                state.p[state.cpl].flag[6] = 2;
                 lvl[cl] = 0;
                 break;
 
@@ -668,8 +668,8 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("you pick it up!!!\r\n\r\n");
                 ryl_pause();
                 clw();
-                p[cpl].silverkey = 1;
-                p[cpl].flag[6] = 6;
+                state.p[state.cpl].silverkey = 1;
+                state.p[state.cpl].flag[6] = 6;
                 lvl[cl] = 0;
                 break;
 
@@ -701,13 +701,13 @@ void dungeon(int32_t levels, int32_t flag) {
 
             case 36:
                 clw();
-                if (p[cpl].flag[19] == 1) {
+                if (state.p[state.cpl].flag[19] == 1) {
                     lvl[cl] = 0;
                     tx("The peasant's wife is in\r\n");
                     tx("this room. You untie\r\n");
                     tx("her bonds and let her\r\n");
                     tx("join your party!\r\n\r\n");
-                    p[cpl].flag[19] = 2;
+                    state.p[state.cpl].flag[19] = 2;
                     ryl_pause();
                 }
                 break;
@@ -774,7 +774,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("hall for the Lute.\r\n\r\n");
                 ryl_pause();
                 clw();
-                tx("%s suddenly\r\n", p[cpl].name[3]);
+                tx("%s suddenly\r\n", state.p[state.cpl].name[3]);
                 tx("hears something behind\r\n");
                 tx("him!\r\n\r\n");
                 ryl_pause();
@@ -796,12 +796,12 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("throughout the hall.\r\n\r\n");
                 ryl_pause();
                 clw();
-                tx("%s finds the\r\n", p[cpl].name[4]);
+                tx("%s finds the\r\n", state.p[state.cpl].name[4]);
                 tx("Lute on a pedestal,\r\n");
                 tx("and you are all glad\r\n");
                 tx("to leave this place.\r\n\r\n");
                 lvl[cl] = 0;
-                p[cpl].flag[8] = 2;
+                state.p[state.cpl].flag[8] = 2;
                 ryl_pause();
                 clw();
                 break;
@@ -844,7 +844,7 @@ void dungeon(int32_t levels, int32_t flag) {
             }
             if (c == 'Z') {
                 spell(1); /* 0 means over ground */
-                if (banished) {
+                if (state.banished) {
                     for (i = 1; i < levels; i++) {
                         if (lvl[i] >= 3 && lvl[i] <= 5) {
                             lvl[i] = 0;
@@ -874,7 +874,7 @@ void dungeon(int32_t levels, int32_t flag) {
             }
 
             if (c == 'D') {
-                if (!p[cpl].torches) {
+                if (!state.p[state.cpl].torches) {
                     clw();
                     tx("You have used your last\r\n");
                     tx("torch. You can't go\r\n");
@@ -883,7 +883,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     clw();
                 } else {
                     if (cl < levels) {
-                        p[cpl].torches--;
+                        state.p[state.cpl].torches--;
                     }
                     if (cl == levels) {
                         clw();
