@@ -151,3 +151,20 @@
 {"kind":"spell","id":"mage.death","class":"mage","slot":4,"name":"Death Strike","base_cost":78,"effect":"death"}
 {"kind":"spell","id":"mage.hold","class":"mage","slot":5,"name":"Hold Enemies","base_cost":43,"effect":"hold"}
 {"kind":"spell","id":"mage.antimagic","class":"mage","slot":6,"name":"Anti Magic","base_cost":28,"effect":"antimagic"}
+{"kind":"text","id":"title.header","text":" ADVENTURERS of RYLWEEN\r\n\r\n"}
+{"kind":"text","id":"title.prog_by","text":"Programming & Design by:\r\n"}
+{"kind":"text","id":"title.prog_name","text":"    Marcus Lagergren\r\n\r\n"}
+{"kind":"text","id":"title.created_by","text":"      Created by:\r\n"}
+{"kind":"text","id":"title.creator_name","text":"    Niklas Blomqvist\r\n\r\n"}
+{"kind":"text","id":"title.graphics_by","text":"      Graphics by:\r\n"}
+{"kind":"text","id":"title.graphics_name","text":"     Matias Larsson   v3\r\n"}
+{"kind":"text","id":"spell.not_enough_pts","text":"Not enough spell pts!\r\n"}
+{"kind":"text","id":"cave.found_prompt","text":"You find a cave!\r\n\r\n(E)nter\r\n(L)eave\r\n"}
+{"kind":"text","id":"cave.no_moves","text":"You don't have enough\r\nmoves left to explore\r\nthe cave...\r\n\r\n"}
+{"kind":"text","id":"spell.priest.banish.thunder","text":"There is a deafening clap\r\nof thunder, and you hear\r\nbeings scream in agony\r\nin the dungeon below...\r\n\r\n"}
+{"kind":"text","id":"spell.priest.teleport.satchel","text":"from his satchel and\r\nuses a special instrument\r\nto scratch the direction\r\n"}
+{"kind":"text","id":"spell.priest.teleport.compass","text":"Teleport :\r\n\r\n   8\r\n 4-+-6\r\n   2\r\n\r\n"}
+{"kind":"text","id":"spell.priest.teleport.how_far","text":"How many miles do you\r\nwant to travel? (1-9)\r\n"}
+{"kind":"text","id":"spell.priest.teleport.arrived","text":"You appear to be\r\nsomewhere else.\r\n"}
+{"kind":"text","id":"spell.priest.earthquake.incantation","text":"three syllabels in an\r\narchaic tongue...\r\n\r\n"}
+{"kind":"text","id":"spell.priest.earthquake.eruption","text":"and the ground cracks\r\nopen!\r\n"}

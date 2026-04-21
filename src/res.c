@@ -17,6 +17,14 @@ typedef struct {
 static enum_rec *enums;
 static size_t n_enums;
 
+typedef struct {
+    char *id;
+    char *text;
+} text_rec;
+
+static text_rec *texts;
+static size_t n_texts;
+
 static ryl_item    items[RES_MAX_ITEM_ID + 1];
 static ryl_monster monsters[RES_MAX_MONSTER_ID + 1];
 
@@ -263,6 +271,18 @@ static void handle_spell(const kv *kvs, size_t n, const char *path, int line) {
     else die(path, line, "spell has unknown effect");
 }
 
+static void handle_text(const kv *kvs, size_t n, const char *path, int line) {
+    const char *id = kv_str(kvs, n, "id", NULL);
+    const char *text = kv_str(kvs, n, "text", NULL);
+    if (!id || !text) die(path, line, "text missing id or text");
+    text_rec *grown = realloc(texts, (n_texts + 1) * sizeof *texts);
+    if (!grown) die(path, line, "oom");
+    texts = grown;
+    text_rec *r = &texts[n_texts++];
+    r->id = strdup(id);
+    r->text = strdup(text);
+}
+
 static void handle_sextext(const kv *kvs, size_t n, const char *path, int line) {
     int32_t sex = kv_int(kvs, n, "sex", -1);
     if (sex < 1 || sex > 2) die(path, line, "sextext sex must be 1 or 2");
@@ -324,6 +344,7 @@ static void parse_line(char *buf, const char *path, int line) {
     else if (strcmp(kind, "terrain") == 0) handle_terrain(kvs, nk, path, line);
     else if (strcmp(kind, "spell")   == 0) handle_spell(kvs, nk, path, line);
     else if (strcmp(kind, "sextext") == 0) handle_sextext(kvs, nk, path, line);
+    else if (strcmp(kind, "text")    == 0) handle_text(kvs, nk, path, line);
     /* unknown kinds are tolerated */
 
     free_kvs(kvs, nk);
@@ -350,6 +371,13 @@ const char *res_enum(const char *id, int index) {
             if (index < 0 || (size_t) index >= enums[i].n_values) return "";
             return enums[i].values[index];
         }
+    }
+    return "";
+}
+
+const char *res_text(const char *id) {
+    for (size_t i = 0; i < n_texts; i++) {
+        if (strcmp(texts[i].id, id) == 0) return texts[i].text;
     }
     return "";
 }

@@ -14,16 +14,16 @@ void spelet() {
     state.tid = 5;
     state.hours_pigg = 14;
 
-    tx(" ADVENTURERS of RYLWEEN\r\n\r\n");
+    tx("%s", res_text("title.header"));
 
-    tx("Programming & Design by:\r\n");
-    tx("    Marcus Lagergren\r\n\r\n");
+    tx("%s", res_text("title.prog_by"));
+    tx("%s", res_text("title.prog_name"));
 
-    tx("      Created by:\r\n");
-    tx("    Niklas Blomqvist\r\n\r\n");
+    tx("%s", res_text("title.created_by"));
+    tx("%s", res_text("title.creator_name"));
 
-    tx("      Graphics by:\r\n");
-    tx("     Matias Larsson   v3\r\n");
+    tx("%s", res_text("title.graphics_by"));
+    tx("%s", res_text("title.graphics_name"));
 
     /* Prep map for positions of huts/cottages */
 

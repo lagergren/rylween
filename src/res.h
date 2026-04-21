@@ -55,6 +55,9 @@ void res_load(const char *path);
 /* Enum: values[index] for matching record. "" if missing/out of range. */
 const char *res_enum(const char *id, int index);
 
+/* Text: content strings for {"kind":"text",...}. "" if missing. Never NULL. */
+const char *res_text(const char *id);
+
 /* Items 0..111. NULL if no record. */
 const ryl_item *res_item(int id);
 

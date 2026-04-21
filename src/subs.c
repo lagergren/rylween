@@ -117,9 +117,7 @@ void slumpvis() {
         clr_map_window();
         blitgfx(cavepic);
         clw();
-        tx("You find a cave!\r\n\r\n");
-        tx("(E)nter\r\n");
-        tx("(L)eave\r\n");
+        tx("%s", res_text("cave.found_prompt"));
         while (1) {
             c = key();
             c = toupper(c);
@@ -134,9 +132,7 @@ void slumpvis() {
                 state.p[state.cpl].tid_kvar -= 10;
             } else {
                 clw();
-                tx("You don't have enough\r\n");
-                tx("moves left to explore\r\n");
-                tx("the cave...\r\n\r\n");
+                tx("%s", res_text("cave.no_moves"));
                 ryl_pause();
                 clr_map_window();
                 clw();
@@ -819,7 +815,7 @@ void spell(int32_t place) {
         case SE_HEAL:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("Not enough spell pts!\r\n");
+                tx("%s", res_text("spell.not_enough_pts"));
                 Delay(50);
                 clw();
                 break;
@@ -855,7 +851,7 @@ void spell(int32_t place) {
         case SE_RESTORATION:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("Not enough spell pts!\r\n");
+                tx("%s", res_text("spell.not_enough_pts"));
                 Delay(50);
                 clw();
                 break;
@@ -880,7 +876,7 @@ void spell(int32_t place) {
         case SE_REBIRTH:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("Not enough spell pts!\r\n");
+                tx("%s", res_text("spell.not_enough_pts"));
                 Delay(50);
                 clw();
                 break;
@@ -912,7 +908,7 @@ void spell(int32_t place) {
         case SE_BANISH:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("Not enough spell pts!\r\n");
+                tx("%s", res_text("spell.not_enough_pts"));
                 Delay(50);
                 clw();
                 break;
@@ -933,10 +929,7 @@ void spell(int32_t place) {
             tx("between %s palms, and\r\n", sextext(vem, 3));
             tx("suddenly clasps them.\r\n");
             tx("together over %s head.\r\n", sextext(vem, 3));
-            tx("There is a deafening clap\r\n");
-            tx("of thunder, and you hear\r\n");
-            tx("beings scream in agony\r\n");
-            tx("in the dungeon below...\r\n\r\n");
+            tx("%s", res_text("spell.priest.banish.thunder"));
             ryl_pause();
             clw();
             state.banished = 1;
@@ -945,7 +938,7 @@ void spell(int32_t place) {
         case SE_REVELATION:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("Not enough spell pts!\r\n");
+                tx("%s", res_text("spell.not_enough_pts"));
                 Delay(50);
                 clw();
                 break;
@@ -1014,7 +1007,7 @@ void spell(int32_t place) {
 
         case SE_TELEPORT:
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("Not enough spell pts!\r\n");
+                tx("%s", res_text("spell.not_enough_pts"));
                 Delay(50);
                 clw();
                 break;
@@ -1033,17 +1026,12 @@ void spell(int32_t place) {
             ryl_pause();
             clw();
             tx("%s picks up a stone slab\r\n", sextext(vem, 1));
-            tx("from his satchel and\r\n");
-            tx("uses a special instrument\r\n");
-            tx("to scratch the direction\r\n");
+            tx("%s", res_text("spell.priest.teleport.satchel"));
             tx("%s wants you to teleport\r\n", sextext(vem, 1));
             tx("to.\r\n\r\n");
             ryl_pause();
             clw();
-            tx("Teleport :\r\n\r\n");
-            tx("   8\r\n");
-            tx(" 4-+-6\r\n");
-            tx("   2\r\n\r\n");
+            tx("%s", res_text("spell.priest.teleport.compass"));
             while (1) {
                 d = key();
                 if (d == '8' || d == '4' || d == '6' || d == '2') {
@@ -1051,8 +1039,7 @@ void spell(int32_t place) {
                 }
             }
             clw();
-            tx("How many miles do you\r\n");
-            tx("want to travel? (1-9)\r\n");
+            tx("%s", res_text("spell.priest.teleport.how_far"));
             while (1) {
                 b = key();
                 if (b >= '1' && b <= '9') {
@@ -1089,8 +1076,7 @@ void spell(int32_t place) {
                     }
                     break;
             }
-            tx("You appear to be\r\n");
-            tx("somewhere else.\r\n");
+            tx("%s", res_text("spell.priest.teleport.arrived"));
             update_map();
             Delay(60);
             clw();
@@ -1106,25 +1092,21 @@ void spell(int32_t place) {
                 break;
             }
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("Not enough spell pts!\r\n");
+                tx("%s", res_text("spell.not_enough_pts"));
                 Delay(50);
                 clw();
                 break;
             }
             state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             tx("%s utters\r\n", state.p[state.cpl].name[vem]);
-            tx("three syllabels in an\r\n");
-            tx("archaic tongue...\r\n\r\n");
+            tx("%s", res_text("spell.priest.earthquake.incantation"));
             Delay(100);
-            tx("and the ground cracks\r\n");
-            tx("open!\r\n");
+            tx("%s", res_text("spell.priest.earthquake.eruption"));
             Delay(150);
             clr_map_window();
             blitgfx(cavepic);
             clw();
-            tx("You find a cave!\r\n\r\n");
-            tx("(E)nter\r\n");
-            tx("(L)eave\r\n");
+            tx("%s", res_text("cave.found_prompt"));
             while (1) {
                 c = key();
                 c = toupper(c);
@@ -1139,9 +1121,7 @@ void spell(int32_t place) {
                     state.p[state.cpl].tid_kvar -= 10;
                 } else {
                     clw();
-                    tx("You don't have enough\r\n");
-                    tx("moves left to explore\r\n");
-                    tx("the cave...\r\n\r\n");
+                    tx("%s", res_text("cave.no_moves"));
                     ryl_pause();
                     clr_map_window();
                     clw();
