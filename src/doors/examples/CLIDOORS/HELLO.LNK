@@ -1,8 +1,0 @@
-FROM LIB:c.o "Hello.o"
-TO "Hello"
-LIB LIB:sc.lib LIB:amiga.lib
-SMALLCODE
-SMALLDATA
-NODEBUG
-NOICONS
-

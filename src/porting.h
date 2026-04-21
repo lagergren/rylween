@@ -6,7 +6,7 @@
 typedef char UBYTE;
 typedef unsigned long ULONG;
 
-#define Delay sleep 
+#define Delay sleep
 
 #define stricmp strcmp
 

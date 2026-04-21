@@ -1,2 +1,0 @@
-sc HelloDOS.c
-slink define ___main=___tinymain _exit=___exit from lib:c.o HelloDOS.o sprintf.o to HelloDOS lib lib:sc.lib+lib:amiga.lib sc sd nd

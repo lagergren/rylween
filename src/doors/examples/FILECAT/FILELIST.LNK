@@ -1,8 +1,0 @@
-FROM LIB:c.o "FileList.o"
-TO "FileList"
-LIB LIB:sc.lib LIB:amiga.lib
-SMALLCODE
-SMALLDATA
-NODEBUG
-NOICONS
-

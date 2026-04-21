@@ -1,0 +1,500 @@
+
+  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+   ######             #######
+  ###  ### DVENTURERS ###   ##                 (C) 1992-1993 
+  ###  ###            ###   ##                     Marcus Lagergren
+  ########     of     ########                     ML-SOFT
+  ###  ###            ###  ##
+  ###  ###            ###  ###
+  ###  ###            ###  ### YLWEEN      - An RPG in the TRUE SPIRIT -
+
+                 Watch out Hack'n'Slash - Here we come!
+
+  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+               'Time stands still in these ancient halls
+                only the castle itself can tell what it keeps.
+                Dark are the secrets between these walls,
+                hidden in shadows of death while the sorceror sleeps.'
+                                            - Candlemass...
+
+----
+
+    There is a realm very far away, not necessarily on our world, called
+Rylween.  Rylween is one of the seven kingdoms of this world.  It lies in
+the northwestern part of this world's only known continent, surrounded by
+impenetratable mountains in all the directions.  Rumor has it, that there
+is a canyon somewhere in the mountains to the south, but no one has ever 
+found it.  Rylween is an isolated kingdom, whose good and justful monarch
+went by the name Zalkin Ammol. 
+
+    One day, a lone knight rode into the capital of Rylween, Wilor.  He 
+approached from the south and was dressed in purple rags.  He demanded
+to see Ammol, and when they met in Ammol's palace, the knight pulled
+a trident and pierced Ammol with it before anyone had time to react.
+When the guards tried to attack the knight, they found him invulnerable
+to normal weapons.  He just stood there, 7 feet tall in his purple robe
+and laughed.  He waved his hands and disappeared in a puff of smoke.
+Before he was gone the royal guard heard him yell:
+
+   'I declare war. This shall be the last part of the realm to fall.
+ For I am Baron Ydarg, master of the seven kingdoms, the new ruler of
+ Rylween.'
+
+   He built a stronghold somewhere to the southwest, the evil castle Zadraz,
+in one night.  The following weeks where chaotic.  Strange and evil creatures
+started to appear in the realm, and many good merchant was slain on his trips
+through the forests.  All citizens of Rylween where panicstricken.  The 
+warrior guilds, in the four cities of Rylween, started to search for veteran
+fighters, fit for protecting the realm.  They failed.
+
+This is where you come in.
+
+----
+
+   Rylween is a role playing online game with no player interaction.  There
+is, however, a top list where you can see how well the different players
+succeed. Your final goal is to hunt down Baron Ydarg and destroy him (but 
+he's immune to magic and quite nasty) - this is where the game will end.
+Rylween will also create a hall of fame file with all the winners. 
+
+  All positions of the different dungeons/people/huts etc. are randomized 
+each time a new campaign begins.  Thus it isn't the same game each time.
+The missions are the same, but the positions of all the important locations
+always vary.  Good, eh? I thought quite a lot about how to make an 
+adventure/RPG online interesting more than once, and this is what I found
+to be the best method. 
+
+----
+
+  When the game starts you will be at the warrior guild menu. This is where
+you create adventurer parties, continue previously saved games, delete 
+parties you aren't satisfied with and so on.  If you are a new player - 
+create a new party here.
+
+  You will direct a party of four heroes through Rylween.  This is where you
+create them.  First, enter a name for your party.  This name will be used on
+the top list, and should be something fantasy-ish.
+
+  Now it's time to create the first character.  You will see his four basic
+attributes, and can choose between rerolling them or keeping them.  You can
+reroll them an infinite number of times, but the initial values can never be
+greater than 75 for any skill.
+
+  Weapon Skill:     
+  =-=-=-=-=-=-=
+  This is how good the player is in combat.  Fighters need a weapon skill
+  greater than 50.
+
+  Health:
+  =-=-=-=
+  This is this character's hit point maximum.  Each time he is wounded
+  his hit points decrease. If they drop below 0 the characted will die.
+  A character can never get more hit points than his health, though.
+
+  Wisdom:
+  =-=-=-=
+  This determines how skilled the character is in the arts of Magick.
+  His magic point maximum is equal to his wisdom value.  Only priests
+  and mages get magic points, though.  Wisdom is of no importance whatsoever
+  to any of the other classes.  Mages and priests need a wisdom value
+  greater than 50.
+
+  Charisma:
+  =-=-=-=-=
+  This measures the characters general personality and leadership skills.
+  The party will gain more friends and less enemies if they have many 
+  characters with high charisma. Bards need a charisma value greater
+  than 50.
+
+Now, when you have decided you want to keep some good values, enter a name
+for this character. Once again, names with fantasy touch will create a 
+better atmosphere during the game.
+
+Select a race for this character:
+
+Human
+-=-=-
+Well.  I hope I don't need to explain this one. (except maybe for Alex May).
+
+Dwarf
+-=-=-
+Small stout bearded humanoids.  They make excellent fighters.
+
+Elf
+-=-
+Tall slender humanoids.  Excellent rangers or maybe mages.
+
+Halflings
+-=-=-=-=-
+Short humanoids with hairy feet.  Excellent thieves, and their fighting
+skill is not to be underestimated.
+
+Next, pick a class for the character:
+
+Fighter
+-=-=-=-
+Warriors.  High level fighter veterans are fearsome opponents.  Especially
+when you happen to encounter a creature immune to magic. A level 20
+fighter with a good weapon can easily kill a man with one blow.  Fighters
+have no magic skill.
+
+Thief
+-=-=-
+Rouges.  Experts in disarming traps and picking locks.  Good to have in
+your party when exploring dungeons and caves.  Thieves have no magic skill.
+
+Mage
+-=-=
+Wizards.  Mages are often physically weak but they are experts in 
+spellcasting.  Mage spells are offensive and can only be used in battle.
+
+Priest
+-=-=-=
+Priests are servants under one of Rylween's many gods.  They also know
+magic (but not the same kind as mages).  Their spells are defensive and
+can only be used when not in combat.
+
+Bard
+=-=-
+Bards are experts in telling stories and singing traveller's tunes.  A bard
+is also often quite a fearsome fighter.  Having a bard in your party will
+make you popular in Rylween's many taverns.  Bards have no magic skill.
+
+Ranger
+-=-=-=
+Lonely hunters.  Rangers are almost as good warriors as fighters.  They can
+sometimes trap wild animals for the party to eat.  Rangers have no magic
+skill.
+
+Your initial game will now be saved. Select 'continue saved game' from
+the guild menu.
+
+------------
+
+The map screen will now show an overview of the surrounding countryside.
+You are on the highlighted square in the middle, and the terrain above
+is to the north, the terrain below to the south and so on. The different
+terrain types are:
+
+/\    =  Mountains. High impenetratable peaks.
+^^    =  Foothills.
+~~    =  Water. Impenetratable.
+gg    =  Forests.
+..    =  Plainland.
+%%    =  Swamps.
+::    =  Deserts.
+TT    =  Towne.
+HH    =  Hut.
+CC    =  Castle (there is only one castle, and I wouldn't enter it that
+         soon if I were you).
+
+Pressing '?' will bring up a control summary. Here is a more verbose
+explanation:
+
+C = Camp
+
+You can be awake for about 12 hours without loss of health, but even the 
+most experienced adventurer needs to sleep.  You'll see how it works.  A 
+rule of thumb is to always post a guard.  There is always a risk of being
+ambushed in your sleep.  If you DESPERATELY need the sleep, don't post a
+guard.  The nights of Rylween can be very cold.  Buy some suitable equipment
+in the nearest town as soon as possible so that you won't freeze to death.
+(I was inspired by the Swedish weather right now).
+
+E = Enter
+
+Enter a town, castle or hut.  You need to be standing on a square of that
+kind for this command to work.
+
+H = Hunt
+
+If you have a ranger in your party, he might trap a rabbit or some other
+animal for you to eat.  This is good if you are starving and out of food.
+
+J = View Journal
+
+View the traveller's journal where all important coordinates and such
+are recorded, so that you don't need to write them down. Nice one.
+
+L = Leave Item
+
+Discard an item in the party inventory.  You'll never see it alive again.
+
+P = Put Down Weapon
+
+Just unready a weapon you are wielding.
+
+Q = Quaff Potion
+
+There are different kinds of potions, I won't tell you what they do, but
+the merchant will sell you an average working healing brew.  Beware of
+strange coloured liquids, but do experiment. (Save your game first).
+There is no low-level-format-potion.  Your sysop will rejoice when he hears
+that.
+
+R = Ready Armour
+
+If you have an armour in the party inventory and want one of your 
+characters to wear it, select the armour and he will put it on.  If he 
+already was wearing an armour, he will take that one off and it will replace
+the new armour's position in the inventory.
+
+S = Save Game
+
+DO THIS OFTEN!  You have one save position.  Save your game after you have
+found some new equipment.  Save your game before entering towns.  Save your
+game after leaving towns.  Save your game before entering that house with
+impaled human skulls outside.  Save your game whenever it seems appropriate.
+You can always go back to your last saved game if you are killed.
+
+T = Take Off Armour
+
+Take off an armour you are wearing.
+
+V = View Party
+
+A status sheet for a special party member or all of them if you want.  You
+will also see some general info about the party.
+
+W = Wield Weapon
+
+See wield armour.  It's the same, but the active objects are weapons.
+
+X = Quit Game (No Save)
+
+Save before doing this.  This will take you back to the board.  Good if you
+were just robbed of all your belongings.  Just exit and restore the last save.
+
+Z = Cast Spell
+
+Priest magic.  Only the priest knows about his art.  He wouldn't tell me :)
+- But do experiment.  I don't want to reveal all.
+
+8 = Move North
+
+4 = Move West
+
+6 = Move East
+
+2 = Move South
+
+! = Redraw Screen
+
+------
+
+You will start the game near the northwestern part of Rylween.  The first
+thing you should do is to visit the mountain village Thord and buy some arms.
+You are completely defenseless when the game starts.
+
+There are four towns in Rylween:
+
+Thord - City of the Mountains
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+In the mountain range to the northwest.  I shall be generous and reveal its
+coordinates, 12x11.
+
+Ollk - City of the Swamp
+-=-=-=-=-=-=-=-=-=-=-=-=
+Ollk lies in the Great Swamp in the northeastern part of the realm.
+
+Wilor - City of the Forest
+-=-=-=-=-=-=-=-=-=-=-=-=-=
+Wilor is the capital of Rylween.  Wilor lies in the center of the realm, in
+the large forest Lonewood.
+
+Murn - City of the Desert
+-=-=-=-=-=-=-=-=-=-=-=-=-
+Murn lies somewhere in the southeastern desert.  Not many travellers have
+made it to this part of the land. It is about as far away as you can get
+from Thord.
+
+People in the taverns might tell you where the towns are more exact.
+
+--------------
+
+The Status Bar:
+-=-=-=-=-=-=-=
+
+That is the green thingy at the bottom of the screen.
+
+TIME: What time of the day it is.
+
+ST:   Party Status.  OK, Hungry or Starving.  When you are starving,
+      it is wise to let your ranger (if you have one) trap something
+      to eat, or rush to a town to get some food rations at the merchant's.
+
+X:    X coordinate.
+
+Y:    Y coordinate.
+
+FD:   How many food rations you've got left.
+
+MV:   Moves left today.
+
+AU:   (Aurum) - How much gold you have.
+
+Below these values are the hit point statistics for the characters of the
+party. 0 = dead.
+
+--------------
+
+Townes :
+-=-=-=-
+
+You can visit all the institutions in a town. Here is a small explanation.
+
+SMITH
+-=-=-
+The smith is a nice chap. You can buy or sell armours and weapons here.
+Sometimes he might even invite you for a beer.  It is always wise to accept.
+
+TAVERN
+-=-=-=
+The tavern is always wise to visit.  You can buy refreshments, listen to
+rumors, raise your reputation by telling stories and most important, talk to
+people.  They may grant you missions or give you important information.
+Talk to everyone you meet!  This is the way to success.
+
+INN
+-=-
+Good to stay at if you are tired.  You will restore more hitpoints than
+if you sleep in the wilderness, you won't be murdered by orcs in the
+middle of the night, and you can have a nice warm supper here.  The Inn
+also houses many important characters you should talk to.
+
+MERCHANT
+-=-=-=-=
+Convenience store.  Here, you can buy things like blankets, food rations,
+torches and so on.  You can also sell any odd items you find, but the
+merchant won't let you haggle.  The smith is a much nicer guy.
+
+CHURCH
+-=-=-=
+There are only two churches.  In Thord and in Wilor.  You can heal
+wounded characters here, or raise dead ones.  For a price.
+
+Some of the institutions are not open 24 hours. Please respect this, and
+keep an eye on the status bar.
+
+----
+
+Battles
+-=-=-=-
+
+Battles play an important role in this realm. You may be ambushed
+when trying to rest in the wilderness. You may be attacked without
+warning when exploring caves. Beasts and bandits are all around,
+and they are after YOU!
+
+When you encounter one or more creatures, you can choose between
+fighting and running. It is not always you get away at the first battle
+round. Then the actual battle starts. Each player can do a certain
+number of things. Here is an explanation:
+
+Attack
+
+Just strike at the enemy with your readied weapon.
+
+Defend
+
+Rest a round and recover a bit, while the other guys do the fighting.
+
+Use Item
+
+Use a magical item of yours. The feared Kael's Axe is the most powerful
+magic weapon in the realm. Try finding at least ONE Kael's Axe before
+entering castle Zadraz.
+
+Battle Cry
+
+Try to scare your enemies.
+It works best on yellow creatures like kobolds, goblins etc.
+
+Cast Spell
+
+Only for mages. The mage can cast one of the six battle spells:
+  
+  Frost Finger - Strike an enemy with a bolt of pure cold.
+  Fire Cloud   - Engulf all the enemies in a cloud of burning air.
+  Confusion    - Will make the party start to waver and blur in front
+                 of the enemy, making you more difficult to hit.
+  Death Strike - KILL! One enemy.
+  Hold Enemy   - Hold the enemy party so that you get an extra battle
+                 round.
+  Anti Magic   - Create a magic shield around your foes so that they
+                 can't use magic during the next attack round. 
+                 (Good against wizards and foes of magical origin).
+  
+The battle is over when all the enemies are dead, or you are dead, or
+when you have fled.
+
+Experience points and gold are given to you if you win the battle.
+
+----
+
+Dungeons and Caves
+-=-=-=-=-=-=-=-=-=
+
+There are lots of dungeons and caves scattered throughout the realm.
+You may stumble upon them by chance or you may know where to go.
+Dungeons play an important role in the different missions you can receive.
+A dungeon/cave consists of an unknown number of levels. To enter the
+next level, choose D)escend from the dungeon menu. To return to
+the previous level, choose A)scend. Dungeons are full of all kinds
+of nice monsters that don't exist up in the wilderness.
+You can use all the standard wilderness commands in the dungeon.
+
+----
+
+Missions
+-=-=-=-=
+
+The missions are the heart of this game. It is quite meaningless just
+to roam the land for fame and treasure (although that also is a possibility).
+Try to solve the quests you are granted. Therefore, it is always wise
+to talk to all the people you meet at taverns/inns or in the wilderness.
+Some have important clues, some grant you missions, some are not
+important at all. Each missions is a "trail" you must follow.
+
+HINT: If you want some quick experience and money, try the first mission.
+      Go to THORD, City of the mountains and talk to Garth, who resides
+      in this city in ALL the campaigns. He will grant you a simple
+      starting quest.
+
+----
+
+Attitudes
+-=-=-=-=-
+
+Just like in real life, you can pick your path. Here are a few suggestions:
+
+Bounty Hunters
+
+Your party roams the wilderness, searching for fame and fortune.
+The only goal is to get as mighty as possible.
+
+Freedom Force
+
+Your party does its very utmost to assasinate Baron Ydarg, the evil
+ruler of Rylween. This is the main purpose of the game, but you don't
+NEED to kill him if you don't want to.
+When Ydarg dies, the campaign will restart, and the victorious party
+will enter the Hall of Fame.
+
+Neutral
+
+Just be neutral. Don't cooperate with anyone special. Be yourselves.
+
+The Power Items
+-=-=-=-=-=-=-=-
+
+To kill the evil Baron Ydarg, you will need a couple of magic items.
+The five power items are: The Master Crown (the most powerful object
+in the realm), The Fire Shield, The Foot of Jazzy, The Silver Key and
+the Bracelets of Thun. When you have accuired all of these through
+different missions, you are ready to find Ydarg's castle Zadraz and
+breach its defenses...
+
+----

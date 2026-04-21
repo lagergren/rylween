@@ -1,8 +1,0 @@
-FROM LIB:c.o "MsgList2.o"
-TO "MsgList2"
-LIB LIB:sc.lib LIB:amiga.lib
-SMALLCODE
-SMALLDATA
-NODEBUG
-NOICONS
-
