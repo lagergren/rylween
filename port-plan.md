@@ -591,8 +591,9 @@ harness.
   by §6's shared baseline (Phase 2 step 13). Don't skip that pass — the
   bugs are real, they just haven't fired because callers happen to copy
   before the stack frame dies.
-- `optdata.c` and `scan.c` are auxiliary tools (save-file editor / cleanup).
-  Port them last or skip entirely — `scan.c` is a stub.
+- Amiga-only helper sources (`reveal.c`, `npclist.c`, `optdata.c`, `scan.c`,
+  `rylreg.c`) were deleted in Phase 5 step 25 — each had its own `main()` and
+  was never linked into the game.
 - `speak.c` (1166 lines) and `strid.c` (933 lines) have the most `Delay()` and
   `pause()` pacing — the places where wrong `Delay` granularity will be most
   visible.
