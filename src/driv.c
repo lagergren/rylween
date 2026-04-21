@@ -1,3 +1,4 @@
+#include "io.h"
 #include "ryl.h"
 
 extern void attackhandler();
@@ -34,6 +35,14 @@ void spelet() {
     update_map();
 
     while (1) {
+        if (io_winch_pending) {
+            io_winch_pending = 0;
+            cl();
+            disptext("data/ansi/screen.ans");
+            update_map();
+            clw();
+        }
+
         timehandler();
         foodhandler();
         attackhandler();

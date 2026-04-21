@@ -8,8 +8,15 @@
 #include <termios.h>
 #include <unistd.h>
 
+volatile sig_atomic_t io_winch_pending = 0;
+
 static struct termios saved_termios;
 static int32_t termios_saved = 0;
+
+static void tty_winch_handler(int sig) {
+    (void) sig;
+    io_winch_pending = 1;
+}
 
 static void tty_write(const char *buf, size_t n) {
     size_t off = 0;
@@ -135,6 +142,12 @@ void io_init_tty(void) {
         tcsetattr(STDIN_FILENO, TCSANOW, &raw);
         atexit(tty_restore);
     }
+
+    struct sigaction sa;
+    sa.sa_handler = tty_winch_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGWINCH, &sa, NULL);
 
     io = &tty_backend;
 }

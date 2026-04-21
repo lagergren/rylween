@@ -1,8 +1,11 @@
 #ifndef IO_H__
 #define IO_H__
 
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
+
+extern volatile sig_atomic_t io_winch_pending;
 
 typedef struct io_backend {
     const char *name;
