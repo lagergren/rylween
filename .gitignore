@@ -2,5 +2,11 @@
 *.o
 rylween
 
+# Runtime-generated state (regenerated on boot)
+data/entry.dat
+data/npc.dat
+data/realm.dat
+data/rylween.log
+
 # Editor / local tool state
 .claude/
