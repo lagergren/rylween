@@ -47,6 +47,7 @@ run_one() {
     local name=$1
     local in="$SCRIPT_DIR/$name.in"
     local expect="$SCRIPT_DIR/$name.expect"
+    local envfile="$SCRIPT_DIR/$name.env"
 
     if [[ ! -f $in ]]; then
         echo "missing input: $in" >&2
@@ -59,7 +60,15 @@ run_one() {
     # shellcheck disable=SC2064
     trap "rm -rf '$home' '$out'" RETURN
 
-    HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 || true
+    # Optional sidecar: <name>.env sourced in a subshell so replay-scoped
+    # env vars (RYL_FAKE_EPOCH, RYL_FAKE_SEED, ...) do not leak into later
+    # runs under --all.
+    if [[ -f $envfile ]]; then
+        # shellcheck disable=SC1090
+        ( set -a; . "$envfile"; HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 ) || true
+    else
+        HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 || true
+    fi
 
     local size
     size=$(wc -c < "$out" | tr -d ' ')
