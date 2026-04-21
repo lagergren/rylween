@@ -1,6 +1,7 @@
 #include "ryl.h"
+#include "res.h"
 
-/* 
+/*
 ** Never find and never fool
 ** The first one drinks the poison pool
 ** The third one reads the ancient tome
@@ -9,11 +10,11 @@
 
 void encounter(int32_t foe, int32_t mandatory) {
     char fn[80], str[80], b, c, d;
-    int32_t n1, n2; /* Min & Max nr */
-    int32_t h1, h2; /* Min & Max hp */
-    int32_t sp;     /* Fire frost hold */
-    int32_t im;     /* Immune to magic? */
-    int32_t ws;     /* WS */
+    int32_t n1 = 0, n2 = 0; /* Min & Max nr */
+    int32_t h1 = 0, h2 = 0; /* Min & Max hp */
+    int32_t sp;             /* Fire frost hold */
+    int32_t im;             /* Immune to magic? */
+    int32_t ws = 0;         /* WS */
     int32_t x, i, mh[15], deadc[15], vem, dp, g, noc, mhtemp, spelldamage;
     int32_t oc;
     time_t t;
@@ -28,591 +29,22 @@ void encounter(int32_t foe, int32_t mandatory) {
     Delay(20);
     sp = 0;
     im = 0;
-    switch (foe) {
-        case 1:
-            strcpy(fn, "Kobold");
-            n1 = 2;
-            n2 = 8;
-            h1 = 30;
-            h2 = 50;
-            ws = 35;
-            break;
-        case 2:
-            strcpy(fn, "Orc");
-            n1 = 2;
-            n2 = 5;
-            h1 = 50;
-            h2 = 99;
-            ws = 50;
-            break;
-        case 3:
-            strcpy(fn, "Troll");
-            n1 = 1;
-            n2 = 3;
-            h1 = 99;
-            h2 = 199;
-            ws = 55;
-            break;
-        case 4:
-            strcpy(fn, "Warrior");
-            n1 = 1;
-            n2 = 4;
-            h1 = 50;
-            h2 = 99;
-            ws = 60;
-            break;
-        case 5:
-            strcpy(fn, "Goblin");
-            n1 = 2;
-            n2 = 7;
-            h1 = 50;
-            h2 = 80;
-            ws = 30;
-            break;
-        case 6:
-            strcpy(fn, "Wild Dog");
-            n1 = 1;
-            n2 = 3;
-            h1 = 15;
-            h2 = 40;
-            ws = 60;
-            break;
-        case 7:
-            strcpy(fn, "Knight");
-            n1 = 1;
-            n2 = 5;
-            h1 = 25;
-            h2 = 99;
-            ws = 75;
-            break;
-        case 8:
-            strcpy(fn, "Bandit");
-            n1 = 2;
-            n2 = 6;
-            h1 = 50;
-            h2 = 99;
-            ws = 50;
-            break;
-        case 9:
-            strcpy(fn, "Hobgoblin");
-            n1 = 2;
-            n2 = 5;
-            h1 = 20;
-            h2 = 70;
-            ws = 40;
-            sp = 5;
-            break;
-        case 10:
-            strcpy(fn, "Zombie");
-            n1 = 2;
-            n2 = 4;
-            h1 = 70;
-            h2 = 70;
-            ws = 65;
-            sp = 5;
-            break;
-        case 40:
-            strcpy(fn, "Wander Mage");
-            n1 = 3;
-            n2 = 4;
-            h1 = 50;
-            h2 = 60;
-            ws = 20;
-            sp = 80;
-            break;
-        case 41:
-            strcpy(fn, "Stirge");
-            n1 = 6;
-            n2 = 8;
-            h1 = 10;
-            h2 = 20;
-            ws = 90;
-            break;
-        case 42:
-            strcpy(fn, "Hill Giant");
-            n1 = 1;
-            n2 = 2;
-            h1 = 100;
-            h2 = 190;
-            ws = 40;
-            break;
-        case 43:
-            strcpy(fn, "Wizard");
-            n1 = 2;
-            n2 = 4;
-            h1 = 30;
-            h2 = 50;
-            ws = 40;
-            sp = 70;
-            break;
-        case 44:
-            strcpy(fn, "Druid");
-            n1 = 3;
-            n2 = 4;
-            h1 = 50;
-            h2 = 60;
-            ws = 60;
-            sp = 60;
-            break;
-        case 45:
-            strcpy(fn, "Sabre Tooth Tiger");
-            n1 = 1;
-            n2 = 2;
-            h1 = 100;
-            h2 = 120;
-            ws = 95;
-            break;
-        case 46:
-            strcpy(fn, "Head Hunter");
-            n1 = 3;
-            n2 = 5;
-            h1 = 60;
-            h2 = 80;
-            ws = 65;
-            break;
-        case 47:
-            strcpy(fn, "Skeleton");
-            n1 = 3;
-            n2 = 6;
-            h1 = 20;
-            h2 = 60;
-            ws = 70;
-            break;
-        case 48:
-            strcpy(fn, "Vampire Bat");
-            n1 = 7;
-            n2 = 8;
-            h1 = 10;
-            h2 = 20;
-            ws = 55;
-            break;
-        case 49:
-            strcpy(fn, "Giant Snake");
-            n1 = 1;
-            n2 = 3;
-            h1 = 40;
-            h2 = 90;
-            ws = 60;
-            break;
-        case 50:
-            strcpy(fn, "Ghoul");
-            n1 = 1;
-            n2 = 2;
-            h1 = 100;
-            h2 = 150;
-            ws = 35;
-            sp = 10;
-            break;
-        case 51:
-            strcpy(fn, "Spider");
-            n1 = 5;
-            n2 = 8;
-            h1 = 10;
-            h2 = 20;
-            ws = 95;
-            break;
-        case 52:
-            strcpy(fn, "Huge Lizard");
-            n1 = 3;
-            n2 = 5;
-            h1 = 30;
-            h2 = 60;
-            ws = 75;
-            break;
-        case 53:
-            strcpy(fn, "Dryder");
-            n1 = 1;
-            n2 = 5;
-            h1 = 80;
-            h2 = 130;
-            ws = 75;
-            sp = 20;
-            break;
-
-            /* Special Encounters */
-
-        case 11:
-            strcpy(fn, "Guardian");
-            n1 = 1;
-            n2 = 1;
-            h1 = 250;
-            h2 = 350;
-            ws = 80;
-            break;
-        case 12:
-            strcpy(fn, "Norker");
-            n1 = 1;
-            n2 = 1;
-            h1 = 350;
-            h2 = 400;
-            ws = 90;
-            break;
-        case 13:
-            strcpy(fn, "Voodoo Lord");
-            n1 = 1;
-            n2 = 1;
-            h1 = 300;
-            h2 = 350;
-            ws = 80;
-            break;
-        case 14:
-            strcpy(fn, "Archdevil");
-            n1 = 1;
-            n2 = 1;
-            h1 = 450;
-            h2 = 450;
-            ws = 85;
-            sp = 60;
-            break;
-        case 15:
-            strcpy(fn, "Kobold");
-            n1 = 6;
-            n2 = 8;
-            h1 = 30;
-            h2 = 45;
-            ws = 25;
-            break;
-        case 16:
-            strcpy(fn, "Rainbow Demon");
-            n1 = 1;
-            n2 = 1;
-            h1 = 150;
-            h2 = 250;
-            ws = 95;
-            sp = 10;
-            break;
-        case 17:
-            strcpy(fn, "Long Dead Warrior");
-            n1 = 1;
-            n2 = 1;
-            h1 = 400;
-            h2 = 500;
-            ws = 80;
-            break;
-        case 18:
-            strcpy(fn, "Ogre");
-            n1 = 4;
-            n2 = 7;
-            h1 = 90;
-            h2 = 190;
-            ws = 65;
-            break;
-        case 19:
-            strcpy(fn, "Ogre Lord");
-            n1 = 1;
-            n2 = 1;
-            h1 = 190;
-            h2 = 270;
-            ws = 85;
-            sp = 25;
-            break;
-        case 20:
-            strcpy(fn, "Winged Thing");
-            n1 = 7;
-            n2 = 8;
-            h1 = 150;
-            h2 = 200;
-            ws = 95;
-            break;
-        case 21:
-            strcpy(fn, "Jazzy");
-            n1 = 1;
-            n2 = 1;
-            h1 = 450;
-            h2 = 580;
-            ws = 95;
-            sp = 50;
-            im = 1;
-            break;
-        case 22:
-            strcpy(fn, "Riding Hobgoblin");
-            n1 = 4;
-            n2 = 7;
-            h1 = 30;
-            h2 = 70;
-            ws = 40;
-            sp = 10;
-            break;
-        case 23:
-            strcpy(fn, "Hobgoblin Chief");
-            n1 = 1;
-            n2 = 1;
-            h1 = 150;
-            h2 = 230;
-            ws = 100;
-            sp = 40;
-            break;
-        case 24:
-            strcpy(fn, "Hobgoblin Skeleton");
-            n1 = 5;
-            n2 = 6;
-            h1 = 50;
-            h2 = 60;
-            ws = 90;
-            break;
-        case 25:
-            strcpy(fn, "Undead Hobgoblin");
-            n1 = 5;
-            n2 = 5;
-            h1 = 60;
-            h2 = 70;
-            ws = 95;
-            break;
-        case 26:
-            strcpy(fn, "Crypt Horror");
-            n1 = 3;
-            n2 = 4;
-            h1 = 100;
-            h2 = 200;
-            ws = 60;
-            sp = 5;
-            break;
-        case 27:
-            strcpy(fn, "Night Gaunt");
-            n1 = 1;
-            n2 = 2;
-            h1 = 200;
-            h2 = 350;
-            ws = 90;
-            sp = 10;
-            break;
-        case 28:
-            strcpy(fn, "Thyraga");
-            n1 = 1;
-            n2 = 2;
-            h1 = 250;
-            h2 = 300;
-            ws = 90;
-            break;
-        case 29:
-            strcpy(fn, "Liche");
-            n1 = 1;
-            n2 = 1;
-            h1 = 300;
-            h2 = 400;
-            ws = 85;
-            break;
-        case 30:
-            strcpy(fn, "Baron Ydarg");
-            n1 = 1;
-            n2 = 1;
-            h1 = 500;
-            h2 = 1000;
-            ws = 90;
-            sp = 5;
-            im = 1;
-            break;
-        case 31:
-            strcpy(fn, "Gnoll");
-            n1 = 2;
+    {
+        const ryl_monster *m = res_monster(foe);
+        if (m) {
+            strncpy(fn, m->name, sizeof fn - 1);
+            fn[sizeof fn - 1] = 0;
+            n1 = m->n1;
+            n2 = m->n2;
+            h1 = m->h1;
+            h2 = m->h2;
+            ws = m->ws;
+            sp = m->sp;
+            im = m->im;
+        }
+        if (foe == 31) {
             n2 = 2 + state.p[state.cpl].lv[1] / 2;
-            h1 = 60;
-            h2 = 80;
-            ws = 70;
-            break;
-        case 32:
-            strcpy(fn, "Erethor Priest");
-            n1 = 3;
-            n2 = 4;
-            h1 = 80;
-            h2 = 99;
-            ws = 70;
-            sp = 50;
-            break;
-        case 33:
-            strcpy(fn, "Erethor");
-            n1 = 1;
-            n2 = 1;
-            h1 = 600;
-            h2 = 900;
-            ws = 80;
-            sp = 10;
-            break;
-
-            /* More nice dungeon type monsters */
-
-        case 60:
-            strcpy(fn, "Xvart");
-            n1 = 2;
-            n2 = 2;
-            h1 = 50;
-            h2 = 75;
-            ws = 80;
-            sp = 10;
-            break;
-        case 61:
-            strcpy(fn, "Jelly Cube");
-            n1 = 1;
-            n2 = 1;
-            h1 = 200;
-            h2 = 300;
-            ws = 50;
-            sp = 2;
-            break;
-        case 62:
-            strcpy(fn, "Troglodyte");
-            n1 = 2;
-            n2 = 4;
-            h1 = 40;
-            h2 = 60;
-            ws = 70;
-            sp = 5;
-            break;
-        case 63:
-            strcpy(fn, "Bugbear");
-            n1 = 3;
-            n2 = 4;
-            h1 = 40;
-            h2 = 50;
-            ws = 70;
-            break;
-        case 64:
-            strcpy(fn, "Drow Elf");
-            n1 = 2;
-            n2 = 4;
-            h1 = 80;
-            h2 = 100;
-            ws = 70;
-            sp = 50;
-            break;
-        case 65:
-            strcpy(fn, "Phantom");
-            n1 = 2;
-            n2 = 3;
-            h1 = 100;
-            h2 = 200;
-            ws = 80;
-            sp = 40;
-            break;
-        case 66:
-            strcpy(fn, "Worg");
-            n1 = 2;
-            n2 = 4;
-            h1 = 80;
-            h2 = 100;
-            ws = 60;
-            sp = 20;
-            break;
-        case 67:
-            strcpy(fn, "Rust Monster");
-            n1 = 1;
-            n2 = 1;
-            h1 = 150;
-            h2 = 250;
-            ws = 70;
-            break;
-        case 68:
-            strcpy(fn, "Owlbear");
-            n1 = 2;
-            n2 = 3;
-            h1 = 100;
-            h2 = 120;
-            ws = 70;
-            break;
-        case 69:
-            strcpy(fn, "Werewolf");
-            n1 = 1;
-            n2 = 1;
-            h1 = 300;
-            h2 = 300;
-            ws = 90;
-            break;
-        case 70:
-            strcpy(fn, "Hook Horror");
-            n1 = 2;
-            n2 = 3;
-            h1 = 70;
-            h2 = 100;
-            ws = 85;
-            break;
-        case 71:
-            strcpy(fn, "Minotaur");
-            n1 = 1;
-            n2 = 3;
-            h1 = 200;
-            h2 = 240;
-            ws = 80;
-            break;
-        case 72:
-            strcpy(fn, "Imp");
-            n1 = 1;
-            n2 = 3;
-            h1 = 100;
-            h2 = 120;
-            ws = 90;
-            sp = 30;
-            break;
-        case 73:
-            strcpy(fn, "Svirfneblin");
-            n1 = 2;
-            n2 = 3;
-            h1 = 100;
-            h2 = 100;
-            ws = 90;
-            sp = 20;
-            break;
-        case 74:
-            strcpy(fn, "Yeti");
-            n1 = 1;
-            n2 = 1;
-            h1 = 300;
-            h2 = 350;
-            ws = 60;
-            break;
-        case 75:
-            strcpy(fn, "Wight");
-            n1 = 1;
-            n2 = 3;
-            h1 = 90;
-            h2 = 120;
-            ws = 95;
-            sp = 35;
-            break;
-        case 76:
-            strcpy(fn, "Wraith");
-            n1 = 2;
-            n2 = 4;
-            h1 = 80;
-            h2 = 110;
-            ws = 80;
-            sp = 25;
-            break;
-        case 77:
-            strcpy(fn, "Basilisk");
-            n1 = 1;
-            n2 = 1;
-            h1 = 240;
-            h2 = 300;
-            ws = 60;
-            sp = 20;
-            break;
-        case 78:
-            strcpy(fn, "Wyvern");
-            n1 = 1;
-            n2 = 1;
-            h1 = 350;
-            h2 = 450;
-            ws = 80;
-            break;
-        case 79:
-            strcpy(fn, "Tunnel Worm");
-            n1 = 1;
-            n2 = 1;
-            h1 = 300;
-            h2 = 350;
-            ws = 45;
-            break;
-
-        case 90:
-            strcpy(fn, "Skagerberg Killer");
-            n1 = 1;
-            n2 = 1;
-            h1 = 2000;
-            h2 = 3500;
-            ws = 100;
-            sp = 20;
-            im = 1;
-            break;
+        }
     }
 
     noc = (rand() % n2);
@@ -971,198 +403,167 @@ void encounter(int32_t foe, int32_t mandatory) {
                 }
             }
             /****************************************************************************/
-            if (c == 'C' && state.p[state.cpl].cl[g] == 3) {
-                if (state.p[state.cpl].cl[g] == 3) /* Wizard Spells */
-                {
+            if (c == 'C' && pm_is_mage(pm_cur(g))) {
+                pm_t caster = pm_cur(g);
+                const ryl_spell *s;
+                clw();
+                for (int slot = 1; slot <= 6; slot++) {
+                    s = res_spell("mage", slot);
+                    if (!s) continue;
+                    tx("%d. %-13s(%3d/%3d)\r\n", slot, s->name,
+                       s->base_cost + pm_lv(caster), pm_ma(caster));
+                }
+                tx("7. Abort\r\n");
+                while (1) {
+                    d = key();
+                    if (d >= '1' && d <= '7') {
+                        break;
+                    }
+                }
+                if (im) {
                     clw();
-                    tx("1. Frost Finger (%3d/%3d)\r\n", 8 + (state.p[state.cpl].lv[g]), state.p[state.cpl].ma[g]);
-                    tx("2. Fire Cloud   (%3d/%3d)\r\n", 25 + (state.p[state.cpl].lv[g]), state.p[state.cpl].ma[g]);
-                    tx("3. Confusion    (%3d/%3d)\r\n", 17 + state.p[state.cpl].lv[g], state.p[state.cpl].ma[g]);
-                    tx("4. Death Strike (%3d/%3d)\r\n", 78 + state.p[state.cpl].lv[g], state.p[state.cpl].ma[g]);
-                    tx("5. Hold Enemies (%3d/%3d)\r\n", 43 + state.p[state.cpl].lv[g], state.p[state.cpl].ma[g]);
-                    tx("6. Anti Magic   (%3d/%3d)\r\n", 28 + state.p[state.cpl].lv[g], state.p[state.cpl].ma[g]);
-                    tx("7. Abort\r\n");
-                    while (1) {
-                        d = key();
-                        if (d >= '1' && d <= '7') {
-                            break;
-                        }
-                    }
-                    if (im) {
+                    tx("The spell fizzles!\r\n");
+                    tx("this creature is immune\r\n");
+                    tx("to ordinary magic!!!\r\n");
+                    Delay(100);
+                }
+                if (d == '7') {
+                    clw();
+                    goto combat;
+                }
+                if (im) {
+                    s = NULL;  /* swallow the key press, no effect */
+                } else {
+                    s = res_spell("mage", d - 48);
+                }
+                if (s) {
+                    if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                         clw();
-                        tx("The spell fizzles!\r\n");
-                        tx("this creature is immune\r\n");
-                        tx("to ordinary magic!!!\r\n");
-                        Delay(100);
-                    }
-                    /*************************** FROST ************************/
-                    if (d == '1' && !im) {
-                        if (state.p[state.cpl].ma[g] < (8 + state.p[state.cpl].lv[g])) {
-                            clw();
-                            tx("Not enough magic!\r\n");
-                            Delay(50);
-                        } else {
-                            state.p[state.cpl].ma[g] -= (8 + state.p[state.cpl].lv[g]);
-                            while (1) {
-                                clw();
-                                tx("Who?\r\n\r\n");
-                                for (i = 1; i < noc + 1; i++) {
-                                    if (deadc[i]) {
-                                        strcpy(str, "Dead.");
-                                    } else {
-                                        strcpy(str, "Alive.");
-                                    }
-                                    tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
-                                }
-                                d = key();
-                                d = toupper(d);
-                                if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
-                                    break;
-                                }
-                            }
-                            vem = d - 64;
-                            spelldamage = state.p[state.cpl].lv[g] * ((rand() % 7) + 2);
-                            clw();
-                            tx("%s chills the\r\n", state.p[state.cpl].name[g]);
-                            tx("opponent for %d\r\n", spelldamage);
-                            tx("damage pts.\r\n");
-                            Delay(80);
-                            mh[vem] -= spelldamage;
-                            if (mh[vem] <= 0) {
-                                mh[vem] = 0;
-                                tx("...KILLED!\r\n");
-                                Delay(30);
-                                deadc[vem] = 1;
-                            }
-                        }
-                    }
-                    /*************************** FIRE *************************/
-                    if (d == '2' && !im) {
-                        if (state.p[state.cpl].ma[g] < (25 + state.p[state.cpl].lv[g])) {
-                            clw();
-                            tx("Not enough magic!\r\n");
-                            Delay(50);
-                        } else {
-                            state.p[state.cpl].ma[g] -= (25 + state.p[state.cpl].lv[g]);
-                            for (i = 1; i < noc + 1; i++) {
-                                time(&t);
-                                srand((unsigned int) t);
-                                spelldamage = state.p[state.cpl].lv[g] * ((rand() % 4) + 1);
-                                if (!deadc[i]) {
+                        tx("Not enough magic!\r\n");
+                        Delay(50);
+                    } else {
+                        state.p[state.cpl].ma[g] -= (s->base_cost + pm_lv(caster));
+                        switch (s->effect) {
+                            case SE_FROST:
+                                while (1) {
                                     clw();
-                                    tx("%s burns %s\r\n", state.p[state.cpl].name[g], fn);
-                                    tx("for %d pts!\r\n", spelldamage);
-                                    Delay(50);
-                                    mh[i] -= spelldamage;
-                                    if (mh[i] <= 0) {
-                                        mh[i] = 0;
-                                        tx("...KILLED!\r\n");
-                                        Delay(30);
-                                        deadc[i] = 1;
+                                    tx("Who?\r\n\r\n");
+                                    for (i = 1; i < noc + 1; i++) {
+                                        if (deadc[i]) {
+                                            strcpy(str, "Dead.");
+                                        } else {
+                                            strcpy(str, "Alive.");
+                                        }
+                                        tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
+                                    }
+                                    d = key();
+                                    d = toupper(d);
+                                    if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
+                                        break;
                                     }
                                 }
-                            }
-                        }
-                    }
-                    /*********************** CONFUSION ************************/
-                    if (d == '3' && !im) {
-                        if (state.p[state.cpl].ma[g] < (17 + state.p[state.cpl].lv[g])) {
-                            clw();
-                            tx("Not enough magic!\r\n");
-                            Delay(50);
-                        } else {
-                            state.p[state.cpl].ma[g] -= (17 + state.p[state.cpl].lv[g]);
-                            clw();
-                            tx("%s utters a word.\r\n", state.p[state.cpl].name[g]);
-                            tx("Your images wavers and\r\n");
-                            tx("blurs in front of your\r\n");
-                            tx("enemies\r\n");
-                            Delay(100);
-                            ws /= 2;
-                            confused = 1;
-                        }
-                    }
-                    /************************ DEATH ***************************/
-                    if (d == '4' && !im) {
-                        if (state.p[state.cpl].ma[g] < (78 + state.p[state.cpl].lv[g])) {
-                            clw();
-                            tx("Not enough magic!\r\n");
-                            Delay(50);
-                        } else {
-                            state.p[state.cpl].ma[g] -= (78 + state.p[state.cpl].lv[g]);
-                            while (1) {
+                                vem = d - 64;
+                                spelldamage = pm_lv(caster) * ((rand() % 7) + 2);
                                 clw();
-                                tx("Who?\r\n\r\n");
+                                tx("%s chills the\r\n", pm_name(caster));
+                                tx("opponent for %d\r\n", spelldamage);
+                                tx("damage pts.\r\n");
+                                Delay(80);
+                                mh[vem] -= spelldamage;
+                                if (mh[vem] <= 0) {
+                                    mh[vem] = 0;
+                                    tx("...KILLED!\r\n");
+                                    Delay(30);
+                                    deadc[vem] = 1;
+                                }
+                                break;
+                            case SE_FIRE:
                                 for (i = 1; i < noc + 1; i++) {
-                                    if (deadc[i]) {
-                                        strcpy(str, "Dead.");
-                                    } else {
-                                        strcpy(str, "Alive.");
+                                    time(&t);
+                                    srand((unsigned int) t);
+                                    spelldamage = pm_lv(caster) * ((rand() % 4) + 1);
+                                    if (!deadc[i]) {
+                                        clw();
+                                        tx("%s burns %s\r\n", pm_name(caster), fn);
+                                        tx("for %d pts!\r\n", spelldamage);
+                                        Delay(50);
+                                        mh[i] -= spelldamage;
+                                        if (mh[i] <= 0) {
+                                            mh[i] = 0;
+                                            tx("...KILLED!\r\n");
+                                            Delay(30);
+                                            deadc[i] = 1;
+                                        }
                                     }
-                                    tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
                                 }
-                                d = key();
-                                d = toupper(d);
-                                if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
-                                    break;
+                                break;
+                            case SE_CONFUSION:
+                                clw();
+                                tx("%s utters a word.\r\n", pm_name(caster));
+                                tx("Your images wavers and\r\n");
+                                tx("blurs in front of your\r\n");
+                                tx("enemies\r\n");
+                                Delay(100);
+                                ws /= 2;
+                                confused = 1;
+                                break;
+                            case SE_DEATH:
+                                while (1) {
+                                    clw();
+                                    tx("Who?\r\n\r\n");
+                                    for (i = 1; i < noc + 1; i++) {
+                                        if (deadc[i]) {
+                                            strcpy(str, "Dead.");
+                                        } else {
+                                            strcpy(str, "Alive.");
+                                        }
+                                        tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
+                                    }
+                                    d = key();
+                                    d = toupper(d);
+                                    if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
+                                        break;
+                                    }
                                 }
-                            }
-                            vem = d - 64;
-                            if (rand() % 200 < mh[vem]) {
+                                vem = d - 64;
+                                if (rand() % 200 < mh[vem]) {
+                                    clw();
+                                    tx("Through INCREDIBLE\r\n");
+                                    tx("resistance, the enemy\r\n");
+                                    tx("is still alive, badly\r\n");
+                                    tx("wounded.\r\n");
+                                    Delay(100);
+                                    mh[vem] = 1;
+                                } else {
+                                    clw();
+                                    tx("The enemy is wiped\r\n");
+                                    tx("straigt off the surface\r\n");
+                                    tx("of the earth!\r\n");
+                                    Delay(100);
+                                    deadc[vem] = 1;
+                                    mh[vem] = 0;
+                                }
+                                break;
+                            case SE_HOLD:
                                 clw();
-                                tx("Through INCREDIBLE\r\n");
-                                tx("resistance, the enemy\r\n");
-                                tx("is still alive, badly\r\n");
-                                tx("wounded.\r\n");
+                                tx("%s utters a word.\r\n", pm_name(caster));
+                                tx("The enemies freeze dead\r\n");
+                                tx("in their tracks.\r\n");
                                 Delay(100);
-                                mh[vem] = 1;
-                            } else {
+                                held = 1;
+                                break;
+                            case SE_ANTIMAGIC:
                                 clw();
-                                tx("The enemy is wiped\r\n");
-                                tx("straigt off the surface\r\n");
-                                tx("of the earth!\r\n");
-                                Delay(100);
-                                deadc[vem] = 1;
-                                mh[vem] = 0;
-                            }
+                                tx("%s utters a word.\r\n", pm_name(caster));
+                                tx("The enemy is now\r\n");
+                                tx("stopped from using magic.\r\n");
+                                tx("against you this round.\r\n");
+                                Delay(140);
+                                antimagic = 1;
+                                break;
+                            default:
+                                break;
                         }
-                    }
-                    /************************  HOLD  ***************************/
-                    if (d == '5' && !im) {
-                        if (state.p[state.cpl].ma[g] < (43 + state.p[state.cpl].lv[g])) {
-                            clw();
-                            tx("Not enough magic!\r\n");
-                            Delay(50);
-                        } else {
-                            state.p[state.cpl].ma[g] -= (43 + state.p[state.cpl].lv[g]);
-                            clw();
-                            tx("%s utters a word.\r\n", state.p[state.cpl].name[g]);
-                            tx("The enemies freeze dead\r\n");
-                            tx("in their tracks.\r\n");
-                            Delay(100);
-                            held = 1;
-                        }
-                    }
-                    /********************** ANTI-MAGIC *************************/
-                    if (d == '6' && !im) {
-                        if (state.p[state.cpl].ma[g] < (28 + state.p[state.cpl].lv[g])) {
-                            clw();
-                            tx("Not enough magic!\r\n");
-                            Delay(50);
-                        } else {
-                            state.p[state.cpl].ma[g] -= (28 + state.p[state.cpl].lv[g]);
-                            clw();
-                            tx("%s utters a word.\r\n", state.p[state.cpl].name[g]);
-                            tx("The enemy is now\r\n");
-                            tx("stopped from using magic.\r\n");
-                            tx("against you this round.\r\n");
-                            Delay(140);
-                            antimagic = 1;
-                        }
-                    }
-                    if (d == '7') {
-                        clw();
-                        goto combat;
                     }
                 }
             }

@@ -1,4 +1,5 @@
 #include "ryl.h"
+#include "res.h"
 
 void timehandler() {
     state.tid++;
@@ -223,54 +224,10 @@ void update_map() {
        kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 2]));
 }
 int32_t frg(char t) {
-    switch (t) {
-        case 'm':
-            return 37;
-        case 'w':
-            return 34;
-        case 's':
-            return 33;
-        case '0':
-            return 37;
-        case '1':
-            return 37;
-        case 'f':
-            return 37;
-        case 'd':
-            return 31;
-        case 't':
-            return 35;
-        case 'g':
-            return 32;
-        case '2':
-            return 37;
-    }
-    return 36;
+    return res_frg(t);
 }
 char *kar(char t) {
-    switch (t) {
-        case 'm':
-            return "/\\";
-        case 'w':
-            return "~~";
-        case 's':
-            return "..";
-        case '0':
-            return "TT";
-        case '1':
-            return "HH";
-        case 'f':
-            return "^^";
-        case 'd':
-            return "::";
-        case 't':
-            return "%%";
-        case 'g':
-            return "gg";
-        case '2':
-            return "CC";
-    }
-    return "  ";
+    return (char *) res_kar(t);
 }
 
 void weaponoff() {
@@ -800,6 +757,8 @@ void spell(int32_t place) {
     char b, c, d;
     int32_t i, vem, x, oc;
     time_t t;
+    pm_t caster;
+    const ryl_spell *s;
 
     clw();
     tx("Who? (1-4)\r\n");
@@ -810,35 +769,35 @@ void spell(int32_t place) {
         }
     }
     vem = (c - 48);
+    caster = pm_cur(vem);
 
     clw();
-    if (state.p[state.cpl].cl[vem] == 3) {
+    if (pm_is_mage(caster)) {
         tx("Sorry. Mage spells are\r\n");
         tx("combat-only.\r\n");
         Delay(75);
         clw();
         return;
     }
-    if (state.p[state.cpl].cl[vem] != 4) {
+    if (!pm_is_priest(caster)) {
         tx("Wrong class.\r\n");
         Delay(50);
         clw();
         return;
     }
-    if (state.p[state.cpl].dead[vem]) {
+    if (pm_dead(caster)) {
         clw();
         tx("Dead.\r\n");
         Delay(30);
         return;
     }
 
-    tx("1. Healing     (%3d/%3d)\r\n", 8 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
-    tx("2. Restoration (%3d/%3d)\r\n", 20 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
-    tx("3. Rebirth     (%3d/%3d)\r\n", 90 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
-    tx("4. Banish Evil (%3d/%3d)\r\n", 85 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
-    tx("5. Revelation  (%3d/%3d)\r\n", 40 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
-    tx("6. Teleport    (%3d/%3d)\r\n", 35 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
-    tx("7. Earthquake  (%3d/%3d)\r\n", 55 + state.p[state.cpl].lv[vem], state.p[state.cpl].ma[vem]);
+    for (int slot = 1; slot <= 7; slot++) {
+        s = res_spell("priest", slot);
+        if (!s) continue;
+        tx("%d. %-12s(%3d/%3d)\r\n", slot, s->name,
+           s->base_cost + pm_lv(caster), pm_ma(caster));
+    }
     tx("8. Abort\r\n");
 
     while (1) {
@@ -853,16 +812,19 @@ void spell(int32_t place) {
         return;
     }
 
-    switch (c - 48) {
-        case 1:
+    s = res_spell("priest", c - 48);
+    if (!s) return;
+
+    switch (s->effect) {
+        case SE_HEAL:
             clw();
-            if (state.p[state.cpl].ma[vem] < (8 + state.p[state.cpl].lv[vem])) {
+            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (8 + state.p[state.cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
@@ -890,15 +852,15 @@ void spell(int32_t place) {
             clw();
             break;
 
-        case 2:
+        case SE_RESTORATION:
             clw();
-            if (state.p[state.cpl].ma[vem] < (20 + state.p[state.cpl].lv[vem])) {
+            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (20 + state.p[state.cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
@@ -915,9 +877,9 @@ void spell(int32_t place) {
             clw();
             break;
 
-        case 3:
+        case SE_REBIRTH:
             clw();
-            if (state.p[state.cpl].ma[vem] < (90 + state.p[state.cpl].lv[vem])) {
+            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
@@ -936,7 +898,7 @@ void spell(int32_t place) {
                 Delay(75);
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (90 + state.p[state.cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             state.p[state.cpl].dead[d - 48] = 0;
             state.p[state.cpl].hp[d - 48] = 1;
             clw();
@@ -947,9 +909,9 @@ void spell(int32_t place) {
             clw();
             break;
 
-        case 4:
+        case SE_BANISH:
             clw();
-            if (state.p[state.cpl].ma[vem] < (85 + state.p[state.cpl].lv[vem])) {
+            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
@@ -964,7 +926,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (85 + state.p[state.cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             clw();
             tx("%s raises %s hands.\r\n", state.p[state.cpl].name[vem], sextext(vem, 3));
             tx("%s gathers divine power\r\n", sextext(vem, 1));
@@ -980,9 +942,9 @@ void spell(int32_t place) {
             state.banished = 1;
             break;
 
-        case 5:
+        case SE_REVELATION:
             clw();
-            if (state.p[state.cpl].ma[vem] < (40 + state.p[state.cpl].lv[vem])) {
+            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
@@ -997,7 +959,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (40 + state.p[state.cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             if (rand() % 100 > 40) {
                 clw();
                 tx("There is nothing\r\n");
@@ -1050,14 +1012,14 @@ void spell(int32_t place) {
             }
             break;
 
-        case 6:
-            if (state.p[state.cpl].ma[vem] < (35 + state.p[state.cpl].lv[vem])) {
+        case SE_TELEPORT:
+            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (35 + state.p[state.cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             clw();
             tx("%s carefully\r\n", state.p[state.cpl].name[vem]);
             tx("prepares the ritual of\r\n");
@@ -1134,7 +1096,7 @@ void spell(int32_t place) {
             clw();
             break;
 
-        case 7:  // EARTHQUAKE //
+        case SE_EARTHQUAKE:
             clw();
             if (place == 1) {
                 tx("The roof would cave\r\n");
@@ -1143,13 +1105,13 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            if (state.p[state.cpl].ma[vem] < (55 + state.p[state.cpl].lv[vem])) {
+            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("Not enough spell pts!\r\n");
                 Delay(50);
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (55 + state.p[state.cpl].lv[vem]);
+            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             tx("%s utters\r\n", state.p[state.cpl].name[vem]);
             tx("three syllabels in an\r\n");
             tx("archaic tongue...\r\n\r\n");

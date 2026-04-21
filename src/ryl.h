@@ -144,6 +144,46 @@ struct ryl_state {
 
 extern struct ryl_state state;
 
+/* Party member class IDs (party.cl[]). Note this is distinct from the
+   `struct person`.job numbering used for NPCs — different enum, same names
+   for some entries. Driv.c:904-906 is the authoritative menu. */
+#define PC_FIGHTER 1
+#define PC_THIEF   2
+#define PC_MAGE    3
+#define PC_PRIEST  4
+#define PC_BARD    5
+#define PC_RANGER  6
+
+/* View handle over a single party member. Cheap by-value. Field access
+   goes through pm_* accessors so call sites read `pm_lv(pm)` instead of
+   `state.p[state.cpl].lv[m]`. The existing `struct party` SoA layout is
+   preserved (save-format compatibility); pm_t is purely a readability
+   wrapper. New code should prefer pm_*; legacy sites stay as-is until
+   a deliberate migration phase. */
+typedef struct {
+    struct party *party;
+    int m;          /* 1..4 */
+} pm_t;
+
+static inline pm_t pm_of(struct party *p, int m) { pm_t r = {p, m}; return r; }
+static inline pm_t pm_cur(int m)                 { return pm_of(&state.p[state.cpl], m); }
+
+static inline int  pm_cl(pm_t pm)     { return pm.party->cl[pm.m]; }
+static inline int  pm_lv(pm_t pm)     { return pm.party->lv[pm.m]; }
+static inline int  pm_ma(pm_t pm)     { return pm.party->ma[pm.m]; }
+static inline int  pm_hp(pm_t pm)     { return pm.party->hp[pm.m]; }
+static inline int  pm_h(pm_t pm)      { return pm.party->h[pm.m]; }
+static inline int  pm_dead(pm_t pm)   { return pm.party->dead[pm.m]; }
+static inline char *pm_name(pm_t pm)  { return pm.party->name[pm.m]; }
+
+static inline int  pm_is_class(pm_t pm, int cls) { return pm_cl(pm) == cls; }
+static inline int  pm_is_mage(pm_t pm)           { return pm_is_class(pm, PC_MAGE); }
+static inline int  pm_is_priest(pm_t pm)         { return pm_is_class(pm, PC_PRIEST); }
+
+/* Class name (e.g. "priest") -> PC_* id, or -1 if unknown. Used by the
+   resource loader to map JSON class strings to the runtime enum. */
+int pm_class_id(const char *name);
+
 /* TERMINAL PRIMITIVES — all live in primitives.c as io->... wrappers */
 
 int main(int, char **);
@@ -206,7 +246,6 @@ void ydarg(void);
 void confrontation(void);
 void invlist(void);
 void statusline(void);
-char cf(int32_t);
 void scorelist(void);
 void hunt(void);
 void journal(char *);

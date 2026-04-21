@@ -584,6 +584,31 @@ This also pays for itself in Phase 6.
 mechanical edit and auditing shadows; the rest is the input-replay
 harness.
 
+### Phase 5c — party-member view abstraction (deferred migration)
+
+Introduced alongside Phase 6b spell extraction: `pm_t` in `ryl.h` —
+a by-value view `{struct party *, int m}` plus inline accessors
+(`pm_cl`, `pm_lv`, `pm_ma`, `pm_hp`, `pm_h`, `pm_dead`, `pm_name`,
+`pm_is_priest`, `pm_is_mage`, `pm_is_class`) and class-ID constants
+(`PC_FIGHTER`..`PC_RANGER`). New code uses these; legacy call sites
+still read `state.p[state.cpl].lv[m]` etc.
+
+**Why deferred.** ~706 `p[cpl]` refs and ~30 `cl[.] == 3/4` magic-number
+comparisons across the tree. Migrating them in one pass is phase-5b-sized
+churn, and each migrated block needs a smoke-test to confirm
+byte-identity. Doing it alongside content extraction mixes two concerns
+and makes PR review painful.
+
+**When to run the pass.** Between Phase 6 sub-phases, whenever a module
+is already being opened for content work. E.g.: 6c touches `subs.c` and
+`driv.c` text — migrate those modules' `p[cpl]` refs in the same pass.
+By the time 6f finishes, the whole tree is on `pm_*`.
+
+**Save-format compatibility.** `pm_t` is purely a view over the existing
+SoA `struct party`; nothing on disk changes. A later AoS layout
+(array-of-party_member_t instead of parallel arrays) would be a separate
+decision and would touch the save format.
+
 ## 8. Things that will bite you
 
 - `getstr()` stack-pointer return (`ryl.c:123`), unchecked `sprintf`,
@@ -706,6 +731,53 @@ a simple effect language (`set_flag`, `give_gold`, `give_item`, `goto`,
 `encounter`) covers essentially all of `speak.c`. The engine gets a ~200-
 line interpreter; `speak.c` goes from 1166 lines to ~0.
 
+**Spell effects share this DSL.** The 7 priest spells (`subs.c spell()`,
+lines 799-1156) and 6 mage spells (`strid.c` combat block,
+lines 406-599) are effect machines with the same shape as dialogue
+effects: target selection + context gate + mutate game state + say
+flavor text. Design the DSL once so both dialogue and spells run on the
+same interpreter:
+
+```jsonl
+{"kind":"spell","id":"priest.heal","class":"priest","slot":1,"name":"Healing","base_cost":8,"effect":{
+  "ask_target":"party_alive",
+  "mutate":[{"set":"target.hp","val":{"+":["target.hp","10","(rand 0 9)","(* caster.lv 2)"],"clamp_to":"target.h"}}],
+  "say":"spell.priest.heal.success"
+}}
+{"kind":"spell","id":"priest.banish","class":"priest","slot":4,"name":"Banish Evil","base_cost":85,"effect":{
+  "require":[{"context":"dungeon"}],
+  "mutate":[{"set":"state.banished","val":1}],
+  "say":"spell.priest.banish.narration"
+}}
+{"kind":"spell","id":"mage.frost","class":"mage","slot":1,"name":"Frost Finger","base_cost":8,"effect":{
+  "require":[{"not":{"target":"immune"}}],
+  "ask_target":"monster_alive",
+  "mutate":[{"set":"target.hp","val":{"-":["target.hp",{"*":["caster.lv",{"+":["(rand 0 6)","2"]}]}]}}],
+  "say":"spell.mage.frost.success"
+}}
+```
+
+The primitives needed for spells (`target.hp`, `caster.lv`, `state.banished`,
+`state.tid`, `rand`, `clamp_to`, `context`) overlap ~90% with what dialogue
+needs (`flag_eq`, `has_item`, `party.gold`, `set_flag`, `give_gold`).
+Designing them in one coherent grammar avoids two half-compatible DSLs.
+
+**Phase sequence for spells:**
+- **Phase 6b (now):** extract spell metadata (name, slot, class, base_cost)
+  as data. Use it only for the menu and cost formula. Keep effect bodies
+  as static C functions (`do_heal`, `do_frost`, …) — preserves the exact
+  call order and flavor text each spell depends on. Sets up the record
+  shape the DSL will consume later. ~80-100 line reduction.
+- **Phase 6d (when dialogue DSL lands):** replace each `do_*` body with
+  `eval_effect(spell->effect_tree)` one at a time. Effect trees are
+  authored in the resource file alongside the metadata. Effect text
+  moves to `{"kind":"text",...}` records at that point.
+
+This ordering keeps every phase byte-identity-verifiable with the smoke
+harness: 6b changes data layout without touching behavior; 6d migrates
+behavior one spell at a time with the DSL interpreter validating against
+the preserved reference output.
+
 **6. String literals in remaining `tx()` calls** — large volume, low risk
 once patterns are established: menu prompts, status messages, title
 credits, nag screens, combat flavor, help text, spell chants.
@@ -749,6 +821,19 @@ Two options:
   zero deps, compiles faster.
 
 Default to cJSON. It's not worth reinventing for this.
+
+**Format choice: JSONL vs JSON5.** Phase 6a shipped on JSONL with the
+tiny custom parser (which also silently accepts `#` and `//` line
+comments, so section annotations work without JSON5). Reconsidered at
+Phase 6b entry: JSON5 (single document, trailing commas, unquoted keys,
+inline comments, multi-line strings) is nicer for hand-editing nested
+structures, but buying it costs either a dependency or a 500–1000-line
+parser extension, and most of the ergonomic win (comments) is already
+there. Append-only growth also fits JSONL — phases 6c–f will add
+hundreds of records, and one-record-per-line keeps PR diffs clean.
+**Decision: stay on JSONL through 6c; revisit at 6d** when nested
+dialogue records would actually benefit from multi-line strings and
+structural grouping. Switching then is cheap because the loader is ours.
 
 Loader API:
 

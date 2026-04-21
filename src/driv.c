@@ -1,4 +1,5 @@
 #include "io.h"
+#include "res.h"
 #include "ryl.h"
 
 extern void attackhandler();
@@ -795,28 +796,10 @@ void load() {
 }
 
 char *sextext(uint8_t nr, uint8_t xx) {
-    switch (state.p[state.cpl].sex[nr]) {
-        case 1:
-            if (xx == 1) {
-                return "he";
-            }
-            if (xx == 2) {
-                return "him";
-            }
-            if (xx == 3) {
-                return "his";
-            }
-            break;
-        case 2:
-            if (xx == 1) {
-                return "she";
-            }
-            if (xx > 1) {
-                return "her";
-            }
-            break;
-    }
-    return "";
+    uint8_t sex = state.p[state.cpl].sex[nr];
+    /* Original: female's xx in {2,3} both returned "her"; clamp to match. */
+    if (sex == 2 && xx == 3) xx = 2;
+    return (char *) res_sextext(sex, xx);
 }
 
 void createparty() {

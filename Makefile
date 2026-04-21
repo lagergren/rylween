@@ -1,5 +1,6 @@
-CC      ?= cc
-CFLAGS  ?= -std=c99 -O0 -g -Wall -Wextra -Werror=format-security -Isrc
+CC        ?= cc
+CFLAGS    ?= -std=c99 -O0 -g -Wall -Wextra -Werror=format-security -Isrc
+CPPFLAGS  :=
 
 SRC     := src/compat.c src/driv.c src/dungeon.c src/gfx.c src/interact.c \
            src/io_tty.c src/missions.c src/person.c src/primitives.c \
