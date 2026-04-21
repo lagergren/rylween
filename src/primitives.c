@@ -159,6 +159,29 @@ void disptext(char *namn) {
     io->dump_file(namn);
 }
 
+void render_at(const char *path, uint8_t x, uint8_t y) {
+    FILE *fh = fopen(path, "rb");
+    if (!fh)
+        return;
+
+    char line[512];
+    int row = 0;
+    while (fgets(line, sizeof line, fh)) {
+        size_t n = strlen(line);
+        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r'))
+            line[--n] = 0;
+        char pos[16];
+        int pn = snprintf(pos, sizeof pos, "\x1b[%d;%dH", y + row, x);
+        if (pn > 0)
+            io->write(pos, (size_t) pn);
+        if (n)
+            io->write(line, n);
+        row++;
+    }
+    io->write("\x1b[0m", 4);
+    fclose(fh);
+}
+
 void ryl_log(char *st) {
     static const char *months[13] = {
         "",

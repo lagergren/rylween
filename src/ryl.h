@@ -141,6 +141,7 @@ void c(uint8_t, uint8_t);
 void clw(void);
 void ryl_pause(void);
 uint8_t hotkey(void);
+void render_at(const char *, uint8_t, uint8_t);
 
 /* OTHER PROTOS */
 
