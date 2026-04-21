@@ -323,7 +323,7 @@ void editor(char *outfile, uint8_t bulletin) {
     fclose(fh2);
 }
 
-void attackhandler() {
+void attackhandler(void) {
     uint8_t i, x;
 
     for (i = 1, x = 0; i < state.antal_spelare + 1; i++) {

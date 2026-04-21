@@ -2,10 +2,6 @@
 #include "res.h"
 #include "ryl.h"
 
-extern void attackhandler();
-extern void timehandler();
-extern void statusline();
-
 void spelet() {
     char cc, d;
     int32_t i;
