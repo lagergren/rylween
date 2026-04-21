@@ -334,7 +334,6 @@ void statusline() {
     c(49, 6);
 }
 void position_locations() {
-    time_t t;
     int32_t i;
 
     for (i = 0; i < 15; i++) {
@@ -342,8 +341,7 @@ void position_locations() {
         state.dy[i] = 0;
     }
 
-    time(&t);
-    srand((unsigned int) t);
+    ryl_seed_now(0);
 
     for (i = 1; i < 10; i++) {
         while (1) {
@@ -796,7 +794,6 @@ char *sextext(uint8_t nr, uint8_t xx) {
 
 void createparty() {
     int32_t i, a, g, passed;
-    time_t t;
     int32_t tries = 0;
     char str[80];
 
@@ -835,8 +832,7 @@ void createparty() {
 
     while (g < 5) {
         clw();
-        time(&t);
-        srand((unsigned int) t + tries);
+        ryl_seed_now(tries);
         tries++;
         tx("Stats for char: %d\r\n\r\n", g);
         state.p[a].ws[g] = (rand() % 56) + 15;

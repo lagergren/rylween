@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <strings.h>
+#include <time.h>
 #include <unistd.h>
 
 /* Amiga dos.library Delay() counts 50 ticks/sec, i.e. 20 ms per tick.
@@ -31,5 +32,17 @@ void str_append(char *dst, size_t dst_sz, const char *src);
    on first call). Falls back to "data/<leaf>" if HOME is unset or mkdir fails.
    Returns a pointer to a static buffer; each call overwrites the prior one. */
 char *ryl_state_path(const char *leaf);
+
+/* Entropy hooks for deterministic replay. When RYL_FAKE_EPOCH / RYL_FAKE_SEED
+   are set in the environment, these return the fixed values instead of reading
+   the wall clock / using the caller's seed. When unset (production), they are
+   thin wrappers over time(3) / srand(3). Both envs parse as unsigned long.
+
+   ryl_seed_now() is the common idiom — "seed from now, mixed with a caller
+   salt (often a loop index)". Collapses the time()+srand() pair and hides the
+   time_t -> unsigned int narrowing inside. */
+time_t ryl_time(time_t *out);
+void   ryl_srand(unsigned long seed);
+void   ryl_seed_now(long salt);
 
 #endif

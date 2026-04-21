@@ -17,7 +17,6 @@ void encounter(int32_t foe, int32_t mandatory) {
     int32_t ws = 0;         /* WS */
     int32_t x, i, mh[15], deadc[15], vem, dp, g, noc, mhtemp, spelldamage;
     int32_t oc;
-    time_t t;
     uint8_t defend = 0;
 
     int32_t antimagic = 0, confused = 0, held = 0, playerheld = 0, playerconfused = 0;
@@ -479,8 +478,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 break;
                             case SE_FIRE:
                                 for (i = 1; i < noc + 1; i++) {
-                                    time(&t);
-                                    srand((unsigned int) t);
+                                    ryl_seed_now(0);
                                     spelldamage = pm_lv(caster) * ((rand() % 4) + 1);
                                     if (!deadc[i]) {
                                         clw();

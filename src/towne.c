@@ -5,7 +5,7 @@ void rumour() {
     char kl[8], str[40];
 
     getclk(kl);
-    srand((unsigned int) kl[7]);
+    ryl_srand(kl[7]);
 
     switch (rand() % 33) {
         case 0:

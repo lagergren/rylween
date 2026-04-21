@@ -30,7 +30,6 @@ void place_npcs() {
     /* NPC: People to talk to. There are others, but not as interesting. */
 
     int32_t i, j, x, ut = 0;
-    time_t t;
     FILE *fh;
 
     // Random people //
@@ -40,8 +39,7 @@ void place_npcs() {
 
     for (i = 1, j = 1; i < 25; i++, j++) {
         Delay(30);
-        time(&t);
-        srand((unsigned int) t + i);
+        ryl_seed_now(i);
         if (j == 13) {
             j = 1;
         }

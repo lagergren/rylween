@@ -155,11 +155,9 @@ void ryl_pause(void) {
         "Stab",
         "Brain",
     };
-    time_t t;
     int32_t ch;
 
-    time(&t);
-    srand((unsigned int) t);
+    ryl_seed_now(0);
 
     tx("(%s RETURN key)\r\n", verbs[rand() % 10]);
     c(0, 0);

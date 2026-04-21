@@ -9,15 +9,13 @@ void dungeon(int32_t levels, int32_t flag) {
 
     int32_t i, cl, oc, lvl[26];
     char c, d, ans[80];
-    time_t t;
     int32_t x = 0;
 
     blitgfx(insidecavepic);
 
     state.banished = 0;
 
-    time(&t);
-    srand((unsigned int) t);
+    ryl_seed_now(0);
 
     for (i = 1; i < levels + 1; i++) {
         lvl[i] = rand() % 9;
@@ -171,24 +169,21 @@ void dungeon(int32_t levels, int32_t flag) {
                 break;
 
             case 3:
-                time(&t);
-                srand((unsigned int) t);
+                ryl_seed_now(0);
                 encounter((rand() % 10) + 1, 0);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 break;
             case 4:
-                time(&t);
-                srand((unsigned int) t);
+                ryl_seed_now(0);
                 encounter((rand() % 10) + 1, 0);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 break;
             case 5:
-                time(&t);
-                srand((unsigned int) t);
+                ryl_seed_now(0);
                 encounter((rand() % 20) + 60, 0);
                 clr_map_window();
                 blitgfx(insidecavepic);

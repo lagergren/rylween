@@ -35,8 +35,57 @@ void Delay(uint32_t ticks) {
     }
 }
 
+time_t ryl_time(time_t *out) {
+    static int   resolved = 0;
+    static int   fixed    = 0;
+    static time_t fixed_val = 0;
+
+    if (!resolved) {
+        resolved = 1;
+        const char *e = getenv("RYL_FAKE_EPOCH");
+        if (e && *e) {
+            char *end;
+            unsigned long v = strtoul(e, &end, 10);
+            if (end != e) {
+                fixed     = 1;
+                fixed_val = (time_t) v;
+            }
+        }
+    }
+
+    time_t now = fixed ? fixed_val : time(NULL);
+    if (out) *out = now;
+    return now;
+}
+
+void ryl_srand(unsigned long seed) {
+    static int          resolved = 0;
+    static int          fixed    = 0;
+    static unsigned int fixed_seed = 0;
+
+    if (!resolved) {
+        resolved = 1;
+        const char *e = getenv("RYL_FAKE_SEED");
+        if (e && *e) {
+            char *end;
+            unsigned long v = strtoul(e, &end, 10);
+            if (end != e) {
+                fixed      = 1;
+                fixed_seed = (unsigned int) v;
+            }
+        }
+    }
+
+    srand(fixed ? fixed_seed : (unsigned int) seed);
+}
+
+void ryl_seed_now(long salt) {
+    time_t t = ryl_time(NULL);
+    ryl_srand((unsigned long) (t + salt));
+}
+
 void getclk(char *kl) {
-    time_t now = time(NULL);
+    time_t now = ryl_time(NULL);
     struct tm *tm = localtime(&now);
 
     memset(kl, 0, 8);

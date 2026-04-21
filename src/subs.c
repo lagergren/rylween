@@ -89,13 +89,12 @@ void foodhandler() {
     }
 }
 void slumpvis() {
-    time_t t;
     char c, kl[8];
     int32_t r;
     uint8_t rflag = 0;
 
     getclk(kl);
-    srand((unsigned int) kl[7]);
+    ryl_srand(kl[7]);
     r = rand() % 100;
 
     rflag = mission_control();
@@ -124,8 +123,7 @@ void slumpvis() {
                 break;
             }
         }
-        time(&t);
-        srand((unsigned int) t);
+        ryl_seed_now(0);
         if (c == 'E') {
             if (state.p[state.cpl].tid_kvar > 10) {
                 state.p[state.cpl].tid_kvar -= 10;
@@ -150,8 +148,7 @@ void slumpvis() {
 
     // slumpmote //
 
-    time(&t);
-    srand((unsigned int) t - state.tid + state.p[state.cpl].x);
+    ryl_seed_now(-state.tid + state.p[state.cpl].x);
 
     // 40-53 //
 
@@ -748,7 +745,6 @@ void hunt() {
 void spell(int32_t place) {
     char b, c, d;
     int32_t i, vem, x, oc;
-    time_t t;
     pm_t caster;
     const ryl_spell *s;
 
@@ -1110,8 +1106,7 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            time(&t);
-            srand((unsigned int) t);
+            ryl_seed_now(0);
             if (c == 'E') {
                 if (state.p[state.cpl].tid_kvar > 10) {
                     state.p[state.cpl].tid_kvar -= 10;
