@@ -14,7 +14,7 @@ void ydarg() {
         tx("nothing but a ruin.\r\n");
         tx("You have nothing else\r\n");
         tx("to do here.\r\n\r\n");
-        pause();
+        ryl_pause();
         clr_map_window();
         update_map();
         clw();
@@ -27,14 +27,14 @@ void ydarg() {
     tx("with complex symbols and\r\n");
     tx("archaic runes of long\r\n");
     tx("forgotten language.\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("A shape of white mist\r\n");
     tx("slowly thickens to human\r\n");
     tx("shape. A transparent image\r\n");
     tx("of a beautiful woman\r\n");
     tx("forms in front of you.\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("- Do not be afraid,\r\n");
     tx("adventurers. I am Jaara,\r\n");
@@ -44,13 +44,13 @@ void ydarg() {
     tx("hurt you, just stop you\r\n");
     tx("from entering if you don't\r\n");
     tx("have the Silver Key!\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     if (!p[cpl].silverkey) {
         tx("- You don't have the\r\n");
         tx("Key. The gate will\r\n");
         tx("remain sealed.\r\n\r\n");
-        pause();
+        ryl_pause();
         clr_map_window();
         update_map();
         return;
@@ -64,10 +64,10 @@ void ydarg() {
     tx("resounding KRASH. Jaara\r\n");
     tx("slowly fades away until\r\n");
     tx("nothing remains.\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("You enter.\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
 
     /*
@@ -105,7 +105,7 @@ void ydarg() {
         }
     }
     room[5][5] = 50;
-    pause();
+    ryl_pause();
 
     while (1) {
         clw();
@@ -163,7 +163,7 @@ void ydarg() {
                             tx("in the wall!\r\n\r\n");
                             break;
                     }
-                    pause();
+                    ryl_pause();
                     for (i = 1; i < 5; i++) {
                         if (!p[cpl].dead[i]) {
                             p[cpl].hp[i] -= p[cpl].hp[i] / 6;
@@ -233,7 +233,7 @@ void ydarg() {
                 tx("He also offers to teleport\r\n");
                 tx("you out of the castle,\r\n");
                 tx("for free.\r\n\r\n");
-                pause();
+                ryl_pause();
                 while (1) {
                     clw();
                     tx("Choose:\r\n\r\n");
@@ -331,7 +331,7 @@ void ydarg() {
                         tx("trapdoor above and speaks:\r\n");
                         tx("- I will aid thee in the\r\n");
                         tx("final battle!\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         clw();
                         xl = 1;
                         yl = 1;
@@ -470,7 +470,7 @@ void confrontation() {
     tx("forest, on the roof\r\n");
     tx("of this fortress.\r\n");
     tx("Suddenly, a voice speaks:\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("- Fools! You have gone\r\n");
     tx("long to come this far, but\r\n");
@@ -479,7 +479,7 @@ void confrontation() {
     tx("up with green flashes, and\r\n");
     tx("Ydargs minions rush\r\n");
     tx("to attack you!\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     encounter(26, 1);
     encounter(27, 1);
@@ -494,7 +494,7 @@ void confrontation() {
     tx("the dead and dying, and\r\n");
     tx("gazes at you with cold\r\n");
     tx("glowing green eyes.\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("- So. You have completed\r\n");
     tx("the battle test. I must\r\n");
@@ -503,13 +503,13 @@ void confrontation() {
     tx("(He waves a pointed stick\r\n");
     tx("and energy begins to form\r\n");
     tx("in the air before you.)\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("A glowing energy sphere\r\n");
     tx("appears, and at a gesture\r\n");
     tx("from Ydarg's stick, it\r\n");
     tx("hurtles towards you!!!\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("Suddenly! You feel someone\r\n");
     tx("else near. %s turns\r\n", p[cpl].name[1]);
@@ -520,7 +520,7 @@ void confrontation() {
     tx("sphere bounces over you\r\n");
     tx("and is absorbed by their\r\n");
     tx("hands!\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("- CURSES! Ydarg growls.\r\n");
     tx("- So this is what has come\r\n");
@@ -528,17 +528,17 @@ void confrontation() {
     tx("aid of cold steel, and\r\n");
     tx("that is the way you shall\r\n");
     tx("perish!\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("He pulls a huge trident\r\n");
     tx("from his robe and utters\r\n");
     tx("a single syllable. Without\r\n");
     tx("warning he appears a foot\r\n");
     tx("before you!!!\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("Let the battle commence!\r\n\r\n");
-    pause();
+    ryl_pause();
     encounter(30, 1);
     clw();
     tx("Ydarg's trident clatters\r\n");
@@ -546,7 +546,7 @@ void confrontation() {
     tx("He shudders and falls over.\r\n");
     tx("As you rush to kill him\r\n");
     tx("he screams:\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("- It is not over! I shall\r\n");
     tx("see you in hell! In\r\n");
@@ -555,22 +555,22 @@ void confrontation() {
     tx("Zadraz with your ancient\r\n");
     tx("items, but I will triumph\r\n");
     tx("again!!! Anew...\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("His cloak collapses, and\r\n");
     tx("when you tear it away,\r\n");
     tx("you reveal nothing but...\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("dust...\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("[31mCONGRATULATIONS![37m\r\n\r\n");
     tx("You have banished Ydarg\r\n");
     tx("from this dimension.\r\n");
     tx("Please ask your SysOp to\r\n");
     tx("reset the game.\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     p[cpl].silverkey = 2;
     save();
@@ -579,11 +579,11 @@ void confrontation() {
     tx("- The second coming.\r\n");
     tx("Soon online at a BBS\r\n");
     tx("near you!\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("See Ya!!!\r\n\r\n");
     tx("     /Marcus\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
 
     if (!(fh = fopen("data/heroes.txt", "r"))) {

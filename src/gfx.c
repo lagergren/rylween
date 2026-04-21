@@ -1,7 +1,7 @@
 #include "ryl.h"
 
 void reganim() {
-    UBYTE i;
+    uint8_t i;
     long t;
 
     time(&t);
@@ -48,11 +48,10 @@ void reganim() {
     Delay(100);
 
     cl();
-    //if(!cli) (*XCB->DisplayTextFile)("data/ansi/screen.ans",CONTINUOUS,TF_PROCESS_TILDE,0,0);
     disptext("data/ansi/screen.ans");
 }
 
-void blitgfx(UBYTE pic) {
+void blitgfx(uint8_t pic) {
     clr_map_window();
 
     switch (pic) {

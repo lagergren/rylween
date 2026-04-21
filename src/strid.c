@@ -16,7 +16,8 @@ void encounter(int foe, int mandatory) {
     int ws;     /* WS */
     int x, i, mh[15], deadc[15], vem, dp, g, noc, mhtemp, spelldamage;
     int oc;
-    UBYTE defend = 0;
+    long t;
+    uint8_t defend = 0;
 
     int antimagic = 0, confused = 0, held = 0, playerheld = 0, playerconfused = 0;
 
@@ -782,7 +783,7 @@ void encounter(int foe, int mandatory) {
                                     tx("They bump into each\r\n");
                                     tx("other as they try to\r\n");
                                     tx("see you.\r\n\r\n");
-                                    pause();
+                                    ryl_pause();
                                     clw();
                                     ws /= 2;
                                     break;
@@ -798,7 +799,7 @@ void encounter(int foe, int mandatory) {
                                     tx("surrounds them. As the\r\n");
                                     tx("light fades, your enemies\r\n");
                                     tx("are blind.\r\n\r\n");
-                                    pause();
+                                    ryl_pause();
                                     clw();
                                     ws = 5;
                                     break;
@@ -848,7 +849,7 @@ void encounter(int foe, int mandatory) {
                                     tx("spirits grow. You are\r\n");
                                     tx("all stronger than\r\n");
                                     tx("before.\r\n\r\n");
-                                    pause();
+                                    ryl_pause();
                                     clw();
                                     for (i = 1; i < 5; i++) {
                                         p[cpl].ws[i] += 3;
@@ -863,7 +864,7 @@ void encounter(int foe, int mandatory) {
                                     clw();
                                     tx("The party is fully\r\n");
                                     tx("healed!\r\n\r\n");
-                                    pause();
+                                    ryl_pause();
                                     clw();
                                     for (i = 1; i < 5; i++)
                                         if (!p[cpl].dead[i])
@@ -943,7 +944,7 @@ void encounter(int foe, int mandatory) {
                                     tx("It produces a shrill,\r\n");
                                     tx("fragile sound, and breaks.\r\n");
                                     tx("Nothing happens.\r\n\r\n");
-                                    pause();
+                                    ryl_pause();
                                     clw();
                                     break;
                             }

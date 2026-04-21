@@ -165,7 +165,7 @@ void dungeon(int levels, int flag) {
                 tx("gold pieces.\r\n\r\n");
                 p[cpl].gold += x;
                 lvl[cl] = 0;
-                pause();
+                ryl_pause();
                 break;
 
             case 3:
@@ -197,12 +197,12 @@ void dungeon(int levels, int flag) {
                 tx("You find nothing\r\n");
                 tx("special on this level.\r\n\r\n");
                 lvl[cl] = 0;
-                pause();
+                ryl_pause();
                 break;
             case 7:
                 tx("This level is empty.\r\n\r\n");
                 lvl[cl] = 0;
-                pause();
+                ryl_pause();
                 break;
 
             case 8:
@@ -259,7 +259,7 @@ void dungeon(int levels, int flag) {
                             if (p[cpl].hp[i] < 1)
                                 p[cpl].hp[i] = 1;
                         }
-                        pause();
+                        ryl_pause();
                     }
                     clw();
                     tx("The chest contained\r\n");
@@ -269,7 +269,7 @@ void dungeon(int levels, int flag) {
                     x += 300;
                     tx("%d pieces of gold.\r\n\r\n", x);
                     p[cpl].gold += x;
-                    pause();
+                    ryl_pause();
                 }
                 break;
 
@@ -280,7 +280,7 @@ void dungeon(int levels, int flag) {
                 tx("You find %d torches.\r\n\r\n", x);
                 p[cpl].torches += x;
                 lvl[cl] = 0;
-                pause();
+                ryl_pause();
                 break;
 
                 /***************************************************************/
@@ -294,14 +294,14 @@ void dungeon(int levels, int flag) {
                 tx("Out of the shadows,\r\n");
                 tx("something HIDEOUS\r\n");
                 tx("emerges.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 encounter(11, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 lvl[cl] = 0;
-                pause();
+                ryl_pause();
                 break;
             case 21:
                 clw();
@@ -312,7 +312,7 @@ void dungeon(int levels, int flag) {
                 tx("this level, you find the\r\n");
                 tx("marvelous FIRE SHIELD on\r\n");
                 tx("a pedestal! You take it.\r\n\r\n");
-                pause();
+                ryl_pause();
                 lvl[cl] = 0;
                 clw();
                 p[cpl].fireshield = 1;
@@ -326,7 +326,7 @@ void dungeon(int levels, int flag) {
                 tx("in red.\r\n\r\n");
                 tx("- Answer this, fools, or\r\n");
                 tx("  die where you stand!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("'Between fire and ice,\r\n");
                 tx("who ends the fight?\r\n");
@@ -339,13 +339,13 @@ void dungeon(int levels, int flag) {
                 clw();
                 if (!stricmp("water", ans)) {
                     tx("- Well done. Pass.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     break;
                 } else {
                     tx("- FOOLS! Meet thy doom!\r\n");
                     tx("at a gesture from him,\r\n");
                     tx("something evil appears.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     encounter(12, 1);
                     clw();
                     clr_map_window();
@@ -361,7 +361,7 @@ void dungeon(int levels, int flag) {
                 tx("in green.\r\n\r\n");
                 tx("- Answer this, fools, or\r\n");
                 tx("  die where you stand!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("'Siblings we are,\r\n");
                 tx("I'm black and she's\r\n");
@@ -374,13 +374,13 @@ void dungeon(int levels, int flag) {
                 clw();
                 if (!stricmp("night", ans) || !stricmp("darkness", ans)) {
                     tx("- Well done. Pass.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     break;
                 } else {
                     tx("- FOOLS! Meet thy doom!\r\n");
                     tx("at a gesture from him,\r\n");
                     tx("something evil appears.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     encounter(13, 1);
                     clw();
                     break;
@@ -394,7 +394,7 @@ void dungeon(int levels, int flag) {
                 tx("in blue.\r\n\r\n");
                 tx("- Answer this, fools, or\r\n");
                 tx("  die where you stand!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("'Tall as a house,\r\n");
                 tx("round as a cup, and\r\n");
@@ -407,13 +407,13 @@ void dungeon(int levels, int flag) {
                 clw();
                 if ((!stricmp("well", ans)) || (!stricmp("a well", ans))) {
                     tx("- Well done. Pass.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     break;
                 } else {
                     tx("- FOOLS! Meet thy doom!\r\n");
                     tx("at a gesture from him,\r\n");
                     tx("something evil appears.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     encounter(14, 1);
                     clw();
                     break;
@@ -432,7 +432,7 @@ void dungeon(int levels, int flag) {
                 tx("you put them in your\r\n");
                 tx("backpack.\r\n\r\n");
                 lvl[cl] = 0;
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].bracelets = 1;
                 p[cpl].flag[13] = 2;
@@ -445,21 +445,21 @@ void dungeon(int levels, int flag) {
                 tx("'M U R T C E P S'\r\n");
                 tx("THiNgs aren't aLways iN\r\n");
                 tx("theIR naTuRAl oRDeR...\r\n\r\n");
-                pause();
+                ryl_pause();
                 break;
 
             case 27:
                 clw();
                 tx("A plaque here reads:\r\n");
                 tx("ANTECHAMBER #%d\r\n\r\n", cl - 12);
-                pause();
+                ryl_pause();
                 clw();
                 tx("Before you are seven\r\n");
                 tx("squares of 20x20 feet.\r\n");
                 tx("To get across this room\r\n");
                 tx("you will need to step\r\n");
                 tx("on one of them.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("1. Red Square\r\n");
                 tx("2. Orange Square\r\n");
@@ -481,7 +481,7 @@ void dungeon(int levels, int flag) {
                     tx("tingle in your bodies,\r\n");
                     tx("but otherwise, nothing\r\n");
                     tx("happens.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     break;
                 }
                 clw();
@@ -489,7 +489,7 @@ void dungeon(int levels, int flag) {
                 tx("a shape of pure colour\r\n");
                 tx("forms in thin air before\r\n");
                 tx("you!\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(16, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
@@ -503,7 +503,7 @@ void dungeon(int levels, int flag) {
                 tx("On his chest lies the\r\n");
                 tx("dagger you seek. You put\r\n");
                 tx("it in your backpack.\r\n\r\n");
-                pause();
+                ryl_pause();
                 p[cpl].flag[23] = 7;
                 lvl[cl] = 0;
                 break;
@@ -519,12 +519,12 @@ void dungeon(int levels, int flag) {
                 tx("object in the realm.\r\n");
                 tx("It shines with an inner\r\n");
                 tx("light.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("...but as you take it,\r\n");
                 tx("THE WARRIOR COMES\r\n");
                 tx("TO LIFE!!!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 encounter(17, 1);
                 clr_map_window();
@@ -544,25 +544,25 @@ void dungeon(int levels, int flag) {
                 tx("the room thorougly, you\r\n");
                 tx("find nothing. No Silver\r\n");
                 tx("Key, no treasure.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("You curse the rouge who\r\n");
                 tx("tricked you and are just\r\n");
                 tx("about to leave...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("...when you spot a paper\r\n");
                 tx("of some kind in a crack\r\n");
                 tx("in the wall... You pull\r\n");
                 tx("it out and read...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("'Guild Master: This is\r\n");
                 tx("the proof that I, %s\r\n", name[18]);
                 tx("am worthy of the title\r\n");
                 tx("Master Thief.'\r\n");
                 tx("      - %s\r\n\r\n", name[18]);
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[6] = 2;
                 lvl[cl] = 0;
@@ -574,7 +574,7 @@ void dungeon(int levels, int flag) {
                 tx("patrol. With shiny and\r\n");
                 tx("well used scimitars, they\r\n");
                 tx("attack you!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 encounter(9, 1);
                 clr_map_window();
@@ -585,7 +585,7 @@ void dungeon(int levels, int flag) {
                     tx("You find a scribbled\r\n");
                     tx("note on the leader:\r\n");
                     tx("Password: 'RISH EKKIN'\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     clw();
                 }
                 break;
@@ -595,7 +595,7 @@ void dungeon(int levels, int flag) {
                 tx("As you enter this room\r\n");
                 tx("an army of hobgoblin\r\n");
                 tx("skeletons attack you!\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(24, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
@@ -611,7 +611,7 @@ void dungeon(int levels, int flag) {
                 tx("of rotting flesh and\r\n");
                 tx("brandising gleaming\r\n");
                 tx("tridents attack you.\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(25, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
@@ -626,7 +626,7 @@ void dungeon(int levels, int flag) {
                 tx("someone moving behind\r\n");
                 tx("it. A voice calls:\r\n");
                 tx("- What's the password?\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("Password: ");
                 strcpy(ans, getstr(15));
@@ -638,7 +638,7 @@ void dungeon(int levels, int flag) {
                     tx("suspiciously for a few\r\n");
                     tx("seconds. Not hestitating\r\n");
                     tx("a moment you attack.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     encounter(23, 1);
                     clr_map_window();
                     blitgfx(insidecavepic);
@@ -662,7 +662,7 @@ void dungeon(int levels, int flag) {
                 tx("hangs around his neck.\r\n");
                 tx("With trembling hands\r\n");
                 tx("you pick it up!!!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].silverkey = 1;
                 p[cpl].flag[6] = 6;
@@ -675,7 +675,7 @@ void dungeon(int levels, int flag) {
                 tx("Some orcs watch a trapdoor\r\n");
                 tx("in the floor here. As\r\n");
                 tx("you enter, they attack!\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(2, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
@@ -685,14 +685,14 @@ void dungeon(int levels, int flag) {
                 tx("orcs rush out of their\r\n");
                 tx("sleeping quarters,\r\n");
                 tx("disturbed by the noise.\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(2, 1);
                 encounter(2, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 tx("You have slain the orcs.\r\n\r\n");
-                pause();
+                ryl_pause();
                 break;
 
             case 36:
@@ -704,7 +704,7 @@ void dungeon(int levels, int flag) {
                     tx("her bonds and let her\r\n");
                     tx("join your party!\r\n\r\n");
                     p[cpl].flag[19] = 2;
-                    pause();
+                    ryl_pause();
                 }
                 break;
 
@@ -714,7 +714,7 @@ void dungeon(int levels, int flag) {
                 tx("some priests. They\r\n");
                 tx("attack you with blind\r\n");
                 tx("fury.\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(32, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
@@ -728,29 +728,29 @@ void dungeon(int levels, int flag) {
                 tx("shapes kneel at the\r\n");
                 tx("blood stained altar at\r\n");
                 tx("the end of this chamber.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("You rush to attack the\r\n");
                 tx("priests...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("They quickly turn around\r\n");
                 tx("and draw their daggers.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("The acolyte kneels before\r\n");
                 tx("the altar in silent prayer\r\n");
                 tx("while the others form a\r\n");
                 tx("circle around him to\r\n");
                 tx("protect him.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("Suddenly there is an\r\n");
                 tx("ear splitting bang\r\n");
                 tx("and a ghastly creature\r\n");
                 tx("emerges from the shadows\r\n");
                 tx("of this uncanny sanctuary.\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(33, 1);
                 encounter(32, 1);
                 clr_map_window();
@@ -758,7 +758,7 @@ void dungeon(int levels, int flag) {
                 clw();
                 tx("More priests rush to\r\n");
                 tx("attack you...\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(32, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
@@ -768,19 +768,19 @@ void dungeon(int levels, int flag) {
                 tx("for a moment, and then\r\n");
                 tx("start searching the\r\n");
                 tx("hall for the Lute.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("%s suddenly\r\n", p[cpl].name[3]);
                 tx("hears something behind\r\n");
                 tx("him!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("You scream in terror\r\n");
                 tx("when you see the source\r\n");
                 tx("of that sound! ERETHOR\r\n");
                 tx("HAS COME TO LIFE ONCE\r\n");
                 tx("AGAIN!!!\r\n\r\n");
-                pause();
+                ryl_pause();
                 encounter(33, 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
@@ -790,7 +790,7 @@ void dungeon(int levels, int flag) {
                 tx("blisters and bursts.\r\n");
                 tx("A rotten smell spreads\r\n");
                 tx("throughout the hall.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("%s finds the\r\n", p[cpl].name[4]);
                 tx("Lute on a pedestal,\r\n");
@@ -798,7 +798,7 @@ void dungeon(int levels, int flag) {
                 tx("to leave this place.\r\n\r\n");
                 lvl[cl] = 0;
                 p[cpl].flag[8] = 2;
-                pause();
+                ryl_pause();
                 clw();
                 break;
         }
@@ -862,7 +862,7 @@ void dungeon(int levels, int flag) {
                     tx("You have used your last\r\n");
                     tx("torch. You can't go\r\n");
                     tx("any further.\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     clw();
                 } else {
                     if (cl < levels)
@@ -887,7 +887,7 @@ void dungeon(int levels, int flag) {
                     clw();
                     tx("You leave the\r\n");
                     tx("hideous cavern!\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     clr_map_window();
                     update_map();
                     clw();

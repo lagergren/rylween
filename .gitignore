@@ -1,0 +1,6 @@
+# Build artefacts
+*.o
+rylween
+
+# Editor / local tool state
+.claude/

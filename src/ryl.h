@@ -7,7 +7,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <time.h>
-#include "porting.h"
+#include "compat.h"
 
 #define innpic 1
 #define tavernpic 2
@@ -31,7 +31,6 @@ extern int hours_pigg;
 extern int banished;
 extern int dx[15], dy[15];
 extern char map[42][82];
-extern int cli;
 extern int reg;
 extern int day_at_game_start;
 extern char global_name[30];
@@ -130,22 +129,18 @@ struct party {
 
 extern struct party p[26];
 
-extern struct XenolinkCallBack *XCB;
-extern struct XenolinkCallBackData *XCBD;
-extern struct XenolinkBase *XenolinkBase;
-
-/* AMIGA PROTOS / COMPUTER SPECIFIC */
+/* TERMINAL PRIMITIVES — all live in primitives.c as io->... wrappers */
 
 int main(int, char **);
-char *getstr(UBYTE);
-ULONG tx(UBYTE *, ...);
+char *getstr(uint8_t);
+uint32_t tx(const char *, ...);
 void cleanexit(void);
-UBYTE carrier(void);
+uint8_t carrier(void);
 void cl(void);
-void c(UBYTE, UBYTE);
+void c(uint8_t, uint8_t);
 void clw(void);
-void pause(void);
-UBYTE hotkey(void);
+void ryl_pause(void);
+uint8_t hotkey(void);
 
 /* OTHER PROTOS */
 
@@ -163,12 +158,12 @@ void update_map(void);
 void weaponr(void);
 void armourr(void);
 void enter(void);
-UBYTE drop(void);
-UBYTE drop_option(void);
+uint8_t drop(void);
+uint8_t drop_option(void);
 void camp(void);
 void spell(int);
 void quaff(void);
-char *sextext(UBYTE, UBYTE);
+char *sextext(uint8_t, uint8_t);
 void smith(void);
 void tavern(void);
 void inn(void);
@@ -202,13 +197,13 @@ void journal(char *);
 void read_journal(void);
 void inactive(void);
 void reganim(void);
-void blitgfx(UBYTE);
+void blitgfx(uint8_t);
 void clr_map_window(void);
-UBYTE mission_control(void);
-void log(char *);
+uint8_t mission_control(void);
+void ryl_log(char *);
 void weaponoff(void);
 void armouroff(void);
-void clrjr(UBYTE);
+void clrjr(uint8_t);
 void help(void);
 void disptext(char *);
 void guild(void);
@@ -218,9 +213,9 @@ void read_bulletin(void);
 void write_bulletin(void);
 void quest_status(void);
 void trade(void);
-UBYTE select_party(void);
+uint8_t select_party(void);
 void guild_title(char *);
-void editor(char *, UBYTE);
+void editor(char *, uint8_t);
 void check_terrain(char, char);
 
 /* Pointer protos */

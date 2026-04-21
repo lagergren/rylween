@@ -36,7 +36,7 @@ void place_npcs() {
     // Random people //
 
     tx("%cSetting up new campaign. Please wait.", 12);
-    log("A new campaign starts. Baron Ydarg awaits...\n");
+    ryl_log("A new campaign starts. Baron Ydarg awaits...\n");
 
     for (i = 1, j = 1; i < 25; i++, j++) {
         Delay(30);

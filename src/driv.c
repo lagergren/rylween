@@ -146,7 +146,6 @@ void spelet() {
                 break;
             case '!':
                 cl();
-                //if(!cli) (*XCB->DisplayTextFile)("data/ansi/screen.ans",CONTINUOUS,TF_PROCESS_TILDE,0,0);
                 disptext("data/ansi/screen.ans");
                 update_map();
                 clw();
@@ -158,7 +157,6 @@ void spelet() {
                 cl();
                 c(49, 6);
                 clw();
-                //if(!cli) (*XCB->DisplayTextFile)("data/ansi/screen.ans",CONTINUOUS,TF_PROCESS_TILDE,0,0);
                 disptext("data/ansi/screen.ans");
                 update_map();
                 clw();
@@ -225,7 +223,7 @@ void spelet() {
     }
 }
 
-UBYTE drop_option() {
+uint8_t drop_option() {
     char c;
 
     clw();
@@ -257,7 +255,7 @@ void read_journal() {
         str[0] = 0;
         fgets((char *) str, sizeof(str), j);
         if (str[0] == 0) {
-            pause();
+            ryl_pause();
             break;
         }
         sscanf(str, "%s %s", plrstr, str2);
@@ -273,7 +271,7 @@ void read_journal() {
             if (line == 16) {
                 line = 0;
                 tx("\r\n");
-                pause();
+                ryl_pause();
                 cl();
             }
         }
@@ -346,42 +344,18 @@ void position_locations() {
 void init() {
     char str[90], kl[8], d, ch;
     FILE *fh;
-    UBYTE abort = 0, x = 0, i, j = 0;
+    uint8_t abort = 0, x = 0, i, j = 0;
 
     char regnamn[50];
-    ULONG checksum = 0, verify = 0;
+    uint32_t checksum = 0, verify = 0;
 
     tx("[30m%c%c%c%c%c[37m", 27, 91, 48, 32, 112);
-
-    if (!cli && (XCBD->BaudRate) < 9600 && (XCBD->BaudRate)) {
-        cl();
-        tx("This game is painfully slow on less than 9600 Baud.\r\n\r\n");
-        tx("If you have v42'' or some other data compression, it should be ok\r\n");
-        tx("though...\r\n\r\n");
-        tx("THIS ADVICE SHOULD BE TAKEN SERIOUSLY! IF YOU HAVE A SLOW MODEM,\r\n");
-        tx("THEN THERE IS NOTHING TO SEE! YOU WON'T ENJOY THIS GAME!\r\n\r\n");
-        tx("Do you still want to run Adventurers of Rylween? (Y/n)");
-        d = key();
-        d = toupper(d);
-        if (d == 'N')
-            cleanexit();
-    }
-    if (!cli && (XCBD->UserStructure->MenuSet) == 0) {
-        cl();
-        tx("This game uses MUCH ANSI, and is almost impossible to play without\r\n");
-        tx("ANSI compatibility (eg coordinate coords).\r\n\r\n");
-        tx("Do you still want to run Adventurers of Rylween? (Y/n)");
-        d = key();
-        d = toupper(d);
-        if (d == 'N')
-            cleanexit();
-    }
 
     if (!(fh = fopen("data/map.dat", "rb"))) {
         c(49, 6);
         clw();
         tx("Bloody 'ell! Unable to find map!!!\r\n");
-        pause();
+        ryl_pause();
         cleanexit();
     }
     for (i = 1; i < 41; i++)
@@ -411,7 +385,6 @@ void init() {
         fclose(fh);
 
     cl();
-    //if(!cli) (*XCB->DisplayTextFile)("data/ansi/title.ans",CONTINUOUS,TF_PROCESS_TILDE,0,0);
     disptext("data/ansi/title.ans");
     tx("\r\n");
     tx("[37m<MORE>\r\n");
@@ -469,7 +442,6 @@ void init() {
     day_at_game_start = kl[3];
 
     cl();
-    //if(!cli) (*XCB->DisplayTextFile)("data/ansi/screen.ans",CONTINUOUS,TF_PROCESS_TILDE,0,0);
     disptext("data/ansi/screen.ans");
 
     while (!abort) {
@@ -508,7 +480,7 @@ void init() {
                 tx("defeated Baron Ydarg.\r\n");
                 tx("Please ask the SysOp\r\n");
                 tx("to reset Rylween\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 cleanexit();
             }
@@ -536,13 +508,10 @@ void init() {
         switch (toupper(ch)) {
             case 'S':
                 cl();
-                if (cli) {
-                    disptext("data/score.txt");
-                    tx("\r\n");
-                    tx("[37m<MORE>\r\n");
-                    key();
-                } else
-                    (*XCB->DisplayTextFile)("data/score.txt", MORE_PROMPT, TF_PROCESS_TILDE, 0, 0);
+                                disptext("data/score.txt");
+                tx("\r\n");
+                tx("[37m<MORE>\r\n");
+                key();
                 cl();
                 c(49, 6);
                 clw();
@@ -554,14 +523,10 @@ void init() {
                 d = toupper(d);
                 if (d == 'Y') {
                     cl();
-                    if (cli) {
-                        disptext("data/vscore.txt");
-                        tx("\r\n");
-                        tx("[37m<MORE>\r\n");
-                        key();
-                    } else
-                        (*XCB->DisplayTextFile)("data/vscore.txt", MORE_PROMPT, TF_PROCESS_TILDE, 0,
-                                                0);
+                                        disptext("data/vscore.txt");
+                    tx("\r\n");
+                    tx("[37m<MORE>\r\n");
+                    key();
                     cl();
                     c(49, 6);
                     clw();
@@ -574,16 +539,12 @@ void init() {
                 tx("You may want to\r\n");
                 tx("turn on your capture\r\n");
                 tx("buffer now...\r\n\r\n");
-                pause();
+                ryl_pause();
                 cl();
-                if (cli) {
-                    disptext("data/rylween.doc");
-                    tx("\r\n");
-                    tx("[37m<MORE>\r\n");
-                    key();
-                } else
-                    (*XCB->DisplayTextFile)("data/rylween.doc", MORE_PROMPT, TF_PROCESS_TILDE, 0,
-                                            0);
+                                disptext("data/rylween.doc");
+                tx("\r\n");
+                tx("[37m<MORE>\r\n");
+                key();
                 cl();
                 c(49, 6);
                 clw();
@@ -592,13 +553,10 @@ void init() {
 
             case 'H':
                 cl();
-                if (cli) {
-                    disptext("data/heroes.txt");
-                    tx("\r\n");
-                    tx("[37m<MORE>\r\n");
-                    key();
-                } else
-                    (*XCB->DisplayTextFile)("data/heroes.txt", MORE_PROMPT, TF_PROCESS_TILDE, 0, 0);
+                                disptext("data/heroes.txt");
+                tx("\r\n");
+                tx("[37m<MORE>\r\n");
+                key();
                 cl();
                 c(49, 6);
                 clw();
@@ -613,7 +571,7 @@ void init() {
                     tx("You will understand\r\n");
                     tx("_very_ little of the\r\n");
                     tx("game otherwise...\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     clw();
                     createparty();
                 } else
@@ -646,7 +604,7 @@ void init() {
                         tx("You only have %d turns\r\n", j);
                         tx("per day to use your\r\n");
                         tx("moves on.\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         cleanexit();
                     }
 
@@ -663,7 +621,7 @@ void init() {
                     abort = 1;
                     sprintf(str, "%s and %s party '%s' entered the realm.", p[cpl].name[1],
                             sextext(1, 3), p[cpl].partyname);
-                    log(str);
+                    ryl_log(str);
                     if (!reg)
                         reganim();
                     last_terrain = 0;
@@ -734,7 +692,7 @@ void init() {
                         tx("Your party has been\r\n");
                         tx("deleted. Please play\r\n");
                         tx("again.\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         cleanexit();
                     }
                 }
@@ -759,7 +717,7 @@ void save() {
         c(49, 6);
         clw();
         tx("\r\nUnable to save data!!!\r\n");
-        pause();
+        ryl_pause();
         cleanexit();
     }
 
@@ -781,7 +739,7 @@ void save() {
         c(49, 6);
         clw();
         tx("\r\nUnable to save NPCs!!!\r\n");
-        pause();
+        ryl_pause();
         cleanexit();
     }
     for (i = 1; i < 40; i++)
@@ -796,7 +754,7 @@ void load() {
         c(49, 6);
         clw();
         tx("Unable to load data!!!\r\n");
-        pause();
+        ryl_pause();
         cleanexit();
     }
 
@@ -821,7 +779,7 @@ void load() {
         c(49, 6);
         clw();
         tx("\r\nUnable to load NPCs!!!\r\n");
-        pause();
+        ryl_pause();
         cleanexit();
     }
     for (i = 1; i < 40; i++)
@@ -832,7 +790,7 @@ void load() {
         c(49, 6);
         clw();
         tx("Unable to find map!!!\r\n");
-        pause();
+        ryl_pause();
         cleanexit();
     }
 
@@ -841,7 +799,7 @@ void load() {
     fclose(fh);
 }
 
-char *sextext(UBYTE nr, UBYTE xx) {
+char *sextext(uint8_t nr, uint8_t xx) {
     switch (p[cpl].sex[nr]) {
         case 1:
             if (xx == 1)
@@ -871,7 +829,7 @@ void createparty() {
         tx("Sorry. Maximum number of\r\n");
         tx("players reached. Play\r\n");
         tx("again later on.\r\n\r\n");
-        pause();
+        ryl_pause();
         cleanexit();
     }
 
@@ -1066,11 +1024,11 @@ void showparty() {
     if (p[cpl].silverkey)
         tx("You have the Key.\r\n");
 
-    pause();
+    ryl_pause();
     clw();
     invlist();
     tx("\r\n");
-    pause();
+    ryl_pause();
 }
 
 void invlist() {
@@ -1114,7 +1072,7 @@ void show(int nr) {
     tx("Charisma  : %d\r\n", p[cpl].ch[nr]);
     tx("Magic     : %d\r\n", p[cpl].ma[nr]);
     tx("\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("Level     : %d\r\n", p[cpl].lv[nr]);
     tx("Weapon    : %s\r\n", object(p[cpl].wp[nr]));
@@ -1125,67 +1083,9 @@ void show(int nr) {
         strcpy(str, "Alive.");
     tx("Status    : %s\r\n\r\n", str);
     tx("Exp       : %d\r\n\r\n", p[cpl].exp[nr]);
-    pause();
+    ryl_pause();
 }
 
-void pause() {
-    char str[80];
-    long t;
-    char bb;
-
-    time(&t);
-    srand((unsigned int) t);
-
-    switch (rand() % 10) {
-        case 0:
-            strcpy(str, "Smash");
-            break;
-        case 1:
-            strcpy(str, "Bash");
-            break;
-        case 2:
-            strcpy(str, "Slash");
-            break;
-        case 3:
-            strcpy(str, "Lunge at");
-            break;
-        case 4:
-            strcpy(str, "Crush");
-            break;
-        case 5:
-            strcpy(str, "Destroy");
-            break;
-        case 6:
-            strcpy(str, "Mutilate");
-            break;
-        case 7:
-            strcpy(str, "Thrash");
-            break;
-        case 8:
-            strcpy(str, "Stab");
-            break;
-        case 9:
-            strcpy(str, "Brain");
-            break;
-    }
-
-    tx("(%s RETURN key)\r\n", str);
-    if (!cli) {
-        while (1) {
-            bb = (*XCB->GetCharacter)();
-            if (bb == 13)
-                break;
-        }
-    } else {
-        c(0, 0);
-        tx("[30m");
-        while (1) {
-            bb = getch() if (bb == 13) break;
-        }
-        tx("[37m");
-        c(49, 6);
-    }
-}
 void journal(char *send_me) {
     FILE *fh;
     char str[90];
@@ -1210,11 +1110,11 @@ void journal(char *send_me) {
     fputs(send_me, fh);
     fclose(fh);
 }
-void clrjr(UBYTE nr) {
+void clrjr(uint8_t nr) {
     FILE *fh;
     char str[144], a[10], b[20], temp[4];
-    ULONG byte[50];
-    UBYTE i, j, k, current;
+    uint32_t byte[50];
+    uint8_t i, j, k, current;
 
     if (!(fh = fopen("data/journal", "r")))
         exit(0);
@@ -1298,7 +1198,7 @@ void help() {
     tx("J = View Journal\r\n");
     tx("L = Leave (Discard) Item\r\n");
     tx("P = Put down weapon\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("Q = Quaff Potion\r\n");
     tx("R = Ready Armour\r\n");
@@ -1306,7 +1206,7 @@ void help() {
     tx("T = Take off armour\r\n");
     tx("V = View Party\r\n");
     tx("W = Wield Weapon\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
     tx("X = Quit Game (No Save)\r\n");
     tx("Z = Cast Spell\r\n");
@@ -1315,6 +1215,6 @@ void help() {
     tx("    8     Move North,\r\n");
     tx("  4-+-6   South, East &\r\n");
     tx("    2     West\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
 }

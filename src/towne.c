@@ -1,48 +1,5 @@
 #include "ryl.h"
 
-char key() {
-    char ch;
-
-    if (!cli) {
-        if (!carrier())
-            cleanexit();
-        ch = (*XCB->GetCharacter)();
-        if (!carrier())
-            cleanexit();
-    } else {
-        c(0, 0);
-        tx("[30m");
-        ch = getch();
-        c(49, 6);
-        tx("[37m");
-    }
-    if (ch == '#')
-        cleanexit();
-
-    /* LOCAL GAME SYSOP COMMANDS */
-
-    if (ch == '/' && !stricmp(global_name, "Marcus Lagergren")) {
-        p[cpl].tid_kvar += 50;
-        statusline();
-    }
-    if (ch == '(' && !stricmp(global_name, "Marcus Lagergren")) {
-        p[cpl].inventory[12] = 104;
-    }
-    if (ch == ')' && !stricmp(global_name, "Marcus Lagergren")) {
-        p[cpl].inventory[11] = 108;
-    }
-    if (ch == '&' && !stricmp(global_name, "Marcus Lagergren")) {
-        p[cpl].inventory[10] = 109;
-    }
-    if (ch == '*' && !stricmp(global_name, "Marcus Lagergren")) {
-        p[cpl].inventory[9] = 110;
-    }
-    if (ch == '+' && !stricmp(global_name, "Marcus Lagergren")) {
-        p[cpl].gold += 1000;
-        statusline();
-    }
-    return ch;
-}
 void rumour() {
     char kl[8], str[40];
 
@@ -611,9 +568,9 @@ void enter() {
 
     /* Det skall det inte alls!!! */
 
-    if (p[cpl].lvl[1] >= 5) {
+    if (p[cpl].lv[1] >= 5) {
         clw();
-        tx("Welcome to %s\r\n",twnname");
+        tx("Welcome to %s\r\n", twnname);
 		tx("Our current tax rate\r\n");
 		tx("is %d%% - In order to\r\n",tax);
 		tx("enter, we must request\r\n");
@@ -964,14 +921,14 @@ void smith() {
                 Delay(100);
                 clw();
                 rumour();
-                pause();
+                ryl_pause();
             } else {
                 clw();
                 tx("The smith is disappointed.\r\n");
                 tx("- Maybe another time,\r\n");
                 tx("you tell him.\r\n");
                 tx("- Yeah, he answers.\r\n\r\n");
-                pause();
+                ryl_pause();
             }
         } else {
             tx("(B)uy\r\n");
@@ -1439,22 +1396,22 @@ void tavern() {
                         tx("give 'em some ale, lads!\r\n");
                         tx("You are given a whole\r\n");
                         tx("tray of ale!\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         p[cpl].ch[d - 48] += 3;
                     }
                     if (st > 300 && st < 401) {
                         tx("Very good! You've been\r\n");
                         tx("through much!\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         p[cpl].ch[d - 48]++;
                     }
                     if (st > 150 && st < 301) {
                         tx("Nice story, Sir!\r\n\r\n");
-                        pause();
+                        ryl_pause();
                     }
                     if (st > 100 && st < 151) {
                         tx("The mob is bored.\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         if (p[cpl].ch[d - 48])
                             p[cpl].ch[d - 48]--;
                     }
@@ -1462,7 +1419,7 @@ void tavern() {
                         tx("Most of the crowd\r\n");
                         tx("falls asleep. The rest\r\n");
                         tx("beg you to stop.\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         if (p[cpl].ch[d - 48] >= 3)
                             p[cpl].ch[d - 48] -= 3;
                     }
@@ -1476,7 +1433,7 @@ void tavern() {
             if (rumours > 4) {
                 tx("The tavern has suddenly\r\n");
                 tx("become very quiet.\r\n\r\n");
-                pause();
+                ryl_pause();
             } else {
                 switch (rand() % 5) {
                     case 0:
@@ -1503,7 +1460,7 @@ void tavern() {
                 }
                 tx("\r\n");
                 rumour();
-                pause();
+                ryl_pause();
             }
         }
         if (c == 'O') {
@@ -1598,7 +1555,7 @@ void inn() {
                     if (p[cpl].hp[i] > p[cpl].h[i])
                         p[cpl].hp[i] = p[cpl].h[i];
                 }
-                pause();
+                ryl_pause();
             }
         }
         clw();
@@ -1695,7 +1652,7 @@ void inn() {
             tx("rested.\r\n\r\n");
             tx("You have breakfast\r\n");
             tx("and leave the inn.\r\n\r\n");
-            pause();
+            ryl_pause();
             tid = 5;
             for (i = 1; i < 5; i++) {
                 if (!p[cpl].dead[i])

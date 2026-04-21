@@ -2,7 +2,7 @@
 
 void guild() {
     char f, d, str2[80], str[80];
-    UBYTE i, x, xx, yy;
+    uint8_t i, x, xx, yy;
     char twn[10];
     FILE *fh;
 
@@ -15,7 +15,7 @@ void guild() {
         if (p[cpl].waiting_mail) {
             tx("- We have messages\r\n");
             tx("  for you, Sirs...\r\n\r\n");
-            pause();
+            ryl_pause();
             read_internal_mail();
         } else {
             tx("- How may we be of\r\n");
@@ -105,7 +105,7 @@ void guild() {
                 clw();
                 tx("Whom do you want to\r\n");
                 tx("send a message?\r\n\r\n");
-                pause();
+                ryl_pause();
                 cl();
                 c(0, 0);
                 x = select_party();
@@ -152,7 +152,7 @@ void guild() {
                     tx("were last seen in\r\n");
                     tx("the area around %dx%d.\r\n\r\n", xx, yy);
                 }
-                pause();
+                ryl_pause();
                 clw();
                 break;
 
@@ -184,8 +184,8 @@ void guild() {
         }
     }
 }
-UBYTE select_party() {
-    UBYTE i;
+uint8_t select_party() {
+    uint8_t i;
     char d;
 
     cl();
@@ -209,14 +209,14 @@ UBYTE select_party() {
         if (d >= 'A' && d <= 64 + antal_spelare)
             break;
     }
-    return (UBYTE) (d - 64);
+    return (uint8_t) (d - 64);
 }
 
-void editor(char *outfile, UBYTE bulletin) {
+void editor(char *outfile, uint8_t bulletin) {
     FILE *fh2;
     char str2[80], mnt[5], str[80];
     char kl[8];
-    UBYTE i;
+    uint8_t i;
 
     // BULLETIN =1 , bulletin. Otherwise message //
 
@@ -308,7 +308,7 @@ void editor(char *outfile, UBYTE bulletin) {
 }
 
 void attackhandler() {
-    UBYTE i, x;
+    uint8_t i, x;
 
     for (i = 1, x = 0; i < antal_spelare + 1; i++) {
         if (i != cpl && p[i].x == p[cpl].x && p[i].y == p[cpl].y) {
@@ -326,7 +326,7 @@ void attackhandler() {
     tx("%s!\r\n\r\n", p[i].partyname);
     tx("They are %d level\r\n", p[i].pl);
     tx("%d adventurers.\r\n\r\n", (p[i].lv[1] + p[i].lv[2] + p[i].lv[3] + p[i].lv[4]) / 4);
-    pause();
+    ryl_pause();
     clw();
     tx("Do you want to:\r\n\r\n");
     tx("(A)ttack\r\n");

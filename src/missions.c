@@ -1,6 +1,6 @@
 #include "ryl.h"
 
-UBYTE mission_control() {
+uint8_t mission_control() {
     int i, gems;
     char send[144];
     char c;
@@ -52,14 +52,14 @@ UBYTE mission_control() {
         tx("camp of the bandits.\r\n");
         tx("One of them spots you\r\n");
         tx("and they attack!\r\n\r\n");
-        pause();
+        ryl_pause();
         encounter(8, 1);
         update_map();
         clw();
         tx("You find the cargo\r\n");
         tx("the merchant wanted\r\n");
         tx("you to bring him.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         p[cpl].flag[1] = 2;
     }
@@ -73,7 +73,7 @@ UBYTE mission_control() {
         tx("After wiping the slime of\r\n");
         tx("it, you put it in your\r\n");
         tx("backpack.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         p[cpl].flag[33] = 2;
     }
@@ -101,7 +101,7 @@ UBYTE mission_control() {
         tx("Around you are the ruins\r\n");
         tx("of the once proud city\r\n");
         tx("of Thun...\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("You see an altar\r\n");
         tx("with five sockets before\r\n");
@@ -109,7 +109,7 @@ UBYTE mission_control() {
         tx("gem-sized. An inscription\r\n");
         tx("says: 'Insert the gems\r\n");
         tx("and your path shall open'\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("Do you want to put\r\n");
         tx("five gems in the sockets?\r\n\r\n");
@@ -128,7 +128,7 @@ UBYTE mission_control() {
             clw();
             tx("You don't have five\r\n");
             tx("different gems.\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             return 1;
         } else {
@@ -137,7 +137,7 @@ UBYTE mission_control() {
             tx("the altar slides away\r\n");
             tx("to reveal a dark pit.\r\n");
             tx("You enter...\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             dungeon(18, 2);
             clr_map_window();
@@ -166,14 +166,14 @@ UBYTE mission_control() {
             tx("surprised, and you manage\r\n");
             tx("to slay many, before they\r\n");
             tx("attack...\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             encounter(15, 1);
             clw();
             tx("Piles of dead kobolds are\r\n");
             tx("lying all around. Still,\r\n");
             tx("they keep coming!\r\n\r\n");
-            pause();
+            ryl_pause();
             encounter(15, 1);
             clw();
             tx("You have annihilated most\r\n");
@@ -182,7 +182,7 @@ UBYTE mission_control() {
             tx("weapons, when suddenly,\r\n");
             tx("some ORCS rush out to\r\n");
             tx("attack you from nowhere.\r\n\r\n");
-            pause();
+            ryl_pause();
             encounter(2, 1);
             update_map();
             clw();
@@ -191,7 +191,7 @@ UBYTE mission_control() {
             tx("an ugly pendant from the\r\n");
             tx("head of the kobold chief\r\n");
             tx("to prove the bloody deed.\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             p[cpl].flag[23] = 2;
         }
@@ -202,7 +202,7 @@ UBYTE mission_control() {
         tx("grows the skullweed plant.\r\n");
         tx("You break off a few plants\r\n");
         tx("and put in your backpack.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         p[cpl].flag[23] = 4;
     }
@@ -215,7 +215,7 @@ UBYTE mission_control() {
         tx("old dwarf who introduces\r\n");
         tx("himself as Borin greets\r\n");
         tx("you.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("You explain why you are\r\n");
         tx("here, and he frowns.\r\n");
@@ -224,7 +224,7 @@ UBYTE mission_control() {
         tx("stone of that type\r\n");
         tx("if you do our tribe a\r\n");
         tx("favour...\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("- Years have passed, and\r\n");
         tx("much of our knowledge\r\n");
@@ -235,7 +235,7 @@ UBYTE mission_control() {
         tx("arms we produce nowadays\r\n");
         tx("are not as unbeatable as\r\n");
         tx("they once were...\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("- When our king Nolrim\r\n");
         tx("died, nine hundred years\r\n");
@@ -245,7 +245,7 @@ UBYTE mission_control() {
         tx("we could once again become\r\n");
         tx("the greatest smiths that\r\n");
         tx("there are...\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("- If you go to Nolrim's\r\n");
         tx("crypt, breach the traps my\r\n");
@@ -255,12 +255,12 @@ UBYTE mission_control() {
         tx("only give you the stone,\r\n");
         tx("but also lots of gold,and\r\n");
         tx("some dwarven treasures.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("- Nolrim's crypt is at\r\n");
         tx("%dx%d. Be careful, and\r\n", dx[5], dy[5]);
         tx("fare the well.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         sprintf(send, "%d Nolrim's Crypt is at %dx%d.\n", cpl, dx[5], dy[5]);
         journal(send);
@@ -295,14 +295,14 @@ UBYTE mission_control() {
         tx("to you to follow him,\r\n");
         tx("and guides you to his\r\n");
         tx("hut.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("Smiling, he offers you\r\n");
         tx("3578 gold coins and 3\r\n");
         tx("gems. You greedily accept\r\n");
         tx("the gift. He also hands\r\n");
         tx("you a purple dwarf stone.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         p[cpl].gold += 3578;
         for (i = 1; i < 17; i++)
@@ -364,7 +364,7 @@ UBYTE mission_control() {
             tx("and jewels! They spot\r\n");
             tx("you and run screaming\r\n");
             tx("to attack!\r\n\r\n");
-            pause();
+            ryl_pause();
             encounter(18, 1);
             update_map();
             clw();
@@ -377,7 +377,7 @@ UBYTE mission_control() {
             tx("sound and quickly turn\r\n");
             tx("around. An OGRE LORD has\r\n");
             tx("quietly entered the cave!\r\n\r\n");
-            pause();
+            ryl_pause();
             encounter(19, 1);
             update_map();
             clw();
@@ -387,7 +387,7 @@ UBYTE mission_control() {
             tx("You also find a Mithril\r\n");
             tx("Mail some unfortunate\r\n");
             tx("warrior has left here.\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             p[cpl].gold += 5645;
             for (i = 1; i < 17; i++) {
@@ -402,7 +402,7 @@ UBYTE mission_control() {
             tx("It is written in shaky\r\n");
             tx("hand with a strange\r\n");
             tx("brown ink...\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             tx("'THEY SHALL NOT HAVE THE\r\n");
             tx("FOOT! I'm dying and I'll\r\n");
@@ -412,10 +412,10 @@ UBYTE mission_control() {
             tx("here to the eastern peaks,\r\n");
             tx("Jazzy's regions.'\r\n");
             tx("         - Kastagir.\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             tx("You leave the cave.\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             p[cpl].flag[22] = 2;
         } else {
@@ -434,7 +434,7 @@ UBYTE mission_control() {
         tx("ivory statue in the shape\r\n");
         tx("of a human foot. THIS IS\r\n");
         tx("THE FOOT OF JAZZY!\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("Just as you touch it,\r\n");
         tx("the sky splits open and\r\n");
@@ -443,7 +443,7 @@ UBYTE mission_control() {
         tx("minions attack you, for\r\n");
         tx("the heresy they find you\r\n");
         tx("guilty of...\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         encounter(20, 1);
         update_map();
@@ -455,14 +455,14 @@ UBYTE mission_control() {
         tx("again, when suddenly,\r\n");
         tx("something EVEN MORE\r\n");
         tx("horrible happens...\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("A twenty foot tall\r\n");
         tx("being materializes\r\n");
         tx("in front of you! You will\r\n");
         tx("have to fight Jazzy,\r\n");
         tx("himself!\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         encounter(21, 1);
         update_map();
@@ -474,7 +474,7 @@ UBYTE mission_control() {
         tx("Nothingness. This time,\r\n");
         tx("when you pick up the foot,\r\n");
         tx("nothing happens.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         p[cpl].flag[22] = 3;
         p[cpl].jazzyfoot = 1;
@@ -506,7 +506,7 @@ UBYTE mission_control() {
         tx("Just before you is a\r\n");
         tx("caravan of hobgoblins on\r\n");
         tx("white, well-bred horses.\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("It is unusual that these\r\n");
         tx("foul creatures have such\r\n");
@@ -515,7 +515,7 @@ UBYTE mission_control() {
         tx("clue about the key, you\r\n");
         tx("emit a loud battle cry\r\n");
         tx("and attack!\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         encounter(22, 1);
         update_map();
@@ -528,11 +528,11 @@ UBYTE mission_control() {
         tx("at home, yess, %dx%d...\r\n", dx[9], dy[9]);
         tx("pleeez sirs, don't kill\r\n");
         tx("me...\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         tx("(at this point you sever\r\n");
         tx(" his carotid artery).\r\n\r\n");
-        pause();
+        ryl_pause();
         clw();
         sprintf(send, "%d The hobgoblin cave is at %dx%d.\n", cpl, dx[9], dy[9]);
         journal(send);

@@ -64,7 +64,7 @@ void foodhandler() {
         for (i = 1; i < 5; i++)
             if (p[cpl].hp[i] > 1)
                 p[cpl].hp[i]--;
-        pause();
+        ryl_pause();
         clw();
         return;
     }
@@ -81,7 +81,7 @@ void slumpvis() {
     long t;
     char c, kl[8];
     int r;
-    UBYTE rflag = 0;
+    uint8_t rflag = 0;
 
     getclk(kl);
     srand((unsigned int) kl[7]);
@@ -128,11 +128,11 @@ void slumpvis() {
             tx("- Tell ze sysop to\r\n");
             tx("  register, or we'll tear\r\n");
             tx("  yar guts out!!!\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             tx("- Ah, guess we can do\r\n");
             tx("  anyway...\r\n\r\n");
-            pause();
+            ryl_pause();
             encounter(31, 1);
             update_map();
             clw();
@@ -144,7 +144,7 @@ void slumpvis() {
             tx("100 extra moves per\r\n");
             tx("day with the registered\r\n");
             tx("version.\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             if (p[cpl].tid_kvar)
                 p[cpl].tid_kvar--;
@@ -179,7 +179,7 @@ void slumpvis() {
                 tx("You don't have enough\r\n");
                 tx("moves left to explore\r\n");
                 tx("the cave...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clr_map_window();
                 clw();
                 return;
@@ -221,7 +221,7 @@ void losegame() {
     tx("adventurers have all\r\n");
     tx("gone to meet their\r\n");
     tx("maker...\r\n\r\n");
-    pause();
+    ryl_pause();
     cleanexit();
 }
 
@@ -483,7 +483,7 @@ void armourr() {
     clw();
     return;
 }
-UBYTE drop() {
+uint8_t drop() {
     char d;
     int oc, i, y;
 
@@ -514,7 +514,7 @@ UBYTE drop() {
             }
             p[cpl].inventory[d - 64] = 0;
             clw();
-            return (UBYTE) (d - 64);
+            return (uint8_t) (d - 64);
         } else {
             tx("Nothing to drop.\r\n");
             Delay(30);
@@ -587,7 +587,7 @@ void camp() {
         tx("%s won't get any\r\n", sextext(d - 48, 1));
         tx("health back during\r\n");
         tx("this rest.\r\n\r\n");
-        pause();
+        ryl_pause();
     }
     clw();
     tx("Zzz...\r\n");
@@ -673,7 +673,7 @@ void camp() {
             p[cpl].hp[death] = 0;
             p[cpl].dead[death] = 1;
             p[cpl].pl--;
-            pause();
+            ryl_pause();
         }
         encounter((rand() % 10) + 1, 0);
         //		update_map();
@@ -681,7 +681,7 @@ void camp() {
         clw();
         tx("You wake up 8 hours\r\n");
         tx("later. Well rested.\r\n\r\n");
-        pause();
+        ryl_pause();
         clr_map_window();
         clw();
     }
@@ -739,7 +739,7 @@ void quaff() {
         case 36:
             tx("The healing brew warms\r\n");
             tx("%s inside...\r\n\r\n", sextext(c - 48, 2));
-            pause();
+            ryl_pause();
             clw();
             p[cpl].hp[c - 48] += (15 + p[cpl].lv[c - 48]);
             if (p[cpl].hp[c - 48] > p[cpl].h[c - 48])
@@ -750,7 +750,7 @@ void quaff() {
             tx("Horrible pain sears %s\r\n", sextext(c - 48, 3));
             tx("entrails as the poison\r\n");
             tx("begins to work.\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             p[cpl].hp[c - 48] -= (15 + p[cpl].lv[c - 48]);
             if (p[cpl].hp[c - 48] < 1)
@@ -762,13 +762,13 @@ void quaff() {
                 tx("It tingles slightly in\r\n");
                 tx("%s body, as all his\r\n", sextext(c - 48, 3));
                 tx("spell points return.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].ma[c - 48] = p[cpl].wi[c - 48];
             } else {
                 tx("The potion has no special\r\n");
                 tx("effect on this character.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
             }
             break;
@@ -816,12 +816,12 @@ void hunt() {
         tx("The party gains\r\n");
         tx("%d food rations.\r\n\r\n", fdplus);
         p[cpl].food += fdplus;
-        pause();
+        ryl_pause();
         clw();
         return;
     }
     tx("...but fails.\r\n\r\n");
-    pause();
+    ryl_pause();
     clw();
 }
 void spell(int place) {
@@ -982,7 +982,7 @@ void spell(int place) {
                 tx("target for this banishing.\r\n");
                 tx("This spell is meant for\r\n");
                 tx("use in dungeons and caves.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 break;
             }
@@ -997,7 +997,7 @@ void spell(int place) {
             tx("of thunder, and you hear\r\n");
             tx("beings scream in agony\r\n");
             tx("in the dungeon below...\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             banished = 1;
             break;
@@ -1015,7 +1015,7 @@ void spell(int place) {
                 tx("dungeons only, where there\r\n");
                 tx("is a limited radius for\r\n");
                 tx("the caster to enchant.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 break;
             }
@@ -1024,7 +1024,7 @@ void spell(int place) {
                 clw();
                 tx("There is nothing\r\n");
                 tx("special near.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 break;
             }
@@ -1089,7 +1089,7 @@ void spell(int place) {
             tid++;
             if (tid == 25)
                 tid = 1;
-            pause();
+            ryl_pause();
             clw();
             tx("%s picks up a stone slab\r\n", sextext(vem, 1));
             tx("from his satchel and\r\n");
@@ -1097,7 +1097,7 @@ void spell(int place) {
             tx("to scratch the direction\r\n");
             tx("%s wants you to teleport\r\n", sextext(vem, 1));
             tx("to.\r\n\r\n");
-            pause();
+            ryl_pause();
             clw();
             tx("Teleport :\r\n\r\n");
             tx("   8\r\n");
@@ -1150,7 +1150,7 @@ void spell(int place) {
             if (place == 1) {
                 tx("The roof would cave\r\n");
                 tx("in on you!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 break;
             }
@@ -1190,7 +1190,7 @@ void spell(int place) {
                     tx("You don't have enough\r\n");
                     tx("moves left to explore\r\n");
                     tx("the cave...\r\n\r\n");
-                    pause();
+                    ryl_pause();
                     clr_map_window();
                     clw();
                     break;
@@ -1211,10 +1211,10 @@ void spell(int place) {
 void scorelist() {
     FILE *fh;
     char str[144];
-    UBYTE i, j, xx, o, n, q;
-    ULONG pts[26], lvl[26], temp_ulong, kills[26];
+    uint8_t i, j, xx, o, n, q;
+    uint32_t pts[26], lvl[26], temp_ulong, kills[26];
     char pname[26][30], lname[26][30], temp_string[30];
-    UBYTE cls[26][5], item[26][6], pnr[26], temp_ubyte[26];
+    uint8_t cls[26][5], item[26][6], pnr[26], temp_ubyte[26];
 
     for (i = 1; i < antal_spelare + 1; i++) {
         pts[i] = (p[i].exp[1] + p[i].exp[2] + p[i].exp[3] + p[i].exp[4]) / 4;

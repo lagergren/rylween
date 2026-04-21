@@ -1,0 +1,26 @@
+#ifndef COMPAT_H__
+#define COMPAT_H__
+
+#include <stdint.h>
+#include <strings.h>
+#include <unistd.h>
+
+/* Amiga dos.library Delay() counts 50 ticks/sec, i.e. 20 ms per tick.
+   Mapping to sleep(n) gave multi-minute pauses; use usleep instead. */
+void Delay(uint32_t ticks);
+
+/* Amiga getclk() populated an 8-byte array. Index contract (audited):
+     kl[1] = year - 1980   (preserves "19%d" + kl[1]+80 idiom; Y2K cosmetic)
+     kl[2] = month 1..12
+     kl[3] = day of month 1..31
+     kl[4] = hour 0..23
+     kl[5] = minute 0..59
+     kl[7] = second 0..59
+   Other slots are zero-filled. */
+void getclk(char *kl);
+
+/* The old porting.h aliased stricmp -> strcmp, which broke case-insensitive
+   menu handling. Route to strcasecmp instead. */
+#define stricmp strcasecmp
+
+#endif

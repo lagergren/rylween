@@ -160,13 +160,13 @@ void speak(int bld, int tow, int xxx, int yyy) {
             if (!rumours) {
                 tx("%s tells you:\r\n\r\n", name[talk]);
                 rumour();
-                pause();
+                ryl_pause();
                 rumours = 1;
             } else {
                 tx("- Sorry. There's\r\n");
                 tx("nothing new I can\r\n");
                 tx("tell you.\r\n\r\n");
-                pause();
+                ryl_pause();
             }
         }
 
@@ -201,7 +201,7 @@ void speak(int bld, int tow, int xxx, int yyy) {
             tx("\r\n");
             reply_chitchat(x, npc[talk].job);
             tx("\r\n");
-            pause();
+            ryl_pause();
         }
 
         if (c == 'Q') {
@@ -282,7 +282,7 @@ void speak(int bld, int tow, int xxx, int yyy) {
                         break;
                 }
                 tx("\r\n");
-                pause();
+                ryl_pause();
             }
             if (d == 'M') {
                 tx("\r\n");
@@ -364,7 +364,7 @@ void speak(int bld, int tow, int xxx, int yyy) {
                         break;
                 }
                 tx("\r\n");
-                pause();
+                ryl_pause();
             }
             if (d == 'L') {
                 tx("\r\n");
@@ -461,7 +461,7 @@ void speak(int bld, int tow, int xxx, int yyy) {
                         break;
                 }
                 tx("\r\n");
-                pause();
+                ryl_pause();
             }
         }
     }
@@ -654,7 +654,7 @@ void flaggkoll(int vem) {
     char str[80];
     char send[144];
     char c, d;
-    UBYTE carry;
+    uint8_t carry;
 
     switch (vem) {
         /*****************************************************************/
@@ -664,7 +664,7 @@ void flaggkoll(int vem) {
                 tx("In fact, I have a mission\r\n");
                 tx("for you. It will bring\r\n");
                 tx("you much gold!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("I was robbed by bandits\r\n");
                 tx("just to the east of here.\r\n");
@@ -673,7 +673,7 @@ void flaggkoll(int vem) {
                 tx("my cargo here, I'll pay\r\n");
                 tx("you 2000 gold and a ruby\r\n");
                 tx("my grandfather gave me.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[1] = 1;
                 break;
@@ -702,7 +702,7 @@ void flaggkoll(int vem) {
                         Delay(40);
                     }
                 }
-                pause();
+                ryl_pause();
                 p[cpl].gold += 2000;
                 p[cpl].flag[1] = 3;
                 clw();
@@ -725,14 +725,14 @@ void flaggkoll(int vem) {
                 tx("- Greetings, adventurers.\r\n");
                 tx("I have a mission for you.\r\n");
                 tx("He hands you a letter.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- If you deliver this\r\n");
                 tx("to my brother, %s,\r\n", name[14]);
                 tx("who lives %s,\r\n", str);
                 tx("he will give you\r\n");
                 tx("a great weapon!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 sprintf(send, "%d %s, the Ranger lives %s\n", cpl, name[14], str);
                 journal(send);
@@ -761,7 +761,7 @@ void flaggkoll(int vem) {
                 tx("of this, because of my\r\n");
                 tx("Dancing Blade. I have\r\n");
                 tx("no use for this weapon\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("anymore, and I will give\r\n");
                 tx("it to you, if you do me a\r\n");
@@ -772,13 +772,13 @@ void flaggkoll(int vem) {
                 tx("it to him. However, I\r\n");
                 tx("haven't heard much from\r\n");
                 tx("him lately.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("%s lives\r\n", name[5]);
                 tx("%s.\r\n\r\n", str);
                 sprintf(send, "%d %s, %s's friend lives %s\n", cpl, name[5], name[3], str);
                 journal(send);
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[3] = 1;
             }
@@ -789,7 +789,7 @@ void flaggkoll(int vem) {
                 tx("and gives you a WONDERFUL\r\n");
                 tx("blade. It sparkles in\r\n");
                 tx("the light!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[3] = 4;
                 for (i = 1, x = 0; i < 17; i++) {
@@ -810,7 +810,7 @@ void flaggkoll(int vem) {
                         p[cpl].inventory[carry] = 18;
                         Delay(40);
                     }
-                    pause();
+                    ryl_pause();
                 }
             }
             break;
@@ -826,7 +826,7 @@ void flaggkoll(int vem) {
                 tx("He throws it at you and\r\n");
                 tx("flees...\r\n\r\n");
                 p[cpl].flag[3] = 3;
-                pause();
+                ryl_pause();
                 clw();
             }
             break;
@@ -841,7 +841,7 @@ void flaggkoll(int vem) {
                 tx("called %s stole it\r\n", name[4]);
                 tx("from my bedroom a week\r\n");
                 tx("ago...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("He quickly fled, but I\r\n");
                 tx("know it's him, because\r\n");
@@ -849,14 +849,14 @@ void flaggkoll(int vem) {
                 tx("it, and tried to steal\r\n");
                 tx("it from me when I was\r\n");
                 tx("having dinner.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("I don't know his\r\n");
                 tx("whereabouts, but please\r\n");
                 tx("find the book and\r\n");
                 tx("take it back to %s\r\n", name[3]);
                 tx("if you can.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[3] = 2;
                 /* GIZZARD */
@@ -868,7 +868,7 @@ void flaggkoll(int vem) {
                 clw();
                 tx("- There is an item of\r\n");
                 tx("great power, he hisses.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- It is called the\r\n");
                 tx("SILVER KEY. It has taken\r\n");
@@ -878,12 +878,12 @@ void flaggkoll(int vem) {
                 tx("by a guardian telling me\r\n");
                 tx("that 'only those of pure\r\n");
                 tx("heart can enter'.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- I fled for my life as\r\n");
                 tx("horned creatures chased\r\n");
                 tx("me through the woods.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("I have an offer to make\r\n");
                 tx("thee. I will sell you\r\n");
@@ -893,7 +893,7 @@ void flaggkoll(int vem) {
                 tx("resonable. 10000 gold for\r\n");
                 tx("each of those fruitless\r\n");
                 tx("years.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- Deal? \r\n\r\n");
                 tx("(B)uy it\r\n");
@@ -906,7 +906,7 @@ void flaggkoll(int vem) {
                         tx("- Sorry! 50000! No more\r\n");
                         tx("no less. Come back when\r\n");
                         tx("you have the gold.\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         clw();
                         break;
                     }
@@ -920,7 +920,7 @@ void flaggkoll(int vem) {
                     p[cpl].flag[6] = 1;
                     sprintf(send, "%d The Pit of the Silver Key is at %dx%d\n", cpl, dx[8], dy[8]);
                     journal(send);
-                    pause();
+                    ryl_pause();
                     clw();
                     break;
                 } else
@@ -937,18 +937,18 @@ void flaggkoll(int vem) {
                 tx("magical properties\r\n");
                 tx("exists somewhere in\r\n");
                 tx("the realm.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- Erethor is a mighty\r\n");
                 tx("demon...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- I am a very poor man\r\n");
                 tx("myself, but I know of\r\n");
                 tx("the Cloak of Gods,\r\n");
                 tx("the most powerful of\r\n");
                 tx("all armours. I will\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("trade this information\r\n");
                 tx("if you find me Erethor's\r\n");
@@ -958,7 +958,7 @@ void flaggkoll(int vem) {
                 tx("blasphemous magic is\r\n");
                 tx("located at 6x20, near\r\n");
                 tx("the western peaks.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- This may be a dangerous\r\n");
                 tx("mission for such a\r\n");
@@ -966,7 +966,7 @@ void flaggkoll(int vem) {
                 tx("Cloak will make it's\r\n");
                 tx("bearer almost\r\n");
                 tx("invulnerable.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 sprintf(send, "%d Erethor's temple is situated at 6x20.\n", cpl);
                 journal(send);
@@ -976,7 +976,7 @@ void flaggkoll(int vem) {
                 clw();
                 tx("You hand him the\r\n");
                 tx("golden lute...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- I can't believe you\r\n");
                 tx("actually made it!!!\r\n\r\n");
@@ -984,7 +984,7 @@ void flaggkoll(int vem) {
                 tx("the deal. Listen closely,\r\n");
                 tx("for I shall say this only\r\n");
                 tx("once.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- Take this note here\r\n");
                 tx("and seek out my friend\r\n");
@@ -1003,7 +1003,7 @@ void flaggkoll(int vem) {
                 tx("%s\r\r\n", str);
                 sprintf(send, "%d %s", cpl, str);
                 journal(send);
-                pause();
+                ryl_pause();
                 clw();
                 tx("- We used to travel\r\n");
                 tx("together and he found\r\n");
@@ -1013,12 +1013,12 @@ void flaggkoll(int vem) {
                 tx("Cloak is yours. Just\r\n");
                 tx("deliver this explaining\r\n");
                 tx("note!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("He hands you a piece of\r\n");
                 tx("paper and bids you\r\n");
                 tx("farewell.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[8] = 3;
             }
@@ -1035,7 +1035,7 @@ void flaggkoll(int vem) {
                 tx("of Thun, which is one of\r\n");
                 tx("the objects that can\r\n");
                 tx("destroy baron Ydarg!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- I will sell it to you\r\n");
                 tx("for 10000 gold pieces!\r\n\r\n");
@@ -1049,7 +1049,7 @@ void flaggkoll(int vem) {
                         tx("- Sorry! 10000! No more\r\n");
                         tx("no less. Come back when\r\n");
                         tx("you have the gold.\r\n\r\n");
-                        pause();
+                        ryl_pause();
                         clw();
                         break;
                     }
@@ -1063,7 +1063,7 @@ void flaggkoll(int vem) {
                     sprintf(send, "%d The Temple of Thun is at %dx%d\n", cpl, dx[2], dy[2]);
                     journal(send);
                     p[cpl].flag[13] = 1;
-                    pause();
+                    ryl_pause();
                     clw();
                     break;
                 } else
@@ -1080,7 +1080,7 @@ void flaggkoll(int vem) {
                 tx("great news. I will give\r\n");
                 tx("you this sword for\r\n");
                 tx("delivering the letter!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("He produces a sparkling\r\n");
                 tx("sword and wishes you a\r\n");
@@ -1104,7 +1104,7 @@ void flaggkoll(int vem) {
                         Delay(40);
                     }
                 }
-                pause();
+                ryl_pause();
                 p[cpl].flag[2] = 2;
                 clw();
                 break;
@@ -1133,14 +1133,14 @@ void flaggkoll(int vem) {
                 tx("this ring and show it\r\n");
                 tx("to him. You are better fit\r\n");
                 tx("for this mission than me.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("%s lives\r\n", name[23]);
                 tx("%s\r\n\r\n", str);
                 sprintf(send, "%d %s lives %s.\n", cpl, name[23], str);
                 journal(send);
                 p[cpl].flag[15] = 1;
-                pause();
+                ryl_pause();
                 clw();
             }
             break;
@@ -1158,19 +1158,19 @@ void flaggkoll(int vem) {
                 tx("travelling blacksmith\r\n");
                 tx("who was interested in\r\n");
                 tx("its metalurgic structure.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("After breaking a few\r\n");
                 tx("of his teeth, he also\r\n");
                 tx("willinly reveals that\r\n");
                 tx("the smith went by the\r\n");
                 tx("name of %s...\r\n\r\n", name[24]);
-                pause();
+                ryl_pause();
                 clw();
                 tx("You let go of your grip\r\n");
                 tx("of his collar, and he\r\n");
                 tx("falls to the floor.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
             }
             break;
@@ -1184,20 +1184,20 @@ void flaggkoll(int vem) {
                 tx("a ransom for her. I will\r\n");
                 tx("give you my entire fortune\r\n");
                 tx("if you retrieve her.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("About 3000 gold coins,\r\n");
                 tx("a fine armour, and\r\n");
                 tx("some strange items my\r\n");
                 tx("father left me, will be\r\n");
                 tx("yours if you rescue her.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("The orcs have a cave\r\n");
                 tx("at 42x23 in Lonewood.\r\n\r\n");
                 sprintf(send, "%d The orc cavern is at 42x23.\n", cpl);
                 journal(send);
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[19] = 1;
             }
@@ -1209,7 +1209,7 @@ void flaggkoll(int vem) {
                 tx("her. When they have had\r\n");
                 tx("this happy reunion, he\r\n");
                 tx("motions to you to follow.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("He hands you 3000 gold,\r\n");
                 tx("an Adamantium Armour of\r\n");
@@ -1218,7 +1218,7 @@ void flaggkoll(int vem) {
                 tx("objects. (An amber potion\r\n");
                 tx("a holy handgrenade, a\r\n");
                 tx("fire wand and a crystal.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[19] = 3;
                 p[cpl].gold += 3000;
@@ -1256,7 +1256,7 @@ void flaggkoll(int vem) {
                     clw();
                     tx("You can't carry all the\r\n");
                     tx("items...\r\n\r\n");
-                    pause();
+                    ryl_pause();
                 }
                 clw();
             }
@@ -1271,7 +1271,7 @@ void flaggkoll(int vem) {
                 tx("shakes all your hands\r\n");
                 tx("and produces a purple\r\n");
                 tx("cloak.\r\n\r\n");
-                pause();
+                ryl_pause();
                 for (i = 1, x = 0; i < 17; i++)
                     if (p[cpl].inventory[i] == 0) {
                         p[cpl].inventory[i] = 28;
@@ -1290,7 +1290,7 @@ void flaggkoll(int vem) {
                         Delay(40);
                         p[cpl].inventory[carry] = 28;
                     }
-                    pause();
+                    ryl_pause();
                 }
                 clw();
                 tx("He bids you farewell\r\n");
@@ -1298,7 +1298,7 @@ void flaggkoll(int vem) {
                 tx("he'll travel to\r\n");
                 tx("%s the very\r\n", name[8]);
                 tx("next day...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[8] = 4;
             }
@@ -1315,13 +1315,13 @@ void flaggkoll(int vem) {
                 tx("I will give you the\r\n");
                 tx("information if you do\r\n");
                 tx("three tasks for me.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("(Since there is nothing\r\n");
                 tx("else you can do,you agree\r\n");
                 tx("to complete the three\r\n");
                 tx("tasks).\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- Firstly, I want you to\r\n");
                 tx("go to the kobold lair at\r\n");
@@ -1332,7 +1332,7 @@ void flaggkoll(int vem) {
                 tx("attacked us. Farewell.\r\n\r\n");
                 sprintf(send, "%d The kobold lair is at %dx%d.\n", cpl, dx[3], dy[3]);
                 journal(send);
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[15] = 2;
                 p[cpl].flag[23] = 1;
@@ -1346,7 +1346,7 @@ void flaggkoll(int vem) {
                 tx("- WELL DONE! I will now\r\n");
                 tx("grant you the second\r\n");
                 tx("quest.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- Being a magician, I'm\r\n");
                 tx("always in search for\r\n");
@@ -1357,7 +1357,7 @@ void flaggkoll(int vem) {
                 tx("purple with small green\r\n");
                 tx("twigs. Find this plant\r\n");
                 tx("plant for me!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[23] = 3;
                 break;
@@ -1373,7 +1373,7 @@ void flaggkoll(int vem) {
                 tx("stone of magnetic iron\r\n");
                 tx("which gives the wielder\r\n");
                 tx("the power of levitation.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- Begin your search in\r\n");
                 tx("the dwarven colony, near\r\n");
@@ -1383,7 +1383,7 @@ void flaggkoll(int vem) {
                 tx("anger.\r\n\r\n");
                 sprintf(send, "%d The dwarf village is at %dx%d.\n", cpl, dx[4], dy[4]);
                 journal(send);
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[23] = 5;
                 break;
@@ -1400,7 +1400,7 @@ void flaggkoll(int vem) {
                 tx("Fare thee well.\r\n\r\n");
                 sprintf(send, "%d The Master Crown dungeon is at %dx%d.\n", cpl, dx[6], dy[6]);
                 journal(send);
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[23] = 9;
                 break;
@@ -1413,7 +1413,7 @@ void flaggkoll(int vem) {
                 tx("You ask him if he still\r\n");
                 tx("has the Key, prepared\r\n");
                 tx("for the worst...\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- Nah, sorry. I kinda\r\n");
                 tx("studied it enough and\r\n");
@@ -1422,14 +1422,14 @@ void flaggkoll(int vem) {
                 tx("on the road between Wilor\r\n");
                 tx("and Ollk I was caught by\r\n");
                 tx("filthy hobgoblins!\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- I managed to get away,\r\n");
                 tx("but they followed me! Just\r\n");
                 tx("to the south-west of here\r\n");
                 tx("one of their arrows hit\r\n");
                 tx("my horse.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- They clubbed me\r\n");
                 tx("unconcious and took all\r\n");
@@ -1437,7 +1437,7 @@ void flaggkoll(int vem) {
                 tx("that key. Find them and\r\n");
                 tx("take it back. It's yours\r\n");
                 tx("if you get it.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[6] = 4;
             }
@@ -1451,12 +1451,12 @@ void flaggkoll(int vem) {
                 tx("- ME VERY POOR! SELL\r\n");
                 tx("YOU INFORMATION ABOUT\r\n");
                 tx("FOOT OF JAZZY, YES?\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 tx("- LET US TRADE! OFFER\r\n");
                 tx("ITEM AND I'LL TELL YA!\r\n\r\n");
                 tx("(You offer him something).\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 invlist();
                 d = key();
@@ -1478,7 +1478,7 @@ void flaggkoll(int vem) {
                         journal(send);
                         p[cpl].flag[22] = 1;
                         p[cpl].inventory[d - 64] = 0;
-                        pause();
+                        ryl_pause();
                         clw();
                         break;
                     }
@@ -1497,7 +1497,7 @@ void flaggkoll(int vem) {
                 tx("Go find me teeth of\r\n");
                 tx("a troll, and I will\r\n");
                 tx("tell you about it.\r\n\r\n");
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[33] = 1;
             }
@@ -1513,7 +1513,7 @@ void flaggkoll(int vem) {
                 tx("gave birth too...\r\n\r\n");
                 sprintf(send, "%d The Fire Shield Dungeon is at %dx%d.\n", cpl, dx[1], dy[1]);
                 journal(send);
-                pause();
+                ryl_pause();
                 clw();
                 p[cpl].flag[33] = 3;
             }
