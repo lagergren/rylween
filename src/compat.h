@@ -1,6 +1,7 @@
 #ifndef COMPAT_H__
 #define COMPAT_H__
 
+#include <stddef.h>
 #include <stdint.h>
 #include <strings.h>
 #include <unistd.h>
@@ -22,5 +23,8 @@ void getclk(char *kl);
 /* The old porting.h aliased stricmp -> strcmp, which broke case-insensitive
    menu handling. Route to strcasecmp instead. */
 #define stricmp strcasecmp
+
+/* Bounded append: dst must already be NUL-terminated within [0, dst_sz). */
+void str_append(char *dst, size_t dst_sz, const char *src);
 
 #endif

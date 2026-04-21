@@ -446,6 +446,144 @@ don't depend on the language choice; the per-step details do.
     existing `!` redraw path.
 24. Persist saves to `~/.rylween/` so `data/` can be read-only.
 
+### Phase 5b — lift globals into a `ryl_state` struct
+
+The code is globals-heavy by BBS-door convention: one process, one
+party, all state file-scope. That convention was fine for Xenolink;
+it fights every modernization goal after it. Concretely:
+
+- Phase 6 (data-driven engine) reads and writes state on every call;
+  a threaded state pointer is what makes the resource loader, the
+  dialogue interpreter, and the mission state machines expressible
+  without touching `extern` soup.
+- Save/load today is `fwrite(p, sizeof p, 1, f)` across 25 party
+  slots plus side-band globals. A single `fwrite(state, sizeof
+  *state, 1, f)` collapses the format — but only once the side-band
+  globals are *in* the struct.
+- Testability: a `ryl_state *` the test harness can construct and
+  inspect is the difference between "I played it and it seemed to
+  work" and regression tests.
+- Future backends (SSH server, WebSocket) will want to run multiple
+  sessions in one process. That's impossible with file-scope state;
+  trivial with a per-session struct.
+
+**Scope.** Touches roughly every function in `ryl.h` (~120
+prototypes) and ~1500 call sites (706 `p[cpl]` refs plus ~885 scalar-
+global refs as of 2026-04-21). Net LOC delta is small — it's
+a signature/parameter shuffle, not logic — but it touches every file.
+
+**Why between Phase 5 and Phase 6, not earlier or later.** Doing it
+before the game boots (Phase 4) means finishing the port twice:
+once with globals to prove the game runs, once without. Doing it
+after Phase 6 means the resource loader, dialogue interpreter, and
+mission tables all get written *around* the globals and then
+retrofitted. The only time this is cheap is when the game runs,
+the call sites haven't yet been touched by §9 work, and there are no
+active feature branches.
+
+**Struct shape.** One struct, three regions:
+
+```c
+typedef struct ryl_state {
+    /* --- Persistent: serialized to save file --- */
+    struct party  p[26];
+    struct person npc[41];
+    char          map[42][82];
+    int           dx[15], dy[15];
+    int           antal_spelare;
+    int           senaste_dagen;
+    int           day_at_game_start;
+
+    /* --- Session runtime: reset per login --- */
+    int           cpl;          /* current party index 1..25        */
+    int           tid;          /* hour of day 0..24                */
+    int           twn;          /* current town id or 0             */
+    int           hours_pigg;
+    int           banished;
+    int           reg;          /* registered? (Phase 5 hard-codes 1) */
+    char          global_name[30];
+    char          last_terrain;
+
+    /* --- Render cursor: fed from primitives.c --- */
+    int           global_x;
+
+    /* --- I/O backend (moves here from primitives.c file scope) --- */
+    io_backend   *io;
+} ryl_state;
+```
+
+Keep the save region first so `fwrite(state, offsetof(ryl_state,
+cpl), 1, f)` still produces a flat persistent blob — or introduce a
+split save struct and a `state->save` sub-struct. Pick whichever is
+cheaper when you get there; the shape above favors the `offsetof`
+trick.
+
+**Threading strategy.**
+
+1. Define `ryl_state` in a new `src/state.h`. Allocate one in
+   `main()`: `ryl_state S = {0}; ryl_state *s = &S;`.
+2. Add `ryl_state *s` as the *first* parameter to every function in
+   `ryl.h` — machine-edit with a semantic patch (`coccinelle`) or
+   a scripted sed + clang-format. Signature convention: `s` first,
+   game args after.
+3. Replace every reference to `cpl`, `tid`, `p[...]`, `npc[...]`,
+   `map[...]`, etc. with `s->cpl`, `s->tid`, `s->p[...]`, and so on.
+   Again: scripted. The identifier set is small (14 scalars + 5
+   arrays/tables) and non-overlapping with local variables.
+4. Delete the `extern` declarations from `ryl.h` and the
+   definitions from `ryl.c:6-14`.
+5. Audit for accidental shadows: several functions use `int cpl`
+   as a *local* — harmless today because the local shadows the
+   global, but after the refactor `s->cpl` is the only `cpl`, so
+   rename the locals first to avoid silent semantic changes.
+6. Primitives (`tx`, `c`, `cl`, `clw`, `hotkey`, …) also take `s`
+   — they need `s->io` and `s->global_x`. This collapses the
+   `io_backend *io` file-scope pointer currently in
+   `primitives.c`.
+
+**Compatibility.** Save format: `p[26]` today is `fwrite`d as an
+array; after the refactor it's a field inside `ryl_state`. Either
+(a) keep a `write_save(state)` wrapper that writes the same byte
+layout as today (just `fwrite(state->p, sizeof state->p, 1, f)`),
+or (b) bump the save format version and stop pretending old Amiga
+`REALM.DAT` files should load. (a) is cheaper and preserves any
+field-tested save files; (b) is cleaner once §9 data work lands.
+Decision can wait until the refactor is in flight.
+
+**Tooling.** Coccinelle is the right weight for this:
+
+```cocci
+@@ identifier f; @@
+- f(
++ f(ryl_state *s,
+  ...
+) { ... }
+
+@@ @@
+- cpl
++ s->cpl
+```
+
+…one rule per identifier. An LLM-assisted sed pass works too, but
+Coccinelle understands C scoping and won't rewrite `int cpl` locals
+unless you ask it to.
+
+**Test strategy.** No existing test suite. Before starting:
+
+1. Record a scripted input run (a deterministic seed + a fixed
+   sequence of keystrokes) that exercises login, movement, combat,
+   town interaction, save/load. Capture the screen-output byte
+   stream.
+2. After the refactor, replay the same input and diff the output.
+   Zero diff = refactor didn't change behavior. Non-zero diff =
+   bisect the regression.
+
+This also pays for itself in Phase 6.
+
+**Estimated effort:** 2-3 days. Most of the time is scripting the
+mechanical edit and auditing shadows; the rest is the input-replay
+harness.
+
 ## 8. Things that will bite you
 
 - `getstr()` stack-pointer return (`ryl.c:123`), unchecked `sprintf`,
@@ -477,7 +615,9 @@ the abstractions you're already stacking up:
 
 1. §4 — Abstract the I/O boundary → engine is independent of transport.
 2. §5 — Extract ANSI tile art → art is data.
-3. §9 — Extract text, items, spells, NPCs, towns, missions → content is
+3. §7 Phase 5b — Lift globals into a `ryl_state` struct → engine is
+   re-entrant and testable.
+4. §9 — Extract text, items, spells, NPCs, towns, missions → content is
    data.
 
 What's left in code after all three is the **engine**: turn loop, map
@@ -717,6 +857,7 @@ enormously easier than porting from a non-running source.
 | Makefile | 1 new | +15 |
 | Tile extraction: `gfx.c` → `data/tiles/*.ans` (§5) | 1 edited, 24 new | -250 code, +24 data files |
 | Phase 4/5 polish (`Delay` audit, `getclk`, UTF-8 conv, SIGWINCH) | ~5 | +100 |
+| Phase 5b: globals → `ryl_state` (signature + ref rewrite) | ~14 | ±0 logic, ~1500 site touches |
 | **Net** | | **roughly -3800 code, +550 code, +24 data files** |
 
 Most of the "work" is deletions. C++17 path adds ~1 day of C-as-C++

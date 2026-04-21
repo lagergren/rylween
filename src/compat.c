@@ -1,6 +1,7 @@
 #include "compat.h"
 
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -34,4 +35,10 @@ void getclk(char *kl) {
     kl[5] = (char) tm->tm_min;
     kl[6] = (char) tm->tm_wday;
     kl[7] = (char) tm->tm_sec;
+}
+
+void str_append(char *dst, size_t dst_sz, const char *src) {
+    size_t n = strlen(dst);
+    if (n + 1 < dst_sz)
+        snprintf(dst + n, dst_sz - n, "%s", src);
 }

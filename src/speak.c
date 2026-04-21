@@ -713,15 +713,15 @@ void flaggkoll(int vem) {
         case 2:
             if (p[cpl].flag[2] == 0) {
                 if (npc[14].towne == 1)
-                    sprintf(str, "in Thord");
+                    snprintf(str, sizeof str, "in Thord");
                 if (npc[14].towne == 2)
-                    sprintf(str, "in Ollk");
+                    snprintf(str, sizeof str, "in Ollk");
                 if (npc[14].towne == 3)
-                    sprintf(str, "in Wilor");
+                    snprintf(str, sizeof str, "in Wilor");
                 if (npc[14].towne == 4)
-                    sprintf(str, "in Murn");
+                    snprintf(str, sizeof str, "in Murn");
                 if (npc[14].towne == 0)
-                    sprintf(str, "at %dx%d", npc[14].x, npc[14].y);
+                    snprintf(str, sizeof str, "at %dx%d", npc[14].x, npc[14].y);
                 tx("- Greetings, adventurers.\r\n");
                 tx("I have a mission for you.\r\n");
                 tx("He hands you a letter.\r\n\r\n");
@@ -734,7 +734,7 @@ void flaggkoll(int vem) {
                 tx("a great weapon!\r\n\r\n");
                 ryl_pause();
                 clw();
-                sprintf(send, "%d %s, the Ranger lives %s\n", cpl, name[14], str);
+                snprintf(send, sizeof send, "%d %s, the Ranger lives %s\n", cpl, name[14], str);
                 journal(send);
                 p[cpl].flag[2] = 1;
             }
@@ -743,15 +743,15 @@ void flaggkoll(int vem) {
         case 3:
             if (p[cpl].flag[3] == 0) {
                 if (npc[5].towne == 1)
-                    sprintf(str, "in Thord");
+                    snprintf(str, sizeof str, "in Thord");
                 if (npc[5].towne == 2)
-                    sprintf(str, "in Ollk");
+                    snprintf(str, sizeof str, "in Ollk");
                 if (npc[5].towne == 3)
-                    sprintf(str, "in Wilor");
+                    snprintf(str, sizeof str, "in Wilor");
                 if (npc[5].towne == 4)
-                    sprintf(str, "in Murn");
+                    snprintf(str, sizeof str, "in Murn");
                 if (npc[5].towne == 0)
-                    sprintf(str, "at %dx%d", npc[5].x, npc[5].y);
+                    snprintf(str, sizeof str, "at %dx%d", npc[5].x, npc[5].y);
                 clw();
                 tx("- Greetings. Once upon\r\n");
                 tx("a time, I was a mighty\r\n");
@@ -776,7 +776,7 @@ void flaggkoll(int vem) {
                 clw();
                 tx("%s lives\r\n", name[5]);
                 tx("%s.\r\n\r\n", str);
-                sprintf(send, "%d %s, %s's friend lives %s\n", cpl, name[5], name[3], str);
+                snprintf(send, sizeof send, "%d %s, %s's friend lives %s\n", cpl, name[5], name[3], str);
                 journal(send);
                 ryl_pause();
                 clw();
@@ -918,7 +918,7 @@ void flaggkoll(int vem) {
                     tx("of the Key is at\r\n");
                     tx("%dx%d!\r\n\r\n", dx[8], dy[8]);
                     p[cpl].flag[6] = 1;
-                    sprintf(send, "%d The Pit of the Silver Key is at %dx%d\n", cpl, dx[8], dy[8]);
+                    snprintf(send, sizeof send, "%d The Pit of the Silver Key is at %dx%d\n", cpl, dx[8], dy[8]);
                     journal(send);
                     ryl_pause();
                     clw();
@@ -968,7 +968,7 @@ void flaggkoll(int vem) {
                 tx("invulnerable.\r\n\r\n");
                 ryl_pause();
                 clw();
-                sprintf(send, "%d Erethor's temple is situated at 6x20.\n", cpl);
+                snprintf(send, sizeof send, "%d Erethor's temple is situated at 6x20.\n", cpl);
                 journal(send);
                 p[cpl].flag[8] = 1;
             }
@@ -991,17 +991,17 @@ void flaggkoll(int vem) {
                 tx("%s. He is also a\r\n", name[20]);
                 tx("minstrel.\r\n");
                 if (npc[20].towne == 1)
-                    sprintf(str, "%s lives in Thord.\n", name[20]);
+                    snprintf(str, sizeof str, "%s lives in Thord.\n", name[20]);
                 if (npc[20].towne == 2)
-                    sprintf(str, "%s lives in Ollk.\n", name[20]);
+                    snprintf(str, sizeof str, "%s lives in Ollk.\n", name[20]);
                 if (npc[20].towne == 3)
-                    sprintf(str, "%s lives in Wilor.\n", name[20]);
+                    snprintf(str, sizeof str, "%s lives in Wilor.\n", name[20]);
                 if (npc[20].towne == 4)
-                    sprintf(str, "%s lives in Murn.\n", name[20]);
+                    snprintf(str, sizeof str, "%s lives in Murn.\n", name[20]);
                 if (npc[20].towne == 0)
-                    sprintf(str, "%s lives at %dx%d.\n", name[20], npc[20].x, npc[20].y);
+                    snprintf(str, sizeof str, "%s lives at %dx%d.\n", name[20], npc[20].x, npc[20].y);
                 tx("%s\r\r\n", str);
-                sprintf(send, "%d %s", cpl, str);
+                snprintf(send, sizeof send, "%d %s", cpl, str);
                 journal(send);
                 ryl_pause();
                 clw();
@@ -1060,7 +1060,7 @@ void flaggkoll(int vem) {
                     tx("tells you that the temple\r\n");
                     tx("of Thun is situated at\r\n");
                     tx("%dx%d!\r\n\r\n", dx[2], dy[2]);
-                    sprintf(send, "%d The Temple of Thun is at %dx%d\n", cpl, dx[2], dy[2]);
+                    snprintf(send, sizeof send, "%d The Temple of Thun is at %dx%d\n", cpl, dx[2], dy[2]);
                     journal(send);
                     p[cpl].flag[13] = 1;
                     ryl_pause();
@@ -1114,15 +1114,15 @@ void flaggkoll(int vem) {
         case 15:
             if (p[cpl].flag[15] == 0) {
                 if (npc[23].towne == 1)
-                    sprintf(str, "in Thord");
+                    snprintf(str, sizeof str, "in Thord");
                 if (npc[23].towne == 2)
-                    sprintf(str, "in Ollk");
+                    snprintf(str, sizeof str, "in Ollk");
                 if (npc[23].towne == 3)
-                    sprintf(str, "in Wilor");
+                    snprintf(str, sizeof str, "in Wilor");
                 if (npc[23].towne == 4)
-                    sprintf(str, "in Murn");
+                    snprintf(str, sizeof str, "in Murn");
                 if (npc[23].towne == 0)
-                    sprintf(str, "at %dx%d", npc[23].x, npc[23].y);
+                    snprintf(str, sizeof str, "at %dx%d", npc[23].x, npc[23].y);
                 clw();
                 tx("I heard that a man called\r\n");
                 tx("%s knows of the\r\n", name[23]);
@@ -1137,7 +1137,7 @@ void flaggkoll(int vem) {
                 clw();
                 tx("%s lives\r\n", name[23]);
                 tx("%s\r\n\r\n", str);
-                sprintf(send, "%d %s lives %s.\n", cpl, name[23], str);
+                snprintf(send, sizeof send, "%d %s lives %s.\n", cpl, name[23], str);
                 journal(send);
                 p[cpl].flag[15] = 1;
                 ryl_pause();
@@ -1195,7 +1195,7 @@ void flaggkoll(int vem) {
                 clw();
                 tx("The orcs have a cave\r\n");
                 tx("at 42x23 in Lonewood.\r\n\r\n");
-                sprintf(send, "%d The orc cavern is at 42x23.\n", cpl);
+                snprintf(send, sizeof send, "%d The orc cavern is at 42x23.\n", cpl);
                 journal(send);
                 ryl_pause();
                 clw();
@@ -1330,7 +1330,7 @@ void flaggkoll(int vem) {
                 tx("home village, and the foul\r\n");
                 tx("creatures have many times\r\n");
                 tx("attacked us. Farewell.\r\n\r\n");
-                sprintf(send, "%d The kobold lair is at %dx%d.\n", cpl, dx[3], dy[3]);
+                snprintf(send, sizeof send, "%d The kobold lair is at %dx%d.\n", cpl, dx[3], dy[3]);
                 journal(send);
                 ryl_pause();
                 clw();
@@ -1381,7 +1381,7 @@ void flaggkoll(int vem) {
                 tx("the dwarves with respect,\r\n");
                 tx("for they are swift to\r\n");
                 tx("anger.\r\n\r\n");
-                sprintf(send, "%d The dwarf village is at %dx%d.\n", cpl, dx[4], dy[4]);
+                snprintf(send, sizeof send, "%d The dwarf village is at %dx%d.\n", cpl, dx[4], dy[4]);
                 journal(send);
                 ryl_pause();
                 clw();
@@ -1398,7 +1398,7 @@ void flaggkoll(int vem) {
                 tx("Master Crown is hidden in\r\n");
                 tx("a dungeon near %dx%d!\r\n", dx[6], dy[6]);
                 tx("Fare thee well.\r\n\r\n");
-                sprintf(send, "%d The Master Crown dungeon is at %dx%d.\n", cpl, dx[6], dy[6]);
+                snprintf(send, sizeof send, "%d The Master Crown dungeon is at %dx%d.\n", cpl, dx[6], dy[6]);
                 journal(send);
                 ryl_pause();
                 clw();
@@ -1474,7 +1474,7 @@ void flaggkoll(int vem) {
                         tx("- YEEES! NICE NIICE!\r\n");
                         tx("GO TO CAVE AT %dx%d!\r\n", dx[7], dy[7]);
                         tx("BEAST HAS THE FOOT.\r\n\r\n");
-                        sprintf(send, "%d The 'Beast Cave' is at %dx%d.\n", cpl, dx[7], dy[7]);
+                        snprintf(send, sizeof send, "%d The 'Beast Cave' is at %dx%d.\n", cpl, dx[7], dy[7]);
                         journal(send);
                         p[cpl].flag[22] = 1;
                         p[cpl].inventory[d - 64] = 0;
@@ -1511,7 +1511,7 @@ void flaggkoll(int vem) {
                 tx("seek. Beware of the\r\n");
                 tx("guardian the ancients\r\n");
                 tx("gave birth too...\r\n\r\n");
-                sprintf(send, "%d The Fire Shield Dungeon is at %dx%d.\n", cpl, dx[1], dy[1]);
+                snprintf(send, sizeof send, "%d The Fire Shield Dungeon is at %dx%d.\n", cpl, dx[1], dy[1]);
                 journal(send);
                 ryl_pause();
                 clw();

@@ -313,6 +313,7 @@ char *kar(char t) {
         case '2':
             return "CC";
     }
+    return "  ";
 }
 
 void weaponoff() {
@@ -485,13 +486,12 @@ void armourr() {
 }
 uint8_t drop() {
     char d;
-    int oc, i, y;
+    int i, y;
 
     clw();
     invlist();
     d = key();
     d = toupper(d);
-    oc = 0;
     if (d >= 'A' && d <= 'P') {
         clw();
         if (p[cpl].inventory[d - 64]) {
@@ -1284,7 +1284,7 @@ void scorelist() {
     if (!(fh = fopen("data/vscore.txt", "w")))
         return;
 
-    sprintf(str, "%c\n", 12);
+    snprintf(str, sizeof str, "%c\n", 12);
     fputs(str, fh);
     fputs(" +============================================================================+\n", fh);
     fputs(" I              ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES              I\n", fh);
@@ -1292,39 +1292,39 @@ void scorelist() {
           fh);
 
     for (i = 1; i < antal_spelare + 1; i++) {
-        sprintf(str, "%2d. %-30s\n", i, pname[i]);
+        snprintf(str, sizeof str, "%2d. %-30s\n", i, pname[i]);
         fputs(str, fh);
         fputs(" +----------------------------------------------------------------------------+\n",
               fh);
-        sprintf(str, "  Leader             : %s\n  Classes            : ", lname[i]);
+        snprintf(str, sizeof str, "  Leader             : %s\n  Classes            : ", lname[i]);
         for (j = 1; j < 5; j++) {
             switch (cls[i][j]) {
                 case 1:
-                    strcat(str, "Fighter");
+                    str_append(str, sizeof str, "Fighter");
                     break;
                 case 2:
-                    strcat(str, "Thief");
+                    str_append(str, sizeof str, "Thief");
                     break;
                 case 3:
-                    strcat(str, "Mage");
+                    str_append(str, sizeof str, "Mage");
                     break;
                 case 4:
-                    strcat(str, "Priest");
+                    str_append(str, sizeof str, "Priest");
                     break;
                 case 5:
-                    strcat(str, "Bard");
+                    str_append(str, sizeof str, "Bard");
                     break;
                 case 6:
-                    strcat(str, "Ranger");
+                    str_append(str, sizeof str, "Ranger");
                     break;
             }
             if (j < 4)
-                strcat(str, ", ");
+                str_append(str, sizeof str, ", ");
         }
-        strcat(str, "\n");
+        str_append(str, sizeof str, "\n");
         fputs(str, fh);
-        sprintf(str, "  Confirmed Kills    : %-4d\n", kills[i]);
-        sprintf(str, "  Average Experience : %-6d (level %-3d)\n\n", pts[i], lvl[i]);
+        snprintf(str, sizeof str, "  Confirmed Kills    : %-4d\n", kills[i]);
+        snprintf(str, sizeof str, "  Average Experience : %-6d (level %-3d)\n\n", pts[i], lvl[i]);
         fputs(str, fh);
         fputs("  Power Items        :\n\n", fh);
         xx = 0;
@@ -1351,7 +1351,7 @@ void scorelist() {
     if (!(fh = fopen("data/score.txt", "w")))
         return;
 
-    sprintf(str, "%c\n", 12);
+    snprintf(str, sizeof str, "%c\n", 12);
     fputs(str, fh);
     fputs(" +============================================================================+\n", fh);
     fputs(" I              ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES              I\n", fh);
@@ -1360,7 +1360,7 @@ void scorelist() {
     fputs("         #     Party Name                    Experience       Level\n\n", fh);
 
     for (i = 1; i < antal_spelare + 1; i++) {
-        sprintf(str, "        %2d.    %-30s  %6d          %3d\n", i, pname[i], pts[i], lvl[i]);
+        snprintf(str, sizeof str, "        %2d.    %-30s  %6d          %3d\n", i, pname[i], pts[i], lvl[i]);
         fputs(str, fh);
     }
     fputs("\n", fh);

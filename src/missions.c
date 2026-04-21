@@ -262,7 +262,7 @@ uint8_t mission_control() {
         tx("fare the well.\r\n\r\n");
         ryl_pause();
         clw();
-        sprintf(send, "%d Nolrim's Crypt is at %dx%d.\n", cpl, dx[5], dy[5]);
+        snprintf(send, sizeof send, "%d Nolrim's Crypt is at %dx%d.\n", cpl, dx[5], dy[5]);
         journal(send);
         p[cpl].flag[23] = 6;
     }
@@ -534,7 +534,7 @@ uint8_t mission_control() {
         tx(" his carotid artery).\r\n\r\n");
         ryl_pause();
         clw();
-        sprintf(send, "%d The hobgoblin cave is at %dx%d.\n", cpl, dx[9], dy[9]);
+        snprintf(send, sizeof send, "%d The hobgoblin cave is at %dx%d.\n", cpl, dx[9], dy[9]);
         journal(send);
         p[cpl].flag[6] = 5;
     }

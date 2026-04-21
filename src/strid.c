@@ -640,9 +640,9 @@ void encounter(int foe, int mandatory) {
         deadc[i] = 0;
     }
 
-    sprintf(str, "%d %s", noc, fn);
+    snprintf(str, sizeof str, "%d %s", noc, fn);
     if (noc > 1)
-        strcat(str, "s");
+        str_append(str, sizeof str, "s");
     while (1) {
         clw();
         tx("You face\r\n");
@@ -1401,9 +1401,9 @@ void encounter(int foe, int mandatory) {
                 for (i = 1, x = 0; i < noc + 1; i++)
                     if (!deadc[i])
                         x++;
-                sprintf(str, "%d %s", x, fn);
+                snprintf(str, sizeof str, "%d %s", x, fn);
                 if (x > 1)
-                    strcat(str, "s");
+                    str_append(str, sizeof str, "s");
                 tx("%s\r\n\r\n", str);
                 tx("(F)ight\r\n");
                 tx("(R)un\r\n");

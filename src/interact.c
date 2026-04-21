@@ -42,7 +42,7 @@ void guild() {
             case 'B':
                 guild_title("  BULLETINS POSTED  ");
                 for (i = 1; i < 4; i++) {
-                    sprintf(str2, "data/external/bull%d.dat", i);
+                    snprintf(str2, sizeof str2, "data/external/bull%d.dat", i);
                     if (!(fh = fopen(str2, "r"))) {
                         fh = fopen(str2, "w");
                         fputs("[37mNeblod Zin, [36mleader of Dwellers Below, posted this bulletin Jan 10 1994\n",
@@ -84,12 +84,12 @@ void guild() {
                     x++;
                     if (x == 4)
                         x = 1;
-                    sprintf(str2, "data/external/bull%d.dat", x);
+                    snprintf(str2, sizeof str2, "data/external/bull%d.dat", x);
                     cl();
                     c(0, 0);
                     editor(str2, 1);
                     fh = fopen("data/external/last_bull", "w");
-                    sprintf(str2, "%d\n", x);
+                    snprintf(str2, sizeof str2, "%d\n", x);
                     fputs(str2, fh);
                     fclose(fh);
                 }
@@ -112,7 +112,7 @@ void guild() {
                 if (x == cpl)
                     break;
 
-                sprintf(str2, "data/internal/msg%d.dat", x);
+                snprintf(str2, sizeof str2, "data/internal/msg%d.dat", x);
                 tx("%s\n", str2);
                 Delay(100);
                 cl();
@@ -274,11 +274,11 @@ void editor(char *outfile, uint8_t bulletin) {
     }
 
     if (!bulletin) {
-        sprintf(str2, "%s, the leader of %s sent you this message:\n\n", p[cpl].name[1],
+        snprintf(str2, sizeof str2, "%s, the leader of %s sent you this message:\n\n", p[cpl].name[1],
                 p[cpl].partyname);
         fputs(str2, fh2);
     } else {
-        sprintf(str2, "[37m%s, [36mthe leader of %s posted this bulletin %s %d 19%d\n",
+        snprintf(str2, sizeof str2, "[37m%s, [36mthe leader of %s posted this bulletin %s %d 19%d\n",
                 p[cpl].name[1], p[cpl].partyname, mnt, kl[3], kl[1] + 80);
         fputs(str2, fh2);
         fputs("===============================================================================\n[37m",

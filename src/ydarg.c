@@ -588,7 +588,7 @@ void confrontation() {
 
     if (!(fh = fopen("data/heroes.txt", "r"))) {
         fh = fopen("data/heroes.txt", "w");
-        sprintf(str, "%c\n", 12);
+        snprintf(str, sizeof str, "%c\n", 12);
         fputs(str, fh);
         fputs(" +============================================================================+\n",
               fh);
@@ -643,7 +643,7 @@ void confrontation() {
             break;
     }
 
-    sprintf(str, "  %s defeated baron Ydarg %s %d, 19%d\n", p[cpl].partyname, mstr, kl[3],
+    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", p[cpl].partyname, mstr, kl[3],
             kl[1] + 80);
     fputs(str, fh);
     fclose(fh);

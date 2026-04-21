@@ -281,37 +281,37 @@ void read_journal() {
 void statusline() {
     /* Redo status line */
 
-    char str[144];
-    char stline[144];
+    char str[256];
+    char stline[256];
 
     if (p[cpl].food < 0)
         p[cpl].food = 0;
+    stline[0] = 0;
     if (tid >= 6 && tid < 12)
-        sprintf(stline, "TIME: [33mDAWN[32m      ");
+        snprintf(stline, sizeof stline, "TIME: [33mDAWN[32m      ");
     if (tid >= 12 && tid < 18)
-        sprintf(stline, "TIME: [33mMIDDAY[32m    ");
+        snprintf(stline, sizeof stline, "TIME: [33mMIDDAY[32m    ");
     if (tid >= 18 && tid < 24)
-        sprintf(stline, "TIME: [33mTWILIGHT[32m  ");
+        snprintf(stline, sizeof stline, "TIME: [33mTWILIGHT[32m  ");
     if (tid == 24 || tid < 6)
-        sprintf(stline, "TIME: [33mMIDNIGHT[32m  ");
+        snprintf(stline, sizeof stline, "TIME: [33mMIDNIGHT[32m  ");
     if (p[cpl].food < p[cpl].pl * 3 && p[cpl].food)
-        strcat(stline, "ST: [35mHUNGRY  ");
+        str_append(stline, sizeof stline, "ST: [35mHUNGRY  ");
     if (!p[cpl].food)
-        strcat(stline, "ST: [31mSTARVING[32m ");
+        str_append(stline, sizeof stline, "ST: [31mSTARVING[32m ");
     if (p[cpl].food && p[cpl].food >= p[cpl].pl * 3)
-        strcat(stline, "ST: [33mOK    ");
-    sprintf(str, "[32m X: [33m%2d   [32mY: [33m%2d[32m     ", p[cpl].x, p[cpl].y);
-    strcat(stline, str);
-    sprintf(str, "FD: [33m%4d[32m  ", p[cpl].food);
-    strcat(stline, str);
-    sprintf(str, "MV: [33m%3d[32m  ", p[cpl].tid_kvar);
-    strcat(stline, str);
-    sprintf(str, "AU: [33m%6d[32m", p[cpl].gold);
-    strcat(stline, str);
+        str_append(stline, sizeof stline, "ST: [33mOK    ");
+    snprintf(str, sizeof str, "[32m X: [33m%2d   [32mY: [33m%2d[32m     ", p[cpl].x, p[cpl].y);
+    str_append(stline, sizeof stline, str);
+    snprintf(str, sizeof str, "FD: [33m%4ld[32m  ", p[cpl].food);
+    str_append(stline, sizeof stline, str);
+    snprintf(str, sizeof str, "MV: [33m%3d[32m  ", p[cpl].tid_kvar);
+    str_append(stline, sizeof stline, str);
+    snprintf(str, sizeof str, "AU: [33m%6lu[32m", p[cpl].gold);
+    str_append(stline, sizeof stline, str);
     c(3, 21);
     tx("[32m%s    ", stline);
-    sprintf(stline,
-            "H1: [33m%3d/%3d   [32mH2: [33m%3d/%3d   [32mH3: [33m%3d/%3d   [32mH4: [33m%3d/%3d[37m",
+    snprintf(stline, sizeof stline, "H1: [33m%3d/%3d   [32mH2: [33m%3d/%3d   [32mH3: [33m%3d/%3d   [32mH4: [33m%3d/%3d[37m",
             p[cpl].hp[1], p[cpl].h[1], p[cpl].hp[2], p[cpl].h[2], p[cpl].hp[3], p[cpl].h[3],
             p[cpl].hp[4], p[cpl].h[4]);
     c(13, 22);
@@ -619,7 +619,7 @@ void init() {
 
                     load();
                     abort = 1;
-                    sprintf(str, "%s and %s party '%s' entered the realm.", p[cpl].name[1],
+                    snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", p[cpl].name[1],
                             sextext(1, 3), p[cpl].partyname);
                     ryl_log(str);
                     if (!reg)
@@ -808,12 +808,15 @@ char *sextext(uint8_t nr, uint8_t xx) {
                 return "him";
             if (xx == 3)
                 return "his";
+            break;
         case 2:
             if (xx == 1)
                 return "she";
             if (xx > 1)
                 return "her";
+            break;
     }
+    return "";
 }
 
 void createparty() {
@@ -1177,11 +1180,11 @@ void clrjr(uint8_t nr) {
         for (j = 1; j < i + 1; j++) {
             fseek(fh, byte[j], 0);
             if (current <= 10) {
-                sprintf(temp, "%d", current - 1);
+                snprintf(temp, sizeof temp, "%d", current - 1);
                 fputc(temp[0], fh);
                 fputc(32, fh);
             } else {
-                sprintf(temp, "%d", current - 1);
+                snprintf(temp, sizeof temp, "%d", current - 1);
                 fputc(temp[0], fh);
                 fputc(temp[1], fh);
             }

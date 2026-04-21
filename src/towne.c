@@ -129,15 +129,15 @@ void rumour() {
             break;
         case 25:
             if (npc[15].towne == 1)
-                sprintf(str, "in Thord");
+                snprintf(str, sizeof str, "in Thord");
             if (npc[15].towne == 2)
-                sprintf(str, "in Ollk");
+                snprintf(str, sizeof str, "in Ollk");
             if (npc[15].towne == 3)
-                sprintf(str, "in Wilor");
+                snprintf(str, sizeof str, "in Wilor");
             if (npc[15].towne == 4)
-                sprintf(str, "in Murn");
+                snprintf(str, sizeof str, "in Murn");
             if (npc[15].towne == 0)
-                sprintf(str, "at %dx%d", npc[15].x, npc[15].y);
+                snprintf(str, sizeof str, "at %dx%d", npc[15].x, npc[15].y);
             tx("A man named %s\r\n", name[15]);
             tx("knows of the Crown.\r\n");
             tx("He lives %s!\r\n", str);
@@ -148,15 +148,15 @@ void rumour() {
             break;
         case 27:
             if (npc[13].towne == 1)
-                sprintf(str, "in Thord");
+                snprintf(str, sizeof str, "in Thord");
             if (npc[13].towne == 2)
-                sprintf(str, "in Ollk");
+                snprintf(str, sizeof str, "in Ollk");
             if (npc[13].towne == 3)
-                sprintf(str, "in Wilor");
+                snprintf(str, sizeof str, "in Wilor");
             if (npc[13].towne == 4)
-                sprintf(str, "in Murn");
+                snprintf(str, sizeof str, "in Murn");
             if (npc[13].towne == 0)
-                sprintf(str, "at %dx%d", npc[13].x, npc[13].y);
+                snprintf(str, sizeof str, "at %dx%d", npc[13].x, npc[13].y);
             tx("Seek %s if you\r\n", name[13]);
             tx("search the Temple of\r\n");
             tx("Thun! He lives %s\r\n", str);
@@ -248,6 +248,7 @@ int obdamage(int nr) {
         case 28:
             return 30;
     }
+    return 0;
 }
 long obcost(int nr) {
     switch (nr) {
@@ -371,6 +372,7 @@ long obcost(int nr) {
         case 111:
             return 9000;
     }
+    return 0;
 }
 char *object(int nr) {
     switch (nr) {
@@ -502,6 +504,7 @@ char *object(int nr) {
         case 111:
             return "Flute of Madness";
     }
+    return "-";
 }
 
 void enter() {
@@ -1181,7 +1184,7 @@ void smith() {
 }
 void tavern() {
     char c, d, b;
-    int i, j, x, st, pr, boast = 0, xs;
+    int i, j, x, st, pr, xs;
     int rumours = 0;
 
     tid++;
@@ -1365,7 +1368,6 @@ void tavern() {
                     b = toupper(b);
                     st = 0;
                     if (b == 'B') {
-                        boast = 1;
                         st = 100;
                     }
                     if (p[cpl].cl[d - 48] == 5)
