@@ -183,3 +183,30 @@
 {"kind":"text","id":"driv.journal.header","text":"\r\n============================= TRAVELLER'S JOURNAL ==============================\r\n\r\n"}
 {"kind":"text","id":"subs.faint","text":"You faint from lack\r\nof well needed sleep.\r\n"}
 {"kind":"text","id":"subs.losegame.flavor","text":"Alas, your party of\r\nadventurers have all\r\ngone to meet their\r\nmaker...\r\n\r\n"}
+{"kind":"text","id":"strid.run.coward","text":"Coward. You won't get\r\nany EXP for this battle.\r\n"}
+{"kind":"text","id":"strid.run.desperate_fail","text":"You desperately try to\r\nget away, but fail!\r\n"}
+{"kind":"text","id":"strid.run.fail_away","text":"You fail to get away!\r\n"}
+{"kind":"text","id":"strid.run.escaped","text":"You escaped...\r\n"}
+{"kind":"text","id":"strid.item.magic_immune","text":"The magic item doesn't seem\r\nto work on this enemy!!!\r\n"}
+{"kind":"text","id":"strid.item.sparks_bump","text":"at the enemy. It\r\nbreaks before them in\r\na rain of sparks.\r\nThey bump into each\r\nother as they try to\r\nsee you.\r\n\r\n"}
+{"kind":"text","id":"strid.item.light_blind","text":"gem at the enemy.\r\nIt breaks, releasing\r\na brilliant cloud\r\nof light which completely\r\nsurrounds them. As the\r\nlight fades, your enemies\r\nare blind.\r\n\r\n"}
+{"kind":"text","id":"strid.item.ghost_axe.wounds","text":"It wounds them severely\r\nas it spins around,\r\nwielded by hands you\r\ncannot see!\r\n"}
+{"kind":"text","id":"strid.item.battle_cry","text":"With a raging battle\r\ncry, you attack the\r\nmortally wounded foes!\r\n"}
+{"kind":"text","id":"strid.prompt.on_whom","text":"On Whom? (1-4)\r\n"}
+{"kind":"text","id":"strid.prompt.who","text":"Who?\r\n\r\n"}
+{"kind":"text","id":"strid.spell.morale_quest","text":"The party feels their\r\nspirits grow. You are\r\nall stronger than\r\nbefore.\r\n\r\n"}
+{"kind":"text","id":"strid.spell.party_healed","text":"The party is fully\r\nhealed!\r\n\r\n"}
+{"kind":"text","id":"strid.spell.fizzle","text":"The spell fizzles!\r\nthis creature is immune\r\nto ordinary magic!!!\r\n"}
+{"kind":"text","id":"strid.spell.not_enough_magic","text":"Not enough magic!\r\n"}
+{"kind":"text","id":"strid.spell.mirror","text":"Your images wavers and\r\nblurs in front of your\r\nenemies\r\n"}
+{"kind":"text","id":"strid.spell.annihilate.resist","text":"Through INCREDIBLE\r\nresistance, the enemy\r\nis still alive, badly\r\nwounded.\r\n"}
+{"kind":"text","id":"strid.spell.annihilate.kill","text":"The enemy is wiped\r\nstraigt off the surface\r\nof the earth!\r\n"}
+{"kind":"text","id":"strid.spell.hold_enemy","text":"The enemies freeze dead\r\nin their tracks.\r\n"}
+{"kind":"text","id":"strid.spell.silence","text":"The enemy is now\r\nstopped from using magic.\r\nagainst you this round.\r\n"}
+{"kind":"text","id":"strid.cry.off_guard","text":"(You manage to scare your\r\n enemies enough to get\r\n them off guard.)\r\n"}
+{"kind":"text","id":"strid.rest.gain_hits","text":"You gain some hits pts\r\nas you rest this round.\r\n"}
+{"kind":"text","id":"strid.defend.stance","text":"You put up a defensive\r\nstance...\r\n"}
+{"kind":"text","id":"strid.victory.bested","text":"Thou hast bested\r\nthy foes.\r\n\r\n"}
+{"kind":"text","id":"strid.monster.hold_player","text":"You realize with horror\r\nthat you cannot move!\r\n"}
+{"kind":"text","id":"strid.monster.confusion","text":"You are almost blinded\r\nby a colorful haze.\r\n"}
+{"kind":"text","id":"strid.killed","text":"...KILLED!\r\n"}
