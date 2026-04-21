@@ -168,3 +168,5 @@
 {"kind":"text","id":"spell.priest.teleport.arrived","text":"You appear to be\r\nsomewhere else.\r\n"}
 {"kind":"text","id":"spell.priest.earthquake.incantation","text":"three syllabels in an\r\narchaic tongue...\r\n\r\n"}
 {"kind":"text","id":"spell.priest.earthquake.eruption","text":"and the ground cracks\r\nopen!\r\n"}
+{"kind":"text","id":"common.yes","text":"(Y)es\r\n"}
+{"kind":"text","id":"common.no","text":"(N)o\r\n"}

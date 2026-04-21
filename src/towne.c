@@ -360,8 +360,8 @@ void enter() {
                 tx("Do you want to ready\r\n");
                 tx("some weapons before\r\n");
                 tx("leaving?\r\n\r\n");
-                tx("(Y)es\r\n");
-                tx("(N)o\r\n");
+                tx("%s", res_text("common.yes"));
+                tx("%s", res_text("common.no"));
                 c = key();
                 c = toupper(c);
                 if (c == 'Y') {
@@ -384,8 +384,8 @@ void enter() {
                 tx("Do you want to ready\r\n");
                 tx("some armours before\r\n");
                 tx("leaving?\r\n\r\n");
-                tx("(Y)es\r\n");
-                tx("(N)o\r\n");
+                tx("%s", res_text("common.yes"));
+                tx("%s", res_text("common.no"));
                 c = key();
                 c = toupper(c);
                 if (c == 'Y') {
@@ -881,8 +881,8 @@ void smith() {
                         while (1) {
                             clw();
                             tx("Ok! Give ya %d!\r\n\r\n", pr);
-                            tx("(Y)es\r\n");
-                            tx("(N)o\r\n");
+                            tx("%s", res_text("common.yes"));
+                            tx("%s", res_text("common.no"));
                             tx("(B)argain\r\n");
                             b = key();
                             b = toupper(b);
@@ -1285,8 +1285,8 @@ void inn() {
         tx("welcomes you.\r\n\r\n");
         tx("Do you want supper,\r\n");
         tx("travellers?\r\n\r\n");
-        tx("(Y)es\r\n");
-        tx("(N)o\r\n");
+        tx("%s", res_text("common.yes"));
+        tx("%s", res_text("common.no"));
         c = key();
         c = toupper(c);
         if (c == 'Y') {
@@ -1314,8 +1314,8 @@ void inn() {
         }
         clw();
         tx("Anything to drink?\r\n\r\n");
-        tx("(Y)es\r\n");
-        tx("(N)o\r\n");
+        tx("%s", res_text("common.yes"));
+        tx("%s", res_text("common.no"));
         c = key();
         c = toupper(c);
         if (c == 'Y') {
@@ -1372,8 +1372,8 @@ void inn() {
         clw();
         tx("Are you in need\r\n");
         tx("of lodging?\r\n\r\n");
-        tx("(Y)es\r\n");
-        tx("(N)o\r\n");
+        tx("%s", res_text("common.yes"));
+        tx("%s", res_text("common.no"));
         c = key();
         c = toupper(c);
         if (c == 'Y') {
@@ -1497,8 +1497,8 @@ void merchant() /* HOS THE MERCHANT */
                 } else {
                     clw();
                     tx("- Ok. Give ya %d!\r\n\r\n", obcost(oc) / 2);
-                    tx("(Y)es\r\n");
-                    tx("(N)o\r\n\r\n");
+                    tx("%s", res_text("common.yes"));
+                    tx("%s\r\n", res_text("common.no"));
                     f = key();
                     f = toupper(f);
                     if (f == 'Y') {

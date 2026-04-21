@@ -473,8 +473,8 @@ void camp() {
 
     tx("Camp.\r\n\r\n");
     tx("Post a guard?\r\n\r\n");
-    tx("(Y)es\r\n");
-    tx("(N)o\r\n");
+    tx("%s", res_text("common.yes"));
+    tx("%s", res_text("common.no"));
     c = key();
     c = toupper(c);
     if (c == 'Y') {

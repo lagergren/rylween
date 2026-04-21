@@ -223,8 +223,8 @@ void spelet() {
                 clw();
                 tx("Do you really want\r\n");
                 tx("to quit?\r\n\r\n");
-                tx("(Y)es\r\n");
-                tx("(N)o\r\n");
+                tx("%s", res_text("common.yes"));
+                tx("%s", res_text("common.no"));
                 d = key();
                 d = toupper(d);
                 if (d != 'Y') {

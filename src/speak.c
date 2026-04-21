@@ -429,8 +429,8 @@ void speak(int32_t bld, int32_t tow) {
                         tx("  spend an hour\r\n");
                         tx("  upstairs for %d\r\n", 50 * state.p[state.cpl].lv[1]);
                         tx("  gold coins?\r\n\r\n");
-                        tx("  (Y)es\r\n");
-                        tx("  (N)o\r\n");
+                        tx("  %s", res_text("common.yes"));
+                        tx("  %s", res_text("common.no"));
                         c = key();
                         c = toupper(c);
                         if (c == 'Y') {

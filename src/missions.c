@@ -116,7 +116,7 @@ uint8_t mission_control() {
         clw();
         tx("Do you want to put\r\n");
         tx("five gems in the sockets?\r\n\r\n");
-        tx("(Y)es\r\n");
+        tx("%s", res_text("common.yes"));
         tx("(L)eave\r\n");
         c = key();
         c = toupper(c);
