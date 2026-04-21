@@ -170,3 +170,14 @@
 {"kind":"text","id":"spell.priest.earthquake.eruption","text":"and the ground cracks\r\nopen!\r\n"}
 {"kind":"text","id":"common.yes","text":"(Y)es\r\n"}
 {"kind":"text","id":"common.no","text":"(N)o\r\n"}
+{"kind":"text","id":"driv.moves.out_of_moves","text":"You are out of moves\r\nfor today.\r\n\r\n"}
+{"kind":"text","id":"driv.menu.out_of_moves","text":"(S)ave and Quit\r\n(Q)uit (no save)\r\n"}
+{"kind":"text","id":"driv.save.saving","text":"Saving position...\r\n"}
+{"kind":"text","id":"driv.save.done","text":"Done.\r\n"}
+{"kind":"text","id":"driv.quit.farewell","text":"Fare thee well.\r\n"}
+{"kind":"text","id":"driv.quit.confirm","text":"Do you really want\r\nto quit?\r\n\r\n"}
+{"kind":"text","id":"driv.move.pass","text":"Pass...\r\n"}
+{"kind":"text","id":"driv.move.no_moves","text":"No moves left!\r\n"}
+{"kind":"text","id":"driv.view.who","text":"Who? (1-4/Q/A)\r\n"}
+{"kind":"text","id":"driv.drop.another","text":"Do you want to drop\r\nanother object? (y/N)\r\n"}
+{"kind":"text","id":"driv.journal.header","text":"\r\n============================= TRAVELLER'S JOURNAL ==============================\r\n\r\n"}

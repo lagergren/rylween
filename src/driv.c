@@ -47,10 +47,8 @@ void spelet() {
 
         if (!state.p[state.cpl].tid_kvar) {
             clw();
-            tx("You are out of moves\r\n");
-            tx("for today.\r\n\r\n");
-            tx("(S)ave and Quit\r\n");
-            tx("(Q)uit (no save)\r\n");
+            tx("%s", res_text("driv.moves.out_of_moves"));
+            tx("%s", res_text("driv.menu.out_of_moves"));
             while (1) {
                 cc = key();
                 cc = toupper(cc);
@@ -60,14 +58,14 @@ void spelet() {
             }
             if (cc == 'S') {
                 clw();
-                tx("Saving position...\r\n");
+                tx("%s", res_text("driv.save.saving"));
                 save();
                 Delay(20);
-                tx("Done.\r\n");
+                tx("%s", res_text("driv.save.done"));
                 Delay(20);
             }
             clw();
-            tx("Fare thee well.\r\n");
+            tx("%s", res_text("driv.quit.farewell"));
             Delay(50);
             scorelist();
             cleanexit();
@@ -79,12 +77,12 @@ void spelet() {
         switch (cc) {
             case ' ':
                 clw();
-                tx("Pass...\r\n");
+                tx("%s", res_text("driv.move.pass"));
                 break;
             case '8':
                 if (!state.p[state.cpl].tid_kvar) {
                     clw();
-                    tx("No moves left!\r\n");
+                    tx("%s", res_text("driv.move.no_moves"));
                     break;
                 }
                 if (state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'm' && state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'w') {
@@ -98,7 +96,7 @@ void spelet() {
             case '4':
                 if (!state.p[state.cpl].tid_kvar) {
                     clw();
-                    tx("No moves left!\r\n");
+                    tx("%s", res_text("driv.move.no_moves"));
                     break;
                 }
                 if (state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'm' && state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'w') {
@@ -112,7 +110,7 @@ void spelet() {
             case '2':
                 if (!state.p[state.cpl].tid_kvar) {
                     clw();
-                    tx("No moves left!\r\n");
+                    tx("%s", res_text("driv.move.no_moves"));
                     break;
                 }
                 if (state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'm' && state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'w') {
@@ -126,7 +124,7 @@ void spelet() {
             case '6':
                 if (!state.p[state.cpl].tid_kvar) {
                     clw();
-                    tx("No moves left!\r\n");
+                    tx("%s", res_text("driv.move.no_moves"));
                     break;
                 }
                 if (state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'm' && state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'w') {
@@ -140,10 +138,10 @@ void spelet() {
 
             case 'S':
                 clw();
-                tx("Saving position...\r\n");
+                tx("%s", res_text("driv.save.saving"));
                 save();
                 Delay(20);
-                tx("Done.\r\n");
+                tx("%s", res_text("driv.save.done"));
                 break;
             case 'W':
                 weaponr();
@@ -177,7 +175,7 @@ void spelet() {
             case 'V':
                 showparty();
                 clw();
-                tx("Who? (1-4/Q/A)\r\n");
+                tx("%s", res_text("driv.view.who"));
                 while (1) {
                     d = key();
                     if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A') {
@@ -217,8 +215,7 @@ void spelet() {
                 break;
             case 'X':
                 clw();
-                tx("Do you really want\r\n");
-                tx("to quit?\r\n\r\n");
+                tx("%s", res_text("driv.quit.confirm"));
                 tx("%s", res_text("common.yes"));
                 tx("%s", res_text("common.no"));
                 d = key();
@@ -237,8 +234,7 @@ uint8_t drop_option() {
     char c;
 
     clw();
-    tx("Do you want to drop\r\n");
-    tx("another object? (y/N)\r\n");
+    tx("%s", res_text("driv.drop.another"));
     c = key();
     c = toupper(c);
     if (c == 'Y') {
@@ -260,7 +256,7 @@ void read_journal() {
         return;
     }
 
-    tx("\r\n============================= TRAVELLER'S JOURNAL ==============================\r\n\r\n");
+    tx("%s", res_text("driv.journal.header"));
 
     while (1) {
         str[0] = 0;
