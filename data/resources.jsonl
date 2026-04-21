@@ -181,3 +181,5 @@
 {"kind":"text","id":"driv.view.who","text":"Who? (1-4/Q/A)\r\n"}
 {"kind":"text","id":"driv.drop.another","text":"Do you want to drop\r\nanother object? (y/N)\r\n"}
 {"kind":"text","id":"driv.journal.header","text":"\r\n============================= TRAVELLER'S JOURNAL ==============================\r\n\r\n"}
+{"kind":"text","id":"subs.faint","text":"You faint from lack\r\nof well needed sleep.\r\n"}
+{"kind":"text","id":"subs.losegame.flavor","text":"Alas, your party of\r\nadventurers have all\r\ngone to meet their\r\nmaker...\r\n\r\n"}

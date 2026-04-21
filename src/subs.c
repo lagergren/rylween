@@ -80,8 +80,7 @@ void foodhandler() {
     }
     if (state.hours_pigg < -8) {
         clw();
-        tx("You faint from lack\r\n");
-        tx("of well needed sleep.\r\n");
+        tx("%s", res_text("subs.faint"));
         for (i = 1; i < 5; i++) {
             if (state.p[state.cpl].hp[i] > 1) {
                 state.p[state.cpl].hp[i]--;
@@ -171,10 +170,7 @@ void losegame() {
     clr_map_window();
     blitgfx(deathpic);
     clw();
-    tx("Alas, your party of\r\n");
-    tx("adventurers have all\r\n");
-    tx("gone to meet their\r\n");
-    tx("maker...\r\n\r\n");
+    tx("%s", res_text("subs.losegame.flavor"));
     ryl_pause();
     cleanexit();
 }
