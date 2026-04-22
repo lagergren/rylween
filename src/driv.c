@@ -700,28 +700,6 @@ void init() {
     spelet();
 }
 
-/* Symbolic id per NPC slot 1..39. §15.3 names: garth at 1; wanderer_N
-   at 2..24; innkeeper_N at 25..28; tavernkeeper_N at 29..32; hermit at
-   33; bargirls at 34/35 (towns 1 and 3 only — see §15.3 open question
-   on whether 36/37 should be added for towns 2/4); empty_N at 36..39
-   (stubbed since the Amiga build). Slot 0 is unused; slot 40 is never
-   populated (save() loops 1..39).
-
-   Lives here for now; §15 step 3 migrates this mapping into
-   data/world.json5's npcs: subtree so slot <-> id is data-driven. */
-static const char *const NPC_SLOT_IDS[40] = {
-    NULL,          "garth",          "wanderer_2",  "wanderer_3",   "wanderer_4",
-    "wanderer_5",  "wanderer_6",     "wanderer_7",  "wanderer_8",   "wanderer_9",
-    "wanderer_10", "wanderer_11",    "wanderer_12", "wanderer_13",  "wanderer_14",
-    "wanderer_15", "wanderer_16",    "wanderer_17", "wanderer_18",  "wanderer_19",
-    "wanderer_20", "wanderer_21",    "wanderer_22", "wanderer_23",  "wanderer_24",
-    "innkeeper_1", "innkeeper_2",    "innkeeper_3", "innkeeper_4",
-    "tavernkeeper_1", "tavernkeeper_2", "tavernkeeper_3", "tavernkeeper_4",
-    "hermit",
-    "bargirl_1",   "bargirl_3",
-    "empty_36",    "empty_37",       "empty_38",    "empty_39",
-};
-
 /* Enum -> string via res_enum(enum_id, v). Writes the quoted symbolic
    value if res_enum returns a non-empty string, else falls back to the
    raw integer so the file stays round-trippable even if the world enum
@@ -883,8 +861,11 @@ static void write_current_world() {
     fputs("  npcs: {\n", f);
     for (int i = 1; i < 40; i++) {
         const struct person *n = &state.npc[i];
-        const char *id = NPC_SLOT_IDS[i];
-        fprintf(f, "    %s: { slot: %d, job: ", id, i);
+        const char *id = res_enum("name", i);
+        /* Always quote: names like "Nrim'to" aren't bare-identifier safe. */
+        fputs("    ", f);
+        wcw_str(f, id);
+        fprintf(f, ": { slot: %d, job: ", i);
         wcw_enum(f, "jobname", n->job);
         fputs(", towne: ", f);
         wcw_enum(f, "towne", n->towne);
