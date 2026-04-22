@@ -1237,7 +1237,23 @@ these shape the `res_shutdown` implementation:
   target so contributors and CI have one canonical task name.
   The existing `Makefile` only has `rylween` + `clean` today.
 
-### 13.4 Out of scope for this inventory
+### 13.4 Commit B: implementation notes (2026-04-22)
+
+Landed as `9574a57`. `res_shutdown()` in `res.c` frees all 16 leak
+sites from §13.1; `world_tree` goes last via `node_free`. Registered
+via `atexit()` at the end of `res_load_world` (one-shot guarded) and
+called explicitly from `cleanexit()` (idempotent). Nearby cleanup:
+`color_default`'s literal `36` + `color_code_from_name`'s raw
+`30..37` returns now route through a local `ANSI_FG_*` enum. Gate
+byte-identical.
+
+Also in this pass: the stranded `.claude/worktrees/agent-a4fa40c7/`
+git worktree (source of the `strid.c` / `sextext` / `kar` ghost
+diagnostics) was removed via `git worktree remove -f -f` plus
+`git branch -D worktree-agent-a4fa40c7`. Clangd diagnostics now
+only reflect the real tree.
+
+### 13.5 Out of scope for §13
 
 - `struct ryl_state state` (file-scope in `ryl.c`) holds no
   heap pointers itself; nothing to free. Party/npc name arrays
@@ -1249,4 +1265,134 @@ these shape the `res_shutdown` implementation:
 - Static caches like the color_tab `[256]` `int32_t` array and
   the `color_tab_set` flag array live in `.bss` — no malloc
   involved, nothing to free.
+
+## 14. State hygiene audit (follow-up to §13)
+
+Goal: catalogue every file-scope global, every in-function
+`static`, and every hardcoded stack buffer across `src/*.c`, and
+classify each as belonging to one of the state buckets the user
+already distinguishes — **world state** (authored content
+loaded once from `data/world.json5`, immutable after load),
+**game state** (the `struct ryl_state state` singleton — party
+table, npcs, map cursor, realm/npc save targets), **ephemeral
+state** (per-session/per-step values like time-of-day,
+steps-left, carrier status), or **process state** (tty
+restoration, PRNG, signal flags; legitimately process-scoped,
+not game). Anything left over is a smell.
+
+Methodology: `grep -nE '^(static[[:space:]])?...'` for file-scope
+decls; `grep -nE '^[[:space:]]+static[[:space:]]'` for
+in-function statics; `grep -nE '^[[:space:]]+(char|uint8_t) [a-z]+\[[0-9]+\]'`
+for stack char buffers.
+
+### 14.1 File-scope globals
+
+All file-scope decls in `src/*.c`, with classification:
+
+| Module | Symbol | Kind | Classification | Notes |
+|--|--|--|--|--|
+| `ryl.c` | `struct ryl_state state` | extern | **game state** | The authoritative singleton. By design. |
+| `ryl.c` | `char *_version_string` | extern const | **process state** | Build banner literal. Fine. |
+| `res.c` | `enums`, `n_enums` | static | **world state** | Fold targets for `enums` subtree. |
+| `res.c` | `texts`, `n_texts`, `texts_sorted` | static | **world state** | Fold targets for `texts` subtree. |
+| `res.c` | `items[112]` | static | **world state** | Fold target for `items` subtree. |
+| `res.c` | `monsters[91]` | static | **world state** | Fold target for `monsters` subtree. |
+| `res.c` | `priest_spells[8]`, `mage_spells[8]` | static | **world state** | Fold targets for `spells` subtree. |
+| `res.c` | `glyph_tab[256]`, `color_tab[256]`, `color_tab_set[256]`, `color_default` | static | **world state** | Fold targets for `terrain` subtree. |
+| `res.c` | `pronoun_tab[3][4]` | static | **world state** | Fold target for `pronoun` subtree. |
+| `res.c` | `flags_tab`, `n_flags_tab` | static | **world state** | Fold targets for `flags` subtree. |
+| `res.c` | `world_tree` | static | **world state** | Root of the authored node tree. |
+| `io_tty.c` | `io_winch_pending` | extern volatile | **process state** | Signal handler flag. Must be extern-visible for the handler to set it. Fine. |
+| `io_tty.c` | `saved_termios`, `termios_saved` | static | **process state** | TTY cooked-mode restoration. Correct. |
+| `io_tty.c` | `tty_backend` | static | **process state** | Vtable literal for `io`. Const after init. |
+| `io_tty.c` | `io` | extern | **process state** | Vtable pointer. Extern-visible because every module calls `io->write/getch`. Fine. |
+| `compat.c` | `rng_state` | static | **process state** | Xorshift PRNG. Per-process; replay determinism comes from `RYL_FAKE_SEED`, not from save-game serialization. |
+
+**Verdict.** The only globals that arguably belong in a richer
+container are the `res.c` world-state block. That block IS the
+payload of the `ryl_world` / `ryl_context` context struct queued
+in §12.2 item #1 — the "instance-allocated state" bullet. Rolling
+res.c's file-scope globals into `ryl_world *w` (passed to every
+`res_*` accessor, or — cheaper churn — kept as a single static
+pointer set at load time) lets tests and a future reload path
+coexist. This commit does not do that work; §12.2 #1 tracks it.
+
+Nothing unexpected sits outside the four buckets. No loose
+integer counters or transient per-encounter state escaping into
+file-scope namespace.
+
+### 14.2 In-function statics
+
+| Site | Kind | Classification | Verdict |
+|--|--|--|--|
+| `compat.c:38-39` in `ryl_delay` | `resolved`, `suppressed` — `RYL_NO_DELAY` env cache | **process state** | Fine. |
+| `compat.c:63-65` in `ryl_time` | `resolved`, `fixed`, `fixed_val` — `RYL_FAKE_EPOCH` env cache | **process state** | Fine. |
+| `compat.c:162-164` in `ryl_state_path` | `buf[512]`, `base[480]`, `state` int8_t | **process state + returned-static-buffer footgun** | See below. |
+| `primitives.c:75` in `getstr` | `char svar[90]` returned to caller | **returned-static-buffer footgun** | See below. |
+| `primitives.c:150` in `ryl_pause` | `static const char *verbs[]` | read-only literal | Fine. |
+| `primitives.c:212` in `ryl_log` | `static const char *months[13]` | read-only literal | Fine. |
+| `res.c:802` in `res_load_world` | `atexit_registered` | one-shot sentinel | Fine (Commit B addition). |
+
+**Two real landmines:**
+
+- **`getstr(uint8_t lg)` returns a pointer to `static char svar[90]`.**
+  Every caller must finish using the returned buffer — or copy out —
+  before the next `getstr` call, or the second call stomps the
+  first's result. This is the classic C returned-static-buffer
+  footgun. Fix: change the signature to
+  `void getstr(uint8_t lg, char *out, size_t out_sz)`; caller
+  owns the buffer. ~15 call sites. Gate byte-identical on replay.
+- **`ryl_state_path(const char *leaf)` returns a pointer to
+  `static char buf[512]`.** Same footgun, worse because the result
+  is a *path* passed into `fopen` — if two nested call sites both
+  resolve a path, the inner one stomps the outer one's. Not known
+  to be exercised today but fragile. Fix: same pattern —
+  `void ryl_state_path(const char *leaf, char *out, size_t out_sz)`.
+
+Both fixes are pure signature/call-site rewrites; no behavior
+change; gate on replay byte-identical. Recommend doing these as
+their own commits before §12.2 item #1 lands, since #1 might
+otherwise rewrite the same call sites again.
+
+### 14.3 Stack buffers worth a look
+
+Of the 43 stack char-buffer sites, most are bounded `snprintf`/`tx`
+scratch (`char buffer[512]`, `char str[80]`, `char pos[16]`) and
+fine. Three stand out:
+
+| Site | Shape | Issue |
+|--|--|--|
+| `driv.c:1042-1044` in `show` | `char race[5][15]; char clss[7][15]` then 6 `strcpy`s per call | Rebuilt on every `show()` call. Should be `static const char *const races[]`/`classes[]` at file scope, or (better) read from the `enums` subtree via `res_enum("race", ra)` / `res_enum("class", cl)`. The authored data already has these under `enums`. |
+| `driv.c:1028` in `invlist` | `char item[20][80]` — uses slots 1..16, 9 bytes each | 1600 bytes stack; 170 used. Could shrink to `char item[17][10]`. Cosmetic. |
+| `subs.c:1142` in `scorelist` | `char pname[26][30], lname[26][30], temp_string[30]; uint8_t cls[26][5], item[26][6], pnr[26]` | ~3100 bytes on stack for a local sort scratch. Swapping 30-byte strings via `strcpy` in a bubble sort is unnecessary — sort an index array (`pnr[]`) and read `state.p[pnr[i]].partyname` at render time. Reduces stack footprint and eliminates 30-byte `strcpy`s that lose data if a name ever hits exactly 30 chars without the current always-NUL-terminated constraint. |
+
+None of the 43 sites currently write past their bounds (every
+`strncpy`/`snprintf` I sampled caps correctly), so this isn't a
+security audit finding — just cleanup the user has asked for.
+
+### 14.4 Recommended order
+
+Small, replay-gated, standalone:
+
+1. **`getstr` buffer-out-parameter rewrite** (~15 call sites).
+   Kills the biggest footgun. One commit.
+2. **`ryl_state_path` buffer-out-parameter rewrite** (fewer
+   callers, same pattern). One commit.
+3. **`show()` race/class tables → `static const char *const`
+   or `res_enum(...)`** — small, isolated. One commit.
+4. **`scorelist()` sort on indices, not string swaps** —
+   self-contained cleanup inside one function. One commit.
+
+Larger, deferred under §12.2:
+
+5. **`ryl_world` context struct** folds the whole res.c
+   file-scope block (§12.2 #1). Needs a design pass on whether
+   to keep `res_*` as free functions with an implicit static
+   context pointer, or thread `ryl_world *w` through every
+   call site. The latter is cleaner but a bigger diff.
+
+Nothing on this list is load-bearing for Commit C (ASan leg)
+of §12.2 — ASan catches leaks/UAF/overflow regardless of how
+the state is shaped. These are hygiene commits that can slot in
+before or after C as the replay-gate schedule allows.
 
