@@ -1,4 +1,5 @@
 #include "ryl.h"
+#include "ansi.h"
 #include "res.h"
 #include "battle.h"
 #include "driv.h"
@@ -177,10 +178,10 @@ void losegame() {
 }
 
 /* Render the 5x5 map window centred on the party tile. Each cell is
-   "\x1b[<fg>m<glyph>"; the party's own tile wraps the glyph in a blue
-   background ("\x1b[44m...\x1b[40m"); cells are separated by a single
-   space; the very last cell of the last row is followed by "\x1b[37m"
-   to restore the default foreground.
+   ANSI_CSI "<fg>m<glyph>"; the party's own tile wraps the glyph in a
+   blue background (ANSI_BG_BLUE ... ANSI_BG_BLACK); cells are separated
+   by a single space; the very last cell of the last row is followed by
+   ANSI_FG_WHITE to restore the default foreground.
 
    Build each row into a local buffer and emit it with one tx() call —
    tx() prefixes every invocation with a cursor-right escape from c()
@@ -199,16 +200,16 @@ void update_map() {
             int32_t fg = color(t);
             char *gly = glyph(t);
             if (dy == 0 && dx == 0) {
-                off += snprintf(row + off, sizeof row - off, "\x1b[44m\x1b[%dm%s\x1b[40m", fg, gly);
+                off += snprintf(row + off, sizeof row - off, ANSI_BG_BLUE ANSI_CSI "%dm%s" ANSI_BG_BLACK, fg, gly);
             } else {
-                off += snprintf(row + off, sizeof row - off, "\x1b[%dm%s", fg, gly);
+                off += snprintf(row + off, sizeof row - off, ANSI_CSI "%dm%s", fg, gly);
             }
             if (dx < 2) {
                 off += snprintf(row + off, sizeof row - off, " ");
             }
         }
         if (dy == 2) {
-            off += snprintf(row + off, sizeof row - off, "\x1b[37m");
+            off += snprintf(row + off, sizeof row - off, ANSI_FG_WHITE);
         }
         tx("%s", row);
     }

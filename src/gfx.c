@@ -1,4 +1,5 @@
 #include "ryl.h"
+#include "ansi.h"
 #include "gfx.h"
 #include "primitives.h"
 
@@ -8,12 +9,12 @@ void blitgfx(uint8_t pic) {
     clr_map_window();
     snprintf(path, sizeof path, "data/tiles/%02d.ans", pic);
     render_at(path, 8, 6);
-    tx("\x1b[37m\x1b[40m");
+    tx(ANSI_FG_WHITE ANSI_BG_BLACK);
     c(49, 6);
 }
 
 void clr_map_window() {
-    tx("\x1b[37m\x1b[40m");
+    tx(ANSI_FG_WHITE ANSI_BG_BLACK);
     c(8, 6);
     tx("                ");
     c(8, 7);

@@ -2,6 +2,7 @@
 
 #include "io.h"
 #include "ryl.h"
+#include "ansi.h"
 #include "driv.h"
 #include "primitives.h"
 #include "res.h"
@@ -23,7 +24,7 @@ void c(uint8_t x, uint8_t y) {
     int32_t n;
 
     state.global_x = x;
-    n = snprintf(pos, sizeof pos, "\x1b[%d;0H", y);
+    n = snprintf(pos, sizeof pos, ANSI_CSI "%d;0H", y);
     io->write(pos, (size_t)n);
 }
 
@@ -33,7 +34,7 @@ uint32_t tx(const char *fmtstr, ...) {
     va_list var_args;
     int32_t n;
 
-    n = snprintf(jump, sizeof jump, "\x1b[%dC", state.global_x);
+    n = snprintf(jump, sizeof jump, ANSI_CSI "%dC", state.global_x);
     if (n > 0) {
         io->write(jump, (size_t)n);
     }
@@ -63,7 +64,7 @@ uint8_t carrier(void) {
 }
 
 void cleanexit(void) {
-    tx("\x1b[30m\x1b[ p\x1b[37m");
+    tx(ANSI_FG_BLACK ANSI_ESC "[ p" ANSI_FG_WHITE);
     if (io && io->shutdown) {
         io->shutdown();
     }
@@ -103,10 +104,10 @@ char key(void) {
         cleanexit();
     }
     c(0, 0);
-    tx("\x1b[30m");
+    tx(ANSI_FG_BLACK);
     ch = io->getch();
     c(49, 6);
-    tx("\x1b[37m");
+    tx(ANSI_FG_WHITE);
 
     if (ch < 0) {
         cleanexit();
@@ -163,7 +164,7 @@ void ryl_pause(void) {
 
     tx("(%s RETURN key)\r\n", verbs[ryl_random(0, 9)]);
     c(0, 0);
-    tx("\x1b[30m");
+    tx(ANSI_FG_BLACK);
     while (1) {
         ch = io->getch();
         if (ch < 0) {
@@ -173,7 +174,7 @@ void ryl_pause(void) {
             break;
         }
     }
-    tx("\x1b[37m");
+    tx(ANSI_FG_WHITE);
     c(49, 6);
 }
 
@@ -195,7 +196,7 @@ void render_at(const char *path, uint8_t x, uint8_t y) {
             line[--n] = 0;
         }
         char pos[16];
-        int32_t pn = snprintf(pos, sizeof pos, "\x1b[%d;%dH", y + row, x);
+        int32_t pn = snprintf(pos, sizeof pos, ANSI_CSI "%d;%dH", y + row, x);
         if (pn > 0) {
             io->write(pos, (size_t)pn);
         }
@@ -204,7 +205,7 @@ void render_at(const char *path, uint8_t x, uint8_t y) {
         }
         row++;
     }
-    io->write("\x1b[0m", 4);
+    io->write(ANSI_RESET, 4);
     fclose(fh);
 }
 
