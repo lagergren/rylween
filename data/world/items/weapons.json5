@@ -1,0 +1,29 @@
+// Weapons shard — ids 1–19. Plus the id 0 "empty slot" sentinel which
+// doesn't fit any other section; res_item(0) still returns this record
+// so object() renders "-" for empty hands / armour / backpack slots.
+//
+// Fields: id, name, cost, damage. Optional: wieldable_by (array of class
+// names; folded to a class-id bitmask at load — see fold_wieldable_by
+// in res.c). Additional fields parse and are retained in the node tree.
+{
+  blank:          { id: 0,  name: '-',             cost: 0,     damage: 1 },
+  sword:          { id: 1,  name: 'Sword',         cost: 160,   damage: 6 },
+  axe:            { id: 2,  name: 'Axe',           cost: 240,   damage: 10 },
+  bow:            { id: 3,  name: 'Bow',           cost: 160,   damage: 7 },
+  club:           { id: 4,  name: 'Club',          cost: 140,   damage: 4 },
+  dart:           { id: 5,  name: 'Dart',          cost: 40,    damage: 3 },
+  sling:          { id: 6,  name: 'Sling',         cost: 165,   damage: 5 },
+  longsword:      { id: 7,  name: 'Longsword',     cost: 280,   damage: 9 },
+  trident:        { id: 8,  name: 'Trident',       cost: 350,   damage: 11 },
+  halbard:        { id: 9,  name: 'Halbard',       cost: 500,   damage: 14 },
+  pole_arm:       { id: 10, name: 'Pole arm',      cost: 670,   damage: 18 },
+  crossbow:       { id: 11, name: 'Crossbow',      cost: 900,   damage: 21 },
+  scythe:         { id: 12, name: 'Scythe',        cost: 870,   damage: 14 },
+  scimitar:       { id: 13, name: 'Scimitar',      cost: 600,   damage: 8 },
+  two_hand_sword: { id: 14, name: '2H-Sword',      cost: 1200,  damage: 19 },
+  magic_dagger:   { id: 15, name: 'Magic Dagger',  cost: 1800,  damage: 24 },
+  magic_sword:    { id: 16, name: 'Magic Sword',   cost: 3000,  damage: 30 },
+  magic_axe:      { id: 17, name: 'Magic Axe',     cost: 4000,  damage: 38 },
+  dancing_sword:  { id: 18, name: 'Dancing Sword', cost: 6000,  damage: 50 },
+  death_blade:    { id: 19, name: 'Death Blade',   cost: 10000, damage: 68 },
+}

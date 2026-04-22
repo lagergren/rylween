@@ -1,0 +1,15 @@
+// Armour shard — ids 20–28. Armour stores AC in the same slot weapons
+// use for damage (legacy ryl_item.damage is read by obdamage() in both
+// roles); fold_items accepts either `damage` or `ac` as the field name
+// so the shard reads the way the item actually behaves.
+{
+  leather:        { id: 20, name: 'Leather',       cost: 260,   ac: 2 },
+  chain_mail:     { id: 21, name: 'Chain Mail',    cost: 600,   ac: 5 },
+  plate_mail:     { id: 22, name: 'Plate Mail',    cost: 980,   ac: 7 },
+  ring_mail:      { id: 23, name: 'Ring Mail',     cost: 1950,  ac: 9 },
+  elvin_cloak:    { id: 24, name: 'Elvin Cloak',   cost: 3600,  ac: 12 },
+  mithril_mail:   { id: 25, name: 'Mithril Mail',  cost: 5800,  ac: 14 },
+  admt_mail:      { id: 26, name: 'Admt. Mail',    cost: 9400,  ac: 16 },
+  prot_sphere:    { id: 27, name: 'Prot. Sphere',  cost: 15000, ac: 20 },
+  cloak_of_gods:  { id: 28, name: 'Cloak of Gods', cost: 28000, ac: 30 },
+}

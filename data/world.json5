@@ -24,10 +24,18 @@
     'encounter.immune':     { slot: 0,  scope: 'encounter', values: ['no', 'yes'] },
   },
 
-  // Items are loaded through an import to exercise the $import resolver
-  // (§2.1). The shard is a plain JSON5 object; the resolver splices it
-  // in place of this directive at load time.
-  items: { $import: 'world/items.json5' },
+  // Items are split into section shards by kind. fold_items walks the
+  // outer sections object, then each inner record, so sections are a
+  // pure authoring convenience — the legacy ryl_item[0..111] table is
+  // still keyed by the flat `id` field.
+  items: {
+    weapons:     { $import: 'world/items/weapons.json5' },
+    armour:      { $import: 'world/items/armour.json5' },
+    gear:        { $import: 'world/items/gear.json5' },
+    potions:     { $import: 'world/items/potions.json5' },
+    treasures:   { $import: 'world/items/treasures.json5' },
+    magic_items: { $import: 'world/items/magic_items.json5' },
+  },
 
   // Monsters shard — keyed by symbolic name; `id` is the runtime key the
   // legacy ryl_monster[0..90] table uses (map.dat stores ids verbatim).

@@ -1,0 +1,13 @@
+// Treasures shard — ids 39–47. Gems, jewellery, and the world's most
+// valuable pack animal.
+{
+  red_gem:      { id: 39, name: 'Red Gem',      cost: 1000 },
+  blue_gem:     { id: 40, name: 'Blue Gem',     cost: 1200 },
+  green_gem:    { id: 41, name: 'Green Gem',    cost: 1900 },
+  chalice:      { id: 42, name: 'Chalice',      cost: 2340 },
+  pendant:      { id: 43, name: 'Pendant',      cost: 5000 },
+  broche:       { id: 44, name: 'Broche',       cost: 1234 },
+  crystal_bowl: { id: 45, name: 'Crystal Bowl', cost: 4567 },
+  necklace:     { id: 46, name: 'Necklace',     cost: 987 },
+  donkey:       { id: 47, name: 'Donkey',       cost: 800 },
+}

@@ -1,0 +1,32 @@
+// Magic items shard — ids 100–111. Most will grow an `effect` DSL
+// program once the evaluator owns use/consume. flute_of_madness already
+// carries one as a placeholder (inert until eval_effect dispatches
+// through a use hook — see docs/dsl.md §10).
+{
+  frost_wand:         { id: 100, name: 'Frost Wand',          cost: 1000 },
+  fire_wand:          { id: 101, name: 'Fire Wand',           cost: 3000 },
+  gem_of_confusion:   { id: 102, name: 'Gem of Confusion',    cost: 1560 },
+  gem_of_blindness:   { id: 103, name: 'Gem of Blindness',    cost: 4900 },
+  drums_of_death:     { id: 104, name: 'Drums of Death',      cost: 4500 },
+  staff_of_healing:   { id: 105, name: 'Staff of Healing',    cost: 670 },
+  blessing_scroll:    { id: 106, name: 'Blessing Scroll',     cost: 2000 },
+  staff_of_curing:    { id: 107, name: 'Staff of Curing',     cost: 4343 },
+  gem_of_resurrection:{ id: 108, name: 'Gem of Resurrection', cost: 9000 },
+  kaels_axe:          { id: 109, name: "Kael's Axe",          cost: 14000 },
+  holy_handgrenade:   { id: 110, name: 'Holy Handgrenade',    cost: 5600 },
+  flute_of_madness: {
+    id:   111,
+    name: 'Flute of Madness',
+    cost: 9000,
+    kind: 'magic_item',
+    wieldable_by: ['bard'],
+    slot: 'consumable',
+    // Effect program placeholder — inert until the item-use hook wires
+    // eval_effect into speak.c / strid.c. Preserved byte-for-byte from
+    // the prior data/world/items.json5 so compile_world_tree exercises
+    // the same path it did last commit.
+    effect: ['seq',
+      ['say', 'strid.item.flute_of_madness'],
+      ['set_flag', 'encounter.confused', 1]],
+  },
+}

@@ -1,0 +1,6 @@
+// Potions shard — ids 36–38.
+{
+  red_potion:   { id: 36, name: 'Red Potion',   cost: 30 },
+  blue_potion:  { id: 37, name: 'Blue Potion',  cost: 100 },
+  amber_potion: { id: 38, name: 'Amber Potion', cost: 500 },
+}

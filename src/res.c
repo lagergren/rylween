@@ -862,16 +862,46 @@ static void fold_flags(const node *flags_node, const char *path) {
 }
 
 /* -------- items subtree (shadows JSONL; docs/dsl.md §2.2) --------
-   For this commit we honor only the legacy fields the runtime reads
-   today: id, name, cost, damage. The richer kind/effect/wieldable_by
-   schema parses fine (preserved in world_tree) but is inert until the
-   evaluator lands. */
-static void fold_items(const node *items_node, const char *path) {
-    if (!items_node) return;
-    if (items_node->kind != N_OBJ) die(path, items_node->line, "items: expected object");
-    for (size_t i = 0; i < items_node->u.obj.n; i++) {
-        const char *sym  = items_node->u.obj.items[i].key;
-        const node *rec  = items_node->u.obj.items[i].val;
+   The items tree is sectioned by kind (weapons/armour/gear/potions/
+   treasures/magic_items); the sections are an authoring convenience,
+   the legacy ryl_item[0..111] table is still keyed by flat `id`.
+
+   For each record: id, name, cost are read and folded into the legacy
+   table. `damage` (weapons) and `ac` (armour) both land in the single
+   ryl_item.damage slot — obdamage() at the call sites reads the same
+   field for both roles. `wieldable_by` is rewritten in place from an
+   array of class-name strings to an integer class-id bitmask so the
+   evaluator can dispatch without strcmp at runtime; fatal on unknown
+   class. Other fields (kind / slot / effect / ...) parse into the node
+   tree for the evaluator but are inert this commit. */
+static void fold_wieldable_by(node *rec, const char *path) {
+    for (size_t j = 0; j < rec->u.obj.n; j++) {
+        if (strcmp(rec->u.obj.items[j].key, "wieldable_by") != 0) continue;
+        node *val = rec->u.obj.items[j].val;
+        if (!val || val->kind != N_ARR) {
+            die(path, val ? val->line : rec->line, "wieldable_by: expected array");
+        }
+        int32_t mask = 0;
+        for (size_t k = 0; k < val->u.arr.n; k++) {
+            node *el = val->u.arr.items[k];
+            if (!el || el->kind != N_STR) die(path, val->line, "wieldable_by: element must be string");
+            int cid = pm_class_id(el->u.sv);
+            if (cid < 0) die(path, el->line, "wieldable_by: unknown class");
+            mask |= (int32_t) (1u << (unsigned) cid);
+        }
+        node *repl = node_new(N_INT, val->line);
+        repl->u.iv = mask;
+        node_free(val);
+        rec->u.obj.items[j].val = repl;
+        return;
+    }
+}
+
+static void fold_items_section(const node *section, const char *path) {
+    if (section->kind != N_OBJ) die(path, section->line, "items: section must be object");
+    for (size_t i = 0; i < section->u.obj.n; i++) {
+        const char *sym = section->u.obj.items[i].key;
+        node *rec = section->u.obj.items[i].val;
         if (rec->kind != N_OBJ) die(path, rec->line, "items: entry must be object");
         const node *id_n = obj_get(rec, "id");
         if (!id_n || id_n->kind != N_INT) die(path, rec->line, "items: missing 'id'");
@@ -880,16 +910,23 @@ static void fold_items(const node *items_node, const char *path) {
         ryl_item *it = &items[id];
         free((void *) it->name);
         const node *name_n = obj_get(rec, "name");
-        if (name_n && name_n->kind == N_STR) {
-            it->name = strdup(name_n->u.sv);
-        } else {
-            /* fall back to the subtree key, capitalised */
-            it->name = strdup(sym);
-        }
+        it->name = strdup((name_n && name_n->kind == N_STR) ? name_n->u.sv : sym);
         const node *cost_n = obj_get(rec, "cost");
         it->cost = (cost_n && cost_n->kind == N_INT) ? cost_n->u.iv : 0;
         const node *dmg_n = obj_get(rec, "damage");
-        it->damage = (dmg_n && dmg_n->kind == N_INT) ? dmg_n->u.iv : 0;
+        const node *ac_n  = obj_get(rec, "ac");
+        if      (dmg_n && dmg_n->kind == N_INT) it->damage = dmg_n->u.iv;
+        else if (ac_n  && ac_n->kind  == N_INT) it->damage = ac_n->u.iv;
+        else                                    it->damage = 0;
+        fold_wieldable_by(rec, path);
+    }
+}
+
+static void fold_items(const node *items_node, const char *path) {
+    if (!items_node) return;
+    if (items_node->kind != N_OBJ) die(path, items_node->line, "items: expected object");
+    for (size_t s = 0; s < items_node->u.obj.n; s++) {
+        fold_items_section(items_node->u.obj.items[s].val, path);
     }
 }
 
