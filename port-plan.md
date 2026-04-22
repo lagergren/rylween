@@ -1035,24 +1035,37 @@ Currently `struct party` has `name[5][30]`, `hp[5]`, …
      npcs, parties, map_w, map_h, … }`.
 - The runtime allocates on boot from those values (requires
   splitting `struct party` / `struct ryl_state` into heap-
-  backed flex arrays or pointer fields; the save format
-  changes too).
+  backed flex arrays or pointer fields).
 - Audit every `[5]` / `[17]` / `[26]` / `[41]` / `[82]` / `[42]`
   at the call sites and replace with `<limit>` lookups or
   per-instance caps carried in the context.
 
-Two load-bearing consequences:
+**Save-file license (user-granted, 2026-04-22).** The legacy raw
+`fwrite(&struct_party, sizeof, 1, fh)` layout in `save()`/`load()`
+may be retired. Target: replace `realm.dat` and `npc.dat` with
+JSON5 written under `$HOME/.rylween/`. When encoding a list, the
+record carries its length explicitly (`"parties": [...]`), so
+dynamic caps come for free. Not required to be human-readable —
+we can swap in a binary encoding later if the write path becomes
+a bottleneck, but no need to preserve binary compatibility with
+existing saves.
 
-- **Save-file compatibility.** `load()` / `save()` in `driv.c`
-  currently write the fixed-size structs as raw bytes. Flex-
-  array layouts break that. Either version the save format
-  (header with limits, body with the actual count) or keep
-  reading the legacy fixed layout into an intermediate buffer
-  and copy into the new struct.
-- **1-indexing.** Many call sites iterate `for (m=1; m<=4; m++)`
-  and assume slot 0 is unused. Flipping to 0-indexed is a
-  separate, bigger cut. For a first pass, keep 1-indexing and
-  only make the *cap* dynamic — arrays become `[max+1]` sized.
+Files in scope:
+- `realm.dat` → `realm.json5` (party table + session cursors).
+- `npc.dat` → `npc.json5` (state.npc[]).
+- `data/map.dat` (42×82 terrain bytes, read-only authored
+  content) can fold into `world.json5` as a dedicated shard —
+  same $import mechanism the loader already supports. Keep
+  `.dat` as a fallback only if the diff churn is too big.
+- `entry.dat` (high-score entry text) stays plain text.
+- `data/journal` stays plain text (see §12.4, where the journal
+  code itself moves owners).
+
+**1-indexing note.** Many call sites iterate
+`for (m = 1; m <= 4; m++)` and assume slot 0 is unused. Flipping
+to 0-indexed is a separate, bigger cut. For a first pass, keep
+1-indexing and only make the *cap* dynamic — arrays become
+`[max+1]` sized.
 
 Sequence the work as:
 
@@ -1063,5 +1076,42 @@ Sequence the work as:
    catalog.
 3. Cut over the easy ones (inventory, party_members) to
    dynamic caps; keep the 1-indexed layout.
-4. Save-format migration (deferred — needs its own design).
+4. Replace `realm.dat` / `npc.dat` with JSON5 writers/readers.
+   Since we have the loader infrastructure already, reuse it
+   for reads; write via a straightforward emit pass.
+5. Fold `data/map.dat` into `world.json5` (as a shard).
+
+### 12.4 Residual cleanup queued across sessions
+
+Small items surfaced in passing during the Phase 6d series that
+aren't worth their own §. Clear when the relevant tree is already
+open:
+
+- **`title-menu-exit.env` sidecar with `RYL_NO_DELAY=1`.** Should
+  drop the replay suite from ~15s to ~3s. Needs a bless if any
+  delay-dependent byte leaks into stdout; suspected clean but
+  re-verify against the golden.
+- **Ydarg-as-mission.** End-game boss gated on
+  jazzyfoot/mastercrown/silverkey/bracelets should move from the
+  bespoke `ydarg()` / `confrontation()` path into a regular
+  mission with trigger + item-flag conditions. Blocked on the
+  DSL evaluator learning mission triggers + item-flag paths.
+- **`.git-blame-ignore-revs`.** Record `33ffc52` (the
+  clang-format reformat) so `git blame -w --ignore-revs-file
+  .git-blame-ignore-revs` skips it. Easy win, do next time
+  `.git*` files are open.
+- **Journal code lives in the wrong module.** `read_journal` /
+  `journal` / the `journal` editor helpers currently live in
+  `driv.c` (lines ~256, ~1083, ~1115, ~1136, ~1153, ~1175).
+  Semantically it's a multi-user / BBS feature that never
+  shipped; belongs alongside guild / mail / trade in
+  `interact.c`. When you move it, update `driv.h`/`interact.h`
+  and the tailored include lists accordingly.
+- **Clangd cache drift.** Background `<new-diagnostics>`
+  reminders sometimes reference symbols that no longer exist
+  (e.g. `sextext`, `kar`, `ryl_seed_now`). Those come from
+  `~/Library/Caches/clangd/` — `make clean` doesn't touch them.
+  Ignore the stream; gate on `make` + `tools/replay.sh --all`
+  + `tools/check_world.sh` instead. Not an action item; noted
+  here so future sessions don't chase ghosts.
 
