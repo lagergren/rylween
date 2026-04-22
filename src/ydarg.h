@@ -4,6 +4,5 @@
 /* Ydarg end-game boss + the scripted confrontation that precedes it. */
 
 void ydarg(void);
-void confrontation(void);
 
 #endif

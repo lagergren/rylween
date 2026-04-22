@@ -8,6 +8,8 @@
 #include "subs.h"
 #include "towne.h"
 
+static void expcheck(void);
+
 /*
 ** Never find and never fool
 ** The first one drinks the poison pool

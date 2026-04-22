@@ -8,20 +8,14 @@
    invlist, journal). */
 
 void init(void);
-void createparty(void);
 void show(int32_t);
-void load(void);
 void save(void);
-void spelet(void);
 uint8_t drop_option(void);
 char *pronoun(uint8_t, uint8_t);
 void showparty(void);
-void position_locations(void);
 void invlist(void);
 void statusline(void);
 void journal(char *);
-void read_journal(void);
-void clrjr(uint8_t);
 void help(void);
 
 #endif

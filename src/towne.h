@@ -7,15 +7,8 @@
    (object / obcost / obdamage) shared across buy/sell/equip flows. */
 
 void enter(void);
-void smith(void);
-void tavern(void);
-void inn(void);
-void merchant(void);
 void rumour(void);
 char *object(int32_t);
-int32_t obcost(int32_t);
 int32_t obdamage(int32_t);
-void church(void);
-void hut(void);
 
 #endif

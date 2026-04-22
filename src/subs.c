@@ -11,6 +11,9 @@
 #include "subs.h"
 #include "towne.h"
 
+static int32_t color(char);
+static char *glyph(char);
+
 void timehandler() {
     state.tid++;
     if (state.tid == 25) {
@@ -214,10 +217,10 @@ void update_map() {
         tx0(row);
     }
 }
-int32_t color(char t) {
+static int32_t color(char t) {
     return res_color(t);
 }
-char *glyph(char t) {
+static char *glyph(char t) {
     return (char *)res_glyph(t);
 }
 

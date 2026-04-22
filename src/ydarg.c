@@ -7,6 +7,8 @@
 #include "towne.h"
 #include "ydarg.h"
 
+static void confrontation(void);
+
 void ydarg() {
     int32_t room[8][8];
     int32_t xl, yl, lvl, n, s, e, w, i, j, x, oc;
@@ -486,7 +488,7 @@ void ydarg() {
     }
 }
 
-void confrontation() {
+static void confrontation() {
     FILE *fh;
     char str[80];
     char kl[8];

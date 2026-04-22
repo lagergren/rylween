@@ -20,6 +20,10 @@
 #include "driv.h"
 #include "primitives.h"
 
+static void env_set_local(env_t *e, const char *name, int32_t val);
+static int eval_cond(const node *n, env_t *e);
+static int32_t eval_expr(const node *n, env_t *e);
+
 #include <ctype.h>
 #include <limits.h>
 #include <setjmp.h>
@@ -524,7 +528,7 @@ void env_free(env_t *e) {
     memset(e, 0, sizeof *e);
 }
 
-void env_set_local(env_t *e, const char *name, int32_t val) {
+static void env_set_local(env_t *e, const char *name, int32_t val) {
     for (size_t i = 0; i < e->n_locals; i++) {
         if (strcmp(e->locals[i].name, name) == 0) {
             e->locals[i].val = val;
@@ -843,7 +847,7 @@ static int32_t item_id_of(const node *n) {
     rdie(n->line, "symbolic item id not yet resolvable");
 }
 
-int32_t eval_expr(const node *n, env_t *e) {
+static int32_t eval_expr(const node *n, env_t *e) {
     if (!n) {
         rdie(0, "eval_expr: null node");
     }
@@ -924,7 +928,7 @@ int32_t eval_expr(const node *n, env_t *e) {
     rdie(n->line, "unknown expr op");
 }
 
-int eval_cond(const node *n, env_t *e) {
+static int eval_cond(const node *n, env_t *e) {
     if (!n || n->kind != N_ARR) {
         rdie(n ? n->line : 0, "cond must be array");
     }

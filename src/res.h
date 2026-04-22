@@ -69,17 +69,9 @@ void res_load_world(const char *path);
    but `_exit` / abort()) still drop the legacy tables. */
 void res_shutdown(void);
 
-/* Opaque accessor for the parsed world tree. Returns NULL if no world
-   file was loaded. The returned pointer is consumed by the evaluator
-   (landing in the follow-up commit that implements eval_cond / _effect /
-   _expr over docs/dsl.md §6). */
-const void *res_world(void);
-
 /* Flags subtree (docs/dsl.md §3.1): symbolic id -> party/encounter slot.
-   res_flag_slot returns -1 for unknown ids. res_flag_value returns "" for
-   unknown ids or out-of-range indices; never NULL. */
+   Returns -1 for unknown ids. */
 int32_t res_flag_slot(const char *id);
-const char *res_flag_value(const char *id, int index);
 
 /* Enum: values[index] for matching record. "" if missing/out of range. */
 const char *res_enum(const char *id, int index);

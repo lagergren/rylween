@@ -9,6 +9,14 @@
 #include "towne.h"
 #include "ydarg.h"
 
+static void church(void);
+static void hut(void);
+static void inn(void);
+static void merchant(void);
+static int32_t obcost(int32_t);
+static void smith(void);
+static void tavern(void);
+
 void rumour() {
     char str[40];
 
@@ -207,7 +215,7 @@ int32_t obdamage(int32_t nr) {
     const ryl_item *it = res_item(nr);
     return it ? it->damage : 0;
 }
-int32_t obcost(int32_t nr) {
+static int32_t obcost(int32_t nr) {
     const ryl_item *it = res_item(nr);
     return it ? it->cost : 0;
 }
@@ -406,7 +414,7 @@ void enter() {
     }
 }
 
-void hut() {
+static void hut() {
     int32_t i, vem = 0;
     char c;
 
@@ -446,7 +454,7 @@ void hut() {
     }
 }
 
-void church() {
+static void church() {
     char c, d, f;
     int32_t cost;
 
@@ -607,7 +615,7 @@ void church() {
         }
     }
 }
-void smith() {
+static void smith() {
     char b, c, d;
     int32_t i, x, oc;
     int32_t pr;
@@ -923,7 +931,7 @@ void smith() {
     }
     clr_map_window();
 }
-void tavern() {
+static void tavern() {
     char c, d, b;
     int32_t i, j, x, st, xs;
     int32_t pr;
@@ -1272,7 +1280,7 @@ void tavern() {
         }
     }
 }
-void inn() {
+static void inn() {
     char c, d;
     int32_t i, pr = 0;
 
@@ -1444,7 +1452,7 @@ void inn() {
         }
     }
 }
-void merchant() /* HOS THE MERCHANT */
+static void merchant() /* HOS THE MERCHANT */
 {
     char c, d, f;
     int32_t i, x, y, oc, pr;

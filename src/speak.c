@@ -5,6 +5,9 @@
 #include "speak.h"
 #include "towne.h"
 
+static void flaggkoll(int32_t);
+static void reply_chitchat(int32_t, int32_t);
+
 /* Random coords:
 **
 ** Fire Shield Dungeon
@@ -480,7 +483,7 @@ void speak(int32_t bld, int32_t tow) {
     }
 }
 
-void reply_chitchat(int32_t subj, int32_t jb) {
+static void reply_chitchat(int32_t subj, int32_t jb) {
     if (subj == 0) {
         switch (jb) {
             case 1:
@@ -662,7 +665,7 @@ void reply_chitchat(int32_t subj, int32_t jb) {
         }
     }
 }
-void flaggkoll(int32_t vem) {
+static void flaggkoll(int32_t vem) {
     int32_t i, x, oc;
     char str[80];
     char send[144];

@@ -8,7 +8,14 @@
 #include "subs.h"
 #include "towne.h"
 
-void spelet() {
+static void clrjr(uint8_t);
+static void createparty(void);
+static void load(void);
+static void position_locations(void);
+static void read_journal(void);
+static void spelet(void);
+
+static void spelet() {
     char cc, d;
     int32_t i;
 
@@ -253,7 +260,7 @@ uint8_t drop_option() {
     }
 }
 
-void read_journal() {
+static void read_journal() {
     FILE *j;
     char str[90], str2[88], plrstr[6];
     int32_t plr = 0;
@@ -340,7 +347,7 @@ void statusline() {
     tx("%s\r\n", stline);
     c(49, 6);
 }
-void position_locations() {
+static void position_locations() {
     int32_t i;
 
     for (i = 0; i < 15; i++) {
@@ -740,7 +747,7 @@ void save() {
     }
     fclose(fh);
 }
-void load() {
+static void load() {
     FILE *fh;
     int32_t i;
     char path[512];
@@ -811,7 +818,7 @@ char *pronoun(uint8_t nr, uint8_t xx) {
     return (char *)res_pronoun(sex, xx);
 }
 
-void createparty() {
+static void createparty() {
     int32_t i, a, g, passed;
     char str[80];
 
@@ -1118,7 +1125,7 @@ void journal(char *send_me) {
     fputs(send_me, fh);
     fclose(fh);
 }
-void clrjr(uint8_t nr) {
+static void clrjr(uint8_t nr) {
     FILE *fh;
     char str[144], a[10], b[20], temp[4];
     uint32_t byte[50];

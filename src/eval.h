@@ -106,7 +106,6 @@ struct env_t {
 
 void env_init(env_t *e);
 void env_free(env_t *e);
-void env_set_local(env_t *e, const char *name, int32_t val);
 void env_bind_caster_party(env_t *e, pm_t pm);
 void env_bind_combat(env_t *e, int noc, int *mh, int *deadc, const char *fn);
 
@@ -115,8 +114,6 @@ void env_bind_combat(env_t *e, int noc, int *mh, int *deadc, const char *fn);
    messages. Unknown ops in effect/cond/expr array position are fatal. */
 void compile_world_tree(node *root, const char *src_path);
 
-int32_t eval_expr(const node *n, env_t *e);
-int eval_cond(const node *n, env_t *e);
 void eval_effect(const node *n, env_t *e);
 
 #endif

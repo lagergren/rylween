@@ -19,8 +19,6 @@ void camp(void);
 void spell(int32_t);
 void quaff(void);
 void losegame(void);
-int32_t color(char);
-char *glyph(char);
 void scorelist(void);
 void hunt(void);
 void weaponoff(void);

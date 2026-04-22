@@ -81,7 +81,7 @@ void clw(void) {
     c(49, 6);
 }
 
-uint8_t carrier(void) {
+static uint8_t carrier(void) {
     return io->carrier_ok() ? 1 : 0;
 }
 

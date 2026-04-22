@@ -12,7 +12,6 @@ void getstr(uint8_t, char *, size_t);
 uint32_t tx(const char *, ...);
 uint32_t tx0(const char *);
 void cleanexit(void);
-uint8_t carrier(void);
 void cl(void);
 void c(uint8_t, uint8_t);
 void clw(void);

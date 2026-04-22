@@ -806,10 +806,6 @@ void res_load_world(const char *path) {
     }
 }
 
-const void *res_world(void) {
-    return world_tree;
-}
-
 int32_t res_flag_slot(const char *id) {
     for (size_t i = 0; i < n_flags_tab; i++) {
         if (strcmp(flags_tab[i].id, id) == 0) {
@@ -819,7 +815,16 @@ int32_t res_flag_slot(const char *id) {
     return -1;
 }
 
-const char *res_flag_value(const char *id, int index) {
+/* Kept #if 0: originally added as the evaluator's world-tree + flag-value
+   accessors. The evaluator lookups ended up routed through different
+   paths, but these are intentionally preserved for future consumers
+   (e.g. a second-pass flag lookup that wants "" on out-of-range). */
+#if 0
+static const void *res_world(void) {
+    return world_tree;
+}
+
+static const char *res_flag_value(const char *id, int index) {
     for (size_t i = 0; i < n_flags_tab; i++) {
         if (strcmp(flags_tab[i].id, id) == 0) {
             if (index < 0 || (size_t)index >= flags_tab[i].n_values) {
@@ -830,6 +835,7 @@ const char *res_flag_value(const char *id, int index) {
     }
     return "";
 }
+#endif
 
 const void *res_spell_node(const char *class_id, int slot) {
     const node *root = world_tree;

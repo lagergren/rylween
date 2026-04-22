@@ -33,10 +33,6 @@ void str_append(char *dst, size_t dst_sz, const char *src);
    Result is written to out (capped to out_sz); caller owns the buffer. */
 void ryl_state_path(const char *leaf, char *out, size_t out_sz);
 
-/* Wall-clock entropy hook. Returns RYL_FAKE_EPOCH when set in the environment;
-   otherwise wraps time(3). Used for date stamps and the boot-time PRNG seed. */
-time_t ryl_time(time_t *out);
-
 /* Single-source PRNG. ryl_random_init() runs ONCE from main() before any
    draw. Seed is RYL_FAKE_SEED when set, else time^pid. There is no public
    reseed: every in-game roll draws from the same xorshift64* stream so the

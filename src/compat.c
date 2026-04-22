@@ -59,7 +59,7 @@ void ryl_delay(unsigned ms) {
     }
 }
 
-time_t ryl_time(time_t *out) {
+static time_t ryl_time(time_t *out) {
     static int resolved = 0;
     static int fixed = 0;
     static time_t fixed_val = 0;

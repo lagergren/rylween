@@ -6,6 +6,5 @@
 /* Combat entry (encounter) and the per-win XP distribution (expcheck). */
 
 void encounter(int32_t, int32_t);
-void expcheck(void);
 
 #endif

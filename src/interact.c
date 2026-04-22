@@ -4,6 +4,19 @@
 #include "interact.h"
 #include "primitives.h"
 
+static void editor(char *, uint8_t);
+static void guild_title(char *);
+static void read_internal_mail(void);
+static uint8_t select_party(void);
+
+/* Guild trade flow — stubbed empty on the legacy Amiga build, kept for
+   the "(T)rade Items" menu entry in guild(). No implementation has
+   landed yet; preserved #if 0 until the flow is specced. */
+#if 0
+static void trade(void) {
+}
+#endif
+
 void guild() {
     char f, d, str2[80], str[80];
     uint8_t i, x, xx, yy;
@@ -198,7 +211,7 @@ void guild() {
         }
     }
 }
-uint8_t select_party() {
+static uint8_t select_party() {
     uint8_t i;
     char d;
 
@@ -227,7 +240,7 @@ uint8_t select_party() {
     return (uint8_t)(d - 64);
 }
 
-void editor(char *outfile, uint8_t bulletin) {
+static void editor(char *outfile, uint8_t bulletin) {
     FILE *fh2;
     char str2[80], mnt[5], str[80];
     char kl[8];
@@ -355,7 +368,7 @@ void attackhandler(void) {
     tx("(L)eave\r\n");
 }
 
-void guild_title(char *title) {
+static void guild_title(char *title) {
     cl();
     tx("[37m[44m");
     c((80 - strlen(title)) / 2, 1);
@@ -364,9 +377,7 @@ void guild_title(char *title) {
     tx("[40m");
 }
 
-void trade() {
-}
-void read_internal_mail() {
+static void read_internal_mail() {
     state.p[state.cpl].waiting_mail = 0;
 }
 
