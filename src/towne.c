@@ -142,19 +142,9 @@ void rumour() {
             tx("Seek the holy handgrenade!\r\n");
             break;
         case 25:
-            if (state.npc[15].towne == 1) {
-                snprintf(str, sizeof str, "in Thord");
-            }
-            if (state.npc[15].towne == 2) {
-                snprintf(str, sizeof str, "in Ollk");
-            }
-            if (state.npc[15].towne == 3) {
-                snprintf(str, sizeof str, "in Wilor");
-            }
-            if (state.npc[15].towne == 4) {
-                snprintf(str, sizeof str, "in Murn");
-            }
-            if (state.npc[15].towne == 0) {
+            if (state.npc[15].towne) {
+                snprintf(str, sizeof str, "in %s", res_town_name(state.npc[15].towne));
+            } else {
                 snprintf(str, sizeof str, "at %dx%d", state.npc[15].x, state.npc[15].y);
             }
             tx("A man named %s\r\n", res_enum("name", 15));
@@ -166,19 +156,9 @@ void rumour() {
             tx("somewhere near 50x30!\r\n");
             break;
         case 27:
-            if (state.npc[13].towne == 1) {
-                snprintf(str, sizeof str, "in Thord");
-            }
-            if (state.npc[13].towne == 2) {
-                snprintf(str, sizeof str, "in Ollk");
-            }
-            if (state.npc[13].towne == 3) {
-                snprintf(str, sizeof str, "in Wilor");
-            }
-            if (state.npc[13].towne == 4) {
-                snprintf(str, sizeof str, "in Murn");
-            }
-            if (state.npc[13].towne == 0) {
+            if (state.npc[13].towne) {
+                snprintf(str, sizeof str, "in %s", res_town_name(state.npc[13].towne));
+            } else {
                 snprintf(str, sizeof str, "at %dx%d", state.npc[13].x, state.npc[13].y);
             }
             tx("Seek %s if you\r\n", res_enum("name", 13));
@@ -270,20 +250,8 @@ void enter() {
     if (!state.twn) {
         return;
     }
-    switch (state.twn) {
-        case 1:
-            strcpy(twnname, "Thord");
-            break;
-        case 2:
-            strcpy(twnname, "Ollk");
-            break;
-        case 3:
-            strcpy(twnname, "Wilor");
-            break;
-        case 4:
-            strcpy(twnname, "Murn");
-            break;
-    }
+    strncpy(twnname, res_town_name(state.twn), sizeof twnname - 1);
+    twnname[sizeof twnname - 1] = '\0';
 
     /* Har skall checkas om det {r en s{rskild stad, som tex Ydarg */
 

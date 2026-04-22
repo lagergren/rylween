@@ -1,4 +1,5 @@
 #include "ryl.h"
+#include "res.h"
 #include "driv.h"
 #include "gfx.h"
 #include "interact.h"
@@ -20,7 +21,6 @@ static void trade(void) {
 void guild() {
     char f, d, str2[80], str[80];
     uint8_t i, x, xx, yy;
-    char townname[10];
     FILE *fh;
 
     clr_map_window();
@@ -159,19 +159,8 @@ void guild() {
                 clw();
                 tx("%s\r\n", state.p[x].partyname);
                 if (state.map[state.p[x].y][state.p[x].x] == '0') {
-                    if (state.p[x].x == 12 && state.p[x].y == 11) {
-                        strcpy(townname, "Thord");
-                    }
-                    if (state.p[x].x == 48 && state.p[x].y == 12) {
-                        strcpy(townname, "Ollk");
-                    }
-                    if (state.p[x].x == 43 && state.p[x].y == 20) {
-                        strcpy(townname, "Wilor");
-                    }
-                    if (state.p[x].x == 55 && state.p[x].y == 29) {
-                        strcpy(townname, "Murn");
-                    }
-                    tx("are in %s.\r\n\r\n", townname);
+                    int twn = res_town_at(state.p[x].x, state.p[x].y);
+                    tx("are in %s.\r\n\r\n", res_town_name(twn));
                 } else {
                     xx = state.p[x].x + ryl_random(0, 4);
                     yy = state.p[x].y + ryl_random(0, 4);

@@ -728,19 +728,9 @@ static void flaggkoll(int32_t vem) {
         /*****************************************************************/
         case 2:
             if (state.p[state.cpl].flag[2] == 0) {
-                if (state.npc[14].towne == 1) {
-                    snprintf(str, sizeof str, "in Thord");
-                }
-                if (state.npc[14].towne == 2) {
-                    snprintf(str, sizeof str, "in Ollk");
-                }
-                if (state.npc[14].towne == 3) {
-                    snprintf(str, sizeof str, "in Wilor");
-                }
-                if (state.npc[14].towne == 4) {
-                    snprintf(str, sizeof str, "in Murn");
-                }
-                if (state.npc[14].towne == 0) {
+                if (state.npc[14].towne) {
+                    snprintf(str, sizeof str, "in %s", res_town_name(state.npc[14].towne));
+                } else {
                     snprintf(str, sizeof str, "at %dx%d", state.npc[14].x, state.npc[14].y);
                 }
                 tx("- Greetings, adventurers.\r\n");
@@ -763,19 +753,9 @@ static void flaggkoll(int32_t vem) {
         /*****************************************************************/
         case 3:
             if (state.p[state.cpl].flag[3] == 0) {
-                if (state.npc[5].towne == 1) {
-                    snprintf(str, sizeof str, "in Thord");
-                }
-                if (state.npc[5].towne == 2) {
-                    snprintf(str, sizeof str, "in Ollk");
-                }
-                if (state.npc[5].towne == 3) {
-                    snprintf(str, sizeof str, "in Wilor");
-                }
-                if (state.npc[5].towne == 4) {
-                    snprintf(str, sizeof str, "in Murn");
-                }
-                if (state.npc[5].towne == 0) {
+                if (state.npc[5].towne) {
+                    snprintf(str, sizeof str, "in %s", res_town_name(state.npc[5].towne));
+                } else {
                     snprintf(str, sizeof str, "at %dx%d", state.npc[5].x, state.npc[5].y);
                 }
                 clw();
@@ -1017,19 +997,9 @@ static void flaggkoll(int32_t vem) {
                 tx("and seek out my friend\r\n");
                 tx("%s. He is also a\r\n", res_enum("name", 20));
                 tx("minstrel.\r\n");
-                if (state.npc[20].towne == 1) {
-                    snprintf(str, sizeof str, "%s lives in Thord.\n", res_enum("name", 20));
-                }
-                if (state.npc[20].towne == 2) {
-                    snprintf(str, sizeof str, "%s lives in Ollk.\n", res_enum("name", 20));
-                }
-                if (state.npc[20].towne == 3) {
-                    snprintf(str, sizeof str, "%s lives in Wilor.\n", res_enum("name", 20));
-                }
-                if (state.npc[20].towne == 4) {
-                    snprintf(str, sizeof str, "%s lives in Murn.\n", res_enum("name", 20));
-                }
-                if (state.npc[20].towne == 0) {
+                if (state.npc[20].towne) {
+                    snprintf(str, sizeof str, "%s lives in %s.\n", res_enum("name", 20), res_town_name(state.npc[20].towne));
+                } else {
                     snprintf(str, sizeof str, "%s lives at %dx%d.\n", res_enum("name", 20), state.npc[20].x, state.npc[20].y);
                 }
                 tx("%s\r\r\n", str);
@@ -1146,19 +1116,9 @@ static void flaggkoll(int32_t vem) {
         /*****************************************************************/
         case 15:
             if (state.p[state.cpl].flag[15] == 0) {
-                if (state.npc[23].towne == 1) {
-                    snprintf(str, sizeof str, "in Thord");
-                }
-                if (state.npc[23].towne == 2) {
-                    snprintf(str, sizeof str, "in Ollk");
-                }
-                if (state.npc[23].towne == 3) {
-                    snprintf(str, sizeof str, "in Wilor");
-                }
-                if (state.npc[23].towne == 4) {
-                    snprintf(str, sizeof str, "in Murn");
-                }
-                if (state.npc[23].towne == 0) {
+                if (state.npc[23].towne) {
+                    snprintf(str, sizeof str, "in %s", res_town_name(state.npc[23].towne));
+                } else {
                     snprintf(str, sizeof str, "at %dx%d", state.npc[23].x, state.npc[23].y);
                 }
                 clw();

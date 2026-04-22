@@ -119,6 +119,15 @@ static int32_t color_code_from_name(const char *name) {
 
 static char *pronoun_tab[3][4];
 
+/* Town table. Slot 0 = null (wilderness sentinel); slots 1..4 carry a
+   display name (owned string) plus fixed (x, y) world-map coords. See
+   data/world.json5 towns:. */
+typedef struct {
+    char *name;
+    int32_t x, y;
+} ryl_town;
+static ryl_town towns[5];
+
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
    Populated from data/world.json5 flags subtree; empty until world loads. */
 typedef struct {
@@ -287,6 +296,36 @@ const char *res_pronoun(int sex, int xx) {
         return "";
     }
     return pronoun_tab[sex][xx] ? pronoun_tab[sex][xx] : "";
+}
+
+const char *res_town_name(int twn) {
+    if (twn < 1 || twn > 4 || !towns[twn].name) {
+        return "";
+    }
+    return towns[twn].name;
+}
+
+int32_t res_town_x(int twn) {
+    if (twn < 1 || twn > 4 || !towns[twn].name) {
+        return 0;
+    }
+    return towns[twn].x;
+}
+
+int32_t res_town_y(int twn) {
+    if (twn < 1 || twn > 4 || !towns[twn].name) {
+        return 0;
+    }
+    return towns[twn].y;
+}
+
+int32_t res_town_at(int x, int y) {
+    for (int i = 1; i <= 4; i++) {
+        if (towns[i].name && towns[i].x == x && towns[i].y == y) {
+            return i;
+        }
+    }
+    return 0;
 }
 
 /* -------- flags subtree -------- */
@@ -742,6 +781,49 @@ static void fold_pronoun(const node *pronoun_node, const char *path) {
     }
 }
 
+/* -------- towns subtree --------
+   Array indexed by twn (slot 0 = null wilderness; 1..4 = towns). Each
+   record has a `name` string and `x` / `y` integer coords. */
+static void fold_towns(const node *towns_node, const char *path) {
+    if (!towns_node) {
+        return;
+    }
+    if (towns_node->kind != N_ARR) {
+        res_die(path, towns_node->line, "towns: expected array");
+    }
+    size_t n = towns_node->u.arr.n < 5 ? towns_node->u.arr.n : 5;
+    for (size_t i = 1; i < n; i++) {
+        const node *rec = towns_node->u.arr.items[i];
+        if (!rec || rec->kind == N_NULL) {
+            continue;
+        }
+        if (rec->kind != N_OBJ) {
+            res_die(path, rec->line, "towns: entry must be object or null");
+        }
+        const node *name = obj_get(rec, "name");
+        const node *x    = obj_get(rec, "x");
+        const node *y    = obj_get(rec, "y");
+        if (!name || name->kind != N_STR) {
+            res_die(path, rec->line, "towns: name string required");
+        }
+        if (!x || x->kind != N_INT || !y || y->kind != N_INT) {
+            res_die(path, rec->line, "towns: x/y integer required");
+        }
+        towns[i].name = strdup(name->u.sv);
+        towns[i].x = x->u.iv;
+        towns[i].y = y->u.iv;
+    }
+}
+
+static void reset_towns(void) {
+    for (int i = 0; i < 5; i++) {
+        free(towns[i].name);
+        towns[i].name = NULL;
+        towns[i].x = 0;
+        towns[i].y = 0;
+    }
+}
+
 /* -------- enums subtree --------
    `{ jobname: [...], name: [...] }` — key is the enum id, value is the
    string table res_enum(id, index) indexes into. */
@@ -804,6 +886,7 @@ void res_load_world(const char *path) {
     fold_spells(obj_get(root, "classes"), obj_get(root, "spells"), path);
     fold_terrain(obj_get(root, "terrain"), path);
     fold_pronoun(obj_get(root, "pronoun"), path);
+    fold_towns(obj_get(root, "towns"), path);
     fold_enums(obj_get(root, "enums"), path);
     fold_texts(obj_get(root, "texts"), path);
 
@@ -1136,6 +1219,7 @@ void res_shutdown(void) {
     reset_flags_tab();
     reset_enums();
     reset_texts();
+    reset_towns();
     node_free(world_tree);
     world_tree = NULL;
     color_default = 36;

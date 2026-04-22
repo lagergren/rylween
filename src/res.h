@@ -111,6 +111,16 @@ int32_t res_color(char terrain);
    "" if missing. Never NULL. */
 const char *res_pronoun(int sex, int xx);
 
+/* Towns — fixed display name and world-map coordinates per twn id 1..4
+   (matching state.twn / struct person.towne). Order matches the
+   enums.towne table. res_town_name returns "" for 0 (wilderness) or out
+   of range; res_town_x / res_town_y return 0; res_town_at returns the
+   twn id for a (x,y) that matches a declared town, 0 otherwise. */
+const char *res_town_name(int twn);
+int32_t     res_town_x(int twn);
+int32_t     res_town_y(int twn);
+int32_t     res_town_at(int x, int y);
+
 /* Uniform "res: path:line: msg" fatal error. Used by the JSON5 parser /
    import resolver (json5.c) and the world-folds (res.c) so every loader
    diagnostic has one shape. Never returns. */
