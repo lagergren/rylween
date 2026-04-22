@@ -1115,3 +1115,125 @@ open:
   + `tools/check_world.sh` instead. Not an action item; noted
   here so future sessions don't chase ghosts.
 
+## 13. Leak inventory (Commit A of §12.2)
+
+Spec pass for the teardown work: every `malloc` / `realloc` /
+`calloc` / `strdup` call reachable from `main`, catalogued with its
+owning field and its current free path (or lack of one). Gathered
+by grepping `src/*.c` for those four functions and reading each
+call site. Node-tree allocations are grouped once under
+`node_new` / `node_free` rather than listed per call — the parser
+dispatches every N_STR / N_OBJ / N_ARR / N_PATH payload through
+that surface.
+
+### 13.1 Allocation sites
+
+| # | Site | What is allocated | Where the pointer is stored | Free path today |
+|--|--|--|--|--|
+| 1 | `json5.c:30` `node_new` (calloc) | one `node` struct | threaded through `world_tree` (and transient parser subtrees / import wrappers) | `node_free` walks and frees recursively — but only runs on (a) the wrapper swapped out by `resolve_imports`, (b) the `wieldable_by` N_ARR swapped to N_INT in `fold_items`. `world_tree` itself is never freed. |
+| 2 | `json5.c:142` `p_ident_raw` (malloc) | NUL-terminated identifier | returned as object key (stored in `obj.items[].key`) or as a keyword scratch string (`true` / `false` / `null`) | object-key case: freed by `node_free` when the owning N_OBJ is freed (but see #1 — top-level tree never frees). Keyword scratch: freed inline (`json5.c:411/417/423/426`). Error-path `free(key)` at `json5.c:359` is dead today (pdie exits). |
+| 3 | `json5.c:162+171` `p_quoted_string` (malloc + realloc) | decoded string payload | N_STR node's `u.sv`, or transient object key | N_STR path: freed by `node_free`'s `case N_STR` — but only on transient subtrees (see #1). `compile_string_to_path` (`eval.c:229-234`) also frees `u.sv` when it swaps N_STR→N_PATH in place, so DSL path strings don't leak even without `node_free(world_tree)`. |
+| 4 | `json5.c:317` `p_array` (realloc) | N_ARR `items[]` pointer array | `node.u.arr.items` | `node_free`'s `case N_ARR` — but only on transient subtrees (see #1). |
+| 5 | `json5.c:367` `p_object` (realloc) | N_OBJ `items[]` key/val array | `node.u.obj.items` | `node_free`'s `case N_OBJ` — but only on transient subtrees (see #1). |
+| 6 | `json5.c:447` `slurp_file` (malloc) | whole file read buffer | local `src` in `json5_parse_file` | freed at `json5.c:471` before return. Clean. |
+| 7 | `eval.c:140,147` `parse_path` (strdup) | local-binding name (`"$dmg"` / `"base_cost"`) | N_PATH `u.path.local` | `node_free`'s `case N_PATH` — same caveat as #1. |
+| 8 | `eval.c:536` `env_set_local` (realloc) | `env_t.locals[]` array | `env_t.locals` | `env_free` at `eval.c:523`. Called by battle/talk callers when `env_t` goes out of scope. Clean. |
+| 9 | `eval.c:544` `env_set_local` (strdup) | local-binding name | `env_t.locals[i].name` | `env_free` at `eval.c:521`. Clean. |
+| 10 | `res.c:296` `fold_flags` (realloc) | `flag_rec[]` backing array | `flags_tab` (file-scope) | **never freed**. |
+| 11 | `res.c:302` `fold_flags` (strdup) | flag id (e.g. `"guild_member"`) | `flags_tab[i].id` | **never freed**. |
+| 12 | `res.c:306` `fold_flags` (malloc) | `char *[]` values array | `flags_tab[i].values` | **never freed**. |
+| 13 | `res.c:315` `fold_flags` (strdup) | one value string | `flags_tab[i].values[j]` | **never freed**. |
+| 14 | `res.c:383` `fold_items_section` (strdup) | item display name | `items[id].name` (fixed-size `items[112]`) | **never freed**. Defensive `free((void *)it->name)` at `res.c:381` makes re-load safe but is dead today (world loads once). |
+| 15 | `res.c:437` `fold_monsters` (strdup) | monster display name | `monsters[id].name` (fixed-size `monsters[91]`) | **never freed**. Defensive `free` at `res.c:435`, same story as #14. |
+| 16 | `res.c:461` `emit_text` (realloc) | `text_rec[]` backing array | `texts` (file-scope) | **never freed**. |
+| 17 | `res.c:467-468` `emit_text` (strdup x2) | text id + payload | `texts[i].id`, `texts[i].text` | **never freed**. |
+| 18 | `res.c:482` `join_lines_crlf` (malloc) | CRLF-joined scratch buffer | local `out` in caller | freed at `res.c:510` after `emit_text` strdups it. Clean. |
+| 19 | `res.c:609-610` `fold_spells` (strdup x2) | spell id + name | `priest_spells[slot].id/.name` or `mage_spells[slot].id/.name` (fixed-size `[8]` each) | **never freed**. Defensive `free` at `res.c:607/608`. |
+| 20 | `res.c:659` `fold_terrain` (strdup) | glyph string (one or two chars) | `glyph_tab[byte]` (fixed-size `[256]`) | **never freed**. Defensive `free(glyph_tab[g])` at `res.c:658`. |
+| 21 | `res.c:704/706/708` `fold_pronoun` (strdup x3) | subject / object / possessive form | `pronoun_tab[sex][1..3]` (fixed-size `[3][4]`) | **never freed**. Defensive `free` at `res.c:703/705/707`. |
+| 22 | `res.c:728` `fold_enums` (realloc) | `enum_rec[]` backing array | `enums` (file-scope) | **never freed**. |
+| 23 | `res.c:734` `fold_enums` (strdup) | enum id (e.g. `"jobname"`) | `enums[i].id` | **never freed**. |
+| 24 | `res.c:736` `fold_enums` (malloc) | `char *[]` values array | `enums[i].values` | **never freed**. |
+| 25 | `res.c:745` `fold_enums` (strdup) | one enum value string | `enums[i].values[j]` | **never freed**. |
+
+### 13.2 What's leaked at exit
+
+On process exit today we drop (roughly in size order):
+
+- The entire `world_tree` node graph from `json5_parse_file` — every
+  N_OBJ / N_ARR / N_STR / N_PATH node plus their `u.sv` / `u.path.local`
+  / `items[]` / `items[].key` allocations. This is the biggest single
+  leak by node count; the tree contains every `texts`, `flags`,
+  `items`, `monsters`, `spells`, `terrain`, `pronoun`, `enums`
+  subtree that the folds only read from, plus every `do`/`cond` body
+  the evaluator walks at dispatch. Note that `compile_string_to_path`
+  has already converted DSL path-position N_STRs to N_PATHs, so the
+  tree's path strings live at `u.path.local` rather than `u.sv` —
+  `node_free`'s N_PATH case covers that, no fix needed.
+- `flags_tab` + each row's `id`, `values[]`, and each `values[j]`.
+- `enums` + each row's `id`, `values[]`, and each `values[j]`.
+- `texts` + each row's `id` and `text`.
+- `items[0..111].name` (non-NULL slots only).
+- `monsters[0..90].name` (non-NULL slots only).
+- `priest_spells[1..7].id/.name` and `mage_spells[1..7].id/.name`
+  (non-NULL slots only).
+- `glyph_tab[0..255]` (non-NULL slots only).
+- `pronoun_tab[1..2][1..3]` (non-NULL slots only).
+
+No stack-owned `env_t` leaks observed — every `env_init` caller
+pairs with `env_free` before its scope exits. The `slurp_file` and
+`join_lines_crlf` buffers are both bounded to their caller's scope
+and freed there.
+
+### 13.3 Design constraints for Commit B
+
+Captured from the §12.2 conversation while building this inventory;
+these shape the `res_shutdown` implementation:
+
+- **Counts are the parser's job.** `N_OBJ.u.obj.n` and
+  `N_ARR.u.arr.n` are already the authoritative cardinality of
+  every subtree — the JSON5 parser fills them as it reads. Neither
+  the schema (no `"count": N` field in `world.json5`) nor the fold
+  (no parallel `n_items_loaded` / `n_monsters_loaded` counter)
+  needs to re-derive what the parse tree already knows. The
+  `flags` / `enums` subtrees give you `flags_node->u.obj.n` /
+  `enums_node->u.obj.n`; the `items` sections give you
+  `section->u.obj.n` (summed across sections); `terrain` gives
+  you `terrain_node->u.obj.n`; `pronoun` gives you
+  `pronoun_node->u.obj.n`; each class's `spells` array gives you
+  `list->u.arr.n`. The fold uses those counts as loop bounds
+  already; `res_shutdown` should read the same values off
+  `world_tree` rather than maintain a mirror.
+- **Free loops iterate by parser-reported count, not by sentinel
+  scan.** The dynamic tables (`flags_tab`, `enums`, `texts`) still
+  need their own row counts because the fold copies strings out of
+  the tree into a flat table — but `n_flags_tab` / `n_enums` /
+  `n_texts` already track that. The fixed-slot tables (`items`,
+  `monsters`, `priest_spells`, `mage_spells`, `glyph_tab`,
+  `pronoun_tab`) are sparse by design: `items` is indexed by
+  item-id, not by insertion order. `res_shutdown` should walk
+  `world_tree` (`items_node`, `monsters_node`, `terrain_node`,
+  `pronoun_node`, `classes_node`) and free the matching slots in
+  the legacy tables — that way the `NULL`-scan disappears and no
+  call site hardcodes `0..111`, `0..90`, `0..255`, `1..2 × 1..3`,
+  or `1..7`. Upshot: `res_shutdown` frees the legacy tables
+  *before* it frees `world_tree`.
+- **`make test` is the standardized gate task.** Commit C is
+  adding an ASan replay leg alongside `tools/replay.sh --all` +
+  `tools/check_world.sh`. Roll all three under a `make test`
+  target so contributors and CI have one canonical task name.
+  The existing `Makefile` only has `rylween` + `clean` today.
+
+### 13.4 Out of scope for this inventory
+
+- `struct ryl_state state` (file-scope in `ryl.c`) holds no
+  heap pointers itself; nothing to free. Party/npc name arrays
+  are fixed `char[30]` in `struct person`, not heap-owned.
+- `eval.c:232` `free(s)` inside `compile_string_to_path` is
+  already a correct pair against `json5.c:162`'s strdup/malloc
+  for the N_STR payload it's rewriting — no leak fix needed
+  there; the in-place N_STR→N_PATH swap is clean.
+- Static caches like the color_tab `[256]` `int32_t` array and
+  the `color_tab_set` flag array live in `.bss` — no malloc
+  involved, nothing to free.
+
