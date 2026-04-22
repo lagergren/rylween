@@ -700,6 +700,43 @@ void init() {
     spelet();
 }
 
+/* Symbolic id per NPC slot 1..39. §15.3 names: garth at 1; wanderer_N
+   at 2..24; innkeeper_N at 25..28; tavernkeeper_N at 29..32; hermit at
+   33; bargirls at 34/35 (towns 1 and 3 only — see §15.3 open question
+   on whether 36/37 should be added for towns 2/4); empty_N at 36..39
+   (stubbed since the Amiga build). Slot 0 is unused; slot 40 is never
+   populated (save() loops 1..39).
+
+   Lives here for now; §15 step 3 migrates this mapping into
+   data/world.json5's npcs: subtree so slot <-> id is data-driven. */
+static const char *const NPC_SLOT_IDS[40] = {
+    NULL,          "garth",          "wanderer_2",  "wanderer_3",   "wanderer_4",
+    "wanderer_5",  "wanderer_6",     "wanderer_7",  "wanderer_8",   "wanderer_9",
+    "wanderer_10", "wanderer_11",    "wanderer_12", "wanderer_13",  "wanderer_14",
+    "wanderer_15", "wanderer_16",    "wanderer_17", "wanderer_18",  "wanderer_19",
+    "wanderer_20", "wanderer_21",    "wanderer_22", "wanderer_23",  "wanderer_24",
+    "innkeeper_1", "innkeeper_2",    "innkeeper_3", "innkeeper_4",
+    "tavernkeeper_1", "tavernkeeper_2", "tavernkeeper_3", "tavernkeeper_4",
+    "hermit",
+    "bargirl_1",   "bargirl_3",
+    "empty_36",    "empty_37",       "empty_38",    "empty_39",
+};
+
+/* Enum -> string via res_enum(enum_id, v). Writes the quoted symbolic
+   value if res_enum returns a non-empty string, else falls back to the
+   raw integer so the file stays round-trippable even if the world enum
+   is missing an entry. Step 2's reader uses res_enum_id for the inverse. */
+static void wcw_enum(FILE *f, const char *enum_id, int v) {
+    const char *s = res_enum(enum_id, v);
+    if (s && s[0]) {
+        fputc('"', f);
+        fputs(s, f);
+        fputc('"', f);
+    } else {
+        fprintf(f, "%d", v);
+    }
+}
+
 /* JSON5 string literal: double-quoted, escaping \", \\, and control
    bytes (\n/\t/\r plus \uXXXX for other <0x20). Safe for arbitrary
    party/member names containing user input. */
@@ -757,6 +794,56 @@ static void wcw_byte_arr(FILE *f, const unsigned char *a, int n) {
     fputc(']', f);
 }
 
+/* Enum array via res_enum: each int slot emitted as the symbolic value,
+   with null for slot-0 (1-based enum sentinel). Fall back to the raw
+   int if the lookup returns ""; keeps the file round-trippable even if
+   world.json5 is missing an entry. */
+static void wcw_enum_arr(FILE *f, const char *enum_id, const int *vals, int n) {
+    fputc('[', f);
+    for (int i = 0; i < n; i++) {
+        if (i > 0) {
+            fputs(", ", f);
+        }
+        if (vals[i] == 0) {
+            fputs("null", f);
+            continue;
+        }
+        const char *s = res_enum(enum_id, vals[i]);
+        if (s && s[0]) {
+            fputc('"', f);
+            fputs(s, f);
+            fputc('"', f);
+        } else {
+            fprintf(f, "%d", vals[i]);
+        }
+    }
+    fputc(']', f);
+}
+
+/* Byte-valued enum array (for sex[], which is unsigned char[5]). */
+static void wcw_enum_barr(FILE *f, const char *enum_id, const unsigned char *vals, int n) {
+    fputc('[', f);
+    for (int i = 0; i < n; i++) {
+        if (i > 0) {
+            fputs(", ", f);
+        }
+        int v = vals[i];
+        if (v == 0) {
+            fputs("null", f);
+            continue;
+        }
+        const char *s = res_enum(enum_id, v);
+        if (s && s[0]) {
+            fputc('"', f);
+            fputs(s, f);
+            fputc('"', f);
+        } else {
+            fprintf(f, "%d", v);
+        }
+    }
+    fputc(']', f);
+}
+
 /* §15 step 1: serialize persistent state (realm header + NPCs + parties)
    to $HOME/.rylween/current-world.json5. Mirror-written alongside every
    existing realm.dat/npc.dat write; no reader yet, so output is for
@@ -767,7 +854,12 @@ static void wcw_byte_arr(FILE *f, const unsigned char *a, int n) {
    now (semantic split into towns/castle/catacombs is §15 step 3's job).
    Per §15.5, visited bits move out of the NPC subtree into each party's
    visited_npcs[] so party deletion no longer needs the index-shift
-   dance. The `empty1..5` struct-party padding fields are omitted. */
+   dance. The `empty1..5` struct-party padding fields are omitted.
+
+   Step 1.5: enum-valued fields (job, towne, bl, cl, ra, sex) emit as
+   symbolic strings; NPC records are keyed by symbolic id per §15.3.
+   The nr field is dropped from NPC records (redundant with the slot
+   key). Step 2's reader is the inverse. */
 static void write_current_world() {
     char path[512];
     FILE *f;
@@ -788,18 +880,25 @@ static void write_current_world() {
     fputs("    dy: ", f); wcw_i32_arr(f, state.dy, 15); fputs(",\n", f);
     fputs("  },\n\n", f);
 
-    fputs("  npcs: [\n", f);
-    fputs("    null,\n", f);
+    fputs("  npcs: {\n", f);
     for (int i = 1; i < 40; i++) {
         const struct person *n = &state.npc[i];
-        fprintf(f, "    { nr: %d, job: %d, towne: %d, bl: %d, x: %d, y: %d },\n",
-                n->nr, n->job, n->towne, n->bl, n->x, n->y);
+        const char *id = NPC_SLOT_IDS[i];
+        fprintf(f, "    %s: { slot: %d, job: ", id, i);
+        wcw_enum(f, "jobname", n->job);
+        fputs(", towne: ", f);
+        wcw_enum(f, "towne", n->towne);
+        fputs(", bl: ", f);
+        wcw_enum(f, "bl", n->bl);
+        fprintf(f, ", x: %d, y: %d },\n", n->x, n->y);
     }
-    fputs("  ],\n\n", f);
+    fputs("  },\n\n", f);
 
     fputs("  parties: [\n", f);
     for (int i = 1; i <= state.antal_spelare; i++) {
         const struct party *p = &state.p[i];
+        int cl_int[5] = {p->cl[0], p->cl[1], p->cl[2], p->cl[3], p->cl[4]};
+        int ra_int[5] = {p->ra[0], p->ra[1], p->ra[2], p->ra[3], p->ra[4]};
         fputs("    {\n", f);
         fputs("      player: ",    f); wcw_str(f, p->player);    fputs(",\n", f);
         fputs("      partyname: ", f); wcw_str(f, p->partyname); fputs(",\n", f);
@@ -831,15 +930,15 @@ static void write_current_world() {
         fputs("      wi: ", f); wcw_i32_arr(f, p->wi, 5); fputs(",\n", f);
         fputs("      ma: ", f); wcw_i32_arr(f, p->ma, 5); fputs(",\n", f);
         fputs("      ch: ", f); wcw_i32_arr(f, p->ch, 5); fputs(",\n", f);
-        fputs("      cl: ", f); wcw_i32_arr(f, p->cl, 5); fputs(",\n", f);
-        fputs("      ra: ", f); wcw_i32_arr(f, p->ra, 5); fputs(",\n", f);
+        fputs("      cl: ", f); wcw_enum_arr (f, "pc_class", cl_int, 5); fputs(",\n", f);
+        fputs("      ra: ", f); wcw_enum_arr (f, "race",     ra_int, 5); fputs(",\n", f);
         fputs("      lv: ", f); wcw_i32_arr(f, p->lv, 5); fputs(",\n", f);
         fputs("      ar: ", f); wcw_i32_arr(f, p->ar, 5); fputs(",\n", f);
         fputs("      wp: ", f); wcw_i32_arr(f, p->wp, 5); fputs(",\n", f);
-        fputs("      exp: ",          f); wcw_u32_arr (f, p->exp,          5);  fputs(",\n", f);
-        fputs("      dead: ",         f); wcw_i32_arr (f, p->dead,         5);  fputs(",\n", f);
-        fputs("      sex: ",          f); wcw_byte_arr(f, p->sex,          5);  fputs(",\n", f);
-        fputs("      attack_today: ", f); wcw_byte_arr(f, p->attack_today, 26); fputs(",\n", f);
+        fputs("      exp: ",          f); wcw_u32_arr  (f, p->exp,          5);  fputs(",\n", f);
+        fputs("      dead: ",         f); wcw_i32_arr  (f, p->dead,         5);  fputs(",\n", f);
+        fputs("      sex: ",          f); wcw_enum_barr(f, "sex", p->sex, 5); fputs(",\n", f);
+        fputs("      attack_today: ", f); wcw_byte_arr (f, p->attack_today, 26); fputs(",\n", f);
         fprintf(f, "      waiting_mail: %u,\n", p->waiting_mail);
         fprintf(f, "      attacked: %u,\n",     p->attacked);
         fprintf(f, "      kills: %u,\n",        p->kills);
@@ -1221,25 +1320,12 @@ void invlist() {
 }
 
 void show(int32_t nr) {
-    char race[5][15];
-    char clss[7][15];
     char str[10];
-
-    strcpy(race[1], "Human");
-    strcpy(race[2], "Dwarf");
-    strcpy(race[3], "Elf");
-    strcpy(race[4], "Halfling");
-    strcpy(clss[1], "Fighter");
-    strcpy(clss[2], "Thief");
-    strcpy(clss[3], "Mage");
-    strcpy(clss[4], "Priest");
-    strcpy(clss[5], "Bard");
-    strcpy(clss[6], "Ranger");
 
     clw();
     tx("Name      : %s\r\n", state.p[state.cpl].name[nr]);
-    tx("Race      : %s\r\n", race[state.p[state.cpl].ra[nr]]);
-    tx("Class     : %s\r\n", clss[state.p[state.cpl].cl[nr]]);
+    tx("Race      : %s\r\n", res_enum("race",     state.p[state.cpl].ra[nr]));
+    tx("Class     : %s\r\n", res_enum("pc_class", state.p[state.cpl].cl[nr]));
     tx("\r\n");
     tx("Skill     : %d\r\n", state.p[state.cpl].ws[nr]);
     tx("Hp/H      : %d/%d\r\n", state.p[state.cpl].hp[nr], state.p[state.cpl].h[nr]);

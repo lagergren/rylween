@@ -111,9 +111,11 @@
     female: { subject: 'she', object: 'her', possessive: 'her' },
   },
 
-  // Enum tables — res_enum(id, index) reads values[index]. jobname[0]
-  // and name[0] are intentionally empty: the runtime uses 1-based ids
-  // and a 0 slot means "none / sentinel".
+  // Enum tables — res_enum(id, index) reads values[index]. Slot 0 is
+  // empty ('') for 1-based enums so a 0 raw id means "none / sentinel";
+  // 0-based enums (towne, bl) use a real value at 0. current-world.json5
+  // stores these fields as the string value; the reader does an inverse
+  // lookup via res_enum_id to recover the int id.
   enums: {
     jobname: [
       '', 'Merchant', 'Ranger', 'Fighter', 'Wizard', 'Priest',
@@ -129,5 +131,29 @@
       'Miyaki', 'Dargoth', 'Marcus', 'Deanna', 'Jeanne', 'Alex',
       'Galdon', 'Kosch', 'Ufarsin',
     ],
+    // Player-party race (struct party.ra[]). Displayable — used by the
+    // show() screen. Matches driv.c's original hardcoded order.
+    race: ['', 'Human', 'Dwarf', 'Elf', 'Halfling'],
+
+    // Player-party class (struct party.cl[], PC_* ids). Displayable —
+    // used by the show() screen. Matches state.h PC_FIGHTER..PC_RANGER.
+    pc_class: ['', 'Fighter', 'Thief', 'Mage', 'Priest', 'Bard', 'Ranger'],
+
+    // Player-party member sex (struct party.sex[]). Not displayed as
+    // text directly; keys match the pronoun table above.
+    sex: ['', 'male', 'female'],
+
+    // Town index (struct person.towne, struct state.twn). 0 is the
+    // wilderness sentinel (no town). Names match interact.c:162-172 and
+    // towne.c:149-284 — each town has a fixed display name and fixed
+    // coordinates on the world map (§15 step 3 moves the coords into a
+    // declarative towns: subtree; position_locations()'s randomization
+    // is a legacy artifact that never matched the hardcoded coords used
+    // by the "in %s" checks in interact/speak/towne).
+    towne: ['wilderness', 'Murn', 'Wilor', 'Ollk', 'Thord'],
+
+    // Building within a town (struct person.bl). 0 = none (wilderness
+    // NPCs); 1 = inn; 2 = tavern. Symbolic ids; not displayed.
+    bl: ['none', 'inn', 'tavern'],
   },
 }

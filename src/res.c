@@ -198,6 +198,24 @@ const char *res_enum(const char *id, int index) {
     return "";
 }
 
+int res_enum_id(const char *id, const char *value) {
+    if (!value) {
+        return -1;
+    }
+    for (size_t i = 0; i < n_enums; i++) {
+        if (strcmp(enums[i].id, id) != 0) {
+            continue;
+        }
+        for (size_t j = 0; j < enums[i].n_values; j++) {
+            if (strcmp(enums[i].values[j], value) == 0) {
+                return (int)j;
+            }
+        }
+        return -1;
+    }
+    return -1;
+}
+
 static int text_cmp(const void *a, const void *b) {
     return strcmp(((const text_rec *)a)->id, ((const text_rec *)b)->id);
 }

@@ -76,6 +76,11 @@ int32_t res_flag_slot(const char *id);
 /* Enum: values[index] for matching record. "" if missing/out of range. */
 const char *res_enum(const char *id, int index);
 
+/* Enum inverse: index where values[i] matches `value`. -1 if the enum id
+   is unknown or no entry matches. Linear search — suitable for loader
+   paths, not hot-path code. */
+int res_enum_id(const char *id, const char *value);
+
 /* Text: content strings for {"kind":"text",...}. "" if missing. Never NULL. */
 const char *res_text(const char *id);
 
