@@ -12,6 +12,15 @@
     text_window: { max_lines: 15, max_cols: 26 },
   },
 
+  // Cold-start realization knobs (port-plan §15.4). `npc_slack` is the
+  // slack added to ceil(N/T) when computing the per-bin cap for the
+  // capacity-capped NPC draw (N = random NPCs, T = wilderness + towns).
+  // With today's N=23, T=5, slack=1 => cap=6 per bin. Raise for a more
+  // uniform distribution at the cost of rerolls; lower for less.
+  limits: {
+    npc_slack: 1,
+  },
+
   // Symbolic mission-flag names (§3.1). `slot` is the index in
   // state.p[cpl].flag[] (scope: "party") or an engine-managed encounter
   // slot (scope: "encounter"). Only the flags the runtime already

@@ -128,6 +128,16 @@ typedef struct {
     int32_t x, y;
 } ryl_town;
 static ryl_town towns[5];
+/* Count of declared towns (slots 1..n_towns). Populated by fold_towns.
+   The fixed-size `towns` array caps this at 4; fold_towns res_die()s if
+   the data declares more. */
+static size_t n_towns;
+
+/* Cold-start realization knobs (port-plan §15.4). npc_slack is the
+   `slack` term added to ceil(N/T) when computing the per-bin cap for
+   the capacity-capped NPC draw in res_realize_npcs(). Default matches
+   the §15.4 recommendation; overridden by data/world.json5 limits:. */
+static int32_t npc_slack = 1;
 
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
    Populated from data/world.json5 flags subtree; empty until world loads. */
@@ -335,6 +345,26 @@ static int32_t rn_int(const node *obj, const char *key, int32_t dflt) {
     return (n && n->kind == N_INT) ? n->u.iv : dflt;
 }
 
+/* Internal: number of values in an enum table by id (the raw array
+   length, so res_enum(id, n - 1) is the highest valid index). 0 if the
+   enum wasn't declared. Used to derive iteration bounds from data. */
+static size_t enum_count(const char *id) {
+    for (size_t i = 0; i < n_enums; i++) {
+        if (strcmp(enums[i].id, id) == 0) {
+            return enums[i].n_values;
+        }
+    }
+    return 0;
+}
+
+/* Highest valid NPC slot id. enums.name has a sentinel at index 0 and
+   one name per populated slot thereafter, so max_slot = count - 1. The
+   state.npc[] array is oversized to hold this range plus a guard. */
+static int npc_slot_max(void) {
+    size_t n = enum_count("name");
+    return n > 0 ? (int)(n - 1) : 0;
+}
+
 /* Read an optional enum field (string or int) with a default. */
 static int32_t rn_enum(const node *obj, const char *key, const char *enum_id, int32_t dflt) {
     const node *n = obj_get(obj, key);
@@ -364,13 +394,39 @@ void res_realize_npcs(void) {
         return;
     }
 
+    /* Capacity-capped draw (port-plan §15.4). Bins = wilderness (0) +
+       each declared town (1..n_towns) = T. N is the count of random
+       entries in the spec (those without a declared `towne`). cap =
+       ceil(N/T) + npc_slack guarantees total capacity T*cap >= N, so
+       the linear probe below always finds a free bin. With today's
+       N=23, T=5, slack=1 => cap=6 per bin. Both T and slot_max come
+       from the folded world tree — towns: and enums.name respectively. */
+    int T = 1 + (int)n_towns;
+    int slot_max = npc_slot_max();
+    int N = 0;
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
         const node *rec = npcs->u.obj.items[i].val;
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
         int slot = rn_int(rec, "slot", 0);
-        if (slot < 1 || slot > 39) {
+        if (slot < 1 || slot > slot_max) {
+            continue;
+        }
+        if (!obj_get(rec, "towne")) {
+            N++;
+        }
+    }
+    int cap = (N + T - 1) / T + npc_slack;
+    int counts[sizeof towns / sizeof towns[0]] = {0};
+
+    for (size_t i = 0; i < npcs->u.obj.n; i++) {
+        const node *rec = npcs->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        int slot = rn_int(rec, "slot", 0);
+        if (slot < 1 || slot > slot_max) {
             continue;
         }
         struct person *n = &state.npc[slot];
@@ -386,13 +442,18 @@ void res_realize_npcs(void) {
             n->y        = rn_int (rec, "y", 0);
         } else {
             /* RANDOM: realize placement now. Matches the legacy
-               place_npcs() roll pattern: towne (0..4), then bl (1..2)
-               if in town, else collision-checked wilderness (x,y)
-               avoiding the hermit hard-coded at x=48. The collision
-               loop's accept predicate (ut > 1) is preserved verbatim
-               from person.c:64-76 — terser to read, semantics-preserving. */
+               place_npcs() roll pattern but with a capacity cap on the
+               towne draw — roll, then linear-probe to the next eligible
+               bin on overflow. Building (1..2) and wilderness (x,y)
+               rolls are untouched; the collision loop's accept predicate
+               (ut > 1) is preserved verbatim from person.c:64-76. */
             ryl_delay(600);
-            n->towne = ryl_random(0, 4);
+            int twn = ryl_random(0, T - 1);
+            while (counts[twn] >= cap) {
+                twn = (twn + 1) % T;
+            }
+            counts[twn]++;
+            n->towne = twn;
             if (n->towne) {
                 n->building = ryl_random(0, 1) + 1;
                 n->x  = 0;
@@ -427,10 +488,8 @@ void res_realize_npcs(void) {
 
     /* Zero every NPC's visited[] grid — fresh realm means no party
        has met anyone yet. */
-    for (int i = 1; i < 40; i++) {
-        for (int j = 0; j < 26; j++) {
-            state.npc[i].visited[j] = 0;
-        }
+    for (int i = 1; i <= slot_max; i++) {
+        memset(state.npc[i].visited, 0, sizeof state.npc[i].visited);
     }
 
     /* Mirror-write npc.dat so the legacy reader in load() finds the
@@ -441,7 +500,7 @@ void res_realize_npcs(void) {
     if (!(fh = fopen(path, "wb"))) {
         cleanexit();
     }
-    for (int i = 1; i < 40; i++) {
+    for (int i = 1; i <= slot_max; i++) {
         fwrite(&state.npc[i], sizeof(state.npc[i]), 1, fh);
     }
     fclose(fh);
@@ -910,7 +969,12 @@ static void fold_towns(const node *towns_node, const char *path) {
     if (towns_node->kind != N_ARR) {
         res_die(path, towns_node->line, "towns: expected array");
     }
-    size_t n = towns_node->u.arr.n < 5 ? towns_node->u.arr.n : 5;
+    size_t cap = sizeof towns / sizeof towns[0];
+    if (towns_node->u.arr.n > cap) {
+        res_die(path, towns_node->line, "towns: too many entries");
+    }
+    size_t n = towns_node->u.arr.n;
+    n_towns = n > 0 ? n - 1 : 0;
     for (size_t i = 1; i < n; i++) {
         const node *rec = towns_node->u.arr.items[i];
         if (!rec || rec->kind == N_NULL) {
@@ -935,12 +999,40 @@ static void fold_towns(const node *towns_node, const char *path) {
 }
 
 static void reset_towns(void) {
-    for (int i = 0; i < 5; i++) {
+    size_t cap = sizeof towns / sizeof towns[0];
+    for (size_t i = 0; i < cap; i++) {
         free(towns[i].name);
         towns[i].name = NULL;
         towns[i].x = 0;
         towns[i].y = 0;
     }
+    n_towns = 0;
+}
+
+/* -------- limits subtree --------
+   Scalar tuning knobs for cold-start realization. Missing keys keep
+   their static defaults (set above); a present key overrides. */
+static void fold_limits(const node *limits_node, const char *path) {
+    if (!limits_node) {
+        return;
+    }
+    if (limits_node->kind != N_OBJ) {
+        res_die(path, limits_node->line, "limits: expected object");
+    }
+    const node *slack = obj_get(limits_node, "npc_slack");
+    if (slack) {
+        if (slack->kind != N_INT) {
+            res_die(path, slack->line, "limits.npc_slack: expected integer");
+        }
+        if (slack->u.iv < 0) {
+            res_die(path, slack->line, "limits.npc_slack: must be >= 0");
+        }
+        npc_slack = slack->u.iv;
+    }
+}
+
+static void reset_limits(void) {
+    npc_slack = 1;
 }
 
 /* -------- enums subtree --------
@@ -1006,6 +1098,7 @@ void res_load_world(const char *path) {
     fold_terrain(obj_get(root, "terrain"), path);
     fold_pronoun(obj_get(root, "pronoun"), path);
     fold_towns(obj_get(root, "towns"), path);
+    fold_limits(obj_get(root, "limits"), path);
     fold_enums(obj_get(root, "enums"), path);
     fold_texts(obj_get(root, "texts"), path);
 
@@ -1339,6 +1432,7 @@ void res_shutdown(void) {
     reset_enums();
     reset_texts();
     reset_towns();
+    reset_limits();
     node_free(world_tree);
     world_tree = NULL;
     color_default = 36;
