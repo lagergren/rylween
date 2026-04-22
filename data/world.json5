@@ -1,7 +1,8 @@
 // Rylween world file — root JSON5 tree. See docs/dsl.md for the full
-// schema. This commit ships only the flags and items subtrees as proof
-// of the Phase 6d loader; every other subtree is still owned by the
-// legacy data/resources.jsonl (JSON5 shadows JSONL per §2.2).
+// schema. Phase 6d migrates behaviour one leaf at a time: flags, items,
+// and now the first spell (`mage.frost`, §7.3). Every other subtree is
+// still owned by the legacy data/resources.jsonl (JSON5 shadows JSONL
+// per §2.2).
 {
   meta: {
     version: 1,
@@ -23,4 +24,44 @@
   // (§2.1). The shard is a plain JSON5 object; the resolver splices it
   // in place of this directive at load time.
   items: { $import: 'world/items.json5' },
+
+  // Class records (§3.3). Only the `spells` list is consumed today —
+  // prereqs/starting gear stay in C (driv.c createparty) until those
+  // call sites migrate. `casts_in` is recorded for the benefit of the
+  // evaluator's future menu gating.
+  classes: {
+    mage: {
+      spells:   ['mage.frost'],
+      casts_in: ['combat'],
+    },
+  },
+
+  // Spells (§3.4). res_spell_node(class, slot) finds the entry whose
+  // slot matches, then hands the `do` body to eval_effect. The legacy
+  // ryl_spell table is populated from the same records by fold_spells
+  // so the menu line renders from world-file name/base_cost.
+  spells: {
+    'mage.frost': {
+      slot: 1, base_cost: 8, name: 'Frost Finger',
+      // One-for-one port of strid.c:423-455. Order of operations preserves
+      // RNG identity: ryl_random(2, 8) is drawn exactly once (as the second
+      // factor of `*`), reproducing pm_lv(caster) * ryl_random(2, 8).
+      do: ['seq',
+        ['ask_target', 'monster_alive'],
+        ['set', '$dmg', ['*', 'caster.lv', ['rand', 2, 8]]],
+        ['clw'],
+        ['say', 'strid.spell.frost.chills',      'caster.name'],
+        ['say', 'strid.spell.frost.damage',      '$dmg'],
+        ['say', 'strid.spell.frost.damage_pts'],
+        ['delay', 1600],
+        ['sub', 'target.hp', '$dmg'],
+        ['if', ['lt', 'target.hp', 1],
+          ['seq',
+            ['set', 'target.hp', 0],
+            ['set', 'target.dead', 1],
+            ['say', 'strid.killed'],
+            ['delay', 600]]],
+      ],
+    },
+  },
 }

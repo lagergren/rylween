@@ -317,7 +317,6 @@ static void handle_spell(const kv *kvs, size_t n, const char *path, int line) {
     else if (strcmp(eff, "revelation")  == 0) s->effect = SE_REVELATION;
     else if (strcmp(eff, "teleport")    == 0) s->effect = SE_TELEPORT;
     else if (strcmp(eff, "earthquake")  == 0) s->effect = SE_EARTHQUAKE;
-    else if (strcmp(eff, "frost")       == 0) s->effect = SE_FROST;
     else if (strcmp(eff, "fire")        == 0) s->effect = SE_FIRE;
     else if (strcmp(eff, "confusion")   == 0) s->effect = SE_CONFUSION;
     else if (strcmp(eff, "death")       == 0) s->effect = SE_DEATH;
@@ -874,6 +873,50 @@ static void fold_items(const node *items_node, const char *path) {
     }
 }
 
+/* -------- classes + spells subtree (shadows JSONL; docs/dsl.md §2.2) --
+   Populates the legacy ryl_spell tables from the new world tree so the
+   cast menu still has name/base_cost to render. The spell's enum effect
+   is set to SE_NONE because dispatch now runs through res_spell_node
+   → eval_effect on the `do` body; the switch(s->effect) in strid.c is
+   only reached when no DSL body exists. */
+static void fold_spells(const node *classes_node, const node *spells_node, const char *path) {
+    if (!classes_node || !spells_node) return;
+    if (classes_node->kind != N_OBJ) die(path, classes_node->line, "classes: expected object");
+    if (spells_node->kind != N_OBJ) die(path, spells_node->line, "spells: expected object");
+    for (size_t c = 0; c < classes_node->u.obj.n; c++) {
+        const char *cname = classes_node->u.obj.items[c].key;
+        const node *cls = classes_node->u.obj.items[c].val;
+        if (cls->kind != N_OBJ) continue;
+        const node *list = obj_get(cls, "spells");
+        if (!list || list->kind != N_ARR) continue;
+        int cid = pm_class_id(cname);
+        ryl_spell *tab = NULL;
+        if (cid == PC_PRIEST)    tab = priest_spells;
+        else if (cid == PC_MAGE) tab = mage_spells;
+        else continue;
+        for (size_t i = 0; i < list->u.arr.n; i++) {
+            const node *id_n = list->u.arr.items[i];
+            if (!id_n || id_n->kind != N_STR) die(path, list->line, "classes.spells: id must be string");
+            const node *spell = obj_get(spells_node, id_n->u.sv);
+            if (!spell || spell->kind != N_OBJ) die(path, list->line, "spells: missing id referenced by classes");
+            const node *slot_n = obj_get(spell, "slot");
+            if (!slot_n || slot_n->kind != N_INT) die(path, spell->line, "spell: missing 'slot'");
+            int32_t slot = slot_n->u.iv;
+            if (slot < 1 || slot > RES_MAX_SPELL_SLOT) die(path, slot_n->line, "spell: slot out of range");
+            const node *name_n = obj_get(spell, "name");
+            const node *cost_n = obj_get(spell, "base_cost");
+            ryl_spell *s = &tab[slot];
+            free((void *) s->id);
+            free((void *) s->name);
+            s->id = strdup(id_n->u.sv);
+            s->name = strdup((name_n && name_n->kind == N_STR) ? name_n->u.sv : id_n->u.sv);
+            s->slot = slot;
+            s->base_cost = (cost_n && cost_n->kind == N_INT) ? cost_n->u.iv : 0;
+            s->effect = SE_NONE;
+        }
+    }
+}
+
 void res_load_world(const char *path) {
     /* Tolerant: missing file = no world tree, legacy JSONL-only. Corrupt
        file = fatal (parser die()s with path:line:msg). */
@@ -891,6 +934,7 @@ void res_load_world(const char *path) {
        handoff to the evaluator purely about behavior, not data. */
     fold_flags(obj_get(root, "flags"), path);
     fold_items(obj_get(root, "items"), path);
+    fold_spells(obj_get(root, "classes"), obj_get(root, "spells"), path);
 
     /* Walk every effect / cond / expr array in the tree and rewrite path
        strings (e.g. "caster.hp", "$dmg") in place to N_PATH. After this,

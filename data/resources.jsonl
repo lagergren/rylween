@@ -145,7 +145,6 @@
 {"kind":"spell","id":"priest.revelation","class":"priest","slot":5,"name":"Revelation","base_cost":40,"effect":"revelation"}
 {"kind":"spell","id":"priest.teleport","class":"priest","slot":6,"name":"Teleport","base_cost":35,"effect":"teleport"}
 {"kind":"spell","id":"priest.earthquake","class":"priest","slot":7,"name":"Earthquake","base_cost":55,"effect":"earthquake"}
-{"kind":"spell","id":"mage.frost","class":"mage","slot":1,"name":"Frost Finger","base_cost":8,"effect":"frost"}
 {"kind":"spell","id":"mage.fire","class":"mage","slot":2,"name":"Fire Cloud","base_cost":25,"effect":"fire"}
 {"kind":"spell","id":"mage.confusion","class":"mage","slot":3,"name":"Confusion","base_cost":17,"effect":"confusion"}
 {"kind":"spell","id":"mage.death","class":"mage","slot":4,"name":"Death Strike","base_cost":78,"effect":"death"}
@@ -210,3 +209,6 @@
 {"kind":"text","id":"strid.monster.hold_player","text":"You realize with horror\r\nthat you cannot move!\r\n"}
 {"kind":"text","id":"strid.monster.confusion","text":"You are almost blinded\r\nby a colorful haze.\r\n"}
 {"kind":"text","id":"strid.killed","text":"...KILLED!\r\n"}
+{"kind":"text","id":"strid.spell.frost.chills","text":"%s chills the\r\n"}
+{"kind":"text","id":"strid.spell.frost.damage","text":"opponent for %d\r\n"}
+{"kind":"text","id":"strid.spell.frost.damage_pts","text":"damage pts.\r\n"}

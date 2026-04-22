@@ -434,39 +434,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                             goto after_mage_switch;
                         }
                         switch (s->effect) {
-                            case SE_FROST:
-                                while (1) {
-                                    clw();
-                                    tx("%s", res_text("strid.prompt.who"));
-                                    for (i = 1; i < noc + 1; i++) {
-                                        if (deadc[i]) {
-                                            strcpy(str, "Dead.");
-                                        } else {
-                                            strcpy(str, "Alive.");
-                                        }
-                                        tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
-                                    }
-                                    d = key();
-                                    d = toupper(d);
-                                    if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
-                                        break;
-                                    }
-                                }
-                                vem = d - 64;
-                                spelldamage = pm_lv(caster) * ryl_random(2, 8);
-                                clw();
-                                tx("%s chills the\r\n", pm_name(caster));
-                                tx("opponent for %d\r\n", spelldamage);
-                                tx("damage pts.\r\n");
-                                ryl_delay(1600);
-                                mh[vem] -= spelldamage;
-                                if (mh[vem] <= 0) {
-                                    mh[vem] = 0;
-                                    tx("%s", res_text("strid.killed"));
-                                    ryl_delay(600);
-                                    deadc[vem] = 1;
-                                }
-                                break;
                             case SE_FIRE:
                                 for (i = 1; i < noc + 1; i++) {
                                     spelldamage = pm_lv(caster) * ryl_random(1, 4);

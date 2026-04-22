@@ -34,7 +34,6 @@ enum ryl_spell_effect {
     SE_REVELATION,
     SE_TELEPORT,
     SE_EARTHQUAKE,
-    SE_FROST,
     SE_FIRE,
     SE_CONFUSION,
     SE_DEATH,
