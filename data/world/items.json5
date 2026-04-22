@@ -1,0 +1,27 @@
+// Items shard — shadows matching {"kind":"item"} records in
+// data/resources.jsonl. Fields beyond (id, name, cost, damage) parse
+// and are retained in the world tree for the evaluator, but the legacy
+// runtime only reads those four.
+{
+  // Empty-slot sentinel. Shadows JSONL id 0 with identical data; this
+  // commit's purpose is to prove the shadow path, not to change behavior.
+  blank: { id: 0, name: '-', cost: 0, damage: 1 },
+
+  // Flute of Madness (speak.c:438, strid.c:367). The richer kind/
+  // wieldable_by/effect fields sketched in docs/dsl.md §3.2 live on the
+  // node tree waiting for the evaluator; the legacy path reads only
+  // name+cost+damage and is unchanged.
+  flute_of_madness: {
+    id:   111,
+    name: 'Flute of Madness',
+    cost: 9000,
+    damage: 0,
+    kind: 'magic_item',
+    wieldable_by: ['bard'],
+    slot: 'consumable',
+    // effect program placeholder — evaluator lands in the next commit.
+    effect: ['seq',
+      ['say', 'strid.item.flute_of_madness'],
+      ['set_flag', 'encounter.confused', 1]],
+  },
+}

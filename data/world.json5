@@ -1,0 +1,26 @@
+// Rylween world file — root JSON5 tree. See docs/dsl.md for the full
+// schema. This commit ships only the flags and items subtrees as proof
+// of the Phase 6d loader; every other subtree is still owned by the
+// legacy data/resources.jsonl (JSON5 shadows JSONL per §2.2).
+{
+  meta: {
+    version: 1,
+    schema:  'rylween-world-v0',
+  },
+
+  // Symbolic mission-flag names (§3.1). `slot` is the index in
+  // state.p[cpl].flag[] (scope: "party") or an engine-managed encounter
+  // slot (scope: "encounter"). Only the flags the runtime already
+  // mutates are enumerated here; others land as their missions port.
+  flags: {
+    'garth.bandits':        { slot: 1,  values: ['none', 'accepted', 'recovered', 'closed'] },
+    'hermit.troll_tooth':   { slot: 33, values: ['none', 'accepted', 'extracted', 'delivered'] },
+    'church.donation.once': { slot: 5,  values: ['no', 'yes'] },
+    'encounter.immune':     { slot: 0,  scope: 'encounter', values: ['no', 'yes'] },
+  },
+
+  // Items are loaded through an import to exercise the $import resolver
+  // (§2.1). The shard is a plain JSON5 object; the resolver splices it
+  // in place of this directive at load time.
+  items: { $import: 'world/items.json5' },
+}

@@ -19,6 +19,7 @@ int main(int argc, char **argv) {
     io_init_tty();
     ryl_random_init();
     res_load("data/resources.jsonl");
+    res_load_world("data/world.json5");
 
     state.global_name[0] = 0;
     strncpy(state.global_name, argv[1], sizeof state.global_name - 1);
