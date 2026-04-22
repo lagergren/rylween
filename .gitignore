@@ -7,6 +7,8 @@ data/entry.dat
 data/npc.dat
 data/realm.dat
 data/rylween.log
+data/score.txt
+data/vscore.txt
 
 # Editor / local tool state
 .claude/
