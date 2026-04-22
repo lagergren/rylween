@@ -33,6 +33,7 @@ void place_npcs() {
 
     int32_t i, j, x, ut = 0;
     FILE *fh;
+    char path[512];
 
     // Random people //
 
@@ -182,7 +183,8 @@ void place_npcs() {
         }
     }
 
-    if (!(fh = fopen(ryl_state_path("npc.dat"), "wb"))) {
+    ryl_state_path("npc.dat", path, sizeof path);
+    if (!(fh = fopen(path, "wb"))) {
         cleanexit();
     }
     for (i = 1; i < 40; i++) {

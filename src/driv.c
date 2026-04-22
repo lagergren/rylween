@@ -361,7 +361,7 @@ void position_locations() {
 }
 
 void init() {
-    char str[90], kl[8], d, ch;
+    char str[90], kl[8], path[512], d, ch;
     FILE *fh;
     uint8_t abort = 0, x = 0, i, j = 0;
 
@@ -379,12 +379,13 @@ void init() {
     }
     fclose(fh);
 
-    if (!(fh = fopen(ryl_state_path("realm.dat"), "rb"))) {
+    ryl_state_path("realm.dat", path, sizeof path);
+    if (!(fh = fopen(path, "rb"))) {
         state.antal_spelare = 0;
         state.senaste_dagen = 0;
         position_locations();
 
-        if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
+        if (!(fh = fopen(path, "wb"))) {
             cleanexit();
         }
 
@@ -419,7 +420,8 @@ void init() {
 
         // Clear entry file
 
-        fh = fopen(ryl_state_path("entry.dat"), "wb");
+        ryl_state_path("entry.dat", path, sizeof path);
+        fh = fopen(path, "wb");
         fclose(fh);
 
         for (i = 1; i < state.antal_spelare + 1; i++) {
@@ -562,7 +564,8 @@ void init() {
                     // Check ENTRY.DAT for 2-4 present names. Add one more
                     // if less.
 
-                    fh = fopen(ryl_state_path("entry.dat"), "rb");
+                    ryl_state_path("entry.dat", path, sizeof path);
+                    fh = fopen(path, "rb");
                     i = 0;
                     while (1) {
                         str[0] = 0;
@@ -589,7 +592,8 @@ void init() {
 
                     // Append name to file
 
-                    fh = fopen(ryl_state_path("entry.dat"), "ab");
+                    ryl_state_path("entry.dat", path, sizeof path);
+                    fh = fopen(path, "ab");
                     strcpy(str, state.global_name);
                     fwrite((char *)str, sizeof(str), 1, fh);
                     fclose(fh);
@@ -625,7 +629,8 @@ void init() {
                     if (d == 'Y') {
                         clw();
                         tx("Editing REALM.DAT...");
-                        if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
+                        ryl_state_path("realm.dat", path, sizeof path);
+                        if (!(fh = fopen(path, "wb"))) {
                             cleanexit();
                         }
                         state.antal_spelare--;
@@ -656,7 +661,8 @@ void init() {
 
                         clw();
                         tx("Editing NPC.DAT...");
-                        if (!(fh = fopen(ryl_state_path("npc.dat"), "wb"))) {
+                        ryl_state_path("npc.dat", path, sizeof path);
+                        if (!(fh = fopen(path, "wb"))) {
                             cleanexit();
                         }
                         // Om I > x (ditt party) och i for:as till antal_spelare (ej +1)
@@ -689,13 +695,15 @@ void save() {
     FILE *fh;
     int32_t i;
     char kl[8];
+    char path[512];
 
     getclk(kl);
 
     //senaste_dagen = day_at_game_start;
     state.senaste_dagen = kl[3];
 
-    if (!(fh = fopen(ryl_state_path("realm.dat"), "wb"))) {
+    ryl_state_path("realm.dat", path, sizeof path);
+    if (!(fh = fopen(path, "wb"))) {
         c(49, 6);
         clw();
         tx("\r\nUnable to save data!!!\r\n");
@@ -719,7 +727,8 @@ void save() {
     }
     fclose(fh);
 
-    if (!(fh = fopen(ryl_state_path("npc.dat"), "wb"))) {
+    ryl_state_path("npc.dat", path, sizeof path);
+    if (!(fh = fopen(path, "wb"))) {
         c(49, 6);
         clw();
         tx("\r\nUnable to save NPCs!!!\r\n");
@@ -734,8 +743,10 @@ void save() {
 void load() {
     FILE *fh;
     int32_t i;
+    char path[512];
 
-    if (!(fh = fopen(ryl_state_path("realm.dat"), "rb"))) {
+    ryl_state_path("realm.dat", path, sizeof path);
+    if (!(fh = fopen(path, "rb"))) {
         c(49, 6);
         clw();
         tx("Unable to load data!!!\r\n");
@@ -764,7 +775,8 @@ void load() {
         }
     }
 
-    if (!(fh = fopen(ryl_state_path("npc.dat"), "rb"))) {
+    ryl_state_path("npc.dat", path, sizeof path);
+    if (!(fh = fopen(path, "rb"))) {
         c(49, 6);
         clw();
         tx("\r\nUnable to load NPCs!!!\r\n");

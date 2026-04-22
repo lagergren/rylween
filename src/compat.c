@@ -158,10 +158,18 @@ void str_append(char *dst, size_t dst_sz, const char *src) {
     }
 }
 
-char *ryl_state_path(const char *leaf) {
-    static char buf[512];
+/* ryl_state_path: build the on-disk path for a persistent-state leaf
+   file into the caller's buffer. The $HOME/.rylween root is resolved
+   (and mkdir'd) on first call and cached in a static, so subsequent
+   calls just format into out. The cache is read-only after init, so
+   there is no returned-static-buffer footgun. */
+void ryl_state_path(const char *leaf, char *out, size_t out_sz) {
     static char base[480];
     static int8_t state = -1; /* -1 uninit, 0 fallback to data/, 1 home-dir ready */
+
+    if (out_sz == 0) {
+        return;
+    }
 
     if (state < 0) {
         const char *home = getenv("HOME");
@@ -177,9 +185,8 @@ char *ryl_state_path(const char *leaf) {
     }
 
     if (state == 1) {
-        snprintf(buf, sizeof buf, "%s/%s", base, leaf);
+        snprintf(out, out_sz, "%s/%s", base, leaf);
     } else {
-        snprintf(buf, sizeof buf, "data/%s", leaf);
+        snprintf(out, out_sz, "data/%s", leaf);
     }
-    return buf;
 }

@@ -30,8 +30,8 @@ void str_append(char *dst, size_t dst_sz, const char *src);
 
 /* Path for runtime state file <leaf> under $HOME/.rylween/ (dir created 0700
    on first call). Falls back to "data/<leaf>" if HOME is unset or mkdir fails.
-   Returns a pointer to a static buffer; each call overwrites the prior one. */
-char *ryl_state_path(const char *leaf);
+   Result is written to out (capped to out_sz); caller owns the buffer. */
+void ryl_state_path(const char *leaf, char *out, size_t out_sz);
 
 /* Wall-clock entropy hook. Returns RYL_FAKE_EPOCH when set in the environment;
    otherwise wraps time(3). Used for date stamps and the boot-time PRNG seed. */

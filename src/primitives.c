@@ -258,6 +258,7 @@ void ryl_log(char *st) {
     FILE *fh;
     char kl[8];
     char str[200];
+    char path[512];
     int32_t m;
 
     getclk(kl);
@@ -269,7 +270,8 @@ void ryl_log(char *st) {
     snprintf(str, sizeof str, "%s %2d %2d:%02d %s\n",
              months[m], (int32_t)kl[3], (int32_t)kl[4], (int32_t)kl[5], st);
 
-    if (!(fh = fopen(ryl_state_path("rylween.log"), "a+"))) {
+    ryl_state_path("rylween.log", path, sizeof path);
+    if (!(fh = fopen(path, "a+"))) {
         return;
     }
     fputs(str, fh);
