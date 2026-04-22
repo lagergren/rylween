@@ -35,7 +35,7 @@ extern char *_version_string;
 
 /* Function prototypes split into per-module headers:
      battle.h dungeon.h driv.h gfx.h interact.h missions.h
-     person.h primitives.h speak.h subs.h towne.h ydarg.h
+     primitives.h speak.h subs.h towne.h ydarg.h
    Each .c source pulls only the headers whose APIs it calls. This file
    stays as the umbrella for stdlib + compat + state so existing call
    sites keep their ambient dependencies. */

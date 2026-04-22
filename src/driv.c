@@ -4,7 +4,6 @@
 #include "ryl.h"
 #include "driv.h"
 #include "interact.h"
-#include "person.h"
 #include "primitives.h"
 #include "subs.h"
 #include "towne.h"
@@ -417,7 +416,7 @@ void init() {
 
             fclose(fh);
 
-            place_npcs();
+            res_realize_npcs();
             write_current_world();
         }
         if (fh) {
@@ -881,8 +880,8 @@ static void write_current_world() {
         wcw_enum(f, "jobname", n->job);
         fputs(", towne: ", f);
         wcw_enum(f, "towne", n->towne);
-        fputs(", bl: ", f);
-        wcw_enum(f, "bl", n->bl);
+        fputs(", building: ", f);
+        wcw_enum(f, "building", n->building);
         fprintf(f, ", x: %d, y: %d },\n", n->x, n->y);
     }
     fputs("  },\n\n", f);
@@ -1121,7 +1120,7 @@ static int read_current_world() {
             n->nr = slot;
             n->job   = rcw_enum(rec, "job",   "jobname", n->job);
             n->towne = rcw_enum(rec, "towne", "towne",   n->towne);
-            n->bl    = rcw_enum(rec, "bl",    "bl",      n->bl);
+            n->building = rcw_enum(rec, "building", "building", n->building);
             n->x     = rcw_int (rec, "x",                n->x);
             n->y     = rcw_int (rec, "y",                n->y);
         }

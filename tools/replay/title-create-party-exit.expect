@@ -1,4 +1,4 @@
-[0C[30m[0 p[37m[0CSetting up new campaign. Please wait.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C[30;47mMtL'93[0m■[35m[22C++ ADVENTURERS OF ++[31m
+[0C[30m[0 p[37m[0CSetting up new campaign. Please wait.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C.[0C[30;47mMtL'93[0m■[35m[22C++ ADVENTURERS OF ++[31m
 [18C▄▄    ▄  ▄   ▄    ▄[5C▄  ▄▄[0m▄▄▄[31m  ▄▄[0m▄▄▄[31m  ▄    ▄
 [17C▐███▄ ▐█▌ ▐▌ ▐█[0m▌[31m  ▐[47m▌[0m▌[31m ▄ ▐[47m▌[0m▌[31m▐[47m▀[0m▀  ▀▌[31m▐[47m▀[0m▀  ▀▌[31m▐[47m▌▀[40m  ▐[47m▌[0m▌[31m
 [17C▐[47m█▐[0m ▀▌[31m▐█[0m▌[31m ▐[0m█[31m █[47m▌[0m▌[31m  ▐[0m█▌[31m▐[47m▌[0m▌[31m▐[0m█▌[31;47m▐[0m█▄  ▄▌[31m█[0m█▄  ▄▌[31;47m▐[0m█▀█ ▐[31;47m▌[0m█[31m
@@ -121,10 +121,10 @@
 [49C                          
 [6;0H[49CStats for char: 1
 
-[49CWeapon Skill : 68
-[49CHealth       : 43
-[49CWisdom       : 49
-[49CCharisma     : 42
+[49CWeapon Skill : 27
+[49CHealth       : 68
+[49CWisdom       : 27
+[49CCharisma     : 49
 
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
@@ -213,13 +213,13 @@
 [49CRace      : Human
 [49CClass     : Thief
 [49C
-[49CSkill     : 68
-[49CHp/H      : 43/43
-[49CWisdom    : 49
-[49CCharisma  : 42
+[49CSkill     : 27
+[49CHp/H      : 68/68
+[49CWisdom    : 27
+[49CCharisma  : 49
 [49CMagic     : 0
 [49C
-[49C(Bash RETURN key)
+[49C(Stab RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -239,7 +239,7 @@
 
 [49CExp       : 0
 
-[49C(Brain RETURN key)
+[49C(Lunge at RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -253,10 +253,10 @@
 [49C                          
 [6;0H[49CStats for char: 2
 
-[49CWeapon Skill : 46
-[49CHealth       : 42
-[49CWisdom       : 64
-[49CCharisma     : 31
+[49CWeapon Skill : 42
+[49CHealth       : 46
+[49CWisdom       : 48
+[49CCharisma     : 64
 
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
@@ -345,13 +345,13 @@
 [49CRace      : Human
 [49CClass     : Thief
 [49C
-[49CSkill     : 46
-[49CHp/H      : 42/42
-[49CWisdom    : 64
-[49CCharisma  : 31
+[49CSkill     : 42
+[49CHp/H      : 46/46
+[49CWisdom    : 48
+[49CCharisma  : 64
 [49CMagic     : 0
 [49C
-[49C(Mutilate RETURN key)
+[49C(Thrash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -371,7 +371,7 @@
 
 [49CExp       : 0
 
-[49C(Smash RETURN key)
+[49C(Crush RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -385,10 +385,10 @@
 [49C                          
 [6;0H[49CStats for char: 3
 
-[49CWeapon Skill : 43
-[49CHealth       : 47
-[49CWisdom       : 58
-[49CCharisma     : 36
+[49CWeapon Skill : 31
+[49CHealth       : 43
+[49CWisdom       : 63
+[49CCharisma     : 58
 
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
@@ -477,13 +477,13 @@
 [49CRace      : Human
 [49CClass     : Thief
 [49C
-[49CSkill     : 43
-[49CHp/H      : 47/47
-[49CWisdom    : 58
-[49CCharisma  : 36
+[49CSkill     : 31
+[49CHp/H      : 43/43
+[49CWisdom    : 63
+[49CCharisma  : 58
 [49CMagic     : 0
 [49C
-[49C(Crush RETURN key)
+[49C(Mutilate RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -503,7 +503,7 @@
 
 [49CExp       : 0
 
-[49C(Slash RETURN key)
+[49C(Destroy RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -517,10 +517,10 @@
 [49C                          
 [6;0H[49CStats for char: 4
 
-[49CWeapon Skill : 61
-[49CHealth       : 67
-[49CWisdom       : 62
-[49CCharisma     : 29
+[49CWeapon Skill : 55
+[49CHealth       : 61
+[49CWisdom       : 31
+[49CCharisma     : 62
 
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
@@ -609,13 +609,13 @@
 [49CRace      : Human
 [49CClass     : Thief
 [49C
-[49CSkill     : 61
-[49CHp/H      : 67/67
-[49CWisdom    : 62
-[49CCharisma  : 29
+[49CSkill     : 55
+[49CHp/H      : 61/61
+[49CWisdom    : 31
+[49CCharisma  : 62
 [49CMagic     : 0
 [49C
-[49C(Stab RETURN key)
+[49C(Smash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -635,7 +635,7 @@
 
 [49CExp       : 0
 
-[49C(Brain RETURN key)
+[49C(Slash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          

@@ -121,6 +121,15 @@ int32_t     res_town_x(int twn);
 int32_t     res_town_y(int twn);
 int32_t     res_town_at(int x, int y);
 
+/* §15 step 3: realize NPC placements from data/world.json5 npcs:.
+   Populates state.npc[1..39]. Each spec entry is either FIXED (towne
+   declared — apply job/towne/bl/x/y verbatim) or RANDOM (no towne —
+   roll towne, bl, and wilderness x/y at cold-start time). Mirrors the
+   legacy place_npcs() contract: prints the "Setting up new campaign"
+   UI, runs the per-random-npc delay/dot, initializes visited[], and
+   writes npc.dat. Called from init() cold-start only. */
+void res_realize_npcs(void);
+
 /* Uniform "res: path:line: msg" fatal error. Used by the JSON5 parser /
    import resolver (json5.c) and the world-folds (res.c) so every loader
    diagnostic has one shape. Never returns. */

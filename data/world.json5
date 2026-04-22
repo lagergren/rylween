@@ -127,6 +127,75 @@
     { name: 'Murn',  x: 55, y: 29 },
   ],
 
+  // NPCs — one entry per slot 1..39, keyed by display name (the same
+  // strings served by enums.name). `slot` pins the numeric id used by
+  // state.npc[]. `job` is mandatory. An entry with `towne` declared is
+  // FIXED (apply the declared job/towne/bl/x/y verbatim); an entry
+  // without `towne` is RANDOM (realizer rolls towne / bl / wilderness
+  // x,y at cold start). The realizer walks this object in declaration
+  // order.
+  //
+  // Two §15.3 oddities preserved as-is for byte-parity review:
+  //   - Bargirls only in towns 1 (Thord) and 3 (Wilor); towns 2/4
+  //     (Ollk/Murn) have none. Probably an Amiga-era omission; leaving
+  //     it verbatim until the realizer gates land.
+  //   - Slots 36..39 are Amiga-build leftovers (empty Merchant stubs
+  //     in wilderness at 0,0). They survive because write_current_world
+  //     loops 1..39 and save() / npc.dat mirror the same range.
+  npcs: {
+    Garth:     { slot:  1, job: 'Merchant',     towne: 'Thord', building: 'inn' },
+    "Nrim'to": { slot:  2, job: 'Ranger'    },
+    Areth:     { slot:  3, job: 'Fighter'   },
+    Nevaak:    { slot:  4, job: 'Wizard'    },
+    Gorm:      { slot:  5, job: 'Priest'    },
+    Bernak:    { slot:  6, job: 'Thief'     },
+    Matias:    { slot:  7, job: 'Peasant'   },
+    Tybalt:    { slot:  8, job: 'Bard'      },
+    Romeo:     { slot:  9, job: 'Drifter'   },
+    Werra:     { slot: 10, job: 'Half-Orc'  },
+    Arenjun:   { slot: 11, job: 'Half-Elf'  },
+    Oskar:     { slot: 12, job: 'Smith'     },
+    Harry:     { slot: 13, job: 'Merchant'  },
+    Marraga:   { slot: 14, job: 'Ranger'    },
+    Broth:     { slot: 15, job: 'Fighter'   },
+    Ebond:     { slot: 16, job: 'Wizard'    },
+    Bolph:     { slot: 17, job: 'Priest'    },
+    Gotharp:   { slot: 18, job: 'Thief'     },
+    Ron:       { slot: 19, job: 'Peasant'   },
+    Kaal:      { slot: 20, job: 'Bard'      },
+    Daniel:    { slot: 21, job: 'Drifter'   },
+    Leander:   { slot: 22, job: 'Half-Orc'  },
+    Ithienn:   { slot: 23, job: 'Half-Elf'  },
+    Azaaza:    { slot: 24, job: 'Smith'     },
+    // Innkeepers: job 14, in the inn (bl = 'inn'). The legacy
+    // person.c:95-121 had these at bl = 'tavern', which is backwards —
+    // Hassan is the innkeeper of Thord's INN (towne.c:1265 "%s, the
+    // Innkeeper welcomes you" runs inside inn()), not its tavern. Fixed
+    // here because struct person.bl is a write-only field today (grep
+    // confirms no reader), so the correction is behavior-neutral but
+    // makes the save file say what it should.
+    Hassan:    { slot: 25, job: 'Innkeeper',    towne: 'Thord', building: 'inn' },
+    Luqas:     { slot: 26, job: 'Innkeeper',    towne: 'Ollk',  building: 'inn' },
+    Darth:     { slot: 27, job: 'Innkeeper',    towne: 'Wilor', building: 'inn' },
+    Yog:       { slot: 28, job: 'Innkeeper',    towne: 'Murn',  building: 'inn' },
+    Niklas:    { slot: 29, job: 'Tavernkeeper', towne: 'Thord', building: 'tavern' },
+    Tokawa:    { slot: 30, job: 'Tavernkeeper', towne: 'Ollk',  building: 'tavern' },
+    Miyaki:    { slot: 31, job: 'Tavernkeeper', towne: 'Wilor', building: 'tavern' },
+    Dargoth:   { slot: 32, job: 'Tavernkeeper', towne: 'Murn',  building: 'tavern' },
+    Marcus:    { slot: 33, job: 'Hermit',       towne: 'wilderness', x: 48, y: 7 },
+
+    // Bargirls: job 13, in the tavern. Legacy person.c:163 had these at
+    // bl = 'inn' — another latent write-only bug: towne.c:1189 encounters
+    // bargirls in the tavern rumour-switch, never in the inn. Fixed
+    // along with innkeeper/tavernkeeper above; behavior-neutral.
+    Deanna:    { slot: 34, job: 'Bargirl',      towne: 'Thord', building: 'tavern' },
+    Jeanne:    { slot: 35, job: 'Bargirl',      towne: 'Wilor', building: 'tavern' },
+    Alex:      { slot: 36, job: 'Merchant',     towne: 'wilderness' },
+    Galdon:    { slot: 37, job: 'Merchant',     towne: 'wilderness' },
+    Kosch:     { slot: 38, job: 'Merchant',     towne: 'wilderness' },
+    Ufarsin:   { slot: 39, job: 'Merchant',     towne: 'wilderness' },
+  },
+
   // Enum tables — res_enum(id, index) reads values[index]. Slot 0 is
   // empty ('') for 1-based enums so a 0 raw id means "none / sentinel";
   // 0-based enums (towne, bl) use a real value at 0. current-world.json5
@@ -166,8 +235,9 @@
     // live in the towns: subtree below (indexed by this same twn).
     towne: ['wilderness', 'Thord', 'Ollk', 'Wilor', 'Murn'],
 
-    // Building within a town (struct person.bl). 0 = none (wilderness
-    // NPCs); 1 = inn; 2 = tavern. Symbolic ids; not displayed.
-    bl: ['none', 'inn', 'tavern'],
+    // Building within a town (struct person.building). 0 = none
+    // (wilderness NPCs); 1 = inn; 2 = tavern. Symbolic ids; not
+    // displayed. speak.c:106 filters NPCs in inn/tavern by this id.
+    building: ['none', 'inn', 'tavern'],
   },
 }

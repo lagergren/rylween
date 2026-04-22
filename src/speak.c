@@ -103,7 +103,7 @@ void speak(int32_t bld, int32_t tow) {
     clw();
     if (tow) {
         for (i = 1, j = 1, x = 0; i < 40; i++) {
-            if (state.npc[i].bl == bld && state.npc[i].towne == tow) {
+            if (state.npc[i].building == bld && state.npc[i].towne == tow) {
                 tx("%c. %-8s (%s)\r\n", j + 64, res_enum("name", state.npc[i].nr), res_enum("jobname", state.npc[i].job));
                 reference[j] = state.npc[i].nr;
                 j++;

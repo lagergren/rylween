@@ -29,6 +29,7 @@
 #include "res.h"
 #include "eval.h"
 #include "json5.h"
+#include "primitives.h"
 #include "ryl.h"
 #include "towne.h"
 
@@ -326,6 +327,124 @@ int32_t res_town_at(int x, int y) {
         }
     }
     return 0;
+}
+
+/* Read an optional int field with a default. */
+static int32_t rn_int(const node *obj, const char *key, int32_t dflt) {
+    const node *n = obj_get(obj, key);
+    return (n && n->kind == N_INT) ? n->u.iv : dflt;
+}
+
+/* Read an optional enum field (string or int) with a default. */
+static int32_t rn_enum(const node *obj, const char *key, const char *enum_id, int32_t dflt) {
+    const node *n = obj_get(obj, key);
+    if (!n) {
+        return dflt;
+    }
+    if (n->kind == N_INT) {
+        return n->u.iv;
+    }
+    if (n->kind == N_STR) {
+        int id = res_enum_id(enum_id, n->u.sv);
+        return id >= 0 ? id : dflt;
+    }
+    return dflt;
+}
+
+void res_realize_npcs(void) {
+    tx("%cSetting up new campaign. Please wait.", 12);
+    ryl_log("A new campaign starts. Baron Ydarg awaits...\n");
+
+    const node *root = world_tree;
+    const node *npcs = root ? obj_get(root, "npcs") : NULL;
+    if (!npcs || npcs->kind != N_OBJ) {
+        /* Without a spec there's nothing to realize. Keep state.npc[]
+           zeroed from static init; step 2 reader will see empty slots. */
+        tx("%c", 12);
+        return;
+    }
+
+    for (size_t i = 0; i < npcs->u.obj.n; i++) {
+        const node *rec = npcs->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        int slot = rn_int(rec, "slot", 0);
+        if (slot < 1 || slot > 39) {
+            continue;
+        }
+        struct person *n = &state.npc[slot];
+        n->nr = slot;
+        n->job = rn_enum(rec, "job", "jobname", 0);
+
+        const node *towne_node = obj_get(rec, "towne");
+        if (towne_node) {
+            /* FIXED: declared slot. Apply job/towne/bl/x/y verbatim. */
+            n->towne    = rn_enum(rec, "towne",    "towne",    0);
+            n->building = rn_enum(rec, "building", "building", 0);
+            n->x        = rn_int (rec, "x", 0);
+            n->y        = rn_int (rec, "y", 0);
+        } else {
+            /* RANDOM: realize placement now. Matches the legacy
+               place_npcs() roll pattern: towne (0..4), then bl (1..2)
+               if in town, else collision-checked wilderness (x,y)
+               avoiding the hermit hard-coded at x=48. The collision
+               loop's accept predicate (ut > 1) is preserved verbatim
+               from person.c:64-76 — terser to read, semantics-preserving. */
+            ryl_delay(600);
+            n->towne = ryl_random(0, 4);
+            if (n->towne) {
+                n->building = ryl_random(0, 1) + 1;
+                n->x  = 0;
+                n->y  = 0;
+            } else {
+                n->building = 0;
+                while (1) {
+                    n->x = ryl_random(8, 57);
+                    n->y = ryl_random(8, 27);
+                    if (n->x == 48) {
+                        n->x++;
+                    }
+                    int ut = 0;
+                    for (int x = 1; x < slot + 1; x++) {
+                        if (state.npc[x].x == n->x && state.npc[x].y == n->y) {
+                            ut++;
+                        }
+                    }
+                    char tile = state.map[n->y][n->x];
+                    if (tile != '0' && tile != '1' && tile != '2' && tile != 'm' && tile != 'w') {
+                        ut++;
+                    }
+                    if (ut > 1) {
+                        break;
+                    }
+                }
+            }
+            tx(".");
+        }
+    }
+    tx("%c", 12);
+
+    /* Zero every NPC's visited[] grid — fresh realm means no party
+       has met anyone yet. */
+    for (int i = 1; i < 40; i++) {
+        for (int j = 0; j < 26; j++) {
+            state.npc[i].visited[j] = 0;
+        }
+    }
+
+    /* Mirror-write npc.dat so the legacy reader in load() finds the
+       realized state. §15 step 5 drops this alongside realm.dat. */
+    char path[512];
+    FILE *fh;
+    ryl_state_path("npc.dat", path, sizeof path);
+    if (!(fh = fopen(path, "wb"))) {
+        cleanexit();
+    }
+    for (int i = 1; i < 40; i++) {
+        fwrite(&state.npc[i], sizeof(state.npc[i]), 1, fh);
+    }
+    fclose(fh);
 }
 
 /* -------- flags subtree -------- */

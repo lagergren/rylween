@@ -34,7 +34,7 @@ struct person {
 
     int32_t nr;                /* Reference number 1-40*/
     int32_t towne;             /* What town? 0=wilderness*/
-    int32_t bl;                /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
+    int32_t building;          /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
     int32_t x;                 /* What X coord.*/
     int32_t y;                 /* What Y coord. Not valid for townes.*/
                                /* The wilderness X&Y coord automagically become*/
