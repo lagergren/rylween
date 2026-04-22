@@ -38,7 +38,7 @@
 
   // Monsters shard — keyed by symbolic name; `id` is the runtime key the
   // legacy ryl_monster[0..90] table uses (map.dat stores ids verbatim).
-  monsters: { $import: 'world/monsters.json5' },
+  monsters: { $import: 'world/monsters/monsters.json5' },
 
   // Texts sharded by top-level prefix; each leaf is either a string
   // (verbatim) or an array of lines (joined with \r\n, trailing \r\n
