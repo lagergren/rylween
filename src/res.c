@@ -893,6 +893,33 @@ static void fold_items(const node *items_node, const char *path) {
     }
 }
 
+/* -------- monsters subtree (shadows JSONL; docs/dsl.md §2.2) --------
+   Symbolic key in the shard is author-facing; `id` (map.dat's monster
+   index) is the runtime key. Missing optional fields default to 0. */
+static void fold_monsters(const node *monsters_node, const char *path) {
+    if (!monsters_node) return;
+    if (monsters_node->kind != N_OBJ) die(path, monsters_node->line, "monsters: expected object");
+    for (size_t i = 0; i < monsters_node->u.obj.n; i++) {
+        const node *rec = monsters_node->u.obj.items[i].val;
+        if (rec->kind != N_OBJ) die(path, rec->line, "monsters: entry must be object");
+        const node *id_n = obj_get(rec, "id");
+        if (!id_n || id_n->kind != N_INT) die(path, rec->line, "monsters: missing 'id'");
+        int32_t id = id_n->u.iv;
+        if (id < 0 || id > RES_MAX_MONSTER_ID) die(path, id_n->line, "monsters: id out of range");
+        ryl_monster *m = &monsters[id];
+        free((void *) m->name);
+        const node *name_n = obj_get(rec, "name");
+        m->name = strdup((name_n && name_n->kind == N_STR) ? name_n->u.sv : "");
+        const node *n1 = obj_get(rec, "n1"); m->n1 = (n1 && n1->kind == N_INT) ? n1->u.iv : 0;
+        const node *n2 = obj_get(rec, "n2"); m->n2 = (n2 && n2->kind == N_INT) ? n2->u.iv : 0;
+        const node *h1 = obj_get(rec, "h1"); m->h1 = (h1 && h1->kind == N_INT) ? h1->u.iv : 0;
+        const node *h2 = obj_get(rec, "h2"); m->h2 = (h2 && h2->kind == N_INT) ? h2->u.iv : 0;
+        const node *ws = obj_get(rec, "ws"); m->ws = (ws && ws->kind == N_INT) ? ws->u.iv : 0;
+        const node *sp = obj_get(rec, "sp"); m->sp = (sp && sp->kind == N_INT) ? sp->u.iv : 0;
+        const node *im = obj_get(rec, "im"); m->im = (im && im->kind == N_INT) ? im->u.iv : 0;
+    }
+}
+
 /* -------- texts subtree (shadows JSONL; docs/dsl.md §2.2) --------
    Hierarchical: every nested object's key becomes one dotted segment of
    the final text id. Leaves are either strings (verbatim) or arrays of
@@ -1025,6 +1052,7 @@ void res_load_world(const char *path) {
        handoff to the evaluator purely about behavior, not data. */
     fold_flags(obj_get(root, "flags"), path);
     fold_items(obj_get(root, "items"), path);
+    fold_monsters(obj_get(root, "monsters"), path);
     fold_spells(obj_get(root, "classes"), obj_get(root, "spells"), path);
     fold_texts(obj_get(root, "texts"), path);
 
