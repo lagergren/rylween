@@ -1408,3 +1408,246 @@ of §12.2 — ASan catches leaks/UAF/overflow regardless of how
 the state is shaped. These are hygiene commits that can slot in
 before or after C as the replay-gate schedule allows.
 
+## 15. Realm persistence: current-world.json5 (concrete §12.3 design)
+
+Captured 2026-04-22. Turns the save-file license from §12.3 into a
+concrete file/schema/algorithm design; replaces the existing
+`realm.dat` + `npc.dat` binary blobs with a single human-readable
+JSON5 artifact.
+
+### 15.1 Two-tier file model
+
+Today the persistent-state story is: `data/world.json5` (spec,
+read-only) + `$HOME/.rylween/{realm.dat, npc.dat, entry.dat}` (three
+opaque binary blobs that mix world realization with per-party
+state).
+
+Collapse to two tiers:
+
+| Tier | Path | Writer | Semantics |
+|--|--|--|--|
+| **Spec** | `data/world.json5` (shipped) | never at runtime | immutable |
+| **Current realm** | `$HOME/.rylween/current-world.json5` | cold-start realization + every `save()` | absent ⇒ sysop reset |
+
+Everything that survives across game sessions — NPC placements,
+rolled town/dungeon coordinates, every party's roster + inventory +
+progress flags + per-NPC visited bits — lives in
+`current-world.json5`. One file. One source of truth. `rm` it to
+reset.
+
+`entry.dat` (the daily per-player-name replay-cap file in
+`driv.c:565/592`) can either fold into the same artifact (an
+`entries:` array keyed by date) or stay out as a throw-away
+per-day bucket. Lean toward folding in — keeps the "sysop reset =
+one `rm`" story clean.
+
+### 15.2 Detect-and-realize on boot
+
+```
+init():
+  stat($HOME/.rylween/current-world.json5)
+  ├─ absent  → realize_world()
+  │             → write current-world.json5
+  │             → continue with antal_spelare = 0
+  └─ present → parse current-world.json5 into state.*
+               → continue
+```
+
+`realize_world()` replaces today's `position_locations()` +
+`place_npcs()`:
+
+1. Read `data/world.json5` `npcs:` subtree (see §15.3).
+2. For each NPC with `towne:` explicit → honor it.
+3. For each NPC with `towne:` absent → run a **balanced shuffle**
+   (§15.4) against the towns list from `data/world.json5`.
+4. For each NPC with `towne: 0` (wilderness) → random `{x, y}`
+   with existing hermit-collision and map-type guards.
+5. Roll town/castle/catacomb coordinates (`state.dx[]` /
+   `state.dy[]`), same logic as today's `position_locations()`.
+6. Write the result to `current-world.json5`.
+
+Post-realization, `state.antal_spelare == 0` (no parties yet);
+first party added via menu `C` → `createparty()` triggers the
+first real `save()`.
+
+### 15.3 Declarative NPC entries in world.json5
+
+Move the 40-slot hand-coded block in `person.c:86-178` into
+`data/world.json5`:
+
+```json5
+npcs: {
+  // Fixed NPCs: towne/bl always present; x/y only meaningful
+  // when towne == 0 (wilderness).
+  garth:     { slot:  1, job: 1,  towne: 1, bl: 1 },
+  innkeep1:  { slot: 25, job: 14, towne: 1, bl: 2 },
+  innkeep2:  { slot: 26, job: 14, towne: 2, bl: 2 },
+  // ... tkeepers 29-32, bargirls 34/35 ...
+  hermit:    { slot: 33, job: 16, towne: 0, x: 48, y: 7 },
+
+  // Random NPCs: no towne/bl/x/y. The realizer rolls them.
+  // job cycles 1..12 across the 24 random slots (two per job),
+  // matching the current person.c:48 j-chain behavior.
+  wanderer_1:  { slot:  2, job:  2 },
+  wanderer_2:  { slot:  3, job:  3 },
+  // ...
+},
+```
+
+Two surprises in today's code to surface explicitly as design
+decisions, not accidents:
+
+- **Bargirls only in towns 1 and 3** (no 2, no 4). Today this is
+  an artifact of how the fixed block is written. If it's
+  intentional, the world.json5 entries lock it in; if it's a bug,
+  now's the time to add bargirls 36/37 for towns 2/4.
+- **NPC 1 is randomized then overwritten.** The random loop runs
+  for `i=1..24`, then the Garth block at `person.c:88-93`
+  clobbers slot 1. The new shape makes Garth an explicit fixed
+  NPC (`slot: 1`) and the random loop starts at slot 2; the dead
+  code disappears.
+
+### 15.4 Balanced-shuffle heuristic
+
+For the N random NPCs across T towns (today N=24 mostly, T=5), a
+uniform `ryl_random(0, T-1)` has σ ≈ √(N·(T-1)/T²) ≈ 1.96 per
+bin, so single-realm variance regularly produces 8-in-one-town /
+2-in-another. The memory behind this port: "heuristic so not too
+many are in one particular town".
+
+Recommended algorithm — **capacity-capped draw**:
+
+```
+target = N / T                   # e.g. 24/5 = 4 (+ 4 leftover)
+cap    = ceil(target) + slack    # slack=1 ⇒ max 6 per town
+counts = [0] * T
+
+for each random NPC in declaration order:
+  towne = ryl_random(0, T-1)
+  while counts[towne] >= cap:
+    towne = (towne + 1) % T      # linear probe to next eligible
+  counts[towne]++
+  npc.towne = towne
+```
+
+Linear-probe keeps the roll order deterministic relative to the
+seed, so RYL_FAKE_SEED still produces reproducible realms. Slack
+is tunable in `world.json5` (e.g. `limits.npc_slack: 1`).
+
+Alternative: Fisher-Yates over a multiset `[t×cap for t in
+0..T-1]` truncated to N. Cleaner, but loses the "draw in
+declaration order" property that makes realization traces
+readable — the capacity-cap version prints a diff that's easy to
+eyeball-verify against seed+data.
+
+### 15.5 Per-party state → current-world.json5
+
+`state.p[i]` is today serialized via `fwrite(&state.p[i],
+sizeof(state.p[i]), 1, fh)` — a raw struct blob written to
+`realm.dat`. Every field becomes a named JSON5 key under
+`parties[].p` (`name`, `partyname`, `hp`, `food`, `gold`,
+`inventory`, `wp`, `ar`, `dead`, `cl`, `ra`, `sex`, `h`, `ws`,
+`wi`, `ch`, `lv`, `exp`, `ma`, `pl`, `tid_kvar`, `kills`,
+`fireshield`, `bracelets`, `mastercrown`, `silverkey`,
+`jazzyfoot`, `y`, `x`, `player`, `flag`).
+
+The `state.npc[i].visited[party_idx]` grid **moves out of the
+NPC subtree** into each party's own block as `visited_npcs:`
+(40-element bool array indexed by NPC slot). Side effects:
+
+- `driv.c:670-675`: the index-shift dance when deleting a party
+  ("shift visited[] column down") vanishes — each party owns its
+  own slice, deleting a party just drops an array element.
+- NPC identity (placement) is realm-scope, unchanged across saves.
+  Party visit state is per-party, rewritten on every save.
+- `state.p[i].flag[]` (mission flags) stays per-party as today.
+
+### 15.6 Top-level schema
+
+```json5
+{
+  // Cold-start roll: town/castle/catacomb coordinates (legacy
+  // state.dx[1..14] / state.dy[1..14]).
+  locations: {
+    towns:     [{ x: 12, y: 8 }, ...],        // indices 1..N_TOWNS
+    castle:    { x: .., y: .. },
+    catacombs: [{ x: .., y: .. }, ...],
+  },
+
+  // Realized NPC placements. Indexed by slot to preserve legacy
+  // `state.npc[i]` semantics; entries are populated from the
+  // world.json5 `npcs:` spec after realize_world() runs.
+  npcs: [
+    null,                                      // slot 0 unused
+    { slot: 1, job: 1, towne: 1, bl: 1 },      // Garth
+    // ...
+  ],
+
+  // All parties that have ever entered this realm.
+  parties: [
+    {
+      partyname: "The Bold",
+      leader:    "Grinsby",
+      // ... full state.p[i] payload ...
+      visited_npcs: [false, true, false, ...], // 40 bools
+    },
+    // ...
+  ],
+
+  // State.senaste_dagen + anything else realm-scope ephemeral.
+  realm: {
+    last_played_day: 17,
+  },
+}
+```
+
+`state.antal_spelare` is derived from `parties.length` — no
+separate count field. Same for NPC count.
+
+### 15.7 Implementation slicing
+
+Replay-gated commit order:
+
+1. **Schema + writer** — add `res_write_current_world()` that
+   serializes `state.*` to the new path. Keep reading from
+   `realm.dat`/`npc.dat` for now. Gate: replay byte-identical
+   (no read-path change yet).
+2. **Reader** — add `res_load_current_world()`; switch `init()`
+   to read from `current-world.json5` if present, fall back to
+   `realm.dat`/`npc.dat` if absent (migration-friendly). Gate:
+   replay byte-identical on both branches.
+3. **Realizer rewrite** — move NPC spec from `person.c` to
+   `data/world.json5` `npcs:`, implement `realize_world()` in
+   `res.c`, delete `place_npcs()`. Gate: replay byte-identical
+   against the original random-seed tests (RYL_FAKE_SEED pins
+   the roll, so the realized placements are deterministic).
+4. **Balanced shuffle** — swap uniform `ryl_random(0, T-1)` for
+   capacity-capped draw. Gate: replay **not** byte-identical
+   (this is a behavior change); rebless fixtures under the new
+   distribution and document in the commit.
+5. **Drop legacy readers** — delete `.dat` read paths from
+   `init()` / `save()` / `load()`, delete the index-shift dance
+   for party deletion. Gate: replay byte-identical.
+
+Steps 1-3 are pure refactor (byte-identical); step 4 is the one
+behavior change and gets its own rebless. Step 5 is the cleanup
+after the new path is load-bearing.
+
+### 15.8 Open questions
+
+- **Name.** `current-world.json5` is descriptive; alternatives
+  `realm.json5` / `campaign.json5` / `save.json5`. Settle before
+  step 1.
+- **Pretty-print vs. compact.** JSON5 output with 2-space indent
+  is readable (50kb-ish for 25 parties) but slow to rewrite.
+  Compact one-line is 10x faster to write but unreadable. Start
+  pretty; switch to compact only if profiling shows save() in the
+  hot path.
+- **Backward-compat with existing `.dat` blobs.** Per §12.3
+  user-granted save-file license (2026-04-22), drop them on
+  first run of the new build. No migration code.
+- **Stable NPC ids.** The `slot` field mirrors today's
+  `state.npc[i].nr`. If a future world.json5 edits add/remove
+  NPCs, do existing `current-world.json5` files still
+  round-trip? Probably not — a changed spec should be treated as
+  a version bump that triggers a sysop-reset prompt.
