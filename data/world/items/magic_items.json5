@@ -22,11 +22,11 @@
     wieldable_by: ['bard'],
     slot: 'consumable',
     // Effect program placeholder — inert until the item-use hook wires
-    // eval_effect into speak.c / strid.c. Preserved byte-for-byte from
+    // eval_effect into speak.c / battle.c. Preserved byte-for-byte from
     // the prior data/world/items.json5 so compile_world_tree exercises
     // the same path it did last commit.
     effect: ['seq',
-      ['say', 'strid.item.flute_of_madness'],
+      ['say', 'battle.item.flute_of_madness'],
       ['set_flag', 'encounter.confused', 1]],
   },
 }

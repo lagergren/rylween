@@ -110,7 +110,7 @@ static void die(const char *path, int line, const char *msg) {
 }
 
 /* Map a `legacy_effect` string from the world tree to the SE_* enum
-   strid.c's priest/mage switches dispatch on. Returns -1 for unknown
+   battle.c's priest/mage switches dispatch on. Returns -1 for unknown
    names so the caller can die() with a path:line pointing at the tree
    node. Phase 6d retired the JSONL handle_spell; this helper owns the
    string table on behalf of fold_spells. */
@@ -742,7 +742,7 @@ static void fold_texts(const node *texts_node, const char *path) {
 
    Each spell folds into the legacy ryl_spell table so the cast menu
    can still render name/base_cost. Effect dispatch:
-     - `do` present        -> SE_NONE; strid.c's res_spell_node path
+     - `do` present        -> SE_NONE; battle.c's res_spell_node path
                               runs eval_effect on the body instead of
                               reaching the switch.
      - `legacy_effect` set -> se_from_legacy_effect() picks the SE_*

@@ -1063,7 +1063,7 @@ static void eval_set_flag(const node *n, env_t *e) {
     state.p[state.cpl].flag[slot] = (unsigned char) v;
 }
 
-/* ask_target "monster_alive": reproduces strid.c:424-441 byte-for-byte so
+/* ask_target "monster_alive": reproduces battle.c:424-441 byte-for-byte so
    the DSL-driven spell path emits the same menu as the hand-rolled one.
    party_alive / party_any land when a consumer asks for them. */
 static void eval_ask_target(const node *n, env_t *e) {
@@ -1076,7 +1076,7 @@ static void eval_ask_target(const node *n, env_t *e) {
         int32_t i;
         while (1) {
             clw();
-            tx("%s", res_text("strid.prompt.who"));
+            tx("%s", res_text("battle.prompt.who"));
             for (i = 1; i < e->noc + 1; i++) {
                 if (e->deadc[i]) {
                     strcpy(str, "Dead.");

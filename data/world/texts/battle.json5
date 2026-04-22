@@ -1,4 +1,4 @@
-// Combat text (strid.c). Grouped by combat-phase/effect so adjacent
+// Combat text (battle.c). Grouped by combat-phase/effect so adjacent
 // records cluster like they read in the game: run/item/prompt/spell/
 // cry/rest/defend/victory/monster/killed.
 {

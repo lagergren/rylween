@@ -1,5 +1,5 @@
 // Priest spells — slot is menu order, legacy_effect picks the SE_* case
-// strid.c falls through to when the spell has no `do` DSL body. As each
+// battle.c falls through to when the spell has no `do` DSL body. As each
 // spell's behaviour migrates to a `do:` program, its `legacy_effect` goes
 // away and dispatch flips to eval_effect.
 {

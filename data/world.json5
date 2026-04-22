@@ -47,7 +47,7 @@
   texts: {
     title:  { $import: 'world/texts/title.json5' },
     driv:   { $import: 'world/texts/driv.json5' },
-    strid:  { $import: 'world/texts/strid.json5' },
+    battle: { $import: 'world/texts/battle.json5' },
     subs:   { $import: 'world/texts/subs.json5' },
     cave:   { $import: 'world/texts/cave.json5' },
     spell:  { $import: 'world/texts/spell.json5' },
@@ -80,7 +80,7 @@
   // res_spell_node(class, slot) finds the entry whose slot matches,
   // then hands the `do` body to eval_effect. Spells without a `do`
   // carry `legacy_effect: "..."` — a string mapped to the SE_* enum
-  // strid.c still switches on; those cases migrate to `do:` one by one.
+  // battle.c still switches on; those cases migrate to `do:` one by one.
   spells: {
     mage:   { $import: 'world/spells/mage.json5' },
     priest: { $import: 'world/spells/priest.json5' },

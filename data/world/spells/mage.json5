@@ -1,8 +1,8 @@
 // Mage spells — frost already runs on the DSL (`do:` body). The other
 // five carry `legacy_effect` pointing at the SE_* case still resident
-// in strid.c; they fall off as their behaviour migrates.
+// in battle.c; they fall off as their behaviour migrates.
 {
-  // One-for-one port of strid.c:423-455. Order of operations preserves
+  // One-for-one port of battle.c:423-455. Order of operations preserves
   // RNG identity: ryl_random(2, 8) is drawn exactly once (as the second
   // factor of `*`), reproducing pm_lv(caster) * ryl_random(2, 8).
   frost: {
@@ -11,16 +11,16 @@
       ['ask_target', 'monster_alive'],
       ['set', '$dmg', ['*', 'caster.lv', ['rand', 2, 8]]],
       ['clw'],
-      ['say', 'strid.spell.frost.chills',      'caster.name'],
-      ['say', 'strid.spell.frost.damage',      '$dmg'],
-      ['say', 'strid.spell.frost.damage_pts'],
+      ['say', 'battle.spell.frost.chills',      'caster.name'],
+      ['say', 'battle.spell.frost.damage',      '$dmg'],
+      ['say', 'battle.spell.frost.damage_pts'],
       ['delay', 1600],
       ['sub', 'target.hp', '$dmg'],
       ['if', ['lt', 'target.hp', 1],
         ['seq',
           ['set', 'target.hp', 0],
           ['set', 'target.dead', 1],
-          ['say', 'strid.killed'],
+          ['say', 'battle.killed'],
           ['delay', 600]]],
     ],
   },
