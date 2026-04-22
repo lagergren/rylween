@@ -334,7 +334,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("two? Not red, not white\r\n");
                 tx("but blue!\r\n\r\n");
                 tx("Answer: ");
-                strcpy(ans, getstr(10));
+                getstr(10, ans, sizeof ans);
                 lvl[cl] = 0;
                 clw();
                 if (!stricmp("water", ans)) {
@@ -369,7 +369,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("evening, I swallow her\r\n");
                 tx("light.'\r\n\r\n");
                 tx("Answer: ");
-                strcpy(ans, getstr(10));
+                getstr(10, ans, sizeof ans);
                 lvl[cl] = 0;
                 clw();
                 if (!stricmp("night", ans) || !stricmp("darkness", ans)) {
@@ -402,7 +402,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("can't draw me up! What\r\n");
                 tx("am I?'\r\n\r\n");
                 tx("Answer: ");
-                strcpy(ans, getstr(10));
+                getstr(10, ans, sizeof ans);
                 lvl[cl] = 0;
                 clw();
                 if ((!stricmp("well", ans)) || (!stricmp("a well", ans))) {
@@ -630,7 +630,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 ryl_pause();
                 clw();
                 tx("Password: ");
-                strcpy(ans, getstr(15));
+                getstr(15, ans, sizeof ans);
                 if (!stricmp(ans, "RISH EKKIN")) {
                     clw();
                     tx("- Step inside and identify\r\n");

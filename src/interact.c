@@ -305,7 +305,7 @@ void editor(char *outfile, uint8_t bulletin) {
     tx("[36mYou have up to [33m5[36m lines below. Press [37m[44mRETURN[40m[36m on a blank line to save.\r\n\r\n");
     for (i = 1; i < 6; i++) {
         tx("[33m%d[34m>[37m  ", i);
-        strcpy(str, getstr(75));
+        getstr(75, str, sizeof str);
         if (str[0] == 0) {
             break;
         }

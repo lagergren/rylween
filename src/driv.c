@@ -824,7 +824,7 @@ void createparty() {
         tx("party?\r\n\r\n");
         tx(": ");
 
-        strcpy(state.p[a].partyname, getstr(18));
+        getstr(18, state.p[a].partyname, sizeof state.p[a].partyname);
         if (!state.p[a].partyname[0]) {
             state.antal_spelare--;
             state.cpl = 0;
@@ -855,7 +855,7 @@ void createparty() {
                 tx("Give Character %d a name!\r\n", g);
                 tx(": ");
                 str[0] = 0;
-                strcpy(state.p[a].name[g], getstr(12));
+                getstr(12, state.p[a].name[g], sizeof state.p[a].name[g]);
                 if (!state.p[a].name[g][0]) {
                     state.antal_spelare--;
                     state.cpl = 0;
@@ -874,7 +874,7 @@ void createparty() {
             str[0] = 0;
             while (str[0] < '1' || str[0] > '2') {
                 tx(": ");
-                strcpy(str, getstr(2));
+                getstr(2, str, sizeof str);
             }
             state.p[a].sex[g] = str[0] - 48;
 
@@ -886,7 +886,7 @@ void createparty() {
             str[0] = 0;
             while (str[0] < '1' || str[0] > '4') {
                 tx(": ");
-                strcpy(str, getstr(2));
+                getstr(2, str, sizeof str);
             }
             state.p[a].ra[g] = str[0] - 48;
 
@@ -899,7 +899,7 @@ void createparty() {
             str[0] = 0;
             while (str[0] < '1' || str[0] > '6') {
                 tx(": ");
-                strcpy(str, getstr(2));
+                getstr(2, str, sizeof str);
             }
             state.p[a].cl[g] = str[0] - 48;
             clw();

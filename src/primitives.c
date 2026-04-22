@@ -94,21 +94,29 @@ void cleanexit(void) {
     exit(0);
 }
 
-char *getstr(uint8_t lg) {
-    static char svar[90];
-    size_t cap = lg < 89 ? (size_t)lg + 1 : sizeof svar;
+/* getstr: read one line of input into the caller's buffer. lg is the
+   max input length (excluding the null terminator), matching the old
+   pointer-returning API. We cap the read at min(lg+1, out_sz) so a
+   caller who under-sizes out[] still can't overflow. */
+void getstr(uint8_t lg, char *out, size_t out_sz) {
+    size_t cap = (size_t)lg + 1;
 
     if (!carrier()) {
         cleanexit();
     }
-    io->getline(svar, cap);
-    if (svar[0] == '#') {
+    if (out_sz == 0) {
+        return;
+    }
+    if (cap > out_sz) {
+        cap = out_sz;
+    }
+    io->getline(out, cap);
+    if (out[0] == '#') {
         cleanexit();
     }
     if (!carrier()) {
         cleanexit();
     }
-    return svar;
 }
 
 uint8_t hotkey(void) {

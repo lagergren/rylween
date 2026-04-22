@@ -1591,7 +1591,7 @@ void merchant() /* HOS THE MERCHANT */
                     }
                     tx("%d gold each, sir.\r\n", pr);
                     tx("How many? ");
-                    strcpy(str, getstr(5));
+                    getstr(5, str, sizeof str);
                     x = atol(str);
                     if (oc == 31) {
                         if (x + state.p[state.cpl].torches > 80) {
