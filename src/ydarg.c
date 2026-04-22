@@ -3,6 +3,7 @@
 #include "driv.h"
 #include "gfx.h"
 #include "primitives.h"
+#include "res.h"
 #include "subs.h"
 #include "towne.h"
 #include "ydarg.h"
@@ -18,64 +19,33 @@ void ydarg() {
     blitgfx(ydargpic);
     clw();
     if (state.p[state.cpl].silverkey == 2) {
-        tx("The once so mighty\r\n");
-        tx("castle Zadraz is now\r\n");
-        tx("nothing but a ruin.\r\n");
-        tx("You have nothing else\r\n");
-        tx("to do here.\r\n\r\n");
+        tx0(res_text("ydarg.ruin"));
         ryl_pause();
         clr_map_window();
         update_map();
         clw();
         return;
     }
-    tx("A black and foreboding\r\n");
-    tx("castle looms over the\r\n");
-    tx("horizon. Its cold, black\r\n");
-    tx("stone walls are decorated\r\n");
-    tx("with complex symbols and\r\n");
-    tx("archaic runes of long\r\n");
-    tx("forgotten language.\r\n\r\n");
+    tx0(res_text("ydarg.approach"));
     ryl_pause();
     clw();
-    tx("A shape of white mist\r\n");
-    tx("slowly thickens to human\r\n");
-    tx("shape. A transparent image\r\n");
-    tx("of a beautiful woman\r\n");
-    tx("forms in front of you.\r\n\r\n");
+    tx0(res_text("ydarg.jaara_form"));
     ryl_pause();
     clw();
-    tx("- Do not be afraid,\r\n");
-    tx("adventurers. I am Jaara,\r\n");
-    tx("guardian of the gate.\r\n");
-    tx("Baron Ydarg has imprisoned\r\n");
-    tx("me here forever. I can't\r\n");
-    tx("hurt you, just stop you\r\n");
-    tx("from entering if you don't\r\n");
-    tx("have the Silver Key!\r\n\r\n");
+    tx0(res_text("ydarg.jaara_speech"));
     ryl_pause();
     clw();
     if (!state.p[state.cpl].silverkey) {
-        tx("- You don't have the\r\n");
-        tx("Key. The gate will\r\n");
-        tx("remain sealed.\r\n\r\n");
+        tx0(res_text("ydarg.no_key"));
         ryl_pause();
         clr_map_window();
         update_map();
         return;
     }
-    tx("You show the Silver Key to\r\n");
-    tx("the ghost. Her eyes widen,\r\n");
-    tx("as she sees it. She smiles\r\n");
-    tx("and waves her hand towards\r\n");
-    tx("the drawbridge. It falls\r\n");
-    tx("to the ground with a\r\n");
-    tx("resounding KRASH. Jaara\r\n");
-    tx("slowly fades away until\r\n");
-    tx("nothing remains.\r\n\r\n");
+    tx0(res_text("ydarg.key_accepted"));
     ryl_pause();
     clw();
-    tx("You enter.\r\n\r\n");
+    tx0(res_text("ydarg.enter"));
     ryl_pause();
     clw();
 
@@ -101,8 +71,7 @@ void ydarg() {
 
 	*/
 
-    tx("The first door you enter\r\n");
-    tx("slams shut behind you!\r\n");
+    tx0(res_text("ydarg.door_slams"));
     ryl_delay(2000);
     clw();
     lvl = 1;
@@ -122,8 +91,7 @@ void ydarg() {
         switch (room[xl][yl]) {
             case 1: /* Monster */
                 room[xl][yl] = 0;
-                tx("You are spotted by\r\n");
-                tx("monsters!\r\n");
+                tx0(res_text("ydarg.room.monster"));
                 ryl_delay(1500);
                 encounter(ryl_random(60, 79), 0);
                 clr_map_window();
@@ -144,11 +112,11 @@ void ydarg() {
                         tx("disarm it...\r\n\r\n");
                         ryl_delay(1500);
                         if (ryl_chance(state.p[state.cpl].wi[i])) {
-                            tx("AND SUCCEEDS!\r\n");
+                            tx0(res_text("ydarg.room.trap.disarm_succeed"));
                             ryl_delay(1000);
                             j = 1;
                         } else {
-                            tx("BUT FAILS!\r\n");
+                            tx0(res_text("ydarg.room.trap.disarm_fail"));
                             ryl_delay(1000);
                             j = 0;
                         }
@@ -158,18 +126,13 @@ void ydarg() {
                 if (!j) {
                     switch (ryl_random(0, 2)) {
                         case 0:
-                            tx("Arrows speed through\r\n");
-                            tx("the air and hits the\r\n");
-                            tx("party!\r\n\r\n");
+                            tx0(res_text("ydarg.room.trap.arrows"));
                             break;
                         case 1:
-                            tx("Poison needles shoot\r\n");
-                            tx("out from the floor!\r\n\r\n");
+                            tx0(res_text("ydarg.room.trap.poison"));
                             break;
                         case 2:
-                            tx("A volley of shurikens\r\n");
-                            tx("is hurled from a hatch\r\n");
-                            tx("in the wall!\r\n\r\n");
+                            tx0(res_text("ydarg.room.trap.shurikens"));
                             break;
                     }
                     ryl_pause();
@@ -202,10 +165,9 @@ void ydarg() {
                     oc = ryl_random(0, 11);
                     oc += 100;
                 }
-                tx("You find a\r\n");
+                tx0(res_text("ydarg.room.treasure.find"));
                 tx("%s.\r\n\r\n", object(oc));
-                tx("(T)ake it\r\n");
-                tx("(L)eave it\r\n");
+                tx0(res_text("ydarg.room.treasure.menu"));
                 c = key();
                 c = toupper(c);
                 if (c == 'T') {
@@ -218,11 +180,10 @@ void ydarg() {
                     }
                     if (!x) {
                         clw();
-                        tx("You can't carry more.\r\n");
+                        tx0(res_text("ydarg.room.treasure.full"));
                         ryl_delay(800);
                     } else {
-                        tx("\r\n");
-                        tx("Ok.\r\n");
+                        tx0(res_text("ydarg.room.treasure.taken"));
                         ryl_delay(800);
                     }
                 }
@@ -230,25 +191,14 @@ void ydarg() {
 
             case 50:
                 clw();
-                tx("You stand before the\r\n");
-                tx("stairs to the next level.\r\n\r\n");
+                tx0(res_text("ydarg.room.stairs.intro"));
                 ryl_delay(1500);
                 clw();
-                tx("A mage imprisoned in a\r\n");
-                tx("fiery sphere offers to\r\n");
-                tx("open trapdoor at the top\r\n");
-                tx("of the stairs if you\r\n");
-                tx("give him an item of power!\r\n");
-                tx("He also offers to teleport\r\n");
-                tx("you out of the castle,\r\n");
-                tx("for free.\r\n\r\n");
+                tx0(res_text("ydarg.room.stairs.mage_offer"));
                 ryl_pause();
                 while (1) {
                     clw();
-                    tx("Choose:\r\n\r\n");
-                    tx("(T)eleport Out\r\n");
-                    tx("(G)ive him an item\r\n");
-                    tx("(L)eave\r\n");
+                    tx0(res_text("ydarg.room.stairs.menu"));
                     while (1) {
                         d = key();
                         d = toupper(d);
@@ -258,18 +208,16 @@ void ydarg() {
                     }
                     if (d == 'L') {
                         clw();
-                        tx("You take the nearest exit!\r\n");
+                        tx0(res_text("ydarg.room.stairs.leave"));
                         ryl_delay(1000);
                         yl--;
                         break;
                     }
                     if (d == 'T') {
                         clw();
-                        tx("The world fades into a\r\n");
-                        tx("vortex of agonizing\r\n");
-                        tx("vertigo...\r\n\r\n");
+                        tx0(res_text("ydarg.room.stairs.teleport_vortex"));
                         ryl_delay(3000);
-                        tx("And you are outside...\r\n");
+                        tx0(res_text("ydarg.room.stairs.teleport_outside"));
                         ryl_delay(3000);
                         clr_map_window();
                         update_map();
@@ -277,12 +225,7 @@ void ydarg() {
                         return;
                     }
                     clw();
-                    tx("Give him what?\r\n\r\n");
-                    tx("1. The Fire Shield\r\n");
-                    tx("2. The Master Crown\r\n");
-                    tx("3. The Foot of Jazzy\r\n");
-                    tx("4. The Bracelets of Thun\r\n");
-                    tx("5. Nothing\r\n");
+                    tx0(res_text("ydarg.room.stairs.give_menu"));
                     while (1) {
                         d = key();
                         if (d >= '1' && d <= '5') {
@@ -294,7 +237,7 @@ void ydarg() {
                         case 1:
                             if (!state.p[state.cpl].fireshield) {
                                 clw();
-                                tx("You don't have it!\r\n");
+                                tx0(res_text("ydarg.room.stairs.no_have_sing"));
                                 ryl_delay(1500);
                                 break;
                             }
@@ -304,7 +247,7 @@ void ydarg() {
                         case 2:
                             if (!state.p[state.cpl].mastercrown) {
                                 clw();
-                                tx("You don't have it!\r\n");
+                                tx0(res_text("ydarg.room.stairs.no_have_sing"));
                                 ryl_delay(1500);
                                 break;
                             }
@@ -314,7 +257,7 @@ void ydarg() {
                         case 3:
                             if (!state.p[state.cpl].jazzyfoot) {
                                 clw();
-                                tx("You don't have it!\r\n");
+                                tx0(res_text("ydarg.room.stairs.no_have_sing"));
                                 ryl_delay(1500);
                                 break;
                             }
@@ -324,7 +267,7 @@ void ydarg() {
                         case 4:
                             if (!state.p[state.cpl].bracelets) {
                                 clw();
-                                tx("You don't have them!\r\n");
+                                tx0(res_text("ydarg.room.stairs.no_have_plur"));
                                 ryl_delay(1500);
                                 break;
                             }
@@ -334,14 +277,7 @@ void ydarg() {
                     }
                     if (j) {
                         clw();
-                        tx("The sphere fades away\r\n");
-                        tx("and the mage steps out.\r\n");
-                        tx("He is grateful. Before\r\n");
-                        tx("he teleports away, he\r\n");
-                        tx("casts an OPEN spell on the\r\n");
-                        tx("trapdoor above and speaks:\r\n");
-                        tx("- I will aid thee in the\r\n");
-                        tx("final battle!\r\n\r\n");
+                        tx0(res_text("ydarg.room.stairs.mage_grateful"));
                         ryl_pause();
                         clw();
                         xl = 1;
@@ -362,16 +298,16 @@ void ydarg() {
         tx("You are on level %d.\r\n", lvl);
         switch (lvl) {
             case 1:
-                tx("(Ground Level)\r\n\r\n");
+                tx0(res_text("ydarg.nav.floor_1"));
                 break;
             case 2:
-                tx("(First Floor)\r\n\r\n");
+                tx0(res_text("ydarg.nav.floor_2"));
                 break;
             case 3:
-                tx("(Base of Tower)\r\n\r\n");
+                tx0(res_text("ydarg.nav.floor_3"));
                 break;
             case 4:
-                tx("(Top of Tower)\r\n\r\n");
+                tx0(res_text("ydarg.nav.floor_4"));
                 break;
         }
         n = 0;
@@ -391,52 +327,50 @@ void ydarg() {
             s = 1;
         }
         if (n) {
-            tx("    8  North  \r\n");
-            tx("    |\r\n");
+            tx0(res_text("ydarg.nav.north"));
         } else {
-            tx("\r\n\r\n");
+            tx0(res_text("ydarg.nav.no_north"));
         }
 
         if (e && w) {
-            tx(" 4 -+- 6  East/West\r\n");
+            tx0(res_text("ydarg.nav.east_west"));
         }
         if (e && !w) {
-            tx("    +- 6  East\r\n");
+            tx0(res_text("ydarg.nav.east"));
         }
         if (!e && w) {
-            tx(" 4 -+     West\r\n");
+            tx0(res_text("ydarg.nav.west"));
         }
         if (s) {
-            tx("    |\r\n");
-            tx("    2  South  \r\n");
+            tx0(res_text("ydarg.nav.south"));
         }
 
         c = key();
         c = toupper(c);
         if (c == '8' && n) {
             clw();
-            tx("North.\r\n");
+            tx0(res_text("ydarg.nav.go_north"));
             ryl_delay(300);
             clw();
             yl--;
         }
         if (c == '2' && s) {
             clw();
-            tx("South.\r\n");
+            tx0(res_text("ydarg.nav.go_south"));
             ryl_delay(300);
             clw();
             yl++;
         }
         if (c == '6' && e) {
             clw();
-            tx("East.\r\n");
+            tx0(res_text("ydarg.nav.go_east"));
             ryl_delay(300);
             clw();
             xl++;
         }
         if (c == '4' && w) {
             clw();
-            tx("West.\r\n");
+            tx0(res_text("ydarg.nav.go_west"));
             ryl_delay(300);
             clw();
             xl--;
@@ -468,7 +402,7 @@ void ydarg() {
         if (c == 'V') {
             showparty();
             clw();
-            tx("Who? (1-4/Q/A)\r\n");
+            tx0(res_text("ydarg.nav.view_who"));
             while (1) {
                 d = key();
                 if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A') {
@@ -495,21 +429,10 @@ static void confrontation() {
     char mstr[15];
 
     clw();
-    tx("The last trapdoor\r\n");
-    tx("slams shut behind you.\r\n");
-    tx("You are high above the\r\n");
-    tx("forest, on the roof\r\n");
-    tx("of this fortress.\r\n");
-    tx("Suddenly, a voice speaks:\r\n\r\n");
+    tx0(res_text("ydarg.conf.trapdoor_slam"));
     ryl_pause();
     clw();
-    tx("- Fools! You have gone\r\n");
-    tx("long to come this far, but\r\n");
-    tx("here ends your journey!\r\n\r\n");
-    tx("The night sky above lights\r\n");
-    tx("up with green flashes, and\r\n");
-    tx("Ydargs minions rush\r\n");
-    tx("to attack you!\r\n\r\n");
+    tx0(res_text("ydarg.conf.fools"));
     ryl_pause();
     clw();
     encounter(26, 1);
@@ -517,103 +440,51 @@ static void confrontation() {
     encounter(28, 1);
     encounter(29, 1);
     clw();
-    tx("Corpses of the nightmare\r\n");
-    tx("terrors are strewn all\r\n");
-    tx("around. A dark cloaked\r\n");
-    tx("figure appears before you.\r\n");
-    tx("He takes a broad step over\r\n");
-    tx("the dead and dying, and\r\n");
-    tx("gazes at you with cold\r\n");
-    tx("glowing green eyes.\r\n\r\n");
+    tx0(res_text("ydarg.conf.corpses"));
     ryl_pause();
     clw();
-    tx("- So. You have completed\r\n");
-    tx("the battle test. I must\r\n");
-    tx("confess that you impress\r\n");
-    tx("me. But now...\r\n\r\n");
-    tx("(He waves a pointed stick\r\n");
-    tx("and energy begins to form\r\n");
-    tx("in the air before you.)\r\n\r\n");
+    tx0(res_text("ydarg.conf.impress"));
     ryl_pause();
     clw();
-    tx("A glowing energy sphere\r\n");
-    tx("appears, and at a gesture\r\n");
-    tx("from Ydarg's stick, it\r\n");
-    tx("hurtles towards you!!!\r\n\r\n");
+    tx0(res_text("ydarg.conf.sphere"));
     ryl_pause();
     clw();
-    tx("Suddenly! You feel someone\r\n");
+    tx0(res_text("ydarg.conf.mages_pre"));
     tx("else near. %s turns\r\n", state.p[state.cpl].name[1]);
-    tx("around and discovers the\r\n");
-    tx("four grey-clad mages!\r\n");
-    tx("They simultaneously raise\r\n");
-    tx("their hands, and the\r\n");
-    tx("sphere bounces over you\r\n");
-    tx("and is absorbed by their\r\n");
-    tx("hands!\r\n\r\n");
+    tx0(res_text("ydarg.conf.mages_post"));
     ryl_pause();
     clw();
-    tx("- CURSES! Ydarg growls.\r\n");
-    tx("- So this is what has come\r\n");
-    tx("to! Well, you got here by\r\n");
-    tx("aid of cold steel, and\r\n");
-    tx("that is the way you shall\r\n");
-    tx("perish!\r\n\r\n");
+    tx0(res_text("ydarg.conf.curses"));
     ryl_pause();
     clw();
-    tx("He pulls a huge trident\r\n");
-    tx("from his robe and utters\r\n");
-    tx("a single syllable. Without\r\n");
-    tx("warning he appears a foot\r\n");
-    tx("before you!!!\r\n\r\n");
+    tx0(res_text("ydarg.conf.trident"));
     ryl_pause();
     clw();
-    tx("Let the battle commence!\r\n\r\n");
+    tx0(res_text("ydarg.conf.commence"));
     ryl_pause();
     encounter(30, 1);
     clw();
-    tx("Ydarg's trident clatters\r\n");
-    tx("to the ground before you.\r\n");
-    tx("He shudders and falls over.\r\n");
-    tx("As you rush to kill him\r\n");
-    tx("he screams:\r\n\r\n");
+    tx0(res_text("ydarg.conf.trident_falls"));
     ryl_pause();
     clw();
-    tx("- It is not over! I shall\r\n");
-    tx("see you in hell! In\r\n");
-    tx("another world! A time\r\n");
-    tx("to come! You have tainted\r\n");
-    tx("Zadraz with your ancient\r\n");
-    tx("items, but I will triumph\r\n");
-    tx("again!!! Anew...\r\n\r\n");
+    tx0(res_text("ydarg.conf.not_over"));
     ryl_pause();
     clw();
-    tx("His cloak collapses, and\r\n");
-    tx("when you tear it away,\r\n");
-    tx("you reveal nothing but...\r\n\r\n");
+    tx0(res_text("ydarg.conf.cloak"));
     ryl_pause();
     clw();
-    tx("dust...\r\n\r\n");
+    tx0(res_text("ydarg.conf.dust"));
     ryl_pause();
     clw();
-    tx("[31mCONGRATULATIONS![37m\r\n\r\n");
-    tx("You have banished Ydarg\r\n");
-    tx("from this dimension.\r\n");
-    tx("Please ask your SysOp to\r\n");
-    tx("reset the game.\r\n\r\n");
+    tx0(res_text("ydarg.conf.congrats"));
     ryl_pause();
     clw();
     state.p[state.cpl].silverkey = 2;
     save();
-    tx("Be ready for:\r\n");
-    tx("[31mHEROES OF RYLWEEN[37m\r\n");
-    tx("- The second coming.\r\n");
-    tx("Soon online at a BBS\r\n");
-    tx("near you!\r\n\r\n");
+    tx0(res_text("ydarg.conf.heroes"));
     ryl_pause();
     clw();
-    tx("See Ya!!!\r\n\r\n");
-    tx("     /Marcus\r\n\r\n");
+    tx0(res_text("ydarg.conf.signoff"));
     ryl_pause();
     clw();
 
