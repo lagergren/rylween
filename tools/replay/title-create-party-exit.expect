@@ -80,7 +80,7 @@
 [49C_very_ little of the
 [49Cgame otherwise...
 
-[49C(Crush RETURN key)
+[49C(Mutilate RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -121,9 +121,553 @@
 [49C                          
 [6;0H[49CStats for char: 1
 
-[49CWeapon Skill : 29
-[49CHealth       : 40
-[49CWisdom       : 38
-[49CCharisma     : 38
+[49CWeapon Skill : 68
+[49CHealth       : 43
+[49CWisdom       : 49
+[49CCharisma     : 42
 
-[49CReroll (y/N) [49C[30m[ p[37m
+[49CReroll (y/N) [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CGive Character 1 a name!
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CWhat sex is
+[49CA?
+
+[49C1. Male
+[49C2. Female
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CWhat race is
+[49CA?
+
+[49C1. Human  2. Dwarf
+[49C3. Elf    4. Halfling
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CPick a class for this
+[49Ccharacter...
+
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CName      : A
+[49CRace      : Human
+[49CClass     : Thief
+[49C
+[49CSkill     : 68
+[49CHp/H      : 43/43
+[49CWisdom    : 49
+[49CCharisma  : 42
+[49CMagic     : 0
+[49C
+[49C(Bash RETURN key)
+[0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CLevel     : 0
+[49CWeapon    : -
+[49CArmour    : -
+
+[49CStatus    : Alive.
+
+[49CExp       : 0
+
+[49C(Brain RETURN key)
+[0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CStats for char: 2
+
+[49CWeapon Skill : 46
+[49CHealth       : 42
+[49CWisdom       : 64
+[49CCharisma     : 31
+
+[49CReroll (y/N) [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CGive Character 2 a name!
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CWhat sex is
+[49CB?
+
+[49C1. Male
+[49C2. Female
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CWhat race is
+[49CB?
+
+[49C1. Human  2. Dwarf
+[49C3. Elf    4. Halfling
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CPick a class for this
+[49Ccharacter...
+
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CName      : B
+[49CRace      : Human
+[49CClass     : Thief
+[49C
+[49CSkill     : 46
+[49CHp/H      : 42/42
+[49CWisdom    : 64
+[49CCharisma  : 31
+[49CMagic     : 0
+[49C
+[49C(Mutilate RETURN key)
+[0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CLevel     : 0
+[49CWeapon    : -
+[49CArmour    : -
+
+[49CStatus    : Alive.
+
+[49CExp       : 0
+
+[49C(Smash RETURN key)
+[0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CStats for char: 3
+
+[49CWeapon Skill : 43
+[49CHealth       : 47
+[49CWisdom       : 58
+[49CCharisma     : 36
+
+[49CReroll (y/N) [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CGive Character 3 a name!
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CWhat sex is
+[49CC?
+
+[49C1. Male
+[49C2. Female
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CWhat race is
+[49CC?
+
+[49C1. Human  2. Dwarf
+[49C3. Elf    4. Halfling
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CPick a class for this
+[49Ccharacter...
+
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CName      : C
+[49CRace      : Human
+[49CClass     : Thief
+[49C
+[49CSkill     : 43
+[49CHp/H      : 47/47
+[49CWisdom    : 58
+[49CCharisma  : 36
+[49CMagic     : 0
+[49C
+[49C(Crush RETURN key)
+[0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CLevel     : 0
+[49CWeapon    : -
+[49CArmour    : -
+
+[49CStatus    : Alive.
+
+[49CExp       : 0
+
+[49C(Slash RETURN key)
+[0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CStats for char: 4
+
+[49CWeapon Skill : 61
+[49CHealth       : 67
+[49CWisdom       : 62
+[49CCharisma     : 29
+
+[49CReroll (y/N) [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CGive Character 4 a name!
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CWhat sex is
+[49CD?
+
+[49C1. Male
+[49C2. Female
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CWhat race is
+[49CD?
+
+[49C1. Human  2. Dwarf
+[49C3. Elf    4. Halfling
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CPick a class for this
+[49Ccharacter...
+
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
+[49C: [6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CName      : D
+[49CRace      : Human
+[49CClass     : Thief
+[49C
+[49CSkill     : 61
+[49CHp/H      : 67/67
+[49CWisdom    : 62
+[49CCharisma  : 29
+[49CMagic     : 0
+[49C
+[49C(Stab RETURN key)
+[0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CLevel     : 0
+[49CWeapon    : -
+[49CArmour    : -
+
+[49CStatus    : Alive.
+
+[49CExp       : 0
+
+[49C(Brain RETURN key)
+[0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CSaving...
+[6;0H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;0H[49CADVENTURERS of RYLWEEN
+
+[49CTest User's copy.
+
+[49CC. Continue Saved Game
+[49CT. Terminate Party
+[49CS. View Currect Scores
+[49CH. View Hall of Fame
+[49CD. View Documentation
+[49CX. Exit
+
+[0;0H[0C[30m[6;0H[49C[37m[49C[30m[ p[37m

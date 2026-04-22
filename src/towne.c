@@ -2,12 +2,9 @@
 #include "res.h"
 
 void rumour() {
-    char kl[8], str[40];
+    char str[40];
 
-    getclk(kl);
-    ryl_srand(kl[7]);
-
-    switch (rand() % 33) {
+    switch (ryl_random(0, 32)) {
         case 0:
             tx("Baron Ydarg's castle\r\n");
             tx("Zadraz is hidden in a\r\n");
@@ -290,7 +287,7 @@ void enter() {
         if (c == 'P') {
             clw();
             tx("Thank you!");
-            Delay(100);
+            ryl_delay(2000);
             state.p[state.cpl].gold -= (state.p[state.cpl].gold * tax) / 100;
         } else {
             clw();
@@ -419,7 +416,7 @@ void hut() {
     blitgfx(hutpic);
     clw();
     tx("You enter the hut.\r\n");
-    Delay(30);
+    ryl_delay(600);
     while (1) {
         clw();
         tx("A %s who\r\n", res_enum("jobname", state.npc[vem].job));
@@ -477,7 +474,7 @@ void church() {
                 if (state.p[state.cpl].cl[d - 48] != 3 && state.p[state.cpl].cl[d - 48] != 4) {
                     clw();
                     tx("Not a spellcaster!\r\n");
-                    Delay(50);
+                    ryl_delay(1000);
                 } else /* Spellcaster */
                 {
                     if (state.p[state.cpl].ma[d - 48] == state.p[state.cpl].wi[d - 48]) {
@@ -485,7 +482,7 @@ void church() {
                         tx("That character needs\r\n");
                         tx("no spell points\r\n");
                         tx("to be restored.\r\n");
-                        Delay(100);
+                        ryl_delay(2000);
                     } else {
                         clw();
                         cost = state.p[state.cpl].lv[d - 48] * (state.p[state.cpl].wi[d - 48] - state.p[state.cpl].ma[d - 48]) * 2;
@@ -502,14 +499,14 @@ void church() {
                             clw();
                             if (state.p[state.cpl].gold < cost) {
                                 tx("You don't have the gold!\r\n");
-                                Delay(50);
+                                ryl_delay(1000);
                             } else {
                                 state.p[state.cpl].gold -= cost;
                                 state.p[state.cpl].ma[d - 48] = state.p[state.cpl].wi[d - 48];
                                 clw();
                                 tx("The priestess\r\n");
                                 tx("restores his energy.\r\n");
-                                Delay(50);
+                                ryl_delay(1000);
                             }
                         }
                     }
@@ -527,7 +524,7 @@ void church() {
                     clw();
                     tx("- %s seems very alive\r\n", sextext(d - 48, 1));
                     tx("at the moment.\r\n");
-                    Delay(60);
+                    ryl_delay(1200);
                 } else {
                     clw();
                     tx("- That will be %d\r\n", 650 * state.p[state.cpl].lv[d - 48]);
@@ -540,7 +537,7 @@ void church() {
                         clw();
                         if (state.p[state.cpl].gold < 650 * state.p[state.cpl].lv[d - 48]) {
                             tx("You don't have the gold!\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                         } else {
                             state.p[state.cpl].gold -= 650 * state.p[state.cpl].lv[d - 48];
                             state.p[state.cpl].hp[d - 48] = 1;
@@ -549,7 +546,7 @@ void church() {
                             clw();
                             tx("The priestess raises\r\n");
                             tx("%s.\r\n", sextext(d - 48, 2));
-                            Delay(50);
+                            ryl_delay(1000);
                         }
                     }
                 }
@@ -566,13 +563,13 @@ void church() {
                     tx("- GET THAT CORPSE\r\n");
                     tx("OUTTA HERE!\r\n");
                     tx("(You are thrown out).\r\n\r\n");
-                    Delay(60);
+                    ryl_delay(1200);
                     return;
                 }
                 if (state.p[state.cpl].hp[d - 48] == state.p[state.cpl].h[d - 48]) {
                     clw();
                     tx("%s needs no healing.\r\n", sextext(d - 48, 1));
-                    Delay(50);
+                    ryl_delay(1000);
                 } else {
                     cost = state.p[state.cpl].h[d - 48] - state.p[state.cpl].hp[d - 48];
                     cost *= 7;
@@ -587,13 +584,13 @@ void church() {
                         if (state.p[state.cpl].gold < cost) {
                             tx("You don't have enough\r\n");
                             tx("gold!\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                         } else {
                             clw();
                             state.p[state.cpl].gold -= cost;
                             tx("The priestess heals\r\n");
                             tx("%s fully.\r\n", sextext(d - 48, 2));
-                            Delay(50);
+                            ryl_delay(1000);
                             state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
                         }
                     }
@@ -616,7 +613,7 @@ void smith() {
     if (state.tid > 18 || state.tid < 6) {
         clw();
         tx("Shop Closed.\r\n");
-        Delay(50);
+        ryl_delay(1000);
         return;
     }
 
@@ -630,7 +627,7 @@ void smith() {
         tx("The smith welcomes you\r\n");
         tx("to his small shop.\r\n\r\n");
 
-        if ((rand() % 100) > 90) {
+        if (ryl_chance(9)) {
             tx("The smith offers you some\r\n");
             tx("beer, and the latest news\r\n");
             tx("from the realm.\r\n\r\n");
@@ -641,13 +638,13 @@ void smith() {
             if (c == 'A') {
                 clw();
                 tx("You accept the invitation.\r\n");
-                Delay(100);
+                ryl_delay(2000);
                 tx("After a while the smith\r\n");
                 tx("leaves to get more beer.\r\n");
-                Delay(100);
+                ryl_delay(2000);
                 tx("When he returns, you ask\r\n");
                 tx("him for the latest news...\r\n\r\n");
-                Delay(100);
+                ryl_delay(2000);
                 clw();
                 rumour();
                 ryl_pause();
@@ -668,7 +665,7 @@ void smith() {
             if (c == 'L') {
                 clw();
                 tx("Well, bye then...\r\n");
-                Delay(50);
+                ryl_delay(1000);
                 clr_map_window();
                 return;
             }
@@ -725,7 +722,7 @@ void smith() {
                     if (state.p[state.cpl].gold < pr) {
                         clw();
                         tx("Too expensive...\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         clw();
                         for (i = 1, x = 0; i < 17; i++) {
@@ -736,12 +733,12 @@ void smith() {
                         }
                         if (!x) {
                             tx("You cannot carry more.\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                         } else {
                             state.p[state.cpl].inventory[x] = oc;
                             state.p[state.cpl].gold -= pr;
                             tx("Deal!\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                         }
                     }
                 }
@@ -839,7 +836,7 @@ void smith() {
                     if (state.p[state.cpl].gold < pr) {
                         clw();
                         tx("Too expensive...\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         clw();
                         for (i = 1, x = 0; i < 16; i++) {
@@ -850,12 +847,12 @@ void smith() {
                         }
                         if (!x) {
                             tx("You cannot carry more.\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                         } else {
                             state.p[state.cpl].inventory[x] = oc;
                             state.p[state.cpl].gold -= pr;
                             tx("Deal!\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                         }
                     }
                 }
@@ -876,7 +873,7 @@ void smith() {
                     if (oc == 0 || oc > 30) {
                         clw();
                         tx("Not weapon or armour.\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         while (1) {
                             clw();
@@ -893,7 +890,7 @@ void smith() {
                                 break;
                             }
                             if (b == 'B') {
-                                i = rand() % 100;
+                                i = ryl_random(0, 99);
                                 if (i > 90) {
                                     pr += pr / 4;
                                 }
@@ -903,7 +900,7 @@ void smith() {
                                 if (i < 76) {
                                     clw();
                                     tx("No thanks.\r\n");
-                                    Delay(50);
+                                    ryl_delay(1000);
                                     break;
                                 }
                             }
@@ -932,7 +929,7 @@ void tavern() {
     if (state.tid < 6 && state.tid > 1) {
         clw();
         tx("Tavern Closed.\r\n");
-        Delay(50);
+        ryl_delay(1000);
         return;
     }
 
@@ -945,22 +942,22 @@ void tavern() {
         }
     }
 
-    if ((rand() % 100) <= (4 + x)) {
+    if (ryl_chance(5 + x)) {
         clw();
         tx("Just as you are about\r\n");
         tx("to sit down at a,\r\n");
         tx("table, a scruffy\r\n");
         tx("little man, pulls\r\n");
         tx("at your sleeve...\r\n\r\n");
-        Delay(150);
+        ryl_delay(3000);
         tx("- Hey, hey, hey! You!\r\n");
         tx("  yes... you! I have\r\n");
         tx("  and offer that may\r\n");
         tx("  interest you...\r\n\r\n");
-        Delay(150);
+        ryl_delay(3000);
         clw();
         /* 15,17,26,27,38,41,100,101,102,103,104,106,107,108,109,110,111 */
-        i = rand() % 16;
+        i = ryl_random(0, 15);
         i++;
         switch (i) {
             case 1:
@@ -1035,7 +1032,7 @@ void tavern() {
             if (state.p[state.cpl].gold < obcost(i)) {
                 tx("- You don't have that\r\n");
                 tx("  much gold!\r\n");
-                Delay(40);
+                ryl_delay(800);
             } else {
                 for (j = 1, x = 0; j < 17; j++) {
                     if (state.p[state.cpl].inventory[j] == 0) {
@@ -1047,17 +1044,17 @@ void tavern() {
                 if (x) {
                     tx("- Deal!!!\r\n");
                     state.p[state.cpl].gold -= obcost(i);
-                    Delay(40);
+                    ryl_delay(800);
                 } else {
                     tx("- You can't carry it!\r\n");
-                    Delay(50);
+                    ryl_delay(1000);
                 }
             }
         }
         if (c == 'N') {
             tx("- Fine, I can live with\r\n");
             tx("  that.\r\n");
-            Delay(50);
+            ryl_delay(1000);
         }
     }
     while (1) {
@@ -1093,16 +1090,16 @@ void tavern() {
                     tx("Dead men do not\r\n");
                     tx("tell any great\r\n");
                     tx("stories...\r\n");
-                    Delay(100);
+                    ryl_delay(2000);
                 } else {
                     clw();
                     tx("%s stands up\r\n", state.p[state.cpl].name[d - 48]);
                     tx("and screams:\r\n");
                     tx("- ANYONE WHO WANNA HEAR\r\n");
                     tx("  A TRAVELLER'S STORY?\r\n\r\n");
-                    Delay(100);
+                    ryl_delay(2000);
                     tx("- YEAAH! Roars the crowd!\r\n\r\n");
-                    Delay(100);
+                    ryl_delay(2000);
                     tx("(T)rue story\r\n");
                     tx("(B)oast\r\n");
                     b = key();
@@ -1120,14 +1117,14 @@ void tavern() {
                     if (state.p[state.cpl].ch[d - 48] > 70) {
                         st += 50;
                     }
-                    xs = (rand() % 150) + 1;
+                    xs = ryl_random(1, 150);
                     st += xs;
                     if (b == 'B') {
-                        if ((rand() % 100) > state.p[state.cpl].ch[d - 48]) {
+                        if (ryl_random(0, 99) > state.p[state.cpl].ch[d - 48]) {
                             clw();
                             tx("- Out with the liar!\r\n");
                             st = 0;
-                            Delay(100);
+                            ryl_delay(2000);
                             tx("You are thrown out.\r\n");
                             state.p[state.cpl].ch[d - 48] -= 10;
                             if (state.p[state.cpl].ch[d - 48] < 0) {
@@ -1185,7 +1182,7 @@ void tavern() {
                 tx("become very quiet.\r\n\r\n");
                 ryl_pause();
             } else {
-                switch (rand() % 5) {
+                switch (ryl_random(0, 4)) {
                     case 0:
                         tx("After listening a while\r\n");
                         tx("you hear an old man say\r\n");
@@ -1242,18 +1239,18 @@ void tavern() {
                 if (state.p[state.cpl].gold < pr) {
                     clw();
                     tx("No money - No drink!\r\n");
-                    Delay(50);
+                    ryl_delay(1000);
                 } else {
                     clw();
                     if (d != 'D') {
                         tx("AAH! (your health\r\n");
                         tx("returns).\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         tx("You are the laughing\r\n");
                         tx("stock of the entire\r\n");
                         tx("tavern...\r\n");
-                        Delay(100);
+                        ryl_delay(2000);
                     }
                     state.p[state.cpl].gold -= pr;
                     for (i = 1; i < 5; i++) {
@@ -1294,7 +1291,7 @@ void inn() {
                 clw();
                 tx("Sorry, supper is %d\r\n", 15 * state.p[state.cpl].lv[1] * state.p[state.cpl].lv[1]);
                 tx("gold.\r\n");
-                Delay(50);
+                ryl_delay(1000);
             } else {
                 state.p[state.cpl].gold -= 15 * state.p[state.cpl].lv[1] * state.p[state.cpl].lv[1];
                 clw();
@@ -1349,7 +1346,7 @@ void inn() {
             if (state.p[state.cpl].gold < pr) {
                 clw();
                 tx("No money - No drink!\r\n");
-                Delay(50);
+                ryl_delay(1000);
             } else {
                 state.p[state.cpl].gold -= pr;
                 clw();
@@ -1358,7 +1355,7 @@ void inn() {
                 } else {
                     tx("The other guests giggle.\r\n");
                 }
-                Delay(50);
+                ryl_delay(1000);
                 for (i = 1; i < 5; i++) {
                     if (!state.p[state.cpl].dead[i]) {
                         state.p[state.cpl].hp[i] += ((pr / 2) + 1);
@@ -1392,17 +1389,17 @@ void inn() {
                 clw();
                 tx("- AHA! No gold!\r\n");
                 tx("You are thrown out.\r\n");
-                Delay(100);
+                ryl_delay(2000);
                 clr_map_window();
                 return;
             }
             state.p[state.cpl].gold -= state.p[state.cpl].lv[1] * 15 * state.p[state.cpl].lv[1];
             clw();
             tx("You go to bed...\r\n");
-            Delay(50);
+            ryl_delay(1000);
             tx("Zzzz...\r\n\r\n");
             state.hours_pigg = 14;
-            Delay(75);
+            ryl_delay(1500);
             tx("You wake up a little\r\n");
             tx("before dawn, well\r\n");
             tx("rested.\r\n\r\n");
@@ -1453,7 +1450,7 @@ void merchant() /* HOS THE MERCHANT */
     if (state.tid > 18 || state.tid < 6) {
         clw();
         tx("Shop Closed.\r\n");
-        Delay(50);
+        ryl_delay(1000);
         return;
     }
 
@@ -1476,7 +1473,7 @@ void merchant() /* HOS THE MERCHANT */
         if (c == 'L') {
             clw();
             tx("Well, bye then...\r\n");
-            Delay(50);
+            ryl_delay(1000);
             clr_map_window();
             return;
         }
@@ -1493,7 +1490,7 @@ void merchant() /* HOS THE MERCHANT */
                     clw();
                     tx("- I don't deal in that\r\n");
                     tx("  kind of stuff!\r\n");
-                    Delay(50);
+                    ryl_delay(1000);
                 } else {
                     clw();
                     tx("- Ok. Give ya %d!\r\n\r\n", obcost(oc) / 2);
@@ -1503,7 +1500,7 @@ void merchant() /* HOS THE MERCHANT */
                     f = toupper(f);
                     if (f == 'Y') {
                         tx("Sold!\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                         state.p[state.cpl].gold += (obcost(oc) / 2);
                         state.p[state.cpl].inventory[d - 64] = 0;
                         statusline();
@@ -1594,7 +1591,7 @@ void merchant() /* HOS THE MERCHANT */
                             tx("You can carry no\r\n");
                             tx("more than 80\r\n");
                             tx("torches...\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                             x = 80 - state.p[state.cpl].torches;
                         }
                     }
@@ -1609,7 +1606,7 @@ void merchant() /* HOS THE MERCHANT */
                             clw();
                             tx("You can carry no\r\n");
                             tx("more than %d units!\r\n", (150 + y * 150));
-                            Delay(50);
+                            ryl_delay(1000);
                             x = (150 + y * 150) - state.p[state.cpl].food;
                         }
                     }
@@ -1619,7 +1616,7 @@ void merchant() /* HOS THE MERCHANT */
                     if (state.p[state.cpl].gold < pr * x) {
                         clw();
                         tx("Too expensive!\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         state.p[state.cpl].gold -= pr * x;
                         if (oc == 31) {
@@ -1635,7 +1632,7 @@ void merchant() /* HOS THE MERCHANT */
                         if (oc != 31 && oc != 32) {
                             tx("Deal!");
                         }
-                        Delay(50);
+                        ryl_delay(1000);
                     }
                 } else {
                     pr = obcost(oc);
@@ -1652,7 +1649,7 @@ void merchant() /* HOS THE MERCHANT */
                         if (state.p[state.cpl].gold < pr) {
                             clw();
                             tx("Too expensive!\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                         } else {
                             for (i = 1, x = 0; i < 17; i++) {
                                 if (state.p[state.cpl].inventory[i] == 0) {
@@ -1662,13 +1659,13 @@ void merchant() /* HOS THE MERCHANT */
                             }
                             if (!x) {
                                 tx("You cannot carry more.\r\n");
-                                Delay(50);
+                                ryl_delay(1000);
                             } else {
                                 state.p[state.cpl].inventory[x] = oc;
                                 state.p[state.cpl].gold -= pr;
                                 clw();
                                 tx("Deal!\r\n");
-                                Delay(50);
+                                ryl_delay(1000);
                             }
                         }
                     } else {

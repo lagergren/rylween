@@ -20,8 +20,18 @@ int pm_class_id(const char *name) {
     return -1;
 }
 
-void Delay(uint32_t ticks) {
-    useconds_t us = (useconds_t) (ticks * 20000UL);
+void ryl_delay(unsigned ms) {
+    static int resolved = 0;
+    static int suppressed = 0;
+    if (!resolved) {
+        resolved = 1;
+        const char *e = getenv("RYL_NO_DELAY");
+        suppressed = (e && *e && *e != '0');
+    }
+    if (suppressed) {
+        return;
+    }
+    useconds_t us = (useconds_t) ms * 1000U;
     while (us > 0) {
         useconds_t chunk = us > 900000U ? 900000U : us;
         if (usleep(chunk) == 0) {
@@ -58,30 +68,45 @@ time_t ryl_time(time_t *out) {
     return now;
 }
 
-void ryl_srand(unsigned long seed) {
-    static int          resolved = 0;
-    static int          fixed    = 0;
-    static unsigned int fixed_seed = 0;
+/* xorshift64* — portable, fast, fixed across libc versions so byte-identity
+   replays are valid on macOS, glibc, and musl alike. */
+static uint64_t rng_state = 1;
 
-    if (!resolved) {
-        resolved = 1;
-        const char *e = getenv("RYL_FAKE_SEED");
-        if (e && *e) {
-            char *end;
-            unsigned long v = strtoul(e, &end, 10);
-            if (end != e) {
-                fixed      = 1;
-                fixed_seed = (unsigned int) v;
-            }
+void ryl_random_init(void) {
+    const char *e = getenv("RYL_FAKE_SEED");
+    if (e && *e) {
+        char *end;
+        unsigned long v = strtoul(e, &end, 10);
+        if (end != e) {
+            rng_state = (uint64_t) v;
+            if (rng_state == 0) rng_state = 1;
+            return;
         }
     }
-
-    srand(fixed ? fixed_seed : (unsigned int) seed);
+    rng_state = (uint64_t) ryl_time(NULL) ^ ((uint64_t) getpid() << 16);
+    if (rng_state == 0) rng_state = 1;
 }
 
-void ryl_seed_now(long salt) {
-    time_t t = ryl_time(NULL);
-    ryl_srand((unsigned long) (t + salt));
+static uint64_t rng_next(void) {
+    uint64_t x = rng_state;
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    rng_state = x;
+    return x * 0x2545F4914F6CDD1DULL;
+}
+
+int ryl_random(int lo, int hi) {
+    assert(rng_state != 0 && "ryl_random_init() not called");
+    assert(lo <= hi);
+    uint64_t span = (uint64_t) (hi - lo) + 1U;
+    return lo + (int) (rng_next() % span);
+}
+
+int ryl_chance(int pct) {
+    if (pct <= 0) return 0;
+    if (pct >= 100) return 1;
+    return ryl_random(1, 100) <= pct;
 }
 
 void getclk(char *kl) {

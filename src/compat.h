@@ -7,9 +7,9 @@
 #include <time.h>
 #include <unistd.h>
 
-/* Amiga dos.library Delay() counts 50 ticks/sec, i.e. 20 ms per tick.
-   Mapping to sleep(n) gave multi-minute pauses; use usleep instead. */
-void Delay(uint32_t ticks);
+/* Pause for `ms` milliseconds. Replaces the Amiga dos.library Delay() idiom
+   (50 ticks/sec, i.e. 20 ms per tick); migrate Delay(N) -> ryl_delay(N*20). */
+void ryl_delay(unsigned ms);
 
 /* Amiga getclk() populated an 8-byte array. Index contract (audited):
      kl[1] = year - 1980   (preserves "19%d" + kl[1]+80 idiom; Y2K cosmetic)
@@ -33,16 +33,20 @@ void str_append(char *dst, size_t dst_sz, const char *src);
    Returns a pointer to a static buffer; each call overwrites the prior one. */
 char *ryl_state_path(const char *leaf);
 
-/* Entropy hooks for deterministic replay. When RYL_FAKE_EPOCH / RYL_FAKE_SEED
-   are set in the environment, these return the fixed values instead of reading
-   the wall clock / using the caller's seed. When unset (production), they are
-   thin wrappers over time(3) / srand(3). Both envs parse as unsigned long.
-
-   ryl_seed_now() is the common idiom — "seed from now, mixed with a caller
-   salt (often a loop index)". Collapses the time()+srand() pair and hides the
-   time_t -> unsigned int narrowing inside. */
+/* Wall-clock entropy hook. Returns RYL_FAKE_EPOCH when set in the environment;
+   otherwise wraps time(3). Used for date stamps and the boot-time PRNG seed. */
 time_t ryl_time(time_t *out);
-void   ryl_srand(unsigned long seed);
-void   ryl_seed_now(long salt);
+
+/* Single-source PRNG. ryl_random_init() runs ONCE from main() before any
+   draw. Seed is RYL_FAKE_SEED when set, else time^pid. There is no public
+   reseed: every in-game roll draws from the same xorshift64* stream so the
+   game state is reproducible end-to-end from the boot seed alone. */
+void ryl_random_init(void);
+
+/* Uniform draw in [lo, hi] inclusive. lo <= hi required. */
+int ryl_random(int lo, int hi);
+
+/* True with probability pct/100. pct outside [0,100] saturates. */
+int ryl_chance(int pct);
 
 #endif

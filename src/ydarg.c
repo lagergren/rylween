@@ -94,14 +94,14 @@ void ydarg() {
 
     tx("The first door you enter\r\n");
     tx("slams shut behind you!\r\n");
-    Delay(100);
+    ryl_delay(2000);
     clw();
     lvl = 1;
     xl = 1;
     yl = 1;
     for (i = 1; i < 6; i++) {
         for (j = 1; j < 6; j++) {
-            room[i][j] = (rand() % 5) + 1;
+            room[i][j] = ryl_random(1, 5);
         }
     }
     room[5][5] = 50;
@@ -115,8 +115,8 @@ void ydarg() {
                 room[xl][yl] = 0;
                 tx("You are spotted by\r\n");
                 tx("monsters!\r\n");
-                Delay(75);
-                encounter((rand() % 20) + 60, 0);
+                ryl_delay(1500);
+                encounter(ryl_random(60, 79), 0);
                 clr_map_window();
                 blitgfx(ydargpic);
                 clw();
@@ -124,30 +124,30 @@ void ydarg() {
 
             case 2: /* Pitfall */
                 room[xl][yl] = 0;
-                tx("%s springs a\r\n", state.p[state.cpl].name[(rand() % 4) + 1]);
+                tx("%s springs a\r\n", state.p[state.cpl].name[ryl_random(1, 4)]);
                 tx("trap!!!\r\n");
-                Delay(75);
+                ryl_delay(1500);
                 clw();
                 j = 0;
                 for (i = 1; i < 5; i++) {
                     if (state.p[state.cpl].cl[i] == 2) {
                         tx("%s tries to\r\n", state.p[state.cpl].name[i]);
                         tx("disarm it...\r\n\r\n");
-                        Delay(75);
-                        if (rand() % 100 < state.p[state.cpl].wi[i]) {
+                        ryl_delay(1500);
+                        if (ryl_chance(state.p[state.cpl].wi[i])) {
                             tx("AND SUCCEEDS!\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                             j = 1;
                         } else {
                             tx("BUT FAILS!\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                             j = 0;
                         }
                         break;
                     }
                 }
                 if (!j) {
-                    switch (rand() % 3) {
+                    switch (ryl_random(0, 2)) {
                         case 0:
                             tx("Arrows speed through\r\n");
                             tx("the air and hits the\r\n");
@@ -174,23 +174,23 @@ void ydarg() {
 
             case 3:
                 room[xl][yl] = 0;
-                x = (rand() % 5);
+                x = ryl_random(0, 4);
                 if (x) {
-                    x = (rand() % 3);
+                    x = ryl_random(0, 2);
                     if (x == 0) {
-                        oc = rand() % 14;
+                        oc = ryl_random(0, 13);
                         oc += 1;
                     } /* 0-13 + 1 = 1-14 */
                     if (x == 1) {
-                        oc = rand() % 7;
+                        oc = ryl_random(0, 6);
                         oc += 36;
                     } /* 0-6  + 36= 36-42 */
                     if (x == 2) {
-                        oc = rand() % 8;
+                        oc = ryl_random(0, 7);
                         oc += 39;
                     } /* 0-7  + 39= 39-46 */
                 } else { /* 0-11 + 100, ger 100-111 */
-                    oc = rand() % 12;
+                    oc = ryl_random(0, 11);
                     oc += 100;
                 }
                 tx("You find a\r\n");
@@ -210,11 +210,11 @@ void ydarg() {
                     if (!x) {
                         clw();
                         tx("You can't carry more.\r\n");
-                        Delay(40);
+                        ryl_delay(800);
                     } else {
                         tx("\r\n");
                         tx("Ok.\r\n");
-                        Delay(40);
+                        ryl_delay(800);
                     }
                 }
                 break;
@@ -223,7 +223,7 @@ void ydarg() {
                 clw();
                 tx("You stand before the\r\n");
                 tx("stairs to the next level.\r\n\r\n");
-                Delay(75);
+                ryl_delay(1500);
                 clw();
                 tx("A mage imprisoned in a\r\n");
                 tx("fiery sphere offers to\r\n");
@@ -250,7 +250,7 @@ void ydarg() {
                     if (d == 'L') {
                         clw();
                         tx("You take the nearest exit!\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                         yl--;
                         break;
                     }
@@ -259,9 +259,9 @@ void ydarg() {
                         tx("The world fades into a\r\n");
                         tx("vortex of agonizing\r\n");
                         tx("vertigo...\r\n\r\n");
-                        Delay(150);
+                        ryl_delay(3000);
                         tx("And you are outside...\r\n");
-                        Delay(150);
+                        ryl_delay(3000);
                         clr_map_window();
                         update_map();
                         clw();
@@ -286,7 +286,7 @@ void ydarg() {
                             if (!state.p[state.cpl].fireshield) {
                                 clw();
                                 tx("You don't have it!\r\n");
-                                Delay(75);
+                                ryl_delay(1500);
                                 break;
                             }
                             state.p[state.cpl].fireshield = 0;
@@ -296,7 +296,7 @@ void ydarg() {
                             if (!state.p[state.cpl].mastercrown) {
                                 clw();
                                 tx("You don't have it!\r\n");
-                                Delay(75);
+                                ryl_delay(1500);
                                 break;
                             }
                             state.p[state.cpl].mastercrown = 0;
@@ -306,7 +306,7 @@ void ydarg() {
                             if (!state.p[state.cpl].jazzyfoot) {
                                 clw();
                                 tx("You don't have it!\r\n");
-                                Delay(75);
+                                ryl_delay(1500);
                                 break;
                             }
                             state.p[state.cpl].jazzyfoot = 0;
@@ -316,7 +316,7 @@ void ydarg() {
                             if (!state.p[state.cpl].bracelets) {
                                 clw();
                                 tx("You don't have them!\r\n");
-                                Delay(75);
+                                ryl_delay(1500);
                                 break;
                             }
                             state.p[state.cpl].bracelets = 0;
@@ -407,28 +407,28 @@ void ydarg() {
         if (c == '8' && n) {
             clw();
             tx("North.\r\n");
-            Delay(15);
+            ryl_delay(300);
             clw();
             yl--;
         }
         if (c == '2' && s) {
             clw();
             tx("South.\r\n");
-            Delay(15);
+            ryl_delay(300);
             clw();
             yl++;
         }
         if (c == '6' && e) {
             clw();
             tx("East.\r\n");
-            Delay(15);
+            ryl_delay(300);
             clw();
             xl++;
         }
         if (c == '4' && w) {
             clw();
             tx("West.\r\n");
-            Delay(15);
+            ryl_delay(300);
             clw();
             xl--;
         }

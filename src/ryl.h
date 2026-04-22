@@ -1,5 +1,6 @@
 /* INCLUDE FILE FOR ADVENTURERS OF RYLWEEN */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -165,8 +166,8 @@ typedef struct {
     int m;          /* 1..4 */
 } pm_t;
 
-static inline pm_t pm_of(struct party *p, int m) { pm_t r = {p, m}; return r; }
-static inline pm_t pm_cur(int m)                 { return pm_of(&state.p[state.cpl], m); }
+static inline pm_t pm_of(struct party *p, int m) { assert(p && m >= 1 && m <= 4); pm_t r = {p, m}; return r; }
+static inline pm_t pm_cur(int m)                 { assert(state.cpl >= 1 && state.cpl <= 25); return pm_of(&state.p[state.cpl], m); }
 
 static inline int  pm_cl(pm_t pm)     { return pm.party->cl[pm.m]; }
 static inline int  pm_lv(pm_t pm)     { return pm.party->lv[pm.m]; }

@@ -15,11 +15,8 @@ void dungeon(int32_t levels, int32_t flag) {
 
     state.banished = 0;
 
-    ryl_seed_now(0);
-
     for (i = 1; i < levels + 1; i++) {
-        lvl[i] = rand() % 9;
-        lvl[i]++;
+        lvl[i] = ryl_random(1, 9);
     }
     switch (flag) {
         case 1:
@@ -114,23 +111,23 @@ void dungeon(int32_t levels, int32_t flag) {
 
             case 1:
                 lvl[cl] = 0;
-                x = (rand() % 5);
+                x = ryl_random(0, 4);
                 if (x) {
-                    x = (rand() % 3);
+                    x = ryl_random(0, 2);
                     if (x == 0) {
-                        oc = rand() % 14;
+                        oc = ryl_random(0, 13);
                         oc += 1;
                     } /* 0-13 + 1 = 1-14 */
                     if (x == 1) {
-                        oc = rand() % 7;
+                        oc = ryl_random(0, 6);
                         oc += 36;
                     } /* 0-6  + 36= 36-42 */
                     if (x == 2) {
-                        oc = rand() % 8;
+                        oc = ryl_random(0, 7);
                         oc += 39;
                     } /* 0-7  + 39= 39-46 */
                 } else { /* 0-11 + 100, ger 100-111 */
-                    oc = rand() % 12;
+                    oc = ryl_random(0, 11);
                     oc += 100;
                 }
                 tx("You find a\r\n");
@@ -150,17 +147,17 @@ void dungeon(int32_t levels, int32_t flag) {
                     if (!x) {
                         clw();
                         tx("You can't carry more.\r\n");
-                        Delay(40);
+                        ryl_delay(800);
                     } else {
                         tx("\r\n");
                         tx("Ok.\r\n");
-                        Delay(40);
+                        ryl_delay(800);
                     }
                 }
                 break;
 
             case 2:
-                x = (rand() % 300) + 40;
+                x = ryl_random(40, 339);
                 tx("You find %d\r\n", x);
                 tx("gold pieces.\r\n\r\n");
                 state.p[state.cpl].gold += x;
@@ -169,22 +166,19 @@ void dungeon(int32_t levels, int32_t flag) {
                 break;
 
             case 3:
-                ryl_seed_now(0);
-                encounter((rand() % 10) + 1, 0);
+                encounter(ryl_random(1, 10), 0);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 break;
             case 4:
-                ryl_seed_now(0);
-                encounter((rand() % 10) + 1, 0);
+                encounter(ryl_random(1, 10), 0);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 break;
             case 5:
-                ryl_seed_now(0);
-                encounter((rand() % 20) + 60, 0);
+                encounter(ryl_random(60, 79), 0);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -216,38 +210,38 @@ void dungeon(int32_t levels, int32_t flag) {
                             clw();
                             tx("%s checks the\r\n", state.p[state.cpl].name[i]);
                             tx("chest for traps.\r\n");
-                            Delay(50);
+                            ryl_delay(1000);
                             x = 2;
                             break;
                         }
                     }
-                    if ((rand() % 10) < x) {
+                    if (ryl_random(0, 9) < x) {
                         clw();
                         tx("A TRAP!\r\n");
-                        Delay(30);
-                        switch (rand() % 3) {
+                        ryl_delay(600);
+                        switch (ryl_random(0, 2)) {
                             case 0:
                                 tx("Poisonous gas\r\n");
                                 tx("hisses out through\r\n");
                                 tx("hidden holes.\r\n\r\n");
-                                Delay(70);
+                                ryl_delay(1400);
                                 tx("The party coughs\r\n");
                                 tx("and retches.\r\n");
-                                Delay(30);
+                                ryl_delay(600);
                                 tx("Finally. The gas clears.\r\n\r\n");
                                 break;
                             case 1:
                                 tx("A spiked pitfall\r\n");
                                 tx("opens in the floor\r\n");
                                 tx("beneath you.\r\n\r\n");
-                                Delay(70);
+                                ryl_delay(1400);
                                 tx("You climb out of it,\r\n");
                                 tx("badly wounded.\r\n\r\n");
                                 break;
                             case 2:
                                 tx("A large boulder\r\n");
                                 tx("drops from above!!!\r\n");
-                                Delay(70);
+                                ryl_delay(1400);
                                 tx("Badly bruised, you\r\n");
                                 tx("try to stand up again.\r\n\r\n");
                                 break;
@@ -262,7 +256,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     }
                     clw();
                     tx("The chest contained\r\n");
-                    x = rand() % 100;
+                    x = ryl_random(0, 99);
                     x += 20;
                     x += state.p[state.cpl].exp[1] / 500;
                     x += 300;
@@ -274,7 +268,7 @@ void dungeon(int32_t levels, int32_t flag) {
 
             case 9:
                 clw();
-                x = (rand() % 3);
+                x = ryl_random(0, 2);
                 x += 2;
                 tx("You find %d torches.\r\n\r\n", x);
                 state.p[state.cpl].torches += x;
@@ -580,7 +574,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
-                if ((rand() % 100) > 60) {
+                if (ryl_chance(39)) {
                     clw();
                     tx("You find a scribbled\r\n");
                     tx("note on the leader:\r\n");
@@ -648,7 +642,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     tx("- GUARDS! GUARDS!\r\n\r\n");
                     tx("(Hobgoblin guards rush\r\n");
                     tx(" to confront you.)\r\n");
-                    Delay(100);
+                    ryl_delay(2000);
                     encounter(9, 1);
                     encounter(23, 1);
                     clr_map_window();
@@ -885,11 +879,11 @@ void dungeon(int32_t levels, int32_t flag) {
                         clw();
                         tx("The cave doesn't\r\n");
                         tx("go deeper.\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         clw();
                         tx("You enter level %d.\r\n", cl + 1);
-                        Delay(30);
+                        ryl_delay(600);
                         cl++;
                         break;
                     }

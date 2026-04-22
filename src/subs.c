@@ -13,7 +13,7 @@ void foodhandler() {
     // Regenerate mana //
     for (i = 1; i < 5; i++) {
         if (state.p[state.cpl].cl[i] == 3 || state.p[state.cpl].cl[i] == 4) {
-            if (state.p[state.cpl].ma[i] < state.p[state.cpl].wi[i] && !(rand() % 2)) {
+            if (state.p[state.cpl].ma[i] < state.p[state.cpl].wi[i] && ryl_chance(50)) {
                 state.p[state.cpl].ma[i]++;
             }
         }
@@ -38,7 +38,7 @@ void foodhandler() {
                 clw();
                 tx("%s starved\r\n", state.p[state.cpl].name[i]);
                 tx("to death!!!\r\n");
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 state.p[state.cpl].dead[i] = 1;
                 if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
@@ -89,13 +89,11 @@ void foodhandler() {
     }
 }
 void slumpvis() {
-    char c, kl[8];
+    char c;
     int32_t r;
     uint8_t rflag = 0;
 
-    getclk(kl);
-    ryl_srand(kl[7]);
-    r = rand() % 100;
+    r = ryl_random(0, 99);
 
     rflag = mission_control();
     if (rflag) {
@@ -123,7 +121,6 @@ void slumpvis() {
                 break;
             }
         }
-        ryl_seed_now(0);
         if (c == 'E') {
             if (state.p[state.cpl].tid_kvar > 10) {
                 state.p[state.cpl].tid_kvar -= 10;
@@ -136,7 +133,7 @@ void slumpvis() {
                 return;
             }
             clr_map_window();
-            dungeon(((rand() % 14) + 3), 0);
+            dungeon(ryl_random(3, 16), 0);
             return;
         } else {
             clw();
@@ -148,16 +145,14 @@ void slumpvis() {
 
     // slumpmote //
 
-    ryl_seed_now(-state.tid + state.p[state.cpl].x);
-
     // 40-53 //
 
-    if (!(rand() % 2)) {
-        encounter((rand() % 10) + 1, 0);
+    if (ryl_chance(50)) {
+        encounter(ryl_random(1, 10), 0);
         clr_map_window();
         update_map();
     } else {
-        encounter((rand() % 14) + 40, 0);
+        encounter(ryl_random(40, 53), 0);
         clr_map_window();
         update_map();
     }
@@ -230,7 +225,7 @@ void weaponoff() {
         if (state.p[state.cpl].wp[c - 48] == 0) {
             clw();
             tx("%s has no weapon!\r\n", sextext(c - 48, 1));
-            Delay(40);
+            ryl_delay(800);
             clw();
             return;
         }
@@ -243,13 +238,13 @@ void weaponoff() {
         if (!x) {
             clw();
             tx("No room!\r\n");
-            Delay(30);
+            ryl_delay(600);
             clw();
             return;
         } else {
             clw();
             tx("%s removed.\r\n", object(state.p[state.cpl].wp[c - 48]));
-            Delay(40);
+            ryl_delay(800);
             state.p[state.cpl].inventory[x] = state.p[state.cpl].wp[c - 48];
             state.p[state.cpl].wp[c - 48] = 0;
             clw();
@@ -269,7 +264,7 @@ void armouroff() {
         if (state.p[state.cpl].ar[c - 48] == 0) {
             clw();
             tx("%s has no armour!\r\n", sextext(c - 48, 1));
-            Delay(40);
+            ryl_delay(800);
             clw();
             return;
         }
@@ -282,13 +277,13 @@ void armouroff() {
         if (!x) {
             clw();
             tx("No room!\r\n");
-            Delay(30);
+            ryl_delay(600);
             clw();
             return;
         } else {
             clw();
             tx("%s removed.\r\n", object(state.p[state.cpl].ar[c - 48]));
-            Delay(40);
+            ryl_delay(800);
             state.p[state.cpl].inventory[x] = state.p[state.cpl].ar[c - 48];
             state.p[state.cpl].ar[c - 48] = 0;
             clw();
@@ -311,7 +306,7 @@ void weaponr() {
         if (oc > 19 || oc == 0) {
             clw();
             tx("Not a valid weapon.\r\n");
-            Delay(30);
+            ryl_delay(600);
             clw();
             return;
         }
@@ -338,7 +333,7 @@ void weaponr() {
     state.p[state.cpl].inventory[d - 64] = temp;
     clw();
     tx("Weapon changed.\r\n");
-    Delay(30);
+    ryl_delay(600);
     clw();
     return;
 }
@@ -356,7 +351,7 @@ void armourr() {
         if (oc < 20 || oc > 29 || oc == 0) {
             clw();
             tx("Not a valid armour.\r\n");
-            Delay(30);
+            ryl_delay(600);
             clw();
             return;
         }
@@ -383,7 +378,7 @@ void armourr() {
     state.p[state.cpl].inventory[d - 64] = temp;
     clw();
     tx("Armour changed.\r\n");
-    Delay(30);
+    ryl_delay(600);
     clw();
     return;
 }
@@ -400,7 +395,7 @@ uint8_t drop() {
         if (state.p[state.cpl].inventory[d - 64]) {
             tx("You drop the\r\n");
             tx("%s.\r\n", object(state.p[state.cpl].inventory[d - 64]));
-            Delay(50);
+            ryl_delay(1000);
             if (state.p[state.cpl].inventory[d - 64] == 47) {
                 for (i = 1, y = 0; i < 17; i++) {
                     if (state.p[state.cpl].inventory[i] == 47) {
@@ -413,7 +408,7 @@ uint8_t drop() {
                     tx("You are forced to\r\n");
                     tx("leave some of your\r\n");
                     tx("food behind...\r\n");
-                    Delay(50);
+                    ryl_delay(1000);
                     state.p[state.cpl].food = (150 + 150 * y);
                 }
             }
@@ -422,14 +417,14 @@ uint8_t drop() {
             return (uint8_t) (d - 64);
         } else {
             tx("Nothing to drop.\r\n");
-            Delay(30);
+            ryl_delay(600);
             clw();
             return 0;
         }
     } else {
         clw();
         tx("Aborted.\r\n");
-        Delay(30);
+        ryl_delay(600);
         return 0;
     }
 }
@@ -440,7 +435,7 @@ void camp() {
     if (state.hours_pigg > 0) {
         clw();
         tx("Not tired.\r\n");
-        Delay(30);
+        ryl_delay(600);
         clw();
         return;
     }
@@ -482,12 +477,12 @@ void camp() {
                 } else {
                     clw();
                     tx("Dead.\r\n");
-                    Delay(50);
+                    ryl_delay(1000);
                 }
             } else {
                 clw();
                 tx("Not valid!\r\n");
-                Delay(50);
+                ryl_delay(1000);
             }
         }
         guard = d - 48;
@@ -500,15 +495,15 @@ void camp() {
     }
     clw();
     tx("Zzz...\r\n");
-    Delay(75);
+    ryl_delay(1500);
 
     /* TEMPERATURE CHECK */
 
-    temperature = (rand() % 15) + 1;
+    temperature = ryl_random(1, 15);
     if (temperature >= 6 && temperature < 10) {
         clw();
         tx("Low Temperature.\r\n");
-        Delay(30);
+        ryl_delay(600);
         for (i = 1, x = 0; i < 17; i++) {
             if (state.p[state.cpl].inventory[i] == 33 || state.p[state.cpl].inventory[i] == 34) {
                 x = 1;
@@ -518,7 +513,7 @@ void camp() {
         if (!x) {
             tx("No good equipment,\r\n");
             tx("Party loses 5 health.\r\n");
-            Delay(75);
+            ryl_delay(1500);
             for (i = 1; i < 5; i++) {
                 state.p[state.cpl].hp[i] -= 5;
                 if (state.p[state.cpl].hp[i] < 1) {
@@ -535,11 +530,11 @@ void camp() {
                 break;
             }
         }
-        Delay(30);
+        ryl_delay(600);
         if (!x) {
             tx("No good equipment,\r\n");
             tx("Party loses 10 health.\r\n");
-            Delay(75);
+            ryl_delay(1500);
             for (i = 1; i < 5; i++) {
                 state.p[state.cpl].hp[i] -= 5;
                 if (state.p[state.cpl].hp[i] < 1) {
@@ -576,13 +571,12 @@ void camp() {
             }
         }
     }
-    if (rand() % 100 > 80) {
+    if (ryl_chance(19)) {
         clw();
         tx("Ambush!!!\r\n");
-        Delay(50);
+        ryl_delay(1000);
         if (!guard && state.p[state.cpl].pl > 1) {
-            death = rand() % 4;
-            death++;
+            death = ryl_random(1, 4);
             tx("%s is dead\r\n", state.p[state.cpl].name[death]);
             tx("before you can\r\n");
             tx("react!!!\r\n\r\n");
@@ -591,7 +585,7 @@ void camp() {
             state.p[state.cpl].pl--;
             ryl_pause();
         }
-        encounter((rand() % 10) + 1, 0);
+        encounter(ryl_random(1, 10), 0);
         //		update_map();
     } else {
         clw();
@@ -619,7 +613,7 @@ void quaff() {
             if (oc < 36 || oc > 38) {
                 clw();
                 tx("Not valid.\r\n");
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 return;
             }
@@ -641,7 +635,7 @@ void quaff() {
             } else {
                 clw();
                 tx("Dead.\r\n");
-                Delay(30);
+                ryl_delay(600);
                 clw();
             }
         }
@@ -649,7 +643,7 @@ void quaff() {
     state.p[state.cpl].inventory[d - 64] = 0;
     clw();
     tx("Gulp!\r\n\r\n");
-    Delay(30);
+    ryl_delay(600);
 
     switch (oc) {
         case 36:
@@ -707,29 +701,29 @@ void hunt() {
             } else {
                 clw();
                 tx("Dead.\r\n");
-                Delay(30);
+                ryl_delay(600);
             }
         }
     }
     if (state.p[state.cpl].cl[c - 48] != 6) {
         clw();
         tx("%s is not a ranger.\r\n", sextext(c - 48, 1));
-        Delay(35);
+        ryl_delay(700);
         clw();
         return;
     }
     clw();
     if (state.p[state.cpl].tid_kvar < 5) {
         tx("Too few moves for that.\r\n");
-        Delay(50);
+        ryl_delay(1000);
         return;
     }
     state.p[state.cpl].tid_kvar -= 5;
     tx("%s tries\r\n", state.p[state.cpl].name[c - 48]);
     tx("to trap a rabbit...\r\n");
-    Delay(70);
-    if (rand() % 100 < 45) {
-        fdplus = 10 + (rand() % 10) + state.p[state.cpl].lv[1];
+    ryl_delay(1400);
+    if (ryl_chance(45)) {
+        fdplus = ryl_random(10, 19) + state.p[state.cpl].lv[1];
         tx("...and succeeds.\r\n");
         tx("The party gains\r\n");
         tx("%d food rations.\r\n\r\n", fdplus);
@@ -763,20 +757,20 @@ void spell(int32_t place) {
     if (pm_is_mage(caster)) {
         tx("Sorry. Mage spells are\r\n");
         tx("combat-only.\r\n");
-        Delay(75);
+        ryl_delay(1500);
         clw();
         return;
     }
     if (!pm_is_priest(caster)) {
         tx("Wrong class.\r\n");
-        Delay(50);
+        ryl_delay(1000);
         clw();
         return;
     }
     if (pm_dead(caster)) {
         clw();
         tx("Dead.\r\n");
-        Delay(30);
+        ryl_delay(600);
         return;
     }
 
@@ -808,7 +802,7 @@ void spell(int32_t place) {
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("%s", res_text("spell.not_enough_pts"));
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 break;
             }
@@ -820,11 +814,11 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            x = (rand() % 10) + 10 + (state.p[state.cpl].lv[vem] * 2);
+            x = ryl_random(10, 19) + (state.p[state.cpl].lv[vem] * 2);
             if (state.p[state.cpl].dead[d - 48]) {
                 clw();
                 tx("Dead.\r\n");
-                Delay(30);
+                ryl_delay(600);
                 clw();
                 break;
             }
@@ -836,7 +830,7 @@ void spell(int32_t place) {
             tx("%s heals\r\n", state.p[state.cpl].name[vem]);
             tx("%s\r\n", state.p[state.cpl].name[d - 48]);
             tx("for %d hit points...\r\n", x);
-            Delay(75);
+            ryl_delay(1500);
             clw();
             break;
 
@@ -844,7 +838,7 @@ void spell(int32_t place) {
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("%s", res_text("spell.not_enough_pts"));
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 break;
             }
@@ -861,7 +855,7 @@ void spell(int32_t place) {
             tx("%s heals\r\n", state.p[state.cpl].name[vem]);
             tx("%s\r\n", state.p[state.cpl].name[d - 48]);
             tx("fully...\r\n");
-            Delay(75);
+            ryl_delay(1500);
             clw();
             break;
 
@@ -869,7 +863,7 @@ void spell(int32_t place) {
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("%s", res_text("spell.not_enough_pts"));
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 break;
             }
@@ -883,7 +877,7 @@ void spell(int32_t place) {
             if (!state.p[state.cpl].dead[d - 48]) {
                 tx("%s is alive and\r\n", state.p[state.cpl].name[d - 48]);
                 tx("healthy.\r\n");
-                Delay(75);
+                ryl_delay(1500);
                 break;
             }
             state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
@@ -893,7 +887,7 @@ void spell(int32_t place) {
             tx("%s's eyelids\r\n", state.p[state.cpl].name[d - 48]);
             tx("flicker, and finally\r\n");
             tx("%s opens %s eyes!\r\n", sextext(d - 48, 1), sextext(d - 48, 3));
-            Delay(85);
+            ryl_delay(1700);
             clw();
             break;
 
@@ -901,7 +895,7 @@ void spell(int32_t place) {
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("%s", res_text("spell.not_enough_pts"));
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 break;
             }
@@ -931,7 +925,7 @@ void spell(int32_t place) {
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("%s", res_text("spell.not_enough_pts"));
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 break;
             }
@@ -945,7 +939,7 @@ void spell(int32_t place) {
                 break;
             }
             state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
-            if (rand() % 100 > 40) {
+            if (ryl_chance(59)) {
                 clw();
                 tx("There is nothing\r\n");
                 tx("special near.\r\n\r\n");
@@ -956,19 +950,19 @@ void spell(int32_t place) {
             clw();
             tx("Something special is\r\n");
             tx("near!\r\n");
-            Delay(75);
+            ryl_delay(1500);
             clw();
-            x = (rand() % 3);
+            x = ryl_random(0, 2);
             if (x == 0) {
-                oc = rand() % 14;
+                oc = ryl_random(0, 13);
                 oc += 1;
             }
             if (x == 1) {
-                oc = rand() % 7;
+                oc = ryl_random(0, 6);
                 oc += 36;
             }
             if (x == 2) {
-                oc = rand() % 12;
+                oc = ryl_random(0, 11);
                 oc += 100;
             }
             tx("You find a\r\n");
@@ -988,11 +982,11 @@ void spell(int32_t place) {
                 if (!x) {
                     clw();
                     tx("You can't carry more.\r\n");
-                    Delay(40);
+                    ryl_delay(800);
                 } else {
                     tx("\r\n");
                     tx("Ok.\r\n");
-                    Delay(40);
+                    ryl_delay(800);
                 }
             }
             break;
@@ -1000,7 +994,7 @@ void spell(int32_t place) {
         case SE_TELEPORT:
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("%s", res_text("spell.not_enough_pts"));
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 break;
             }
@@ -1070,7 +1064,7 @@ void spell(int32_t place) {
             }
             tx("%s", res_text("spell.priest.teleport.arrived"));
             update_map();
-            Delay(60);
+            ryl_delay(1200);
             clw();
             break;
 
@@ -1085,16 +1079,16 @@ void spell(int32_t place) {
             }
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                 tx("%s", res_text("spell.not_enough_pts"));
-                Delay(50);
+                ryl_delay(1000);
                 clw();
                 break;
             }
             state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             tx("%s utters\r\n", state.p[state.cpl].name[vem]);
             tx("%s", res_text("spell.priest.earthquake.incantation"));
-            Delay(100);
+            ryl_delay(2000);
             tx("%s", res_text("spell.priest.earthquake.eruption"));
-            Delay(150);
+            ryl_delay(3000);
             clr_map_window();
             blitgfx(cavepic);
             clw();
@@ -1106,7 +1100,6 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            ryl_seed_now(0);
             if (c == 'E') {
                 if (state.p[state.cpl].tid_kvar > 10) {
                     state.p[state.cpl].tid_kvar -= 10;
@@ -1119,7 +1112,7 @@ void spell(int32_t place) {
                     break;
                 }
                 clr_map_window();
-                dungeon(((rand() % 14) + 5), 0);
+                dungeon(ryl_random(5, 18), 0);
                 break;
             } else {
                 clw();

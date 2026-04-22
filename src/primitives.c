@@ -157,9 +157,8 @@ void ryl_pause(void) {
     };
     int32_t ch;
 
-    ryl_seed_now(0);
 
-    tx("(%s RETURN key)\r\n", verbs[rand() % 10]);
+    tx("(%s RETURN key)\r\n", verbs[ryl_random(0, 9)]);
     c(0, 0);
     tx("\x1b[30m");
     while (1) {

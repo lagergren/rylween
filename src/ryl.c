@@ -17,6 +17,7 @@ int main(int argc, char **argv) {
     }
 
     io_init_tty();
+    ryl_random_init();
     res_load("data/resources.jsonl");
 
     state.global_name[0] = 0;

@@ -40,6 +40,7 @@ void spelet() {
             clw();
         }
 
+        assert(state.cpl >= 1 && state.cpl <= state.antal_spelare);
         timehandler();
         foodhandler();
         attackhandler();
@@ -60,13 +61,13 @@ void spelet() {
                 clw();
                 tx("%s", res_text("driv.save.saving"));
                 save();
-                Delay(20);
+                ryl_delay(400);
                 tx("%s", res_text("driv.save.done"));
-                Delay(20);
+                ryl_delay(400);
             }
             clw();
             tx("%s", res_text("driv.quit.farewell"));
-            Delay(50);
+            ryl_delay(1000);
             scorelist();
             cleanexit();
         }
@@ -140,7 +141,7 @@ void spelet() {
                 clw();
                 tx("%s", res_text("driv.save.saving"));
                 save();
-                Delay(20);
+                ryl_delay(400);
                 tx("%s", res_text("driv.save.done"));
                 break;
             case 'W':
@@ -341,12 +342,11 @@ void position_locations() {
         state.dy[i] = 0;
     }
 
-    ryl_seed_now(0);
 
     for (i = 1; i < 10; i++) {
         while (1) {
-            state.dx[i] = (rand() % 70) + 5;
-            state.dy[i] = (rand() % 30) + 5;
+            state.dx[i] = ryl_random(5, 74);
+            state.dy[i] = ryl_random(5, 34);
             if (state.map[state.dy[i]][state.dx[i]] != 'w' && state.map[state.dy[i]][state.dx[i]] != 'm' && state.map[state.dy[i]][state.dx[i]] != '0' &&
                 state.map[state.dy[i]][state.dx[i]] != '1' && state.map[state.dy[i]][state.dx[i]] != '2') {
                 break;
@@ -420,7 +420,7 @@ void init() {
         for (i = 1; i < state.antal_spelare + 1; i++) {
             tx(".");
             state.p[i].tid_kvar = 175;
-            Delay(2);
+            ryl_delay(40);
         }
         getclk(kl);
         state.day_at_game_start = kl[3];
@@ -600,7 +600,7 @@ void init() {
                 } else {
                     clw();
                     tx("No game available.\r\n");
-                    Delay(75);
+                    ryl_delay(1500);
                     cleanexit();
                 }
                 break;
@@ -638,14 +638,14 @@ void init() {
                             }
                         }
                         fclose(fh);
-                        Delay(50);
+                        ryl_delay(1000);
 
                         /* Fixa journalen... */
 
                         clw();
                         tx("Editing Journal...");
                         clrjr(x);
-                        Delay(50);
+                        ryl_delay(1000);
 
                         /* Clean NPC dat */
 
@@ -663,7 +663,7 @@ void init() {
                             fwrite((char *) &state.npc[i], sizeof(state.npc[i]), 1, fh);
                         }
                         fclose(fh);
-                        Delay(50);
+                        ryl_delay(1000);
 
                         clw();
                         tx("Your party has been\r\n");
@@ -794,7 +794,6 @@ char *sextext(uint8_t nr, uint8_t xx) {
 
 void createparty() {
     int32_t i, a, g, passed;
-    int32_t tries = 0;
     char str[80];
 
     clw();
@@ -832,14 +831,12 @@ void createparty() {
 
     while (g < 5) {
         clw();
-        ryl_seed_now(tries);
-        tries++;
         tx("Stats for char: %d\r\n\r\n", g);
-        state.p[a].ws[g] = (rand() % 56) + 15;
-        state.p[a].wi[g] = (rand() % 56) + 15;
-        state.p[a].h[g] = (rand() % 56) + 15;
+        state.p[a].ws[g] = ryl_random(15, 70);
+        state.p[a].wi[g] = ryl_random(15, 70);
+        state.p[a].h[g] = ryl_random(15, 70);
         state.p[a].hp[g] = state.p[a].h[g];
-        state.p[a].ch[g] = (rand() % 56) + 15;
+        state.p[a].ch[g] = ryl_random(15, 70);
         tx("Weapon Skill : %2d\r\n", state.p[a].ws[g]);
         tx("Health       : %2d\r\n", state.p[a].h[g]);
         tx("Wisdom       : %2d\r\n", state.p[a].wi[g]);
@@ -904,7 +901,7 @@ void createparty() {
                 case 1:
                     if (state.p[a].ws[g] < 50) {
                         tx("Weap. skill must be > 50.\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         passed = 1;
                     }
@@ -915,7 +912,7 @@ void createparty() {
                 case 3:
                     if (state.p[a].wi[g] < 50) {
                         tx("Wisdom must be > 50.\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         passed = 1;
                     }
@@ -923,7 +920,7 @@ void createparty() {
                 case 4:
                     if (state.p[a].wi[g] < 50) {
                         tx("Wisdom must be > 50.\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         passed = 1;
                     }
@@ -931,7 +928,7 @@ void createparty() {
                 case 5:
                     if (state.p[a].ch[g] < 50) {
                         tx("Charisma must be > 50.\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                     } else {
                         passed = 1;
                     }
@@ -989,7 +986,7 @@ void createparty() {
     clw();
     tx("Saving...\r\n");
     save();
-    Delay(50);
+    ryl_delay(1000);
 }
 
 void showparty() {

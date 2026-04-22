@@ -1,472 +1,665 @@
-# Phase 6d DSL: a shared condition/effect language for dialogue and spells
+# Phase 6d DSL: hierarchical world definition + shared effect language
 
-## 1. Motivation
+Third pass. Supersedes the two earlier drafts (commits `1f0b59f` flat-record
+sketch and `99e3602` first hierarchical sketch). The inner expression
+language (conditions / effects / paths) is unchanged from those drafts and
+is locked at §6 below; this pass rewrites the **outer world-file shape**
+to fold in classes-as-spell-owners, town inhabitants, mission triggers
+beyond `when`-guards, and a small import mechanism so map data, large
+dialogue blocks, and shard files don't have to inline into the root.
 
-Phase 6c extracted static text to `data/resources.jsonl`. Phase 6d replaces the
-remaining *behavioural* code in `speak.c` (dialogue branching on mission flags,
-conditional rewards) and in the spell effect bodies of `subs.c` / `strid.c`
-with data. Both domains boil down to the same shape — *gate on state, mutate
-state, emit narration* — so one small DSL replaces two ad-hoc interpreters and
-keeps the port-plan's ~90% primitive overlap between dialogue and spells
-(port-plan.md §9, "Spell effects share this DSL").
+---
 
-The game world is hierarchical: classes contain spells, NPCs own dialogue
-branches, missions own stages, towns own services. Expressing that hierarchy
-flatly — as thousands of sibling records with string ids cross-referencing
-each other — loses structure that is load-bearing for a human editor. We
-carry the hierarchy into the file.
+## 1. Goal
 
-## 2. World file: hierarchical JSON5
+Make the game world *data*: one JSON5 tree the C runtime walks, with all
+behaviour expressed as small array-form effect programs. Phase 6c already
+extracted static text into `data/resources.jsonl`; Phase 6d takes the next
+step and replaces the *behavioural* C in `speak.c`, `subs.c`, `strid.c`,
+`towne.c`, `missions.c` with data the same loader produces.
 
-The world is one **JSON5 document** at `data/world.json5` (or a small set of
-`data/world/*.json5` documents unioned at load). One top-level object, one
-root per ontology branch:
+Two concrete wins:
+
+- A designer can change a mission, an NPC's lines, or a spell's damage
+  formula by editing one tree node and re-running. No C edit, no rebuild.
+- The replay harness (`tools/replay.sh`) pins byte-identity across the
+  entire stream — RNG is single-source (commit landing in this same series),
+  delays are zero under `RYL_NO_DELAY`, and the DSL adds no new entropy
+  beyond `["rand", lo, hi]` which routes through `ryl_random`.
+
+---
+
+## 2. World file: one tree, with imports
+
+The world lives at `data/world.json5`. JSON5 because designers hand-edit it:
+`// comments`, trailing commas, unquoted keys, single-or-double quotes.
+
+The root has one fixed shape — a small set of named subtrees, each owning
+one ontological domain:
 
 ```json5
 {
-  // --- static metadata ------------------------------------------------
-  flags: {
-    // Symbolic names for the integer flag slots scattered through
-    // p[cpl].flag[...] and npc[...].flag[...]. Replaces the bare
-    // integer indices the C port still uses.
-    "garth.bandits":        { slot: 1, values: ["none", "accepted", "recovered", "closed"] },
-    "church.donation.once": { slot: 5, values: ["no", "yes"] },
-  },
+  meta:    { ... },   // version, schema id
+  flags:   { ... },   // symbolic name -> integer slot, value enum
+  items:   { ... },   // id-keyed item records
+  classes: { ... },   // class name -> stat ranges, ability list, spell list
+  spells:  { ... },   // spell id -> effect program (referenced by classes)
+  npcs:    { ... },   // npc id -> dialogue tree
+  towns:   { ... },   // town id -> coords, services, NPC inhabitants
+  monsters: { ... },  // foe id -> stats (folds in the {"kind":"monster"} JSONL)
+  encounters: { ... }, // wilderness/dungeon roll tables
+  missions: { ... },  // mission id -> stages, triggers, rewards
+  map:     { ... },   // map grid; usually an `$import` to a side file
+  texts:   { ... },   // text id -> string (folds in {"kind":"text"} JSONL)
+}
+```
 
-  items: {
-    // Parallel to the existing {"kind":"item"} records in resources.jsonl;
-    // those get folded in at migration.
-    ruby:       { id: 111, cost: 0,     damage: 0 },
-    fireshield: { id:  27, cost: 15000, damage: 20 },
-  },
+### 2.1 Imports
 
-  // --- behaviour ------------------------------------------------------
-  classes: {
-    mage: {
-      prereq: { wi_gte: 50 },
-      spells: {
-        frost: {
-          slot: 1, base_cost: 8,
-          do: ["seq",
-            ["require", ["not", ["flag_eq", "encounter.immune", 1]]],
-            ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
-            ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
-            ["ask_target", "monster_alive"],
-            ["set", "$dmg", ["*", "caster.lv", ["+", ["rand", 0, 7], 2]]],
-            ["say", "spell.mage.frost.hit"],
-            ["sub", "target.hp", "$dmg"],
-            ["if", ["lt", "target.hp", 1],
-              ["seq", ["set", "target.hp", 0], ["set", "target.dead", 1],
-                     ["say", "common.killed"]]]],
-        },
-        // fire, hold, confusion, annihilate, ...
-      },
-    },
+Any subtree value may be replaced by an **import directive** — an object
+with one key, `$import`, whose value is a path relative to `data/`:
 
-    priest: {
-      prereq: { wi_gte: 50 },
-      spells: {
-        banish: {
-          slot: 4, base_cost: 85,
-          do: ["seq",
-            ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
-            ["require", ["in_dungeon"]],
-            ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
-            ["say", "spell.priest.banish.narration"],
-            ["pause"],
-            ["set", "state.banished", 1]],
-        },
-        // heal, teleport, earthquake, ...
-      },
-    },
-
-    fighter: { prereq: { ws_gte: 50 }, spells: {} },
-    thief:   { prereq: {},             spells: {} },
-    bard:    { prereq: { ch_gte: 50 }, spells: {} },
-    ranger:  { prereq: {},             spells: {} },
-  },
-
+```json5
+{
+  // ...
+  map: { $import: "world/map.json5" },
   npcs: {
-    garth: {
-      id: 1, job: "merchant",           // per person.c:76-81, ryl.c:45
-      dialogue: {
-        greeting: {
-          // First visit vs. repeat — same pattern speak.c:124-131 uses today.
-          do: ["if", ["flag_eq", "speaker.visited", 0],
-                ["seq", ["say", "garth.greet.first"],
-                       ["set", "speaker.visited", 1]],
-                ["say", "garth.greet.repeat"]],
-        },
-        "refund.accept": {
-          when: ["flag_eq", "garth.bandits", 2],
-          do: ["seq",
-            ["say", "garth.refund.grateful"],
-            ["give_item", "ruby"],
-            ["give_gold", 2000],
-            ["pause"],
-            ["set_flag", "garth.bandits", 3]],
-        },
+    garth: { $import: "world/npcs/garth.json5" },
+    nrim:  { $import: "world/npcs/nrim.json5" },
+    // small NPCs can stay inline:
+    rumour_bartender: { dialogue: { ... } },
+  },
+}
+```
+
+Semantics:
+- The loader resolves `$import` recursively at load time, before the eval
+  loop starts. The runtime tree is one merged structure; the engine never
+  sees `$import`.
+- Cycles are a fatal load-time error.
+- `$import` of `*.dat` (e.g. the legacy `data/map.dat` 80×40 char grid) is
+  recognised as raw bytes and decoded by a per-target adapter — see §3.7.
+- One file = one tree. No partial-merge inside a file.
+
+This is the "single big JSON5 with file imports" pattern the task asks for:
+the *file layout* can be sharded for editor sanity; the *runtime tree* is
+one structure.
+
+### 2.2 What stays in JSONL
+
+`data/resources.jsonl` keeps **per-save player state** that doesn't belong
+in a designer-authored world file: blessed replay output, score tables, etc.
+World-DSL records (`{"kind":"text"}`, `{"kind":"monster"}`, `{"kind":"item"}`)
+migrate into `world.json5` under their home subtree; the loader reads both
+during the transition window with JSON5 records shadowing JSONL records of
+the same id. Once a kind has fully migrated, the JSONL records for it can be
+deleted.
+
+Deliberately *not* in the world file: live `state.p[*]`, `state.npc[*]`
+runtime fields. Those are persisted to `realm.dat` / `npc.dat` exactly as
+today; the world file is the *schema and content*, not the save.
+
+---
+
+## 3. Subtree shapes
+
+Each subtree has a small, fixed schema. Cross-tree references are by id
+(usually the path component itself) — no string compares at runtime; the
+loader resolves them once into integer indices.
+
+### 3.1 `flags`
+
+```json5
+flags: {
+  "garth.bandits":         { slot: 1,  values: ["none", "accepted", "recovered", "closed"] },
+  "hermit.troll_tooth":    { slot: 33, values: ["none", "accepted", "extracted", "delivered"] },
+  "church.donation.once":  { slot: 5,  values: ["no", "yes"] },
+  "encounter.immune":      { slot: 0, scope: "encounter", values: ["no", "yes"] },
+}
+```
+
+`slot` is the integer index in `state.p[cpl].flag[]` (party scope) or in
+the encounter's transient flag set (`scope: "encounter"`). The string
+identifier is what every other subtree uses; the integer slot only exists
+for save-format compatibility.
+
+### 3.2 `items`
+
+```json5
+items: {
+  ruby:        { id: 111, kind: "treasure", cost: 0,     damage: 0 },
+  fireshield:  { id:  27, kind: "armour",  cost: 15000, ac: 20,
+                 wieldable_by: ["fighter", "ranger", "priest"], slot: "armour",
+                 effect: ["set", "party.fireshield", 1] },
+  potion_heal: { id:  36, kind: "consumable", cost: 200,
+                 effect: ["seq",
+                   ["ask_target", "party_alive"],
+                   ["add", "target.hp", ["+", 15, "target.lv"]],
+                   ["set", "target.hp", ["min", "target.hp", "target.h"]]] },
+  flute_madness: { id: 109, kind: "magic_item", cost: 0,
+                   wieldable_by: ["bard"], slot: "consumable",
+                   effect: ["seq",
+                     ["say", "strid.item.flute_of_madness"],
+                     ["set_flag", "encounter.confused", 1]] },
+}
+```
+
+Fields, by `kind`:
+
+- `weapon`: `damage` (int), `wieldable_by` (class id list), `slot: "weapon"`
+- `armour`: `ac` (int), `wieldable_by`, `slot: "armour"`
+- `consumable`: `effect` (effect program), `slot: "consumable"`
+- `magic_item`: `effect`, optional `wieldable_by`, `slot`
+- `treasure`: bare `cost`; no effect
+
+`wieldable_by` references class ids (`classes.<id>`). `effect` is an effect
+program (§6) — that's how "what does this potion do" is expressed.
+
+### 3.3 `classes`
+
+A class names the stat prereqs, what items its members may wield, and which
+spells they can cast. The spells themselves live in the `spells` subtree —
+the class only references them.
+
+```json5
+classes: {
+  fighter: {
+    prereq: { ws_gte: 50 },
+    starting: { weapon: "shortsword", armour: "leather" },
+    spells: [],
+  },
+  mage: {
+    prereq: { wi_gte: 50 },
+    starting: { weapon: "dagger", armour: null },
+    spells: ["mage.frost", "mage.fire", "mage.hold", "mage.confusion",
+             "mage.annihilate"],
+    casts_in: ["combat"],   // mage spells are combat-only
+  },
+  priest: {
+    prereq: { wi_gte: 50 },
+    starting: { weapon: "mace", armour: "leather" },
+    spells: ["priest.heal", "priest.banish", "priest.teleport",
+             "priest.earthquake", "priest.silence", "priest.morale"],
+    casts_in: ["combat", "exploration"],
+  },
+  bard:    { prereq: { ch_gte: 50 }, spells: [], casts_in: [] },
+  thief:   { prereq: {}, spells: [], casts_in: [] },
+  ranger:  { prereq: {}, spells: [], casts_in: [] },
+}
+```
+
+`prereq` keys are `ws_gte`, `wi_gte`, `h_gte`, `ch_gte` (matches the four
+rolled stats). `casts_in` controls which UI exposes the spell menu —
+`combat` = strid.c's `(C)ast Spell`, `exploration` = driv.c's `Z` key.
+Empty list = no menu offered.
+
+### 3.4 `spells`
+
+Each spell is one record with `slot`, `base_cost`, and a `do` effect
+program. Class membership lives in `classes.<id>.spells` (§3.3).
+
+```json5
+spells: {
+  "mage.frost": {
+    slot: 1, base_cost: 8,
+    do: ["seq",
+      ["require", ["not", ["flag_eq", "encounter.immune", 1]]],
+      ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
+      ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
+      ["ask_target", "monster_alive"],
+      ["set", "$dmg", ["*", "caster.lv", ["+", ["rand", 0, 6], 2]]],
+      ["say", "spell.mage.frost.hit"],
+      ["sub", "target.hp", "$dmg"],
+      ["if", ["lt", "target.hp", 1],
+        ["seq", ["set", "target.hp", 0], ["set", "target.dead", 1],
+               ["say", "common.killed"]]]],
+  },
+  "priest.banish": {
+    slot: 4, base_cost: 85,
+    do: ["seq",
+      ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
+      ["require", ["in_dungeon"]],
+      ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
+      ["say", "spell.priest.banish.narration"],
+      ["pause"],
+      ["set", "state.banished", 1]],
+  },
+}
+```
+
+`base_cost` is a sugar name accessible as a path inside the spell's own `do`
+body — saves repeating the literal twice. `slot` is the menu number rendered
+for that spell within its class menu.
+
+### 3.5 `npcs`
+
+An NPC is one dialogue tree. Each branch is keyed by id; the engine picks
+the matching branch by evaluating `when` guards in file order and falling
+back to `default`.
+
+```json5
+npcs: {
+  garth: {
+    id: 1,             // matches person.c:76-81 / ryl.c:45 numbering
+    job: "merchant",
+    home: "thord",     // back-reference to towns.thord (§3.6)
+    dialogue: {
+      greeting: {
+        // First-visit vs repeat — same pattern as speak.c:124-131.
+        do: ["if", ["flag_eq", "speaker.visited", 0],
+              ["seq", ["say", "garth.greet.first"],
+                     ["set", "speaker.visited", 1]],
+              ["say", "garth.greet.repeat"]],
+      },
+      "refund.accept": {
+        when: ["flag_eq", "garth.bandits", 2],
+        do: ["seq",
+          ["say", "garth.refund.grateful"],
+          ["give_item", "ruby"],
+          ["give_gold", 2000],
+          ["pause"],
+          ["set_flag", "garth.bandits", 3]],
+      },
+      "rumour": {
+        when: ["flag_eq", "garth.bandits", 0],   // tells rumours only before mission
+        do: ["call", "lib.rumour"],              // shared library node, see §3.10
       },
     },
-    // nrim'to, areth, bernak, ...
   },
+  // hermit, priestess, smith, ...
+}
+```
 
-  towns: {
-    // services live under a town because today's code keys on state.twn.
-    tardos: {
-      church: {
-        priestess: {
-          services: {
-            heal: {
-              do: ["seq",
-                ["ask_target", "party_alive"],
-                ["if", ["eq", "target.hp", "target.h"],
-                  ["seq", ["say", "church.heal.already_full"], ["pause"]],
-                  ["seq",
-                    ["say", "church.heal.quote"],
-                    ["if", ["gold_gte", ["*", 7, ["-", "target.h", "target.hp"]]],
-                      ["seq",
-                        ["take_gold", ["*", 7, ["-", "target.h", "target.hp"]]],
-                        ["set", "target.hp", "target.h"],
-                        ["say", "church.heal.success"]],
-                      ["say", "church.heal.no_gold"]]]]],
-            },
-            // resurrect, bless, cure_curse, ...
-          },
-        },
+Implicit binding: inside an NPC's effect, `speaker` is the NPC node itself
+(so `speaker.visited` reads `npc[1].visited[cpl]`); `caster` is unbound.
+Use `party.*` to talk about the party-side state and `target` after an
+`ask_target`.
+
+### 3.6 `towns`
+
+A town is its coordinates plus a list of services and inhabitants.
+Inhabitants are NPC ids; the dialogue lives under `npcs.*` and is referenced
+here so "who lives in Thord" is one place.
+
+```json5
+towns: {
+  thord: {
+    id: 1, coord: [12, 11],
+    inhabitants: ["garth", "thord_innkeeper", "thord_priestess",
+                  "thord_smith", "thord_tavernkeeper", "thord_bartender"],
+    services: {
+      church: { npc: "thord_priestess",  do: ["call", "lib.church.menu"] },
+      inn:    { npc: "thord_innkeeper",  do: ["call", "lib.inn.menu"]    },
+      smith:  { npc: "thord_smith",      do: ["call", "lib.smith.menu"]  },
+      tavern: { npc: "thord_tavernkeeper", do: ["call", "lib.tavern.menu"] },
+      shop:   { npc: "garth",            do: ["call", "lib.merchant.menu"] },
+    },
+  },
+  ollk:  { id: 2, coord: [48, 12], inhabitants: [...], services: {...} },
+  wilor: { id: 3, coord: [43, 20], inhabitants: [...], services: {...} },
+  murn:  { id: 4, coord: [55, 29], inhabitants: [...], services: {...} },
+}
+```
+
+`coord` matches the existing hard-coded `(state.p[x].x == 12 && y == 11)`
+literals in `interact.c:144-156` — those become a single `find_town(x, y)`
+helper backed by the `towns` subtree.
+
+`services.<key>.do` is the effect program that runs when the player picks
+that service from the town menu. Most are `["call", "lib.…"]` into a
+shared library (§3.10) because every town's church/inn/smith/tavern is the
+same flow with NPC-specific narration.
+
+### 3.7 `map`
+
+The map is an 80×41 grid of terrain characters. Two ways to express it:
+
+```json5
+// inline (only viable for tiny test maps):
+map: {
+  width: 80, height: 41,
+  legend: { s: "plains", f: "foothills", m: "mountain", w: "water",
+            d: "desert", t: "swamp", g: "forest", "0": "town", "1": "hut",
+            "2": "castle" },
+  grid: ["smffss...", "ssss...", ...],
+}
+
+// production: external file via $import
+map: { $import: "world/map.json5" }
+```
+
+The legacy `data/map.dat` (raw bytes, 41 × 81-byte lines) is loaded by a
+shim adapter when the import path ends in `.dat`:
+
+```json5
+map: { $import: "map.dat", format: "amiga-grid", width: 80, height: 41 }
+```
+
+Same runtime tree shape after import; the file format choice is invisible
+to the rest of the world.
+
+### 3.8 `monsters` and `encounters`
+
+Monsters are stat blocks; encounter tables map a roll bucket to a monster
+id. Today these are split across the `{"kind":"monster"}` JSONL records and
+the `(rand() % 14) + 40` style ranges in `subs.c` slumpvis. The DSL
+collapses both:
+
+```json5
+monsters: {
+  warrior: { id:  4, name: "Warrior", n: [1, 4], h: [50, 99], ws: 60 },
+  troll:   { id:  3, name: "Troll",   n: [1, 3], h: [99, 199], ws: 55 },
+  // ...
+},
+
+encounters: {
+  // wilderness (slumpvis):
+  wild_low:  { roll: ["rand", 1, 10], table: [
+    [1, "kobold"], [2, "orc"], [3, "troll"], [4, "warrior"],
+    [5, "goblin"], [6, "wild_dog"], [7, "knight"], [8, "bandit"],
+    [9, "hobgoblin"], [10, "zombie"]] },
+  wild_high: { roll: ["rand", 40, 53], table: [...] },
+  ydarg:     { roll: ["rand", 60, 79], table: [...] },
+},
+```
+
+Slumpvis becomes:
+
+```json5
+exploration: {
+  // every successful move in the wilderness fires this
+  on_step: ["seq",
+    ["set", "$r", ["rand", 0, 99]],
+    ["if", ["lt", "$r", 3],
+      ["call", "lib.cave_found_prompt"],
+      ["if", ["gte", "$r", 94],
+        ["if", ["chance", 50],
+          ["spawn_encounter", "wild_low"],
+          ["spawn_encounter", "wild_high"]],
+        ["call", "lib.terrain_msg"]]]],
+}
+```
+
+(The literal r-thresholds `<3 / >=94` are kept verbatim from `subs.c:109,114`
+to preserve the encounter probability.)
+
+### 3.9 `missions`
+
+A mission is a state machine, with stages, **triggers** that drive
+transitions, and rewards.
+
+```json5
+missions: {
+  bandits: {
+    flag: "garth.bandits",
+    given_by: "garth",
+    accepted_by: "garth.dialogue.refund.accept_quest",   // dialogue branch id
+    stages: {
+      none:      { },
+      accepted:  {
+        triggers: [
+          // wilderness encounter that completes the find-the-cargo step
+          { on: "wilderness_encounter", chance: 9, foe: "bandit",
+            do: ["seq",
+              ["say", "mission.bandits.attacked"],
+              ["pause"],
+              ["spawn_encounter", { foe: "bandit", n: 8, mandatory: true }],
+              ["say", "mission.bandits.cargo_found"],
+              ["pause"],
+              ["set_flag", "garth.bandits", 2]] },
+        ],
       },
-      // inn, merchant, tavern, smith, ...
+      recovered: {
+        // turn-in via dialogue; see npcs.garth.dialogue."refund.accept"
+        rewards: { gold: 2000, item: "ruby" },
+      },
+      closed: { },
     },
   },
 
-  missions: {
-    bandits: {
-      flag: "garth.bandits",
-      stages: {
-        // Each stage is addressable by the flag value it gates on.
-        accepted:  { reward: null },
-        recovered: { reward: { gold: 2000, item: "ruby" } },
-        closed:    { reward: null },
+  troll_tooth: {
+    flag: "hermit.troll_tooth",
+    given_by: "hermit",
+    stages: {
+      accepted:  {
+        triggers: [
+          { on: "wilderness_encounter", chance: 9, foe: "troll",
+            do: ["seq",
+              ["spawn_encounter", { foe: "troll", mandatory: true }],
+              ["say", "mission.troll_tooth.extracted"],
+              ["set_flag", "hermit.troll_tooth", 2]] },
+        ],
+      },
+      extracted: {
+        triggers: [
+          { on: "step_on_coord", coord: ["dx[1]", "dy[1]"],
+            do: ["call", "lib.dungeon_skull_prompt"] },
+        ],
+      },
+      delivered: { rewards: { gold: 5000 } },
+    },
+  },
+
+  // example trigger types beyond the two above:
+  example_terrain_event: {
+    flag: "example.flag",
+    stages: {
+      accepted: {
+        triggers: [
+          // First time the party steps on a mountain tile after the mission
+          // is accepted. State carried in `mission_state.example.mountain_seen`.
+          { on: "first_terrain_step", terrain: "m",
+            do: ["seq",
+              ["say", "example.first_mountain"],
+              ["set_flag", "example.flag", 2]] },
+          { on: "step_on_coord", coord: [42, 23],
+            do: ["call", "lib.cave_entrance"] },
+          { on: "stage_entered",       // fires once when stage becomes active
+            do: ["say", "example.go_find_x"] },
+          { on: "stage_exited",        // fires once when stage advances
+            do: ["say", "example.farewell"] },
+          { on: "day_passes", count: 5,   // fires every 5 in-game days
+            do: ["say", "example.urgency"] },
+          { on: "talk_to_npc", npc: "hermit",
+            do: ["seq", ["say", "example.hint"], ["pause"]] },
+        ],
       },
     },
   },
 }
 ```
 
-Shape, not byte-count: every domain (classes, npcs, towns, missions) is one
-subtree. A record's *path* (`classes.mage.spells.frost`) is its identity; no
-string cross-reference needed inside the tree. Cross-tree references
-(`"garth.bandits"`, `"ruby"`) still go through `flags` and `items`.
+**Trigger types** (the closed set the engine knows how to evaluate):
 
-## 3. Why JSON5 over JSONL
+| `on` | fired when | extra fields |
+|------|-----------|--------------|
+| `wilderness_encounter` | a slumpvis-driven combat begins | `chance` (% override), `foe` (filter) |
+| `step_on_coord` | party x/y matches | `coord: [x, y]` (path or literal) |
+| `step_on_terrain` | party moves onto matching tile | `terrain: <legend-key>` |
+| `first_terrain_step` | first matching tile since stage started | `terrain` |
+| `stage_entered` | stage becomes active (flag transitions in) | — |
+| `stage_exited` | stage becomes inactive (flag transitions out) | — |
+| `talk_to_npc` | dialogue branch entered | `npc`, optional `branch` |
+| `day_passes` | in-game day rollover | `count` (every N) |
 
-The existing `data/resources.jsonl` is line-delimited and parses today with
-`fgets` + `cJSON` (per port-plan §9, the 6b entry is already JSON5). The flat
-format has run its course for 6d because:
+Engine maintains `mission_state.<id>.<bookkeeping>` to back the
+"first/since" predicates (e.g. a bit set per terrain glyph for
+`first_terrain_step`). Bookkeeping is per-party, persisted alongside
+`p[i].flag[]`.
 
-- **Hierarchy is the type.** `classes.mage.spells.frost` *is* the spell's
-  identity. A flat `{"kind":"spell","id":"mage.frost","class":"mage",...}`
-  duplicates the hierarchy into strings and loses editor assists (fold the
-  `mage` node, jump-to-definition, diff a whole subtree).
-- **Comments and trailing commas.** Designers hand-edit this. JSON5
-  (`// comments`, `/* … */`, trailing commas, unquoted keys, single or
-  double quotes) is the minimum civil standard. JSONL gives you none of
-  those.
-- **Local context is visible.** Sibling spells are adjacent lines in the
-  file, not scattered across records sorted by id. An editor can see the
-  whole `priest` class in one screen.
-- **Cost.** A single-file parser (JSON5 → tree) lands once; from then on,
-  the loader walks the tree instead of dispatching on `"kind"` at every
-  record. Interpreter stays a tree walker; the walker's input is just one
-  tree instead of N records it has to index first.
+### 3.10 `lib`: shared subtrees
 
-The leaves stay as s-expr-in-JSON arrays (`["seq", ...]`, `["if", ...]`) so
-the *expression* language has no new syntax — only the *world file* gains
-structure. That's the important separation: hierarchy in JSON5, semantics in
-array-ops.
+For the inevitable "every town has the same church menu" duplication,
+declare a top-level `lib` and reference it from anywhere:
 
-**Parser choice.** Use an existing C JSON5 library (e.g. json5-c, json-c
-with extensions, or hand-roll ~400 LOC on top of the current JSON parser;
-JSON5's extensions over JSON are small). Not a new task parser, not a new
-lexer. Byte-for-byte load determinism still holds because the emitter is us.
-
-**Compatibility with existing records.** The 6a/6b records (items, classes,
-enums) fold in under their home subtrees. Records not yet converted stay in
-`resources.jsonl`; the loader reads both. No flag day.
-
-## 4. Design goals
-
-- **Single interpreter, two domains.** Dialogue effects and spell effects run
-  through the same `eval_cond` / `eval_effect` pair.
-- **Hierarchical world file.** The *data* reflects the game's ontology;
-  cross-references are reserved for genuinely shared entities (flags, items,
-  text ids).
-- **Determinism.** `rand` routes through `ryl_srand` / `ryl_rand` so that
-  `RYL_FAKE_SEED` pins replay output byte-for-byte (see commit 5c75637).
-- **Small, known grammar.** The surface expression syntax is JSON arrays:
-  `["+", "target.hp", 10]`. JSON5 wrapper + JSON-array leaves = a tree walker
-  over parsed values. No new lexer, no new parser generator.
-- **Byte-identity with the C reference.** Phase 6d migrates one record at a
-  time; replay harness (`tools/replay.sh`) must stay green after each.
-- **No side-channel state.** Every read and write is a named path
-  (`caster.ma`, `state.tid`, `party.gold`, `npc[1].flag[2]`). No hidden
-  globals — `ryl_state *s` is the interpreter's single root.
-- **Missing ids are loud.** An unresolved `say` id, flag name, or path is a
-  fatal load-time error, not a silent empty string. 6c policy; 6d inherits it.
-
-## 5. Grammar
-
-The grammar has two layers: the **outer world file** (JSON5 tree) and the
-**inner expression language** (JSON arrays, unchanged from the flat-record
-draft).
-
-### 5.1 Outer: world-file shape (JSON5)
-
-```bnf
-world         ::= '{' top-entry (',' top-entry)* '}'
-top-entry     ::= '"flags"'     ':' '{' flag-entry    (',' flag-entry)*    '}'
-                | '"items"'     ':' '{' item-entry    (',' item-entry)*    '}'
-                | '"classes"'   ':' '{' class-entry   (',' class-entry)*   '}'
-                | '"npcs"'      ':' '{' npc-entry     (',' npc-entry)*     '}'
-                | '"towns"'     ':' '{' town-entry    (',' town-entry)*    '}'
-                | '"missions"'  ':' '{' mission-entry (',' mission-entry)* '}'
-
-class-entry   ::= ident ':' '{' "prereq" ':' prereq ','
-                                "spells" ':' '{' spell-entry* '}' '}'
-spell-entry   ::= ident ':' '{' "slot" ':' int ',' "base_cost" ':' int ',' "do" ':' effect '}'
-npc-entry     ::= ident ':' '{' "id" ':' int ',' "job" ':' string ','
-                                "dialogue" ':' '{' diag-entry* '}' '}'
-diag-entry    ::= ident ':' '{' [ "when" ':' cond ',' ] "do" ':' effect '}'
-town-entry    ::= ident ':' '{' ( "church" | "inn" | "merchant"
-                                | "tavern" | "smith" ) ':' service-node ',' ... '}'
-service-node  ::= '{' ident ':' '{' "services" ':' '{' service-entry* '}' '}' '}'
-service-entry ::= ident ':' '{' [ "when" ':' cond ',' ] "do" ':' effect '}'
-mission-entry ::= ident ':' '{' "flag" ':' flag-ref ',' "stages" ':' '{' stage-entry* '}' '}'
-stage-entry   ::= ident ':' '{' [ "reward" ':' reward ] '}'
-prereq        ::= '{' ( ('ws_gte'|'wi_gte'|'h_gte'|'ch_gte') ':' int )* '}'
-reward        ::= 'null' | '{' ( "gold" ':' int | "item" ':' item-id )* '}'
+```json5
+lib: {
+  "rumour": { do: ["seq", /* the 33-case switch from towne.c rumour() */] },
+  "church.menu": { do: ["seq", /* the heal/resurrect/bless menu */] },
+  "inn.menu":    { do: ["seq", /* room rental + camp prompt */] },
+  // ...
+},
 ```
 
-JSON5 accepts unquoted keys and trailing commas; the BNF above shows the
-strict JSON form — real files lean into the JSON5 affordances.
+`["call", "lib.<id>"]` is an effect that evaluates the named library node's
+`do` body in the current binding environment (so `speaker` and `target`
+flow in). Loader resolves the lib id at link time; missing id is fatal.
 
-### 5.2 Inner: expression language (unchanged from first draft)
+---
 
-```bnf
-; --- conditions -----------------------------------------------------------
-cond          ::= '["and"' ',' cond (',' cond)* ']'
-                | '["or"'  ',' cond (',' cond)* ']'
-                | '["not"' ',' cond ']'
-                | '["flag_eq"' ',' flag-ref ',' int ']'
-                | '["has_item"' ',' item-id [ ',' count ] ']'
-                | '["gold_gte"' ',' int-expr ']'
-                | '["in_dungeon"]' | '["in_town"]' | '["in_wilderness"]'
-                | '["class_is"' ',' actor-ref ',' class-name ']'
-                | '["alive"' ',' actor-ref ']'
-                | '["eq"' ',' expr ',' expr ']'
-                | '["lt"' ',' expr ',' expr ']' | '["gte"' ',' expr ',' expr ']'
+## 4. Loader
 
-; --- effects --------------------------------------------------------------
-effect        ::= '["seq"' ',' effect (',' effect)* ']'
-                | '["if"' ',' cond ',' effect [ ',' effect ] ']'   ; then [else]
-                | '["say"' ',' text-id ']'
-                | '["pause"]' | '["clw"]'
-                | '["set_flag"' ',' flag-ref ',' int ']'
-                | '["give_gold"' ',' int-expr ']'
-                | '["take_gold"' ',' int-expr ']'
-                | '["give_item"' ',' item-id [ ',' count ] ']'
-                | '["take_item"' ',' item-id [ ',' count ] ']'
-                | '["set"'    ',' path ',' expr ']'
-                | '["add"'    ',' path ',' expr ']'
-                | '["sub"'    ',' path ',' expr ']'
-                | '["ask_target"' ',' target-kind ']'   ; binds `target`
-                | '["require"' ',' cond ']'             ; aborts effect on false
-                | '["journal"' ',' text-id ']'
-                | '["spawn_encounter"' ',' encounter-id ']'
-
-target-kind   ::= '"party_alive"' | '"party_any"' | '"party_dead"'
-                | '"monster_alive"' | '"monster_any"' | '"self"'
-
-; --- expressions ----------------------------------------------------------
-expr          ::= int | string | path
-                | '["+"' ',' expr (',' expr)+ ']'
-                | '["-"' ',' expr ',' expr ']'
-                | '["*"' ',' expr (',' expr)+ ']'
-                | '["/"' ',' expr ',' expr ']'
-                | '["min"' ',' expr (',' expr)+ ']'
-                | '["max"' ',' expr (',' expr)+ ']'
-                | '["clamp"' ',' expr ',' expr ',' expr ']'   ; x, lo, hi
-                | '["rand"' ',' int ',' int ']'               ; inclusive-exclusive
-                | '["cond"' ',' cond ',' expr ',' expr ']'    ; ternary
-
-; --- references -----------------------------------------------------------
-path          ::= actor '.' field | 'state.' state-field | 'party.' party-field
-                | 'npc[' int ']' '.' npc-field
-actor         ::= '"caster"' | '"target"' | '"speaker"' | '"self"'
-field         ::= 'hp' | 'h' | 'ma' | 'wi' | 'lv' | 'ac' | 'dead' | 'name'
-                | 'cl' | 'gold' | 'inventory[' int ']'
-state-field   ::= 'banished' | 'tid' | 'day' | 'twn' | 'place'
-                | 'last_terrain' | 'hours_pigg'
-party-field   ::= 'gold' | 'flag[' int ']' | 'flag.' string
-npc-field     ::= 'flag[' int ']' | 'visited[' int ']' | 'towne' | 'x' | 'y'
-flag-ref      ::= '"' ident ('.' ident)* '"'    ; symbolic, resolved via flags subtree
-actor-ref     ::= '"caster"' | '"target"' | ('"m"' int)  ; party slot 1..4
-text-id       ::= '"' ident ('.' ident)* '"'
-item-id       ::= int | '"' ident '"'           ; ident resolved via items subtree
-int-expr      ::= expr constrained to integers
+```
+res_load("data/world.json5")
+  -> parse JSON5 into in-memory tree (any C JSON5 parser)
+  -> resolve every $import recursively
+  -> link cross-tree refs (item ids, flag ids, lib ids, npc ids)
+     fail loudly on dangling reference
+  -> fold in legacy resources.jsonl records under their home subtrees
+  -> hand resolved tree to the runtime
 ```
 
-The JSON framing (`[op, arg, arg, …]`) is the whole surface syntax for
-expressions; everything else is a naming convention enforced by the
-interpreter.
+After `res_load`, the engine never re-parses or string-compares. All
+lookups are O(1) into integer-indexed tables built at load time. The world
+tree is read-only; mutable state lives in `ryl_state`.
 
-## 6. Semantics
+---
 
-**Evaluation order.** `seq` is left-to-right. Arithmetic ops are evaluated
-left-to-right with no operator precedence because the tree already makes
-precedence explicit. `if` evaluates condition first; only the taken branch is
-evaluated.
+## 5. Runtime APIs
 
-**Short-circuit.** `and` stops at the first false child; `or` at the first
-true; both return the boolean, not the last evaluated expression.
+The interpreter has four entry points, each consuming one tree path:
 
-**`require` semantics.** Inside an effect, `require` aborts the enclosing
-`seq` (returns cleanly to the caller) when the condition is false. This is
-the spell-level "not enough MP / wrong context" gate. It is **not** an
-exception — interpreter is exception-free, same convention as the C++17
-subset forbidden list (port-plan §6).
+```c
+// Dialogue: pick the matching branch under npcs.<npc>.dialogue and run it.
+void res_dialogue(const char *npc_id, const char *branch_id);
 
-**Binding.** `ask_target` reads a keystroke through the existing `key()` path
-(so replay scripts still drive it) and binds the resolved actor to the name
-`target` in the expression environment. `caster` is bound by the spell entry
-point (the party member whose turn chose this spell). In dialogue, `speaker`
-is the NPC (the enclosing `npcs.<ident>` node) and `caster` is unbound — use
-`"self"` to refer to the party-side `p[cpl]` root, or reference `party.*`
-directly.
+// Spell: run classes.<class>.spells.<spell>.do (or spells.<id>.do).
+void res_spell(const char *class_id, int slot);
 
-**Determinism and `rand`.** `["rand", lo, hi]` lowers to `ryl_rand()` (added
-in commit 5c75637), which honours `RYL_FAKE_SEED` + `RYL_FAKE_EPOCH`. Two
-runs with the same env and the same input keystrokes produce identical
-output — the precondition `tools/replay.sh` already depends on. The DSL adds
-no new entropy source.
+// Town service: run towns.<town>.services.<service>.do.
+void res_service(const char *town_id, const char *service_id);
 
-**Missing ids.** `say "priest.heal.unknown"` with no matching text record
-aborts at load time (link-style resolution). Same for `flag_eq` against an
-unregistered flag name, `give_item "not_a_thing"`, or a cross-tree reference
-with no target. No fallback to empty string, no "warn and continue"; this
-matches the 6c decision to make content errors fatal so they surface in CI
-rather than in a player's save.
+// Mission trigger sweep: called on every move and every encounter start;
+// walks active stages and fires matching triggers. State machine.
+void res_mission_tick(int trigger_kind, /* event-specific payload */);
+```
 
-**Integer width.** All numeric state is 32-bit `int` on today's port
-(`struct party` has `int hp[5]` etc.). The DSL keeps everything in `int32_t`
-and does not expose longs. `gold` is `int` too — matches existing struct.
+Each entry point pushes its own binding frame (`caster`, `speaker`,
+`target`, `$locals`) and tears it down on return.
 
-**Side effects outside the tree.** The interpreter may call `tx()`-equivalent
-primitives (via `say`, `pause`, `clw`), mutate `ryl_state`, and call into the
-inventory helpers (`give_item` goes through the same "drop one to make room"
-flow `drop_option()` already implements in `speak.c` — extraction preserves
-that behaviour). No direct file I/O, no process control.
+---
 
-**Resolution of cross-tree references.** `"garth.bandits"` in a `flag_eq`
-resolves via the `flags` subtree at load; `"ruby"` in `give_item` resolves
-via the `items` subtree. The interpreter never does string compares at run
-time — these are indices after load.
+## 6. Inner expression language (LOCKED — verbatim from prior drafts)
+
+```bnf
+; conditions
+cond  ::= ["and",  cond, cond, …]
+        | ["or",   cond, cond, …]
+        | ["not",  cond]
+        | ["flag_eq",   flag-ref, int]
+        | ["has_item",  item-id [, count]]
+        | ["gold_gte",  int-expr]
+        | ["in_dungeon"] | ["in_town"] | ["in_wilderness"]
+        | ["class_is",  actor-ref, class-name]
+        | ["alive",     actor-ref]
+        | ["chance",    int]                        ; pct, true with prob pct/100
+        | ["eq", expr, expr] | ["lt", expr, expr] | ["gte", expr, expr]
+
+; effects
+effect ::= ["seq", effect, effect, …]
+         | ["if",  cond, effect [, effect]]         ; then [else]
+         | ["say", text-id]
+         | ["pause"] | ["clw"]
+         | ["set_flag", flag-ref, int]
+         | ["give_gold", int-expr] | ["take_gold", int-expr]
+         | ["give_item", item-id [, count]] | ["take_item", item-id [, count]]
+         | ["set", path, expr] | ["add", path, expr] | ["sub", path, expr]
+         | ["ask_target", target-kind]              ; binds `target`
+         | ["require", cond]                        ; aborts enclosing seq on false
+         | ["journal", text-id]
+         | ["spawn_encounter", encounter-spec]      ; id or {foe,n,mandatory}
+         | ["call", lib-id]                         ; inline a lib node's do
+
+; expressions
+expr ::= int | string | path
+       | ["+", expr, expr, …] | ["-", expr, expr]
+       | ["*", expr, expr, …] | ["/", expr, expr]
+       | ["min", expr, …] | ["max", expr, …] | ["clamp", expr, expr, expr]
+       | ["rand", int, int]                         ; inclusive both ends
+       | ["cond", cond, expr, expr]                 ; ternary
+
+; references
+path  ::= actor "." field | "state." state-field | "party." party-field
+        | "npc[" int "]." npc-field | "$" ident    ; $ident = local binding
+actor ::= "caster" | "target" | "speaker" | "self"
+field ::= "hp" | "h" | "ma" | "wi" | "lv" | "ac" | "dead" | "name"
+        | "cl" | "gold" | "inventory[" int "]" | "visited"
+flag-ref  ::= "ident.ident…"     ; symbolic, resolved via flags subtree
+text-id   ::= "ident.ident…"
+item-id   ::= int | "ident"      ; ident resolved via items subtree
+target-kind ::= "party_alive" | "party_any" | "party_dead"
+              | "monster_alive" | "monster_any" | "self"
+```
+
+Targeting, evaluation order, short-circuit, `require` semantics, missing-id
+fatality, integer width — all unchanged from the prior draft (commit
+`99e3602` §6); see that history for the rationale.
+
+`["chance", N]` is new sugar over `["lt", ["rand", 0, 99], N]` matching the
+runtime `ryl_chance(N)` helper. Same probability, less line noise.
+
+---
 
 ## 7. Worked examples
 
-Each example shows the DSL leaf (the `do` body) and cites the C function it
-replaces. The enclosing tree nodes appear in §2; here we zoom in.
+### 7.1 Church heal (`towne.c:661-695`)
 
-### 7.1 Church heal — corresponds to `church()` H-branch in `towne.c:661-695`
+Tree path: `lib.church.menu.do` (referenced by every town's `services.church.do`).
 
-```jsonl
-["seq",
+```json5
+do: ["seq",
   ["ask_target", "party_alive"],
   ["if", ["eq", "target.hp", "target.h"],
     ["seq", ["say", "church.heal.already_full"], ["pause"]],
     ["seq",
       ["say", "church.heal.quote"],
-      ["if", ["gold_gte", ["*", 7, ["-", "target.h", "target.hp"]]],
-        ["seq",
-          ["take_gold", ["*", 7, ["-", "target.h", "target.hp"]]],
-          ["set", "target.hp", "target.h"],
-          ["say", "church.heal.success"]],
+      ["set", "$cost", ["*", 7, ["-", "target.h", "target.hp"]]],
+      ["if", ["gold_gte", "$cost"],
+        ["seq", ["take_gold", "$cost"],
+                ["set", "target.hp", "target.h"],
+                ["say", "church.heal.success"]],
         ["say", "church.heal.no_gold"]]]]]
 ```
 
-Location in tree: `towns.tardos.church.priestess.services.heal.do`. The
-priestess heals one party member for `7 × (missing hp)` gold. Formula from
-`towne.c:673-674`: `cost = (h - hp) * 7`. Narration ids live in text records
-(`church.heal.quote`, `church.heal.success`, `church.heal.no_gold`).
+### 7.2 Garth refund (`speak.c:401-447`, `flag[1] == 2`)
 
-### 7.2 priest.banish — corresponds to `case 4:` in `subs.c:848-879`
+Tree path: `npcs.garth.dialogue."refund.accept"`. Garth is npc 1 = merchant
+(per `person.c:76-81` and `ryl.c:45`); the "refund" is the bandit-cargo
+recovery payoff.
 
-```jsonl
-["seq",
-  ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
-  ["require", ["in_dungeon"]],
-  ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
-  ["say", "spell.priest.banish.narration"],
-  ["pause"],
-  ["set", "state.banished", 1]]
+```json5
+"refund.accept": {
+  when: ["flag_eq", "garth.bandits", 2],
+  do: ["seq",
+    ["say", "garth.refund.grateful"],
+    ["give_item", "ruby"],
+    ["give_gold", 2000],
+    ["pause"],
+    ["set_flag", "garth.bandits", 3]],
+}
 ```
 
-Location in tree: `classes.priest.spells.banish.do`. Costs `85 + caster.lv`
-MP, dungeons only, raises the party-wide `state.banished` flag that combat
-code reads. `base_cost` is a sugar name for the enclosing record's own
-`base_cost` field — saves repeating `85` twice.
+### 7.3 mage.frost (`strid.c:442-478`, `d == '1'`)
 
-### 7.3 Garth greeting (first-visit vs repeat)
+Tree path: `spells."mage.frost"`.
 
-The current `speak()` (`speak.c:124-131`) branches on
-`npc[talk].visited[cpl]` for the "welcomes you" vs "nods as he recognizes
-you" split.
-
-```jsonl
-["if", ["flag_eq", "speaker.visited", 0],
-  ["seq",
-    ["say", "garth.greet.first"],
-    ["set", "speaker.visited", 1]],
-  ["say", "garth.greet.repeat"]]
-```
-
-Location in tree: `npcs.garth.dialogue.greeting.do`. Generalises to any NPC
-record — `speaker` resolves to whichever `npcs.<ident>` node the engine
-entered. Pronoun / sex text is left to the narration record or to a `{he}`
-template slot (see open questions §8.3).
-
-### 7.4 Garth refund accept — corresponds to `case 1:` flag branch in `speak.c:401-447` (flag[1] == 2)
-
-**Caveat.** Garth is NPC 1 (*merchant*, per `person.c:76-81` and `ryl.c:45`),
-not the innkeeper. The "refund" is the bandit-loot-return merchant mission:
-player recovers the merchant's cargo, merchant pays 2000 gold plus a ruby.
-
-```jsonl
-// guard: {"when": ["flag_eq", "garth.bandits", 2]}
-["seq",
-  ["say", "garth.refund.grateful"],
-  ["give_item", "ruby"],
-  ["give_gold", 2000],
-  ["pause"],
-  ["set_flag", "garth.bandits", 3]]
-```
-
-Location in tree: `npcs.garth.dialogue."refund.accept"`. Triggered when the
-player returns with flag 2 (cargo recovered). Gives the ruby via the same
-`give_item` helper that handles the "inventory full → drop one?" flow
-already in `speak.c:426-440`. Advances the flag to 3 (mission closed). The
-mission subtree (`missions.bandits.stages.closed`) is the linkage to
-progress reporting.
-
-### 7.5 mage.frost — corresponds to `d == '1'` block in `strid.c:442-478`
-
-```jsonl
-["seq",
+```json5
+do: ["seq",
   ["require", ["not", ["flag_eq", "encounter.immune", 1]]],
   ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
   ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
   ["ask_target", "monster_alive"],
-  ["set", "$dmg", ["*", "caster.lv", ["+", ["rand", 0, 7], 2]]],
+  ["set", "$dmg", ["*", "caster.lv", ["+", ["rand", 0, 6], 2]]],
   ["say", "spell.mage.frost.hit"],
   ["sub", "target.hp", "$dmg"],
   ["if", ["lt", "target.hp", 1],
@@ -474,58 +667,122 @@ progress reporting.
            ["say", "common.killed"]]]]
 ```
 
-Location in tree: `classes.mage.spells.frost.do`. Costs `8 + caster.lv` MP,
-fizzles if the encounter is flagged immune, damages a single target for
-`caster.lv × (rand(0..6) + 2)` (exact match for `strid.c:464`:
-`p[cpl].lv[g] * ((rand() % 7) + 2)`). Kills the target if hp ≤ 0. The
-`$dmg` local is a temporary binding scoped to this `seq`.
+### 7.4 Bandits mission's "wilderness intercept"
 
-## 8. Open questions (defer to interpreter)
+Trigger evaluated by `res_mission_tick(WILDERNESS_ENCOUNTER, ...)` once per
+spawned encounter, before strid.c displays the foe.
 
-1. **Temporaries / let-bindings.** Example 7.5 uses `$dmg`. The grammar
-   doesn't formalise a `let` — it just says `set "$dmg", …`. Cleaner would
-   be `["let", [["dmg", expr]], effect]`. Punt until the second example
-   actually needs it.
-2. **`require` vs `if`.** `require` aborts the enclosing `seq`. If someone
-   wants a non-local exit past two levels of `seq`, we need a labelled
-   version. Probably don't.
-3. **Pronoun / sextext resolution.** The C code threads gender through
-   `sextext(who, case)` (see `subs.c:254`, cases in `subs.c:841-843`). Open
-   question: does `say` auto-template `{he}/{she}`, or does every narration
-   record carry its own gender-bearing id? Lean toward the former (one
-   record, runtime fills), but defer until 6e.
-4. **Inventory-full handling.** `give_item` needs to preserve the exact
-   "you can't carry it / drop option" user flow from `speak.c:428-440`.
-   Either the DSL exposes `drop_option` as a primitive, or `give_item` is
-   opinionated and implements it internally. Latter is less flexible but
-   matches today's behaviour 1:1.
-5. **Mission state machines.** Missions are the *reason* flags exist but
-   they are not themselves DSL expressions; they reference dialogue and
-   spell records by tree path. The `missions` subtree (§2) is descriptive
-   today — it gates nothing directly. A later pass can make stages *active*
-   (trigger narration on advance, etc.).
-6. **Ordering of `do` vs `when`.** A dialogue entry can have a `when` guard
-   that the engine evaluates before choosing which line to speak. Multiple
-   entries under the same NPC with overlapping `when` need a priority rule.
-   Simplest: file order wins. Formalise when 6d's second NPC has
-   overlapping branches — `speak.c:case 3` already does (flag[3] == 0 vs
-   flag[3] == 3).
-7. **Action costs in dialogue.** The `garth.refund` pays gold; the
-   `church.heal` takes gold. Should "take_gold + fail if short" be one
-   primitive? Could replace the `gold_gte` + `take_gold` pair with
-   `["charge", N, else-effect]`. Defer — two uses isn't enough to abstract.
-8. **Types.** Today the DSL is untyped (values are `int`-or-string). A
-   typed IR would catch `say` vs `set_flag` mix-ups at load time. If the
-   resource-lint tool (`tools/replay.sh`'s sibling) ever grows, a typed
-   load pass is the cheapest place to add it.
-9. **File split vs single file.** The whole world in one `data/world.json5`
-   vs one-file-per-subtree (`data/world/classes.json5`,
-   `data/world/npcs/garth.json5`, ...). Both load into the same tree.
-   Start single-file; split when one node exceeds ~500 lines. Don't split
-   preemptively — the reason to use a tree is to *see* siblings.
-10. **Migration path from `resources.jsonl`.** The 6a/6b/6c records already
-    live in JSONL. Migrate them into `world.json5` lazily — the loader
-    reads both; a JSONL record shadows a JSON5 record of the same id only
-    during the transition window. Delete `resources.jsonl` once every
-    record has moved. (Not before: a flag-day migration fights byte-
-    identity too hard.)
+```json5
+missions.bandits.stages.accepted.triggers: [
+  { on: "wilderness_encounter", chance: 9,
+    do: ["seq",
+      ["say", "mission.bandits.attacked"],
+      ["pause"],
+      ["spawn_encounter", { foe: "bandit", n: 8, mandatory: true }],
+      ["say", "mission.bandits.cargo_found"],
+      ["pause"],
+      ["set_flag", "garth.bandits", 2]] },
+]
+```
+
+`chance: 9` matches `missions.c:52` (`rand() % 100 > 90`); the engine evaluates
+the trigger only after a base wilderness encounter has been picked, then
+overrides it.
+
+### 7.5 First-mountain trigger
+
+Demonstrates `first_terrain_step` and the `mission_state` bookkeeping the
+engine carries:
+
+```json5
+missions.example.stages.accepted.triggers: [
+  { on: "first_terrain_step", terrain: "m",
+    do: ["seq",
+      ["clw"],
+      ["say", "example.first_mountain.flavor"],
+      ["pause"],
+      ["set_flag", "example.flag", 2]] },
+]
+```
+
+After the trigger fires once, the engine sets
+`mission_state.example.first_terrain_step.m = 1` so a subsequent step on
+mountain doesn't re-fire.
+
+---
+
+## 8. Boundaries
+
+Things deliberately **out of scope** for the world DSL:
+
+- **UI layout.** The four-corner status line, map window, MORE prompt
+  rendering — staying in C primitives. The DSL only emits text; layout is
+  the engine's job.
+- **Save format.** `realm.dat` / `npc.dat` byte layout is unchanged. The
+  DSL describes content; the save snapshots state.
+- **RNG implementation.** `ryl_random_init` / `ryl_random` / `ryl_chance`
+  live in C. `["rand", lo, hi]` and `["chance", pct]` are leaves that call
+  into them; the DSL never seeds or branches on RNG implementation
+  details.
+- **Networking, file I/O.** No `["http_get"]`, no `["fopen"]`. The
+  interpreter is pure with respect to the outside world; only the engine
+  owns side channels.
+
+Things deliberately **in scope** but not yet specified:
+
+- **Sextext templating.** `say` records will eventually carry `{he}/{she}`
+  slots filled per-target. Current draft punts; narration records are
+  pre-rendered with hard-coded pronouns until 6e.
+- **Inventory-full handling.** `give_item` to a full pack must reproduce
+  the existing "drop one to make room?" prompt (`speak.c:428-440`). DSL
+  exposes `give_item` as one primitive; engine implements the prompt.
+- **Active mission stages.** Today the `missions` subtree gates progress
+  but doesn't itself emit narration on stage transitions beyond the
+  trigger-list approach above. A later pass can lift more dialogue branches
+  *into* the mission tree if that proves more readable.
+
+---
+
+## 9. Migration plan
+
+1. **Parser + import resolver land first** as a standalone commit on top
+   of the existing JSONL loader. Both parsers coexist; loader reads JSON5
+   then JSONL; record kinds shadow.
+2. **Migrate one record at a time**, preferring leaf-level ports
+   (mage.frost first — exercises require/ask_target/rand/sub/kill-on-zero
+   in ~10 nodes; byte-identity verified against `strid.c` output via
+   `tools/replay.sh title-create-party-combat`).
+3. **Per-domain sweeps** once the interpreter handles all primitives a
+   domain needs: spells (strid.c + subs.c), then dialogue (speak.c), then
+   town services (towne.c), then missions (missions.c + interact.c
+   wilderness branch).
+4. **Drop `resources.jsonl`** when every record has migrated. Keep the
+   per-save persistence files (`realm.dat`, `npc.dat`).
+5. **Map externalisation last**. The 6c `map.dat` byte loader works fine;
+   replacing it with `map: { $import: "world/map.json5", format: ... }`
+   is mechanical once the import resolver exists. No rush.
+
+Each step preserves byte-identity by construction: the C reference and the
+DSL-driven runtime emit the same text and consume the same input. The
+replay harness gates every commit.
+
+---
+
+## 10. Open questions (deferred)
+
+1. **Let-bindings.** Examples 7.1 and 7.3 use `$locals`. Formalise as
+   `["let", [[name, expr], …], effect]` if a third site needs it.
+2. **`require` non-local exit.** Aborts enclosing `seq` only. If a deeper
+   exit is ever needed, add `["exit", level]`. Probably not.
+3. **Multiple matching `when` guards.** File order wins. Codify when the
+   first conflict appears.
+4. **Trigger frequency knobs.** `day_passes` / `step_on_terrain` could
+   gain a `cooldown` field; defer until used.
+5. **Typed load pass.** A schema validator (e.g. mismatched arg counts on
+   effects, wrong-typed paths) would catch a lot of hand-edit bugs at
+   load. Add when a designer asks.
+6. **Text record templating.** Sextext, capitalisation, list-joining
+   helpers. Defer to 6e.
+7. **Library node parameters.** `["call", "lib.x"]` runs in the caller's
+   environment. If a lib needs explicit args, generalise to
+   `["call", "lib.x", { arg: val, … }]`. Defer.

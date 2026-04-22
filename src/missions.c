@@ -49,7 +49,7 @@ uint8_t mission_control() {
         }
     }
     /******************************************************************/
-    if (state.p[state.cpl].flag[1] == 1 && rand() % 100 > 90) {
+    if (state.p[state.cpl].flag[1] == 1 && ryl_chance(9)) {
         clw();
         tx("You come across the\r\n");
         tx("camp of the bandits.\r\n");
@@ -67,7 +67,7 @@ uint8_t mission_control() {
         state.p[state.cpl].flag[1] = 2;
     }
     /******************************************************************/
-    if (state.p[state.cpl].flag[33] == 1 && rand() % 100 > 90) {
+    if (state.p[state.cpl].flag[33] == 1 && ryl_chance(9)) {
         encounter(3, 1);
         update_map();
         clw();
@@ -510,7 +510,7 @@ uint8_t mission_control() {
         }
     }
     /******************************************************************/
-    if (state.p[state.cpl].flag[6] == 4 && rand() % 100 > 90) {
+    if (state.p[state.cpl].flag[6] == 4 && ryl_chance(9)) {
         clw();
         tx("Just before you is a\r\n");
         tx("caravan of hobgoblins on\r\n");

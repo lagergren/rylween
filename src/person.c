@@ -38,24 +38,23 @@ void place_npcs() {
     ryl_log("A new campaign starts. Baron Ydarg awaits...\n");
 
     for (i = 1, j = 1; i < 25; i++, j++) {
-        Delay(30);
-        ryl_seed_now(i);
+        ryl_delay(600);
         if (j == 13) {
             j = 1;
         }
         state.npc[i].job = j;
         state.npc[i].nr = i;
-        state.npc[i].towne = (rand() % 5);
+        state.npc[i].towne = ryl_random(0, 4);
         if (state.npc[i].towne) {
-            state.npc[i].bl = (rand() % 2);
+            state.npc[i].bl = ryl_random(0, 1);
             state.npc[i].bl++;
         } else {
             state.npc[i].bl = 0;
         }
         if (!state.npc[i].towne) {
             while (1) {
-                state.npc[i].x = (rand() % 50) + 8;
-                state.npc[i].y = (rand() % 20) + 8;
+                state.npc[i].x = ryl_random(8, 57);
+                state.npc[i].y = ryl_random(8, 27);
                 if (state.npc[i].x == 48) {
                     state.npc[i].x++;  // No hermit collisions
                 }

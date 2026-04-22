@@ -119,7 +119,7 @@ void guild() {
 
                 snprintf(str2, sizeof str2, "data/internal/msg%d.dat", x);
                 tx("%s\n", str2);
-                Delay(100);
+                ryl_delay(2000);
                 cl();
                 c(0, 0);
                 editor(str2, 0);
@@ -156,8 +156,8 @@ void guild() {
                     }
                     tx("are in %s.\r\n\r\n", townname);
                 } else {
-                    xx = state.p[x].x + rand() % 5;
-                    yy = state.p[x].y + rand() % 5;
+                    xx = state.p[x].x + ryl_random(0, 4);
+                    yy = state.p[x].y + ryl_random(0, 4);
                     tx("were last seen in\r\n");
                     tx("the area around %dx%d.\r\n\r\n", xx, yy);
                 }
@@ -279,7 +279,7 @@ void editor(char *outfile, uint8_t bulletin) {
         }
     } else {
         tx("OPENING %s\r\n", outfile);
-        Delay(200);
+        ryl_delay(4000);
         fh2 = fopen(outfile, "a+");
         if (!fh2) {
             return;
@@ -318,7 +318,7 @@ void editor(char *outfile, uint8_t bulletin) {
     } else {
         tx("[37mBulletin Registered...\r\n");
     }
-    Delay(20);
+    ryl_delay(400);
 
     fclose(fh2);
 }
@@ -371,7 +371,7 @@ void check_terrain(char old, char new) {
     if (old == new) {
         return;
     }
-    if ((rand() % 100) > 8) {
+    if (!ryl_chance(9)) {
         return;
     }
 

@@ -106,7 +106,7 @@ void speak(int32_t bld, int32_t tow) {
         if (!x) {
             clw();
             tx("Noone is here!\r\n");
-            Delay(50);
+            ryl_delay(1000);
             return;
         }
         tx("\r\n");
@@ -135,7 +135,7 @@ void speak(int32_t bld, int32_t tow) {
         } else {
             tx("she recognizes you.\r\n");
         }
-        Delay(40);
+        ryl_delay(800);
     } else {
         state.npc[talk].visited[state.cpl] = 1;
     }
@@ -178,7 +178,7 @@ void speak(int32_t bld, int32_t tow) {
         }
 
         if (c == 'C') {
-            x = (rand() % 3);
+            x = ryl_random(0, 2);
             clw();
             switch (x) {
                 case 0:
@@ -204,7 +204,7 @@ void speak(int32_t bld, int32_t tow) {
                     }
                     break;
             }
-            Delay(50);
+            ryl_delay(1000);
             tx("\r\n");
             reply_chitchat(x, state.npc[talk].job);
             tx("\r\n");
@@ -439,7 +439,7 @@ void speak(int32_t bld, int32_t tow) {
                                 tx("- No money, eh?\r\n");
                                 tx("  don't bother\r\n");
                                 tx("  to come back!\r\n");
-                                Delay(100);
+                                ryl_delay(2000);
                                 break;
                             }
                             state.p[state.cpl].gold -= 50 * state.p[state.cpl].lv[1];
@@ -701,14 +701,14 @@ void flaggkoll(int32_t vem) {
                 }
                 if (!x) {
                     tx("You can't carry the gem.\r\n");
-                    Delay(40);
+                    ryl_delay(800);
                     carry = 0;
                     carry = drop_option();
                     if (carry) {
                         clw();
                         tx("You pick up the gem.\r\n");
                         state.p[state.cpl].inventory[carry] = 39;
-                        Delay(40);
+                        ryl_delay(800);
                     }
                 }
                 ryl_pause();
@@ -820,14 +820,14 @@ void flaggkoll(int32_t vem) {
                 }
                 if (!x) {
                     tx("You can't carry it!!!.\r\n\r\n");
-                    Delay(40);
+                    ryl_delay(800);
                     carry = 0;
                     carry = drop_option();
                     if (carry) {
                         clw();
                         tx("You take the blade.\r\n");
                         state.p[state.cpl].inventory[carry] = 18;
-                        Delay(40);
+                        ryl_delay(800);
                     }
                     ryl_pause();
                 }
@@ -1120,14 +1120,14 @@ void flaggkoll(int32_t vem) {
                 }
                 if (!x) {
                     tx("You can't carry it!!!.\r\n\r\n");
-                    Delay(40);
+                    ryl_delay(800);
                     carry = 0;
                     carry = drop_option();
                     if (carry) {
                         clw();
                         tx("You take the sword.\r\n");
                         state.p[state.cpl].inventory[carry] = 16;
-                        Delay(40);
+                        ryl_delay(800);
                     }
                 }
                 ryl_pause();
@@ -1318,13 +1318,13 @@ void flaggkoll(int32_t vem) {
                 if (!x) {
                     clw();
                     tx("You can't carry it!\r\n\r\n");
-                    Delay(40);
+                    ryl_delay(800);
                     carry = 0;
                     carry = drop_option();
                     if (carry) {
                         clw();
                         tx("You take the cloak.\r\n");
-                        Delay(40);
+                        ryl_delay(800);
                         state.p[state.cpl].inventory[carry] = 28;
                     }
                     ryl_pause();
@@ -1504,7 +1504,7 @@ void flaggkoll(int32_t vem) {
                     if (oc < 35) {
                         clw();
                         tx("- NAH, THINK NOT!.\r\n");
-                        Delay(50);
+                        ryl_delay(1000);
                         break;
                     } else {
                         clw();
