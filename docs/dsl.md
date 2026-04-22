@@ -786,3 +786,23 @@ replay harness gates every commit.
 7. **Library node parameters.** `["call", "lib.x"]` runs in the caller's
    environment. If a lib needs explicit args, generalise to
    `["call", "lib.x", { arg: val, … }]`. Defer.
+8. **Auto line-wrap for paragraph-form texts.** Today every text record
+   is either a string (verbatim) or an array of lines joined with `\r\n`
+   and a trailing `\r\n` — authors control every break. `meta.text_window`
+   (`max_lines` / `max_cols`) records the target geometry but doesn't
+   drive formatting yet. When migration is complete and byte-identity is
+   no longer the correctness gate, introduce a third leaf form: a single
+   long string (JSON5 multiline OK) that the loader word-wraps at
+   `max_cols`, pushing breaks at spaces and emitting `\r\n`. Array form
+   remains as an escape hatch for author-forced breaks. Rationale: the
+   existing breaks were authorial judgment calls the original runtime
+   can't reproduce from a wrapper; enforcing wrap now would re-bless
+   every replay baseline, which we only want to do once the evaluator
+   is actually generating most of the text on its own.
+9. **Longer text conveniences.** Once (8) lands: accept JSON5 multiline
+   string literals for records that span many visual lines; allow
+   `{ wrap: false, text: "..." }` form to opt a specific record back
+   out of wrapping; allow `{ lines: [...] }` as an explicit-lines form
+   for symmetry with wrap-enabled records. None of this needs to land
+   before the world + save split; all three are compatible additions
+   to the existing array-of-strings convention.

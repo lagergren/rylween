@@ -1,0 +1,35 @@
+// Priest-spell narration. Historical `spell.*` ids (singular) are kept
+// for now so existing call sites keep working; as spells migrate into
+// the DSL one by one, each record will move next to its spell node
+// under world.json5 `spells:` and the `spell.*` root shrinks.
+{
+  not_enough_pts: ['Not enough spell pts!'],
+  priest: {
+    banish: {
+      thunder: ['There is a deafening clap',
+                'of thunder, and you hear',
+                'beings scream in agony',
+                'in the dungeon below...',
+                ''],
+    },
+    teleport: {
+      satchel:  ['from his satchel and',
+                 'uses a special instrument',
+                 'to scratch the direction'],
+      compass:  ['Teleport :',
+                 '',
+                 '   8',
+                 ' 4-+-6',
+                 '   2',
+                 ''],
+      how_far:  ['How many miles do you',
+                 'want to travel? (1-9)'],
+      arrived:  ['You appear to be',
+                 'somewhere else.'],
+    },
+    earthquake: {
+      incantation: ['three syllabels in an', 'archaic tongue...', ''],
+      eruption:    ['and the ground cracks', 'open!'],
+    },
+  },
+}

@@ -62,6 +62,10 @@ typedef struct {
 
 static text_rec *texts;
 static size_t n_texts;
+/* Unsorted during JSONL load; set after the final fold so res_text can
+   switch from linear scan to bsearch. handle_text / emit_text clear it
+   on every append so a late add never reads a stale sorted flag. */
+static int texts_sorted;
 
 static ryl_item    items[RES_MAX_ITEM_ID + 1];
 static ryl_monster monsters[RES_MAX_MONSTER_ID + 1];
@@ -335,6 +339,7 @@ static void handle_text(const kv *kvs, size_t n, const char *path, int line) {
     text_rec *r = &texts[n_texts++];
     r->id = strdup(id);
     r->text = strdup(text);
+    texts_sorted = 0;
 }
 
 static void handle_sextext(const kv *kvs, size_t n, const char *path, int line) {
@@ -429,11 +434,26 @@ const char *res_enum(const char *id, int index) {
     return "";
 }
 
+static int text_cmp(const void *a, const void *b) {
+    return strcmp(((const text_rec *) a)->id, ((const text_rec *) b)->id);
+}
+
+static void texts_sort(void) {
+    if (texts_sorted || n_texts == 0) return;
+    qsort(texts, n_texts, sizeof *texts, text_cmp);
+    texts_sorted = 1;
+}
+
 const char *res_text(const char *id) {
-    for (size_t i = 0; i < n_texts; i++) {
-        if (strcmp(texts[i].id, id) == 0) return texts[i].text;
+    if (!texts_sorted) {
+        for (size_t i = 0; i < n_texts; i++) {
+            if (strcmp(texts[i].id, id) == 0) return texts[i].text;
+        }
+        return "";
     }
-    return "";
+    text_rec key = { (char *) id, NULL };
+    text_rec *hit = bsearch(&key, texts, n_texts, sizeof *texts, text_cmp);
+    return hit ? hit->text : "";
 }
 
 const ryl_item *res_item(int id) {
@@ -873,6 +893,77 @@ static void fold_items(const node *items_node, const char *path) {
     }
 }
 
+/* -------- texts subtree (shadows JSONL; docs/dsl.md §2.2) --------
+   Hierarchical: every nested object's key becomes one dotted segment of
+   the final text id. Leaves are either strings (verbatim) or arrays of
+   strings (joined with \r\n, trailing \r\n appended). Emitted records
+   are sorted once after all world folds complete, enabling bsearch. */
+static void emit_text(const char *id, const char *text) {
+    text_rec *grown = realloc(texts, (n_texts + 1) * sizeof *texts);
+    if (!grown) { fprintf(stderr, "res: oom\n"); exit(1); }
+    texts = grown;
+    texts[n_texts].id = strdup(id);
+    texts[n_texts].text = strdup(text);
+    n_texts++;
+    texts_sorted = 0;
+}
+
+static char *join_lines_crlf(const node *arr, const char *path) {
+    size_t total = 0;
+    for (size_t i = 0; i < arr->u.arr.n; i++) {
+        const node *el = arr->u.arr.items[i];
+        if (el->kind != N_STR) die(path, el->line, "texts: line must be string");
+        total += strlen(el->u.sv) + 2;
+    }
+    char *out = malloc(total + 1);
+    if (!out) die(path, arr->line, "oom");
+    size_t o = 0;
+    for (size_t i = 0; i < arr->u.arr.n; i++) {
+        const char *s = arr->u.arr.items[i]->u.sv;
+        size_t n = strlen(s);
+        memcpy(out + o, s, n);
+        o += n;
+        out[o++] = '\r';
+        out[o++] = '\n';
+    }
+    out[o] = 0;
+    return out;
+}
+
+static void fold_texts_walk(const node *n, const char *prefix, const char *path) {
+    if (!n) return;
+    if (n->kind == N_STR) {
+        emit_text(prefix, n->u.sv);
+        return;
+    }
+    if (n->kind == N_ARR) {
+        char *joined = join_lines_crlf(n, path);
+        emit_text(prefix, joined);
+        free(joined);
+        return;
+    }
+    if (n->kind == N_OBJ) {
+        char buf[256];
+        for (size_t i = 0; i < n->u.obj.n; i++) {
+            const char *key = n->u.obj.items[i].key;
+            if (!prefix[0]) {
+                snprintf(buf, sizeof buf, "%s", key);
+            } else {
+                snprintf(buf, sizeof buf, "%s.%s", prefix, key);
+            }
+            fold_texts_walk(n->u.obj.items[i].val, buf, path);
+        }
+        return;
+    }
+    die(path, n->line, "texts: unexpected node kind");
+}
+
+static void fold_texts(const node *texts_node, const char *path) {
+    if (!texts_node) return;
+    if (texts_node->kind != N_OBJ) die(path, texts_node->line, "texts: expected object");
+    fold_texts_walk(texts_node, "", path);
+}
+
 /* -------- classes + spells subtree (shadows JSONL; docs/dsl.md §2.2) --
    Populates the legacy ryl_spell tables from the new world tree so the
    cast menu still has name/base_cost to render. The spell's enum effect
@@ -935,12 +1026,14 @@ void res_load_world(const char *path) {
     fold_flags(obj_get(root, "flags"), path);
     fold_items(obj_get(root, "items"), path);
     fold_spells(obj_get(root, "classes"), obj_get(root, "spells"), path);
+    fold_texts(obj_get(root, "texts"), path);
 
     /* Walk every effect / cond / expr array in the tree and rewrite path
        strings (e.g. "caster.hp", "$dmg") in place to N_PATH. After this,
        the evaluator hot path does zero strcmp on actor/field names. */
     compile_world_tree(root, path);
     world_tree = root;
+    texts_sort();
 }
 
 const void *res_world(void) {

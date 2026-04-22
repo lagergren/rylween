@@ -7,6 +7,10 @@
   meta: {
     version: 1,
     schema:  'rylween-world-v0',
+    // Forward-compat hook: when line-wrap becomes the default for
+    // paragraph-form texts, the wrapper uses these dimensions. Not
+    // consumed at runtime yet — existing texts ship pre-wrapped.
+    text_window: { max_lines: 15, max_cols: 26 },
   },
 
   // Symbolic mission-flag names (§3.1). `slot` is the index in
@@ -24,6 +28,20 @@
   // (§2.1). The shard is a plain JSON5 object; the resolver splices it
   // in place of this directive at load time.
   items: { $import: 'world/items.json5' },
+
+  // Texts sharded by top-level prefix; each leaf is either a string
+  // (verbatim) or an array of lines (joined with \r\n, trailing \r\n
+  // appended). fold_texts recursively flattens the tree into dotted
+  // ids and sorts them for bsearch lookup in res_text.
+  texts: {
+    title:  { $import: 'world/texts/title.json5' },
+    driv:   { $import: 'world/texts/driv.json5' },
+    strid:  { $import: 'world/texts/strid.json5' },
+    subs:   { $import: 'world/texts/subs.json5' },
+    cave:   { $import: 'world/texts/cave.json5' },
+    spell:  { $import: 'world/texts/spell.json5' },
+    common: { $import: 'world/texts/common.json5' },
+  },
 
   // Class records (§3.3). Only the `spells` list is consumed today —
   // prereqs/starting gear stay in C (driv.c createparty) until those

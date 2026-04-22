@@ -1,0 +1,13 @@
+// subs.c: faint / losegame narration. (The cave-discovery prompt that
+// subs.c uses lives in data/world/texts/cave.json5 so the text ids
+// retain their historical top-level prefix.)
+{
+  faint: ['You faint from lack', 'of well needed sleep.'],
+  losegame: {
+    flavor: ['Alas, your party of',
+             'adventurers have all',
+             'gone to meet their',
+             'maker...',
+             ''],
+  },
+}

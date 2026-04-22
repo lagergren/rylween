@@ -1,0 +1,97 @@
+// Combat text (strid.c). Grouped by combat-phase/effect so adjacent
+// records cluster like they read in the game: run/item/prompt/spell/
+// cry/rest/defend/victory/monster/killed.
+{
+  run: {
+    coward:          ["Coward. You won't get",    'any EXP for this battle.'],
+    desperate_fail:  ['You desperately try to',   'get away, but fail!'],
+    fail_away:       ['You fail to get away!'],
+    escaped:         ['You escaped...'],
+  },
+  item: {
+    magic_immune:    ["The magic item doesn't seem",
+                      'to work on this enemy!!!'],
+    sparks_bump:     ['at the enemy. It',
+                      'breaks before them in',
+                      'a rain of sparks.',
+                      'They bump into each',
+                      'other as they try to',
+                      'see you.',
+                      ''],
+    light_blind:     ['gem at the enemy.',
+                      'It breaks, releasing',
+                      'a brilliant cloud',
+                      'of light which completely',
+                      'surrounds them. As the',
+                      'light fades, your enemies',
+                      'are blind.',
+                      ''],
+    ghost_axe: {
+      wounds:        ['It wounds them severely',
+                      'as it spins around,',
+                      'wielded by hands you',
+                      'cannot see!'],
+    },
+    battle_cry:      ['With a raging battle',
+                      'cry, you attack the',
+                      'mortally wounded foes!'],
+  },
+  prompt: {
+    on_whom:         ['On Whom? (1-4)'],
+    who:             ['Who?', ''],
+  },
+  spell: {
+    morale_quest:    ['The party feels their',
+                      'spirits grow. You are',
+                      'all stronger than',
+                      'before.',
+                      ''],
+    party_healed:    ['The party is fully', 'healed!', ''],
+    fizzle:          ['The spell fizzles!',
+                      'this creature is immune',
+                      'to ordinary magic!!!'],
+    not_enough_magic:['Not enough magic!'],
+    mirror:          ['Your images wavers and',
+                      'blurs in front of your',
+                      'enemies'],
+    annihilate: {
+      resist:        ['Through INCREDIBLE',
+                      'resistance, the enemy',
+                      'is still alive, badly',
+                      'wounded.'],
+      kill:          ['The enemy is wiped',
+                      'straigt off the surface',
+                      'of the earth!'],
+    },
+    hold_enemy:      ['The enemies freeze dead', 'in their tracks.'],
+    silence:         ['The enemy is now',
+                      'stopped from using magic.',
+                      'against you this round.'],
+    // Frost: migrated to world.json5 spells.'mage.frost' do-body
+    // (commit de9c178). %s = caster name, %d = damage roll.
+    frost: {
+      chills:        ['%s chills the'],
+      damage:        ['opponent for %d'],
+      damage_pts:    ['damage pts.'],
+    },
+  },
+  cry: {
+    off_guard:       ['(You manage to scare your',
+                      ' enemies enough to get',
+                      ' them off guard.)'],
+  },
+  rest: {
+    gain_hits:       ['You gain some hits pts', 'as you rest this round.'],
+  },
+  defend: {
+    stance:          ['You put up a defensive', 'stance...'],
+  },
+  victory: {
+    bested:          ['Thou hast bested', 'thy foes.', ''],
+  },
+  monster: {
+    hold_player:     ['You realize with horror', 'that you cannot move!'],
+    confusion:       ['You are almost blinded', 'by a colorful haze.'],
+  },
+  killed:            ['...KILLED!'],
+}

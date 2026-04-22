@@ -1,0 +1,33 @@
+// Main-loop text: moves/save/quit/view/drop/journal. Authored by
+// driv.c's main menu and its daily-exhaustion branches.
+{
+  moves: {
+    out_of_moves: ['You are out of moves', 'for today.', ''],
+  },
+  menu: {
+    out_of_moves: ['(S)ave and Quit', '(Q)uit (no save)'],
+  },
+  save: {
+    saving: ['Saving position...'],
+    done:   ['Done.'],
+  },
+  quit: {
+    farewell: ['Fare thee well.'],
+    confirm:  ['Do you really want', 'to quit?', ''],
+  },
+  move: {
+    pass:     ['Pass...'],
+    no_moves: ['No moves left!'],
+  },
+  view: {
+    who: ['Who? (1-4/Q/A)'],
+  },
+  drop: {
+    another: ['Do you want to drop', 'another object? (y/N)'],
+  },
+  journal: {
+    header: ['',
+             "============================= TRAVELLER'S JOURNAL ==============================",
+             ''],
+  },
+}
