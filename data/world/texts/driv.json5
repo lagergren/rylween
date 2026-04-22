@@ -99,11 +99,15 @@
                       ''],
   },
 
-  // 'C' continue branch: daily-entry gate. The %d for remaining turns
-  // stays inline, so the chain splits around it.
+  // 'C' continue branch: daily-entry gate. {turns} = remaining turns,
+  // filled in by tx_fmt at call time (§16.3).
   entry: {
-    exhausted_pre:  ['Sorry! You can\'t enter', 'the realm again today.'],
-    exhausted_post: ['per day to use your', 'moves on.', ''],
+    exhausted: ['Sorry! You can\'t enter',
+                'the realm again today.',
+                'You only have {turns} turns',
+                'per day to use your',
+                'moves on.',
+                ''],
   },
 
   // 'T' terminate branch: confirm prompt, per-step progress, final banner.

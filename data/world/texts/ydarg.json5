@@ -201,10 +201,11 @@
                     "from Ydarg's stick, it",
                     'hurtles towards you!!!',
                     ''],
-    // Split around the `tx("%s turns\r\n", name[1])` format call in
-    // the middle of this paragraph.
-    mages_pre:     ['Suddenly! You feel someone'],
-    mages_post:    ['around and discovers the',
+    // {p1_name} = state.p[cpl].name[1]; filled in by tx_fmt at call
+    // time (§16.3).
+    mages:         ['Suddenly! You feel someone',
+                    'else near. {p1_name} turns',
+                    'around and discovers the',
                     'four grey-clad mages!',
                     'They simultaneously raise',
                     'their hands, and the',

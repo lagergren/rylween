@@ -555,11 +555,15 @@ void init() {
                     }
                     fclose(fh);
                     if (i >= 4) {
+                        char turns[8];
                         j = 4;
+                        snprintf(turns, sizeof turns, "%d", j);
                         clw();
-                        tx0(res_text("driv.entry.exhausted_pre"));
-                        tx("You only have %d turns\r\n", j);
-                        tx0(res_text("driv.entry.exhausted_post"));
+                        tx_fmt("driv.entry.exhausted",
+                               (ryl_bind[]){
+                                   {"turns", turns},
+                                   {0},
+                               });
                         ryl_pause();
                         cleanexit();
                     }

@@ -449,9 +449,11 @@ static void confrontation() {
     tx0(res_text("ydarg.conf.sphere"));
     ryl_pause();
     clw();
-    tx0(res_text("ydarg.conf.mages_pre"));
-    tx("else near. %s turns\r\n", state.p[state.cpl].name[1]);
-    tx0(res_text("ydarg.conf.mages_post"));
+    tx_fmt("ydarg.conf.mages",
+           (ryl_bind[]){
+               {"p1_name", state.p[state.cpl].name[1]},
+               {0},
+           });
     ryl_pause();
     clw();
     tx0(res_text("ydarg.conf.curses"));
