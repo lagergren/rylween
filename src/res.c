@@ -13,7 +13,7 @@
  *   3. fold_*: walk the known subtrees (flags / items / monsters /
  *      classes+spells / texts / terrain / sextext / enums) and populate
  *      the matching legacy in-memory tables (ryl_item / ryl_monster /
- *      ryl_spell / kar_tab / color_tab / sextext_tab / enums / texts).
+ *      ryl_spell / glyph_tab / color_tab / sextext_tab / enums / texts).
  *   4. compile_world_tree: rewrite every path-position N_STR (e.g.
  *      "caster.hp", "$dmg") to a packed N_PATH so the evaluator hot
  *      path does zero strcmp on actor/field names.
@@ -64,7 +64,7 @@ static ryl_monster monsters[RES_MAX_MONSTER_ID + 1];
 static ryl_spell priest_spells[RES_MAX_SPELL_SLOT + 1];
 static ryl_spell mage_spells[RES_MAX_SPELL_SLOT + 1];
 
-static char   *kar_tab[256];
+static char   *glyph_tab[256];
 static int32_t color_tab[256];
 static int     color_tab_set[256];
 static int32_t color_default = 36;    /* cyan */
@@ -182,13 +182,13 @@ const ryl_spell *res_spell(const char *class_name, int slot) {
     return tab[slot].name ? &tab[slot] : NULL;
 }
 
-const char *res_kar(char glyph) {
-    unsigned char g = (unsigned char) glyph;
-    return kar_tab[g] ? kar_tab[g] : "  ";
+const char *res_glyph(char terrain) {
+    unsigned char g = (unsigned char) terrain;
+    return glyph_tab[g] ? glyph_tab[g] : "  ";
 }
 
-int32_t res_color(char glyph) {
-    unsigned char g = (unsigned char) glyph;
+int32_t res_color(char terrain) {
+    unsigned char g = (unsigned char) terrain;
     return color_tab_set[g] ? color_tab[g] : color_default;
 }
 
@@ -798,24 +798,25 @@ static void fold_spells(const node *classes_node, const node *spells_node, const
 }
 
 /* -------- terrain subtree --------
-   Keyed by the literal map.dat glyph byte as a single-character string
-   so the record reads the same way the map file stores it. `kar` is
-   the two-char cell; `color` is one of the ANSI foreground colour
-   names black/red/green/yellow/blue/magenta/cyan/white. */
+   Keyed by the literal map.dat byte as a single-character string so
+   the record reads the same way the map file stores it. `glyph` is
+   the two-char cell the renderer writes; `color` is one of the ANSI
+   foreground colour names black/red/green/yellow/blue/magenta/cyan/
+   white. */
 static void fold_terrain(const node *terrain_node, const char *path) {
     if (!terrain_node) return;
     if (terrain_node->kind != N_OBJ) die(path, terrain_node->line, "terrain: expected object");
     for (size_t i = 0; i < terrain_node->u.obj.n; i++) {
-        const char *glyph = terrain_node->u.obj.items[i].key;
+        const char *key = terrain_node->u.obj.items[i].key;
         const node *rec = terrain_node->u.obj.items[i].val;
-        if (!glyph || !glyph[0] || glyph[1]) die(path, rec->line, "terrain: key must be one-char string");
+        if (!key || !key[0] || key[1]) die(path, rec->line, "terrain: key must be one-char string");
         if (rec->kind != N_OBJ) die(path, rec->line, "terrain: entry must be object");
-        unsigned char g = (unsigned char) glyph[0];
-        const node *kar_n = obj_get(rec, "kar");
-        if (kar_n) {
-            if (kar_n->kind != N_STR) die(path, kar_n->line, "terrain: kar must be string");
-            free(kar_tab[g]);
-            kar_tab[g] = strdup(kar_n->u.sv);
+        unsigned char g = (unsigned char) key[0];
+        const node *glyph_n = obj_get(rec, "glyph");
+        if (glyph_n) {
+            if (glyph_n->kind != N_STR) die(path, glyph_n->line, "terrain: glyph must be string");
+            free(glyph_tab[g]);
+            glyph_tab[g] = strdup(glyph_n->u.sv);
         }
         const node *color_n = obj_get(rec, "color");
         if (color_n) {

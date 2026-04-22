@@ -86,22 +86,22 @@
     priest: { $import: 'world/spells/priest.json5' },
   },
 
-  // Terrain glyphs — keyed by the literal map.dat byte so the author
-  // can see exactly which map character gets which display/colour.
-  // `kar` is the two-char ANSI cell; `color` is the foreground colour
-  // name (ANSI 30..37: black/red/green/yellow/blue/magenta/cyan/white).
-  // Unknown glyphs render as "  " at cyan.
+  // Terrain — keyed by the literal map.dat byte so the author can see
+  // exactly which map character gets which rendered form. `glyph` is
+  // the two-char cell the renderer writes to the terminal; `color` is
+  // the ANSI foreground name (black/red/green/yellow/blue/magenta/
+  // cyan/white). Unknown map bytes render as "  " in cyan.
   terrain: {
-    'm': { kar: '/\\', color: 'white' },
-    'w': { kar: '~~', color: 'blue' },
-    's': { kar: '..', color: 'yellow' },
-    '0': { kar: 'TT', color: 'white' },
-    '1': { kar: 'HH', color: 'white' },
-    'f': { kar: '^^', color: 'white' },
-    'd': { kar: '::', color: 'red' },
-    't': { kar: '%%', color: 'magenta' },
-    'g': { kar: 'gg', color: 'green' },
-    '2': { kar: 'CC', color: 'white' },
+    'm': { glyph: '/\\', color: 'white' },
+    'w': { glyph: '~~', color: 'blue' },
+    's': { glyph: '..', color: 'yellow' },
+    '0': { glyph: 'TT', color: 'white' },
+    '1': { glyph: 'HH', color: 'white' },
+    'f': { glyph: '^^', color: 'white' },
+    'd': { glyph: '::', color: 'red' },
+    't': { glyph: '%%', color: 'magenta' },
+    'g': { glyph: 'gg', color: 'green' },
+    '2': { glyph: 'CC', color: 'white' },
   },
 
   // Pronouns. res_sextext(sex, xx) reads these with xx = 1 (subject),

@@ -245,7 +245,7 @@ void dungeon(int32_t, int32_t);
 void flaggkoll(int32_t);
 int32_t color(char);
 void position_locations(void);
-char *kar(char);
+char *glyph(char);
 void ydarg(void);
 void confrontation(void);
 void invlist(void);
