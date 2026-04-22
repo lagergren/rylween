@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 
-/* Flat JSONL resource loader. Records are {"kind":"...","id":"...",...}
-   one per line; unknown fields are tolerated. */
+/* Resource types and accessors. Data is loaded from data/world.json5
+   (a tagged JSON5 node tree with $import support); the flat JSONL
+   loader retired in Phase 6d. */
 
 typedef struct {
     const char *name;     /* NULL if no record for this id */
@@ -49,13 +50,12 @@ typedef struct {
     int32_t effect;       /* enum ryl_spell_effect */
 } ryl_spell;
 
-void res_load(const char *path);
-
-/* Phase 6d: hierarchical JSON5 world loader. Parses data/world.json5 into
-   an in-memory tagged node tree, resolves $import directives recursively
-   (cycles fatal), then folds the `flags` and `items` subtrees into the
-   legacy tables. JSON5 records shadow JSONL records of the same id.
-   If `path` does not exist, the function is a no-op (JSONL-only mode). */
+/* Phase 6d: hierarchical JSON5 world loader. Parses data/world.json5
+   into an in-memory tagged node tree, resolves $import directives
+   recursively (cycles fatal), then folds every known subtree (flags /
+   items / monsters / classes+spells / terrain / sextext / enums /
+   texts) into the matching legacy tables. If `path` does not exist the
+   function is a no-op (empty world, accessors return NULL / ""). */
 void res_load_world(const char *path);
 
 /* Opaque accessor for the parsed world tree. Returns NULL if no world

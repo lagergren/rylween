@@ -1,37 +1,28 @@
-/* Resource loader: flat JSONL (legacy) + hierarchical JSON5 world file.
+/* Resource loader: hierarchical JSON5 world file.
  *
- * Phase 6d lands the JSON5 side. Three candidate strategies existed:
- *   (a) vendor a full C JSON5 library (json5-c / similar)
- *   (b) use json-parser (strict JSON) + a JSON5 -> JSON preprocessor
- *   (c) hand-roll on top of the existing micro-JSON state machine
+ * Phase 6d retired the flat JSONL loader (data/resources.jsonl) and
+ * folded all seven legacy record kinds — enum / item / monster / spell /
+ * terrain / sextext / text — into the world tree. The parser is a
+ * hand-rolled JSON5 front-end on top of a tagged node tree (node_kind /
+ * node — see eval.h) that the evaluator walks directly.
  *
- * We pick (c). Rationale:
- *   - Makefile has zero external deps; adding one is a build-system change
- *     that buys us <500 LOC of parser we'd have to audit anyway.
- *   - The existing parse_string / parse_number / skip_value helpers
- *     already cover most of what JSON would need; JSON5 over JSON is a
- *     small delta (line/block comments, trailing commas, unquoted ident
- *     keys, single-quote strings).
- *   - Hand-rolling keeps error reporting uniform ("res: path:line: msg")
- *     and lets the parser emit a tagged node tree that the Phase 6d
- *     evaluator (eval_cond / eval_effect / eval_expr, landing in a follow-
- *     up commit) can walk without a second pass or copy.
+ * Load flow (res_load_world):
+ *   1. parse_file(path): JSON5 source -> node tree.
+ *   2. resolve_imports: splice every {"$import": "relpath"} directive
+ *      with the parsed subtree of data/<relpath>. Cycles fatal.
+ *   3. fold_*: walk the known subtrees (flags / items / monsters /
+ *      classes+spells / texts / terrain / sextext / enums) and populate
+ *      the matching legacy in-memory tables (ryl_item / ryl_monster /
+ *      ryl_spell / kar_tab / frg_tab / sextext_tab / enums / texts).
+ *   4. compile_world_tree: rewrite every path-position N_STR (e.g.
+ *      "caster.hp", "$dmg") to a packed N_PATH so the evaluator hot
+ *      path does zero strcmp on actor/field names.
  *
- * The loader's contract (docs/dsl.md §4):
- *   res_load(path)          - flat JSONL legacy records (texts, items,
- *                             monsters, spells, terrain, sextext, enum).
- *   res_load_world(path)    - parses data/world.json5 into a tagged node
- *                             tree, resolves $import directives recursively
- *                             (cycles fatal; .json5 imports only for now,
- *                             .dat adapter per §3.7 is deferred), then
- *                             folds the `flags` and `items` subtrees into
- *                             the in-memory tables. JSON5 records shadow
- *                             JSONL records of the same id (§2.2).
- *
- * The full node tree is retained and exposed via res_world() for the
- * upcoming evaluator; `spells`, `classes`, `npcs`, `towns`, `monsters`,
- * `encounters`, `missions`, `map`, `texts`, `lib`, `meta` are parsed but
- * not yet folded into the legacy tables.
+ * The folds are forgiving about field order and missing optionals but
+ * fatal on structural surprises; errors dispatch through die() with a
+ * "res: path:line: msg" message. The legacy tables retain the fold
+ * results for the rest of run time; the full node tree is also kept
+ * (process-lifetime) for the evaluator via res_world().
  */
 
 #include "res.h"
@@ -62,9 +53,8 @@ typedef struct {
 
 static text_rec *texts;
 static size_t n_texts;
-/* Unsorted during JSONL load; set after the final fold so res_text can
-   switch from linear scan to bsearch. handle_text / emit_text clear it
-   on every append so a late add never reads a stale sorted flag. */
+/* Set after fold_texts completes so res_text can switch from the
+   linear append path (emit_text clears the flag) to bsearch. */
 static int texts_sorted;
 
 static ryl_item    items[RES_MAX_ITEM_ID + 1];
@@ -104,203 +94,11 @@ static void die(const char *path, int line, const char *msg) {
     exit(1);
 }
 
-static const char *skip_ws(const char *p) {
-    while (*p == ' ' || *p == '\t') p++;
-    return p;
-}
-
-static char *parse_string(const char **p, const char *path, int line) {
-    if (**p != '"') die(path, line, "expected string");
-    const char *s = *p + 1;
-    char *out = malloc(strlen(s) + 1);
-    if (!out) die(path, line, "oom");
-    char *o = out;
-    while (*s && *s != '"') {
-        if (*s == '\\') {
-            s++;
-            switch (*s) {
-                case '"':  *o++ = '"';  break;
-                case '\\': *o++ = '\\'; break;
-                case '/':  *o++ = '/';  break;
-                case 'n':  *o++ = '\n'; break;
-                case 't':  *o++ = '\t'; break;
-                case 'r':  *o++ = '\r'; break;
-                case 'b':  *o++ = '\b'; break;
-                case 'f':  *o++ = '\f'; break;
-                default:   *o++ = *s;   break;
-            }
-            if (*s) s++;
-        } else {
-            *o++ = *s++;
-        }
-    }
-    if (*s != '"') die(path, line, "unterminated string");
-    *o = 0;
-    *p = s + 1;
-    return out;
-}
-
-static int32_t parse_number(const char **p, const char *path, int line) {
-    char *end;
-    long v = strtol(*p, &end, 10);
-    if (end == *p) die(path, line, "expected number");
-    *p = end;
-    return (int32_t) v;
-}
-
-static void skip_value(const char **p, const char *path, int line) {
-    *p = skip_ws(*p);
-    if (**p == '"') {
-        char *s = parse_string(p, path, line);
-        free(s);
-    } else if (**p == '[' || **p == '{') {
-        char open = **p;
-        char close = (char) (open == '[' ? ']' : '}');
-        int depth = 1;
-        (*p)++;
-        while (**p && depth > 0) {
-            if (**p == '"') {
-                char *s = parse_string(p, path, line);
-                free(s);
-            } else {
-                if (**p == open) depth++;
-                else if (**p == close) depth--;
-                (*p)++;
-            }
-        }
-    } else {
-        while (**p && **p != ',' && **p != '}' && **p != ']' &&
-               **p != ' ' && **p != '\t' && **p != '\n' && **p != '\r') {
-            (*p)++;
-        }
-    }
-}
-
-static void parse_string_array(const char **p, char ***values, size_t *n,
-                               const char *path, int line) {
-    *p = skip_ws(*p);
-    if (**p != '[') die(path, line, "expected '['");
-    (*p)++;
-    size_t cap = 0;
-    *values = NULL;
-    *n = 0;
-    *p = skip_ws(*p);
-    while (**p && **p != ']') {
-        char *s = parse_string(p, path, line);
-        if (*n == cap) {
-            cap = cap ? cap * 2 : 8;
-            char **grown = realloc(*values, cap * sizeof **values);
-            if (!grown) die(path, line, "oom");
-            *values = grown;
-        }
-        (*values)[(*n)++] = s;
-        *p = skip_ws(*p);
-        if (**p == ',') { (*p)++; *p = skip_ws(*p); }
-    }
-    if (**p != ']') die(path, line, "unterminated array");
-    (*p)++;
-}
-
-typedef struct {
-    char *key;
-    char *str;
-    int32_t num;
-    int has_num;
-    char **strs;
-    size_t n_strs;
-} kv;
-
-static void free_kvs(kv *a, size_t n) {
-    for (size_t i = 0; i < n; i++) {
-        free(a[i].key);
-        free(a[i].str);
-        if (a[i].strs) {
-            for (size_t j = 0; j < a[i].n_strs; j++) free(a[i].strs[j]);
-            free(a[i].strs);
-        }
-    }
-    free(a);
-}
-
-static const kv *find_kv(const kv *a, size_t n, const char *key) {
-    for (size_t i = 0; i < n; i++) {
-        if (strcmp(a[i].key, key) == 0) return &a[i];
-    }
-    return NULL;
-}
-
-static const char *kv_str(const kv *a, size_t n, const char *key, const char *def) {
-    const kv *e = find_kv(a, n, key);
-    return (e && e->str) ? e->str : def;
-}
-
-static int32_t kv_int(const kv *a, size_t n, const char *key, int32_t def) {
-    const kv *e = find_kv(a, n, key);
-    return (e && e->has_num) ? e->num : def;
-}
-
-static void handle_enum(const kv *kvs, size_t n, const char *path, int line) {
-    const char *id = kv_str(kvs, n, "id", NULL);
-    const kv *v = find_kv(kvs, n, "values");
-    if (!id || !v || !v->strs) die(path, line, "enum missing id or values");
-    enum_rec *grown = realloc(enums, (n_enums + 1) * sizeof *enums);
-    if (!grown) die(path, line, "oom");
-    enums = grown;
-    enum_rec *r = &enums[n_enums++];
-    r->id = strdup(id);
-    r->n_values = v->n_strs;
-    r->values = malloc(v->n_strs * sizeof *r->values);
-    for (size_t i = 0; i < v->n_strs; i++) {
-        r->values[i] = strdup(v->strs[i]);
-    }
-}
-
-static void handle_item(const kv *kvs, size_t n, const char *path, int line) {
-    int32_t id = kv_int(kvs, n, "id", -1);
-    if (id < 0 || id > RES_MAX_ITEM_ID) die(path, line, "item id out of range");
-    ryl_item *it = &items[id];
-    free((void *) it->name);
-    it->name = strdup(kv_str(kvs, n, "name", "-"));
-    it->cost = kv_int(kvs, n, "cost", 0);
-    it->damage = kv_int(kvs, n, "damage", 0);
-}
-
-static void handle_monster(const kv *kvs, size_t n, const char *path, int line) {
-    int32_t id = kv_int(kvs, n, "id", -1);
-    if (id < 0 || id > RES_MAX_MONSTER_ID) die(path, line, "monster id out of range");
-    ryl_monster *m = &monsters[id];
-    free((void *) m->name);
-    m->name = strdup(kv_str(kvs, n, "name", ""));
-    m->n1 = kv_int(kvs, n, "n1", 0);
-    m->n2 = kv_int(kvs, n, "n2", 0);
-    m->h1 = kv_int(kvs, n, "h1", 0);
-    m->h2 = kv_int(kvs, n, "h2", 0);
-    m->ws = kv_int(kvs, n, "ws", 0);
-    m->sp = kv_int(kvs, n, "sp", 0);
-    m->im = kv_int(kvs, n, "im", 0);
-}
-
-static void handle_terrain(const kv *kvs, size_t n, const char *path, int line) {
-    const char *glyph = kv_str(kvs, n, "glyph", NULL);
-    if (!glyph || !glyph[0]) die(path, line, "terrain missing glyph");
-    unsigned char g = (unsigned char) glyph[0];
-    const char *kar = kv_str(kvs, n, "kar", NULL);
-    if (kar) {
-        free(kar_tab[g]);
-        kar_tab[g] = strdup(kar);
-    }
-    const kv *fc = find_kv(kvs, n, "frg");
-    if (fc && fc->has_num) {
-        frg_tab[g] = fc->num;
-        frg_tab_set[g] = 1;
-    }
-}
-
 /* Map a `legacy_effect` string from the world tree to the SE_* enum
    strid.c's priest/mage switches dispatch on. Returns -1 for unknown
    names so the caller can die() with a path:line pointing at the tree
-   node. Owned by the world-tree path; the JSONL handle_spell retired
-   in phase 6d alongside the spell kind. */
+   node. Phase 6d retired the JSONL handle_spell; this helper owns the
+   string table on behalf of fold_spells. */
 static int32_t se_from_legacy_effect(const char *eff) {
     if (strcmp(eff, "heal")        == 0) return SE_HEAL;
     if (strcmp(eff, "restoration") == 0) return SE_RESTORATION;
@@ -315,100 +113,6 @@ static int32_t se_from_legacy_effect(const char *eff) {
     if (strcmp(eff, "hold")        == 0) return SE_HOLD;
     if (strcmp(eff, "antimagic")   == 0) return SE_ANTIMAGIC;
     return -1;
-}
-
-static void handle_text(const kv *kvs, size_t n, const char *path, int line) {
-    const char *id = kv_str(kvs, n, "id", NULL);
-    const char *text = kv_str(kvs, n, "text", NULL);
-    if (!id || !text) die(path, line, "text missing id or text");
-    text_rec *grown = realloc(texts, (n_texts + 1) * sizeof *texts);
-    if (!grown) die(path, line, "oom");
-    texts = grown;
-    text_rec *r = &texts[n_texts++];
-    r->id = strdup(id);
-    r->text = strdup(text);
-    texts_sorted = 0;
-}
-
-static void handle_sextext(const kv *kvs, size_t n, const char *path, int line) {
-    int32_t sex = kv_int(kvs, n, "sex", -1);
-    if (sex < 1 || sex > 2) die(path, line, "sextext sex must be 1 or 2");
-    const char *subj = kv_str(kvs, n, "subject", "");
-    const char *obj  = kv_str(kvs, n, "object", "");
-    const char *poss = kv_str(kvs, n, "possessive", "");
-    free(sextext_tab[sex][1]); sextext_tab[sex][1] = strdup(subj);
-    free(sextext_tab[sex][2]); sextext_tab[sex][2] = strdup(obj);
-    free(sextext_tab[sex][3]); sextext_tab[sex][3] = strdup(poss);
-}
-
-static void parse_line(char *buf, const char *path, int line) {
-    const char *p = skip_ws(buf);
-    if (!*p || *p == '\n' || *p == '\r') return;
-    if (*p == '#' || (*p == '/' && p[1] == '/')) return;
-    if (*p != '{') die(path, line, "expected '{'");
-    p++;
-
-    kv *kvs = NULL;
-    size_t nk = 0, cap = 0;
-    p = skip_ws(p);
-    while (*p && *p != '}') {
-        p = skip_ws(p);
-        char *key = parse_string(&p, path, line);
-        p = skip_ws(p);
-        if (*p != ':') die(path, line, "expected ':'");
-        p++;
-        p = skip_ws(p);
-
-        if (nk == cap) {
-            cap = cap ? cap * 2 : 8;
-            kv *grown = realloc(kvs, cap * sizeof *kvs);
-            if (!grown) die(path, line, "oom");
-            kvs = grown;
-        }
-        kv *e = &kvs[nk++];
-        memset(e, 0, sizeof *e);
-        e->key = key;
-
-        if (*p == '"') {
-            e->str = parse_string(&p, path, line);
-        } else if (*p == '[') {
-            parse_string_array(&p, &e->strs, &e->n_strs, path, line);
-        } else if ((*p >= '0' && *p <= '9') || *p == '-') {
-            e->num = parse_number(&p, path, line);
-            e->has_num = 1;
-        } else {
-            skip_value(&p, path, line);
-        }
-        p = skip_ws(p);
-        if (*p == ',') { p++; p = skip_ws(p); }
-    }
-
-    const char *kind = kv_str(kvs, nk, "kind", NULL);
-    if (!kind) die(path, line, "record missing kind");
-    if      (strcmp(kind, "enum")    == 0) handle_enum(kvs, nk, path, line);
-    else if (strcmp(kind, "item")    == 0) handle_item(kvs, nk, path, line);
-    else if (strcmp(kind, "monster") == 0) handle_monster(kvs, nk, path, line);
-    else if (strcmp(kind, "terrain") == 0) handle_terrain(kvs, nk, path, line);
-    else if (strcmp(kind, "sextext") == 0) handle_sextext(kvs, nk, path, line);
-    else if (strcmp(kind, "text")    == 0) handle_text(kvs, nk, path, line);
-    /* unknown kinds are tolerated */
-
-    free_kvs(kvs, nk);
-}
-
-void res_load(const char *path) {
-    FILE *f = fopen(path, "rb");
-    if (!f) {
-        fprintf(stderr, "res: cannot open %s\n", path);
-        exit(1);
-    }
-    char buf[4096];
-    int line = 0;
-    while (fgets(buf, sizeof buf, f)) {
-        line++;
-        parse_line(buf, path, line);
-    }
-    fclose(f);
 }
 
 const char *res_enum(const char *id, int index) {
@@ -848,7 +552,7 @@ static void fold_flags(const node *flags_node, const char *path) {
     }
 }
 
-/* -------- items subtree (shadows JSONL; docs/dsl.md §2.2) --------
+/* -------- items subtree (docs/dsl.md §2.2) --------
    The items tree is sectioned by kind (weapons/armour/gear/potions/
    treasures/magic_items); the sections are an authoring convenience,
    the legacy ryl_item[0..111] table is still keyed by flat `id`.
@@ -917,7 +621,7 @@ static void fold_items(const node *items_node, const char *path) {
     }
 }
 
-/* -------- monsters subtree (shadows JSONL; docs/dsl.md §2.2) --------
+/* -------- monsters subtree (docs/dsl.md §2.2) --------
    Symbolic key in the shard is author-facing; `id` (map.dat's monster
    index) is the runtime key. Missing optional fields default to 0. */
 static void fold_monsters(const node *monsters_node, const char *path) {
@@ -944,7 +648,7 @@ static void fold_monsters(const node *monsters_node, const char *path) {
     }
 }
 
-/* -------- texts subtree (shadows JSONL; docs/dsl.md §2.2) --------
+/* -------- texts subtree (docs/dsl.md §2.2) --------
    Hierarchical: every nested object's key becomes one dotted segment of
    the final text id. Leaves are either strings (verbatim) or arrays of
    strings (joined with \r\n, trailing \r\n appended). Emitted records
@@ -1078,9 +782,89 @@ static void fold_spells(const node *classes_node, const node *spells_node, const
     }
 }
 
+/* -------- terrain subtree --------
+   Keyed by the literal map.dat glyph byte as a single-character string
+   so the record reads the same way the map file stores it. `kar` is
+   the two-char cell, `frg` the ANSI foreground colour. */
+static void fold_terrain(const node *terrain_node, const char *path) {
+    if (!terrain_node) return;
+    if (terrain_node->kind != N_OBJ) die(path, terrain_node->line, "terrain: expected object");
+    for (size_t i = 0; i < terrain_node->u.obj.n; i++) {
+        const char *glyph = terrain_node->u.obj.items[i].key;
+        const node *rec = terrain_node->u.obj.items[i].val;
+        if (!glyph || !glyph[0] || glyph[1]) die(path, rec->line, "terrain: key must be one-char string");
+        if (rec->kind != N_OBJ) die(path, rec->line, "terrain: entry must be object");
+        unsigned char g = (unsigned char) glyph[0];
+        const node *kar_n = obj_get(rec, "kar");
+        if (kar_n) {
+            if (kar_n->kind != N_STR) die(path, kar_n->line, "terrain: kar must be string");
+            free(kar_tab[g]);
+            kar_tab[g] = strdup(kar_n->u.sv);
+        }
+        const node *frg_n = obj_get(rec, "frg");
+        if (frg_n) {
+            if (frg_n->kind != N_INT) die(path, frg_n->line, "terrain: frg must be integer");
+            frg_tab[g] = frg_n->u.iv;
+            frg_tab_set[g] = 1;
+        }
+    }
+}
+
+/* -------- sextext subtree --------
+   Two fixed keys, "male" and "female", map to sex indices 1 and 2 that
+   the legacy res_sextext() API already uses. */
+static void fold_sextext(const node *sextext_node, const char *path) {
+    if (!sextext_node) return;
+    if (sextext_node->kind != N_OBJ) die(path, sextext_node->line, "sextext: expected object");
+    for (size_t i = 0; i < sextext_node->u.obj.n; i++) {
+        const char *key = sextext_node->u.obj.items[i].key;
+        const node *rec = sextext_node->u.obj.items[i].val;
+        int sex;
+        if      (strcmp(key, "male")   == 0) sex = 1;
+        else if (strcmp(key, "female") == 0) sex = 2;
+        else die(path, rec->line, "sextext: key must be 'male' or 'female'");
+        if (rec->kind != N_OBJ) die(path, rec->line, "sextext: entry must be object");
+        const node *subj = obj_get(rec, "subject");
+        const node *obj_n = obj_get(rec, "object");
+        const node *poss = obj_get(rec, "possessive");
+        free(sextext_tab[sex][1]);
+        sextext_tab[sex][1] = strdup((subj  && subj->kind  == N_STR) ? subj->u.sv  : "");
+        free(sextext_tab[sex][2]);
+        sextext_tab[sex][2] = strdup((obj_n && obj_n->kind == N_STR) ? obj_n->u.sv : "");
+        free(sextext_tab[sex][3]);
+        sextext_tab[sex][3] = strdup((poss  && poss->kind  == N_STR) ? poss->u.sv  : "");
+    }
+}
+
+/* -------- enums subtree --------
+   `{ jobname: [...], name: [...] }` — key is the enum id, value is the
+   string table res_enum(id, index) indexes into. */
+static void fold_enums(const node *enums_node, const char *path) {
+    if (!enums_node) return;
+    if (enums_node->kind != N_OBJ) die(path, enums_node->line, "enums: expected object");
+    for (size_t i = 0; i < enums_node->u.obj.n; i++) {
+        const char *id = enums_node->u.obj.items[i].key;
+        const node *arr = enums_node->u.obj.items[i].val;
+        if (arr->kind != N_ARR) die(path, arr->line, "enums: value must be array");
+        enum_rec *grown = realloc(enums, (n_enums + 1) * sizeof *enums);
+        if (!grown) die(path, arr->line, "oom");
+        enums = grown;
+        enum_rec *r = &enums[n_enums++];
+        r->id = strdup(id);
+        r->n_values = arr->u.arr.n;
+        r->values = r->n_values ? malloc(r->n_values * sizeof *r->values) : NULL;
+        if (r->n_values && !r->values) die(path, arr->line, "oom");
+        for (size_t j = 0; j < arr->u.arr.n; j++) {
+            const node *v = arr->u.arr.items[j];
+            if (v->kind != N_STR) die(path, v->line, "enums: element must be string");
+            r->values[j] = strdup(v->u.sv);
+        }
+    }
+}
+
 void res_load_world(const char *path) {
-    /* Tolerant: missing file = no world tree, legacy JSONL-only. Corrupt
-       file = fatal (parser die()s with path:line:msg). */
+    /* Tolerant: missing file = empty world. Corrupt file = fatal
+       (parser die()s with path:line:msg). */
     FILE *probe = fopen(path, "rb");
     if (!probe) return;
     fclose(probe);
@@ -1089,14 +873,16 @@ void res_load_world(const char *path) {
     root = resolve_imports(root, NULL, path);
     if (root->kind != N_OBJ) die(path, root->line, "world root must be object");
 
-    /* Fold shadowable subtrees into the legacy tables before the compile
-       pass rewrites paths; folding only reads leaf ints/strings so it is
-       unaffected by either order, but doing it first keeps the world_tree
-       handoff to the evaluator purely about behavior, not data. */
+    /* Fold every known subtree into its legacy table. Order is not
+       load-bearing — each fold reads disjoint state — but keeping it
+       stable helps when diffing error output across commits. */
     fold_flags(obj_get(root, "flags"), path);
     fold_items(obj_get(root, "items"), path);
     fold_monsters(obj_get(root, "monsters"), path);
     fold_spells(obj_get(root, "classes"), obj_get(root, "spells"), path);
+    fold_terrain(obj_get(root, "terrain"), path);
+    fold_sextext(obj_get(root, "sextext"), path);
+    fold_enums(obj_get(root, "enums"), path);
     fold_texts(obj_get(root, "texts"), path);
 
     /* Walk every effect / cond / expr array in the tree and rewrite path

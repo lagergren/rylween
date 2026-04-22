@@ -1,8 +1,7 @@
 // Rylween world file — root JSON5 tree. See docs/dsl.md for the full
-// schema. Phase 6d migrates behaviour one leaf at a time: flags, items,
-// and now the first spell (`mage.frost`, §7.3). Every other subtree is
-// still owned by the legacy data/resources.jsonl (JSON5 shadows JSONL
-// per §2.2).
+// schema. This is the single source for every resource kind: flags,
+// items, monsters, classes, spells, terrain, sextext, enums, and the
+// text table. The flat data/resources.jsonl loader retired in Phase 6d.
 {
   meta: {
     version: 1,
@@ -85,5 +84,49 @@
   spells: {
     mage:   { $import: 'world/spells/mage.json5' },
     priest: { $import: 'world/spells/priest.json5' },
+  },
+
+  // Terrain glyphs — keyed by the literal map.dat byte so the author
+  // can see exactly which map character gets which display/colour.
+  // `kar` is the two-char ANSI cell; `frg` is the foreground colour.
+  // Unknown glyphs render as "  " at frg=36.
+  terrain: {
+    'm': { kar: '/\\', frg: 37 },
+    'w': { kar: '~~', frg: 34 },
+    's': { kar: '..', frg: 33 },
+    '0': { kar: 'TT', frg: 37 },
+    '1': { kar: 'HH', frg: 37 },
+    'f': { kar: '^^', frg: 37 },
+    'd': { kar: '::', frg: 31 },
+    't': { kar: '%%', frg: 35 },
+    'g': { kar: 'gg', frg: 32 },
+    '2': { kar: 'CC', frg: 37 },
+  },
+
+  // Pronouns. res_sextext(sex, xx) reads these with xx = 1 (subject),
+  // 2 (object), 3 (possessive); sex = 1 (male) / 2 (female).
+  sextext: {
+    male:   { subject: 'he',  object: 'him', possessive: 'his' },
+    female: { subject: 'she', object: 'her', possessive: 'her' },
+  },
+
+  // Enum tables — res_enum(id, index) reads values[index]. jobname[0]
+  // and name[0] are intentionally empty: the runtime uses 1-based ids
+  // and a 0 slot means "none / sentinel".
+  enums: {
+    jobname: [
+      '', 'Merchant', 'Ranger', 'Fighter', 'Wizard', 'Priest',
+      'Thief', 'Peasant', 'Bard', 'Drifter', 'Half-Orc', 'Half-Elf',
+      'Smith', 'Bargirl', 'Innkeeper', 'Tavernkeeper', 'Hermit',
+    ],
+    name: [
+      '', 'Garth', "Nrim'to", 'Areth', 'Nevaak', 'Gorm', 'Bernak',
+      'Matias', 'Tybalt', 'Romeo', 'Werra', 'Arenjun', 'Oskar',
+      'Harry', 'Marraga', 'Broth', 'Ebond', 'Bolph', 'Gotharp',
+      'Ron', 'Kaal', 'Daniel', 'Leander', 'Ithienn', 'Azaaza',
+      'Hassan', 'Luqas', 'Darth', 'Yog', 'Niklas', 'Tokawa',
+      'Miyaki', 'Dargoth', 'Marcus', 'Deanna', 'Jeanne', 'Alex',
+      'Galdon', 'Kosch', 'Ufarsin',
+    ],
   },
 }
