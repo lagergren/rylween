@@ -11,8 +11,23 @@ char *_version_string = "\0 $VER: Adventurers of Rylween v3 - By Marcus Lagergre
 int main(int argc, char **argv) {
     int32_t i;
 
+    /* --check-world: parse data/world.json5 (plus every $import-reachable
+       shard) through the same loader the game uses at startup and exit.
+       die() inside res_load_world already terminates with a "res: path:
+       line: msg" message and exit(1) on any structural error, so a clean
+       return here means the entire tree parsed and folded successfully.
+       Deliberately skips io_init_tty / ryl_random_init — neither is
+       needed for validation and io_init_tty misbehaves under non-TTY
+       stdin (CI, editor tasks, etc.). */
+    if (argc >= 2 && strcmp(argv[1], "--check-world") == 0) {
+        res_load_world("data/world.json5");
+        fprintf(stderr, "world: ok\n");
+        return 0;
+    }
+
     if (argc < 2) {
         fprintf(stderr, "usage: %s \"Player Name\"\n", argv[0]);
+        fprintf(stderr, "       %s --check-world\n", argv[0]);
         return 1;
     }
 
