@@ -1651,3 +1651,239 @@ after the new path is load-bearing.
   NPCs, do existing `current-world.json5` files still
   round-trip? Probably not — a changed spec should be treated as
   a version bump that triggers a sysop-reset prompt.
+
+## 16. Dialogue + mission DSL (follow-up to A.2 speak.c)
+
+Raised during the A.2 speak.c text-extraction session (2026-04-22).
+The pattern that emerged — `tx0(res_text(...))` chains interrupted
+by format-bearing `tx("%s...", ...)` tails, `_pre`/`_post` key
+splits, hardcoded `clw()`+`ryl_pause()` boundaries, and inline
+reward/flag mutations — points at a declarative "screen script"
+DSL that should replace the handwritten C flow eventually. Five
+deficiencies to address, in rising order of ambition:
+
+### 16.1 Shared menu-prompt / keypress dispatcher
+
+Every dialog screen that takes input follows the same shape:
+a text block, a set of allowed letters (often with ESC/B/Q as
+default escape), a single `key()` + `toupper()`, and a branch per
+letter. Examples today:
+
+- `speak()` main: `(C)hitchat / (Q)uestion / (R)umors / (B)ye`
+- `speak()` Q-submenu: `(L)odging / (M)agic / (P)eople / (N)othing`
+- `silver_key` + `thun` maps: `(B)uy it / (N)o thanks`
+- Lodge j13 (whore branch): yes/no via `common.yes`/`common.no`
+- Castle mage: `(T)eleport / (G)ive item / (L)eave`
+- Stairs treasure: `(T)ake / (L)eave`
+- Countless y/N confirmations across driv.c / dungeon.c
+
+Propose a single helper:
+
+```c
+typedef struct {
+    char        letter;      /* 'Y', 'N', 'B', 0 for wildcard */
+    const char *label;       /* text-id for the "(X)etc" row, or NULL */
+    int         result;      /* returned to caller */
+} ryl_menu_opt;
+
+int ryl_menu(const char *screen_text_id, const ryl_menu_opt *opts);
+```
+
+which emits the screen, prints each option row, calls `key()`,
+and returns the `result`. Escape/cancel handling lives in one
+place. The option list is either inline C or — better (§16.4) —
+shipped in the same JSON5 entry as the screen text.
+
+### 16.2 Dynamic enum tables (kill `subjects[3]`)
+
+`reply_chitchat` currently carries a tiny hardcoded C lookup:
+
+```c
+static const char *const subjects[3] = {"well", "weather", "health"};
+txi("speak.chit.reply.%s.j%d", subjects[subj], jb);
+```
+
+These are three strings that already appear as keys in
+`speak.chit.reply.*` and as code-side guards for the f/m prompt
+variants. Two ways to de-hardcode:
+
+1. **Ordered string-list resource.** Add a `res_string_list(id)`
+   that returns a `const char * const *` pointing at an N-sized
+   table authored as a JSON5 array. `subj_name = list[subj]`.
+2. **Text-record convention.** Author
+   `speak.chit.subjects.s0 / .s1 / .s2` as plain strings (fold_texts
+   already supports strings at leaves). `res_text("speak.chit.subjects.s0")`
+   yields `"well"`. Drop-in replacement with no new loader kind.
+
+Option 2 is cheaper (no new resource kind) and mechanical;
+option 1 is cleaner if we grow many such tables (mission-reward
+item-lists, town shop inventories, etc.). Prefer option 1 if and
+only if §16.5 lands, since mission-reward lists will want the
+same facility.
+
+### 16.3 Embedded format parameters (kill `_pre`/`_post` splits)
+
+Every `*_pre` / `*_post` key pair in speak.json5 exists because
+the line sitting between them contains a `%s` or `%dx%d` that can
+only be resolved at runtime. Today that forces the call site
+into three calls and leaks the layout into C:
+
+```c
+tx0(res_text("speak.ranger.deliver_pre"));
+tx("to my brother, %s,\r\n", res_enum("name", 14));
+tx("who lives %s,\r\n", str);
+tx0(res_text("speak.ranger.deliver_post"));
+```
+
+The text should be one continuous record with named placeholders:
+
+```json5
+deliver: [
+  '- If you deliver this',
+  'to my brother, {ranger_name},',
+  'who lives {ranger_loc},',
+  'he will give you',
+  'a great weapon!',
+  '',
+],
+```
+
+and a `tx_formatted(id, ...)` that resolves `{ranger_name}` /
+`{ranger_loc}` from a caller-supplied binding table. The binding
+table is a small `{ "ranger_name": "res_enum.name.14",
+"ranger_loc": "$str" }` map — literals, `res_enum` references,
+or C-local strings bound at call time. This kills every
+`_pre`/`_post` split we've got in driv.json5, ydarg.json5,
+speak.json5 and eliminates the coupling between text layout and
+C control flow. Bindings become part of the "script" (§16.4)
+rather than hand-written C.
+
+### 16.4 Screen-script DSL (pause + clw markers)
+
+NPC dialogue is a chain of screens separated by `ryl_pause()` +
+`clw()`. Today that's:
+
+```c
+clw();
+tx0(res_text("speak.erethor.rumour"));
+ryl_pause();
+clw();
+tx0(res_text("speak.erethor.demon"));
+ryl_pause();
+clw();
+...
+```
+
+Authoring this in JSON5 as a chain — where `'<PAUSE>'` or a
+dedicated object element marks a page-break — gets rid of the C
+boilerplate and makes the screens co-located with their text:
+
+```json5
+erethor: {
+  first_visit: [
+    { screen: 'rumour' },      // tx0 + ryl_pause + clw
+    { screen: 'demon' },
+    { screen: 'poor_man' },
+    { screen: 'trade' },
+    { screen: 'dangerous' },
+    { journal: "Erethor's temple is situated at 6x20." },
+    { set_flag: 8, value: 1 },
+  ],
+  delivered_lute: [ ... ],
+},
+```
+
+A small interpreter walks the list, dispatching `screen` →
+`tx0(res_text("speak.erethor.<name>")) + ryl_pause + clw`,
+`journal` → `journal(...)`, `set_flag` → `flag[n] = v`. The case
+body in `npc_mission_hint` collapses to one call:
+`play_script("speak.erethor.first_visit");`.
+
+### 16.5 Mission state machines + rewards as data
+
+Most of `npc_mission_hint` is: "when flag[N] is at stage S, emit
+these screens, add gold G, drop items I1..Ik into inventory,
+advance flag[N] to S+1". Today every stage hardcodes the reward
+math in C (see `case 19` husband-reward: `+= 3000` gold and five
+inventory slots patched to items 26/110/38/101/45). A natural
+extension of §16.4 is to attach these side-effects to the script:
+
+```json5
+husband: {
+  rescued: [
+    { screen: 'reunion' },
+    { screen: 'gives' },
+    { reward: { gold: 3000, items: [26, 110, 38, 101, 45] } },
+    // The "You can't carry all the items" fallback text is part
+    // of the reward-failure path — the interpreter emits it when
+    // drop_option() doesn't free enough slots.
+    { set_flag: 19, value: 3 },
+  ],
+},
+```
+
+with a unified `apply_reward()` that walks the item list, tries
+to carry each (respecting inventory slot limits), invokes
+`drop_option()` + the "can't carry" dialogue when full, and
+tallies gold. Items 26/110/38/101/45 stop being bare integers
+and become symbolic ids resolved through `res_item`.
+
+### 16.6 End state
+
+With §16.1–§16.5 in place, `speak.c` loses ~90% of its body.
+`flaggkoll`/`npc_mission_hint`, the chitchat switches, and the
+entire P/M/L fan-out become tiny dispatchers that look up a
+script by key and call `play_script`. The engine's hand-written
+C is limited to primitives: `key()`, `clw()`, `ryl_pause()`,
+`drop_option()`, inventory slot search, gold arithmetic. All of
+`towne.c` (A.3, 135 tx() sites with shop/inn/tavern menus),
+most of `missions.c`, and the pause-heavy screens in `driv.c` /
+`ydarg.c` reduce the same way.
+
+### 16.7 Slicing
+
+Order matters because later items build on earlier ones:
+
+1. **§16.1 menu helper.** Self-contained, no data-format
+   changes, lands with A.3 towne.c since that's where the
+   shop/inn menus will multiply the savings.
+2. **§16.3 embedded `{placeholders}` + binding table.** Needs
+   a tiny expander on top of `res_text`. Retroactively kills
+   every `_pre`/`_post` pair already shipped (driv.json5,
+   ydarg.json5, speak.json5). Pure win; no new concepts for
+   consumers.
+3. **§16.4 screen-script interpreter.** Builds on §16.3. Lands
+   as a new `res_script` resource kind and a `play_script()`
+   emitter. Ship alongside an A.2 follow-up that migrates
+   speak.c's mission cases to scripts.
+4. **§16.2 dynamic enum tables.** Either folds into §16.3's
+   binding table (if literals can reference resources) or lands
+   as a new `res_string_list`. Don't do this standalone — pick
+   the shape once §16.3 is concrete.
+5. **§16.5 reward dispatcher.** Needs symbolic item ids, which
+   means §16.4 scripts can reference items by name. Gates on a
+   small `res_item_id("ruby") -> 39` helper first.
+
+### 16.8 Things to watch
+
+- The interpreter must not grow into a general scripting
+  language. Keep the op list flat: `screen`, `pause`, `clw`,
+  `journal`, `set_flag`, `reward`, `menu` (for §16.1). No
+  arithmetic, no loops, no conditionals except flag-guarded
+  branches (which the outer dispatcher already handles by
+  picking the right script by flag value).
+- Bindings (§16.3) must be resolvable at script-emit time, not
+  stored globally — the caller passes a transient map. Otherwise
+  we end up with a mutable global "dialogue context" which is
+  exactly the kind of thing port-plan §5b is trying to kill.
+- Replay fixtures only cover driv.c paths today. A.2 was
+  collapsed fixture-blind; §16.3's retroactive kill of
+  driv.json5 `_pre`/`_post` pairs **will** need a rebless even
+  though the on-terminal output should be byte-identical (the
+  CSI-right jumps around the %-format tx()s may shuffle). Plan
+  on that or carefully audit the byte stream first.
+- `ryl_state.global_x` (the CSI-right prefix state) interacts
+  with how `tx0` vs. multiple `tx()` calls emit cursor jumps.
+  Any helper that merges screens must preserve or deliberately
+  drop the per-line jumps — document the choice in the §16.4
+  interpreter.

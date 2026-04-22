@@ -62,6 +62,7 @@
     spell:  { $import: 'world/texts/spell.json5' },
     common: { $import: 'world/texts/common.json5' },
     ydarg:  { $import: 'world/texts/ydarg.json5' },
+    speak:  { $import: 'world/texts/speak.json5' },
   },
 
   // Class records (§3.3). Only the `spells` list is consumed today —

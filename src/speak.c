@@ -5,8 +5,21 @@
 #include "speak.h"
 #include "towne.h"
 
-static void flaggkoll(int32_t);
+static void npc_mission_hint(int32_t);
 static void reply_chitchat(int32_t, int32_t);
+
+/* tx() a text record whose id is built from a printf-style format. Used
+   by the per-job fan-outs in speak() and reply_chitchat() to map a
+   (job-number, subject) pair onto a key in the speak.* shard without
+   an ad-hoc stack buffer at every call site. */
+__attribute__((format(printf, 1, 2))) static void txi(const char *fmt, ...) {
+    char id[96];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(id, sizeof id, fmt, ap);
+    va_end(ap);
+    tx0(res_text(id));
+}
 
 /* Random coords:
 **
@@ -112,7 +125,7 @@ void speak(int32_t bld, int32_t tow) {
         }
         if (!x) {
             clw();
-            tx("Noone is here!\r\n");
+            tx0(res_text("speak.no_npc"));
             ryl_delay(1000);
             return;
         }
@@ -138,9 +151,9 @@ void speak(int32_t bld, int32_t tow) {
         clw();
         tx("%s nods as\r\n", res_enum("name", talk));
         if (state.npc[talk].job != 13) {
-            tx("he recognizes you.\r\n");
+            tx0(res_text("speak.recognize_he"));
         } else {
-            tx("she recognizes you.\r\n");
+            tx0(res_text("speak.recognize_she"));
         }
         ryl_delay(800);
     } else {
@@ -148,20 +161,15 @@ void speak(int32_t bld, int32_t tow) {
     }
 
     while (1) {
-        /* Flag-koll */
-
-        flaggkoll(talk);
+        npc_mission_hint(talk);
 
         clw();
-        tx("Chatting with\r\n");
+        tx0(res_text("speak.chatting"));
         tx("%s:\r\n\r\n", res_enum("name", talk));
 
         /* Passed */
 
-        tx("(C)hitchat\r\n");
-        tx("(Q)uestion\r\n");
-        tx("(R)umors\r\n");
-        tx("(B)ye\r\n");
+        tx0(res_text("speak.menu"));
         c = key();
         c = toupper(c);
         if (c == 'B') {
@@ -177,9 +185,7 @@ void speak(int32_t bld, int32_t tow) {
                 ryl_pause();
                 rumours = 1;
             } else {
-                tx("- Sorry. There's\r\n");
-                tx("nothing new I can\r\n");
-                tx("tell you.\r\n\r\n");
+                tx0(res_text("speak.no_rumour"));
                 ryl_pause();
             }
         }
@@ -189,26 +195,13 @@ void speak(int32_t bld, int32_t tow) {
             clw();
             switch (x) {
                 case 0:
-                    if (state.npc[talk].job == 13) {
-                        tx("- You look well today,\r\n");
-                        tx("  miss...\r\n");
-                    } else {
-                        tx("- You look well today,\r\n");
-                        tx("  Sir...\r\n");
-                    }
+                    tx0(res_text(state.npc[talk].job == 13 ? "speak.chit.well_f" : "speak.chit.well_m"));
                     break;
                 case 1:
-                    tx("- Nice weather we're\r\n");
-                    tx("  having...\r\n");
+                    tx0(res_text("speak.chit.weather"));
                     break;
                 case 2:
-                    if (state.npc[talk].job == 13) {
-                        tx("- Is all well with\r\n");
-                        tx("  you, miss?\r\n");
-                    } else {
-                        tx("- Is all well with\r\n");
-                        tx("  you, Sir?\r\n");
-                    }
+                    tx0(res_text(state.npc[talk].job == 13 ? "speak.chit.health_f" : "speak.chit.health_m"));
                     break;
             }
             ryl_delay(1000);
@@ -220,261 +213,56 @@ void speak(int32_t bld, int32_t tow) {
 
         if (c == 'Q') {
             clw();
-            tx("(L)odging\r\n");
-            tx("(M)agic\r\n");
-            tx("(P)eople\r\n");
-            tx("(N)othing\r\n");
+            tx0(res_text("speak.question"));
             d = key();
             d = toupper(d);
             if (d == 'P') {
                 tx("\r\n");
-                switch (state.npc[talk].job) {
-                    case 1:
-                        tx("- Well, I don't know\r\n");
-                        tx("that many people.\r\n");
-                        break;
-                    case 2:
-                        tx("- No I'm a lone ranger.\r\n");
-                        break;
-                    case 3:
-                        tx("- Well, I met this\r\n");
-                        tx("merchant who seeks\r\n");
-                        tx("revenge on a band of\r\n");
-                        tx("bandits.\r\n");
-                        break;
-                    case 4:
-                        tx("- OH! Well... not really.\r\n");
-                        break;
-                    case 5:
-                        tx("- I've heard of a hermit\r\n");
-                        tx("who lives in the swamps\r\n");
-                        tx("by Ollk. Perhaps he can\r\n");
-                        tx("help you.\r\n");
-                        break;
-                    case 6:
-                        tx("- No. Sorry. Dunno.\r\n");
-                        break;
-                    case 7:
-                        tx("- I think it's time\r\n");
-                        tx("someone found the\r\n");
-                        tx("Foot of Jazzy and\r\n");
-                        tx("defeated Ydarg!\r\n");
-                        break;
-                    case 8:
-                        tx("- Rumour has it that a\r\n");
-                        tx("fighter called %s\r\n", res_enum("name", 3));
-                        tx("has a mission for you.\r\n");
-                        break;
-                    case 9:
-                        tx("- Don't know anyone.\r\n");
-                        break;
-                    case 10:
-                        tx("- ME ALONE AND STRONG!\r\n");
-                        break;
-                    case 11:
-                        tx("- There are many huts\r\n");
-                        tx("in the wilderness.\r\n");
-                        break;
-                    case 12:
-                        tx("- Sorry, can't help ya.\r\n");
-                        break;
-                    case 13:
-                        tx("- Well...\r\n");
-                        break;
-                    case 14:
-                        tx("- Want to meet interesting\r\n");
-                        tx("travellers? Try the\r\n");
-                        tx("inn or the tavern.\r\n");
-                        break;
-                    case 15:
-                        tx("- Don't know about\r\n");
-                        tx("anyone particular.\r\n");
-                        break;
-                    case 16:
-                        tx("- Many faces shine\r\n");
-                        tx("through the mist.\r\n");
-                        break;
+                if (state.npc[talk].job == 8) {
+                    tx0(res_text("speak.people.j8_pre"));
+                    tx("%s\r\n", res_enum("name", 3));
+                    tx0(res_text("speak.people.j8_post"));
+                } else {
+                    txi("speak.people.j%d", state.npc[talk].job);
                 }
                 tx("\r\n");
                 ryl_pause();
             }
             if (d == 'M') {
                 tx("\r\n");
-                switch (state.npc[talk].job) {
-                    case 1:
-                        tx("- It is said that the\r\n");
-                        tx("Master Crown is the\r\n");
-                        tx("most powerful object\r\n");
-                        tx("in the realm.\r\n");
-                        break;
-                    case 2:
-                        tx("- You will need five\r\n");
-                        tx("magical items to\r\n");
-                        tx("defeat baron Ydarg.\r\n");
-                        break;
-                    case 3:
-                        tx("- What? I don't believe\r\n");
-                        tx("in magic...\r\n");
-                        break;
-                    case 4:
-                        tx("- Magic... Yes, Magic.\r\n");
-                        break;
-                    case 5:
-                        tx("- Yes my son, but we\r\n");
-                        tx("are all puny beings\r\n");
-                        tx("compared to the gods.\r\n");
-                        break;
-                    case 6:
-                        tx("- I know nothing of it.\r\n");
-                        break;
-                    case 7:
-                        tx("- I don't know much about\r\n");
-                        tx("magic. Gems often have\r\n");
-                        tx("magical properties,\r\n");
-                        tx("though.\r\n");
-                        break;
-                    case 8:
-                        tx("- Magic is the subject\r\n");
-                        tx("of many of my songs.\r\n");
-                        tx("Ballad of the Fire\r\n");
-                        tx("Shield, for instance.\r\n");
-                        break;
-                    case 9:
-                        tx("- GO AWAY!\r\n");
-                        break;
-                    case 10:
-                        tx("- ME HAVE TRUSTY SWORD!\r\n");
-                        tx("ME NOT CARE 'BOUT\r\n");
-                        tx("MAGIK!\r\n");
-                        break;
-                    case 11:
-                        tx("- Yes, my people were\r\n");
-                        tx("created from the magic\r\n");
-                        tx("of mother earth.\r\n");
-                        break;
-                    case 12:
-                        tx("- Rumour has it, that\r\n");
-                        tx("some ogres have the foot\r\n");
-                        tx("of Jazzy, a powerful\r\n");
-                        tx("item.\r\n");
-                        break;
-                    case 13:
-                        tx("- I know nothing about\r\n");
-                        tx("that.\r\n");
-                        break;
-                    case 14:
-                        tx("- Magic? Well, they say\r\n");
-                        tx("that baron Ydarg can\r\n");
-                        tx("be defeated only by\r\n");
-                        tx("aid of the Silver Key\r\n");
-                        break;
-                    case 15:
-                        tx("- Sorry. Can't help you.\r\n");
-                        break;
-                    case 16:
-                        tx("- The Crown, the Shield,\r\n");
-                        tx("the Bracelets and the Foot\r\n");
-                        tx("is all you need.\r\n");
-                        break;
-                }
+                txi("speak.magic.j%d", state.npc[talk].job);
                 tx("\r\n");
                 ryl_pause();
             }
             if (d == 'L') {
                 tx("\r\n");
-                switch (state.npc[talk].job) {
-                    case 1:
-                        tx("- Well. The city inn is\r\n");
-                        tx("a good try.\r\n");
-                        break;
-                    case 2:
-                        tx("- I sleep under the open\r\n");
-                        tx("skies. Just beware of\r\n");
-                        tx("bandits if you do this!");
-                        break;
-                    case 3:
-                        tx("- Well. I usually stay at\r\n");
-                        tx("the inn when I'm in town.\r\n");
-                        break;
-                    case 4:
-                        tx("- Oh??? Eternal sleep!\r\n");
-                        break;
-                    case 5:
-                        tx("- I hire a room at\r\n");
-                        tx("the inn to meditate!\r\n");
-                        break;
-                    case 6:
-                        tx("- I sleep in the shadows.\r\n");
-                        break;
-                    case 7:
-                        tx("- I sleep in my own\r\n");
-                        tx("room at my farm.\r\n");
-                        break;
-                    case 8:
-                        tx("- Imagine the beauty\r\n");
-                        tx("and danger to camp in\r\n");
-                        tx("the wilderness these days.\r\n");
-                        break;
-                    case 9:
-                        tx("- Look, why don't you\r\n");
-                        tx("just _GO AWAY_???\r\n");
-                        break;
-                    case 10:
-                        tx("- ME NEVER GET TIRED!\r\n");
-                        break;
-                    case 11:
-                        tx("- I rent a room at the inn!\r\n");
-                        break;
-                    case 12:
-                        tx("- Well, sleeping at the\r\n");
-                        tx("inn is often nicer than\r\n");
-                        tx("in the wilderness.\r\n");
-                        break;
-                    case 13:
-                        clw();
-                        tx("- Would you like to,\r\n");
-                        tx("  spend an hour\r\n");
-                        tx("  upstairs for %d\r\n", 50 * state.p[state.cpl].lv[1]);
-                        tx("  gold coins?\r\n\r\n");
-                        tx("  %s", res_text("common.yes"));
-                        tx("  %s", res_text("common.no"));
-                        c = key();
-                        c = toupper(c);
-                        if (c == 'Y') {
-                            if (state.p[state.cpl].gold < 50 * state.p[state.cpl].lv[1]) {
-                                clw();
-                                tx("- No money, eh?\r\n");
-                                tx("  don't bother\r\n");
-                                tx("  to come back!\r\n");
-                                ryl_delay(2000);
-                                break;
-                            }
+                if (state.npc[talk].job == 13) {
+                    clw();
+                    tx0(res_text("speak.lodge.j13.offer_pre"));
+                    tx("  upstairs for %d\r\n", 50 * state.p[state.cpl].lv[1]);
+                    tx0(res_text("speak.lodge.j13.offer_post"));
+                    tx("  %s", res_text("common.yes"));
+                    tx("  %s", res_text("common.no"));
+                    c = key();
+                    c = toupper(c);
+                    if (c == 'Y') {
+                        if (state.p[state.cpl].gold < 50 * state.p[state.cpl].lv[1]) {
+                            clw();
+                            tx0(res_text("speak.lodge.j13.broke"));
+                            ryl_delay(2000);
+                        } else {
                             state.p[state.cpl].gold -= 50 * state.p[state.cpl].lv[1];
                             clw();
-                            tx("You spend a very\r\n");
-                            tx("exhausting hour\r\n");
-                            tx("upstairs.\r\n");
-                            tx("(PERVERT!) ;-)\r\n\r\n");
+                            tx0(res_text("speak.lodge.j13.spent"));
                             for (i = 1; i < 5; i++) {
                                 if (state.p[state.cpl].hp[i] > 1) {
                                     state.p[state.cpl].hp[i]--;
                                 }
                             }
-                            break;
                         }
-                        break;
-                    case 14:
-                        tx("- Well. My inn is the\r\n");
-                        tx("best in the realm!\r\n");
-                        break;
-                    case 15:
-                        tx("- I dunno, try my\r\n");
-                        tx("brother's inn.\r\n");
-                        break;
-                    case 16:
-                        tx("- Yes. You are indeed\r\n");
-                        tx("the one...\r\n");
-                        break;
+                    }
+                } else {
+                    txi("speak.lodge.j%d", state.npc[talk].job);
                 }
                 tx("\r\n");
                 ryl_pause();
@@ -484,211 +272,31 @@ void speak(int32_t bld, int32_t tow) {
 }
 
 static void reply_chitchat(int32_t subj, int32_t jb) {
-    if (subj == 0) {
-        switch (jb) {
-            case 1:
-                tx("- Thanks, and the same\r\n");
-                tx("to you!\r\n");
-                break;
-            case 2:
-                tx("- I do? Really? Are\r\n");
-                tx("you gay or smth'n?\r\n");
-                break;
-            case 3:
-                tx("- Thank you. My health\r\n");
-                tx("is slowly returning\r\n");
-                tx("after a hard battle.\r\n");
-                break;
-            case 4:
-                tx("- Aha?\r\n");
-                break;
-            case 5:
-                tx("- You too, my son.\r\n");
-                break;
-            case 6:
-                tx("- What? No! Sccch!\r\n");
-                tx("They can hear you.\r\n");
-                break;
-            case 7:
-                tx("- Thank you! You too.\r\n");
-                break;
-            case 8:
-                tx("- That inspires me.\r\n");
-                tx("I'll compose a song\r\n");
-                tx("about you!\r\n");
-                break;
-            case 9:
-                tx("- YEAH? Take that!\r\n");
-                break;
-            case 10:
-                tx("- ME NOT LOOK WELL!\r\n");
-                tx("ME BIG AND UGLY!\r\n");
-                break;
-            case 11:
-                tx("- Oh...\r\n");
-                break;
-            case 12:
-                tx("- I thank thee, my lad!\r\n");
-                break;
-            case 13:
-                tx("- You too, honey!\r\n");
-                break;
-            case 14:
-                tx("- The same to you.\r\n");
-                break;
-            case 15:
-                tx("- You've had to much\r\n");
-                tx("to drink, boy?\r\n");
-                break;
-            case 16:
-                tx("- It is written in the\r\n");
-                tx("scrolls of Skelos...\r\n");
-                break;
-        }
-    }
-    if (subj == 1) {
-        switch (jb) {
-            case 1:
-                tx("- I think it will rain.\r\n");
-                break;
-            case 2:
-                tx("- Not a fine weather for\r\n");
-                tx("tracking, mind you!\r\n");
-                break;
-            case 3:
-                tx("- Yeah! But my armour\r\n");
-                tx("gets quite rusty.\r\n");
-                break;
-            case 4:
-                tx("- Really?\r\n");
-                break;
-            case 5:
-                tx("- The gods have been\r\n");
-                tx("kind to us, my son!\r\n");
-                break;
-            case 6:
-                tx("- Perfect weather\r\n");
-                tx("for stealing!\r\n");
-                break;
-            case 7:
-                tx("- Yeah, the crops grow\r\n");
-                tx("better than ever.\r\n");
-                break;
-            case 8:
-                tx("- This rain really\r\n");
-                tx("inspires me. (He\r\n");
-                tx("starts singing).\r\n");
-                break;
-            case 9:
-                tx("- Hehehehe...\r\n");
-                break;
-            case 10:
-                tx("- YEAH! NICE'N SLIMY!\r\n");
-                break;
-            case 11:
-                tx("- I find it depressing.\r\n");
-                break;
-            case 12:
-                tx("- Well, kinda good.\r\n");
-                break;
-            case 13:
-                tx("- Let's not talk about\r\n");
-                tx("the weather, honey?\r\n");
-                break;
-            case 14:
-                tx("- Well. Can't complain.\r\n");
-                break;
-            case 15:
-                tx("- Want a drink, sonny?\r\n");
-                break;
-            case 16:
-                tx("- Yes, a day like this\r\n");
-                tx("is destined to come!\r\n");
-                break;
-        }
-    }
-    if (subj == 2) {
-        switch (jb) {
-            case 1:
-                tx("- All's well, thanks.\r\n");
-                break;
-            case 2:
-                tx("- I'm fine.\r\n");
-                break;
-            case 3:
-                tx("- Yep.\r\n");
-                break;
-            case 4:
-                tx("- Health... yes.\r\n");
-                break;
-            case 5:
-                tx("- All is well, my son.\r\n");
-                break;
-            case 6:
-                tx("- Yeh, quite nice.\r\n");
-                break;
-            case 7:
-                tx("- Are you a fag?\r\n");
-                break;
-            case 8:
-                tx("- Yes. I will sing\r\n");
-                tx("a song of health\r\n");
-                tx("for you!\r\n");
-                break;
-            case 9:
-                tx("(He chuckles under\r\n");
-                tx("his breath).\r\n");
-                break;
-            case 10:
-                tx("- ME JUST FINE!\r\n");
-                break;
-            case 11:
-                tx("- Very well, thanks.\r\n");
-                break;
-            case 12:
-                tx("- Fine, laddie!\r\n");
-                break;
-            case 13:
-                tx("- Sure, honey!\r\n");
-                break;
-            case 14:
-                tx("- Well...\r\n");
-                break;
-            case 15:
-                tx("- Just fine. Do you\r\n");
-                tx("want something to\r\n");
-                tx("drink?\r\n");
-                break;
-            case 16:
-                tx("- Oh. Meneth Sabaoth.\r\n");
-                break;
-        }
-    }
+    /* Caller picks subj via ryl_random(0, 2) and jb is the NPC job
+       (1..16), so both axes are always in range here. */
+    static const char *const subjects[3] = {"well", "weather", "health"};
+    txi("speak.chit.reply.%s.j%d", subjects[subj], jb);
 }
-static void flaggkoll(int32_t vem) {
+/* Per-NPC mission state-machine step. Each case checks the party's
+   mission flags for this NPC (indexed by NPC nr) and, when a quest is
+   at the right stage, emits the corresponding dialogue screen(s) and
+   advances the flag. Historically named "flaggkoll" (Swedish for "flag
+   check"); the responsibilities grew beyond a pure check. */
+static void npc_mission_hint(int32_t npc) {
     int32_t i, x, oc;
-    char str[80];
-    char send[144];
+    char loc[80];
     char c, d;
     uint8_t carry;
 
-    switch (vem) {
+    switch (npc) {
         /*****************************************************************/
         case 1:
             if (state.p[state.cpl].flag[1] == 0) {
                 clw();
-                tx("In fact, I have a mission\r\n");
-                tx("for you. It will bring\r\n");
-                tx("you much gold!\r\n\r\n");
+                tx0(res_text("speak.merchant.offer"));
                 ryl_pause();
                 clw();
-                tx("I was robbed by bandits\r\n");
-                tx("just to the east of here.\r\n");
-                tx("If you find these bandits,\r\n");
-                tx("kill them, and return\r\n");
-                tx("my cargo here, I'll pay\r\n");
-                tx("you 2000 gold and a ruby\r\n");
-                tx("my grandfather gave me.\r\n\r\n");
+                tx0(res_text("speak.merchant.bandits"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[1] = 1;
@@ -696,9 +304,7 @@ static void flaggkoll(int32_t vem) {
             }
             if (state.p[state.cpl].flag[1] == 2) {
                 clw();
-                tx("The merchant is GRATEFUL!\r\n");
-                tx("He pays you 2000 gold and\r\n");
-                tx("hands you a red gem.\r\n\r\n");
+                tx0(res_text("speak.merchant.grateful"));
                 for (i = 1, x = 0; i < 17; i++) {
                     if (state.p[state.cpl].inventory[i] == 0) {
                         state.p[state.cpl].inventory[i] = 39;
@@ -707,13 +313,13 @@ static void flaggkoll(int32_t vem) {
                     }
                 }
                 if (!x) {
-                    tx("You can't carry the gem.\r\n");
+                    tx0(res_text("speak.merchant.cant_carry"));
                     ryl_delay(800);
                     carry = 0;
                     carry = drop_option();
                     if (carry) {
                         clw();
-                        tx("You pick up the gem.\r\n");
+                        tx0(res_text("speak.merchant.picked_up"));
                         state.p[state.cpl].inventory[carry] = 39;
                         ryl_delay(800);
                     }
@@ -729,24 +335,20 @@ static void flaggkoll(int32_t vem) {
         case 2:
             if (state.p[state.cpl].flag[2] == 0) {
                 if (state.npc[14].towne) {
-                    snprintf(str, sizeof str, "in %s", res_town_name(state.npc[14].towne));
+                    snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[14].towne));
                 } else {
-                    snprintf(str, sizeof str, "at %dx%d", state.npc[14].x, state.npc[14].y);
+                    snprintf(loc, sizeof loc, "at %dx%d", state.npc[14].x, state.npc[14].y);
                 }
-                tx("- Greetings, adventurers.\r\n");
-                tx("I have a mission for you.\r\n");
-                tx("He hands you a letter.\r\n\r\n");
+                tx0(res_text("speak.ranger.intro"));
                 ryl_pause();
                 clw();
-                tx("- If you deliver this\r\n");
+                tx0(res_text("speak.ranger.deliver_pre"));
                 tx("to my brother, %s,\r\n", res_enum("name", 14));
-                tx("who lives %s,\r\n", str);
-                tx("he will give you\r\n");
-                tx("a great weapon!\r\n\r\n");
+                tx("who lives %s,\r\n", loc);
+                tx0(res_text("speak.ranger.deliver_post"));
                 ryl_pause();
                 clw();
-                snprintf(send, sizeof send, "%d %s, the Ranger lives %s\n", state.cpl, res_enum("name", 14), str);
-                journal(send);
+                journalf("%d %s, the Ranger lives %s\n", state.cpl, res_enum("name", 14), loc);
                 state.p[state.cpl].flag[2] = 1;
             }
             break;
@@ -754,47 +356,29 @@ static void flaggkoll(int32_t vem) {
         case 3:
             if (state.p[state.cpl].flag[3] == 0) {
                 if (state.npc[5].towne) {
-                    snprintf(str, sizeof str, "in %s", res_town_name(state.npc[5].towne));
+                    snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[5].towne));
                 } else {
-                    snprintf(str, sizeof str, "at %dx%d", state.npc[5].x, state.npc[5].y);
+                    snprintf(loc, sizeof loc, "at %dx%d", state.npc[5].x, state.npc[5].y);
                 }
                 clw();
-                tx("- Greetings. Once upon\r\n");
-                tx("a time, I was a mighty\r\n");
-                tx("fighter. Before I retired\r\n");
-                tx("I managed to slay over\r\n");
-                tx("two hundred orcs. All\r\n");
-                tx("of this, because of my\r\n");
-                tx("Dancing Blade. I have\r\n");
-                tx("no use for this weapon\r\n\r\n");
+                tx0(res_text("speak.fighter.intro"));
                 ryl_pause();
                 clw();
-                tx("anymore, and I will give\r\n");
-                tx("it to you, if you do me a\r\n");
-                tx("small favour. A priest\r\n");
+                tx0(res_text("speak.fighter.favour_pre"));
                 tx("named %s has got\r\n", res_enum("name", 5));
-                tx("one of my books. We are\r\n");
-                tx("old friends, and I lended\r\n");
-                tx("it to him. However, I\r\n");
-                tx("haven't heard much from\r\n");
-                tx("him lately.\r\n\r\n");
+                tx0(res_text("speak.fighter.favour_post"));
                 ryl_pause();
                 clw();
                 tx("%s lives\r\n", res_enum("name", 5));
-                tx("%s.\r\n\r\n", str);
-                snprintf(send, sizeof send, "%d %s, %s's friend lives %s\n", state.cpl, res_enum("name", 5), res_enum("name", 3), str);
-                journal(send);
+                tx("%s.\r\n\r\n", loc);
+                journalf("%d %s, %s's friend lives %s\n", state.cpl, res_enum("name", 5), res_enum("name", 3), loc);
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[3] = 1;
             }
             if (state.p[state.cpl].flag[3] == 3) {
                 clw();
-                tx("- Oh! Thank you!!! He\r\n");
-                tx("removes a floor board\r\n");
-                tx("and gives you a WONDERFUL\r\n");
-                tx("blade. It sparkles in\r\n");
-                tx("the light!\r\n\r\n");
+                tx0(res_text("speak.fighter.blade"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[3] = 4;
@@ -806,13 +390,13 @@ static void flaggkoll(int32_t vem) {
                     }
                 }
                 if (!x) {
-                    tx("You can't carry it!!!.\r\n\r\n");
+                    tx0(res_text("speak.fighter.cant_carry"));
                     ryl_delay(800);
                     carry = 0;
                     carry = drop_option();
                     if (carry) {
                         clw();
-                        tx("You take the blade.\r\n");
+                        tx0(res_text("speak.fighter.take_blade"));
                         state.p[state.cpl].inventory[carry] = 18;
                         ryl_delay(800);
                     }
@@ -823,14 +407,7 @@ static void flaggkoll(int32_t vem) {
         case 4:
             if (state.p[state.cpl].flag[3] == 2) {
                 clw();
-                tx("You persuade him to\r\n");
-                tx("give you the book.\r\n");
-                tx("After showing him your\r\n");
-                tx("sharp weapons, he\r\n");
-                tx("chickens out and pulls\r\n");
-                tx("it out of his robe.\r\n");
-                tx("He throws it at you and\r\n");
-                tx("flees...\r\n\r\n");
+                tx0(res_text("speak.wizard.robbed"));
                 state.p[state.cpl].flag[3] = 3;
                 ryl_pause();
                 clw();
@@ -839,29 +416,17 @@ static void flaggkoll(int32_t vem) {
         case 5:
             if (state.p[state.cpl].flag[3] == 1) {
                 clw();
-                tx("When you mention the\r\n");
-                tx("book, he nods and looks\r\n");
-                tx("a bit embarrased.\r\n");
-                tx("- Yes, I know. I happened\r\n");
-                tx("to lose it. A wizard\r\n");
+                tx0(res_text("speak.priest.intro_pre"));
                 tx("called %s stole it\r\n", res_enum("name", 4));
-                tx("from my bedroom a week\r\n");
-                tx("ago...\r\n\r\n");
+                tx0(res_text("speak.priest.intro_post"));
                 ryl_pause();
                 clw();
-                tx("He quickly fled, but I\r\n");
-                tx("know it's him, because\r\n");
-                tx("he made inquieries about\r\n");
-                tx("it, and tried to steal\r\n");
-                tx("it from me when I was\r\n");
-                tx("having dinner.\r\n\r\n");
+                tx0(res_text("speak.priest.fled"));
                 ryl_pause();
                 clw();
-                tx("I don't know his\r\n");
-                tx("whereabouts, but please\r\n");
-                tx("find the book and\r\n");
+                tx0(res_text("speak.priest.please_pre"));
                 tx("take it back to %s\r\n", res_enum("name", 3));
-                tx("if you can.\r\n\r\n");
+                tx0(res_text("speak.priest.please_post"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[3] = 2;
@@ -872,60 +437,36 @@ static void flaggkoll(int32_t vem) {
         case 6:
             if (state.p[state.cpl].flag[6] == 0) {
                 clw();
-                tx("- There is an item of\r\n");
-                tx("great power, he hisses.\r\n\r\n");
+                tx0(res_text("speak.silver_key.hiss"));
                 ryl_pause();
                 clw();
-                tx("- It is called the\r\n");
-                tx("SILVER KEY. It has taken\r\n");
-                tx("me many years of research\r\n");
-                tx("to find its location, and\r\n");
-                tx("this only to be stopped\r\n");
-                tx("by a guardian telling me\r\n");
-                tx("that 'only those of pure\r\n");
-                tx("heart can enter'.\r\n\r\n");
+                tx0(res_text("speak.silver_key.research"));
                 ryl_pause();
                 clw();
-                tx("- I fled for my life as\r\n");
-                tx("horned creatures chased\r\n");
-                tx("me through the woods.\r\n\r\n");
+                tx0(res_text("speak.silver_key.chased"));
                 ryl_pause();
                 clw();
-                tx("I have an offer to make\r\n");
-                tx("thee. I will sell you\r\n");
-                tx("a map to the location of\r\n");
-                tx("the SILVER KEY for 50000\r\n");
-                tx("gold coins. The price is\r\n");
-                tx("resonable. 10000 gold for\r\n");
-                tx("each of those fruitless\r\n");
-                tx("years.\r\n\r\n");
+                tx0(res_text("speak.silver_key.offer"));
                 ryl_pause();
                 clw();
-                tx("- Deal? \r\n\r\n");
-                tx("(B)uy it\r\n");
-                tx("(N)o thanks\r\n");
+                tx0(res_text("speak.silver_key.deal"));
+                tx0(res_text("speak.buy_nothanks"));
                 c = key();
                 c = toupper(c);
                 if (c == 'B') {
                     if (state.p[state.cpl].gold < 50000) {
                         clw();
-                        tx("- Sorry! 50000! No more\r\n");
-                        tx("no less. Come back when\r\n");
-                        tx("you have the gold.\r\n\r\n");
+                        tx0(res_text("speak.silver_key.broke"));
                         ryl_pause();
                         clw();
                         break;
                     }
                     state.p[state.cpl].gold -= 50000;
                     clw();
-                    tx("He quietly slips you the\r\n");
-                    tx("precious map. It\r\n");
-                    tx("tells you that the Pit\r\n");
-                    tx("of the Key is at\r\n");
+                    tx0(res_text("speak.silver_key.map_pre"));
                     tx("%dx%d!\r\n\r\n", state.dx[8], state.dy[8]);
                     state.p[state.cpl].flag[6] = 1;
-                    snprintf(send, sizeof send, "%d The Pit of the Silver Key is at %dx%d\n", state.cpl, state.dx[8], state.dy[8]);
-                    journal(send);
+                    journalf("%d The Pit of the Silver Key is at %dx%d\n", state.cpl, state.dx[8], state.dy[8]);
                     ryl_pause();
                     clw();
                     break;
@@ -938,88 +479,48 @@ static void flaggkoll(int32_t vem) {
         /*****************************************************************/
         case 8:
             if (state.p[state.cpl].flag[8] == 0) {
-                tx("- Rumor has it that\r\n");
-                tx("Erethor's Lute, a\r\n");
-                tx("musical instrument with\r\n");
-                tx("magical properties\r\n");
-                tx("exists somewhere in\r\n");
-                tx("the realm.\r\n\r\n");
+                tx0(res_text("speak.erethor.rumour"));
                 ryl_pause();
                 clw();
-                tx("- Erethor is a mighty\r\n");
-                tx("demon...\r\n\r\n");
+                tx0(res_text("speak.erethor.demon"));
                 ryl_pause();
                 clw();
-                tx("- I am a very poor man\r\n");
-                tx("myself, but I know of\r\n");
-                tx("the Cloak of Gods,\r\n");
-                tx("the most powerful of\r\n");
-                tx("all armours. I will\r\n\r\n");
+                tx0(res_text("speak.erethor.poor_man"));
                 ryl_pause();
                 clw();
-                tx("trade this information\r\n");
-                tx("if you find me Erethor's\r\n");
-                tx("Lute. One of Erethor's\r\n");
-                tx("temples, where mad\r\n");
-                tx("priests practise\r\n");
-                tx("blasphemous magic is\r\n");
-                tx("located at 6x20, near\r\n");
-                tx("the western peaks.\r\n\r\n");
+                tx0(res_text("speak.erethor.trade"));
                 ryl_pause();
                 clw();
-                tx("- This may be a dangerous\r\n");
-                tx("mission for such a\r\n");
-                tx("small reward, but the\r\n");
-                tx("Cloak will make it's\r\n");
-                tx("bearer almost\r\n");
-                tx("invulnerable.\r\n\r\n");
+                tx0(res_text("speak.erethor.dangerous"));
                 ryl_pause();
                 clw();
-                snprintf(send, sizeof send, "%d Erethor's temple is situated at 6x20.\n", state.cpl);
-                journal(send);
+                journalf("%d Erethor's temple is situated at 6x20.\n", state.cpl);
                 state.p[state.cpl].flag[8] = 1;
             }
             if (state.p[state.cpl].flag[8] == 2) {
                 clw();
-                tx("You hand him the\r\n");
-                tx("golden lute...\r\n\r\n");
+                tx0(res_text("speak.erethor.hand_lute"));
                 ryl_pause();
                 clw();
-                tx("- I can't believe you\r\n");
-                tx("actually made it!!!\r\n\r\n");
-                tx("- Now for my part of\r\n");
-                tx("the deal. Listen closely,\r\n");
-                tx("for I shall say this only\r\n");
-                tx("once.\r\n\r\n");
+                tx0(res_text("speak.erethor.note_pre"));
                 ryl_pause();
                 clw();
-                tx("- Take this note here\r\n");
-                tx("and seek out my friend\r\n");
+                tx0(res_text("speak.erethor.note_seek"));
                 tx("%s. He is also a\r\n", res_enum("name", 20));
-                tx("minstrel.\r\n");
+                tx0(res_text("speak.erethor.minstrel"));
                 if (state.npc[20].towne) {
-                    snprintf(str, sizeof str, "%s lives in %s.\n", res_enum("name", 20), res_town_name(state.npc[20].towne));
+                    snprintf(loc, sizeof loc, "%s lives in %s.\n", res_enum("name", 20), res_town_name(state.npc[20].towne));
                 } else {
-                    snprintf(str, sizeof str, "%s lives at %dx%d.\n", res_enum("name", 20), state.npc[20].x, state.npc[20].y);
+                    snprintf(loc, sizeof loc, "%s lives at %dx%d.\n", res_enum("name", 20), state.npc[20].x, state.npc[20].y);
                 }
-                tx("%s\r\r\n", str);
-                snprintf(send, sizeof send, "%d %s", state.cpl, str);
-                journal(send);
+                tx("%s\r\r\n", loc);
+                journalf("%d %s", state.cpl, loc);
                 ryl_pause();
                 clw();
-                tx("- We used to travel\r\n");
-                tx("together and he found\r\n");
-                tx("the Cloak in a long dead\r\n");
-                tx("hero's tomb. Now that\r\n");
-                tx("we have the Lute, the\r\n");
-                tx("Cloak is yours. Just\r\n");
-                tx("deliver this explaining\r\n");
-                tx("note!\r\n\r\n");
+                tx0(res_text("speak.erethor.together"));
                 ryl_pause();
                 clw();
-                tx("He hands you a piece of\r\n");
-                tx("paper and bids you\r\n");
-                tx("farewell.\r\n\r\n");
+                tx0(res_text("speak.erethor.paper"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[8] = 3;
@@ -1030,40 +531,26 @@ static void flaggkoll(int32_t vem) {
         case 13:
             if (state.p[state.cpl].flag[13] == 0) {
                 clw();
-                tx("- I have a map of the\r\n");
-                tx("road to the temple of\r\n");
-                tx("Thun! The legend says\r\n");
-                tx("it keeps the Bracelets\r\n");
-                tx("of Thun, which is one of\r\n");
-                tx("the objects that can\r\n");
-                tx("destroy baron Ydarg!\r\n\r\n");
+                tx0(res_text("speak.thun.legend"));
                 ryl_pause();
                 clw();
-                tx("- I will sell it to you\r\n");
-                tx("for 10000 gold pieces!\r\n\r\n");
-                tx("(B)uy it\r\n");
-                tx("(N)o thanks\r\n");
+                tx0(res_text("speak.thun.offer"));
+                tx0(res_text("speak.buy_nothanks"));
                 c = key();
                 c = toupper(c);
                 if (c == 'B') {
                     if (state.p[state.cpl].gold < 10000) {
                         clw();
-                        tx("- Sorry! 10000! No more\r\n");
-                        tx("no less. Come back when\r\n");
-                        tx("you have the gold.\r\n\r\n");
+                        tx0(res_text("speak.thun.broke"));
                         ryl_pause();
                         clw();
                         break;
                     }
                     state.p[state.cpl].gold -= 10000;
                     clw();
-                    tx("- Ok, here. He slowly\r\n");
-                    tx("hands you an old map. It\r\n");
-                    tx("tells you that the temple\r\n");
-                    tx("of Thun is situated at\r\n");
+                    tx0(res_text("speak.thun.map_pre"));
                     tx("%dx%d!\r\n\r\n", state.dx[2], state.dy[2]);
-                    snprintf(send, sizeof send, "%d The Temple of Thun is at %dx%d\n", state.cpl, state.dx[2], state.dy[2]);
-                    journal(send);
+                    journalf("%d The Temple of Thun is at %dx%d\n", state.cpl, state.dx[2], state.dy[2]);
                     state.p[state.cpl].flag[13] = 1;
                     ryl_pause();
                     clw();
@@ -1078,16 +565,10 @@ static void flaggkoll(int32_t vem) {
         case 14:
             if (state.p[state.cpl].flag[2] == 1) {
                 clw();
-                tx("- OH! A message from my\r\n");
-                tx("brother! This is indeed\r\n");
-                tx("great news. I will give\r\n");
-                tx("you this sword for\r\n");
-                tx("delivering the letter!\r\n\r\n");
+                tx0(res_text("speak.brother.give_sword"));
                 ryl_pause();
                 clw();
-                tx("He produces a sparkling\r\n");
-                tx("sword and wishes you a\r\n");
-                tx("happy journey.\r\n\r\n");
+                tx0(res_text("speak.brother.produces"));
                 for (i = 1, x = 0; i < 17; i++) {
                     if (state.p[state.cpl].inventory[i] == 0) {
                         state.p[state.cpl].inventory[i] = 16;
@@ -1096,13 +577,13 @@ static void flaggkoll(int32_t vem) {
                     }
                 }
                 if (!x) {
-                    tx("You can't carry it!!!.\r\n\r\n");
+                    tx0(res_text("speak.brother.cant_carry"));
                     ryl_delay(800);
                     carry = 0;
                     carry = drop_option();
                     if (carry) {
                         clw();
-                        tx("You take the sword.\r\n");
+                        tx0(res_text("speak.brother.take_sword"));
                         state.p[state.cpl].inventory[carry] = 16;
                         ryl_delay(800);
                     }
@@ -1117,26 +598,19 @@ static void flaggkoll(int32_t vem) {
         case 15:
             if (state.p[state.cpl].flag[15] == 0) {
                 if (state.npc[23].towne) {
-                    snprintf(str, sizeof str, "in %s", res_town_name(state.npc[23].towne));
+                    snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[23].towne));
                 } else {
-                    snprintf(str, sizeof str, "at %dx%d", state.npc[23].x, state.npc[23].y);
+                    snprintf(loc, sizeof loc, "at %dx%d", state.npc[23].x, state.npc[23].y);
                 }
                 clw();
-                tx("I heard that a man called\r\n");
+                tx0(res_text("speak.nymph.know_pre"));
                 tx("%s knows of the\r\n", res_enum("name", 23));
-                tx("Crown. I have roamed the\r\n");
-                tx("land in search for him,\r\n");
-                tx("since I want this item\r\n");
-                tx("to be found. Here! Take\r\n");
-                tx("this ring and show it\r\n");
-                tx("to him. You are better fit\r\n");
-                tx("for this mission than me.\r\n\r\n");
+                tx0(res_text("speak.nymph.know_post"));
                 ryl_pause();
                 clw();
                 tx("%s lives\r\n", res_enum("name", 23));
-                tx("%s\r\n\r\n", str);
-                snprintf(send, sizeof send, "%d %s lives %s.\n", state.cpl, res_enum("name", 23), str);
-                journal(send);
+                tx("%s\r\n\r\n", loc);
+                journalf("%d %s lives %s.\n", state.cpl, res_enum("name", 23), loc);
                 state.p[state.cpl].flag[15] = 1;
                 ryl_pause();
                 clw();
@@ -1147,27 +621,14 @@ static void flaggkoll(int32_t vem) {
             if (state.p[state.cpl].flag[6] == 2) {
                 state.p[state.cpl].flag[6] = 3;
                 clw();
-                tx("You push him up against\r\n");
-                tx("a wall and start asking\r\n");
-                tx("him questions. After\r\n");
-                tx("some 'mild' persuation\r\n");
-                tx("he tells you that he\r\n");
-                tx("sold the Key to a\r\n");
-                tx("travelling blacksmith\r\n");
-                tx("who was interested in\r\n");
-                tx("its metalurgic structure.\r\n\r\n");
+                tx0(res_text("speak.thief2.push"));
                 ryl_pause();
                 clw();
-                tx("After breaking a few\r\n");
-                tx("of his teeth, he also\r\n");
-                tx("willinly reveals that\r\n");
-                tx("the smith went by the\r\n");
+                tx0(res_text("speak.thief2.smith_pre"));
                 tx("name of %s...\r\n\r\n", res_enum("name", 24));
                 ryl_pause();
                 clw();
-                tx("You let go of your grip\r\n");
-                tx("of his collar, and he\r\n");
-                tx("falls to the floor.\r\n\r\n");
+                tx0(res_text("speak.thief2.let_go"));
                 ryl_pause();
                 clw();
             }
@@ -1176,46 +637,24 @@ static void flaggkoll(int32_t vem) {
         case 19:
             if (state.p[state.cpl].flag[19] == 0) {
                 clw();
-                tx("- Oh, I'm so depressed.\r\n");
-                tx("Orcs have kidnapped my\r\n");
-                tx("wife, Tammy, and demand\r\n");
-                tx("a ransom for her. I will\r\n");
-                tx("give you my entire fortune\r\n");
-                tx("if you retrieve her.\r\n\r\n");
+                tx0(res_text("speak.husband.depressed"));
                 ryl_pause();
                 clw();
-                tx("About 3000 gold coins,\r\n");
-                tx("a fine armour, and\r\n");
-                tx("some strange items my\r\n");
-                tx("father left me, will be\r\n");
-                tx("yours if you rescue her.\r\n\r\n");
+                tx0(res_text("speak.husband.fortune"));
                 ryl_pause();
                 clw();
-                tx("The orcs have a cave\r\n");
-                tx("at 42x23 in Lonewood.\r\n\r\n");
-                snprintf(send, sizeof send, "%d The orc cavern is at 42x23.\n", state.cpl);
-                journal(send);
+                tx0(res_text("speak.husband.cave"));
+                journalf("%d The orc cavern is at 42x23.\n", state.cpl);
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[19] = 1;
             }
             if (state.p[state.cpl].flag[19] == 2) {
                 clw();
-                tx("When he sees Tammy enter\r\n");
-                tx("the room, he cries tears\r\n");
-                tx("of happiness and kisses\r\n");
-                tx("her. When they have had\r\n");
-                tx("this happy reunion, he\r\n");
-                tx("motions to you to follow.\r\n\r\n");
+                tx0(res_text("speak.husband.reunion"));
                 ryl_pause();
                 clw();
-                tx("He hands you 3000 gold,\r\n");
-                tx("an Adamantium Armour of\r\n");
-                tx("advanced craftmanship\r\n");
-                tx("and some other assorted\r\n");
-                tx("objects. (An amber potion\r\n");
-                tx("a holy handgrenade, a\r\n");
-                tx("fire wand and a crystal.\r\n\r\n");
+                tx0(res_text("speak.husband.gives"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[19] = 3;
@@ -1257,8 +696,7 @@ static void flaggkoll(int32_t vem) {
                 }
                 if (x < 5) {
                     clw();
-                    tx("You can't carry all the\r\n");
-                    tx("items...\r\n\r\n");
+                    tx0(res_text("speak.husband.cant_carry"));
                     ryl_pause();
                 }
                 clw();
@@ -1268,12 +706,9 @@ static void flaggkoll(int32_t vem) {
         case 20:
             if (state.p[state.cpl].flag[8] == 3) {
                 clw();
-                tx("After reading the note\r\n");
+                tx0(res_text("speak.minstrel.reads_pre"));
                 tx("%s cries tears\r\n", res_enum("name", 20));
-                tx("of happiness. He\r\n");
-                tx("shakes all your hands\r\n");
-                tx("and produces a purple\r\n");
-                tx("cloak.\r\n\r\n");
+                tx0(res_text("speak.minstrel.reads_post"));
                 ryl_pause();
                 for (i = 1, x = 0; i < 17; i++) {
                     if (state.p[state.cpl].inventory[i] == 0) {
@@ -1284,24 +719,22 @@ static void flaggkoll(int32_t vem) {
                 }
                 if (!x) {
                     clw();
-                    tx("You can't carry it!\r\n\r\n");
+                    tx0(res_text("speak.minstrel.cant_carry"));
                     ryl_delay(800);
                     carry = 0;
                     carry = drop_option();
                     if (carry) {
                         clw();
-                        tx("You take the cloak.\r\n");
+                        tx0(res_text("speak.minstrel.take_cloak"));
                         ryl_delay(800);
                         state.p[state.cpl].inventory[carry] = 28;
                     }
                     ryl_pause();
                 }
                 clw();
-                tx("He bids you farewell\r\n");
-                tx("and tells you that\r\n");
-                tx("he'll travel to\r\n");
+                tx0(res_text("speak.minstrel.travel_pre"));
                 tx("%s the very\r\n", res_enum("name", 8));
-                tx("next day...\r\n\r\n");
+                tx0(res_text("speak.minstrel.travel_post"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[8] = 4;
@@ -1311,31 +744,16 @@ static void flaggkoll(int32_t vem) {
         case 23:
             if (state.p[state.cpl].flag[15] == 1 && state.p[state.cpl].flag[23] == 0) {
                 clw();
-                tx("- Ah, a seeker! Yes, I\r\n");
-                tx("know about the Master\r\n");
-                tx("Crown, but since I'm\r\n");
-                tx("neither good nor evil,\r\n");
-                tx("I have no interest in it.\r\n");
-                tx("I will give you the\r\n");
-                tx("information if you do\r\n");
-                tx("three tasks for me.\r\n\r\n");
+                tx0(res_text("speak.wizard3t.intro"));
                 ryl_pause();
                 clw();
-                tx("(Since there is nothing\r\n");
-                tx("else you can do,you agree\r\n");
-                tx("to complete the three\r\n");
-                tx("tasks).\r\n\r\n");
+                tx0(res_text("speak.wizard3t.agree"));
                 ryl_pause();
                 clw();
-                tx("- Firstly, I want you to\r\n");
-                tx("go to the kobold lair at\r\n");
+                tx0(res_text("speak.wizard3t.task1_pre"));
                 tx("%dx%d, and kill all life\r\n", state.dx[3], state.dy[3]);
-                tx("there. It is close to my\r\n");
-                tx("home village, and the foul\r\n");
-                tx("creatures have many times\r\n");
-                tx("attacked us. Farewell.\r\n\r\n");
-                snprintf(send, sizeof send, "%d The kobold lair is at %dx%d.\n", state.cpl, state.dx[3], state.dy[3]);
-                journal(send);
+                tx0(res_text("speak.wizard3t.task1_post"));
+                journalf("%d The kobold lair is at %dx%d.\n", state.cpl, state.dx[3], state.dy[3]);
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[15] = 2;
@@ -1344,23 +762,10 @@ static void flaggkoll(int32_t vem) {
             }
             if (state.p[state.cpl].flag[23] == 2) {
                 clw();
-                tx("You hand him the pendant.\r\n");
-                tx("He stares at you, almost\r\n");
-                tx("admiring.\r\n");
-                tx("- WELL DONE! I will now\r\n");
-                tx("grant you the second\r\n");
-                tx("quest.\r\n\r\n");
+                tx0(res_text("speak.wizard3t.pendant"));
                 ryl_pause();
                 clw();
-                tx("- Being a magician, I'm\r\n");
-                tx("always in search for\r\n");
-                tx("powerful spell reagents.\r\n");
-                tx("There is one plant I need\r\n");
-                tx("but can't find. It is\r\n");
-                tx("called Skullweed, and is\r\n");
-                tx("purple with small green\r\n");
-                tx("twigs. Find this plant\r\n");
-                tx("plant for me!\r\n\r\n");
+                tx0(res_text("speak.wizard3t.task2"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[23] = 3;
@@ -1368,25 +773,13 @@ static void flaggkoll(int32_t vem) {
             }
             if (state.p[state.cpl].flag[23] == 4) {
                 clw();
-                tx("- Well done again,\r\n");
-                tx("adventurers. The third\r\n");
-                tx("of my tasks will perhaps\r\n");
-                tx("be the toughest one\r\n");
-                tx("of them all! Find me a\r\n");
-                tx("DWARF STONE. It is a\r\n");
-                tx("stone of magnetic iron\r\n");
-                tx("which gives the wielder\r\n");
-                tx("the power of levitation.\r\n\r\n");
+                tx0(res_text("speak.wizard3t.task3"));
                 ryl_pause();
                 clw();
-                tx("- Begin your search in\r\n");
-                tx("the dwarven colony, near\r\n");
+                tx0(res_text("speak.wizard3t.task3_pre"));
                 tx("%dx%d. Be sure to treat\r\n", state.dx[4], state.dy[4]);
-                tx("the dwarves with respect,\r\n");
-                tx("for they are swift to\r\n");
-                tx("anger.\r\n\r\n");
-                snprintf(send, sizeof send, "%d The dwarf village is at %dx%d.\n", state.cpl, state.dx[4], state.dy[4]);
-                journal(send);
+                tx0(res_text("speak.wizard3t.task3_post"));
+                journalf("%d The dwarf village is at %dx%d.\n", state.cpl, state.dx[4], state.dy[4]);
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[23] = 5;
@@ -1394,16 +787,10 @@ static void flaggkoll(int32_t vem) {
             }
             if (state.p[state.cpl].flag[23] == 8) {
                 clw();
-                tx("- I JUST CAN'T TELL YOU\r\n");
-                tx("HOW GRATEFUL I AM!\r\n");
-                tx("He takes the stone and\r\n");
-                tx("smiles broadly at you.\r\n");
-                tx("- Very well, seekers! The\r\n");
-                tx("Master Crown is hidden in\r\n");
+                tx0(res_text("speak.wizard3t.grateful_pre"));
                 tx("a dungeon near %dx%d!\r\n", state.dx[6], state.dy[6]);
-                tx("Fare thee well.\r\n\r\n");
-                snprintf(send, sizeof send, "%d The Master Crown dungeon is at %dx%d.\n", state.cpl, state.dx[6], state.dy[6]);
-                journal(send);
+                tx0(res_text("speak.wizard3t.grateful_post"));
+                journalf("%d The Master Crown dungeon is at %dx%d.\n", state.cpl, state.dx[6], state.dy[6]);
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[23] = 9;
@@ -1414,33 +801,16 @@ static void flaggkoll(int32_t vem) {
         case 24:
             if (state.p[state.cpl].flag[6] == 3) {
                 clw();
-                tx("You ask him if he still\r\n");
-                tx("has the Key, prepared\r\n");
-                tx("for the worst...\r\n\r\n");
+                tx0(res_text("speak.smith.ask"));
                 ryl_pause();
                 clw();
-                tx("- Nah, sorry. I kinda\r\n");
-                tx("studied it enough and\r\n");
-                tx("was gonna bring it to\r\n");
-                tx("Ollk to sell it. However\r\n");
-                tx("on the road between Wilor\r\n");
-                tx("and Ollk I was caught by\r\n");
-                tx("filthy hobgoblins!\r\n\r\n");
+                tx0(res_text("speak.smith.sorry"));
                 ryl_pause();
                 clw();
-                tx("- I managed to get away,\r\n");
-                tx("but they followed me! Just\r\n");
-                tx("to the south-west of here\r\n");
-                tx("one of their arrows hit\r\n");
-                tx("my horse.\r\n\r\n");
+                tx0(res_text("speak.smith.pursued"));
                 ryl_pause();
                 clw();
-                tx("- They clubbed me\r\n");
-                tx("unconcious and took all\r\n");
-                tx("my belonings!!! Including\r\n");
-                tx("that key. Find them and\r\n");
-                tx("take it back. It's yours\r\n");
-                tx("if you get it.\r\n\r\n");
+                tx0(res_text("speak.smith.clubbed"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[6] = 4;
@@ -1450,16 +820,10 @@ static void flaggkoll(int32_t vem) {
         case 22:
             if (state.p[state.cpl].flag[22] == 0) {
                 clw();
-                tx("- ME HEAR YOU LOOK\r\n");
-                tx("FOR POWER ITEMS!\r\n\r\n");
-                tx("- ME VERY POOR! SELL\r\n");
-                tx("YOU INFORMATION ABOUT\r\n");
-                tx("FOOT OF JAZZY, YES?\r\n\r\n");
+                tx0(res_text("speak.jazzy_ogre.hear"));
                 ryl_pause();
                 clw();
-                tx("- LET US TRADE! OFFER\r\n");
-                tx("ITEM AND I'LL TELL YA!\r\n\r\n");
-                tx("(You offer him something).\r\n\r\n");
+                tx0(res_text("speak.jazzy_ogre.trade"));
                 ryl_pause();
                 clw();
                 invlist();
@@ -1470,16 +834,15 @@ static void flaggkoll(int32_t vem) {
                     oc = state.p[state.cpl].inventory[d - 64];
                     if (oc < 35) {
                         clw();
-                        tx("- NAH, THINK NOT!.\r\n");
+                        tx0(res_text("speak.jazzy_ogre.refuse"));
                         ryl_delay(1000);
                         break;
                     } else {
                         clw();
-                        tx("- YEEES! NICE NIICE!\r\n");
+                        tx0(res_text("speak.jazzy_ogre.accept_pre"));
                         tx("GO TO CAVE AT %dx%d!\r\n", state.dx[7], state.dy[7]);
-                        tx("BEAST HAS THE FOOT.\r\n\r\n");
-                        snprintf(send, sizeof send, "%d The 'Beast Cave' is at %dx%d.\n", state.cpl, state.dx[7], state.dy[7]);
-                        journal(send);
+                        tx0(res_text("speak.jazzy_ogre.accept_post"));
+                        journalf("%d The 'Beast Cave' is at %dx%d.\n", state.cpl, state.dx[7], state.dy[7]);
                         state.p[state.cpl].flag[22] = 1;
                         state.p[state.cpl].inventory[d - 64] = 0;
                         ryl_pause();
@@ -1493,30 +856,17 @@ static void flaggkoll(int32_t vem) {
         case 33:
             if (state.p[state.cpl].flag[33] == 0) {
                 clw();
-                tx("- Welcome, chosen ones!\r\n");
-                tx("the hermit cackles.\r\n");
-                tx("- I know of the Fire\r\n");
-                tx("Shield, an item of\r\n");
-                tx("great power.\r\n");
-                tx("Go find me teeth of\r\n");
-                tx("a troll, and I will\r\n");
-                tx("tell you about it.\r\n\r\n");
+                tx0(res_text("speak.hermit.welcome"));
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[33] = 1;
             }
             if (state.p[state.cpl].flag[33] == 2) {
                 clw();
-                tx("You hand him the troll\r\n");
-                tx("tooth.\r\n");
-                tx("- Oh YES! He cackles.\r\n");
-                tx("At areas uncharted, near\r\n");
+                tx0(res_text("speak.hermit.tooth_pre"));
                 tx("%dx%d is the cave you\r\n", state.dx[1], state.dy[1]);
-                tx("seek. Beware of the\r\n");
-                tx("guardian the ancients\r\n");
-                tx("gave birth too...\r\n\r\n");
-                snprintf(send, sizeof send, "%d The Fire Shield Dungeon is at %dx%d.\n", state.cpl, state.dx[1], state.dy[1]);
-                journal(send);
+                tx0(res_text("speak.hermit.tooth_post"));
+                journalf("%d The Fire Shield Dungeon is at %dx%d.\n", state.cpl, state.dx[1], state.dy[1]);
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[33] = 3;

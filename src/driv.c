@@ -1448,6 +1448,15 @@ void journal(char *send_me) {
     fputs(send_me, fh);
     fclose(fh);
 }
+
+void journalf(const char *fmt, ...) {
+    char line[144];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof line, fmt, ap);
+    va_end(ap);
+    journal(line);
+}
 static void clrjr(uint8_t nr) {
     FILE *fh;
     char str[144], a[10], b[20], temp[4];

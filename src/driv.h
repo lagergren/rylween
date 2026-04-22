@@ -16,6 +16,13 @@ void showparty(void);
 void invlist(void);
 void statusline(void);
 void journal(char *);
+
+/* printf-style wrapper around journal(): builds the line in a local
+   buffer then forwards to journal(). Lets callers drop the usual
+   three-step `char buf[N]; snprintf(buf, fmt, ...); journal(buf);`
+   dance. */
+__attribute__((format(printf, 1, 2))) void journalf(const char *fmt, ...);
+
 void help(void);
 
 #endif
