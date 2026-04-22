@@ -21,7 +21,7 @@ void c(uint8_t x, uint8_t y) {
 
     state.global_x = x;
     n = snprintf(pos, sizeof pos, "\x1b[%d;0H", y);
-    io->write(pos, (size_t) n);
+    io->write(pos, (size_t)n);
 }
 
 uint32_t tx(const char *fmtstr, ...) {
@@ -32,17 +32,17 @@ uint32_t tx(const char *fmtstr, ...) {
 
     n = snprintf(jump, sizeof jump, "\x1b[%dC", state.global_x);
     if (n > 0) {
-        io->write(jump, (size_t) n);
+        io->write(jump, (size_t)n);
     }
 
     va_start(var_args, fmtstr);
-    n = vsnprintf(buffer, sizeof buffer, (char *) fmtstr, var_args);
+    n = vsnprintf(buffer, sizeof buffer, (char *)fmtstr, var_args);
     va_end(var_args);
 
     if (n > 0) {
-        io->write(buffer, (size_t) n);
+        io->write(buffer, (size_t)n);
     }
-    return n > 0 ? (uint32_t) n : 0UL;
+    return n > 0 ? (uint32_t)n : 0UL;
 }
 
 void clw(void) {
@@ -69,7 +69,7 @@ void cleanexit(void) {
 
 char *getstr(uint8_t lg) {
     static char svar[90];
-    size_t cap = lg < 89 ? (size_t) lg + 1 : sizeof svar;
+    size_t cap = lg < 89 ? (size_t)lg + 1 : sizeof svar;
 
     if (!carrier()) {
         cleanexit();
@@ -139,7 +139,7 @@ char key(void) {
                 break;
         }
     }
-    return (char) ch;
+    return (char)ch;
 }
 
 void ryl_pause(void) {
@@ -156,7 +156,6 @@ void ryl_pause(void) {
         "Brain",
     };
     int32_t ch;
-
 
     tx("(%s RETURN key)\r\n", verbs[ryl_random(0, 9)]);
     c(0, 0);
@@ -194,7 +193,7 @@ void render_at(const char *path, uint8_t x, uint8_t y) {
         char pos[16];
         int32_t pn = snprintf(pos, sizeof pos, "\x1b[%d;%dH", y + row, x);
         if (pn > 0) {
-            io->write(pos, (size_t) pn);
+            io->write(pos, (size_t)pn);
         }
         if (n) {
             io->write(line, n);
@@ -233,7 +232,7 @@ void ryl_log(char *st) {
     }
 
     snprintf(str, sizeof str, "%s %2d %2d:%02d %s\n",
-             months[m], (int32_t) kl[3], (int32_t) kl[4], (int32_t) kl[5], st);
+             months[m], (int32_t)kl[3], (int32_t)kl[4], (int32_t)kl[5], st);
 
     if (!(fh = fopen(ryl_state_path("rylween.log"), "a+"))) {
         return;

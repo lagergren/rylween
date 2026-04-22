@@ -10,13 +10,27 @@
 #include <unistd.h>
 
 int pm_class_id(const char *name) {
-    if (!name) return -1;
-    if (strcmp(name, "fighter") == 0) return PC_FIGHTER;
-    if (strcmp(name, "thief")   == 0) return PC_THIEF;
-    if (strcmp(name, "mage")    == 0 || strcmp(name, "wizard") == 0) return PC_MAGE;
-    if (strcmp(name, "priest")  == 0) return PC_PRIEST;
-    if (strcmp(name, "bard")    == 0) return PC_BARD;
-    if (strcmp(name, "ranger")  == 0) return PC_RANGER;
+    if (!name) {
+        return -1;
+    }
+    if (strcmp(name, "fighter") == 0) {
+        return PC_FIGHTER;
+    }
+    if (strcmp(name, "thief") == 0) {
+        return PC_THIEF;
+    }
+    if (strcmp(name, "mage") == 0 || strcmp(name, "wizard") == 0) {
+        return PC_MAGE;
+    }
+    if (strcmp(name, "priest") == 0) {
+        return PC_PRIEST;
+    }
+    if (strcmp(name, "bard") == 0) {
+        return PC_BARD;
+    }
+    if (strcmp(name, "ranger") == 0) {
+        return PC_RANGER;
+    }
     return -1;
 }
 
@@ -31,7 +45,7 @@ void ryl_delay(unsigned ms) {
     if (suppressed) {
         return;
     }
-    useconds_t us = (useconds_t) ms * 1000U;
+    useconds_t us = (useconds_t)ms * 1000U;
     while (us > 0) {
         useconds_t chunk = us > 900000U ? 900000U : us;
         if (usleep(chunk) == 0) {
@@ -46,8 +60,8 @@ void ryl_delay(unsigned ms) {
 }
 
 time_t ryl_time(time_t *out) {
-    static int   resolved = 0;
-    static int   fixed    = 0;
+    static int resolved = 0;
+    static int fixed = 0;
     static time_t fixed_val = 0;
 
     if (!resolved) {
@@ -57,14 +71,16 @@ time_t ryl_time(time_t *out) {
             char *end;
             unsigned long v = strtoul(e, &end, 10);
             if (end != e) {
-                fixed     = 1;
-                fixed_val = (time_t) v;
+                fixed = 1;
+                fixed_val = (time_t)v;
             }
         }
     }
 
     time_t now = fixed ? fixed_val : time(NULL);
-    if (out) *out = now;
+    if (out) {
+        *out = now;
+    }
     return now;
 }
 
@@ -78,13 +94,17 @@ void ryl_random_init(void) {
         char *end;
         unsigned long v = strtoul(e, &end, 10);
         if (end != e) {
-            rng_state = (uint64_t) v;
-            if (rng_state == 0) rng_state = 1;
+            rng_state = (uint64_t)v;
+            if (rng_state == 0) {
+                rng_state = 1;
+            }
             return;
         }
     }
-    rng_state = (uint64_t) ryl_time(NULL) ^ ((uint64_t) getpid() << 16);
-    if (rng_state == 0) rng_state = 1;
+    rng_state = (uint64_t)ryl_time(NULL) ^ ((uint64_t)getpid() << 16);
+    if (rng_state == 0) {
+        rng_state = 1;
+    }
 }
 
 static uint64_t rng_next(void) {
@@ -99,13 +119,17 @@ static uint64_t rng_next(void) {
 int ryl_random(int lo, int hi) {
     assert(rng_state != 0 && "ryl_random_init() not called");
     assert(lo <= hi);
-    uint64_t span = (uint64_t) (hi - lo) + 1U;
-    return lo + (int) (rng_next() % span);
+    uint64_t span = (uint64_t)(hi - lo) + 1U;
+    return lo + (int)(rng_next() % span);
 }
 
 int ryl_chance(int pct) {
-    if (pct <= 0) return 0;
-    if (pct >= 100) return 1;
+    if (pct <= 0) {
+        return 0;
+    }
+    if (pct >= 100) {
+        return 1;
+    }
     return ryl_random(1, 100) <= pct;
 }
 
@@ -118,13 +142,13 @@ void getclk(char *kl) {
         return;
     }
 
-    kl[1] = (char) (tm->tm_year - 80);
-    kl[2] = (char) (tm->tm_mon + 1);
-    kl[3] = (char) tm->tm_mday;
-    kl[4] = (char) tm->tm_hour;
-    kl[5] = (char) tm->tm_min;
-    kl[6] = (char) tm->tm_wday;
-    kl[7] = (char) tm->tm_sec;
+    kl[1] = (char)(tm->tm_year - 80);
+    kl[2] = (char)(tm->tm_mon + 1);
+    kl[3] = (char)tm->tm_mday;
+    kl[4] = (char)tm->tm_hour;
+    kl[5] = (char)tm->tm_min;
+    kl[6] = (char)tm->tm_wday;
+    kl[7] = (char)tm->tm_sec;
 }
 
 void str_append(char *dst, size_t dst_sz, const char *src) {
@@ -144,7 +168,7 @@ char *ryl_state_path(const char *leaf) {
         state = 0;
         if (home && *home) {
             int n = snprintf(base, sizeof base, "%s/.rylween", home);
-            if (n > 0 && (size_t) n < sizeof base) {
+            if (n > 0 && (size_t)n < sizeof base) {
                 if (mkdir(base, 0700) == 0 || errno == EEXIST) {
                     state = 1;
                 }

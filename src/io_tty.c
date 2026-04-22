@@ -14,7 +14,7 @@ static struct termios saved_termios;
 static int32_t termios_saved = 0;
 
 static void tty_winch_handler(int sig) {
-    (void) sig;
+    (void)sig;
     io_winch_pending = 1;
 }
 
@@ -28,7 +28,7 @@ static void tty_write(const char *buf, size_t n) {
             }
             return;
         }
-        off += (size_t) w;
+        off += (size_t)w;
     }
 }
 
@@ -60,7 +60,7 @@ static int32_t tty_getline(char *buf, size_t n) {
         }
     }
 
-    if (!fgets(buf, (int32_t) n, stdin)) {
+    if (!fgets(buf, (int32_t)n, stdin)) {
         buf[0] = 0;
         if (have_raw) {
             tcsetattr(STDIN_FILENO, TCSANOW, &raw);
@@ -77,7 +77,7 @@ static int32_t tty_getline(char *buf, size_t n) {
         tcsetattr(STDIN_FILENO, TCSANOW, &raw);
     }
 
-    return (int32_t) len;
+    return (int32_t)len;
 }
 
 static int32_t tty_carrier_ok(void) {
@@ -101,7 +101,7 @@ static void tty_dump_file(const char *path) {
         if (r == 0) {
             break;
         }
-        tty_write(buf, (size_t) r);
+        tty_write(buf, (size_t)r);
     }
     close(fd);
 }

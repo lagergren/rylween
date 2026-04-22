@@ -211,7 +211,7 @@ int32_t color(char t) {
     return res_color(t);
 }
 char *glyph(char t) {
-    return (char *) res_glyph(t);
+    return (char *)res_glyph(t);
 }
 
 void weaponoff() {
@@ -414,7 +414,7 @@ uint8_t drop() {
             }
             state.p[state.cpl].inventory[d - 64] = 0;
             clw();
-            return (uint8_t) (d - 64);
+            return (uint8_t)(d - 64);
         } else {
             tx("Nothing to drop.\r\n");
             ryl_delay(600);
@@ -776,7 +776,9 @@ void spell(int32_t place) {
 
     for (int slot = 1; slot <= 7; slot++) {
         s = res_spell("priest", slot);
-        if (!s) continue;
+        if (!s) {
+            continue;
+        }
         tx("%d. %-12s(%3d/%3d)\r\n", slot, s->name,
            s->base_cost + pm_lv(caster), pm_ma(caster));
     }
@@ -795,7 +797,9 @@ void spell(int32_t place) {
     }
 
     s = res_spell("priest", c - 48);
-    if (!s) return;
+    if (!s) {
+        return;
+    }
 
     switch (s->effect) {
         case SE_HEAL:

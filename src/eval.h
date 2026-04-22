@@ -65,30 +65,30 @@ typedef enum {
 
 /* Compiled path. Hot-path reads dispatch on actor + field; no strcmp. */
 typedef struct {
-    int8_t  actor;   /* path_actor */
-    int8_t  field;   /* path_field */
-    int32_t index;   /* subscript for inventory[N] / npc[N] */
-    char   *local;   /* owned; non-NULL iff actor == PA_LOCAL */
-    int     line;    /* source line for runtime errors */
+    int8_t actor;  /* path_actor */
+    int8_t field;  /* path_field */
+    int32_t index; /* subscript for inventory[N] / npc[N] */
+    char *local;   /* owned; non-NULL iff actor == PA_LOCAL */
+    int line;      /* source line for runtime errors */
 } path_t;
 
 typedef struct node_kv node_kv;
-typedef struct node    node;
+typedef struct node node;
 
 struct node {
     node_kind kind;
-    int       line;
+    int line;
     union {
         int32_t bv;
         int32_t iv;
-        char   *sv;
+        char *sv;
         struct {
             node **items;
             size_t n;
         } arr;
         struct {
             node_kv *items;
-            size_t   n;
+            size_t n;
         } obj;
         path_t path;
     } u;
@@ -99,8 +99,8 @@ struct node_kv {
     node *val;
 };
 
-node       *node_new(node_kind k, int line);
-void        node_free(node *n);
+node *node_new(node_kind k, int line);
+void node_free(node *n);
 const node *obj_get(const node *o, const char *key);
 
 /* Actor binding. Each of the four actor slots (caster / target / speaker /
@@ -117,7 +117,7 @@ typedef struct {
     int kind;
     union {
         pm_t party;
-        int  mon_index;  /* 1..noc — reads env->mh[] / env->deadc[] */
+        int mon_index; /* 1..noc — reads env->mh[] / env->deadc[] */
     } u;
 } actor_bind;
 
@@ -135,19 +135,19 @@ struct env_t {
     actor_bind speaker;
     actor_bind self;
     struct {
-        char   *name;
+        char *name;
         int32_t val;
     } *locals;
     size_t n_locals;
     size_t cap_locals;
 
-    int         noc;
-    int        *mh;
-    int        *deadc;
+    int noc;
+    int *mh;
+    int *deadc;
     const char *fn;
 
     jmp_buf *seq_stack[8];
-    int      seq_top;
+    int seq_top;
 };
 
 void env_init(env_t *e);
@@ -162,7 +162,7 @@ void env_bind_combat(env_t *e, int noc, int *mh, int *deadc, const char *fn);
 void compile_world_tree(node *root, const char *src_path);
 
 int32_t eval_expr(const node *n, env_t *e);
-int     eval_cond(const node *n, env_t *e);
-void    eval_effect(const node *n, env_t *e);
+int eval_cond(const node *n, env_t *e);
+void eval_effect(const node *n, env_t *e);
 
 #endif

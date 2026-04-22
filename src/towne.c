@@ -205,7 +205,7 @@ int32_t obcost(int32_t nr) {
 }
 char *object(int32_t nr) {
     const ryl_item *it = res_item(nr);
-    return it ? (char *) it->name : "-";
+    return it ? (char *)it->name : "-";
 }
 
 void enter() {

@@ -184,7 +184,7 @@ void place_npcs() {
         cleanexit();
     }
     for (i = 1; i < 40; i++) {
-        fwrite((char *) &state.npc[i], sizeof(state.npc[i]), 1, fh);
+        fwrite((char *)&state.npc[i], sizeof(state.npc[i]), 1, fh);
     }
     fclose(fh);
 }

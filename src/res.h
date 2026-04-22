@@ -8,13 +8,13 @@
    loader retired in Phase 6d. */
 
 typedef struct {
-    const char *name;     /* NULL if no record for this id */
+    const char *name; /* NULL if no record for this id */
     int32_t cost;
     int32_t damage;
 } ryl_item;
 
 typedef struct {
-    const char *name;     /* NULL if no record for this id */
+    const char *name; /* NULL if no record for this id */
     int32_t n1, n2;
     int32_t h1, h2;
     int32_t ws;
@@ -44,10 +44,10 @@ enum ryl_spell_effect {
 
 typedef struct {
     const char *id;
-    const char *name;     /* NULL if no record for this slot */
+    const char *name; /* NULL if no record for this slot */
     int32_t slot;
     int32_t base_cost;
-    int32_t effect;       /* enum ryl_spell_effect */
+    int32_t effect; /* enum ryl_spell_effect */
 } ryl_spell;
 
 /* Phase 6d: hierarchical JSON5 world loader. Parses data/world.json5
@@ -67,7 +67,7 @@ const void *res_world(void);
 /* Flags subtree (docs/dsl.md §3.1): symbolic id -> party/encounter slot.
    res_flag_slot returns -1 for unknown ids. res_flag_value returns "" for
    unknown ids or out-of-range indices; never NULL. */
-int32_t     res_flag_slot(const char *id);
+int32_t res_flag_slot(const char *id);
 const char *res_flag_value(const char *id, int index);
 
 /* Enum: values[index] for matching record. "" if missing/out of range. */

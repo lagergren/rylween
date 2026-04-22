@@ -388,7 +388,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                 clw();
                 for (int slot = 1; slot <= 6; slot++) {
                     s = res_spell("mage", slot);
-                    if (!s) continue;
+                    if (!s) {
+                        continue;
+                    }
                     tx("%d. %-13s(%3d/%3d)\r\n", slot, s->name,
                        s->base_cost + pm_lv(caster), pm_ma(caster));
                 }
@@ -409,7 +411,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     goto combat;
                 }
                 if (im) {
-                    s = NULL;  /* swallow the key press, no effect */
+                    s = NULL; /* swallow the key press, no effect */
                 } else {
                     s = res_spell("mage", d - 48);
                 }
@@ -426,11 +428,11 @@ void encounter(int32_t foe, int32_t mandatory) {
                             env_init(&env);
                             env_bind_caster_party(&env, caster);
                             env_bind_combat(&env, noc, mh, deadc, fn);
-                            eval_effect((const node *) spell_node, &env);
+                            eval_effect((const node *)spell_node, &env);
                             env_free(&env);
                             /* DSL path handled the spell; skip the
                                legacy enum switch entirely. */
-                            spell_node = NULL;  /* fall through past switch */
+                            spell_node = NULL; /* fall through past switch */
                             goto after_mage_switch;
                         }
                         switch (s->effect) {

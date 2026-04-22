@@ -261,7 +261,7 @@ void read_journal() {
 
     while (1) {
         str[0] = 0;
-        fgets((char *) str, sizeof(str), j);
+        fgets((char *)str, sizeof(str), j);
         if (str[0] == 0) {
             ryl_pause();
             break;
@@ -342,7 +342,6 @@ void position_locations() {
         state.dy[i] = 0;
     }
 
-
     for (i = 1; i < 10; i++) {
         while (1) {
             state.dx[i] = ryl_random(5, 74);
@@ -370,7 +369,7 @@ void init() {
         cleanexit();
     }
     for (i = 1; i < 41; i++) {
-        fgets((char *) state.map[i], sizeof(state.map[i]), fh);
+        fgets((char *)state.map[i], sizeof(state.map[i]), fh);
     }
     fclose(fh);
 
@@ -383,13 +382,13 @@ void init() {
             cleanexit();
         }
 
-        fwrite((char *) &state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-        fwrite((char *) &state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
+        fwrite((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+        fwrite((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
         for (i = 1; i < 15; i++) {
-            fwrite((char *) &state.dx[i], sizeof(state.dx[i]), 1, fh);
+            fwrite((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
         }
         for (i = 1; i < 15; i++) {
-            fwrite((char *) &state.dy[i], sizeof(state.dy[i]), 1, fh);
+            fwrite((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
         }
 
         fclose(fh);
@@ -561,7 +560,7 @@ void init() {
                     i = 0;
                     while (1) {
                         str[0] = 0;
-                        fread((char *) str, sizeof(str), 1, fh);
+                        fread((char *)str, sizeof(str), 1, fh);
                         if (str[0] == 0) {
                             break;
                         }
@@ -586,7 +585,7 @@ void init() {
 
                     fh = fopen(ryl_state_path("entry.dat"), "ab");
                     strcpy(str, state.global_name);
-                    fwrite((char *) str, sizeof(str), 1, fh);
+                    fwrite((char *)str, sizeof(str), 1, fh);
                     fclose(fh);
 
                     // Checking done. Load
@@ -624,17 +623,17 @@ void init() {
                             cleanexit();
                         }
                         state.antal_spelare--;
-                        fwrite((char *) &state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-                        fwrite((char *) &state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
+                        fwrite((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+                        fwrite((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
                         for (i = 1; i < 15; i++) {
-                            fwrite((char *) &state.dx[i], sizeof(state.dx[i]), 1, fh);
+                            fwrite((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
                         }
                         for (i = 1; i < 15; i++) {
-                            fwrite((char *) &state.dy[i], sizeof(state.dy[i]), 1, fh);
+                            fwrite((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
                         }
                         for (i = 1; i < state.antal_spelare + 2; i++) {
                             if (i != x) {
-                                fwrite((char *) &state.p[i], sizeof(state.p[i]), 1, fh);
+                                fwrite((char *)&state.p[i], sizeof(state.p[i]), 1, fh);
                             }
                         }
                         fclose(fh);
@@ -660,7 +659,7 @@ void init() {
                             for (j = 1; j < state.antal_spelare; j++) {
                                 state.npc[i].visited[x] = state.npc[i].visited[x + 1];
                             }
-                            fwrite((char *) &state.npc[i], sizeof(state.npc[i]), 1, fh);
+                            fwrite((char *)&state.npc[i], sizeof(state.npc[i]), 1, fh);
                         }
                         fclose(fh);
                         ryl_delay(1000);
@@ -698,18 +697,18 @@ void save() {
         cleanexit();
     }
 
-    fwrite((char *) &state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-    fwrite((char *) &state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
+    fwrite((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+    fwrite((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
     for (i = 1; i < 15; i++) {
-        fwrite((char *) &state.dx[i], sizeof(state.dx[i]), 1, fh);
+        fwrite((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
     }
     for (i = 1; i < 15; i++) {
-        fwrite((char *) &state.dy[i], sizeof(state.dy[i]), 1, fh);
+        fwrite((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
     }
 
     if (state.antal_spelare) {
         for (i = 1; i < state.antal_spelare + 1; i++) {
-            fwrite((char *) &state.p[i], sizeof(state.p[i]), 1, fh);
+            fwrite((char *)&state.p[i], sizeof(state.p[i]), 1, fh);
         }
     }
     fclose(fh);
@@ -722,7 +721,7 @@ void save() {
         cleanexit();
     }
     for (i = 1; i < 40; i++) {
-        fwrite((char *) &state.npc[i], sizeof(state.npc[i]), 1, fh);
+        fwrite((char *)&state.npc[i], sizeof(state.npc[i]), 1, fh);
     }
     fclose(fh);
 }
@@ -738,18 +737,18 @@ void load() {
         cleanexit();
     }
 
-    fread((char *) &state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-    fread((char *) &state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
+    fread((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+    fread((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
     for (i = 1; i < 15; i++) {
-        fread((char *) &state.dx[i], sizeof(state.dx[i]), 1, fh);
+        fread((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
     }
     for (i = 1; i < 15; i++) {
-        fread((char *) &state.dy[i], sizeof(state.dy[i]), 1, fh);
+        fread((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
     }
 
     if (state.antal_spelare) {
         for (i = 1; i < state.antal_spelare + 1; i++) {
-            fread((char *) &state.p[i], sizeof(state.p[i]), 1, fh);
+            fread((char *)&state.p[i], sizeof(state.p[i]), 1, fh);
         }
     }
     fclose(fh);
@@ -767,7 +766,7 @@ void load() {
         cleanexit();
     }
     for (i = 1; i < 40; i++) {
-        fread((char *) &state.npc[i], sizeof(state.npc[i]), 1, fh);
+        fread((char *)&state.npc[i], sizeof(state.npc[i]), 1, fh);
     }
     fclose(fh);
 
@@ -780,7 +779,7 @@ void load() {
     }
 
     for (i = 1; i < 41; i++) {
-        fgets((char *) state.map[i], sizeof(state.map[i]), fh);
+        fgets((char *)state.map[i], sizeof(state.map[i]), fh);
     }
     fclose(fh);
 }
@@ -788,8 +787,10 @@ void load() {
 char *sextext(uint8_t nr, uint8_t xx) {
     uint8_t sex = state.p[state.cpl].sex[nr];
     /* Original: female's xx in {2,3} both returned "her"; clamp to match. */
-    if (sex == 2 && xx == 3) xx = 2;
-    return (char *) res_sextext(sex, xx);
+    if (sex == 2 && xx == 3) {
+        xx = 2;
+    }
+    return (char *)res_sextext(sex, xx);
 }
 
 void createparty() {
@@ -1080,7 +1081,7 @@ void journal(char *send_me) {
     if ((fh = fopen("data/journal", "r"))) {
         while (1) {
             str[0] = 0;
-            fgets((char *) str, sizeof(str), fh);
+            fgets((char *)str, sizeof(str), fh);
             if (str[0] == 0) {
                 break;
             }
@@ -1113,7 +1114,7 @@ void clrjr(uint8_t nr) {
 
     while (1) {
         str[0] = 0;
-        fgets((char *) str, sizeof(str), fh);
+        fgets((char *)str, sizeof(str), fh);
         if (str[0] == 0) {
             break;
         }
@@ -1152,7 +1153,7 @@ void clrjr(uint8_t nr) {
 
         while (1) {
             str[0] = 0;
-            fgets((char *) str, sizeof(str), fh);
+            fgets((char *)str, sizeof(str), fh);
             if (str[0] == 0) {
                 break;
             }

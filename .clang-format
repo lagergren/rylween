@@ -13,7 +13,7 @@ AllowShortCaseLabelsOnASingleLine: false
 AllowShortBlocksOnASingleLine: Never
 InsertBraces: true
 IndentCaseLabels: true
-SpaceAfterCStyleCast: true
+SpaceAfterCStyleCast: false
 AlignAfterOpenBracket: Align
 BinPackArguments: true
 BinPackParameters: true

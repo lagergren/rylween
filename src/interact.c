@@ -63,7 +63,7 @@ void guild() {
                     }
                     while (1) {
                         str[0] = 0;
-                        fgets((char *) &str, sizeof(str), fh);
+                        fgets((char *)&str, sizeof(str), fh);
                         tx("%s\r", str);
                         if (str[0] == 0) {
                             break;
@@ -81,7 +81,7 @@ void guild() {
                 d = toupper(d);
                 if (d == 'Y') {
                     fh = fopen("data/external/last_bull", "r");
-                    fgets((char *) str2, sizeof(str2), fh);
+                    fgets((char *)str2, sizeof(str2), fh);
                     fclose(fh);
                     x = atoi(str2);
                     x++;
@@ -220,7 +220,7 @@ uint8_t select_party() {
             break;
         }
     }
-    return (uint8_t) (d - 64);
+    return (uint8_t)(d - 64);
 }
 
 void editor(char *outfile, uint8_t bulletin) {

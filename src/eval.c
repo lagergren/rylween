@@ -86,14 +86,12 @@ const node *obj_get(const node *o, const char *key) {
 /*  Error reporting                                                 */
 /* ---------------------------------------------------------------- */
 
-__attribute__((noreturn))
-static void cdie(const char *path, int line, const char *msg) {
+__attribute__((noreturn)) static void cdie(const char *path, int line, const char *msg) {
     fprintf(stderr, "res: %s:%d: %s\n", path, line, msg);
     exit(1);
 }
 
-__attribute__((noreturn))
-static void rdie(int line, const char *msg) {
+__attribute__((noreturn)) static void rdie(int line, const char *msg) {
     fprintf(stderr, "res: eval:%d: %s\n", line, msg);
     exit(1);
 }
@@ -108,28 +106,72 @@ static int match_literal(const char *s, size_t n, const char *lit) {
 }
 
 static int8_t field_from(const char *s, size_t n) {
-    if (match_literal(s, n, "hp"))           return PF_HP;
-    if (match_literal(s, n, "h"))            return PF_H;
-    if (match_literal(s, n, "ma"))           return PF_MA;
-    if (match_literal(s, n, "wi"))           return PF_WI;
-    if (match_literal(s, n, "lv"))           return PF_LV;
-    if (match_literal(s, n, "ws"))           return PF_WS;
-    if (match_literal(s, n, "ch"))           return PF_CH;
-    if (match_literal(s, n, "ac"))           return PF_AC;
-    if (match_literal(s, n, "dead"))         return PF_DEAD;
-    if (match_literal(s, n, "name"))         return PF_NAME;
-    if (match_literal(s, n, "cl"))           return PF_CL;
-    if (match_literal(s, n, "gold"))         return PF_GOLD;
-    if (match_literal(s, n, "visited"))      return PF_VISITED;
-    if (match_literal(s, n, "inventory"))    return PF_INVENTORY;
-    if (match_literal(s, n, "banished"))     return PF_BANISHED;
-    if (match_literal(s, n, "x"))            return PF_X;
-    if (match_literal(s, n, "y"))            return PF_Y;
-    if (match_literal(s, n, "fireshield"))   return PF_FIRESHIELD;
-    if (match_literal(s, n, "bracelets"))    return PF_BRACELETS;
-    if (match_literal(s, n, "mastercrown"))  return PF_MASTERCROWN;
-    if (match_literal(s, n, "jazzyfoot"))    return PF_JAZZYFOOT;
-    if (match_literal(s, n, "silverkey"))    return PF_SILVERKEY;
+    if (match_literal(s, n, "hp")) {
+        return PF_HP;
+    }
+    if (match_literal(s, n, "h")) {
+        return PF_H;
+    }
+    if (match_literal(s, n, "ma")) {
+        return PF_MA;
+    }
+    if (match_literal(s, n, "wi")) {
+        return PF_WI;
+    }
+    if (match_literal(s, n, "lv")) {
+        return PF_LV;
+    }
+    if (match_literal(s, n, "ws")) {
+        return PF_WS;
+    }
+    if (match_literal(s, n, "ch")) {
+        return PF_CH;
+    }
+    if (match_literal(s, n, "ac")) {
+        return PF_AC;
+    }
+    if (match_literal(s, n, "dead")) {
+        return PF_DEAD;
+    }
+    if (match_literal(s, n, "name")) {
+        return PF_NAME;
+    }
+    if (match_literal(s, n, "cl")) {
+        return PF_CL;
+    }
+    if (match_literal(s, n, "gold")) {
+        return PF_GOLD;
+    }
+    if (match_literal(s, n, "visited")) {
+        return PF_VISITED;
+    }
+    if (match_literal(s, n, "inventory")) {
+        return PF_INVENTORY;
+    }
+    if (match_literal(s, n, "banished")) {
+        return PF_BANISHED;
+    }
+    if (match_literal(s, n, "x")) {
+        return PF_X;
+    }
+    if (match_literal(s, n, "y")) {
+        return PF_Y;
+    }
+    if (match_literal(s, n, "fireshield")) {
+        return PF_FIRESHIELD;
+    }
+    if (match_literal(s, n, "bracelets")) {
+        return PF_BRACELETS;
+    }
+    if (match_literal(s, n, "mastercrown")) {
+        return PF_MASTERCROWN;
+    }
+    if (match_literal(s, n, "jazzyfoot")) {
+        return PF_JAZZYFOOT;
+    }
+    if (match_literal(s, n, "silverkey")) {
+        return PF_SILVERKEY;
+    }
     return PF_NONE;
 }
 
@@ -163,7 +205,7 @@ static void parse_path(const char *src, int line, path_t *out) {
     /* Head: up to the first '.' or '['. */
     const char *p = src;
     const char *dot = strchr(p, '.');
-    const char *br  = strchr(p, '[');
+    const char *br = strchr(p, '[');
     const char *head_end = dot;
     if (br && (!head_end || br < head_end)) {
         head_end = br;
@@ -171,15 +213,21 @@ static void parse_path(const char *src, int line, path_t *out) {
     if (!head_end) {
         die_path(src, line, "missing '.' or '['");
     }
-    size_t head_n = (size_t) (head_end - p);
+    size_t head_n = (size_t)(head_end - p);
 
-    if      (match_literal(p, head_n, "caster"))   out->actor = PA_CASTER;
-    else if (match_literal(p, head_n, "target"))   out->actor = PA_TARGET;
-    else if (match_literal(p, head_n, "speaker"))  out->actor = PA_SPEAKER;
-    else if (match_literal(p, head_n, "self"))     out->actor = PA_SELF;
-    else if (match_literal(p, head_n, "state"))    out->actor = PA_STATE;
-    else if (match_literal(p, head_n, "party"))    out->actor = PA_PARTY;
-    else if (match_literal(p, head_n, "npc")) {
+    if (match_literal(p, head_n, "caster")) {
+        out->actor = PA_CASTER;
+    } else if (match_literal(p, head_n, "target")) {
+        out->actor = PA_TARGET;
+    } else if (match_literal(p, head_n, "speaker")) {
+        out->actor = PA_SPEAKER;
+    } else if (match_literal(p, head_n, "self")) {
+        out->actor = PA_SELF;
+    } else if (match_literal(p, head_n, "state")) {
+        out->actor = PA_STATE;
+    } else if (match_literal(p, head_n, "party")) {
+        out->actor = PA_PARTY;
+    } else if (match_literal(p, head_n, "npc")) {
         if (*head_end != '[') {
             die_path(src, line, "npc path needs '[N]'");
         }
@@ -189,7 +237,7 @@ static void parse_path(const char *src, int line, path_t *out) {
             die_path(src, line, "bad npc subscript");
         }
         out->actor = PA_NPC;
-        out->index = (int32_t) idx;
+        out->index = (int32_t)idx;
         head_end = end + 1;
     } else {
         die_path(src, line, "unknown path root");
@@ -200,8 +248,8 @@ static void parse_path(const char *src, int line, path_t *out) {
         die_path(src, line, "expected '.' after path root");
     }
     const char *tail = head_end + 1;
-    const char *tbr  = strchr(tail, '[');
-    size_t tail_n = tbr ? (size_t) (tbr - tail) : strlen(tail);
+    const char *tbr = strchr(tail, '[');
+    size_t tail_n = tbr ? (size_t)(tbr - tail) : strlen(tail);
     int8_t f = field_from(tail, tail_n);
     if (f == PF_NONE) {
         die_path(src, line, "unknown field name");
@@ -220,7 +268,7 @@ static void parse_path(const char *src, int line, path_t *out) {
         if (out->actor == PA_NPC) {
             die_path(src, line, "subscript on npc field not supported");
         }
-        out->index = (int32_t) idx;
+        out->index = (int32_t)idx;
     }
 }
 
@@ -353,7 +401,7 @@ static void compile_cond(node *n, const char *src_path) {
         check_arity(n, src_path, 1, 1);
     } else if (strcmp(op, "class_is") == 0) {
         check_arity(n, src_path, 3, 3);
-        compile_expr(n->u.arr.items[1], src_path);  /* actor-ref as path */
+        compile_expr(n->u.arr.items[1], src_path); /* actor-ref as path */
         if (n->u.arr.items[2]->kind != N_STR) {
             cdie(src_path, n->u.arr.items[2]->line, "class_is: class must be string");
         }
@@ -570,10 +618,14 @@ void env_bind_combat(env_t *e, int noc, int *mh, int *deadc, const char *fn) {
 
 static actor_bind *env_actor(env_t *e, int8_t actor, int line) {
     switch (actor) {
-        case PA_CASTER:  return &e->caster;
-        case PA_TARGET:  return &e->target;
-        case PA_SPEAKER: return &e->speaker;
-        case PA_SELF:    return &e->self;
+        case PA_CASTER:
+            return &e->caster;
+        case PA_TARGET:
+            return &e->target;
+        case PA_SPEAKER:
+            return &e->speaker;
+        case PA_SELF:
+            return &e->self;
         default:
             rdie(line, "internal: not an actor path");
     }
@@ -581,16 +633,26 @@ static actor_bind *env_actor(env_t *e, int8_t actor, int line) {
 
 static int32_t read_party_actor_field(pm_t pm, int field, int index, int line) {
     switch (field) {
-        case PF_HP:         return pm_hp(pm);
-        case PF_H:          return pm_h(pm);
-        case PF_MA:         return pm_ma(pm);
-        case PF_WI:         return pm.party->wi[pm.m];
-        case PF_LV:         return pm_lv(pm);
-        case PF_WS:         return pm.party->ws[pm.m];
-        case PF_CH:         return pm.party->ch[pm.m];
-        case PF_AC:         return pm.party->ar[pm.m];
-        case PF_DEAD:       return pm_dead(pm);
-        case PF_CL:         return pm_cl(pm);
+        case PF_HP:
+            return pm_hp(pm);
+        case PF_H:
+            return pm_h(pm);
+        case PF_MA:
+            return pm_ma(pm);
+        case PF_WI:
+            return pm.party->wi[pm.m];
+        case PF_LV:
+            return pm_lv(pm);
+        case PF_WS:
+            return pm.party->ws[pm.m];
+        case PF_CH:
+            return pm.party->ch[pm.m];
+        case PF_AC:
+            return pm.party->ar[pm.m];
+        case PF_DEAD:
+            return pm_dead(pm);
+        case PF_CL:
+            return pm_cl(pm);
         case PF_INVENTORY:
             if (index < 0 || index >= 17) {
                 rdie(line, "inventory index out of range");
@@ -609,8 +671,10 @@ static int32_t read_monster_field(env_t *e, int idx, int field, int line) {
         rdie(line, "monster index out of range");
     }
     switch (field) {
-        case PF_HP:   return e->mh[idx];
-        case PF_DEAD: return e->deadc[idx];
+        case PF_HP:
+            return e->mh[idx];
+        case PF_DEAD:
+            return e->deadc[idx];
         default:
             rdie(line, "unsupported monster field");
     }
@@ -632,14 +696,22 @@ static int32_t read_actor_bound(const actor_bind *ab, const path_t *p, env_t *e)
 static int32_t read_party_field(int field, int line) {
     struct party *p = &state.p[state.cpl];
     switch (field) {
-        case PF_GOLD:        return p->gold;
-        case PF_X:           return p->x;
-        case PF_Y:           return p->y;
-        case PF_FIRESHIELD:  return p->fireshield;
-        case PF_BRACELETS:   return p->bracelets;
-        case PF_MASTERCROWN: return p->mastercrown;
-        case PF_JAZZYFOOT:   return p->jazzyfoot;
-        case PF_SILVERKEY:   return p->silverkey;
+        case PF_GOLD:
+            return p->gold;
+        case PF_X:
+            return p->x;
+        case PF_Y:
+            return p->y;
+        case PF_FIRESHIELD:
+            return p->fireshield;
+        case PF_BRACELETS:
+            return p->bracelets;
+        case PF_MASTERCROWN:
+            return p->mastercrown;
+        case PF_JAZZYFOOT:
+            return p->jazzyfoot;
+        case PF_SILVERKEY:
+            return p->silverkey;
         default:
             rdie(line, "unsupported party field");
     }
@@ -647,7 +719,8 @@ static int32_t read_party_field(int field, int line) {
 
 static int32_t read_state_field(int field, int line) {
     switch (field) {
-        case PF_BANISHED: return state.banished;
+        case PF_BANISHED:
+            return state.banished;
         default:
             rdie(line, "unsupported state field");
     }
@@ -681,14 +754,30 @@ static int32_t eval_path_get(const path_t *p, env_t *e) {
 
 static void write_party_actor_field(pm_t pm, int field, int index, int32_t val, int line) {
     switch (field) {
-        case PF_HP:   pm.party->hp[pm.m] = val; return;
-        case PF_H:    pm.party->h[pm.m] = val;  return;
-        case PF_MA:   pm.party->ma[pm.m] = val; return;
-        case PF_WI:   pm.party->wi[pm.m] = val; return;
-        case PF_WS:   pm.party->ws[pm.m] = val; return;
-        case PF_CH:   pm.party->ch[pm.m] = val; return;
-        case PF_LV:   pm.party->lv[pm.m] = val; return;
-        case PF_DEAD: pm.party->dead[pm.m] = val; return;
+        case PF_HP:
+            pm.party->hp[pm.m] = val;
+            return;
+        case PF_H:
+            pm.party->h[pm.m] = val;
+            return;
+        case PF_MA:
+            pm.party->ma[pm.m] = val;
+            return;
+        case PF_WI:
+            pm.party->wi[pm.m] = val;
+            return;
+        case PF_WS:
+            pm.party->ws[pm.m] = val;
+            return;
+        case PF_CH:
+            pm.party->ch[pm.m] = val;
+            return;
+        case PF_LV:
+            pm.party->lv[pm.m] = val;
+            return;
+        case PF_DEAD:
+            pm.party->dead[pm.m] = val;
+            return;
         case PF_INVENTORY:
             if (index < 0 || index >= 17) {
                 rdie(line, "inventory index out of range");
@@ -708,8 +797,12 @@ static void write_monster_field(env_t *e, int idx, int field, int32_t val, int l
         rdie(line, "monster index out of range");
     }
     switch (field) {
-        case PF_HP:   e->mh[idx] = val; return;
-        case PF_DEAD: e->deadc[idx] = val; return;
+        case PF_HP:
+            e->mh[idx] = val;
+            return;
+        case PF_DEAD:
+            e->deadc[idx] = val;
+            return;
         default:
             rdie(line, "unsupported monster field write");
     }
@@ -733,12 +826,24 @@ static void write_actor_bound(actor_bind *ab, const path_t *p, int32_t val, env_
 static void write_party_field(int field, int32_t val, int line) {
     struct party *p = &state.p[state.cpl];
     switch (field) {
-        case PF_GOLD:        p->gold = val; return;
-        case PF_FIRESHIELD:  p->fireshield = (unsigned char) val; return;
-        case PF_BRACELETS:   p->bracelets = (unsigned char) val; return;
-        case PF_MASTERCROWN: p->mastercrown = (unsigned char) val; return;
-        case PF_JAZZYFOOT:   p->jazzyfoot = (unsigned char) val; return;
-        case PF_SILVERKEY:   p->silverkey = (unsigned char) val; return;
+        case PF_GOLD:
+            p->gold = val;
+            return;
+        case PF_FIRESHIELD:
+            p->fireshield = (unsigned char)val;
+            return;
+        case PF_BRACELETS:
+            p->bracelets = (unsigned char)val;
+            return;
+        case PF_MASTERCROWN:
+            p->mastercrown = (unsigned char)val;
+            return;
+        case PF_JAZZYFOOT:
+            p->jazzyfoot = (unsigned char)val;
+            return;
+        case PF_SILVERKEY:
+            p->silverkey = (unsigned char)val;
+            return;
         default:
             rdie(line, "unsupported party field write");
     }
@@ -746,7 +851,9 @@ static void write_party_field(int field, int32_t val, int line) {
 
 static void write_state_field(int field, int32_t val, int line) {
     switch (field) {
-        case PF_BANISHED: state.banished = val; return;
+        case PF_BANISHED:
+            state.banished = val;
+            return;
         default:
             rdie(line, "unsupported state field write");
     }
@@ -852,10 +959,11 @@ int32_t eval_expr(const node *n, env_t *e) {
         return m;
     }
     if (strcmp(op, "clamp") == 0) {
-        int32_t v  = eval_expr(n->u.arr.items[1], e);
+        int32_t v = eval_expr(n->u.arr.items[1], e);
         int32_t lo = eval_expr(n->u.arr.items[2], e);
         int32_t hi = eval_expr(n->u.arr.items[3], e);
-        return v < lo ? lo : v > hi ? hi : v;
+        return v < lo ? lo : v > hi ? hi
+                                    : v;
     }
     if (strcmp(op, "rand") == 0) {
         int32_t lo = eval_expr(n->u.arr.items[1], e);
@@ -944,7 +1052,7 @@ int eval_cond(const node *n, env_t *e) {
         return !d;
     }
     if (strcmp(op, "chance") == 0) {
-        int pct = (int) eval_expr(n->u.arr.items[1], e);
+        int pct = (int)eval_expr(n->u.arr.items[1], e);
         return ryl_chance(pct);
     }
     if (strcmp(op, "eq") == 0) {
@@ -977,10 +1085,18 @@ static const char *eval_name_string(const node *a, env_t *e) {
     }
     actor_bind *ab;
     switch (p->actor) {
-        case PA_CASTER:  ab = &e->caster;  break;
-        case PA_TARGET:  ab = &e->target;  break;
-        case PA_SPEAKER: ab = &e->speaker; break;
-        case PA_SELF:    ab = &e->self;    break;
+        case PA_CASTER:
+            ab = &e->caster;
+            break;
+        case PA_TARGET:
+            ab = &e->target;
+            break;
+        case PA_SPEAKER:
+            ab = &e->speaker;
+            break;
+        case PA_SELF:
+            ab = &e->self;
+            break;
         default:
             rdie(p->line, "say/journal %s arg must be an actor path");
     }
@@ -1024,7 +1140,7 @@ static void say_render(const char *fmt, const node *n, env_t *e, char *buf, size
                 if (wrote < 0) {
                     wrote = 0;
                 }
-                size_t wn = (size_t) wrote;
+                size_t wn = (size_t)wrote;
                 if (o + wn >= buf_sz) {
                     wn = buf_sz - 1 - o;
                 }
@@ -1042,7 +1158,7 @@ static void say_render(const char *fmt, const node *n, env_t *e, char *buf, size
 }
 
 static void eval_say(const node *n, env_t *e) {
-    const char *id  = n->u.arr.items[1]->u.sv;
+    const char *id = n->u.arr.items[1]->u.sv;
     const char *fmt = res_text(id);
     if (n->u.arr.n == 2) {
         tx("%s", fmt);
@@ -1060,7 +1176,7 @@ static void eval_set_flag(const node *n, env_t *e) {
     if (slot < 0) {
         rdie(n->line, "set_flag: unknown flag");
     }
-    state.p[state.cpl].flag[slot] = (unsigned char) v;
+    state.p[state.cpl].flag[slot] = (unsigned char)v;
 }
 
 /* ask_target "monster_alive": reproduces battle.c:424-441 byte-for-byte so
@@ -1100,7 +1216,7 @@ static void eval_ask_target(const node *n, env_t *e) {
 
 static void eval_seq(const node *n, env_t *e) {
     jmp_buf buf;
-    if (e->seq_top >= (int) (sizeof e->seq_stack / sizeof e->seq_stack[0])) {
+    if (e->seq_top >= (int)(sizeof e->seq_stack / sizeof e->seq_stack[0])) {
         rdie(n->line, "seq nested too deep");
     }
     e->seq_stack[e->seq_top++] = &buf;
@@ -1137,7 +1253,7 @@ void eval_effect(const node *n, env_t *e) {
         char buf[512];
         const char *fmt = res_text(n->u.arr.items[1]->u.sv);
         if (n->u.arr.n == 2) {
-            journal((char *) fmt);
+            journal((char *)fmt);
         } else {
             say_render(fmt, n, e, buf, sizeof buf);
             journal(buf);
@@ -1151,7 +1267,7 @@ void eval_effect(const node *n, env_t *e) {
     if (strcmp(op, "delay") == 0) {
         int32_t ms = eval_expr(n->u.arr.items[1], e);
         if (ms > 0) {
-            ryl_delay((unsigned) ms);
+            ryl_delay((unsigned)ms);
         }
         return;
     }
