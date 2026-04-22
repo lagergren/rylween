@@ -1,4 +1,5 @@
 #include "io.h"
+#include "json5.h"
 #include "res.h"
 #include "ryl.h"
 #include "driv.h"
@@ -13,6 +14,7 @@ static void createparty(void);
 static void load(void);
 static void position_locations(void);
 static void read_journal(void);
+static int read_current_world(void);
 static void spelet(void);
 static void write_current_world(void);
 
@@ -387,32 +389,40 @@ void init() {
     }
     fclose(fh);
 
-    ryl_state_path("realm.dat", path, sizeof path);
-    if (!(fh = fopen(path, "rb"))) {
-        state.antal_spelare = 0;
-        state.senaste_dagen = 0;
-        position_locations();
+    /* State load priority: current-world.json5 (§15) takes precedence
+       over the legacy realm.dat/npc.dat pair. If neither exists, this
+       is a sysop cold-start: build a fresh realm in memory, stub the
+       legacy .dat files so migration-aware code downstream still sees
+       them, and write the first current-world.json5. */
+    int loaded_from_json5 = read_current_world();
+    if (!loaded_from_json5) {
+        ryl_state_path("realm.dat", path, sizeof path);
+        if (!(fh = fopen(path, "rb"))) {
+            state.antal_spelare = 0;
+            state.senaste_dagen = 0;
+            position_locations();
 
-        if (!(fh = fopen(path, "wb"))) {
-            cleanexit();
+            if (!(fh = fopen(path, "wb"))) {
+                cleanexit();
+            }
+
+            fwrite((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
+            fwrite((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
+            for (i = 1; i < 15; i++) {
+                fwrite((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
+            }
+            for (i = 1; i < 15; i++) {
+                fwrite((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
+            }
+
+            fclose(fh);
+
+            place_npcs();
+            write_current_world();
         }
-
-        fwrite((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-        fwrite((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
-        for (i = 1; i < 15; i++) {
-            fwrite((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
+        if (fh) {
+            fclose(fh);
         }
-        for (i = 1; i < 15; i++) {
-            fwrite((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
-        }
-
-        fclose(fh);
-
-        place_npcs();
-        write_current_world();
-    }
-    if (fh) {
-        fclose(fh);
     }
 
     cl();
@@ -421,7 +431,9 @@ void init() {
     tx("[37m<MORE>\r\n");
     key();
 
-    load();
+    if (!loaded_from_json5) {
+        load();
+    }
     getclk(kl);
     if (kl[3] != state.senaste_dagen) {
         cl();
@@ -937,6 +949,270 @@ static void write_current_world() {
 
     fputs("}\n", f);
     fclose(f);
+}
+
+/* §15 step 2 reader helpers: tolerant DOM -> state field unpacking.
+   Every getter leaves `out` untouched if the field is absent or the
+   wrong kind, so missing optionals fall back to whatever state[i]
+   already held (static-zero at boot; previous value on reload). */
+
+static int32_t rcw_int(const node *obj, const char *key, int32_t dflt) {
+    const node *n = obj_get(obj, key);
+    if (n && n->kind == N_INT) {
+        return n->u.iv;
+    }
+    return dflt;
+}
+
+/* Accept either the symbolic string (resolved via res_enum_id) or the
+   raw integer — keeps the file round-trippable when an enum misses. */
+static int32_t rcw_enum(const node *obj, const char *key, const char *enum_id, int32_t dflt) {
+    const node *n = obj_get(obj, key);
+    if (!n) {
+        return dflt;
+    }
+    if (n->kind == N_INT) {
+        return n->u.iv;
+    }
+    if (n->kind == N_STR) {
+        int id = res_enum_id(enum_id, n->u.sv);
+        return id >= 0 ? id : dflt;
+    }
+    return dflt;
+}
+
+static void rcw_i32_arr(const node *arr, int32_t *out, int out_n) {
+    if (!arr || arr->kind != N_ARR) {
+        return;
+    }
+    size_t n = arr->u.arr.n < (size_t)out_n ? arr->u.arr.n : (size_t)out_n;
+    for (size_t i = 0; i < n; i++) {
+        const node *it = arr->u.arr.items[i];
+        if (it && it->kind == N_INT) {
+            out[i] = it->u.iv;
+        }
+    }
+}
+
+static void rcw_u32_arr(const node *arr, uint32_t *out, int out_n) {
+    if (!arr || arr->kind != N_ARR) {
+        return;
+    }
+    size_t n = arr->u.arr.n < (size_t)out_n ? arr->u.arr.n : (size_t)out_n;
+    for (size_t i = 0; i < n; i++) {
+        const node *it = arr->u.arr.items[i];
+        if (it && it->kind == N_INT) {
+            out[i] = (uint32_t)it->u.iv;
+        }
+    }
+}
+
+static void rcw_byte_arr(const node *arr, unsigned char *out, int out_n) {
+    if (!arr || arr->kind != N_ARR) {
+        return;
+    }
+    size_t n = arr->u.arr.n < (size_t)out_n ? arr->u.arr.n : (size_t)out_n;
+    for (size_t i = 0; i < n; i++) {
+        const node *it = arr->u.arr.items[i];
+        if (it && it->kind == N_INT) {
+            out[i] = (unsigned char)it->u.iv;
+        }
+    }
+}
+
+/* Enum-int32 array: each element is a symbolic string (resolved via
+   res_enum_id) or a raw int. N_NULL leaves the out slot untouched —
+   writer emits null for 0-valued slots (1-based enum sentinel). */
+static void rcw_enum_arr(const node *arr, const char *enum_id, int32_t *out, int out_n) {
+    if (!arr || arr->kind != N_ARR) {
+        return;
+    }
+    size_t n = arr->u.arr.n < (size_t)out_n ? arr->u.arr.n : (size_t)out_n;
+    for (size_t i = 0; i < n; i++) {
+        const node *it = arr->u.arr.items[i];
+        if (!it) {
+            continue;
+        }
+        if (it->kind == N_INT) {
+            out[i] = it->u.iv;
+        } else if (it->kind == N_STR) {
+            int id = res_enum_id(enum_id, it->u.sv);
+            if (id >= 0) {
+                out[i] = id;
+            }
+        }
+    }
+}
+
+static void rcw_enum_barr(const node *arr, const char *enum_id, unsigned char *out, int out_n) {
+    if (!arr || arr->kind != N_ARR) {
+        return;
+    }
+    size_t n = arr->u.arr.n < (size_t)out_n ? arr->u.arr.n : (size_t)out_n;
+    for (size_t i = 0; i < n; i++) {
+        const node *it = arr->u.arr.items[i];
+        if (!it) {
+            continue;
+        }
+        if (it->kind == N_INT) {
+            out[i] = (unsigned char)it->u.iv;
+        } else if (it->kind == N_STR) {
+            int id = res_enum_id(enum_id, it->u.sv);
+            if (id >= 0) {
+                out[i] = (unsigned char)id;
+            }
+        }
+    }
+}
+
+static void rcw_str(const node *obj, const char *key, char *out, int out_sz) {
+    const node *n = obj_get(obj, key);
+    if (!n || n->kind != N_STR) {
+        return;
+    }
+    strncpy(out, n->u.sv, out_sz - 1);
+    out[out_sz - 1] = '\0';
+}
+
+/* §15 step 2: populate state.* from $HOME/.rylween/current-world.json5.
+   Returns 1 if the file was read successfully, 0 if it doesn't exist
+   (caller falls back to realm.dat / npc.dat). Fatal on parse error via
+   res_die — a corrupt save is a sysop problem, not a silent fallback.
+
+   Expects the schema emitted by write_current_world (steps 1/1.5/1.6):
+   realm{last_played_day}, locations{dx,dy}, npcs{<name>:{slot,...}},
+   parties[{..., visited_npcs:[40]}]. Per §15.5, the visited bits live
+   per-party; this loop rebuilds state.npc[j].visited[i]. */
+static int read_current_world() {
+    char path[512];
+    FILE *probe;
+    ryl_state_path("current-world.json5", path, sizeof path);
+    if (!(probe = fopen(path, "rb"))) {
+        return 0;
+    }
+    fclose(probe);
+
+    node *root = json5_parse_file(path);
+    root = json5_resolve_imports(root, path);
+
+    const node *realm = obj_get(root, "realm");
+    if (realm && realm->kind == N_OBJ) {
+        state.senaste_dagen = rcw_int(realm, "last_played_day", state.senaste_dagen);
+    }
+
+    const node *loc = obj_get(root, "locations");
+    if (loc && loc->kind == N_OBJ) {
+        rcw_i32_arr(obj_get(loc, "dx"), state.dx, 15);
+        rcw_i32_arr(obj_get(loc, "dy"), state.dy, 15);
+    }
+
+    const node *npcs = obj_get(root, "npcs");
+    if (npcs && npcs->kind == N_OBJ) {
+        for (size_t i = 0; i < npcs->u.obj.n; i++) {
+            const node *rec = npcs->u.obj.items[i].val;
+            if (!rec || rec->kind != N_OBJ) {
+                continue;
+            }
+            int slot = rcw_int(rec, "slot", 0);
+            if (slot < 1 || slot > 39) {
+                continue;
+            }
+            struct person *n = &state.npc[slot];
+            n->nr = slot;
+            n->job   = rcw_enum(rec, "job",   "jobname", n->job);
+            n->towne = rcw_enum(rec, "towne", "towne",   n->towne);
+            n->bl    = rcw_enum(rec, "bl",    "bl",      n->bl);
+            n->x     = rcw_int (rec, "x",                n->x);
+            n->y     = rcw_int (rec, "y",                n->y);
+        }
+    }
+
+    const node *parties = obj_get(root, "parties");
+    if (parties && parties->kind == N_ARR) {
+        state.antal_spelare = (int32_t)parties->u.arr.n;
+        for (size_t pi = 0; pi < parties->u.arr.n; pi++) {
+            const node *pnode = parties->u.arr.items[pi];
+            if (!pnode || pnode->kind != N_OBJ) {
+                continue;
+            }
+            int i = (int)pi + 1;
+            if (i > 25) {
+                break;
+            }
+            struct party *p = &state.p[i];
+
+            rcw_str(pnode, "player",    p->player,    sizeof p->player);
+            rcw_str(pnode, "partyname", p->partyname, sizeof p->partyname);
+
+            const node *names = obj_get(pnode, "name");
+            if (names && names->kind == N_ARR) {
+                size_t nn = names->u.arr.n < 5 ? names->u.arr.n : 5;
+                for (size_t m = 0; m < nn; m++) {
+                    const node *nm = names->u.arr.items[m];
+                    if (nm && nm->kind == N_STR) {
+                        strncpy(p->name[m], nm->u.sv, sizeof p->name[m] - 1);
+                        p->name[m][sizeof p->name[m] - 1] = '\0';
+                    }
+                }
+            }
+
+            rcw_byte_arr(obj_get(pnode, "flag"), p->flag, 40);
+            p->fireshield  = (unsigned char)rcw_int(pnode, "fireshield",  p->fireshield);
+            p->bracelets   = (unsigned char)rcw_int(pnode, "bracelets",   p->bracelets);
+            p->mastercrown = (unsigned char)rcw_int(pnode, "mastercrown", p->mastercrown);
+            p->jazzyfoot   = (unsigned char)rcw_int(pnode, "jazzyfoot",   p->jazzyfoot);
+            p->silverkey   = (unsigned char)rcw_int(pnode, "silverkey",   p->silverkey);
+            p->pl          = (unsigned char)rcw_int(pnode, "pl",          p->pl);
+            p->x           = rcw_int(pnode, "x", p->x);
+            p->y           = rcw_int(pnode, "y", p->y);
+            p->gold        = rcw_int(pnode, "gold", p->gold);
+            p->torches     = (uint32_t)rcw_int(pnode, "torches", p->torches);
+            p->food        = rcw_int(pnode, "food", p->food);
+            p->tid_kvar    = rcw_int(pnode, "tid_kvar", p->tid_kvar);
+
+            rcw_i32_arr(obj_get(pnode, "inventory"), p->inventory, 17);
+            rcw_i32_arr(obj_get(pnode, "ws"), p->ws, 5);
+            rcw_i32_arr(obj_get(pnode, "h"),  p->h,  5);
+            rcw_i32_arr(obj_get(pnode, "hp"), p->hp, 5);
+            rcw_i32_arr(obj_get(pnode, "wi"), p->wi, 5);
+            rcw_i32_arr(obj_get(pnode, "ma"), p->ma, 5);
+            rcw_i32_arr(obj_get(pnode, "ch"), p->ch, 5);
+            rcw_enum_arr(obj_get(pnode, "cl"), "pc_class", p->cl, 5);
+            rcw_enum_arr(obj_get(pnode, "ra"), "race",     p->ra, 5);
+            rcw_i32_arr(obj_get(pnode, "lv"), p->lv, 5);
+            rcw_i32_arr(obj_get(pnode, "ar"), p->ar, 5);
+            rcw_i32_arr(obj_get(pnode, "wp"), p->wp, 5);
+            rcw_u32_arr (obj_get(pnode, "exp"),  p->exp,  5);
+            rcw_i32_arr (obj_get(pnode, "dead"), p->dead, 5);
+            rcw_enum_barr(obj_get(pnode, "sex"), "sex", p->sex, 5);
+            rcw_byte_arr(obj_get(pnode, "attack_today"), p->attack_today, 26);
+            p->waiting_mail = (unsigned char)rcw_int(pnode, "waiting_mail", p->waiting_mail);
+            p->attacked     = (unsigned char)rcw_int(pnode, "attacked",     p->attacked);
+            p->kills        = (uint32_t)rcw_int(pnode, "kills", p->kills);
+
+            const node *vn = obj_get(pnode, "visited_npcs");
+            if (vn && vn->kind == N_ARR) {
+                size_t nvn = vn->u.arr.n < 40 ? vn->u.arr.n : 40;
+                for (size_t j = 0; j < nvn; j++) {
+                    const node *it = vn->u.arr.items[j];
+                    if (it && it->kind == N_INT) {
+                        state.npc[j].visited[i] = (unsigned char)it->u.iv;
+                    }
+                }
+            }
+        }
+    }
+
+    /* Match load()'s behavior: set state.cpl by matching the logged-in
+       player name against each party's `player` field. */
+    for (int i = 1; i <= state.antal_spelare; i++) {
+        if (!stricmp(state.global_name, state.p[i].player)) {
+            state.cpl = i;
+        }
+    }
+
+    node_free(root);
+    return 1;
 }
 
 void save() {
