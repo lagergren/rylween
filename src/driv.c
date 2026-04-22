@@ -10,7 +10,6 @@
 
 static void clrjr(uint8_t);
 static void createparty(void);
-static void load(void);
 static void position_locations(void);
 static void read_journal(void);
 static int read_current_world(void);
@@ -388,40 +387,17 @@ void init() {
     }
     fclose(fh);
 
-    /* State load priority: current-world.json5 (§15) takes precedence
-       over the legacy realm.dat/npc.dat pair. If neither exists, this
-       is a sysop cold-start: build a fresh realm in memory, stub the
-       legacy .dat files so migration-aware code downstream still sees
-       them, and write the first current-world.json5. */
-    int loaded_from_json5 = read_current_world();
-    if (!loaded_from_json5) {
-        ryl_state_path("realm.dat", path, sizeof path);
-        if (!(fh = fopen(path, "rb"))) {
-            state.antal_spelare = 0;
-            state.senaste_dagen = 0;
-            position_locations();
-
-            if (!(fh = fopen(path, "wb"))) {
-                cleanexit();
-            }
-
-            fwrite((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-            fwrite((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
-            for (i = 1; i < 15; i++) {
-                fwrite((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
-            }
-            for (i = 1; i < 15; i++) {
-                fwrite((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
-            }
-
-            fclose(fh);
-
-            res_realize_npcs();
-            write_current_world();
-        }
-        if (fh) {
-            fclose(fh);
-        }
+    /* State load: current-world.json5 is the sole persistence path
+       (§15 step 5 dropped the realm.dat/npc.dat readers). Missing file
+       = sysop cold-start: build a fresh realm in memory (empty parties,
+       rolled locations, realized NPCs) and write the first
+       current-world.json5 so the next boot finds it. */
+    if (!read_current_world()) {
+        state.antal_spelare = 0;
+        state.senaste_dagen = 0;
+        position_locations();
+        res_realize_npcs();
+        write_current_world();
     }
 
     cl();
@@ -430,9 +406,6 @@ void init() {
     tx("[37m<MORE>\r\n");
     key();
 
-    if (!loaded_from_json5) {
-        load();
-    }
     getclk(kl);
     if (kl[3] != state.senaste_dagen) {
         cl();
@@ -618,9 +591,11 @@ void init() {
                     fwrite((char *)str, sizeof(str), 1, fh);
                     fclose(fh);
 
-                    // Checking done. Load
+                    // Checking done. Refresh state from disk in case another
+                    // concurrent BBS player saved while this one sat at the
+                    // menu.
 
-                    load();
+                    read_current_world();
                     abort = 1;
                     snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", state.p[state.cpl].name[1],
                              pronoun(1, 3), state.p[state.cpl].partyname);
@@ -647,54 +622,34 @@ void init() {
                     d = key();
                     d = toupper(d);
                     if (d == 'Y') {
+                        /* Shift state.p[] down so party x drops out, then
+                           let write_current_world() emit the new realm.
+                           The visited[] inner-loop preserves the legacy
+                           .dat path's quirk verbatim — iterator j cycles
+                           but the target column never advances past x,
+                           so only visited[x] is actually overwritten.
+                           No fixture covers this branch; the process
+                           cleanexit()s before it matters anyway. */
                         clw();
-                        tx("Editing REALM.DAT...");
-                        ryl_state_path("realm.dat", path, sizeof path);
-                        if (!(fh = fopen(path, "wb"))) {
-                            cleanexit();
-                        }
+                        tx("Editing Realm...");
                         state.antal_spelare--;
-                        fwrite((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-                        fwrite((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
-                        for (i = 1; i < 15; i++) {
-                            fwrite((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
-                        }
-                        for (i = 1; i < 15; i++) {
-                            fwrite((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
-                        }
-                        for (i = 1; i < state.antal_spelare + 2; i++) {
-                            if (i != x) {
-                                fwrite((char *)&state.p[i], sizeof(state.p[i]), 1, fh);
+                        for (i = 1; i < 40; i++) {
+                            for (j = 1; j < state.antal_spelare; j++) {
+                                state.npc[i].visited[x] = state.npc[i].visited[x + 1];
                             }
                         }
-                        fclose(fh);
+                        if ((int)x <= state.antal_spelare) {
+                            memmove(&state.p[x], &state.p[x + 1],
+                                    (size_t)(state.antal_spelare + 1 - x) * sizeof state.p[0]);
+                        }
                         ryl_delay(1000);
-
-                        /* Fixa journalen... */
 
                         clw();
                         tx("Editing Journal...");
                         clrjr(x);
                         ryl_delay(1000);
 
-                        /* Clean NPC dat */
-
-                        clw();
-                        tx("Editing NPC.DAT...");
-                        ryl_state_path("npc.dat", path, sizeof path);
-                        if (!(fh = fopen(path, "wb"))) {
-                            cleanexit();
-                        }
-                        // Om I > x (ditt party) och i for:as till antal_spelare (ej +1)
-                        // npc[i].visited[x] = npc[i].visited[x+1];
-                        for (i = 1; i < 40; i++) {
-                            for (j = 1; j < state.antal_spelare; j++) {
-                                state.npc[i].visited[x] = state.npc[i].visited[x + 1];
-                            }
-                            fwrite((char *)&state.npc[i], sizeof(state.npc[i]), 1, fh);
-                        }
-                        fclose(fh);
-                        ryl_delay(1000);
+                        write_current_world();
 
                         clw();
                         tx("Your party has been\r\n");
@@ -1215,116 +1170,12 @@ static int read_current_world() {
 }
 
 void save() {
-    FILE *fh;
-    int32_t i;
     char kl[8];
-    char path[512];
 
     getclk(kl);
-
-    //senaste_dagen = day_at_game_start;
     state.senaste_dagen = kl[3];
 
-    ryl_state_path("realm.dat", path, sizeof path);
-    if (!(fh = fopen(path, "wb"))) {
-        c(49, 6);
-        clw();
-        tx("\r\nUnable to save data!!!\r\n");
-        ryl_pause();
-        cleanexit();
-    }
-
-    fwrite((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-    fwrite((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
-    for (i = 1; i < 15; i++) {
-        fwrite((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
-    }
-    for (i = 1; i < 15; i++) {
-        fwrite((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
-    }
-
-    if (state.antal_spelare) {
-        for (i = 1; i < state.antal_spelare + 1; i++) {
-            fwrite((char *)&state.p[i], sizeof(state.p[i]), 1, fh);
-        }
-    }
-    fclose(fh);
-
-    ryl_state_path("npc.dat", path, sizeof path);
-    if (!(fh = fopen(path, "wb"))) {
-        c(49, 6);
-        clw();
-        tx("\r\nUnable to save NPCs!!!\r\n");
-        ryl_pause();
-        cleanexit();
-    }
-    for (i = 1; i < 40; i++) {
-        fwrite((char *)&state.npc[i], sizeof(state.npc[i]), 1, fh);
-    }
-    fclose(fh);
-
     write_current_world();
-}
-static void load() {
-    FILE *fh;
-    int32_t i;
-    char path[512];
-
-    ryl_state_path("realm.dat", path, sizeof path);
-    if (!(fh = fopen(path, "rb"))) {
-        c(49, 6);
-        clw();
-        tx("Unable to load data!!!\r\n");
-        ryl_pause();
-        cleanexit();
-    }
-
-    fread((char *)&state.antal_spelare, sizeof(state.antal_spelare), 1, fh);
-    fread((char *)&state.senaste_dagen, sizeof(state.senaste_dagen), 1, fh);
-    for (i = 1; i < 15; i++) {
-        fread((char *)&state.dx[i], sizeof(state.dx[i]), 1, fh);
-    }
-    for (i = 1; i < 15; i++) {
-        fread((char *)&state.dy[i], sizeof(state.dy[i]), 1, fh);
-    }
-
-    if (state.antal_spelare) {
-        for (i = 1; i < state.antal_spelare + 1; i++) {
-            fread((char *)&state.p[i], sizeof(state.p[i]), 1, fh);
-        }
-    }
-    fclose(fh);
-    for (i = 1; i < state.antal_spelare + 1; i++) {
-        if (!stricmp(state.global_name, state.p[i].player)) {
-            state.cpl = i;
-        }
-    }
-
-    ryl_state_path("npc.dat", path, sizeof path);
-    if (!(fh = fopen(path, "rb"))) {
-        c(49, 6);
-        clw();
-        tx("\r\nUnable to load NPCs!!!\r\n");
-        ryl_pause();
-        cleanexit();
-    }
-    for (i = 1; i < 40; i++) {
-        fread((char *)&state.npc[i], sizeof(state.npc[i]), 1, fh);
-    }
-    fclose(fh);
-
-    if (!(fh = fopen("data/map.dat", "rb"))) {
-        c(49, 6);
-        clw();
-        tx("Unable to find map!!!\r\n");
-        ryl_pause();
-        cleanexit();
-    }
-
-    for (i = 1; i < 41; i++) {
-        fgets((char *)state.map[i], sizeof(state.map[i]), fh);
-    }
-    fclose(fh);
 }
 
 char *pronoun(uint8_t nr, uint8_t xx) {

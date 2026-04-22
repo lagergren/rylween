@@ -487,23 +487,11 @@ void res_realize_npcs(void) {
     tx("%c", 12);
 
     /* Zero every NPC's visited[] grid — fresh realm means no party
-       has met anyone yet. */
+       has met anyone yet. The caller (driv.c init()) follows up with
+       write_current_world() to persist the realized state. */
     for (int i = 1; i <= slot_max; i++) {
         memset(state.npc[i].visited, 0, sizeof state.npc[i].visited);
     }
-
-    /* Mirror-write npc.dat so the legacy reader in load() finds the
-       realized state. §15 step 5 drops this alongside realm.dat. */
-    char path[512];
-    FILE *fh;
-    ryl_state_path("npc.dat", path, sizeof path);
-    if (!(fh = fopen(path, "wb"))) {
-        cleanexit();
-    }
-    for (int i = 1; i <= slot_max; i++) {
-        fwrite(&state.npc[i], sizeof(state.npc[i]), 1, fh);
-    }
-    fclose(fh);
 }
 
 /* -------- flags subtree -------- */
