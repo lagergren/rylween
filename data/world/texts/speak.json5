@@ -7,7 +7,8 @@
 // Layout conventions match driv.json5 / ydarg.json5:
 //   - array-of-strings => each line joined with CRLF + trailing CRLF
 //   - plain string     => verbatim (used when no trailing CRLF)
-//   - *_pre / *_post   => wraps a %-format tx() that stays inline
+//   - {placeholder}    => resolved at call time by tx_fmt() (§16.3);
+//                         replaces the _pre/_post split used earlier.
 //
 // speak.c is not on any replay-fixture path (fixtures don't speak() an
 // NPC), so byte-stream parity wasn't required — grouped keys drop
@@ -114,7 +115,7 @@
   question: ['(L)odging', '(M)agic', '(P)eople', '(N)othing'],
 
   // "(P)eople" — 16 per-job canned replies. j8 embeds a fighter's
-  // name via res_enum("name", 3), so it splits around the %s tx().
+  // name via {fighter_name} in the middle of the text.
   people: {
     j1:       ["- Well, I don't know", 'that many people.'],
     j2:       ["- No I'm a lone ranger."],
@@ -123,8 +124,7 @@
     j5:       ["- I've heard of a hermit", 'who lives in the swamps', 'by Ollk. Perhaps he can', 'help you.'],
     j6:       ['- No. Sorry. Dunno.'],
     j7:       ["- I think it's time", 'someone found the', 'Foot of Jazzy and', 'defeated Ydarg!'],
-    j8_pre:   ['- Rumour has it that a', 'fighter called'],
-    j8_post:  ['has a mission for you.'],
+    j8:       ['- Rumour has it that a', 'fighter called', '{fighter_name}', 'has a mission for you.'],
     j9:       ["- Don't know anyone."],
     j10:      ['- ME ALONE AND STRONG!'],
     j11:      ['- There are many huts', 'in the wilderness.'],
@@ -156,7 +156,7 @@
   },
 
   // "(L)odging" — 16 per-job canned replies. j13 is the whore branch
-  // with a price %d; splits into offer_pre/offer_post + broke + spent.
+  // with {price} embedded in the offer + broke + spent.
   lodge: {
     j1:  ['- Well. The city inn is', 'a good try.'],
     j2:  ['- I sleep under the open', 'skies. Just beware of', 'bandits if you do this!'],
@@ -171,10 +171,9 @@
     j11: ['- I rent a room at the inn!'],
     j12: ['- Well, sleeping at the', 'inn is often nicer than', 'in the wilderness.'],
 
-    // j13: whore. Price is 50 * lv[1] — %d in the middle of the offer.
+    // j13: whore. Price is 50 * lv[1] — {price} in the middle of the offer.
     j13: {
-      offer_pre:  ['- Would you like to,', '  spend an hour'],
-      offer_post: ['  gold coins?', ''],
+      offer:      ['- Would you like to,', '  spend an hour', '  upstairs for {price}', '  gold coins?', ''],
       broke:      ['- No money, eh?', "  don't bother", '  to come back!'],
       spent:      ['You spend a very', 'exhausting hour', 'upstairs.', '(PERVERT!) ;-)', ''],
     },
@@ -197,23 +196,34 @@
     picked_up:  ['You pick up the gem.'],
   },
 
-  // case 2 — ranger with letter. The "to my brother, %s," and
-  // "who lives %s," lines stay inline; only the leading "- If you
-  // deliver this" line and the post-paragraph live in the shard.
+  // case 2 — ranger with letter. {ranger_name} + {ranger_loc} are
+  // filled in by tx_fmt at call time.
   ranger: {
-    intro:        ['- Greetings, adventurers.', 'I have a mission for you.', 'He hands you a letter.', ''],
-    deliver_pre:  ['- If you deliver this'],
-    deliver_post: ['he will give you', 'a great weapon!', ''],
+    intro:    ['- Greetings, adventurers.', 'I have a mission for you.', 'He hands you a letter.', ''],
+    deliver:  ['- If you deliver this',
+               'to my brother, {ranger_name},',
+               'who lives {ranger_loc},',
+               'he will give you',
+               'a great weapon!',
+               ''],
   },
 
   // case 3 — old fighter with Dancing Blade.
   fighter: {
-    intro:        ['- Greetings. Once upon', 'a time, I was a mighty', 'fighter. Before I retired', 'I managed to slay over', 'two hundred orcs. All', 'of this, because of my', 'Dancing Blade. I have', 'no use for this weapon', ''],
-    favour_pre:   ['anymore, and I will give', 'it to you, if you do me a', 'small favour. A priest'],
-    favour_post:  ['one of my books. We are', 'old friends, and I lended', 'it to him. However, I', "haven't heard much from", 'him lately.', ''],
-    blade:        ['- Oh! Thank you!!! He', 'removes a floor board', 'and gives you a WONDERFUL', 'blade. It sparkles in', 'the light!', ''],
-    cant_carry:   ["You can't carry it!!!.", ''],
-    take_blade:   ['You take the blade.'],
+    intro:      ['- Greetings. Once upon', 'a time, I was a mighty', 'fighter. Before I retired', 'I managed to slay over', 'two hundred orcs. All', 'of this, because of my', 'Dancing Blade. I have', 'no use for this weapon', ''],
+    favour:     ['anymore, and I will give',
+                 'it to you, if you do me a',
+                 'small favour. A priest',
+                 'named {priest_name} has got',
+                 'one of my books. We are',
+                 'old friends, and I lended',
+                 'it to him. However, I',
+                 "haven't heard much from",
+                 'him lately.',
+                 ''],
+    blade:      ['- Oh! Thank you!!! He', 'removes a floor board', 'and gives you a WONDERFUL', 'blade. It sparkles in', 'the light!', ''],
+    cant_carry: ["You can't carry it!!!.", ''],
+    take_blade: ['You take the blade.'],
   },
 
   // case 4 — wizard robbed of book.
@@ -221,13 +231,26 @@
     robbed: ['You persuade him to', 'give you the book.', 'After showing him your', 'sharp weapons, he', 'chickens out and pulls', 'it out of his robe.', 'He throws it at you and', 'flees...', ''],
   },
 
-  // case 5 — priest who lost book.
+  // case 5 — priest who lost book. {wizard_name} + {giver_name} are
+  // filled in by tx_fmt at call time (the wizard who stole the book
+  // and the fighter to return it to, respectively).
   priest: {
-    intro_pre:  ['When you mention the', 'book, he nods and looks', 'a bit embarrased.', '- Yes, I know. I happened', 'to lose it. A wizard'],
-    intro_post: ['from my bedroom a week', 'ago...', ''],
-    fled:       ['He quickly fled, but I', "know it's him, because", 'he made inquieries about', 'it, and tried to steal', 'it from me when I was', 'having dinner.', ''],
-    please_pre: ["I don't know his", 'whereabouts, but please', 'find the book and'],
-    please_post:['if you can.', ''],
+    intro:  ['When you mention the',
+             'book, he nods and looks',
+             'a bit embarrased.',
+             '- Yes, I know. I happened',
+             'to lose it. A wizard',
+             'called {wizard_name} stole it',
+             'from my bedroom a week',
+             'ago...',
+             ''],
+    fled:   ['He quickly fled, but I', "know it's him, because", 'he made inquieries about', 'it, and tried to steal', 'it from me when I was', 'having dinner.', ''],
+    please: ["I don't know his",
+             'whereabouts, but please',
+             'find the book and',
+             'take it back to {giver_name}',
+             'if you can.',
+             ''],
   },
 
   // case 6 — sells the Pit-of-the-Silver-Key map for 50000 gp.
@@ -238,7 +261,13 @@
     offer:      ['I have an offer to make', 'thee. I will sell you', 'a map to the location of', 'the SILVER KEY for 50000', 'gold coins. The price is', 'resonable. 10000 gold for', 'each of those fruitless', 'years.', ''],
     deal:       ['- Deal? ', ''],
     broke:      ['- Sorry! 50000! No more', 'no less. Come back when', 'you have the gold.', ''],
-    map_pre:    ['He quietly slips you the', 'precious map. It', 'tells you that the Pit', 'of the Key is at'],
+    map:        ['He quietly slips you the',
+                 'precious map. It',
+                 'tells you that the Pit',
+                 'of the Key is at',
+                 '{pit_x}x{pit_y}!',
+                 '',
+                 ''],
   },
 
   // case 8 — poor man trades the Cloak info for Erethor's Lute.
@@ -249,12 +278,17 @@
     trade:       ['trade this information', "if you find me Erethor's", "Lute. One of Erethor's", 'temples, where mad', 'priests practise', 'blasphemous magic is', 'located at 6x20, near', 'the western peaks.', ''],
     dangerous:   ['- This may be a dangerous', 'mission for such a', 'small reward, but the', "Cloak will make it's", 'bearer almost', 'invulnerable.', ''],
     hand_lute:   ['You hand him the', 'golden lute...', ''],
-    // Split around the "%s. He is also a" name substitution + the
-    // "%s\r\r\n" location substitution (the original "\r\r\n" typo is
-    // preserved in the inline tx() call in speak.c).
-    note_pre:    ["- I can't believe you", 'actually made it!!!', '- Now for my part of', 'the deal. Listen closely,', 'for I shall say this only', 'once.', ''],
-    note_seek:   ['- Take this note here', 'and seek out my friend'],
-    minstrel:    ['minstrel.'],
+    // First paragraph ("promise of the deal") — standalone screen.
+    note:        ["- I can't believe you", 'actually made it!!!', '- Now for my part of', 'the deal. Listen closely,', 'for I shall say this only', 'once.', ''],
+    // Second paragraph — fills {minstrel_name} (res_enum("name", 20))
+    // and {minstrel_loc} (snprintf "... lives in <town>" or "... lives
+    // at <x>x<y>") via tx_fmt at call time.
+    note_deliver:['- Take this note here',
+                  'and seek out my friend',
+                  '{minstrel_name}. He is also a',
+                  'minstrel.',
+                  '{minstrel_loc}',
+                  ''],
     together:    ['- We used to travel', 'together and he found', 'the Cloak in a long dead', "hero's tomb. Now that", 'we have the Lute, the', 'Cloak is yours. Just', 'deliver this explaining', 'note!', ''],
     paper:       ['He hands you a piece of', 'paper and bids you', 'farewell.', ''],
   },
@@ -264,7 +298,13 @@
     legend:   ['- I have a map of the', 'road to the temple of', 'Thun! The legend says', 'it keeps the Bracelets', 'of Thun, which is one of', 'the objects that can', 'destroy baron Ydarg!', ''],
     offer:    ['- I will sell it to you', 'for 10000 gold pieces!', ''],
     broke:    ['- Sorry! 10000! No more', 'no less. Come back when', 'you have the gold.', ''],
-    map_pre:  ['- Ok, here. He slowly', 'hands you an old map. It', 'tells you that the temple', 'of Thun is situated at'],
+    map:      ['- Ok, here. He slowly',
+               'hands you an old map. It',
+               'tells you that the temple',
+               'of Thun is situated at',
+               '{temple_x}x{temple_y}!',
+               '',
+               ''],
   },
 
   // case 14 — brother delivers sword for the ranger-letter.
@@ -277,15 +317,28 @@
 
   // case 15 — nymph sends party to seeker of Master Crown.
   nymph: {
-    know_pre:  ['I heard that a man called'],
-    know_post: ['Crown. I have roamed the', 'land in search for him,', 'since I want this item', 'to be found. Here! Take', 'this ring and show it', 'to him. You are better fit', 'for this mission than me.', ''],
+    know: ['I heard that a man called',
+           '{seeker_name} knows of the',
+           'Crown. I have roamed the',
+           'land in search for him,',
+           'since I want this item',
+           'to be found. Here! Take',
+           'this ring and show it',
+           'to him. You are better fit',
+           'for this mission than me.',
+           ''],
   },
 
   // case 18 — thief 2 squeezed for smith's name.
   thief2: {
     push:     ['You push him up against', 'a wall and start asking', 'him questions. After', "some 'mild' persuation", 'he tells you that he', 'sold the Key to a', 'travelling blacksmith', 'who was interested in', 'its metalurgic structure.', ''],
-    smith_pre:['After breaking a few', 'of his teeth, he also', 'willinly reveals that', 'the smith went by the'],
-    // smith name %s + "...\r\n\r\n" stays inline in speak.c.
+    // {smith_name} = res_enum("name", 24), filled by tx_fmt at call time.
+    smith:    ['After breaking a few',
+               'of his teeth, he also',
+               'willinly reveals that',
+               'the smith went by the',
+               'name of {smith_name}...',
+               ''],
     let_go:   ['You let go of your grip', 'of his collar, and he', 'falls to the floor.', ''],
   },
 
@@ -299,14 +352,24 @@
     cant_carry: ["You can't carry all the", 'items...', ''],
   },
 
-  // case 20 — minstrel gives the Cloak.
+  // case 20 — minstrel gives the Cloak. {minstrel_name} = res_enum(
+  // "name", 20); {next_town} = res_enum("name", 8).
   minstrel: {
-    reads_pre:   ['After reading the note'],
-    reads_post:  ['of happiness. He', 'shakes all your hands', 'and produces a purple', 'cloak.', ''],
-    cant_carry:  ["You can't carry it!", ''],
-    take_cloak:  ['You take the cloak.'],
-    travel_pre:  ['He bids you farewell', 'and tells you that', "he'll travel to"],
-    travel_post: ['next day...', ''],
+    reads:      ['After reading the note',
+                 '{minstrel_name} cries tears',
+                 'of happiness. He',
+                 'shakes all your hands',
+                 'and produces a purple',
+                 'cloak.',
+                 ''],
+    cant_carry: ["You can't carry it!", ''],
+    take_cloak: ['You take the cloak.'],
+    travel:     ['He bids you farewell',
+                 'and tells you that',
+                 "he'll travel to",
+                 '{next_town} the very',
+                 'next day...',
+                 ''],
   },
 
   // case 22 — ogre trades Foot-of-Jazzy location for a >34-value item.
@@ -315,24 +378,48 @@
                    '- ME VERY POOR! SELL', 'YOU INFORMATION ABOUT', 'FOOT OF JAZZY, YES?', ''],
     trade:        ['- LET US TRADE! OFFER', "ITEM AND I'LL TELL YA!", '',
                    '(You offer him something).', ''],
-    refuse:       ['- NAH, THINK NOT!.'],
-    accept_pre:   ['- YEEES! NICE NIICE!'],
-    accept_post:  ['BEAST HAS THE FOOT.', ''],
+    refuse:  ['- NAH, THINK NOT!.'],
+    accept:  ['- YEEES! NICE NIICE!',
+              'GO TO CAVE AT {cave_x}x{cave_y}!',
+              'BEAST HAS THE FOOT.',
+              ''],
   },
 
   // case 23 — wizard's three tasks (kobolds / Skullweed / Dwarf Stone).
   wizard3t: {
     intro:       ['- Ah, a seeker! Yes, I', 'know about the Master', "Crown, but since I'm", 'neither good nor evil,', 'I have no interest in it.', 'I will give you the', 'information if you do', 'three tasks for me.', ''],
     agree:       ['(Since there is nothing', 'else you can do,you agree', 'to complete the three', 'tasks).', ''],
-    task1_pre:   ['- Firstly, I want you to', 'go to the kobold lair at'],
-    task1_post:  ['there. It is close to my', 'home village, and the foul', 'creatures have many times', 'attacked us. Farewell.', ''],
-    pendant:     ['You hand him the pendant.', 'He stares at you, almost', 'admiring.', '- WELL DONE! I will now', 'grant you the second', 'quest.', ''],
-    task2:       ["- Being a magician, I'm", 'always in search for', 'powerful spell reagents.', 'There is one plant I need', "but can't find. It is", 'called Skullweed, and is', 'purple with small green', 'twigs. Find this plant', 'plant for me!', ''],
-    task3:       ['- Well done again,', 'adventurers. The third', 'of my tasks will perhaps', 'be the toughest one', 'of them all! Find me a', 'DWARF STONE. It is a', 'stone of magnetic iron', 'which gives the wielder', 'the power of levitation.', ''],
-    task3_pre:   ['- Begin your search in', 'the dwarven colony, near'],
-    task3_post:  ['the dwarves with respect,', 'for they are swift to', 'anger.', ''],
-    grateful_pre:["- I JUST CAN'T TELL YOU", 'HOW GRATEFUL I AM!', 'He takes the stone and', 'smiles broadly at you.', '- Very well, seekers! The', 'Master Crown is hidden in'],
-    grateful_post:['Fare thee well.', ''],
+    // task1/task3 embed dungeon coords via tx_fmt at call time. task3
+    // stays a two-record sequence (intro screen describing the task,
+    // then a second paragraph with the location — separated by
+    // ryl_pause + clw); task3_intro is the standalone description.
+    task1:      ['- Firstly, I want you to',
+                 'go to the kobold lair at',
+                 '{kobold_x}x{kobold_y}, and kill all life',
+                 'there. It is close to my',
+                 'home village, and the foul',
+                 'creatures have many times',
+                 'attacked us. Farewell.',
+                 ''],
+    pendant:    ['You hand him the pendant.', 'He stares at you, almost', 'admiring.', '- WELL DONE! I will now', 'grant you the second', 'quest.', ''],
+    task2:      ["- Being a magician, I'm", 'always in search for', 'powerful spell reagents.', 'There is one plant I need', "but can't find. It is", 'called Skullweed, and is', 'purple with small green', 'twigs. Find this plant', 'plant for me!', ''],
+    task3_intro:['- Well done again,', 'adventurers. The third', 'of my tasks will perhaps', 'be the toughest one', 'of them all! Find me a', 'DWARF STONE. It is a', 'stone of magnetic iron', 'which gives the wielder', 'the power of levitation.', ''],
+    task3:      ['- Begin your search in',
+                 'the dwarven colony, near',
+                 '{dwarf_x}x{dwarf_y}. Be sure to treat',
+                 'the dwarves with respect,',
+                 'for they are swift to',
+                 'anger.',
+                 ''],
+    grateful:   ["- I JUST CAN'T TELL YOU",
+                 'HOW GRATEFUL I AM!',
+                 'He takes the stone and',
+                 'smiles broadly at you.',
+                 '- Very well, seekers! The',
+                 'Master Crown is hidden in',
+                 'a dungeon near {crown_x}x{crown_y}!',
+                 'Fare thee well.',
+                 ''],
   },
 
   // case 24 — smith reveals that hobgoblins stole the Silver Key.
@@ -345,8 +432,15 @@
 
   // case 33 — hermit trades Fire-Shield cave location for a troll tooth.
   hermit: {
-    welcome:    ['- Welcome, chosen ones!', 'the hermit cackles.', '- I know of the Fire', 'Shield, an item of', 'great power.', 'Go find me teeth of', 'a troll, and I will', 'tell you about it.', ''],
-    tooth_pre:  ['You hand him the troll', 'tooth.', '- Oh YES! He cackles.', 'At areas uncharted, near'],
-    tooth_post: ['seek. Beware of the', 'guardian the ancients', 'gave birth too...', ''],
+    welcome: ['- Welcome, chosen ones!', 'the hermit cackles.', '- I know of the Fire', 'Shield, an item of', 'great power.', 'Go find me teeth of', 'a troll, and I will', 'tell you about it.', ''],
+    tooth:   ['You hand him the troll',
+              'tooth.',
+              '- Oh YES! He cackles.',
+              'At areas uncharted, near',
+              '{cave_x}x{cave_y} is the cave you',
+              'seek. Beware of the',
+              'guardian the ancients',
+              'gave birth too...',
+              ''],
   },
 }

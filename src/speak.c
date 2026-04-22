@@ -219,9 +219,11 @@ void speak(int32_t bld, int32_t tow) {
             if (d == 'P') {
                 tx("\r\n");
                 if (state.npc[talk].job == 8) {
-                    tx0(res_text("speak.people.j8_pre"));
-                    tx("%s\r\n", res_enum("name", 3));
-                    tx0(res_text("speak.people.j8_post"));
+                    tx_fmt("speak.people.j8",
+                           (ryl_bind[]){
+                               {"fighter_name", res_enum("name", 3)},
+                               {0},
+                           });
                 } else {
                     txi("speak.people.j%d", state.npc[talk].job);
                 }
@@ -237,10 +239,14 @@ void speak(int32_t bld, int32_t tow) {
             if (d == 'L') {
                 tx("\r\n");
                 if (state.npc[talk].job == 13) {
+                    char price[16];
+                    snprintf(price, sizeof price, "%d", 50 * state.p[state.cpl].lv[1]);
                     clw();
-                    tx0(res_text("speak.lodge.j13.offer_pre"));
-                    tx("  upstairs for %d\r\n", 50 * state.p[state.cpl].lv[1]);
-                    tx0(res_text("speak.lodge.j13.offer_post"));
+                    tx_fmt("speak.lodge.j13.offer",
+                           (ryl_bind[]){
+                               {"price", price},
+                               {0},
+                           });
                     tx("  %s", res_text("common.yes"));
                     tx("  %s", res_text("common.no"));
                     c = key();
@@ -342,10 +348,12 @@ static void npc_mission_hint(int32_t npc) {
                 tx0(res_text("speak.ranger.intro"));
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.ranger.deliver_pre"));
-                tx("to my brother, %s,\r\n", res_enum("name", 14));
-                tx("who lives %s,\r\n", loc);
-                tx0(res_text("speak.ranger.deliver_post"));
+                tx_fmt("speak.ranger.deliver",
+                       (ryl_bind[]){
+                           {"ranger_name", res_enum("name", 14)},
+                           {"ranger_loc", loc},
+                           {0},
+                       });
                 ryl_pause();
                 clw();
                 journalf("%d %s, the Ranger lives %s\n", state.cpl, res_enum("name", 14), loc);
@@ -364,9 +372,11 @@ static void npc_mission_hint(int32_t npc) {
                 tx0(res_text("speak.fighter.intro"));
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.fighter.favour_pre"));
-                tx("named %s has got\r\n", res_enum("name", 5));
-                tx0(res_text("speak.fighter.favour_post"));
+                tx_fmt("speak.fighter.favour",
+                       (ryl_bind[]){
+                           {"priest_name", res_enum("name", 5)},
+                           {0},
+                       });
                 ryl_pause();
                 clw();
                 tx("%s lives\r\n", res_enum("name", 5));
@@ -416,17 +426,21 @@ static void npc_mission_hint(int32_t npc) {
         case 5:
             if (state.p[state.cpl].flag[3] == 1) {
                 clw();
-                tx0(res_text("speak.priest.intro_pre"));
-                tx("called %s stole it\r\n", res_enum("name", 4));
-                tx0(res_text("speak.priest.intro_post"));
+                tx_fmt("speak.priest.intro",
+                       (ryl_bind[]){
+                           {"wizard_name", res_enum("name", 4)},
+                           {0},
+                       });
                 ryl_pause();
                 clw();
                 tx0(res_text("speak.priest.fled"));
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.priest.please_pre"));
-                tx("take it back to %s\r\n", res_enum("name", 3));
-                tx0(res_text("speak.priest.please_post"));
+                tx_fmt("speak.priest.please",
+                       (ryl_bind[]){
+                           {"giver_name", res_enum("name", 3)},
+                           {0},
+                       });
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[3] = 2;
@@ -463,8 +477,17 @@ static void npc_mission_hint(int32_t npc) {
                     }
                     state.p[state.cpl].gold -= 50000;
                     clw();
-                    tx0(res_text("speak.silver_key.map_pre"));
-                    tx("%dx%d!\r\n\r\n", state.dx[8], state.dy[8]);
+                    {
+                        char x[8], y[8];
+                        snprintf(x, sizeof x, "%d", state.dx[8]);
+                        snprintf(y, sizeof y, "%d", state.dy[8]);
+                        tx_fmt("speak.silver_key.map",
+                               (ryl_bind[]){
+                                   {"pit_x", x},
+                                   {"pit_y", y},
+                                   {0},
+                               });
+                    }
                     state.p[state.cpl].flag[6] = 1;
                     journalf("%d The Pit of the Silver Key is at %dx%d\n", state.cpl, state.dx[8], state.dy[8]);
                     ryl_pause();
@@ -502,19 +525,21 @@ static void npc_mission_hint(int32_t npc) {
                 tx0(res_text("speak.erethor.hand_lute"));
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.erethor.note_pre"));
+                tx0(res_text("speak.erethor.note"));
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.erethor.note_seek"));
-                tx("%s. He is also a\r\n", res_enum("name", 20));
-                tx0(res_text("speak.erethor.minstrel"));
                 if (state.npc[20].towne) {
-                    snprintf(loc, sizeof loc, "%s lives in %s.\n", res_enum("name", 20), res_town_name(state.npc[20].towne));
+                    snprintf(loc, sizeof loc, "%s lives in %s.", res_enum("name", 20), res_town_name(state.npc[20].towne));
                 } else {
-                    snprintf(loc, sizeof loc, "%s lives at %dx%d.\n", res_enum("name", 20), state.npc[20].x, state.npc[20].y);
+                    snprintf(loc, sizeof loc, "%s lives at %dx%d.", res_enum("name", 20), state.npc[20].x, state.npc[20].y);
                 }
-                tx("%s\r\r\n", loc);
-                journalf("%d %s", state.cpl, loc);
+                tx_fmt("speak.erethor.note_deliver",
+                       (ryl_bind[]){
+                           {"minstrel_name", res_enum("name", 20)},
+                           {"minstrel_loc", loc},
+                           {0},
+                       });
+                journalf("%d %s\n", state.cpl, loc);
                 ryl_pause();
                 clw();
                 tx0(res_text("speak.erethor.together"));
@@ -548,8 +573,17 @@ static void npc_mission_hint(int32_t npc) {
                     }
                     state.p[state.cpl].gold -= 10000;
                     clw();
-                    tx0(res_text("speak.thun.map_pre"));
-                    tx("%dx%d!\r\n\r\n", state.dx[2], state.dy[2]);
+                    {
+                        char x[8], y[8];
+                        snprintf(x, sizeof x, "%d", state.dx[2]);
+                        snprintf(y, sizeof y, "%d", state.dy[2]);
+                        tx_fmt("speak.thun.map",
+                               (ryl_bind[]){
+                                   {"temple_x", x},
+                                   {"temple_y", y},
+                                   {0},
+                               });
+                    }
                     journalf("%d The Temple of Thun is at %dx%d\n", state.cpl, state.dx[2], state.dy[2]);
                     state.p[state.cpl].flag[13] = 1;
                     ryl_pause();
@@ -603,9 +637,11 @@ static void npc_mission_hint(int32_t npc) {
                     snprintf(loc, sizeof loc, "at %dx%d", state.npc[23].x, state.npc[23].y);
                 }
                 clw();
-                tx0(res_text("speak.nymph.know_pre"));
-                tx("%s knows of the\r\n", res_enum("name", 23));
-                tx0(res_text("speak.nymph.know_post"));
+                tx_fmt("speak.nymph.know",
+                       (ryl_bind[]){
+                           {"seeker_name", res_enum("name", 23)},
+                           {0},
+                       });
                 ryl_pause();
                 clw();
                 tx("%s lives\r\n", res_enum("name", 23));
@@ -624,8 +660,11 @@ static void npc_mission_hint(int32_t npc) {
                 tx0(res_text("speak.thief2.push"));
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.thief2.smith_pre"));
-                tx("name of %s...\r\n\r\n", res_enum("name", 24));
+                tx_fmt("speak.thief2.smith",
+                       (ryl_bind[]){
+                           {"smith_name", res_enum("name", 24)},
+                           {0},
+                       });
                 ryl_pause();
                 clw();
                 tx0(res_text("speak.thief2.let_go"));
@@ -706,9 +745,11 @@ static void npc_mission_hint(int32_t npc) {
         case 20:
             if (state.p[state.cpl].flag[8] == 3) {
                 clw();
-                tx0(res_text("speak.minstrel.reads_pre"));
-                tx("%s cries tears\r\n", res_enum("name", 20));
-                tx0(res_text("speak.minstrel.reads_post"));
+                tx_fmt("speak.minstrel.reads",
+                       (ryl_bind[]){
+                           {"minstrel_name", res_enum("name", 20)},
+                           {0},
+                       });
                 ryl_pause();
                 for (i = 1, x = 0; i < 17; i++) {
                     if (state.p[state.cpl].inventory[i] == 0) {
@@ -732,9 +773,11 @@ static void npc_mission_hint(int32_t npc) {
                     ryl_pause();
                 }
                 clw();
-                tx0(res_text("speak.minstrel.travel_pre"));
-                tx("%s the very\r\n", res_enum("name", 8));
-                tx0(res_text("speak.minstrel.travel_post"));
+                tx_fmt("speak.minstrel.travel",
+                       (ryl_bind[]){
+                           {"next_town", res_enum("name", 8)},
+                           {0},
+                       });
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[8] = 4;
@@ -750,9 +793,17 @@ static void npc_mission_hint(int32_t npc) {
                 tx0(res_text("speak.wizard3t.agree"));
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.wizard3t.task1_pre"));
-                tx("%dx%d, and kill all life\r\n", state.dx[3], state.dy[3]);
-                tx0(res_text("speak.wizard3t.task1_post"));
+                {
+                    char x[8], y[8];
+                    snprintf(x, sizeof x, "%d", state.dx[3]);
+                    snprintf(y, sizeof y, "%d", state.dy[3]);
+                    tx_fmt("speak.wizard3t.task1",
+                           (ryl_bind[]){
+                               {"kobold_x", x},
+                               {"kobold_y", y},
+                               {0},
+                           });
+                }
                 journalf("%d The kobold lair is at %dx%d.\n", state.cpl, state.dx[3], state.dy[3]);
                 ryl_pause();
                 clw();
@@ -773,12 +824,20 @@ static void npc_mission_hint(int32_t npc) {
             }
             if (state.p[state.cpl].flag[23] == 4) {
                 clw();
-                tx0(res_text("speak.wizard3t.task3"));
+                tx0(res_text("speak.wizard3t.task3_intro"));
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.wizard3t.task3_pre"));
-                tx("%dx%d. Be sure to treat\r\n", state.dx[4], state.dy[4]);
-                tx0(res_text("speak.wizard3t.task3_post"));
+                {
+                    char x[8], y[8];
+                    snprintf(x, sizeof x, "%d", state.dx[4]);
+                    snprintf(y, sizeof y, "%d", state.dy[4]);
+                    tx_fmt("speak.wizard3t.task3",
+                           (ryl_bind[]){
+                               {"dwarf_x", x},
+                               {"dwarf_y", y},
+                               {0},
+                           });
+                }
                 journalf("%d The dwarf village is at %dx%d.\n", state.cpl, state.dx[4], state.dy[4]);
                 ryl_pause();
                 clw();
@@ -787,9 +846,17 @@ static void npc_mission_hint(int32_t npc) {
             }
             if (state.p[state.cpl].flag[23] == 8) {
                 clw();
-                tx0(res_text("speak.wizard3t.grateful_pre"));
-                tx("a dungeon near %dx%d!\r\n", state.dx[6], state.dy[6]);
-                tx0(res_text("speak.wizard3t.grateful_post"));
+                {
+                    char x[8], y[8];
+                    snprintf(x, sizeof x, "%d", state.dx[6]);
+                    snprintf(y, sizeof y, "%d", state.dy[6]);
+                    tx_fmt("speak.wizard3t.grateful",
+                           (ryl_bind[]){
+                               {"crown_x", x},
+                               {"crown_y", y},
+                               {0},
+                           });
+                }
                 journalf("%d The Master Crown dungeon is at %dx%d.\n", state.cpl, state.dx[6], state.dy[6]);
                 ryl_pause();
                 clw();
@@ -839,9 +906,17 @@ static void npc_mission_hint(int32_t npc) {
                         break;
                     } else {
                         clw();
-                        tx0(res_text("speak.jazzy_ogre.accept_pre"));
-                        tx("GO TO CAVE AT %dx%d!\r\n", state.dx[7], state.dy[7]);
-                        tx0(res_text("speak.jazzy_ogre.accept_post"));
+                        {
+                            char x[8], y[8];
+                            snprintf(x, sizeof x, "%d", state.dx[7]);
+                            snprintf(y, sizeof y, "%d", state.dy[7]);
+                            tx_fmt("speak.jazzy_ogre.accept",
+                                   (ryl_bind[]){
+                                       {"cave_x", x},
+                                       {"cave_y", y},
+                                       {0},
+                                   });
+                        }
                         journalf("%d The 'Beast Cave' is at %dx%d.\n", state.cpl, state.dx[7], state.dy[7]);
                         state.p[state.cpl].flag[22] = 1;
                         state.p[state.cpl].inventory[d - 64] = 0;
@@ -863,9 +938,17 @@ static void npc_mission_hint(int32_t npc) {
             }
             if (state.p[state.cpl].flag[33] == 2) {
                 clw();
-                tx0(res_text("speak.hermit.tooth_pre"));
-                tx("%dx%d is the cave you\r\n", state.dx[1], state.dy[1]);
-                tx0(res_text("speak.hermit.tooth_post"));
+                {
+                    char x[8], y[8];
+                    snprintf(x, sizeof x, "%d", state.dx[1]);
+                    snprintf(y, sizeof y, "%d", state.dy[1]);
+                    tx_fmt("speak.hermit.tooth",
+                           (ryl_bind[]){
+                               {"cave_x", x},
+                               {"cave_y", y},
+                               {0},
+                           });
+                }
                 journalf("%d The Fire Shield Dungeon is at %dx%d.\n", state.cpl, state.dx[1], state.dy[1]);
                 ryl_pause();
                 clw();

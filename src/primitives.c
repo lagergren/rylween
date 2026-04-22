@@ -71,6 +71,94 @@ uint32_t tx0(const char *s) {
     return (uint32_t)len;
 }
 
+/* Fatal runtime error from the primitives layer. Prints "ryl: <msg>" to
+   stderr and exits (1). Used by tx_fmt for unbound or unknown
+   placeholders — dev-time bugs, same spirit as res_die for loader
+   diagnostics. */
+void ryl_die(const char *msg) {
+    fprintf(stderr, "ryl: %s\n", msg ? msg : "(no message)");
+    exit(1);
+}
+
+/* tx_fmt: expand {placeholder} tokens in a res_text record against the
+   caller's binding list, emit as one tx0(). See primitives.h for the
+   full contract. Expansion buffer is stack-local (2KB); no site in the
+   current corpus comes close. */
+uint32_t tx_fmt(const char *id, const ryl_bind *bindings) {
+    const char *src = res_text(id);
+    char buf[2048];
+    char diag[256];
+    size_t o = 0;
+
+    for (size_t i = 0; src[i];) {
+        char ch = src[i];
+        if (ch == '{' && src[i + 1] == '{') {
+            if (o + 1 >= sizeof buf) {
+                snprintf(diag, sizeof diag, "tx_fmt: buffer overflow in '%s'", id);
+                ryl_die(diag);
+            }
+            buf[o++] = '{';
+            i += 2;
+            continue;
+        }
+        if (ch != '{') {
+            if (o + 1 >= sizeof buf) {
+                snprintf(diag, sizeof diag, "tx_fmt: buffer overflow in '%s'", id);
+                ryl_die(diag);
+            }
+            buf[o++] = ch;
+            i++;
+            continue;
+        }
+        /* Scan {ident} */
+        size_t name_start = i + 1;
+        size_t name_end = name_start;
+        while (src[name_end] && src[name_end] != '}') {
+            name_end++;
+        }
+        if (src[name_end] != '}') {
+            snprintf(diag, sizeof diag, "tx_fmt: unterminated '{' in '%s'", id);
+            ryl_die(diag);
+        }
+        size_t name_len = name_end - name_start;
+        if (name_len == 0 || name_len >= 64) {
+            snprintf(diag, sizeof diag, "tx_fmt: bad placeholder in '%s'", id);
+            ryl_die(diag);
+        }
+        char name[64];
+        memcpy(name, src + name_start, name_len);
+        name[name_len] = 0;
+
+        const char *val = NULL;
+        for (const ryl_bind *b = bindings; b && b->name; b++) {
+            if (strcmp(b->name, name) == 0) {
+                if (!b->value) {
+                    snprintf(diag, sizeof diag,
+                             "tx_fmt: NULL value for '{%s}' in '%s'", name, id);
+                    ryl_die(diag);
+                }
+                val = b->value;
+                break;
+            }
+        }
+        if (!val) {
+            snprintf(diag, sizeof diag,
+                     "tx_fmt: unbound '{%s}' in '%s'", name, id);
+            ryl_die(diag);
+        }
+        size_t vlen = strlen(val);
+        if (o + vlen >= sizeof buf) {
+            snprintf(diag, sizeof diag, "tx_fmt: buffer overflow in '%s'", id);
+            ryl_die(diag);
+        }
+        memcpy(buf + o, val, vlen);
+        o += vlen;
+        i = name_end + 1;
+    }
+    buf[o] = 0;
+    return tx0(buf);
+}
+
 void clw(void) {
     int32_t i;
 
