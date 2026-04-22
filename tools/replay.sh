@@ -96,10 +96,28 @@ run_one() {
 }
 
 if (( all )); then
+    # Each script is independent: its own tmp HOME, stdin, and optional
+    # env sidecar. Run them in parallel, buffer per-script output, and
+    # print the buffers in script order so the summary is deterministic
+    # regardless of scheduling. Exit status is the OR of the fan-out.
     shopt -s nullglob
-    status=0
+    pids=()
+    names=()
+    bufs=()
     for f in "$SCRIPT_DIR"/*.in; do
-        run_one "$(basename "$f" .in)" || status=1
+        name=$(basename "$f" .in)
+        buf=$(mktemp)
+        names+=("$name")
+        bufs+=("$buf")
+        (run_one "$name") >"$buf" 2>&1 &
+        pids+=("$!")
+    done
+
+    status=0
+    for i in "${!pids[@]}"; do
+        wait "${pids[$i]}" || status=1
+        cat "${bufs[$i]}"
+        rm -f "${bufs[$i]}"
     done
     exit "$status"
 fi
