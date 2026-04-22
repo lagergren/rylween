@@ -1,6 +1,8 @@
 # Build artefacts
 *.o
 rylween
+rylween-asan
+*.dSYM/
 
 # Runtime-generated state (regenerated on boot)
 data/entry.dat
