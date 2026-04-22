@@ -13,7 +13,7 @@
  *   3. fold_*: walk the known subtrees (flags / items / monsters /
  *      classes+spells / texts / terrain / sextext / enums) and populate
  *      the matching legacy in-memory tables (ryl_item / ryl_monster /
- *      ryl_spell / kar_tab / frg_tab / sextext_tab / enums / texts).
+ *      ryl_spell / kar_tab / color_tab / sextext_tab / enums / texts).
  *   4. compile_world_tree: rewrite every path-position N_STR (e.g.
  *      "caster.hp", "$dmg") to a packed N_PATH so the evaluator hot
  *      path does zero strcmp on actor/field names.
@@ -65,9 +65,24 @@ static ryl_spell priest_spells[RES_MAX_SPELL_SLOT + 1];
 static ryl_spell mage_spells[RES_MAX_SPELL_SLOT + 1];
 
 static char   *kar_tab[256];
-static int32_t frg_tab[256];
-static int     frg_tab_set[256];
-static int32_t frg_default = 36;
+static int32_t color_tab[256];
+static int     color_tab_set[256];
+static int32_t color_default = 36;    /* cyan */
+
+/* ANSI foreground colour name (as it appears in data/world.json5) to
+   SGR code. Authors should never type the raw numbers; fold_terrain
+   resolves here so the config file reads in English. */
+static int32_t color_code_from_name(const char *name) {
+    if (strcmp(name, "black")   == 0) return 30;
+    if (strcmp(name, "red")     == 0) return 31;
+    if (strcmp(name, "green")   == 0) return 32;
+    if (strcmp(name, "yellow")  == 0) return 33;
+    if (strcmp(name, "blue")    == 0) return 34;
+    if (strcmp(name, "magenta") == 0) return 35;
+    if (strcmp(name, "cyan")    == 0) return 36;
+    if (strcmp(name, "white")   == 0) return 37;
+    return -1;
+}
 
 static char *sextext_tab[3][4];
 
@@ -172,9 +187,9 @@ const char *res_kar(char glyph) {
     return kar_tab[g] ? kar_tab[g] : "  ";
 }
 
-int32_t res_frg(char glyph) {
+int32_t res_color(char glyph) {
     unsigned char g = (unsigned char) glyph;
-    return frg_tab_set[g] ? frg_tab[g] : frg_default;
+    return color_tab_set[g] ? color_tab[g] : color_default;
 }
 
 const char *res_sextext(int sex, int xx) {
@@ -785,7 +800,8 @@ static void fold_spells(const node *classes_node, const node *spells_node, const
 /* -------- terrain subtree --------
    Keyed by the literal map.dat glyph byte as a single-character string
    so the record reads the same way the map file stores it. `kar` is
-   the two-char cell, `frg` the ANSI foreground colour. */
+   the two-char cell; `color` is one of the ANSI foreground colour
+   names black/red/green/yellow/blue/magenta/cyan/white. */
 static void fold_terrain(const node *terrain_node, const char *path) {
     if (!terrain_node) return;
     if (terrain_node->kind != N_OBJ) die(path, terrain_node->line, "terrain: expected object");
@@ -801,11 +817,13 @@ static void fold_terrain(const node *terrain_node, const char *path) {
             free(kar_tab[g]);
             kar_tab[g] = strdup(kar_n->u.sv);
         }
-        const node *frg_n = obj_get(rec, "frg");
-        if (frg_n) {
-            if (frg_n->kind != N_INT) die(path, frg_n->line, "terrain: frg must be integer");
-            frg_tab[g] = frg_n->u.iv;
-            frg_tab_set[g] = 1;
+        const node *color_n = obj_get(rec, "color");
+        if (color_n) {
+            if (color_n->kind != N_STR) die(path, color_n->line, "terrain: color must be string");
+            int32_t code = color_code_from_name(color_n->u.sv);
+            if (code < 0) die(path, color_n->line, "terrain: unknown color name");
+            color_tab[g] = code;
+            color_tab_set[g] = 1;
         }
     }
 }

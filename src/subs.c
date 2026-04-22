@@ -169,46 +169,46 @@ void losegame() {
 
 void update_map() {
     c(9, 6);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 2]),
-       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 1]),
-       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x]),
-       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x]), frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 1]),
-       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 1]), frg(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 2]),
+    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x]), color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 1]),
+       kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 1]), color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 2]),
        kar(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 2]));
 
     c(9, 8);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 2]),
-       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 1]),
-       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x]),
-       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x]), frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 1]),
-       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 1]), frg(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 2]),
+    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x]), color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 1]),
+       kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 1]), color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 2]),
        kar(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 2]));
 
     c(9, 10);
-    tx("[%dm%s [%dm%s [44m[%dm%s[40m [%dm%s [%dm%s", frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 2]),
-       kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1]),
-       kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x]),
-       frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1]),
-       frg(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 2]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 2]));
+    tx("[%dm%s [%dm%s [44m[%dm%s[40m [%dm%s [%dm%s", color(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y][state.p[state.cpl].x]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x]),
+       color(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1]),
+       color(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 2]), kar(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 2]));
 
     c(9, 12);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 2]),
-       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 1]),
-       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x]),
-       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x]), frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 1]),
-       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 1]), frg(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 2]),
+    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x]), color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 1]),
+       kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 1]), color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 2]),
        kar(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 2]));
 
     c(9, 14);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s[37m", frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 2]),
-       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 2]), frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 1]),
-       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 1]), frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x]),
-       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x]), frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 1]),
-       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 1]), frg(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 2]),
+    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s[37m", color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 2]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 1]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x]), color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 1]),
+       kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 1]), color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 2]),
        kar(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 2]));
 }
-int32_t frg(char t) {
-    return res_frg(t);
+int32_t color(char t) {
+    return res_color(t);
 }
 char *kar(char t) {
     return (char *) res_kar(t);

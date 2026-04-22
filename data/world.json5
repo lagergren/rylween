@@ -88,19 +88,20 @@
 
   // Terrain glyphs — keyed by the literal map.dat byte so the author
   // can see exactly which map character gets which display/colour.
-  // `kar` is the two-char ANSI cell; `frg` is the foreground colour.
-  // Unknown glyphs render as "  " at frg=36.
+  // `kar` is the two-char ANSI cell; `color` is the foreground colour
+  // name (ANSI 30..37: black/red/green/yellow/blue/magenta/cyan/white).
+  // Unknown glyphs render as "  " at cyan.
   terrain: {
-    'm': { kar: '/\\', frg: 37 },
-    'w': { kar: '~~', frg: 34 },
-    's': { kar: '..', frg: 33 },
-    '0': { kar: 'TT', frg: 37 },
-    '1': { kar: 'HH', frg: 37 },
-    'f': { kar: '^^', frg: 37 },
-    'd': { kar: '::', frg: 31 },
-    't': { kar: '%%', frg: 35 },
-    'g': { kar: 'gg', frg: 32 },
-    '2': { kar: 'CC', frg: 37 },
+    'm': { kar: '/\\', color: 'white' },
+    'w': { kar: '~~', color: 'blue' },
+    's': { kar: '..', color: 'yellow' },
+    '0': { kar: 'TT', color: 'white' },
+    '1': { kar: 'HH', color: 'white' },
+    'f': { kar: '^^', color: 'white' },
+    'd': { kar: '::', color: 'red' },
+    't': { kar: '%%', color: 'magenta' },
+    'g': { kar: 'gg', color: 'green' },
+    '2': { kar: 'CC', color: 'white' },
   },
 
   // Pronouns. res_sextext(sex, xx) reads these with xx = 1 (subject),

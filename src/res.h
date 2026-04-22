@@ -95,8 +95,9 @@ const void *res_spell_node(const char *class_id, int slot);
 /* Terrain glyph -> two-char display. "  " if unknown. Never NULL. */
 const char *res_kar(char glyph);
 
-/* Terrain glyph -> ANSI foreground color code. Default 36 if unknown. */
-int32_t res_frg(char glyph);
+/* Terrain glyph -> ANSI foreground SGR code (30..37). Default 36 (cyan)
+   if the glyph has no color binding in the world file. */
+int32_t res_color(char glyph);
 
 /* Pronoun for sex (1=male, 2=female) and xx (1=subject, 2=object, 3=possessive).
    "" if missing. Never NULL. */
