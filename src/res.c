@@ -1435,5 +1435,5 @@ void res_shutdown(void) {
     reset_limits();
     node_free(world_tree);
     world_tree = NULL;
-    color_default = 36;
+    color_default = ANSI_FG_CYAN;
 }
