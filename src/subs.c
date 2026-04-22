@@ -167,45 +167,42 @@ void losegame() {
     cleanexit();
 }
 
+/* Render the 5x5 map window centred on the party tile. Each cell is
+   "\x1b[<fg>m<glyph>"; the party's own tile wraps the glyph in a blue
+   background ("\x1b[44m...\x1b[40m"); cells are separated by a single
+   space; the very last cell of the last row is followed by "\x1b[37m"
+   to restore the default foreground.
+
+   Build each row into a local buffer and emit it with one tx() call —
+   tx() prefixes every invocation with a cursor-right escape from c()
+   (see primitives.c), so driving the render cell-by-cell would bloat
+   the output with redundant escapes. */
 void update_map() {
-    c(9, 6);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 2]),
-       glyph(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 1]),
-       glyph(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x]),
-       glyph(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x]), color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 1]),
-       glyph(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 1]), color(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 2]),
-       glyph(state.map[state.p[state.cpl].y - 2][state.p[state.cpl].x + 2]));
+    const int32_t px = state.p[state.cpl].x;
+    const int32_t py = state.p[state.cpl].y;
 
-    c(9, 8);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 2]),
-       glyph(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 1]),
-       glyph(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x]),
-       glyph(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x]), color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 1]),
-       glyph(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 1]), color(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 2]),
-       glyph(state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x + 2]));
-
-    c(9, 10);
-    tx("[%dm%s [%dm%s [44m[%dm%s[40m [%dm%s [%dm%s", color(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 2]),
-       glyph(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1]),
-       glyph(state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y][state.p[state.cpl].x]), glyph(state.map[state.p[state.cpl].y][state.p[state.cpl].x]),
-       color(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1]), glyph(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1]),
-       color(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 2]), glyph(state.map[state.p[state.cpl].y][state.p[state.cpl].x + 2]));
-
-    c(9, 12);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s", color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 2]),
-       glyph(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 1]),
-       glyph(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x]),
-       glyph(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x]), color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 1]),
-       glyph(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 1]), color(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 2]),
-       glyph(state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x + 2]));
-
-    c(9, 14);
-    tx("[%dm%s [%dm%s [%dm%s [%dm%s [%dm%s[37m", color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 2]),
-       glyph(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 2]), color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 1]),
-       glyph(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x - 1]), color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x]),
-       glyph(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x]), color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 1]),
-       glyph(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 1]), color(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 2]),
-       glyph(state.map[state.p[state.cpl].y + 2][state.p[state.cpl].x + 2]));
+    for (int dy = -2; dy <= 2; dy++) {
+        char row[256];
+        size_t off = 0;
+        c(9, 6 + (dy + 2) * 2);
+        for (int dx = -2; dx <= 2; dx++) {
+            char t = state.map[py + dy][px + dx];
+            int32_t fg = color(t);
+            char *gly = glyph(t);
+            if (dy == 0 && dx == 0) {
+                off += snprintf(row + off, sizeof row - off, "\x1b[44m\x1b[%dm%s\x1b[40m", fg, gly);
+            } else {
+                off += snprintf(row + off, sizeof row - off, "\x1b[%dm%s", fg, gly);
+            }
+            if (dx < 2) {
+                off += snprintf(row + off, sizeof row - off, " ");
+            }
+        }
+        if (dy == 2) {
+            off += snprintf(row + off, sizeof row - off, "\x1b[37m");
+        }
+        tx("%s", row);
+    }
 }
 int32_t color(char t) {
     return res_color(t);
