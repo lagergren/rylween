@@ -23,7 +23,7 @@
 [6C▓▓[35m[7C███▄██[30;41m███[35;40m ███▄▄[30;41m██████[35;40m▄▌[30;41m███[35;40m▐███████████▀▀▀▀▀    ▀▀▀▀██[0m    ▐[31;47m█[40m▌[33m
 [6C▓█[35m[9C▀▀▀█▌[30;41m██[35;40m▌█▀▀▀▀█▄▄▄███▀[30;41m██[35;40m ████▀▀▀▀[31m[24C█[0m
 [0C
-[0C[37m<MORE>
+[37m<MORE>
 [0;0H[0C[30m[6;0H[49C[37m[49CFirst Game of the Day... Updating... Please Wait...[0m[2J[32m[27CADVENTURERS OF RYLWEEN
  [33;41m░[31;40m█[33;41m░[31;40m█[33;41m░▒[31;40m██[45m▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒░░░░░░░░░[35;40m█████████[31;45m░░░░░░▒▒▒▒▒▓▓▓[40m██████[41m        [35m░░▒▒▓▓█[31;40m
  █[33;41m▒░▒▒[31;43m▓█[45m▓▓▓▓▒[43m▒▒░         [33;40m███████████████[31;43m▄[33;41m▀▀▀▀[40m█[31;43m■[33;41m▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀[31;43m■[33;40m█[45m▄[35;41m▓
@@ -59,9 +59,9 @@
 
 [49CN. Create New Party
 [49CS. View Currect Scores
-[49CH. View Hall of Fame
-[49CD. View Documentation
-[49CX. Exit
+H. View Hall of Fame
+D. View Documentation
+X. Exit
 
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
@@ -75,10 +75,10 @@
 [49C                          
 [49C                          
 [6;0H[49CPlease read the manual
-[49Cbefore starting play.
-[49CYou will understand
-[49C_very_ little of the
-[49Cgame otherwise...
+before starting play.
+You will understand
+_very_ little of the
+game otherwise...
 
 [49C(Mutilate RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -106,7 +106,7 @@
 [6;0H[49CParty Creation
 
 [49CWhat is the name of your
-[49Cparty?
+party?
 
 [49C: [6;0H[49C                          
 [49C                          
@@ -153,7 +153,7 @@
 [49CA?
 
 [49C1. Male
-[49C2. Female
+2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -169,7 +169,7 @@
 [49CA?
 
 [49C1. Human  2. Dwarf
-[49C3. Elf    4. Halfling
+3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -182,11 +182,11 @@
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-[49Ccharacter...
+character...
 
-[49C1. Fighter 2. Thief
-[49C3. Mage    4. Priest
-[49C5. Bard    6. Ranger
+1. Fighter 2. Thief
+3. Mage    4. Priest
+5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -285,7 +285,7 @@
 [49CB?
 
 [49C1. Male
-[49C2. Female
+2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -301,7 +301,7 @@
 [49CB?
 
 [49C1. Human  2. Dwarf
-[49C3. Elf    4. Halfling
+3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -314,11 +314,11 @@
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-[49Ccharacter...
+character...
 
-[49C1. Fighter 2. Thief
-[49C3. Mage    4. Priest
-[49C5. Bard    6. Ranger
+1. Fighter 2. Thief
+3. Mage    4. Priest
+5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -417,7 +417,7 @@
 [49CC?
 
 [49C1. Male
-[49C2. Female
+2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -433,7 +433,7 @@
 [49CC?
 
 [49C1. Human  2. Dwarf
-[49C3. Elf    4. Halfling
+3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -446,11 +446,11 @@
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-[49Ccharacter...
+character...
 
-[49C1. Fighter 2. Thief
-[49C3. Mage    4. Priest
-[49C5. Bard    6. Ranger
+1. Fighter 2. Thief
+3. Mage    4. Priest
+5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -549,7 +549,7 @@
 [49CD?
 
 [49C1. Male
-[49C2. Female
+2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -565,7 +565,7 @@
 [49CD?
 
 [49C1. Human  2. Dwarf
-[49C3. Elf    4. Halfling
+3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -578,11 +578,11 @@
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-[49Ccharacter...
+character...
 
-[49C1. Fighter 2. Thief
-[49C3. Mage    4. Priest
-[49C5. Bard    6. Ranger
+1. Fighter 2. Thief
+3. Mage    4. Priest
+5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -666,8 +666,8 @@
 [49CC. Continue Saved Game
 [49CT. Terminate Party
 [49CS. View Currect Scores
-[49CH. View Hall of Fame
-[49CD. View Documentation
-[49CX. Exit
+H. View Hall of Fame
+D. View Documentation
+X. Exit
 
 [0;0H[0C[30m[6;0H[49C[37m[49C[30m[ p[37m

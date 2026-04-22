@@ -1,33 +1,184 @@
-// Main-loop text: moves/save/quit/view/drop/journal. Authored by
-// driv.c's main menu and its daily-exhaustion branches.
+// Main-loop, title-menu, party-creation, and help text authored by
+// src/driv.c. Lines with % format specifiers stay inline in the C
+// source — only pure static chains moved here. The <MORE> prompt is
+// encoded with a  for the CSI introducer so the JSON5 source
+// stays plain-ASCII.
 {
   moves: {
     out_of_moves: ['You are out of moves', 'for today.', ''],
   },
+
   menu: {
+    // Out-of-moves two-option prompt, shown after the banner above.
     out_of_moves: ['(S)ave and Quit', '(Q)uit (no save)'],
+
+    // Title-menu banner + choice rows. N/C/T are guarded by whether the
+    // current BBS user has an existing party in this realm; S/H/D/X are
+    // always shown together, so they share one record.
+    header:    ['ADVENTURERS of RYLWEEN', ''],
+    new_party: ['N. Create New Party'],
+    continue:  ['C. Continue Saved Game'],
+    terminate: ['T. Terminate Party'],
+    common:    ['S. View Currect Scores',
+                'H. View Hall of Fame',
+                'D. View Documentation',
+                'X. Exit',
+                ''],
+    no_game:   ['No game available.'],
   },
+
   save: {
     saving: ['Saving position...'],
     done:   ['Done.'],
   },
+
   quit: {
     farewell: ['Fare thee well.'],
     confirm:  ['Do you really want', 'to quit?', ''],
   },
+
   move: {
     pass:     ['Pass...'],
     no_moves: ['No moves left!'],
   },
+
   view: {
     who: ['Who? (1-4/Q/A)'],
   },
+
   drop: {
     another: ['Do you want to drop', 'another object? (y/N)'],
   },
+
   journal: {
     header: ['',
              "============================= TRAVELLER'S JOURNAL ==============================",
              ''],
+  },
+
+  // <MORE> prompt after disptext() screens (title.ans, score.txt,
+  // vscore.txt, rylween.doc, heroes.txt). Five call sites in driv.c —
+  // each was tx("\r\n") + tx("[37m<MORE>\r\n"), now one tx0.
+  more: ['', '[37m<MORE>'],
+
+  // init(): cold-start error + first-game-of-the-day banner.
+  init: {
+    no_map:    ['Bloody \'ell! Unable to find map!!!'],
+    first_day: 'First Game of the Day... Updating... Please Wait...',
+  },
+
+  // Baron Ydarg already defeated: game-over banner. The pre/post split
+  // accommodates the party-name %s tx() between them (driv.c:450).
+  struggle: {
+    over:       ['The struggle is over.'],
+    conclusion: ['defeated Baron Ydarg.',
+                 'Please ask the SysOp',
+                 'to reset Rylween',
+                 ''],
+  },
+
+  // 'S' score-view branch (verbose listing prompt) and 'D' documentation
+  // branch (capture-buffer reminder).
+  scores: {
+    verbose_q: ['Do you want to see the', 'verbose listing? (y/N)'],
+  },
+  docs: {
+    capture: ['You may want to',
+              'turn on your capture',
+              'buffer now...',
+              ''],
+  },
+
+  // 'N' fresh-player branch: manual reminder before createparty().
+  create_new: {
+    manual_reminder: ['Please read the manual',
+                      'before starting play.',
+                      'You will understand',
+                      '_very_ little of the',
+                      'game otherwise...',
+                      ''],
+  },
+
+  // 'C' continue branch: daily-entry gate. The %d for remaining turns
+  // stays inline, so the chain splits around it.
+  entry: {
+    exhausted_pre:  ['Sorry! You can\'t enter', 'the realm again today.'],
+    exhausted_post: ['per day to use your', 'moves on.', ''],
+  },
+
+  // 'T' terminate branch: confirm prompt, per-step progress, final banner.
+  terminate: {
+    ugh:             ['Really? C\'mon now!',
+                      'It can\'t be that bad!',
+                      'Your attitude sucks,',
+                      'my friend!',
+                      ''],
+    confirm:         ['Kill Party? (y/N)'],
+    editing_realm:   'Editing Realm...',
+    editing_journal: 'Editing Journal...',
+    deleted:         ['Your party has been', 'deleted. Please play', 'again.', ''],
+  },
+
+  // createparty() flow: header, max-player gate, prompts, stat-min
+  // errors. Lines with %d (character number) or %s (member name) stay
+  // inline and the block splits around them.
+  create: {
+    header:    ['Party Creation', ''],
+    full:      ['Sorry. Maximum number of',
+                'players reached. Play',
+                'again later on.',
+                ''],
+    name_q:    ['What is the name of your', 'party?', ''],
+    reroll:    'Reroll (y/N) ',
+    sex_q:     ['What sex is'],
+    sex_opts:  ['1. Male', '2. Female'],
+    race_q:    ['What race is'],
+    race_opts: ['1. Human  2. Dwarf', '3. Elf    4. Halfling'],
+    class_menu:['Pick a class for this',
+                'character...',
+                '',
+                '1. Fighter 2. Thief',
+                '3. Mage    4. Priest',
+                '5. Bard    6. Ranger'],
+    ws_low:    ['Weap. skill must be > 50.'],
+    wi_low:    ['Wisdom must be > 50.'],
+    ch_low:    ['Charisma must be > 50.'],
+    saving:    ['Saving...'],
+  },
+
+  // showparty() item-flag one-liners. The torches/rations/gold counts at
+  // the top keep their %-format tx()s inline.
+  party: {
+    has_shield:    ['You have the Shield.'],
+    has_bracelets: ['You have the Bracelets.'],
+    has_crown:     ['You have the Crown.'],
+    has_foot:      ['You have the Foot.'],
+    has_key:       ['You have the Key.'],
+  },
+
+  // help() — three ryl_pause-separated pages of keybindings.
+  help: {
+    p1: ['C = Camp',
+         'E = Enter',
+         'H = Hunt for Food',
+         'J = View Journal',
+         'L = Leave (Discard) Item',
+         'P = Put down weapon',
+         ''],
+    p2: ['Q = Quaff Potion',
+         'R = Ready Armour',
+         'S = Save Game',
+         'T = Take off armour',
+         'V = View Party',
+         'W = Wield Weapon',
+         ''],
+    p3: ['X = Quit Game (No Save)',
+         'Z = Cast Spell',
+         '! = Redraw Screen',
+         '? = View this help',
+         '    8     Move North,',
+         '  4-+-6   South, East &',
+         '    2     West',
+         ''],
   },
 }

@@ -378,7 +378,7 @@ void init() {
     if (!(fh = fopen("data/map.dat", "rb"))) {
         c(49, 6);
         clw();
-        tx("Bloody 'ell! Unable to find map!!!\r\n");
+        tx0(res_text("driv.init.no_map"));
         ryl_pause();
         cleanexit();
     }
@@ -402,14 +402,13 @@ void init() {
 
     cl();
     disptext("data/ansi/title.ans");
-    tx("\r\n");
-    tx("[37m<MORE>\r\n");
+    tx0(res_text("driv.more"));
     key();
 
     getclk(kl);
     if (kl[3] != state.senaste_dagen) {
         cl();
-        tx("First Game of the Day... Updating... Please Wait...");
+        tx0(res_text("driv.init.first_day"));
 
         // Clear entry file
 
@@ -435,7 +434,7 @@ void init() {
     while (!abort) {
         clw();
 
-        tx("ADVENTURERS of RYLWEEN\r\n\r\n");
+        tx0(res_text("driv.menu.header"));
 
         tx("%s's copy.\r\n\r\n", state.global_name);
 
@@ -446,29 +445,24 @@ void init() {
         }
         for (i = 1; i < state.antal_spelare + 1; i++) {
             if (state.p[i].silverkey == 2) {
-                tx("The struggle is over.\r\n");
+                tx0(res_text("driv.struggle.over"));
                 tx("[31m%s[37m have\r\n", state.p[i].partyname);
-                tx("defeated Baron Ydarg.\r\n");
-                tx("Please ask the SysOp\r\n");
-                tx("to reset Rylween\r\n\r\n");
+                tx0(res_text("driv.struggle.conclusion"));
                 ryl_pause();
                 clw();
                 cleanexit();
             }
         }
         if (!x) {
-            tx("N. Create New Party\r\n");
+            tx0(res_text("driv.menu.new_party"));
         }
         if (x) {
-            tx("C. Continue Saved Game\r\n");
+            tx0(res_text("driv.menu.continue"));
         }
         if (x) {
-            tx("T. Terminate Party\r\n");
+            tx0(res_text("driv.menu.terminate"));
         }
-        tx("S. View Currect Scores\r\n");
-        tx("H. View Hall of Fame\r\n");
-        tx("D. View Documentation\r\n");
-        tx("X. Exit\r\n\r\n");
+        tx0(res_text("driv.menu.common"));
 
         ch = '\0';
 
@@ -483,23 +477,20 @@ void init() {
             case 'S':
                 cl();
                 disptext("data/score.txt");
-                tx("\r\n");
-                tx("[37m<MORE>\r\n");
+                tx0(res_text("driv.more"));
                 key();
                 cl();
                 c(49, 6);
                 clw();
                 disptext("data/ansi/screen.ans");
                 clw();
-                tx("Do you want to see the\r\n");
-                tx("verbose listing? (y/N)\r\n");
+                tx0(res_text("driv.scores.verbose_q"));
                 d = key();
                 d = toupper(d);
                 if (d == 'Y') {
                     cl();
                     disptext("data/vscore.txt");
-                    tx("\r\n");
-                    tx("[37m<MORE>\r\n");
+                    tx0(res_text("driv.more"));
                     key();
                     cl();
                     c(49, 6);
@@ -510,14 +501,11 @@ void init() {
 
             case 'D':
                 clw();
-                tx("You may want to\r\n");
-                tx("turn on your capture\r\n");
-                tx("buffer now...\r\n\r\n");
+                tx0(res_text("driv.docs.capture"));
                 ryl_pause();
                 cl();
                 disptext("data/rylween.doc");
-                tx("\r\n");
-                tx("[37m<MORE>\r\n");
+                tx0(res_text("driv.more"));
                 key();
                 cl();
                 c(49, 6);
@@ -528,8 +516,7 @@ void init() {
             case 'H':
                 cl();
                 disptext("data/heroes.txt");
-                tx("\r\n");
-                tx("[37m<MORE>\r\n");
+                tx0(res_text("driv.more"));
                 key();
                 cl();
                 c(49, 6);
@@ -540,11 +527,7 @@ void init() {
             case 'N':
                 if (!x) {
                     clw();
-                    tx("Please read the manual\r\n");
-                    tx("before starting play.\r\n");
-                    tx("You will understand\r\n");
-                    tx("_very_ little of the\r\n");
-                    tx("game otherwise...\r\n\r\n");
+                    tx0(res_text("driv.create_new.manual_reminder"));
                     ryl_pause();
                     clw();
                     createparty();
@@ -574,11 +557,9 @@ void init() {
                     if (i >= 4) {
                         j = 4;
                         clw();
-                        tx("Sorry! You can't enter\r\n");
-                        tx("the realm again today.\r\n");
+                        tx0(res_text("driv.entry.exhausted_pre"));
                         tx("You only have %d turns\r\n", j);
-                        tx("per day to use your\r\n");
-                        tx("moves on.\r\n\r\n");
+                        tx0(res_text("driv.entry.exhausted_post"));
                         ryl_pause();
                         cleanexit();
                     }
@@ -603,7 +584,7 @@ void init() {
                     state.last_terrain = 0;
                 } else {
                     clw();
-                    tx("No game available.\r\n");
+                    tx0(res_text("driv.menu.no_game"));
                     ryl_delay(1500);
                     cleanexit();
                 }
@@ -614,11 +595,8 @@ void init() {
             case 'T':
                 if (x) {
                     clw();
-                    tx("Really? C'mon now!\r\n");
-                    tx("It can't be that bad!\r\n");
-                    tx("Your attitude sucks,\r\n");
-                    tx("my friend!\r\n\r\n");
-                    tx("Kill Party? (y/N)\r\n");
+                    tx0(res_text("driv.terminate.ugh"));
+                    tx0(res_text("driv.terminate.confirm"));
                     d = key();
                     d = toupper(d);
                     if (d == 'Y') {
@@ -631,7 +609,7 @@ void init() {
                            No fixture covers this branch; the process
                            cleanexit()s before it matters anyway. */
                         clw();
-                        tx("Editing Realm...");
+                        tx0(res_text("driv.terminate.editing_realm"));
                         state.antal_spelare--;
                         for (i = 1; i < 40; i++) {
                             for (j = 1; j < state.antal_spelare; j++) {
@@ -645,16 +623,14 @@ void init() {
                         ryl_delay(1000);
 
                         clw();
-                        tx("Editing Journal...");
+                        tx0(res_text("driv.terminate.editing_journal"));
                         clrjr(x);
                         ryl_delay(1000);
 
                         write_current_world();
 
                         clw();
-                        tx("Your party has been\r\n");
-                        tx("deleted. Please play\r\n");
-                        tx("again.\r\n\r\n");
+                        tx0(res_text("driv.terminate.deleted"));
                         ryl_pause();
                         cleanexit();
                     }
@@ -1193,12 +1169,10 @@ static void createparty() {
 
     clw();
 
-    tx("Party Creation\r\n\r\n");
+    tx0(res_text("driv.create.header"));
 
     if (state.antal_spelare == 25) {
-        tx("Sorry. Maximum number of\r\n");
-        tx("players reached. Play\r\n");
-        tx("again later on.\r\n\r\n");
+        tx0(res_text("driv.create.full"));
         ryl_pause();
         cleanexit();
     }
@@ -1208,8 +1182,7 @@ static void createparty() {
     state.cpl = a;
 
     while (1) {
-        tx("What is the name of your\r\n");
-        tx("party?\r\n\r\n");
+        tx0(res_text("driv.create.name_q"));
         tx(": ");
 
         getstr(18, state.p[a].partyname, sizeof state.p[a].partyname);
@@ -1236,7 +1209,7 @@ static void createparty() {
         tx("Health       : %2d\r\n", state.p[a].h[g]);
         tx("Wisdom       : %2d\r\n", state.p[a].wi[g]);
         tx("Charisma     : %2d\r\n\r\n", state.p[a].ch[g]);
-        tx("Reroll (y/N) ");
+        tx0(res_text("driv.create.reroll"));
         if (!hotkey()) {
             while (1) {
                 clw();
@@ -1255,10 +1228,9 @@ static void createparty() {
             state.p[a].name[g][0] = toupper(state.p[a].name[g][0]);
 
             clw();
-            tx("What sex is\r\n");
+            tx0(res_text("driv.create.sex_q"));
             tx("%s?\r\n\r\n", state.p[a].name[g]);
-            tx("1. Male\r\n");
-            tx("2. Female\r\n");
+            tx0(res_text("driv.create.sex_opts"));
             str[0] = 0;
             while (str[0] < '1' || str[0] > '2') {
                 tx(": ");
@@ -1267,10 +1239,9 @@ static void createparty() {
             state.p[a].sex[g] = str[0] - 48;
 
             clw();
-            tx("What race is\r\n");
+            tx0(res_text("driv.create.race_q"));
             tx("%s?\r\n\r\n", state.p[a].name[g]);
-            tx("1. Human  2. Dwarf\r\n");
-            tx("3. Elf    4. Halfling\r\n");
+            tx0(res_text("driv.create.race_opts"));
             str[0] = 0;
             while (str[0] < '1' || str[0] > '4') {
                 tx(": ");
@@ -1279,11 +1250,7 @@ static void createparty() {
             state.p[a].ra[g] = str[0] - 48;
 
             clw();
-            tx("Pick a class for this\r\n");
-            tx("character...\r\n\r\n");
-            tx("1. Fighter 2. Thief\r\n");
-            tx("3. Mage    4. Priest\r\n");
-            tx("5. Bard    6. Ranger\r\n");
+            tx0(res_text("driv.create.class_menu"));
             str[0] = 0;
             while (str[0] < '1' || str[0] > '6') {
                 tx(": ");
@@ -1295,7 +1262,7 @@ static void createparty() {
             switch (state.p[a].cl[g]) {
                 case 1:
                     if (state.p[a].ws[g] < 50) {
-                        tx("Weap. skill must be > 50.\r\n");
+                        tx0(res_text("driv.create.ws_low"));
                         ryl_delay(1000);
                     } else {
                         passed = 1;
@@ -1306,7 +1273,7 @@ static void createparty() {
                     break;
                 case 3:
                     if (state.p[a].wi[g] < 50) {
-                        tx("Wisdom must be > 50.\r\n");
+                        tx0(res_text("driv.create.wi_low"));
                         ryl_delay(1000);
                     } else {
                         passed = 1;
@@ -1314,7 +1281,7 @@ static void createparty() {
                     break;
                 case 4:
                     if (state.p[a].wi[g] < 50) {
-                        tx("Wisdom must be > 50.\r\n");
+                        tx0(res_text("driv.create.wi_low"));
                         ryl_delay(1000);
                     } else {
                         passed = 1;
@@ -1322,7 +1289,7 @@ static void createparty() {
                     break;
                 case 5:
                     if (state.p[a].ch[g] < 50) {
-                        tx("Charisma must be > 50.\r\n");
+                        tx0(res_text("driv.create.ch_low"));
                         ryl_delay(1000);
                     } else {
                         passed = 1;
@@ -1379,7 +1346,7 @@ static void createparty() {
     }
     strcpy(state.p[a].player, state.global_name);
     clw();
-    tx("Saving...\r\n");
+    tx0(res_text("driv.create.saving"));
     save();
     ryl_delay(1000);
 }
@@ -1390,19 +1357,19 @@ void showparty() {
     tx("%d rations.\r\n", state.p[state.cpl].food);
     tx("%d gold.\r\n\r\n", state.p[state.cpl].gold);
     if (state.p[state.cpl].fireshield) {
-        tx("You have the Shield.\r\n");
+        tx0(res_text("driv.party.has_shield"));
     }
     if (state.p[state.cpl].bracelets) {
-        tx("You have the Bracelets.\r\n");
+        tx0(res_text("driv.party.has_bracelets"));
     }
     if (state.p[state.cpl].mastercrown) {
-        tx("You have the Crown.\r\n");
+        tx0(res_text("driv.party.has_crown"));
     }
     if (state.p[state.cpl].jazzyfoot) {
-        tx("You have the Foot.\r\n");
+        tx0(res_text("driv.party.has_foot"));
     }
     if (state.p[state.cpl].silverkey) {
-        tx("You have the Key.\r\n");
+        tx0(res_text("driv.party.has_key"));
     }
 
     ryl_pause();
@@ -1569,29 +1536,13 @@ static void clrjr(uint8_t nr) {
 void help() {
     clw();
     /* C E H J L  P Q R S T  V W X Z ! ? SPC */
-    tx("C = Camp\r\n");
-    tx("E = Enter\r\n");
-    tx("H = Hunt for Food\r\n");
-    tx("J = View Journal\r\n");
-    tx("L = Leave (Discard) Item\r\n");
-    tx("P = Put down weapon\r\n\r\n");
+    tx0(res_text("driv.help.p1"));
     ryl_pause();
     clw();
-    tx("Q = Quaff Potion\r\n");
-    tx("R = Ready Armour\r\n");
-    tx("S = Save Game\r\n");
-    tx("T = Take off armour\r\n");
-    tx("V = View Party\r\n");
-    tx("W = Wield Weapon\r\n\r\n");
+    tx0(res_text("driv.help.p2"));
     ryl_pause();
     clw();
-    tx("X = Quit Game (No Save)\r\n");
-    tx("Z = Cast Spell\r\n");
-    tx("! = Redraw Screen\r\n");
-    tx("? = View this help\r\n");
-    tx("    8     Move North,\r\n");
-    tx("  4-+-6   South, East &\r\n");
-    tx("    2     West\r\n\r\n");
+    tx0(res_text("driv.help.p3"));
     ryl_pause();
     clw();
 }
