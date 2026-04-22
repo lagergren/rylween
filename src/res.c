@@ -296,37 +296,25 @@ static void handle_terrain(const kv *kvs, size_t n, const char *path, int line) 
     }
 }
 
-static void handle_spell(const kv *kvs, size_t n, const char *path, int line) {
-    const char *cls = kv_str(kvs, n, "class", NULL);
-    int32_t slot = kv_int(kvs, n, "slot", -1);
-    if (!cls) die(path, line, "spell missing class");
-    if (slot < 1 || slot > RES_MAX_SPELL_SLOT) die(path, line, "spell slot out of range");
-    int cid = pm_class_id(cls);
-    ryl_spell *tab;
-    if (cid == PC_PRIEST)    tab = priest_spells;
-    else if (cid == PC_MAGE) tab = mage_spells;
-    else die(path, line, "spell class must be priest or mage");
-    ryl_spell *s = &tab[slot];
-    s->slot = slot;
-    free((void *) s->id);
-    free((void *) s->name);
-    s->id = strdup(kv_str(kvs, n, "id", ""));
-    s->name = strdup(kv_str(kvs, n, "name", ""));
-    s->base_cost = kv_int(kvs, n, "base_cost", 0);
-    const char *eff = kv_str(kvs, n, "effect", "");
-    if      (strcmp(eff, "heal")        == 0) s->effect = SE_HEAL;
-    else if (strcmp(eff, "restoration") == 0) s->effect = SE_RESTORATION;
-    else if (strcmp(eff, "rebirth")     == 0) s->effect = SE_REBIRTH;
-    else if (strcmp(eff, "banish")      == 0) s->effect = SE_BANISH;
-    else if (strcmp(eff, "revelation")  == 0) s->effect = SE_REVELATION;
-    else if (strcmp(eff, "teleport")    == 0) s->effect = SE_TELEPORT;
-    else if (strcmp(eff, "earthquake")  == 0) s->effect = SE_EARTHQUAKE;
-    else if (strcmp(eff, "fire")        == 0) s->effect = SE_FIRE;
-    else if (strcmp(eff, "confusion")   == 0) s->effect = SE_CONFUSION;
-    else if (strcmp(eff, "death")       == 0) s->effect = SE_DEATH;
-    else if (strcmp(eff, "hold")        == 0) s->effect = SE_HOLD;
-    else if (strcmp(eff, "antimagic")   == 0) s->effect = SE_ANTIMAGIC;
-    else die(path, line, "spell has unknown effect");
+/* Map a `legacy_effect` string from the world tree to the SE_* enum
+   strid.c's priest/mage switches dispatch on. Returns -1 for unknown
+   names so the caller can die() with a path:line pointing at the tree
+   node. Owned by the world-tree path; the JSONL handle_spell retired
+   in phase 6d alongside the spell kind. */
+static int32_t se_from_legacy_effect(const char *eff) {
+    if (strcmp(eff, "heal")        == 0) return SE_HEAL;
+    if (strcmp(eff, "restoration") == 0) return SE_RESTORATION;
+    if (strcmp(eff, "rebirth")     == 0) return SE_REBIRTH;
+    if (strcmp(eff, "banish")      == 0) return SE_BANISH;
+    if (strcmp(eff, "revelation")  == 0) return SE_REVELATION;
+    if (strcmp(eff, "teleport")    == 0) return SE_TELEPORT;
+    if (strcmp(eff, "earthquake")  == 0) return SE_EARTHQUAKE;
+    if (strcmp(eff, "fire")        == 0) return SE_FIRE;
+    if (strcmp(eff, "confusion")   == 0) return SE_CONFUSION;
+    if (strcmp(eff, "death")       == 0) return SE_DEATH;
+    if (strcmp(eff, "hold")        == 0) return SE_HOLD;
+    if (strcmp(eff, "antimagic")   == 0) return SE_ANTIMAGIC;
+    return -1;
 }
 
 static void handle_text(const kv *kvs, size_t n, const char *path, int line) {
@@ -401,7 +389,6 @@ static void parse_line(char *buf, const char *path, int line) {
     else if (strcmp(kind, "item")    == 0) handle_item(kvs, nk, path, line);
     else if (strcmp(kind, "monster") == 0) handle_monster(kvs, nk, path, line);
     else if (strcmp(kind, "terrain") == 0) handle_terrain(kvs, nk, path, line);
-    else if (strcmp(kind, "spell")   == 0) handle_spell(kvs, nk, path, line);
     else if (strcmp(kind, "sextext") == 0) handle_sextext(kvs, nk, path, line);
     else if (strcmp(kind, "text")    == 0) handle_text(kvs, nk, path, line);
     /* unknown kinds are tolerated */
@@ -1028,12 +1015,19 @@ static void fold_texts(const node *texts_node, const char *path) {
     fold_texts_walk(texts_node, "", path);
 }
 
-/* -------- classes + spells subtree (shadows JSONL; docs/dsl.md §2.2) --
-   Populates the legacy ryl_spell tables from the new world tree so the
-   cast menu still has name/base_cost to render. The spell's enum effect
-   is set to SE_NONE because dispatch now runs through res_spell_node
-   → eval_effect on the `do` body; the switch(s->effect) in strid.c is
-   only reached when no DSL body exists. */
+/* -------- classes + spells subtree (docs/dsl.md §2.2) --------
+   The spells tree is nested by class (spells.mage / spells.priest); the
+   dotted ids in classes.<cls>.spells (e.g. "mage.frost") give the full
+   symbolic name, but fold only reads the local part after the dot when
+   indexing into the per-class subtree.
+
+   Each spell folds into the legacy ryl_spell table so the cast menu
+   can still render name/base_cost. Effect dispatch:
+     - `do` present        -> SE_NONE; strid.c's res_spell_node path
+                              runs eval_effect on the body instead of
+                              reaching the switch.
+     - `legacy_effect` set -> se_from_legacy_effect() picks the SE_*
+                              the remaining switch cases fire on. */
 static void fold_spells(const node *classes_node, const node *spells_node, const char *path) {
     if (!classes_node || !spells_node) return;
     if (classes_node->kind != N_OBJ) die(path, classes_node->line, "classes: expected object");
@@ -1049,10 +1043,14 @@ static void fold_spells(const node *classes_node, const node *spells_node, const
         if (cid == PC_PRIEST)    tab = priest_spells;
         else if (cid == PC_MAGE) tab = mage_spells;
         else continue;
+        const node *sub = obj_get(spells_node, cname);
+        if (!sub || sub->kind != N_OBJ) die(path, list->line, "spells: missing subtree for class");
         for (size_t i = 0; i < list->u.arr.n; i++) {
             const node *id_n = list->u.arr.items[i];
             if (!id_n || id_n->kind != N_STR) die(path, list->line, "classes.spells: id must be string");
-            const node *spell = obj_get(spells_node, id_n->u.sv);
+            const char *dot = strchr(id_n->u.sv, '.');
+            const char *local = dot ? dot + 1 : id_n->u.sv;
+            const node *spell = obj_get(sub, local);
             if (!spell || spell->kind != N_OBJ) die(path, list->line, "spells: missing id referenced by classes");
             const node *slot_n = obj_get(spell, "slot");
             if (!slot_n || slot_n->kind != N_INT) die(path, spell->line, "spell: missing 'slot'");
@@ -1067,7 +1065,15 @@ static void fold_spells(const node *classes_node, const node *spells_node, const
             s->name = strdup((name_n && name_n->kind == N_STR) ? name_n->u.sv : id_n->u.sv);
             s->slot = slot;
             s->base_cost = (cost_n && cost_n->kind == N_INT) ? cost_n->u.iv : 0;
-            s->effect = SE_NONE;
+            const node *leg_n = obj_get(spell, "legacy_effect");
+            if (leg_n) {
+                if (leg_n->kind != N_STR) die(path, leg_n->line, "spell: legacy_effect must be string");
+                int32_t se = se_from_legacy_effect(leg_n->u.sv);
+                if (se < 0) die(path, leg_n->line, "spell: unknown legacy_effect");
+                s->effect = se;
+            } else {
+                s->effect = SE_NONE;
+            }
         }
     }
 }
@@ -1133,10 +1139,14 @@ const void *res_spell_node(const char *class_id, int slot) {
     if (!spells_list || spells_list->kind != N_ARR) return NULL;
     const node *spells_tree = obj_get(root, "spells");
     if (!spells_tree) return NULL;
+    const node *sub = obj_get(spells_tree, class_id);
+    if (!sub) return NULL;
     for (size_t i = 0; i < spells_list->u.arr.n; i++) {
         const node *id_n = spells_list->u.arr.items[i];
         if (!id_n || id_n->kind != N_STR) continue;
-        const node *spell = obj_get(spells_tree, id_n->u.sv);
+        const char *dot = strchr(id_n->u.sv, '.');
+        const char *local = dot ? dot + 1 : id_n->u.sv;
+        const node *spell = obj_get(sub, local);
         if (!spell) continue;
         const node *slot_n = obj_get(spell, "slot");
         if (!slot_n || slot_n->kind != N_INT) continue;

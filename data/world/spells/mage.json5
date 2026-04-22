@@ -1,0 +1,32 @@
+// Mage spells — frost already runs on the DSL (`do:` body). The other
+// five carry `legacy_effect` pointing at the SE_* case still resident
+// in strid.c; they fall off as their behaviour migrates.
+{
+  // One-for-one port of strid.c:423-455. Order of operations preserves
+  // RNG identity: ryl_random(2, 8) is drawn exactly once (as the second
+  // factor of `*`), reproducing pm_lv(caster) * ryl_random(2, 8).
+  frost: {
+    slot: 1, base_cost: 8, name: 'Frost Finger',
+    do: ['seq',
+      ['ask_target', 'monster_alive'],
+      ['set', '$dmg', ['*', 'caster.lv', ['rand', 2, 8]]],
+      ['clw'],
+      ['say', 'strid.spell.frost.chills',      'caster.name'],
+      ['say', 'strid.spell.frost.damage',      '$dmg'],
+      ['say', 'strid.spell.frost.damage_pts'],
+      ['delay', 1600],
+      ['sub', 'target.hp', '$dmg'],
+      ['if', ['lt', 'target.hp', 1],
+        ['seq',
+          ['set', 'target.hp', 0],
+          ['set', 'target.dead', 1],
+          ['say', 'strid.killed'],
+          ['delay', 600]]],
+    ],
+  },
+  fire:      { slot: 2, base_cost: 25, name: 'Fire Cloud',    legacy_effect: 'fire' },
+  confusion: { slot: 3, base_cost: 17, name: 'Confusion',     legacy_effect: 'confusion' },
+  death:     { slot: 4, base_cost: 78, name: 'Death Strike',  legacy_effect: 'death' },
+  hold:      { slot: 5, base_cost: 43, name: 'Hold Enemies',  legacy_effect: 'hold' },
+  antimagic: { slot: 6, base_cost: 28, name: 'Anti Magic',    legacy_effect: 'antimagic' },
+}

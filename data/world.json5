@@ -61,37 +61,29 @@
   // evaluator's future menu gating.
   classes: {
     mage: {
-      spells:   ['mage.frost'],
+      spells: [
+        'mage.frost', 'mage.fire', 'mage.confusion',
+        'mage.death', 'mage.hold', 'mage.antimagic',
+      ],
+      casts_in: ['combat'],
+    },
+    priest: {
+      spells: [
+        'priest.heal', 'priest.restoration', 'priest.rebirth',
+        'priest.banish', 'priest.revelation', 'priest.teleport',
+        'priest.earthquake',
+      ],
       casts_in: ['combat'],
     },
   },
 
-  // Spells (§3.4). res_spell_node(class, slot) finds the entry whose
-  // slot matches, then hands the `do` body to eval_effect. The legacy
-  // ryl_spell table is populated from the same records by fold_spells
-  // so the menu line renders from world-file name/base_cost.
+  // Spells (§3.4). Nested by class so each shard owns its own file.
+  // res_spell_node(class, slot) finds the entry whose slot matches,
+  // then hands the `do` body to eval_effect. Spells without a `do`
+  // carry `legacy_effect: "..."` — a string mapped to the SE_* enum
+  // strid.c still switches on; those cases migrate to `do:` one by one.
   spells: {
-    'mage.frost': {
-      slot: 1, base_cost: 8, name: 'Frost Finger',
-      // One-for-one port of strid.c:423-455. Order of operations preserves
-      // RNG identity: ryl_random(2, 8) is drawn exactly once (as the second
-      // factor of `*`), reproducing pm_lv(caster) * ryl_random(2, 8).
-      do: ['seq',
-        ['ask_target', 'monster_alive'],
-        ['set', '$dmg', ['*', 'caster.lv', ['rand', 2, 8]]],
-        ['clw'],
-        ['say', 'strid.spell.frost.chills',      'caster.name'],
-        ['say', 'strid.spell.frost.damage',      '$dmg'],
-        ['say', 'strid.spell.frost.damage_pts'],
-        ['delay', 1600],
-        ['sub', 'target.hp', '$dmg'],
-        ['if', ['lt', 'target.hp', 1],
-          ['seq',
-            ['set', 'target.hp', 0],
-            ['set', 'target.dead', 1],
-            ['say', 'strid.killed'],
-            ['delay', 600]]],
-      ],
-    },
+    mage:   { $import: 'world/spells/mage.json5' },
+    priest: { $import: 'world/spells/priest.json5' },
   },
 }

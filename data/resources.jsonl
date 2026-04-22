@@ -12,15 +12,3 @@
 {"kind":"terrain","glyph":"2","kar":"CC","frg":37}
 {"kind":"sextext","sex":1,"subject":"he","object":"him","possessive":"his"}
 {"kind":"sextext","sex":2,"subject":"she","object":"her","possessive":"her"}
-{"kind":"spell","id":"priest.heal","class":"priest","slot":1,"name":"Healing","base_cost":8,"effect":"heal"}
-{"kind":"spell","id":"priest.restoration","class":"priest","slot":2,"name":"Restoration","base_cost":20,"effect":"restoration"}
-{"kind":"spell","id":"priest.rebirth","class":"priest","slot":3,"name":"Rebirth","base_cost":90,"effect":"rebirth"}
-{"kind":"spell","id":"priest.banish","class":"priest","slot":4,"name":"Banish Evil","base_cost":85,"effect":"banish"}
-{"kind":"spell","id":"priest.revelation","class":"priest","slot":5,"name":"Revelation","base_cost":40,"effect":"revelation"}
-{"kind":"spell","id":"priest.teleport","class":"priest","slot":6,"name":"Teleport","base_cost":35,"effect":"teleport"}
-{"kind":"spell","id":"priest.earthquake","class":"priest","slot":7,"name":"Earthquake","base_cost":55,"effect":"earthquake"}
-{"kind":"spell","id":"mage.fire","class":"mage","slot":2,"name":"Fire Cloud","base_cost":25,"effect":"fire"}
-{"kind":"spell","id":"mage.confusion","class":"mage","slot":3,"name":"Confusion","base_cost":17,"effect":"confusion"}
-{"kind":"spell","id":"mage.death","class":"mage","slot":4,"name":"Death Strike","base_cost":78,"effect":"death"}
-{"kind":"spell","id":"mage.hold","class":"mage","slot":5,"name":"Hold Enemies","base_cost":43,"effect":"hold"}
-{"kind":"spell","id":"mage.antimagic","class":"mage","slot":6,"name":"Anti Magic","base_cost":28,"effect":"antimagic"}
