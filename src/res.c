@@ -36,7 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define RES_MAX_ITEM_ID 111
+#define RES_MAX_ITEM_ID    111
 #define RES_MAX_MONSTER_ID 90
 
 typedef struct {

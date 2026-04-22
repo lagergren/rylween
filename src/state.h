@@ -129,11 +129,11 @@ extern struct ryl_state state;
    `struct person`.job numbering used for NPCs — different enum, same names
    for some entries. Driv.c:904-906 is the authoritative menu. */
 #define PC_FIGHTER 1
-#define PC_THIEF 2
-#define PC_MAGE 3
-#define PC_PRIEST 4
-#define PC_BARD 5
-#define PC_RANGER 6
+#define PC_THIEF   2
+#define PC_MAGE    3
+#define PC_PRIEST  4
+#define PC_BARD    5
+#define PC_RANGER  6
 
 /* View handle over a single party member. Cheap by-value. Field access
    goes through pm_* accessors so call sites read `pm_lv(pm)` instead of

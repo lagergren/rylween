@@ -15,6 +15,7 @@ InsertBraces: true
 IndentCaseLabels: true
 SpaceAfterCStyleCast: false
 AlignAfterOpenBracket: true
+AlignConsecutiveMacros: Consecutive
 BinPackArguments: true
 BinPackParameters: true
 KeepEmptyLinesAtTheStartOfBlocks: false

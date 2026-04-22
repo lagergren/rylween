@@ -14,22 +14,22 @@
 #include "compat.h"
 #include "state.h"
 
-#define innpic 1
-#define tavernpic 2
-#define smithpic 3
-#define churchpic 4
-#define merchantpic 5
+#define innpic        1
+#define tavernpic     2
+#define smithpic      3
+#define churchpic     4
+#define merchantpic   5
 #define insidecavepic 10
-#define cavepic 11
-#define deathpic 12
-#define hutpic 13
-#define ydargpic 14
-#define citypic 15
-#define wonbattlepic 16
-#define tentpic 17
-#define notentpic 18
-#define guildpic 19
-#define encounterpic 40 /* Addera random sedan +x */
+#define cavepic       11
+#define deathpic      12
+#define hutpic        13
+#define ydargpic      14
+#define citypic       15
+#define wonbattlepic  16
+#define tentpic       17
+#define notentpic     18
+#define guildpic      19
+#define encounterpic  40 /* Addera random sedan +x */
 
 extern char *_version_string;
 
