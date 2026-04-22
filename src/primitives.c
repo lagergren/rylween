@@ -4,6 +4,7 @@
 #include "ryl.h"
 #include "driv.h"
 #include "primitives.h"
+#include "res.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -66,6 +67,7 @@ void cleanexit(void) {
     if (io && io->shutdown) {
         io->shutdown();
     }
+    res_shutdown();
     exit(0);
 }
 

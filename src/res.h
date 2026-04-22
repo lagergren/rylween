@@ -58,6 +58,17 @@ typedef struct {
    function is a no-op (empty world, accessors return NULL / ""). */
 void res_load_world(const char *path);
 
+/* Release every heap allocation owned by this module: the world node
+   tree plus every fold target (items/monsters/spells/glyph/pronoun
+   string slots; the dynamic flags/enums/texts backing arrays). All
+   file-scope globals reset to their initial zero state so a subsequent
+   res_load_world() is safe. Idempotent; safe on an empty module.
+
+   Registered via atexit() at the end of res_load_world; also called
+   explicitly from cleanexit() so exits that bypass atexit (unlikely,
+   but `_exit` / abort()) still drop the legacy tables. */
+void res_shutdown(void);
+
 /* Opaque accessor for the parsed world tree. Returns NULL if no world
    file was loaded. The returned pointer is consumed by the evaluator
    (landing in the follow-up commit that implements eval_cond / _effect /

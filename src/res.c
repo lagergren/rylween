@@ -66,38 +66,53 @@ static ryl_monster monsters[RES_MAX_MONSTER_ID + 1];
 static ryl_spell priest_spells[RES_MAX_SPELL_SLOT + 1];
 static ryl_spell mage_spells[RES_MAX_SPELL_SLOT + 1];
 
+/* ANSI SGR foreground color codes. The authored form in world.json5 is
+   the English name ("cyan"), which color_code_from_name resolves; the
+   codes themselves are only referenced symbolically here so no caller
+   needs to spell the numbers out. */
+enum {
+    ANSI_FG_BLACK = 30,
+    ANSI_FG_RED,
+    ANSI_FG_GREEN,
+    ANSI_FG_YELLOW,
+    ANSI_FG_BLUE,
+    ANSI_FG_MAGENTA,
+    ANSI_FG_CYAN,
+    ANSI_FG_WHITE,
+};
+
 static char *glyph_tab[256];
 static int32_t color_tab[256];
 static int color_tab_set[256];
-static int32_t color_default = 36; /* cyan */
+static int32_t color_default = ANSI_FG_CYAN;
 
 /* ANSI foreground colour name (as it appears in data/world.json5) to
    SGR code. Authors should never type the raw numbers; fold_terrain
    resolves here so the config file reads in English. */
 static int32_t color_code_from_name(const char *name) {
     if (strcmp(name, "black") == 0) {
-        return 30;
+        return ANSI_FG_BLACK;
     }
     if (strcmp(name, "red") == 0) {
-        return 31;
+        return ANSI_FG_RED;
     }
     if (strcmp(name, "green") == 0) {
-        return 32;
+        return ANSI_FG_GREEN;
     }
     if (strcmp(name, "yellow") == 0) {
-        return 33;
+        return ANSI_FG_YELLOW;
     }
     if (strcmp(name, "blue") == 0) {
-        return 34;
+        return ANSI_FG_BLUE;
     }
     if (strcmp(name, "magenta") == 0) {
-        return 35;
+        return ANSI_FG_MAGENTA;
     }
     if (strcmp(name, "cyan") == 0) {
-        return 36;
+        return ANSI_FG_CYAN;
     }
     if (strcmp(name, "white") == 0) {
-        return 37;
+        return ANSI_FG_WHITE;
     }
     return -1;
 }
@@ -780,6 +795,15 @@ void res_load_world(const char *path) {
     compile_world_tree(root, path);
     world_tree = root;
     texts_sort();
+
+    /* Register the teardown the first time a world is loaded. Guarded
+       so reload paths (res_shutdown followed by another res_load_world)
+       don't stack LIFO copies on the atexit chain. */
+    static int atexit_registered = 0;
+    if (!atexit_registered) {
+        atexit(res_shutdown);
+        atexit_registered = 1;
+    }
 }
 
 const void *res_world(void) {
@@ -857,4 +881,238 @@ const void *res_spell_node(const char *class_id, int slot) {
         return do_n;
     }
     return NULL;
+}
+
+/* ---------------------------------------------------------------- */
+/*  Teardown                                                        */
+/* ---------------------------------------------------------------- */
+
+/* Rule for this module: the *parser* owns cardinality. Every walk here
+   loops over `node->u.obj.n` / `node->u.arr.n` on subtrees read out of
+   `world_tree` — the same structural counts the folds used on the way
+   in. No schema-declared "count" fields; no NULL-sentinel scans over
+   fixed-size legacy arrays; no hardcoded 0..111 / 0..90 / 0..255
+   bounds. The dynamic tables (flags_tab / enums / texts) keep their
+   own `n_*` because the fold copies strings *out* of the tree into a
+   flat table — that count is bookkeeping the parse tree doesn't have.
+   See port-plan.md §13.3. */
+
+static void reset_flags_tab(void) {
+    for (size_t i = 0; i < n_flags_tab; i++) {
+        free(flags_tab[i].id);
+        for (size_t j = 0; j < flags_tab[i].n_values; j++) {
+            free(flags_tab[i].values[j]);
+        }
+        free(flags_tab[i].values);
+    }
+    free(flags_tab);
+    flags_tab = NULL;
+    n_flags_tab = 0;
+}
+
+static void reset_enums(void) {
+    for (size_t i = 0; i < n_enums; i++) {
+        free(enums[i].id);
+        for (size_t j = 0; j < enums[i].n_values; j++) {
+            free(enums[i].values[j]);
+        }
+        free(enums[i].values);
+    }
+    free(enums);
+    enums = NULL;
+    n_enums = 0;
+}
+
+static void reset_texts(void) {
+    for (size_t i = 0; i < n_texts; i++) {
+        free(texts[i].id);
+        free(texts[i].text);
+    }
+    free(texts);
+    texts = NULL;
+    n_texts = 0;
+    texts_sorted = 0;
+}
+
+static void reset_items_from_tree(const node *items_node) {
+    if (!items_node || items_node->kind != N_OBJ) {
+        return;
+    }
+    for (size_t s = 0; s < items_node->u.obj.n; s++) {
+        const node *section = items_node->u.obj.items[s].val;
+        if (!section || section->kind != N_OBJ) {
+            continue;
+        }
+        for (size_t i = 0; i < section->u.obj.n; i++) {
+            const node *rec = section->u.obj.items[i].val;
+            if (!rec || rec->kind != N_OBJ) {
+                continue;
+            }
+            const node *id_n = obj_get(rec, "id");
+            if (!id_n || id_n->kind != N_INT) {
+                continue;
+            }
+            int32_t id = id_n->u.iv;
+            if (id < 0 || id > RES_MAX_ITEM_ID) {
+                continue;
+            }
+            free((void *)items[id].name);
+            items[id].name = NULL;
+            items[id].cost = 0;
+            items[id].damage = 0;
+        }
+    }
+}
+
+static void reset_monsters_from_tree(const node *monsters_node) {
+    if (!monsters_node || monsters_node->kind != N_OBJ) {
+        return;
+    }
+    for (size_t i = 0; i < monsters_node->u.obj.n; i++) {
+        const node *rec = monsters_node->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *id_n = obj_get(rec, "id");
+        if (!id_n || id_n->kind != N_INT) {
+            continue;
+        }
+        int32_t id = id_n->u.iv;
+        if (id < 0 || id > RES_MAX_MONSTER_ID) {
+            continue;
+        }
+        free((void *)monsters[id].name);
+        monsters[id].name = NULL;
+        monsters[id].n1 = 0;
+        monsters[id].n2 = 0;
+        monsters[id].h1 = 0;
+        monsters[id].h2 = 0;
+        monsters[id].ws = 0;
+        monsters[id].sp = 0;
+        monsters[id].im = 0;
+    }
+}
+
+static void reset_spells_from_tree(const node *classes_node, const node *spells_node) {
+    if (!classes_node || classes_node->kind != N_OBJ) {
+        return;
+    }
+    if (!spells_node || spells_node->kind != N_OBJ) {
+        return;
+    }
+    for (size_t c = 0; c < classes_node->u.obj.n; c++) {
+        const char *cname = classes_node->u.obj.items[c].key;
+        const node *cls = classes_node->u.obj.items[c].val;
+        if (!cls || cls->kind != N_OBJ) {
+            continue;
+        }
+        const node *list = obj_get(cls, "spells");
+        if (!list || list->kind != N_ARR) {
+            continue;
+        }
+        int cid = pm_class_id(cname);
+        ryl_spell *tab;
+        if (cid == PC_PRIEST) {
+            tab = priest_spells;
+        } else if (cid == PC_MAGE) {
+            tab = mage_spells;
+        } else {
+            continue;
+        }
+        const node *sub = obj_get(spells_node, cname);
+        if (!sub || sub->kind != N_OBJ) {
+            continue;
+        }
+        for (size_t i = 0; i < list->u.arr.n; i++) {
+            const node *id_n = list->u.arr.items[i];
+            if (!id_n || id_n->kind != N_STR) {
+                continue;
+            }
+            const char *dot = strchr(id_n->u.sv, '.');
+            const char *local = dot ? dot + 1 : id_n->u.sv;
+            const node *spell = obj_get(sub, local);
+            if (!spell || spell->kind != N_OBJ) {
+                continue;
+            }
+            const node *slot_n = obj_get(spell, "slot");
+            if (!slot_n || slot_n->kind != N_INT) {
+                continue;
+            }
+            int32_t slot = slot_n->u.iv;
+            if (slot < 1 || slot > RES_MAX_SPELL_SLOT) {
+                continue;
+            }
+            free((void *)tab[slot].id);
+            free((void *)tab[slot].name);
+            tab[slot].id = NULL;
+            tab[slot].name = NULL;
+            tab[slot].slot = 0;
+            tab[slot].base_cost = 0;
+            tab[slot].effect = SE_NONE;
+        }
+    }
+}
+
+static void reset_terrain_from_tree(const node *terrain_node) {
+    if (!terrain_node || terrain_node->kind != N_OBJ) {
+        return;
+    }
+    for (size_t i = 0; i < terrain_node->u.obj.n; i++) {
+        const char *key = terrain_node->u.obj.items[i].key;
+        if (!key || !key[0]) {
+            continue;
+        }
+        unsigned char g = (unsigned char)key[0];
+        free(glyph_tab[g]);
+        glyph_tab[g] = NULL;
+        color_tab[g] = 0;
+        color_tab_set[g] = 0;
+    }
+}
+
+/* fold_pronoun always strdups all three grammatical forms (subject /
+   object / possessive) for every sex it sees, defaulting missing ones
+   to "". So the teardown must visit all three slots per sex present in
+   the parse tree — iterating `rec->u.obj.n` would miss "" defaults
+   whose key never appeared in JSON5. The 1..3 range is a schema
+   invariant (three grammatical cases), not a memory-bound magic
+   number. */
+static void reset_pronoun_from_tree(const node *pronoun_node) {
+    if (!pronoun_node || pronoun_node->kind != N_OBJ) {
+        return;
+    }
+    for (size_t i = 0; i < pronoun_node->u.obj.n; i++) {
+        const char *key = pronoun_node->u.obj.items[i].key;
+        int sex;
+        if (strcmp(key, "male") == 0) {
+            sex = 1;
+        } else if (strcmp(key, "female") == 0) {
+            sex = 2;
+        } else {
+            continue;
+        }
+        for (int xx = 1; xx <= 3; xx++) {
+            free(pronoun_tab[sex][xx]);
+            pronoun_tab[sex][xx] = NULL;
+        }
+    }
+}
+
+void res_shutdown(void) {
+    /* Order matters: legacy tables first (they walk world_tree to drive
+       their loops); world_tree itself last. */
+    if (world_tree) {
+        const node *root = world_tree;
+        reset_items_from_tree(obj_get(root, "items"));
+        reset_monsters_from_tree(obj_get(root, "monsters"));
+        reset_spells_from_tree(obj_get(root, "classes"), obj_get(root, "spells"));
+        reset_terrain_from_tree(obj_get(root, "terrain"));
+        reset_pronoun_from_tree(obj_get(root, "pronoun"));
+    }
+    reset_flags_tab();
+    reset_enums();
+    reset_texts();
+    node_free(world_tree);
+    world_tree = NULL;
+    color_default = 36;
 }

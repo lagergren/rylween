@@ -1109,11 +1109,24 @@ open:
   and the tailored include lists accordingly.
 - **Clangd cache drift.** Background `<new-diagnostics>`
   reminders sometimes reference symbols that no longer exist
-  (e.g. `sextext`, `kar`, `ryl_seed_now`). Those come from
-  `~/Library/Caches/clangd/` — `make clean` doesn't touch them.
-  Ignore the stream; gate on `make` + `tools/replay.sh --all`
-  + `tools/check_world.sh` instead. Not an action item; noted
-  here so future sessions don't chase ghosts.
+  (e.g. `sextext`, `kar`, `ryl_seed_now`, `strid.c`). The
+  source tree is clean; the ghost file lives in a stranded
+  Claude-agent worktree at `.claude/worktrees/agent-a4fa40c7/`
+  that clangd indexes. `make clean` doesn't touch it. Gate on
+  `make` + `tools/replay.sh --all` + `tools/check_world.sh`;
+  stale diagnostics are cosmetic. Optional: remove the
+  stranded worktree once we're sure the Claude Code runtime
+  isn't still pointing at it.
+- **ANSI SGR escapes hardcoded in tx() strings.** `gfx.c`,
+  `primitives.c`, and `subs.c` embed raw `"\x1b[3Nm"` /
+  `"\x1b[4Nm"` sequences inline (e.g. `tx("\x1b[30m\x1b[ p\x1b[37m")`
+  in `cleanexit`, `tx("\x1b[37m")` throughout). `res.c` now
+  has a local `ANSI_FG_*` enum (Commit B of §12.2) — lift it
+  to a shared header (or introduce escape-string defines like
+  `ANSI_FG_CYAN_ESC "\x1b[36m"`) so every site reads in
+  English. Keep the scope tight: one header, pure textual
+  substitution, no behavior change. Gate byte-identical on
+  replay.
 
 ## 13. Leak inventory (Commit A of §12.2)
 
