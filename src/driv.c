@@ -14,6 +14,7 @@ static void load(void);
 static void position_locations(void);
 static void read_journal(void);
 static void spelet(void);
+static void write_current_world(void);
 
 static void spelet() {
     char cc, d;
@@ -408,6 +409,7 @@ void init() {
         fclose(fh);
 
         place_npcs();
+        write_current_world();
     }
     if (fh) {
         fclose(fh);
@@ -698,6 +700,165 @@ void init() {
     spelet();
 }
 
+/* JSON5 string literal: double-quoted, escaping \", \\, and control
+   bytes (\n/\t/\r plus \uXXXX for other <0x20). Safe for arbitrary
+   party/member names containing user input. */
+static void wcw_str(FILE *f, const char *s) {
+    fputc('"', f);
+    for (; *s; s++) {
+        unsigned char c = (unsigned char)*s;
+        switch (c) {
+            case '"':  fputs("\\\"", f); break;
+            case '\\': fputs("\\\\", f); break;
+            case '\n': fputs("\\n", f); break;
+            case '\r': fputs("\\r", f); break;
+            case '\t': fputs("\\t", f); break;
+            default:
+                if (c < 0x20) {
+                    fprintf(f, "\\u%04x", c);
+                } else {
+                    fputc(c, f);
+                }
+        }
+    }
+    fputc('"', f);
+}
+
+static void wcw_i32_arr(FILE *f, const int32_t *a, int n) {
+    fputc('[', f);
+    for (int i = 0; i < n; i++) {
+        if (i > 0) {
+            fputs(", ", f);
+        }
+        fprintf(f, "%d", a[i]);
+    }
+    fputc(']', f);
+}
+
+static void wcw_u32_arr(FILE *f, const uint32_t *a, int n) {
+    fputc('[', f);
+    for (int i = 0; i < n; i++) {
+        if (i > 0) {
+            fputs(", ", f);
+        }
+        fprintf(f, "%u", a[i]);
+    }
+    fputc(']', f);
+}
+
+static void wcw_byte_arr(FILE *f, const unsigned char *a, int n) {
+    fputc('[', f);
+    for (int i = 0; i < n; i++) {
+        if (i > 0) {
+            fputs(", ", f);
+        }
+        fprintf(f, "%u", (unsigned)a[i]);
+    }
+    fputc(']', f);
+}
+
+/* §15 step 1: serialize persistent state (realm header + NPCs + parties)
+   to $HOME/.rylween/current-world.json5. Mirror-written alongside every
+   existing realm.dat/npc.dat write; no reader yet, so output is for
+   inspection only in this commit. Silent on fopen failure — .dat is
+   still authoritative until step 2.
+
+   Schema matches §15.6 except locations stay as raw dx/dy arrays for
+   now (semantic split into towns/castle/catacombs is §15 step 3's job).
+   Per §15.5, visited bits move out of the NPC subtree into each party's
+   visited_npcs[] so party deletion no longer needs the index-shift
+   dance. The `empty1..5` struct-party padding fields are omitted. */
+static void write_current_world() {
+    char path[512];
+    FILE *f;
+
+    ryl_state_path("current-world.json5", path, sizeof path);
+    if (!(f = fopen(path, "wb"))) {
+        return;
+    }
+
+    fputs("{\n", f);
+
+    fputs("  realm: {\n", f);
+    fprintf(f, "    last_played_day: %d,\n", state.senaste_dagen);
+    fputs("  },\n\n", f);
+
+    fputs("  locations: {\n", f);
+    fputs("    dx: ", f); wcw_i32_arr(f, state.dx, 15); fputs(",\n", f);
+    fputs("    dy: ", f); wcw_i32_arr(f, state.dy, 15); fputs(",\n", f);
+    fputs("  },\n\n", f);
+
+    fputs("  npcs: [\n", f);
+    fputs("    null,\n", f);
+    for (int i = 1; i < 40; i++) {
+        const struct person *n = &state.npc[i];
+        fprintf(f, "    { nr: %d, job: %d, towne: %d, bl: %d, x: %d, y: %d },\n",
+                n->nr, n->job, n->towne, n->bl, n->x, n->y);
+    }
+    fputs("  ],\n\n", f);
+
+    fputs("  parties: [\n", f);
+    for (int i = 1; i <= state.antal_spelare; i++) {
+        const struct party *p = &state.p[i];
+        fputs("    {\n", f);
+        fputs("      player: ",    f); wcw_str(f, p->player);    fputs(",\n", f);
+        fputs("      partyname: ", f); wcw_str(f, p->partyname); fputs(",\n", f);
+        fputs("      name: [", f);
+        for (int m = 0; m < 5; m++) {
+            if (m > 0) {
+                fputs(", ", f);
+            }
+            wcw_str(f, p->name[m]);
+        }
+        fputs("],\n", f);
+        fputs("      flag: ",         f); wcw_byte_arr(f, p->flag,         40); fputs(",\n", f);
+        fprintf(f, "      fireshield: %u,\n",  p->fireshield);
+        fprintf(f, "      bracelets: %u,\n",   p->bracelets);
+        fprintf(f, "      mastercrown: %u,\n", p->mastercrown);
+        fprintf(f, "      jazzyfoot: %u,\n",   p->jazzyfoot);
+        fprintf(f, "      silverkey: %u,\n",   p->silverkey);
+        fprintf(f, "      pl: %u,\n",          p->pl);
+        fprintf(f, "      x: %d,\n",           p->x);
+        fprintf(f, "      y: %d,\n",           p->y);
+        fprintf(f, "      gold: %d,\n",        p->gold);
+        fprintf(f, "      torches: %u,\n",     p->torches);
+        fprintf(f, "      food: %d,\n",        p->food);
+        fprintf(f, "      tid_kvar: %d,\n",    p->tid_kvar);
+        fputs("      inventory: ",    f); wcw_i32_arr(f, p->inventory, 17);    fputs(",\n", f);
+        fputs("      ws: ", f); wcw_i32_arr(f, p->ws, 5); fputs(",\n", f);
+        fputs("      h: ",  f); wcw_i32_arr(f, p->h,  5); fputs(",\n", f);
+        fputs("      hp: ", f); wcw_i32_arr(f, p->hp, 5); fputs(",\n", f);
+        fputs("      wi: ", f); wcw_i32_arr(f, p->wi, 5); fputs(",\n", f);
+        fputs("      ma: ", f); wcw_i32_arr(f, p->ma, 5); fputs(",\n", f);
+        fputs("      ch: ", f); wcw_i32_arr(f, p->ch, 5); fputs(",\n", f);
+        fputs("      cl: ", f); wcw_i32_arr(f, p->cl, 5); fputs(",\n", f);
+        fputs("      ra: ", f); wcw_i32_arr(f, p->ra, 5); fputs(",\n", f);
+        fputs("      lv: ", f); wcw_i32_arr(f, p->lv, 5); fputs(",\n", f);
+        fputs("      ar: ", f); wcw_i32_arr(f, p->ar, 5); fputs(",\n", f);
+        fputs("      wp: ", f); wcw_i32_arr(f, p->wp, 5); fputs(",\n", f);
+        fputs("      exp: ",          f); wcw_u32_arr (f, p->exp,          5);  fputs(",\n", f);
+        fputs("      dead: ",         f); wcw_i32_arr (f, p->dead,         5);  fputs(",\n", f);
+        fputs("      sex: ",          f); wcw_byte_arr(f, p->sex,          5);  fputs(",\n", f);
+        fputs("      attack_today: ", f); wcw_byte_arr(f, p->attack_today, 26); fputs(",\n", f);
+        fprintf(f, "      waiting_mail: %u,\n", p->waiting_mail);
+        fprintf(f, "      attacked: %u,\n",     p->attacked);
+        fprintf(f, "      kills: %u,\n",        p->kills);
+        fputs("      visited_npcs: [", f);
+        for (int j = 0; j < 40; j++) {
+            if (j > 0) {
+                fputs(", ", f);
+            }
+            fprintf(f, "%u", (unsigned)state.npc[j].visited[i]);
+        }
+        fputs("],\n", f);
+        fputs("    },\n", f);
+    }
+    fputs("  ],\n", f);
+
+    fputs("}\n", f);
+    fclose(f);
+}
+
 void save() {
     FILE *fh;
     int32_t i;
@@ -746,6 +907,8 @@ void save() {
         fwrite((char *)&state.npc[i], sizeof(state.npc[i]), 1, fh);
     }
     fclose(fh);
+
+    write_current_world();
 }
 static void load() {
     FILE *fh;
