@@ -1,5 +1,8 @@
 /* INCLUDE FILE FOR ADVENTURERS OF RYLWEEN */
 
+#ifndef RYL_H__
+#define RYL_H__
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -270,3 +273,5 @@ void editor(char *, uint8_t);
 void check_terrain(char, char);
 
 /* Pointer protos */
+
+#endif

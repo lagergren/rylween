@@ -35,6 +35,7 @@
  */
 
 #include "res.h"
+#include "eval.h"
 #include "ryl.h"
 
 #include <ctype.h>
@@ -90,8 +91,7 @@ static flag_rec *flags_tab;
 static size_t    n_flags_tab;
 
 /* JSON5 world tree + its lazily-built per-subtree indices. Raw node
-   pointers live here; the evaluator will walk them in the next commit. */
-typedef struct node node;
+   pointers live here; the evaluator walks them via eval.h. */
 static node *world_tree;
 
 __attribute__((noreturn))
@@ -476,65 +476,8 @@ const char *res_sextext(int sex, int xx) {
 /*  JSON5 parser + $import resolver + world loader (Phase 6d).      */
 /* ---------------------------------------------------------------- */
 
-typedef enum {
-    N_NULL, N_BOOL, N_INT, N_STR, N_ARR, N_OBJ,
-} node_kind;
-
-typedef struct node_kv {
-    char *key;     /* owned */
-    node *val;     /* owned */
-} node_kv;
-
-struct node {
-    node_kind kind;
-    int       line;        /* source line of the opening token, for errors */
-    union {
-        int32_t  bv;
-        int32_t  iv;
-        char    *sv;       /* owned */
-        struct { node    **items; size_t n; } arr;
-        struct { node_kv  *items; size_t n; } obj;
-    } u;
-};
-
-static node *node_new(node_kind k, int line) {
-    node *n = calloc(1, sizeof *n);
-    if (!n) { fprintf(stderr, "res: oom\n"); exit(1); }
-    n->kind = k;
-    n->line = line;
-    return n;
-}
-
-static void node_free(node *n) {
-    if (!n) return;
-    switch (n->kind) {
-        case N_STR:
-            free(n->u.sv);
-            break;
-        case N_ARR:
-            for (size_t i = 0; i < n->u.arr.n; i++) node_free(n->u.arr.items[i]);
-            free(n->u.arr.items);
-            break;
-        case N_OBJ:
-            for (size_t i = 0; i < n->u.obj.n; i++) {
-                free(n->u.obj.items[i].key);
-                node_free(n->u.obj.items[i].val);
-            }
-            free(n->u.obj.items);
-            break;
-        default:
-            break;
-    }
-    free(n);
-}
-
-static const node *obj_get(const node *o, const char *key) {
-    if (!o || o->kind != N_OBJ) return NULL;
-    for (size_t i = 0; i < o->u.obj.n; i++) {
-        if (strcmp(o->u.obj.items[i].key, key) == 0) return o->u.obj.items[i].val;
-    }
-    return NULL;
-}
+/* node / node_kv / node_new / node_free / obj_get live in eval.c so parser
+   and evaluator share one vocabulary; see eval.h for the shapes. */
 
 typedef struct {
     const char *path;
@@ -941,10 +884,19 @@ void res_load_world(const char *path) {
     node *root = parse_file(path);
     root = resolve_imports(root, NULL, path);
     if (root->kind != N_OBJ) die(path, root->line, "world root must be object");
-    world_tree = root;
 
+    /* Fold shadowable subtrees into the legacy tables before the compile
+       pass rewrites paths; folding only reads leaf ints/strings so it is
+       unaffected by either order, but doing it first keeps the world_tree
+       handoff to the evaluator purely about behavior, not data. */
     fold_flags(obj_get(root, "flags"), path);
     fold_items(obj_get(root, "items"), path);
+
+    /* Walk every effect / cond / expr array in the tree and rewrite path
+       strings (e.g. "caster.hp", "$dmg") in place to N_PATH. After this,
+       the evaluator hot path does zero strcmp on actor/field names. */
+    compile_world_tree(root, path);
+    world_tree = root;
 }
 
 const void *res_world(void) {
