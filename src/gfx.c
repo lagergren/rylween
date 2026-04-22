@@ -1,4 +1,6 @@
 #include "ryl.h"
+#include "gfx.h"
+#include "primitives.h"
 
 void blitgfx(uint8_t pic) {
     char path[64];

@@ -17,6 +17,8 @@
 #include "json5.h"
 #include "res.h"
 #include "ryl.h"
+#include "driv.h"
+#include "primitives.h"
 
 #include <ctype.h>
 #include <limits.h>

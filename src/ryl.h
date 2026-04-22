@@ -33,90 +33,11 @@
 
 extern char *_version_string;
 
-/* TERMINAL PRIMITIVES — all live in primitives.c as io->... wrappers */
-
-int main(int, char **);
-char *getstr(uint8_t);
-uint32_t tx(const char *, ...);
-void cleanexit(void);
-uint8_t carrier(void);
-void cl(void);
-void c(uint8_t, uint8_t);
-void clw(void);
-void ryl_pause(void);
-uint8_t hotkey(void);
-void render_at(const char *, uint8_t, uint8_t);
-
-/* OTHER PROTOS */
-
-void init(void);
-void createparty(void);
-void show(int32_t);
-void load(void);
-void save(void);
-char key(void);
-void spelet(void);
-void timehandler(void);
-void foodhandler(void);
-void slumpvis(void);
-void update_map(void);
-void weaponr(void);
-void armourr(void);
-void enter(void);
-uint8_t drop(void);
-uint8_t drop_option(void);
-void camp(void);
-void spell(int32_t);
-void quaff(void);
-char *pronoun(uint8_t, uint8_t);
-void smith(void);
-void tavern(void);
-void inn(void);
-void merchant(void);
-void rumour(void);
-void place_npcs(void);
-void speak(int32_t, int32_t);
-void reply_chitchat(int32_t, int32_t);
-char *object(int32_t);
-int32_t obcost(int32_t);
-int32_t obdamage(int32_t);
-void encounter(int32_t, int32_t);
-void losegame(void);
-void expcheck(void);
-void showparty(void);
-void church(void);
-void hut(void);
-void dungeon(int32_t, int32_t);
-void flaggkoll(int32_t);
-int32_t color(char);
-void position_locations(void);
-char *glyph(char);
-void ydarg(void);
-void confrontation(void);
-void invlist(void);
-void statusline(void);
-void scorelist(void);
-void hunt(void);
-void journal(char *);
-void read_journal(void);
-void blitgfx(uint8_t);
-void clr_map_window(void);
-uint8_t mission_control(void);
-void ryl_log(char *);
-void weaponoff(void);
-void armouroff(void);
-void clrjr(uint8_t);
-void help(void);
-void disptext(char *);
-void guild(void);
-void read_internal_mail(void);
-void trade(void);
-void attackhandler(void);
-uint8_t select_party(void);
-void guild_title(char *);
-void editor(char *, uint8_t);
-void check_terrain(char, char);
-
-/* Pointer protos */
+/* Function prototypes split into per-module headers:
+     battle.h dungeon.h driv.h gfx.h interact.h missions.h
+     person.h primitives.h speak.h subs.h towne.h ydarg.h
+   Each .c source pulls only the headers whose APIs it calls. This file
+   stays as the umbrella for stdlib + compat + state so existing call
+   sites keep their ambient dependencies. */
 
 #endif

@@ -1,4 +1,8 @@
 #include "ryl.h"
+#include "driv.h"
+#include "gfx.h"
+#include "interact.h"
+#include "primitives.h"
 
 void guild() {
     char f, d, str2[80], str[80];

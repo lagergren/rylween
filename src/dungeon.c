@@ -1,5 +1,12 @@
 #include "ryl.h"
 #include "res.h"
+#include "battle.h"
+#include "driv.h"
+#include "dungeon.h"
+#include "gfx.h"
+#include "primitives.h"
+#include "subs.h"
+#include "towne.h"
 
 void dungeon(int32_t levels, int32_t flag) {
     /*

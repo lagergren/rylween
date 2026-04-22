@@ -1,5 +1,14 @@
 #include "ryl.h"
 #include "res.h"
+#include "battle.h"
+#include "driv.h"
+#include "dungeon.h"
+#include "gfx.h"
+#include "interact.h"
+#include "missions.h"
+#include "primitives.h"
+#include "subs.h"
+#include "towne.h"
 
 void timehandler() {
     state.tid++;

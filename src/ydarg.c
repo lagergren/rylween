@@ -1,4 +1,11 @@
 #include "ryl.h"
+#include "battle.h"
+#include "driv.h"
+#include "gfx.h"
+#include "primitives.h"
+#include "subs.h"
+#include "towne.h"
+#include "ydarg.h"
 
 void ydarg() {
     int32_t room[8][8];

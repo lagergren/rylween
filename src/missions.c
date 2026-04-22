@@ -1,5 +1,12 @@
 #include "ryl.h"
 #include "res.h"
+#include "battle.h"
+#include "driv.h"
+#include "dungeon.h"
+#include "gfx.h"
+#include "missions.h"
+#include "primitives.h"
+#include "subs.h"
 
 uint8_t mission_control() {
     int32_t i, gems;

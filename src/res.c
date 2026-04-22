@@ -30,6 +30,7 @@
 #include "eval.h"
 #include "json5.h"
 #include "ryl.h"
+#include "towne.h"
 
 #include <stdio.h>
 #include <stdlib.h>

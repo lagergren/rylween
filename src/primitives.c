@@ -2,6 +2,8 @@
 
 #include "io.h"
 #include "ryl.h"
+#include "driv.h"
+#include "primitives.h"
 
 #include <ctype.h>
 #include <stdarg.h>

@@ -1,6 +1,12 @@
 #include "io.h"
 #include "res.h"
 #include "ryl.h"
+#include "driv.h"
+#include "interact.h"
+#include "person.h"
+#include "primitives.h"
+#include "subs.h"
+#include "towne.h"
 
 void spelet() {
     char cc, d;

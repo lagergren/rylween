@@ -1,5 +1,13 @@
 #include "ryl.h"
 #include "res.h"
+#include "driv.h"
+#include "gfx.h"
+#include "interact.h"
+#include "primitives.h"
+#include "speak.h"
+#include "subs.h"
+#include "towne.h"
+#include "ydarg.h"
 
 void rumour() {
     char str[40];

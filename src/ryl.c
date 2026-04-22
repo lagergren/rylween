@@ -3,6 +3,7 @@
 #include "io.h"
 #include "res.h"
 #include "ryl.h"
+#include "driv.h"
 
 struct ryl_state state;
 

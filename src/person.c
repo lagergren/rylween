@@ -1,4 +1,6 @@
 #include "ryl.h"
+#include "person.h"
+#include "primitives.h"
 
 /* 24 random people, 15 fixed, like innkeepers, bargirls etc. */
 

@@ -1,5 +1,9 @@
 #include "ryl.h"
 #include "res.h"
+#include "driv.h"
+#include "primitives.h"
+#include "speak.h"
+#include "towne.h"
 
 /* Random coords:
 **

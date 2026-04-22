@@ -1,6 +1,12 @@
 #include "ryl.h"
 #include "res.h"
 #include "eval.h"
+#include "battle.h"
+#include "driv.h"
+#include "gfx.h"
+#include "primitives.h"
+#include "subs.h"
+#include "towne.h"
 
 /*
 ** Never find and never fool
