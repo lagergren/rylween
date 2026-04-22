@@ -952,3 +952,116 @@ compile fixes; no meaningful line-count delta.
 Phase 6+ (content extraction to JSONL, §9) has its own budget — roughly
 -4000 code lines, +2500 lines of JSONL, +500 lines of loader code. Do it
 as a separate pass after Phase 5 ships.
+
+## 12. Follow-ups queued for after Phase 6d module splits
+
+The `json5.[ch]` / `state.h` / per-module-header series (commits
+`baf768f`, `c2bf863`, `168ff9c`) landed three structural cuts. Open
+work after that:
+
+### 12.1 Dockerfile + GitHub CI
+
+**Goal.** Contributors without a native toolchain (or with a
+non-macOS platform) should be able to build, run `tools/replay.sh
+--all`, and run `tools/check_world.sh` in a single `docker build`
+invocation.
+
+**Dockerfile shape** (multi-stage):
+
+- Stage 1 (`builder`): `debian:stable-slim` + `build-essential`
+  + `make`. `COPY .` then `make clean && make`.
+- Stage 2 (`tester`): same base, copy the rylween binary +
+  `tools/` + `data/`, run `tools/replay.sh --all` and
+  `tools/check_world.sh` as `RUN` steps so image build fails on
+  regression.
+- Stage 3 (`runtime`): slim image with binary + data for
+  `docker run -it rylween`.
+
+**CI shape** (`.github/workflows/ci.yml`):
+
+- Trigger: push + PR.
+- Matrix: `ubuntu-latest` (gcc + clang), optionally
+  `macos-latest`. `ubuntu-24.04` gives clang-format 17 to
+  verify `.clang-format` cleanliness.
+- Steps: `make`, `tools/replay.sh --all`,
+  `tools/check_world.sh`, `clang-format --dry-run --Werror src/*.{c,h}`.
+
+### 12.2 Global-state teardown + allocation audit
+
+Lookup tables (`glyph_tab`, `color_tab`, `color_tab_set`, `enums`,
+`texts`, `flags_tab`, `pronoun_tab`, `priest_spells`,
+`mage_spells`, `items`, `monsters`) and `world_tree` currently
+live as file-scope globals in `res.c`. `struct ryl_state state`
+is similarly a file-scope global in `ryl.c`. On process exit
+nothing is freed — we rely on the OS to reap. That's workable
+but the user wants:
+
+1. **Instance-allocated state.** A `ryl_context` (or equivalent)
+   owns the tables + world tree + `struct ryl_state`; callers
+   acquire it at init and release it on shutdown. Tests and any
+   future "reload world" path become tractable.
+2. **Teardown hook.** An `atexit` handler (or explicit
+   `ryl_shutdown()` called from `main`'s normal exit paths and
+   from `cleanexit()`) frees every resource the context owns.
+3. **Leak audit.** Every `malloc`/`realloc`/`strdup` site in
+   `res.c`, `json5.c`, and `eval.c` gets paired with a free
+   path. Verify under macOS `leaks -atExit -- ./rylween …` and
+   `-fsanitize=address` on a CI leg.
+
+Known suspect sites:
+- `fold_texts` / `fold_flags` / `fold_enums` allocate names +
+  value arrays, never freed.
+- `node_free` only runs on `resolve_imports` replacement
+  children; `world_tree` itself survives process lifetime.
+- `compile_world_tree` replaces `N_STR` nodes in place with
+  `N_PATH` — verify the replaced strings are freed.
+- `pronoun_tab[sex][xx]` / `glyph_tab[g]` get `strdup`'d on
+  every re-fold; currently only run once but any future reload
+  leaks without freeing the prior value.
+
+Gate this work the same way (replay byte-identical + check_world
+ok), and add an ASan-enabled replay leg to CI once the hook is
+in.
+
+### 12.3 Dynamic sizing from world.json5
+
+Currently `struct party` has `name[5][30]`, `hp[5]`, …
+`inventory[17]`, `attack_today[26]`; `struct ryl_state` has
+`p[26]` and `npc[41]`; `map[42][82]`. These are all legacy
+1-indexed "max+1" allocations. The user wants:
+
+- `limits` subtree in `world.json5` carrying
+  `{ party_members_min, party_members_max, inventory_slots,
+     npcs, parties, map_w, map_h, … }`.
+- The runtime allocates on boot from those values (requires
+  splitting `struct party` / `struct ryl_state` into heap-
+  backed flex arrays or pointer fields; the save format
+  changes too).
+- Audit every `[5]` / `[17]` / `[26]` / `[41]` / `[82]` / `[42]`
+  at the call sites and replace with `<limit>` lookups or
+  per-instance caps carried in the context.
+
+Two load-bearing consequences:
+
+- **Save-file compatibility.** `load()` / `save()` in `driv.c`
+  currently write the fixed-size structs as raw bytes. Flex-
+  array layouts break that. Either version the save format
+  (header with limits, body with the actual count) or keep
+  reading the legacy fixed layout into an intermediate buffer
+  and copy into the new struct.
+- **1-indexing.** Many call sites iterate `for (m=1; m<=4; m++)`
+  and assume slot 0 is unused. Flipping to 0-indexed is a
+  separate, bigger cut. For a first pass, keep 1-indexing and
+  only make the *cap* dynamic — arrays become `[max+1]` sized.
+
+Sequence the work as:
+
+1. Add the `limits` subtree + fold into a `ryl_limits` struct
+   owned by the res module (read-only after load).
+2. Audit the hardcoded-size call sites, annotate each with
+   the `limits.*` source. No runtime change yet; just the
+   catalog.
+3. Cut over the easy ones (inventory, party_members) to
+   dynamic caps; keep the 1-indexed layout.
+4. Save-format migration (deferred — needs its own design).
+
