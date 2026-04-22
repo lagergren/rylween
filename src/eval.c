@@ -19,6 +19,7 @@
 
 #include <ctype.h>
 #include <limits.h>
+#include <setjmp.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -391,12 +392,22 @@ static void compile_effect(node *n, const char *src_path) {
             compile_effect(n->u.arr.items[3], src_path);
         }
     } else if (strcmp(op, "say") == 0 || strcmp(op, "journal") == 0) {
-        check_arity(n, src_path, 2, 2);
+        if (n->u.arr.n < 2) {
+            cdie(src_path, n->line, "say/journal needs text-id arg");
+        }
         if (n->u.arr.items[1]->kind != N_STR) {
             cdie(src_path, n->u.arr.items[1]->line, "say/journal: text-id must be string");
         }
+        /* Extra args are printf-style substitutions; compile each as an
+           expr so paths like "caster.name" get turned into N_PATH. */
+        for (size_t i = 2; i < n->u.arr.n; i++) {
+            compile_expr(n->u.arr.items[i], src_path);
+        }
     } else if (strcmp(op, "pause") == 0 || strcmp(op, "clw") == 0) {
         check_arity(n, src_path, 1, 1);
+    } else if (strcmp(op, "delay") == 0) {
+        check_arity(n, src_path, 2, 2);
+        compile_expr(n->u.arr.items[1], src_path);
     } else if (strcmp(op, "set_flag") == 0) {
         check_arity(n, src_path, 3, 3);
         if (n->u.arr.items[1]->kind != N_STR) {
@@ -450,7 +461,8 @@ static compile_fn compile_kind_for(const node *n) {
     /* effects */
     if (strcmp(op, "seq") == 0 || strcmp(op, "if") == 0 ||
         strcmp(op, "say") == 0 || strcmp(op, "journal") == 0 ||
-        strcmp(op, "pause") == 0 || strcmp(op, "clw") == 0 ||
+        strcmp(op, "pause") == 0 || strcmp(op, "delay") == 0 ||
+        strcmp(op, "clw") == 0 ||
         strcmp(op, "set_flag") == 0 ||
         strcmp(op, "give_gold") == 0 || strcmp(op, "take_gold") == 0 ||
         strcmp(op, "give_item") == 0 || strcmp(op, "take_item") == 0 ||
@@ -540,46 +552,81 @@ void env_set_local(env_t *e, const char *name, int32_t val) {
     e->n_locals++;
 }
 
+void env_bind_caster_party(env_t *e, pm_t pm) {
+    e->caster.kind = AB_PARTY;
+    e->caster.u.party = pm;
+}
+
+void env_bind_combat(env_t *e, int noc, int *mh, int *deadc, const char *fn) {
+    e->noc = noc;
+    e->mh = mh;
+    e->deadc = deadc;
+    e->fn = fn;
+}
+
 /* ---------------------------------------------------------------- */
-/*  Path get                                                        */
+/*  Path get / set                                                  */
 /* ---------------------------------------------------------------- */
 
-static pm_t *env_actor(env_t *e, int8_t actor, int line) {
-    pm_t *pm = NULL;
+static actor_bind *env_actor(env_t *e, int8_t actor, int line) {
     switch (actor) {
-        case PA_CASTER:  pm = &e->caster;  break;
-        case PA_TARGET:  pm = &e->target;  break;
-        case PA_SPEAKER: pm = &e->speaker; break;
-        case PA_SELF:    pm = &e->self;    break;
+        case PA_CASTER:  return &e->caster;
+        case PA_TARGET:  return &e->target;
+        case PA_SPEAKER: return &e->speaker;
+        case PA_SELF:    return &e->self;
         default:
             rdie(line, "internal: not an actor path");
     }
-    if (!pm->party) {
-        rdie(line, "unbound actor");
-    }
-    return pm;
 }
 
-static int32_t read_actor_field(const pm_t *pm, int field, int index, int line) {
+static int32_t read_party_actor_field(pm_t pm, int field, int index, int line) {
     switch (field) {
-        case PF_HP:         return pm_hp(*pm);
-        case PF_H:          return pm_h(*pm);
-        case PF_MA:         return pm_ma(*pm);
-        case PF_WI:         return pm->party->wi[pm->m];
-        case PF_LV:         return pm_lv(*pm);
-        case PF_WS:         return pm->party->ws[pm->m];
-        case PF_CH:         return pm->party->ch[pm->m];
-        case PF_AC:         return pm->party->ar[pm->m];
-        case PF_DEAD:       return pm_dead(*pm);
-        case PF_CL:         return pm_cl(*pm);
+        case PF_HP:         return pm_hp(pm);
+        case PF_H:          return pm_h(pm);
+        case PF_MA:         return pm_ma(pm);
+        case PF_WI:         return pm.party->wi[pm.m];
+        case PF_LV:         return pm_lv(pm);
+        case PF_WS:         return pm.party->ws[pm.m];
+        case PF_CH:         return pm.party->ch[pm.m];
+        case PF_AC:         return pm.party->ar[pm.m];
+        case PF_DEAD:       return pm_dead(pm);
+        case PF_CL:         return pm_cl(pm);
         case PF_INVENTORY:
             if (index < 0 || index >= 17) {
                 rdie(line, "inventory index out of range");
             }
-            return pm->party->inventory[index];
+            return pm.party->inventory[index];
         default:
             rdie(line, "unsupported actor field");
     }
+}
+
+static int32_t read_monster_field(env_t *e, int idx, int field, int line) {
+    if (!e->mh) {
+        rdie(line, "monster field read outside combat context");
+    }
+    if (idx < 1 || idx > e->noc) {
+        rdie(line, "monster index out of range");
+    }
+    switch (field) {
+        case PF_HP:   return e->mh[idx];
+        case PF_DEAD: return e->deadc[idx];
+        default:
+            rdie(line, "unsupported monster field");
+    }
+}
+
+static int32_t read_actor_bound(const actor_bind *ab, const path_t *p, env_t *e) {
+    if (ab->kind == AB_NONE) {
+        rdie(p->line, "unbound actor");
+    }
+    if (ab->kind == AB_PARTY) {
+        return read_party_actor_field(ab->u.party, p->field, p->index, p->line);
+    }
+    if (ab->kind == AB_MONSTER) {
+        return read_monster_field(e, ab->u.mon_index, p->field, p->line);
+    }
+    rdie(p->line, "unknown actor kind");
 }
 
 static int32_t read_party_field(int field, int line) {
@@ -619,16 +666,111 @@ static int32_t eval_path_get(const path_t *p, env_t *e) {
         case PA_CASTER:
         case PA_TARGET:
         case PA_SPEAKER:
-        case PA_SELF: {
-            pm_t *pm = env_actor(e, p->actor, p->line);
-            return read_actor_field(pm, p->field, p->index, p->line);
-        }
+        case PA_SELF:
+            return read_actor_bound(env_actor(e, p->actor, p->line), p, e);
         case PA_PARTY:
             return read_party_field(p->field, p->line);
         case PA_STATE:
             return read_state_field(p->field, p->line);
         case PA_NPC:
             rdie(p->line, "npc path reads not implemented yet");
+        default:
+            rdie(p->line, "path has no actor");
+    }
+}
+
+static void write_party_actor_field(pm_t pm, int field, int index, int32_t val, int line) {
+    switch (field) {
+        case PF_HP:   pm.party->hp[pm.m] = val; return;
+        case PF_H:    pm.party->h[pm.m] = val;  return;
+        case PF_MA:   pm.party->ma[pm.m] = val; return;
+        case PF_WI:   pm.party->wi[pm.m] = val; return;
+        case PF_WS:   pm.party->ws[pm.m] = val; return;
+        case PF_CH:   pm.party->ch[pm.m] = val; return;
+        case PF_LV:   pm.party->lv[pm.m] = val; return;
+        case PF_DEAD: pm.party->dead[pm.m] = val; return;
+        case PF_INVENTORY:
+            if (index < 0 || index >= 17) {
+                rdie(line, "inventory index out of range");
+            }
+            pm.party->inventory[index] = val;
+            return;
+        default:
+            rdie(line, "unsupported actor field write");
+    }
+}
+
+static void write_monster_field(env_t *e, int idx, int field, int32_t val, int line) {
+    if (!e->mh) {
+        rdie(line, "monster field write outside combat context");
+    }
+    if (idx < 1 || idx > e->noc) {
+        rdie(line, "monster index out of range");
+    }
+    switch (field) {
+        case PF_HP:   e->mh[idx] = val; return;
+        case PF_DEAD: e->deadc[idx] = val; return;
+        default:
+            rdie(line, "unsupported monster field write");
+    }
+}
+
+static void write_actor_bound(actor_bind *ab, const path_t *p, int32_t val, env_t *e) {
+    if (ab->kind == AB_NONE) {
+        rdie(p->line, "unbound actor");
+    }
+    if (ab->kind == AB_PARTY) {
+        write_party_actor_field(ab->u.party, p->field, p->index, val, p->line);
+        return;
+    }
+    if (ab->kind == AB_MONSTER) {
+        write_monster_field(e, ab->u.mon_index, p->field, val, p->line);
+        return;
+    }
+    rdie(p->line, "unknown actor kind");
+}
+
+static void write_party_field(int field, int32_t val, int line) {
+    struct party *p = &state.p[state.cpl];
+    switch (field) {
+        case PF_GOLD:        p->gold = val; return;
+        case PF_FIRESHIELD:  p->fireshield = (unsigned char) val; return;
+        case PF_BRACELETS:   p->bracelets = (unsigned char) val; return;
+        case PF_MASTERCROWN: p->mastercrown = (unsigned char) val; return;
+        case PF_JAZZYFOOT:   p->jazzyfoot = (unsigned char) val; return;
+        case PF_SILVERKEY:   p->silverkey = (unsigned char) val; return;
+        default:
+            rdie(line, "unsupported party field write");
+    }
+}
+
+static void write_state_field(int field, int32_t val, int line) {
+    switch (field) {
+        case PF_BANISHED: state.banished = val; return;
+        default:
+            rdie(line, "unsupported state field write");
+    }
+}
+
+static void eval_path_set(const path_t *p, env_t *e, int32_t val) {
+    switch (p->actor) {
+        case PA_LOCAL:
+            env_set_local(e, p->local, val);
+            return;
+        case PA_CASTER:
+        case PA_TARGET:
+        case PA_SPEAKER:
+        case PA_SELF:
+            write_actor_bound(env_actor(e, p->actor, p->line), p, val, e);
+            return;
+        case PA_PARTY:
+            write_party_field(p->field, val, p->line);
+            return;
+        case PA_STATE:
+            write_state_field(p->field, val, p->line);
+            return;
+        case PA_NPC:
+            rdie(p->line, "npc path writes not implemented yet");
         default:
             rdie(p->line, "path has no actor");
     }
@@ -815,4 +957,258 @@ int eval_cond(const node *n, env_t *e) {
         return eval_expr(n->u.arr.items[1], e) >= eval_expr(n->u.arr.items[2], e);
     }
     rdie(n->line, "unknown cond op");
+}
+
+/* ---------------------------------------------------------------- */
+/*  eval_effect                                                     */
+/* ---------------------------------------------------------------- */
+
+/* Resolve the string that a say/journal %s arg should render to. Only
+   PATH args with field == PF_NAME are supported today; extending to
+   arbitrary text-id or local-string args is straightforward but waits
+   until a caller needs it. */
+static const char *eval_name_string(const node *a, env_t *e) {
+    if (a->kind != N_PATH) {
+        rdie(a->line, "say/journal %s arg must be an actor .name path");
+    }
+    const path_t *p = &a->u.path;
+    if (p->field != PF_NAME) {
+        rdie(p->line, "say/journal %s arg must be .name");
+    }
+    actor_bind *ab;
+    switch (p->actor) {
+        case PA_CASTER:  ab = &e->caster;  break;
+        case PA_TARGET:  ab = &e->target;  break;
+        case PA_SPEAKER: ab = &e->speaker; break;
+        case PA_SELF:    ab = &e->self;    break;
+        default:
+            rdie(p->line, "say/journal %s arg must be an actor path");
+    }
+    if (ab->kind == AB_PARTY) {
+        return pm_name(ab->u.party);
+    }
+    if (ab->kind == AB_MONSTER) {
+        if (!e->fn) {
+            rdie(p->line, "monster .name read with no combat fn");
+        }
+        return e->fn;
+    }
+    rdie(p->line, "unbound actor for .name");
+}
+
+/* Render a say's format string into buf by walking %s / %d, pulling args
+   from the trailing node list. Caller decides how many bytes to emit. */
+static void say_render(const char *fmt, const node *n, env_t *e, char *buf, size_t buf_sz) {
+    size_t o = 0;
+    size_t ai = 2;
+    while (*fmt && o + 1 < buf_sz) {
+        if (fmt[0] == '%' && (fmt[1] == 's' || fmt[1] == 'd')) {
+            char spec = fmt[1];
+            fmt += 2;
+            if (ai >= n->u.arr.n) {
+                rdie(n->line, "say: too few args for format");
+            }
+            const node *a = n->u.arr.items[ai++];
+            if (spec == 's') {
+                const char *s = eval_name_string(a, e);
+                size_t len = strlen(s);
+                if (o + len >= buf_sz) {
+                    len = buf_sz - 1 - o;
+                }
+                memcpy(buf + o, s, len);
+                o += len;
+            } else {
+                int32_t v = eval_expr(a, e);
+                char tmp[16];
+                int wrote = snprintf(tmp, sizeof tmp, "%d", v);
+                if (wrote < 0) {
+                    wrote = 0;
+                }
+                size_t wn = (size_t) wrote;
+                if (o + wn >= buf_sz) {
+                    wn = buf_sz - 1 - o;
+                }
+                memcpy(buf + o, tmp, wn);
+                o += wn;
+            }
+        } else {
+            buf[o++] = *fmt++;
+        }
+    }
+    buf[o] = 0;
+    if (ai != n->u.arr.n) {
+        rdie(n->line, "say: extra args beyond format specifiers");
+    }
+}
+
+static void eval_say(const node *n, env_t *e) {
+    const char *id  = n->u.arr.items[1]->u.sv;
+    const char *fmt = res_text(id);
+    if (n->u.arr.n == 2) {
+        tx("%s", fmt);
+        return;
+    }
+    char buf[512];
+    say_render(fmt, n, e, buf, sizeof buf);
+    tx("%s", buf);
+}
+
+static void eval_set_flag(const node *n, env_t *e) {
+    const char *flag = n->u.arr.items[1]->u.sv;
+    int32_t v = eval_expr(n->u.arr.items[2], e);
+    int32_t slot = res_flag_slot(flag);
+    if (slot < 0) {
+        rdie(n->line, "set_flag: unknown flag");
+    }
+    state.p[state.cpl].flag[slot] = (unsigned char) v;
+}
+
+/* ask_target "monster_alive": reproduces strid.c:424-441 byte-for-byte so
+   the DSL-driven spell path emits the same menu as the hand-rolled one.
+   party_alive / party_any land when a consumer asks for them. */
+static void eval_ask_target(const node *n, env_t *e) {
+    const char *kind = n->u.arr.items[1]->u.sv;
+    if (strcmp(kind, "monster_alive") == 0) {
+        if (!e->mh) {
+            rdie(n->line, "ask_target monster_alive outside combat");
+        }
+        char str[80], d;
+        int32_t i;
+        while (1) {
+            clw();
+            tx("%s", res_text("strid.prompt.who"));
+            for (i = 1; i < e->noc + 1; i++) {
+                if (e->deadc[i]) {
+                    strcpy(str, "Dead.");
+                } else {
+                    strcpy(str, "Alive.");
+                }
+                tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, e->mh[i]);
+            }
+            d = key();
+            d = toupper(d);
+            if (d >= 'A' && d <= 64 + e->noc && !e->deadc[d - 64]) {
+                break;
+            }
+        }
+        e->target.kind = AB_MONSTER;
+        e->target.u.mon_index = d - 64;
+        return;
+    }
+    rdie(n->line, "ask_target: kind not implemented");
+}
+
+static void eval_seq(const node *n, env_t *e) {
+    jmp_buf buf;
+    if (e->seq_top >= (int) (sizeof e->seq_stack / sizeof e->seq_stack[0])) {
+        rdie(n->line, "seq nested too deep");
+    }
+    e->seq_stack[e->seq_top++] = &buf;
+    if (setjmp(buf) == 0) {
+        for (size_t i = 1; i < n->u.arr.n; i++) {
+            eval_effect(n->u.arr.items[i], e);
+        }
+    }
+    e->seq_top--;
+}
+
+void eval_effect(const node *n, env_t *e) {
+    if (!n || n->kind != N_ARR) {
+        rdie(n ? n->line : 0, "effect must be array");
+    }
+    const char *op = arr_op(n);
+    if (strcmp(op, "seq") == 0) {
+        eval_seq(n, e);
+        return;
+    }
+    if (strcmp(op, "if") == 0) {
+        if (eval_cond(n->u.arr.items[1], e)) {
+            eval_effect(n->u.arr.items[2], e);
+        } else if (n->u.arr.n == 4) {
+            eval_effect(n->u.arr.items[3], e);
+        }
+        return;
+    }
+    if (strcmp(op, "say") == 0) {
+        eval_say(n, e);
+        return;
+    }
+    if (strcmp(op, "journal") == 0) {
+        char buf[512];
+        const char *fmt = res_text(n->u.arr.items[1]->u.sv);
+        if (n->u.arr.n == 2) {
+            journal((char *) fmt);
+        } else {
+            say_render(fmt, n, e, buf, sizeof buf);
+            journal(buf);
+        }
+        return;
+    }
+    if (strcmp(op, "pause") == 0) {
+        ryl_pause();
+        return;
+    }
+    if (strcmp(op, "delay") == 0) {
+        int32_t ms = eval_expr(n->u.arr.items[1], e);
+        if (ms > 0) {
+            ryl_delay((unsigned) ms);
+        }
+        return;
+    }
+    if (strcmp(op, "clw") == 0) {
+        clw();
+        return;
+    }
+    if (strcmp(op, "set_flag") == 0) {
+        eval_set_flag(n, e);
+        return;
+    }
+    if (strcmp(op, "give_gold") == 0) {
+        state.p[state.cpl].gold += eval_expr(n->u.arr.items[1], e);
+        return;
+    }
+    if (strcmp(op, "take_gold") == 0) {
+        state.p[state.cpl].gold -= eval_expr(n->u.arr.items[1], e);
+        return;
+    }
+    if (strcmp(op, "give_item") == 0 || strcmp(op, "take_item") == 0) {
+        rdie(n->line, "give_item/take_item not yet wired up");
+    }
+    if (strcmp(op, "set") == 0) {
+        int32_t v = eval_expr(n->u.arr.items[2], e);
+        eval_path_set(&n->u.arr.items[1]->u.path, e, v);
+        return;
+    }
+    if (strcmp(op, "add") == 0) {
+        const path_t *p = &n->u.arr.items[1]->u.path;
+        int32_t v = eval_path_get(p, e) + eval_expr(n->u.arr.items[2], e);
+        eval_path_set(p, e, v);
+        return;
+    }
+    if (strcmp(op, "sub") == 0) {
+        const path_t *p = &n->u.arr.items[1]->u.path;
+        int32_t v = eval_path_get(p, e) - eval_expr(n->u.arr.items[2], e);
+        eval_path_set(p, e, v);
+        return;
+    }
+    if (strcmp(op, "ask_target") == 0) {
+        eval_ask_target(n, e);
+        return;
+    }
+    if (strcmp(op, "require") == 0) {
+        if (!eval_cond(n->u.arr.items[1], e)) {
+            if (e->seq_top == 0) {
+                rdie(n->line, "require outside seq");
+            }
+            longjmp(*e->seq_stack[e->seq_top - 1], 1);
+        }
+        return;
+    }
+    if (strcmp(op, "spawn_encounter") == 0) {
+        rdie(n->line, "spawn_encounter: engine hook not wired up");
+    }
+    if (strcmp(op, "call") == 0) {
+        rdie(n->line, "call: lib subtree not yet consulted");
+    }
+    rdie(n->line, "unknown effect op");
 }

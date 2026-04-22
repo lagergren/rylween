@@ -1,5 +1,6 @@
 #include "ryl.h"
 #include "res.h"
+#include "eval.h"
 
 /*
 ** Never find and never fool
@@ -419,6 +420,19 @@ void encounter(int32_t foe, int32_t mandatory) {
                         ryl_delay(1000);
                     } else {
                         state.p[state.cpl].ma[g] -= (s->base_cost + pm_lv(caster));
+                        const void *spell_node = res_spell_node("mage", d - 48);
+                        if (spell_node) {
+                            env_t env;
+                            env_init(&env);
+                            env_bind_caster_party(&env, caster);
+                            env_bind_combat(&env, noc, mh, deadc, fn);
+                            eval_effect((const node *) spell_node, &env);
+                            env_free(&env);
+                            /* DSL path handled the spell; skip the
+                               legacy enum switch entirely. */
+                            spell_node = NULL;  /* fall through past switch */
+                            goto after_mage_switch;
+                        }
                         switch (s->effect) {
                             case SE_FROST:
                                 while (1) {
@@ -528,6 +542,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                             default:
                                 break;
                         }
+                    after_mage_switch:;
                     }
                 }
             }

@@ -86,6 +86,13 @@ const ryl_monster *res_monster(int id);
 /* Spell for a given class ("priest" or "mage") and slot (1..7). NULL if missing. */
 const ryl_spell *res_spell(const char *class_name, int slot);
 
+/* DSL spell lookup. Returns the `do` body node of
+   `spells."<class>.<name>"` whose slot matches, for the spell referenced
+   at `classes.<class>.spells[slot-1]` in the world tree. NULL if the
+   world tree doesn't carry a matching spell (fall back to res_spell /
+   enum dispatch). The returned pointer is owned by the world tree. */
+const void *res_spell_node(const char *class_id, int slot);
+
 /* Terrain glyph -> two-char display. "  " if unknown. Never NULL. */
 const char *res_kar(char glyph);
 

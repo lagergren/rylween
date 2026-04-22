@@ -103,27 +103,58 @@ node       *node_new(node_kind k, int line);
 void        node_free(node *n);
 const node *obj_get(const node *o, const char *key);
 
-/* Evaluator environment. Four actor bindings + a linear $locals array.
-   pm_t.party == NULL means the slot is unbound; reading via an unbound
-   actor path is a runtime error. Local names are stored verbatim (without
-   the leading '$') and compared by strcmp — ok for the handful of
-   lets spells/dialogue introduce. */
+/* Actor binding. Each of the four actor slots (caster / target / speaker /
+   self) can be unbound, bound to a party member, or (for target after
+   `ask_target "monster_alive"`) bound to a combat-scope monster index.
+   Additional kinds (npc) land when dialogue migrates. */
+typedef enum {
+    AB_NONE = 0,
+    AB_PARTY,
+    AB_MONSTER,
+} actor_kind;
+
 typedef struct {
-    pm_t caster;
-    pm_t target;
-    pm_t speaker;
-    pm_t self;
+    int kind;
+    union {
+        pm_t party;
+        int  mon_index;  /* 1..noc — reads env->mh[] / env->deadc[] */
+    } u;
+} actor_bind;
+
+/* Evaluator environment. Four actor bindings, a linear $locals array, and
+   a small setjmp stack used by `seq` to let `require` abort just the
+   enclosing seq. Combat context (noc / mh / deadc / fn) is populated by
+   the encounter() caller before eval_effect so actor = monster reads /
+   writes reach the right ints without the evaluator knowing combat. */
+#include <setjmp.h>
+
+typedef struct env_t env_t;
+struct env_t {
+    actor_bind caster;
+    actor_bind target;
+    actor_bind speaker;
+    actor_bind self;
     struct {
         char   *name;
         int32_t val;
     } *locals;
     size_t n_locals;
     size_t cap_locals;
-} env_t;
+
+    int         noc;
+    int        *mh;
+    int        *deadc;
+    const char *fn;
+
+    jmp_buf *seq_stack[8];
+    int      seq_top;
+};
 
 void env_init(env_t *e);
 void env_free(env_t *e);
 void env_set_local(env_t *e, const char *name, int32_t val);
+void env_bind_caster_party(env_t *e, pm_t pm);
+void env_bind_combat(env_t *e, int noc, int *mh, int *deadc, const char *fn);
 
 /* Compile pass: walks `root` post-import-resolution, recursively rewriting
    N_STR nodes at path positions into N_PATH. `src_path` is used in error
@@ -132,5 +163,6 @@ void compile_world_tree(node *root, const char *src_path);
 
 int32_t eval_expr(const node *n, env_t *e);
 int     eval_cond(const node *n, env_t *e);
+void    eval_effect(const node *n, env_t *e);
 
 #endif

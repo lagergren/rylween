@@ -919,3 +919,29 @@ const char *res_flag_value(const char *id, int index) {
     }
     return "";
 }
+
+const void *res_spell_node(const char *class_id, int slot) {
+    const node *root = world_tree;
+    if (!root) return NULL;
+    const node *classes = obj_get(root, "classes");
+    if (!classes) return NULL;
+    const node *cls = obj_get(classes, class_id);
+    if (!cls) return NULL;
+    const node *spells_list = obj_get(cls, "spells");
+    if (!spells_list || spells_list->kind != N_ARR) return NULL;
+    const node *spells_tree = obj_get(root, "spells");
+    if (!spells_tree) return NULL;
+    for (size_t i = 0; i < spells_list->u.arr.n; i++) {
+        const node *id_n = spells_list->u.arr.items[i];
+        if (!id_n || id_n->kind != N_STR) continue;
+        const node *spell = obj_get(spells_tree, id_n->u.sv);
+        if (!spell) continue;
+        const node *slot_n = obj_get(spell, "slot");
+        if (!slot_n || slot_n->kind != N_INT) continue;
+        if (slot_n->u.iv != slot) continue;
+        const node *do_n = obj_get(spell, "do");
+        if (!do_n) return NULL;
+        return do_n;
+    }
+    return NULL;
+}
