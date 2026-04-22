@@ -1,19 +1,20 @@
 /* Phase 6d evaluator. See docs/dsl.md §6 for the expression language.
  *
- * This commit lands:
- *   - node constructors / destructors (moved out of res.c so the eval tree
- *     types are a shared vocabulary between parser and evaluator).
+ * This module owns:
  *   - parse_path: "caster.hp" / "$dmg" / "target.inventory[3]" -> path_t.
  *   - compile_world_tree: recursive walk that identifies every effect /
  *     cond / expr array and rewrites N_STR nodes at path positions to
  *     N_PATH. Arity and unknown-op checks are enforced here.
- *   - eval_expr, eval_cond. eval_effect follows in the next commit.
+ *   - eval_expr, eval_cond, eval_effect.
  *
- * Failure mode is always "fail loud": any unknown op, arity mismatch, or
- * unbound reference dies with a path:line:msg message.
+ * The node allocation surface (node_new / node_free / obj_get) and the
+ * JSON5 parser live in json5.c. Failure mode is always "fail loud":
+ * any unknown op, arity mismatch, or unbound reference dies with a
+ * path:line:msg message.
  */
 
 #include "eval.h"
+#include "json5.h"
 #include "res.h"
 #include "ryl.h"
 
@@ -24,63 +25,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* ---------------------------------------------------------------- */
-/*  Node helpers                                                    */
-/* ---------------------------------------------------------------- */
-
-node *node_new(node_kind k, int line) {
-    node *n = calloc(1, sizeof *n);
-    if (!n) {
-        fprintf(stderr, "res: oom\n");
-        exit(1);
-    }
-    n->kind = k;
-    n->line = line;
-    return n;
-}
-
-void node_free(node *n) {
-    if (!n) {
-        return;
-    }
-    switch (n->kind) {
-        case N_STR:
-            free(n->u.sv);
-            break;
-        case N_ARR:
-            for (size_t i = 0; i < n->u.arr.n; i++) {
-                node_free(n->u.arr.items[i]);
-            }
-            free(n->u.arr.items);
-            break;
-        case N_OBJ:
-            for (size_t i = 0; i < n->u.obj.n; i++) {
-                free(n->u.obj.items[i].key);
-                node_free(n->u.obj.items[i].val);
-            }
-            free(n->u.obj.items);
-            break;
-        case N_PATH:
-            free(n->u.path.local);
-            break;
-        default:
-            break;
-    }
-    free(n);
-}
-
-const node *obj_get(const node *o, const char *key) {
-    if (!o || o->kind != N_OBJ) {
-        return NULL;
-    }
-    for (size_t i = 0; i < o->u.obj.n; i++) {
-        if (strcmp(o->u.obj.items[i].key, key) == 0) {
-            return o->u.obj.items[i].val;
-        }
-    }
-    return NULL;
-}
 
 /* ---------------------------------------------------------------- */
 /*  Error reporting                                                 */

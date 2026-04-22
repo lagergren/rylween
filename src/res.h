@@ -103,4 +103,9 @@ int32_t res_color(char terrain);
    "" if missing. Never NULL. */
 const char *res_pronoun(int sex, int xx);
 
+/* Uniform "res: path:line: msg" fatal error. Used by the JSON5 parser /
+   import resolver (json5.c) and the world-folds (res.c) so every loader
+   diagnostic has one shape. Never returns. */
+__attribute__((noreturn)) void res_die(const char *path, int line, const char *msg);
+
 #endif

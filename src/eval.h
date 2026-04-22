@@ -13,18 +13,12 @@
  * frame machinery, and res_spell_node() follow in the next commit.
  */
 
+#include "json5.h"
 #include "ryl.h"
 
-typedef enum {
-    N_NULL,
-    N_BOOL,
-    N_INT,
-    N_STR,
-    N_ARR,
-    N_OBJ,
-    N_PATH,
-} node_kind;
-
+/* Path actor / field enums. path_t lives in json5.h because it's a
+   member of the node union; the actor / field constants are evaluator
+   vocabulary and live here. */
 typedef enum {
     PA_NONE,
     PA_CASTER,
@@ -62,46 +56,6 @@ typedef enum {
     PF_JAZZYFOOT,
     PF_SILVERKEY,
 } path_field;
-
-/* Compiled path. Hot-path reads dispatch on actor + field; no strcmp. */
-typedef struct {
-    int8_t actor;  /* path_actor */
-    int8_t field;  /* path_field */
-    int32_t index; /* subscript for inventory[N] / npc[N] */
-    char *local;   /* owned; non-NULL iff actor == PA_LOCAL */
-    int line;      /* source line for runtime errors */
-} path_t;
-
-typedef struct node_kv node_kv;
-typedef struct node node;
-
-struct node {
-    node_kind kind;
-    int line;
-    union {
-        int32_t bv;
-        int32_t iv;
-        char *sv;
-        struct {
-            node **items;
-            size_t n;
-        } arr;
-        struct {
-            node_kv *items;
-            size_t n;
-        } obj;
-        path_t path;
-    } u;
-};
-
-struct node_kv {
-    char *key;
-    node *val;
-};
-
-node *node_new(node_kind k, int line);
-void node_free(node *n);
-const node *obj_get(const node *o, const char *key);
 
 /* Actor binding. Each of the four actor slots (caster / target / speaker /
    self) can be unbound, bound to a party member, or (for target after
