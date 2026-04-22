@@ -49,6 +49,28 @@ uint32_t tx(const char *fmtstr, ...) {
     return n > 0 ? (uint32_t)n : 0UL;
 }
 
+/* tx0: emit a ready-made string as data, not format. Same cursor-right
+   prefix as tx(), but skips vsnprintf — so the payload is not bounded
+   by tx()'s 512-byte buffer and % bytes in the payload are safe. Use
+   for res_text(), pronoun(), object(), pre-built row buffers, and any
+   literal without format specifiers. */
+uint32_t tx0(const char *s) {
+    char jump[16];
+    int32_t n;
+    size_t len;
+
+    n = snprintf(jump, sizeof jump, ANSI_CSI "%dC", state.global_x);
+    if (n > 0) {
+        io->write(jump, (size_t)n);
+    }
+
+    len = strlen(s);
+    if (len > 0) {
+        io->write(s, len);
+    }
+    return (uint32_t)len;
+}
+
 void clw(void) {
     int32_t i;
 

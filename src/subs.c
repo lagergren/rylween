@@ -90,7 +90,7 @@ void foodhandler() {
     }
     if (state.hours_pigg < -8) {
         clw();
-        tx("%s", res_text("subs.faint"));
+        tx0(res_text("subs.faint"));
         for (i = 1; i < 5; i++) {
             if (state.p[state.cpl].hp[i] > 1) {
                 state.p[state.cpl].hp[i]--;
@@ -123,7 +123,7 @@ void slumpvis() {
         clr_map_window();
         blitgfx(cavepic);
         clw();
-        tx("%s", res_text("cave.found_prompt"));
+        tx0(res_text("cave.found_prompt"));
         while (1) {
             c = key();
             c = toupper(c);
@@ -136,7 +136,7 @@ void slumpvis() {
                 state.p[state.cpl].tid_kvar -= 10;
             } else {
                 clw();
-                tx("%s", res_text("cave.no_moves"));
+                tx0(res_text("cave.no_moves"));
                 ryl_pause();
                 clr_map_window();
                 clw();
@@ -172,7 +172,7 @@ void losegame() {
     clr_map_window();
     blitgfx(deathpic);
     clw();
-    tx("%s", res_text("subs.losegame.flavor"));
+    tx0(res_text("subs.losegame.flavor"));
     ryl_pause();
     cleanexit();
 }
@@ -183,10 +183,10 @@ void losegame() {
    by a single space; the very last cell of the last row is followed by
    ANSI_FG_WHITE to restore the default foreground.
 
-   Build each row into a local buffer and emit it with one tx() call —
-   tx() prefixes every invocation with a cursor-right escape from c()
-   (see primitives.c), so driving the render cell-by-cell would bloat
-   the output with redundant escapes. */
+   Build each row into a local buffer and emit it with one tx0() call —
+   tx()/tx0() prefix every invocation with a cursor-right escape from
+   c() (see primitives.c), so driving the render cell-by-cell would
+   bloat the output with redundant escapes. */
 void update_map() {
     const int32_t px = state.p[state.cpl].x;
     const int32_t py = state.p[state.cpl].y;
@@ -211,7 +211,7 @@ void update_map() {
         if (dy == 2) {
             off += snprintf(row + off, sizeof row - off, ANSI_FG_WHITE);
         }
-        tx("%s", row);
+        tx0(row);
     }
 }
 int32_t color(char t) {
@@ -468,8 +468,8 @@ void camp() {
 
     tx("Camp.\r\n\r\n");
     tx("Post a guard?\r\n\r\n");
-    tx("%s", res_text("common.yes"));
-    tx("%s", res_text("common.no"));
+    tx0(res_text("common.yes"));
+    tx0(res_text("common.no"));
     c = key();
     c = toupper(c);
     if (c == 'Y') {
@@ -812,7 +812,7 @@ void spell(int32_t place) {
         case SE_HEAL:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("%s", res_text("spell.not_enough_pts"));
+                tx0(res_text("spell.not_enough_pts"));
                 ryl_delay(1000);
                 clw();
                 break;
@@ -848,7 +848,7 @@ void spell(int32_t place) {
         case SE_RESTORATION:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("%s", res_text("spell.not_enough_pts"));
+                tx0(res_text("spell.not_enough_pts"));
                 ryl_delay(1000);
                 clw();
                 break;
@@ -873,7 +873,7 @@ void spell(int32_t place) {
         case SE_REBIRTH:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("%s", res_text("spell.not_enough_pts"));
+                tx0(res_text("spell.not_enough_pts"));
                 ryl_delay(1000);
                 clw();
                 break;
@@ -905,7 +905,7 @@ void spell(int32_t place) {
         case SE_BANISH:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("%s", res_text("spell.not_enough_pts"));
+                tx0(res_text("spell.not_enough_pts"));
                 ryl_delay(1000);
                 clw();
                 break;
@@ -926,7 +926,7 @@ void spell(int32_t place) {
             tx("between %s palms, and\r\n", pronoun(vem, 3));
             tx("suddenly clasps them.\r\n");
             tx("together over %s head.\r\n", pronoun(vem, 3));
-            tx("%s", res_text("spell.priest.banish.thunder"));
+            tx0(res_text("spell.priest.banish.thunder"));
             ryl_pause();
             clw();
             state.banished = 1;
@@ -935,7 +935,7 @@ void spell(int32_t place) {
         case SE_REVELATION:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("%s", res_text("spell.not_enough_pts"));
+                tx0(res_text("spell.not_enough_pts"));
                 ryl_delay(1000);
                 clw();
                 break;
@@ -1004,7 +1004,7 @@ void spell(int32_t place) {
 
         case SE_TELEPORT:
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("%s", res_text("spell.not_enough_pts"));
+                tx0(res_text("spell.not_enough_pts"));
                 ryl_delay(1000);
                 clw();
                 break;
@@ -1023,12 +1023,12 @@ void spell(int32_t place) {
             ryl_pause();
             clw();
             tx("%s picks up a stone slab\r\n", pronoun(vem, 1));
-            tx("%s", res_text("spell.priest.teleport.satchel"));
+            tx0(res_text("spell.priest.teleport.satchel"));
             tx("%s wants you to teleport\r\n", pronoun(vem, 1));
             tx("to.\r\n\r\n");
             ryl_pause();
             clw();
-            tx("%s", res_text("spell.priest.teleport.compass"));
+            tx0(res_text("spell.priest.teleport.compass"));
             while (1) {
                 d = key();
                 if (d == '8' || d == '4' || d == '6' || d == '2') {
@@ -1036,7 +1036,7 @@ void spell(int32_t place) {
                 }
             }
             clw();
-            tx("%s", res_text("spell.priest.teleport.how_far"));
+            tx0(res_text("spell.priest.teleport.how_far"));
             while (1) {
                 b = key();
                 if (b >= '1' && b <= '9') {
@@ -1073,7 +1073,7 @@ void spell(int32_t place) {
                     }
                     break;
             }
-            tx("%s", res_text("spell.priest.teleport.arrived"));
+            tx0(res_text("spell.priest.teleport.arrived"));
             update_map();
             ryl_delay(1200);
             clw();
@@ -1089,21 +1089,21 @@ void spell(int32_t place) {
                 break;
             }
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx("%s", res_text("spell.not_enough_pts"));
+                tx0(res_text("spell.not_enough_pts"));
                 ryl_delay(1000);
                 clw();
                 break;
             }
             state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             tx("%s utters\r\n", state.p[state.cpl].name[vem]);
-            tx("%s", res_text("spell.priest.earthquake.incantation"));
+            tx0(res_text("spell.priest.earthquake.incantation"));
             ryl_delay(2000);
-            tx("%s", res_text("spell.priest.earthquake.eruption"));
+            tx0(res_text("spell.priest.earthquake.eruption"));
             ryl_delay(3000);
             clr_map_window();
             blitgfx(cavepic);
             clw();
-            tx("%s", res_text("cave.found_prompt"));
+            tx0(res_text("cave.found_prompt"));
             while (1) {
                 c = key();
                 c = toupper(c);
@@ -1116,7 +1116,7 @@ void spell(int32_t place) {
                     state.p[state.cpl].tid_kvar -= 10;
                 } else {
                     clw();
-                    tx("%s", res_text("cave.no_moves"));
+                    tx0(res_text("cave.no_moves"));
                     ryl_pause();
                     clr_map_window();
                     clw();

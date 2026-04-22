@@ -16,16 +16,16 @@ void spelet() {
     state.tid = 5;
     state.hours_pigg = 14;
 
-    tx("%s", res_text("title.header"));
+    tx0(res_text("title.header"));
 
-    tx("%s", res_text("title.prog_by"));
-    tx("%s", res_text("title.prog_name"));
+    tx0(res_text("title.prog_by"));
+    tx0(res_text("title.prog_name"));
 
-    tx("%s", res_text("title.created_by"));
-    tx("%s", res_text("title.creator_name"));
+    tx0(res_text("title.created_by"));
+    tx0(res_text("title.creator_name"));
 
-    tx("%s", res_text("title.graphics_by"));
-    tx("%s", res_text("title.graphics_name"));
+    tx0(res_text("title.graphics_by"));
+    tx0(res_text("title.graphics_name"));
 
     /* Prep map for positions of huts/cottages */
 
@@ -54,8 +54,8 @@ void spelet() {
 
         if (!state.p[state.cpl].tid_kvar) {
             clw();
-            tx("%s", res_text("driv.moves.out_of_moves"));
-            tx("%s", res_text("driv.menu.out_of_moves"));
+            tx0(res_text("driv.moves.out_of_moves"));
+            tx0(res_text("driv.menu.out_of_moves"));
             while (1) {
                 cc = key();
                 cc = toupper(cc);
@@ -65,14 +65,14 @@ void spelet() {
             }
             if (cc == 'S') {
                 clw();
-                tx("%s", res_text("driv.save.saving"));
+                tx0(res_text("driv.save.saving"));
                 save();
                 ryl_delay(400);
-                tx("%s", res_text("driv.save.done"));
+                tx0(res_text("driv.save.done"));
                 ryl_delay(400);
             }
             clw();
-            tx("%s", res_text("driv.quit.farewell"));
+            tx0(res_text("driv.quit.farewell"));
             ryl_delay(1000);
             scorelist();
             cleanexit();
@@ -84,12 +84,12 @@ void spelet() {
         switch (cc) {
             case ' ':
                 clw();
-                tx("%s", res_text("driv.move.pass"));
+                tx0(res_text("driv.move.pass"));
                 break;
             case '8':
                 if (!state.p[state.cpl].tid_kvar) {
                     clw();
-                    tx("%s", res_text("driv.move.no_moves"));
+                    tx0(res_text("driv.move.no_moves"));
                     break;
                 }
                 if (state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'm' && state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'w') {
@@ -103,7 +103,7 @@ void spelet() {
             case '4':
                 if (!state.p[state.cpl].tid_kvar) {
                     clw();
-                    tx("%s", res_text("driv.move.no_moves"));
+                    tx0(res_text("driv.move.no_moves"));
                     break;
                 }
                 if (state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'm' && state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'w') {
@@ -117,7 +117,7 @@ void spelet() {
             case '2':
                 if (!state.p[state.cpl].tid_kvar) {
                     clw();
-                    tx("%s", res_text("driv.move.no_moves"));
+                    tx0(res_text("driv.move.no_moves"));
                     break;
                 }
                 if (state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'm' && state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'w') {
@@ -131,7 +131,7 @@ void spelet() {
             case '6':
                 if (!state.p[state.cpl].tid_kvar) {
                     clw();
-                    tx("%s", res_text("driv.move.no_moves"));
+                    tx0(res_text("driv.move.no_moves"));
                     break;
                 }
                 if (state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'm' && state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'w') {
@@ -145,10 +145,10 @@ void spelet() {
 
             case 'S':
                 clw();
-                tx("%s", res_text("driv.save.saving"));
+                tx0(res_text("driv.save.saving"));
                 save();
                 ryl_delay(400);
-                tx("%s", res_text("driv.save.done"));
+                tx0(res_text("driv.save.done"));
                 break;
             case 'W':
                 weaponr();
@@ -182,7 +182,7 @@ void spelet() {
             case 'V':
                 showparty();
                 clw();
-                tx("%s", res_text("driv.view.who"));
+                tx0(res_text("driv.view.who"));
                 while (1) {
                     d = key();
                     if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A') {
@@ -222,9 +222,9 @@ void spelet() {
                 break;
             case 'X':
                 clw();
-                tx("%s", res_text("driv.quit.confirm"));
-                tx("%s", res_text("common.yes"));
-                tx("%s", res_text("common.no"));
+                tx0(res_text("driv.quit.confirm"));
+                tx0(res_text("common.yes"));
+                tx0(res_text("common.no"));
                 d = key();
                 d = toupper(d);
                 if (d != 'Y') {
@@ -241,7 +241,7 @@ uint8_t drop_option() {
     char c;
 
     clw();
-    tx("%s", res_text("driv.drop.another"));
+    tx0(res_text("driv.drop.another"));
     c = key();
     c = toupper(c);
     if (c == 'Y') {
@@ -263,7 +263,7 @@ void read_journal() {
         return;
     }
 
-    tx("%s", res_text("driv.journal.header"));
+    tx0(res_text("driv.journal.header"));
 
     while (1) {
         str[0] = 0;

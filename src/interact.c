@@ -359,7 +359,7 @@ void guild_title(char *title) {
     cl();
     tx("[37m[44m");
     c((80 - strlen(title)) / 2, 1);
-    tx("%s", title);
+    tx0(title);
     c(0, 3);
     tx("[40m");
 }

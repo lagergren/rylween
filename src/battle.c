@@ -106,20 +106,20 @@ void encounter(int32_t foe, int32_t mandatory) {
         if (!mandatory) {
             if (ryl_chance(95)) {
                 clw();
-                tx("%s", res_text("battle.run.coward"));
+                tx0(res_text("battle.run.coward"));
                 ryl_delay(800);
                 clw();
                 clr_map_window();
                 return;
             } else {
                 clw();
-                tx("%s", res_text("battle.run.fail_away"));
+                tx0(res_text("battle.run.fail_away"));
                 ryl_delay(800);
                 clw();
             }
         } else {
             clw();
-            tx("%s", res_text("battle.run.desperate_fail"));
+            tx0(res_text("battle.run.desperate_fail"));
             ryl_delay(800);
             clw();
         }
@@ -171,7 +171,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         if (im) {
                             state.p[state.cpl].inventory[d - 64] = 0;
                             clw();
-                            tx("%s", res_text("battle.item.magic_immune"));
+                            tx0(res_text("battle.item.magic_immune"));
                             ryl_delay(1000);
                             clw();
                         } else {
@@ -212,7 +212,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                             mh[i] -= spelldamage;
                                             if (mh[i] <= 0) {
                                                 mh[i] = 0;
-                                                tx("%s", res_text("battle.killed"));
+                                                tx0(res_text("battle.killed"));
                                                 ryl_delay(600);
                                                 deadc[i] = 1;
                                             }
@@ -224,7 +224,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
                                     tx("%s throws the\r\n", state.p[state.cpl].name[g]);
-                                    tx("%s", res_text("battle.item.sparks_bump"));
+                                    tx0(res_text("battle.item.sparks_bump"));
                                     ryl_pause();
                                     clw();
                                     ws /= 2;
@@ -234,7 +234,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
                                     tx("%s throws the\r\n", state.p[state.cpl].name[g]);
-                                    tx("%s", res_text("battle.item.light_blind"));
+                                    tx0(res_text("battle.item.light_blind"));
                                     ryl_pause();
                                     clw();
                                     ws = 5;
@@ -254,7 +254,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         tx("to take a %s\r\n", fn);
                                         tx("away...\r\n");
                                         ryl_delay(2000);
-                                        tx("%s", res_text("battle.killed"));
+                                        tx0(res_text("battle.killed"));
                                         ryl_delay(600);
                                         deadc[vem] = 1;
                                         mh[vem] = 0;
@@ -265,7 +265,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 105:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s", res_text("battle.prompt.on_whom"));
+                                    tx0(res_text("battle.prompt.on_whom"));
                                     while (1) {
                                         d = key();
                                         if (d >= '1' && d <= '4') {
@@ -283,7 +283,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 106:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s", res_text("battle.spell.morale_quest"));
+                                    tx0(res_text("battle.spell.morale_quest"));
                                     ryl_pause();
                                     clw();
                                     for (i = 1; i < 5; i++) {
@@ -297,7 +297,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 107:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s", res_text("battle.spell.party_healed"));
+                                    tx0(res_text("battle.spell.party_healed"));
                                     ryl_pause();
                                     clw();
                                     for (i = 1; i < 5; i++) {
@@ -309,7 +309,7 @@ void encounter(int32_t foe, int32_t mandatory) {
 
                                 case 108:
                                     clw();
-                                    tx("%s", res_text("battle.prompt.on_whom"));
+                                    tx0(res_text("battle.prompt.on_whom"));
                                     while (1) {
                                         b = key();
                                         if (b >= '1' && b <= '4') {
@@ -340,10 +340,10 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     tx("%s throws Kael's\r\n", state.p[state.cpl].name[g]);
                                     tx("axe at the enemy!\r\n\r\n");
                                     ryl_delay(1500);
-                                    tx("%s", res_text("battle.item.ghost_axe.wounds"));
+                                    tx0(res_text("battle.item.ghost_axe.wounds"));
                                     ryl_delay(4000);
                                     clw();
-                                    tx("%s", res_text("battle.item.battle_cry"));
+                                    tx0(res_text("battle.item.battle_cry"));
                                     ryl_delay(3000);
                                     for (i = 1; i < noc + 1; i++) {
                                         if (!deadc[i]) {
@@ -409,7 +409,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 }
                 if (im) {
                     clw();
-                    tx("%s", res_text("battle.spell.fizzle"));
+                    tx0(res_text("battle.spell.fizzle"));
                     ryl_delay(2000);
                 }
                 if (d == '7') {
@@ -424,7 +424,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 if (s) {
                     if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
                         clw();
-                        tx("%s", res_text("battle.spell.not_enough_magic"));
+                        tx0(res_text("battle.spell.not_enough_magic"));
                         ryl_delay(1000);
                     } else {
                         state.p[state.cpl].ma[g] -= (s->base_cost + pm_lv(caster));
@@ -453,7 +453,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         mh[i] -= spelldamage;
                                         if (mh[i] <= 0) {
                                             mh[i] = 0;
-                                            tx("%s", res_text("battle.killed"));
+                                            tx0(res_text("battle.killed"));
                                             ryl_delay(600);
                                             deadc[i] = 1;
                                         }
@@ -463,7 +463,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                             case SE_CONFUSION:
                                 clw();
                                 tx("%s utters a word.\r\n", pm_name(caster));
-                                tx("%s", res_text("battle.spell.mirror"));
+                                tx0(res_text("battle.spell.mirror"));
                                 ryl_delay(2000);
                                 ws /= 2;
                                 confused = 1;
@@ -471,7 +471,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                             case SE_DEATH:
                                 while (1) {
                                     clw();
-                                    tx("%s", res_text("battle.prompt.who"));
+                                    tx0(res_text("battle.prompt.who"));
                                     for (i = 1; i < noc + 1; i++) {
                                         if (deadc[i]) {
                                             strcpy(str, "Dead.");
@@ -489,12 +489,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 vem = d - 64;
                                 if (ryl_random(0, 199) < mh[vem]) {
                                     clw();
-                                    tx("%s", res_text("battle.spell.annihilate.resist"));
+                                    tx0(res_text("battle.spell.annihilate.resist"));
                                     ryl_delay(2000);
                                     mh[vem] = 1;
                                 } else {
                                     clw();
-                                    tx("%s", res_text("battle.spell.annihilate.kill"));
+                                    tx0(res_text("battle.spell.annihilate.kill"));
                                     ryl_delay(2000);
                                     deadc[vem] = 1;
                                     mh[vem] = 0;
@@ -503,14 +503,14 @@ void encounter(int32_t foe, int32_t mandatory) {
                             case SE_HOLD:
                                 clw();
                                 tx("%s utters a word.\r\n", pm_name(caster));
-                                tx("%s", res_text("battle.spell.hold_enemy"));
+                                tx0(res_text("battle.spell.hold_enemy"));
                                 ryl_delay(2000);
                                 held = 1;
                                 break;
                             case SE_ANTIMAGIC:
                                 clw();
                                 tx("%s utters a word.\r\n", pm_name(caster));
-                                tx("%s", res_text("battle.spell.silence"));
+                                tx0(res_text("battle.spell.silence"));
                                 ryl_delay(2800);
                                 antimagic = 1;
                                 break;
@@ -526,7 +526,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 clw();
                 tx("HI-YAAAA!\r\n\r\n");
                 ryl_delay(800);
-                tx("%s", res_text("battle.cry.off_guard"));
+                tx0(res_text("battle.cry.off_guard"));
                 if (ws > 4) {
                     ws -= 4;
                 }
@@ -541,10 +541,10 @@ void encounter(int32_t foe, int32_t mandatory) {
                 }
                 clw();
                 if (defend < 5) {
-                    tx("%s", res_text("battle.rest.gain_hits"));
+                    tx0(res_text("battle.rest.gain_hits"));
                     ryl_delay(1000);
                 } else {
-                    tx("%s", res_text("battle.defend.stance"));
+                    tx0(res_text("battle.defend.stance"));
                     ryl_delay(1000);
                 }
                 defend++;
@@ -559,7 +559,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             if (c == 'A') {
                 while (1) {
                     clw();
-                    tx("%s", res_text("battle.prompt.who"));
+                    tx0(res_text("battle.prompt.who"));
                     for (i = 1; i < noc + 1; i++) {
                         if (deadc[i]) {
                             strcpy(str, "Dead.");
@@ -592,7 +592,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     if (mh[vem] <= 0) {
                         mh[vem] = 0;
                         deadc[vem] = 1;
-                        tx("%s", res_text("battle.killed"));
+                        tx0(res_text("battle.killed"));
                         ryl_delay(600);
                     }
                 } else {
@@ -615,7 +615,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 clr_map_window();
                 blitgfx(wonbattlepic);
                 clw();
-                tx("%s", res_text("battle.victory.bested"));
+                tx0(res_text("battle.victory.bested"));
                 tx("Each survivor gets\r\n");
                 tx("%d experience pts\r\n", ((noc * (h2 / 4) * (ws / 4)) + sp * 3));
                 tx("and %d gold pieces.\r\n\r\n", ((noc * (h2 / 7) * (ws / 4)) / 4));
@@ -721,14 +721,14 @@ void encounter(int32_t foe, int32_t mandatory) {
                             case 2: /* Monster casts hold    */
                                 tx("Hold Creature!\r\n");
                                 ryl_delay(600);
-                                tx("%s", res_text("battle.monster.hold_player"));
+                                tx0(res_text("battle.monster.hold_player"));
                                 ryl_delay(1500);
                                 playerheld = 1;
                                 break;
                             case 3: /* Monster casts confuse */
                                 tx("Confusion!\r\n");
                                 ryl_delay(600);
-                                tx("%s", res_text("battle.monster.confusion"));
+                                tx0(res_text("battle.monster.confusion"));
                                 ryl_delay(1500);
                                 playerconfused = 1;
                                 break;
@@ -809,12 +809,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                     if (c == 'R') {
                         if (ryl_chance(31) || mandatory) {
                             clw();
-                            tx("%s", res_text("battle.run.fail_away"));
+                            tx0(res_text("battle.run.fail_away"));
                             ryl_delay(1000);
                             break;
                         } else {
                             clw();
-                            tx("%s", res_text("battle.run.escaped"));
+                            tx0(res_text("battle.run.escaped"));
                             clr_map_window();
                             return;
                         }

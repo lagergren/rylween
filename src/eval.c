@@ -1107,12 +1107,12 @@ static void eval_say(const node *n, env_t *e) {
     const char *id = n->u.arr.items[1]->u.sv;
     const char *fmt = res_text(id);
     if (n->u.arr.n == 2) {
-        tx("%s", fmt);
+        tx0(fmt);
         return;
     }
     char buf[512];
     say_render(fmt, n, e, buf, sizeof buf);
-    tx("%s", buf);
+    tx0(buf);
 }
 
 static void eval_set_flag(const node *n, env_t *e) {
@@ -1138,7 +1138,7 @@ static void eval_ask_target(const node *n, env_t *e) {
         int32_t i;
         while (1) {
             clw();
-            tx("%s", res_text("battle.prompt.who"));
+            tx0(res_text("battle.prompt.who"));
             for (i = 1; i < e->noc + 1; i++) {
                 if (e->deadc[i]) {
                     strcpy(str, "Dead.");
