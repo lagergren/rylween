@@ -522,7 +522,7 @@ void church() {
             if (d >= '1' && d <= '4') {
                 if (!state.p[state.cpl].dead[d - 48]) {
                     clw();
-                    tx("- %s seems very alive\r\n", sextext(d - 48, 1));
+                    tx("- %s seems very alive\r\n", pronoun(d - 48, 1));
                     tx("at the moment.\r\n");
                     ryl_delay(1200);
                 } else {
@@ -545,7 +545,7 @@ void church() {
                             state.p[state.cpl].pl++;
                             clw();
                             tx("The priestess raises\r\n");
-                            tx("%s.\r\n", sextext(d - 48, 2));
+                            tx("%s.\r\n", pronoun(d - 48, 2));
                             ryl_delay(1000);
                         }
                     }
@@ -568,7 +568,7 @@ void church() {
                 }
                 if (state.p[state.cpl].hp[d - 48] == state.p[state.cpl].h[d - 48]) {
                     clw();
-                    tx("%s needs no healing.\r\n", sextext(d - 48, 1));
+                    tx("%s needs no healing.\r\n", pronoun(d - 48, 1));
                     ryl_delay(1000);
                 } else {
                     cost = state.p[state.cpl].h[d - 48] - state.p[state.cpl].hp[d - 48];
@@ -589,7 +589,7 @@ void church() {
                             clw();
                             state.p[state.cpl].gold -= cost;
                             tx("The priestess heals\r\n");
-                            tx("%s fully.\r\n", sextext(d - 48, 2));
+                            tx("%s fully.\r\n", pronoun(d - 48, 2));
                             ryl_delay(1000);
                             state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
                         }

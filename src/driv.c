@@ -593,7 +593,7 @@ void init() {
                     load();
                     abort = 1;
                     snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", state.p[state.cpl].name[1],
-                             sextext(1, 3), state.p[state.cpl].partyname);
+                             pronoun(1, 3), state.p[state.cpl].partyname);
                     ryl_log(str);
                     state.last_terrain = 0;
                 } else {
@@ -784,13 +784,13 @@ void load() {
     fclose(fh);
 }
 
-char *sextext(uint8_t nr, uint8_t xx) {
+char *pronoun(uint8_t nr, uint8_t xx) {
     uint8_t sex = state.p[state.cpl].sex[nr];
     /* Original: female's xx in {2,3} both returned "her"; clamp to match. */
     if (sex == 2 && xx == 3) {
         xx = 2;
     }
-    return (char *)res_sextext(sex, xx);
+    return (char *)res_pronoun(sex, xx);
 }
 
 void createparty() {

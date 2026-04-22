@@ -314,7 +314,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         state.p[state.cpl].dead[b - 48] = 0;
                                         clw();
                                         tx("%s opens %s eyes!\r\n", state.p[state.cpl].name[b - 48],
-                                           sextext(b - 48, 3));
+                                           pronoun(b - 48, 3));
                                         ryl_delay(1000);
                                         state.p[state.cpl].pl++;
                                         state.p[state.cpl].dead[b - 48] = 0;

@@ -53,7 +53,7 @@ typedef struct {
 /* Phase 6d: hierarchical JSON5 world loader. Parses data/world.json5
    into an in-memory tagged node tree, resolves $import directives
    recursively (cycles fatal), then folds every known subtree (flags /
-   items / monsters / classes+spells / terrain / sextext / enums /
+   items / monsters / classes+spells / terrain / pronoun / enums /
    texts) into the matching legacy tables. If `path` does not exist the
    function is a no-op (empty world, accessors return NULL / ""). */
 void res_load_world(const char *path);
@@ -101,6 +101,6 @@ int32_t res_color(char terrain);
 
 /* Pronoun for sex (1=male, 2=female) and xx (1=subject, 2=object, 3=possessive).
    "" if missing. Never NULL. */
-const char *res_sextext(int sex, int xx);
+const char *res_pronoun(int sex, int xx);
 
 #endif

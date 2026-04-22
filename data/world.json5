@@ -1,6 +1,6 @@
 // Rylween world file — root JSON5 tree. See docs/dsl.md for the full
 // schema. This is the single source for every resource kind: flags,
-// items, monsters, classes, spells, terrain, sextext, enums, and the
+// items, monsters, classes, spells, terrain, pronoun, enums, and the
 // text table. The flat data/resources.jsonl loader retired in Phase 6d.
 {
   meta: {
@@ -104,9 +104,9 @@
     '2': { glyph: 'CC', color: 'white' },
   },
 
-  // Pronouns. res_sextext(sex, xx) reads these with xx = 1 (subject),
+  // Pronouns. res_pronoun(sex, xx) reads these with xx = 1 (subject),
   // 2 (object), 3 (possessive); sex = 1 (male) / 2 (female).
-  sextext: {
+  pronoun: {
     male:   { subject: 'he',  object: 'him', possessive: 'his' },
     female: { subject: 'she', object: 'her', possessive: 'her' },
   },

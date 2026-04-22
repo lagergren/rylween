@@ -250,7 +250,7 @@ uint8_t drop_option(void);
 void camp(void);
 void spell(int32_t);
 void quaff(void);
-char *sextext(uint8_t, uint8_t);
+char *pronoun(uint8_t, uint8_t);
 void smith(void);
 void tavern(void);
 void inn(void);

@@ -2,7 +2,7 @@
  *
  * Phase 6d retired the flat JSONL loader (data/resources.jsonl) and
  * folded all seven legacy record kinds — enum / item / monster / spell /
- * terrain / sextext / text — into the world tree. The parser is a
+ * terrain / pronoun / text — into the world tree. The parser is a
  * hand-rolled JSON5 front-end on top of a tagged node tree (node_kind /
  * node — see eval.h) that the evaluator walks directly.
  *
@@ -11,9 +11,9 @@
  *   2. resolve_imports: splice every {"$import": "relpath"} directive
  *      with the parsed subtree of data/<relpath>. Cycles fatal.
  *   3. fold_*: walk the known subtrees (flags / items / monsters /
- *      classes+spells / texts / terrain / sextext / enums) and populate
+ *      classes+spells / texts / terrain / pronoun / enums) and populate
  *      the matching legacy in-memory tables (ryl_item / ryl_monster /
- *      ryl_spell / glyph_tab / color_tab / sextext_tab / enums / texts).
+ *      ryl_spell / glyph_tab / color_tab / pronoun_tab / enums / texts).
  *   4. compile_world_tree: rewrite every path-position N_STR (e.g.
  *      "caster.hp", "$dmg") to a packed N_PATH so the evaluator hot
  *      path does zero strcmp on actor/field names.
@@ -100,7 +100,7 @@ static int32_t color_code_from_name(const char *name) {
     return -1;
 }
 
-static char *sextext_tab[3][4];
+static char *pronoun_tab[3][4];
 
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
    Populated from data/world.json5 flags subtree; empty until world loads. */
@@ -247,11 +247,11 @@ int32_t res_color(char terrain) {
     return color_tab_set[g] ? color_tab[g] : color_default;
 }
 
-const char *res_sextext(int sex, int xx) {
+const char *res_pronoun(int sex, int xx) {
     if (sex < 1 || sex > 2 || xx < 1 || xx > 3) {
         return "";
     }
-    return sextext_tab[sex][xx] ? sextext_tab[sex][xx] : "";
+    return pronoun_tab[sex][xx] ? pronoun_tab[sex][xx] : "";
 }
 
 /* ---------------------------------------------------------------- */
@@ -1141,39 +1141,39 @@ static void fold_terrain(const node *terrain_node, const char *path) {
     }
 }
 
-/* -------- sextext subtree --------
+/* -------- pronoun subtree --------
    Two fixed keys, "male" and "female", map to sex indices 1 and 2 that
-   the legacy res_sextext() API already uses. */
-static void fold_sextext(const node *sextext_node, const char *path) {
-    if (!sextext_node) {
+   the legacy res_pronoun() API already uses. */
+static void fold_pronoun(const node *pronoun_node, const char *path) {
+    if (!pronoun_node) {
         return;
     }
-    if (sextext_node->kind != N_OBJ) {
-        die(path, sextext_node->line, "sextext: expected object");
+    if (pronoun_node->kind != N_OBJ) {
+        die(path, pronoun_node->line, "pronoun: expected object");
     }
-    for (size_t i = 0; i < sextext_node->u.obj.n; i++) {
-        const char *key = sextext_node->u.obj.items[i].key;
-        const node *rec = sextext_node->u.obj.items[i].val;
+    for (size_t i = 0; i < pronoun_node->u.obj.n; i++) {
+        const char *key = pronoun_node->u.obj.items[i].key;
+        const node *rec = pronoun_node->u.obj.items[i].val;
         int sex;
         if (strcmp(key, "male") == 0) {
             sex = 1;
         } else if (strcmp(key, "female") == 0) {
             sex = 2;
         } else {
-            die(path, rec->line, "sextext: key must be 'male' or 'female'");
+            die(path, rec->line, "pronoun: key must be 'male' or 'female'");
         }
         if (rec->kind != N_OBJ) {
-            die(path, rec->line, "sextext: entry must be object");
+            die(path, rec->line, "pronoun: entry must be object");
         }
         const node *subj = obj_get(rec, "subject");
         const node *obj_n = obj_get(rec, "object");
         const node *poss = obj_get(rec, "possessive");
-        free(sextext_tab[sex][1]);
-        sextext_tab[sex][1] = strdup((subj && subj->kind == N_STR) ? subj->u.sv : "");
-        free(sextext_tab[sex][2]);
-        sextext_tab[sex][2] = strdup((obj_n && obj_n->kind == N_STR) ? obj_n->u.sv : "");
-        free(sextext_tab[sex][3]);
-        sextext_tab[sex][3] = strdup((poss && poss->kind == N_STR) ? poss->u.sv : "");
+        free(pronoun_tab[sex][1]);
+        pronoun_tab[sex][1] = strdup((subj && subj->kind == N_STR) ? subj->u.sv : "");
+        free(pronoun_tab[sex][2]);
+        pronoun_tab[sex][2] = strdup((obj_n && obj_n->kind == N_STR) ? obj_n->u.sv : "");
+        free(pronoun_tab[sex][3]);
+        pronoun_tab[sex][3] = strdup((poss && poss->kind == N_STR) ? poss->u.sv : "");
     }
 }
 
@@ -1238,7 +1238,7 @@ void res_load_world(const char *path) {
     fold_monsters(obj_get(root, "monsters"), path);
     fold_spells(obj_get(root, "classes"), obj_get(root, "spells"), path);
     fold_terrain(obj_get(root, "terrain"), path);
-    fold_sextext(obj_get(root, "sextext"), path);
+    fold_pronoun(obj_get(root, "pronoun"), path);
     fold_enums(obj_get(root, "enums"), path);
     fold_texts(obj_get(root, "texts"), path);
 

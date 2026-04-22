@@ -221,7 +221,7 @@ void weaponoff() {
     if (c >= '1' && c <= '4') {
         if (state.p[state.cpl].wp[c - 48] == 0) {
             clw();
-            tx("%s has no weapon!\r\n", sextext(c - 48, 1));
+            tx("%s has no weapon!\r\n", pronoun(c - 48, 1));
             ryl_delay(800);
             clw();
             return;
@@ -260,7 +260,7 @@ void armouroff() {
     if (c >= '1' && c <= '4') {
         if (state.p[state.cpl].ar[c - 48] == 0) {
             clw();
-            tx("%s has no armour!\r\n", sextext(c - 48, 1));
+            tx("%s has no armour!\r\n", pronoun(c - 48, 1));
             ryl_delay(800);
             clw();
             return;
@@ -485,7 +485,7 @@ void camp() {
         guard = d - 48;
         clw();
         tx("%s stands guard.\r\n", state.p[state.cpl].name[d - 48]);
-        tx("%s won't get any\r\n", sextext(d - 48, 1));
+        tx("%s won't get any\r\n", pronoun(d - 48, 1));
         tx("health back during\r\n");
         tx("this rest.\r\n\r\n");
         ryl_pause();
@@ -645,7 +645,7 @@ void quaff() {
     switch (oc) {
         case 36:
             tx("The healing brew warms\r\n");
-            tx("%s inside...\r\n\r\n", sextext(c - 48, 2));
+            tx("%s inside...\r\n\r\n", pronoun(c - 48, 2));
             ryl_pause();
             clw();
             state.p[state.cpl].hp[c - 48] += (15 + state.p[state.cpl].lv[c - 48]);
@@ -655,7 +655,7 @@ void quaff() {
             break;
 
         case 37:
-            tx("Horrible pain sears %s\r\n", sextext(c - 48, 3));
+            tx("Horrible pain sears %s\r\n", pronoun(c - 48, 3));
             tx("entrails as the poison\r\n");
             tx("begins to work.\r\n\r\n");
             ryl_pause();
@@ -669,7 +669,7 @@ void quaff() {
         case 38:
             if (state.p[state.cpl].cl[c - 48] == 3 || state.p[state.cpl].cl[c - 48] == 4) {
                 tx("It tingles slightly in\r\n");
-                tx("%s body, as all his\r\n", sextext(c - 48, 3));
+                tx("%s body, as all his\r\n", pronoun(c - 48, 3));
                 tx("spell points return.\r\n\r\n");
                 ryl_pause();
                 clw();
@@ -704,7 +704,7 @@ void hunt() {
     }
     if (state.p[state.cpl].cl[c - 48] != 6) {
         clw();
-        tx("%s is not a ranger.\r\n", sextext(c - 48, 1));
+        tx("%s is not a ranger.\r\n", pronoun(c - 48, 1));
         ryl_delay(700);
         clw();
         return;
@@ -887,7 +887,7 @@ void spell(int32_t place) {
             clw();
             tx("%s's eyelids\r\n", state.p[state.cpl].name[d - 48]);
             tx("flicker, and finally\r\n");
-            tx("%s opens %s eyes!\r\n", sextext(d - 48, 1), sextext(d - 48, 3));
+            tx("%s opens %s eyes!\r\n", pronoun(d - 48, 1), pronoun(d - 48, 3));
             ryl_delay(1700);
             clw();
             break;
@@ -911,11 +911,11 @@ void spell(int32_t place) {
             }
             state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
             clw();
-            tx("%s raises %s hands.\r\n", state.p[state.cpl].name[vem], sextext(vem, 3));
-            tx("%s gathers divine power\r\n", sextext(vem, 1));
-            tx("between %s palms, and\r\n", sextext(vem, 3));
+            tx("%s raises %s hands.\r\n", state.p[state.cpl].name[vem], pronoun(vem, 3));
+            tx("%s gathers divine power\r\n", pronoun(vem, 1));
+            tx("between %s palms, and\r\n", pronoun(vem, 3));
             tx("suddenly clasps them.\r\n");
-            tx("together over %s head.\r\n", sextext(vem, 3));
+            tx("together over %s head.\r\n", pronoun(vem, 3));
             tx("%s", res_text("spell.priest.banish.thunder"));
             ryl_pause();
             clw();
@@ -1003,7 +1003,7 @@ void spell(int32_t place) {
             clw();
             tx("%s carefully\r\n", state.p[state.cpl].name[vem]);
             tx("prepares the ritual of\r\n");
-            tx("Teleportation. %s spends\r\n", sextext(vem, 1));
+            tx("Teleportation. %s spends\r\n", pronoun(vem, 1));
             tx("an hour chanting mantras\r\n");
             tx("and burning blue candles.\r\n\r\n");
             state.tid++;
@@ -1012,9 +1012,9 @@ void spell(int32_t place) {
             }
             ryl_pause();
             clw();
-            tx("%s picks up a stone slab\r\n", sextext(vem, 1));
+            tx("%s picks up a stone slab\r\n", pronoun(vem, 1));
             tx("%s", res_text("spell.priest.teleport.satchel"));
-            tx("%s wants you to teleport\r\n", sextext(vem, 1));
+            tx("%s wants you to teleport\r\n", pronoun(vem, 1));
             tx("to.\r\n\r\n");
             ryl_pause();
             clw();
