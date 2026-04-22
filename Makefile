@@ -45,13 +45,13 @@ replay: $(BIN)
 check-world: $(BIN)
 	tools/check_world.sh
 
-# ASan gate: same replay + check-world, but under the sanitized binary.
-# Wired in §12.2 Commit C; right now it just builds to prove the
-# compile flags are clean. Once tools/replay_asan.sh lands this target
-# runs it.
+# ASan gate: same fixtures as `make test`, but run under the sanitized
+# binary with no byte-identity check — only AddressSanitizer /
+# LeakSanitizer markers in the captured output count as failures.
+# Linux LSan catches leaks; macOS Apple-clang ships without LSan, so
+# use this as a scorecard on macOS and the authoritative gate in CI.
 testasan: $(BIN_ASAN)
-	@echo "TODO(§12.2 Commit C): invoke tools/replay_asan.sh once it exists"
-	@echo "Built $(BIN_ASAN)."
+	tools/replay_asan.sh
 
 # Dry-run clang-format over every .c/.h. Fails if formatting drifts.
 # Matches the CI step queued in §12.1.
@@ -73,7 +73,7 @@ help:
 	@echo '  make replay       — just the replay suite'
 	@echo '  make check-world  — just data/world.json5 parse check'
 	@echo '  make asan         — build $(BIN_ASAN) with AddressSanitizer'
-	@echo '  make testasan     — ASan gate (§12.2 Commit C; stub until then)'
+	@echo '  make testasan     — ASan gate: replay fixtures under $(BIN_ASAN), fail on ASan/LSan markers'
 	@echo '  make format       — clang-format dry-run over src/'
 	@echo '  make run ARGS="Player Name" — build + run'
 	@echo '  make clean        — remove build artifacts'

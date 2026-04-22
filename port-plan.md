@@ -983,8 +983,14 @@ invocation.
 - Matrix: `ubuntu-latest` (gcc + clang), optionally
   `macos-latest`. `ubuntu-24.04` gives clang-format 17 to
   verify `.clang-format` cleanliness.
-- Steps: `make`, `tools/replay.sh --all`,
-  `tools/check_world.sh`, `clang-format --dry-run --Werror src/*.{c,h}`.
+- Steps, all as `make` targets so the gate stays in one place:
+  `make test` (build + `tools/replay.sh --all` +
+  `tools/check_world.sh`), `make testasan` (ASan-built replay
+  fixtures, fails on AddressSanitizer / LeakSanitizer markers)
+  on `ubuntu-latest` where LSan ships enabled — macOS
+  Apple-clang ASan is missing LSan, so the Ubuntu leg is the
+  authoritative leak gate; macOS ASan stays a scorecard.
+  `make format` for clang-format dry-run.
 
 ### 12.2 Global-state teardown + allocation audit
 
@@ -1021,7 +1027,9 @@ Known suspect sites:
 
 Gate this work the same way (replay byte-identical + check_world
 ok), and add an ASan-enabled replay leg to CI once the hook is
-in.
+in. **Commit C landed**: `tools/replay_asan.sh` + `make testasan`
+run the fixture set under `$(BIN_ASAN)` and fail on
+`AddressSanitizer` / `LeakSanitizer` markers. See §13.3.
 
 ### 12.3 Dynamic sizing from world.json5
 
@@ -1231,11 +1239,15 @@ these shape the `res_shutdown` implementation:
   call site hardcodes `0..111`, `0..90`, `0..255`, `1..2 × 1..3`,
   or `1..7`. Upshot: `res_shutdown` frees the legacy tables
   *before* it frees `world_tree`.
-- **`make test` is the standardized gate task.** Commit C is
-  adding an ASan replay leg alongside `tools/replay.sh --all` +
-  `tools/check_world.sh`. Roll all three under a `make test`
-  target so contributors and CI have one canonical task name.
-  The existing `Makefile` only has `rylween` + `clean` today.
+- **`make test` is the standardized gate task.** Landed in
+  `42f4400`: `make test` runs `tools/replay.sh --all` +
+  `tools/check_world.sh`. Commit C's ASan replay leg landed
+  separately as `tools/replay_asan.sh` + `make testasan` — same
+  fixture set under `$(BIN_ASAN)`, no byte-identity check, fails
+  on `AddressSanitizer` / `LeakSanitizer` markers in the captured
+  output. Contributors and CI have one canonical task name per
+  gate (`make test` for byte-identity, `make testasan` for the
+  sanitizer scorecard).
 
 ### 13.4 Commit B: implementation notes (2026-04-22)
 
