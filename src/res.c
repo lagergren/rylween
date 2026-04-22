@@ -1190,6 +1190,40 @@ const void *res_spell_node(const char *class_id, int slot) {
     return NULL;
 }
 
+const void *res_script(const char *dotted_id) {
+    const node *cur = world_tree;
+    if (!cur || cur->kind != N_OBJ) {
+        return NULL;
+    }
+    cur = obj_get(cur, "scripts");
+    if (!cur || cur->kind != N_OBJ) {
+        return NULL;
+    }
+    const char *p = dotted_id;
+    while (*p) {
+        const char *dot = strchr(p, '.');
+        size_t seg_len = dot ? (size_t)(dot - p) : strlen(p);
+        if (seg_len == 0 || seg_len >= 128) {
+            return NULL;
+        }
+        char seg[128];
+        memcpy(seg, p, seg_len);
+        seg[seg_len] = 0;
+        if (cur->kind != N_OBJ) {
+            return NULL;
+        }
+        cur = obj_get(cur, seg);
+        if (!cur) {
+            return NULL;
+        }
+        if (!dot) {
+            break;
+        }
+        p = dot + 1;
+    }
+    return (cur->kind == N_ARR) ? cur : NULL;
+}
+
 /* ---------------------------------------------------------------- */
 /*  Teardown                                                        */
 /* ---------------------------------------------------------------- */

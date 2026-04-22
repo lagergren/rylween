@@ -2,6 +2,7 @@
 #include "res.h"
 #include "driv.h"
 #include "primitives.h"
+#include "script.h"
 #include "speak.h"
 #include "towne.h"
 
@@ -299,13 +300,7 @@ static void npc_mission_hint(int32_t npc) {
         case 1:
             if (state.p[state.cpl].flag[1] == 0) {
                 clw();
-                tx0(res_text("speak.merchant.offer"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.merchant.bandits"));
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[1] = 1;
+                play_script("speak.merchant.first_visit", NULL);
                 break;
             }
             if (state.p[state.cpl].flag[1] == 2) {
@@ -417,10 +412,7 @@ static void npc_mission_hint(int32_t npc) {
         case 4:
             if (state.p[state.cpl].flag[3] == 2) {
                 clw();
-                tx0(res_text("speak.wizard.robbed"));
-                state.p[state.cpl].flag[3] = 3;
-                ryl_pause();
-                clw();
+                play_script("speak.wizard.robbed_flow", NULL);
             }
             break;
         case 5:
@@ -502,23 +494,7 @@ static void npc_mission_hint(int32_t npc) {
         /*****************************************************************/
         case 8:
             if (state.p[state.cpl].flag[8] == 0) {
-                tx0(res_text("speak.erethor.rumour"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.erethor.demon"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.erethor.poor_man"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.erethor.trade"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.erethor.dangerous"));
-                ryl_pause();
-                clw();
-                journalf("%d Erethor's temple is situated at 6x20.\n", state.cpl);
-                state.p[state.cpl].flag[8] = 1;
+                play_script("speak.erethor.first_visit", NULL);
             }
             if (state.p[state.cpl].flag[8] == 2) {
                 clw();
@@ -655,38 +631,19 @@ static void npc_mission_hint(int32_t npc) {
         /*****************************************************************/
         case 18:
             if (state.p[state.cpl].flag[6] == 2) {
-                state.p[state.cpl].flag[6] = 3;
                 clw();
-                tx0(res_text("speak.thief2.push"));
-                ryl_pause();
-                clw();
-                tx_fmt("speak.thief2.smith",
-                       (ryl_bind[]){
-                           {"smith_name", res_enum("name", 24)},
-                           {0},
-                       });
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.thief2.let_go"));
-                ryl_pause();
-                clw();
+                play_script("speak.thief2.squeezed",
+                            (ryl_bind[]){
+                                {"smith_name", res_enum("name", 24)},
+                                {0},
+                            });
             }
             break;
         /*****************************************************************/
         case 19:
             if (state.p[state.cpl].flag[19] == 0) {
                 clw();
-                tx0(res_text("speak.husband.depressed"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.husband.fortune"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.husband.cave"));
-                journalf("%d The orc cavern is at 42x23.\n", state.cpl);
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[19] = 1;
+                play_script("speak.husband.first_visit", NULL);
             }
             if (state.p[state.cpl].flag[19] == 2) {
                 clw();
@@ -868,19 +825,7 @@ static void npc_mission_hint(int32_t npc) {
         case 24:
             if (state.p[state.cpl].flag[6] == 3) {
                 clw();
-                tx0(res_text("speak.smith.ask"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.smith.sorry"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.smith.pursued"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.smith.clubbed"));
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[6] = 4;
+                play_script("speak.smith.after_thief2", NULL);
             }
             break;
         /*****************************************************************/
@@ -931,10 +876,7 @@ static void npc_mission_hint(int32_t npc) {
         case 33:
             if (state.p[state.cpl].flag[33] == 0) {
                 clw();
-                tx0(res_text("speak.hermit.welcome"));
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[33] = 1;
+                play_script("speak.hermit.welcome_visit", NULL);
             }
             if (state.p[state.cpl].flag[33] == 2) {
                 clw();

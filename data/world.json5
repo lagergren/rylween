@@ -65,6 +65,14 @@
     speak:  { $import: 'world/texts/speak.json5' },
   },
 
+  // §16.4 dialogue scripts — arrays of one-op objects the interpreter
+  // in src/script.c walks. Authored alongside the matching texts shard;
+  // the `speak:` subtree resolves `{ screen: 'rumour' }` inside
+  // `erethor.first_visit` to text id `speak.erethor.rumour`.
+  scripts: {
+    speak: { $import: 'world/scripts/speak.json5' },
+  },
+
   // Class records (§3.3). Only the `spells` list is consumed today —
   // prereqs/starting gear stay in C (driv.c createparty) until those
   // call sites migrate. `casts_in` is recorded for the benefit of the

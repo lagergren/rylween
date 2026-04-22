@@ -100,6 +100,14 @@ const ryl_spell *res_spell(const char *class_name, int slot);
    enum dispatch). The returned pointer is owned by the world tree. */
 const void *res_spell_node(const char *class_id, int slot);
 
+/* §16.4 dialogue script lookup. Returns the array node at
+   `scripts.<dotted_id>` — e.g. res_script("speak.erethor.first_visit")
+   returns the screen/journal/set_flag op list authored in the scripts
+   subtree. NULL if the path doesn't resolve to an array (missing node,
+   wrong kind, or the scripts subtree itself is absent). The returned
+   pointer is owned by the world tree; callers must not free it. */
+const void *res_script(const char *dotted_id);
+
 /* Terrain byte -> two-char glyph the renderer writes. "  " if unknown. */
 const char *res_glyph(char terrain);
 

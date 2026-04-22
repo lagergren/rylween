@@ -80,33 +80,34 @@ void ryl_die(const char *msg) {
     exit(1);
 }
 
-/* tx_fmt: expand {placeholder} tokens in a res_text record against the
-   caller's binding list, emit as one tx0(). See primitives.h for the
-   full contract. Expansion buffer is stack-local (2KB); no site in the
-   current corpus comes close. */
-uint32_t tx_fmt(const char *id, const ryl_bind *bindings) {
-    const char *src = res_text(id);
-    char buf[2048];
+/* bind_expand: placeholder substitution shared by tx_fmt and script.c.
+   See primitives.h for the full contract. */
+void bind_expand(const char *src, const ryl_bind *bindings,
+                 char *out, size_t out_sz, const char *ctx) {
     char diag[256];
     size_t o = 0;
 
+    if (out_sz == 0) {
+        snprintf(diag, sizeof diag, "bind_expand: zero-size buffer in '%s'", ctx);
+        ryl_die(diag);
+    }
     for (size_t i = 0; src[i];) {
         char ch = src[i];
         if (ch == '{' && src[i + 1] == '{') {
-            if (o + 1 >= sizeof buf) {
-                snprintf(diag, sizeof diag, "tx_fmt: buffer overflow in '%s'", id);
+            if (o + 1 >= out_sz) {
+                snprintf(diag, sizeof diag, "bind_expand: buffer overflow in '%s'", ctx);
                 ryl_die(diag);
             }
-            buf[o++] = '{';
+            out[o++] = '{';
             i += 2;
             continue;
         }
         if (ch != '{') {
-            if (o + 1 >= sizeof buf) {
-                snprintf(diag, sizeof diag, "tx_fmt: buffer overflow in '%s'", id);
+            if (o + 1 >= out_sz) {
+                snprintf(diag, sizeof diag, "bind_expand: buffer overflow in '%s'", ctx);
                 ryl_die(diag);
             }
-            buf[o++] = ch;
+            out[o++] = ch;
             i++;
             continue;
         }
@@ -117,12 +118,12 @@ uint32_t tx_fmt(const char *id, const ryl_bind *bindings) {
             name_end++;
         }
         if (src[name_end] != '}') {
-            snprintf(diag, sizeof diag, "tx_fmt: unterminated '{' in '%s'", id);
+            snprintf(diag, sizeof diag, "bind_expand: unterminated '{' in '%s'", ctx);
             ryl_die(diag);
         }
         size_t name_len = name_end - name_start;
         if (name_len == 0 || name_len >= 64) {
-            snprintf(diag, sizeof diag, "tx_fmt: bad placeholder in '%s'", id);
+            snprintf(diag, sizeof diag, "bind_expand: bad placeholder in '%s'", ctx);
             ryl_die(diag);
         }
         char name[64];
@@ -134,7 +135,7 @@ uint32_t tx_fmt(const char *id, const ryl_bind *bindings) {
             if (strcmp(b->name, name) == 0) {
                 if (!b->value) {
                     snprintf(diag, sizeof diag,
-                             "tx_fmt: NULL value for '{%s}' in '%s'", name, id);
+                             "bind_expand: NULL value for '{%s}' in '%s'", name, ctx);
                     ryl_die(diag);
                 }
                 val = b->value;
@@ -143,19 +144,28 @@ uint32_t tx_fmt(const char *id, const ryl_bind *bindings) {
         }
         if (!val) {
             snprintf(diag, sizeof diag,
-                     "tx_fmt: unbound '{%s}' in '%s'", name, id);
+                     "bind_expand: unbound '{%s}' in '%s'", name, ctx);
             ryl_die(diag);
         }
         size_t vlen = strlen(val);
-        if (o + vlen >= sizeof buf) {
-            snprintf(diag, sizeof diag, "tx_fmt: buffer overflow in '%s'", id);
+        if (o + vlen >= out_sz) {
+            snprintf(diag, sizeof diag, "bind_expand: buffer overflow in '%s'", ctx);
             ryl_die(diag);
         }
-        memcpy(buf + o, val, vlen);
+        memcpy(out + o, val, vlen);
         o += vlen;
         i = name_end + 1;
     }
-    buf[o] = 0;
+    out[o] = 0;
+}
+
+/* tx_fmt: expand {placeholder} tokens in a res_text record against the
+   caller's binding list, emit as one tx0(). See primitives.h for the
+   full contract. Expansion buffer is stack-local (2KB); no site in the
+   current corpus comes close. */
+uint32_t tx_fmt(const char *id, const ryl_bind *bindings) {
+    char buf[2048];
+    bind_expand(res_text(id), bindings, buf, sizeof buf, id);
     return tx0(buf);
 }
 

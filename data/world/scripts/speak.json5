@@ -1,0 +1,101 @@
+// NPC dialogue scripts (§16.4). Each entry is an array of one-op
+// objects the script interpreter in src/script.c walks in order.
+// Screen names resolve against the matching path in data/world/texts/
+// speak.json5 — e.g. `{ screen: 'rumour' }` inside `erethor.first_visit`
+// becomes `speak.erethor.rumour`.
+//
+// Ops:
+//   { screen:   '<name>' }    tx_fmt(<parent>.<name>, bindings)
+//                             + ryl_pause() + clw()
+//   { journal:  '<text>' }    prepended with "<cpl> ", trailing "\n",
+//                             {placeholders} expand via bindings
+//   { set_flag: <slot>,       state.p[cpl].flag[slot] = value
+//     value:    <int> }
+//
+// Ordering matters: keep set_flag ops in the same position relative to
+// screens as the original speak.c sequencing. Bindings are passed in
+// from the C caller (res_enum lookups, snprintf location strings, etc.).
+{
+  // case 1, flag[1]==0 — robbed merchant pitches the bandits mission.
+  // Caller pre-clws (matches original: leading clw() before tx0).
+  merchant: {
+    first_visit: [
+      { screen: 'offer' },
+      { screen: 'bandits' },
+      { set_flag: 1, value: 1 },
+    ],
+  },
+
+  // case 4, flag[3]==2 — wizard hands over the priest's book.
+  // Caller pre-clws. Original sequenced flag-set between tx0 and
+  // ryl_pause; no observable difference from setting it after the
+  // screen (key-read doesn't touch flag[3]).
+  wizard: {
+    robbed_flow: [
+      { screen: 'robbed' },
+      { set_flag: 3, value: 3 },
+    ],
+  },
+
+  // case 8, flag[8]==0 — Erethor's Lute rumour + Cloak lead + map note.
+  // Caller does NOT pre-clw (matches original: no leading clw before
+  // the first tx0). Journal line is a literal coord, not a binding.
+  erethor: {
+    first_visit: [
+      { screen: 'rumour' },
+      { screen: 'demon' },
+      { screen: 'poor_man' },
+      { screen: 'trade' },
+      { screen: 'dangerous' },
+      { journal: "Erethor's temple is situated at 6x20." },
+      { set_flag: 8, value: 1 },
+    ],
+  },
+
+  // case 18, flag[6]==2 — thief2 squeezed for smith's name.
+  // Caller pre-clws and passes {smith_name} binding for the inline
+  // tx_fmt record. Original set the flag BEFORE the first tx0; mirror
+  // that by placing set_flag first.
+  thief2: {
+    squeezed: [
+      { set_flag: 6, value: 3 },
+      { screen: 'push' },
+      { screen: 'smith' },
+      { screen: 'let_go' },
+    ],
+  },
+
+  // case 19, flag[19]==0 — husband's depressed pitch, Tammy abduction.
+  // Caller pre-clws. Original sequenced journalf between tx0(cave) and
+  // ryl_pause; moving journal after the screen is observably identical.
+  husband: {
+    first_visit: [
+      { screen: 'depressed' },
+      { screen: 'fortune' },
+      { screen: 'cave' },
+      { journal: "The orc cavern is at 42x23." },
+      { set_flag: 19, value: 1 },
+    ],
+  },
+
+  // case 24, flag[6]==3 — smith confesses the hobgoblin ambush.
+  // Caller pre-clws.
+  smith: {
+    after_thief2: [
+      { screen: 'ask' },
+      { screen: 'sorry' },
+      { screen: 'pursued' },
+      { screen: 'clubbed' },
+      { set_flag: 6, value: 4 },
+    ],
+  },
+
+  // case 33, flag[33]==0 — hermit's opener (no troll-tooth yet).
+  // Caller pre-clws.
+  hermit: {
+    welcome_visit: [
+      { screen: 'welcome' },
+      { set_flag: 33, value: 1 },
+    ],
+  },
+}

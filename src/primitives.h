@@ -27,6 +27,16 @@ typedef struct {
 } ryl_bind;
 
 uint32_t tx_fmt(const char *id, const ryl_bind *bindings);
+
+/* Expand {ident} / {{ placeholders in `src` against `bindings`, writing
+   up to out_sz-1 bytes + NUL into `out`. Same syntax as tx_fmt; same
+   fatal-error semantics (ryl_die on unterminated '{', oversize ident,
+   unbound / NULL binding, or output overflow). `ctx` is embedded in the
+   diagnostic so callers can surface which record or script was being
+   expanded. Used by tx_fmt (source from res_text) and by script.c's
+   journal op (source is a literal string from the script). */
+void bind_expand(const char *src, const ryl_bind *bindings,
+                 char *out, size_t out_sz, const char *ctx);
 void cleanexit(void);
 __attribute__((noreturn)) void ryl_die(const char *msg);
 void cl(void);
