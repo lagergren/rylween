@@ -16,6 +16,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Build the parent-path prefix for resolving relative {screen: 'name'}
@@ -69,12 +70,400 @@ typedef enum {
     OPS_CONTINUE,   /* continue: restart innermost loop */
 } ops_result;
 
-/* Forward declaration: play_ops recurses into do_if / do_chance /
+/* §17-F runtime-binding environment. One rt_env is instantiated per
+   play_script call and threaded through every nested body. Holds
+   int-valued names bound at runtime by ops that will land in step 3
+   (let, input_number, menu_branch key_var, for_member / for_inventory
+   loop vars). Step 2 plumbs the env through the interpreter but never
+   populates it — eval_expr's `{var:'name'}` lookup will therefore
+   always fall through to the caller's const bindings (atoi'd). */
+enum { RT_ENV_CAP = 32 };
+
+typedef struct {
+    const char *name; /* borrowed — points into the AST (N_STR->sv)
+                         or a string literal; never freed by rt_env */
+    int32_t iv;       /* bound value */
+    char sv[24];      /* stringified iv for bind_expand merging */
+} rt_bind;
+
+typedef struct {
+    rt_bind items[RT_ENV_CAP];
+    size_t n;
+} rt_env;
+
+/* Forward declarations: play_ops recurses into do_if / do_chance /
    do_menu_branch / do_loop bodies. `parent` matches do_screen's
    derivation so nested screens resolve against the same res_text
-   tree as the enclosing script. */
+   tree as the enclosing script. eval_expr is forward-declared so the
+   helpers below can call it without worrying about definition order. */
 static ops_result play_ops(const node *ops, const char *script_id,
-                           const char *parent, const ryl_bind *bindings);
+                           const char *parent, const ryl_bind *bindings,
+                           rt_env *env);
+static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
+                         const ryl_bind *bindings, const rt_env *env);
+
+/* §17-F step 2: expression evaluator.
+ *
+ *   expr ::= <int>                       literal
+ *          | { flag:   <expr-or-str> }   state.p[cpl].flag[slot]
+ *          | { gold:   <any> }           state.p[cpl].gold
+ *          | { torches: <any> }          state.p[cpl].torches
+ *          | { food:   <any> }           state.p[cpl].food
+ *          | { twn:    <any> }           state.twn
+ *          | { tid:    <any> }           state.tid
+ *          | { cpl:    <any> }           state.cpl
+ *          | { random: [ <expr>, <expr> ] }  ryl_random(lo, hi)  inclusive
+ *          | { chance: <expr> }          ryl_chance(pct) -> 0/1
+ *          | { inventory: <expr> }       state.p[cpl].inventory[slot]
+ *          | { member:   <expr>,
+ *              field:    '<name>' }      state.p[cpl].<field>[idx]
+ *          | { var:      '<name>' }      runtime-bound (step 3+) or const
+ *                                        binding (atoi'd)
+ *          | { add:  [a, b] } .. { sub | mul | div | mod | min | max }
+ *          | { eq:   [a, b] } .. { ne | lt | lte | gt | gte }
+ *          | { and:  [a, b, ...] } short-circuit; all non-zero -> 1, else 0
+ *          | { or:   [a, b, ...] } short-circuit; any non-zero -> 1, else 0
+ *          | { not:  <expr> }       !a -> 0/1
+ *          | { obcost:   <expr> }   res_item(id)->cost
+ *          | { obdamage: <expr> }   res_item(id)->damage
+ *
+ * All evaluator failures (bad shape, wrong kind, out-of-range index,
+ * divide-by-zero, unknown symbolic flag / binding) dispatch through
+ * die_at with the enclosing script_id + op index.
+ *
+ * `{var}`-returning string forms and `{res_enum}` land in later §17-F
+ * steps alongside engine_bind, which introduces the string-valued
+ * engine registry. */
+
+/* Two-operand array helper. Used by every binop (add, sub, eq, lt, ...). */
+static void expr_pair(const node *arr, const char *script_id, size_t idx,
+                      const char *op_name, const ryl_bind *bindings,
+                      const rt_env *env, int32_t *a, int32_t *b) {
+    if (!arr || arr->kind != N_ARR || arr->u.arr.n != 2) {
+        char buf[96];
+        snprintf(buf, sizeof buf, "expr %s: value must be 2-element array",
+                 op_name);
+        die_at(script_id, idx, buf);
+    }
+    *a = eval_expr(arr->u.arr.items[0], script_id, idx, bindings, env);
+    *b = eval_expr(arr->u.arr.items[1], script_id, idx, bindings, env);
+}
+
+/* Resolve an expr that names a flag slot — accepts a literal int, a
+   symbolic res_flag_slot() string, or a generic expr that evaluates
+   to an int. Bounds-checked against the party flag array size. */
+static int32_t expr_flag_slot(const node *v, const char *script_id, size_t idx,
+                              const ryl_bind *bindings, const rt_env *env) {
+    int32_t slot;
+    if (!v) {
+        die_at(script_id, idx, "expr flag: missing slot");
+    }
+    if (v->kind == N_STR) {
+        slot = res_flag_slot(v->u.sv);
+        if (slot < 0) {
+            die_at(script_id, idx, "expr flag: unknown symbolic flag id");
+        }
+    } else {
+        slot = eval_expr(v, script_id, idx, bindings, env);
+    }
+    if (slot < 0 || slot >= (int32_t)(sizeof state.p[state.cpl].flag)) {
+        die_at(script_id, idx, "expr flag: slot out of range");
+    }
+    return slot;
+}
+
+/* `{member: <expr>, field: '<name>'}` — resolve a party-array field
+   read. Member idx must be 1..4 (pm_t convention). Field names match
+   the plan's inventory; `ws` is included so the full struct party
+   SoA is reachable. */
+static int32_t expr_member_field(const node *op, const char *script_id,
+                                 size_t idx, const ryl_bind *bindings,
+                                 const rt_env *env) {
+    const node *m_n = obj_get(op, "member");
+    const node *f_n = obj_get(op, "field");
+    if (!m_n) {
+        die_at(script_id, idx, "expr member: missing idx expression");
+    }
+    if (!f_n || f_n->kind != N_STR) {
+        die_at(script_id, idx, "expr member: field must be string");
+    }
+    int32_t m = eval_expr(m_n, script_id, idx, bindings, env);
+    if (m < 1 || m > 4) {
+        die_at(script_id, idx, "expr member: idx must be 1..4");
+    }
+    const char *field = f_n->u.sv;
+    struct party *p = &state.p[state.cpl];
+    if (strcmp(field, "lv") == 0) {
+        return p->lv[m];
+    }
+    if (strcmp(field, "hp") == 0) {
+        return p->hp[m];
+    }
+    if (strcmp(field, "h") == 0) {
+        return p->h[m];
+    }
+    if (strcmp(field, "ma") == 0) {
+        return p->ma[m];
+    }
+    if (strcmp(field, "wi") == 0) {
+        return p->wi[m];
+    }
+    if (strcmp(field, "ws") == 0) {
+        return p->ws[m];
+    }
+    if (strcmp(field, "ch") == 0) {
+        return p->ch[m];
+    }
+    if (strcmp(field, "cl") == 0) {
+        return p->cl[m];
+    }
+    if (strcmp(field, "ra") == 0) {
+        return p->ra[m];
+    }
+    if (strcmp(field, "dead") == 0) {
+        return p->dead[m];
+    }
+    if (strcmp(field, "ar") == 0) {
+        return p->ar[m];
+    }
+    if (strcmp(field, "wp") == 0) {
+        return p->wp[m];
+    }
+    if (strcmp(field, "exp") == 0) {
+        return (int32_t)p->exp[m];
+    }
+    if (strcmp(field, "sex") == 0) {
+        return p->sex[m];
+    }
+    die_at(script_id, idx, "expr member: unknown field name");
+}
+
+/* `{var: 'name'}` — look up a runtime binding first, then fall through
+   to the caller-passed const ryl_bind list (atoi on the string value).
+   In step 2, rt_env is always empty so every lookup resolves against
+   the caller's const bindings. Unknown / unparseable bindings die. */
+static int32_t expr_var(const char *name, const char *script_id, size_t idx,
+                        const ryl_bind *bindings, const rt_env *env) {
+    if (env) {
+        for (size_t i = env->n; i > 0; i--) {
+            const rt_bind *b = &env->items[i - 1];
+            if (strcmp(b->name, name) == 0) {
+                return b->iv;
+            }
+        }
+    }
+    for (const ryl_bind *b = bindings; b && b->name; b++) {
+        if (strcmp(b->name, name) == 0) {
+            if (!b->value) {
+                die_at(script_id, idx, "expr var: NULL binding value");
+            }
+            char *endp = NULL;
+            long v = strtol(b->value, &endp, 10);
+            if (!endp || *endp != 0) {
+                char buf[128];
+                snprintf(buf, sizeof buf,
+                         "expr var: binding '%s' value '%s' is not integer",
+                         name, b->value);
+                die_at(script_id, idx, buf);
+            }
+            return (int32_t)v;
+        }
+    }
+    char buf[96];
+    snprintf(buf, sizeof buf, "expr var: unbound '%s'", name);
+    die_at(script_id, idx, buf);
+}
+
+static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
+                         const ryl_bind *bindings, const rt_env *env) {
+    if (!n) {
+        die_at(script_id, idx, "expr: null node");
+    }
+    if (n->kind == N_INT) {
+        return (int32_t)n->u.iv;
+    }
+    if (n->kind == N_BOOL) {
+        return n->u.bv ? 1 : 0;
+    }
+    if (n->kind != N_OBJ) {
+        die_at(script_id, idx, "expr: must be int or object");
+    }
+
+    /* Legacy-cond guard: `{flag:5, eq:2}` shape is valid in eval_cond
+       only; as a bare expression it's ambiguous — die early with a
+       pointing diagnostic rather than silently returning the flag. */
+    const node *flag_n = obj_get(n, "flag");
+    if (flag_n && (obj_get(n, "eq") || obj_get(n, "ne"))) {
+        die_at(script_id, idx,
+               "expr: legacy {flag:N, eq|ne:V} shape only valid in if.cond");
+    }
+
+    if (flag_n) {
+        int32_t slot = expr_flag_slot(flag_n, script_id, idx, bindings, env);
+        return state.p[state.cpl].flag[slot];
+    }
+    if (obj_get(n, "gold")) {
+        return state.p[state.cpl].gold;
+    }
+    if (obj_get(n, "torches")) {
+        return (int32_t)state.p[state.cpl].torches;
+    }
+    if (obj_get(n, "food")) {
+        return state.p[state.cpl].food;
+    }
+    if (obj_get(n, "twn")) {
+        return state.twn;
+    }
+    if (obj_get(n, "tid")) {
+        return state.tid;
+    }
+    if (obj_get(n, "cpl")) {
+        return state.cpl;
+    }
+
+    const node *v;
+    if ((v = obj_get(n, "random"))) {
+        if (!v || v->kind != N_ARR || v->u.arr.n != 2) {
+            die_at(script_id, idx, "expr random: value must be [lo, hi]");
+        }
+        int32_t lo = eval_expr(v->u.arr.items[0], script_id, idx, bindings, env);
+        int32_t hi = eval_expr(v->u.arr.items[1], script_id, idx, bindings, env);
+        if (lo > hi) {
+            die_at(script_id, idx, "expr random: lo > hi");
+        }
+        return ryl_random((int)lo, (int)hi);
+    }
+    if ((v = obj_get(n, "chance"))) {
+        int32_t pct = eval_expr(v, script_id, idx, bindings, env);
+        return ryl_chance((int)pct);
+    }
+    if ((v = obj_get(n, "inventory"))) {
+        int32_t slot = eval_expr(v, script_id, idx, bindings, env);
+        if (slot < 1 || slot > 16) {
+            die_at(script_id, idx, "expr inventory: slot must be 1..16");
+        }
+        return state.p[state.cpl].inventory[slot];
+    }
+    if (obj_get(n, "member")) {
+        return expr_member_field(n, script_id, idx, bindings, env);
+    }
+    if ((v = obj_get(n, "var"))) {
+        if (v->kind != N_STR) {
+            die_at(script_id, idx, "expr var: name must be string");
+        }
+        return expr_var(v->u.sv, script_id, idx, bindings, env);
+    }
+
+    int32_t a, b;
+    if ((v = obj_get(n, "add"))) {
+        expr_pair(v, script_id, idx, "add", bindings, env, &a, &b);
+        return a + b;
+    }
+    if ((v = obj_get(n, "sub"))) {
+        expr_pair(v, script_id, idx, "sub", bindings, env, &a, &b);
+        return a - b;
+    }
+    if ((v = obj_get(n, "mul"))) {
+        expr_pair(v, script_id, idx, "mul", bindings, env, &a, &b);
+        return a * b;
+    }
+    if ((v = obj_get(n, "div"))) {
+        expr_pair(v, script_id, idx, "div", bindings, env, &a, &b);
+        if (b == 0) {
+            die_at(script_id, idx, "expr div: divide by zero");
+        }
+        return a / b;
+    }
+    if ((v = obj_get(n, "mod"))) {
+        expr_pair(v, script_id, idx, "mod", bindings, env, &a, &b);
+        if (b == 0) {
+            die_at(script_id, idx, "expr mod: modulo by zero");
+        }
+        return a % b;
+    }
+    if ((v = obj_get(n, "min"))) {
+        expr_pair(v, script_id, idx, "min", bindings, env, &a, &b);
+        return a < b ? a : b;
+    }
+    if ((v = obj_get(n, "max"))) {
+        expr_pair(v, script_id, idx, "max", bindings, env, &a, &b);
+        return a > b ? a : b;
+    }
+
+    if ((v = obj_get(n, "eq"))) {
+        expr_pair(v, script_id, idx, "eq", bindings, env, &a, &b);
+        return a == b;
+    }
+    if ((v = obj_get(n, "ne"))) {
+        expr_pair(v, script_id, idx, "ne", bindings, env, &a, &b);
+        return a != b;
+    }
+    if ((v = obj_get(n, "lt"))) {
+        expr_pair(v, script_id, idx, "lt", bindings, env, &a, &b);
+        return a < b;
+    }
+    if ((v = obj_get(n, "lte"))) {
+        expr_pair(v, script_id, idx, "lte", bindings, env, &a, &b);
+        return a <= b;
+    }
+    if ((v = obj_get(n, "gt"))) {
+        expr_pair(v, script_id, idx, "gt", bindings, env, &a, &b);
+        return a > b;
+    }
+    if ((v = obj_get(n, "gte"))) {
+        expr_pair(v, script_id, idx, "gte", bindings, env, &a, &b);
+        return a >= b;
+    }
+
+    if ((v = obj_get(n, "and"))) {
+        if (v->kind != N_ARR || v->u.arr.n == 0) {
+            die_at(script_id, idx, "expr and: value must be non-empty array");
+        }
+        for (size_t i = 0; i < v->u.arr.n; i++) {
+            if (!eval_expr(v->u.arr.items[i], script_id, idx, bindings, env)) {
+                return 0;
+            }
+        }
+        return 1;
+    }
+    if ((v = obj_get(n, "or"))) {
+        if (v->kind != N_ARR || v->u.arr.n == 0) {
+            die_at(script_id, idx, "expr or: value must be non-empty array");
+        }
+        for (size_t i = 0; i < v->u.arr.n; i++) {
+            if (eval_expr(v->u.arr.items[i], script_id, idx, bindings, env)) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    if ((v = obj_get(n, "not"))) {
+        return eval_expr(v, script_id, idx, bindings, env) ? 0 : 1;
+    }
+
+    const node *obcost_n = obj_get(n, "obcost");
+    const node *obdmg_n = obj_get(n, "obdamage");
+    if (obcost_n || obdmg_n) {
+        if (obcost_n && obdmg_n) {
+            die_at(script_id, idx,
+                   "expr: obcost and obdamage are mutually exclusive");
+        }
+        int is_damage = obdmg_n != NULL;
+        int32_t id = eval_expr(is_damage ? obdmg_n : obcost_n, script_id, idx,
+                               bindings, env);
+        const ryl_item *it = res_item((int)id);
+        if (!it || !it->name) {
+            char buf[96];
+            snprintf(buf, sizeof buf,
+                     "expr %s: item id %d has no record",
+                     is_damage ? "obdamage" : "obcost", (int)id);
+            die_at(script_id, idx, buf);
+        }
+        return is_damage ? it->damage : it->cost;
+    }
+
+    die_at(script_id, idx, "expr: unknown expression form");
+}
 
 static void do_screen(const node *op, const char *script_id, size_t idx,
                       const char *parent, const ryl_bind *bindings) {
@@ -374,42 +763,60 @@ static void do_engine_call(const node *op, const char *script_id, size_t idx) {
 }
 
 /* §17-E: { chance: { pct: N, then:[...], else:[...] } } — ryl_chance(pct)
-   gate. `then` and `else` are nested op arrays; both optional. */
+   gate. `then` and `else` are nested op arrays; both optional. §17-F
+   step 2: `pct` accepts any expression, not just a literal int. */
 static ops_result do_chance(const node *op, const char *script_id, size_t idx,
-                            const char *parent, const ryl_bind *bindings) {
+                            const char *parent, const ryl_bind *bindings,
+                            rt_env *env) {
     const node *ch = obj_get(op, "chance");
     if (!ch || ch->kind != N_OBJ) {
         die_at(script_id, idx, "chance: value must be object");
     }
     const node *pct_n = obj_get(ch, "pct");
-    if (!pct_n || pct_n->kind != N_INT) {
-        die_at(script_id, idx, "chance: pct must be int");
+    if (!pct_n) {
+        die_at(script_id, idx, "chance: pct required");
     }
+    int32_t pct = eval_expr(pct_n, script_id, idx, bindings, env);
     const node *then_n = obj_get(ch, "then");
     const node *else_n = obj_get(ch, "else");
-    const node *take = ryl_chance((int)pct_n->u.iv) ? then_n : else_n;
+    const node *take = ryl_chance((int)pct) ? then_n : else_n;
     if (!take) {
         return OPS_NORMAL;
     }
     if (take->kind != N_ARR) {
         die_at(script_id, idx, "chance: then/else must be array");
     }
-    return play_ops(take, script_id, parent, bindings);
+    return play_ops(take, script_id, parent, bindings, env);
 }
 
-/* Evaluate an `if` condition object:
-     { flag: <int|name>, eq: <int> }        flag slot == value
-     { flag: <int|name>, ne: <int> }        flag slot != value
-     { gold: { gte: <int> } }               party gold >= value
-     { gold: { lt: <int> } }                party gold <  value
-   No combinators yet — authors who need AND/OR nest `if` ops. */
-static int eval_cond(const node *cond, const char *script_id, size_t idx) {
+/* Evaluate an `if` condition object.
+ *
+ * Two accepted shapes:
+ *
+ *   Legacy shorthand (preserved for back-compat with earlier §17-E
+ *   scripts, though no current script in the corpus uses it):
+ *     { flag: <int|name>, eq: <int> }        flag slot == value
+ *     { flag: <int|name>, ne: <int> }        flag slot != value
+ *     { gold: { gte: <int> } }               party gold >= value
+ *     { gold: { lt: <int> } }                party gold <  value
+ *
+ *   Bare expression (§17-F step 2 — preferred):
+ *     any node accepted by eval_expr. Truthy (!= 0) -> 1, else 0.
+ *
+ * Disambiguation: the legacy shapes are identified by their distinctive
+ * sibling-key pattern (flag + eq|ne siblings; gold with an object
+ * value). Everything else falls through to eval_expr. */
+static int eval_cond(const node *cond, const char *script_id, size_t idx,
+                     const ryl_bind *bindings, const rt_env *env) {
     if (!cond || cond->kind != N_OBJ) {
         die_at(script_id, idx, "if: cond must be object");
     }
     const node *flag_n = obj_get(cond, "flag");
     const node *gold_n = obj_get(cond, "gold");
-    if (flag_n) {
+    const node *eq_n = obj_get(cond, "eq");
+    const node *ne_n = obj_get(cond, "ne");
+
+    if (flag_n && (eq_n || ne_n)) {
         int32_t slot;
         if (flag_n->kind == N_INT) {
             slot = (int32_t)flag_n->u.iv;
@@ -425,20 +832,15 @@ static int eval_cond(const node *cond, const char *script_id, size_t idx) {
             die_at(script_id, idx, "if: flag slot out of range");
         }
         int cur = state.p[state.cpl].flag[slot];
-        const node *eq = obj_get(cond, "eq");
-        const node *ne = obj_get(cond, "ne");
-        if (eq && eq->kind == N_INT) {
-            return cur == (int)eq->u.iv;
+        if (eq_n && eq_n->kind == N_INT) {
+            return cur == (int)eq_n->u.iv;
         }
-        if (ne && ne->kind == N_INT) {
-            return cur != (int)ne->u.iv;
+        if (ne_n && ne_n->kind == N_INT) {
+            return cur != (int)ne_n->u.iv;
         }
-        die_at(script_id, idx, "if: flag needs eq or ne");
+        die_at(script_id, idx, "if: flag eq/ne value must be int");
     }
-    if (gold_n) {
-        if (gold_n->kind != N_OBJ) {
-            die_at(script_id, idx, "if: gold must be object");
-        }
+    if (gold_n && gold_n->kind == N_OBJ) {
         int32_t cur = state.p[state.cpl].gold;
         const node *gte = obj_get(gold_n, "gte");
         const node *lt = obj_get(gold_n, "lt");
@@ -450,12 +852,16 @@ static int eval_cond(const node *cond, const char *script_id, size_t idx) {
         }
         die_at(script_id, idx, "if: gold needs gte or lt");
     }
-    die_at(script_id, idx, "if: cond must have flag or gold");
+
+    return eval_expr(cond, script_id, idx, bindings, env) != 0 ? 1 : 0;
 }
 
-/* §17-E: { if: { cond, then:[...], else:[...] } } — flag / gold branch. */
+/* §17-E + §17-F step 2: { if: { cond, then:[...], else:[...] } } —
+   cond accepts the legacy flag/gold shorthand or any §17-F bare
+   expression (see eval_cond). */
 static ops_result do_if(const node *op, const char *script_id, size_t idx,
-                        const char *parent, const ryl_bind *bindings) {
+                        const char *parent, const ryl_bind *bindings,
+                        rt_env *env) {
     const node *body = obj_get(op, "if");
     if (!body || body->kind != N_OBJ) {
         die_at(script_id, idx, "if: value must be object");
@@ -463,14 +869,15 @@ static ops_result do_if(const node *op, const char *script_id, size_t idx,
     const node *cond = obj_get(body, "cond");
     const node *then_n = obj_get(body, "then");
     const node *else_n = obj_get(body, "else");
-    const node *take = eval_cond(cond, script_id, idx) ? then_n : else_n;
+    const node *take =
+        eval_cond(cond, script_id, idx, bindings, env) ? then_n : else_n;
     if (!take) {
         return OPS_NORMAL;
     }
     if (take->kind != N_ARR) {
         die_at(script_id, idx, "if: then/else must be array");
     }
-    return play_ops(take, script_id, parent, bindings);
+    return play_ops(take, script_id, parent, bindings, env);
 }
 
 /* §17-E: { menu_branch: { prompt: '<name>'?, options: [{ key:'K',
@@ -481,7 +888,7 @@ static ops_result do_if(const node *op, const char *script_id, size_t idx,
    keypress — the enclosing loop (if any) is the caller's job. */
 static ops_result do_menu_branch(const node *op, const char *script_id,
                                  size_t idx, const char *parent,
-                                 const ryl_bind *bindings) {
+                                 const ryl_bind *bindings, rt_env *env) {
     const node *body = obj_get(op, "menu_branch");
     if (!body || body->kind != N_OBJ) {
         die_at(script_id, idx, "menu_branch: value must be object");
@@ -523,13 +930,13 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         if (then_n->kind != N_ARR) {
             die_at(script_id, idx, "menu_branch: then must be array");
         }
-        return play_ops(then_n, script_id, parent, bindings);
+        return play_ops(then_n, script_id, parent, bindings, env);
     }
     if (default_n) {
         if (default_n->kind != N_ARR) {
             die_at(script_id, idx, "menu_branch: default must be array");
         }
-        return play_ops(default_n, script_id, parent, bindings);
+        return play_ops(default_n, script_id, parent, bindings, env);
     }
     return OPS_NORMAL;
 }
@@ -540,13 +947,14 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
    loop is infinite by construction). Typically paired with a
    menu_branch whose L-option then: is a `{ break }`. */
 static ops_result do_loop(const node *op, const char *script_id, size_t idx,
-                          const char *parent, const ryl_bind *bindings) {
+                          const char *parent, const ryl_bind *bindings,
+                          rt_env *env) {
     const node *body = obj_get(op, "loop");
     if (!body || body->kind != N_ARR) {
         die_at(script_id, idx, "loop: value must be array");
     }
     for (;;) {
-        ops_result r = play_ops(body, script_id, parent, bindings);
+        ops_result r = play_ops(body, script_id, parent, bindings, env);
         if (r == OPS_BREAK) {
             return OPS_NORMAL;
         }
@@ -578,7 +986,8 @@ static ops_result do_continue(const node *op, const char *script_id,
 }
 
 static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
-                              const char *parent, const ryl_bind *bindings) {
+                              const char *parent, const ryl_bind *bindings,
+                              rt_env *env) {
     if (!op || op->kind != N_OBJ) {
         die_at(script_id, idx, "op must be object");
     }
@@ -597,15 +1006,15 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
     } else if (obj_get(op, "wait_input")) {
         do_wait_input(op, script_id, idx);
     } else if (obj_get(op, "chance")) {
-        return do_chance(op, script_id, idx, parent, bindings);
+        return do_chance(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "if")) {
-        return do_if(op, script_id, idx, parent, bindings);
+        return do_if(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "menu_branch")) {
-        return do_menu_branch(op, script_id, idx, parent, bindings);
+        return do_menu_branch(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "engine_call")) {
         do_engine_call(op, script_id, idx);
     } else if (obj_get(op, "loop")) {
-        return do_loop(op, script_id, idx, parent, bindings);
+        return do_loop(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "break")) {
         return do_break(op, script_id, idx);
     } else if (obj_get(op, "continue")) {
@@ -617,10 +1026,11 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
 }
 
 static ops_result play_ops(const node *ops, const char *script_id,
-                           const char *parent, const ryl_bind *bindings) {
+                           const char *parent, const ryl_bind *bindings,
+                           rt_env *env) {
     for (size_t i = 0; i < ops->u.arr.n; i++) {
         ops_result r = dispatch_op(ops->u.arr.items[i], script_id, i, parent,
-                                   bindings);
+                                   bindings, env);
         if (r != OPS_NORMAL) {
             return r;
         }
@@ -637,7 +1047,8 @@ void play_script(const char *script_id, const ryl_bind *bindings) {
     }
     char parent[256];
     script_parent(script_id, parent, sizeof parent);
-    ops_result r = play_ops(script, script_id, parent, bindings);
+    rt_env env = {{{0}}, 0};
+    ops_result r = play_ops(script, script_id, parent, bindings, &env);
     if (r == OPS_BREAK) {
         ryl_die("play_script: `break` with no enclosing loop");
     }
