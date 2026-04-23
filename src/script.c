@@ -1,12 +1,17 @@
-/* §16.4 dialogue script interpreter. Public contract: script.h. */
+/* §16.4 + §17-E dialogue / mission script interpreter.
+   Public contract: script.h. */
 
 #include "script.h"
 
+#include "battle.h"
 #include "driv.h"
+#include "dungeon.h"
+#include "gfx.h"
 #include "json5.h"
 #include "primitives.h"
 #include "res.h"
 #include "ryl.h"
+#include "subs.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -52,6 +57,13 @@ static void resolve_text_id(const char *parent, const char *name, char *out,
         die_at(script_id, idx, buf);
     }
 }
+
+/* Forward declaration: play_ops recurses into do_if / do_chance /
+   do_menu_branch bodies. `parent` matches do_screen's derivation so
+   nested screens resolve against the same res_text tree as the
+   enclosing script. */
+static void play_ops(const node *ops, const char *script_id, const char *parent,
+                     const ryl_bind *bindings);
 
 static void do_screen(const node *op, const char *script_id, size_t idx,
                       const char *parent, const ryl_bind *bindings) {
@@ -210,6 +222,312 @@ static void do_set_flag(const node *op, const char *script_id, size_t idx) {
     state.p[state.cpl].flag[slot] = (unsigned char)val_n->u.iv;
 }
 
+/* §17-E: { pause: N } — ryl_delay(N) ms. Replaces inline ryl_delay()
+   calls between screens in the imperative flows A.4 is migrating. */
+static void do_pause(const node *op, const char *script_id, size_t idx) {
+    const node *ms_n = obj_get(op, "pause");
+    if (!ms_n || ms_n->kind != N_INT) {
+        die_at(script_id, idx, "pause: value must be int (ms)");
+    }
+    if (ms_n->u.iv < 0) {
+        die_at(script_id, idx, "pause: ms must be non-negative");
+    }
+    ryl_delay((unsigned)ms_n->u.iv);
+}
+
+/* Engine-function registry: the whitelist of C entry points callable
+   from { engine_call: '<name>', args: [int...] }. All registered fns
+   take zero, one, or two int32 args — no return value. Adding a new
+   entry is a line in `engine_tbl`; the DSL does NOT accept arbitrary
+   symbol lookups. */
+typedef void (*engine_fn)(const int32_t *args);
+
+static void eng_dungeon(const int32_t *a) {
+    dungeon(a[0], a[1]);
+}
+static void eng_encounter(const int32_t *a) {
+    encounter(a[0], a[1]);
+}
+static void eng_update_map(const int32_t *a) {
+    (void)a;
+    update_map();
+}
+static void eng_clr_map_window(const int32_t *a) {
+    (void)a;
+    clr_map_window();
+}
+static void eng_blitgfx(const int32_t *a) {
+    blitgfx((uint8_t)a[0]);
+}
+static void eng_statusline(const int32_t *a) {
+    (void)a;
+    statusline();
+}
+static void eng_clw(const int32_t *a) {
+    (void)a;
+    clw();
+}
+
+typedef struct {
+    const char *name;
+    int argc;
+    engine_fn fn;
+} engine_entry;
+
+static const engine_entry engine_tbl[] = {
+    {"dungeon", 2, eng_dungeon},
+    {"encounter", 2, eng_encounter},
+    {"update_map", 0, eng_update_map},
+    {"clr_map_window", 0, eng_clr_map_window},
+    {"blitgfx", 1, eng_blitgfx},
+    {"statusline", 0, eng_statusline},
+    {"clw", 0, eng_clw},
+};
+
+/* §17-E: { engine_call: '<name>', args: [int...] }. Literal int args
+   only — no binding substitution; authors that need a value derived
+   from runtime state should use a dedicated op (set_flag, reward) or
+   widen the registry. */
+static void do_engine_call(const node *op, const char *script_id, size_t idx) {
+    const node *name_n = obj_get(op, "engine_call");
+    if (!name_n || name_n->kind != N_STR) {
+        die_at(script_id, idx, "engine_call: value must be string");
+    }
+    const engine_entry *e = NULL;
+    for (size_t i = 0; i < sizeof engine_tbl / sizeof *engine_tbl; i++) {
+        if (strcmp(engine_tbl[i].name, name_n->u.sv) == 0) {
+            e = &engine_tbl[i];
+            break;
+        }
+    }
+    if (!e) {
+        char buf[96];
+        snprintf(buf, sizeof buf, "engine_call: unknown fn '%s'", name_n->u.sv);
+        die_at(script_id, idx, buf);
+    }
+    const node *args_n = obj_get(op, "args");
+    int32_t args[4] = {0};
+    int got = 0;
+    if (args_n) {
+        if (args_n->kind != N_ARR) {
+            die_at(script_id, idx, "engine_call: args must be array");
+        }
+        got = (int)args_n->u.arr.n;
+        if (got > 4) {
+            die_at(script_id, idx, "engine_call: too many args (max 4)");
+        }
+        for (int i = 0; i < got; i++) {
+            const node *a = args_n->u.arr.items[i];
+            if (!a || a->kind != N_INT) {
+                die_at(script_id, idx, "engine_call: args must be ints");
+            }
+            args[i] = (int32_t)a->u.iv;
+        }
+    }
+    if (got != e->argc) {
+        char buf[96];
+        snprintf(buf, sizeof buf, "engine_call: '%s' expects %d args, got %d",
+                 e->name, e->argc, got);
+        die_at(script_id, idx, buf);
+    }
+    e->fn(args);
+}
+
+/* §17-E: { chance: { pct: N, then:[...], else:[...] } } — ryl_chance(pct)
+   gate. `then` and `else` are nested op arrays; both optional. */
+static void do_chance(const node *op, const char *script_id, size_t idx,
+                      const char *parent, const ryl_bind *bindings) {
+    const node *ch = obj_get(op, "chance");
+    if (!ch || ch->kind != N_OBJ) {
+        die_at(script_id, idx, "chance: value must be object");
+    }
+    const node *pct_n = obj_get(ch, "pct");
+    if (!pct_n || pct_n->kind != N_INT) {
+        die_at(script_id, idx, "chance: pct must be int");
+    }
+    const node *then_n = obj_get(ch, "then");
+    const node *else_n = obj_get(ch, "else");
+    const node *take = ryl_chance((int)pct_n->u.iv) ? then_n : else_n;
+    if (!take) {
+        return;
+    }
+    if (take->kind != N_ARR) {
+        die_at(script_id, idx, "chance: then/else must be array");
+    }
+    play_ops(take, script_id, parent, bindings);
+}
+
+/* Evaluate an `if` condition object:
+     { flag: <int|name>, eq: <int> }        flag slot == value
+     { flag: <int|name>, ne: <int> }        flag slot != value
+     { gold: { gte: <int> } }               party gold >= value
+     { gold: { lt: <int> } }                party gold <  value
+   No combinators yet — authors who need AND/OR nest `if` ops. */
+static int eval_cond(const node *cond, const char *script_id, size_t idx) {
+    if (!cond || cond->kind != N_OBJ) {
+        die_at(script_id, idx, "if: cond must be object");
+    }
+    const node *flag_n = obj_get(cond, "flag");
+    const node *gold_n = obj_get(cond, "gold");
+    if (flag_n) {
+        int32_t slot;
+        if (flag_n->kind == N_INT) {
+            slot = (int32_t)flag_n->u.iv;
+        } else if (flag_n->kind == N_STR) {
+            slot = res_flag_slot(flag_n->u.sv);
+            if (slot < 0) {
+                die_at(script_id, idx, "if: unknown symbolic flag id");
+            }
+        } else {
+            die_at(script_id, idx, "if: flag must be int or string");
+        }
+        if (slot < 0 || slot >= (int32_t)(sizeof state.p[state.cpl].flag)) {
+            die_at(script_id, idx, "if: flag slot out of range");
+        }
+        int cur = state.p[state.cpl].flag[slot];
+        const node *eq = obj_get(cond, "eq");
+        const node *ne = obj_get(cond, "ne");
+        if (eq && eq->kind == N_INT) {
+            return cur == (int)eq->u.iv;
+        }
+        if (ne && ne->kind == N_INT) {
+            return cur != (int)ne->u.iv;
+        }
+        die_at(script_id, idx, "if: flag needs eq or ne");
+    }
+    if (gold_n) {
+        if (gold_n->kind != N_OBJ) {
+            die_at(script_id, idx, "if: gold must be object");
+        }
+        int32_t cur = state.p[state.cpl].gold;
+        const node *gte = obj_get(gold_n, "gte");
+        const node *lt = obj_get(gold_n, "lt");
+        if (gte && gte->kind == N_INT) {
+            return cur >= (int32_t)gte->u.iv;
+        }
+        if (lt && lt->kind == N_INT) {
+            return cur < (int32_t)lt->u.iv;
+        }
+        die_at(script_id, idx, "if: gold needs gte or lt");
+    }
+    die_at(script_id, idx, "if: cond must have flag or gold");
+}
+
+/* §17-E: { if: { cond, then:[...], else:[...] } } — flag / gold branch. */
+static void do_if(const node *op, const char *script_id, size_t idx,
+                  const char *parent, const ryl_bind *bindings) {
+    const node *body = obj_get(op, "if");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "if: value must be object");
+    }
+    const node *cond = obj_get(body, "cond");
+    const node *then_n = obj_get(body, "then");
+    const node *else_n = obj_get(body, "else");
+    const node *take = eval_cond(cond, script_id, idx) ? then_n : else_n;
+    if (!take) {
+        return;
+    }
+    if (take->kind != N_ARR) {
+        die_at(script_id, idx, "if: then/else must be array");
+    }
+    play_ops(take, script_id, parent, bindings);
+}
+
+/* §17-E: { menu_branch: { prompt: '<name>'?, options: [{ key:'K',
+   then:[...] }, ...] } }. Optional `prompt` names a screen text id
+   (parent-relative, like `screen`) to emit before the keypress; omit
+   to stack on an earlier tx_fmt / screen. Unmatched keys fall through
+   to an optional `default: [...]` op array (no-op if absent). Single
+   keypress — the enclosing loop (if any) is the caller's job. */
+static void do_menu_branch(const node *op, const char *script_id, size_t idx,
+                           const char *parent, const ryl_bind *bindings) {
+    const node *body = obj_get(op, "menu_branch");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "menu_branch: value must be object");
+    }
+    const node *prompt_n = obj_get(body, "prompt");
+    const node *opts_n = obj_get(body, "options");
+    const node *default_n = obj_get(body, "default");
+    if (!opts_n || opts_n->kind != N_ARR) {
+        die_at(script_id, idx, "menu_branch: options must be array");
+    }
+    if (prompt_n) {
+        if (prompt_n->kind != N_STR) {
+            die_at(script_id, idx, "menu_branch: prompt must be string");
+        }
+        char text_id[256];
+        resolve_text_id(parent, prompt_n->u.sv, text_id, sizeof text_id,
+                        script_id, idx, "menu_branch prompt");
+        tx_fmt(text_id, bindings);
+    }
+    char ch = (char)toupper((unsigned char)key());
+    for (size_t i = 0; i < opts_n->u.arr.n; i++) {
+        const node *o = opts_n->u.arr.items[i];
+        if (!o || o->kind != N_OBJ) {
+            die_at(script_id, idx, "menu_branch: option must be object");
+        }
+        const node *key_n = obj_get(o, "key");
+        const node *then_n = obj_get(o, "then");
+        if (!key_n || key_n->kind != N_STR || key_n->u.sv[0] == 0 ||
+            key_n->u.sv[1] != 0) {
+            die_at(script_id, idx, "menu_branch: key must be one-char string");
+        }
+        char want = (char)toupper((unsigned char)key_n->u.sv[0]);
+        if (want != ch) {
+            continue;
+        }
+        if (!then_n) {
+            return;
+        }
+        if (then_n->kind != N_ARR) {
+            die_at(script_id, idx, "menu_branch: then must be array");
+        }
+        play_ops(then_n, script_id, parent, bindings);
+        return;
+    }
+    if (default_n) {
+        if (default_n->kind != N_ARR) {
+            die_at(script_id, idx, "menu_branch: default must be array");
+        }
+        play_ops(default_n, script_id, parent, bindings);
+    }
+}
+
+static void dispatch_op(const node *op, const char *script_id, size_t idx,
+                        const char *parent, const ryl_bind *bindings) {
+    if (!op || op->kind != N_OBJ) {
+        die_at(script_id, idx, "op must be object");
+    }
+    if (obj_get(op, "screen")) {
+        do_screen(op, script_id, idx, parent, bindings);
+    } else if (obj_get(op, "journal")) {
+        do_journal(op, script_id, idx, bindings);
+    } else if (obj_get(op, "set_flag")) {
+        do_set_flag(op, script_id, idx);
+    } else if (obj_get(op, "reward")) {
+        do_reward(op, script_id, idx, parent, bindings);
+    } else if (obj_get(op, "pause")) {
+        do_pause(op, script_id, idx);
+    } else if (obj_get(op, "chance")) {
+        do_chance(op, script_id, idx, parent, bindings);
+    } else if (obj_get(op, "if")) {
+        do_if(op, script_id, idx, parent, bindings);
+    } else if (obj_get(op, "menu_branch")) {
+        do_menu_branch(op, script_id, idx, parent, bindings);
+    } else if (obj_get(op, "engine_call")) {
+        do_engine_call(op, script_id, idx);
+    } else {
+        die_at(script_id, idx, "unknown op");
+    }
+}
+
+static void play_ops(const node *ops, const char *script_id, const char *parent,
+                     const ryl_bind *bindings) {
+    for (size_t i = 0; i < ops->u.arr.n; i++) {
+        dispatch_op(ops->u.arr.items[i], script_id, i, parent, bindings);
+    }
+}
+
 void play_script(const char *script_id, const ryl_bind *bindings) {
     const node *script = res_script(script_id);
     if (!script) {
@@ -219,22 +537,5 @@ void play_script(const char *script_id, const ryl_bind *bindings) {
     }
     char parent[256];
     script_parent(script_id, parent, sizeof parent);
-
-    for (size_t i = 0; i < script->u.arr.n; i++) {
-        const node *op = script->u.arr.items[i];
-        if (!op || op->kind != N_OBJ) {
-            die_at(script_id, i, "op must be object");
-        }
-        if (obj_get(op, "screen")) {
-            do_screen(op, script_id, i, parent, bindings);
-        } else if (obj_get(op, "journal")) {
-            do_journal(op, script_id, i, bindings);
-        } else if (obj_get(op, "set_flag")) {
-            do_set_flag(op, script_id, i);
-        } else if (obj_get(op, "reward")) {
-            do_reward(op, script_id, i, parent, bindings);
-        } else {
-            die_at(script_id, i, "unknown op (expected screen / journal / set_flag / reward)");
-        }
-    }
+    play_ops(script, script_id, parent, bindings);
 }
