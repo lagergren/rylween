@@ -63,6 +63,7 @@
     common: { $import: 'world/texts/common.json5' },
     ydarg:  { $import: 'world/texts/ydarg.json5' },
     speak:  { $import: 'world/texts/speak.json5' },
+    towne:  { $import: 'world/texts/towne.json5' },
   },
 
   // §16.4 dialogue scripts — arrays of one-op objects the interpreter
