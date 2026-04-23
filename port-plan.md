@@ -1971,3 +1971,114 @@ grow into a general scripting language" applies.
   even under Option B — a `chance` script op would need the same
   deterministic-seed plumbing A.2 fought through and it's not worth
   the churn for three call sites.
+
+## 18. ANSI art EAW / narrow-cell rendering — pending
+
+**Status:** pending — raised 2026-04-23 after the §17-F smith
+migration. The `data/ansi/*.ans` (full-screen art: title, screen,
+death, etc.) and `data/tiles/*.ans` (in-game sprites blitted via
+`blitgfx` → `render_at`) are authored with Unicode block-drawing
+characters in the U+2580..U+259F range: `▀▄▌▐█░▒▓` plus the
+geometric shapes `■▬`. Every one of those is Unicode EAW class "A"
+(Ambiguous). Terminals differ on whether to render them as 1 cell
+(narrow) or 2 cells (wide). The art is authored for 1-cell-wide
+rendering (its Amiga lineage), so wide-cell terminals stretch each
+glyph horizontally and the layout drifts diagonally (each row
+ends up further right than the previous).
+
+### 18.1 Who's affected
+
+- **macOS Terminal.app** — renders EAW=A as 2 cells by default for
+  CJK-locale parity. No UI toggle exposes narrow-cell mode.
+- **iTerm2, Ghostty, Alacritty, Kitty, WezTerm** — default to
+  1-cell rendering for EAW=A. Art looks clean. iTerm2 also
+  exposes an explicit toggle (Profiles → Text → "Treat
+  ambiguous-width characters as double-width" — off).
+- **Linux consoles** (gnome-terminal, konsole, xterm) — typically
+  1-cell by default; vary by locale.
+
+### 18.2 Why the obvious fix doesn't work
+
+A failed attempt on 2026-04-23: rewrite `render_at` and a new
+`.ans` branch of `disptext` to anchor every visible glyph to its
+authored column via `ESC[<col>G` (CHA — Cursor Horizontal
+Absolute) emitted after each glyph write. The walk parses CSI
+escapes (passes SGR through, syncs the tracker on
+CUF/CUB/CHA/CUP) and UTF-8 glyphs.
+
+The approach works for symmetric block chars — `█▓▒░`. A wide-
+rendered `█` occupies two cells with visually-equivalent halves;
+overwriting the right half with the next glyph crops the render
+cleanly and alignment holds.
+
+It fails for the asymmetric half-block family — `▐▌▀▄`. A
+right-half block `▐` rendered at 2 cells has its visible mark in
+the **right** cell of the pair; my fix overwrites that right cell
+with the next glyph and leaves the (empty) left cell behind. The
+reverse holds for `▌` (left-half, visible in the left cell of the
+2-cell render — which survives; but its right-hand neighbour now
+starts on what used to be the right half of ▌'s 2-cell render,
+overlapping visually). The same asymmetry applies to `▀` (top-
+half) and `▄` (bottom-half) — while their horizontal extent is
+full, the 2-cell rendering puts the glyph in a specific half
+that can't be cropped symmetrically.
+
+Visible result: patches where a `▐`-heavy section looks shifted
+leftward and overlaps neighbouring structure. The user
+confirmed this with a screenshot showing the second purple row
+of title.ans overlapping the axe shape. Reverted the whole
+attempt and the 3x fixture rebless; tree is back to the pre-
+attempt state.
+
+The code can't recover per-glyph which-half-is-visible without
+knowing how the terminal chose to scale each specific
+codepoint. Unicode's EAW table doesn't expose that, and
+terminals don't report it.
+
+### 18.3 Viable paths
+
+**A. Document and defer (current state).** Recommend iTerm2 /
+Ghostty / Alacritty / Kitty / WezTerm in the README. Zero code
+change. Clean result on any terminal that renders EAW=A as
+narrow.
+
+**B. Rewrite the art to symmetric-only blocks.** Drop the
+asymmetric `▐▌▀▄` and redraw every `.ans` file with
+`█░▒▓` + spaces. The symmetric-only art would render correctly
+even under wide-cell terminals using approach 18.2. Big art job;
+loses detail because asymmetric blocks provide the fine edges
+that make the adventurer silhouettes readable. Estimate the
+rewrite at a day of careful art work per `.ans` file, ~15 files.
+
+**C. Use escape-sequence cell geometry.** There exists an
+experimental `DECSWL` / `DECDWL` pair that sets per-line
+single-vs-double-width — but that applies to the **terminal's**
+cell width, not the rendered-char width, and isn't widely
+supported. Not viable.
+
+**D. Switch from Unicode blocks to Sixel / Kitty-graphics
+protocol.** The art becomes bitmap images embedded in the
+terminal stream; terminals that support the graphics protocol
+render them pixel-accurately; those that don't fall back to
+some approximation. Biggest scope of all — effectively
+replacing the art engine, plus per-terminal compatibility
+testing.
+
+### 18.4 Recommendation
+
+Keep path **A** (documented limitation) for now. The blast
+radius of the art is a cosmetic issue only; the game plays
+identically in all terminals. When someone wants to pick up
+path B, budget it as an art project separate from porting
+work — its gate isn't `make test` (byte-identical bytes don't
+help; the render changes are authorial) but a side-by-side
+visual diff against the pre-rewrite version in a narrow-cell
+terminal.
+
+### 18.5 Add to README (follow-up)
+
+One paragraph in `README.md` under "Running": "The ANSI art
+assumes 1-cell-wide rendering of Unicode block characters; use
+iTerm2, Ghostty, Alacritty, Kitty, or WezTerm. macOS Terminal.app
+renders block glyphs as 2 cells and the layout drifts. See
+port-plan §18 for the details."
