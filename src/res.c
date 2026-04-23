@@ -470,7 +470,7 @@ void res_realize_npcs(void) {
 
         const node *towne_node = obj_get(rec, "towne");
         if (towne_node) {
-            /* FIXED: declared slot. Apply job/towne/bl/x/y verbatim. */
+            /* FIXED: declared slot. Apply job/towne/building/x/y verbatim. */
             n->towne = rn_enum(rec, "towne", "towne", 0);
             n->building = rn_enum(rec, "building", "building", 0);
             n->x = rn_int(rec, "x", 0);

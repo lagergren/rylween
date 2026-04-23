@@ -795,7 +795,7 @@ static void wcw_enum_barr(FILE *f, const char *enum_id, const unsigned char *val
    visited_npcs[] so party deletion no longer needs the index-shift
    dance. The `empty1..5` struct-party padding fields are omitted.
 
-   Step 1.5: enum-valued fields (job, towne, bl, cl, ra, sex) emit as
+   Step 1.5: enum-valued fields (job, towne, building, cl, ra, sex) emit as
    symbolic strings; NPC records are keyed by symbolic id per §15.3.
    The nr field is dropped from NPC records (redundant with the slot
    key). Step 2's reader is the inverse. */

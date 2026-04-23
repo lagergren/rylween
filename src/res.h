@@ -138,8 +138,9 @@ int32_t res_town_at(int x, int y);
 
 /* §15 step 3: realize NPC placements from data/world.json5 npcs:.
    Populates state.npc[1..slot_max]. Each spec entry is either FIXED
-   (towne declared — apply job/towne/bl/x/y verbatim) or RANDOM (no
-   towne — roll towne, bl, and wilderness x/y at cold-start time).
+   (towne declared — apply job/towne/building/x/y verbatim) or RANDOM
+   (no towne — roll towne, building, and wilderness x/y at cold-start
+   time).
    Prints the "Setting up new campaign" UI, runs the per-random-npc
    delay/dot, and zeroes each NPC's visited[] grid. Called from init()
    cold-start only; the caller follows up with write_current_world(). */
