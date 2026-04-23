@@ -37,7 +37,7 @@ static void spelet() {
 
     /* Prep map for positions of huts/cottages */
 
-    for (i = 1; i < 40; i++) {
+    for (i = 1; i <= res_npc_slot_max(); i++) {
         if (!state.npc[i].towne) {
             state.map[state.npc[i].y][state.npc[i].x] = '1';
         }
@@ -620,7 +620,7 @@ void init() {
                         clw();
                         tx0(res_text("driv.terminate.editing_realm"));
                         state.antal_spelare--;
-                        for (i = 1; i < 40; i++) {
+                        for (i = 1; i <= res_npc_slot_max(); i++) {
                             for (j = 1; j < state.antal_spelare; j++) {
                                 state.npc[i].visited[x] = state.npc[i].visited[x + 1];
                             }
@@ -824,7 +824,7 @@ static void write_current_world() {
     fputs("  },\n\n", f);
 
     fputs("  npcs: {\n", f);
-    for (int i = 1; i < 40; i++) {
+    for (int i = 1; i <= res_npc_slot_max(); i++) {
         const struct person *n = &state.npc[i];
         const char *id = res_enum("name", i);
         /* Always quote: names like "Nrim'to" aren't bare-identifier safe. */
@@ -927,7 +927,7 @@ static void write_current_world() {
         fprintf(f, "      attacked: %u,\n", p->attacked);
         fprintf(f, "      kills: %u,\n", p->kills);
         fputs("      visited_npcs: [", f);
-        for (int j = 0; j < 40; j++) {
+        for (int j = 0; j <= res_npc_slot_max(); j++) {
             if (j > 0) {
                 fputs(", ", f);
             }
@@ -1183,7 +1183,8 @@ static int read_current_world() {
 
             const node *vn = obj_get(pnode, "visited_npcs");
             if (vn && vn->kind == N_ARR) {
-                size_t nvn = vn->u.arr.n < 40 ? vn->u.arr.n : 40;
+                size_t cap = (size_t)(res_npc_slot_max() + 1);
+                size_t nvn = vn->u.arr.n < cap ? vn->u.arr.n : cap;
                 for (size_t j = 0; j < nvn; j++) {
                     const node *it = vn->u.arr.items[j];
                     if (it && it->kind == N_INT) {

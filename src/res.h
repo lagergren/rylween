@@ -145,6 +145,12 @@ int32_t res_town_at(int x, int y);
    cold-start only; the caller follows up with write_current_world(). */
 void res_realize_npcs(void);
 
+/* Highest valid NPC slot id in the current world. Derived from
+   enums.name's entry count (sentinel at 0, one name per populated
+   slot). Iterate NPCs as `for (i = 1; i <= res_npc_slot_max(); i++)`.
+   Returns 0 before the world has loaded. */
+int res_npc_slot_max(void);
+
 /* Uniform "res: path:line: msg" fatal error. Used by the JSON5 parser /
    import resolver (json5.c) and the world-folds (res.c) so every loader
    diagnostic has one shape. Never returns. */

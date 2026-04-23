@@ -396,6 +396,10 @@ static int npc_slot_max(void) {
     return n > 0 ? (int)(n - 1) : 0;
 }
 
+int res_npc_slot_max(void) {
+    return npc_slot_max();
+}
+
 /* Read an optional enum field (string or int) with a default. */
 static int32_t rn_enum(const node *obj, const char *key, const char *enum_id, int32_t dflt) {
     const node *n = obj_get(obj, key);
