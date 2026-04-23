@@ -1,0 +1,140 @@
+// §17 / A.4 slice A: missions.c map-trigger scripts. Each entry
+// corresponds to a trigger in the mission_trigger table (missions.c);
+// the outer C dispatcher evaluates the flag / position / terrain /
+// chance guard, then hands straight off to play_script — each script
+// owns its own opening clw() because the historical blocks differed
+// on that (block 4's troll-tooth attacks unannounced and only clw()s
+// AFTER the encounter).
+//
+// These scripts deliberately stay linear (no loops). The L branch in
+// most menu_branch entries is an empty `default` — the C dispatcher
+// decides whether mission_control returns 1 (short-circuit the
+// "maybe you find a cave" random event) or 0 (fall through) via the
+// trigger's returns_on_skip flag. See missions.c for the table.
+//
+// Op choice cheatsheet for the patterns below:
+//   emit        - tx_fmt only. Pair with explicit wait_input / clw /
+//                 engine_call when the original interleaved those.
+//   wait_input  - ryl_pause() (press-enter prompt).
+//   screen      - tx_fmt + ryl_pause + clw. Shorthand for the very
+//                 common "show text, player reads, clear" idiom; use
+//                 only when the original actually had the clw right
+//                 after the ryl_pause.
+{
+  // Block 1: Erethor temple approach at (6,20). E: dungeon(12,8) +
+  // update_map; L: clw only. Originally fell through (no return 1
+  // on L) — returns_on_skip: 0 in the trigger.
+  erethor_entry: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'E', then: [
+            { engine_call: 'dungeon', args: [12, 8] },
+            { engine_call: 'clr_map_window' },
+            { engine_call: 'update_map' },
+          ] },
+        ],
+        default: [
+          { engine_call: 'clw' },
+        ],
+    } },
+  ],
+
+  // Block 2: Husband cave at (42,23). Same shape as block 1 but with
+  // dungeon(7,7) and the `{name19}` binding in the prompt.
+  husband_cave: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'E', then: [
+            { engine_call: 'dungeon', args: [7, 7] },
+            { engine_call: 'clr_map_window' },
+            { engine_call: 'update_map' },
+          ] },
+        ],
+        default: [
+          { engine_call: 'clw' },
+        ],
+    } },
+  ],
+
+  // Block 3: Bandit cargo (flag[1]==1 + 9% chance). Linear. The
+  // original interleaves encounter / update_map BETWEEN the two text
+  // blocks without a screen-level clw right after the first pause —
+  // emit + wait_input keeps that ordering byte-faithful.
+  bandits: [
+    { engine_call: 'clw' },
+    { emit: 'approach' },
+    { wait_input: true },
+    { engine_call: 'encounter', args: [8, 1] },
+    { engine_call: 'update_map' },
+    { engine_call: 'clw' },
+    { emit: 'cargo_found' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { set_flag: 1, value: 2 },
+  ],
+
+  // Block 4: Troll tooth (flag[33]==1 + 9% chance). NO opening clw —
+  // the troll attacks unannounced, then clw fires after update_map.
+  troll_tooth: [
+    { engine_call: 'encounter', args: [3, 1] },
+    { engine_call: 'update_map' },
+    { engine_call: 'clw' },
+    { emit: 'after_troll' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { set_flag: 33, value: 2 },
+  ],
+
+  // Block 4b: Hermit-quest dungeon entrance. Original L branch does
+  // nothing after the key() (no clw / no return). To preserve that
+  // exact behavior the default is empty — the C dispatcher falls
+  // through with returns_on_skip=0.
+  hermit_dungeon: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'E', then: [
+            { engine_call: 'dungeon', args: [20, 1] },
+            { engine_call: 'clr_map_window' },
+            { engine_call: 'update_map' },
+          ] },
+        ],
+    } },
+  ],
+
+  // Block 7: Skullweed pickup on map 't'. Original ends with
+  // ryl_pause + clw + flag set — that's exactly `screen`'s semantics.
+  skullweed: [
+    { engine_call: 'clw' },
+    { screen: 'pickup' },
+    { set_flag: 23, value: 4 },
+  ],
+
+  // Block 13: Foot of Jazzy altar on map 'f'. Two encounter sequences
+  // with text either side. All five text blocks match the screen-op
+  // shape (text + ryl_pause + clw). Between encounters the original
+  // does encounter → update_map → clw — the script does the same
+  // explicitly so the clw ordering relative to update_map is
+  // preserved. Sets flag[22]=3; the jazzyfoot assignment is the
+  // trigger's POST_SET_JAZZYFOOT action.
+  jazzy_foot: [
+    { engine_call: 'clw' },
+    { screen: 'discovered' },
+    { screen: 'minions_attack' },
+    { engine_call: 'encounter', args: [20, 1] },
+    { engine_call: 'update_map' },
+    { engine_call: 'clw' },
+    { screen: 'quiet' },
+    { screen: 'jazzy_appears' },
+    { engine_call: 'encounter', args: [21, 1] },
+    { engine_call: 'update_map' },
+    { engine_call: 'clw' },
+    { screen: 'defeated' },
+    { set_flag: 22, value: 3 },
+  ],
+}

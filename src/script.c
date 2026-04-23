@@ -235,6 +235,35 @@ static void do_pause(const node *op, const char *script_id, size_t idx) {
     ryl_delay((unsigned)ms_n->u.iv);
 }
 
+/* §17-E: { emit: '<name>' } — tx_fmt only, no ryl_pause, no clw. For
+   flows that interleave text with engine_call side effects (encounter
+   / update_map / clw) where the screen-op's bundled pause+clw would
+   double-clear. */
+static void do_emit(const node *op, const char *script_id, size_t idx,
+                    const char *parent, const ryl_bind *bindings) {
+    const node *name_n = obj_get(op, "emit");
+    if (!name_n || name_n->kind != N_STR) {
+        die_at(script_id, idx, "emit: value must be string");
+    }
+    char text_id[256];
+    resolve_text_id(parent, name_n->u.sv, text_id, sizeof text_id,
+                    script_id, idx, "emit");
+    tx_fmt(text_id, bindings);
+}
+
+/* §17-E: { wait_input: true } — ryl_pause(). Separate from `pause`
+   because ryl_pause blocks on a keypress ("Smash RETURN key") and
+   ryl_delay is a fixed-length sleep. Both appear in the original
+   control flow, sometimes back-to-back. */
+static void do_wait_input(const node *op, const char *script_id, size_t idx) {
+    const node *v = obj_get(op, "wait_input");
+    if (!v) {
+        die_at(script_id, idx, "wait_input: missing value");
+    }
+    (void)v;
+    ryl_pause();
+}
+
 /* Engine-function registry: the whitelist of C entry points callable
    from { engine_call: '<name>', args: [int...] }. All registered fns
    take zero, one, or two int32 args — no return value. Adding a new
@@ -508,6 +537,10 @@ static void dispatch_op(const node *op, const char *script_id, size_t idx,
         do_reward(op, script_id, idx, parent, bindings);
     } else if (obj_get(op, "pause")) {
         do_pause(op, script_id, idx);
+    } else if (obj_get(op, "emit")) {
+        do_emit(op, script_id, idx, parent, bindings);
+    } else if (obj_get(op, "wait_input")) {
+        do_wait_input(op, script_id, idx);
     } else if (obj_get(op, "chance")) {
         do_chance(op, script_id, idx, parent, bindings);
     } else if (obj_get(op, "if")) {

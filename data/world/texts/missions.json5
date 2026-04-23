@@ -1,0 +1,158 @@
+// §17 / A.4 slice A: missions.c map-trigger text records. Each top
+// level entry corresponds to one trigger block in src/missions.c; the
+// keys inside resolve under `missions.<block>.<screen>` via the
+// parent-path derivation in script.c.
+//
+// Blocks follow the order they originally appeared in missions.c.
+// The shape is mostly `prompt` (one block of prose + menu lines) for
+// menu_branch entries and one-or-more `<step>` screens for linear
+// encounter / set_flag sequences.
+{
+  // Block 1: flag[8]==1 at (6,20). The Erethor temple entrance. One
+  // ryl_menu: (E)nter / (L)eave. E calls dungeon(12,8) + update_map.
+  // L falls through (no return 1). Fixture-unreachable.
+  erethor_entry: {
+    prompt: [
+      'Here is the temple of',
+      'the chaos lord Erethor.',
+      'A winding staircase',
+      'spirals down between',
+      'broken pillars.',
+      '',
+      '(E)nter',
+      '(L)eave',
+    ],
+  },
+
+  // Block 2: flag[19]==1 at (42,23). Cave entrance in the foothills;
+  // husband quest. Binds `name19` (res_enum("name", 19)). Fall-through
+  // on L (no return 1).
+  husband_cave: {
+    prompt: [
+      'There is a cave entrance',
+      'in the foothills to the',
+      'east. Is this the place',
+      '{name19} talked about?',
+      '',
+      '(E)nter',
+      '(L)eave',
+    ],
+  },
+
+  // Block 3: flag[1]==1 + ryl_chance(9). Merchant's bandit cargo.
+  // Linear encounter + set_flag. Fall-through.
+  bandits: {
+    approach: [
+      'You come across the',
+      'camp of the bandits.',
+      'One of them spots you',
+      'and they attack!',
+      '',
+    ],
+    cargo_found: [
+      'You find the cargo',
+      'the merchant wanted',
+      'you to bring him.',
+      '',
+    ],
+  },
+
+  // Block 4: flag[33]==1 + ryl_chance(9). Hermit troll-tooth errand.
+  // No player prompt before encounter — note the original does an
+  // encounter(3,1) before clw(), which means the troll attacks
+  // unannounced. Fall-through.
+  troll_tooth: {
+    after_troll: [
+      'You break off a troll',
+      'tooth to give the hermit.',
+      'After wiping the slime of',
+      'it, you put it in your',
+      'backpack.',
+      '',
+    ],
+  },
+
+  // Block 4b: flag[33]==3 at dx[1],dy[1]. Dungeon entrance for the
+  // hermit quest. No return on L — the original just falls through
+  // without the `return 1` idiom several later blocks use.
+  hermit_dungeon: {
+    prompt: [
+      'You have found a dungeon.',
+      'The entrance has been',
+      'cut out of some huge',
+      'animal\'s skull.',
+      '',
+      '(E)nter',
+      '(L)eave',
+    ],
+  },
+
+  // Block 7: flag[23]==3 on terrain 't'. Linear skullweed pickup.
+  skullweed: {
+    pickup: [
+      'On the ground before you',
+      'grows the skullweed plant.',
+      'You break off a few plants',
+      'and put in your backpack.',
+      '',
+    ],
+  },
+
+  // Block 13: flag[22]==2 on terrain 'f'. Foot-of-Jazzy altar.
+  // Two-encounter sequence with text between and after each. Sets
+  // flag[22]=3 and jazzyfoot=1; the jazzyfoot assignment isn't
+  // expressible in the DSL yet, so the trigger post-script applies
+  // it. Fall-through.
+  jazzy_foot: {
+    discovered: [
+      'Something about this whole',
+      'area is weird. The air',
+      'seems to be loaded with',
+      'electricity. Suddenly you',
+      'spot an object on the',
+      'ground. It is a delicate',
+      'ivory statue in the shape',
+      'of a human foot. THIS IS',
+      'THE FOOT OF JAZZY!',
+      '',
+    ],
+    minions_attack: [
+      'Just as you touch it,',
+      'the sky splits open and',
+      'at the wailing of hundreds',
+      'of tortured souls, Jazzy\'s',
+      'minions attack you, for',
+      'the heresy they find you',
+      'guilty of...',
+      '',
+    ],
+    quiet: [
+      'Quiet settles again, as',
+      'you destroy the foul',
+      'creatures, one by one.',
+      'You reach for the foot',
+      'again, when suddenly,',
+      'something EVEN MORE',
+      'horrible happens...',
+      '',
+    ],
+    jazzy_appears: [
+      'A twenty foot tall',
+      'being materializes',
+      'in front of you! You will',
+      'have to fight Jazzy,',
+      'himself!',
+      '',
+    ],
+    defeated: [
+      'Today, you have killed a',
+      'god. You watch silently as',
+      'the huge body starts to',
+      'melt. It fades away into',
+      'Nothingness. This time,',
+      'when you pick up the foot,',
+      'nothing happens.',
+      '',
+    ],
+  },
+}

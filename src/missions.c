@@ -6,104 +6,204 @@
 #include "gfx.h"
 #include "missions.h"
 #include "primitives.h"
+#include "script.h"
 #include "subs.h"
+
+/* §17 / A.4 slice A: map-trigger dispatcher. The historical mission_
+   control() was 16 ad-hoc `if (flag[N]==V && <guard>) { tx(...); ... }`
+   blocks. They decompose into a small number of guard shapes plus a
+   linear / menu_branch script body; this dispatcher keeps the guard
+   evaluation in C (where arithmetic and `state.dx[i]`/`state.dy[i]`
+   lookups live) and hands the UI off to play_script.
+
+   One block still isn't expressible in the DSL: the gem-altar at
+   flag[13]==1, which branches on a runtime inventory count (>=5 gems
+   of ids 39..41). It lives inline below as the one residual block
+   pending a DSL widening. */
+
+enum mission_guard_kind {
+    MG_POS,         /* x == a && y == b                                */
+    MG_DUNGEON_IDX, /* x == state.dx[a] && y == state.dy[a]            */
+    MG_TERRAIN,     /* state.map[y][x] == (char)a                      */
+    MG_CHANCE,      /* ryl_chance(a) — rolled after the flag guard     */
+};
+
+enum mission_bind_kind {
+    MB_NPC_NAME = 1, /* res_enum("name", arg)        */
+    MB_DX_STR,       /* state.dx[arg] stringified    */
+    MB_DY_STR,       /* state.dy[arg] stringified    */
+};
+
+typedef struct {
+    const char *name; /* placeholder ident in the script */
+    enum mission_bind_kind kind;
+    int32_t arg;
+} mission_binding;
+
+enum mission_post_op {
+    POST_NONE = 0,
+    POST_SET_JAZZYFOOT, /* Jazzy-foot pickup sets state.p[cpl].jazzyfoot = 1 */
+};
+
+typedef struct {
+    int32_t flag;
+    int32_t when;
+    enum mission_guard_kind kind;
+    int32_t a, b;
+    const char *script;
+    uint8_t returns_on_skip;
+    enum mission_post_op post;
+    const mission_binding *binds;
+    size_t nbinds;
+} mission_trigger;
+
+#define MAX_BINDINGS   4
+#define BIND_ZONE_SIZE 48
+
+/* Triggers are tried in the historical order; first one whose flag /
+   guard passes fires. `returns_on_skip` reproduces the original's
+   `return 1` after blocks whose L-menu unambiguously ended the
+   mission-control turn (blocks 12, 14, 16) — the other blocks fell
+   through to the random-event roll in slumpvis(). */
+static const mission_trigger mission_triggers[] = {
+    /* Block 1: Erethor temple at (6,20). Flag 8 == 1. */
+    {.flag = 8, .when = 1, .kind = MG_POS, .a = 6, .b = 20, .script = "missions.erethor_entry", .returns_on_skip = 0},
+
+    /* Block 2: Husband cave at (42,23). Flag 19 == 1. Binds `name19`. */
+    {.flag = 19, .when = 1, .kind = MG_POS, .a = 42, .b = 23, .script = "missions.husband_cave", .returns_on_skip = 0, .binds = (const mission_binding[]){{"name19", MB_NPC_NAME, 19}}, .nbinds = 1},
+
+    /* Block 3: Bandit cargo. Flag 1 == 1 + 9% chance. */
+    {.flag = 1, .when = 1, .kind = MG_CHANCE, .a = 9, .script = "missions.bandits", .returns_on_skip = 0},
+
+    /* Block 4: Troll tooth. Flag 33 == 1 + 9% chance. */
+    {.flag = 33, .when = 1, .kind = MG_CHANCE, .a = 9, .script = "missions.troll_tooth", .returns_on_skip = 0},
+
+    /* Block 4b: Hermit-quest dungeon. Flag 33 == 3 at dx[1],dy[1]. */
+    {.flag = 33, .when = 3, .kind = MG_DUNGEON_IDX, .a = 1, .script = "missions.hermit_dungeon", .returns_on_skip = 0},
+
+    /* Block 7: Skullweed on terrain 't'. Flag 23 == 3. */
+    {.flag = 23, .when = 3, .kind = MG_TERRAIN, .a = 't', .script = "missions.skullweed", .returns_on_skip = 0},
+
+    /* Block 13: Foot of Jazzy altar on terrain 'f'. Flag 22 == 2.
+       Post-action sets state.p[cpl].jazzyfoot = 1 — not yet a DSL
+       primitive, applied in C after the script returns. */
+    {.flag = 22, .when = 2, .kind = MG_TERRAIN, .a = 'f', .script = "missions.jazzy_foot", .returns_on_skip = 0, .post = POST_SET_JAZZYFOOT},
+};
+
+static int guard_matches(const mission_trigger *t) {
+    int32_t x = state.p[state.cpl].x;
+    int32_t y = state.p[state.cpl].y;
+    switch (t->kind) {
+        case MG_POS:
+            return x == t->a && y == t->b;
+        case MG_DUNGEON_IDX:
+            return x == state.dx[t->a] && y == state.dy[t->a];
+        case MG_TERRAIN:
+            return state.map[y][x] == (char)t->a;
+        case MG_CHANCE:
+            return ryl_chance((int)t->a);
+    }
+    return 0;
+}
+
+static void resolve_bindings(const mission_trigger *t, ryl_bind *out,
+                             char *scratch) {
+    for (size_t i = 0; i < t->nbinds; i++) {
+        const mission_binding *b = &t->binds[i];
+        char *zone = scratch + i * BIND_ZONE_SIZE;
+        out[i].name = b->name;
+        switch (b->kind) {
+            case MB_NPC_NAME:
+                out[i].value = res_enum("name", b->arg);
+                break;
+            case MB_DX_STR:
+                snprintf(zone, BIND_ZONE_SIZE, "%d", state.dx[b->arg]);
+                out[i].value = zone;
+                break;
+            case MB_DY_STR:
+                snprintf(zone, BIND_ZONE_SIZE, "%d", state.dy[b->arg]);
+                out[i].value = zone;
+                break;
+        }
+    }
+    out[t->nbinds] = (ryl_bind){0};
+}
+
+static void apply_post(enum mission_post_op op) {
+    switch (op) {
+        case POST_NONE:
+            break;
+        case POST_SET_JAZZYFOOT:
+            state.p[state.cpl].jazzyfoot = 1;
+            break;
+    }
+}
+
+/* Returns 1 when a trigger fired and asked the caller to short-circuit
+   (returns_on_skip), 0 otherwise. */
+static int dispatch_triggers(void) {
+    const unsigned char *flag = state.p[state.cpl].flag;
+    for (size_t i = 0; i < sizeof mission_triggers / sizeof *mission_triggers; i++) {
+        const mission_trigger *t = &mission_triggers[i];
+        if (flag[t->flag] != (unsigned char)t->when) {
+            continue;
+        }
+        if (!guard_matches(t)) {
+            continue;
+        }
+        /* Chance-guarded blocks roll once here (inside guard_matches);
+           non-chance blocks fire unconditionally. Each script is
+           responsible for its own opening clw() if it has one — the
+           original blocks split on that (block 4 opens on encounter
+           with no leading clw, everyone else clears first). */
+        ryl_bind binds[MAX_BINDINGS + 1];
+        char scratch[MAX_BINDINGS * BIND_ZONE_SIZE];
+        const ryl_bind *pass = NULL;
+        if (t->nbinds > 0) {
+            resolve_bindings(t, binds, scratch);
+            pass = binds;
+        }
+        play_script(t->script, pass);
+        apply_post(t->post);
+        if (t->returns_on_skip) {
+            return 1;
+        }
+        return 0;
+    }
+    return -1;
+}
 
 uint8_t mission_control() {
     int32_t i, gems;
     char send[144];
     char c;
 
-    /* Mission Control */
-
-    /******************************************************************/
-    if (state.p[state.cpl].flag[8] == 1 && state.p[state.cpl].x == 6 && state.p[state.cpl].y == 20) {
-        clw();
-        tx("Here is the temple of\r\n");
-        tx("the chaos lord Erethor.\r\n");
-        tx("A winding staircase\r\n");
-        tx("spirals down between\r\n");
-        tx("broken pillars.\r\n\r\n");
-        tx("(E)nter\r\n");
-        tx("(L)eave\r\n");
-        c = key();
-        c = toupper(c);
-        if (c == 'E') {
-            dungeon(12, 8);
-            clr_map_window();
-            update_map();
-        } else {
-            clw();
-        }
+    int handled = dispatch_triggers();
+    if (handled == 1) {
+        return 1;
+    }
+    if (handled == 0) {
+        /* A trigger fired but asked to fall through. The historical
+           blocks could in theory chain (two triggers match in the
+           same turn) — preserve that by continuing down this
+           function rather than returning. */
     }
 
-    /******************************************************************/
-    if (state.p[state.cpl].flag[19] == 1 && state.p[state.cpl].x == 42 && state.p[state.cpl].y == 23) {
-        clw();
-        tx("There is a cave entrance\r\n");
-        tx("in the foothills to the\r\n");
-        tx("east. Is this the place\r\n");
-        tx("%s talked about?\r\n\r\n", res_enum("name", 19));
-        tx("(E)nter\r\n");
-        tx("(L)eave\r\n");
-        c = key();
-        c = toupper(c);
-        if (c == 'E') {
-            dungeon(7, 7);
-            clr_map_window();
-            update_map();
-        } else {
-            clw();
-        }
-    }
-    /******************************************************************/
-    if (state.p[state.cpl].flag[1] == 1 && ryl_chance(9)) {
-        clw();
-        tx("You come across the\r\n");
-        tx("camp of the bandits.\r\n");
-        tx("One of them spots you\r\n");
-        tx("and they attack!\r\n\r\n");
-        ryl_pause();
-        encounter(8, 1);
-        update_map();
-        clw();
-        tx("You find the cargo\r\n");
-        tx("the merchant wanted\r\n");
-        tx("you to bring him.\r\n\r\n");
-        ryl_pause();
-        clw();
-        state.p[state.cpl].flag[1] = 2;
-    }
-    /******************************************************************/
-    if (state.p[state.cpl].flag[33] == 1 && ryl_chance(9)) {
-        encounter(3, 1);
-        update_map();
-        clw();
-        tx("You break off a troll\r\n");
-        tx("tooth to give the hermit.\r\n");
-        tx("After wiping the slime of\r\n");
-        tx("it, you put it in your\r\n");
-        tx("backpack.\r\n\r\n");
-        ryl_pause();
-        clw();
-        state.p[state.cpl].flag[33] = 2;
-    }
-    if (state.p[state.cpl].flag[33] == 3 && state.p[state.cpl].x == state.dx[1] && state.p[state.cpl].y == state.dy[1]) {
-        clw();
-        tx("You have found a dungeon.\r\n");
-        tx("The entrance has been\r\n");
-        tx("cut out of some huge\r\n");
-        tx("animal's skull.\r\n\r\n");
-        tx("(E)nter\r\n");
-        tx("(L)eave\r\n");
-        c = key();
-        c = toupper(c);
-        if (c == 'E') {
-            dungeon(20, 1);
-            clr_map_window();
-            update_map();
-        }
-    }
-    /******************************************************************/
+    /* ---------------------------------------------------------------
+       Blocks not yet expressible in the DSL:
+
+       flag[13]==1 gem altar (arithmetic: count inventory items in id
+       range 39..41 and branch on >= 5).
+
+       Blocks 6, 8, 9, 10, 11, 12, 14, 15, 16 still live here pending
+       a later pass — they are all menu_branch shapes that the DSL
+       can already express, but the text extraction is mechanical
+       and was left for a follow-up slice to keep this commit
+       focused on the dispatcher + non-menu triggers.
+       --------------------------------------------------------------- */
+
+    /* Block 5: temple of thun altar — 5-gem inventory check keeps
+       this inline. */
     if (state.p[state.cpl].flag[13] == 1 && state.p[state.cpl].x == state.dx[2] && state.p[state.cpl].y == state.dy[2]) {
         clw();
         tx("You stand before the\r\n");
@@ -207,16 +307,6 @@ uint8_t mission_control() {
             clw();
             state.p[state.cpl].flag[23] = 2;
         }
-    }
-    if (state.p[state.cpl].flag[23] == 3 && state.map[state.p[state.cpl].y][state.p[state.cpl].x] == 't') {
-        clw();
-        tx("On the ground before you\r\n");
-        tx("grows the skullweed plant.\r\n");
-        tx("You break off a few plants\r\n");
-        tx("and put in your backpack.\r\n\r\n");
-        ryl_pause();
-        clw();
-        state.p[state.cpl].flag[23] = 4;
     }
     if (state.p[state.cpl].flag[23] == 5 && state.p[state.cpl].x == state.dx[4] && state.p[state.cpl].y == state.dy[4]) {
         clw();
@@ -438,62 +528,6 @@ uint8_t mission_control() {
             clw();
             return 1;
         }
-    }
-    if (state.p[state.cpl].flag[22] == 2 && state.map[state.p[state.cpl].y][state.p[state.cpl].x] == 'f') {
-        clw();
-        tx("Something about this whole\r\n");
-        tx("area is weird. The air\r\n");
-        tx("seems to be loaded with\r\n");
-        tx("electricity. Suddenly you\r\n");
-        tx("spot an object on the\r\n");
-        tx("ground. It is a delicate\r\n");
-        tx("ivory statue in the shape\r\n");
-        tx("of a human foot. THIS IS\r\n");
-        tx("THE FOOT OF JAZZY!\r\n\r\n");
-        ryl_pause();
-        clw();
-        tx("Just as you touch it,\r\n");
-        tx("the sky splits open and\r\n");
-        tx("at the wailing of hundreds\r\n");
-        tx("of tortured souls, Jazzy's\r\n");
-        tx("minions attack you, for\r\n");
-        tx("the heresy they find you\r\n");
-        tx("guilty of...\r\n\r\n");
-        ryl_pause();
-        clw();
-        encounter(20, 1);
-        update_map();
-        clw();
-        tx("Quiet settles again, as\r\n");
-        tx("you destroy the foul\r\n");
-        tx("creatures, one by one.\r\n");
-        tx("You reach for the foot\r\n");
-        tx("again, when suddenly,\r\n");
-        tx("something EVEN MORE\r\n");
-        tx("horrible happens...\r\n\r\n");
-        ryl_pause();
-        clw();
-        tx("A twenty foot tall\r\n");
-        tx("being materializes\r\n");
-        tx("in front of you! You will\r\n");
-        tx("have to fight Jazzy,\r\n");
-        tx("himself!\r\n\r\n");
-        ryl_pause();
-        clw();
-        encounter(21, 1);
-        update_map();
-        clw();
-        tx("Today, you have killed a\r\n");
-        tx("god. You watch silently as\r\n");
-        tx("the huge body starts to\r\n");
-        tx("melt. It fades away into\r\n");
-        tx("Nothingness. This time,\r\n");
-        tx("when you pick up the foot,\r\n");
-        tx("nothing happens.\r\n\r\n");
-        ryl_pause();
-        clw();
-        state.p[state.cpl].flag[22] = 3;
-        state.p[state.cpl].jazzyfoot = 1;
     }
     if (state.p[state.cpl].flag[6] == 1 && state.p[state.cpl].x == state.dx[8] && state.p[state.cpl].y == state.dy[8]) {
         clw();

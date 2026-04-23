@@ -25,6 +25,16 @@
  *
  * §17-E control-flow ops (added for A.4 / §17 slices):
  *
+ *   { emit: '<name>' }            - tx_fmt only (no ryl_pause, no clw).
+ *                                    For flows that interleave text with
+ *                                    engine_call side effects where the
+ *                                    screen-op's bundled pause+clw would
+ *                                    over-clear.
+ *
+ *   { wait_input: true }          - ryl_pause() (prompts "Smash RETURN
+ *                                    key", blocks until enter). Distinct
+ *                                    from `pause`, which is ryl_delay.
+ *
  *   { pause: N }                  - ryl_delay(N) ms between screens.
  *
  *   { chance: {                   - ryl_chance(pct) gated branch.
