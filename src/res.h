@@ -125,9 +125,9 @@ const char *res_pronoun(int sex, int xx);
    of range; res_town_x / res_town_y return 0; res_town_at returns the
    twn id for a (x,y) that matches a declared town, 0 otherwise. */
 const char *res_town_name(int twn);
-int32_t     res_town_x(int twn);
-int32_t     res_town_y(int twn);
-int32_t     res_town_at(int x, int y);
+int32_t res_town_x(int twn);
+int32_t res_town_y(int twn);
+int32_t res_town_at(int x, int y);
 
 /* §15 step 3: realize NPC placements from data/world.json5 npcs:.
    Populates state.npc[1..slot_max]. Each spec entry is either FIXED

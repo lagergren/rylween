@@ -165,8 +165,11 @@ void speak(int32_t bld, int32_t tow) {
         npc_mission_hint(talk);
 
         clw();
-        tx0(res_text("speak.chatting"));
-        tx("%s:\r\n\r\n", res_enum("name", talk));
+        tx_fmt("speak.chatting",
+               (ryl_bind[]){
+                   {"npc_name", res_enum("name", talk)},
+                   {0},
+               });
 
         /* Passed */
 

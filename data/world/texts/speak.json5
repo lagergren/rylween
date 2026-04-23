@@ -24,8 +24,11 @@
   recognize_he:  ['he recognizes you.'],
   recognize_she: ['she recognizes you.'],
 
-  // Main chat header + four-option menu.
-  chatting: ['Chatting with'],
+  // Main chat header + four-option menu. {npc_name} folds in the
+  // current interlocutor via tx_fmt (§16.3).
+  chatting: ['Chatting with',
+             '{npc_name}:',
+             ''],
   menu: ['(C)hitchat',
          '(Q)uestion',
          '(R)umors',

@@ -87,7 +87,9 @@
                         ''],
     },
     treasure: {
-      find:     ['You find a'],
+      find:     ['You find a',
+                 '{object}.',
+                 ''],
       menu:     ['(T)ake it', '(L)eave it'],
       full:     ["You can't carry more."],
       taken:    ['', 'Ok.'],

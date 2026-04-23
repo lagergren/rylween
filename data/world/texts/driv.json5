@@ -14,8 +14,12 @@
 
     // Title-menu banner + choice rows. N/C/T are guarded by whether the
     // current BBS user has an existing party in this realm; S/H/D/X are
-    // always shown together, so they share one record.
-    header:    ['ADVENTURERS of RYLWEEN', ''],
+    // always shown together, so they share one record. {name} = the BBS
+    // handle of the player whose party list we're viewing (§16.3).
+    header:    ['ADVENTURERS of RYLWEEN',
+                '',
+                "{name}'s copy.",
+                ''],
     new_party: ['N. Create New Party'],
     continue:  ['C. Continue Saved Game'],
     terminate: ['T. Terminate Party'],
@@ -67,10 +71,11 @@
     first_day: 'First Game of the Day... Updating... Please Wait...',
   },
 
-  // Baron Ydarg already defeated: game-over banner. The pre/post split
-  // accommodates the party-name %s tx() between them (driv.c:450).
+  // Baron Ydarg already defeated: game-over banner. {partyname} is the
+  // name of the victorious party, folded in via tx_fmt (§16.3).
   struggle: {
-    over:       ['The struggle is over.'],
+    over:       ['The struggle is over.',
+                 '[31m{partyname}[37m have'],
     conclusion: ['defeated Baron Ydarg.',
                  'Please ask the SysOp',
                  'to reset Rylween',
@@ -125,7 +130,8 @@
 
   // createparty() flow: header, max-player gate, prompts, stat-min
   // errors. Lines with %d (character number) or %s (member name) stay
-  // inline and the block splits around them.
+  // inline and the block splits around them. sex_q / race_q fold their
+  // per-char {name} inline via tx_fmt (§16.3).
   create: {
     header:    ['Party Creation', ''],
     full:      ['Sorry. Maximum number of',
@@ -134,9 +140,13 @@
                 ''],
     name_q:    ['What is the name of your', 'party?', ''],
     reroll:    'Reroll (y/N) ',
-    sex_q:     ['What sex is'],
+    sex_q:     ['What sex is',
+                '{name}?',
+                ''],
     sex_opts:  ['1. Male', '2. Female'],
-    race_q:    ['What race is'],
+    race_q:    ['What race is',
+                '{name}?',
+                ''],
     race_opts: ['1. Human  2. Dwarf', '3. Elf    4. Halfling'],
     class_menu:['Pick a class for this',
                 'character...',

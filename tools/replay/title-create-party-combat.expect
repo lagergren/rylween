@@ -55,7 +55,7 @@
 [49C                          
 [6;0H[49CADVENTURERS of RYLWEEN
 
-[49CTest User's copy.
+Test User's copy.
 
 [49CN. Create New Party
 [49CS. View Currect Scores
@@ -150,7 +150,7 @@ party?
 [49C                          
 [49C                          
 [6;0H[49CWhat sex is
-[49CA?
+A?
 
 [49C1. Male
 2. Female
@@ -166,7 +166,7 @@ party?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-[49CA?
+A?
 
 [49C1. Human  2. Dwarf
 3. Elf    4. Halfling
@@ -282,7 +282,7 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat sex is
-[49CB?
+B?
 
 [49C1. Male
 2. Female
@@ -298,7 +298,7 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-[49CB?
+B?
 
 [49C1. Human  2. Dwarf
 3. Elf    4. Halfling
@@ -414,7 +414,7 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat sex is
-[49CC?
+C?
 
 [49C1. Male
 2. Female
@@ -430,7 +430,7 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-[49CC?
+C?
 
 [49C1. Human  2. Dwarf
 3. Elf    4. Halfling
@@ -546,7 +546,7 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat sex is
-[49CD?
+D?
 
 [49C1. Male
 2. Female
@@ -562,7 +562,7 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-[49CD?
+D?
 
 [49C1. Human  2. Dwarf
 3. Elf    4. Halfling
@@ -661,7 +661,7 @@ character...
 [49C                          
 [6;0H[49CADVENTURERS of RYLWEEN
 
-[49CTest User's copy.
+Test User's copy.
 
 [49CC. Continue Saved Game
 [49CT. Terminate Party

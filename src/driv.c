@@ -434,9 +434,11 @@ void init() {
     while (!abort) {
         clw();
 
-        tx0(res_text("driv.menu.header"));
-
-        tx("%s's copy.\r\n\r\n", state.global_name);
+        tx_fmt("driv.menu.header",
+               (ryl_bind[]){
+                   {"name", state.global_name},
+                   {0},
+               });
 
         for (i = 1, x = 0; i < state.antal_spelare + 1; i++) {
             if (!stricmp(state.global_name, state.p[i].player)) {
@@ -445,8 +447,11 @@ void init() {
         }
         for (i = 1; i < state.antal_spelare + 1; i++) {
             if (state.p[i].silverkey == 2) {
-                tx0(res_text("driv.struggle.over"));
-                tx("[31m%s[37m have\r\n", state.p[i].partyname);
+                tx_fmt("driv.struggle.over",
+                       (ryl_bind[]){
+                           {"partyname", state.p[i].partyname},
+                           {0},
+                       });
                 tx0(res_text("driv.struggle.conclusion"));
                 ryl_pause();
                 clw();
@@ -669,11 +674,21 @@ static void wcw_str(FILE *f, const char *s) {
     for (; *s; s++) {
         unsigned char c = (unsigned char)*s;
         switch (c) {
-            case '"':  fputs("\\\"", f); break;
-            case '\\': fputs("\\\\", f); break;
-            case '\n': fputs("\\n", f); break;
-            case '\r': fputs("\\r", f); break;
-            case '\t': fputs("\\t", f); break;
+            case '"':
+                fputs("\\\"", f);
+                break;
+            case '\\':
+                fputs("\\\\", f);
+                break;
+            case '\n':
+                fputs("\\n", f);
+                break;
+            case '\r':
+                fputs("\\r", f);
+                break;
+            case '\t':
+                fputs("\\t", f);
+                break;
             default:
                 if (c < 0x20) {
                     fprintf(f, "\\u%04x", c);
@@ -800,8 +815,12 @@ static void write_current_world() {
     fputs("  },\n\n", f);
 
     fputs("  locations: {\n", f);
-    fputs("    dx: ", f); wcw_i32_arr(f, state.dx, 15); fputs(",\n", f);
-    fputs("    dy: ", f); wcw_i32_arr(f, state.dy, 15); fputs(",\n", f);
+    fputs("    dx: ", f);
+    wcw_i32_arr(f, state.dx, 15);
+    fputs(",\n", f);
+    fputs("    dy: ", f);
+    wcw_i32_arr(f, state.dy, 15);
+    fputs(",\n", f);
     fputs("  },\n\n", f);
 
     fputs("  npcs: {\n", f);
@@ -827,8 +846,12 @@ static void write_current_world() {
         int cl_int[5] = {p->cl[0], p->cl[1], p->cl[2], p->cl[3], p->cl[4]};
         int ra_int[5] = {p->ra[0], p->ra[1], p->ra[2], p->ra[3], p->ra[4]};
         fputs("    {\n", f);
-        fputs("      player: ",    f); wcw_str(f, p->player);    fputs(",\n", f);
-        fputs("      partyname: ", f); wcw_str(f, p->partyname); fputs(",\n", f);
+        fputs("      player: ", f);
+        wcw_str(f, p->player);
+        fputs(",\n", f);
+        fputs("      partyname: ", f);
+        wcw_str(f, p->partyname);
+        fputs(",\n", f);
         fputs("      name: [", f);
         for (int m = 0; m < 5; m++) {
             if (m > 0) {
@@ -837,38 +860,72 @@ static void write_current_world() {
             wcw_str(f, p->name[m]);
         }
         fputs("],\n", f);
-        fputs("      flag: ",         f); wcw_byte_arr(f, p->flag,         40); fputs(",\n", f);
-        fprintf(f, "      fireshield: %u,\n",  p->fireshield);
-        fprintf(f, "      bracelets: %u,\n",   p->bracelets);
+        fputs("      flag: ", f);
+        wcw_byte_arr(f, p->flag, 40);
+        fputs(",\n", f);
+        fprintf(f, "      fireshield: %u,\n", p->fireshield);
+        fprintf(f, "      bracelets: %u,\n", p->bracelets);
         fprintf(f, "      mastercrown: %u,\n", p->mastercrown);
-        fprintf(f, "      jazzyfoot: %u,\n",   p->jazzyfoot);
-        fprintf(f, "      silverkey: %u,\n",   p->silverkey);
-        fprintf(f, "      pl: %u,\n",          p->pl);
-        fprintf(f, "      x: %d,\n",           p->x);
-        fprintf(f, "      y: %d,\n",           p->y);
-        fprintf(f, "      gold: %d,\n",        p->gold);
-        fprintf(f, "      torches: %u,\n",     p->torches);
-        fprintf(f, "      food: %d,\n",        p->food);
-        fprintf(f, "      tid_kvar: %d,\n",    p->tid_kvar);
-        fputs("      inventory: ",    f); wcw_i32_arr(f, p->inventory, 17);    fputs(",\n", f);
-        fputs("      ws: ", f); wcw_i32_arr(f, p->ws, 5); fputs(",\n", f);
-        fputs("      h: ",  f); wcw_i32_arr(f, p->h,  5); fputs(",\n", f);
-        fputs("      hp: ", f); wcw_i32_arr(f, p->hp, 5); fputs(",\n", f);
-        fputs("      wi: ", f); wcw_i32_arr(f, p->wi, 5); fputs(",\n", f);
-        fputs("      ma: ", f); wcw_i32_arr(f, p->ma, 5); fputs(",\n", f);
-        fputs("      ch: ", f); wcw_i32_arr(f, p->ch, 5); fputs(",\n", f);
-        fputs("      cl: ", f); wcw_enum_arr (f, "pc_class", cl_int, 5); fputs(",\n", f);
-        fputs("      ra: ", f); wcw_enum_arr (f, "race",     ra_int, 5); fputs(",\n", f);
-        fputs("      lv: ", f); wcw_i32_arr(f, p->lv, 5); fputs(",\n", f);
-        fputs("      ar: ", f); wcw_i32_arr(f, p->ar, 5); fputs(",\n", f);
-        fputs("      wp: ", f); wcw_i32_arr(f, p->wp, 5); fputs(",\n", f);
-        fputs("      exp: ",          f); wcw_u32_arr  (f, p->exp,          5);  fputs(",\n", f);
-        fputs("      dead: ",         f); wcw_i32_arr  (f, p->dead,         5);  fputs(",\n", f);
-        fputs("      sex: ",          f); wcw_enum_barr(f, "sex", p->sex, 5); fputs(",\n", f);
-        fputs("      attack_today: ", f); wcw_byte_arr (f, p->attack_today, 26); fputs(",\n", f);
+        fprintf(f, "      jazzyfoot: %u,\n", p->jazzyfoot);
+        fprintf(f, "      silverkey: %u,\n", p->silverkey);
+        fprintf(f, "      pl: %u,\n", p->pl);
+        fprintf(f, "      x: %d,\n", p->x);
+        fprintf(f, "      y: %d,\n", p->y);
+        fprintf(f, "      gold: %d,\n", p->gold);
+        fprintf(f, "      torches: %u,\n", p->torches);
+        fprintf(f, "      food: %d,\n", p->food);
+        fprintf(f, "      tid_kvar: %d,\n", p->tid_kvar);
+        fputs("      inventory: ", f);
+        wcw_i32_arr(f, p->inventory, 17);
+        fputs(",\n", f);
+        fputs("      ws: ", f);
+        wcw_i32_arr(f, p->ws, 5);
+        fputs(",\n", f);
+        fputs("      h: ", f);
+        wcw_i32_arr(f, p->h, 5);
+        fputs(",\n", f);
+        fputs("      hp: ", f);
+        wcw_i32_arr(f, p->hp, 5);
+        fputs(",\n", f);
+        fputs("      wi: ", f);
+        wcw_i32_arr(f, p->wi, 5);
+        fputs(",\n", f);
+        fputs("      ma: ", f);
+        wcw_i32_arr(f, p->ma, 5);
+        fputs(",\n", f);
+        fputs("      ch: ", f);
+        wcw_i32_arr(f, p->ch, 5);
+        fputs(",\n", f);
+        fputs("      cl: ", f);
+        wcw_enum_arr(f, "pc_class", cl_int, 5);
+        fputs(",\n", f);
+        fputs("      ra: ", f);
+        wcw_enum_arr(f, "race", ra_int, 5);
+        fputs(",\n", f);
+        fputs("      lv: ", f);
+        wcw_i32_arr(f, p->lv, 5);
+        fputs(",\n", f);
+        fputs("      ar: ", f);
+        wcw_i32_arr(f, p->ar, 5);
+        fputs(",\n", f);
+        fputs("      wp: ", f);
+        wcw_i32_arr(f, p->wp, 5);
+        fputs(",\n", f);
+        fputs("      exp: ", f);
+        wcw_u32_arr(f, p->exp, 5);
+        fputs(",\n", f);
+        fputs("      dead: ", f);
+        wcw_i32_arr(f, p->dead, 5);
+        fputs(",\n", f);
+        fputs("      sex: ", f);
+        wcw_enum_barr(f, "sex", p->sex, 5);
+        fputs(",\n", f);
+        fputs("      attack_today: ", f);
+        wcw_byte_arr(f, p->attack_today, 26);
+        fputs(",\n", f);
         fprintf(f, "      waiting_mail: %u,\n", p->waiting_mail);
-        fprintf(f, "      attacked: %u,\n",     p->attacked);
-        fprintf(f, "      kills: %u,\n",        p->kills);
+        fprintf(f, "      attacked: %u,\n", p->attacked);
+        fprintf(f, "      kills: %u,\n", p->kills);
         fputs("      visited_npcs: [", f);
         for (int j = 0; j < 40; j++) {
             if (j > 0) {
@@ -1053,11 +1110,11 @@ static int read_current_world() {
             }
             struct person *n = &state.npc[slot];
             n->nr = slot;
-            n->job   = rcw_enum(rec, "job",   "jobname", n->job);
-            n->towne = rcw_enum(rec, "towne", "towne",   n->towne);
+            n->job = rcw_enum(rec, "job", "jobname", n->job);
+            n->towne = rcw_enum(rec, "towne", "towne", n->towne);
             n->building = rcw_enum(rec, "building", "building", n->building);
-            n->x     = rcw_int (rec, "x",                n->x);
-            n->y     = rcw_int (rec, "y",                n->y);
+            n->x = rcw_int(rec, "x", n->x);
+            n->y = rcw_int(rec, "y", n->y);
         }
     }
 
@@ -1075,7 +1132,7 @@ static int read_current_world() {
             }
             struct party *p = &state.p[i];
 
-            rcw_str(pnode, "player",    p->player,    sizeof p->player);
+            rcw_str(pnode, "player", p->player, sizeof p->player);
             rcw_str(pnode, "partyname", p->partyname, sizeof p->partyname);
 
             const node *names = obj_get(pnode, "name");
@@ -1091,38 +1148,38 @@ static int read_current_world() {
             }
 
             rcw_byte_arr(obj_get(pnode, "flag"), p->flag, 40);
-            p->fireshield  = (unsigned char)rcw_int(pnode, "fireshield",  p->fireshield);
-            p->bracelets   = (unsigned char)rcw_int(pnode, "bracelets",   p->bracelets);
+            p->fireshield = (unsigned char)rcw_int(pnode, "fireshield", p->fireshield);
+            p->bracelets = (unsigned char)rcw_int(pnode, "bracelets", p->bracelets);
             p->mastercrown = (unsigned char)rcw_int(pnode, "mastercrown", p->mastercrown);
-            p->jazzyfoot   = (unsigned char)rcw_int(pnode, "jazzyfoot",   p->jazzyfoot);
-            p->silverkey   = (unsigned char)rcw_int(pnode, "silverkey",   p->silverkey);
-            p->pl          = (unsigned char)rcw_int(pnode, "pl",          p->pl);
-            p->x           = rcw_int(pnode, "x", p->x);
-            p->y           = rcw_int(pnode, "y", p->y);
-            p->gold        = rcw_int(pnode, "gold", p->gold);
-            p->torches     = (uint32_t)rcw_int(pnode, "torches", p->torches);
-            p->food        = rcw_int(pnode, "food", p->food);
-            p->tid_kvar    = rcw_int(pnode, "tid_kvar", p->tid_kvar);
+            p->jazzyfoot = (unsigned char)rcw_int(pnode, "jazzyfoot", p->jazzyfoot);
+            p->silverkey = (unsigned char)rcw_int(pnode, "silverkey", p->silverkey);
+            p->pl = (unsigned char)rcw_int(pnode, "pl", p->pl);
+            p->x = rcw_int(pnode, "x", p->x);
+            p->y = rcw_int(pnode, "y", p->y);
+            p->gold = rcw_int(pnode, "gold", p->gold);
+            p->torches = (uint32_t)rcw_int(pnode, "torches", p->torches);
+            p->food = rcw_int(pnode, "food", p->food);
+            p->tid_kvar = rcw_int(pnode, "tid_kvar", p->tid_kvar);
 
             rcw_i32_arr(obj_get(pnode, "inventory"), p->inventory, 17);
             rcw_i32_arr(obj_get(pnode, "ws"), p->ws, 5);
-            rcw_i32_arr(obj_get(pnode, "h"),  p->h,  5);
+            rcw_i32_arr(obj_get(pnode, "h"), p->h, 5);
             rcw_i32_arr(obj_get(pnode, "hp"), p->hp, 5);
             rcw_i32_arr(obj_get(pnode, "wi"), p->wi, 5);
             rcw_i32_arr(obj_get(pnode, "ma"), p->ma, 5);
             rcw_i32_arr(obj_get(pnode, "ch"), p->ch, 5);
             rcw_enum_arr(obj_get(pnode, "cl"), "pc_class", p->cl, 5);
-            rcw_enum_arr(obj_get(pnode, "ra"), "race",     p->ra, 5);
+            rcw_enum_arr(obj_get(pnode, "ra"), "race", p->ra, 5);
             rcw_i32_arr(obj_get(pnode, "lv"), p->lv, 5);
             rcw_i32_arr(obj_get(pnode, "ar"), p->ar, 5);
             rcw_i32_arr(obj_get(pnode, "wp"), p->wp, 5);
-            rcw_u32_arr (obj_get(pnode, "exp"),  p->exp,  5);
-            rcw_i32_arr (obj_get(pnode, "dead"), p->dead, 5);
+            rcw_u32_arr(obj_get(pnode, "exp"), p->exp, 5);
+            rcw_i32_arr(obj_get(pnode, "dead"), p->dead, 5);
             rcw_enum_barr(obj_get(pnode, "sex"), "sex", p->sex, 5);
             rcw_byte_arr(obj_get(pnode, "attack_today"), p->attack_today, 26);
             p->waiting_mail = (unsigned char)rcw_int(pnode, "waiting_mail", p->waiting_mail);
-            p->attacked     = (unsigned char)rcw_int(pnode, "attacked",     p->attacked);
-            p->kills        = (uint32_t)rcw_int(pnode, "kills", p->kills);
+            p->attacked = (unsigned char)rcw_int(pnode, "attacked", p->attacked);
+            p->kills = (uint32_t)rcw_int(pnode, "kills", p->kills);
 
             const node *vn = obj_get(pnode, "visited_npcs");
             if (vn && vn->kind == N_ARR) {
@@ -1232,8 +1289,11 @@ static void createparty() {
             state.p[a].name[g][0] = toupper(state.p[a].name[g][0]);
 
             clw();
-            tx0(res_text("driv.create.sex_q"));
-            tx("%s?\r\n\r\n", state.p[a].name[g]);
+            tx_fmt("driv.create.sex_q",
+                   (ryl_bind[]){
+                       {"name", state.p[a].name[g]},
+                       {0},
+                   });
             tx0(res_text("driv.create.sex_opts"));
             str[0] = 0;
             while (str[0] < '1' || str[0] > '2') {
@@ -1243,8 +1303,11 @@ static void createparty() {
             state.p[a].sex[g] = str[0] - 48;
 
             clw();
-            tx0(res_text("driv.create.race_q"));
-            tx("%s?\r\n\r\n", state.p[a].name[g]);
+            tx_fmt("driv.create.race_q",
+                   (ryl_bind[]){
+                       {"name", state.p[a].name[g]},
+                       {0},
+                   });
             tx0(res_text("driv.create.race_opts"));
             str[0] = 0;
             while (str[0] < '1' || str[0] > '4') {
@@ -1402,7 +1465,7 @@ void show(int32_t nr) {
 
     clw();
     tx("Name      : %s\r\n", state.p[state.cpl].name[nr]);
-    tx("Race      : %s\r\n", res_enum("race",     state.p[state.cpl].ra[nr]));
+    tx("Race      : %s\r\n", res_enum("race", state.p[state.cpl].ra[nr]));
     tx("Class     : %s\r\n", res_enum("pc_class", state.p[state.cpl].cl[nr]));
     tx("\r\n");
     tx("Skill     : %d\r\n", state.p[state.cpl].ws[nr]);

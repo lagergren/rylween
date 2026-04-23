@@ -436,10 +436,10 @@ void res_realize_npcs(void) {
         const node *towne_node = obj_get(rec, "towne");
         if (towne_node) {
             /* FIXED: declared slot. Apply job/towne/bl/x/y verbatim. */
-            n->towne    = rn_enum(rec, "towne",    "towne",    0);
+            n->towne = rn_enum(rec, "towne", "towne", 0);
             n->building = rn_enum(rec, "building", "building", 0);
-            n->x        = rn_int (rec, "x", 0);
-            n->y        = rn_int (rec, "y", 0);
+            n->x = rn_int(rec, "x", 0);
+            n->y = rn_int(rec, "y", 0);
         } else {
             /* RANDOM: realize placement now. Matches the legacy
                place_npcs() roll pattern but with a capacity cap on the
@@ -456,8 +456,8 @@ void res_realize_npcs(void) {
             n->towne = twn;
             if (n->towne) {
                 n->building = ryl_random(0, 1) + 1;
-                n->x  = 0;
-                n->y  = 0;
+                n->x = 0;
+                n->y = 0;
             } else {
                 n->building = 0;
                 while (1) {
@@ -972,8 +972,8 @@ static void fold_towns(const node *towns_node, const char *path) {
             res_die(path, rec->line, "towns: entry must be object or null");
         }
         const node *name = obj_get(rec, "name");
-        const node *x    = obj_get(rec, "x");
-        const node *y    = obj_get(rec, "y");
+        const node *x = obj_get(rec, "x");
+        const node *y = obj_get(rec, "y");
         if (!name || name->kind != N_STR) {
             res_die(path, rec->line, "towns: name string required");
         }

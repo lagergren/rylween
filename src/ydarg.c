@@ -165,8 +165,11 @@ void ydarg() {
                     oc = ryl_random(0, 11);
                     oc += 100;
                 }
-                tx0(res_text("ydarg.room.treasure.find"));
-                tx("%s.\r\n\r\n", object(oc));
+                tx_fmt("ydarg.room.treasure.find",
+                       (ryl_bind[]){
+                           {"object", object(oc)},
+                           {0},
+                       });
                 tx0(res_text("ydarg.room.treasure.menu"));
                 c = key();
                 c = toupper(c);
