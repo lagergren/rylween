@@ -96,15 +96,17 @@ typedef struct {
 
 /* Replace-or-append an (name, int) binding. New bindings shadow
    caller ryl_bind entries with the same name (merge_bindings places
-   rt_env first). Repeated sets of the same name mutate in place so
-   the env does not grow each iteration of a loop. Fatal on overflow
-   of the 32-entry cap. */
+   rt_env first). Scanning newest-first means `rt_bind_set` updates
+   the innermost scope when a for_* loop has pushed a same-named
+   shadow — matching expr_var's newest-first read path. Fatal on
+   overflow of the 32-entry cap. */
 static void rt_bind_set(rt_env *env, const char *name, int32_t v,
                         const char *script_id, size_t idx) {
-    for (size_t i = 0; i < env->n; i++) {
-        if (strcmp(env->items[i].name, name) == 0) {
-            env->items[i].iv = v;
-            snprintf(env->items[i].sv, sizeof env->items[i].sv, "%d", (int)v);
+    for (size_t i = env->n; i > 0; i--) {
+        if (strcmp(env->items[i - 1].name, name) == 0) {
+            env->items[i - 1].iv = v;
+            snprintf(env->items[i - 1].sv, sizeof env->items[i - 1].sv, "%d",
+                     (int)v);
             return;
         }
     }
@@ -122,11 +124,11 @@ static void rt_bind_set(rt_env *env, const char *name, int32_t v,
    an integer still work. */
 static void rt_bind_set_char(rt_env *env, const char *name, char c,
                              const char *script_id, size_t idx) {
-    for (size_t i = 0; i < env->n; i++) {
-        if (strcmp(env->items[i].name, name) == 0) {
-            env->items[i].iv = (int32_t)(unsigned char)c;
-            env->items[i].sv[0] = c;
-            env->items[i].sv[1] = 0;
+    for (size_t i = env->n; i > 0; i--) {
+        if (strcmp(env->items[i - 1].name, name) == 0) {
+            env->items[i - 1].iv = (int32_t)(unsigned char)c;
+            env->items[i - 1].sv[0] = c;
+            env->items[i - 1].sv[1] = 0;
             return;
         }
     }
@@ -138,6 +140,39 @@ static void rt_bind_set_char(rt_env *env, const char *name, char c,
     env->items[env->n].sv[0] = c;
     env->items[env->n].sv[1] = 0;
     env->n++;
+}
+
+/* §17-F step 4 scope machinery. `rt_env_mark` captures the current
+   binding count so a for_* loop can rewind everything pushed during
+   its body, including the loop var. `rt_bind_push_int` always
+   appends a new entry (even when a same-named binding exists below),
+   so nested fors with the same loop-var name cleanly shadow. Per-
+   iteration updates go through the returned slot index with
+   `rt_bind_update_int` to avoid the newest-first name scan. */
+static size_t rt_env_mark(const rt_env *env) {
+    return env->n;
+}
+
+static void rt_env_rewind(rt_env *env, size_t mark) {
+    env->n = mark;
+}
+
+static size_t rt_bind_push_int(rt_env *env, const char *name, int32_t v,
+                               const char *script_id, size_t idx) {
+    if (env->n >= RT_ENV_CAP) {
+        die_at(script_id, idx, "rt_env full (32-binding cap)");
+    }
+    size_t slot = env->n;
+    env->items[slot].name = name;
+    env->items[slot].iv = v;
+    snprintf(env->items[slot].sv, sizeof env->items[slot].sv, "%d", (int)v);
+    env->n++;
+    return slot;
+}
+
+static void rt_bind_update_int(rt_env *env, size_t slot, int32_t v) {
+    env->items[slot].iv = v;
+    snprintf(env->items[slot].sv, sizeof env->items[slot].sv, "%d", (int)v);
 }
 
 /* Build a flat ryl_bind list that overlays rt_env entries on top of
@@ -1551,6 +1586,139 @@ static ops_result do_continue(const node *op, const char *script_id,
     return OPS_CONTINUE;
 }
 
+/* §17-F step 4 shared helper. Both for_member and for_inventory have
+   the same shape: validate { var:'name', then:[...] }, push the loop
+   var as a fresh scope, iterate lo..hi updating the same slot each
+   pass, honor break/continue, rewind env on exit. `body_key` is the
+   outer op keyword used in diagnostic messages ("for_member" /
+   "for_inventory"). */
+static ops_result do_for_range(const node *op, const char *script_id,
+                               size_t idx, const char *parent,
+                               const ryl_bind *bindings, rt_env *env,
+                               const char *body_key, int32_t lo, int32_t hi) {
+    const node *body = obj_get(op, body_key);
+    if (!body || body->kind != N_OBJ) {
+        char buf[64];
+        snprintf(buf, sizeof buf, "%s: value must be object", body_key);
+        die_at(script_id, idx, buf);
+    }
+    const node *var_n = obj_get(body, "var");
+    const node *then_n = obj_get(body, "then");
+    if (!var_n || var_n->kind != N_STR) {
+        char buf[64];
+        snprintf(buf, sizeof buf, "%s: var must be string", body_key);
+        die_at(script_id, idx, buf);
+    }
+    if (!then_n || then_n->kind != N_ARR) {
+        char buf[64];
+        snprintf(buf, sizeof buf, "%s: then must be array", body_key);
+        die_at(script_id, idx, buf);
+    }
+    size_t mark = rt_env_mark(env);
+    size_t slot = rt_bind_push_int(env, var_n->u.sv, lo, script_id, idx);
+    for (int32_t i = lo; i <= hi; i++) {
+        rt_bind_update_int(env, slot, i);
+        ops_result r = play_ops(then_n, script_id, parent, bindings, env);
+        if (r == OPS_BREAK) {
+            rt_env_rewind(env, mark);
+            return OPS_NORMAL;
+        }
+        /* OPS_NORMAL and OPS_CONTINUE both fall through to next iter. */
+    }
+    rt_env_rewind(env, mark);
+    return OPS_NORMAL;
+}
+
+/* §17-F step 4: { for_member: { var:'name', then:[...] } } — binds
+   `name` to 1..4 in turn. Body sees the loop var via `{var:'name'}`
+   in expressions and `{name}` in screen/journal text. Break and
+   continue propagate through the shared do_for_range helper. */
+static ops_result do_for_member(const node *op, const char *script_id,
+                                size_t idx, const char *parent,
+                                const ryl_bind *bindings, rt_env *env) {
+    return do_for_range(op, script_id, idx, parent, bindings, env,
+                        "for_member", 1, 4);
+}
+
+/* §17-F step 4: { for_inventory: { var:'name', then:[...] } } — same
+   shape as for_member, iterating 1..16 (the party inventory slot
+   range). Body must guard on `{inventory: <var>}` > 0 if it only
+   cares about occupied slots. */
+static ops_result do_for_inventory(const node *op, const char *script_id,
+                                   size_t idx, const char *parent,
+                                   const ryl_bind *bindings, rt_env *env) {
+    return do_for_range(op, script_id, idx, parent, bindings, env,
+                        "for_inventory", 1, 16);
+}
+
+/* §17-F step 4: { switch: { expr:<expr>, cases:[...] } }. Each case
+   is either { match:<expr>, then:[...] }, { in:[<expr>,...],
+   then:[...] }, or { default:true, then:[...] }. First-match-wins;
+   no fall-through. Case values are re-evaluated on every switch
+   execution (cheap — they're usually literals). `default` must be
+   exactly the bool true; an explicit false is not meaningful. */
+static ops_result do_switch(const node *op, const char *script_id, size_t idx,
+                            const char *parent, const ryl_bind *bindings,
+                            rt_env *env) {
+    const node *body = obj_get(op, "switch");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "switch: value must be object");
+    }
+    const node *expr_n = obj_get(body, "expr");
+    const node *cases_n = obj_get(body, "cases");
+    if (!expr_n) {
+        die_at(script_id, idx, "switch: missing expr");
+    }
+    if (!cases_n || cases_n->kind != N_ARR) {
+        die_at(script_id, idx, "switch: cases must be array");
+    }
+    int32_t v = eval_expr(expr_n, script_id, idx, bindings, env);
+    for (size_t i = 0; i < cases_n->u.arr.n; i++) {
+        const node *c = cases_n->u.arr.items[i];
+        if (!c || c->kind != N_OBJ) {
+            die_at(script_id, idx, "switch: case must be object");
+        }
+        const node *match_n = obj_get(c, "match");
+        const node *in_n = obj_get(c, "in");
+        const node *default_n = obj_get(c, "default");
+        const node *then_n = obj_get(c, "then");
+        if ((match_n ? 1 : 0) + (in_n ? 1 : 0) + (default_n ? 1 : 0) != 1) {
+            die_at(script_id, idx,
+                   "switch: case must have exactly one of match/in/default");
+        }
+        if (!then_n || then_n->kind != N_ARR) {
+            die_at(script_id, idx, "switch: case then must be array");
+        }
+        int fire = 0;
+        if (match_n) {
+            int32_t mv = eval_expr(match_n, script_id, idx, bindings, env);
+            fire = (v == mv);
+        } else if (in_n) {
+            if (in_n->kind != N_ARR || in_n->u.arr.n == 0) {
+                die_at(script_id, idx,
+                       "switch: in must be non-empty array");
+            }
+            for (size_t k = 0; k < in_n->u.arr.n; k++) {
+                int32_t iv = eval_expr(in_n->u.arr.items[k], script_id, idx,
+                                       bindings, env);
+                if (v == iv) {
+                    fire = 1;
+                    break;
+                }
+            }
+        } else {
+            if (default_n->kind != N_BOOL || !default_n->u.bv) {
+                die_at(script_id, idx, "switch: default must be true");
+            }
+            fire = 1;
+        }
+        if (fire) {
+            return play_ops(then_n, script_id, parent, bindings, env);
+        }
+    }
+    return OPS_NORMAL;
+}
+
 static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
                               const char *parent, const ryl_bind *bindings,
                               rt_env *env) {
@@ -1591,6 +1759,12 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         do_mutate(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "input_number")) {
         do_input_number(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "for_member")) {
+        return do_for_member(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "for_inventory")) {
+        return do_for_inventory(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "switch")) {
+        return do_switch(op, script_id, idx, parent, bindings, env);
     } else {
         die_at(script_id, idx, "unknown op");
     }
