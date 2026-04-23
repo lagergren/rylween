@@ -3,7 +3,7 @@
 
 #include "primitives.h"
 
-/* §16.4 + §17-E dialogue / mission script interpreter.
+/* §16.4 + §17-E + §17-F dialogue / mission script interpreter.
  *
  * A script is an array node in the `scripts.*` subtree of data/world.json5
  * (authored in data/world/scripts/). Each element is a one-op object:
@@ -61,6 +61,24 @@
  *                                   dungeon(2) encounter(2) update_map(0)
  *                                   clr_map_window(0) blitgfx(1)
  *                                   statusline(0) clw(0).
+ *
+ * §17-F control-flow ops (§17-F step 1 — loop primitives):
+ *
+ *   { loop: [...ops...] }         - run the body repeatedly until an
+ *                                   inner `break` fires. `continue`
+ *                                   restarts. Natural fall-off of the
+ *                                   end of body also restarts (body
+ *                                   is an infinite loop by
+ *                                   construction — every loop must
+ *                                   have a break path).
+ *
+ *   { break: true }               - exit innermost enclosing loop.
+ *                                   Fatal error if no enclosing loop.
+ *                                   Typical use: menu_branch's L-option
+ *                                   then: is `[{ break: true }]`.
+ *
+ *   { continue: true }            - restart innermost enclosing loop.
+ *                                   Fatal error if no enclosing loop.
  *
  * Bindings flow through to every screen / journal / menu_branch prompt
  * so {placeholder} expansion works identically to tx_fmt. The

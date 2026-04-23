@@ -1,18 +1,20 @@
-/* §16.4 + §17-E dialogue / mission script interpreter.
+/* §16.4 + §17-E + §17-F dialogue / mission script interpreter.
    Public contract: script.h. */
 
 #include "script.h"
 
 #include "battle.h"
+#include "compat.h"
 #include "driv.h"
 #include "dungeon.h"
 #include "gfx.h"
 #include "json5.h"
 #include "primitives.h"
 #include "res.h"
-#include "ryl.h"
+#include "state.h"
 #include "subs.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -58,12 +60,21 @@ static void resolve_text_id(const char *parent, const char *name, char *out,
     }
 }
 
+/* §17-F control-flow unwinding. `play_ops` threads these through every
+   nested-body op so `break` / `continue` from deep inside a menu_branch
+   / if / chance correctly unwinds to the enclosing `loop`. */
+typedef enum {
+    OPS_NORMAL = 0, /* finished naturally — advance to next op */
+    OPS_BREAK,      /* break: exit innermost loop */
+    OPS_CONTINUE,   /* continue: restart innermost loop */
+} ops_result;
+
 /* Forward declaration: play_ops recurses into do_if / do_chance /
-   do_menu_branch bodies. `parent` matches do_screen's derivation so
-   nested screens resolve against the same res_text tree as the
-   enclosing script. */
-static void play_ops(const node *ops, const char *script_id, const char *parent,
-                     const ryl_bind *bindings);
+   do_menu_branch / do_loop bodies. `parent` matches do_screen's
+   derivation so nested screens resolve against the same res_text
+   tree as the enclosing script. */
+static ops_result play_ops(const node *ops, const char *script_id,
+                           const char *parent, const ryl_bind *bindings);
 
 static void do_screen(const node *op, const char *script_id, size_t idx,
                       const char *parent, const ryl_bind *bindings) {
@@ -364,8 +375,8 @@ static void do_engine_call(const node *op, const char *script_id, size_t idx) {
 
 /* §17-E: { chance: { pct: N, then:[...], else:[...] } } — ryl_chance(pct)
    gate. `then` and `else` are nested op arrays; both optional. */
-static void do_chance(const node *op, const char *script_id, size_t idx,
-                      const char *parent, const ryl_bind *bindings) {
+static ops_result do_chance(const node *op, const char *script_id, size_t idx,
+                            const char *parent, const ryl_bind *bindings) {
     const node *ch = obj_get(op, "chance");
     if (!ch || ch->kind != N_OBJ) {
         die_at(script_id, idx, "chance: value must be object");
@@ -378,12 +389,12 @@ static void do_chance(const node *op, const char *script_id, size_t idx,
     const node *else_n = obj_get(ch, "else");
     const node *take = ryl_chance((int)pct_n->u.iv) ? then_n : else_n;
     if (!take) {
-        return;
+        return OPS_NORMAL;
     }
     if (take->kind != N_ARR) {
         die_at(script_id, idx, "chance: then/else must be array");
     }
-    play_ops(take, script_id, parent, bindings);
+    return play_ops(take, script_id, parent, bindings);
 }
 
 /* Evaluate an `if` condition object:
@@ -443,8 +454,8 @@ static int eval_cond(const node *cond, const char *script_id, size_t idx) {
 }
 
 /* §17-E: { if: { cond, then:[...], else:[...] } } — flag / gold branch. */
-static void do_if(const node *op, const char *script_id, size_t idx,
-                  const char *parent, const ryl_bind *bindings) {
+static ops_result do_if(const node *op, const char *script_id, size_t idx,
+                        const char *parent, const ryl_bind *bindings) {
     const node *body = obj_get(op, "if");
     if (!body || body->kind != N_OBJ) {
         die_at(script_id, idx, "if: value must be object");
@@ -454,12 +465,12 @@ static void do_if(const node *op, const char *script_id, size_t idx,
     const node *else_n = obj_get(body, "else");
     const node *take = eval_cond(cond, script_id, idx) ? then_n : else_n;
     if (!take) {
-        return;
+        return OPS_NORMAL;
     }
     if (take->kind != N_ARR) {
         die_at(script_id, idx, "if: then/else must be array");
     }
-    play_ops(take, script_id, parent, bindings);
+    return play_ops(take, script_id, parent, bindings);
 }
 
 /* §17-E: { menu_branch: { prompt: '<name>'?, options: [{ key:'K',
@@ -468,8 +479,9 @@ static void do_if(const node *op, const char *script_id, size_t idx,
    to stack on an earlier tx_fmt / screen. Unmatched keys fall through
    to an optional `default: [...]` op array (no-op if absent). Single
    keypress — the enclosing loop (if any) is the caller's job. */
-static void do_menu_branch(const node *op, const char *script_id, size_t idx,
-                           const char *parent, const ryl_bind *bindings) {
+static ops_result do_menu_branch(const node *op, const char *script_id,
+                                 size_t idx, const char *parent,
+                                 const ryl_bind *bindings) {
     const node *body = obj_get(op, "menu_branch");
     if (!body || body->kind != N_OBJ) {
         die_at(script_id, idx, "menu_branch: value must be object");
@@ -506,24 +518,67 @@ static void do_menu_branch(const node *op, const char *script_id, size_t idx,
             continue;
         }
         if (!then_n) {
-            return;
+            return OPS_NORMAL;
         }
         if (then_n->kind != N_ARR) {
             die_at(script_id, idx, "menu_branch: then must be array");
         }
-        play_ops(then_n, script_id, parent, bindings);
-        return;
+        return play_ops(then_n, script_id, parent, bindings);
     }
     if (default_n) {
         if (default_n->kind != N_ARR) {
             die_at(script_id, idx, "menu_branch: default must be array");
         }
-        play_ops(default_n, script_id, parent, bindings);
+        return play_ops(default_n, script_id, parent, bindings);
+    }
+    return OPS_NORMAL;
+}
+
+/* §17-F: { loop: [...ops...] } — run the body repeatedly until an
+   inner `{ break }` fires. `{ continue }` restarts the loop early;
+   a natural fall-off of the end of the body also restarts (the
+   loop is infinite by construction). Typically paired with a
+   menu_branch whose L-option then: is a `{ break }`. */
+static ops_result do_loop(const node *op, const char *script_id, size_t idx,
+                          const char *parent, const ryl_bind *bindings) {
+    const node *body = obj_get(op, "loop");
+    if (!body || body->kind != N_ARR) {
+        die_at(script_id, idx, "loop: value must be array");
+    }
+    for (;;) {
+        ops_result r = play_ops(body, script_id, parent, bindings);
+        if (r == OPS_BREAK) {
+            return OPS_NORMAL;
+        }
+        /* OPS_NORMAL and OPS_CONTINUE both iterate. */
     }
 }
 
-static void dispatch_op(const node *op, const char *script_id, size_t idx,
-                        const char *parent, const ryl_bind *bindings) {
+/* §17-F: { break } — exits innermost enclosing `loop`. Runtime error
+   if the nearest enclosing op is not a loop (checked at top-level
+   unwinding in play_script). */
+static ops_result do_break(const node *op, const char *script_id, size_t idx) {
+    const node *v = obj_get(op, "break");
+    if (!v) {
+        die_at(script_id, idx, "break: missing value");
+    }
+    (void)v;
+    return OPS_BREAK;
+}
+
+/* §17-F: { continue } — restarts innermost enclosing `loop`. */
+static ops_result do_continue(const node *op, const char *script_id,
+                              size_t idx) {
+    const node *v = obj_get(op, "continue");
+    if (!v) {
+        die_at(script_id, idx, "continue: missing value");
+    }
+    (void)v;
+    return OPS_CONTINUE;
+}
+
+static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
+                              const char *parent, const ryl_bind *bindings) {
     if (!op || op->kind != N_OBJ) {
         die_at(script_id, idx, "op must be object");
     }
@@ -542,23 +597,35 @@ static void dispatch_op(const node *op, const char *script_id, size_t idx,
     } else if (obj_get(op, "wait_input")) {
         do_wait_input(op, script_id, idx);
     } else if (obj_get(op, "chance")) {
-        do_chance(op, script_id, idx, parent, bindings);
+        return do_chance(op, script_id, idx, parent, bindings);
     } else if (obj_get(op, "if")) {
-        do_if(op, script_id, idx, parent, bindings);
+        return do_if(op, script_id, idx, parent, bindings);
     } else if (obj_get(op, "menu_branch")) {
-        do_menu_branch(op, script_id, idx, parent, bindings);
+        return do_menu_branch(op, script_id, idx, parent, bindings);
     } else if (obj_get(op, "engine_call")) {
         do_engine_call(op, script_id, idx);
+    } else if (obj_get(op, "loop")) {
+        return do_loop(op, script_id, idx, parent, bindings);
+    } else if (obj_get(op, "break")) {
+        return do_break(op, script_id, idx);
+    } else if (obj_get(op, "continue")) {
+        return do_continue(op, script_id, idx);
     } else {
         die_at(script_id, idx, "unknown op");
     }
+    return OPS_NORMAL;
 }
 
-static void play_ops(const node *ops, const char *script_id, const char *parent,
-                     const ryl_bind *bindings) {
+static ops_result play_ops(const node *ops, const char *script_id,
+                           const char *parent, const ryl_bind *bindings) {
     for (size_t i = 0; i < ops->u.arr.n; i++) {
-        dispatch_op(ops->u.arr.items[i], script_id, i, parent, bindings);
+        ops_result r = dispatch_op(ops->u.arr.items[i], script_id, i, parent,
+                                   bindings);
+        if (r != OPS_NORMAL) {
+            return r;
+        }
     }
+    return OPS_NORMAL;
 }
 
 void play_script(const char *script_id, const ryl_bind *bindings) {
@@ -570,5 +637,11 @@ void play_script(const char *script_id, const ryl_bind *bindings) {
     }
     char parent[256];
     script_parent(script_id, parent, sizeof parent);
-    play_ops(script, script_id, parent, bindings);
+    ops_result r = play_ops(script, script_id, parent, bindings);
+    if (r == OPS_BREAK) {
+        ryl_die("play_script: `break` with no enclosing loop");
+    }
+    if (r == OPS_CONTINUE) {
+        ryl_die("play_script: `continue` with no enclosing loop");
+    }
 }
