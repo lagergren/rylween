@@ -1350,7 +1350,19 @@ static ops_result do_if(const node *op, const char *script_id, size_t idx,
    Accepts three per-option shapes: `key: 'K'` (single char),
    `keys: ['A','B',...]` (any listed char), `key_range: ['LO','HI']`
    (ASCII-inclusive range after upper-casing). Returns 1 on match.
-   Fatal on malformed option. */
+   Fatal on malformed option.
+
+   key_range uses literal one-char strings. It does NOT accept an
+   int-returning expression for the bounds; "1..PARTY_MEMBER_MAX"
+   still has to be authored as ['1', '4']. A clean single-source-
+   of-truth variant would need either (a) a new match shape that
+   takes int exprs and maps digit N to char '0'+N (range 1..9), or
+   (b) a DSL-level symbolic reference to res_party_member_max()
+   that evaluates to a char. Both are deferred — every current
+   call site is 1..4 and changing PARTY_MEMBER_MAX is blocked by
+   the save format, so there is no observable drift risk today.
+   Revisit if a new digit-prompt site appears with a different
+   bound, or if the save format ever opens up the member cap. */
 static int menu_opt_matches(const node *o, char ch, const char *script_id,
                             size_t idx) {
     const node *key_n = obj_get(o, "key");

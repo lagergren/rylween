@@ -44,6 +44,13 @@
   // (1-4)" for each action. Break paths: L leaves cleanly (clw +
   // clr_map_window); H-on-corpse exits abruptly (clw + corpse +
   // 1200ms, no clr_map_window — matches the original's `return;`).
+  //
+  // key_range: ['1', '4'] is a literal char range; the DSL does not
+  // yet let us write "1..res_party_member_max()" symbolically (see
+  // script.c menu_opt_matches comment). PARTY_MEMBER_MAX is pinned
+  // at 4 by the save format, so the hardcode is safe today — if
+  // the cap ever changes, lift this with the match-shape work
+  // described there.
   church: [
     { engine_call: 'clr_map_window' },
     { engine_call: 'blitgfx', args: [4] },
