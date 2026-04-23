@@ -11,8 +11,10 @@
 #include "json5.h"
 #include "primitives.h"
 #include "res.h"
+#include "speak.h"
 #include "state.h"
 #include "subs.h"
+#include "towne.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -72,21 +74,31 @@ typedef enum {
 
 /* §17-F runtime-binding environment. One rt_env is instantiated per
    play_script call and threaded through every nested body. Holds
-   int-valued names bound at runtime by `let`, `input_number`,
-   `menu_branch key_var`, and (in later steps) for_member /
-   for_inventory loop vars. Each entry carries both an integer view
-   (`iv`, consulted by eval_expr's `{var:'name'}` lookup) and a string
-   view (`sv`, merged into the ryl_bind list handed to tx_fmt /
-   bind_expand so `{placeholder}` expansion sees runtime-bound
-   names). For numeric ops sv is the stringified iv; for key_var it
-   is the one-char matched key and iv is its ASCII code. */
-enum { RT_ENV_CAP = 32 };
+   named values bound at runtime by `let`, `input_number`,
+   `menu_branch key_var`, for_member / for_inventory loop vars (all
+   RT_INT), and `engine_bind` (RT_STR). Each entry always exposes a
+   string view via `sv` — merged into the ryl_bind list handed to
+   tx_fmt / bind_expand so `{placeholder}` expansion sees runtime
+   names. RT_INT entries additionally expose `iv` for expr_var's
+   `{var:'name'}` lookup; RT_STR entries are expr_var-fatal (engine_
+   bind values are only for text substitution). sv is sized for the
+   longest res-layer string the registry returns (item names, town
+   names, enum values are all well under 48 chars). */
+enum { RT_ENV_CAP = 32,
+       RT_SV_CAP = 48 };
+
+typedef enum {
+    RT_INT = 0,
+    RT_STR,
+} rt_kind;
 
 typedef struct {
     const char *name; /* borrowed — points into the AST (N_STR->sv)
-                         or a string literal; never freed by rt_env */
-    int32_t iv;       /* integer view — read by expr_var */
-    char sv[24];      /* string view — merged into tx_fmt bindings */
+                          or a string literal; never freed by rt_env */
+    rt_kind kind;
+    int32_t iv;         /* integer view — read by expr_var; meaningless
+                          for RT_STR */
+    char sv[RT_SV_CAP]; /* string view — merged into tx_fmt bindings */
 } rt_bind;
 
 typedef struct {
@@ -98,12 +110,14 @@ typedef struct {
    caller ryl_bind entries with the same name (merge_bindings places
    rt_env first). Scanning newest-first means `rt_bind_set` updates
    the innermost scope when a for_* loop has pushed a same-named
-   shadow — matching expr_var's newest-first read path. Fatal on
-   overflow of the 32-entry cap. */
+   shadow — matching expr_var's newest-first read path. A prior RT_
+   STR binding at the same name is replaced outright (kind flips to
+   RT_INT). Fatal on overflow of the 32-entry cap. */
 static void rt_bind_set(rt_env *env, const char *name, int32_t v,
                         const char *script_id, size_t idx) {
     for (size_t i = env->n; i > 0; i--) {
         if (strcmp(env->items[i - 1].name, name) == 0) {
+            env->items[i - 1].kind = RT_INT;
             env->items[i - 1].iv = v;
             snprintf(env->items[i - 1].sv, sizeof env->items[i - 1].sv, "%d",
                      (int)v);
@@ -114,6 +128,7 @@ static void rt_bind_set(rt_env *env, const char *name, int32_t v,
         die_at(script_id, idx, "rt_env full (32-binding cap)");
     }
     env->items[env->n].name = name;
+    env->items[env->n].kind = RT_INT;
     env->items[env->n].iv = v;
     snprintf(env->items[env->n].sv, sizeof env->items[env->n].sv, "%d", (int)v);
     env->n++;
@@ -121,11 +136,13 @@ static void rt_bind_set(rt_env *env, const char *name, int32_t v,
 
 /* As rt_bind_set but stores a single-char string view (`key_var`).
    iv becomes the ASCII code so expressions referencing the key as
-   an integer still work. */
+   an integer still work. Kind is still RT_INT — the single-char sv
+   is incidental; expr_var against it returns the ASCII code. */
 static void rt_bind_set_char(rt_env *env, const char *name, char c,
                              const char *script_id, size_t idx) {
     for (size_t i = env->n; i > 0; i--) {
         if (strcmp(env->items[i - 1].name, name) == 0) {
+            env->items[i - 1].kind = RT_INT;
             env->items[i - 1].iv = (int32_t)(unsigned char)c;
             env->items[i - 1].sv[0] = c;
             env->items[i - 1].sv[1] = 0;
@@ -136,9 +153,43 @@ static void rt_bind_set_char(rt_env *env, const char *name, char c,
         die_at(script_id, idx, "rt_env full (32-binding cap)");
     }
     env->items[env->n].name = name;
+    env->items[env->n].kind = RT_INT;
     env->items[env->n].iv = (int32_t)(unsigned char)c;
     env->items[env->n].sv[0] = c;
     env->items[env->n].sv[1] = 0;
+    env->n++;
+}
+
+/* §17-F step 5: set a string-kind binding (engine_bind result). The
+   string is copied into sv; caller guarantees it fits (fatal on
+   overflow so silent truncation never hides a mis-sized registry
+   entry). Replaces any prior same-name binding in place regardless
+   of its previous kind. */
+static void rt_bind_set_str(rt_env *env, const char *name, const char *s,
+                            const char *script_id, size_t idx) {
+    size_t len = strlen(s);
+    if (len >= RT_SV_CAP) {
+        char buf[128];
+        snprintf(buf, sizeof buf,
+                 "rt_bind_set_str: value for '%s' exceeds %d-char cap", name,
+                 (int)(RT_SV_CAP - 1));
+        die_at(script_id, idx, buf);
+    }
+    for (size_t i = env->n; i > 0; i--) {
+        if (strcmp(env->items[i - 1].name, name) == 0) {
+            env->items[i - 1].kind = RT_STR;
+            env->items[i - 1].iv = 0;
+            memcpy(env->items[i - 1].sv, s, len + 1);
+            return;
+        }
+    }
+    if (env->n >= RT_ENV_CAP) {
+        die_at(script_id, idx, "rt_env full (32-binding cap)");
+    }
+    env->items[env->n].name = name;
+    env->items[env->n].kind = RT_STR;
+    env->items[env->n].iv = 0;
+    memcpy(env->items[env->n].sv, s, len + 1);
     env->n++;
 }
 
@@ -164,6 +215,7 @@ static size_t rt_bind_push_int(rt_env *env, const char *name, int32_t v,
     }
     size_t slot = env->n;
     env->items[slot].name = name;
+    env->items[slot].kind = RT_INT;
     env->items[slot].iv = v;
     snprintf(env->items[slot].sv, sizeof env->items[slot].sv, "%d", (int)v);
     env->n++;
@@ -171,6 +223,7 @@ static size_t rt_bind_push_int(rt_env *env, const char *name, int32_t v,
 }
 
 static void rt_bind_update_int(rt_env *env, size_t slot, int32_t v) {
+    env->items[slot].kind = RT_INT;
     env->items[slot].iv = v;
     snprintf(env->items[slot].sv, sizeof env->items[slot].sv, "%d", (int)v);
 }
@@ -359,14 +412,24 @@ static int32_t expr_member_field(const node *op, const char *script_id,
 
 /* `{var: 'name'}` — look up a runtime binding first, then fall through
    to the caller-passed const ryl_bind list (atoi on the string value).
-   In step 2, rt_env is always empty so every lookup resolves against
-   the caller's const bindings. Unknown / unparseable bindings die. */
+   RT_STR bindings (engine_bind results) are fatal here — they're only
+   valid as `{placeholder}` text substitutions; arithmetic / comparison
+   against a string value is a script bug. Unknown / unparseable
+   bindings die. */
 static int32_t expr_var(const char *name, const char *script_id, size_t idx,
                         const ryl_bind *bindings, const rt_env *env) {
     if (env) {
         for (size_t i = env->n; i > 0; i--) {
             const rt_bind *b = &env->items[i - 1];
             if (strcmp(b->name, name) == 0) {
+                if (b->kind == RT_STR) {
+                    char buf[128];
+                    snprintf(buf, sizeof buf,
+                             "expr var: '%s' is string-bound (engine_bind) "
+                             "— not readable as int",
+                             name);
+                    die_at(script_id, idx, buf);
+                }
                 return b->iv;
             }
         }
@@ -832,6 +895,33 @@ static void eng_clw(const int32_t *a) {
     (void)a;
     clw();
 }
+static void eng_speak(const int32_t *a) {
+    speak(a[0], a[1]);
+}
+static void eng_weaponr(const int32_t *a) {
+    (void)a;
+    weaponr();
+}
+static void eng_armourr(const int32_t *a) {
+    (void)a;
+    armourr();
+}
+static void eng_invlist(const int32_t *a) {
+    (void)a;
+    invlist();
+}
+static void eng_showparty(const int32_t *a) {
+    (void)a;
+    showparty();
+}
+/* §17-F step 5: drop_option returns the slot the player chose (0 if
+   declined). Exposing it as a void engine_call fires the UX — scripts
+   that need the slot should stick with `reward`, which consumes the
+   return internally. */
+static void eng_drop_option(const int32_t *a) {
+    (void)a;
+    (void)drop_option();
+}
 
 typedef struct {
     const char *name;
@@ -847,13 +937,21 @@ static const engine_entry engine_tbl[] = {
     {"blitgfx", 1, eng_blitgfx},
     {"statusline", 0, eng_statusline},
     {"clw", 0, eng_clw},
+    {"speak", 2, eng_speak},
+    {"weaponr", 0, eng_weaponr},
+    {"armourr", 0, eng_armourr},
+    {"invlist", 0, eng_invlist},
+    {"showparty", 0, eng_showparty},
+    {"drop_option", 0, eng_drop_option},
 };
 
-/* §17-E: { engine_call: '<name>', args: [int...] }. Literal int args
-   only — no binding substitution; authors that need a value derived
-   from runtime state should use a dedicated op (set_flag, reward) or
-   widen the registry. */
-static void do_engine_call(const node *op, const char *script_id, size_t idx) {
+/* §17-E: { engine_call: '<name>', args: [<expr>...] }. Args are
+   evaluated as §17-F expressions — literal ints still work, but
+   callers can also drop in { var:'name' } or arithmetic. Registry
+   whitelist is closed: unknown names die with a pointing
+   diagnostic. */
+static void do_engine_call(const node *op, const char *script_id, size_t idx,
+                           const ryl_bind *bindings, const rt_env *env) {
     const node *name_n = obj_get(op, "engine_call");
     if (!name_n || name_n->kind != N_STR) {
         die_at(script_id, idx, "engine_call: value must be string");
@@ -882,11 +980,8 @@ static void do_engine_call(const node *op, const char *script_id, size_t idx) {
             die_at(script_id, idx, "engine_call: too many args (max 4)");
         }
         for (int i = 0; i < got; i++) {
-            const node *a = args_n->u.arr.items[i];
-            if (!a || a->kind != N_INT) {
-                die_at(script_id, idx, "engine_call: args must be ints");
-            }
-            args[i] = (int32_t)a->u.iv;
+            args[i] = eval_expr(args_n->u.arr.items[i], script_id, idx,
+                                bindings, env);
         }
     }
     if (got != e->argc) {
@@ -896,6 +991,123 @@ static void do_engine_call(const node *op, const char *script_id, size_t idx) {
         die_at(script_id, idx, buf);
     }
     e->fn(args);
+}
+
+/* §17-F step 5 string-returning registry. Separate from engine_tbl
+   because the return type differs (const char * vs void) and
+   because res_enum takes a string arg that we don't want to
+   shoehorn into an int-only dispatch. Each entry's `sig` describes
+   args[] positionally: 'i' = expression evaluated to int, 's' =
+   literal N_STR node (its u.sv is borrowed into strs[]). The fn
+   reads parsed ints[] / strs[] and writes the result into `out`;
+   truncation is caller's problem (rt_bind_set_str checks cap). */
+typedef void (*str_engine_fn)(const int32_t *ints, const char **strs,
+                              char *out, size_t out_sz);
+
+typedef struct {
+    const char *name;
+    const char *sig;
+    str_engine_fn fn;
+} str_engine_entry;
+
+static void sb_object(const int32_t *ints, const char **strs, char *out,
+                      size_t out_sz) {
+    (void)strs;
+    snprintf(out, out_sz, "%s", object(ints[0]));
+}
+static void sb_pronoun(const int32_t *ints, const char **strs, char *out,
+                       size_t out_sz) {
+    (void)strs;
+    snprintf(out, out_sz, "%s", pronoun((uint8_t)ints[0], (uint8_t)ints[1]));
+}
+static void sb_res_town_name(const int32_t *ints, const char **strs, char *out,
+                             size_t out_sz) {
+    (void)strs;
+    snprintf(out, out_sz, "%s", res_town_name((int)ints[0]));
+}
+static void sb_res_enum(const int32_t *ints, const char **strs, char *out,
+                        size_t out_sz) {
+    snprintf(out, out_sz, "%s", res_enum(strs[0], (int)ints[0]));
+}
+
+static const str_engine_entry str_engine_tbl[] = {
+    {"object", "i", sb_object},
+    {"pronoun", "ii", sb_pronoun},
+    {"res_town_name", "i", sb_res_town_name},
+    {"res_enum", "si", sb_res_enum},
+};
+
+/* §17-F step 5: { engine_bind: { fn:'<name>', args:[<expr>|'<str>',
+   ...], var:'<name>' } }. Calls a whitelisted string-returning C
+   entry point and stashes the result into rt_env as RT_STR so
+   `{<name>}` text expansion picks it up. `args` entries are
+   positional per the registry entry's sig string — 'i' positions
+   are evaluated as §17-F expressions; 's' positions must be N_STR
+   literals (authoring-time constants like the res_enum id). */
+static void do_engine_bind(const node *op, const char *script_id, size_t idx,
+                           const ryl_bind *bindings, rt_env *env) {
+    const node *body = obj_get(op, "engine_bind");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "engine_bind: value must be object");
+    }
+    const node *fn_n = obj_get(body, "fn");
+    const node *args_n = obj_get(body, "args");
+    const node *var_n = obj_get(body, "var");
+    if (!fn_n || fn_n->kind != N_STR) {
+        die_at(script_id, idx, "engine_bind: fn must be string");
+    }
+    if (!var_n || var_n->kind != N_STR) {
+        die_at(script_id, idx, "engine_bind: var must be string");
+    }
+    const str_engine_entry *e = NULL;
+    for (size_t i = 0; i < sizeof str_engine_tbl / sizeof *str_engine_tbl;
+         i++) {
+        if (strcmp(str_engine_tbl[i].name, fn_n->u.sv) == 0) {
+            e = &str_engine_tbl[i];
+            break;
+        }
+    }
+    if (!e) {
+        char buf[96];
+        snprintf(buf, sizeof buf, "engine_bind: unknown fn '%s'", fn_n->u.sv);
+        die_at(script_id, idx, buf);
+    }
+    size_t argc = strlen(e->sig);
+    if (argc > 4) {
+        die_at(script_id, idx, "engine_bind: sig too long (max 4)");
+    }
+    if (!args_n || args_n->kind != N_ARR) {
+        die_at(script_id, idx, "engine_bind: args must be array");
+    }
+    if (args_n->u.arr.n != argc) {
+        char buf[128];
+        snprintf(buf, sizeof buf, "engine_bind: '%s' expects %zu args, got %zu",
+                 e->name, argc, args_n->u.arr.n);
+        die_at(script_id, idx, buf);
+    }
+    int32_t ints[4] = {0};
+    const char *strs[4] = {NULL};
+    size_t ni = 0, ns = 0;
+    for (size_t i = 0; i < argc; i++) {
+        const node *a = args_n->u.arr.items[i];
+        if (e->sig[i] == 'i') {
+            ints[ni++] = eval_expr(a, script_id, idx, bindings, env);
+        } else if (e->sig[i] == 's') {
+            if (!a || a->kind != N_STR) {
+                char buf[128];
+                snprintf(buf, sizeof buf,
+                         "engine_bind: '%s' arg %zu must be string literal",
+                         e->name, i);
+                die_at(script_id, idx, buf);
+            }
+            strs[ns++] = a->u.sv;
+        } else {
+            die_at(script_id, idx, "engine_bind: corrupt registry sig");
+        }
+    }
+    char out[RT_SV_CAP];
+    e->fn(ints, strs, out, sizeof out);
+    rt_bind_set_str(env, var_n->u.sv, out, script_id, idx);
 }
 
 /* §17-E: { chance: { pct: N, then:[...], else:[...] } } — ryl_chance(pct)
@@ -1746,7 +1958,9 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
     } else if (obj_get(op, "menu_branch")) {
         return do_menu_branch(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "engine_call")) {
-        do_engine_call(op, script_id, idx);
+        do_engine_call(op, script_id, idx, bindings, env);
+    } else if (obj_get(op, "engine_bind")) {
+        do_engine_bind(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "loop")) {
         return do_loop(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "break")) {
