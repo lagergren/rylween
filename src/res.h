@@ -100,6 +100,15 @@ const ryl_item *res_item(int id);
    instead of hard-coding ints. */
 int32_t res_item_id(const char *sym);
 
+/* Walk every item record carrying a string `special:` tag (see
+   data/world/items/specials.json5). For each, invoke cb(id, tag, user);
+   stop early if cb returns non-zero. `tag` is borrowed from the world
+   tree and remains valid until res_shutdown. Used by inventory.c to
+   build its id -> PS_* map from data rather than hard-coding the set. */
+void res_items_foreach_special(
+    int (*cb)(int id, const char *tag, void *user),
+    void *user);
+
 /* Monsters 0..90. NULL if no record. */
 const ryl_monster *res_monster(int id);
 

@@ -43,6 +43,7 @@
     potions:     { $import: 'world/items/potions.json5' },
     treasures:   { $import: 'world/items/treasures.json5' },
     magic_items: { $import: 'world/items/magic_items.json5' },
+    specials:    { $import: 'world/items/specials.json5' },
   },
 
   // Monsters shard — keyed by symbolic name; `id` is the runtime key the
@@ -260,6 +261,15 @@
       'Miyaki', 'Dargoth', 'Marcus', 'Deanna', 'Jeanne', 'Alex',
       'Galdon', 'Kosch', 'Ufarsin',
     ],
+
+    // Role-keyed NPC name sub-enums. Both are indexed by twn (1..4);
+    // slot 0 is the wilderness sentinel. Entries are spelt identically
+    // to the authoritative npcs: table above — the DSL inn/tavern
+    // greeter binds use res_enum('innkeepers'|'tavernkeepers', twn)
+    // instead of name+24 / name+28 offset arithmetic into the global
+    // name[] table.
+    innkeepers:    ['', 'Hassan', 'Luqas',  'Darth',  'Yog'],
+    tavernkeepers: ['', 'Niklas', 'Tokawa', 'Miyaki', 'Dargoth'],
     // Player-party race (struct party.ra[]). Displayable — used by the
     // show() screen. Matches driv.c's original hardcoded order.
     race: ['', 'Human', 'Dwarf', 'Elf', 'Halfling'],

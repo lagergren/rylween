@@ -1,9 +1,10 @@
 /* MAIN entry + shared globals. Terminal I/O lives in primitives.c. */
 
+#include "driv.h"
+#include "inventory.h"
 #include "io.h"
 #include "res.h"
 #include "ryl.h"
-#include "driv.h"
 
 struct ryl_state state;
 
@@ -22,6 +23,7 @@ int main(int argc, char **argv) {
        stdin (CI, editor tasks, etc.). */
     if (argc >= 2 && strcmp(argv[1], "--check-world") == 0) {
         res_load_world("data/world.json5");
+        inv_init();
         fprintf(stderr, "world: ok\n");
         return 0;
     }
@@ -35,6 +37,7 @@ int main(int argc, char **argv) {
     io_init_tty();
     ryl_random_init();
     res_load_world("data/world.json5");
+    inv_init();
 
     state.global_name[0] = 0;
     strncpy(state.global_name, argv[1], sizeof state.global_name - 1);

@@ -998,6 +998,11 @@ static void do_reward(const node *op, const char *script_id, size_t idx,
     for (size_t k = 0; k < items_n->u.arr.n; k++) {
         int32_t item_id = resolve_reward_item(items_n->u.arr.items[k],
                                               script_id, idx);
+        int which;
+        if (item_is_special((int)item_id, &which)) {
+            party_award_special(which);
+            continue;
+        }
         int placed = inv_add((int)item_id) != 0;
         if (placed || !cc_n) {
             continue;

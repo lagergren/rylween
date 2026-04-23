@@ -42,4 +42,38 @@ int inv_count_in_range(int lo, int hi);
    themselves. */
 int inv_add(int id);
 
+/* Flag-backed party specials. The five quest items live as
+   unsigned-char flags on struct party rather than as inventory
+   slots (state.h). PS_NONE (0) is the "not a special" sentinel
+   returned by item_is_special; PS_LAST is a one-past-the-last
+   sentinel for init-time coverage checks. The id->PS_* map is
+   built lazily from data/world/items/ on first use. */
+enum party_special {
+    PS_NONE = 0,
+    PS_FIRESHIELD,
+    PS_BRACELETS,
+    PS_MASTERCROWN,
+    PS_JAZZYFOOT,
+    PS_SILVERKEY,
+    PS_LAST,
+};
+
+/* Build the id->PS_* map from the world tree. Idempotent. Must run
+   after res_load_world; call eagerly from boot (ryl.c main,
+   --check-world) so data errors surface before gameplay. Dies if
+   any PS_* value is not covered by a `special:` tag, or if a tag
+   string is unknown. */
+void inv_init(void);
+
+/* If `id` is one of the flag-backed specials, stores the matching
+   PS_* in *which and returns 1; otherwise returns 0 and does not
+   touch *which. `which` may be NULL. Runs inv_init on first call
+   if it hasn't already. */
+int item_is_special(int id, int *which);
+
+/* Set the flag named by `which` (a PS_* value) to 1 on the
+   current party. PS_NONE is a no-op. Used by the DSL reward op to
+   short-circuit inv_add for specials. */
+void party_award_special(int which);
+
 #endif

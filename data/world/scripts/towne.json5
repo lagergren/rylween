@@ -780,7 +780,7 @@
           { loop: [
             { engine_call: 'clw' },
             { engine_bind: { fn: 'res_enum',
-                             args: ['name', { add: [28, { twn: 0 }] }],
+                             args: ['tavernkeepers', { twn: 0 }],
                              var: 'name' } },
             { emit: 'greeter' },
             { menu_branch: {
@@ -1070,7 +1070,7 @@
       // --- Supper
       { engine_call: 'clw' },
       { engine_bind: { fn: 'res_enum',
-                       args: ['name', { add: [24, { twn: 0 }] }],
+                       args: ['innkeepers', { twn: 0 }],
                        var: 'name' } },
       { emit: 'greeter' },
       { emit: 'common.yes' },

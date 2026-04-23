@@ -338,6 +338,40 @@ int32_t res_item_id(const char *sym) {
     return -1;
 }
 
+void res_items_foreach_special(int (*cb)(int, const char *, void *),
+                               void *user) {
+    if (!world_tree || !cb) {
+        return;
+    }
+    const node *items_n = obj_get(world_tree, "items");
+    if (!items_n || items_n->kind != N_OBJ) {
+        return;
+    }
+    for (size_t s = 0; s < items_n->u.obj.n; s++) {
+        const node *section = items_n->u.obj.items[s].val;
+        if (!section || section->kind != N_OBJ) {
+            continue;
+        }
+        for (size_t i = 0; i < section->u.obj.n; i++) {
+            const node *rec = section->u.obj.items[i].val;
+            if (!rec || rec->kind != N_OBJ) {
+                continue;
+            }
+            const node *id_n = obj_get(rec, "id");
+            const node *sp_n = obj_get(rec, "special");
+            if (!id_n || id_n->kind != N_INT) {
+                continue;
+            }
+            if (!sp_n || sp_n->kind != N_STR) {
+                continue;
+            }
+            if (cb((int)id_n->u.iv, sp_n->u.sv, user) != 0) {
+                return;
+            }
+        }
+    }
+}
+
 const ryl_monster *res_monster(int id) {
     if (id < 0 || id > RES_MAX_MONSTER_ID) {
         return NULL;
