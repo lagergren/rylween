@@ -6,7 +6,18 @@
 /* §16.4 + §17-E + §17-F dialogue / mission script interpreter.
  *
  * A script is an array node in the `scripts.*` subtree of data/world.json5
- * (authored in data/world/scripts/). Each element is a one-op object:
+ * (authored in data/world/scripts/). Each element is a one-op object.
+ *
+ * An rt_env threaded through every nested body holds runtime bindings
+ * introduced by `let` / `input_number` / `menu_branch key_var` (and,
+ * in later §17-F steps, for_member / for_inventory loop vars). These
+ * bindings are visible both to `{var:'<name>'}` in expressions and to
+ * `{<name>}` placeholder expansion in every text-emitting op (screen,
+ * journal, emit, menu_branch prompt, input_number prompt_screen,
+ * reward cant_carry / picked_up screens). rt_env entries shadow
+ * caller-supplied ryl_bind entries with the same name.
+ *
+ * Ops:
  *
  *   { screen:   '<name>' }        - tx_fmt(parent.<name>, bindings)
  *                                    + ryl_pause() + clw()
@@ -48,12 +59,17 @@
  *       then: [...],
  *       else: [...] } }
  *
- *   { menu_branch: {              - one ryl_menu-style keypress. Options
- *       prompt: '<name>',           are one-char strings; then is a
- *       options: [                  nested op array. Unmatched keys fall
- *         { key: 'E',               to optional `default: [...]` or
- *           then: [...] } ],        return silently.
- *       default: [...] } }
+ *   { menu_branch: {              - one ryl_menu-style keypress.
+ *       prompt: '<name>',           Each option matches on exactly one
+ *       key_var: '<name>',          of `key:'K'` (single char),
+ *       options: [                  `keys:['A','B',...]` (any listed
+ *         { key:       'E',         char), or `key_range:['LO','HI']`
+ *           then: [...] },          (inclusive). Optional top-level
+ *         { keys:      ['A','B'],   `key_var` binds the matched
+ *           then: [...] },          (uppercased) key into rt_env as a
+ *         { key_range: ['A','P'],   one-char string for the selected
+ *           then: [...] } ],        then: body. Unmatched keys fall to
+ *       default: [...] } }          optional `default: [...]`.
  *
  *   { engine_call: '<name>',      - call a registered C entry point with
  *     args: [<int>...] }            literal int args. Registry lives in
@@ -111,10 +127,46 @@
  *   Anything else in the cond slot falls through to eval_expr with a
  *   truthy check.
  *
+ * §17-F step 3 — mutate + runtime bindings + input_number:
+ *
+ *   { let: '<name>', value: <expr> }
+ *                                   Evaluate `value`, bind the result
+ *                                   into rt_env under `<name>`. Later
+ *                                   eval_expr `{var:'<name>'}` and
+ *                                   text-placeholder `{<name>}` lookups
+ *                                   resolve against the binding.
+ *
+ *   { mutate: {                     Assign a computed value into a
+ *       target: <lvalue>,           mutable game-state slot. `op`
+ *       op: 'set'|'add'|'sub'|      selects set / add / sub / mul / div
+ *           'mul'|'div',            relative to the slot's current
+ *       value: <expr>,              value; optional `clamp` bounds
+ *       clamp?: { min: <expr>,      the result after the op (either
+ *                 max: <expr> } } } bound is independently optional).
+ *
+ *   lvalue ::=
+ *       { gold }                                state.p[cpl].gold
+ *     | { torches }                             state.p[cpl].torches
+ *     | { food }                                state.p[cpl].food
+ *     | { flag: <expr> }                        state.p[cpl].flag[slot]
+ *     | { inventory: <expr> }                   inventory[slot]  1..16
+ *     | { member_field: { idx: <expr>,          state.p[cpl].<field>[idx]
+ *                         field: '<name>' } }   same field set as eval_expr
+ *                                               member reads.
+ *
+ *   { input_number: {               Read a numeric line from the
+ *       prompt_screen?: '<name>',   player. Optional `prompt_screen`
+ *       lg: N,                      emits a screen text (parent-relative
+ *       var: '<name>',              like `screen`) before the read.
+ *       min: <expr>,                `lg` is the getstr buffer cap.
+ *       max: <expr> } }             Result is clamped into [min, max]
+ *                                   (non-numeric input clamps to min),
+ *                                   then bound into rt_env under `var`.
+ *
  * Bindings flow through to every screen / journal / menu_branch prompt
  * so {placeholder} expansion works identically to tx_fmt. §16.8's "must
- * not grow into a general scripting language" still applies; steps 3-5
- * (mutate, iteration, switch, engine_bind) land as this section grows.
+ * not grow into a general scripting language" still applies; steps 4-5
+ * (iteration, switch, engine_bind widening) land as this section grows.
  *
  * On unknown op, bad shape, or missing script, ryl_die()s with a
  * diagnostic naming the script id and op index.

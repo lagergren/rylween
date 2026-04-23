@@ -72,24 +72,108 @@ typedef enum {
 
 /* §17-F runtime-binding environment. One rt_env is instantiated per
    play_script call and threaded through every nested body. Holds
-   int-valued names bound at runtime by ops that will land in step 3
-   (let, input_number, menu_branch key_var, for_member / for_inventory
-   loop vars). Step 2 plumbs the env through the interpreter but never
-   populates it — eval_expr's `{var:'name'}` lookup will therefore
-   always fall through to the caller's const bindings (atoi'd). */
+   int-valued names bound at runtime by `let`, `input_number`,
+   `menu_branch key_var`, and (in later steps) for_member /
+   for_inventory loop vars. Each entry carries both an integer view
+   (`iv`, consulted by eval_expr's `{var:'name'}` lookup) and a string
+   view (`sv`, merged into the ryl_bind list handed to tx_fmt /
+   bind_expand so `{placeholder}` expansion sees runtime-bound
+   names). For numeric ops sv is the stringified iv; for key_var it
+   is the one-char matched key and iv is its ASCII code. */
 enum { RT_ENV_CAP = 32 };
 
 typedef struct {
     const char *name; /* borrowed — points into the AST (N_STR->sv)
                          or a string literal; never freed by rt_env */
-    int32_t iv;       /* bound value */
-    char sv[24];      /* stringified iv for bind_expand merging */
+    int32_t iv;       /* integer view — read by expr_var */
+    char sv[24];      /* string view — merged into tx_fmt bindings */
 } rt_bind;
 
 typedef struct {
     rt_bind items[RT_ENV_CAP];
     size_t n;
 } rt_env;
+
+/* Replace-or-append an (name, int) binding. New bindings shadow
+   caller ryl_bind entries with the same name (merge_bindings places
+   rt_env first). Repeated sets of the same name mutate in place so
+   the env does not grow each iteration of a loop. Fatal on overflow
+   of the 32-entry cap. */
+static void rt_bind_set(rt_env *env, const char *name, int32_t v,
+                        const char *script_id, size_t idx) {
+    for (size_t i = 0; i < env->n; i++) {
+        if (strcmp(env->items[i].name, name) == 0) {
+            env->items[i].iv = v;
+            snprintf(env->items[i].sv, sizeof env->items[i].sv, "%d", (int)v);
+            return;
+        }
+    }
+    if (env->n >= RT_ENV_CAP) {
+        die_at(script_id, idx, "rt_env full (32-binding cap)");
+    }
+    env->items[env->n].name = name;
+    env->items[env->n].iv = v;
+    snprintf(env->items[env->n].sv, sizeof env->items[env->n].sv, "%d", (int)v);
+    env->n++;
+}
+
+/* As rt_bind_set but stores a single-char string view (`key_var`).
+   iv becomes the ASCII code so expressions referencing the key as
+   an integer still work. */
+static void rt_bind_set_char(rt_env *env, const char *name, char c,
+                             const char *script_id, size_t idx) {
+    for (size_t i = 0; i < env->n; i++) {
+        if (strcmp(env->items[i].name, name) == 0) {
+            env->items[i].iv = (int32_t)(unsigned char)c;
+            env->items[i].sv[0] = c;
+            env->items[i].sv[1] = 0;
+            return;
+        }
+    }
+    if (env->n >= RT_ENV_CAP) {
+        die_at(script_id, idx, "rt_env full (32-binding cap)");
+    }
+    env->items[env->n].name = name;
+    env->items[env->n].iv = (int32_t)(unsigned char)c;
+    env->items[env->n].sv[0] = c;
+    env->items[env->n].sv[1] = 0;
+    env->n++;
+}
+
+/* Build a flat ryl_bind list that overlays rt_env entries on top of
+   the caller-supplied `bindings`. Rt_env comes first (newest entry
+   at the front so it shadows older duplicates), then caller bindings
+   (unchanged order), terminated by a {NULL, NULL} sentinel. Returns
+   the merged list when env has entries, else returns `caller`
+   unchanged — callers can pass the result straight to tx_fmt /
+   bind_expand. `scratch` must have room for env->n + caller_count +
+   1 entries; fatal on overflow. */
+static const ryl_bind *merge_bindings(const ryl_bind *caller,
+                                      const rt_env *env,
+                                      ryl_bind *scratch, size_t scratch_cap,
+                                      const char *script_id, size_t idx) {
+    if (!env || env->n == 0) {
+        return caller;
+    }
+    size_t k = 0;
+    for (size_t i = env->n; i > 0; i--) {
+        if (k + 1 >= scratch_cap) {
+            die_at(script_id, idx, "merge_bindings: scratch overflow");
+        }
+        scratch[k].name = env->items[i - 1].name;
+        scratch[k].value = env->items[i - 1].sv;
+        k++;
+    }
+    for (const ryl_bind *b = caller; b && b->name; b++) {
+        if (k + 1 >= scratch_cap) {
+            die_at(script_id, idx, "merge_bindings: scratch overflow");
+        }
+        scratch[k++] = *b;
+    }
+    scratch[k].name = NULL;
+    scratch[k].value = NULL;
+    return scratch;
+}
 
 /* Forward declarations: play_ops recurses into do_if / do_chance /
    do_menu_branch / do_loop bodies. `parent` matches do_screen's
@@ -466,7 +550,8 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
 }
 
 static void do_screen(const node *op, const char *script_id, size_t idx,
-                      const char *parent, const ryl_bind *bindings) {
+                      const char *parent, const ryl_bind *bindings,
+                      const rt_env *env) {
     const node *name_n = obj_get(op, "screen");
     if (!name_n || name_n->kind != N_STR) {
         die_at(script_id, idx, "screen: value must be string");
@@ -474,13 +559,16 @@ static void do_screen(const node *op, const char *script_id, size_t idx,
     char text_id[256];
     resolve_text_id(parent, name_n->u.sv, text_id, sizeof text_id,
                     script_id, idx, "screen");
-    tx_fmt(text_id, bindings);
+    ryl_bind merged[RT_ENV_CAP + 32];
+    tx_fmt(text_id, merge_bindings(bindings, env, merged,
+                                   sizeof merged / sizeof *merged,
+                                   script_id, idx));
     ryl_pause();
     clw();
 }
 
 static void do_journal(const node *op, const char *script_id, size_t idx,
-                       const ryl_bind *bindings) {
+                       const ryl_bind *bindings, const rt_env *env) {
     const node *txt_n = obj_get(op, "journal");
     if (!txt_n || txt_n->kind != N_STR) {
         die_at(script_id, idx, "journal: value must be string");
@@ -488,7 +576,11 @@ static void do_journal(const node *op, const char *script_id, size_t idx,
     char body[512];
     char ctx[320];
     snprintf(ctx, sizeof ctx, "%s:journal[%zu]", script_id, idx);
-    bind_expand(txt_n->u.sv, bindings, body, sizeof body, ctx);
+    ryl_bind merged[RT_ENV_CAP + 32];
+    bind_expand(txt_n->u.sv,
+                merge_bindings(bindings, env, merged,
+                               sizeof merged / sizeof *merged, script_id, idx),
+                body, sizeof body, ctx);
 
     char line[576];
     int n = snprintf(line, sizeof line, "%d %s\n", state.cpl, body);
@@ -534,7 +626,8 @@ static int32_t resolve_reward_item(const node *e, const char *script_id,
    ids (matching the port-plan example) or as symbolic shard keys
    resolved via res_item_id. */
 static void do_reward(const node *op, const char *script_id, size_t idx,
-                      const char *parent, const ryl_bind *bindings) {
+                      const char *parent, const ryl_bind *bindings,
+                      const rt_env *env) {
     const node *reward = obj_get(op, "reward");
     if (!reward || reward->kind != N_OBJ) {
         die_at(script_id, idx, "reward: value must be object");
@@ -579,7 +672,11 @@ static void do_reward(const node *op, const char *script_id, size_t idx,
         char text_id[256];
         resolve_text_id(parent, cc_n->u.sv, text_id, sizeof text_id,
                         script_id, idx, "reward cant_carry_screen");
-        tx_fmt(text_id, bindings);
+        ryl_bind merged[RT_ENV_CAP + 32];
+        const ryl_bind *eff =
+            merge_bindings(bindings, env, merged,
+                           sizeof merged / sizeof *merged, script_id, idx);
+        tx_fmt(text_id, eff);
         ryl_delay(800);
         uint8_t carry = drop_option();
         if (carry) {
@@ -588,7 +685,7 @@ static void do_reward(const node *op, const char *script_id, size_t idx,
             if (pu_n) {
                 resolve_text_id(parent, pu_n->u.sv, text_id, sizeof text_id,
                                 script_id, idx, "reward picked_up_screen");
-                tx_fmt(text_id, bindings);
+                tx_fmt(text_id, eff);
             }
             ryl_delay(800);
         }
@@ -640,7 +737,8 @@ static void do_pause(const node *op, const char *script_id, size_t idx) {
    / update_map / clw) where the screen-op's bundled pause+clw would
    double-clear. */
 static void do_emit(const node *op, const char *script_id, size_t idx,
-                    const char *parent, const ryl_bind *bindings) {
+                    const char *parent, const ryl_bind *bindings,
+                    const rt_env *env) {
     const node *name_n = obj_get(op, "emit");
     if (!name_n || name_n->kind != N_STR) {
         die_at(script_id, idx, "emit: value must be string");
@@ -648,7 +746,10 @@ static void do_emit(const node *op, const char *script_id, size_t idx,
     char text_id[256];
     resolve_text_id(parent, name_n->u.sv, text_id, sizeof text_id,
                     script_id, idx, "emit");
-    tx_fmt(text_id, bindings);
+    ryl_bind merged[RT_ENV_CAP + 32];
+    tx_fmt(text_id, merge_bindings(bindings, env, merged,
+                                   sizeof merged / sizeof *merged,
+                                   script_id, idx));
 }
 
 /* §17-E: { wait_input: true } — ryl_pause(). Separate from `pause`
@@ -880,12 +981,86 @@ static ops_result do_if(const node *op, const char *script_id, size_t idx,
     return play_ops(take, script_id, parent, bindings, env);
 }
 
-/* §17-E: { menu_branch: { prompt: '<name>'?, options: [{ key:'K',
-   then:[...] }, ...] } }. Optional `prompt` names a screen text id
-   (parent-relative, like `screen`) to emit before the keypress; omit
-   to stack on an earlier tx_fmt / screen. Unmatched keys fall through
-   to an optional `default: [...]` op array (no-op if absent). Single
-   keypress — the enclosing loop (if any) is the caller's job. */
+/* Does the N_STR `key_n` pattern match the uppercased input `ch`?
+   Accepts three per-option shapes: `key: 'K'` (single char),
+   `keys: ['A','B',...]` (any listed char), `key_range: ['LO','HI']`
+   (ASCII-inclusive range after upper-casing). Returns 1 on match.
+   Fatal on malformed option. */
+static int menu_opt_matches(const node *o, char ch, const char *script_id,
+                            size_t idx) {
+    const node *key_n = obj_get(o, "key");
+    const node *keys_n = obj_get(o, "keys");
+    const node *range_n = obj_get(o, "key_range");
+    int shapes = (key_n != NULL) + (keys_n != NULL) + (range_n != NULL);
+    if (shapes == 0) {
+        die_at(script_id, idx,
+               "menu_branch: option needs key, keys, or key_range");
+    }
+    if (shapes > 1) {
+        die_at(script_id, idx,
+               "menu_branch: option key / keys / key_range are mutually "
+               "exclusive");
+    }
+    if (key_n) {
+        if (key_n->kind != N_STR || key_n->u.sv[0] == 0 ||
+            key_n->u.sv[1] != 0) {
+            die_at(script_id, idx,
+                   "menu_branch: key must be one-char string");
+        }
+        return (char)toupper((unsigned char)key_n->u.sv[0]) == ch;
+    }
+    if (keys_n) {
+        if (keys_n->kind != N_ARR || keys_n->u.arr.n == 0) {
+            die_at(script_id, idx,
+                   "menu_branch: keys must be non-empty array");
+        }
+        for (size_t i = 0; i < keys_n->u.arr.n; i++) {
+            const node *k = keys_n->u.arr.items[i];
+            if (!k || k->kind != N_STR || k->u.sv[0] == 0 ||
+                k->u.sv[1] != 0) {
+                die_at(script_id, idx,
+                       "menu_branch: keys entry must be one-char string");
+            }
+            if ((char)toupper((unsigned char)k->u.sv[0]) == ch) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    /* range_n */
+    if (range_n->kind != N_ARR || range_n->u.arr.n != 2) {
+        die_at(script_id, idx,
+               "menu_branch: key_range must be [lo, hi] array");
+    }
+    const node *lo_n = range_n->u.arr.items[0];
+    const node *hi_n = range_n->u.arr.items[1];
+    if (!lo_n || lo_n->kind != N_STR || lo_n->u.sv[0] == 0 ||
+        lo_n->u.sv[1] != 0 || !hi_n || hi_n->kind != N_STR ||
+        hi_n->u.sv[0] == 0 || hi_n->u.sv[1] != 0) {
+        die_at(script_id, idx,
+               "menu_branch: key_range entries must be one-char strings");
+    }
+    char lo = (char)toupper((unsigned char)lo_n->u.sv[0]);
+    char hi = (char)toupper((unsigned char)hi_n->u.sv[0]);
+    if (lo > hi) {
+        die_at(script_id, idx, "menu_branch: key_range lo > hi");
+    }
+    return ch >= lo && ch <= hi;
+}
+
+/* §17-E + §17-F step 3: { menu_branch: { prompt: '<name>'?,
+   key_var: '<name>'?, options: [...], default: [...] } }. Optional
+   `prompt` names a screen text id (parent-relative, like `screen`)
+   emitted before the keypress; omit to stack on an earlier tx_fmt /
+   screen. Each option carries exactly one of `key:'K'`,
+   `keys:['A','B',...]`, or `key_range:['LO','HI']`. Optional
+   top-level `key_var` binds the matched (uppercased) key as a
+   one-char string into rt_env for the selected then: body — the
+   caller can then reference it as `{<key_var>}` inside nested
+   screen / journal text or as `{var:'<key_var>'}` (ASCII code) in
+   expressions. Unmatched keys fall through to an optional
+   `default: [...]` op array. Single keypress — the enclosing loop
+   (if any) is the caller's job. */
 static ops_result do_menu_branch(const node *op, const char *script_id,
                                  size_t idx, const char *parent,
                                  const ryl_bind *bindings, rt_env *env) {
@@ -896,8 +1071,12 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
     const node *prompt_n = obj_get(body, "prompt");
     const node *opts_n = obj_get(body, "options");
     const node *default_n = obj_get(body, "default");
+    const node *key_var_n = obj_get(body, "key_var");
     if (!opts_n || opts_n->kind != N_ARR) {
         die_at(script_id, idx, "menu_branch: options must be array");
+    }
+    if (key_var_n && key_var_n->kind != N_STR) {
+        die_at(script_id, idx, "menu_branch: key_var must be string");
     }
     if (prompt_n) {
         if (prompt_n->kind != N_STR) {
@@ -906,7 +1085,10 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         char text_id[256];
         resolve_text_id(parent, prompt_n->u.sv, text_id, sizeof text_id,
                         script_id, idx, "menu_branch prompt");
-        tx_fmt(text_id, bindings);
+        ryl_bind merged[RT_ENV_CAP + 32];
+        tx_fmt(text_id,
+               merge_bindings(bindings, env, merged,
+                              sizeof merged / sizeof *merged, script_id, idx));
     }
     char ch = (char)toupper((unsigned char)key());
     for (size_t i = 0; i < opts_n->u.arr.n; i++) {
@@ -914,16 +1096,13 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         if (!o || o->kind != N_OBJ) {
             die_at(script_id, idx, "menu_branch: option must be object");
         }
-        const node *key_n = obj_get(o, "key");
-        const node *then_n = obj_get(o, "then");
-        if (!key_n || key_n->kind != N_STR || key_n->u.sv[0] == 0 ||
-            key_n->u.sv[1] != 0) {
-            die_at(script_id, idx, "menu_branch: key must be one-char string");
-        }
-        char want = (char)toupper((unsigned char)key_n->u.sv[0]);
-        if (want != ch) {
+        if (!menu_opt_matches(o, ch, script_id, idx)) {
             continue;
         }
+        if (key_var_n) {
+            rt_bind_set_char(env, key_var_n->u.sv, ch, script_id, idx);
+        }
+        const node *then_n = obj_get(o, "then");
         if (!then_n) {
             return OPS_NORMAL;
         }
@@ -939,6 +1118,393 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         return play_ops(default_n, script_id, parent, bindings, env);
     }
     return OPS_NORMAL;
+}
+
+/* §17-F step 3: { let: '<name>', value: <expr> } — evaluate `value`
+   and bind into rt_env so later `{var:'<name>'}` expressions and
+   `{<name>}` text placeholders pick it up. Repeated sets of the
+   same name mutate in place (no scope stack yet — step 4 adds one
+   for for_member / for_inventory). */
+static void do_let(const node *op, const char *script_id, size_t idx,
+                   const ryl_bind *bindings, rt_env *env) {
+    const node *name_n = obj_get(op, "let");
+    if (!name_n || name_n->kind != N_STR) {
+        die_at(script_id, idx, "let: name must be string");
+    }
+    const node *val_n = obj_get(op, "value");
+    if (!val_n) {
+        die_at(script_id, idx, "let: missing value");
+    }
+    int32_t v = eval_expr(val_n, script_id, idx, bindings, env);
+    rt_bind_set(env, name_n->u.sv, v, script_id, idx);
+}
+
+/* Resolve a mutate lvalue into (read_fn, write_fn) via a small tagged
+   union. `mutate_lv` carries enough context to round-trip through
+   eval_expr's lvalue sub-grammar (gold / torches / food /
+   flag:<expr> / inventory:<expr> / member_field{ idx, field }) and
+   write back a computed int32 at the same location. */
+typedef enum {
+    LV_GOLD,
+    LV_TORCHES,
+    LV_FOOD,
+    LV_FLAG,
+    LV_INVENTORY,
+    LV_MEMBER_FIELD,
+} mutate_lv_kind;
+
+typedef struct {
+    mutate_lv_kind kind;
+    int32_t index;     /* flag slot / inventory slot / member idx 1..4 */
+    const char *field; /* LV_MEMBER_FIELD only — borrowed AST string */
+} mutate_lv;
+
+static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
+                            const ryl_bind *bindings, const rt_env *env) {
+    if (!tgt || tgt->kind != N_OBJ) {
+        die_at(script_id, idx, "mutate: target must be object");
+    }
+    if (obj_get(tgt, "gold")) {
+        return (mutate_lv){LV_GOLD, 0, NULL};
+    }
+    if (obj_get(tgt, "torches")) {
+        return (mutate_lv){LV_TORCHES, 0, NULL};
+    }
+    if (obj_get(tgt, "food")) {
+        return (mutate_lv){LV_FOOD, 0, NULL};
+    }
+    const node *flag_n = obj_get(tgt, "flag");
+    if (flag_n) {
+        int32_t slot = expr_flag_slot(flag_n, script_id, idx, bindings, env);
+        return (mutate_lv){LV_FLAG, slot, NULL};
+    }
+    const node *inv_n = obj_get(tgt, "inventory");
+    if (inv_n) {
+        int32_t slot = eval_expr(inv_n, script_id, idx, bindings, env);
+        if (slot < 1 || slot > 16) {
+            die_at(script_id, idx,
+                   "mutate: inventory slot must be 1..16");
+        }
+        return (mutate_lv){LV_INVENTORY, slot, NULL};
+    }
+    const node *mf_n = obj_get(tgt, "member_field");
+    if (mf_n) {
+        if (mf_n->kind != N_OBJ) {
+            die_at(script_id, idx,
+                   "mutate: member_field must be object");
+        }
+        const node *i_n = obj_get(mf_n, "idx");
+        const node *f_n = obj_get(mf_n, "field");
+        if (!i_n) {
+            die_at(script_id, idx, "mutate: member_field missing idx");
+        }
+        if (!f_n || f_n->kind != N_STR) {
+            die_at(script_id, idx,
+                   "mutate: member_field field must be string");
+        }
+        int32_t m = eval_expr(i_n, script_id, idx, bindings, env);
+        if (m < 1 || m > 4) {
+            die_at(script_id, idx,
+                   "mutate: member_field idx must be 1..4");
+        }
+        return (mutate_lv){LV_MEMBER_FIELD, m, f_n->u.sv};
+    }
+    die_at(script_id, idx, "mutate: unknown target shape");
+}
+
+static int32_t read_lv(const mutate_lv *lv, const char *script_id,
+                       size_t idx) {
+    struct party *p = &state.p[state.cpl];
+    switch (lv->kind) {
+        case LV_GOLD:
+            return p->gold;
+        case LV_TORCHES:
+            return (int32_t)p->torches;
+        case LV_FOOD:
+            return p->food;
+        case LV_FLAG:
+            return p->flag[lv->index];
+        case LV_INVENTORY:
+            return p->inventory[lv->index];
+        case LV_MEMBER_FIELD: {
+            int m = lv->index;
+            const char *f = lv->field;
+            if (strcmp(f, "lv") == 0) {
+                return p->lv[m];
+            }
+            if (strcmp(f, "hp") == 0) {
+                return p->hp[m];
+            }
+            if (strcmp(f, "h") == 0) {
+                return p->h[m];
+            }
+            if (strcmp(f, "ma") == 0) {
+                return p->ma[m];
+            }
+            if (strcmp(f, "wi") == 0) {
+                return p->wi[m];
+            }
+            if (strcmp(f, "ws") == 0) {
+                return p->ws[m];
+            }
+            if (strcmp(f, "ch") == 0) {
+                return p->ch[m];
+            }
+            if (strcmp(f, "cl") == 0) {
+                return p->cl[m];
+            }
+            if (strcmp(f, "ra") == 0) {
+                return p->ra[m];
+            }
+            if (strcmp(f, "dead") == 0) {
+                return p->dead[m];
+            }
+            if (strcmp(f, "ar") == 0) {
+                return p->ar[m];
+            }
+            if (strcmp(f, "wp") == 0) {
+                return p->wp[m];
+            }
+            if (strcmp(f, "exp") == 0) {
+                return (int32_t)p->exp[m];
+            }
+            if (strcmp(f, "sex") == 0) {
+                return p->sex[m];
+            }
+            die_at(script_id, idx, "mutate: member_field unknown field name");
+        }
+    }
+    die_at(script_id, idx, "mutate: corrupt lvalue tag");
+}
+
+static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
+                     size_t idx) {
+    struct party *p = &state.p[state.cpl];
+    switch (lv->kind) {
+        case LV_GOLD:
+            p->gold = v;
+            return;
+        case LV_TORCHES:
+            if (v < 0) {
+                die_at(script_id, idx, "mutate: torches cannot be negative");
+            }
+            p->torches = (uint32_t)v;
+            return;
+        case LV_FOOD:
+            p->food = v;
+            return;
+        case LV_FLAG:
+            p->flag[lv->index] = (unsigned char)v;
+            return;
+        case LV_INVENTORY:
+            p->inventory[lv->index] = v;
+            return;
+        case LV_MEMBER_FIELD: {
+            int m = lv->index;
+            const char *f = lv->field;
+            if (strcmp(f, "lv") == 0) {
+                p->lv[m] = v;
+                return;
+            }
+            if (strcmp(f, "hp") == 0) {
+                p->hp[m] = v;
+                return;
+            }
+            if (strcmp(f, "h") == 0) {
+                p->h[m] = v;
+                return;
+            }
+            if (strcmp(f, "ma") == 0) {
+                p->ma[m] = v;
+                return;
+            }
+            if (strcmp(f, "wi") == 0) {
+                p->wi[m] = v;
+                return;
+            }
+            if (strcmp(f, "ws") == 0) {
+                p->ws[m] = v;
+                return;
+            }
+            if (strcmp(f, "ch") == 0) {
+                p->ch[m] = v;
+                return;
+            }
+            if (strcmp(f, "cl") == 0) {
+                p->cl[m] = v;
+                return;
+            }
+            if (strcmp(f, "ra") == 0) {
+                p->ra[m] = v;
+                return;
+            }
+            if (strcmp(f, "dead") == 0) {
+                p->dead[m] = v;
+                return;
+            }
+            if (strcmp(f, "ar") == 0) {
+                p->ar[m] = v;
+                return;
+            }
+            if (strcmp(f, "wp") == 0) {
+                p->wp[m] = v;
+                return;
+            }
+            if (strcmp(f, "exp") == 0) {
+                if (v < 0) {
+                    die_at(script_id, idx,
+                           "mutate: member_field exp cannot be negative");
+                }
+                p->exp[m] = (uint32_t)v;
+                return;
+            }
+            if (strcmp(f, "sex") == 0) {
+                p->sex[m] = (unsigned char)v;
+                return;
+            }
+            die_at(script_id, idx, "mutate: member_field unknown field name");
+        }
+    }
+    die_at(script_id, idx, "mutate: corrupt lvalue tag");
+}
+
+/* §17-F step 3: { mutate: { target:<lvalue>, op:'set'|'add'|'sub'|
+   'mul'|'div', value:<expr>, clamp?: { min:<expr>, max:<expr> } } }.
+   Lvalues: { gold } | { torches } | { food } | { flag:<expr> } |
+   { inventory:<expr> } | { member_field: { idx:<expr>, field:'...' } }.
+   Optional clamp applied after the op. Divide-by-zero is fatal. */
+static void do_mutate(const node *op, const char *script_id, size_t idx,
+                      const ryl_bind *bindings, rt_env *env) {
+    const node *body = obj_get(op, "mutate");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "mutate: value must be object");
+    }
+    const node *tgt = obj_get(body, "target");
+    const node *op_n = obj_get(body, "op");
+    const node *val_n = obj_get(body, "value");
+    const node *clamp_n = obj_get(body, "clamp");
+    if (!tgt) {
+        die_at(script_id, idx, "mutate: missing target");
+    }
+    if (!op_n || op_n->kind != N_STR) {
+        die_at(script_id, idx, "mutate: op must be string");
+    }
+    if (!val_n) {
+        die_at(script_id, idx, "mutate: missing value");
+    }
+    mutate_lv lv = resolve_lv(tgt, script_id, idx, bindings, env);
+    int32_t v = eval_expr(val_n, script_id, idx, bindings, env);
+    int32_t cur = read_lv(&lv, script_id, idx);
+    int32_t next;
+    const char *op_s = op_n->u.sv;
+    if (strcmp(op_s, "set") == 0) {
+        next = v;
+    } else if (strcmp(op_s, "add") == 0) {
+        next = cur + v;
+    } else if (strcmp(op_s, "sub") == 0) {
+        next = cur - v;
+    } else if (strcmp(op_s, "mul") == 0) {
+        next = cur * v;
+    } else if (strcmp(op_s, "div") == 0) {
+        if (v == 0) {
+            die_at(script_id, idx, "mutate: divide by zero");
+        }
+        next = cur / v;
+    } else {
+        die_at(script_id, idx,
+               "mutate: op must be set/add/sub/mul/div");
+    }
+    if (clamp_n) {
+        if (clamp_n->kind != N_OBJ) {
+            die_at(script_id, idx, "mutate: clamp must be object");
+        }
+        const node *min_n = obj_get(clamp_n, "min");
+        const node *max_n = obj_get(clamp_n, "max");
+        if (min_n) {
+            int32_t lo = eval_expr(min_n, script_id, idx, bindings, env);
+            if (next < lo) {
+                next = lo;
+            }
+        }
+        if (max_n) {
+            int32_t hi = eval_expr(max_n, script_id, idx, bindings, env);
+            if (next > hi) {
+                next = hi;
+            }
+        }
+    }
+    write_lv(&lv, next, script_id, idx);
+}
+
+/* §17-F step 3: { input_number: { prompt_screen?: '<name>', lg: N,
+   var: '<name>', min: <expr>, max: <expr> } }. Optionally emits
+   prompt_screen via tx_fmt (parent-relative, merged bindings), then
+   reads a line with getstr(lg), parses with strtol, clamps into
+   [min, max], and binds the result into rt_env under `var`. Invalid
+   (non-numeric / empty) input clamps to `min`. */
+static void do_input_number(const node *op, const char *script_id, size_t idx,
+                            const char *parent, const ryl_bind *bindings,
+                            rt_env *env) {
+    const node *body = obj_get(op, "input_number");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "input_number: value must be object");
+    }
+    const node *ps_n = obj_get(body, "prompt_screen");
+    const node *lg_n = obj_get(body, "lg");
+    const node *var_n = obj_get(body, "var");
+    const node *min_n = obj_get(body, "min");
+    const node *max_n = obj_get(body, "max");
+    if (!lg_n || lg_n->kind != N_INT) {
+        die_at(script_id, idx, "input_number: lg must be int");
+    }
+    if (lg_n->u.iv < 1 || lg_n->u.iv > 255) {
+        die_at(script_id, idx, "input_number: lg out of range (1..255)");
+    }
+    if (!var_n || var_n->kind != N_STR) {
+        die_at(script_id, idx, "input_number: var must be string");
+    }
+    if (!min_n || !max_n) {
+        die_at(script_id, idx, "input_number: min and max required");
+    }
+    int32_t lo = eval_expr(min_n, script_id, idx, bindings, env);
+    int32_t hi = eval_expr(max_n, script_id, idx, bindings, env);
+    if (lo > hi) {
+        die_at(script_id, idx, "input_number: min > max");
+    }
+    if (ps_n) {
+        if (ps_n->kind != N_STR) {
+            die_at(script_id, idx,
+                   "input_number: prompt_screen must be string");
+        }
+        char text_id[256];
+        resolve_text_id(parent, ps_n->u.sv, text_id, sizeof text_id,
+                        script_id, idx, "input_number prompt_screen");
+        ryl_bind merged[RT_ENV_CAP + 32];
+        tx_fmt(text_id,
+               merge_bindings(bindings, env, merged,
+                              sizeof merged / sizeof *merged, script_id, idx));
+    }
+    char buf[64];
+    uint8_t lg = (uint8_t)lg_n->u.iv;
+    if (lg >= sizeof buf) {
+        lg = (uint8_t)(sizeof buf - 1);
+    }
+    getstr(lg, buf, sizeof buf);
+    char *endp = NULL;
+    long parsed = strtol(buf, &endp, 10);
+    int32_t v;
+    if (!endp || endp == buf) {
+        v = lo;
+    } else {
+        v = (int32_t)parsed;
+    }
+    if (v < lo) {
+        v = lo;
+    }
+    if (v > hi) {
+        v = hi;
+    }
+    rt_bind_set(env, var_n->u.sv, v, script_id, idx);
 }
 
 /* §17-F: { loop: [...ops...] } — run the body repeatedly until an
@@ -992,17 +1558,17 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         die_at(script_id, idx, "op must be object");
     }
     if (obj_get(op, "screen")) {
-        do_screen(op, script_id, idx, parent, bindings);
+        do_screen(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "journal")) {
-        do_journal(op, script_id, idx, bindings);
+        do_journal(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "set_flag")) {
         do_set_flag(op, script_id, idx);
     } else if (obj_get(op, "reward")) {
-        do_reward(op, script_id, idx, parent, bindings);
+        do_reward(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "pause")) {
         do_pause(op, script_id, idx);
     } else if (obj_get(op, "emit")) {
-        do_emit(op, script_id, idx, parent, bindings);
+        do_emit(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "wait_input")) {
         do_wait_input(op, script_id, idx);
     } else if (obj_get(op, "chance")) {
@@ -1019,6 +1585,12 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         return do_break(op, script_id, idx);
     } else if (obj_get(op, "continue")) {
         return do_continue(op, script_id, idx);
+    } else if (obj_get(op, "let")) {
+        do_let(op, script_id, idx, bindings, env);
+    } else if (obj_get(op, "mutate")) {
+        do_mutate(op, script_id, idx, bindings, env);
+    } else if (obj_get(op, "input_number")) {
+        do_input_number(op, script_id, idx, parent, bindings, env);
     } else {
         die_at(script_id, idx, "unknown op");
     }
