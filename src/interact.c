@@ -1,22 +1,18 @@
 #include "ryl.h"
-#include "res.h"
-#include "driv.h"
-#include "gfx.h"
 #include "interact.h"
 #include "primitives.h"
 
+/* Guild multi-party flow + attackhandler are #if 0'd out for the port.
+   Both were unfinished on the Amiga original: guild() is the BBS-era
+   bulletin/mail/trade flow gated behind an easter-egg name check in
+   towne.c, and attackhandler() prints a menu without ever reading a
+   key. Kept here as a reference for a later port pass; check_terrain
+   below is the only live entry point from this translation unit. */
+#if 0
 static void editor(char *, uint8_t);
 static void guild_title(char *);
 static void read_internal_mail(void);
 static uint8_t select_party(void);
-
-/* Guild trade flow — stubbed empty on the legacy Amiga build, kept for
-   the "(T)rade Items" menu entry in guild(). No implementation has
-   landed yet; preserved #if 0 until the flow is specced. */
-#if 0
-static void trade(void) {
-}
-#endif
 
 void guild() {
     char f, d, str2[80], str[80];
@@ -369,6 +365,7 @@ static void guild_title(char *title) {
 static void read_internal_mail() {
     state.p[state.cpl].waiting_mail = 0;
 }
+#endif
 
 // TERRAIN DESCRIPTIONS - PUT HERE TO EVEN OUT THE FILE LENGTHS //
 void check_terrain(char old, char new) {

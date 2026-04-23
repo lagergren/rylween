@@ -16,10 +16,7 @@ static int32_t color(char);
 static char *glyph(char);
 
 void timehandler() {
-    state.tid++;
-    if (state.tid == 25) {
-        state.tid = 1;
-    }
+    advance_hour();
 }
 void foodhandler() {
     int32_t i;
@@ -63,13 +60,13 @@ void foodhandler() {
     }
 
     // Time routine //
-    state.hours_pigg--;
-    if (state.hours_pigg == 0) {
+    state.p[state.cpl].hours_rested--;
+    if (state.p[state.cpl].hours_rested == 0) {
         clw();
         tx("You begin to feel tired\r\n");
         return;
     }
-    if (state.hours_pigg == -4) {
+    if (state.p[state.cpl].hours_rested == -4) {
         clw();
         tx("You are exhausted!!!\r\n");
         for (i = 1; i <= res_party_member_max(); i++) {
@@ -79,7 +76,7 @@ void foodhandler() {
         }
         return;
     }
-    if (state.hours_pigg == -8) {
+    if (state.p[state.cpl].hours_rested == -8) {
         clw();
         tx("You begin to feel weak\r\n");
         tx("from lack of sleep.\r\n\r\n");
@@ -92,7 +89,7 @@ void foodhandler() {
         clw();
         return;
     }
-    if (state.hours_pigg < -8) {
+    if (state.p[state.cpl].hours_rested < -8) {
         clw();
         tx0(res_text("subs.faint"));
         for (i = 1; i <= res_party_member_max(); i++) {
@@ -428,7 +425,7 @@ void camp() {
     int32_t i, death, guard = 0, temperature, x;
     char c, d;
 
-    if (state.hours_pigg > 0) {
+    if (state.p[state.cpl].hours_rested > 0) {
         clw();
         tx("Not tired.\r\n");
         ryl_delay(600);
@@ -529,12 +526,9 @@ void camp() {
     /* INCREASE TIME */
 
     for (i = 1; i < 9; i++) {
-        state.tid++;
-        if (state.tid == 25) {
-            state.tid = 1;
-        }
+        advance_hour();
     }
-    state.hours_pigg = 14;
+    state.p[state.cpl].hours_rested = 14;
     if (state.p[state.cpl].food < 4 * state.p[state.cpl].pl) {
         state.p[state.cpl].food = 0;
     } else {
@@ -985,10 +979,7 @@ void spell(int32_t place) {
             tx("Teleportation. %s spends\r\n", pronoun(vem, 1));
             tx("an hour chanting mantras\r\n");
             tx("and burning blue candles.\r\n\r\n");
-            state.tid++;
-            if (state.tid == 25) {
-                state.tid = 1;
-            }
+            advance_hour();
             ryl_pause();
             clw();
             tx("%s picks up a stone slab\r\n", pronoun(vem, 1));

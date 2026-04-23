@@ -3,7 +3,6 @@
 #include "res.h"
 #include "ryl.h"
 #include "driv.h"
-#include "interact.h"
 #include "primitives.h"
 #include "subs.h"
 #include "towne.h"
@@ -21,8 +20,8 @@ static void spelet() {
     int32_t i;
 
     clw();
-    state.tid = 5;
-    state.hours_pigg = 14;
+    state.hour_of_day = 5;
+    state.p[state.cpl].hours_rested = 14;
 
     tx0(res_text("title.header"));
 
@@ -57,7 +56,6 @@ static void spelet() {
         assert(state.cpl >= 1 && state.cpl <= state.num_parties);
         timehandler();
         foodhandler();
-        attackhandler();
         statusline();
 
         if (!state.p[state.cpl].time_left) {
@@ -310,16 +308,16 @@ void statusline() {
         state.p[state.cpl].food = 0;
     }
     stline[0] = 0;
-    if (state.tid >= 6 && state.tid < 12) {
+    if (is_hour_in_range(6, 11)) {
         snprintf(stline, sizeof stline, "TIME: [33mDAWN[32m      ");
     }
-    if (state.tid >= 12 && state.tid < 18) {
+    if (is_hour_in_range(12, 17)) {
         snprintf(stline, sizeof stline, "TIME: [33mMIDDAY[32m    ");
     }
-    if (state.tid >= 18 && state.tid < 24) {
+    if (is_hour_in_range(18, 23)) {
         snprintf(stline, sizeof stline, "TIME: [33mTWILIGHT[32m  ");
     }
-    if (state.tid == 24 || state.tid < 6) {
+    if (is_hour_in_range(24, 5)) {
         snprintf(stline, sizeof stline, "TIME: [33mMIDNIGHT[32m  ");
     }
     if (state.p[state.cpl].food < state.p[state.cpl].pl * 3 && state.p[state.cpl].food) {
@@ -875,6 +873,7 @@ static void write_current_world() {
         fprintf(f, "      torches: %u,\n", p->torches);
         fprintf(f, "      food: %d,\n", p->food);
         fprintf(f, "      time_left: %d,\n", p->time_left);
+        fprintf(f, "      hours_rested: %d,\n", p->hours_rested);
         fputs("      inventory: ", f);
         wcw_i32_arr(f, p->inventory, 17);
         fputs(",\n", f);
@@ -1160,6 +1159,7 @@ static int read_current_world() {
             p->torches = (uint32_t)rcw_int(pnode, "torches", p->torches);
             p->food = rcw_int(pnode, "food", p->food);
             p->time_left = rcw_int(pnode, "time_left", p->time_left);
+            p->hours_rested = rcw_int(pnode, "hours_rested", 14);
 
             rcw_i32_arr(obj_get(pnode, "inventory"), p->inventory, 17);
             rcw_i32_arr(obj_get(pnode, "ws"), p->ws, 5);
@@ -1385,6 +1385,7 @@ static void createparty() {
     state.p[a].torches = 5;
     state.p[a].food = 100;
     state.p[a].time_left = 200;
+    state.p[a].hours_rested = 14;
     state.p[a].pl = 4;
     state.p[a].fireshield = 0;
     state.p[a].bracelets = 0;

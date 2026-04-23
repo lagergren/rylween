@@ -126,6 +126,7 @@ static char *pronoun_tab[3][4];
 typedef struct {
     char *name;
     int32_t x, y;
+    int32_t tax;
 } ryl_town;
 static ryl_town towns[5];
 /* Count of declared towns (slots 1..n_towns). Populated by fold_towns.
@@ -405,6 +406,13 @@ int32_t res_town_at(int x, int y) {
         }
     }
     return 0;
+}
+
+int32_t res_town_tax(int twn) {
+    if (twn < 1 || twn > 4 || !towns[twn].name) {
+        return 0;
+    }
+    return towns[twn].tax;
 }
 
 int res_building_hours(const char *name, int *opens_at, int *closes_at) {
@@ -1081,6 +1089,8 @@ static void fold_towns(const node *towns_node, const char *path) {
         towns[i].name = strdup(name->u.sv);
         towns[i].x = x->u.iv;
         towns[i].y = y->u.iv;
+        const node *tax = obj_get(rec, "tax");
+        towns[i].tax = (tax && tax->kind == N_INT) ? tax->u.iv : 0;
     }
 }
 
@@ -1091,6 +1101,7 @@ static void reset_towns(void) {
         towns[i].name = NULL;
         towns[i].x = 0;
         towns[i].y = 0;
+        towns[i].tax = 0;
     }
     n_towns = 0;
 }
@@ -1100,13 +1111,14 @@ static void reset_towns(void) {
    opening hours consulted by the C wrappers in src/towne.c so
    the DSL can author the closed screen without embedding hour
    literals. `opens_at` and `closes_at` are both inclusive hours in
-   the 0..23 convention that state.tid advances through. If
+   the 0..23 convention that state.hour_of_day advances through. If
    `opens_at > closes_at` the range wraps around midnight (open from
    opens_at through 24, and through closes_at the next day); the
    tavern uses this form — open 6..1 means closed only at 2..5. It
    is up to the per-building DSL script to choose the matching
-   closed-check shape (`tid<lo || tid>hi` for the non-wrap form,
-   `tid<lo && tid>hi` for the wrap form). */
+   closed-check shape (`hour_of_day<lo || hour_of_day>hi` for the
+   non-wrap form, `hour_of_day<lo && hour_of_day>hi` for the wrap
+   form). */
 static void fold_buildings(const node *buildings_node, const char *path) {
     if (!buildings_node) {
         return;

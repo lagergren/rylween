@@ -144,10 +144,10 @@
   // this table.
   towns: [
     null,
-    { name: 'Thord', x: 12, y: 11 },
-    { name: 'Ollk',  x: 48, y: 12 },
-    { name: 'Wilor', x: 43, y: 20 },
-    { name: 'Murn',  x: 55, y: 29 },
+    { name: 'Thord', x: 12, y: 11, tax:  7 },
+    { name: 'Ollk',  x: 48, y: 12, tax: 10 },
+    { name: 'Wilor', x: 43, y: 20, tax:  9 },
+    { name: 'Murn',  x: 55, y: 29, tax:  8 },
   ],
 
   // Per-building opening hours (§17-F). Keyed by a short building id
@@ -158,11 +158,13 @@
   // both inclusive (0..23). When `opens_at > closes_at` the range
   // wraps around midnight: the tavern is `6..1`, i.e., open all day
   // except 2..5. The DSL per building chooses the matching check
-  // (`tid<lo || tid>hi` for non-wrap, `tid<lo && tid>hi` for wrap).
+  // (`hour_of_day<lo || hour_of_day>hi` for non-wrap,
+  //  `hour_of_day<lo && hour_of_day>hi` for wrap).
   // Missing entries mean "always open" per the C wrapper's default.
   buildings: {
-    smith:  { opens_at: 6, closes_at: 18 },
-    tavern: { opens_at: 6, closes_at: 1  },
+    smith:    { opens_at: 6, closes_at: 18 },
+    tavern:   { opens_at: 6, closes_at: 1  },
+    merchant: { opens_at: 6, closes_at: 18 },
   },
 
   // NPCs — one entry per slot, keyed by display name (the same
@@ -281,5 +283,19 @@
     // (wilderness NPCs); 1 = inn; 2 = tavern. Symbolic ids; not
     // displayed. speak.c:106 filters NPCs in inn/tavern by this id.
     building: ['none', 'inn', 'tavern'],
+
+    // blitgfx pic ids — mirrors the #defines in src/ryl.h. The
+    // table is sparse (slots 0, 6..9 have no pic); empty strings
+    // fill the gaps so the array index matches the #define. Read
+    // from the DSL via `{ pic: '<name>' }`; unknown-name probes
+    // die at first fire, catching typos. Keeping the sparse shape
+    // avoids renumbering the C-side constants during migration.
+    pic: [
+      '',                                                  // 0
+      'inn', 'tavern', 'smith', 'church', 'merchant',      // 1..5
+      '', '', '', '',                                      // 6..9  (reserved)
+      'insidecave', 'cave', 'death', 'hut', 'ydarg',       // 10..14
+      'city', 'wonbattle', 'tent', 'notent', 'guild',      // 15..19
+    ],
   },
 }

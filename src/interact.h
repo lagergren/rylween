@@ -3,13 +3,10 @@
 
 #include <stdint.h>
 
-/* Multi-party (guild/mail/trade) interactions + the editor overlay +
-   terrain-effect hooks. Most entry points here are stubs on single-
-   player boot; the guild/mail flows ran against a shared datastore on
-   the Amiga BBS originals. */
+/* Terrain-effect hooks. The guild/mail and attackhandler flows from
+   the Amiga BBS original are unfinished and currently #if 0'd out in
+   interact.c; re-expose their prototypes here when that port lands. */
 
-void guild(void);
-void attackhandler(void);
 void check_terrain(char, char);
 
 #endif

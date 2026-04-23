@@ -321,7 +321,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
  *          | { torches: <any> }          state.p[cpl].torches
  *          | { food:   <any> }           state.p[cpl].food
  *          | { twn:    <any> }           state.twn
- *          | { tid:    <any> }           state.tid
+ *          | { hour_of_day: <any> }      state.hour_of_day
  *          | { cpl:    <any> }           state.cpl
  *          | { random: [ <expr>, <expr> ] }  ryl_random(lo, hi)  inclusive
  *          | { chance: <expr> }          ryl_chance(pct) -> 0/1
@@ -337,6 +337,9 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
  *          | { not:  <expr> }       !a -> 0/1
  *          | { obcost:   <expr> }   res_item(id)->cost
  *          | { obdamage: <expr> }   res_item(id)->damage
+ *          | { item:     <str|int> } res_item_id('torch') / passthrough
+ *          | { pic:      <str|int> } res_enum_id('pic', 'inn') / passthrough
+ *          | { enum:     [<str>,<str>] } res_enum_id(tab, value)
  *
  * All evaluator failures (bad shape, wrong kind, out-of-range index,
  * divide-by-zero, unknown symbolic flag / binding) dispatch through
@@ -607,8 +610,8 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
     if (obj_get(n, "twn")) {
         return state.twn;
     }
-    if (obj_get(n, "tid")) {
-        return state.tid;
+    if (obj_get(n, "hour_of_day")) {
+        return state.hour_of_day;
     }
     if (obj_get(n, "cpl")) {
         return state.cpl;
@@ -757,6 +760,83 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
             die_at(script_id, idx, buf);
         }
         return is_damage ? it->damage : it->cost;
+    }
+
+    /* `{ item: '<name>' }` — resolve a symbolic item key (the shard
+       record key, e.g. 'torch' / 'ration' / 'donkey') to its int
+       id via res_item_id. Accepts a non-string expression too and
+       passes it through after validating res_item has a record —
+       lets callers mix symbolic authoring with numeric paths (e.g.
+       `{ inventory: { var: 'slot' } }` reads into an int, which
+       can then feed a switch over `{ match: { item: 'torch' } }`
+       etc). Die-on-unknown-name: catches typos at first fire.
+       Parallel to the reward op's items[] resolver. */
+    const node *item_n = obj_get(n, "item");
+    if (item_n) {
+        if (item_n->kind == N_STR) {
+            int32_t id = res_item_id(item_n->u.sv);
+            if (id < 0) {
+                char buf[96];
+                snprintf(buf, sizeof buf,
+                         "expr item: unknown symbol '%s'", item_n->u.sv);
+                die_at(script_id, idx, buf);
+            }
+            return id;
+        }
+        int32_t id = eval_expr(item_n, script_id, idx, bindings, env);
+        if (!res_item((int)id)) {
+            char buf[96];
+            snprintf(buf, sizeof buf,
+                     "expr item: id %d has no record", (int)id);
+            die_at(script_id, idx, buf);
+        }
+        return id;
+    }
+
+    /* `{ pic: '<name>' }` — resolve a symbolic blitgfx pic key from
+       the enums.pic table (see world.json5). Dense array indexed by
+       pic id; gaps are empty strings. Die-on-unknown-name. Int
+       expression passes through unvalidated. */
+    const node *pic_n = obj_get(n, "pic");
+    if (pic_n) {
+        if (pic_n->kind == N_STR) {
+            int32_t id = res_enum_id("pic", pic_n->u.sv);
+            if (id < 0) {
+                char buf[96];
+                snprintf(buf, sizeof buf,
+                         "expr pic: unknown symbol '%s'", pic_n->u.sv);
+                die_at(script_id, idx, buf);
+            }
+            return id;
+        }
+        return eval_expr(pic_n, script_id, idx, bindings, env);
+    }
+
+    /* `{ enum: ['<tab>', '<value>'] }` — generic enum symbol→int
+       lookup for any world.json5 `enums:` table (pc_class / race /
+       jobname / towne / building / sex / name / pic / ...). Both
+       operands must be string literals; the pair goes through
+       res_enum_id. Parallel to the `pic:` shortcut, which this form
+       subsumes but is kept for readability. */
+    const node *enum_n = obj_get(n, "enum");
+    if (enum_n) {
+        if (enum_n->kind != N_ARR || enum_n->u.arr.n != 2) {
+            die_at(script_id, idx,
+                   "expr enum: value must be ['<tab>', '<value>']");
+        }
+        const node *tab_n = enum_n->u.arr.items[0];
+        const node *val_n = enum_n->u.arr.items[1];
+        if (!tab_n || tab_n->kind != N_STR || !val_n || val_n->kind != N_STR) {
+            die_at(script_id, idx, "expr enum: both entries must be strings");
+        }
+        int32_t id = res_enum_id(tab_n->u.sv, val_n->u.sv);
+        if (id < 0) {
+            char buf[128];
+            snprintf(buf, sizeof buf,
+                     "expr enum: unknown '%s.%s'", tab_n->u.sv, val_n->u.sv);
+            die_at(script_id, idx, buf);
+        }
+        return id;
     }
 
     if (obj_get(n, "engine_int")) {
@@ -1586,9 +1666,11 @@ static void do_let(const node *op, const char *script_id, size_t idx,
 
 /* Resolve a mutate lvalue into (read_fn, write_fn) via a small tagged
    union. `mutate_lv` carries enough context to round-trip through
-   eval_expr's lvalue sub-grammar (gold / torches / food /
-   flag:<expr> / inventory:<expr> / member_field{ idx, field }) and
-   write back a computed int32 at the same location. */
+   eval_expr's lvalue sub-grammar (gold / torches / food / pl /
+   flag:<expr> / inventory:<expr> / member_field{ idx, field } /
+   hours_rested / hour_of_day) and write back a computed int32 at the
+   same location. hours_rested lives on state.p[state.cpl] (per-party);
+   hour_of_day is the top-level wall-clock scalar (1..24). */
 typedef enum {
     LV_GOLD,
     LV_TORCHES,
@@ -1597,6 +1679,8 @@ typedef enum {
     LV_FLAG,
     LV_INVENTORY,
     LV_MEMBER_FIELD,
+    LV_HOURS_RESTED,
+    LV_HOUR_OF_DAY,
 } mutate_lv_kind;
 
 typedef struct {
@@ -1621,6 +1705,12 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
     }
     if (obj_get(tgt, "pl")) {
         return (mutate_lv){LV_PL, 0, NULL};
+    }
+    if (obj_get(tgt, "hours_rested")) {
+        return (mutate_lv){LV_HOURS_RESTED, 0, NULL};
+    }
+    if (obj_get(tgt, "hour_of_day")) {
+        return (mutate_lv){LV_HOUR_OF_DAY, 0, NULL};
     }
     const node *flag_n = obj_get(tgt, "flag");
     if (flag_n) {
@@ -1676,6 +1766,10 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
             return p->food;
         case LV_PL:
             return (int32_t)p->pl;
+        case LV_HOURS_RESTED:
+            return p->hours_rested;
+        case LV_HOUR_OF_DAY:
+            return state.hour_of_day;
         case LV_FLAG:
             return p->flag[lv->index];
         case LV_INVENTORY:
@@ -1752,6 +1846,16 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                 die_at(script_id, idx, "mutate: pl must be 0..255");
             }
             p->pl = (unsigned char)v;
+            return;
+        case LV_HOURS_RESTED:
+            p->hours_rested = v;
+            return;
+        case LV_HOUR_OF_DAY:
+            if (v < 1 || v > 24) {
+                die_at(script_id, idx,
+                       "mutate: hour_of_day must be 1..24");
+            }
+            state.hour_of_day = v;
             return;
         case LV_FLAG:
             p->flag[lv->index] = (unsigned char)v;
@@ -1830,8 +1934,10 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
 
 /* §17-F step 3: { mutate: { target:<lvalue>, op:'set'|'add'|'sub'|
    'mul'|'div', value:<expr>, clamp?: { min:<expr>, max:<expr> } } }.
-   Lvalues: { gold } | { torches } | { food } | { flag:<expr> } |
-   { inventory:<expr> } | { member_field: { idx:<expr>, field:'...' } }.
+   Lvalues: { gold } | { torches } | { food } | { pl } |
+   { flag:<expr> } | { inventory:<expr> } |
+   { member_field: { idx:<expr>, field:'...' } } |
+   { hours_rested } | { hour_of_day }.
    Optional clamp applied after the op. Divide-by-zero is fatal. */
 static void do_mutate(const node *op, const char *script_id, size_t idx,
                       const ryl_bind *bindings, rt_env *env) {

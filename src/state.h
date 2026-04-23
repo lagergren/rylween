@@ -83,6 +83,15 @@ struct party {
     int32_t food;
     int32_t time_left;
 
+    /* Fatigue countdown, party-wide. Reset to 14 by sleeping at the inn
+       and by a full camp cycle; decremented each hour by timehandler.
+       At 0 the party "begins to feel tired"; the negative ladder (-4,
+       -8, <-8) drives progressively worse exhaustion messages and
+       per-member hp damage. "pigg" was the original Swedish
+       (lively/untired); this reads as "hours the party remains
+       rested". */
+    int32_t hours_rested;
+
     int32_t inventory[INVENTORY_SLOT_MAX + 1];
 
     int32_t ws[5]; /* Wisdom */
@@ -119,10 +128,9 @@ struct party {
 
 struct ryl_state {
     /* Per-session transient state. */
-    int32_t tid;
+    int32_t hour_of_day;
     int32_t cpl;
     int32_t twn;
-    int32_t hours_pigg;
     int32_t banished;
     int32_t global_x;
     char last_terrain;
@@ -144,6 +152,26 @@ struct ryl_state {
 };
 
 extern struct ryl_state state;
+
+/* Wall-clock helpers. state.hour_of_day is 1..24; advancing past 24
+   wraps to 1. is_hour_in_range accepts inclusive [lo, hi]; when
+   lo > hi the range wraps around midnight (e.g., lo=22, hi=5 means
+   22,23,24,1..5). Used by town shop open-hours checks and by
+   driv.c's dawn/midday/twilight/midnight status-line bucket. */
+static inline void advance_hour(void) {
+    state.hour_of_day++;
+    if (state.hour_of_day == 25) {
+        state.hour_of_day = 1;
+    }
+}
+
+static inline int is_hour_in_range(int lo, int hi) {
+    int h = state.hour_of_day;
+    if (lo <= hi) {
+        return h >= lo && h <= hi;
+    }
+    return h >= lo || h <= hi;
+}
 
 /* Party member class IDs (party.cl[]). Note this is distinct from the
    `struct person`.job numbering used for NPCs — different enum, same names

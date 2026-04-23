@@ -53,7 +53,7 @@
   // described there.
   church: [
     { engine_call: 'clr_map_window' },
-    { engine_call: 'blitgfx', args: [4] },
+    { engine_call: 'blitgfx', args: [{ pic: 'church' }] },
     { loop: [
       { engine_call: 'clw' },
       { engine_call: 'statusline' },
@@ -277,7 +277,7 @@
     ] },
   ],
 
-  // smith() — weapon / armour shop. C wrapper advances state.tid and
+  // smith() — weapon / armour shop. C wrapper advances state.hour_of_day and
   // resolves opening hours from world.json5's buildings.smith
   // (opens_at / closes_at), passing them in as `open_lo` / `open_hi`
   // bindings so the closed-screen check lives here and not in C.
@@ -313,8 +313,8 @@
   smith: [
     { if: {
         cond: { or: [
-          { lt: [{ tid: 0 }, { var: 'open_lo' }] },
-          { gt: [{ tid: 0 }, { var: 'open_hi' }] },
+          { lt: [{ hour_of_day: 0 }, { var: 'open_lo' }] },
+          { gt: [{ hour_of_day: 0 }, { var: 'open_hi' }] },
         ] },
         then: [
           { engine_call: 'clw' },
@@ -323,7 +323,7 @@
         ],
         else: [
           { engine_call: 'clr_map_window' },
-          { engine_call: 'blitgfx', args: [3] },
+          { engine_call: 'blitgfx', args: [{ pic: 'smith' }] },
           { loop: [
             { engine_call: 'clw' },
             { engine_call: 'statusline' },
@@ -628,11 +628,12 @@
   ],
 
   // tavern() — drinking hall, rumour hub, and the scruffy-dealer
-  // chance encounter. C wrapper advances state.tid and looks up
+  // chance encounter. C wrapper advances state.hour_of_day and looks up
   // buildings.tavern (opens_at:6, closes_at:1 — wrap), handing the
   // script `open_lo`/`open_hi` to drive the closed screen.
   //
-  // Closed check uses the WRAP form `tid < open_lo && tid > open_hi`
+  // Closed check uses the WRAP form
+  // `hour_of_day < open_lo && hour_of_day > open_hi`
   // (closed only in the pre-dawn window 2..5). Smith-style buildings
   // use the non-wrap form; both shapes share the same bindings.
   //
@@ -660,8 +661,8 @@
   tavern: [
     { if: {
         cond: { and: [
-          { lt: [{ tid: 0 }, { var: 'open_lo' }] },
-          { gt: [{ tid: 0 }, { var: 'open_hi' }] },
+          { lt: [{ hour_of_day: 0 }, { var: 'open_lo' }] },
+          { gt: [{ hour_of_day: 0 }, { var: 'open_hi' }] },
         ] },
         then: [
           { engine_call: 'clw' },
@@ -670,7 +671,7 @@
         ],
         else: [
           { engine_call: 'clr_map_window' },
-          { engine_call: 'blitgfx', args: [2] },
+          { engine_call: 'blitgfx', args: [{ pic: 'tavern' }] },
 
           // Scruffy-boost: sum of ch[m]/10 across priest members
           // (cl==5). Priest in a party raises the chance that the
@@ -678,7 +679,8 @@
           { let: 'x', value: 0 },
           { for_member: { var: 'm', then: [
             { if: {
-                cond: { eq: [{ member: { var: 'm' }, field: 'cl' }, 5] },
+                cond: { eq: [{ member: { var: 'm' }, field: 'cl' },
+                              { enum: ['pc_class', 'Priest'] }] },
                 then: [
                   { let: 'x', value: { add: [
                     { var: 'x' },
@@ -702,23 +704,23 @@
                 { switch: {
                     expr: { var: 'i' },
                     cases: [
-                      { match: 1,  then: [{ let: 'i', value: 15  }] },
-                      { match: 2,  then: [{ let: 'i', value: 17  }] },
-                      { match: 3,  then: [{ let: 'i', value: 26  }] },
-                      { match: 4,  then: [{ let: 'i', value: 38  }] },
-                      { match: 5,  then: [{ let: 'i', value: 41  }] },
-                      { match: 6,  then: [{ let: 'i', value: 100 }] },
-                      { match: 7,  then: [{ let: 'i', value: 101 }] },
-                      { match: 8,  then: [{ let: 'i', value: 102 }] },
-                      { match: 9,  then: [{ let: 'i', value: 103 }] },
-                      { match: 10, then: [{ let: 'i', value: 104 }] },
-                      { match: 11, then: [{ let: 'i', value: 105 }] },
-                      { match: 12, then: [{ let: 'i', value: 106 }] },
-                      { match: 13, then: [{ let: 'i', value: 107 }] },
-                      { match: 14, then: [{ let: 'i', value: 108 }] },
-                      { match: 15, then: [{ let: 'i', value: 109 }] },
-                      { match: 16, then: [{ let: 'i', value: 110 }] },
-                      { match: 17, then: [{ let: 'i', value: 111 }] },
+                      { match: 1,  then: [{ let: 'i', value: { item: 'magic_dagger'        } }] },
+                      { match: 2,  then: [{ let: 'i', value: { item: 'magic_axe'           } }] },
+                      { match: 3,  then: [{ let: 'i', value: { item: 'admt_mail'           } }] },
+                      { match: 4,  then: [{ let: 'i', value: { item: 'amber_potion'        } }] },
+                      { match: 5,  then: [{ let: 'i', value: { item: 'green_gem'           } }] },
+                      { match: 6,  then: [{ let: 'i', value: { item: 'frost_wand'          } }] },
+                      { match: 7,  then: [{ let: 'i', value: { item: 'fire_wand'           } }] },
+                      { match: 8,  then: [{ let: 'i', value: { item: 'gem_of_confusion'    } }] },
+                      { match: 9,  then: [{ let: 'i', value: { item: 'gem_of_blindness'    } }] },
+                      { match: 10, then: [{ let: 'i', value: { item: 'drums_of_death'      } }] },
+                      { match: 11, then: [{ let: 'i', value: { item: 'staff_of_healing'    } }] },
+                      { match: 12, then: [{ let: 'i', value: { item: 'blessing_scroll'     } }] },
+                      { match: 13, then: [{ let: 'i', value: { item: 'staff_of_curing'     } }] },
+                      { match: 14, then: [{ let: 'i', value: { item: 'gem_of_resurrection' } }] },
+                      { match: 15, then: [{ let: 'i', value: { item: 'kaels_axe'           } }] },
+                      { match: 16, then: [{ let: 'i', value: { item: 'holy_handgrenade'    } }] },
+                      { match: 17, then: [{ let: 'i', value: { item: 'flute_of_madness'    } }] },
                     ],
                 } },
                 { engine_bind: { fn: 'object', args: [{ var: 'i' }], var: 'item' } },
@@ -1026,6 +1028,579 @@
                           ] },
                         ],
                     } },
+                  ] },
+                ],
+            } },
+          ] },
+        ],
+    } },
+  ],
+
+  // inn() — innkeeper: supper, drink, lodging, and letter-sending.
+  // C wrapper advances state.hour_of_day; the inn is always open
+  // (no closed-hour check, no buildings.inn entry needed).
+  //
+  // Outer loop cycles through three Y/N prompts — supper, drink,
+  // lodging. Declining lodging drops into a terminal chitchat
+  // sub-menu that wraps speak(2, twn) so the party can send
+  // letters; only L exits. Any other lodging-path exit (room-pay
+  // success, kicked out for lack of gold, or L-leave) also ends
+  // the inn by breaking the outer loop.
+  //
+  // Costs: supper and lodging share the same `15 * lv[1]^2`
+  // formula (computed once at the loop top); drinks are flat
+  // A/B/C/D/E = 2/3/5/7/1 gold. Healing: supper +6 hp, drink
+  // +pr/2+1, morning-rise +h/4 — all clamped to h via mutate
+  // clamp, and skipped for dead members. The no_drink text is
+  // shared with the tavern (towne.tavern.no_drink).
+  //
+  // First DSL use of the hour_of_day mutate target (set to 5 on
+  // wake) and LV_HOURS_RESTED (set to 14 at bedtime); both land
+  // via §17-F's expanded lvalue registry.
+  inn: [
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'inn' }] },
+    { loop: [
+      // Shared cost for supper and lodging: 15 * lv[1] * lv[1].
+      { let: 'cost', value: { mul: [
+        { mul: [15, { member: 1, field: 'lv' }] },
+        { member: 1, field: 'lv' },
+      ] } },
+
+      // --- Supper
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'res_enum',
+                       args: ['name', { add: [24, { twn: 0 }] }],
+                       var: 'name' } },
+      { emit: 'greeter' },
+      { emit: 'common.yes' },
+      { emit: 'common.no' },
+      { menu_branch: {
+          options: [
+            { key: 'Y', then: [
+              { if: {
+                  cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                  then: [
+                    { engine_call: 'clw' },
+                    { emit: 'supper_cost' },
+                    { pause: 1000 },
+                  ],
+                  else: [
+                    { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                    { engine_call: 'clw' },
+                    { emit: 'supper_served' },
+                    { for_member: { var: 'm', then: [
+                      { if: {
+                          cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'm' }] } },
+                          then: [
+                            { mutate: {
+                                target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                                op: 'add', value: 6,
+                                clamp: { max: { member: { var: 'm' }, field: 'h' } },
+                            } },
+                          ],
+                      } },
+                    ] } },
+                    { wait_input: true },
+                  ],
+              } },
+            ] },
+          ],
+      } },
+
+      // --- Drink
+      { engine_call: 'clw' },
+      { emit: 'drink_q' },
+      { emit: 'common.yes' },
+      { emit: 'common.no' },
+      { menu_branch: {
+          options: [
+            { key: 'Y', then: [
+              { engine_call: 'clw' },
+              { emit: 'drink_menu' },
+              { menu_branch: {
+                  key_var: 'drink_ch',
+                  options: [
+                    { key_range: ['A', 'E'], then: [
+                      { let: 'pr', value: 0 },
+                      { switch: {
+                          expr: { var: 'drink_ch' },
+                          cases: [
+                            { match: 65, then: [{ let: 'pr', value: 2 }] }, // A — Ale
+                            { match: 66, then: [{ let: 'pr', value: 3 }] }, // B — Mead
+                            { match: 67, then: [{ let: 'pr', value: 5 }] }, // C — Wine
+                            { match: 68, then: [{ let: 'pr', value: 7 }] }, // D — Whiskey
+                            { match: 69, then: [{ let: 'pr', value: 1 }] }, // E — Fanta
+                          ],
+                      } },
+                      { if: {
+                          cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                          then: [
+                            { engine_call: 'clw' },
+                            // Shared with tavern; absolute reference.
+                            { emit: 'towne.tavern.no_drink' },
+                            { pause: 1000 },
+                          ],
+                          else: [
+                            { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'pr' } } },
+                            { engine_call: 'clw' },
+                            { if: {
+                                cond: { ne: [{ var: 'drink_ch' }, 69] },
+                                then: [{ emit: 'ahh' }],
+                                else: [{ emit: 'giggle' }],
+                            } },
+                            { pause: 1000 },
+                            { for_member: { var: 'm', then: [
+                              { if: {
+                                  cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'm' }] } },
+                                  then: [
+                                    { mutate: {
+                                        target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                                        op: 'add',
+                                        value: { add: [{ div: [{ var: 'pr' }, 2] }, 1] },
+                                        clamp: { max: { member: { var: 'm' }, field: 'h' } },
+                                    } },
+                                  ],
+                              } },
+                            ] } },
+                          ],
+                      } },
+                    ] },
+                  ],
+              } },
+            ] },
+          ],
+      } },
+
+      // --- Lodging. Y-path branches on T (take) / L or default
+      //     (leave); N-path drops into the chitchat loop. Every
+      //     terminating branch below must `break: true` so the
+      //     outer loop exits and the wrapper returns.
+      { engine_call: 'clw' },
+      { emit: 'lodging_q' },
+      { emit: 'common.yes' },
+      { emit: 'common.no' },
+      { menu_branch: {
+          options: [
+            { key: 'Y', then: [
+              { engine_call: 'clw' },
+              { emit: 'room_cost' },
+              { menu_branch: {
+                  prompt: 'room_menu',
+                  options: [
+                    { key: 'T', then: [
+                      { if: {
+                          cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { emit: 'no_gold_kick' },
+                            { pause: 2000 },
+                            { engine_call: 'clr_map_window' },
+                            { break: true },
+                          ],
+                          else: [
+                            { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                            { engine_call: 'clw' },
+                            { emit: 'bedtime' },
+                            { pause: 1000 },
+                            { emit: 'zzz' },
+                            { mutate: { target: { hours_rested: 0 }, op: 'set', value: 14 } },
+                            { pause: 1500 },
+                            { emit: 'morning' },
+                            { wait_input: true },
+                            { mutate: { target: { hour_of_day: 0 }, op: 'set', value: 5 } },
+                            { for_member: { var: 'm', then: [
+                              { if: {
+                                  cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'm' }] } },
+                                  then: [
+                                    { mutate: {
+                                        target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                                        op: 'add',
+                                        value: { div: [{ member: { var: 'm' }, field: 'h' }, 4] },
+                                        clamp: { max: { member: { var: 'm' }, field: 'h' } },
+                                    } },
+                                  ],
+                              } },
+                            ] } },
+                            { engine_call: 'clr_map_window' },
+                            { break: true },
+                          ],
+                      } },
+                    ] },
+                  ],
+                  // ryl_menu default-L: any non-T key leaves.
+                  default: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'clr_map_window' },
+                    { break: true },
+                  ],
+              } },
+            ] },
+          ],
+          // Declined lodging: terminal chitchat loop. C sends a
+          // letter via speak(2, twn); L (or any non-C key) exits.
+          default: [
+            { loop: [
+              { engine_call: 'clw' },
+              { emit: 'leaves' },
+              { menu_branch: {
+                  prompt: 'chit_menu',
+                  options: [
+                    { key: 'C', then: [
+                      { engine_call: 'speak', args: [2, { twn: 0 }] },
+                    ] },
+                  ],
+                  default: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'clr_map_window' },
+                    { break: true },
+                  ],
+              } },
+            ] },
+            { break: true },
+          ],
+      } },
+    ] },
+  ],
+
+  // merchant() — general goods shop. C wrapper advances
+  // state.hour_of_day and looks up buildings.merchant (opens_at:6,
+  // closes_at:18 — non-wrap), handing the script `open_lo` /
+  // `open_hi` for the closed-hour screen (same bindings shape
+  // smith / tavern use; see world.json5 buildings).
+  //
+  // Main menu loop: L leaves, S sells a single inventory slot,
+  // B enters the inner buy loop.
+  //
+  // Sell (S): invlist + single keypress A..P picks a slot. Slots
+  // holding items `oc < 32 || oc == 47` (weapons/armour and the
+  // donkey) are rejected as wrong_kind. Otherwise offer
+  // `obcost(oc)/2`; on Y, add gold, zero the slot, redraw
+  // statusline.
+  //
+  // Buy (B): inner loop re-shows buy_menu each iteration. A..F
+  // map to item ids 31..36; G remaps to 47 (donkey); H or any
+  // other key breaks the inner loop. Per-item price is
+  // `obcost(oc)` with a `+ lv[1]*3` bump for the healing potion
+  // (oc=36). Torch / food (oc 31 / 32) take the multi-buy how-
+  // many path with its own cap-and-clamp. Everything else
+  // (blanket / tent / rope / potion / donkey) takes the single-
+  // purchase P/N path through inv_find_empty + mutate inventory.
+  //
+  // {food_price} ({lv[1]+1}) and {potion_price} ({obcost(36)+lv[1]*3})
+  // are computed each loop iteration and substituted into
+  // buy_menu. Runtime int formats emit without the original
+  // '%2d' width pad — low-level parties see `B) Food Ration 1 au`
+  // instead of the padded `...  1 au`; cosmetic only.
+  //
+  // Two pre-existing quirks preserved literally:
+  //   - Buying 0 torches prints "Deal!" (the `oc == 31 || (oc == 32 && x)`
+  //     condition only guards x==0 for food). Harmless since gold=0
+  //     and torches=0 net.
+  //   - The C had a dead `if (oc != 31 && oc != 32)` arm inside the
+  //     torch/food branch that's unreachable by construction; dropped
+  //     here.
+  //
+  // Item descriptions (desc.torch / desc.food / .../ desc.donkey)
+  // emit without the original trailing `tx("\r\n")` — one fewer
+  // blank line before the price / quantity prompt.
+  merchant: [
+    { if: {
+        cond: { or: [
+          { lt: [{ hour_of_day: 0 }, { var: 'open_lo' }] },
+          { gt: [{ hour_of_day: 0 }, { var: 'open_hi' }] },
+        ] },
+        then: [
+          { engine_call: 'clw' },
+          { emit: 'closed' },
+          { pause: 1000 },
+        ],
+        else: [
+          { engine_call: 'clr_map_window' },
+          { engine_call: 'blitgfx', args: [{ pic: 'merchant' }] },
+          { loop: [
+            { engine_call: 'clw' },
+            { emit: 'intro' },
+            { menu_branch: {
+                prompt: 'menu',
+                options: [
+                  { key: 'L', then: [
+                    { engine_call: 'clw' },
+                    { emit: 'bye' },
+                    { pause: 1000 },
+                    { engine_call: 'clr_map_window' },
+                    { break: true },
+                  ] },
+
+                  // --- (S)ell one slot
+                  { key: 'S', then: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'invlist' },
+                    { menu_branch: {
+                        key_var: 'sell_ch',
+                        options: [
+                          { key_range: ['A', 'P'], then: [
+                            { let: 'slot', value: { sub: [{ var: 'sell_ch' }, 64] } },
+                            { let: 'oc', value: { inventory: { var: 'slot' } } },
+                            { if: {
+                                // Reject anything below `torch` (id 31 — that's
+                                // the weapons / armour range) and the donkey
+                                // (the merchant won't take it back).
+                                cond: { or: [
+                                  { lt: [{ var: 'oc' }, { item: 'torch' }] },
+                                  { eq: [{ var: 'oc' }, { item: 'donkey' }] },
+                                ] },
+                                then: [
+                                  { engine_call: 'clw' },
+                                  { emit: 'wrong_kind' },
+                                  { pause: 1000 },
+                                ],
+                                else: [
+                                  { let: 'pr', value: { div: [{ obcost: { var: 'oc' } }, 2] } },
+                                  { engine_call: 'clw' },
+                                  { emit: 'sell_offer' },
+                                  { emit: 'common.yes' },
+                                  { emit: 'common.no' },
+                                  { menu_branch: {
+                                      options: [
+                                        { key: 'Y', then: [
+                                          { emit: 'sold' },
+                                          { pause: 1000 },
+                                          { mutate: { target: { gold: 0 },
+                                                      op: 'add', value: { var: 'pr' } } },
+                                          { mutate: { target: { inventory: { var: 'slot' } },
+                                                      op: 'set', value: 0 } },
+                                          { engine_call: 'statusline' },
+                                        ] },
+                                      ],
+                                  } },
+                                ],
+                            } },
+                          ] },
+                        ],
+                    } },
+                  ] },
+
+                  // --- (B)uy inner loop
+                  { key: 'B', then: [
+                    { loop: [
+                      { engine_call: 'clw' },
+                      { engine_call: 'statusline' },
+                      { let: 'food_price',
+                        value: { add: [{ member: 1, field: 'lv' }, 1] } },
+                      { let: 'potion_price',
+                        value: { add: [
+                          { obcost: 36 },
+                          { mul: [{ member: 1, field: 'lv' }, 3] },
+                        ] } },
+                      { emit: 'buy_menu' },
+                      { menu_branch: {
+                          key_var: 'buy_ch',
+                          options: [
+                            { key_range: ['A', 'G'], then: [
+                              // A(65)..G(71) → oc = buy_ch - 34 → 31..37 —
+                              // landing on item ids torch..blue_potion, with
+                              // blue_potion's slot 37 remapped to `donkey`
+                              // (id 47) because that's how the menu layout
+                              // reads (G = Donkey). 37 here is the sentinel
+                              // from the ASCII math, not a real item probe.
+                              { let: 'oc', value: { sub: [{ var: 'buy_ch' }, 34] } },
+                              { if: {
+                                  cond: { eq: [{ var: 'oc' }, 37] },
+                                  then: [{ let: 'oc', value: { item: 'donkey' } }],
+                              } },
+
+                              // Base pr, with potion override.
+                              { let: 'pr', value: { obcost: { var: 'oc' } } },
+                              { if: {
+                                  cond: { eq: [{ var: 'oc' }, { item: 'red_potion' }] },
+                                  then: [
+                                    { let: 'pr', value: { add: [
+                                      { var: 'pr' },
+                                      { mul: [{ member: 1, field: 'lv' }, 3] },
+                                    ] } },
+                                  ],
+                              } },
+
+                              { engine_call: 'clw' },
+                              { switch: {
+                                  expr: { var: 'oc' },
+                                  cases: [
+                                    { match: { item: 'torch'      }, then: [{ emit: 'desc.torch'   }] },
+                                    { match: { item: 'ration'     }, then: [{ emit: 'desc.food'    }] },
+                                    { match: { item: 'blanket'    }, then: [{ emit: 'desc.blanket' }] },
+                                    { match: { item: 'tent'       }, then: [{ emit: 'desc.tent'    }] },
+                                    { match: { item: 'rope'       }, then: [{ emit: 'desc.rope'    }] },
+                                    { match: { item: 'red_potion' }, then: [{ emit: 'desc.potion'  }] },
+                                    { match: { item: 'donkey'     }, then: [{ emit: 'desc.donkey'  }] },
+                                  ],
+                              } },
+
+                              { if: {
+                                  cond: { or: [
+                                    { eq: [{ var: 'oc' }, { item: 'torch'  }] },
+                                    { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                  ] },
+                                  then: [
+                                    // --- Torch / ration multi-buy
+                                    { if: {
+                                        cond: { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                        then: [{ let: 'pr', value: { var: 'food_price' } }],
+                                    } },
+                                    { emit: 'each' },
+                                    { input_number: { prompt_screen: 'how_many',
+                                                      lg: 5, var: 'x',
+                                                      min: 0, max: 99999 } },
+
+                                    // Torch cap: total torches ≤ 80.
+                                    { if: {
+                                        cond: { eq: [{ var: 'oc' }, { item: 'torch' }] },
+                                        then: [
+                                          { if: {
+                                              cond: { gt: [
+                                                { add: [{ var: 'x' }, { torches: 0 }] },
+                                                80,
+                                              ] },
+                                              then: [
+                                                { engine_call: 'clw' },
+                                                { emit: 'too_many_torches' },
+                                                { pause: 1000 },
+                                                { let: 'x', value: { sub: [80, { torches: 0 }] } },
+                                              ],
+                                          } },
+                                        ],
+                                    } },
+
+                                    // Food cap: total food ≤ 150 * (donkeys+1).
+                                    { if: {
+                                        cond: { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                        then: [
+                                          { let: 'cap', value: { add: [
+                                            150,
+                                            { mul: [{ engine_int: 'inv_count_in_range',
+                                                      args: [{ item: 'donkey' }, { item: 'donkey' }] }, 150] },
+                                          ] } },
+                                          { if: {
+                                              cond: { gt: [
+                                                { add: [{ var: 'x' }, { food: 0 }] },
+                                                { var: 'cap' },
+                                              ] },
+                                              then: [
+                                                { engine_call: 'clw' },
+                                                { emit: 'too_many_food' },
+                                                { pause: 1000 },
+                                                { let: 'x', value: { sub: [{ var: 'cap' }, { food: 0 }] } },
+                                              ],
+                                          } },
+                                        ],
+                                    } },
+
+                                    // Negative clamp (input_number's min:0
+                                    // already does this; mirrors the
+                                    // C `if (x < 0) x = 0;` anyway).
+                                    { if: {
+                                        cond: { lt: [{ var: 'x' }, 0] },
+                                        then: [{ let: 'x', value: 0 }],
+                                    } },
+
+                                    { if: {
+                                        cond: { lt: [
+                                          { gold: 0 },
+                                          { mul: [{ var: 'pr' }, { var: 'x' }] },
+                                        ] },
+                                        then: [
+                                          { engine_call: 'clw' },
+                                          { emit: 'too_expensive' },
+                                          { pause: 1000 },
+                                        ],
+                                        else: [
+                                          { mutate: { target: { gold: 0 },
+                                                      op: 'sub',
+                                                      value: { mul: [{ var: 'pr' }, { var: 'x' }] } } },
+                                          { if: {
+                                              cond: { eq: [{ var: 'oc' }, { item: 'torch' }] },
+                                              then: [
+                                                { mutate: { target: { torches: 0 },
+                                                            op: 'add', value: { var: 'x' } } },
+                                              ],
+                                          } },
+                                          { if: {
+                                              cond: { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                              then: [
+                                                { mutate: { target: { food: 0 },
+                                                            op: 'add', value: { var: 'x' } } },
+                                              ],
+                                          } },
+                                          { engine_call: 'clw' },
+                                          // Quirk: torch always emits Deal;
+                                          // ration only when x != 0.
+                                          { if: {
+                                              cond: { or: [
+                                                { eq: [{ var: 'oc' }, { item: 'torch' }] },
+                                                { and: [
+                                                  { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                                  { ne: [{ var: 'x' }, 0] },
+                                                ] },
+                                              ] },
+                                              then: [{ emit: 'deal' }],
+                                          } },
+                                          { pause: 1000 },
+                                        ],
+                                    } },
+                                  ],
+                                  else: [
+                                    // --- Single-purchase items (33/34/35/36/47)
+                                    { emit: 'price' },
+                                    { menu_branch: {
+                                        prompt: 'pn_menu',
+                                        options: [
+                                          { key: 'P', then: [
+                                            { if: {
+                                                cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                                                then: [
+                                                  { engine_call: 'clw' },
+                                                  { emit: 'too_expensive' },
+                                                  { pause: 1000 },
+                                                ],
+                                                else: [
+                                                  { let: 'slot',
+                                                    value: { engine_int: 'inv_find_empty',
+                                                             args: [] } },
+                                                  { if: {
+                                                      cond: { eq: [{ var: 'slot' }, 0] },
+                                                      then: [
+                                                        { emit: 'cant_carry' },
+                                                        { pause: 1000 },
+                                                      ],
+                                                      else: [
+                                                        { mutate: { target: { inventory: { var: 'slot' } },
+                                                                    op: 'set', value: { var: 'oc' } } },
+                                                        { mutate: { target: { gold: 0 },
+                                                                    op: 'sub', value: { var: 'pr' } } },
+                                                        { engine_call: 'clw' },
+                                                        { emit: 'deal' },
+                                                        { pause: 1000 },
+                                                      ],
+                                                  } },
+                                                ],
+                                            } },
+                                          ] },
+                                        ],
+                                        default: [
+                                          { engine_call: 'clw' },
+                                          { break: true },
+                                        ],
+                                    } },
+                                  ],
+                              } },
+                            ] },
+                          ],
+                          default: [
+                            // H or any non-A..G key exits the buy loop.
+                            { break: true },
+                          ],
+                      } },
+                    ] },
                   ] },
                 ],
             } },

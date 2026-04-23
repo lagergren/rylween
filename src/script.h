@@ -105,7 +105,7 @@
  *          | { food:   <any> }           state.p[cpl].food
  *          | { pl:     <any> }           state.p[cpl].pl (living members)
  *          | { twn:    <any> }           state.twn
- *          | { tid:    <any> }           state.tid
+ *          | { hour_of_day: <any> }      state.hour_of_day
  *          | { cpl:    <any> }           state.cpl
  *          | { random: [ <expr>, <expr> ] }  ryl_random(lo, hi) inclusive
  *          | { chance: <expr> }          ryl_chance(pct) -> 0/1
@@ -121,6 +121,9 @@
  *          | { not: <expr> }             returns 0 or 1
  *          | { obcost:   <expr> }        res_item(id)->cost
  *          | { obdamage: <expr> }        res_item(id)->damage
+ *          | { item: '<name>'|<int> }    res_item_id('torch') etc.
+ *          | { pic:  '<name>'|<int> }    res_enum_id('pic', ...)
+ *          | { enum: ['<tab>','<val>'] } generic res_enum_id lookup
  *          | { engine_int: '<name>',     whitelisted int-returning
  *              args: [<expr>...] }       C entry point (argc enforced
  *                                        by registry). Current names:

@@ -141,6 +141,9 @@ const char *res_town_name(int twn);
 int32_t res_town_x(int twn);
 int32_t res_town_y(int twn);
 int32_t res_town_at(int x, int y);
+/* Percentage tax rate at the town entry (enter() tax preamble). 0 if
+   twn is out of range or the town record omits `tax:`. */
+int32_t res_town_tax(int twn);
 
 /* Per-building opening hours. `name` matches a key under the
    `buildings` subtree of data/world.json5 (e.g. "smith"). Writes
