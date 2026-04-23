@@ -87,6 +87,13 @@ const char *res_text(const char *id);
 /* Items 0..111. NULL if no record. */
 const ryl_item *res_item(int id);
 
+/* Symbolic item lookup (§16.5). Returns the id of the item whose shard
+   key matches `sym` (e.g. "red_gem" -> 39); -1 if unknown. Walks the
+   `items.<shard>.<sym>` subtree of the world tree — loader-path speed,
+   linear search. Lets §16.4 scripts author reward lists by name
+   instead of hard-coding ints. */
+int32_t res_item_id(const char *sym);
+
 /* Monsters 0..90. NULL if no record. */
 const ryl_monster *res_monster(int id);
 

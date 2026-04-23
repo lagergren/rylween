@@ -269,6 +269,37 @@ const ryl_item *res_item(int id) {
     return items[id].name ? &items[id] : NULL;
 }
 
+int32_t res_item_id(const char *sym) {
+    if (!world_tree || !sym) {
+        return -1;
+    }
+    const node *items_n = obj_get(world_tree, "items");
+    if (!items_n || items_n->kind != N_OBJ) {
+        return -1;
+    }
+    for (size_t s = 0; s < items_n->u.obj.n; s++) {
+        const node *section = items_n->u.obj.items[s].val;
+        if (!section || section->kind != N_OBJ) {
+            continue;
+        }
+        for (size_t i = 0; i < section->u.obj.n; i++) {
+            if (strcmp(section->u.obj.items[i].key, sym) != 0) {
+                continue;
+            }
+            const node *rec = section->u.obj.items[i].val;
+            if (!rec || rec->kind != N_OBJ) {
+                return -1;
+            }
+            const node *id_n = obj_get(rec, "id");
+            if (!id_n || id_n->kind != N_INT) {
+                return -1;
+            }
+            return (int32_t)id_n->u.iv;
+        }
+    }
+    return -1;
+}
+
 const ryl_monster *res_monster(int id) {
     if (id < 0 || id > RES_MAX_MONSTER_ID) {
         return NULL;

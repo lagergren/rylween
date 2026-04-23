@@ -293,10 +293,9 @@ static void reply_chitchat(int32_t subj, int32_t jb) {
    advances the flag. Historically named "flaggkoll" (Swedish for "flag
    check"); the responsibilities grew beyond a pure check. */
 static void npc_mission_hint(int32_t npc) {
-    int32_t i, x, oc;
+    int32_t oc;
     char loc[80];
     char c, d;
-    uint8_t carry;
 
     switch (npc) {
         /*****************************************************************/
@@ -308,30 +307,7 @@ static void npc_mission_hint(int32_t npc) {
             }
             if (state.p[state.cpl].flag[1] == 2) {
                 clw();
-                tx0(res_text("speak.merchant.grateful"));
-                for (i = 1, x = 0; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 39;
-                        x = 1;
-                        break;
-                    }
-                }
-                if (!x) {
-                    tx0(res_text("speak.merchant.cant_carry"));
-                    ryl_delay(800);
-                    carry = 0;
-                    carry = drop_option();
-                    if (carry) {
-                        clw();
-                        tx0(res_text("speak.merchant.picked_up"));
-                        state.p[state.cpl].inventory[carry] = 39;
-                        ryl_delay(800);
-                    }
-                }
-                ryl_pause();
-                state.p[state.cpl].gold += 2000;
-                state.p[state.cpl].flag[1] = 3;
-                clw();
+                play_script("speak.merchant.grateful", NULL);
                 break;
             }
             break;
@@ -386,30 +362,7 @@ static void npc_mission_hint(int32_t npc) {
             }
             if (state.p[state.cpl].flag[3] == 3) {
                 clw();
-                tx0(res_text("speak.fighter.blade"));
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[3] = 4;
-                for (i = 1, x = 0; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 18;
-                        x = 1;
-                        break;
-                    }
-                }
-                if (!x) {
-                    tx0(res_text("speak.fighter.cant_carry"));
-                    ryl_delay(800);
-                    carry = 0;
-                    carry = drop_option();
-                    if (carry) {
-                        clw();
-                        tx0(res_text("speak.fighter.take_blade"));
-                        state.p[state.cpl].inventory[carry] = 18;
-                        ryl_delay(800);
-                    }
-                    ryl_pause();
-                }
+                play_script("speak.fighter.grateful", NULL);
             }
             break;
         case 4:
@@ -578,32 +531,7 @@ static void npc_mission_hint(int32_t npc) {
         case 14:
             if (state.p[state.cpl].flag[2] == 1) {
                 clw();
-                tx0(res_text("speak.brother.give_sword"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.brother.produces"));
-                for (i = 1, x = 0; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 16;
-                        x = 1;
-                        break;
-                    }
-                }
-                if (!x) {
-                    tx0(res_text("speak.brother.cant_carry"));
-                    ryl_delay(800);
-                    carry = 0;
-                    carry = drop_option();
-                    if (carry) {
-                        clw();
-                        tx0(res_text("speak.brother.take_sword"));
-                        state.p[state.cpl].inventory[carry] = 16;
-                        ryl_delay(800);
-                    }
-                }
-                ryl_pause();
-                state.p[state.cpl].flag[2] = 2;
-                clw();
+                play_script("speak.brother.give_sword", NULL);
                 break;
             }
             break;
@@ -650,97 +578,19 @@ static void npc_mission_hint(int32_t npc) {
             }
             if (state.p[state.cpl].flag[19] == 2) {
                 clw();
-                tx0(res_text("speak.husband.reunion"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.husband.gives"));
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[19] = 3;
-                state.p[state.cpl].gold += 3000;
-                for (i = 1, x = 0; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 26;
-                        x++;
-                        break;
-                    }
-                }
-                for (i = 1; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 110;
-                        x++;
-                        break;
-                    }
-                }
-                for (i = 1; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 38;
-                        x++;
-                        break;
-                    }
-                }
-                for (i = 1; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 101;
-                        x++;
-                        break;
-                    }
-                }
-                for (i = 1; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 45;
-                        x++;
-                        break;
-                    }
-                }
-                if (x < 5) {
-                    clw();
-                    tx0(res_text("speak.husband.cant_carry"));
-                    ryl_pause();
-                }
-                clw();
+                play_script("speak.husband.rescued", NULL);
             }
             break;
         /*****************************************************************/
         case 20:
             if (state.p[state.cpl].flag[8] == 3) {
                 clw();
-                tx_fmt("speak.minstrel.reads",
-                       (ryl_bind[]){
-                           {"minstrel_name", res_enum("name", 20)},
-                           {0},
-                       });
-                ryl_pause();
-                for (i = 1, x = 0; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        state.p[state.cpl].inventory[i] = 28;
-                        x++;
-                        break;
-                    }
-                }
-                if (!x) {
-                    clw();
-                    tx0(res_text("speak.minstrel.cant_carry"));
-                    ryl_delay(800);
-                    carry = 0;
-                    carry = drop_option();
-                    if (carry) {
-                        clw();
-                        tx0(res_text("speak.minstrel.take_cloak"));
-                        ryl_delay(800);
-                        state.p[state.cpl].inventory[carry] = 28;
-                    }
-                    ryl_pause();
-                }
-                clw();
-                tx_fmt("speak.minstrel.travel",
-                       (ryl_bind[]){
-                           {"next_town", res_enum("name", 8)},
-                           {0},
-                       });
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[8] = 4;
+                play_script("speak.minstrel.gives_cloak",
+                            (ryl_bind[]){
+                                {"minstrel_name", res_enum("name", 20)},
+                                {"next_town", res_enum("name", 8)},
+                                {0},
+                            });
             }
             break;
         /*****************************************************************/

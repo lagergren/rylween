@@ -11,10 +11,25 @@
 //                             {placeholders} expand via bindings
 //   { set_flag: <slot>,       state.p[cpl].flag[slot] = value
 //     value:    <int> }
+//   { reward: {               gold += N; for each items[] entry, drop
+//     gold: <int>,              into first-empty inventory slot (1..16).
+//     items: [<int|str>...],    On no-free-slot, emit cant_carry_screen
+//     cant_carry_screen:        (delay 800ms, drop_option, optional
+//       '<name>',               picked_up_screen on success, delay
+//     picked_up_screen:         800ms, ryl_pause). All fields optional
+//       '<name>' } }            except the `reward` key itself. Item
+//                               entries are literal ids OR symbolic
+//                               shard keys resolved via res_item_id.
 //
 // Ordering matters: keep set_flag ops in the same position relative to
 // screens as the original speak.c sequencing. Bindings are passed in
 // from the C caller (res_enum lookups, snprintf location strings, etc.).
+//
+// §16.5 reward-bearing scripts (merchant.grateful, fighter.grateful,
+// brother.give_sword, husband.rescued, minstrel.gives_cloak) are ALL
+// fixture-unreachable — per the §16.3 slice C commit the three
+// fixtures (title-menu-exit, title-create-party-{exit,combat}) never
+// complete any mission. No byte-parity risk.
 {
   // case 1, flag[1]==0 — robbed merchant pitches the bandits mission.
   // Caller pre-clws (matches original: leading clw() before tx0).
@@ -23,6 +38,31 @@
       { screen: 'offer' },
       { screen: 'bandits' },
       { set_flag: 1, value: 1 },
+    ],
+    // case 1, flag[1]==2 — merchant hands over the ruby. Reward is
+    // 2000 gold + item 39 (red_gem); if the inventory's full the
+    // player picks one slot to drop via drop_option, then gets the
+    // 'You pick up the gem.' line from picked_up.
+    grateful: [
+      { screen: 'grateful' },
+      { reward: { gold: 2000, items: ['red_gem'],
+                  cant_carry_screen: 'cant_carry',
+                  picked_up_screen: 'picked_up' } },
+      { set_flag: 1, value: 3 },
+    ],
+  },
+
+  // case 3, flag[3]==3 — old fighter hands over the Dancing Blade
+  // after the priest returned his book. Original set flag BEFORE the
+  // reward flow (and before the inventory drop_option prompt), so the
+  // set_flag op precedes the reward here to mirror that ordering.
+  fighter: {
+    grateful: [
+      { screen: 'blade' },
+      { set_flag: 3, value: 4 },
+      { reward: { items: ['dancing_sword'],
+                  cant_carry_screen: 'cant_carry',
+                  picked_up_screen: 'take_blade' } },
     ],
   },
 
@@ -75,6 +115,52 @@
       { screen: 'cave' },
       { journal: "The orc cavern is at 42x23." },
       { set_flag: 19, value: 1 },
+    ],
+    // case 19, flag[19]==2 — Tammy safe; husband pays out. 3000 gold
+    // plus five items: admt_mail, holy_handgrenade, amber_potion,
+    // fire_wand, crystal_bowl (port-plan §16.5's worked example; the
+    // ints are 26, 110, 38, 101, 45). Original emitted one final
+    // cant_carry line if any item failed to fit; the reward op now
+    // prompts drop_option per-item, which is the port-plan shape.
+    // Unreachable from fixtures, so the behaviour change is fine.
+    rescued: [
+      { screen: 'reunion' },
+      { screen: 'gives' },
+      { set_flag: 19, value: 3 },
+      { reward: { gold: 3000,
+                  items: ['admt_mail', 'holy_handgrenade', 'amber_potion',
+                          'fire_wand', 'crystal_bowl'],
+                  cant_carry_screen: 'cant_carry' } },
+    ],
+  },
+
+  // case 14, flag[2]==1 — ranger's brother receives the letter, hands
+  // over the Magic Sword. Caller passes no bindings; flag[2] advances
+  // after the reward flow (original placed flag set after ryl_pause).
+  brother: {
+    give_sword: [
+      { screen: 'give_sword' },
+      { screen: 'produces' },
+      { reward: { items: ['magic_sword'],
+                  cant_carry_screen: 'cant_carry',
+                  picked_up_screen: 'take_sword' } },
+      { set_flag: 2, value: 2 },
+    ],
+  },
+
+  // case 20, flag[8]==3 — minstrel reads the note, hands over Cloak
+  // of Gods, bids farewell pointing at the next town. Bindings flow
+  // through both screens: {minstrel_name} on `reads`, {next_town} on
+  // `travel`. Reward sits between them — matches the original tx_fmt
+  // -> inventory -> tx_fmt sequencing.
+  minstrel: {
+    gives_cloak: [
+      { screen: 'reads' },
+      { reward: { items: ['cloak_of_gods'],
+                  cant_carry_screen: 'cant_carry',
+                  picked_up_screen: 'take_cloak' } },
+      { screen: 'travel' },
+      { set_flag: 8, value: 4 },
     ],
   },
 
