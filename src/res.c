@@ -1100,7 +1100,13 @@ static void reset_towns(void) {
    opening hours consulted by the C wrappers in src/towne.c so
    the DSL can author the closed screen without embedding hour
    literals. `opens_at` and `closes_at` are both inclusive hours in
-   the 0..23 convention that state.tid advances through. */
+   the 0..23 convention that state.tid advances through. If
+   `opens_at > closes_at` the range wraps around midnight (open from
+   opens_at through 24, and through closes_at the next day); the
+   tavern uses this form — open 6..1 means closed only at 2..5. It
+   is up to the per-building DSL script to choose the matching
+   closed-check shape (`tid<lo || tid>hi` for the non-wrap form,
+   `tid<lo && tid>hi` for the wrap form). */
 static void fold_buildings(const node *buildings_node, const char *path) {
     if (!buildings_node) {
         return;
@@ -1139,10 +1145,9 @@ static void fold_buildings(const node *buildings_node, const char *path) {
             res_die(path, rec->line,
                     "buildings: opens_at/closes_at must be in 0..23");
         }
-        if (lo_n->u.iv > hi_n->u.iv) {
-            res_die(path, rec->line,
-                    "buildings: opens_at must be <= closes_at");
-        }
+        /* opens_at > closes_at is the explicit wrap-around form (e.g.
+           tavern 6..1). Each building's DSL picks the matching
+           closed-check shape (see the comment on fold_buildings). */
         buildings_tab[i].name = strdup(key);
         buildings_tab[i].opens_at = lo_n->u.iv;
         buildings_tab[i].closes_at = hi_n->u.iv;

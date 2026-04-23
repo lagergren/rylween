@@ -153,12 +153,16 @@
   // Per-building opening hours (§17-F). Keyed by a short building id
   // — each towne.c wrapper queries `res_building_hours(name, lo, hi)`
   // and passes `open_lo` / `open_hi` as bindings into the matching
-  // DSL script, which emits the "Shop Closed." screen when
-  // `state.tid < open_lo || state.tid > open_hi`. `opens_at` and
-  // `closes_at` are both inclusive (0..23). Missing entries mean
-  // "always open" per the C wrapper's default.
+  // DSL script, which emits the "Shop Closed." screen when the hour
+  // falls outside the declared range. `opens_at` and `closes_at` are
+  // both inclusive (0..23). When `opens_at > closes_at` the range
+  // wraps around midnight: the tavern is `6..1`, i.e., open all day
+  // except 2..5. The DSL per building chooses the matching check
+  // (`tid<lo || tid>hi` for non-wrap, `tid<lo && tid>hi` for wrap).
+  // Missing entries mean "always open" per the C wrapper's default.
   buildings: {
-    smith: { opens_at: 6, closes_at: 18 },
+    smith:  { opens_at: 6, closes_at: 18 },
+    tavern: { opens_at: 6, closes_at: 1  },
   },
 
   // NPCs — one entry per slot, keyed by display name (the same

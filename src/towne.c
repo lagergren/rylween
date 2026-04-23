@@ -319,327 +319,40 @@ static void smith() {
                                    {0},
                                });
 }
-static void tavern() {
-    char c, d, b;
-    int32_t i, x, st, xs;
-    int32_t pr;
-    int32_t rumours = 0;
+/* §17-F migration: C wrapper advances the clock, resolves tavern
+   opening hours from world.json5 (buildings.tavern — open 6..1, wrap
+   around midnight), and dispatches to towne.tavern in
+   data/world/scripts/towne.json5. The script owns the closed screen,
+   the clr_map_window + blitgfx entry scene, the scruffy-offer gate
+   (ryl_chance(5 + priest-charisma/10 per member), 17-case special-
+   item dispatch, B/N buy loop), and the main O/S/T/R/L menu loop —
+   including the tell-story flow (dead / alive, T/B story type, st
+   score thresholds, liar path that exits the tavern) and the R
+   rumour cap + intro switch + engine_call rumour.
 
+   Pre-existing bug fixed in migration: the scruffy random draw was
+   `ryl_random(0, 15) + 1` but the follow-up switch had 17 cases —
+   case 17 (item id 111, Jazzyfoot) was never reachable. The DSL
+   uses `random(0, 16) + 1` so all 17 items can appear. Rare path,
+   no replay fixture. */
+static void tavern() {
     state.tid++;
     if (state.tid == 25) {
         state.tid = 1;
     }
 
-    if (state.tid < 6 && state.tid > 1) {
-        clw();
-        tx0(res_text("towne.tavern.closed"));
-        ryl_delay(1000);
-        return;
-    }
+    int open_lo = 0;
+    int open_hi = 23;
+    res_building_hours("tavern", &open_lo, &open_hi);
 
-    clr_map_window();
-    blitgfx(tavernpic);
-
-    for (i = 1, x = 0; i <= res_party_member_max(); i++) {
-        if (state.p[state.cpl].cl[i] == 5) {
-            x += state.p[state.cpl].ch[i] / 10;
-        }
-    }
-
-    if (ryl_chance(5 + x)) {
-        clw();
-        tx0(res_text("towne.tavern.scruffy_1"));
-        ryl_delay(3000);
-        tx0(res_text("towne.tavern.scruffy_2"));
-        ryl_delay(3000);
-        clw();
-        /* 15,17,26,27,38,41,100,101,102,103,104,106,107,108,109,110,111 */
-        i = ryl_random(0, 15);
-        i++;
-        switch (i) {
-            case 1:
-                i = 15;
-                break;
-            case 2:
-                i = 17;
-                break;
-            case 3:
-                i = 26;
-                break;
-            case 4:
-                i = 38;
-                break;
-            case 5:
-                i = 41;
-                break;
-            case 6:
-                i = 100;
-                break;
-            case 7:
-                i = 101;
-                break;
-            case 8:
-                i = 102;
-                break;
-            case 9:
-                i = 103;
-                break;
-            case 10:
-                i = 104;
-                break;
-            case 11:
-                i = 105;
-                break;
-            case 12:
-                i = 106;
-                break;
-            case 13:
-                i = 107;
-                break;
-            case 14:
-                i = 108;
-                break;
-            case 15:
-                i = 109;
-                break;
-            case 16:
-                i = 110;
-                break;
-            case 17:
-                i = 111;
-                break;
-        }
-        {
-            char price_s[16];
-
-            snprintf(price_s, sizeof price_s, "%d", obcost(i));
-            tx_fmt("towne.tavern.scruffy_offer",
-                   (ryl_bind[]){
-                       {"item", object(i)},
-                       {"price", price_s},
-                       {0},
-                   });
-        }
-        tx0(res_text("towne.tavern.buy_nothanks"));
-
-        while (1) {
-            c = key();
-            c = toupper(c);
-            if (c == 'N' || c == 'B') {
-                break;
-            }
-        }
-        clw();
-        if (c == 'B') {
-            if (state.p[state.cpl].gold < obcost(i)) {
-                tx0(res_text("towne.tavern.scruffy_broke"));
-                ryl_delay(800);
-            } else {
-                x = inv_add(i) != 0;
-                if (x) {
-                    tx0(res_text("towne.tavern.scruffy_deal"));
-                    state.p[state.cpl].gold -= obcost(i);
-                    ryl_delay(800);
-                } else {
-                    tx0(res_text("towne.tavern.scruffy_full"));
-                    ryl_delay(1000);
-                }
-            }
-        }
-        if (c == 'N') {
-            tx0(res_text("towne.tavern.scruffy_no"));
-            ryl_delay(1000);
-        }
-    }
-    while (1) {
-        clw();
-        tx_fmt("towne.tavern.greeter",
-               (ryl_bind[]){
-                   {"name", res_enum("name", 28 + state.twn)},
-                   {0},
-               });
-        c = (char)ryl_menu("towne.tavern.main_menu",
-                           (ryl_menu_opt[]){
-                               {'O', 'O'},
-                               {'S', 'S'},
-                               {'T', 'T'},
-                               {'R', 'R'},
-                               {'L', 'L'},
-                               {0, 0},
-                           });
-        if (c == 'L') {
-            clw();
-            clr_map_window();
-            return;
-        }
-        if (c == 'S') {
-            speak(1, state.twn);
-        }
-        if (c == 'T') {
-            clw();
-            tx0(res_text("towne.tavern.story_who"));
-            d = key();
-            d = toupper(d);
-            if (d >= '1' && d <= '4') {
-                if (state.p[state.cpl].dead[d - 48]) {
-                    clw();
-                    tx0(res_text("towne.tavern.dead_story"));
-                    ryl_delay(2000);
-                } else {
-                    clw();
-                    tx_fmt("towne.tavern.stands_up",
-                           (ryl_bind[]){
-                               {"who", state.p[state.cpl].name[d - 48]},
-                               {0},
-                           });
-                    ryl_delay(2000);
-                    tx0(res_text("towne.tavern.yeah"));
-                    ryl_delay(2000);
-                    b = (char)ryl_menu("towne.tavern.story_menu",
-                                       (ryl_menu_opt[]){
-                                           {'T', 'T'},
-                                           {'B', 'B'},
-                                           {0, 0},
-                                       });
-                    st = 0;
-                    if (b == 'B') {
-                        st = 100;
-                    }
-                    if (state.p[state.cpl].cl[d - 48] == 5) {
-                        st += 100;
-                    }
-                    if (state.p[state.cpl].ch[d - 48] > 90) {
-                        st += 50;
-                    }
-                    if (state.p[state.cpl].ch[d - 48] > 70) {
-                        st += 50;
-                    }
-                    xs = ryl_random(1, 150);
-                    st += xs;
-                    if (b == 'B') {
-                        if (ryl_random(0, 99) > state.p[state.cpl].ch[d - 48]) {
-                            clw();
-                            tx0(res_text("towne.tavern.liar_kicked"));
-                            st = 0;
-                            ryl_delay(2000);
-                            tx0(res_text("towne.tavern.thrown_out"));
-                            state.p[state.cpl].ch[d - 48] -= 10;
-                            if (state.p[state.cpl].ch[d - 48] < 0) {
-                                state.p[state.cpl].ch[d - 48] = 0;
-                            }
-                            clr_map_window();
-                            return;
-                        }
-                    }
-                    clw();
-                    if (st > 400) {
-                        tx0(res_text("towne.tavern.st_superb"));
-                        ryl_pause();
-                        state.p[state.cpl].ch[d - 48] += 3;
-                    }
-                    if (st > 300 && st < 401) {
-                        tx0(res_text("towne.tavern.st_vgood"));
-                        ryl_pause();
-                        state.p[state.cpl].ch[d - 48]++;
-                    }
-                    if (st > 150 && st < 301) {
-                        tx0(res_text("towne.tavern.st_nice"));
-                        ryl_pause();
-                    }
-                    if (st > 100 && st < 151) {
-                        tx0(res_text("towne.tavern.st_bored"));
-                        ryl_pause();
-                        if (state.p[state.cpl].ch[d - 48]) {
-                            state.p[state.cpl].ch[d - 48]--;
-                        }
-                    }
-                    if (st < 101) {
-                        tx0(res_text("towne.tavern.st_asleep"));
-                        ryl_pause();
-                        if (state.p[state.cpl].ch[d - 48] >= 3) {
-                            state.p[state.cpl].ch[d - 48] -= 3;
-                        }
-                    }
-                }
-            }
-        }
-        if (c == 'R') {
-            clw();
-            if (rumours < 5) {
-                rumours++;
-            }
-            if (rumours > 4) {
-                tx0(res_text("towne.tavern.quiet"));
-                ryl_pause();
-            } else {
-                switch (ryl_random(0, 4)) {
-                    case 0:
-                        tx0(res_text("towne.tavern.rum_old"));
-                        break;
-                    case 1:
-                        tx0(res_text("towne.tavern.rum_bard"));
-                        break;
-                    case 2:
-                        tx0(res_text("towne.tavern.rum_halfling"));
-                        break;
-                    case 3:
-                        tx0(res_text("towne.tavern.rum_keeper"));
-                        break;
-                    case 4:
-                        tx0(res_text("towne.tavern.rum_bargirl"));
-                        break;
-                }
-                tx("\r\n");
-                rumour();
-                ryl_pause();
-            }
-        }
-        if (c == 'O') {
-            clw();
-            tx0(res_text("towne.tavern.order_header"));
-            tx0(res_text("towne.tavern.order_menu"));
-            d = key();
-            d = toupper(d);
-            if (d >= 'A' && d <= 'D') {
-                pr = 0;
-                switch (d) {
-                    case 'A':
-                        pr = 2;
-                        break;
-                    case 'B':
-                        pr = 3;
-                        break;
-                    case 'C':
-                        pr = 4;
-                        break;
-                    case 'D':
-                        pr = 1;
-                        break;
-                }
-                if (state.p[state.cpl].gold < pr) {
-                    clw();
-                    tx0(res_text("towne.tavern.no_drink"));
-                    ryl_delay(1000);
-                } else {
-                    clw();
-                    if (d != 'D') {
-                        tx0(res_text("towne.tavern.aah"));
-                        ryl_delay(1000);
-                    } else {
-                        tx0(res_text("towne.tavern.laughed_at"));
-                        ryl_delay(2000);
-                    }
-                    state.p[state.cpl].gold -= pr;
-                    for (i = 1; i <= res_party_member_max(); i++) {
-                        state.p[state.cpl].hp[i] += ((pr / 2) + 1);
-                        if (state.p[state.cpl].hp[i] > state.p[state.cpl].h[i]) {
-                            state.p[state.cpl].hp[i] = state.p[state.cpl].h[i];
-                        }
-                    }
-                }
-            }
-        }
-    }
+    char lo_s[8], hi_s[8];
+    snprintf(lo_s, sizeof lo_s, "%d", open_lo);
+    snprintf(hi_s, sizeof hi_s, "%d", open_hi);
+    play_script("towne.tavern", (ryl_bind[]){
+                                    {"open_lo", lo_s},
+                                    {"open_hi", hi_s},
+                                    {0},
+                                });
 }
 static void inn() {
     char c, d;

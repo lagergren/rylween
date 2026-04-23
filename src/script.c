@@ -1193,12 +1193,27 @@ static void sb_res_enum(const int32_t *ints, const char **strs, char *out,
                         size_t out_sz) {
     snprintf(out, out_sz, "%s", res_enum(strs[0], (int)ints[0]));
 }
+/* Active party member's name for slot 1..res_party_member_max(). Out-
+   of-range slots render "-" (matches object's unknown-id fallback)
+   rather than dying — callers already validate the slot via
+   key_range ['1','4'] before binding. */
+static void sb_pa_name(const int32_t *ints, const char **strs, char *out,
+                       size_t out_sz) {
+    (void)strs;
+    int m = (int)ints[0];
+    if (m < 1 || m > res_party_member_max()) {
+        snprintf(out, out_sz, "-");
+        return;
+    }
+    snprintf(out, out_sz, "%s", state.p[state.cpl].name[m]);
+}
 
 static const str_engine_entry str_engine_tbl[] = {
     {"object", "i", sb_object},
     {"pronoun", "ii", sb_pronoun},
     {"res_town_name", "i", sb_res_town_name},
     {"res_enum", "si", sb_res_enum},
+    {"pa_name", "i", sb_pa_name},
 };
 
 /* §17-F step 5: { engine_bind: { fn:'<name>', args:[<expr>|'<str>',
