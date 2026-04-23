@@ -284,344 +284,40 @@ static void hut() {
 static void church() {
     play_script("towne.church", NULL);
 }
-static void smith() {
-    char b, c, d;
-    int32_t i, x, oc;
-    int32_t pr;
-    int32_t menu = 1;
+/* §17-F migration: C wrapper advances the in-game clock (tid) and
+   resolves the smith's opening hours from the world data, then hands
+   control to towne.smith in data/world/scripts/towne.json5. The
+   script owns the closed screen, the clr_map_window + blitgfx entry
+   scene, the main H/R/E/L style shop loop, the beer-offer chance
+   branch, the A/W/N buy flow with its armour / weapon pagination,
+   and the S sell flow with the Y/N/B bargain loop. Opening hours
+   stay in world.json5 (buildings.smith.opens_at / closes_at) so
+   tavern / inn / merchant can use the same pattern as they migrate.
 
+   Bug fixed in migration: the original weapon-buy path scanned
+   inventory slots 1..15 (`for (i = 1; i < 16; i++)`) to place the
+   purchased item, while the armour path used `inv_add` which scans
+   1..16. The DSL rewrites both routes through inv_find_empty
+   (1..16). Not covered by replay fixtures today, so no
+   byte-identical regression path. */
+static void smith() {
     state.tid++;
     if (state.tid == 25) {
         state.tid = 1;
     }
 
-    if (state.tid > 18 || state.tid < 6) {
-        clw();
-        tx0(res_text("towne.smith.closed"));
-        ryl_delay(1000);
-        return;
-    }
+    int open_lo = 0;
+    int open_hi = 23;
+    res_building_hours("smith", &open_lo, &open_hi);
 
-    clr_map_window();
-    blitgfx(smithpic);
-
-    while (1) {
-        clw();
-        statusline();
-        tx0(res_text("towne.smith.intro"));
-
-        if (ryl_chance(9)) {
-            tx0(res_text("towne.smith.beer_offer"));
-            c = (char)ryl_menu("towne.smith.beer_menu",
-                               (ryl_menu_opt[]){{'A', 'A'}, {'D', 'D'}, {0, 'D'}});
-            if (c == 'A') {
-                clw();
-                tx0(res_text("towne.smith.accept_1"));
-                ryl_delay(2000);
-                tx0(res_text("towne.smith.accept_2"));
-                ryl_delay(2000);
-                tx0(res_text("towne.smith.accept_3"));
-                ryl_delay(2000);
-                clw();
-                rumour();
-                ryl_pause();
-            } else {
-                clw();
-                tx0(res_text("towne.smith.decline"));
-                ryl_pause();
-            }
-        } else {
-            c = (char)ryl_menu("towne.smith.shop_menu",
-                               (ryl_menu_opt[]){
-                                   {'B', 'B'},
-                                   {'S', 'S'},
-                                   {'L', 'L'},
-                                   {0, 0},
+    char lo_s[8], hi_s[8];
+    snprintf(lo_s, sizeof lo_s, "%d", open_lo);
+    snprintf(hi_s, sizeof hi_s, "%d", open_hi);
+    play_script("towne.smith", (ryl_bind[]){
+                                   {"open_lo", lo_s},
+                                   {"open_hi", hi_s},
+                                   {0},
                                });
-            if (c == 'L') {
-                clw();
-                tx0(res_text("towne.smith.bye"));
-                ryl_delay(1000);
-                clr_map_window();
-                return;
-            }
-
-            if (c == 'B') {
-                clw();
-                d = (char)ryl_menu("towne.smith.buy_menu",
-                                   (ryl_menu_opt[]){
-                                       {'A', 'A'},
-                                       {'W', 'W'},
-                                       {'N', 'N'},
-                                       {0, 0},
-                                   });
-
-                if (d == 'A') {
-                    char p20[8], p21[8], p22[8], p23[8], p24[8], p25[8];
-
-                    snprintf(p20, sizeof p20, "%4d", obcost(20));
-                    snprintf(p21, sizeof p21, "%4d", obcost(21));
-                    snprintf(p22, sizeof p22, "%4d", obcost(22));
-                    snprintf(p23, sizeof p23, "%4d", obcost(23));
-                    snprintf(p24, sizeof p24, "%4d", obcost(24));
-                    snprintf(p25, sizeof p25, "%4d", obcost(25));
-                    clw();
-                    tx0(res_text("towne.smith.we_have"));
-                    tx_fmt("towne.smith.armour_menu",
-                           (ryl_bind[]){
-                               {"p20", p20},
-                               {"p21", p21},
-                               {"p22", p22},
-                               {"p23", p23},
-                               {"p24", p24},
-                               {"p25", p25},
-                               {0},
-                           });
-                    d = key();
-                    d = toupper(d);
-                    oc = 0;
-                    pr = 0;
-                    switch (d) {
-                        case '1':
-                            oc = 20;
-                            pr = obcost(oc);
-                            break;
-                        case '2':
-                            oc = 21;
-                            pr = obcost(oc);
-                            break;
-                        case '3':
-                            oc = 22;
-                            pr = obcost(oc);
-                            break;
-                        case '4':
-                            oc = 23;
-                            pr = obcost(oc);
-                            break;
-                        case '5':
-                            oc = 24;
-                            pr = obcost(oc);
-                            break;
-                        case '6':
-                            oc = 25;
-                            pr = obcost(oc);
-                            break;
-                    }
-                    if (state.p[state.cpl].gold < pr) {
-                        clw();
-                        tx0(res_text("towne.smith.too_expensive"));
-                        ryl_delay(1000);
-                    } else {
-                        clw();
-                        x = inv_add(oc);
-                        if (!x) {
-                            tx0(res_text("towne.smith.cant_carry"));
-                            ryl_delay(1000);
-                        } else {
-                            state.p[state.cpl].gold -= pr;
-                            tx0(res_text("towne.smith.deal"));
-                            ryl_delay(1000);
-                        }
-                    }
-                }
-
-                if (d == 'W') {
-                    while (1) {
-                        clw();
-                        tx0(res_text("towne.smith.we_have"));
-                        if (menu == 1) {
-                            char p1[8], p2[8], p3[8], p4[8], p9[8], p11[8];
-
-                            snprintf(p1, sizeof p1, "%4d", obcost(1));
-                            snprintf(p2, sizeof p2, "%4d", obcost(2));
-                            snprintf(p3, sizeof p3, "%4d", obcost(3));
-                            snprintf(p4, sizeof p4, "%4d", obcost(4));
-                            snprintf(p9, sizeof p9, "%4d", obcost(9));
-                            snprintf(p11, sizeof p11, "%4d", obcost(11));
-                            tx_fmt("towne.smith.weapon_page1",
-                                   (ryl_bind[]){
-                                       {"p1", p1},
-                                       {"p2", p2},
-                                       {"p3", p3},
-                                       {"p4", p4},
-                                       {"p9", p9},
-                                       {"p11", p11},
-                                       {0},
-                                   });
-                        }
-                        if (menu == 2) {
-                            char p7[8], p14[8], p10[8], p8[8], p15[8], p16[8];
-
-                            snprintf(p7, sizeof p7, "%4d", obcost(7));
-                            snprintf(p14, sizeof p14, "%4d", obcost(14));
-                            snprintf(p10, sizeof p10, "%4d", obcost(10));
-                            snprintf(p8, sizeof p8, "%4d", obcost(8));
-                            snprintf(p15, sizeof p15, "%4d", obcost(15));
-                            snprintf(p16, sizeof p16, "%4d", obcost(16));
-                            tx_fmt("towne.smith.weapon_page2",
-                                   (ryl_bind[]){
-                                       {"p7", p7},
-                                       {"p14", p14},
-                                       {"p10", p10},
-                                       {"p8", p8},
-                                       {"p15", p15},
-                                       {"p16", p16},
-                                       {0},
-                                   });
-                        }
-                        d = key();
-                        d = toupper(d);
-                        if (d == 'N') {
-                            if (menu == 1) {
-                                menu = 2;
-                            }
-                        }
-                        if (d == 'P') {
-                            if (menu == 2) {
-                                menu = 1;
-                            }
-                        }
-                        if (d != 'N' && d != 'P') {
-                            break;
-                        }
-                    }
-                    oc = 0;
-                    pr = 0;
-                    switch (d) {
-                        case '1':
-                            oc = 1;
-                            pr = obcost(1);
-                            break;
-                        case '2':
-                            oc = 2;
-                            pr = obcost(2);
-                            break;
-                        case '3':
-                            oc = 3;
-                            pr = obcost(3);
-                            break;
-                        case '4':
-                            oc = 4;
-                            pr = obcost(4);
-                            break;
-                        case '5':
-                            oc = 9;
-                            pr = obcost(9);
-                            break;
-                        case '6':
-                            oc = 11;
-                            pr = obcost(11);
-                            break;
-                        case '7':
-                            oc = 7;
-                            pr = obcost(7);
-                            break;
-                        case '8':
-                            oc = 14;
-                            pr = obcost(14);
-                            break;
-                        case '9':
-                            oc = 10;
-                            pr = obcost(10);
-                            break;
-                        case 'A':
-                            oc = 8;
-                            pr = obcost(8);
-                            break;
-                        case 'B':
-                            oc = 15;
-                            pr = obcost(15);
-                            break;
-                        case 'C':
-                            oc = 16;
-                            pr = obcost(16);
-                            break;
-                    }
-                    if (state.p[state.cpl].gold < pr) {
-                        clw();
-                        tx0(res_text("towne.smith.too_expensive"));
-                        ryl_delay(1000);
-                    } else {
-                        clw();
-                        for (i = 1, x = 0; i < 16; i++) {
-                            if (state.p[state.cpl].inventory[i] == 0) {
-                                x = i;
-                                break;
-                            }
-                        }
-                        if (!x) {
-                            tx0(res_text("towne.smith.cant_carry"));
-                            ryl_delay(1000);
-                        } else {
-                            state.p[state.cpl].inventory[x] = oc;
-                            state.p[state.cpl].gold -= pr;
-                            tx0(res_text("towne.smith.deal"));
-                            ryl_delay(1000);
-                        }
-                    }
-                }
-            }
-
-            if (c == 'S') {
-                clw();
-                tx0(res_text("towne.smith.sell_prompt"));
-                invlist();
-                d = key();
-                d = toupper(d);
-                oc = 0;
-                pr = 0;
-                if (d >= 'A' && d <= 'P') {
-                    oc = state.p[state.cpl].inventory[d - 64];
-                    pr = obcost(state.p[state.cpl].inventory[d - 64]);
-                    pr /= 2;
-                    if (oc == 0 || oc > 30) {
-                        clw();
-                        tx0(res_text("towne.smith.not_w_or_a"));
-                        ryl_delay(1000);
-                    } else {
-                        while (1) {
-                            char pr_s[16];
-
-                            clw();
-                            snprintf(pr_s, sizeof pr_s, "%d", pr);
-                            tx_fmt("towne.smith.offer",
-                                   (ryl_bind[]){{"pr", pr_s}, {0}});
-                            tx0(res_text("common.yes"));
-                            tx0(res_text("common.no"));
-                            tx0(res_text("towne.smith.bargain_opt"));
-                            b = key();
-                            b = toupper(b);
-                            if (b == 'Y') {
-                                state.p[state.cpl].inventory[d - 64] = 0;
-                                state.p[state.cpl].gold += pr;
-                                pr = 0;
-                                break;
-                            }
-                            if (b == 'B') {
-                                i = ryl_random(0, 99);
-                                if (i > 90) {
-                                    pr += pr / 4;
-                                }
-                                if (i > 75) {
-                                    pr += pr / 6;
-                                }
-                                if (i < 76) {
-                                    clw();
-                                    tx0(res_text("towne.smith.no_thanks"));
-                                    ryl_delay(1000);
-                                    break;
-                                }
-                            }
-                            if (b == 'N') {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    clr_map_window();
 }
 static void tavern() {
     char c, d, b;

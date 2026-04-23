@@ -276,4 +276,354 @@
       } },
     ] },
   ],
+
+  // smith() — weapon / armour shop. C wrapper advances state.tid and
+  // resolves opening hours from world.json5's buildings.smith
+  // (opens_at / closes_at), passing them in as `open_lo` / `open_hi`
+  // bindings so the closed-screen check lives here and not in C.
+  //
+  // When open: clr_map_window + blitgfx(3) then the shop loop.
+  //   * ryl_chance(9) into beer_offer: A -> three accept_N screens +
+  //     rumour + ryl_pause; anything else -> decline + ryl_pause.
+  //   * Otherwise: B/S/L menu.
+  //       L — bye + clr_map_window + break.
+  //       B — A/W/N buy menu.
+  //           A — armour (ids 20..25, keys 1..6). oc = ch - 29 maps
+  //               '1'=49 -> 20, '6'=54 -> 25.
+  //           W — weapon pagination loop. N/P flip the page; any
+  //               other key exits. key_var holds the last keypress,
+  //               a switch maps it onto weapon ids 1 / 2 / 3 / 4 / 9
+  //               / 11 / 7 / 14 / 10 / 8 / 15 / 16; default is oc=0
+  //               (no purchase). The original's "inv_add(0) fills a
+  //               slot with zero and prints Deal!" bug is fixed by
+  //               that oc=0 gate — a pre-existing divergence between
+  //               the armour and weapon paths that replay fixtures
+  //               don't exercise today.
+  //       S — sell any item in slots 1..16 (keys A..P). Filters
+  //           `oc == 0 || oc > 30` (non-weapon/armour items) and
+  //           falls into the bargain loop: Y sells at pr, B rolls
+  //           0..99 with the 76/90 thresholds, N walks. Any other
+  //           key re-prompts with the same pr.
+  //
+  // References `common.yes` / `common.no` as absolute text ids
+  // (resolve_text_id treats dotted names as absolute). Uses emit,
+  // not screen, so the three tx0 lines emit separately and each
+  // carries its own cursor-right prefix — matches the four tx0
+  // calls the C code makes per bargain iteration.
+  smith: [
+    { if: {
+        cond: { or: [
+          { lt: [{ tid: 0 }, { var: 'open_lo' }] },
+          { gt: [{ tid: 0 }, { var: 'open_hi' }] },
+        ] },
+        then: [
+          { engine_call: 'clw' },
+          { emit: 'closed' },
+          { pause: 1000 },
+        ],
+        else: [
+          { engine_call: 'clr_map_window' },
+          { engine_call: 'blitgfx', args: [3] },
+          { loop: [
+            { engine_call: 'clw' },
+            { engine_call: 'statusline' },
+            { emit: 'intro' },
+            { chance: {
+                pct: 9,
+                then: [
+                  { emit: 'beer_offer' },
+                  { menu_branch: {
+                      prompt: 'beer_menu',
+                      options: [
+                        { key: 'A', then: [
+                            { engine_call: 'clw' },
+                            { emit: 'accept_1' },
+                            { pause: 2000 },
+                            { emit: 'accept_2' },
+                            { pause: 2000 },
+                            { emit: 'accept_3' },
+                            { pause: 2000 },
+                            { engine_call: 'clw' },
+                            { engine_call: 'rumour' },
+                            { wait_input: true },
+                        ] },
+                      ],
+                      // ryl_menu's (A)ccept/(D)ecline sentinel
+                      // defaults to D — anything not 'A' takes the
+                      // decline path. Folded into the default arm.
+                      default: [
+                        { engine_call: 'clw' },
+                        { emit: 'decline' },
+                        { wait_input: true },
+                      ],
+                  } },
+                ],
+                else: [
+                  { menu_branch: {
+                      prompt: 'shop_menu',
+                      options: [
+                        { key: 'L', then: [
+                            { engine_call: 'clw' },
+                            { emit: 'bye' },
+                            { pause: 1000 },
+                            { engine_call: 'clr_map_window' },
+                            { break: true },
+                        ] },
+                        { key: 'B', then: [
+                            { engine_call: 'clw' },
+                            { menu_branch: {
+                                prompt: 'buy_menu',
+                                options: [
+                                  // --- Armour buy
+                                  { key: 'A', then: [
+                                      { let: 'p20', value: { obcost: 20 } },
+                                      { let: 'p21', value: { obcost: 21 } },
+                                      { let: 'p22', value: { obcost: 22 } },
+                                      { let: 'p23', value: { obcost: 23 } },
+                                      { let: 'p24', value: { obcost: 24 } },
+                                      { let: 'p25', value: { obcost: 25 } },
+                                      { engine_call: 'clw' },
+                                      { emit: 'we_have' },
+                                      { emit: 'armour_menu' },
+                                      { menu_branch: {
+                                          key_var: 'armour_ch',
+                                          options: [
+                                            { key_range: ['1', '6'], then: [
+                                              // oc = ch - 29 maps '1' (ASCII 49) -> 20 ... '6' (54) -> 25.
+                                              { let: 'oc', value: { sub: [{ var: 'armour_ch' }, 29] } },
+                                              { let: 'pr', value: { obcost: { var: 'oc' } } },
+                                              { if: {
+                                                  cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                                                  then: [
+                                                    { engine_call: 'clw' },
+                                                    { emit: 'too_expensive' },
+                                                    { pause: 1000 },
+                                                  ],
+                                                  else: [
+                                                    { engine_call: 'clw' },
+                                                    { let: 'slot', value: { engine_int: 'inv_find_empty', args: [] } },
+                                                    { if: {
+                                                        cond: { eq: [{ var: 'slot' }, 0] },
+                                                        then: [
+                                                          { emit: 'cant_carry' },
+                                                          { pause: 1000 },
+                                                        ],
+                                                        else: [
+                                                          { mutate: { target: { inventory: { var: 'slot' } },
+                                                                      op: 'set',
+                                                                      value: { var: 'oc' } } },
+                                                          { mutate: { target: { gold: 0 },
+                                                                      op: 'sub',
+                                                                      value: { var: 'pr' } } },
+                                                          { emit: 'deal' },
+                                                          { pause: 1000 },
+                                                        ],
+                                                    } },
+                                                  ],
+                                              } },
+                                            ] },
+                                          ],
+                                      } },
+                                  ] },
+                                  // --- Weapon buy with N/P pagination
+                                  { key: 'W', then: [
+                                      { let: 'p1',  value: { obcost: 1 } },
+                                      { let: 'p2',  value: { obcost: 2 } },
+                                      { let: 'p3',  value: { obcost: 3 } },
+                                      { let: 'p4',  value: { obcost: 4 } },
+                                      { let: 'p9',  value: { obcost: 9 } },
+                                      { let: 'p11', value: { obcost: 11 } },
+                                      { let: 'p7',  value: { obcost: 7 } },
+                                      { let: 'p14', value: { obcost: 14 } },
+                                      { let: 'p10', value: { obcost: 10 } },
+                                      { let: 'p8',  value: { obcost: 8 } },
+                                      { let: 'p15', value: { obcost: 15 } },
+                                      { let: 'p16', value: { obcost: 16 } },
+                                      { let: 'menu', value: 1 },
+                                      { loop: [
+                                        { engine_call: 'clw' },
+                                        { emit: 'we_have' },
+                                        { if: { cond: { eq: [{ var: 'menu' }, 1] },
+                                                then: [{ emit: 'weapon_page1' }] } },
+                                        { if: { cond: { eq: [{ var: 'menu' }, 2] },
+                                                then: [{ emit: 'weapon_page2' }] } },
+                                        { menu_branch: {
+                                            key_var: 'weapon_ch',
+                                            options: [
+                                              { key: 'N', then: [
+                                                  { if: { cond: { eq: [{ var: 'menu' }, 1] },
+                                                          then: [{ let: 'menu', value: 2 }] } },
+                                              ] },
+                                              { key: 'P', then: [
+                                                  { if: { cond: { eq: [{ var: 'menu' }, 2] },
+                                                          then: [{ let: 'menu', value: 1 }] } },
+                                              ] },
+                                            ],
+                                            // key_var fires on default
+                                            // too (see do_menu_branch),
+                                            // so `weapon_ch` is always
+                                            // the last key pressed.
+                                            default: [{ break: true }],
+                                        } },
+                                      ] },
+                                      // ASCII-coded switch: '1'=49
+                                      // '9'=57, 'A'=65 'C'=67.
+                                      { switch: {
+                                          expr: { var: 'weapon_ch' },
+                                          cases: [
+                                            { match: 49, then: [{ let: 'oc', value: 1 }] },
+                                            { match: 50, then: [{ let: 'oc', value: 2 }] },
+                                            { match: 51, then: [{ let: 'oc', value: 3 }] },
+                                            { match: 52, then: [{ let: 'oc', value: 4 }] },
+                                            { match: 53, then: [{ let: 'oc', value: 9 }] },
+                                            { match: 54, then: [{ let: 'oc', value: 11 }] },
+                                            { match: 55, then: [{ let: 'oc', value: 7 }] },
+                                            { match: 56, then: [{ let: 'oc', value: 14 }] },
+                                            { match: 57, then: [{ let: 'oc', value: 10 }] },
+                                            { match: 65, then: [{ let: 'oc', value: 8 }] },
+                                            { match: 66, then: [{ let: 'oc', value: 15 }] },
+                                            { match: 67, then: [{ let: 'oc', value: 16 }] },
+                                            { default: true, then: [{ let: 'oc', value: 0 }] },
+                                          ],
+                                      } },
+                                      { if: {
+                                          cond: { gt: [{ var: 'oc' }, 0] },
+                                          then: [
+                                            { let: 'pr', value: { obcost: { var: 'oc' } } },
+                                            { if: {
+                                                cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                                                then: [
+                                                  { engine_call: 'clw' },
+                                                  { emit: 'too_expensive' },
+                                                  { pause: 1000 },
+                                                ],
+                                                else: [
+                                                  { engine_call: 'clw' },
+                                                  { let: 'slot', value: { engine_int: 'inv_find_empty', args: [] } },
+                                                  { if: {
+                                                      cond: { eq: [{ var: 'slot' }, 0] },
+                                                      then: [
+                                                        { emit: 'cant_carry' },
+                                                        { pause: 1000 },
+                                                      ],
+                                                      else: [
+                                                        { mutate: { target: { inventory: { var: 'slot' } },
+                                                                    op: 'set',
+                                                                    value: { var: 'oc' } } },
+                                                        { mutate: { target: { gold: 0 },
+                                                                    op: 'sub',
+                                                                    value: { var: 'pr' } } },
+                                                        { emit: 'deal' },
+                                                        { pause: 1000 },
+                                                      ],
+                                                  } },
+                                                ],
+                                            } },
+                                          ],
+                                      } },
+                                  ] },
+                                  // N or any other key: fall through
+                                  // (back to outer shop loop), no
+                                  // purchase.
+                                ],
+                            } },
+                        ] },
+                        { key: 'S', then: [
+                            { engine_call: 'clw' },
+                            { emit: 'sell_prompt' },
+                            { engine_call: 'invlist' },
+                            { menu_branch: {
+                                key_var: 'sell_ch',
+                                options: [
+                                  { key_range: ['A', 'P'], then: [
+                                    { let: 'slot', value: { sub: [{ var: 'sell_ch' }, 64] } },
+                                    { let: 'oc', value: { inventory: { var: 'slot' } } },
+                                    { let: 'pr', value: { div: [{ obcost: { var: 'oc' } }, 2] } },
+                                    { if: {
+                                        cond: { or: [
+                                          { eq: [{ var: 'oc' }, 0] },
+                                          { gt: [{ var: 'oc' }, 30] },
+                                        ] },
+                                        then: [
+                                          { engine_call: 'clw' },
+                                          { emit: 'not_w_or_a' },
+                                          { pause: 1000 },
+                                        ],
+                                        else: [
+                                          { loop: [
+                                            { engine_call: 'clw' },
+                                            { emit: 'offer' },
+                                            { emit: 'common.yes' },
+                                            { emit: 'common.no' },
+                                            { emit: 'bargain_opt' },
+                                            { menu_branch: {
+                                                options: [
+                                                  { key: 'Y', then: [
+                                                      { mutate: { target: { inventory: { var: 'slot' } },
+                                                                  op: 'set',
+                                                                  value: 0 } },
+                                                      { mutate: { target: { gold: 0 },
+                                                                  op: 'add',
+                                                                  value: { var: 'pr' } } },
+                                                      { break: true },
+                                                  ] },
+                                                  { key: 'B', then: [
+                                                      { let: 'i', value: { random: [0, 99] } },
+                                                      { if: {
+                                                          cond: { gt: [{ var: 'i' }, 90] },
+                                                          then: [
+                                                            { let: 'pr', value: {
+                                                                add: [
+                                                                  { var: 'pr' },
+                                                                  { div: [{ var: 'pr' }, 4] },
+                                                                ],
+                                                            } },
+                                                          ],
+                                                      } },
+                                                      { if: {
+                                                          cond: { gt: [{ var: 'i' }, 75] },
+                                                          then: [
+                                                            { let: 'pr', value: {
+                                                                add: [
+                                                                  { var: 'pr' },
+                                                                  { div: [{ var: 'pr' }, 6] },
+                                                                ],
+                                                            } },
+                                                          ],
+                                                      } },
+                                                      { if: {
+                                                          cond: { lt: [{ var: 'i' }, 76] },
+                                                          then: [
+                                                            { engine_call: 'clw' },
+                                                            { emit: 'no_thanks' },
+                                                            { pause: 1000 },
+                                                            { break: true },
+                                                          ],
+                                                      } },
+                                                  ] },
+                                                  { key: 'N', then: [{ break: true }] },
+                                                  // Any other key:
+                                                  // re-prompt with
+                                                  // the same pr
+                                                  // (matches the
+                                                  // original's
+                                                  // while(1) fall-
+                                                  // through).
+                                                ],
+                                            } },
+                                          ] },
+                                        ],
+                                    } },
+                                  ] },
+                                ],
+                            } },
+                        ] },
+                      ],
+                  } },
+                ],
+            } },
+          ] },
+        ],
+    } },
+  ],
 }

@@ -133,6 +133,19 @@ static ryl_town towns[5];
    the data declares more. */
 static size_t n_towns;
 
+/* Per-building opening hours. Looked up by name ("smith", "tavern",
+   ...) so each shop's C wrapper can hand the DSL a closed/open
+   check without hardcoding literal hours in either layer. Sized at
+   a small fixed cap — grown on demand if more buildings than the
+   initial four-shop towne set up a record. */
+typedef struct {
+    char *name;
+    int32_t opens_at;
+    int32_t closes_at;
+} ryl_building;
+static ryl_building *buildings_tab;
+static size_t n_buildings;
+
 /* Cold-start realization knobs (port-plan §15.4). npc_slack is the
    `slack` term added to ceil(N/T) when computing the per-bin cap for
    the capacity-capped NPC draw in res_realize_npcs(). Default matches
@@ -270,6 +283,22 @@ const char *res_text(const char *id) {
     return hit ? hit->text : "";
 }
 
+int res_text_exists(const char *id) {
+    if (!id || !id[0]) {
+        return 0;
+    }
+    if (!texts_sorted) {
+        for (size_t i = 0; i < n_texts; i++) {
+            if (strcmp(texts[i].id, id) == 0) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    text_rec key = {(char *)id, NULL};
+    return bsearch(&key, texts, n_texts, sizeof *texts, text_cmp) != NULL;
+}
+
 const ryl_item *res_item(int id) {
     if (id < 0 || id > RES_MAX_ITEM_ID) {
         return NULL;
@@ -373,6 +402,24 @@ int32_t res_town_at(int x, int y) {
     for (int i = 1; i <= 4; i++) {
         if (towns[i].name && towns[i].x == x && towns[i].y == y) {
             return i;
+        }
+    }
+    return 0;
+}
+
+int res_building_hours(const char *name, int *opens_at, int *closes_at) {
+    if (!name) {
+        return 0;
+    }
+    for (size_t i = 0; i < n_buildings; i++) {
+        if (strcmp(buildings_tab[i].name, name) == 0) {
+            if (opens_at) {
+                *opens_at = (int)buildings_tab[i].opens_at;
+            }
+            if (closes_at) {
+                *closes_at = (int)buildings_tab[i].closes_at;
+            }
+            return 1;
         }
     }
     return 0;
@@ -1048,6 +1095,70 @@ static void reset_towns(void) {
     n_towns = 0;
 }
 
+/* -------- buildings subtree --------
+   `{ smith: { opens_at: 6, closes_at: 18 }, ... }` — per-building
+   opening hours consulted by the C wrappers in src/towne.c so
+   the DSL can author the closed screen without embedding hour
+   literals. `opens_at` and `closes_at` are both inclusive hours in
+   the 0..23 convention that state.tid advances through. */
+static void fold_buildings(const node *buildings_node, const char *path) {
+    if (!buildings_node) {
+        return;
+    }
+    if (buildings_node->kind != N_OBJ) {
+        res_die(path, buildings_node->line, "buildings: expected object");
+    }
+    size_t count = buildings_node->u.obj.n;
+    if (count == 0) {
+        return;
+    }
+    buildings_tab = calloc(count, sizeof *buildings_tab);
+    if (!buildings_tab) {
+        fprintf(stderr, "res: oom\n");
+        exit(1);
+    }
+    for (size_t i = 0; i < count; i++) {
+        const char *key = buildings_node->u.obj.items[i].key;
+        const node *rec = buildings_node->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : buildings_node->line,
+                    "buildings: entry must be object");
+        }
+        const node *lo_n = obj_get(rec, "opens_at");
+        const node *hi_n = obj_get(rec, "closes_at");
+        if (!lo_n || lo_n->kind != N_INT) {
+            res_die(path, rec->line,
+                    "buildings: opens_at integer required");
+        }
+        if (!hi_n || hi_n->kind != N_INT) {
+            res_die(path, rec->line,
+                    "buildings: closes_at integer required");
+        }
+        if (lo_n->u.iv < 0 || lo_n->u.iv > 23 ||
+            hi_n->u.iv < 0 || hi_n->u.iv > 23) {
+            res_die(path, rec->line,
+                    "buildings: opens_at/closes_at must be in 0..23");
+        }
+        if (lo_n->u.iv > hi_n->u.iv) {
+            res_die(path, rec->line,
+                    "buildings: opens_at must be <= closes_at");
+        }
+        buildings_tab[i].name = strdup(key);
+        buildings_tab[i].opens_at = lo_n->u.iv;
+        buildings_tab[i].closes_at = hi_n->u.iv;
+    }
+    n_buildings = count;
+}
+
+static void reset_buildings(void) {
+    for (size_t i = 0; i < n_buildings; i++) {
+        free(buildings_tab[i].name);
+    }
+    free(buildings_tab);
+    buildings_tab = NULL;
+    n_buildings = 0;
+}
+
 /* -------- limits subtree --------
    Scalar tuning knobs for cold-start realization. Missing keys keep
    their static defaults (set above); a present key overrides. */
@@ -1150,6 +1261,7 @@ void res_load_world(const char *path) {
     fold_terrain(obj_get(root, "terrain"), path);
     fold_pronoun(obj_get(root, "pronoun"), path);
     fold_towns(obj_get(root, "towns"), path);
+    fold_buildings(obj_get(root, "buildings"), path);
     fold_limits(obj_get(root, "limits"), path);
     fold_enums(obj_get(root, "enums"), path);
     fold_texts(obj_get(root, "texts"), path);
@@ -1518,6 +1630,7 @@ void res_shutdown(void) {
     reset_enums();
     reset_texts();
     reset_towns();
+    reset_buildings();
     reset_limits();
     node_free(world_tree);
     world_tree = NULL;

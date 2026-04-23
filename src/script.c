@@ -49,15 +49,52 @@ static __attribute__((noreturn)) void die_at(const char *script_id, size_t idx,
     ryl_die(buf);
 }
 
-/* Build "<parent>.<name>" into `out`, or just "<name>" when parent is
-   empty. Used by do_screen and do_reward's cant_carry / picked_up
-   fall-outs; shared helper so both take the same "text id too long"
-   diagnostic. */
+/* Resolve a {screen|emit|prompt|...: '<name>'} operand to its fully-
+   qualified text id. Used by do_screen, do_emit, menu_branch prompt,
+   do_input_number prompt_screen, and do_reward's cant_carry /
+   picked_up fall-outs; shared helper so every site takes the same
+   "text id too long" diagnostic.
+
+   Resolution order:
+     1. If <name> contains '.', treat as absolute — parent is
+        ignored. Lets a flow reference shared atoms like
+        `common.yes` without duplicating them.
+     2. Probe "<script_id>.<name>" against res_text_exists. Flows
+        whose texts are nested under the script id (towne.church,
+        missions.bandits, towne.smith) resolve here on the first
+        try.
+     3. Fall back to "<parent>.<name>". Flows whose texts share an
+        atom namespace across multiple scripts (speak.merchant.*
+        scripts all drawing from texts.speak.merchant.*) land
+        here — parent strips the flow-suffix segment so the shared
+        atoms resolve.
+     4. Absent a parent too, just the bare name.
+
+   Never returns an existence failure — if nothing matches, the
+   fallback string is still written. tx_fmt turns a missing text
+   into "", and the blank screen is the visible signal that a
+   name is misspelled. */
 static void resolve_text_id(const char *parent, const char *name, char *out,
                             size_t out_sz, const char *script_id, size_t idx,
                             const char *what) {
-    int n = parent[0] ? snprintf(out, out_sz, "%s.%s", parent, name)
-                      : snprintf(out, out_sz, "%s", name);
+    int n;
+    if (strchr(name, '.') != NULL) {
+        n = snprintf(out, out_sz, "%s", name);
+    } else if (script_id && script_id[0]) {
+        char probe[256];
+        int pn = snprintf(probe, sizeof probe, "%s.%s", script_id, name);
+        if (pn > 0 && pn < (int)sizeof probe && res_text_exists(probe)) {
+            n = snprintf(out, out_sz, "%s", probe);
+        } else if (parent && parent[0]) {
+            n = snprintf(out, out_sz, "%s.%s", parent, name);
+        } else {
+            n = snprintf(out, out_sz, "%s", name);
+        }
+    } else if (parent && parent[0]) {
+        n = snprintf(out, out_sz, "%s.%s", parent, name);
+    } else {
+        n = snprintf(out, out_sz, "%s", name);
+    }
     if (n < 0 || n >= (int)out_sz) {
         char buf[64];
         snprintf(buf, sizeof buf, "%s: text id too long", what);
@@ -1040,6 +1077,14 @@ static void eng_drop_option(const int32_t *a) {
     (void)a;
     (void)drop_option();
 }
+/* towne.c rumour() picks a random r0..r32 line and emits it (with
+   optional NPC/town bindings for slots 12, 13, 25, 27). Called from
+   smith's beer-accept flow and tavern's rumour menu; exposed as a
+   void engine_call so the DSL owns the surrounding screens. */
+static void eng_rumour(const int32_t *a) {
+    (void)a;
+    rumour();
+}
 
 typedef struct {
     const char *name;
@@ -1061,6 +1106,7 @@ static const engine_entry engine_tbl[] = {
     {"invlist", 0, eng_invlist},
     {"showparty", 0, eng_showparty},
     {"drop_option", 0, eng_drop_option},
+    {"rumour", 0, eng_rumour},
 };
 
 /* §17-E: { engine_call: '<name>', args: [<expr>...] }. Args are
@@ -1468,6 +1514,16 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
                               sizeof merged / sizeof *merged, script_id, idx));
     }
     char ch = (char)toupper((unsigned char)key());
+    /* key_var binds regardless of which option matches (or whether one
+       matches at all). That way callers that follow a menu_branch with
+       a switch on the same key get a meaningful `last_key` even when
+       the user pressed something unmapped and the `default: [...]`
+       arm fired — useful for pagination-loop exits and similar flows
+       where the body breaks on "anything not N/P" but still wants to
+       decide what to do based on which key the user pressed. */
+    if (key_var_n) {
+        rt_bind_set_char(env, key_var_n->u.sv, ch, script_id, idx);
+    }
     for (size_t i = 0; i < opts_n->u.arr.n; i++) {
         const node *o = opts_n->u.arr.items[i];
         if (!o || o->kind != N_OBJ) {
@@ -1475,9 +1531,6 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         }
         if (!menu_opt_matches(o, ch, script_id, idx)) {
             continue;
-        }
-        if (key_var_n) {
-            rt_bind_set_char(env, key_var_n->u.sv, ch, script_id, idx);
         }
         const node *then_n = obj_get(o, "then");
         if (!then_n) {

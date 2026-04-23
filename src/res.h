@@ -84,6 +84,12 @@ int res_enum_id(const char *id, const char *value);
 /* Text: content strings for {"kind":"text",...}. "" if missing. Never NULL. */
 const char *res_text(const char *id);
 
+/* Non-empty existence probe distinct from res_text (which collapses
+   "missing" into "" and loses the 1-bit of information against an
+   intentionally-empty record). Used by resolve_text_id to decide
+   between the nested-script lookup and the shared-atom fallback. */
+int res_text_exists(const char *id);
+
 /* Items 0..111. NULL if no record. */
 const ryl_item *res_item(int id);
 
@@ -135,6 +141,15 @@ const char *res_town_name(int twn);
 int32_t res_town_x(int twn);
 int32_t res_town_y(int twn);
 int32_t res_town_at(int x, int y);
+
+/* Per-building opening hours. `name` matches a key under the
+   `buildings` subtree of data/world.json5 (e.g. "smith"). Writes
+   the configured opens_at / closes_at (inclusive 0..23 hours) into
+   the out parameters on hit and returns 1. Returns 0 for an
+   unknown name (out parameters untouched); callers should default
+   before calling so the "open 24/7" fallback is explicit. Consulted
+   by the towne.c C wrappers that hand bindings to play_script. */
+int res_building_hours(const char *name, int *opens_at, int *closes_at);
 
 /* §15 step 3: realize NPC placements from data/world.json5 npcs:.
    Populates state.npc[1..slot_max]. Each spec entry is either FIXED
