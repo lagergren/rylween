@@ -169,6 +169,23 @@ uint32_t tx_fmt(const char *id, const ryl_bind *bindings) {
     return tx0(buf);
 }
 
+int ryl_menu(const char *screen_text_id, const ryl_menu_opt *opts) {
+    if (screen_text_id) {
+        tx0(res_text(screen_text_id));
+    }
+    char ch = (char)toupper((unsigned char)key());
+    for (const ryl_menu_opt *o = opts; o->letter; o++) {
+        if (o->letter == ch) {
+            return o->result;
+        }
+    }
+    const ryl_menu_opt *s = opts;
+    while (s->letter) {
+        s++;
+    }
+    return s->result;
+}
+
 void clw(void) {
     int32_t i;
 

@@ -295,7 +295,7 @@ static void reply_chitchat(int32_t subj, int32_t jb) {
 static void npc_mission_hint(int32_t npc) {
     int32_t oc;
     char loc[80];
-    char c, d;
+    char d;
 
     switch (npc) {
         /*****************************************************************/
@@ -412,10 +412,8 @@ static void npc_mission_hint(int32_t npc) {
                 ryl_pause();
                 clw();
                 tx0(res_text("speak.silver_key.deal"));
-                tx0(res_text("speak.buy_nothanks"));
-                c = key();
-                c = toupper(c);
-                if (c == 'B') {
+                if (ryl_menu("speak.buy_nothanks",
+                             (ryl_menu_opt[]){{'B', 1}, {0, 0}}) == 1) {
                     if (state.p[state.cpl].gold < 50000) {
                         clw();
                         tx0(res_text("speak.silver_key.broke"));
@@ -492,10 +490,8 @@ static void npc_mission_hint(int32_t npc) {
                 ryl_pause();
                 clw();
                 tx0(res_text("speak.thun.offer"));
-                tx0(res_text("speak.buy_nothanks"));
-                c = key();
-                c = toupper(c);
-                if (c == 'B') {
+                if (ryl_menu("speak.buy_nothanks",
+                             (ryl_menu_opt[]){{'B', 1}, {0, 0}}) == 1) {
                     if (state.p[state.cpl].gold < 10000) {
                         clw();
                         tx0(res_text("speak.thun.broke"));

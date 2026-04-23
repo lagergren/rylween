@@ -28,6 +28,21 @@ typedef struct {
 
 uint32_t tx_fmt(const char *id, const ryl_bind *bindings);
 
+/* §16.1 menu helper. Emits a res_text() screen, reads one keypress via
+   key(), upper-cases it, and returns the `result` of the first opts[]
+   entry whose `letter` matches. When nothing matches (or the user hit
+   Esc/Bye/etc.), the sentinel entry's `result` is returned as the
+   wildcard default. `opts` is terminated by a {0, 0} entry — whose
+   `result` field doubles as that wildcard. Passing a NULL screen id
+   skips the screen emission so callers can stack it after an earlier
+   tx0/tx_fmt that laid down the prompt text. */
+typedef struct {
+    char letter;
+    int result;
+} ryl_menu_opt;
+
+int ryl_menu(const char *screen_text_id, const ryl_menu_opt *opts);
+
 /* Expand {ident} / {{ placeholders in `src` against `bindings`, writing
    up to out_sz-1 bytes + NUL into `out`. Same syntax as tx_fmt; same
    fatal-error semantics (ryl_die on unterminated '{', oversize ident,
