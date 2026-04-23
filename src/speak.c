@@ -287,56 +287,316 @@ static void reply_chitchat(int32_t subj, int32_t jb) {
     static const char *const subjects[3] = {"well", "weather", "health"};
     txi("speak.chit.reply.%s.j%d", subjects[subj], jb);
 }
-/* Per-NPC mission state-machine step. Each case checks the party's
-   mission flags for this NPC (indexed by NPC nr) and, when a quest is
-   at the right stage, emits the corresponding dialogue screen(s) and
-   advances the flag. Historically named "flaggkoll" (Swedish for "flag
-   check"); the responsibilities grew beyond a pure check. */
+/* §16.5 mission-state-machine dispatcher. Table-driven replacement for
+   the historical `npc_mission_hint` switch (one case per NPC slot,
+   flag-guarded if-chains, inline tx_fmt / play_script).
+
+   The stage tables are pure data — adding a new NPC or stage is a
+   data edit, no new C functions. Conditions (mission_cond) are
+   AND-of-N: a stage fires only when every listed flag slot matches
+   its expected value. OR across stages is implicit — stages are
+   tried in order and the first match wins; multi-way OR is expressed
+   by listing the stage N times with different conds + same script.
+
+   Bindings are authored as {name, kind, arg} triples. The four
+   primitive kinds (NPC_NAME / NPC_LOC / DX_STR / DY_STR) cover every
+   call site the original C had; widening the vocabulary is a data
+   edit plus one `case` in mission_resolve_bindings.
+
+   NPCs whose "hint" is a menu / invlist-keyed branch (cases 6, 13,
+   22) are NOT in the table — they need DSL ops that don't exist yet
+   (conditional gold-check, inventory-letter key) and stay inline
+   below. Flag advancement is the script's job (`set_flag` op); C
+   only reads flags here. */
+
+enum mission_bind_kind {
+    BIND_NPC_NAME = 1, /* res_enum("name", arg) */
+    BIND_NPC_LOC,      /* "in <town>" | "at <x>x<y>" via fmt_npc_loc */
+    BIND_DX_STR,       /* state.dx[arg] stringified */
+    BIND_DY_STR,       /* state.dy[arg] stringified */
+};
+
+typedef struct {
+    int32_t flag;
+    int32_t when;
+} mission_cond;
+
+typedef struct {
+    const char *name; /* placeholder id */
+    enum mission_bind_kind kind;
+    int32_t arg; /* npc slot or dungeon index, per kind */
+} mission_binding;
+
+typedef struct {
+    const mission_cond *conds; /* AND-of-all; never NULL; nconds >= 1 */
+    size_t nconds;
+    const char *script;
+    const mission_binding *binds; /* NULL iff nbinds == 0 */
+    size_t nbinds;
+    uint8_t pre_clw;
+} mission_stage;
+
+typedef struct {
+    int32_t npc_slot;
+    const mission_stage *stages;
+    size_t nstages;
+} mission_spec;
+
+#define MAX_BINDINGS   4  /* max per stage observed today: 2 */
+#define BIND_ZONE_SIZE 80 /* per-binding scratch (NPC_LOC needs ~40) */
+
+/* Write "in <town>" OR "at <x>x<y>" for NPC `slot` into `dst`. */
+static void fmt_npc_loc(int32_t slot, char *dst, size_t dst_sz) {
+    if (state.npc[slot].towne) {
+        snprintf(dst, dst_sz, "in %s", res_town_name(state.npc[slot].towne));
+    } else {
+        snprintf(dst, dst_sz, "at %dx%d", state.npc[slot].x, state.npc[slot].y);
+    }
+}
+
+/* Stage tables. First-match-wins within each NPC; stages are never
+   expected to fire simultaneously for a single flag snapshot. Cond
+   and binding arrays use C99 compound literals so adding a stage is
+   a single struct-literal append. */
+
+static const mission_stage stages_npc1[] = {
+    {.conds = (const mission_cond[]){{.flag = 1, .when = 0}}, .nconds = 1, .script = "speak.merchant.first_visit", .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag = 1, .when = 2}}, .nconds = 1, .script = "speak.merchant.grateful", .pre_clw = 1},
+};
+
+static const mission_stage stages_npc2[] = {
+    {.conds = (const mission_cond[]){{.flag = 2, .when = 0}}, .nconds = 1, .script = "speak.ranger.first_visit", .binds = (const mission_binding[]){
+                                                                                                                     {"ranger_name", BIND_NPC_NAME, 14},
+                                                                                                                     {"ranger_loc", BIND_NPC_LOC, 14},
+                                                                                                                 },
+     .nbinds = 2,
+     .pre_clw = 0},
+};
+
+static const mission_stage stages_npc3[] = {
+    /* flag[3]==0 (fighter intro) stays inline — no script yet. */
+    {.conds = (const mission_cond[]){{.flag = 3, .when = 3}}, .nconds = 1, .script = "speak.fighter.grateful", .pre_clw = 1},
+};
+
+static const mission_stage stages_npc4[] = {
+    /* NPC 4 reads flag[3] (priest-chain's flag). */
+    {.conds = (const mission_cond[]){{.flag = 3, .when = 2}}, .nconds = 1, .script = "speak.wizard.robbed_flow", .pre_clw = 1},
+};
+
+static const mission_stage stages_npc5[] = {
+    {.conds = (const mission_cond[]){{.flag = 3, .when = 1}}, .nconds = 1, .script = "speak.priest.intro_flow", .binds = (const mission_binding[]){
+                                                                                                                    {"wizard_name", BIND_NPC_NAME, 4},
+                                                                                                                    {"giver_name", BIND_NPC_NAME, 3},
+                                                                                                                },
+     .nbinds = 2,
+     .pre_clw = 1},
+};
+
+static const mission_stage stages_npc8[] = {
+    {.conds = (const mission_cond[]){{.flag = 8, .when = 0}}, .nconds = 1, .script = "speak.erethor.first_visit", .pre_clw = 0},
+    {.conds = (const mission_cond[]){{.flag = 8, .when = 2}}, .nconds = 1, .script = "speak.erethor.delivered_lute", .binds = (const mission_binding[]){
+                                                                                                                         {"minstrel_name", BIND_NPC_NAME, 20},
+                                                                                                                         {"minstrel_loc", BIND_NPC_LOC, 20},
+                                                                                                                     },
+     .nbinds = 2,
+     .pre_clw = 1},
+};
+
+static const mission_stage stages_npc14[] = {
+    /* NPC 14 (brother) reads flag[2] (ranger's flag). */
+    {.conds = (const mission_cond[]){{.flag = 2, .when = 1}}, .nconds = 1, .script = "speak.brother.give_sword", .pre_clw = 1},
+};
+
+static const mission_stage stages_npc15[] = {
+    {.conds = (const mission_cond[]){{.flag = 15, .when = 0}}, .nconds = 1, .script = "speak.nymph.know_flow", .binds = (const mission_binding[]){
+                                                                                                                   {"seeker_name", BIND_NPC_NAME, 23},
+                                                                                                                   {"seeker_loc", BIND_NPC_LOC, 23},
+                                                                                                               },
+     .nbinds = 2,
+     .pre_clw = 1},
+};
+
+static const mission_stage stages_npc18[] = {
+    /* NPC 18 (thief 2) reads flag[6] (silver-key). */
+    {.conds = (const mission_cond[]){{.flag = 6, .when = 2}}, .nconds = 1, .script = "speak.thief2.squeezed", .binds = (const mission_binding[]){
+                                                                                                                  {"smith_name", BIND_NPC_NAME, 24},
+                                                                                                              },
+     .nbinds = 1,
+     .pre_clw = 1},
+};
+
+static const mission_stage stages_npc19[] = {
+    {.conds = (const mission_cond[]){{.flag = 19, .when = 0}}, .nconds = 1, .script = "speak.husband.first_visit", .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag = 19, .when = 2}}, .nconds = 1, .script = "speak.husband.rescued", .pre_clw = 1},
+};
+
+static const mission_stage stages_npc20[] = {
+    /* NPC 20 (minstrel) reads flag[8] (Erethor-chain). */
+    {.conds = (const mission_cond[]){{.flag = 8, .when = 3}}, .nconds = 1, .script = "speak.minstrel.gives_cloak", .binds = (const mission_binding[]){
+                                                                                                                       {"minstrel_name", BIND_NPC_NAME, 20},
+                                                                                                                       {"next_town", BIND_NPC_NAME, 8},
+                                                                                                                   },
+     .nbinds = 2,
+     .pre_clw = 1},
+};
+
+static const mission_stage stages_npc23[] = {
+    /* task1 is a two-condition stage (flag[15]==1 AND flag[23]==0). */
+    {.conds = (const mission_cond[]){
+         {.flag = 15, .when = 1},
+         {.flag = 23, .when = 0},
+     },
+     .nconds = 2,
+     .script = "speak.wizard3t.task1_flow",
+     .binds = (const mission_binding[]){
+         {"kobold_x", BIND_DX_STR, 3},
+         {"kobold_y", BIND_DY_STR, 3},
+     },
+     .nbinds = 2,
+     .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag = 23, .when = 2}}, .nconds = 1, .script = "speak.wizard3t.task2_flow", .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag = 23, .when = 4}}, .nconds = 1, .script = "speak.wizard3t.task3_flow", .binds = (const mission_binding[]){
+                                                                                                                       {"dwarf_x", BIND_DX_STR, 4},
+                                                                                                                       {"dwarf_y", BIND_DY_STR, 4},
+                                                                                                                   },
+     .nbinds = 2,
+     .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag = 23, .when = 8}}, .nconds = 1, .script = "speak.wizard3t.grateful_flow", .binds = (const mission_binding[]){
+                                                                                                                          {"crown_x", BIND_DX_STR, 6},
+                                                                                                                          {"crown_y", BIND_DY_STR, 6},
+                                                                                                                      },
+     .nbinds = 2,
+     .pre_clw = 1},
+};
+
+static const mission_stage stages_npc24[] = {
+    {.conds = (const mission_cond[]){{.flag = 6, .when = 3}}, .nconds = 1, .script = "speak.smith.after_thief2", .pre_clw = 1},
+};
+
+static const mission_stage stages_npc33[] = {
+    {.conds = (const mission_cond[]){{.flag = 33, .when = 0}}, .nconds = 1, .script = "speak.hermit.welcome_visit", .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag = 33, .when = 2}}, .nconds = 1, .script = "speak.hermit.tooth_trade", .binds = (const mission_binding[]){
+                                                                                                                      {"cave_x", BIND_DX_STR, 1},
+                                                                                                                      {"cave_y", BIND_DY_STR, 1},
+                                                                                                                  },
+     .nbinds = 2,
+     .pre_clw = 1},
+};
+
+#define MS_ENTRY(slot, arr) \
+    {slot, arr, sizeof arr / sizeof *arr}
+
+static const mission_spec mission_table[] = {
+    MS_ENTRY(1, stages_npc1),
+    MS_ENTRY(2, stages_npc2),
+    MS_ENTRY(3, stages_npc3),
+    MS_ENTRY(4, stages_npc4),
+    MS_ENTRY(5, stages_npc5),
+    MS_ENTRY(8, stages_npc8),
+    MS_ENTRY(14, stages_npc14),
+    MS_ENTRY(15, stages_npc15),
+    MS_ENTRY(18, stages_npc18),
+    MS_ENTRY(19, stages_npc19),
+    MS_ENTRY(20, stages_npc20),
+    MS_ENTRY(23, stages_npc23),
+    MS_ENTRY(24, stages_npc24),
+    MS_ENTRY(33, stages_npc33),
+};
+
+#undef MS_ENTRY
+
+/* Resolve `st->binds[]` into `out` (+ trailing {0} sentinel), using
+   per-binding zones of BIND_ZONE_SIZE bytes in `scratch` for any
+   values that need inline formatting. `scratch` must be at least
+   nbinds * BIND_ZONE_SIZE bytes. */
+static void mission_resolve_bindings(const mission_stage *st, ryl_bind *out,
+                                     char *scratch) {
+    for (size_t i = 0; i < st->nbinds; i++) {
+        const mission_binding *b = &st->binds[i];
+        char *zone = scratch + i * BIND_ZONE_SIZE;
+        out[i].name = b->name;
+        switch (b->kind) {
+            case BIND_NPC_NAME:
+                out[i].value = res_enum("name", b->arg);
+                break;
+            case BIND_NPC_LOC:
+                fmt_npc_loc(b->arg, zone, BIND_ZONE_SIZE);
+                out[i].value = zone;
+                break;
+            case BIND_DX_STR:
+                snprintf(zone, BIND_ZONE_SIZE, "%d", state.dx[b->arg]);
+                out[i].value = zone;
+                break;
+            case BIND_DY_STR:
+                snprintf(zone, BIND_ZONE_SIZE, "%d", state.dy[b->arg]);
+                out[i].value = zone;
+                break;
+        }
+    }
+    out[st->nbinds] = (ryl_bind){0};
+}
+
+/* Returns 1 if a stage fired, 0 otherwise. */
+static int mission_dispatch(int32_t npc) {
+    const unsigned char *flag = state.p[state.cpl].flag;
+    for (size_t i = 0; i < sizeof mission_table / sizeof *mission_table; i++) {
+        const mission_spec *spec = &mission_table[i];
+        if (spec->npc_slot != npc) {
+            continue;
+        }
+        for (size_t j = 0; j < spec->nstages; j++) {
+            const mission_stage *st = &spec->stages[j];
+            int match = 1;
+            for (size_t c = 0; c < st->nconds; c++) {
+                if (flag[st->conds[c].flag] != (unsigned char)st->conds[c].when) {
+                    match = 0;
+                    break;
+                }
+            }
+            if (!match) {
+                continue;
+            }
+            ryl_bind binds[MAX_BINDINGS + 1];
+            char scratch[MAX_BINDINGS * BIND_ZONE_SIZE];
+            const ryl_bind *pass = NULL;
+            if (st->nbinds > 0) {
+                mission_resolve_bindings(st, binds, scratch);
+                pass = binds;
+            }
+            if (st->pre_clw) {
+                clw();
+            }
+            play_script(st->script, pass);
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
+/* Per-NPC mission state-machine step. Dispatches scripted flows via the
+   `mission_table` above; the remaining cases (6, 13, 22) use menus or
+   invlist lookups that don't fit the screen/journal/set_flag/reward DSL
+   and stay inline pending §16.1 slice B work. */
 static void npc_mission_hint(int32_t npc) {
+    if (mission_dispatch(npc)) {
+        return;
+    }
+
     int32_t oc;
-    char loc[80];
     char d;
 
     switch (npc) {
         /*****************************************************************/
-        case 1:
-            if (state.p[state.cpl].flag[1] == 0) {
-                clw();
-                play_script("speak.merchant.first_visit", NULL);
-                break;
-            }
-            if (state.p[state.cpl].flag[1] == 2) {
-                clw();
-                play_script("speak.merchant.grateful", NULL);
-                break;
-            }
-            break;
-        /*****************************************************************/
-        case 2:
-            if (state.p[state.cpl].flag[2] == 0) {
-                if (state.npc[14].towne) {
-                    snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[14].towne));
-                } else {
-                    snprintf(loc, sizeof loc, "at %dx%d", state.npc[14].x, state.npc[14].y);
-                }
-                tx0(res_text("speak.ranger.intro"));
-                ryl_pause();
-                clw();
-                tx_fmt("speak.ranger.deliver",
-                       (ryl_bind[]){
-                           {"ranger_name", res_enum("name", 14)},
-                           {"ranger_loc", loc},
-                           {0},
-                       });
-                ryl_pause();
-                clw();
-                journalf("%d %s, the Ranger lives %s\n", state.cpl, res_enum("name", 14), loc);
-                state.p[state.cpl].flag[2] = 1;
-            }
-            break;
-        /*****************************************************************/
+        /* case 3, flag[3]==0 — fighter-intro branch. Left inline
+           pending a data-authored script (per the §16.5 slice scope, the
+           grateful branch shipped by the foreground is enough to
+           exercise the dispatcher; folding the intro-branch is a
+           follow-up once a {"%s lives" tail-screen can be minted
+           consistently with case 15's location-split). */
         case 3:
             if (state.p[state.cpl].flag[3] == 0) {
+                char loc[80];
                 if (state.npc[5].towne) {
                     snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[5].towne));
                 } else {
@@ -359,40 +619,6 @@ static void npc_mission_hint(int32_t npc) {
                 ryl_pause();
                 clw();
                 state.p[state.cpl].flag[3] = 1;
-            }
-            if (state.p[state.cpl].flag[3] == 3) {
-                clw();
-                play_script("speak.fighter.grateful", NULL);
-            }
-            break;
-        case 4:
-            if (state.p[state.cpl].flag[3] == 2) {
-                clw();
-                play_script("speak.wizard.robbed_flow", NULL);
-            }
-            break;
-        case 5:
-            if (state.p[state.cpl].flag[3] == 1) {
-                clw();
-                tx_fmt("speak.priest.intro",
-                       (ryl_bind[]){
-                           {"wizard_name", res_enum("name", 4)},
-                           {0},
-                       });
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.priest.fled"));
-                ryl_pause();
-                clw();
-                tx_fmt("speak.priest.please",
-                       (ryl_bind[]){
-                           {"giver_name", res_enum("name", 3)},
-                           {0},
-                       });
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[3] = 2;
-                /* GIZZARD */
             }
             break;
         /*****************************************************************/
@@ -446,43 +672,6 @@ static void npc_mission_hint(int32_t npc) {
             }
             break;
         /*****************************************************************/
-        case 8:
-            if (state.p[state.cpl].flag[8] == 0) {
-                play_script("speak.erethor.first_visit", NULL);
-            }
-            if (state.p[state.cpl].flag[8] == 2) {
-                clw();
-                tx0(res_text("speak.erethor.hand_lute"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.erethor.note"));
-                ryl_pause();
-                clw();
-                if (state.npc[20].towne) {
-                    snprintf(loc, sizeof loc, "%s lives in %s.", res_enum("name", 20), res_town_name(state.npc[20].towne));
-                } else {
-                    snprintf(loc, sizeof loc, "%s lives at %dx%d.", res_enum("name", 20), state.npc[20].x, state.npc[20].y);
-                }
-                tx_fmt("speak.erethor.note_deliver",
-                       (ryl_bind[]){
-                           {"minstrel_name", res_enum("name", 20)},
-                           {"minstrel_loc", loc},
-                           {0},
-                       });
-                journalf("%d %s\n", state.cpl, loc);
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.erethor.together"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.erethor.paper"));
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[8] = 3;
-            }
-            break;
-
-        /*****************************************************************/
         case 13:
             if (state.p[state.cpl].flag[13] == 0) {
                 clw();
@@ -524,160 +713,9 @@ static void npc_mission_hint(int32_t npc) {
             }
             break;
         /*****************************************************************/
-        case 14:
-            if (state.p[state.cpl].flag[2] == 1) {
-                clw();
-                play_script("speak.brother.give_sword", NULL);
-                break;
-            }
-            break;
-        /*****************************************************************/
-        case 15:
-            if (state.p[state.cpl].flag[15] == 0) {
-                if (state.npc[23].towne) {
-                    snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[23].towne));
-                } else {
-                    snprintf(loc, sizeof loc, "at %dx%d", state.npc[23].x, state.npc[23].y);
-                }
-                clw();
-                tx_fmt("speak.nymph.know",
-                       (ryl_bind[]){
-                           {"seeker_name", res_enum("name", 23)},
-                           {0},
-                       });
-                ryl_pause();
-                clw();
-                tx("%s lives\r\n", res_enum("name", 23));
-                tx("%s\r\n\r\n", loc);
-                journalf("%d %s lives %s.\n", state.cpl, res_enum("name", 23), loc);
-                state.p[state.cpl].flag[15] = 1;
-                ryl_pause();
-                clw();
-            }
-            break;
-        /*****************************************************************/
-        case 18:
-            if (state.p[state.cpl].flag[6] == 2) {
-                clw();
-                play_script("speak.thief2.squeezed",
-                            (ryl_bind[]){
-                                {"smith_name", res_enum("name", 24)},
-                                {0},
-                            });
-            }
-            break;
-        /*****************************************************************/
-        case 19:
-            if (state.p[state.cpl].flag[19] == 0) {
-                clw();
-                play_script("speak.husband.first_visit", NULL);
-            }
-            if (state.p[state.cpl].flag[19] == 2) {
-                clw();
-                play_script("speak.husband.rescued", NULL);
-            }
-            break;
-        /*****************************************************************/
-        case 20:
-            if (state.p[state.cpl].flag[8] == 3) {
-                clw();
-                play_script("speak.minstrel.gives_cloak",
-                            (ryl_bind[]){
-                                {"minstrel_name", res_enum("name", 20)},
-                                {"next_town", res_enum("name", 8)},
-                                {0},
-                            });
-            }
-            break;
-        /*****************************************************************/
-        case 23:
-            if (state.p[state.cpl].flag[15] == 1 && state.p[state.cpl].flag[23] == 0) {
-                clw();
-                tx0(res_text("speak.wizard3t.intro"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.wizard3t.agree"));
-                ryl_pause();
-                clw();
-                {
-                    char x[8], y[8];
-                    snprintf(x, sizeof x, "%d", state.dx[3]);
-                    snprintf(y, sizeof y, "%d", state.dy[3]);
-                    tx_fmt("speak.wizard3t.task1",
-                           (ryl_bind[]){
-                               {"kobold_x", x},
-                               {"kobold_y", y},
-                               {0},
-                           });
-                }
-                journalf("%d The kobold lair is at %dx%d.\n", state.cpl, state.dx[3], state.dy[3]);
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[15] = 2;
-                state.p[state.cpl].flag[23] = 1;
-                break;
-            }
-            if (state.p[state.cpl].flag[23] == 2) {
-                clw();
-                tx0(res_text("speak.wizard3t.pendant"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.wizard3t.task2"));
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[23] = 3;
-                break;
-            }
-            if (state.p[state.cpl].flag[23] == 4) {
-                clw();
-                tx0(res_text("speak.wizard3t.task3_intro"));
-                ryl_pause();
-                clw();
-                {
-                    char x[8], y[8];
-                    snprintf(x, sizeof x, "%d", state.dx[4]);
-                    snprintf(y, sizeof y, "%d", state.dy[4]);
-                    tx_fmt("speak.wizard3t.task3",
-                           (ryl_bind[]){
-                               {"dwarf_x", x},
-                               {"dwarf_y", y},
-                               {0},
-                           });
-                }
-                journalf("%d The dwarf village is at %dx%d.\n", state.cpl, state.dx[4], state.dy[4]);
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[23] = 5;
-                break;
-            }
-            if (state.p[state.cpl].flag[23] == 8) {
-                clw();
-                {
-                    char x[8], y[8];
-                    snprintf(x, sizeof x, "%d", state.dx[6]);
-                    snprintf(y, sizeof y, "%d", state.dy[6]);
-                    tx_fmt("speak.wizard3t.grateful",
-                           (ryl_bind[]){
-                               {"crown_x", x},
-                               {"crown_y", y},
-                               {0},
-                           });
-                }
-                journalf("%d The Master Crown dungeon is at %dx%d.\n", state.cpl, state.dx[6], state.dy[6]);
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[23] = 9;
-                break;
-            }
-            break;
-        /*****************************************************************/
-        case 24:
-            if (state.p[state.cpl].flag[6] == 3) {
-                clw();
-                play_script("speak.smith.after_thief2", NULL);
-            }
-            break;
-        /*****************************************************************/
+        /* case 22 — jazzy_ogre. invlist + key-letter + inventory lookup
+           pattern; the item-keyed branch isn't a reward/menu shape and
+           stays inline pending §16.1 slice B. See port-plan §16.3. */
         case 22:
             if (state.p[state.cpl].flag[22] == 0) {
                 clw();
@@ -719,31 +757,6 @@ static void npc_mission_hint(int32_t npc) {
                         break;
                     }
                 }
-            }
-            break;
-        /*****************************************************************/
-        case 33:
-            if (state.p[state.cpl].flag[33] == 0) {
-                clw();
-                play_script("speak.hermit.welcome_visit", NULL);
-            }
-            if (state.p[state.cpl].flag[33] == 2) {
-                clw();
-                {
-                    char x[8], y[8];
-                    snprintf(x, sizeof x, "%d", state.dx[1]);
-                    snprintf(y, sizeof y, "%d", state.dy[1]);
-                    tx_fmt("speak.hermit.tooth",
-                           (ryl_bind[]){
-                               {"cave_x", x},
-                               {"cave_y", y},
-                               {0},
-                           });
-                }
-                journalf("%d The Fire Shield Dungeon is at %dx%d.\n", state.cpl, state.dx[1], state.dy[1]);
-                ryl_pause();
-                clw();
-                state.p[state.cpl].flag[33] = 3;
             }
             break;
             /*****************************************************************/

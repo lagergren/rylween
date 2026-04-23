@@ -77,9 +77,14 @@
     ],
   },
 
-  // case 8, flag[8]==0 — Erethor's Lute rumour + Cloak lead + map note.
-  // Caller does NOT pre-clw (matches original: no leading clw before
-  // the first tx0). Journal line is a literal coord, not a binding.
+  // case 8 — Erethor. `first_visit` (flag[8]==0, foreground): rumour +
+  // cloak lead + map note. `delivered_lute` (flag[8]==2, §16.5): hands
+  // over the note pointing at the minstrel. Caller does NOT pre-clw
+  // before first_visit (matches original: no leading clw before the
+  // first tx0). delivered_lute bindings: minstrel_name = res_enum(
+  // "name", 20), minstrel_loc = snprintf "<name> lives in <town>." OR
+  // "<name> lives at <x>x<y>.". Journal body interpolates
+  // {minstrel_loc}.
   erethor: {
     first_visit: [
       { screen: 'rumour' },
@@ -89,6 +94,15 @@
       { screen: 'dangerous' },
       { journal: "Erethor's temple is situated at 6x20." },
       { set_flag: 8, value: 1 },
+    ],
+    delivered_lute: [
+      { screen: 'hand_lute' },
+      { screen: 'note' },
+      { screen: 'note_deliver' },
+      { journal: "{minstrel_name} lives {minstrel_loc}." },
+      { screen: 'together' },
+      { screen: 'paper' },
+      { set_flag: 8, value: 3 },
     ],
   },
 
@@ -176,12 +190,96 @@
     ],
   },
 
-  // case 33, flag[33]==0 — hermit's opener (no troll-tooth yet).
-  // Caller pre-clws.
+  // case 33 — hermit. `welcome_visit` = flag[33]==0 opener (foreground,
+  // no troll-tooth yet); `tooth_trade` = flag[33]==2 reveal (§16.5
+  // mission-dispatcher target). {cave_x}/{cave_y} are snprintf'd from
+  // state.dx[1]/state.dy[1] at call time.
   hermit: {
     welcome_visit: [
       { screen: 'welcome' },
       { set_flag: 33, value: 1 },
+    ],
+    tooth_trade: [
+      { screen: 'tooth' },
+      { journal: "The Fire Shield Dungeon is at {cave_x}x{cave_y}." },
+      { set_flag: 33, value: 3 },
+    ],
+  },
+
+  // §16.5 mission-dispatcher scripts — migrations of the remaining
+  // `npc_mission_hint` case bodies. Each maps to a stage entry in the
+  // static mission_spec[] table in src/speak.c; bindings flow through
+  // from small per-NPC compute functions in the same file.
+
+  // case 2, flag[2]==0 — ranger hands out the letter for his brother.
+  // Bindings: ranger_name = res_enum("name", 14), ranger_loc = snprintf
+  // "in <town>" OR "at <x>x<y>" based on npc[14].towne. Journal body
+  // uses {ranger_loc} rather than rebuilding the string in C.
+  ranger: {
+    first_visit: [
+      { screen: 'intro' },
+      { screen: 'deliver' },
+      { journal: "{ranger_name}, the Ranger lives {ranger_loc}" },
+      { set_flag: 2, value: 1 },
+    ],
+  },
+
+  // case 5, flag[3]==1 — priest explains the stolen book.
+  // Bindings: wizard_name = res_enum("name", 4), giver_name = res_enum(
+  // "name", 3).
+  priest: {
+    intro_flow: [
+      { screen: 'intro' },
+      { screen: 'fled' },
+      { screen: 'please' },
+      { set_flag: 3, value: 2 },
+    ],
+  },
+
+  // case 15, flag[15]==0 — nymph directs the party to the seeker.
+  // Bindings: seeker_name = res_enum("name", 23), seeker_loc = snprintf
+  // "in <town>" OR "at <x>x<y>". `location` is a new screen id (see
+  // texts/speak.json5) that folds the two inline tx() calls that
+  // followed `know` in the original into one tx_fmt record.
+  nymph: {
+    know_flow: [
+      { screen: 'know' },
+      { screen: 'location' },
+      { journal: "{seeker_name} lives {seeker_loc}." },
+      { set_flag: 15, value: 1 },
+    ],
+  },
+
+  // case 23 — wizard-of-three-tasks. Four sub-branches sharing the
+  // same NPC. `task1` fires when (flag[15]==1 && flag[23]==0); the
+  // stage spec in src/speak.c encodes the AND. All four use dungeon-
+  // coord bindings resolved from state.dx[]/state.dy[]. The task1 stage
+  // advances BOTH flag[15] (1->2) and flag[23] (0->1), so the script
+  // carries two set_flag ops — the interpreter handles them in order.
+  wizard3t: {
+    task1_flow: [
+      { screen: 'intro' },
+      { screen: 'agree' },
+      { screen: 'task1' },
+      { journal: "The kobold lair is at {kobold_x}x{kobold_y}." },
+      { set_flag: 15, value: 2 },
+      { set_flag: 23, value: 1 },
+    ],
+    task2_flow: [
+      { screen: 'pendant' },
+      { screen: 'task2' },
+      { set_flag: 23, value: 3 },
+    ],
+    task3_flow: [
+      { screen: 'task3_intro' },
+      { screen: 'task3' },
+      { journal: "The dwarf village is at {dwarf_x}x{dwarf_y}." },
+      { set_flag: 23, value: 5 },
+    ],
+    grateful_flow: [
+      { screen: 'grateful' },
+      { journal: "The Master Crown dungeon is at {crown_x}x{crown_y}." },
+      { set_flag: 23, value: 9 },
     ],
   },
 }

@@ -284,13 +284,15 @@
     // First paragraph ("promise of the deal") — standalone screen.
     note:        ["- I can't believe you", 'actually made it!!!', '- Now for my part of', 'the deal. Listen closely,', 'for I shall say this only', 'once.', ''],
     // Second paragraph — fills {minstrel_name} (res_enum("name", 20))
-    // and {minstrel_loc} (snprintf "... lives in <town>" or "... lives
-    // at <x>x<y>") via tx_fmt at call time.
+    // and {minstrel_loc} (fmt_npc_loc: "in <town>" or "at <x>x<y>").
+    // The "<name> lives " prefix and trailing period sit in the
+    // record so the binding can be the standard fmt_npc_loc output
+    // used everywhere else (§16.5 data-driven bindings).
     note_deliver:['- Take this note here',
                   'and seek out my friend',
                   '{minstrel_name}. He is also a',
                   'minstrel.',
-                  '{minstrel_loc}',
+                  '{minstrel_name} lives {minstrel_loc}.',
                   ''],
     together:    ['- We used to travel', 'together and he found', 'the Cloak in a long dead', "hero's tomb. Now that", 'we have the Lute, the', 'Cloak is yours. Just', 'deliver this explaining', 'note!', ''],
     paper:       ['He hands you a piece of', 'paper and bids you', 'farewell.', ''],
@@ -319,6 +321,11 @@
   },
 
   // case 15 — nymph sends party to seeker of Master Crown.
+  // `location` folds the two inline tx() calls that followed the `know`
+  // screen in the original (tx("%s lives\r\n", ...); tx("%s\r\n\r\n",
+  // ...)) into a single tx_fmt record so the §16.5 dispatcher can emit
+  // them via `{ screen: 'location' }`. Fixture-unreachable NPC, so the
+  // added ryl_pause() boundary is benign.
   nymph: {
     know: ['I heard that a man called',
            '{seeker_name} knows of the',
@@ -330,6 +337,9 @@
            'to him. You are better fit',
            'for this mission than me.',
            ''],
+    location: ['{seeker_name} lives',
+               '{seeker_loc}',
+               ''],
   },
 
   // case 18 — thief 2 squeezed for smith's name.

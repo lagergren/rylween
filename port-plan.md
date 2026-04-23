@@ -1887,3 +1887,87 @@ Order matters because later items build on earlier ones:
   Any helper that merges screens must preserve or deliberately
   drop the per-line jumps — document the choice in the §16.4
   interpreter.
+
+## 17. A.4 slice: mission-control + support modules
+
+**Status:** pending — raised 2026-04-23 during the §16.5 mission-state-
+machine session. Remaining Phase-6-class text-extraction targets after
+A.2 (speak.c, done), A.3 (towne.c, done), A.5 (driv.c / ydarg.c
+residuals — closed empty; slices A/B/C of §16.3 caught everything).
+
+### 17.1 Scope
+
+| File        | LOC  | Shape | Fixture-reach |
+|---|---|---|---|
+| missions.c  | 583  | Map-position triggers: (E)nter / (L)eave dungeon prompts at fixed (x,y) coords, flag-guarded. Calls `dungeon(N,M)` + `update_map()` on enter. 11 trigger blocks. | Audit first. |
+| dungeon.c   | 917  | Dungeon-level exploration UI: room descriptions, loot, stairs, NPC cameos. | Likely some. Biggest fixture-rebless risk. |
+| interact.c  | 428  | Party-level menus: drop / swap item flows, HP viewing, rest prompts. | Likely some. |
+| subs.c      | 1310 | Character-creation helpers, scorelist, misc utilities. Overlaps with §14.4's scorelist decomposition plan. | Title-flow fixtures touch parts. |
+
+### 17.2 Infrastructure deltas
+
+§16.4's `play_script` op list (`screen` / `journal` / `set_flag` /
+`reward`) does not cover missions.c's shape — it's menu-driven
+(E)nter/(L)eave prompts followed by a C-level `dungeon(N,M)` handoff
+that has no script-level analogue. Two paths:
+
+**Option A — C-level refactor only.** Keep control flow in C. Use
+`ryl_menu` for the keypress and inline the `dungeon(N,M)` call; use
+`tx_fmt` / `tx0(res_text(...))` for screen text. Mechanical text
+extraction, no new script ops. Recommended starting point.
+
+**Option B — extend the DSL.** Add:
+ - `menu_branch` op — wraps `ryl_menu` plus per-option sub-scripts.
+   Each option has a `then: [...]` nested op-list (re-enters
+   `play_script` recursively) or a `pass` terminal.
+ - `engine_call` op — invokes a registered C function by symbol with
+   literal-int args (e.g. `{ engine_call: 'dungeon', args: [12, 8] }`).
+   Registry is a tiny table in `script.c`; keeps the DSL from
+   stringifying every C entry point.
+
+**Recommendation: start with Option A.** Only pursue Option B if A.4
+slices A-D surface ≥3 near-identical C blocks that would justify the
+new ops. Don't add them speculatively — §16.8's "interpreter must not
+grow into a general scripting language" applies.
+
+### 17.3 Slicing
+
+- **A.4 slice A — missions.c.** 11 map-trigger blocks. Option-A style
+  (ryl_menu + inline `dungeon(N,M)` + text records). Fixture audit
+  first; most blocks are flag-guarded on mid-game quest state so
+  fixture-unreachable, but verify before migrating.
+- **A.4 slice B — interact.c.** Same shape, smaller footprint.
+- **A.4 slice C — dungeon.c.** Biggest slice (917 lines, likely
+  fixture-reachable). Expect a rebless; budget the CSI-right-prefix
+  delta arithmetic per §16.8.
+- **A.4 slice D — subs.c.** Overlaps with §14.4's scorelist
+  decomposition. Ship the two together or sequence them so only one
+  fixture rebless is needed.
+- **A.4 slice E (conditional) — `menu_branch` + `engine_call` ops.**
+  Only if slices A-D accumulated enough repetition to justify the
+  DSL growth. Otherwise close without doing it.
+
+### 17.4 Things to watch
+
+- **Fixture reachability is per-block, not per-file.** Within
+  missions.c each of the 11 trigger blocks has its own (x, y, flag[N]
+  == K) gate — audit each individually. Within dungeon.c, certain
+  rooms are fixture-hit and others aren't. Before migrating a block,
+  know whether it's on a replay path.
+- **CSI-right-prefix consolidation shifts bytes by N × 5 per site.**
+  Same arithmetic as the §16.3 slices. Decompose the delta in the
+  commit for each reblessed fixture so future debugging doesn't have
+  to recompute.
+- **subs.c's scorelist** (§14.4) uses a ~3100-byte stack sort with
+  30-byte `strcpy` swaps. §14 has its own decomposition plan (sort
+  an index array). Don't fold that rewrite into a text-extraction
+  slice — the rebless signals are too different.
+- **Cross-slice rebless interference.** If a fixture's byte stream
+  touches both missions.c and dungeon.c text, prefer reblessing
+  after the LAST slice on that path rather than letting the fixture
+  drift slice-by-slice. Makes bisecting a regression easier.
+- **missions.c's `ryl_chance()` guards** (e.g. the 9% scruffy-merchant
+  appearance) are runtime-random imperative logic. Leave them in C
+  even under Option B — a `chance` script op would need the same
+  deterministic-seed plumbing A.2 fought through and it's not worth
+  the churn for three call sites.
