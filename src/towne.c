@@ -4,6 +4,7 @@
 #include "gfx.h"
 #include "interact.h"
 #include "primitives.h"
+#include "script.h"
 #include "speak.h"
 #include "subs.h"
 #include "towne.h"
@@ -249,11 +250,17 @@ void enter() {
     }
 }
 
+/* §17-F migration: wrapper owns the static entry scene (clr_map_window
+   + blitgfx + entry text + fixed 600ms hold). The interactive
+   greeter/menu loop is `towne.hut` in data/world/scripts/towne.json5;
+   play_script receives `vem` (which NPC occupies the square) and
+   `npc_job` (its job id) as int bindings — the DSL resolves the
+   display strings via engine_bind res_enum on each iteration. */
 static void hut() {
     int32_t i, vem = 0;
-    char c;
+    int nmax = res_npc_slot_max();
 
-    for (i = 1; i < 40; i++) {
+    for (i = 1; i <= nmax; i++) {
         if (state.npc[i].x == state.p[state.cpl].x && state.npc[i].y == state.p[state.cpl].y) {
             vem = i;
         }
@@ -261,33 +268,21 @@ static void hut() {
     if (!vem) {
         return; /* Error */
     }
-    //printf("vem: %d\n",vem);
 
     clr_map_window();
     blitgfx(hutpic);
     clw();
     tx0(res_text("towne.hut.enter"));
     ryl_delay(600);
-    while (1) {
-        clw();
-        tx_fmt("towne.hut.greeter",
-               (ryl_bind[]){
-                   {"job", res_enum("jobname", state.npc[vem].job)},
-                   {"name", res_enum("name", vem)},
-                   {0},
-               });
-        c = (char)ryl_menu("towne.hut.menu",
-                           (ryl_menu_opt[]){{'T', 'T'}, {'L', 'L'}, {0, 0}});
-        if (c == 'L') {
-            clw();
-            clr_map_window();
-            update_map();
-            return;
-        }
-        if (c == 'T') {
-            speak(0, 0);
-        }
-    }
+
+    char vem_s[8], job_s[8];
+    snprintf(vem_s, sizeof vem_s, "%d", vem);
+    snprintf(job_s, sizeof job_s, "%d", state.npc[vem].job);
+    play_script("towne.hut", (ryl_bind[]){
+                                 {"vem", vem_s},
+                                 {"npc_job", job_s},
+                                 {0},
+                             });
 }
 
 static void church() {

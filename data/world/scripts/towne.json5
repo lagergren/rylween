@@ -1,0 +1,40 @@
+// §17-F town-service scripts. C wrappers in src/towne.c handle the
+// static entry scene (blitgfx / entry text / initial delay) and
+// dispatch into the interactive loop here via play_script, passing
+// per-flow runtime bindings (NPC idx, NPC job, etc.).
+//
+// Text placeholders ({job}, {name}, ...) are populated two ways:
+//   1. Caller ryl_bind — from C. Passed through as-is; atoi-parseable
+//      ints can also be read via {var:'name'} in expressions.
+//   2. engine_bind op — resolves a string from the res layer
+//      (res_enum, res_town_name, object, pronoun) and stashes it
+//      in rt_env so {placeholder} expansion picks it up. Only
+//      valid as text; expr_var fails on RT_STR.
+{
+  // hut() — §17-F smoke test. Caller pre-resolves which NPC occupies
+  // the party's map square (`vem`, 1..39) and that NPC's job id
+  // (`npc_job`). We pull the NPC name + job name via res_enum each
+  // iteration, emit the greeter screen, offer a (T)alk / (L)eave menu.
+  hut: [
+    { loop: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'res_enum', args: ['jobname', { var: 'npc_job' }], var: 'job' } },
+      { engine_bind: { fn: 'res_enum', args: ['name',    { var: 'vem' }],     var: 'name' } },
+      { emit: 'greeter' },
+      { menu_branch: {
+          prompt: 'menu',
+          options: [
+            { key: 'T', then: [
+              { engine_call: 'speak', args: [0, 0] },
+            ] },
+            { key: 'L', then: [
+              { engine_call: 'clw' },
+              { engine_call: 'clr_map_window' },
+              { engine_call: 'update_map' },
+              { break: true },
+            ] },
+          ],
+      } },
+    ] },
+  ],
+}
