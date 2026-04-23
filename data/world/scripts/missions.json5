@@ -107,12 +107,168 @@
     } },
   ],
 
+  // Block 6: Kobold village. (A)ttack branch chains three encounters
+  // (kobolds x2, then orcs) interspersed with text + pause + clw.
+  // Note the first encounter(15,1) has no ryl_pause between it and
+  // the NEXT emit — the original has: ryl_pause, clw, encounter, clw,
+  // text. So after "attack..." we pause, clw, fire first encounter,
+  // clw, then emit dead_piles.
+  //
+  // Between the second encounter(15,1) and the orcs emit, there's
+  // no clw before encounter — the original has: ryl_pause, encounter,
+  // clw, text. This preserves the clw-AFTER-encounter pattern.
+  //
+  // The third encounter (orcs) is preceded by ryl_pause + encounter
+  // directly (no clw), followed by update_map + clw + text. Again,
+  // preserves the original's clw-AFTER-encounter.
+  kobold_village: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'A', then: [
+            { engine_call: 'clw' },
+            { emit: 'charge' },
+            { wait_input: true },
+            { engine_call: 'clw' },
+            { engine_call: 'encounter', args: [15, 1] },
+            { engine_call: 'clw' },
+            { emit: 'dead_piles' },
+            { wait_input: true },
+            { engine_call: 'encounter', args: [15, 1] },
+            { engine_call: 'clw' },
+            { emit: 'orcs_ambush' },
+            { wait_input: true },
+            { engine_call: 'encounter', args: [2, 1] },
+            { engine_call: 'update_map' },
+            { engine_call: 'clw' },
+            { emit: 'pendant' },
+            { wait_input: true },
+            { engine_call: 'clw' },
+            { set_flag: 23, value: 2 },
+          ] },
+        ],
+    } },
+  ],
+
   // Block 7: Skullweed pickup on map 't'. Original ends with
   // ryl_pause + clw + flag set — that's exactly `screen`'s semantics.
   skullweed: [
     { engine_call: 'clw' },
     { screen: 'pickup' },
     { set_flag: 23, value: 4 },
+  ],
+
+  // Block 8: Borin first meet. Six screens + journal. All transitions
+  // are text + ryl_pause + clw → `screen` shorthand fits each. The
+  // `crypt_location` screen binds {dx5}/{dy5}. Journal text uses the
+  // same binding and the journal op prepends "<cpl> " + "\n".
+  borin_meet: [
+    { engine_call: 'clw' },
+    { screen: 'arrival' },
+    { screen: 'stone_offer' },
+    { screen: 'lost_art' },
+    { screen: 'nolrim_dagger' },
+    { screen: 'quest_offer' },
+    { screen: 'crypt_location' },
+    { journal: 'Nolrim\'s Crypt is at {dx5}x{dy5}.' },
+    { set_flag: 23, value: 6 },
+  ],
+
+  // Block 9: Nolrim crypt. Menu E/L; L returns 1. Dispatcher sets
+  // returns_on_skip=1 — no default needed (fall-through still
+  // returns 1 via the trigger flag). We leave default unset; L
+  // keypress matches nothing and silently returns from the script,
+  // then dispatch_triggers returns 1 per returns_on_skip.
+  nolrim_crypt: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'E', then: [
+            { engine_call: 'dungeon', args: [20, 3] },
+            { engine_call: 'clr_map_window' },
+            { engine_call: 'update_map' },
+          ] },
+        ],
+        default: [
+          { engine_call: 'clw' },
+        ],
+    } },
+  ],
+
+  // Block 10: Borin gift. Linear. `reward` folds gold += 3578 plus
+  // the three for-loops that placed items 39/40/41 into first-empty
+  // inventory slots. Flag advances to 8. Fall-through.
+  borin_gift: [
+    { engine_call: 'clw' },
+    { screen: 'greet_and_follow' },
+    { screen: 'rewards_presented' },
+    { reward: { gold: 3578, items: [39, 40, 41] } },
+    { set_flag: 23, value: 8 },
+  ],
+
+  // Block 11: Master crown dungeon. Menu E/L; L returns 1 via
+  // dispatcher trigger flag.
+  master_crown: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'E', then: [
+            { engine_call: 'dungeon', args: [10, 4] },
+            { engine_call: 'clr_map_window' },
+            { engine_call: 'update_map' },
+          ] },
+        ],
+        default: [
+          { engine_call: 'clw' },
+        ],
+    } },
+  ],
+
+  // Block 12: Ogre cave. Menu E/L, E branch is the longest script in
+  // this file. Two encounters, a reward (gold 5645 + Mithril Mail),
+  // one {p2_name}-bound emit. Reward placement normalises the
+  // original's buggy break-on-iteration item placement to the DSL's
+  // first-empty-slot behavior. L returns 1 via dispatcher trigger.
+  ogre_cave: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'E', then: [
+            { engine_call: 'clw' },
+            { emit: 'enter_cave' },
+            { wait_input: true },
+            { engine_call: 'encounter', args: [18, 1] },
+            { engine_call: 'update_map' },
+            { engine_call: 'clw' },
+            { emit: 'defeat_ogres' },
+            { wait_input: true },
+            { engine_call: 'encounter', args: [19, 1] },
+            { engine_call: 'update_map' },
+            { engine_call: 'clw' },
+            { emit: 'defeat_ogre_lord' },
+            { wait_input: true },
+            { engine_call: 'clw' },
+            { reward: { gold: 5645, items: [25] } },
+            { emit: 'no_trace' },
+            { wait_input: true },
+            { engine_call: 'clw' },
+            { emit: 'kastagir_note' },
+            { wait_input: true },
+            { engine_call: 'clw' },
+            { emit: 'leave_cave' },
+            { wait_input: true },
+            { engine_call: 'clw' },
+            { set_flag: 22, value: 2 },
+          ] },
+        ],
+        default: [
+          { engine_call: 'clw' },
+        ],
+    } },
   ],
 
   // Block 13: Foot of Jazzy altar on map 'f'. Two encounter sequences
@@ -136,5 +292,57 @@
     { engine_call: 'clw' },
     { screen: 'defeated' },
     { set_flag: 22, value: 3 },
+  ],
+
+  // Block 14: Silver key dungeon. Menu E/L; L returns 1.
+  silver_key: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'E', then: [
+            { engine_call: 'dungeon', args: [20, 5] },
+            { engine_call: 'clr_map_window' },
+            { engine_call: 'update_map' },
+          ] },
+        ],
+        default: [
+          { engine_call: 'clw' },
+        ],
+    } },
+  ],
+
+  // Block 15: Hobgoblin caravan (chance). Linear. Journal text binds
+  // {dx9}/{dy9} (same bindings used in the interrogate screen). The
+  // chance-9 guard is in the dispatcher, not the script.
+  hobgoblin_caravan: [
+    { engine_call: 'clw' },
+    { screen: 'approach' },
+    { screen: 'attack_pitch' },
+    { engine_call: 'encounter', args: [22, 1] },
+    { engine_call: 'update_map' },
+    { engine_call: 'clw' },
+    { screen: 'interrogate' },
+    { screen: 'carotid' },
+    { journal: 'The hobgoblin cave is at {dx9}x{dy9}.' },
+    { set_flag: 6, value: 5 },
+  ],
+
+  // Block 16: Hobgoblin cave (pit). Menu E/L; L returns 1.
+  hobgoblin_cave: [
+    { engine_call: 'clw' },
+    { menu_branch: {
+        prompt: 'prompt',
+        options: [
+          { key: 'E', then: [
+            { engine_call: 'dungeon', args: [22, 6] },
+            { engine_call: 'clr_map_window' },
+            { engine_call: 'update_map' },
+          ] },
+        ],
+        default: [
+          { engine_call: 'clw' },
+        ],
+    } },
   ],
 }
