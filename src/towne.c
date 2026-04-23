@@ -3,6 +3,7 @@
 #include "driv.h"
 #include "gfx.h"
 #include "interact.h"
+#include "inventory.h"
 #include "primitives.h"
 #include "script.h"
 #include "speak.h"
@@ -198,11 +199,7 @@ void enter() {
             guild();
         }
         if (toupper(c) == 'L') {
-            for (i = 1, x = 0; i < 17; i++) {
-                if (state.p[state.cpl].inventory[i] >= 1 && state.p[state.cpl].inventory[i] <= 19) {
-                    x = 1;
-                }
-            }
+            x = inv_find_in_range(1, 19) != 0;
             for (i = 1, y = 0; i < 5; i++) {
                 if (!state.p[state.cpl].dead[i] && !state.p[state.cpl].wp[i]) {
                     y = 1;
@@ -220,11 +217,7 @@ void enter() {
                 }
             }
 
-            for (i = 1, x = 0; i < 17; i++) {
-                if (state.p[state.cpl].inventory[i] >= 20 && state.p[state.cpl].inventory[i] <= 30) {
-                    x = 1;
-                }
-            }
+            x = inv_find_in_range(20, 30) != 0;
             for (i = 1, y = 0; i < 5; i++) {
                 if (!state.p[state.cpl].dead[i] && !state.p[state.cpl].ar[i]) {
                     y = 1;
@@ -569,17 +562,11 @@ static void smith() {
                         ryl_delay(1000);
                     } else {
                         clw();
-                        for (i = 1, x = 0; i < 17; i++) {
-                            if (state.p[state.cpl].inventory[i] == 0) {
-                                x = i;
-                                break;
-                            }
-                        }
+                        x = inv_add(oc);
                         if (!x) {
                             tx0(res_text("towne.smith.cant_carry"));
                             ryl_delay(1000);
                         } else {
-                            state.p[state.cpl].inventory[x] = oc;
                             state.p[state.cpl].gold -= pr;
                             tx0(res_text("towne.smith.deal"));
                             ryl_delay(1000);
@@ -787,7 +774,7 @@ static void smith() {
 }
 static void tavern() {
     char c, d, b;
-    int32_t i, j, x, st, xs;
+    int32_t i, x, st, xs;
     int32_t pr;
     int32_t rumours = 0;
 
@@ -901,13 +888,7 @@ static void tavern() {
                 tx0(res_text("towne.tavern.scruffy_broke"));
                 ryl_delay(800);
             } else {
-                for (j = 1, x = 0; j < 17; j++) {
-                    if (state.p[state.cpl].inventory[j] == 0) {
-                        state.p[state.cpl].inventory[j] = i;
-                        x = 1;
-                        break;
-                    }
-                }
+                x = inv_add(i) != 0;
                 if (x) {
                     tx0(res_text("towne.tavern.scruffy_deal"));
                     state.p[state.cpl].gold -= obcost(i);
@@ -1281,7 +1262,7 @@ static void inn() {
 static void merchant() /* HOS THE MERCHANT */
 {
     char c, d, f;
-    int32_t i, x, y, oc, pr;
+    int32_t x, y, oc, pr;
     char str[10];
 
     state.tid++;
@@ -1432,11 +1413,7 @@ static void merchant() /* HOS THE MERCHANT */
                         }
                     }
                     if (oc == 32) {
-                        for (i = 1, y = 0; i < 17; i++) {
-                            if (state.p[state.cpl].inventory[i] == 47) {
-                                y++;
-                            }
-                        }
+                        y = inv_count_in_range(47, 47);
                         // 150 + y*150 = 150(y + 1)
                         if (x + state.p[state.cpl].food > (150 + y * 150)) {
                             char cap_s[16];
@@ -1490,17 +1467,11 @@ static void merchant() /* HOS THE MERCHANT */
                             tx0(res_text("towne.merchant.too_expensive"));
                             ryl_delay(1000);
                         } else {
-                            for (i = 1, x = 0; i < 17; i++) {
-                                if (state.p[state.cpl].inventory[i] == 0) {
-                                    x = i;
-                                    break;
-                                }
-                            }
+                            x = inv_add(oc);
                             if (!x) {
                                 tx0(res_text("towne.merchant.cant_carry"));
                                 ryl_delay(1000);
                             } else {
-                                state.p[state.cpl].inventory[x] = oc;
                                 state.p[state.cpl].gold -= pr;
                                 clw();
                                 tx0(res_text("towne.merchant.deal"));

@@ -13,6 +13,16 @@
  * `pm_lv(pm)` instead of `state.p[state.cpl].lv[m]`.
  */
 
+/* Inventory slot count — the UI maps letters A..P to slots 1..16, so
+   the number is fundamentally tied to the keystroke range and has no
+   runtime knob; this is just a named constant to replace the raw 17s
+   and 16s scattered through the iteration loops. Slot 0 is unused
+   (the C code is 1-indexed). Array size is MAX+1 so inventory[MAX]
+   is valid. res_inventory_slot_max() (res.h) is the runtime accessor
+   that C and DSL callers go through; it returns this value unless a
+   future limits: knob overrides. */
+#define INVENTORY_SLOT_MAX 16
+
 struct person {
     int32_t job; /* 1 Merchant */
                  /* 2 Ranger   */
@@ -63,7 +73,7 @@ struct party {
     int32_t food;
     int32_t time_left;
 
-    int32_t inventory[17];
+    int32_t inventory[INVENTORY_SLOT_MAX + 1];
 
     int32_t ws[5]; /* Wisdom */
     int32_t h[5];  /* Health */

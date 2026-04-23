@@ -4,6 +4,7 @@
 #include "driv.h"
 #include "dungeon.h"
 #include "gfx.h"
+#include "inventory.h"
 #include "primitives.h"
 #include "subs.h"
 #include "towne.h"
@@ -144,13 +145,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 c = key();
                 c = toupper(c);
                 if (c == 'T') {
-                    for (i = 1, x = 0; i < 17; i++) {
-                        if (!state.p[state.cpl].inventory[i]) {
-                            state.p[state.cpl].inventory[i] = oc;
-                            x = 1;
-                            break;
-                        }
-                    }
+                    x = inv_add(oc) != 0;
                     if (!x) {
                         clw();
                         tx("You can't carry more.\r\n");

@@ -4,6 +4,7 @@
 #include "battle.h"
 #include "driv.h"
 #include "gfx.h"
+#include "inventory.h"
 #include "primitives.h"
 #include "subs.h"
 #include "towne.h"
@@ -623,12 +624,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 tx("and %d gold pieces.\r\n\r\n", ((noc * (h2 / 7) * (ws / 4)) / 4));
                 ryl_delay(1000);
                 state.p[state.cpl].kills += noc;
-                for (i = 1, x = 0; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 0) {
-                        x = i;
-                        break;
-                    }
-                }
+                x = inv_find_empty();
                 i = 0;
                 if (x) {
                     if (ryl_chance(5)) {

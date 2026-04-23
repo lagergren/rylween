@@ -1391,12 +1391,8 @@ static void createparty() {
     state.p[a].mastercrown = 0;
     state.p[a].jazzyfoot = 0;
     state.p[a].silverkey = 0;
-    for (i = 0; i < 17; i++) {
-        state.p[a].inventory[i] = 0;
-    }
-    for (i = 0; i < 40; i++) {
-        state.p[a].flag[i] = 0;
-    }
+    memset(state.p[a].inventory, 0, sizeof state.p[a].inventory);
+    memset(state.p[a].flag, 0, sizeof state.p[a].flag);
     for (i = 1; i < 5; i++) {
         state.p[a].lv[i] = 1;
     }
@@ -1448,15 +1444,19 @@ void showparty() {
 }
 
 void invlist() {
-    char item[20][80];
-    int32_t i;
+    /* 8 rows × 2 columns of letter-labeled slots (A..P). The column
+       pairing is UI-bound to INVENTORY_SLOT_MAX == 16; raising the
+       cap would need a UI redesign, not just a larger iteration. */
+    char item[INVENTORY_SLOT_MAX + 2][80];
+    int smax = res_inventory_slot_max();
 
-    for (i = 1; i < 17; i++) {
-        strncpy(item[i], object(state.p[state.cpl].inventory[i]), 9);
+    for (int i = 1; i <= INVENTORY_SLOT_MAX; i++) {
+        int id = (i <= smax) ? state.p[state.cpl].inventory[i] : 0;
+        strncpy(item[i], object(id), 9);
         item[i][9] = 0;
     }
 
-    for (i = 1; i < 16; i += 2) {
+    for (int i = 1; i < INVENTORY_SLOT_MAX; i += 2) {
         tx("%c. %-9s %c. %-9s\r\n", 64 + i, item[i], 65 + i, item[i + 1]);
     }
 }

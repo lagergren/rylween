@@ -152,6 +152,15 @@ void res_realize_npcs(void);
    Returns 0 before the world has loaded. */
 int res_npc_slot_max(void);
 
+/* Highest valid party-inventory slot id. Defaults to INVENTORY_SLOT_
+   MAX (state.h); overrideable via limits.inventory_slot_max in
+   world.json5, clamped to INVENTORY_SLOT_MAX (the C array is sized
+   at compile time). Iterate slots as `for (i = 1; i <=
+   res_inventory_slot_max(); i++)`. The UI also maps keypresses
+   A..P into slots 1..16, so changing the max to anything below
+   INVENTORY_SLOT_MAX is the only safe override. */
+int res_inventory_slot_max(void);
+
 /* Uniform "res: path:line: msg" fatal error. Used by the JSON5 parser /
    import resolver (json5.c) and the world-folds (res.c) so every loader
    diagnostic has one shape. Never returns. */

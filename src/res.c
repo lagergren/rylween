@@ -139,6 +139,14 @@ static size_t n_towns;
    the §15.4 recommendation; overridden by data/world.json5 limits:. */
 static int32_t npc_slack = 1;
 
+/* Party-inventory slot cap. Defaults to INVENTORY_SLOT_MAX (state.h);
+   overrideable at world-load via limits.inventory_slot_max, clamped
+   to the compile-time array size so a smaller-than-16 realm works
+   without rebuilding. A larger value is rejected at fold time — the
+   UI's A..P keystroke map, state.p.inventory[] array, and many
+   helpers all assume the cap is 16. */
+static int32_t inventory_slot_max = INVENTORY_SLOT_MAX;
+
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
    Populated from data/world.json5 flags subtree; empty until world loads. */
 typedef struct {
@@ -398,6 +406,10 @@ static int npc_slot_max(void) {
 
 int res_npc_slot_max(void) {
     return npc_slot_max();
+}
+
+int res_inventory_slot_max(void) {
+    return (int)inventory_slot_max;
 }
 
 /* Read an optional enum field (string or int) with a default. */
@@ -1052,10 +1064,23 @@ static void fold_limits(const node *limits_node, const char *path) {
         }
         npc_slack = slack->u.iv;
     }
+    const node *inv = obj_get(limits_node, "inventory_slot_max");
+    if (inv) {
+        if (inv->kind != N_INT) {
+            res_die(path, inv->line,
+                    "limits.inventory_slot_max: expected integer");
+        }
+        if (inv->u.iv < 1 || inv->u.iv > INVENTORY_SLOT_MAX) {
+            res_die(path, inv->line,
+                    "limits.inventory_slot_max: must be in 1..16");
+        }
+        inventory_slot_max = inv->u.iv;
+    }
 }
 
 static void reset_limits(void) {
     npc_slack = 1;
+    inventory_slot_max = INVENTORY_SLOT_MAX;
 }
 
 /* -------- enums subtree --------

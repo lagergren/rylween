@@ -6,6 +6,7 @@
 #include "dungeon.h"
 #include "gfx.h"
 #include "interact.h"
+#include "inventory.h"
 #include "missions.h"
 #include "primitives.h"
 #include "subs.h"
@@ -226,7 +227,7 @@ static char *glyph(char t) {
 
 void weaponoff() {
     char c;
-    int32_t i, x;
+    int32_t x;
 
     clw();
     tx("Who? (1-4)\r\n");
@@ -239,12 +240,7 @@ void weaponoff() {
             clw();
             return;
         }
-        for (i = 1, x = 0; i < 17; i++) {
-            if (!state.p[state.cpl].inventory[i]) {
-                x = i;
-                break;
-            }
-        }
+        x = inv_find_empty();
         if (!x) {
             clw();
             tx("No room!\r\n");
@@ -265,7 +261,7 @@ void weaponoff() {
 }
 void armouroff() {
     char c;
-    int32_t i, x;
+    int32_t x;
 
     clw();
     tx("Who? (1-4)\r\n");
@@ -278,12 +274,7 @@ void armouroff() {
             clw();
             return;
         }
-        for (i = 1, x = 0; i < 17; i++) {
-            if (!state.p[state.cpl].inventory[i]) {
-                x = i;
-                break;
-            }
-        }
+        x = inv_find_empty();
         if (!x) {
             clw();
             tx("No room!\r\n");
@@ -394,7 +385,7 @@ void armourr() {
 }
 uint8_t drop() {
     char d;
-    int32_t i, y;
+    int32_t y;
 
     clw();
     invlist();
@@ -407,12 +398,7 @@ uint8_t drop() {
             tx("%s.\r\n", object(state.p[state.cpl].inventory[d - 64]));
             ryl_delay(1000);
             if (state.p[state.cpl].inventory[d - 64] == 47) {
-                for (i = 1, y = 0; i < 17; i++) {
-                    if (state.p[state.cpl].inventory[i] == 47) {
-                        y++;
-                    }
-                }
-                y--;
+                y = inv_count_in_range(47, 47) - 1;
                 if (state.p[state.cpl].food > (150 + 150 * y)) {
                     clw();
                     tx("You are forced to\r\n");
@@ -456,11 +442,7 @@ void camp() {
 
     clr_map_window();
 
-    for (i = 1, x = 0; i < 17; i++) {
-        if (state.p[state.cpl].inventory[i] == 34) {
-            x = 1;
-        }
-    }
+    x = inv_find_item(34) != 0;
 
     if (x) {
         blitgfx(17);
@@ -514,12 +496,7 @@ void camp() {
         clw();
         tx("Low Temperature.\r\n");
         ryl_delay(600);
-        for (i = 1, x = 0; i < 17; i++) {
-            if (state.p[state.cpl].inventory[i] == 33 || state.p[state.cpl].inventory[i] == 34) {
-                x = 1;
-                break;
-            }
-        }
+        x = inv_find_in_range(33, 34) != 0;
         if (!x) {
             tx("No good equipment,\r\n");
             tx("Party loses 5 health.\r\n");
@@ -534,12 +511,7 @@ void camp() {
     }
     if (temperature >= 10) {
         tx("Very low temperature.\r\n");
-        for (i = 1, x = 0; i < 17; i++) {
-            if (state.p[state.cpl].inventory[i] == 34) {
-                x = 1;
-                break;
-            }
-        }
+        x = inv_find_item(34) != 0;
         ryl_delay(600);
         if (!x) {
             tx("No good equipment,\r\n");
@@ -986,13 +958,7 @@ void spell(int32_t place) {
             c = key();
             c = toupper(c);
             if (c == 'T') {
-                for (i = 1, x = 0; i < 17; i++) {
-                    if (!state.p[state.cpl].inventory[i]) {
-                        state.p[state.cpl].inventory[i] = oc;
-                        x = 1;
-                        break;
-                    }
-                }
+                x = inv_add(oc) != 0;
                 if (!x) {
                     clw();
                     tx("You can't carry more.\r\n");

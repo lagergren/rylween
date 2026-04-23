@@ -8,6 +8,7 @@
 #include "driv.h"
 #include "dungeon.h"
 #include "gfx.h"
+#include "inventory.h"
 #include "json5.h"
 #include "primitives.h"
 #include "res.h"
@@ -521,8 +522,12 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
     }
     if ((v = obj_get(n, "inventory"))) {
         int32_t slot = eval_expr(v, script_id, idx, bindings, env);
-        if (slot < 1 || slot > 16) {
-            die_at(script_id, idx, "expr inventory: slot must be 1..16");
+        int smax = res_inventory_slot_max();
+        if (slot < 1 || slot > smax) {
+            char buf[96];
+            snprintf(buf, sizeof buf,
+                     "expr inventory: slot must be 1..%d", smax);
+            die_at(script_id, idx, buf);
         }
         return state.p[state.cpl].inventory[slot];
     }
@@ -756,14 +761,7 @@ static void do_reward(const node *op, const char *script_id, size_t idx,
     for (size_t k = 0; k < items_n->u.arr.n; k++) {
         int32_t item_id = resolve_reward_item(items_n->u.arr.items[k],
                                               script_id, idx);
-        int placed = 0;
-        for (int i = 1; i < 17; i++) {
-            if (state.p[state.cpl].inventory[i] == 0) {
-                state.p[state.cpl].inventory[i] = item_id;
-                placed = 1;
-                break;
-            }
-        }
+        int placed = inv_add((int)item_id) != 0;
         if (placed || !cc_n) {
             continue;
         }
@@ -1428,9 +1426,12 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
     const node *inv_n = obj_get(tgt, "inventory");
     if (inv_n) {
         int32_t slot = eval_expr(inv_n, script_id, idx, bindings, env);
-        if (slot < 1 || slot > 16) {
-            die_at(script_id, idx,
-                   "mutate: inventory slot must be 1..16");
+        int smax = res_inventory_slot_max();
+        if (slot < 1 || slot > smax) {
+            char buf[96];
+            snprintf(buf, sizeof buf,
+                     "mutate: inventory slot must be 1..%d", smax);
+            die_at(script_id, idx, buf);
         }
         return (mutate_lv){LV_INVENTORY, slot, NULL};
     }
@@ -1853,14 +1854,15 @@ static ops_result do_for_member(const node *op, const char *script_id,
 }
 
 /* §17-F step 4: { for_inventory: { var:'name', then:[...] } } — same
-   shape as for_member, iterating 1..16 (the party inventory slot
-   range). Body must guard on `{inventory: <var>}` > 0 if it only
-   cares about occupied slots. */
+   shape as for_member, iterating 1..res_inventory_slot_max() (the
+   party inventory slot range; typically 16 but foldable via
+   limits.inventory_slot_max). Body must guard on `{inventory:
+   <var>}` > 0 if it only cares about occupied slots. */
 static ops_result do_for_inventory(const node *op, const char *script_id,
                                    size_t idx, const char *parent,
                                    const ryl_bind *bindings, rt_env *env) {
     return do_for_range(op, script_id, idx, parent, bindings, env,
-                        "for_inventory", 1, 16);
+                        "for_inventory", 1, res_inventory_slot_max());
 }
 
 /* §17-F step 4: { switch: { expr:<expr>, cases:[...] } }. Each case

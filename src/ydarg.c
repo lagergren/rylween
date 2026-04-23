@@ -2,6 +2,7 @@
 #include "battle.h"
 #include "driv.h"
 #include "gfx.h"
+#include "inventory.h"
 #include "primitives.h"
 #include "res.h"
 #include "subs.h"
@@ -174,13 +175,7 @@ void ydarg() {
                 c = key();
                 c = toupper(c);
                 if (c == 'T') {
-                    for (i = 1, x = 0; i < 17; i++) {
-                        if (!state.p[state.cpl].inventory[i]) {
-                            state.p[state.cpl].inventory[i] = oc;
-                            x = 1;
-                            break;
-                        }
-                    }
+                    x = inv_add(oc) != 0;
                     if (!x) {
                         clw();
                         tx0(res_text("ydarg.room.treasure.full"));

@@ -2,6 +2,7 @@
 #include "compat.h"
 #include "dungeon.h"
 #include "gfx.h"
+#include "inventory.h"
 #include "missions.h"
 #include "primitives.h"
 #include "script.h"
@@ -221,7 +222,7 @@ static int dispatch_triggers(void) {
 }
 
 uint8_t mission_control() {
-    int32_t i, gems;
+    int32_t gems;
     char c;
 
     int handled = dispatch_triggers();
@@ -265,11 +266,7 @@ uint8_t mission_control() {
             clw();
             return 1;
         }
-        for (i = 1, gems = 0; i < 17; i++) {
-            if (state.p[state.cpl].inventory[i] >= 39 && state.p[state.cpl].inventory[i] <= 41) {
-                gems++;
-            }
-        }
+        gems = inv_count_in_range(39, 41);
         if (gems < 5) {
             clw();
             tx("You don't have five\r\n");

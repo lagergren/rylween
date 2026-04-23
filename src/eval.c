@@ -18,6 +18,7 @@
 #include "res.h"
 #include "ryl.h"
 #include "driv.h"
+#include "inventory.h"
 #include "primitives.h"
 
 static void env_set_local(env_t *e, const char *name, int32_t val);
@@ -965,13 +966,7 @@ static int eval_cond(const node *n, env_t *e) {
     if (strcmp(op, "has_item") == 0) {
         int32_t id = item_id_of(n->u.arr.items[1]);
         int32_t count = (nargs == 3) ? eval_expr(n->u.arr.items[2], e) : 1;
-        int have = 0;
-        for (int i = 1; i < 17; i++) {
-            if (state.p[state.cpl].inventory[i] == id) {
-                have++;
-            }
-        }
-        return have >= count;
+        return inv_count_in_range((int)id, (int)id) >= count;
     }
     if (strcmp(op, "gold_gte") == 0) {
         return state.p[state.cpl].gold >= eval_expr(n->u.arr.items[1], e);
