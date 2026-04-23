@@ -69,10 +69,7 @@
                     { key_range: ['1', '4'], then: [
                       { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
                       { if: {
-                          cond: { and: [
-                            { ne: [{ member: { var: 'who' }, field: 'cl' }, 3] },
-                            { ne: [{ member: { var: 'who' }, field: 'cl' }, 4] },
-                          ] },
+                          cond: { not: { engine_int: 'pa_is_spellcaster', args: [{ var: 'who' }] } },
                           then: [
                             { engine_call: 'clw' },
                             { emit: 'not_spellcaster' },
@@ -151,7 +148,7 @@
                     { key_range: ['1', '4'], then: [
                       { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
                       { if: {
-                          cond: { eq: [{ member: { var: 'who' }, field: 'dead' }, 0] },
+                          cond: { engine_int: 'pa_is_alive', args: [{ var: 'who' }] },
                           then: [
                             { engine_call: 'clw' },
                             { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 1], var: 'pro_sub' } },
@@ -205,7 +202,7 @@
                     { key_range: ['1', '4'], then: [
                       { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
                       { if: {
-                          cond: { ne: [{ member: { var: 'who' }, field: 'dead' }, 0] },
+                          cond: { engine_int: 'pa_is_dead', args: [{ var: 'who' }] },
                           then: [
                             { engine_call: 'clw' },
                             { emit: 'corpse' },

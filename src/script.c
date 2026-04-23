@@ -10,6 +10,7 @@
 #include "gfx.h"
 #include "inventory.h"
 #include "json5.h"
+#include "party.h"
 #include "primitives.h"
 #include "res.h"
 #include "speak.h"
@@ -457,6 +458,75 @@ static int32_t expr_var(const char *name, const char *script_id, size_t idx,
     die_at(script_id, idx, buf);
 }
 
+/* Int-returning C entry points callable from `{ engine_int: '<name>',
+   args: [<expr>...] }` expressions. Separate from engine_tbl (void
+   return) and str_engine_tbl (const char *). All args are evaluated
+   as §17-F expressions; no string-literal positions. argc is
+   enforced strictly. */
+typedef int32_t (*int_engine_fn)(const int32_t *args);
+
+typedef struct {
+    const char *name;
+    int argc;
+    int_engine_fn fn;
+} int_engine_entry;
+
+static int32_t ie_pa_is_alive(const int32_t *a) {
+    return pa_is_alive((int)a[0]);
+}
+static int32_t ie_pa_is_dead(const int32_t *a) {
+    return pa_is_dead((int)a[0]);
+}
+static int32_t ie_pa_is_spellcaster(const int32_t *a) {
+    return pa_is_spellcaster((int)a[0]);
+}
+static int32_t ie_pa_is_class(const int32_t *a) {
+    return pa_is_class((int)a[0], (int)a[1]);
+}
+static int32_t ie_pa_first_alive(const int32_t *a) {
+    (void)a;
+    return pa_first_alive();
+}
+static int32_t ie_pa_count_class(const int32_t *a) {
+    return pa_count_class((int)a[0]);
+}
+static int32_t ie_pa_count_alive_class(const int32_t *a) {
+    return pa_count_alive_class((int)a[0]);
+}
+static int32_t ie_inv_find_empty(const int32_t *a) {
+    (void)a;
+    return inv_find_empty();
+}
+static int32_t ie_inv_find_item(const int32_t *a) {
+    return inv_find_item((int)a[0]);
+}
+static int32_t ie_inv_find_in_range(const int32_t *a) {
+    return inv_find_in_range((int)a[0], (int)a[1]);
+}
+static int32_t ie_inv_count_in_range(const int32_t *a) {
+    return inv_count_in_range((int)a[0], (int)a[1]);
+}
+
+static const int_engine_entry int_engine_tbl[] = {
+    {"pa_is_alive", 1, ie_pa_is_alive},
+    {"pa_is_dead", 1, ie_pa_is_dead},
+    {"pa_is_spellcaster", 1, ie_pa_is_spellcaster},
+    {"pa_is_class", 2, ie_pa_is_class},
+    {"pa_first_alive", 0, ie_pa_first_alive},
+    {"pa_count_class", 1, ie_pa_count_class},
+    {"pa_count_alive_class", 1, ie_pa_count_alive_class},
+    {"inv_find_empty", 0, ie_inv_find_empty},
+    {"inv_find_item", 1, ie_inv_find_item},
+    {"inv_find_in_range", 2, ie_inv_find_in_range},
+    {"inv_count_in_range", 2, ie_inv_count_in_range},
+};
+
+/* Forward declaration: used by eval_expr to handle `engine_int`
+   expressions. Looks the fn up in int_engine_tbl, evaluates each
+   arg as an expression, enforces argc, returns the fn's int32_t. */
+static int32_t eval_engine_int(const node *n, const char *script_id, size_t idx,
+                               const ryl_bind *bindings, const rt_env *env);
+
 static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
                          const ryl_bind *bindings, const rt_env *env) {
     if (!n) {
@@ -652,7 +722,54 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
         return is_damage ? it->damage : it->cost;
     }
 
+    if (obj_get(n, "engine_int")) {
+        return eval_engine_int(n, script_id, idx, bindings, env);
+    }
+
     die_at(script_id, idx, "expr: unknown expression form");
+}
+
+static int32_t eval_engine_int(const node *n, const char *script_id, size_t idx,
+                               const ryl_bind *bindings, const rt_env *env) {
+    const node *fn_n = obj_get(n, "engine_int");
+    if (!fn_n || fn_n->kind != N_STR) {
+        die_at(script_id, idx, "engine_int: fn must be string");
+    }
+    const int_engine_entry *e = NULL;
+    for (size_t i = 0; i < sizeof int_engine_tbl / sizeof *int_engine_tbl; i++) {
+        if (strcmp(int_engine_tbl[i].name, fn_n->u.sv) == 0) {
+            e = &int_engine_tbl[i];
+            break;
+        }
+    }
+    if (!e) {
+        char buf[96];
+        snprintf(buf, sizeof buf, "engine_int: unknown fn '%s'", fn_n->u.sv);
+        die_at(script_id, idx, buf);
+    }
+    const node *args_n = obj_get(n, "args");
+    int32_t args[4] = {0};
+    int got = 0;
+    if (args_n) {
+        if (args_n->kind != N_ARR) {
+            die_at(script_id, idx, "engine_int: args must be array");
+        }
+        got = (int)args_n->u.arr.n;
+        if (got > 4) {
+            die_at(script_id, idx, "engine_int: too many args (max 4)");
+        }
+        for (int i = 0; i < got; i++) {
+            args[i] = eval_expr(args_n->u.arr.items[i], script_id, idx,
+                                bindings, env);
+        }
+    }
+    if (got != e->argc) {
+        char buf[96];
+        snprintf(buf, sizeof buf, "engine_int: '%s' expects %d args, got %d",
+                 e->name, e->argc, got);
+        die_at(script_id, idx, buf);
+    }
+    return e->fn(args);
 }
 
 static void do_screen(const node *op, const char *script_id, size_t idx,
@@ -1858,14 +1975,15 @@ static ops_result do_for_range(const node *op, const char *script_id,
 }
 
 /* §17-F step 4: { for_member: { var:'name', then:[...] } } — binds
-   `name` to 1..4 in turn. Body sees the loop var via `{var:'name'}`
-   in expressions and `{name}` in screen/journal text. Break and
-   continue propagate through the shared do_for_range helper. */
+   `name` to 1..res_party_member_max() in turn. Body sees the loop
+   var via `{var:'name'}` in expressions and `{name}` in screen /
+   journal text. Break and continue propagate through the shared
+   do_for_range helper. */
 static ops_result do_for_member(const node *op, const char *script_id,
                                 size_t idx, const char *parent,
                                 const ryl_bind *bindings, rt_env *env) {
     return do_for_range(op, script_id, idx, parent, bindings, env,
-                        "for_member", 1, 4);
+                        "for_member", 1, res_party_member_max());
 }
 
 /* §17-F step 4: { for_inventory: { var:'name', then:[...] } } — same

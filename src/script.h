@@ -121,6 +121,19 @@
  *          | { not: <expr> }             returns 0 or 1
  *          | { obcost:   <expr> }        res_item(id)->cost
  *          | { obdamage: <expr> }        res_item(id)->damage
+ *          | { engine_int: '<name>',     whitelisted int-returning
+ *              args: [<expr>...] }       C entry point (argc enforced
+ *                                        by registry). Current names:
+ *                                        pa_is_alive / pa_is_dead /
+ *                                        pa_is_spellcaster / pa_is_class /
+ *                                        pa_first_alive / pa_count_class /
+ *                                        pa_count_alive_class / inv_find_
+ *                                        empty / inv_find_item / inv_find_
+ *                                        in_range / inv_count_in_range.
+ *                                        Parallel to engine_bind but
+ *                                        returns int for use in
+ *                                        expressions (eg. if.cond,
+ *                                        mutate.value, let.value).
  *
  *   `if.cond` also accepts two legacy shorthands for back-compat:
  *     { flag: <slot-or-name>, eq|ne: <int> }
