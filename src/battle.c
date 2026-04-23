@@ -289,7 +289,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     tx0(res_text("battle.spell.morale_quest"));
                                     ryl_pause();
                                     clw();
-                                    for (i = 1; i < 5; i++) {
+                                    for (i = 1; i <= res_party_member_max(); i++) {
                                         state.p[state.cpl].ws[i] += 3;
                                         state.p[state.cpl].h[i] += 3;
                                         state.p[state.cpl].ch[i] += 3;
@@ -303,7 +303,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     tx0(res_text("battle.spell.party_healed"));
                                     ryl_pause();
                                     clw();
-                                    for (i = 1; i < 5; i++) {
+                                    for (i = 1; i <= res_party_member_max(); i++) {
                                         if (!state.p[state.cpl].dead[i]) {
                                             state.p[state.cpl].hp[i] = state.p[state.cpl].h[i];
                                         }
@@ -641,7 +641,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                 }
                 state.p[state.cpl].gold += (noc * (h2 / 7) * (ws / 4));
-                for (i = 1; i < 5; i++) {
+                for (i = 1; i <= res_party_member_max(); i++) {
                     if (!state.p[state.cpl].dead[i]) {
                         state.p[state.cpl].exp[i] += ((noc * (h2 / 4) * (ws / 4)) + sp * 3);
                     }
@@ -698,7 +698,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                             case 1: /* Monster casts fire    */
                                 tx("Cloud of Fire!\r\n");
                                 ryl_delay(1000);
-                                for (i = 1; i < 5; i++) {
+                                for (i = 1; i <= res_party_member_max(); i++) {
                                     if (!state.p[state.cpl].dead[i]) {
                                         clw();
                                         tx("%s is burnt for\r\n", state.p[state.cpl].name[i]);
@@ -830,11 +830,11 @@ void expcheck() {
     int32_t i, l, add[5];
     uint32_t e;
 
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         add[i] = 0;
     }
 
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         l = state.p[state.cpl].lv[i];
         e = state.p[state.cpl].exp[i];
         if (l < 2 && e >= 2000) {
@@ -920,7 +920,7 @@ void expcheck() {
         }
     }
 
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         if (add[i]) {
             clw();
             tx("%s gains >%d<\r\n", state.p[state.cpl].name[i], add[i]);

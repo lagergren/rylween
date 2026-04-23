@@ -107,7 +107,7 @@ void ydarg() {
                 ryl_delay(1500);
                 clw();
                 j = 0;
-                for (i = 1; i < 5; i++) {
+                for (i = 1; i <= res_party_member_max(); i++) {
                     if (state.p[state.cpl].cl[i] == 2) {
                         tx("%s tries to\r\n", state.p[state.cpl].name[i]);
                         tx("disarm it...\r\n\r\n");
@@ -137,7 +137,7 @@ void ydarg() {
                             break;
                     }
                     ryl_pause();
-                    for (i = 1; i < 5; i++) {
+                    for (i = 1; i <= res_party_member_max(); i++) {
                         if (!state.p[state.cpl].dead[i]) {
                             state.p[state.cpl].hp[i] -= state.p[state.cpl].hp[i] / 6;
                         }
@@ -411,7 +411,7 @@ void ydarg() {
                 show(d - 48);
             }
             if (toupper(d) == 'A') {
-                for (i = 1; i < 5; i++) {
+                for (i = 1; i <= res_party_member_max(); i++) {
                     show(i);
                 }
             }

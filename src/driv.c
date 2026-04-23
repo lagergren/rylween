@@ -201,7 +201,7 @@ static void spelet() {
                     show(d - 48);
                 }
                 if (toupper(d) == 'A') {
-                    for (i = 1; i < 5; i++) {
+                    for (i = 1; i <= res_party_member_max(); i++) {
                         show(i);
                     }
                 }
@@ -1393,19 +1393,19 @@ static void createparty() {
     state.p[a].silverkey = 0;
     memset(state.p[a].inventory, 0, sizeof state.p[a].inventory);
     memset(state.p[a].flag, 0, sizeof state.p[a].flag);
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         state.p[a].lv[i] = 1;
     }
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         state.p[a].ar[i] = 0;
     }
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         state.p[a].lv[i] = 1;
     }
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         state.p[a].exp[i] = 0;
     }
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         state.p[a].dead[i] = 0;
     }
     strcpy(state.p[a].player, state.global_name);

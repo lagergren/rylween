@@ -264,7 +264,7 @@ void speak(int32_t bld, int32_t tow) {
                             state.p[state.cpl].gold -= 50 * state.p[state.cpl].lv[1];
                             clw();
                             tx0(res_text("speak.lodge.j13.spent"));
-                            for (i = 1; i < 5; i++) {
+                            for (i = 1; i <= res_party_member_max(); i++) {
                                 if (state.p[state.cpl].hp[i] > 1) {
                                     state.p[state.cpl].hp[i]--;
                                 }

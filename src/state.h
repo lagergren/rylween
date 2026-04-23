@@ -23,6 +23,16 @@
    future limits: knob overrides. */
 #define INVENTORY_SLOT_MAX 16
 
+/* Party-member slot count — the party has a fixed 1..4 layout baked
+   into the save format (struct party.*[5], index 0 unused). There
+   is no world.json5 knob because changing this would break saves,
+   UI digit prompts ("Who? (1-4)"), and story assumptions. This is
+   the named constant to replace the raw `< 5` and `<= 4` literals
+   in member-iteration loops. res_party_member_max() is the runtime
+   accessor that C and DSL callers go through; it always returns
+   this value. */
+#define PARTY_MEMBER_MAX 4
+
 struct person {
     int32_t job; /* 1 Merchant */
                  /* 2 Ranger   */

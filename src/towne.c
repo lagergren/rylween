@@ -200,7 +200,7 @@ void enter() {
         }
         if (toupper(c) == 'L') {
             x = inv_find_in_range(1, 19) != 0;
-            for (i = 1, y = 0; i < 5; i++) {
+            for (i = 1, y = 0; i <= res_party_member_max(); i++) {
                 if (!state.p[state.cpl].dead[i] && !state.p[state.cpl].wp[i]) {
                     y = 1;
                 }
@@ -218,7 +218,7 @@ void enter() {
             }
 
             x = inv_find_in_range(20, 30) != 0;
-            for (i = 1, y = 0; i < 5; i++) {
+            for (i = 1, y = 0; i <= res_party_member_max(); i++) {
                 if (!state.p[state.cpl].dead[i] && !state.p[state.cpl].ar[i]) {
                     y = 1;
                 }
@@ -644,7 +644,7 @@ static void tavern() {
     clr_map_window();
     blitgfx(tavernpic);
 
-    for (i = 1, x = 0; i < 5; i++) {
+    for (i = 1, x = 0; i <= res_party_member_max(); i++) {
         if (state.p[state.cpl].cl[i] == 5) {
             x += state.p[state.cpl].ch[i] / 10;
         }
@@ -934,7 +934,7 @@ static void tavern() {
                         ryl_delay(2000);
                     }
                     state.p[state.cpl].gold -= pr;
-                    for (i = 1; i < 5; i++) {
+                    for (i = 1; i <= res_party_member_max(); i++) {
                         state.p[state.cpl].hp[i] += ((pr / 2) + 1);
                         if (state.p[state.cpl].hp[i] > state.p[state.cpl].h[i]) {
                             state.p[state.cpl].hp[i] = state.p[state.cpl].h[i];
@@ -982,7 +982,7 @@ static void inn() {
                 state.p[state.cpl].gold -= 15 * state.p[state.cpl].lv[1] * state.p[state.cpl].lv[1];
                 clw();
                 tx0(res_text("towne.inn.supper_served"));
-                for (i = 1; i < 5; i++) {
+                for (i = 1; i <= res_party_member_max(); i++) {
                     if (!state.p[state.cpl].dead[i]) {
                         state.p[state.cpl].hp[i] += 6;
                     }
@@ -1035,7 +1035,7 @@ static void inn() {
                     tx0(res_text("towne.inn.giggle"));
                 }
                 ryl_delay(1000);
-                for (i = 1; i < 5; i++) {
+                for (i = 1; i <= res_party_member_max(); i++) {
                     if (!state.p[state.cpl].dead[i]) {
                         state.p[state.cpl].hp[i] += ((pr / 2) + 1);
                         if (state.p[state.cpl].hp[i] > state.p[state.cpl].h[i]) {
@@ -1083,7 +1083,7 @@ static void inn() {
             tx0(res_text("towne.inn.morning"));
             ryl_pause();
             state.tid = 5;
-            for (i = 1; i < 5; i++) {
+            for (i = 1; i <= res_party_member_max(); i++) {
                 if (!state.p[state.cpl].dead[i]) {
                     state.p[state.cpl].hp[i] += state.p[state.cpl].h[i] / 4;
                 }

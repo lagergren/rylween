@@ -25,7 +25,7 @@ void foodhandler() {
     int32_t i;
 
     // Regenerate mana //
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         if (state.p[state.cpl].cl[i] == 3 || state.p[state.cpl].cl[i] == 4) {
             if (state.p[state.cpl].ma[i] < state.p[state.cpl].wi[i] && ryl_chance(50)) {
                 state.p[state.cpl].ma[i]++;
@@ -43,7 +43,7 @@ void foodhandler() {
     // Starving routine //
 
     if (state.p[state.cpl].food == 0) {
-        for (i = 1; i < 5; i++) {
+        for (i = 1; i <= res_party_member_max(); i++) {
             if (!state.p[state.cpl].dead[i]) {
                 state.p[state.cpl].hp[i] -= 2;
             }
@@ -72,7 +72,7 @@ void foodhandler() {
     if (state.hours_pigg == -4) {
         clw();
         tx("You are exhausted!!!\r\n");
-        for (i = 1; i < 5; i++) {
+        for (i = 1; i <= res_party_member_max(); i++) {
             if (state.p[state.cpl].hp[i] > 1) {
                 state.p[state.cpl].hp[i]--;
             }
@@ -83,7 +83,7 @@ void foodhandler() {
         clw();
         tx("You begin to feel weak\r\n");
         tx("from lack of sleep.\r\n\r\n");
-        for (i = 1; i < 5; i++) {
+        for (i = 1; i <= res_party_member_max(); i++) {
             if (state.p[state.cpl].hp[i] > 1) {
                 state.p[state.cpl].hp[i]--;
             }
@@ -95,7 +95,7 @@ void foodhandler() {
     if (state.hours_pigg < -8) {
         clw();
         tx0(res_text("subs.faint"));
-        for (i = 1; i < 5; i++) {
+        for (i = 1; i <= res_party_member_max(); i++) {
             if (state.p[state.cpl].hp[i] > 1) {
                 state.p[state.cpl].hp[i]--;
             }
@@ -501,7 +501,7 @@ void camp() {
             tx("No good equipment,\r\n");
             tx("Party loses 5 health.\r\n");
             ryl_delay(1500);
-            for (i = 1; i < 5; i++) {
+            for (i = 1; i <= res_party_member_max(); i++) {
                 state.p[state.cpl].hp[i] -= 5;
                 if (state.p[state.cpl].hp[i] < 1) {
                     state.p[state.cpl].hp[i] = 1;
@@ -517,7 +517,7 @@ void camp() {
             tx("No good equipment,\r\n");
             tx("Party loses 10 health.\r\n");
             ryl_delay(1500);
-            for (i = 1; i < 5; i++) {
+            for (i = 1; i <= res_party_member_max(); i++) {
                 state.p[state.cpl].hp[i] -= 5;
                 if (state.p[state.cpl].hp[i] < 1) {
                     state.p[state.cpl].hp[i] = 1;
@@ -543,7 +543,7 @@ void camp() {
     if (state.p[state.cpl].food < 0) {
         state.p[state.cpl].food = 0;
     }
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i <= res_party_member_max(); i++) {
         if (i != guard) {
             if (!state.p[state.cpl].dead[i]) {
                 state.p[state.cpl].hp[i] += 15;

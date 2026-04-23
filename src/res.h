@@ -161,6 +161,12 @@ int res_npc_slot_max(void);
    INVENTORY_SLOT_MAX is the only safe override. */
 int res_inventory_slot_max(void);
 
+/* Highest valid party-member slot id. Always returns PARTY_MEMBER_MAX
+   (4). There is no world.json5 knob: 4 is pinned by the save format,
+   UI digit prompts ("Who? (1-4)"), and story assumptions. Iterate
+   members as `for (i = 1; i <= res_party_member_max(); i++)`. */
+int res_party_member_max(void);
+
 /* Uniform "res: path:line: msg" fatal error. Used by the JSON5 parser /
    import resolver (json5.c) and the world-folds (res.c) so every loader
    diagnostic has one shape. Never returns. */

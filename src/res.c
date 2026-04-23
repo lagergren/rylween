@@ -412,6 +412,10 @@ int res_inventory_slot_max(void) {
     return (int)inventory_slot_max;
 }
 
+int res_party_member_max(void) {
+    return PARTY_MEMBER_MAX;
+}
+
 /* Read an optional enum field (string or int) with a default. */
 static int32_t rn_enum(const node *obj, const char *key, const char *enum_id, int32_t dflt) {
     const node *n = obj_get(obj, key);

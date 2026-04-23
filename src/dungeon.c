@@ -207,7 +207,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 if (c == 'O') {
                     lvl[cl] = 0;
                     x = 4;
-                    for (i = 1; i < 5; i++) {
+                    for (i = 1; i <= res_party_member_max(); i++) {
                         if (state.p[state.cpl].cl[i] == 2) {
                             clw();
                             tx("%s checks the\r\n", state.p[state.cpl].name[i]);
@@ -248,7 +248,7 @@ void dungeon(int32_t levels, int32_t flag) {
                                 tx("try to stand up again.\r\n\r\n");
                                 break;
                         }
-                        for (i = 1; i < 5; i++) {
+                        for (i = 1; i <= res_party_member_max(); i++) {
                             state.p[state.cpl].hp[i] -= 4 * state.p[state.cpl].lv[i];
                             if (state.p[state.cpl].hp[i] < 1) {
                                 state.p[state.cpl].hp[i] = 1;
@@ -858,7 +858,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     show(d - 48);
                 }
                 if (toupper(d) == 'A') {
-                    for (i = 1; i < 5; i++) {
+                    for (i = 1; i <= res_party_member_max(); i++) {
                         show(i);
                     }
                 }
