@@ -157,7 +157,7 @@ void guild() {
                 disptext("data/ansi/screen.ans");
                 blitgfx(guildpic);
                 clw();
-                tx("%s\r\n", state.p[x].partyname);
+                tx("%s\r\n", state.p[x].party_name);
                 if (state.map[state.p[x].y][state.p[x].x] == '0') {
                     int twn = res_town_at(state.p[x].x, state.p[x].y);
                     tx("are in %s.\r\n\r\n", res_town_name(twn));
@@ -177,10 +177,10 @@ void guild() {
                 tx("[37m[44m            ==================== PARTIES IN TOWN ====================          \r\n");
                 tx("             #        Name                 Leader             Avg Lvl          \r\n");
                 tx("            =========================================================          \r\n\r\n");
-                for (i = 1; i < state.antal_spelare + 1; i++) {
+                for (i = 1; i < state.num_parties + 1; i++) {
                     if (state.p[i].x == state.p[state.cpl].x && state.p[i].y == state.p[state.cpl].y) {
                         tx("[40m             [33m%c.       [35m%-20s  [31m%-15s   [34m%3d\r\n",
-                           64 + i, state.p[i].partyname, state.p[i].name[1],
+                           64 + i, state.p[i].party_name, state.p[i].name[1],
                            (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4);
                     }
                     if (i == 20) {
@@ -209,20 +209,20 @@ static uint8_t select_party() {
     tx("[37m[44m            ==================== SELECT A PARTY =====================          \r\n");
     tx("             #        Name                 Leader             Avg Lvl          \r\n");
     tx("            =========================================================          \r\n\r\n");
-    for (i = 1; i < state.antal_spelare + 1; i++) {
+    for (i = 1; i < state.num_parties + 1; i++) {
         tx("[40m             [33m%c.[35m       %-20s  [31m%-15s   [34m%3d\r\n", 64 + i,
-           state.p[i].partyname, state.p[i].name[1], (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4);
+           state.p[i].party_name, state.p[i].name[1], (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4);
         if (i == 20) {
             tx("[37m<MORE>\r\n");
             key();
         }
     }
     tx("[37m\r\n");
-    tx("Who? (A-%c)\r\n", 64 + state.antal_spelare);
+    tx("Who? (A-%c)\r\n", 64 + state.num_parties);
     while (1) {
         d = key();
         d = toupper(d);
-        if (d >= 'A' && d <= 64 + state.antal_spelare) {
+        if (d >= 'A' && d <= 64 + state.num_parties) {
             break;
         }
     }
@@ -294,11 +294,11 @@ static void editor(char *outfile, uint8_t bulletin) {
 
     if (!bulletin) {
         snprintf(str2, sizeof str2, "%s, the leader of %s sent you this message:\n\n", state.p[state.cpl].name[1],
-                 state.p[state.cpl].partyname);
+                 state.p[state.cpl].party_name);
         fputs(str2, fh2);
     } else {
         snprintf(str2, sizeof str2, "[37m%s, [36mthe leader of %s posted this bulletin %s %d 19%d\n",
-                 state.p[state.cpl].name[1], state.p[state.cpl].partyname, mnt, kl[3], kl[1] + 80);
+                 state.p[state.cpl].name[1], state.p[state.cpl].party_name, mnt, kl[3], kl[1] + 80);
         fputs(str2, fh2);
         fputs("===============================================================================\n[37m",
               fh2);
@@ -332,7 +332,7 @@ static void editor(char *outfile, uint8_t bulletin) {
 void attackhandler(void) {
     uint8_t i, x;
 
-    for (i = 1, x = 0; i < state.antal_spelare + 1; i++) {
+    for (i = 1, x = 0; i < state.num_parties + 1; i++) {
         if (i != state.cpl && state.p[i].x == state.p[state.cpl].x && state.p[i].y == state.p[state.cpl].y) {
             x = 1;
             break;
@@ -346,7 +346,7 @@ void attackhandler(void) {
     clw();
     tx("You have stumbled upon\r\n");
     tx("the camp of\r\n");
-    tx("%s!\r\n\r\n", state.p[i].partyname);
+    tx("%s!\r\n\r\n", state.p[i].party_name);
     tx("They are %d level\r\n", state.p[i].pl);
     tx("%d adventurers.\r\n\r\n", (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4);
     ryl_pause();

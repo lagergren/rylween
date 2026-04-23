@@ -54,13 +54,13 @@ static void spelet() {
             clw();
         }
 
-        assert(state.cpl >= 1 && state.cpl <= state.antal_spelare);
+        assert(state.cpl >= 1 && state.cpl <= state.num_parties);
         timehandler();
         foodhandler();
         attackhandler();
         statusline();
 
-        if (!state.p[state.cpl].tid_kvar) {
+        if (!state.p[state.cpl].time_left) {
             clw();
             tx0(res_text("driv.moves.out_of_moves"));
             tx0(res_text("driv.menu.out_of_moves"));
@@ -95,7 +95,7 @@ static void spelet() {
                 tx0(res_text("driv.move.pass"));
                 break;
             case '8':
-                if (!state.p[state.cpl].tid_kvar) {
+                if (!state.p[state.cpl].time_left) {
                     clw();
                     tx0(res_text("driv.move.no_moves"));
                     break;
@@ -105,11 +105,11 @@ static void spelet() {
                     state.p[state.cpl].y--;
                     update_map();
                     slumpvis();
-                    state.p[state.cpl].tid_kvar--;
+                    state.p[state.cpl].time_left--;
                 }
                 break;
             case '4':
-                if (!state.p[state.cpl].tid_kvar) {
+                if (!state.p[state.cpl].time_left) {
                     clw();
                     tx0(res_text("driv.move.no_moves"));
                     break;
@@ -119,11 +119,11 @@ static void spelet() {
                     state.p[state.cpl].x--;
                     update_map();
                     slumpvis();
-                    state.p[state.cpl].tid_kvar--;
+                    state.p[state.cpl].time_left--;
                 }
                 break;
             case '2':
-                if (!state.p[state.cpl].tid_kvar) {
+                if (!state.p[state.cpl].time_left) {
                     clw();
                     tx0(res_text("driv.move.no_moves"));
                     break;
@@ -133,11 +133,11 @@ static void spelet() {
                     state.p[state.cpl].y++;
                     update_map();
                     slumpvis();
-                    state.p[state.cpl].tid_kvar--;
+                    state.p[state.cpl].time_left--;
                 }
                 break;
             case '6':
-                if (!state.p[state.cpl].tid_kvar) {
+                if (!state.p[state.cpl].time_left) {
                     clw();
                     tx0(res_text("driv.move.no_moves"));
                     break;
@@ -147,7 +147,7 @@ static void spelet() {
                     state.p[state.cpl].x++;
                     update_map();
                     slumpvis();
-                    state.p[state.cpl].tid_kvar--;
+                    state.p[state.cpl].time_left--;
                 }
                 break;
 
@@ -335,7 +335,7 @@ void statusline() {
     str_append(stline, sizeof stline, str);
     snprintf(str, sizeof str, "FD: [33m%4d[32m  ", state.p[state.cpl].food);
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "MV: [33m%3d[32m  ", state.p[state.cpl].tid_kvar);
+    snprintf(str, sizeof str, "MV: [33m%3d[32m  ", state.p[state.cpl].time_left);
     str_append(stline, sizeof stline, str);
     snprintf(str, sizeof str, "AU: [33m%6d[32m", state.p[state.cpl].gold);
     str_append(stline, sizeof stline, str);
@@ -393,8 +393,8 @@ void init() {
        rolled locations, realized NPCs) and write the first
        current-world.json5 so the next boot finds it. */
     if (!read_current_world()) {
-        state.antal_spelare = 0;
-        state.senaste_dagen = 0;
+        state.num_parties = 0;
+        state.last_played_day = 0;
         position_locations();
         res_realize_npcs();
         write_current_world();
@@ -406,7 +406,7 @@ void init() {
     key();
 
     getclk(kl);
-    if (kl[3] != state.senaste_dagen) {
+    if (kl[3] != state.last_played_day) {
         cl();
         tx0(res_text("driv.init.first_day"));
 
@@ -416,9 +416,9 @@ void init() {
         fh = fopen(path, "wb");
         fclose(fh);
 
-        for (i = 1; i < state.antal_spelare + 1; i++) {
+        for (i = 1; i < state.num_parties + 1; i++) {
             tx(".");
-            state.p[i].tid_kvar = 175;
+            state.p[i].time_left = 175;
             ryl_delay(40);
         }
         getclk(kl);
@@ -440,16 +440,16 @@ void init() {
                    {0},
                });
 
-        for (i = 1, x = 0; i < state.antal_spelare + 1; i++) {
+        for (i = 1, x = 0; i < state.num_parties + 1; i++) {
             if (!stricmp(state.global_name, state.p[i].player)) {
                 x = i;
             }
         }
-        for (i = 1; i < state.antal_spelare + 1; i++) {
+        for (i = 1; i < state.num_parties + 1; i++) {
             if (state.p[i].silverkey == 2) {
                 tx_fmt("driv.struggle.over",
                        (ryl_bind[]){
-                           {"partyname", state.p[i].partyname},
+                           {"party_name", state.p[i].party_name},
                            {0},
                        });
                 tx0(res_text("driv.struggle.conclusion"));
@@ -588,7 +588,7 @@ void init() {
                     read_current_world();
                     abort = 1;
                     snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", state.p[state.cpl].name[1],
-                             pronoun(1, 3), state.p[state.cpl].partyname);
+                             pronoun(1, 3), state.p[state.cpl].party_name);
                     ryl_log(str);
                     state.last_terrain = 0;
                 } else {
@@ -619,15 +619,15 @@ void init() {
                            cleanexit()s before it matters anyway. */
                         clw();
                         tx0(res_text("driv.terminate.editing_realm"));
-                        state.antal_spelare--;
+                        state.num_parties--;
                         for (i = 1; i <= res_npc_slot_max(); i++) {
-                            for (j = 1; j < state.antal_spelare; j++) {
+                            for (j = 1; j < state.num_parties; j++) {
                                 state.npc[i].visited[x] = state.npc[i].visited[x + 1];
                             }
                         }
-                        if ((int)x <= state.antal_spelare) {
+                        if ((int)x <= state.num_parties) {
                             memmove(&state.p[x], &state.p[x + 1],
-                                    (size_t)(state.antal_spelare + 1 - x) * sizeof state.p[0]);
+                                    (size_t)(state.num_parties + 1 - x) * sizeof state.p[0]);
                         }
                         ryl_delay(1000);
 
@@ -811,7 +811,7 @@ static void write_current_world() {
     fputs("{\n", f);
 
     fputs("  realm: {\n", f);
-    fprintf(f, "    last_played_day: %d,\n", state.senaste_dagen);
+    fprintf(f, "    last_played_day: %d,\n", state.last_played_day);
     fputs("  },\n\n", f);
 
     fputs("  locations: {\n", f);
@@ -841,7 +841,7 @@ static void write_current_world() {
     fputs("  },\n\n", f);
 
     fputs("  parties: [\n", f);
-    for (int i = 1; i <= state.antal_spelare; i++) {
+    for (int i = 1; i <= state.num_parties; i++) {
         const struct party *p = &state.p[i];
         int cl_int[5] = {p->cl[0], p->cl[1], p->cl[2], p->cl[3], p->cl[4]};
         int ra_int[5] = {p->ra[0], p->ra[1], p->ra[2], p->ra[3], p->ra[4]};
@@ -849,8 +849,8 @@ static void write_current_world() {
         fputs("      player: ", f);
         wcw_str(f, p->player);
         fputs(",\n", f);
-        fputs("      partyname: ", f);
-        wcw_str(f, p->partyname);
+        fputs("      party_name: ", f);
+        wcw_str(f, p->party_name);
         fputs(",\n", f);
         fputs("      name: [", f);
         for (int m = 0; m < 5; m++) {
@@ -874,7 +874,7 @@ static void write_current_world() {
         fprintf(f, "      gold: %d,\n", p->gold);
         fprintf(f, "      torches: %u,\n", p->torches);
         fprintf(f, "      food: %d,\n", p->food);
-        fprintf(f, "      tid_kvar: %d,\n", p->tid_kvar);
+        fprintf(f, "      time_left: %d,\n", p->time_left);
         fputs("      inventory: ", f);
         wcw_i32_arr(f, p->inventory, 17);
         fputs(",\n", f);
@@ -1088,7 +1088,7 @@ static int read_current_world() {
 
     const node *realm = obj_get(root, "realm");
     if (realm && realm->kind == N_OBJ) {
-        state.senaste_dagen = rcw_int(realm, "last_played_day", state.senaste_dagen);
+        state.last_played_day = rcw_int(realm, "last_played_day", state.last_played_day);
     }
 
     const node *loc = obj_get(root, "locations");
@@ -1120,7 +1120,7 @@ static int read_current_world() {
 
     const node *parties = obj_get(root, "parties");
     if (parties && parties->kind == N_ARR) {
-        state.antal_spelare = (int32_t)parties->u.arr.n;
+        state.num_parties = (int32_t)parties->u.arr.n;
         for (size_t pi = 0; pi < parties->u.arr.n; pi++) {
             const node *pnode = parties->u.arr.items[pi];
             if (!pnode || pnode->kind != N_OBJ) {
@@ -1133,7 +1133,7 @@ static int read_current_world() {
             struct party *p = &state.p[i];
 
             rcw_str(pnode, "player", p->player, sizeof p->player);
-            rcw_str(pnode, "partyname", p->partyname, sizeof p->partyname);
+            rcw_str(pnode, "party_name", p->party_name, sizeof p->party_name);
 
             const node *names = obj_get(pnode, "name");
             if (names && names->kind == N_ARR) {
@@ -1159,7 +1159,7 @@ static int read_current_world() {
             p->gold = rcw_int(pnode, "gold", p->gold);
             p->torches = (uint32_t)rcw_int(pnode, "torches", p->torches);
             p->food = rcw_int(pnode, "food", p->food);
-            p->tid_kvar = rcw_int(pnode, "tid_kvar", p->tid_kvar);
+            p->time_left = rcw_int(pnode, "time_left", p->time_left);
 
             rcw_i32_arr(obj_get(pnode, "inventory"), p->inventory, 17);
             rcw_i32_arr(obj_get(pnode, "ws"), p->ws, 5);
@@ -1197,7 +1197,7 @@ static int read_current_world() {
 
     /* Match load()'s behavior: set state.cpl by matching the logged-in
        player name against each party's `player` field. */
-    for (int i = 1; i <= state.antal_spelare; i++) {
+    for (int i = 1; i <= state.num_parties; i++) {
         if (!stricmp(state.global_name, state.p[i].player)) {
             state.cpl = i;
         }
@@ -1211,7 +1211,7 @@ void save() {
     char kl[8];
 
     getclk(kl);
-    state.senaste_dagen = kl[3];
+    state.last_played_day = kl[3];
 
     write_current_world();
 }
@@ -1233,23 +1233,23 @@ static void createparty() {
 
     tx0(res_text("driv.create.header"));
 
-    if (state.antal_spelare == 25) {
+    if (state.num_parties == 25) {
         tx0(res_text("driv.create.full"));
         ryl_pause();
         cleanexit();
     }
 
-    state.antal_spelare++;
-    a = state.antal_spelare;
+    state.num_parties++;
+    a = state.num_parties;
     state.cpl = a;
 
     while (1) {
         tx0(res_text("driv.create.name_q"));
         tx(": ");
 
-        getstr(18, state.p[a].partyname, sizeof state.p[a].partyname);
-        if (!state.p[a].partyname[0]) {
-            state.antal_spelare--;
+        getstr(18, state.p[a].party_name, sizeof state.p[a].party_name);
+        if (!state.p[a].party_name[0]) {
+            state.num_parties--;
             state.cpl = 0;
             return;
         } else {
@@ -1280,7 +1280,7 @@ static void createparty() {
                 str[0] = 0;
                 getstr(12, state.p[a].name[g], sizeof state.p[a].name[g]);
                 if (!state.p[a].name[g][0]) {
-                    state.antal_spelare--;
+                    state.num_parties--;
                     state.cpl = 0;
                     return;
                 } else {
@@ -1384,7 +1384,7 @@ static void createparty() {
     state.p[a].gold = 1000;
     state.p[a].torches = 5;
     state.p[a].food = 100;
-    state.p[a].tid_kvar = 200;
+    state.p[a].time_left = 200;
     state.p[a].pl = 4;
     state.p[a].fireshield = 0;
     state.p[a].bracelets = 0;
@@ -1573,7 +1573,7 @@ static void clrjr(uint8_t nr) {
         exit(0);
     }
 
-    for (k = current; k < state.antal_spelare + 1; k++) {
+    for (k = current; k < state.num_parties + 1; k++) {
         i = 1;
 
         while (1) {

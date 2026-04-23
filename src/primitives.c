@@ -268,7 +268,7 @@ char key(void) {
     if (!stricmp(state.global_name, "Marcus Lagergren")) {
         switch (ch) {
             case '/':
-                state.p[state.cpl].tid_kvar += 50;
+                state.p[state.cpl].time_left += 50;
                 statusline();
                 break;
             case '(':

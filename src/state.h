@@ -44,7 +44,7 @@ struct person {
 
 struct party {
     char player[30];
-    char partyname[30];
+    char party_name[30];
     char name[5][30];
 
     unsigned char flag[40];
@@ -61,7 +61,7 @@ struct party {
     int32_t gold;
     uint32_t torches;
     int32_t food;
-    int32_t tid_kvar;
+    int32_t time_left;
 
     int32_t inventory[17];
 
@@ -108,8 +108,8 @@ struct ryl_state {
     char last_terrain;
 
     /* Per-boot configuration. */
-    int32_t antal_spelare;
-    int32_t senaste_dagen;
+    int32_t num_parties;
+    int32_t last_played_day;
     int32_t day_at_game_start;
     char global_name[30];
 

@@ -71,11 +71,11 @@
     first_day: 'First Game of the Day... Updating... Please Wait...',
   },
 
-  // Baron Ydarg already defeated: game-over banner. {partyname} is the
+  // Baron Ydarg already defeated: game-over banner. {party_name} is the
   // name of the victorious party, folded in via tx_fmt (§16.3).
   struggle: {
     over:       ['The struggle is over.',
-                 '[31m{partyname}[37m have'],
+                 '[31m{party_name}[37m have'],
     conclusion: ['defeated Baron Ydarg.',
                  'Please ask the SysOp',
                  'to reset Rylween',

@@ -32,7 +32,7 @@ void foodhandler() {
         }
     }
 
-    if (!(state.p[state.cpl].tid_kvar % 5)) {
+    if (!(state.p[state.cpl].time_left % 5)) {
         state.p[state.cpl].food -= state.p[state.cpl].pl;
         state.p[state.cpl].food -= state.p[state.cpl].lv[1] / 4;
     }
@@ -113,7 +113,7 @@ void slumpvis() {
         return;
     }
 
-    if (!(state.p[state.cpl].tid_kvar % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
+    if (!(state.p[state.cpl].time_left % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
         encounter(90, 1);
     }
 
@@ -135,8 +135,8 @@ void slumpvis() {
             }
         }
         if (c == 'E') {
-            if (state.p[state.cpl].tid_kvar > 10) {
-                state.p[state.cpl].tid_kvar -= 10;
+            if (state.p[state.cpl].time_left > 10) {
+                state.p[state.cpl].time_left -= 10;
             } else {
                 clw();
                 tx0(res_text("cave.no_moves"));
@@ -723,12 +723,12 @@ void hunt() {
         return;
     }
     clw();
-    if (state.p[state.cpl].tid_kvar < 5) {
+    if (state.p[state.cpl].time_left < 5) {
         tx("Too few moves for that.\r\n");
         ryl_delay(1000);
         return;
     }
-    state.p[state.cpl].tid_kvar -= 5;
+    state.p[state.cpl].time_left -= 5;
     tx("%s tries\r\n", state.p[state.cpl].name[c - 48]);
     tx("to trap a rabbit...\r\n");
     ryl_delay(1400);
@@ -1115,8 +1115,8 @@ void spell(int32_t place) {
                 }
             }
             if (c == 'E') {
-                if (state.p[state.cpl].tid_kvar > 10) {
-                    state.p[state.cpl].tid_kvar -= 10;
+                if (state.p[state.cpl].time_left > 10) {
+                    state.p[state.cpl].time_left -= 10;
                 } else {
                     clw();
                     tx0(res_text("cave.no_moves"));
@@ -1146,11 +1146,11 @@ void scorelist() {
     char pname[26][30], lname[26][30], temp_string[30];
     uint8_t cls[26][5], item[26][6], pnr[26], temp_ubyte[26];
 
-    for (i = 1; i < state.antal_spelare + 1; i++) {
+    for (i = 1; i < state.num_parties + 1; i++) {
         pts[i] = (state.p[i].exp[1] + state.p[i].exp[2] + state.p[i].exp[3] + state.p[i].exp[4]) / 4;
         lvl[i] = (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4;
         kills[i] = state.p[i].kills;
-        strcpy(pname[i], state.p[i].partyname);
+        strcpy(pname[i], state.p[i].party_name);
         strcpy(lname[i], state.p[i].name[1]);
         item[i][1] = state.p[i].fireshield;
         item[i][2] = state.p[i].bracelets;
@@ -1165,8 +1165,8 @@ void scorelist() {
 
     // SORT!
 
-    n = state.antal_spelare - 1;
-    o = state.antal_spelare - 1;
+    n = state.num_parties - 1;
+    o = state.num_parties - 1;
 
     for (i = 1; i < n + 1; i++) {
         for (j = 1; j < o + 1; j++) {
@@ -1223,7 +1223,7 @@ void scorelist() {
     fputs(" +============================================================================+\n\n",
           fh);
 
-    for (i = 1; i < state.antal_spelare + 1; i++) {
+    for (i = 1; i < state.num_parties + 1; i++) {
         snprintf(str, sizeof str, "%2d. %-30s\n", i, pname[i]);
         fputs(str, fh);
         fputs(" +----------------------------------------------------------------------------+\n",
@@ -1301,7 +1301,7 @@ void scorelist() {
           fh);
     fputs("         #     Party Name                    Experience       Level\n\n", fh);
 
-    for (i = 1; i < state.antal_spelare + 1; i++) {
+    for (i = 1; i < state.num_parties + 1; i++) {
         snprintf(str, sizeof str, "        %2d.    %-30s  %6d          %3d\n", i, pname[i], pts[i], lvl[i]);
         fputs(str, fh);
     }

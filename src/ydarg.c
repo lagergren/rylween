@@ -551,7 +551,7 @@ static void confrontation() {
             break;
     }
 
-    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", state.p[state.cpl].partyname, mstr, kl[3],
+    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", state.p[state.cpl].party_name, mstr, kl[3],
              kl[1] + 80);
     fputs(str, fh);
     fclose(fh);
