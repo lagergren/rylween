@@ -37,4 +37,239 @@
       } },
     ] },
   ],
+
+  // church() — service menu inside a town. C wrapper is a pure
+  // play_script call; this script owns clr_map_window + blitgfx
+  // (churchpic=4), the main H/R/E/L loop, and the sub-menu "Who?
+  // (1-4)" for each action. Break paths: L leaves cleanly (clw +
+  // clr_map_window); H-on-corpse exits abruptly (clw + corpse +
+  // 1200ms, no clr_map_window — matches the original's `return;`).
+  church: [
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [4] },
+    { loop: [
+      { engine_call: 'clw' },
+      { engine_call: 'statusline' },
+      { emit: 'intro' },
+      { menu_branch: {
+          prompt: 'menu',
+          options: [
+            { key: 'L', then: [
+              { engine_call: 'clw' },
+              { engine_call: 'clr_map_window' },
+              { break: true },
+            ] },
+            // --- (E)nergize: restore spellcaster's ma to wi for a fee.
+            { key: 'E', then: [
+              { engine_call: 'clw' },
+              { emit: 'who' },
+              { menu_branch: {
+                  key_var: 'who_ch',
+                  options: [
+                    { key_range: ['1', '4'], then: [
+                      { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
+                      { if: {
+                          cond: { and: [
+                            { ne: [{ member: { var: 'who' }, field: 'cl' }, 3] },
+                            { ne: [{ member: { var: 'who' }, field: 'cl' }, 4] },
+                          ] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { emit: 'not_spellcaster' },
+                            { pause: 1000 },
+                          ],
+                          else: [
+                            { if: {
+                                cond: { eq: [
+                                  { member: { var: 'who' }, field: 'ma' },
+                                  { member: { var: 'who' }, field: 'wi' },
+                                ] },
+                                then: [
+                                  { engine_call: 'clw' },
+                                  { emit: 'no_need_sp' },
+                                  { pause: 2000 },
+                                ],
+                                else: [
+                                  { engine_call: 'clw' },
+                                  // cost = lv * (wi - ma) * 2. The original's
+                                  // "if (!cost) cost = lv*2" fallback is
+                                  // unreachable when wi > ma and lv >= 1
+                                  // (always the case past createparty).
+                                  { let: 'cost', value: {
+                                      mul: [
+                                        { member: { var: 'who' }, field: 'lv' },
+                                        { mul: [
+                                          { sub: [
+                                            { member: { var: 'who' }, field: 'wi' },
+                                            { member: { var: 'who' }, field: 'ma' },
+                                          ] },
+                                          2,
+                                        ] },
+                                      ],
+                                  } },
+                                  { emit: 'cost2' },
+                                  { menu_branch: {
+                                      prompt: 'pn_menu',
+                                      options: [
+                                        { key: 'P', then: [
+                                          { engine_call: 'clw' },
+                                          { if: {
+                                              cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                                              then: [
+                                                { emit: 'no_gold' },
+                                                { pause: 1000 },
+                                              ],
+                                              else: [
+                                                { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                                                { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'ma' } },
+                                                            op: 'set',
+                                                            value: { member: { var: 'who' }, field: 'wi' } } },
+                                                { engine_call: 'clw' },
+                                                { emit: 'restored' },
+                                                { pause: 1000 },
+                                              ],
+                                          } },
+                                        ] },
+                                      ],
+                                  } },
+                                ],
+                            } },
+                          ],
+                      } },
+                    ] },
+                  ],
+              } },
+            ] },
+            // --- (R)aise dead: cost = 650 * lv[who]. On pay, hp=1,
+            //     dead=0, pl++. Alive target just emits alive + 1200ms.
+            { key: 'R', then: [
+              { engine_call: 'clw' },
+              { emit: 'who' },
+              { menu_branch: {
+                  key_var: 'who_ch',
+                  options: [
+                    { key_range: ['1', '4'], then: [
+                      { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
+                      { if: {
+                          cond: { eq: [{ member: { var: 'who' }, field: 'dead' }, 0] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 1], var: 'pro_sub' } },
+                            { emit: 'alive' },
+                            { pause: 1200 },
+                          ],
+                          else: [
+                            { engine_call: 'clw' },
+                            { let: 'cost', value: { mul: [650, { member: { var: 'who' }, field: 'lv' }] } },
+                            { emit: 'cost2' },
+                            { menu_branch: {
+                                prompt: 'pn_menu',
+                                options: [
+                                  { key: 'P', then: [
+                                    { engine_call: 'clw' },
+                                    { if: {
+                                        cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                                        then: [
+                                          { emit: 'no_gold' },
+                                          { pause: 1000 },
+                                        ],
+                                        else: [
+                                          { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hp' } }, op: 'set', value: 1 } },
+                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'dead' } }, op: 'set', value: 0 } },
+                                          { mutate: { target: { pl: 0 }, op: 'add', value: 1 } },
+                                          { engine_call: 'clw' },
+                                          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 2], var: 'pro_obj' } },
+                                          { emit: 'raised' },
+                                          { pause: 1000 },
+                                        ],
+                                    } },
+                                  ] },
+                                ],
+                            } },
+                          ],
+                      } },
+                    ] },
+                  ],
+              } },
+            ] },
+            // --- (H)eal: cost = (h - hp) * 7. On dead target: show
+            //     corpse + 1200ms and BREAK out of church (original
+            //     used `return;`). Uses cost/no_gold2 text variants.
+            { key: 'H', then: [
+              { engine_call: 'clw' },
+              { emit: 'who' },
+              { menu_branch: {
+                  key_var: 'who_ch',
+                  options: [
+                    { key_range: ['1', '4'], then: [
+                      { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
+                      { if: {
+                          cond: { ne: [{ member: { var: 'who' }, field: 'dead' }, 0] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { emit: 'corpse' },
+                            { pause: 1200 },
+                            { break: true },
+                          ],
+                      } },
+                      { if: {
+                          cond: { eq: [
+                            { member: { var: 'who' }, field: 'hp' },
+                            { member: { var: 'who' }, field: 'h' },
+                          ] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 1], var: 'pro_sub' } },
+                            { emit: 'no_healing' },
+                            { pause: 1000 },
+                          ],
+                          else: [
+                            { let: 'cost', value: { mul: [
+                                { sub: [
+                                  { member: { var: 'who' }, field: 'h' },
+                                  { member: { var: 'who' }, field: 'hp' },
+                                ] },
+                                7,
+                            ] } },
+                            { engine_call: 'clw' },
+                            { emit: 'cost' },
+                            { menu_branch: {
+                                prompt: 'pn_menu',
+                                options: [
+                                  { key: 'P', then: [
+                                    // NB: no clw here — the original's heal
+                                    // pay branch omits the clw that energize/
+                                    // raise use, so no_gold2 stacks on top of
+                                    // the pn_menu text.
+                                    { if: {
+                                        cond: { lt: [{ gold: 0 }, { var: 'cost' }] },
+                                        then: [
+                                          { emit: 'no_gold2' },
+                                          { pause: 1000 },
+                                        ],
+                                        else: [
+                                          { engine_call: 'clw' },
+                                          { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
+                                          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 2], var: 'pro_obj' } },
+                                          { emit: 'healed' },
+                                          { pause: 1000 },
+                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hp' } },
+                                                      op: 'set',
+                                                      value: { member: { var: 'who' }, field: 'h' } } },
+                                        ],
+                                    } },
+                                  ] },
+                                ],
+                            } },
+                          ],
+                      } },
+                    ] },
+                  ],
+              } },
+            ] },
+          ],
+      } },
+    ] },
+  ],
 }

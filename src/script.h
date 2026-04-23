@@ -103,6 +103,7 @@
  *          | { gold:   <any> }           state.p[cpl].gold
  *          | { torches: <any> }          state.p[cpl].torches
  *          | { food:   <any> }           state.p[cpl].food
+ *          | { pl:     <any> }           state.p[cpl].pl (living members)
  *          | { twn:    <any> }           state.twn
  *          | { tid:    <any> }           state.tid
  *          | { cpl:    <any> }           state.cpl
@@ -148,6 +149,7 @@
  *       { gold }                                state.p[cpl].gold
  *     | { torches }                             state.p[cpl].torches
  *     | { food }                                state.p[cpl].food
+ *     | { pl }                                  state.p[cpl].pl (0..255)
  *     | { flag: <expr> }                        state.p[cpl].flag[slot]
  *     | { inventory: <expr> }                   inventory[slot]  1..16
  *     | { member_field: { idx: <expr>,          state.p[cpl].<field>[idx]

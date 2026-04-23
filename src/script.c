@@ -494,6 +494,9 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
     if (obj_get(n, "food")) {
         return state.p[state.cpl].food;
     }
+    if (obj_get(n, "pl")) {
+        return (int32_t)state.p[state.cpl].pl;
+    }
     if (obj_get(n, "twn")) {
         return state.twn;
     }
@@ -1393,6 +1396,7 @@ typedef enum {
     LV_GOLD,
     LV_TORCHES,
     LV_FOOD,
+    LV_PL,
     LV_FLAG,
     LV_INVENTORY,
     LV_MEMBER_FIELD,
@@ -1417,6 +1421,9 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
     }
     if (obj_get(tgt, "food")) {
         return (mutate_lv){LV_FOOD, 0, NULL};
+    }
+    if (obj_get(tgt, "pl")) {
+        return (mutate_lv){LV_PL, 0, NULL};
     }
     const node *flag_n = obj_get(tgt, "flag");
     if (flag_n) {
@@ -1470,6 +1477,8 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
             return (int32_t)p->torches;
         case LV_FOOD:
             return p->food;
+        case LV_PL:
+            return (int32_t)p->pl;
         case LV_FLAG:
             return p->flag[lv->index];
         case LV_INVENTORY:
@@ -1540,6 +1549,12 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
             return;
         case LV_FOOD:
             p->food = v;
+            return;
+        case LV_PL:
+            if (v < 0 || v > 255) {
+                die_at(script_id, idx, "mutate: pl must be 0..255");
+            }
+            p->pl = (unsigned char)v;
             return;
         case LV_FLAG:
             p->flag[lv->index] = (unsigned char)v;
