@@ -5,6 +5,7 @@
 #include "io.h"
 #include "res.h"
 #include "ryl.h"
+#include "snapshot.h"
 
 struct ryl_state state;
 
@@ -38,6 +39,7 @@ int main(int argc, char **argv) {
     ryl_random_init();
     res_load_world("data/world.json5");
     inv_init();
+    snapshot_init();
 
     state.global_name[0] = 0;
     strncpy(state.global_name, argv[1], sizeof state.global_name - 1);

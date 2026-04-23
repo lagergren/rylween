@@ -3,8 +3,11 @@
 # Scripted-input replay harness for byte-identity regression testing.
 #
 # Each script is a pair of files under tools/replay/:
-#   <name>.in       bytes piped to rylween's stdin (keystrokes + getline input)
-#   <name>.expect   expected stdout+stderr bytes, captured on a known-good build
+#   <name>.in                bytes piped to rylween's stdin (keystrokes + getline input)
+#   <name>.expect            expected stdout+stderr bytes, captured on a known-good build
+#   <name>.expect_snapshot   optional: expected RYL_SNAPSHOT dump (state on exit).
+#                            If present, the harness sets RYL_SNAPSHOT to a tmpfile
+#                            and diffs it against this baseline. --bless rewrites it.
 #
 # Runs use an isolated HOME so cold-start code paths fire every time and
 # persistent state does not leak between invocations.
@@ -47,6 +50,7 @@ run_one() {
     local name=$1
     local in="$SCRIPT_DIR/$name.in"
     local expect="$SCRIPT_DIR/$name.expect"
+    local expect_snap="$SCRIPT_DIR/$name.expect_snapshot"
     local envfile="$SCRIPT_DIR/$name.env"
 
     if [[ ! -f $in ]]; then
@@ -54,20 +58,23 @@ run_one() {
         return 2
     fi
 
-    local home out
+    local home out snap
     home=$(mktemp -d)
     out=$(mktemp)
+    snap=$(mktemp)
     # shellcheck disable=SC2064
-    trap "rm -rf '$home' '$out'" RETURN
+    trap "rm -rf '$home' '$out' '$snap'" RETURN
 
     # Optional sidecar: <name>.env sourced in a subshell so replay-scoped
     # env vars (RYL_FAKE_EPOCH, RYL_FAKE_SEED, ...) do not leak into later
-    # runs under --all.
+    # runs under --all. RYL_SNAPSHOT is always exported so the binary
+    # writes a fresh snapshot every run; the comparison vs. the baseline
+    # only fires when <name>.expect_snapshot exists.
     if [[ -f $envfile ]]; then
         # shellcheck disable=SC1090
-        ( set -a; . "$envfile"; HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 ) || true
+        ( set -a; . "$envfile"; RYL_SNAPSHOT="$snap" HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 ) || true
     else
-        HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 || true
+        RYL_SNAPSHOT="$snap" HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 || true
     fi
 
     local size
@@ -75,7 +82,12 @@ run_one() {
 
     if (( bless )); then
         cp "$out" "$expect"
-        printf 'blessed %-24s %s bytes\n' "$name" "$size"
+        local note=""
+        if [[ -f $expect_snap || -s $snap ]]; then
+            cp "$snap" "$expect_snap"
+            note=' + snapshot'
+        fi
+        printf 'blessed %-24s %s bytes%s\n' "$name" "$size" "$note"
         return 0
     fi
 
@@ -84,15 +96,25 @@ run_one() {
         return 1
     fi
 
-    if cmp -s "$expect" "$out"; then
-        printf 'ok     %-24s %s bytes\n' "$name" "$size"
+    if ! cmp -s "$expect" "$out"; then
+        printf 'FAIL   %-24s %s bytes (expected %s)\n' \
+            "$name" "$size" "$(wc -c < "$expect" | tr -d ' ')" >&2
+        diff "$expect" "$out" | head -40 >&2 || true
+        return 1
+    fi
+
+    if [[ -f $expect_snap ]]; then
+        if ! cmp -s "$expect_snap" "$snap"; then
+            printf 'FAIL   %-24s snapshot drift\n' "$name" >&2
+            diff "$expect_snap" "$snap" | head -40 >&2 || true
+            return 1
+        fi
+        printf 'ok     %-24s %s bytes + snapshot\n' "$name" "$size"
         return 0
     fi
 
-    printf 'FAIL   %-24s %s bytes (expected %s)\n' \
-        "$name" "$size" "$(wc -c < "$expect" | tr -d ' ')" >&2
-    diff "$expect" "$out" | head -40 >&2 || true
-    return 1
+    printf 'ok     %-24s %s bytes\n' "$name" "$size"
+    return 0
 }
 
 if (( all )); then
