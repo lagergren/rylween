@@ -1,5 +1,6 @@
 #include "io.h"
 #include "json5.h"
+#include "party.h"
 #include "res.h"
 #include "ryl.h"
 #include "driv.h"
@@ -7,7 +8,6 @@
 #include "subs.h"
 #include "towne.h"
 
-static void clrjr(uint8_t);
 static void createparty(void);
 static void position_locations(void);
 static void read_journal(void);
@@ -260,43 +260,25 @@ uint8_t drop_option() {
 }
 
 static void read_journal() {
-    FILE *j;
-    char str[90], str2[88], plrstr[6];
-    int32_t plr = 0;
-    unsigned char line = 0;
-
-    if (!(j = fopen("data/journal", "r"))) {
+    const struct party *p = &state.p[state.cpl];
+    if (p->journal_n == 0) {
         return;
     }
 
     tx0(res_text("driv.journal.header"));
 
-    while (1) {
-        str[0] = 0;
-        fgets((char *)str, sizeof(str), j);
-        if (str[0] == 0) {
+    unsigned char line = 0;
+    for (size_t i = 0; i < p->journal_n; i++) {
+        tx("- %s\r\n", p->journal[i]);
+        line++;
+        if (line == 16) {
+            line = 0;
+            tx("\r\n");
             ryl_pause();
-            break;
-        }
-        sscanf(str, "%s %s", plrstr, str2);
-        plr = atoi(plrstr);
-
-        if (plr == state.cpl) {
-            str[0] = '-';
-            if (plr > 9) {
-                str[1] = '-';
-            }
-            tx("%s\r\n", str);
-            line++;
-            if (line == 16) {
-                line = 0;
-                tx("\r\n");
-                ryl_pause();
-                cl();
-            }
+            cl();
         }
     }
-    fclose(j);
+    ryl_pause();
 }
 void statusline() {
     /* Redo status line */
@@ -617,6 +599,7 @@ void init() {
                            cleanexit()s before it matters anyway. */
                         clw();
                         tx0(res_text("driv.terminate.editing_realm"));
+                        free_journal(&state.p[x]);
                         state.num_parties--;
                         for (i = 1; i <= res_npc_slot_max(); i++) {
                             for (j = 1; j < state.num_parties; j++) {
@@ -626,12 +609,18 @@ void init() {
                         if ((int)x <= state.num_parties) {
                             memmove(&state.p[x], &state.p[x + 1],
                                     (size_t)(state.num_parties + 1 - x) * sizeof state.p[0]);
+                            /* memmove duplicated the old tail's journal
+                               pointer; clear it so save doesn't double-emit
+                               and future reuse of the slot starts clean. */
+                            struct party *tail = &state.p[state.num_parties + 1];
+                            tail->journal = NULL;
+                            tail->journal_n = 0;
+                            tail->journal_cap = 0;
                         }
                         ryl_delay(1000);
 
                         clw();
                         tx0(res_text("driv.terminate.editing_journal"));
-                        clrjr(x);
                         ryl_delay(1000);
 
                         write_current_world();
@@ -1580,125 +1569,25 @@ void show(int32_t nr) {
     ryl_pause();
 }
 
-void journal(char *send_me) {
-    FILE *fh;
-    char str[90];
-
-    if ((fh = fopen("data/journal", "r"))) {
-        while (1) {
-            str[0] = 0;
-            fgets((char *)str, sizeof(str), fh);
-            if (str[0] == 0) {
-                break;
-            }
-            if (!stricmp(str, send_me)) {
-                /* Match */
-                fclose(fh);
-                return;
-            }
-        }
-        fclose(fh);
-    }
-
-    if (!(fh = fopen("data/journal", "a+"))) {
-        return;
-    }
-    fputs(send_me, fh);
-    fclose(fh);
-}
-
+/* vsnprintf'd wrapper over party_journal_add. Accepts call-site formats
+   that carry a trailing \n (the file-backed predecessor required it);
+   that byte is stripped before the line reaches storage. */
 void journalf(const char *fmt, ...) {
     char line[144];
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(line, sizeof line, fmt, ap);
+    int n = vsnprintf(line, sizeof line, fmt, ap);
     va_end(ap);
-    journal(line);
-}
-static void clrjr(uint8_t nr) {
-    FILE *fh;
-    char str[144], a[10], b[20], temp[4];
-    uint32_t byte[50];
-    uint8_t i, j, k, current;
-
-    if (!(fh = fopen("data/journal", "r"))) {
-        exit(0);
+    if (n <= 0) {
+        return;
     }
-
-    i = 1;
-
-    while (1) {
-        str[0] = 0;
-        fgets((char *)str, sizeof(str), fh);
-        if (str[0] == 0) {
-            break;
-        }
-        sscanf(str, "%s %s", a, b);
-        if (atoi(a) == nr) {
-            byte[i] = ftell(fh);
-            byte[i] -= strlen(str);
-            printf("%d\n", byte[i]);
-            i++;
-        }
+    if (n >= (int)sizeof line) {
+        n = (int)sizeof line - 1;
     }
-
-    if (!(fh = fopen("data/journal", "r+"))) {
-        exit(0);
+    if (line[n - 1] == '\n') {
+        line[n - 1] = '\0';
     }
-
-    for (j = 1; j < i + 1; j++) {
-        fseek(fh, byte[j], 0);
-        fputc('*', fh);
-        fputc('*', fh);
-    }
-
-    fclose(fh);
-
-    /* Och nu skall alla som hade h|gre spelarnummer {n 'nr' minskas ett steg */
-    /* Till{ggas kan att det blir ett helvete */
-
-    current = nr + 1;
-
-    if (!(fh = fopen("data/journal", "r"))) {
-        exit(0);
-    }
-
-    for (k = current; k < state.num_parties + 1; k++) {
-        i = 1;
-
-        while (1) {
-            str[0] = 0;
-            fgets((char *)str, sizeof(str), fh);
-            if (str[0] == 0) {
-                break;
-            }
-            sscanf(str, "%s %s", a, b);
-            if (atoi(a) == current) {
-                byte[i] = ftell(fh);
-                byte[i] -= strlen(str);
-                //printf("%d\n",byte[i]);
-                i++;
-            }
-        }
-
-        if (!(fh = fopen("data/journal", "r+"))) {
-            exit(0);
-        }
-
-        for (j = 1; j < i + 1; j++) {
-            fseek(fh, byte[j], 0);
-            if (current <= 10) {
-                snprintf(temp, sizeof temp, "%d", current - 1);
-                fputc(temp[0], fh);
-                fputc(32, fh);
-            } else {
-                snprintf(temp, sizeof temp, "%d", current - 1);
-                fputc(temp[0], fh);
-                fputc(temp[1], fh);
-            }
-        }
-        fclose(fh);
-    }
+    party_journal_add(party_current(), line);
 }
 void help() {
     clw();

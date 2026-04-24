@@ -15,6 +15,7 @@
 
 #include "eval.h"
 #include "json5.h"
+#include "party.h"
 #include "res.h"
 #include "ryl.h"
 #include "driv.h"
@@ -1196,10 +1197,10 @@ void eval_effect(const node *n, env_t *e) {
         char buf[512];
         const char *fmt = res_text(n->u.arr.items[1]->u.sv);
         if (n->u.arr.n == 2) {
-            journal((char *)fmt);
+            party_journal_add(party_current(), fmt);
         } else {
             say_render(fmt, n, e, buf, sizeof buf);
-            journal(buf);
+            party_journal_add(party_current(), buf);
         }
         return;
     }

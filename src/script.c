@@ -922,12 +922,7 @@ static void do_journal(const node *op, const char *script_id, size_t idx,
                                sizeof merged / sizeof *merged, script_id, idx),
                 body, sizeof body, ctx);
 
-    char line[576];
-    int n = snprintf(line, sizeof line, "%d %s\n", state.cpl, body);
-    if (n < 0 || n >= (int)sizeof line) {
-        die_at(script_id, idx, "journal: line too long");
-    }
-    journal(line);
+    party_journal_add(party_current(), body);
 }
 
 static int32_t resolve_reward_item(const node *e, const char *script_id,

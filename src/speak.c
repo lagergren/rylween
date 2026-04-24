@@ -615,8 +615,8 @@ static void npc_mission_hint(int32_t npc) {
             clw();
             tx("%s lives\r\n", npc_name(priest));
             tx("%s.\r\n\r\n", loc);
-            journalf("%d %s, %s's friend lives %s\n",
-                     state.cpl, npc_name(priest),
+            journalf("%s, %s's friend lives %s",
+                     npc_name(priest),
                      npc_name(npc_at_slot(npc)), loc);
             ryl_pause();
             clw();
@@ -665,7 +665,7 @@ static void npc_mission_hint(int32_t npc) {
                            });
                 }
                 pa_flag_set("silver_key", "map_bought");
-                journalf("%d The Pit of the Silver Key is at %dx%d\n", state.cpl, state.dx[8], state.dy[8]);
+                journalf("The Pit of the Silver Key is at %dx%d", state.dx[8], state.dy[8]);
                 ryl_pause();
                 clw();
             } else {
@@ -705,7 +705,7 @@ static void npc_mission_hint(int32_t npc) {
                                {0},
                            });
                 }
-                journalf("%d The Temple of Thun is at %dx%d\n", state.cpl, state.dx[2], state.dy[2]);
+                journalf("The Temple of Thun is at %dx%d", state.dx[2], state.dy[2]);
                 pa_flag_set("bracelets.thun", "map_bought");
                 ryl_pause();
                 clw();
@@ -752,7 +752,7 @@ static void npc_mission_hint(int32_t npc) {
                                    {0},
                                });
                     }
-                    journalf("%d The 'Beast Cave' is at %dx%d.\n", state.cpl, state.dx[7], state.dy[7]);
+                    journalf("The 'Beast Cave' is at %dx%d.", state.dx[7], state.dy[7]);
                     pa_flag_set("jazzy_ogre", "accepted");
                     state.p[state.cpl].inventory[d - 64] = 0;
                     ryl_pause();
