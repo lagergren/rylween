@@ -1,6 +1,8 @@
 #ifndef PARTY_H__
 #define PARTY_H__
 
+#include "state.h"
+
 /* Party-member helpers. state.p[state.cpl].* arrays are 1-indexed,
    size PARTY_MEMBER_MAX+1 (state.h); every helper here iterates
    slot 1..res_party_member_max() — slot 0 is reserved. Single
@@ -57,5 +59,17 @@ int pa_flag_is(const char *tag, const char *state);
 
 /* Set the slot to the value indexed by `state`. */
 void pa_flag_set(const char *tag, const char *state);
+
+/* Append `line` to p->journal, skipping if a case-insensitive duplicate is
+   already present (behaviour parity with the file-backed `stricmp` dedup
+   it replaces). The caller's buffer is copied; ownership moves into the
+   party. `line` must not embed a trailing newline — the journal viewer
+   renders with its own row formatting. */
+void party_journal_add(struct party *p, const char *line);
+
+/* Free every heap entry in p->journal and the backing pointer array.
+   Leaves journal_n = journal_cap = 0 and journal = NULL. Call on
+   party-delete and at shutdown. */
+void free_journal(struct party *p);
 
 #endif

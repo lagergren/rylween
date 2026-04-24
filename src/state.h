@@ -2,6 +2,7 @@
 #define STATE_H__
 
 #include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /* Game state shapes + party-member accessors.
@@ -129,6 +130,13 @@ struct party {
     int32_t empty3;
     int32_t empty4;
     int32_t empty5;
+
+    /* Per-party journal of discovered locations / quest notes. Heap-owned;
+       persisted through current-world.json5's `journal: [...]` array. The
+       file-backed `data/journal` sidecar is gone as of §19.2. */
+    char **journal;
+    size_t journal_n;
+    size_t journal_cap;
 };
 
 struct ryl_state {

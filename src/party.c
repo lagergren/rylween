@@ -2,7 +2,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include "compat.h" /* stricmp */
 #include "res.h"
 #include "ryl.h" /* state */
 
@@ -98,4 +100,44 @@ void pa_flag_set(const char *tag, const char *state_name) {
         exit(1);
     }
     state.p[state.cpl].flag[pa_flag_slot(tag)] = (unsigned char)want;
+}
+
+void party_journal_add(struct party *p, const char *line) {
+    if (!p || !line || !line[0]) {
+        return;
+    }
+    for (size_t i = 0; i < p->journal_n; i++) {
+        if (p->journal[i] && !stricmp(p->journal[i], line)) {
+            return;
+        }
+    }
+    if (p->journal_n == p->journal_cap) {
+        size_t cap = p->journal_cap ? p->journal_cap * 2 : 8;
+        char **grown = realloc(p->journal, cap * sizeof *grown);
+        if (!grown) {
+            fprintf(stderr, "party_journal_add: realloc failed\n");
+            exit(1);
+        }
+        p->journal = grown;
+        p->journal_cap = cap;
+    }
+    char *dup = strdup(line);
+    if (!dup) {
+        fprintf(stderr, "party_journal_add: strdup failed\n");
+        exit(1);
+    }
+    p->journal[p->journal_n++] = dup;
+}
+
+void free_journal(struct party *p) {
+    if (!p) {
+        return;
+    }
+    for (size_t i = 0; i < p->journal_n; i++) {
+        free(p->journal[i]);
+    }
+    free(p->journal);
+    p->journal = NULL;
+    p->journal_n = 0;
+    p->journal_cap = 0;
 }
