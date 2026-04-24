@@ -78,6 +78,13 @@ void res_shutdown(void);
    Returns -1 for unknown ids. */
 int32_t res_flag_slot(const char *id);
 
+/* Flags subtree: values[] lookup. res_flag_value_id resolves a named
+   state (e.g. "rescued") to its index in the flag's values: array;
+   res_flag_value is the inverse (index -> string). Both return -1 / ""
+   on unknown flag id, unknown value, or out-of-range index. */
+int32_t res_flag_value_id(const char *flag_id, const char *value);
+const char *res_flag_value(const char *flag_id, int index);
+
 /* Enum: values[index] for matching record. "" if missing/out of range. */
 const char *res_enum(const char *id, int index);
 

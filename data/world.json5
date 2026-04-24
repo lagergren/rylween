@@ -40,13 +40,13 @@
     // Church donation one-shot (speak NPC 7).
     'church.donation.once': { slot: 5,  values: ['no', 'yes'] },
     // Silver Key quest: map-buy → pit-note → thief2 squeeze →
-    // smith → (state 5 is unused in current scripts) → key_taken.
+    // smith → hobgoblin-caravan → key_taken.
     'silver_key':           { slot: 6,  values: ['none', 'map_bought', 'note_found',
                                                  'thief2_squeezed', 'smith_confessed',
-                                                 'state_5', 'key_taken'] },
+                                                 'cave_located', 'key_taken'] },
     // Erethor / Lute of Legends → minstrel Cloak of Gods chain.
-    'erethor.lute':         { slot: 8,  values: ['none', 'rumour_told', 'lute_delivered',
-                                                 'note_given', 'cloak_received'] },
+    'erethor.lute':         { slot: 8,  values: ['none', 'rumour_told', 'lute_taken',
+                                                 'note_received', 'cloak_received'] },
     // Bracelets of Thun (speak temple NPC, dungeon case 25).
     'bracelets.thun':       { slot: 13, values: ['none', 'map_bought', 'bracelets_taken'] },
     // Nymph hint that starts the seeker / wizard3t chain.
@@ -55,14 +55,17 @@
     'peasant_wife':         { slot: 19, values: ['none', 'accepted', 'rescued', 'paid'] },
     // Jazzy ogre item trade → beast cave location.
     'jazzy_ogre':           { slot: 22, values: ['none', 'accepted',
-                                                 'state_2', 'state_3'] },
+                                                 'ogres_cleared', 'jazzy_defeated'] },
     // Wizard of Three Tasks → Master Crown chain. Ten-state machine
-    // advanced in lockstep by wizard3t speak stages and missions.
-    'mastercrown':          { slot: 23, values: ['none', 'task1_assigned', 'task1_done',
+    // advanced in lockstep by wizard3t speak stages and the mission-
+    // trigger scripts (kobold_village, skullweed, borin_meet / _gift,
+    // nolrim_crypt / master_crown dungeons).
+    'mastercrown':          { slot: 23, values: ['none',
+                                                 'task1_assigned', 'task1_done',
                                                  'task2_assigned', 'task2_done',
-                                                 'task3_assigned', 'task3_done',
-                                                 'dagger_taken', 'crown_assigned',
-                                                 'crown_ready', 'crown_taken'] },
+                                                 'task3_assigned', 'borin_met',
+                                                 'dagger_taken', 'borin_paid',
+                                                 'crown_told', 'crown_taken'] },
     // Hermit troll-tooth → Fire Shield dungeon. Value 4 is the
     // fire-shield-acquired terminal state (dungeon.c case 21).
     'hermit.troll_tooth':   { slot: 33, values: ['none', 'accepted', 'extracted',

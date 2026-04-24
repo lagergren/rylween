@@ -74,7 +74,7 @@
     { emit: 'cargo_found' },
     { wait_input: true },
     { engine_call: 'clw' },
-    { set_flag: 1, value: 2 },
+    { set_flag: 'garth.bandits', value: 'recovered' },
   ],
 
   // Block 4: Troll tooth (flag[33]==1 + 9% chance). NO opening clw —
@@ -86,7 +86,7 @@
     { emit: 'after_troll' },
     { wait_input: true },
     { engine_call: 'clw' },
-    { set_flag: 33, value: 2 },
+    { set_flag: 'hermit.troll_tooth', value: 'extracted' },
   ],
 
   // Block 4b: Hermit-quest dungeon entrance. Original L branch does
@@ -145,7 +145,7 @@
             { emit: 'pendant' },
             { wait_input: true },
             { engine_call: 'clw' },
-            { set_flag: 23, value: 2 },
+            { set_flag: 'mastercrown', value: 'task1_done' },
           ] },
         ],
     } },
@@ -156,7 +156,7 @@
   skullweed: [
     { engine_call: 'clw' },
     { screen: 'pickup' },
-    { set_flag: 23, value: 4 },
+    { set_flag: 'mastercrown', value: 'task2_done' },
   ],
 
   // Block 8: Borin first meet. Six screens + journal. All transitions
@@ -172,7 +172,7 @@
     { screen: 'quest_offer' },
     { screen: 'crypt_location' },
     { journal: 'Nolrim\'s Crypt is at {dx5}x{dy5}.' },
-    { set_flag: 23, value: 6 },
+    { set_flag: 'mastercrown', value: 'borin_met' },
   ],
 
   // Block 9: Nolrim crypt. Menu E/L; L returns 1. Dispatcher sets
@@ -205,7 +205,7 @@
     { screen: 'greet_and_follow' },
     { screen: 'rewards_presented' },
     { reward: { gold: 3578, items: [39, 40, 41] } },
-    { set_flag: 23, value: 8 },
+    { set_flag: 'mastercrown', value: 'borin_paid' },
   ],
 
   // Block 11: Master crown dungeon. Menu E/L; L returns 1 via
@@ -262,7 +262,7 @@
             { emit: 'leave_cave' },
             { wait_input: true },
             { engine_call: 'clw' },
-            { set_flag: 22, value: 2 },
+            { set_flag: 'jazzy_ogre', value: 'ogres_cleared' },
           ] },
         ],
         default: [
@@ -291,7 +291,7 @@
     { engine_call: 'update_map' },
     { engine_call: 'clw' },
     { screen: 'defeated' },
-    { set_flag: 22, value: 3 },
+    { set_flag: 'jazzy_ogre', value: 'jazzy_defeated' },
   ],
 
   // Block 14: Silver key dungeon. Menu E/L; L returns 1.
@@ -325,7 +325,7 @@
     { screen: 'interrogate' },
     { screen: 'carotid' },
     { journal: 'The hobgoblin cave is at {dx9}x{dy9}.' },
-    { set_flag: 6, value: 5 },
+    { set_flag: 'silver_key', value: 'cave_located' },
   ],
 
   // Block 16: Hobgoblin cave (pit). Menu E/L; L returns 1.

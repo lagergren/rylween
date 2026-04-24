@@ -1037,14 +1037,16 @@ static void do_set_flag(const node *op, const char *script_id, size_t idx) {
     if (!slot_n) {
         die_at(script_id, idx, "set_flag: missing slot");
     }
-    if (!val_n || val_n->kind != N_INT) {
-        die_at(script_id, idx, "set_flag: value must be int");
+    if (!val_n) {
+        die_at(script_id, idx, "set_flag: missing value");
     }
     int32_t slot;
+    const char *flag_id = NULL;
     if (slot_n->kind == N_INT) {
         slot = slot_n->u.iv;
     } else if (slot_n->kind == N_STR) {
-        slot = res_flag_slot(slot_n->u.sv);
+        flag_id = slot_n->u.sv;
+        slot = res_flag_slot(flag_id);
         if (slot < 0) {
             die_at(script_id, idx, "set_flag: unknown symbolic flag id");
         }
@@ -1054,7 +1056,23 @@ static void do_set_flag(const node *op, const char *script_id, size_t idx) {
     if (slot < 0 || slot >= (int32_t)(sizeof state.p[state.cpl].flag)) {
         die_at(script_id, idx, "set_flag: slot out of range");
     }
-    state.p[state.cpl].flag[slot] = (unsigned char)val_n->u.iv;
+    int32_t value;
+    if (val_n->kind == N_INT) {
+        value = (int32_t)val_n->u.iv;
+    } else if (val_n->kind == N_STR) {
+        if (!flag_id) {
+            die_at(script_id, idx,
+                   "set_flag: string value requires symbolic slot id");
+        }
+        value = res_flag_value_id(flag_id, val_n->u.sv);
+        if (value < 0) {
+            die_at(script_id, idx,
+                   "set_flag: value not in flag's values[] array");
+        }
+    } else {
+        die_at(script_id, idx, "set_flag: value must be int or string");
+    }
+    state.p[state.cpl].flag[slot] = (unsigned char)value;
 }
 
 /* §17-E: { pause: N } — ryl_delay(N) ms. Replaces inline ryl_delay()
@@ -1430,10 +1448,12 @@ static int eval_cond(const node *cond, const char *script_id, size_t idx,
 
     if (flag_n && (eq_n || ne_n)) {
         int32_t slot;
+        const char *flag_id = NULL;
         if (flag_n->kind == N_INT) {
             slot = (int32_t)flag_n->u.iv;
         } else if (flag_n->kind == N_STR) {
-            slot = res_flag_slot(flag_n->u.sv);
+            flag_id = flag_n->u.sv;
+            slot = res_flag_slot(flag_id);
             if (slot < 0) {
                 die_at(script_id, idx, "if: unknown symbolic flag id");
             }
@@ -1444,13 +1464,24 @@ static int eval_cond(const node *cond, const char *script_id, size_t idx,
             die_at(script_id, idx, "if: flag slot out of range");
         }
         int cur = state.p[state.cpl].flag[slot];
-        if (eq_n && eq_n->kind == N_INT) {
-            return cur == (int)eq_n->u.iv;
+        const node *cmp_n = eq_n ? eq_n : ne_n;
+        int32_t cmp;
+        if (cmp_n->kind == N_INT) {
+            cmp = (int32_t)cmp_n->u.iv;
+        } else if (cmp_n->kind == N_STR) {
+            if (!flag_id) {
+                die_at(script_id, idx,
+                       "if: string eq/ne requires symbolic flag id");
+            }
+            cmp = res_flag_value_id(flag_id, cmp_n->u.sv);
+            if (cmp < 0) {
+                die_at(script_id, idx,
+                       "if: eq/ne value not in flag's values[] array");
+            }
+        } else {
+            die_at(script_id, idx, "if: flag eq/ne value must be int or string");
         }
-        if (ne_n && ne_n->kind == N_INT) {
-            return cur != (int)ne_n->u.iv;
-        }
-        die_at(script_id, idx, "if: flag eq/ne value must be int");
+        return eq_n ? (cur == cmp) : (cur != cmp);
     }
     if (gold_n && gold_n->kind == N_OBJ) {
         int32_t cur = state.p[state.cpl].gold;
