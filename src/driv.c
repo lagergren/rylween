@@ -840,6 +840,12 @@ static void write_current_world() {
 
     fputs("  realm: {\n", f);
     fprintf(f, "    last_played_day: %d,\n", state.last_played_day);
+    /* Recorded so the reader can reject saves whose member-array
+       widths disagree with the current limits.party_member_max
+       (§19.3.2). Strict-match policy — we're still porting and
+       no production saves exist, so reshaping a stale save
+       isn't worth the complexity. */
+    fprintf(f, "    party_member_max: %d,\n", res_party_member_max());
     fputs("  },\n\n", f);
 
     fputs("  locations: {\n", f);
@@ -871,10 +877,28 @@ static void write_current_world() {
     fputs("  },\n\n", f);
 
     fputs("  parties: [\n", f);
+    /* All per-member arrays on struct party share the same length:
+       res_party_member_max() + 1 (slot 0 reserved, slots 1..N used).
+       Cached once so the writer emits a consistent width everywhere
+       and the loader has one value to compare against. */
+    int mlen = res_party_member_max() + 1;
     for (int i = 1; i <= state.num_parties; i++) {
         const struct party *p = &state.p[i];
-        int cl_int[5] = {p->cl[0], p->cl[1], p->cl[2], p->cl[3], p->cl[4]};
-        int ra_int[5] = {p->ra[0], p->ra[1], p->ra[2], p->ra[3], p->ra[4]};
+        /* wcw_enum_arr wants plain int[], so materialize cl/ra into
+           a stack buffer at member-array length. VLAs aren't in c99
+           strict, so cap via alloca-style malloc. Small enough to
+           keep on the stack via variable-length array on most
+           targets; use heap for portability. */
+        int *cl_int = malloc((size_t)mlen * sizeof *cl_int);
+        int *ra_int = malloc((size_t)mlen * sizeof *ra_int);
+        if (!cl_int || !ra_int) {
+            fprintf(stderr, "write_current_world: malloc failed\n");
+            exit(1);
+        }
+        for (int m = 0; m < mlen; m++) {
+            cl_int[m] = p->cl[m];
+            ra_int[m] = p->ra[m];
+        }
         fputs("    {\n", f);
         fputs("      player: ", f);
         wcw_str(f, p->player);
@@ -883,7 +907,7 @@ static void write_current_world() {
         wcw_str(f, p->party_name);
         fputs(",\n", f);
         fputs("      name: [", f);
-        for (int m = 0; m < 5; m++) {
+        for (int m = 0; m < mlen; m++) {
             if (m > 0) {
                 fputs(", ", f);
             }
@@ -910,46 +934,46 @@ static void write_current_world() {
         wcw_i32_arr(f, p->inventory, 17);
         fputs(",\n", f);
         fputs("      ws: ", f);
-        wcw_i32_arr(f, p->ws, 5);
+        wcw_i32_arr(f, p->ws, mlen);
         fputs(",\n", f);
         fputs("      h: ", f);
-        wcw_i32_arr(f, p->h, 5);
+        wcw_i32_arr(f, p->h, mlen);
         fputs(",\n", f);
         fputs("      hp: ", f);
-        wcw_i32_arr(f, p->hp, 5);
+        wcw_i32_arr(f, p->hp, mlen);
         fputs(",\n", f);
         fputs("      wi: ", f);
-        wcw_i32_arr(f, p->wi, 5);
+        wcw_i32_arr(f, p->wi, mlen);
         fputs(",\n", f);
         fputs("      ma: ", f);
-        wcw_i32_arr(f, p->ma, 5);
+        wcw_i32_arr(f, p->ma, mlen);
         fputs(",\n", f);
         fputs("      ch: ", f);
-        wcw_i32_arr(f, p->ch, 5);
+        wcw_i32_arr(f, p->ch, mlen);
         fputs(",\n", f);
         fputs("      cl: ", f);
-        wcw_enum_arr(f, "pc_class", cl_int, 5);
+        wcw_enum_arr(f, "pc_class", cl_int, mlen);
         fputs(",\n", f);
         fputs("      ra: ", f);
-        wcw_enum_arr(f, "race", ra_int, 5);
+        wcw_enum_arr(f, "race", ra_int, mlen);
         fputs(",\n", f);
         fputs("      lv: ", f);
-        wcw_i32_arr(f, p->lv, 5);
+        wcw_i32_arr(f, p->lv, mlen);
         fputs(",\n", f);
         fputs("      ar: ", f);
-        wcw_i32_arr(f, p->ar, 5);
+        wcw_i32_arr(f, p->ar, mlen);
         fputs(",\n", f);
         fputs("      wp: ", f);
-        wcw_i32_arr(f, p->wp, 5);
+        wcw_i32_arr(f, p->wp, mlen);
         fputs(",\n", f);
         fputs("      exp: ", f);
-        wcw_u32_arr(f, p->exp, 5);
+        wcw_u32_arr(f, p->exp, mlen);
         fputs(",\n", f);
         fputs("      dead: ", f);
-        wcw_i32_arr(f, p->dead, 5);
+        wcw_i32_arr(f, p->dead, mlen);
         fputs(",\n", f);
         fputs("      gender: ", f);
-        wcw_enum_barr(f, "gender", p->gender, 5);
+        wcw_enum_barr(f, "gender", p->gender, mlen);
         fputs(",\n", f);
         fputs("      attack_today: ", f);
         wcw_byte_arr(f, p->attack_today, 26);
@@ -974,6 +998,8 @@ static void write_current_world() {
         }
         fputs("],\n", f);
         fputs("    },\n", f);
+        free(cl_int);
+        free(ra_int);
     }
     fputs("  ],\n", f);
 
@@ -1177,6 +1203,25 @@ static int read_current_world() {
     const node *realm = obj_get(root, "realm");
     if (realm && realm->kind == N_OBJ) {
         state.last_played_day = rcw_int(realm, "last_played_day", state.last_played_day);
+        /* Strict member-array width check. A save whose recorded
+           party_member_max disagrees with the current world's
+           limits.party_member_max has per-member arrays of the
+           wrong length; rather than silently truncate or pad,
+           refuse to load. No production saves exist, so the
+           stricter policy is free (§19.3.2). The key is
+           optional — pre-§19.3.2 saves lack it, and for those
+           we fall back to the current knob assuming default. */
+        int save_mmax = rcw_int(realm, "party_member_max", res_party_member_max());
+        if (save_mmax != res_party_member_max()) {
+            fprintf(stderr,
+                    "load: current-world.json5 recorded "
+                    "party_member_max=%d, current world limit=%d. "
+                    "Saves can't be loaded across member-max "
+                    "changes; either flip the world knob back or "
+                    "discard the save.\n",
+                    save_mmax, res_party_member_max());
+            exit(1);
+        }
     }
 
     const node *loc = obj_get(root, "locations");
@@ -1230,9 +1275,14 @@ static int read_current_world() {
             rcw_str(pnode, "player", p->player, sizeof p->player);
             rcw_str(pnode, "party_name", p->party_name, sizeof p->party_name);
 
+            /* Per-member array width — the save's party_member_max
+               must already match res_party_member_max() per the
+               strict check on realm.party_member_max above. */
+            size_t mlen = (size_t)(res_party_member_max() + 1);
+
             const node *names = obj_get(pnode, "name");
             if (names && names->kind == N_ARR) {
-                size_t nn = names->u.arr.n < 5 ? names->u.arr.n : 5;
+                size_t nn = names->u.arr.n < mlen ? names->u.arr.n : mlen;
                 for (size_t m = 0; m < nn; m++) {
                     const node *nm = names->u.arr.items[m];
                     if (nm && nm->kind == N_STR) {
@@ -1258,20 +1308,20 @@ static int read_current_world() {
             p->hours_rested = rcw_int(pnode, "hours_rested", 14);
 
             rcw_i32_arr(obj_get(pnode, "inventory"), p->inventory, 17);
-            rcw_i32_arr(obj_get(pnode, "ws"), p->ws, 5);
-            rcw_i32_arr(obj_get(pnode, "h"), p->h, 5);
-            rcw_i32_arr(obj_get(pnode, "hp"), p->hp, 5);
-            rcw_i32_arr(obj_get(pnode, "wi"), p->wi, 5);
-            rcw_i32_arr(obj_get(pnode, "ma"), p->ma, 5);
-            rcw_i32_arr(obj_get(pnode, "ch"), p->ch, 5);
-            rcw_enum_arr(obj_get(pnode, "cl"), "pc_class", p->cl, 5);
-            rcw_enum_arr(obj_get(pnode, "ra"), "race", p->ra, 5);
-            rcw_i32_arr(obj_get(pnode, "lv"), p->lv, 5);
-            rcw_i32_arr(obj_get(pnode, "ar"), p->ar, 5);
-            rcw_i32_arr(obj_get(pnode, "wp"), p->wp, 5);
-            rcw_u32_arr(obj_get(pnode, "exp"), p->exp, 5);
-            rcw_i32_arr(obj_get(pnode, "dead"), p->dead, 5);
-            rcw_enum_barr(obj_get(pnode, "gender"), "gender", p->gender, 5);
+            rcw_i32_arr(obj_get(pnode, "ws"), p->ws, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "h"), p->h, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "hp"), p->hp, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "wi"), p->wi, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "ma"), p->ma, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "ch"), p->ch, (int)mlen);
+            rcw_enum_arr(obj_get(pnode, "cl"), "pc_class", p->cl, (int)mlen);
+            rcw_enum_arr(obj_get(pnode, "ra"), "race", p->ra, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "lv"), p->lv, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "ar"), p->ar, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "wp"), p->wp, (int)mlen);
+            rcw_u32_arr(obj_get(pnode, "exp"), p->exp, (int)mlen);
+            rcw_i32_arr(obj_get(pnode, "dead"), p->dead, (int)mlen);
+            rcw_enum_barr(obj_get(pnode, "gender"), "gender", p->gender, (int)mlen);
             rcw_byte_arr(obj_get(pnode, "attack_today"), p->attack_today, 26);
             p->waiting_mail = (unsigned char)rcw_int(pnode, "waiting_mail", p->waiting_mail);
             p->attacked = (unsigned char)rcw_int(pnode, "attacked", p->attacked);

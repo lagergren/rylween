@@ -168,6 +168,16 @@ static int32_t npc_slack = 1;
    helpers all assume the cap is 16. */
 static int32_t inventory_slot_max = INVENTORY_SLOT_MAX;
 
+/* Party-member slot cap. Default matches the story-balanced N=4
+   assumption baked into combat / damage tables; overrideable via
+   limits.party_member_max for experimental larger parties. The
+   per-member struct-party buffers are heap-allocated off this at
+   party-realize time (§19.3), so only the static comment in state.h
+   caps it — no compile-time array to bound against. Minimum 1; a
+   silly-large value still allocates but the UI won't surface members
+   past the "(1-N)" digit prompts. */
+static int32_t party_member_max = PARTY_MEMBER_MAX;
+
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
    Populated from data/world.json5 flags subtree; empty until world loads. */
 typedef struct {
@@ -778,7 +788,7 @@ int res_inventory_slot_max(void) {
 }
 
 int res_party_member_max(void) {
-    return PARTY_MEMBER_MAX;
+    return (int)party_member_max;
 }
 
 /* Read an optional enum field (string or int) with a default. */
@@ -1524,11 +1534,24 @@ static void fold_limits(const node *limits_node, const char *path) {
         }
         inventory_slot_max = inv->u.iv;
     }
+    const node *pmm = obj_get(limits_node, "party_member_max");
+    if (pmm) {
+        if (pmm->kind != N_INT) {
+            res_die(path, pmm->line,
+                    "limits.party_member_max: expected integer");
+        }
+        if (pmm->u.iv < 1) {
+            res_die(path, pmm->line,
+                    "limits.party_member_max: must be >= 1");
+        }
+        party_member_max = pmm->u.iv;
+    }
 }
 
 static void reset_limits(void) {
     npc_slack = 1;
     inventory_slot_max = INVENTORY_SLOT_MAX;
+    party_member_max = PARTY_MEMBER_MAX;
 }
 
 /* -------- enums subtree --------

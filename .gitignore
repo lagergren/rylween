@@ -5,6 +5,7 @@
 
 # Build artefacts
 *.o
+*.d
 rylween
 rylween-asan
 *.dSYM/
