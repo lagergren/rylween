@@ -21,14 +21,53 @@
     npc_slack: 1,
   },
 
-  // Symbolic mission-flag names (§3.1). `slot` is the index in
-  // state.p[cpl].flag[] (scope: "party") or an engine-managed encounter
-  // slot (scope: "encounter"). Only the flags the runtime already
-  // mutates are enumerated here; others land as their missions port.
+  // Symbolic mission-flag names (§3.1). Authoritative dictionary:
+  // every quest tag the runtime or a script can read or write lives
+  // here. Tags are human-readable ids; `values:` names each state of
+  // the per-quest state machine. Save format (`flags:` in
+  // current-world.json5) and DSL ops (`set_flag`/`flag:`) both speak
+  // these tags; the slot field is the legacy byte-array index the
+  // save/load layer still keys on.
   flags: {
+    // Robbed-merchant courier quest (speak NPC 1, missions block 1).
     'garth.bandits':        { slot: 1,  values: ['none', 'accepted', 'recovered', 'closed'] },
-    'hermit.troll_tooth':   { slot: 33, values: ['none', 'accepted', 'extracted', 'delivered'] },
+    // Ranger ↔ brother sword-delivery chain (speak NPCs 2, 14).
+    'ranger.letter':        { slot: 2,  values: ['none', 'accepted', 'delivered'] },
+    // Priest's stolen book → wizard → fighter's grateful Dancing
+    // Blade. Shared flag advanced by three NPCs in sequence.
+    'fighter.priest_book':  { slot: 3,  values: ['none', 'priest_told', 'priest_visited',
+                                                 'wizard_robbed', 'fighter_grateful'] },
+    // Church donation one-shot (speak NPC 7).
     'church.donation.once': { slot: 5,  values: ['no', 'yes'] },
+    // Silver Key quest: map-buy → pit-note → thief2 squeeze →
+    // smith → (state 5 is unused in current scripts) → key_taken.
+    'silver_key':           { slot: 6,  values: ['none', 'map_bought', 'note_found',
+                                                 'thief2_squeezed', 'smith_confessed',
+                                                 'state_5', 'key_taken'] },
+    // Erethor / Lute of Legends → minstrel Cloak of Gods chain.
+    'erethor.lute':         { slot: 8,  values: ['none', 'rumour_told', 'lute_delivered',
+                                                 'note_given', 'cloak_received'] },
+    // Bracelets of Thun (speak temple NPC, dungeon case 25).
+    'bracelets.thun':       { slot: 13, values: ['none', 'map_bought', 'bracelets_taken'] },
+    // Nymph hint that starts the seeker / wizard3t chain.
+    'nymph.seeker':         { slot: 15, values: ['none', 'told', 'wizard3t_active'] },
+    // Peasant's wife (Tammy) abduction → rescue → payout.
+    'peasant_wife':         { slot: 19, values: ['none', 'accepted', 'rescued', 'paid'] },
+    // Jazzy ogre item trade → beast cave location.
+    'jazzy_ogre':           { slot: 22, values: ['none', 'accepted',
+                                                 'state_2', 'state_3'] },
+    // Wizard of Three Tasks → Master Crown chain. Ten-state machine
+    // advanced in lockstep by wizard3t speak stages and missions.
+    'mastercrown':          { slot: 23, values: ['none', 'task1_assigned', 'task1_done',
+                                                 'task2_assigned', 'task2_done',
+                                                 'task3_assigned', 'task3_done',
+                                                 'dagger_taken', 'crown_assigned',
+                                                 'crown_ready', 'crown_taken'] },
+    // Hermit troll-tooth → Fire Shield dungeon. Value 4 is the
+    // fire-shield-acquired terminal state (dungeon.c case 21).
+    'hermit.troll_tooth':   { slot: 33, values: ['none', 'accepted', 'extracted',
+                                                 'delivered', 'fire_shield_acquired'] },
+    // Engine-managed encounter-scope flag.
     'encounter.immune':     { slot: 0,  scope: 'encounter', values: ['no', 'yes'] },
   },
 
