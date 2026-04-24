@@ -1482,6 +1482,18 @@ static void createparty() {
     state.p[a].x = 12;
     state.p[a].y = 9;
     state.p[a].gold = 1000;
+    /* Replay-mode override: fixtures that exercise a high-cost
+       purchase (silver-key map: 50000) set RYL_STARTING_GOLD to
+       preload the bank. Clamped to >= 1000 so a malformed value
+       can't under-fund a normal run. Production never sets this. */
+    const char *gold_env = getenv("RYL_STARTING_GOLD");
+    if (gold_env && *gold_env) {
+        char *end;
+        long v = strtol(gold_env, &end, 10);
+        if (end != gold_env && v >= 1000 && v <= 2000000000L) {
+            state.p[a].gold = (int32_t)v;
+        }
+    }
     state.p[a].torches = 5;
     state.p[a].food = 100;
     state.p[a].time_left = 200;
