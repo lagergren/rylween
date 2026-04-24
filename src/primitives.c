@@ -205,7 +205,12 @@ void cleanexit(void) {
     if (io && io->shutdown) {
         io->shutdown();
     }
-    res_shutdown();
+    /* res_shutdown is atexit-registered by res_load_world; do not free
+       the world tree / flags_tab here, so the snapshot_write atexit
+       handler (registered later → runs earlier in LIFO) can still
+       read them. Without this, a snapshot_write that walks
+       state.p[].flag[] for non-zero entries crashes the emit via
+       freed-pointer lookups and surfaces as `flags=?=?`. */
     exit(0);
 }
 

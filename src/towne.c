@@ -31,6 +31,20 @@ void rumour() {
     char loc[40];
     int32_t pick = ryl_random(0, 32);
 
+    /* Replay-mode override. Setting RYL_REPLAY_RUMOUR=<N> in a fixture
+       pins the rumour id so `towne-thord-tavern-rumour-r12` reliably
+       exercises the Garth-bandits branch, etc. Production never sets
+       this env var. Clamped to 0..32 — out-of-range falls through to
+       the random roll. */
+    const char *force = getenv("RYL_REPLAY_RUMOUR");
+    if (force && *force) {
+        char *end;
+        long v = strtol(force, &end, 10);
+        if (end != force && v >= 0 && v <= 32) {
+            pick = (int32_t)v;
+        }
+    }
+
     /* Most rumours are static paragraphs; a handful fold in an NPC name
        and a town-or-coord loc via tx_fmt. */
     switch (pick) {
