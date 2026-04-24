@@ -1,5 +1,11 @@
 CC        ?= cc
 CFLAGS    ?= -std=c99 -O0 -g -Wall -Wextra -Werror=format-security -Isrc
+# Emit per-object .d files so header edits (e.g. state.h) trigger
+# rebuilds of every dependent TU. Without this an edit to state.h
+# only rebuilt the .c file whose own source changed — see the
+# §19.2.2 "HP 68/64" phantom. -MMD skips system headers; -MP adds
+# phony targets so a deleted header doesn't break the rebuild.
+DEPFLAGS  := -MMD -MP
 CPPFLAGS  :=
 LDFLAGS   :=
 
@@ -26,10 +32,19 @@ build: $(BIN)
 $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
+# Pattern rule so $(DEPFLAGS) lands on every .o — the implicit rule
+# would otherwise ignore it. Keeps flag ordering identical to the
+# pre-§19.3 build.
+%.o: %.c
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(CPPFLAGS) -c -o $@ $<
+
 # ASan binary: separate target so .o files don't clash with the stock
 # build. Compiled straight from sources (no shared intermediate .o).
 $(BIN_ASAN): $(SRC)
 	$(CC) $(CFLAGS) $(ASAN_FLAGS) $(LDFLAGS) $(SRC) -o $@
+
+# Include generated header-dep files; `-` silences the first-run miss.
+-include $(OBJ:.o=.d)
 
 asan: $(BIN_ASAN)
 
@@ -64,7 +79,7 @@ run: $(BIN)
 	./$(BIN) $(ARGS)
 
 clean:
-	rm -f $(OBJ) $(BIN) $(BIN_ASAN)
+	rm -f $(OBJ) $(OBJ:.o=.d) $(BIN) $(BIN_ASAN)
 
 help:
 	@echo 'Targets:'
