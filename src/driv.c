@@ -961,6 +961,14 @@ static void write_current_world() {
             fprintf(f, "%u", (unsigned)state.npc[j].visited[i]);
         }
         fputs("],\n", f);
+        fputs("      journal: [", f);
+        for (size_t j = 0; j < p->journal_n; j++) {
+            if (j > 0) {
+                fputs(", ", f);
+            }
+            wcw_str(f, p->journal[j]);
+        }
+        fputs("],\n", f);
         fputs("    },\n", f);
     }
     fputs("  ],\n", f);
@@ -1267,6 +1275,20 @@ static int read_current_world() {
                     const node *it = vn->u.arr.items[j];
                     if (it && it->kind == N_INT) {
                         state.npc[j].visited[i] = (unsigned char)it->u.iv;
+                    }
+                }
+            }
+
+            /* Clear any pre-populated list from an earlier read pass, then
+               re-append. Pre-§19.2 saves have no journal: key — party stays
+               empty (free_journal already did the reset). */
+            free_journal(p);
+            const node *jn = obj_get(pnode, "journal");
+            if (jn && jn->kind == N_ARR) {
+                for (size_t j = 0; j < jn->u.arr.n; j++) {
+                    const node *it = jn->u.arr.items[j];
+                    if (it && it->kind == N_STR) {
+                        party_journal_add(p, it->u.sv);
                     }
                 }
             }

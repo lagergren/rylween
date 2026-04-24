@@ -59,6 +59,16 @@ static void emit_party(FILE *f, int idx) {
                 p->dead[m], p->h[m], p->hp[m], p->ws[m], p->wi[m], p->ma[m],
                 p->ch[m], p->ar[m], p->wp[m], p->exp[m]);
     }
+    /* Journal lines as one-field-per-line so entries stay self-contained
+       (commas and quotes are legal in journal prose; a delimited single
+       line would be ambiguous). Skipped entirely when empty to keep the
+       pre-§19.2 fixture snapshots diff-clean. */
+    if (p->journal_n) {
+        fprintf(f, "journal_n=%zu\n", p->journal_n);
+        for (size_t j = 0; j < p->journal_n; j++) {
+            fprintf(f, "journal[%zu]=%s\n", j, p->journal[j]);
+        }
+    }
 }
 
 /* Emit the overworld map as 42 fixed-width hex rows so a byte-for-byte
