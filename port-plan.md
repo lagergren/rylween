@@ -2104,8 +2104,8 @@ scoped pass. Sequence them D → B → C: fixture coverage first so
 subsequent refactors are caught by `make test` instead of eye-
 balling replay output.
 
-**Status (2026-04-24).** D starter bank and B both landed. C is
-next.
+**Status (2026-04-24).** D starter bank, B, and C all landed.
+Sequence D → B → C complete.
 
 - §19.1 (D) — starter bank of 11 Thord-centred fixtures landed.
   Broader coverage (other towns, huts, remaining mission stages)
@@ -2113,11 +2113,17 @@ next.
 - §19.2 (B) — per-party in-memory journal with save/load, all
   four `journalf` / `do_journal` / `eval.c journal` write paths
   migrated, `data/journal` file retired. Gated by a new
-  silver-key-map replay fixture (fixture bank now 15).
-- §19.3 (C) — data-driven party size. Not started. §19.2 has
-  already introduced the first heap-allocated per-party array
-  (`char **journal`), so the allocation/teardown pattern is
-  proven before the bulk of the per-member fields follow.
+  silver-key-map replay fixture (fixture bank grew to 15).
+- §19.3 (C) — data-driven party size landed in four step-commits
+  plus a Makefile prelude. Per-member arrays on `struct party`
+  are now heap-allocated off `res_party_member_max()`;
+  `limits.party_member_max` in world.json5 overrides the
+  default (with a `RYL_PARTY_MEMBER_MAX` env shim for fixtures).
+  Save/load is strict-match on a new `realm.party_member_max`
+  header. UI bounds use `pm_digit_in_range()` and a `{party_max}`
+  engine-provided text binding. Gated by all 15 existing
+  fixtures byte-identical at the default N=4 plus one new :5
+  smoke fixture (bank now 16).
 
 ### 19.1 (D) Town-level replay fixtures — starter bank landed (2026-04-24)
 
@@ -2295,63 +2301,114 @@ build` fixed it. Worth a proper `-MMD -MP` pass in a future
 infrastructure commit; for now, a clean rebuild after any
 `state.h` change is the mitigation.
 
-### 19.3 (C) Data-driven party size
+### 19.3 (C) Data-driven party size — landed (2026-04-24)
 
-**Current shape.** `PARTY_MEMBER_MAX = 4` is a `#define` in
-`state.h:34`. The struct has flat arrays of 5 (index 0 unused,
-members 1..4):
+Landed in five commits off `lagergren/port1`:
 
-```c
-int32_t ws[5];  // skill
-int32_t h[5];   // health
-int32_t hp[5];  // hit points
-// …ten more
-```
+- `87b6d21` — prelude: Makefile `-MMD -MP` header deps so
+  `state.h` edits trigger full rebuilds (retires the §19.2.2
+  "HP 68/64" phantom footgun).
+- `af288ed` §19.3.1 — heap-allocate per-member arrays on
+  `struct party`. `char (*name)[30]`, `int32_t *ws`,
+  `int32_t *h`, `*hp`, `*wi`, `*ma`, `*ch`, `*cl`, `*ra`,
+  `*lv`, `*ar`, `*wp`, `uint32_t *exp`, `int32_t *dead`,
+  `unsigned char *gender` — all sized off
+  `res_party_member_max() + 1` at realize/load. Three new
+  helpers in `party.c`:
+  - `party_realize(p)` — allocate every member buffer zero-
+    filled; idempotent (frees any prior buffer first).
+  - `party_release_members(p)` — symmetrical free.
+  - `party_clear_heap_pointers(p)` — NULL every heap pointer
+    (members + journal) without freeing; called on the
+    terminate-memmove tail so the duplicated pointer in the
+    two slots doesn't alias.
 
-`res_party_member_max()` returns the `#define`. Every iteration
-already goes through that accessor, so the bound is virtualised,
-but the arrays themselves are static-sized.
+  Hooked at `createparty` (after `num_parties++`),
+  `read_current_world` (per party before the per-member
+  `rcw_i32_arr` reads), and the terminate path (before the
+  `memmove`, with tail-clear afterwards). Journal lifecycle
+  stays independent — `free_journal` is load-called to clear-
+  before-reappend, and `party_release_members` deliberately
+  doesn't touch it.
 
-**Target.** Size driven by `limits.party_member_max` in
-`world.json5` (default 4 to match existing saves). Changes to
-land:
+- `63c40d8` §19.3.2 — save/load thread member_max. Writer
+  emits `realm.party_member_max = res_party_member_max()` and
+  every per-member array at dynamic length. Reader does
+  strict equality against the current `limits.party_member_max`
+  and `exit(1)` with a descriptive diagnostic on mismatch
+  (no production saves exist, so reshape-on-load isn't worth
+  the complexity). `res.c`'s `fold_limits` grew a
+  `party_member_max` knob with min 1, no upper clamp.
 
-- Replace each `int32_t ws[5]`-style field in `struct party` with
-  `int32_t *ws` (heap). Same for the other thirteen per-member
-  fields and `name[5][30]`.
-- Allocate at party-realization / load time from
-  `res_party_member_max()`.
-- Free on party teardown (aligns with §13 leak audit work).
-- Save/load emits variable-length arrays:
-  `hp: [67, 45, 42, 60]` etc.
-- UI bits that hardcode "(1-4)" — grep for `"(1-4)"` and
-  `'1' && c <= '4'`, there are a handful — become
-  `res_party_member_max()`-driven. `pm_from_digit` in state.h
-  already accepts any digit through `pm_cur`; just bounds-check
-  against the data value.
-- `pm_t`'s `int m; /* 1..4 */` comment updates to `1..N`.
+- `b16e5e4` §19.3.3 — UI bounds dynamic.
+  `pm_digit_in_range(c)` inline helper in state.h replaces
+  every `c >= '1' && c <= '4'` guard across driv.c / battle.c /
+  dungeon.c / subs.c / ydarg.c. The "(1-4)" prompts also
+  dynamize:
+  - C-hardcoded `tx(...)` literals grow `%d` +
+    `res_party_member_max()`.
+  - res_text-backed prompts (`driv.view.who`,
+    `battle.prompt.on_whom`, `ydarg.nav.view_who`,
+    `towne.*.who`, `towne.tavern.story_who`) get
+    `{party_max}` placeholders; callers switch from
+    `tx0(res_text(...))` to `tx_fmt(..., NULL)` since
+    `bind_expand` now auto-provides `party_max` and
+    `inventory_max` as engine-level bindings (caller
+    bindings still win). DSL `emit` already routes through
+    `tx_fmt` → the text edits pick up the new binding with
+    no script changes. `key_range: ['1','4']` literals in
+    DSL scripts stay as-is (deferred per
+    script.c:1527's existing annotation).
+  - `pm_t`'s `int m; /* 1..4 */` → `/* 1..N, where
+    N = res_party_member_max() */`, and `pm_of`'s bounds
+    assert now checks the data knob.
 
-**Watchouts.**
+- `47db2bc` §19.3.4 — synthetic :5 smoke fixture
+  `title-create-party-5-exit`, run under
+  `RYL_PARTY_MEMBER_MAX=5` (a new env-override shim on
+  `res_party_member_max` that wins over the limits: knob and
+  the #define default — convenient for a single-fixture flex
+  without authoring a parallel world shard). Fixture pulls 5
+  member blocks off the seeded RNG stream and byte-matches
+  `title-create-party-exit`'s first 4 rolls. Two createparty
+  stragglers from §19.3.3's sweep also fold in: the stat-roll
+  `while (g < 5)` → `while (g <= res_party_member_max())`,
+  and `state.p[a].pl = 4;` →
+  `(unsigned char)res_party_member_max()`.
 
-- Save-format break: pre-§19.3 saves assumed 4 slots with fixed
-  offsets. Loader either rejects (cleanest — we're still porting)
-  or reshapes.
-- `pm_is_class(pm, cls)` and friends are size-agnostic; no touch.
-- Story / combat / damage-tables assume 4 members in subtle
-  places. Don't bump the default. Treat N != 4 as experimental.
+  Snapshot.c's per-member dump loop switches from
+  `PARTY_MEMBER_MAX` to `res_party_member_max()` so the
+  replay snapshot grows with N; the default-4 fixtures stay
+  byte-identical.
 
-**Gate.** Same fixture bank from §19.1 with a second pass run at
-`limits.party_member_max: 4` and one synthetic fixture at `:5`
-to prove the dynamic path — neither should wedge even if the
-latter has gameplay rough edges.
+**Fixture bank.** 16 fixtures total (15 pre-§19.3 + the new
+:5 smoke). `make test` runs every fixture at the default
+N=4; all 15 pre-§19.3 fixtures are byte-identical; the :5
+fixture is a true smoke test (byte-identity not required per
+design — just that the dynamic path doesn't wedge).
+`make testasan` is also green across all 16.
 
-**Sequencing.** §19.2 already landed the first heap-allocated
-per-party field (`char **journal` + `free_journal` + json5
-list serializer). §19.3 follows the same pattern for the
-thirteen-or-so per-member arrays: allocate at realize/load,
-free in the same `free_journal`-sibling teardown, emit/load as
-variable-length JSON arrays. The save-format break watchout
-above still applies — `hp: [...]` today assumes exactly 5
-entries (slot 0 unused + 1..4), and the loader's fixed
-`rcw_i32_arr(..., 5)` calls need to size off
-`res_party_member_max()`.
+**Watch-outs (stand at §19.3 close).**
+
+- DSL `key_range: ['1','4']` literals in
+  `data/world/scripts/towne.json5` stay hardcoded; the DSL
+  doesn't yet express "char range over
+  `res_party_member_max()`". Three or four sites. For N > 4
+  the player has to press '1'..'4' (the extra slot isn't
+  reachable via those menus). See script.c:1527. Lift if a
+  prompt ever needs a non-1..4 range or the smoke test grows
+  to exercise in-town flows.
+- Story / combat / damage tables still bake 4-member
+  assumptions in subtle places (level-up ladders, spell
+  target counts, specific HP thresholds). Don't bump the
+  default. N != 4 is experimental.
+- Save-format break is strict: any save authored with a
+  different `limits.party_member_max` refuses to load. The
+  error message points the sysop at the world knob. No
+  reshape path is planned — this would matter if/when
+  production saves become a thing.
+- The createparty flow only populates 1..N; existing class-
+  balance checks on the starter screen (WS >= 50 for fighter,
+  etc.) apply identically at every slot, so a party of N=5
+  still has to roll stats that pass each member's chosen
+  class. Nothing new here beyond what N=4 already required.
