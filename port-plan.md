@@ -2092,9 +2092,59 @@ scoped pass. Sequence them D → B → C: fixture coverage first so
 subsequent refactors are caught by `make test` instead of eye-
 balling replay output.
 
-### 19.1 (D) Town-level replay fixtures
+### 19.1 (D) Town-level replay fixtures — starter bank landed (2026-04-24)
 
-**Problem.** `tools/replay/` has exactly three fixtures:
+Landed in `cc92304` (§19-D) and `822b456` (§19-D.2). Eleven
+Thord-centred fixtures cover every building menu plus the four
+parametric rumour branches and one full mission_dispatch stage:
+
+    towne-thord-enter-leave        bare town enter/leave
+    towne-thord-merchant           M + L on merchant (bye path)
+    towne-thord-smith              S + L on smith (bye path)
+    towne-thord-church             C + L on church
+    towne-thord-inn                I + N/N/N + L (decline all)
+    towne-thord-tavern-rumour      T + R + L (seed-42 static rumour)
+    towne-thord-tavern-rumour-r12  force r12, Garth / bandits_quest_giver
+    towne-thord-tavern-rumour-r13  force r13, Nrim'to / rangers_quest_giver
+    towne-thord-tavern-rumour-r25  force r25, Broth / crown_seer + npc_loc_str
+    towne-thord-tavern-rumour-r27  force r27, Harry / temple_of_thun_seer
+    towne-thord-tavern-speak       T + S, pick Garth, run first_visit
+                                   stage, confirm
+                                   `flags=garth.bandits=accepted`
+
+Infrastructure landed with the bank:
+
+- `RYL_REPLAY_RUMOUR=<id>` env hook in `towne.c rumour()` — pins
+  the rumour roll so the parametric fixtures reach the exact
+  branch they name. No-op when unset; production never sets it.
+- **Bug fix**: `cleanexit()` in `primitives.c` used to call
+  `res_shutdown()` explicitly before `exit(0)`, freeing
+  `flags_tab` before the atexit-registered `snapshot_write`
+  ran. Any fixture with a non-zero flag slot emitted
+  `flags=?=?` from freed memory. Drop the explicit call —
+  atexit covers it, LIFO order then puts snapshot_write
+  before res_shutdown. Surfaced by the speak-garth fixture.
+
+Deferred from §19-D (noted but not landed):
+
+- **Other towns** (Ollk/Wilor/Murn). From the spawn point
+  (12,9) these are 36+ move paths, each move rolling
+  `random_wilderness`. Seed 42 is clean to Thord (2 moves)
+  but longer paths pick up caves/encounters that drag the
+  input stream out of phase. Options: (a) find a seed where
+  the wilderness stays quiet on the target path;
+  (b) canned `current-world.json5` that places the party on
+  the town tile and skips the travel; (c) `RYL_REPLAY_HOOKS`
+  style gate to force `random_wilderness` quiet during
+  replay.
+- **Hut visits** — same long-path problem. Marcus at (48,7)
+  would give a mission_dispatch into `hermit_troll_tooth`.
+- **Other parametric mission stages** — only
+  `stages_merchant[0]` is covered. Every other entry in
+  the §17-Z `mission_table` (14 role-bound NPCs, ~25
+  stages) is still untouched by fixtures.
+
+**Problem.** `tools/replay/` had exactly three fixtures:
 `title-create-party-combat`, `title-create-party-exit`,
 `title-menu-exit`. All three stop at the title menu or combat
 initialization. There is **no coverage** of:
