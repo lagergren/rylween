@@ -260,6 +260,21 @@ void res_realize_npcs(void);
    Returns 0 before the world has loaded. */
 int res_npc_slot_max(void);
 
+/* Look up an NPC's runtime slot by its shard key in world.json5's
+   npcs: block (same spelling as in the data file — case-sensitive).
+   Fatal if the name isn't found. Prefer res_npc_role at mission /
+   rumour / quest call sites; this is for cases where a character's
+   shard key IS the stable identity (the realizer, tests). */
+int32_t res_npc_slot(const char *name);
+
+/* Resolve a quest-role name (key in world.json5's npc_roles: subtree)
+   to an NPC slot. The C side passes a stable role like
+   "bandits_quest_giver" / "master_thief" / "silver_key_vendor";
+   the data maps each role to a character name. Rename characters in
+   npcs: or reassign quest roles without touching C. Fatal on unknown
+   role or dangling binding. */
+int32_t res_npc_role(const char *role);
+
 /* Highest valid party-inventory slot id. Defaults to INVENTORY_SLOT_
    MAX (state.h); overrideable via limits.inventory_slot_max in
    world.json5, clamped to INVENTORY_SLOT_MAX (the C array is sized

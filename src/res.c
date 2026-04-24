@@ -719,6 +719,52 @@ int res_npc_slot_max(void) {
     return npc_slot_max();
 }
 
+/* Symbolic NPC name (shard key, e.g. "Gorm", "Harry") -> state.npc[]
+   slot. Thin wrapper over res_enum_id("name", ...). Fatal on miss so
+   a C-side typo or a rename of the NPC in world.json5 doesn't silently
+   degrade to slot 0 (the wilderness sentinel).
+
+   Prefer res_npc_role at mission / rumour / quest call sites so the
+   specific character's name doesn't leak into C; use res_npc_slot
+   only when an NPC's shard key is the actual identity (e.g. in the
+   realizer, or in tests). */
+int32_t res_npc_slot(const char *name) {
+    int id = res_enum_id("name", name);
+    if (id < 0) {
+        fprintf(stderr, "res_npc_slot: unknown NPC '%s'\n",
+                name ? name : "(null)");
+        exit(1);
+    }
+    return (int32_t)id;
+}
+
+/* Quest-role -> NPC slot indirection. The role name (e.g.
+   "bandits_quest_giver", "master_thief") is C-stable; the binding
+   to a specific character's shard key lives in world.json5's
+   npc_roles: subtree. Renaming a character, or reassigning a quest
+   to a different character, is a pure data edit.
+
+   Fatal on unknown role (C typo or role absent from data), fatal on
+   role pointing at an NPC that isn't in npcs: (dangling binding).
+   Both conditions are load-time bugs we want surfaced loudly. */
+int32_t res_npc_role(const char *role) {
+    if (!world_tree || !role) {
+        fprintf(stderr, "res_npc_role: world not loaded / null role\n");
+        exit(1);
+    }
+    const node *roles = obj_get(world_tree, "npc_roles");
+    if (!roles || roles->kind != N_OBJ) {
+        fprintf(stderr, "res_npc_role: npc_roles subtree missing\n");
+        exit(1);
+    }
+    const node *binding = obj_get(roles, role);
+    if (!binding || binding->kind != N_STR) {
+        fprintf(stderr, "res_npc_role: unknown role '%s'\n", role);
+        exit(1);
+    }
+    return res_npc_slot(binding->u.sv);
+}
+
 int res_inventory_slot_max(void) {
     return (int)inventory_slot_max;
 }

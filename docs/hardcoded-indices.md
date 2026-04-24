@@ -39,8 +39,13 @@ acting — they may have shifted.
       below for details.
 - [ ] **P4 — Magic-item case labels in battle.c**
       (16 `case 100..111:` labels; §17-N already flagged these)
-- [ ] **P5 — NPC slot literals**
-      (~12 sites: `state.npc[13]`, `state.npc[15]` — semi-documented)
+- [x] **P5 — NPC slot literals** (landed §17-W)
+      Every literal `state.npc[N]` and `res_enum("name", N)` now
+      goes through `res_npc_role("<role>")`. Role bindings live in
+      `world.json5`'s new `npc_roles:` subtree; C never mentions a
+      character's name, and renaming a character or reassigning a
+      quest to a different character is a pure data change. See
+      the P5 section below.
 - [ ] **P6 — Job-ID bare comparisons**
       (2 sites in speak.c: `job == 8` bard, `job == 13` bargirl —
       bargirl chitchat already moved to gender in §17-R; lodging-
@@ -146,18 +151,44 @@ item-use cases" — part of the battle.c sweep (queue item 4).
       route through its DSL effect body (like reward op / spells
       already do).
 
-## P5 — NPC slot literals
+## P5 — NPC slot literals (DONE §17-W)
 
-`state.npc[5]`, `state.npc[13]`, `state.npc[15]` in towne.c /
-speak.c. The slot corresponds to a specific NPC (Nolrim, Erethor,
-etc.). These are semi-documented — the slot is baked into the quest
-design — but should still go through a symbolic accessor so the
-intent is readable.
+Two layers of indirection:
 
-- [ ] Add `res_npc_by_name("Erethor")` or expose an `NPC_*` enum
-      for the quest-critical slots
-- [ ] Migrate towne.c (6 sites)
-- [ ] Migrate speak.c (6 sites)
+- `res_npc_slot(const char *shard_key)` — "character name -> slot",
+  intended for places where the character's shard key is the actual
+  identity (the realizer, tests).
+- `res_npc_role(const char *role)` — "quest role -> slot", via a new
+  `npc_roles:` subtree in `data/world.json5` that binds each role
+  to a character shard key. This is the call C should reach for at
+  mission / rumour / quest sites.
+
+Every literal-int `state.npc[N]` and every `res_enum("name", N)` in
+the non-iteration path has been migrated:
+
+- [x] towne.c rumour 12 (bandits_quest_giver)
+- [x] towne.c rumour 13 (rangers_quest_giver)
+- [x] towne.c rumour 25 (crown_seer)
+- [x] towne.c rumour 27 (temple_of_thun_seer)
+- [x] dungeon.c silver-key note (master_thief)
+- [x] speak.c npc_mission_hint — switch collapsed into an if/else
+      chain keyed on res_npc_role("<role>") instead of slot-literal
+      case labels (fighter_intro / silver_key_vendor /
+      temple_of_thun_seer / jazzy_ogre_trader)
+- [x] speak.c bard chitchat (fighter_intro)
+- [x] speak.c fighter intro's priest_with_book lookup
+
+The remaining `state.npc[i]` sites in driv.c / res.c / towne.c are
+all iteration loops (`for (i = 1; i <= res_npc_slot_max(); i++)`)
+or computed-slot sites — not slot literals.
+
+Follow-up, not in §17-W (deliberately scoped out):
+
+- Rumour case labels in towne.c (r12/r13/r25/r27 as int) and the
+  `if (npc == res_npc_role(...))` chain in speak.c both still do
+  C-side dispatch on data IDs. A data-authored "rumour has these
+  binds / mission dispatches here" table would collapse both into
+  generic iteration. Bigger engine change — separate pass.
 
 ## P6 — Job-ID bare comparisons
 
@@ -198,6 +229,8 @@ items above land.
   `res_str_path("wilderness.encounter_easy_tier")` — §17-U
 - `pm_is_fighter` / `pm_is_thief` / `pm_is_bard` / `pm_is_ranger` /
   `pm_is_spellcaster` — §17-V
+- `res_npc_slot("<shard_key>")` / `res_npc_role("<role>")` /
+  `npc_roles:` subtree in world.json5 — §17-W
 
 ## Out of scope for this doc
 

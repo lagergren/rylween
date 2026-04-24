@@ -16,47 +16,68 @@ static void merchant(void);
 static void smith(void);
 static void tavern(void);
 
+/* Rumour IDs that need C-side parameter binding before display. The
+   remaining ids in 0..32 are fully static and dispatched via the
+   default branch (tx0 on `towne.rumour.r<pick>`). Names track the
+   in-rumour NPC reference, not the text topic. */
+enum {
+    RUMOUR_GARTH_BANDITS = 12,   /* {name1}  — Garth quest hook       */
+    RUMOUR_NRIMTO_HUNT   = 13,   /* {name2}  — Nrim'to hunter rumour  */
+    RUMOUR_BROTH_CROWN   = 25,   /* {name15}, {loc15} — Master Crown  */
+    RUMOUR_HARRY_TEMPLE  = 27,   /* {name13}, {loc13} — Temple of Thun */
+};
+
 void rumour() {
     char loc[40];
     int32_t pick = ryl_random(0, 32);
 
-    /* Most rumours are static paragraphs; a handful (12, 13, 25, 27)
-       fold in an NPC name / town-or-coord loc via tx_fmt. */
+    /* Most rumours are static paragraphs; a handful fold in an NPC name
+       and a town-or-coord loc via tx_fmt. */
     switch (pick) {
-        case 12:
+        case RUMOUR_GARTH_BANDITS:
             tx_fmt("towne.rumour.r12",
-                   (ryl_bind[]){{"name1", res_enum("name", 1)}, {0}});
+                   (ryl_bind[]){{"name1",
+                                 res_enum("name", res_npc_role("bandits_quest_giver"))},
+                                {0}});
             break;
-        case 13:
+        case RUMOUR_NRIMTO_HUNT:
             tx_fmt("towne.rumour.r13",
-                   (ryl_bind[]){{"name2", res_enum("name", 2)}, {0}});
+                   (ryl_bind[]){{"name2",
+                                 res_enum("name", res_npc_role("rangers_quest_giver"))},
+                                {0}});
             break;
-        case 25:
-            if (state.npc[15].towne) {
-                snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[15].towne));
+        case RUMOUR_BROTH_CROWN: {
+            int32_t slot = res_npc_role("crown_seer");
+            const struct person *n = &state.npc[slot];
+            if (n->towne) {
+                snprintf(loc, sizeof loc, "in %s", res_town_name(n->towne));
             } else {
-                snprintf(loc, sizeof loc, "at %dx%d", state.npc[15].x, state.npc[15].y);
+                snprintf(loc, sizeof loc, "at %dx%d", n->x, n->y);
             }
             tx_fmt("towne.rumour.r25",
                    (ryl_bind[]){
-                       {"name15", res_enum("name", 15)},
+                       {"name15", res_enum("name", slot)},
                        {"loc15", loc},
                        {0},
                    });
             break;
-        case 27:
-            if (state.npc[13].towne) {
-                snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[13].towne));
+        }
+        case RUMOUR_HARRY_TEMPLE: {
+            int32_t slot = res_npc_role("temple_of_thun_seer");
+            const struct person *n = &state.npc[slot];
+            if (n->towne) {
+                snprintf(loc, sizeof loc, "in %s", res_town_name(n->towne));
             } else {
-                snprintf(loc, sizeof loc, "at %dx%d", state.npc[13].x, state.npc[13].y);
+                snprintf(loc, sizeof loc, "at %dx%d", n->x, n->y);
             }
             tx_fmt("towne.rumour.r27",
                    (ryl_bind[]){
-                       {"name13", res_enum("name", 13)},
+                       {"name13", res_enum("name", slot)},
                        {"loc13", loc},
                        {0},
                    });
             break;
+        }
         default: {
             char id[32];
             snprintf(id, sizeof id, "towne.rumour.r%d", pick);

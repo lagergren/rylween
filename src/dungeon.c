@@ -555,10 +555,12 @@ void dungeon(int32_t levels, int32_t flag) {
                 ryl_pause();
                 clw();
                 tx("'Guild Master: This is\r\n");
-                tx("the proof that I, %s\r\n", res_enum("name", 18));
+                tx("the proof that I, %s\r\n",
+                   res_enum("name", res_npc_role("master_thief")));
                 tx("am worthy of the title\r\n");
                 tx("Master Thief.'\r\n");
-                tx("      - %s\r\n\r\n", res_enum("name", 18));
+                tx("      - %s\r\n\r\n",
+                   res_enum("name", res_npc_role("master_thief")));
                 ryl_pause();
                 clw();
                 pa_flag_set("silver_key", "note_found");

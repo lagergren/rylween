@@ -226,7 +226,8 @@ void speak(int32_t bld, int32_t tow) {
                 if (state.npc[talk].job == 8) {
                     tx_fmt("speak.people.j8",
                            (ryl_bind[]){
-                               {"fighter_name", res_enum("name", 3)},
+                               {"fighter_name",
+                                res_enum("name", res_npc_role("fighter_intro"))},
                                {0},
                            });
                 } else {
@@ -576,9 +577,12 @@ static int mission_dispatch(int32_t npc) {
 }
 
 /* Per-NPC mission state-machine step. Dispatches scripted flows via the
-   `mission_table` above; the remaining cases (6, 13, 22) use menus or
-   invlist lookups that don't fit the screen/journal/set_flag/reward DSL
-   and stay inline pending §16.1 slice B work. */
+   `mission_table` above; the remaining quest-role NPCs use menus or
+   invlist lookups that don't fit the screen/journal/set_flag/reward
+   DSL and stay inline pending §16.1 slice B work. Dispatch goes
+   through res_npc_role so neither the specific character's name nor
+   their numeric slot is baked into C — world.json5's npc_roles:
+   subtree is the one place that binds a role to a character. */
 static void npc_mission_hint(int32_t npc) {
     if (mission_dispatch(npc)) {
         return;
@@ -587,179 +591,179 @@ static void npc_mission_hint(int32_t npc) {
     int32_t oc;
     char d;
 
-    switch (npc) {
-        /*****************************************************************/
-        /* case 3, flag[3]==0 — fighter-intro branch. Left inline
-           pending a data-authored script (per the §16.5 slice scope, the
-           grateful branch shipped by the foreground is enough to
-           exercise the dispatcher; folding the intro-branch is a
-           follow-up once a {"%s lives" tail-screen can be minted
-           consistently with case 15's location-split). */
-        case 3:
-            if (pa_flag_is("fighter.priest_book", "none")) {
-                char loc[80];
-                if (state.npc[5].towne) {
-                    snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[5].towne));
-                } else {
-                    snprintf(loc, sizeof loc, "at %dx%d", state.npc[5].x, state.npc[5].y);
-                }
-                clw();
-                tx0(res_text("speak.fighter.intro"));
-                ryl_pause();
-                clw();
-                tx_fmt("speak.fighter.favour",
-                       (ryl_bind[]){
-                           {"priest_name", res_enum("name", 5)},
-                           {0},
-                       });
-                ryl_pause();
-                clw();
-                tx("%s lives\r\n", res_enum("name", 5));
-                tx("%s.\r\n\r\n", loc);
-                journalf("%d %s, %s's friend lives %s\n", state.cpl, res_enum("name", 5), res_enum("name", 3), loc);
-                ryl_pause();
-                clw();
-                pa_flag_set("fighter.priest_book", "priest_told");
+    /* Areth — fighter intro.
+       Left inline pending a data-authored script (per the §16.5 slice
+       scope, the grateful branch shipped by the foreground is enough
+       to exercise the dispatcher; folding the intro-branch is a
+       follow-up once a "%s lives" tail-screen can be minted
+       consistently with the location-split case). */
+    if (npc == res_npc_role("fighter_intro")) {
+        if (pa_flag_is("fighter.priest_book", "none")) {
+            char loc[80];
+            int32_t priest = res_npc_role("priest_with_book");
+            if (state.npc[priest].towne) {
+                snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[priest].towne));
+            } else {
+                snprintf(loc, sizeof loc, "at %dx%d", state.npc[priest].x, state.npc[priest].y);
             }
-            break;
-        /*****************************************************************/
-        case 6:
-            if (pa_flag_is("silver_key", "none")) {
+            clw();
+            tx0(res_text("speak.fighter.intro"));
+            ryl_pause();
+            clw();
+            tx_fmt("speak.fighter.favour",
+                   (ryl_bind[]){
+                       {"priest_name", res_enum("name", priest)},
+                       {0},
+                   });
+            ryl_pause();
+            clw();
+            tx("%s lives\r\n", res_enum("name", priest));
+            tx("%s.\r\n\r\n", loc);
+            journalf("%d %s, %s's friend lives %s\n",
+                     state.cpl, res_enum("name", priest),
+                     res_enum("name", npc), loc);
+            ryl_pause();
+            clw();
+            pa_flag_set("fighter.priest_book", "priest_told");
+        }
+        return;
+    }
+
+    /* Bernak — Silver Key map purchase. */
+    if (npc == res_npc_role("silver_key_vendor")) {
+        if (pa_flag_is("silver_key", "none")) {
+            clw();
+            tx0(res_text("speak.silver_key.hiss"));
+            ryl_pause();
+            clw();
+            tx0(res_text("speak.silver_key.research"));
+            ryl_pause();
+            clw();
+            tx0(res_text("speak.silver_key.chased"));
+            ryl_pause();
+            clw();
+            tx0(res_text("speak.silver_key.offer"));
+            ryl_pause();
+            clw();
+            tx0(res_text("speak.silver_key.deal"));
+            if (ryl_menu("speak.buy_nothanks",
+                         (ryl_menu_opt[]){{'B', 1}, {0, 0}}) == 1) {
+                if (state.p[state.cpl].gold < 50000) {
+                    clw();
+                    tx0(res_text("speak.silver_key.broke"));
+                    ryl_pause();
+                    clw();
+                    return;
+                }
+                state.p[state.cpl].gold -= 50000;
                 clw();
-                tx0(res_text("speak.silver_key.hiss"));
+                {
+                    char x[8], y[8];
+                    snprintf(x, sizeof x, "%d", state.dx[8]);
+                    snprintf(y, sizeof y, "%d", state.dy[8]);
+                    tx_fmt("speak.silver_key.map",
+                           (ryl_bind[]){
+                               {"pit_x", x},
+                               {"pit_y", y},
+                               {0},
+                           });
+                }
+                pa_flag_set("silver_key", "map_bought");
+                journalf("%d The Pit of the Silver Key is at %dx%d\n", state.cpl, state.dx[8], state.dy[8]);
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.silver_key.research"));
+            } else {
+                clw();
+            }
+        }
+        return;
+    }
+
+    /* Harry — Temple of Thun bracelets. */
+    if (npc == res_npc_role("temple_of_thun_seer")) {
+        if (pa_flag_is("bracelets.thun", "none")) {
+            clw();
+            tx0(res_text("speak.thun.legend"));
+            ryl_pause();
+            clw();
+            tx0(res_text("speak.thun.offer"));
+            if (ryl_menu("speak.buy_nothanks",
+                         (ryl_menu_opt[]){{'B', 1}, {0, 0}}) == 1) {
+                if (state.p[state.cpl].gold < 10000) {
+                    clw();
+                    tx0(res_text("speak.thun.broke"));
+                    ryl_pause();
+                    clw();
+                    return;
+                }
+                state.p[state.cpl].gold -= 10000;
+                clw();
+                {
+                    char x[8], y[8];
+                    snprintf(x, sizeof x, "%d", state.dx[2]);
+                    snprintf(y, sizeof y, "%d", state.dy[2]);
+                    tx_fmt("speak.thun.map",
+                           (ryl_bind[]){
+                               {"temple_x", x},
+                               {"temple_y", y},
+                               {0},
+                           });
+                }
+                journalf("%d The Temple of Thun is at %dx%d\n", state.cpl, state.dx[2], state.dy[2]);
+                pa_flag_set("bracelets.thun", "map_bought");
                 ryl_pause();
                 clw();
-                tx0(res_text("speak.silver_key.chased"));
-                ryl_pause();
+            } else {
                 clw();
-                tx0(res_text("speak.silver_key.offer"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.silver_key.deal"));
-                if (ryl_menu("speak.buy_nothanks",
-                             (ryl_menu_opt[]){{'B', 1}, {0, 0}}) == 1) {
-                    if (state.p[state.cpl].gold < 50000) {
-                        clw();
-                        tx0(res_text("speak.silver_key.broke"));
-                        ryl_pause();
-                        clw();
-                        break;
-                    }
-                    state.p[state.cpl].gold -= 50000;
+            }
+        }
+        return;
+    }
+
+    /* Leander — jazzy_ogre trade.
+       invlist + key-letter + inventory lookup pattern; the item-keyed
+       branch isn't a reward/menu shape and stays inline pending §16.1
+       slice B. See port-plan §16.3. */
+    if (npc == res_npc_role("jazzy_ogre_trader")) {
+        if (pa_flag_is("jazzy_ogre", "none")) {
+            clw();
+            tx0(res_text("speak.jazzy_ogre.hear"));
+            ryl_pause();
+            clw();
+            tx0(res_text("speak.jazzy_ogre.trade"));
+            ryl_pause();
+            clw();
+            invlist();
+            d = key();
+            d = toupper(d);
+            oc = 0;
+            if (d >= 'A' && d <= 'P') {
+                oc = state.p[state.cpl].inventory[d - 64];
+                if (oc < 35) {
+                    clw();
+                    tx0(res_text("speak.jazzy_ogre.refuse"));
+                    ryl_delay(1000);
+                } else {
                     clw();
                     {
                         char x[8], y[8];
-                        snprintf(x, sizeof x, "%d", state.dx[8]);
-                        snprintf(y, sizeof y, "%d", state.dy[8]);
-                        tx_fmt("speak.silver_key.map",
+                        snprintf(x, sizeof x, "%d", state.dx[7]);
+                        snprintf(y, sizeof y, "%d", state.dy[7]);
+                        tx_fmt("speak.jazzy_ogre.accept",
                                (ryl_bind[]){
-                                   {"pit_x", x},
-                                   {"pit_y", y},
+                                   {"cave_x", x},
+                                   {"cave_y", y},
                                    {0},
                                });
                     }
-                    pa_flag_set("silver_key", "map_bought");
-                    journalf("%d The Pit of the Silver Key is at %dx%d\n", state.cpl, state.dx[8], state.dy[8]);
+                    journalf("%d The 'Beast Cave' is at %dx%d.\n", state.cpl, state.dx[7], state.dy[7]);
+                    pa_flag_set("jazzy_ogre", "accepted");
+                    state.p[state.cpl].inventory[d - 64] = 0;
                     ryl_pause();
                     clw();
-                    break;
-                } else {
-                    clw();
-                }
-                break;
-            }
-            break;
-        /*****************************************************************/
-        case 13:
-            if (pa_flag_is("bracelets.thun", "none")) {
-                clw();
-                tx0(res_text("speak.thun.legend"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.thun.offer"));
-                if (ryl_menu("speak.buy_nothanks",
-                             (ryl_menu_opt[]){{'B', 1}, {0, 0}}) == 1) {
-                    if (state.p[state.cpl].gold < 10000) {
-                        clw();
-                        tx0(res_text("speak.thun.broke"));
-                        ryl_pause();
-                        clw();
-                        break;
-                    }
-                    state.p[state.cpl].gold -= 10000;
-                    clw();
-                    {
-                        char x[8], y[8];
-                        snprintf(x, sizeof x, "%d", state.dx[2]);
-                        snprintf(y, sizeof y, "%d", state.dy[2]);
-                        tx_fmt("speak.thun.map",
-                               (ryl_bind[]){
-                                   {"temple_x", x},
-                                   {"temple_y", y},
-                                   {0},
-                               });
-                    }
-                    journalf("%d The Temple of Thun is at %dx%d\n", state.cpl, state.dx[2], state.dy[2]);
-                    pa_flag_set("bracelets.thun", "map_bought");
-                    ryl_pause();
-                    clw();
-                    break;
-                } else {
-                    clw();
-                }
-                break;
-            }
-            break;
-        /*****************************************************************/
-        /* case 22 — jazzy_ogre. invlist + key-letter + inventory lookup
-           pattern; the item-keyed branch isn't a reward/menu shape and
-           stays inline pending §16.1 slice B. See port-plan §16.3. */
-        case 22:
-            if (pa_flag_is("jazzy_ogre", "none")) {
-                clw();
-                tx0(res_text("speak.jazzy_ogre.hear"));
-                ryl_pause();
-                clw();
-                tx0(res_text("speak.jazzy_ogre.trade"));
-                ryl_pause();
-                clw();
-                invlist();
-                d = key();
-                d = toupper(d);
-                oc = 0;
-                if (d >= 'A' && d <= 'P') {
-                    oc = state.p[state.cpl].inventory[d - 64];
-                    if (oc < 35) {
-                        clw();
-                        tx0(res_text("speak.jazzy_ogre.refuse"));
-                        ryl_delay(1000);
-                        break;
-                    } else {
-                        clw();
-                        {
-                            char x[8], y[8];
-                            snprintf(x, sizeof x, "%d", state.dx[7]);
-                            snprintf(y, sizeof y, "%d", state.dy[7]);
-                            tx_fmt("speak.jazzy_ogre.accept",
-                                   (ryl_bind[]){
-                                       {"cave_x", x},
-                                       {"cave_y", y},
-                                       {0},
-                                   });
-                        }
-                        journalf("%d The 'Beast Cave' is at %dx%d.\n", state.cpl, state.dx[7], state.dy[7]);
-                        pa_flag_set("jazzy_ogre", "accepted");
-                        state.p[state.cpl].inventory[d - 64] = 0;
-                        ryl_pause();
-                        clw();
-                        break;
-                    }
                 }
             }
-            break;
-            /*****************************************************************/
+        }
+        return;
     }
 }

@@ -377,6 +377,29 @@
     Ufarsin:   { slot: 39, job: 'Merchant',     towne: 'wilderness' },
   },
 
+  // Role -> NPC binding. The C side (rumour dispatch, speak cases,
+  // silver-key note) asks for an NPC by quest-role name via
+  // res_npc_role("<role>"), which resolves through this table to an
+  // npcs: shard key and then to the runtime slot. Rename a character
+  // in npcs: above (e.g. Garth -> Gareth) and update the matching
+  // role here; the C never sees the character's name.
+  //
+  // Adding a new role means both a line here AND a C call site that
+  // asks for it — those two together define a new quest hook. Removing
+  // or renaming a role IS a C-visible change since the role key is a
+  // string literal at the call site.
+  npc_roles: {
+    bandits_quest_giver: 'Garth',     // towne.c rumour r12
+    rangers_quest_giver: "Nrim'to",   // towne.c rumour r13
+    crown_seer:          'Broth',     // towne.c rumour r25
+    temple_of_thun_seer: 'Harry',     // towne.c rumour r27 + speak case 13
+    master_thief:        'Gotharp',   // dungeon.c silver-key note author
+    fighter_intro:       'Areth',     // speak.c case 3 + bard fighter_name bind
+    priest_with_book:    'Gorm',      // speak.c case 3 target NPC
+    silver_key_vendor:   'Bernak',    // speak.c case 6
+    jazzy_ogre_trader:   'Leander',   // speak.c case 22
+  },
+
   // Enum tables — res_enum(id, index) reads values[index]. Slot 0 is
   // empty ('') for 1-based enums so a 0 raw id means "none / sentinel";
   // 0-based enums (towne, building) use a real value at 0. current-world.json5
