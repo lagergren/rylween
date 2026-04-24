@@ -60,6 +60,11 @@ struct person {
                                /* The wilderness X&Y coord automagically become*/
                                /* HH (hut), if they are set for a character*/
     unsigned char visited[26]; /* Start at 0. Visited before???*/
+    unsigned char gender;      /* 1=male, 2=female. Drives res_pronoun
+                                  when the NPC is referred to in prose
+                                  and splits gender-flavoured chitchat
+                                  in speak.c. Authored in world.json5
+                                  npcs records; defaults to 1 (male). */
 };
 
 struct party {

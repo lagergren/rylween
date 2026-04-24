@@ -323,8 +323,13 @@
     // encounters bargirls in the tavern rumour-switch, never in the
     // inn. Fixed along with innkeeper/tavernkeeper above;
     // behavior-neutral.
-    Deanna:    { slot: 34, job: 'Bargirl',      towne: 'Thord', building: 'tavern' },
-    Jeanne:    { slot: 35, job: 'Bargirl',      towne: 'Wilor', building: 'tavern' },
+    //
+    // These are the only two female NPCs; `gender: 'female'` drives
+    // the res_pronoun lookup and the well_f / health_f chitchat
+    // branches in speak.c. All other NPC records omit `gender` and
+    // fall through the rn_enum default of 1 (male).
+    Deanna:    { slot: 34, job: 'Bargirl',      towne: 'Thord', building: 'tavern', gender: 'female' },
+    Jeanne:    { slot: 35, job: 'Bargirl',      towne: 'Wilor', building: 'tavern', gender: 'female' },
     Alex:      { slot: 36, job: 'Merchant',     towne: 'wilderness' },
     Galdon:    { slot: 37, job: 'Merchant',     towne: 'wilderness' },
     Kosch:     { slot: 38, job: 'Merchant',     towne: 'wilderness' },

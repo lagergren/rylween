@@ -693,6 +693,7 @@ void res_realize_npcs(void) {
         struct person *n = &state.npc[slot];
         n->nr = slot;
         n->job = rn_enum(rec, "job", "jobname", 0);
+        n->gender = (unsigned char)rn_enum(rec, "gender", "gender", 1);
 
         const node *towne_node = obj_get(rec, "towne");
         if (towne_node) {

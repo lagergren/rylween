@@ -834,7 +834,9 @@ static void write_current_world() {
         wcw_enum(f, "towne", n->towne);
         fputs(", building: ", f);
         wcw_enum(f, "building", n->building);
-        fprintf(f, ", x: %d, y: %d },\n", n->x, n->y);
+        fprintf(f, ", x: %d, y: %d, gender: ", n->x, n->y);
+        wcw_enum(f, "gender", n->gender);
+        fputs(" },\n", f);
     }
     fputs("  },\n\n", f);
 
@@ -1114,6 +1116,7 @@ static int read_current_world() {
             n->building = rcw_enum(rec, "building", "building", n->building);
             n->x = rcw_int(rec, "x", n->x);
             n->y = rcw_int(rec, "y", n->y);
+            n->gender = (unsigned char)rcw_enum(rec, "gender", "gender", n->gender);
         }
     }
 
