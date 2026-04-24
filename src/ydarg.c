@@ -108,7 +108,7 @@ void ydarg() {
                 clw();
                 j = 0;
                 for (i = 1; i <= res_party_member_max(); i++) {
-                    if (state.p[state.cpl].cl[i] == 2) {
+                    if (pm_is_thief(pm_cur(i))) {
                         tx("%s tries to\r\n", state.p[state.cpl].name[i]);
                         tx("disarm it...\r\n\r\n");
                         ryl_delay(1500);

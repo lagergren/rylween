@@ -650,7 +650,7 @@ void quaff() {
             break;
 
         case 38:
-            if (state.p[state.cpl].cl[c - 48] == 3 || state.p[state.cpl].cl[c - 48] == 4) {
+            if (pm_is_spellcaster(pm_from_digit(c))) {
                 tx("It tingles slightly in\r\n");
                 tx("%s body, as all %s\r\n", pronoun(c - 48, 3), pronoun(c - 48, 3));
                 tx("spell points return.\r\n\r\n");
@@ -685,7 +685,7 @@ void hunt() {
             }
         }
     }
-    if (state.p[state.cpl].cl[c - 48] != 6) {
+    if (!pm_is_ranger(pm_from_digit(c))) {
         clw();
         tx("%s is not a ranger.\r\n", pronoun(c - 48, 1));
         ryl_delay(700);

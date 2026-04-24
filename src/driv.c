@@ -1458,7 +1458,7 @@ static void createparty() {
             }
             if (passed) {
                 passed = 0;
-                if (state.p[a].cl[g] == 3 || state.p[a].cl[g] == 4) {
+                if (pm_is_spellcaster(pm_of(&state.p[a], g))) {
                     state.p[a].ma[g] = state.p[a].wi[g];
                 } else {
                     state.p[a].ma[g] = 0;

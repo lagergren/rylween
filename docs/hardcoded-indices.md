@@ -32,8 +32,11 @@ acting — they may have shifted.
       easy/hard pools are configured in `world.json5` via
       `wilderness.encounter_{easy,hard}_tier`. Quest/boss/mission
       monsters stay tier-less and are summoned by name only.
-- [ ] **P3 — Class-ID comparisons**
-      (~5–8 sites; enum already exists in `state.h`, just unused)
+- [x] **P3 — Class-ID comparisons** (landed §17-V)
+      Six sites migrated to `pm_is_<class>(pm_cur(m))` /
+      `pm_is_spellcaster(pm_of(&state.p[a], g))` predicates in
+      state.h; no bare `cl[x] == N` left. See the P3 section
+      below for details.
 - [ ] **P4 — Magic-item case labels in battle.c**
       (16 `case 100..111:` labels; §17-N already flagged these)
 - [ ] **P5 — NPC slot literals**
@@ -114,18 +117,23 @@ Tier-based pools via `tier` keyword on each monster (§17-U):
       `wilderness.encounter_{easy,hard}_tier` (weak / wild);
       subs.c:175ff rewritten to the tier shape.
 
-## P3 — Class-ID comparisons
+## P3 — Class-ID comparisons (DONE §17-V)
 
-`state.p[...].cl[m] == 3` (mage) / `== 4` (priest) etc. Enum exists at
-`src/state.h` (`PC_FIGHTER`, `PC_MAGE`, `PC_PRIEST`, `PC_BARD`,
-`PC_RANGER`) — the sites just don't use it.
+Extended the `pm_is_*` predicate family in `src/state.h` (fighter,
+thief, bard, ranger joined the existing mage/priest) plus a
+`pm_is_spellcaster` convenience for the mage-or-priest branches.
+Every bare `cl[x] == N` comparison is gone:
 
-Concentration: driv.c (~4), subs.c (~2), battle.c (~1).
+- [x] dungeon.c:212 — thief trap check (chest trap)
+- [x] ydarg.c:111 — thief disarm on pitfall room
+- [x] battle.c:146 — mage "(C)ast Spell" menu item
+- [x] driv.c:1461 — spellcaster mana seed at level-up
+- [x] subs.c:653 — spellcaster potion #38 (mana restoration)
+- [x] subs.c:688 — `!pm_is_ranger(...)` for hunt command
 
-- [ ] Audit sites: `grep -n '\.cl\[.*\] ==' src/*.c`
-- [ ] Replace bare `== N` with `== PC_MAGE` etc.
-- [ ] Consider `pm_is_mage(pm)` / `pm_is_priest(pm)` predicates
-      (parallels `item_is_*` shape from §17-M)
+Each site takes a pm_t via `pm_cur(m)`, `pm_from_digit(c)`, or
+`pm_of(&state.p[a], m)` — no direct `.cl[]` reads remain at the
+comparison sites.
 
 ## P4 — Magic-item case labels (battle.c)
 
@@ -188,6 +196,8 @@ items above land.
 - `res_monster_id("hobgoblin_chief")` — §17-T
 - `res_monster_tier_pick("weak")` / monster `tier:` keyword /
   `res_str_path("wilderness.encounter_easy_tier")` — §17-U
+- `pm_is_fighter` / `pm_is_thief` / `pm_is_bard` / `pm_is_ranger` /
+  `pm_is_spellcaster` — §17-V
 
 ## Out of scope for this doc
 

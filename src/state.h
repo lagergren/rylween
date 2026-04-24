@@ -260,11 +260,29 @@ static inline char *pm_name(pm_t pm) {
 static inline int pm_is_class(pm_t pm, int cls) {
     return pm_cl(pm) == cls;
 }
+static inline int pm_is_fighter(pm_t pm) {
+    return pm_is_class(pm, PC_FIGHTER);
+}
+static inline int pm_is_thief(pm_t pm) {
+    return pm_is_class(pm, PC_THIEF);
+}
 static inline int pm_is_mage(pm_t pm) {
     return pm_is_class(pm, PC_MAGE);
 }
 static inline int pm_is_priest(pm_t pm) {
     return pm_is_class(pm, PC_PRIEST);
+}
+static inline int pm_is_bard(pm_t pm) {
+    return pm_is_class(pm, PC_BARD);
+}
+static inline int pm_is_ranger(pm_t pm) {
+    return pm_is_class(pm, PC_RANGER);
+}
+/* Mage + priest — the two classes with a spell list / mana pool. Used
+   by the mana-restoration potion and the level-up mana-regen branch,
+   both of which treat the two classes identically. */
+static inline int pm_is_spellcaster(pm_t pm) {
+    return pm_is_mage(pm) || pm_is_priest(pm);
 }
 
 /* Write-side pm_t helpers. All operate on the member's own fields;

@@ -209,7 +209,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     lvl[cl] = 0;
                     x = 4;
                     for (i = 1; i <= res_party_member_max(); i++) {
-                        if (state.p[state.cpl].cl[i] == 2) {
+                        if (pm_is_thief(pm_cur(i))) {
                             clw();
                             tx("%s checks the\r\n", state.p[state.cpl].name[i]);
                             tx("chest for traps.\r\n");

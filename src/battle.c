@@ -143,7 +143,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             tx("(D)efend\r\n");
             tx("(U)se Item\r\n");
             tx("(B)attle Cry\r\n");
-            if (state.p[state.cpl].cl[g] == 3) {
+            if (pm_is_mage(pm_cur(g))) {
                 tx("(C)ast Spell\r\n");
             }
             while (1) {
