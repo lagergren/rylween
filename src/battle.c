@@ -164,7 +164,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 oc = 0;
                 if (d >= 'A' && d <= 'P') {
                     oc = state.p[state.cpl].inventory[d - 64];
-                    if (oc < 100) {
+                    if (!item_is_magic_item(oc)) {
                         clw();
                         tx("Not possible.\r\n");
                         ryl_delay(1000);

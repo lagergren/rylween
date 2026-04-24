@@ -144,6 +144,33 @@ int item_is_special(int id, int *which) {
     return 0;
 }
 
+static int kind_equals(int id, const char *want) {
+    if (id <= 0) {
+        return 0;
+    }
+    const char *k = res_item_kind(id);
+    return k && !strcmp(k, want);
+}
+
+int item_is_weapon(int id) {
+    return kind_equals(id, "weapons");
+}
+int item_is_armour(int id) {
+    return kind_equals(id, "armour");
+}
+int item_is_gear(int id) {
+    return kind_equals(id, "gear");
+}
+int item_is_potion(int id) {
+    return kind_equals(id, "potions");
+}
+int item_is_treasure(int id) {
+    return kind_equals(id, "treasures");
+}
+int item_is_magic_item(int id) {
+    return kind_equals(id, "magic_items");
+}
+
 void party_award_special(int which) {
     struct party *p = &state.p[state.cpl];
     switch (which) {

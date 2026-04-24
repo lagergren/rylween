@@ -114,6 +114,16 @@ void res_items_foreach_special(
     int (*cb)(int id, const char *tag, void *user),
     void *user);
 
+/* Shard (kind) each item id was loaded from in data/world/items/,
+   e.g. "weapons", "armour", "gear", "potions", "treasures",
+   "magic_items", "specials". NULL for ids without a record. The
+   kind comes straight from the items.<section>.<sym> shard name,
+   so new shards pick their own kind without a C-side change.
+   Use inventory.h's item_is_* helpers for category predicates
+   instead of calling this directly unless you specifically need
+   the tag string. */
+const char *res_item_kind(int id);
+
 /* Integer lookup by dotted path from the world-tree root. E.g.
      res_int_path("combat.flee_chance")         -> 95
      res_int_path("upkeep.starve_damage")       -> 2

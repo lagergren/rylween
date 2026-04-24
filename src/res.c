@@ -61,6 +61,13 @@ static size_t n_texts;
 static int texts_sorted;
 
 static ryl_item items[RES_MAX_ITEM_ID + 1];
+/* Shard each item id came from (e.g. "weapons", "armour", "specials").
+   Pointer is borrowed from the world tree (shard key strings live on
+   the node allocator) and valid until res_shutdown. NULL for ids with
+   no record. Populated from fold_items; used by inventory.c for the
+   item-kind predicates (item_is_weapon etc.) so C conditionals that
+   used to read `oc < 20 || oc > 29` for "armour?" now ask the data. */
+static const char *item_kind[RES_MAX_ITEM_ID + 1];
 static ryl_monster monsters[RES_MAX_MONSTER_ID + 1];
 
 #define RES_MAX_SPELL_SLOT 7
@@ -336,6 +343,13 @@ int32_t res_item_id(const char *sym) {
         }
     }
     return -1;
+}
+
+const char *res_item_kind(int id) {
+    if (id < 0 || id > RES_MAX_ITEM_ID) {
+        return NULL;
+    }
+    return item_kind[id];
 }
 
 void res_items_foreach_special(int (*cb)(int, const char *, void *),
@@ -813,7 +827,8 @@ static void fold_wieldable_by(node *rec, const char *path) {
     }
 }
 
-static void fold_items_section(const node *section, const char *path) {
+static void fold_items_section(const node *section, const char *section_key,
+                               const char *path) {
     if (section->kind != N_OBJ) {
         res_die(path, section->line, "items: section must be object");
     }
@@ -832,6 +847,7 @@ static void fold_items_section(const node *section, const char *path) {
             res_die(path, id_n->line, "items: id out of range");
         }
         ryl_item *it = &items[id];
+        item_kind[id] = section_key;
         free((void *)it->name);
         const node *name_n = obj_get(rec, "name");
         it->name = strdup((name_n && name_n->kind == N_STR) ? name_n->u.sv : sym);
@@ -858,7 +874,8 @@ static void fold_items(const node *items_node, const char *path) {
         res_die(path, items_node->line, "items: expected object");
     }
     for (size_t s = 0; s < items_node->u.obj.n; s++) {
-        fold_items_section(items_node->u.obj.items[s].val, path);
+        fold_items_section(items_node->u.obj.items[s].val,
+                           items_node->u.obj.items[s].key, path);
     }
 }
 
@@ -1606,6 +1623,7 @@ static void reset_items_from_tree(const node *items_node) {
             items[id].name = NULL;
             items[id].cost = 0;
             items[id].damage = 0;
+            item_kind[id] = NULL;
         }
     }
 }

@@ -316,7 +316,7 @@ void weaponr() {
         return;
     }
     int32_t oc = p->inventory[slot];
-    if (oc > 19 || oc == 0) {
+    if (!item_is_weapon(oc)) {
         clw();
         tx("Not a valid weapon.\r\n");
         ryl_delay(600);
@@ -357,7 +357,7 @@ void armourr() {
         return;
     }
     int32_t oc = p->inventory[slot];
-    if (oc < 20 || oc > 29 || oc == 0) {
+    if (!item_is_armour(oc)) {
         clw();
         tx("Not a valid armour.\r\n");
         ryl_delay(600);
@@ -593,7 +593,7 @@ void quaff() {
         oc = 0;
         if (d >= 'A' && d <= 'P') {
             oc = state.p[state.cpl].inventory[d - 64];
-            if (oc < 36 || oc > 38) {
+            if (!item_is_potion(oc)) {
                 clw();
                 tx("Not valid.\r\n");
                 ryl_delay(1000);

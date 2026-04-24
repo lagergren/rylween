@@ -71,6 +71,21 @@ void inv_init(void);
    if it hasn't already. */
 int item_is_special(int id, int *which);
 
+/* Item-kind predicates. Each asks res_item_kind(id) and returns
+   non-zero when the id was loaded from the matching shard under
+   data/world/items/. `id == 0` is the empty-slot sentinel and
+   returns 0 for every predicate. Use these everywhere you would
+   otherwise hard-code an id range — `id < 20` for "weapon?",
+   `id >= 20 && id <= 29` for "armour?", etc. New shards pick up
+   a predicate just by adding the helper and pointing it at the
+   shard name; the data table owns the membership. */
+int item_is_weapon(int id);
+int item_is_armour(int id);
+int item_is_gear(int id);
+int item_is_potion(int id);
+int item_is_treasure(int id);
+int item_is_magic_item(int id);
+
 /* Set the flag named by `which` (a PS_* value) to 1 on the
    current party. PS_NONE is a no-op. Used by the DSL reward op to
    short-circuit inv_add for specials. */
