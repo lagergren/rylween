@@ -1,6 +1,7 @@
 #include "ryl.h"
 #include "res.h"
 #include "driv.h"
+#include "party.h"
 #include "primitives.h"
 #include "script.h"
 #include "speak.h"
@@ -595,7 +596,7 @@ static void npc_mission_hint(int32_t npc) {
            follow-up once a {"%s lives" tail-screen can be minted
            consistently with case 15's location-split). */
         case 3:
-            if (state.p[state.cpl].flag[3] == 0) {
+            if (pa_flag_is("fighter.priest_book", "none")) {
                 char loc[80];
                 if (state.npc[5].towne) {
                     snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[5].towne));
@@ -618,12 +619,12 @@ static void npc_mission_hint(int32_t npc) {
                 journalf("%d %s, %s's friend lives %s\n", state.cpl, res_enum("name", 5), res_enum("name", 3), loc);
                 ryl_pause();
                 clw();
-                state.p[state.cpl].flag[3] = 1;
+                pa_flag_set("fighter.priest_book", "priest_told");
             }
             break;
         /*****************************************************************/
         case 6:
-            if (state.p[state.cpl].flag[6] == 0) {
+            if (pa_flag_is("silver_key", "none")) {
                 clw();
                 tx0(res_text("speak.silver_key.hiss"));
                 ryl_pause();
@@ -660,7 +661,7 @@ static void npc_mission_hint(int32_t npc) {
                                    {0},
                                });
                     }
-                    state.p[state.cpl].flag[6] = 1;
+                    pa_flag_set("silver_key", "map_bought");
                     journalf("%d The Pit of the Silver Key is at %dx%d\n", state.cpl, state.dx[8], state.dy[8]);
                     ryl_pause();
                     clw();
@@ -673,7 +674,7 @@ static void npc_mission_hint(int32_t npc) {
             break;
         /*****************************************************************/
         case 13:
-            if (state.p[state.cpl].flag[13] == 0) {
+            if (pa_flag_is("bracelets.thun", "none")) {
                 clw();
                 tx0(res_text("speak.thun.legend"));
                 ryl_pause();
@@ -702,7 +703,7 @@ static void npc_mission_hint(int32_t npc) {
                                });
                     }
                     journalf("%d The Temple of Thun is at %dx%d\n", state.cpl, state.dx[2], state.dy[2]);
-                    state.p[state.cpl].flag[13] = 1;
+                    pa_flag_set("bracelets.thun", "map_bought");
                     ryl_pause();
                     clw();
                     break;
@@ -717,7 +718,7 @@ static void npc_mission_hint(int32_t npc) {
            pattern; the item-keyed branch isn't a reward/menu shape and
            stays inline pending §16.1 slice B. See port-plan §16.3. */
         case 22:
-            if (state.p[state.cpl].flag[22] == 0) {
+            if (pa_flag_is("jazzy_ogre", "none")) {
                 clw();
                 tx0(res_text("speak.jazzy_ogre.hear"));
                 ryl_pause();
@@ -750,7 +751,7 @@ static void npc_mission_hint(int32_t npc) {
                                    });
                         }
                         journalf("%d The 'Beast Cave' is at %dx%d.\n", state.cpl, state.dx[7], state.dy[7]);
-                        state.p[state.cpl].flag[22] = 1;
+                        pa_flag_set("jazzy_ogre", "accepted");
                         state.p[state.cpl].inventory[d - 64] = 0;
                         ryl_pause();
                         clw();

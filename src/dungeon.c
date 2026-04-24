@@ -5,6 +5,7 @@
 #include "dungeon.h"
 #include "gfx.h"
 #include "inventory.h"
+#include "party.h"
 #include "primitives.h"
 #include "subs.h"
 #include "towne.h"
@@ -311,7 +312,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 lvl[cl] = 0;
                 clw();
                 party_award_special(PS_FIRESHIELD);
-                state.p[state.cpl].flag[33] = 4;
+                pa_flag_set("hermit.troll_tooth", "fire_shield_acquired");
                 break;
 
             case 22:
@@ -430,7 +431,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 ryl_pause();
                 clw();
                 party_award_special(PS_BRACELETS);
-                state.p[state.cpl].flag[13] = 2;
+                pa_flag_set("bracelets.thun", "bracelets_taken");
                 break;
 
             case 26:
@@ -500,7 +501,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("dagger you seek. You put\r\n");
                 tx("it in your backpack.\r\n\r\n");
                 ryl_pause();
-                state.p[state.cpl].flag[23] = 7;
+                pa_flag_set("mastercrown", "dagger_taken");
                 lvl[cl] = 0;
                 break;
 
@@ -526,7 +527,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
-                state.p[state.cpl].flag[23] = 10;
+                pa_flag_set("mastercrown", "crown_taken");
                 party_award_special(PS_MASTERCROWN);
                 lvl[cl] = 0;
                 break;
@@ -560,7 +561,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("      - %s\r\n\r\n", res_enum("name", 18));
                 ryl_pause();
                 clw();
-                state.p[state.cpl].flag[6] = 2;
+                pa_flag_set("silver_key", "note_found");
                 lvl[cl] = 0;
                 break;
 
@@ -661,7 +662,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 ryl_pause();
                 clw();
                 party_award_special(PS_SILVERKEY);
-                state.p[state.cpl].flag[6] = 6;
+                pa_flag_set("silver_key", "key_taken");
                 lvl[cl] = 0;
                 break;
 
@@ -693,13 +694,13 @@ void dungeon(int32_t levels, int32_t flag) {
 
             case 36:
                 clw();
-                if (state.p[state.cpl].flag[19] == 1) {
+                if (pa_flag_is("peasant_wife", "accepted")) {
                     lvl[cl] = 0;
                     tx("The peasant's wife is in\r\n");
                     tx("this room. You untie\r\n");
                     tx("her bonds and let her\r\n");
                     tx("join your party!\r\n\r\n");
-                    state.p[state.cpl].flag[19] = 2;
+                    pa_flag_set("peasant_wife", "rescued");
                     ryl_pause();
                 }
                 break;
@@ -793,7 +794,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("and you are all glad\r\n");
                 tx("to leave this place.\r\n\r\n");
                 lvl[cl] = 0;
-                state.p[state.cpl].flag[8] = 2;
+                pa_flag_set("erethor.lute", "lute_taken");
                 ryl_pause();
                 clw();
                 break;

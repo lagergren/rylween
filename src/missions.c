@@ -4,6 +4,7 @@
 #include "gfx.h"
 #include "inventory.h"
 #include "missions.h"
+#include "party.h"
 #include "primitives.h"
 #include "script.h"
 #include "state.h"
@@ -239,7 +240,8 @@ uint8_t mission_control() {
     /* Block 5: temple of Thun gem altar. Inventory-count check
        (>=5 gems of ids 39..41) isn't expressible in the DSL —
        single remaining inline block. */
-    if (state.p[state.cpl].flag[13] == 1 && state.p[state.cpl].x == state.dx[2] && state.p[state.cpl].y == state.dy[2]) {
+    if (pa_flag_is("bracelets.thun", "map_bought")
+        && state.p[state.cpl].x == state.dx[2] && state.p[state.cpl].y == state.dy[2]) {
         clw();
         tx("You stand before the\r\n");
         tx("ancient temple of Thun.\r\n");
