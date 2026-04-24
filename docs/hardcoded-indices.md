@@ -24,8 +24,14 @@ acting — they may have shifted.
       strings + `pa_flag_is`/`pa_flag_set` at C sites + a JSON5 map
       at the save/snapshot layer. See "Reference: already-migrated
       patterns" below.
-- [ ] **P2 — Monster / encounter IDs**
-      (~23 `encounter(N, M)` calls in dungeon.c + a handful elsewhere)
+- [x] **P2 — Monster / encounter IDs** (landed §17-T + §17-U)
+      `res_monster_id("<symbol>")` + `res_monster_tier_pick("<tier>")`
+      added; every `encounter(...)` call in dungeon.c / ydarg.c /
+      subs.c now passes either a symbol or a tier. Monster records
+      carry a `tier: 'weak' | 'wild' | 'deep'` keyword; wilderness
+      easy/hard pools are configured in `world.json5` via
+      `wilderness.encounter_{easy,hard}_tier`. Quest/boss/mission
+      monsters stay tier-less and are summoned by name only.
 - [ ] **P3 — Class-ID comparisons**
       (~5–8 sites; enum already exists in `state.h`, just unused)
 - [ ] **P4 — Magic-item case labels in battle.c**
@@ -75,26 +81,38 @@ Landed end-to-end as a four-commit series:
    hex blob. Reader accepts both shapes. Struct layout unchanged
    (still `unsigned char flag[40]`); wire shape is tag-based.
 
-## P2 — Monster / encounter IDs
+## P2 — Monster / encounter IDs (DONE §17-T + §17-U)
 
-`encounter(N, M)` calls use a raw monster-id as `N`. Monster table
-entries are already in `data/world/monsters/` but C callers still
-pass the int. Observed counts:
+Single-monster summons via symbolic id (§17-T):
 
-- [ ] dungeon.c — 23 `encounter(N, M)` calls
-- [ ] subs.c — 4 `encounter(...)` calls (camp/wilderness hooks)
-- [ ] battle.c — 1 site
-- [ ] missions.c — 0 direct calls (already DSL-authored)
+- [x] `res_monster_id(const char *sym)` in res.c / res.h
+- [x] dungeon.c — 20 sites (guardian, norker, voodoo_lord,
+      archdevil, rainbow_demon, long_dead_warrior, hobgoblin,
+      hobgoblin_skeleton, undead_hobgoblin, hobgoblin_chief,
+      orc x3, erethor_priest x3, erethor x2)
+- [x] ydarg.c — 5 sites (crypt_horror, night_gaunt, thyraga,
+      liche, baron_ydarg)
+- [x] subs.c — 1 site (skagerberg_killer)
+- [x] battle.c — no literal call sites (only the `encounter()`
+      definition lives here; the doc's earlier count was wrong)
 
-Approach: either expose `res_monster_id("gnoll")` and take the symbol
-at the call site, or migrate the caller to DSL (for mission-scripted
-scenes — overlaps with §17 A.4 slice C). Mechanical-cousin of §17-J's
-`n2_lv_div` field that let `foe == 31` become `m->n2_lv_div > 0`.
+Tier-based pools via `tier` keyword on each monster (§17-U):
 
-- [ ] Expose `res_monster_id(const char *sym)` in res.c
-- [ ] Migrate dungeon.c encounter sites (biggest win)
-- [ ] Migrate subs.c camp encounter
-- [ ] Migrate battle.c stray
+- [x] Every monster in `data/world/monsters/monsters.json5`
+      tagged `tier: 'weak' | 'wild' | 'deep'` (quest/boss/mission
+      monsters stay tier-less so they can only be summoned by
+      name).
+- [x] `res_monster_tier_pick(const char *tier)` in res.c / res.h;
+      fatal on empty tier (silent fallback would bury caller bugs).
+- [x] `res_str_path(...)` sibling of res_int_path, so the
+      wilderness dispatch can read a tier name straight from
+      world.json5.
+- [x] dungeon.c:172/178 -> tier 'weak'; dungeon.c:184 -> 'deep'.
+- [x] ydarg.c:97 -> 'deep'.
+- [x] subs.c:572 (camp ambush) -> 'weak'.
+- [x] `wilderness.encounter_{easy,hard}_{lo,hi}` replaced by
+      `wilderness.encounter_{easy,hard}_tier` (weak / wild);
+      subs.c:175ff rewritten to the tier shape.
 
 ## P3 — Class-ID comparisons
 
@@ -167,6 +185,9 @@ items above land.
   `pa_flag_set("peasant_wife", "rescued")` — §17-S
 - `res_flag_slot("tag")` / `res_flag_value_id("tag", "state")` /
   `res_flag_value("tag", idx)` / `res_flag_id_for_slot(slot)` — §17-S
+- `res_monster_id("hobgoblin_chief")` — §17-T
+- `res_monster_tier_pick("weak")` / monster `tier:` keyword /
+  `res_str_path("wilderness.encounter_easy_tier")` — §17-U
 
 ## Out of scope for this doc
 

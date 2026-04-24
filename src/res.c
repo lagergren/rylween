@@ -418,6 +418,38 @@ int32_t res_int_path(const char *dotted_path) {
     return (cur->kind == N_INT) ? (int32_t)cur->u.iv : 0;
 }
 
+const char *res_str_path(const char *dotted_path) {
+    if (!world_tree || !dotted_path) {
+        return NULL;
+    }
+    char buf[192];
+    size_t n = strlen(dotted_path);
+    if (n >= sizeof buf) {
+        return NULL;
+    }
+    memcpy(buf, dotted_path, n + 1);
+    const node *cur = world_tree;
+    char *p = buf;
+    while (*p) {
+        char *dot = strchr(p, '.');
+        if (dot) {
+            *dot = 0;
+        }
+        if (cur->kind != N_OBJ) {
+            return NULL;
+        }
+        cur = obj_get(cur, p);
+        if (!cur) {
+            return NULL;
+        }
+        if (!dot) {
+            break;
+        }
+        p = dot + 1;
+    }
+    return (cur->kind == N_STR) ? cur->u.sv : NULL;
+}
+
 int32_t res_combat_int(const char *dotted_path) {
     char buf[192];
     int n = snprintf(buf, sizeof buf, "combat.%s", dotted_path ? dotted_path : "");
@@ -498,6 +530,75 @@ const ryl_monster *res_monster(int id) {
         return NULL;
     }
     return monsters[id].name ? &monsters[id] : NULL;
+}
+
+int32_t res_monster_id(const char *sym) {
+    if (!world_tree || !sym) {
+        return -1;
+    }
+    const node *mon_n = obj_get(world_tree, "monsters");
+    if (!mon_n || mon_n->kind != N_OBJ) {
+        return -1;
+    }
+    for (size_t i = 0; i < mon_n->u.obj.n; i++) {
+        if (strcmp(mon_n->u.obj.items[i].key, sym) != 0) {
+            continue;
+        }
+        const node *rec = mon_n->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            return -1;
+        }
+        const node *id_n = obj_get(rec, "id");
+        if (!id_n || id_n->kind != N_INT) {
+            return -1;
+        }
+        return (int32_t)id_n->u.iv;
+    }
+    return -1;
+}
+
+/* Pick a random monster id from the symbolic tier (e.g. "weak" / "wild" /
+   "deep" as tagged in data/world/monsters/monsters.json5). Walks the
+   monsters shard each call — the table is ~60 records and encounter()
+   roll frequency is low enough that the cost is a rounding error.
+   Fatal if the tier has no members: this always indicates a caller bug
+   or a data edit that dropped every member of a still-referenced tier,
+   and silent fallback (return a random non-tier monster) would bury it. */
+int32_t res_monster_tier_pick(const char *tier) {
+    if (!world_tree || !tier) {
+        fprintf(stderr, "res_monster_tier_pick: world not loaded / null tier\n");
+        exit(1);
+    }
+    const node *mon_n = obj_get(world_tree, "monsters");
+    if (!mon_n || mon_n->kind != N_OBJ) {
+        fprintf(stderr, "res_monster_tier_pick: monsters shard missing\n");
+        exit(1);
+    }
+    int32_t ids[RES_MAX_MONSTER_ID + 1];
+    size_t n = 0;
+    for (size_t i = 0; i < mon_n->u.obj.n; i++) {
+        const node *rec = mon_n->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *tier_n = obj_get(rec, "tier");
+        if (!tier_n || tier_n->kind != N_STR) {
+            continue;
+        }
+        if (strcmp(tier_n->u.sv, tier) != 0) {
+            continue;
+        }
+        const node *id_n = obj_get(rec, "id");
+        if (!id_n || id_n->kind != N_INT) {
+            continue;
+        }
+        ids[n++] = (int32_t)id_n->u.iv;
+    }
+    if (n == 0) {
+        fprintf(stderr, "res_monster_tier_pick: empty tier '%s'\n", tier);
+        exit(1);
+    }
+    return ids[ryl_random(0, (int32_t)n - 1)];
 }
 
 const ryl_spell *res_spell(const char *class_name, int slot) {

@@ -122,7 +122,7 @@ void random_wilderness() {
     }
 
     if (!(p->time_left % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
-        encounter(90, 1);
+        encounter(res_monster_id("skagerberg_killer"), 1);
     }
 
     int32_t cave_lo = res_int_path("wilderness.cave_chance");
@@ -169,17 +169,13 @@ void random_wilderness() {
         }
     }
 
-    // Random encounter. Two bands: easy (early monster ids) vs. hard
-    // (the 40-53 band covers the heavier mid-game rosters).
-    if (ryl_chance(res_int_path("wilderness.encounter_split"))) {
-        encounter(ryl_random(res_int_path("wilderness.encounter_easy_lo"),
-                             res_int_path("wilderness.encounter_easy_hi")),
-                  0);
-    } else {
-        encounter(ryl_random(res_int_path("wilderness.encounter_hard_lo"),
-                             res_int_path("wilderness.encounter_hard_hi")),
-                  0);
-    }
+    // Random encounter. Two tiers configured in world.json5 (wilderness.
+    // encounter_{easy,hard}_tier) — the tier keyword on each monster
+    // record decides which pool it joins.
+    const char *tier = ryl_chance(res_int_path("wilderness.encounter_split"))
+                           ? res_str_path("wilderness.encounter_easy_tier")
+                           : res_str_path("wilderness.encounter_hard_tier");
+    encounter(res_monster_tier_pick(tier), 0);
     clr_map_window();
     update_map();
 }
@@ -569,7 +565,7 @@ void camp() {
             state.p[state.cpl].pl--;
             ryl_pause();
         }
-        encounter(ryl_random(1, 10), 0);
+        encounter(res_monster_tier_pick("weak"), 0);
         //		update_map();
     } else {
         clw();

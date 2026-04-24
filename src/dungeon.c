@@ -169,19 +169,19 @@ void dungeon(int32_t levels, int32_t flag) {
                 break;
 
             case 3:
-                encounter(ryl_random(1, 10), 0);
+                encounter(res_monster_tier_pick("weak"), 0);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 break;
             case 4:
-                encounter(ryl_random(1, 10), 0);
+                encounter(res_monster_tier_pick("weak"), 0);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 break;
             case 5:
-                encounter(ryl_random(60, 79), 0);
+                encounter(res_monster_tier_pick("deep"), 0);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -292,7 +292,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("emerges.\r\n\r\n");
                 ryl_pause();
                 clw();
-                encounter(11, 1);
+                encounter(res_monster_id("guardian"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -342,7 +342,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     tx("at a gesture from him,\r\n");
                     tx("something evil appears.\r\n\r\n");
                     ryl_pause();
-                    encounter(12, 1);
+                    encounter(res_monster_id("norker"), 1);
                     clw();
                     clr_map_window();
                     blitgfx(insidecavepic);
@@ -377,7 +377,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     tx("at a gesture from him,\r\n");
                     tx("something evil appears.\r\n\r\n");
                     ryl_pause();
-                    encounter(13, 1);
+                    encounter(res_monster_id("voodoo_lord"), 1);
                     clw();
                     break;
                 }
@@ -410,7 +410,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     tx("at a gesture from him,\r\n");
                     tx("something evil appears.\r\n\r\n");
                     ryl_pause();
-                    encounter(14, 1);
+                    encounter(res_monster_id("archdevil"), 1);
                     clw();
                     break;
                 }
@@ -487,7 +487,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("forms in thin air before\r\n");
                 tx("you!\r\n\r\n");
                 ryl_pause();
-                encounter(16, 1);
+                encounter(res_monster_id("rainbow_demon"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -523,7 +523,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("TO LIFE!!!\r\n\r\n");
                 ryl_pause();
                 clw();
-                encounter(17, 1);
+                encounter(res_monster_id("long_dead_warrior"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -573,7 +573,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("attack you!\r\n\r\n");
                 ryl_pause();
                 clw();
-                encounter(9, 1);
+                encounter(res_monster_id("hobgoblin"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -593,7 +593,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("an army of hobgoblin\r\n");
                 tx("skeletons attack you!\r\n\r\n");
                 ryl_pause();
-                encounter(24, 1);
+                encounter(res_monster_id("hobgoblin_skeleton"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -609,7 +609,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("brandising gleaming\r\n");
                 tx("tridents attack you.\r\n\r\n");
                 ryl_pause();
-                encounter(25, 1);
+                encounter(res_monster_id("undead_hobgoblin"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -636,7 +636,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     tx("seconds. Not hestitating\r\n");
                     tx("a moment you attack.\r\n\r\n");
                     ryl_pause();
-                    encounter(23, 1);
+                    encounter(res_monster_id("hobgoblin_chief"), 1);
                     clr_map_window();
                     blitgfx(insidecavepic);
                     clw();
@@ -646,8 +646,8 @@ void dungeon(int32_t levels, int32_t flag) {
                     tx("(Hobgoblin guards rush\r\n");
                     tx(" to confront you.)\r\n");
                     ryl_delay(2000);
-                    encounter(9, 1);
-                    encounter(23, 1);
+                    encounter(res_monster_id("hobgoblin"), 1);
+                    encounter(res_monster_id("hobgoblin_chief"), 1);
                     clr_map_window();
                     blitgfx(insidecavepic);
                     clw();
@@ -673,7 +673,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("in the floor here. As\r\n");
                 tx("you enter, they attack!\r\n\r\n");
                 ryl_pause();
-                encounter(2, 1);
+                encounter(res_monster_id("orc"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -683,8 +683,8 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("sleeping quarters,\r\n");
                 tx("disturbed by the noise.\r\n\r\n");
                 ryl_pause();
-                encounter(2, 1);
-                encounter(2, 1);
+                encounter(res_monster_id("orc"), 1);
+                encounter(res_monster_id("orc"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -712,7 +712,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("attack you with blind\r\n");
                 tx("fury.\r\n\r\n");
                 ryl_pause();
-                encounter(32, 1);
+                encounter(res_monster_id("erethor_priest"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -748,15 +748,15 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("emerges from the shadows\r\n");
                 tx("of this uncanny sanctuary.\r\n\r\n");
                 ryl_pause();
-                encounter(33, 1);
-                encounter(32, 1);
+                encounter(res_monster_id("erethor"), 1);
+                encounter(res_monster_id("erethor_priest"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
                 tx("More priests rush to\r\n");
                 tx("attack you...\r\n\r\n");
                 ryl_pause();
-                encounter(32, 1);
+                encounter(res_monster_id("erethor_priest"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
@@ -778,7 +778,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("HAS COME TO LIFE ONCE\r\n");
                 tx("AGAIN!!!\r\n\r\n");
                 ryl_pause();
-                encounter(33, 1);
+                encounter(res_monster_id("erethor"), 1);
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();

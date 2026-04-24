@@ -94,7 +94,7 @@ void ydarg() {
                 room[xl][yl] = 0;
                 tx0(res_text("ydarg.room.monster"));
                 ryl_delay(1500);
-                encounter(ryl_random(60, 79), 0);
+                encounter(res_monster_tier_pick("deep"), 0);
                 clr_map_window();
                 blitgfx(ydargpic);
                 clw();
@@ -433,10 +433,10 @@ static void confrontation() {
     tx0(res_text("ydarg.conf.fools"));
     ryl_pause();
     clw();
-    encounter(26, 1);
-    encounter(27, 1);
-    encounter(28, 1);
-    encounter(29, 1);
+    encounter(res_monster_id("crypt_horror"), 1);
+    encounter(res_monster_id("night_gaunt"), 1);
+    encounter(res_monster_id("thyraga"), 1);
+    encounter(res_monster_id("liche"), 1);
     clw();
     tx0(res_text("ydarg.conf.corpses"));
     ryl_pause();
@@ -462,7 +462,7 @@ static void confrontation() {
     clw();
     tx0(res_text("ydarg.conf.commence"));
     ryl_pause();
-    encounter(30, 1);
+    encounter(res_monster_id("baron_ydarg"), 1);
     clw();
     tx0(res_text("ydarg.conf.trident_falls"));
     ryl_pause();

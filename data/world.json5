@@ -168,19 +168,18 @@
   //                                         -> no event (terrain msg only)
   //   otherwise                             -> encounter, split by
   //                                            encounter_split pct:
-  //                                            easy_lo..easy_hi vs
-  //                                            hard_lo..hard_hi.
+  //                                            encounter_easy_tier vs
+  //                                            encounter_hard_tier
+  //                                            (monster 'tier' keyword).
   wilderness: {
-    cave_chance:       3,
-    quiet_chance:      91,
-    encounter_split:   50,     // pct; else the hard band
-    encounter_easy_lo: 1,
-    encounter_easy_hi: 10,
-    encounter_hard_lo: 40,
-    encounter_hard_hi: 53,
-    cave_dungeon_lo:   3,
-    cave_dungeon_hi:   16,
-    cave_entry_cost:   10,     // time_left ticks consumed on cave (E)nter
+    cave_chance:        3,
+    quiet_chance:       91,
+    encounter_split:    50,        // pct; else the hard tier
+    encounter_easy_tier: 'weak',   // must match a monsters.*.tier value
+    encounter_hard_tier: 'wild',
+    cave_dungeon_lo:    3,
+    cave_dungeon_hi:    16,
+    cave_entry_cost:    10,        // time_left ticks consumed on cave (E)nter
   },
 
   // Combat-system tuning. Named fields are read by battle.c via

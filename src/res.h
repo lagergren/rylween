@@ -151,6 +151,11 @@ int32_t res_int_path(const char *dotted_path);
    visible at the call site. */
 int32_t res_combat_int(const char *dotted_path);
 
+/* Dotted-path string read — sibling of res_int_path. Returns a pointer
+   into the world tree (valid until res_shutdown) or NULL if the path is
+   missing or the leaf is not a string. No copy, no caller free. */
+const char *res_str_path(const char *dotted_path);
+
 /* XP total needed to REACH the given level (2..28). Reads
    xp_thresholds[level] from the world tree. Returns 0 for out-of-range
    or missing entries — level 1 and slots past 28 are guard values, and
@@ -175,6 +180,18 @@ int32_t res_formula_int(const char *name, const char *var_name, int32_t val);
 
 /* Monsters 0..90. NULL if no record. */
 const ryl_monster *res_monster(int id);
+
+/* Symbolic name (shard key, e.g. "gnoll", "hobgoblin_chief") -> monster id.
+   Returns -1 if the symbol is unknown. Intended for call sites that used
+   to pass a raw id to encounter() — keep the site readable without
+   baking map.dat's integer assignment into C. */
+int32_t res_monster_id(const char *sym);
+
+/* Pick a random monster id from a symbolic tier ("weak" / "wild" / "deep",
+   as tagged on monster records via `tier: <name>`). Replaces the
+   `encounter(ryl_random(lo, hi), ...)` shape — caller no longer has to
+   know which id range maps to which pool. Fatal on empty tier. */
+int32_t res_monster_tier_pick(const char *tier);
 
 /* Spell for a given class ("priest" or "mage") and slot (1..7). NULL if missing. */
 const ryl_spell *res_spell(const char *class_name, int slot);
