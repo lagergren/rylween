@@ -102,7 +102,7 @@ static void spelet() {
                     state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
                     state.p[state.cpl].y--;
                     update_map();
-                    slumpvis();
+                    random_wilderness();
                     state.p[state.cpl].time_left--;
                 }
                 break;
@@ -116,7 +116,7 @@ static void spelet() {
                     state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
                     state.p[state.cpl].x--;
                     update_map();
-                    slumpvis();
+                    random_wilderness();
                     state.p[state.cpl].time_left--;
                 }
                 break;
@@ -130,7 +130,7 @@ static void spelet() {
                     state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
                     state.p[state.cpl].y++;
                     update_map();
-                    slumpvis();
+                    random_wilderness();
                     state.p[state.cpl].time_left--;
                 }
                 break;
@@ -144,7 +144,7 @@ static void spelet() {
                     state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
                     state.p[state.cpl].x++;
                     update_map();
-                    slumpvis();
+                    random_wilderness();
                     state.p[state.cpl].time_left--;
                 }
                 break;

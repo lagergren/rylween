@@ -110,6 +110,37 @@
     ranger: { levelup: { ws: 2, h: 8, wi: 3, ch: 3 } },
   },
 
+  // Per-tick upkeep. foodhandler() reads these every hour; callers
+  // are in subs.c. Keep keys stable — C-side hard-codes the names.
+  upkeep: {
+    food_cost_leader_div: 4,   // food -= pl + lv[1] / N every food_tick_every hours
+    food_tick_every:      5,   // every N hours the food cost above fires
+    starve_damage:        2,   // hp lost per tick at food=0 (alive members)
+    mana_regen_chance:    50,  // pct; mage/priest with ma < wi regen +1 per hour
+  },
+
+  // Wilderness event dispatch. random_wilderness() rolls r = ryl_random(0, 99)
+  // once per move, then falls through these bands:
+  //   r < cave_chance                       -> cave-found prompt
+  //   cave_chance <= r < (cave_chance + quiet_chance)
+  //                                         -> no event (terrain msg only)
+  //   otherwise                             -> encounter, split by
+  //                                            encounter_split pct:
+  //                                            easy_lo..easy_hi vs
+  //                                            hard_lo..hard_hi.
+  wilderness: {
+    cave_chance:       3,
+    quiet_chance:      91,
+    encounter_split:   50,     // pct; else the hard band
+    encounter_easy_lo: 1,
+    encounter_easy_hi: 10,
+    encounter_hard_lo: 40,
+    encounter_hard_hi: 53,
+    cave_dungeon_lo:   3,
+    cave_dungeon_hi:   16,
+    cave_entry_cost:   10,     // time_left ticks consumed on cave (E)nter
+  },
+
   // Combat-system tuning. Named fields are read by battle.c via
   // res_combat_int("<dotted.path>"); keep keys stable across data edits
   // since the C side hard-codes the names (not the values). Drop

@@ -70,7 +70,7 @@ typedef struct {
    guard passes fires. `returns_on_skip` reproduces the original's
    `return 1` after blocks whose L-menu unambiguously ended the
    mission-control turn (blocks 9, 11, 12, 14, 16) — the other blocks
-   fell through to the random-event roll in slumpvis(). */
+   fell through to the random-event roll in random_wilderness(). */
 static const mission_trigger mission_triggers[] = {
     /* Block 1: Erethor temple at (6,20). Flag 8 == 1. */
     {.flag = 8, .when = 1, .kind = MG_POS, .a = 6, .b = 20, .script = "missions.erethor_entry"},

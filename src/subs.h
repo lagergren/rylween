@@ -10,7 +10,7 @@
 
 void timehandler(void);
 void foodhandler(void);
-void slumpvis(void);
+void random_wilderness(void);
 void update_map(void);
 void weaponr(void);
 void armourr(void);

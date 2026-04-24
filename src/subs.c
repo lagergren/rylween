@@ -20,39 +20,48 @@ void timehandler() {
 }
 void foodhandler() {
     int32_t i;
+    struct party *p = party_current();
+    int mm = res_party_member_max();
 
     // Regenerate mana //
-    for (i = 1; i <= res_party_member_max(); i++) {
-        if (state.p[state.cpl].cl[i] == 3 || state.p[state.cpl].cl[i] == 4) {
-            if (state.p[state.cpl].ma[i] < state.p[state.cpl].wi[i] && ryl_chance(50)) {
-                state.p[state.cpl].ma[i]++;
-            }
+    int32_t regen_pct = res_int_path("upkeep.mana_regen_chance");
+    for (i = 1; i <= mm; i++) {
+        pm_t pm = pm_cur(i);
+        if ((pm_is_mage(pm) || pm_is_priest(pm)) &&
+            pm_ma(pm) < pm.party->wi[pm.m] && ryl_chance(regen_pct)) {
+            pm.party->ma[pm.m]++;
         }
     }
 
-    if (!(state.p[state.cpl].time_left % 5)) {
-        state.p[state.cpl].food -= state.p[state.cpl].pl;
-        state.p[state.cpl].food -= state.p[state.cpl].lv[1] / 4;
+    int32_t tick = res_int_path("upkeep.food_tick_every");
+    int32_t lv_div = res_int_path("upkeep.food_cost_leader_div");
+    if (tick > 0 && !(p->time_left % tick)) {
+        p->food -= p->pl;
+        if (lv_div > 0) {
+            p->food -= p->lv[1] / lv_div;
+        }
     }
-    if (state.p[state.cpl].food < 0) {
-        state.p[state.cpl].food = 0;
+    if (p->food < 0) {
+        p->food = 0;
     }
     // Starving routine //
 
-    if (state.p[state.cpl].food == 0) {
-        for (i = 1; i <= res_party_member_max(); i++) {
-            if (!state.p[state.cpl].dead[i]) {
-                state.p[state.cpl].hp[i] -= 2;
+    if (p->food == 0) {
+        int32_t damage = res_int_path("upkeep.starve_damage");
+        for (i = 1; i <= mm; i++) {
+            pm_t pm = pm_cur(i);
+            if (!pm_dead(pm)) {
+                pm_add_hp(pm, -damage);
             }
-            if (state.p[state.cpl].hp[i] < 1 && !state.p[state.cpl].dead[i]) {
-                state.p[state.cpl].hp[i] = 0;
+            if (pm_hp(pm) < 1 && !pm_dead(pm)) {
+                pm_set_hp(pm, 0);
                 clw();
-                tx("%s starved\r\n", state.p[state.cpl].name[i]);
+                tx("%s starved\r\n", pm_name(pm));
                 tx("to death!!!\r\n");
                 ryl_delay(1000);
                 clw();
-                state.p[state.cpl].dead[i] = 1;
-                if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
+                pm_set_dead(pm, 1);
+                if (p->dead[1] && p->dead[2] && p->dead[3] && p->dead[4]) {
                     losegame();
                 }
             }
@@ -99,10 +108,11 @@ void foodhandler() {
         }
     }
 }
-void slumpvis() {
+void random_wilderness() {
     char c;
     int32_t r;
     uint8_t rflag = 0;
+    struct party *p = party_current();
 
     r = ryl_random(0, 99);
 
@@ -111,16 +121,18 @@ void slumpvis() {
         return;
     }
 
-    if (!(state.p[state.cpl].time_left % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
+    if (!(p->time_left % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
         encounter(90, 1);
     }
 
-    if (r < 94 && r >= 3) {
+    int32_t cave_lo = res_int_path("wilderness.cave_chance");
+    int32_t quiet_hi = cave_lo + res_int_path("wilderness.quiet_chance");
+    if (r >= cave_lo && r < quiet_hi) {
         // Nothing special, see if terrain has changed and display nice message //
-        check_terrain(state.last_terrain, state.map[state.p[state.cpl].y][state.p[state.cpl].x]);
+        check_terrain(state.last_terrain, state.map[p->y][p->x]);
         return;
     }
-    if (r < 3) {
+    if (r < cave_lo) {
         clr_map_window();
         blitgfx(cavepic);
         clw();
@@ -133,8 +145,9 @@ void slumpvis() {
             }
         }
         if (c == 'E') {
-            if (state.p[state.cpl].time_left > 10) {
-                state.p[state.cpl].time_left -= 10;
+            int32_t cost = res_int_path("wilderness.cave_entry_cost");
+            if (p->time_left > cost) {
+                p->time_left -= cost;
             } else {
                 clw();
                 tx0(res_text("cave.no_moves"));
@@ -144,7 +157,9 @@ void slumpvis() {
                 return;
             }
             clr_map_window();
-            dungeon(ryl_random(3, 16), 0);
+            dungeon(ryl_random(res_int_path("wilderness.cave_dungeon_lo"),
+                               res_int_path("wilderness.cave_dungeon_hi")),
+                    0);
             return;
         } else {
             clw();
@@ -154,19 +169,19 @@ void slumpvis() {
         }
     }
 
-    // slumpmote //
-
-    // 40-53 //
-
-    if (ryl_chance(50)) {
-        encounter(ryl_random(1, 10), 0);
-        clr_map_window();
-        update_map();
+    // Random encounter. Two bands: easy (early monster ids) vs. hard
+    // (the 40-53 band covers the heavier mid-game rosters).
+    if (ryl_chance(res_int_path("wilderness.encounter_split"))) {
+        encounter(ryl_random(res_int_path("wilderness.encounter_easy_lo"),
+                             res_int_path("wilderness.encounter_easy_hi")),
+                  0);
     } else {
-        encounter(ryl_random(40, 53), 0);
-        clr_map_window();
-        update_map();
+        encounter(ryl_random(res_int_path("wilderness.encounter_hard_lo"),
+                             res_int_path("wilderness.encounter_hard_hi")),
+                  0);
     }
+    clr_map_window();
+    update_map();
 }
 
 void losegame() {
@@ -291,44 +306,40 @@ void armouroff() {
     clw();
 }
 void weaponr() {
-    int32_t oc, temp;
-    char d, b;
-
+    struct party *p = party_current();
     clw();
     invlist();
-    d = key();
-    d = toupper(d);
-    oc = 0;
-    if (d >= 'A' && d <= 'P') {
-        oc = state.p[state.cpl].inventory[d - 64];
-        if (oc > 19 || oc == 0) {
-            clw();
-            tx("Not a valid weapon.\r\n");
-            ryl_delay(600);
-            clw();
-            return;
-        }
-    } else {
+    char d = (char)toupper(key());
+    int slot = inv_slot_from_letter(d);
+    if (!slot) {
+        clw();
+        return;
+    }
+    int32_t oc = p->inventory[slot];
+    if (oc > 19 || oc == 0) {
+        clw();
+        tx("Not a valid weapon.\r\n");
+        ryl_delay(600);
         clw();
         return;
     }
 
     clw();
     tx("Who? (1-4)\r\n");
-    b = key();
+    char b = key();
     if (b < '1' || b > '4') {
         clw();
         return;
     }
-
-    if (state.p[state.cpl].dead[b - 48]) {
+    pm_t pm = pm_from_digit(b);
+    if (pm_dead(pm)) {
         clw();
         tx("Dead.\r\n");
         return;
     }
-    temp = state.p[state.cpl].wp[b - 48];
-    state.p[state.cpl].wp[b - 48] = state.p[state.cpl].inventory[d - 64];
-    state.p[state.cpl].inventory[d - 64] = temp;
+    int32_t temp = pm_wp(pm);
+    pm_set_wp(pm, p->inventory[slot]);
+    p->inventory[slot] = temp;
     clw();
     tx("Weapon changed.\r\n");
     ryl_delay(600);
@@ -336,44 +347,40 @@ void weaponr() {
     return;
 }
 void armourr() {
-    int32_t oc, temp;
-    char d, b;
-
+    struct party *p = party_current();
     clw();
     invlist();
-    d = key();
-    d = toupper(d);
-    oc = 0;
-    if (d >= 'A' && d <= 'P') {
-        oc = state.p[state.cpl].inventory[d - 64];
-        if (oc < 20 || oc > 29 || oc == 0) {
-            clw();
-            tx("Not a valid armour.\r\n");
-            ryl_delay(600);
-            clw();
-            return;
-        }
-    } else {
+    char d = (char)toupper(key());
+    int slot = inv_slot_from_letter(d);
+    if (!slot) {
+        clw();
+        return;
+    }
+    int32_t oc = p->inventory[slot];
+    if (oc < 20 || oc > 29 || oc == 0) {
+        clw();
+        tx("Not a valid armour.\r\n");
+        ryl_delay(600);
         clw();
         return;
     }
 
     clw();
     tx("Who? (1-4)\r\n");
-    b = key();
+    char b = key();
     if (b < '1' || b > '4') {
         clw();
         return;
     }
-
-    if (state.p[state.cpl].dead[b - 48]) {
+    pm_t pm = pm_from_digit(b);
+    if (pm_dead(pm)) {
         clw();
         tx("Dead.\r\n");
         return;
     }
-    temp = state.p[state.cpl].ar[b - 48];
-    state.p[state.cpl].ar[b - 48] = state.p[state.cpl].inventory[d - 64];
-    state.p[state.cpl].inventory[d - 64] = temp;
+    int32_t temp = pm_ar(pm);
+    pm_set_ar(pm, p->inventory[slot]);
+    p->inventory[slot] = temp;
     clw();
     tx("Armour changed.\r\n");
     ryl_delay(600);

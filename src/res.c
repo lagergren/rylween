@@ -372,20 +372,17 @@ void res_items_foreach_special(int (*cb)(int, const char *, void *),
     }
 }
 
-int32_t res_combat_int(const char *dotted_path) {
+int32_t res_int_path(const char *dotted_path) {
     if (!world_tree || !dotted_path) {
         return 0;
     }
-    const node *cur = obj_get(world_tree, "combat");
-    if (!cur || cur->kind != N_OBJ) {
-        return 0;
-    }
-    char buf[128];
+    char buf[192];
     size_t n = strlen(dotted_path);
     if (n >= sizeof buf) {
         return 0;
     }
     memcpy(buf, dotted_path, n + 1);
+    const node *cur = world_tree;
     char *p = buf;
     while (*p) {
         char *dot = strchr(p, '.');
@@ -405,6 +402,15 @@ int32_t res_combat_int(const char *dotted_path) {
         p = dot + 1;
     }
     return (cur->kind == N_INT) ? (int32_t)cur->u.iv : 0;
+}
+
+int32_t res_combat_int(const char *dotted_path) {
+    char buf[192];
+    int n = snprintf(buf, sizeof buf, "combat.%s", dotted_path ? dotted_path : "");
+    if (n < 0 || (size_t)n >= sizeof buf) {
+        return 0;
+    }
+    return res_int_path(buf);
 }
 
 int32_t res_xp_threshold(int level) {

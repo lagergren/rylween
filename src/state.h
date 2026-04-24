@@ -204,6 +204,32 @@ static inline pm_t pm_cur(int m) {
     return pm_of(&state.p[state.cpl], m);
 }
 
+/* Member-index from an ASCII digit keypress. '1'..'4' -> pm_cur(1..4).
+   Any other byte returns an invalid handle with m out of range; callers
+   are expected to validate the keypress before calling. Replaces the
+   ubiquitous `state.p[state.cpl].<field>[c - 48]` pattern so the member
+   index stays inside a typed handle rather than a loose ASCII subtract
+   peppered through combat / spell / interact code. */
+static inline pm_t pm_from_digit(char c) {
+    return pm_cur((int)(c - '0'));
+}
+
+/* Inventory slot from an ASCII letter keypress. 'A'..'P' -> 1..16.
+   Replaces the bare `c - 64` subtract for inventory-letter decoding.
+   Returns 0 (no-such-slot) for any byte outside the range — inv_*
+   helpers already treat 0 as the empty-slot sentinel. Callers are
+   expected to toupper() before calling; the helper also tolerates
+   lowercase to keep legacy sites that skip the toupper. */
+static inline int inv_slot_from_letter(char c) {
+    if (c >= 'a' && c <= 'z') {
+        c = (char)(c - ('a' - 'A'));
+    }
+    if (c >= 'A' && c <= 'A' + INVENTORY_SLOT_MAX - 1) {
+        return (int)(c - 'A' + 1);
+    }
+    return 0;
+}
+
 static inline int pm_cl(pm_t pm) {
     return pm.party->cl[pm.m];
 }
@@ -278,6 +304,18 @@ static inline void pm_add_exp(pm_t pm, uint32_t d) {
 }
 static inline void pm_set_dead(pm_t pm, int v) {
     pm.party->dead[pm.m] = v;
+}
+static inline int pm_wp(pm_t pm) {
+    return pm.party->wp[pm.m];
+}
+static inline void pm_set_wp(pm_t pm, int v) {
+    pm.party->wp[pm.m] = v;
+}
+static inline int pm_ar(pm_t pm) {
+    return pm.party->ar[pm.m];
+}
+static inline void pm_set_ar(pm_t pm, int v) {
+    pm.party->ar[pm.m] = v;
 }
 
 /* Heal to full: hp = h. No-op if dead. */

@@ -114,12 +114,20 @@ void res_items_foreach_special(
     int (*cb)(int id, const char *tag, void *user),
     void *user);
 
-/* Integer lookup under the combat: subtree by dotted string path.
-   E.g. res_combat_int("flee_chance") -> 95,
-        res_combat_int("drop_tables.default.treasure_chance") -> 59.
-   Returns 0 if any path component is missing or the leaf is not an
-   integer. Path keys are stable by convention; battle.c hard-codes
-   the names it asks for. */
+/* Integer lookup by dotted path from the world-tree root. E.g.
+     res_int_path("combat.flee_chance")         -> 95
+     res_int_path("upkeep.starve_damage")       -> 2
+     res_int_path("wilderness.cave_chance")     -> 3
+   Returns 0 if any path component is missing or the leaf isn't an
+   integer. Path keys are stable by convention — the C side hard-codes
+   the names it asks for, and the 0-on-missing behaviour is the
+   natural no-op across most gameplay tuning callers. */
+int32_t res_int_path(const char *dotted_path);
+
+/* Shorthand: res_int_path("combat." + key). Pre-dates the more general
+   res_int_path and retained for the existing battle.c call sites; new
+   code should prefer res_int_path directly so the subtree root is
+   visible at the call site. */
 int32_t res_combat_int(const char *dotted_path);
 
 /* XP total needed to REACH the given level (2..28). Reads
