@@ -85,6 +85,10 @@ int32_t res_flag_slot(const char *id);
 int32_t res_flag_value_id(const char *flag_id, const char *value);
 const char *res_flag_value(const char *flag_id, int index);
 
+/* Reverse slot->id lookup for the save/snapshot serializer.
+   Returns NULL if no party-scoped flag tag claims that slot. */
+const char *res_flag_id_for_slot(int32_t slot);
+
 /* Enum: values[index] for matching record. "" if missing/out of range. */
 const char *res_enum(const char *id, int index);
 

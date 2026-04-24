@@ -17,7 +17,7 @@ time_left=200
 hours_rested=14
 kills=0
 specials=0,0,0,0,0
-flag=00000000000000000000000000000000000000000000000000000000000000000000000000000000
+flags=
 inventory=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 member[1] name=A gender=1 cl=2 ra=1 lv=1 dead=0 h=68 hp=68 ws=27 wi=27 ma=0 ch=49 ar=0 wp=0 exp=0
 member[2] name=B gender=1 cl=2 ra=1 lv=1 dead=0 h=46 hp=46 ws=42 wi=48 ma=0 ch=64 ar=0 wp=0 exp=0

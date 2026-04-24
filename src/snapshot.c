@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "res.h"
 #include "state.h"
 
 static char snapshot_path[512];
@@ -25,9 +26,22 @@ static void emit_party(FILE *f, int idx) {
     fprintf(f, "specials=%u,%u,%u,%u,%u\n", p->fireshield, p->bracelets,
             p->mastercrown, p->jazzyfoot, p->silverkey);
 
-    fputs("flag=", f);
-    for (size_t i = 0; i < sizeof p->flag; i++) {
-        fprintf(f, "%02x", p->flag[i]);
+    /* Flags as a sorted tag=state list. Slots at 0 are omitted so an
+       all-fresh party emits `flags=` (empty). Deterministic order:
+       walk slots 0..N, look up each slot's tag. */
+    fputs("flags=", f);
+    int first = 1;
+    for (size_t slot = 0; slot < sizeof p->flag; slot++) {
+        unsigned v = p->flag[slot];
+        if (!v) {
+            continue;
+        }
+        const char *id = res_flag_id_for_slot((int32_t)slot);
+        const char *vname = id ? res_flag_value(id, (int)v) : NULL;
+        fprintf(f, "%s%s=%s", first ? "" : ",",
+                id ? id : "?",
+                (vname && *vname) ? vname : "?");
+        first = 0;
     }
     fputc('\n', f);
 

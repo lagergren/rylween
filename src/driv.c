@@ -731,6 +731,43 @@ static void wcw_byte_arr(FILE *f, const unsigned char *a, int n) {
     fputc(']', f);
 }
 
+/* Emit party quest flags as a sparse map keyed by flag tag and with
+   the state name as the value: `{ silver_key: "note_found", ... }`.
+   Slots whose value is 0 (the 'none' state) are omitted — an absent
+   key means the quest hasn't been touched. An orphan slot (non-zero
+   byte at a slot the dictionary doesn't name) aborts rather than
+   silently dropping data. */
+static void wcw_party_flags(FILE *f, const struct party *p) {
+    fputs("{", f);
+    int first = 1;
+    for (size_t slot = 0; slot < sizeof p->flag; slot++) {
+        unsigned v = p->flag[slot];
+        if (!v) {
+            continue;
+        }
+        const char *id = res_flag_id_for_slot((int32_t)slot);
+        if (!id) {
+            fprintf(stderr,
+                    "save: party flag slot %zu = %u but no tag claims "
+                    "that slot in data/world.json5 flags:\n", slot, v);
+            exit(1);
+        }
+        const char *vname = res_flag_value(id, (int)v);
+        if (!vname || !*vname) {
+            fprintf(stderr,
+                    "save: party flag '%s' value %u out of range in "
+                    "its values[] array\n", id, v);
+            exit(1);
+        }
+        fputs(first ? " " : ", ", f);
+        first = 0;
+        wcw_str(f, id);
+        fputs(": ", f);
+        wcw_str(f, vname);
+    }
+    fputs(first ? "}" : " }", f);
+}
+
 /* Enum array via res_enum: each int slot emitted as the symbolic value,
    with null for slot-0 (1-based enum sentinel). Fall back to the raw
    int if the lookup returns ""; keeps the file round-trippable even if
@@ -860,8 +897,8 @@ static void write_current_world() {
             wcw_str(f, p->name[m]);
         }
         fputs("],\n", f);
-        fputs("      flag: ", f);
-        wcw_byte_arr(f, p->flag, 40);
+        fputs("      flags: ", f);
+        wcw_party_flags(f, p);
         fputs(",\n", f);
         fprintf(f, "      fireshield: %u,\n", p->fireshield);
         fprintf(f, "      bracelets: %u,\n", p->bracelets);
@@ -995,6 +1032,55 @@ static void rcw_u32_arr(const node *arr, uint32_t *out, int out_n) {
         const node *it = arr->u.arr.items[i];
         if (it && it->kind == N_INT) {
             out[i] = (uint32_t)it->u.iv;
+        }
+    }
+}
+
+/* Inverse of wcw_party_flags. Reads `{ tag: "state", ... }` into the
+   party's flag[] byte array. Legacy `flag: [...]` arrays are still
+   accepted for round-tripping older saves. */
+static void rcw_party_flags(const node *pnode, unsigned char *flag, size_t flag_n) {
+    memset(flag, 0, flag_n);
+    const node *obj = obj_get(pnode, "flags");
+    if (obj && obj->kind == N_OBJ) {
+        for (size_t i = 0; i < obj->u.obj.n; i++) {
+            const char *id = obj->u.obj.items[i].key;
+            const node *val = obj->u.obj.items[i].val;
+            int32_t slot = res_flag_slot(id);
+            if (slot < 0 || (size_t)slot >= flag_n) {
+                fprintf(stderr,
+                        "load: unknown party flag tag '%s' — "
+                        "add to data/world.json5 flags:\n", id);
+                exit(1);
+            }
+            int32_t v;
+            if (val && val->kind == N_STR) {
+                v = res_flag_value_id(id, val->u.sv);
+                if (v < 0) {
+                    fprintf(stderr,
+                            "load: flag '%s' value '%s' not in its "
+                            "values[] array\n", id, val->u.sv);
+                    exit(1);
+                }
+            } else if (val && val->kind == N_INT) {
+                v = (int32_t)val->u.iv;
+            } else {
+                fprintf(stderr,
+                        "load: flag '%s' value must be string or int\n", id);
+                exit(1);
+            }
+            flag[slot] = (unsigned char)v;
+        }
+        return;
+    }
+    const node *legacy = obj_get(pnode, "flag");
+    if (legacy && legacy->kind == N_ARR) {
+        size_t nn = legacy->u.arr.n < flag_n ? legacy->u.arr.n : flag_n;
+        for (size_t i = 0; i < nn; i++) {
+            const node *it = legacy->u.arr.items[i];
+            if (it && it->kind == N_INT) {
+                flag[i] = (unsigned char)it->u.iv;
+            }
         }
     }
 }
@@ -1149,7 +1235,7 @@ static int read_current_world() {
                 }
             }
 
-            rcw_byte_arr(obj_get(pnode, "flag"), p->flag, 40);
+            rcw_party_flags(pnode, p->flag, sizeof p->flag);
             p->fireshield = (unsigned char)rcw_int(pnode, "fireshield", p->fireshield);
             p->bracelets = (unsigned char)rcw_int(pnode, "bracelets", p->bracelets);
             p->mastercrown = (unsigned char)rcw_int(pnode, "mastercrown", p->mastercrown);

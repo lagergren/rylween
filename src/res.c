@@ -1496,6 +1496,15 @@ int32_t res_flag_value_id(const char *flag_id, const char *value) {
     return -1;
 }
 
+const char *res_flag_id_for_slot(int32_t slot) {
+    for (size_t i = 0; i < n_flags_tab; i++) {
+        if (flags_tab[i].scope == 0 && flags_tab[i].slot == slot) {
+            return flags_tab[i].id;
+        }
+    }
+    return NULL;
+}
+
 const void *res_spell_node(const char *class_id, int slot) {
     const node *root = world_tree;
     if (!root) {
