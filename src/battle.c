@@ -265,7 +265,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     }
                                     break;
 
-                                case 105:
+                                case 105: {
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
                                     tx0(res_text("battle.prompt.on_whom"));
@@ -275,13 +275,15 @@ void encounter(int32_t foe, int32_t mandatory) {
                                             break;
                                         }
                                     }
-                                    state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
+                                    pm_t target = pm_cur(d - 48);
+                                    pm_full_heal(target);
                                     clw();
-                                    tx("%s is fully\r\n", state.p[state.cpl].name[d - 48]);
+                                    tx("%s is fully\r\n", pm_name(target));
                                     tx("healed.\r\n");
                                     ryl_delay(1000);
                                     clw();
                                     break;
+                                }
 
                                 case 106:
                                     state.p[state.cpl].inventory[d - 64] = 0;
@@ -290,10 +292,11 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     ryl_pause();
                                     clw();
                                     for (i = 1; i <= res_party_member_max(); i++) {
-                                        state.p[state.cpl].ws[i] += 3;
-                                        state.p[state.cpl].h[i] += 3;
-                                        state.p[state.cpl].ch[i] += 3;
-                                        state.p[state.cpl].wi[i] += 3;
+                                        pm_t pm = pm_cur(i);
+                                        pm_add_ws(pm, 3);
+                                        pm_add_h(pm, 3);
+                                        pm_add_ch(pm, 3);
+                                        pm_add_wi(pm, 3);
                                     }
                                     break;
 
@@ -304,13 +307,11 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     ryl_pause();
                                     clw();
                                     for (i = 1; i <= res_party_member_max(); i++) {
-                                        if (!state.p[state.cpl].dead[i]) {
-                                            state.p[state.cpl].hp[i] = state.p[state.cpl].h[i];
-                                        }
+                                        pm_full_heal(pm_cur(i));
                                     }
                                     break;
 
-                                case 108:
+                                case 108: {
                                     clw();
                                     tx0(res_text("battle.prompt.on_whom"));
                                     while (1) {
@@ -319,23 +320,24 @@ void encounter(int32_t foe, int32_t mandatory) {
                                             break;
                                         }
                                     }
-                                    if (state.p[state.cpl].dead[b - 48]) {
-                                        state.p[state.cpl].dead[b - 48] = 0;
+                                    pm_t target = pm_cur(b - 48);
+                                    if (pm_dead(target)) {
                                         clw();
-                                        tx("%s opens %s eyes!\r\n", state.p[state.cpl].name[b - 48],
+                                        tx("%s opens %s eyes!\r\n", pm_name(target),
                                            pronoun(b - 48, 3));
                                         ryl_delay(1000);
-                                        state.p[state.cpl].pl++;
-                                        state.p[state.cpl].dead[b - 48] = 0;
-                                        state.p[state.cpl].hp[b - 48] = 1;
+                                        party_current()->pl++;
+                                        pm_set_dead(target, 0);
+                                        pm_set_hp(target, 1);
                                         state.p[state.cpl].inventory[d - 64] = 0;
                                     } else {
                                         clw();
-                                        tx("%s is not dead.\r\n", state.p[state.cpl].name[b - 48]);
+                                        tx("%s is not dead.\r\n", pm_name(target));
                                         ryl_delay(1000);
                                         goto combat;
                                     }
                                     break;
+                                }
 
                                 case 109:
                                     state.p[state.cpl].inventory[d - 64] = 0;
@@ -627,7 +629,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 tx("%d experience pts\r\n", ((noc * (h2 / 4) * (ws / 4)) + sp * 3));
                 tx("and %d gold pieces.\r\n\r\n", ((noc * (h2 / 7) * (ws / 4)) / 4));
                 ryl_delay(1000);
-                state.p[state.cpl].kills += noc;
+                party_current()->kills += noc;
                 x = inv_find_empty();
                 i = 0;
                 if (x) {
@@ -646,10 +648,13 @@ void encounter(int32_t foe, int32_t mandatory) {
                         state.p[state.cpl].inventory[x] = i;
                     }
                 }
-                state.p[state.cpl].gold += (noc * (h2 / 7) * (ws / 4));
+                int32_t gold_gain = (noc * (h2 / 7) * (ws / 4));
+                int32_t exp_gain = ((noc * (h2 / 4) * (ws / 4)) + sp * 3);
+                party_add_gold(gold_gain);
                 for (i = 1; i <= res_party_member_max(); i++) {
-                    if (!state.p[state.cpl].dead[i]) {
-                        state.p[state.cpl].exp[i] += ((noc * (h2 / 4) * (ws / 4)) + sp * 3);
+                    pm_t pm = pm_cur(i);
+                    if (!pm_dead(pm)) {
+                        pm_add_exp(pm, (uint32_t)exp_gain);
                     }
                 }
                 expcheck();
@@ -833,16 +838,17 @@ void encounter(int32_t foe, int32_t mandatory) {
 /****************************************************************************/
 
 void expcheck() {
-    int32_t i, l, add[5];
-    uint32_t e;
+    int32_t i, add[5];
+    int mm = res_party_member_max();
 
-    for (i = 1; i <= res_party_member_max(); i++) {
+    for (i = 1; i <= mm; i++) {
         add[i] = 0;
     }
 
-    for (i = 1; i <= res_party_member_max(); i++) {
-        l = state.p[state.cpl].lv[i];
-        e = state.p[state.cpl].exp[i];
+    for (i = 1; i <= mm; i++) {
+        pm_t pm = pm_cur(i);
+        int32_t l = pm_lv(pm);
+        uint32_t e = pm.party->exp[pm.m];
         for (int n = l + 1; n <= 28; n++) {
             int32_t need = res_xp_threshold(n);
             if (need <= 0 || e < (uint32_t)need) {
@@ -852,34 +858,33 @@ void expcheck() {
         }
     }
 
-    for (i = 1; i <= res_party_member_max(); i++) {
+    /* PC_* ids are 1..6; the lowercased names here must match the
+       classes.<cls> shard keys in world.json5. Missing data returns
+       0 deltas (no-op). */
+    static const char *const pc_class_key[] = {
+        "",
+        "fighter",
+        "thief",
+        "mage",
+        "priest",
+        "bard",
+        "ranger",
+    };
+    for (i = 1; i <= mm; i++) {
         if (add[i]) {
+            pm_t pm = pm_cur(i);
             clw();
-            tx("%s gains >%d<\r\n", state.p[state.cpl].name[i], add[i]);
+            tx("%s gains >%d<\r\n", pm_name(pm), add[i]);
             tx("experience levels.\r\n");
             ryl_delay(600);
-            state.p[state.cpl].lv[i] += add[i];
-            /* PC_* ids are 1..6; the lowercased names here must
-               match the classes.<cls> shard keys in world.json5.
-               data/missing classes return 0 deltas (no-op). */
-            static const char *const pc_class_key[] = {
-                "",
-                "fighter",
-                "thief",
-                "mage",
-                "priest",
-                "bard",
-                "ranger",
-            };
-            int cl_id = state.p[state.cpl].cl[i];
+            pm_add_lv(pm, add[i]);
+            int cl_id = pm_cl(pm);
             const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
-            state.p[state.cpl].ws[i] += res_class_levelup(cls, "ws");
-            state.p[state.cpl].h[i] += res_class_levelup(cls, "h");
-            state.p[state.cpl].wi[i] += res_class_levelup(cls, "wi");
-            state.p[state.cpl].ch[i] += res_class_levelup(cls, "ch");
-            if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
-                state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
-            }
+            pm_add_ws(pm, res_class_levelup(cls, "ws"));
+            pm_add_h(pm, res_class_levelup(cls, "h"));
+            pm_add_wi(pm, res_class_levelup(cls, "wi"));
+            pm_add_ch(pm, res_class_levelup(cls, "ch"));
+            pm_hp_floor(pm, (pm_h(pm) * 2) / 3);
         }
     }
 }

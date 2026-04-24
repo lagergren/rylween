@@ -236,6 +236,83 @@ static inline int pm_is_priest(pm_t pm) {
     return pm_is_class(pm, PC_PRIEST);
 }
 
+/* Write-side pm_t helpers. All operate on the member's own fields;
+   no cross-member / party-wide side-effects live here (those belong
+   at the party_* layer below). The `add_` variants use signed deltas
+   so callers can subtract by passing a negative value. Replace bare
+   state.p[...]?[i] = ... and ...[i] += ... sites with these so the
+   member index stays inside a typed handle rather than a loose
+   1..4 integer sloshing through the code. */
+static inline void pm_set_hp(pm_t pm, int v) {
+    pm.party->hp[pm.m] = v;
+}
+static inline void pm_add_hp(pm_t pm, int d) {
+    pm.party->hp[pm.m] += d;
+}
+static inline void pm_set_h(pm_t pm, int v) {
+    pm.party->h[pm.m] = v;
+}
+static inline void pm_add_h(pm_t pm, int d) {
+    pm.party->h[pm.m] += d;
+}
+static inline void pm_add_ws(pm_t pm, int d) {
+    pm.party->ws[pm.m] += d;
+}
+static inline void pm_add_wi(pm_t pm, int d) {
+    pm.party->wi[pm.m] += d;
+}
+static inline void pm_add_ch_clamp0(pm_t pm, int d) {
+    pm.party->ch[pm.m] += d;
+    if (pm.party->ch[pm.m] < 0) {
+        pm.party->ch[pm.m] = 0;
+    }
+}
+static inline void pm_add_ch(pm_t pm, int d) {
+    pm.party->ch[pm.m] += d;
+}
+static inline void pm_add_lv(pm_t pm, int d) {
+    pm.party->lv[pm.m] += d;
+}
+static inline void pm_add_exp(pm_t pm, uint32_t d) {
+    pm.party->exp[pm.m] += d;
+}
+static inline void pm_set_dead(pm_t pm, int v) {
+    pm.party->dead[pm.m] = v;
+}
+
+/* Heal to full: hp = h. No-op if dead. */
+static inline void pm_full_heal(pm_t pm) {
+    if (!pm_dead(pm)) {
+        pm.party->hp[pm.m] = pm.party->h[pm.m];
+    }
+}
+
+/* Clamp HP up to `floor` (leaves hp alone if already above). Used
+   after level-up to ensure the post-gain h bump rescues partial-hp
+   members to at least 2/3 h. */
+static inline void pm_hp_floor(pm_t pm, int floor) {
+    if (pm.party->hp[pm.m] < floor) {
+        pm.party->hp[pm.m] = floor;
+    }
+}
+
+/* Active-party accessor. Every write site that reads
+   `state.p[state.cpl]` should prefer party_current(): the name
+   carries the invariant (current-player-party) that the raw
+   indexed access obscures. */
+static inline struct party *party_current(void) {
+    return &state.p[state.cpl];
+}
+static inline int32_t party_gold(void) {
+    return party_current()->gold;
+}
+static inline void party_add_gold(int32_t d) {
+    party_current()->gold += d;
+}
+static inline void party_set_gold(int32_t v) {
+    party_current()->gold = v;
+}
+
 /* Class name (e.g. "priest") -> PC_* id, or -1 if unknown. Used by the
    resource loader to map JSON class strings to the runtime enum. */
 int pm_class_id(const char *name);
