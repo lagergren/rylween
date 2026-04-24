@@ -39,9 +39,9 @@ static void emit_party(FILE *f, int idx) {
 
     for (int m = 1; m <= PARTY_MEMBER_MAX; m++) {
         fprintf(f,
-                "member[%d] name=%s sex=%u cl=%d ra=%d lv=%d dead=%d "
+                "member[%d] name=%s gender=%u cl=%d ra=%d lv=%d dead=%d "
                 "h=%d hp=%d ws=%d wi=%d ma=%d ch=%d ar=%d wp=%d exp=%u\n",
-                m, p->name[m], p->sex[m], p->cl[m], p->ra[m], p->lv[m],
+                m, p->name[m], p->gender[m], p->cl[m], p->ra[m], p->lv[m],
                 p->dead[m], p->h[m], p->hp[m], p->ws[m], p->wi[m], p->ma[m],
                 p->ch[m], p->ar[m], p->wp[m], p->exp[m]);
     }

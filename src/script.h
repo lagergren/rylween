@@ -112,7 +112,7 @@
  *          | { inventory: <expr> }       inventory[slot]  slot in 1..16
  *          | { member: <expr>,
  *              field: 'lv'|'hp'|'h'|'ma'|'wi'|'ws'|'ch'|'cl'|'ra'|
- *                     'dead'|'ar'|'wp'|'exp'|'sex' }
+ *                     'dead'|'ar'|'wp'|'exp'|'gender' }
  *          | { var: '<name>' }           runtime-bound (§17-F step 3+)
  *                                        or atoi'd caller ryl_bind
  *          | { add | sub | mul | div | mod | min | max: [a, b] }

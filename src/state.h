@@ -110,7 +110,7 @@ struct party {
     uint32_t exp[5];
 
     int32_t dead[5];                /* Dead | Alive - dead[0] contains number of times door was opened today */
-    unsigned char sex[5];           /* 1= male , 2 = female */
+    unsigned char gender[5];        /* 1= male , 2 = female */
     unsigned char attack_today[26]; /* parties attacked today */
                                     /* turns to zero every time the attacked
                                      party logs on */

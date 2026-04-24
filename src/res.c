@@ -526,11 +526,11 @@ int32_t res_color(char terrain) {
     return color_tab_set[g] ? color_tab[g] : color_default;
 }
 
-const char *res_pronoun(int sex, int xx) {
-    if (sex < 1 || sex > 2 || xx < 1 || xx > 3) {
+const char *res_pronoun(int gender, int xx) {
+    if (gender < 1 || gender > 2 || xx < 1 || xx > 3) {
         return "";
     }
-    return pronoun_tab[sex][xx] ? pronoun_tab[sex][xx] : "";
+    return pronoun_tab[gender][xx] ? pronoun_tab[gender][xx] : "";
 }
 
 const char *res_town_name(int twn) {
@@ -1178,8 +1178,8 @@ static void fold_terrain(const node *terrain_node, const char *path) {
 }
 
 /* -------- pronoun subtree --------
-   Two fixed keys, "male" and "female", map to sex indices 1 and 2 that
-   the legacy res_pronoun() API already uses. */
+   Two fixed keys, "male" and "female", map to gender indices 1 and 2
+   that the res_pronoun() API uses. */
 static void fold_pronoun(const node *pronoun_node, const char *path) {
     if (!pronoun_node) {
         return;
@@ -1190,11 +1190,11 @@ static void fold_pronoun(const node *pronoun_node, const char *path) {
     for (size_t i = 0; i < pronoun_node->u.obj.n; i++) {
         const char *key = pronoun_node->u.obj.items[i].key;
         const node *rec = pronoun_node->u.obj.items[i].val;
-        int sex;
+        int gender;
         if (strcmp(key, "male") == 0) {
-            sex = 1;
+            gender = 1;
         } else if (strcmp(key, "female") == 0) {
-            sex = 2;
+            gender = 2;
         } else {
             res_die(path, rec->line, "pronoun: key must be 'male' or 'female'");
         }
@@ -1204,12 +1204,12 @@ static void fold_pronoun(const node *pronoun_node, const char *path) {
         const node *subj = obj_get(rec, "subject");
         const node *obj_n = obj_get(rec, "object");
         const node *poss = obj_get(rec, "possessive");
-        free(pronoun_tab[sex][1]);
-        pronoun_tab[sex][1] = strdup((subj && subj->kind == N_STR) ? subj->u.sv : "");
-        free(pronoun_tab[sex][2]);
-        pronoun_tab[sex][2] = strdup((obj_n && obj_n->kind == N_STR) ? obj_n->u.sv : "");
-        free(pronoun_tab[sex][3]);
-        pronoun_tab[sex][3] = strdup((poss && poss->kind == N_STR) ? poss->u.sv : "");
+        free(pronoun_tab[gender][1]);
+        pronoun_tab[gender][1] = strdup((subj && subj->kind == N_STR) ? subj->u.sv : "");
+        free(pronoun_tab[gender][2]);
+        pronoun_tab[gender][2] = strdup((obj_n && obj_n->kind == N_STR) ? obj_n->u.sv : "");
+        free(pronoun_tab[gender][3]);
+        pronoun_tab[gender][3] = strdup((poss && poss->kind == N_STR) ? poss->u.sv : "");
     }
 }
 
@@ -1766,29 +1766,29 @@ static void reset_terrain_from_tree(const node *terrain_node) {
 }
 
 /* fold_pronoun always strdups all three grammatical forms (subject /
-   object / possessive) for every sex it sees, defaulting missing ones
-   to "". So the teardown must visit all three slots per sex present in
-   the parse tree — iterating `rec->u.obj.n` would miss "" defaults
-   whose key never appeared in JSON5. The 1..3 range is a schema
-   invariant (three grammatical cases), not a memory-bound magic
-   number. */
+   object / possessive) for every gender it sees, defaulting missing
+   ones to "". So the teardown must visit all three slots per gender
+   present in the parse tree — iterating `rec->u.obj.n` would miss ""
+   defaults whose key never appeared in JSON5. The 1..3 range is a
+   schema invariant (three grammatical cases), not a memory-bound
+   magic number. */
 static void reset_pronoun_from_tree(const node *pronoun_node) {
     if (!pronoun_node || pronoun_node->kind != N_OBJ) {
         return;
     }
     for (size_t i = 0; i < pronoun_node->u.obj.n; i++) {
         const char *key = pronoun_node->u.obj.items[i].key;
-        int sex;
+        int gender;
         if (strcmp(key, "male") == 0) {
-            sex = 1;
+            gender = 1;
         } else if (strcmp(key, "female") == 0) {
-            sex = 2;
+            gender = 2;
         } else {
             continue;
         }
         for (int xx = 1; xx <= 3; xx++) {
-            free(pronoun_tab[sex][xx]);
-            pronoun_tab[sex][xx] = NULL;
+            free(pronoun_tab[gender][xx]);
+            pronoun_tab[gender][xx] = NULL;
         }
     }
 }

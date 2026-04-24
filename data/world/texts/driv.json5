@@ -130,8 +130,8 @@
 
   // createparty() flow: header, max-player gate, prompts, stat-min
   // errors. Lines with %d (character number) or %s (member name) stay
-  // inline and the block splits around them. sex_q / race_q fold their
-  // per-char {name} inline via tx_fmt (§16.3).
+  // inline and the block splits around them. gender_q / race_q fold
+  // their per-char {name} inline via tx_fmt (§16.3).
   create: {
     header:    ['Party Creation', ''],
     full:      ['Sorry. Maximum number of',
@@ -140,10 +140,10 @@
                 ''],
     name_q:    ['What is the name of your', 'party?', ''],
     reroll:    'Reroll (y/N) ',
-    sex_q:     ['What sex is',
+    gender_q:  ['What gender is',
                 '{name}?',
                 ''],
-    sex_opts:  ['1. Male', '2. Female'],
+    gender_opts: ['1. Male', '2. Female'],
     race_q:    ['What race is',
                 '{name}?',
                 ''],

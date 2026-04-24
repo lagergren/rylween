@@ -218,8 +218,8 @@
     '2': { glyph: 'CC', color: 'white' },
   },
 
-  // Pronouns. res_pronoun(sex, xx) reads these with xx = 1 (subject),
-  // 2 (object), 3 (possessive); sex = 1 (male) / 2 (female).
+  // Pronouns. res_pronoun(gender, xx) reads these with xx = 1 (subject),
+  // 2 (object), 3 (possessive); gender = 1 (male) / 2 (female).
   pronoun: {
     male:   { subject: 'he',  object: 'him', possessive: 'his' },
     female: { subject: 'she', object: 'her', possessive: 'her' },
@@ -368,9 +368,9 @@
     // used by the show() screen. Matches state.h PC_FIGHTER..PC_RANGER.
     pc_class: ['', 'Fighter', 'Thief', 'Mage', 'Priest', 'Bard', 'Ranger'],
 
-    // Player-party member sex (struct party.sex[]). Not displayed as
-    // text directly; keys match the pronoun table above.
-    sex: ['', 'male', 'female'],
+    // Player-party member gender (struct party.gender[]). Not displayed
+    // as text directly; keys match the pronoun table above.
+    gender: ['', 'male', 'female'],
 
     // Town index (struct person.towne, struct state.twn). 0 is the
     // wilderness sentinel (no town). Order matches the authoritative

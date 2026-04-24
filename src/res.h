@@ -190,9 +190,9 @@ const char *res_glyph(char terrain);
    if the byte has no color binding in the world file. */
 int32_t res_color(char terrain);
 
-/* Pronoun for sex (1=male, 2=female) and xx (1=subject, 2=object, 3=possessive).
-   "" if missing. Never NULL. */
-const char *res_pronoun(int sex, int xx);
+/* Pronoun for gender (1=male, 2=female) and xx (1=subject, 2=object,
+   3=possessive). "" if missing. Never NULL. */
+const char *res_pronoun(int gender, int xx);
 
 /* Towns — fixed display name and world-map coordinates per twn id 1..4
    (matching state.twn / struct person.towne). Order matches the

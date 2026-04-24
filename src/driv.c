@@ -757,7 +757,7 @@ static void wcw_enum_arr(FILE *f, const char *enum_id, const int *vals, int n) {
     fputc(']', f);
 }
 
-/* Byte-valued enum array (for sex[], which is unsigned char[5]). */
+/* Byte-valued enum array (for gender[], which is unsigned char[5]). */
 static void wcw_enum_barr(FILE *f, const char *enum_id, const unsigned char *vals, int n) {
     fputc('[', f);
     for (int i = 0; i < n; i++) {
@@ -793,7 +793,7 @@ static void wcw_enum_barr(FILE *f, const char *enum_id, const unsigned char *val
    visited_npcs[] so party deletion no longer needs the index-shift
    dance. The `empty1..5` struct-party padding fields are omitted.
 
-   Step 1.5: enum-valued fields (job, towne, building, cl, ra, sex) emit as
+   Step 1.5: enum-valued fields (job, towne, building, cl, ra, gender) emit as
    symbolic strings; NPC records are keyed by symbolic id per §15.3.
    The nr field is dropped from NPC records (redundant with the slot
    key). Step 2's reader is the inverse. */
@@ -916,8 +916,8 @@ static void write_current_world() {
         fputs("      dead: ", f);
         wcw_i32_arr(f, p->dead, 5);
         fputs(",\n", f);
-        fputs("      sex: ", f);
-        wcw_enum_barr(f, "sex", p->sex, 5);
+        fputs("      gender: ", f);
+        wcw_enum_barr(f, "gender", p->gender, 5);
         fputs(",\n", f);
         fputs("      attack_today: ", f);
         wcw_byte_arr(f, p->attack_today, 26);
@@ -1175,7 +1175,7 @@ static int read_current_world() {
             rcw_i32_arr(obj_get(pnode, "wp"), p->wp, 5);
             rcw_u32_arr(obj_get(pnode, "exp"), p->exp, 5);
             rcw_i32_arr(obj_get(pnode, "dead"), p->dead, 5);
-            rcw_enum_barr(obj_get(pnode, "sex"), "sex", p->sex, 5);
+            rcw_enum_barr(obj_get(pnode, "gender"), "gender", p->gender, 5);
             rcw_byte_arr(obj_get(pnode, "attack_today"), p->attack_today, 26);
             p->waiting_mail = (unsigned char)rcw_int(pnode, "waiting_mail", p->waiting_mail);
             p->attacked = (unsigned char)rcw_int(pnode, "attacked", p->attacked);
@@ -1217,12 +1217,12 @@ void save() {
 }
 
 char *pronoun(uint8_t nr, uint8_t xx) {
-    uint8_t sex = state.p[state.cpl].sex[nr];
+    uint8_t gender = state.p[state.cpl].gender[nr];
     /* Original: female's xx in {2,3} both returned "her"; clamp to match. */
-    if (sex == 2 && xx == 3) {
+    if (gender == 2 && xx == 3) {
         xx = 2;
     }
-    return (char *)res_pronoun(sex, xx);
+    return (char *)res_pronoun(gender, xx);
 }
 
 static void createparty() {
@@ -1290,18 +1290,18 @@ static void createparty() {
             state.p[a].name[g][0] = toupper(state.p[a].name[g][0]);
 
             clw();
-            tx_fmt("driv.create.sex_q",
+            tx_fmt("driv.create.gender_q",
                    (ryl_bind[]){
                        {"name", state.p[a].name[g]},
                        {0},
                    });
-            tx0(res_text("driv.create.sex_opts"));
+            tx0(res_text("driv.create.gender_opts"));
             str[0] = 0;
             while (str[0] < '1' || str[0] > '2') {
                 tx(": ");
                 getstr(2, str, sizeof str);
             }
-            state.p[a].sex[g] = str[0] - 48;
+            state.p[a].gender[g] = str[0] - 48;
 
             clw();
             tx_fmt("driv.create.race_q",

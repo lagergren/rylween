@@ -446,8 +446,8 @@ static int32_t expr_member_field(const node *op, const char *script_id,
     if (strcmp(field, "exp") == 0) {
         return (int32_t)p->exp[m];
     }
-    if (strcmp(field, "sex") == 0) {
-        return p->sex[m];
+    if (strcmp(field, "gender") == 0) {
+        return p->gender[m];
     }
     die_at(script_id, idx, "expr member: unknown field name");
 }
@@ -814,7 +814,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
 
     /* `{ enum: ['<tab>', '<value>'] }` — generic enum symbol→int
        lookup for any world.json5 `enums:` table (pc_class / race /
-       jobname / towne / building / sex / name / pic / ...). Both
+       jobname / towne / building / gender / name / pic / ...). Both
        operands must be string literals; the pair goes through
        res_enum_id. Parallel to the `pic:` shortcut, which this form
        subsumes but is kept for readability. */
@@ -1821,8 +1821,8 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
             if (strcmp(f, "exp") == 0) {
                 return (int32_t)p->exp[m];
             }
-            if (strcmp(f, "sex") == 0) {
-                return p->sex[m];
+            if (strcmp(f, "gender") == 0) {
+                return p->gender[m];
             }
             die_at(script_id, idx, "mutate: member_field unknown field name");
         }
@@ -1927,8 +1927,8 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                 p->exp[m] = (uint32_t)v;
                 return;
             }
-            if (strcmp(f, "sex") == 0) {
-                p->sex[m] = (unsigned char)v;
+            if (strcmp(f, "gender") == 0) {
+                p->gender[m] = (unsigned char)v;
                 return;
             }
             die_at(script_id, idx, "mutate: member_field unknown field name");
