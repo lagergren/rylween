@@ -110,6 +110,26 @@
     ranger: { levelup: { ws: 2, h: 8, wi: 3, ch: 3 } },
   },
 
+  // Combat-system tuning. Named fields are read by battle.c via
+  // res_combat_int("<dotted.path>"); keep keys stable across data edits
+  // since the C side hard-codes the names (not the values). Drop
+  // tables shape is `combat.drop_tables.<table>.{treasure_chance,
+  // treasure_lo/hi, magic_lo/hi}` so new encounter shapes can layer
+  // more tables without widening the accessor.
+  combat: {
+    flee_chance:    95,    // pct; ryl_chance() to escape a non-mandatory encounter
+    defend_cap:     250,   // max accumulated defend pool before clamp
+    hp_defense_div: 12,    // dp contribution per defender: hp[g] / N
+    drop_tables: {
+      default: {
+        drop_chance:     5,     // pct; outer roll to drop anything at all
+        treasure_chance: 59,    // pct; on drop, else a magic item
+        treasure_lo: 36, treasure_hi: 46,   // ryl_random(lo, hi) on treasures-shard ids
+        magic_lo:    100, magic_hi: 111,    // ryl_random(lo, hi) on magic_items-shard ids
+      },
+    },
+  },
+
   // XP totals needed to REACH each level. xp_thresholds[N] is the
   // cumulative experience a member needs to hit level N. Indexed
   // by target level (2..28); slots 0..1 unused sentinel-0s so the

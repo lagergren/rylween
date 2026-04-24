@@ -53,8 +53,8 @@ void encounter(int32_t foe, int32_t mandatory) {
             sp = m->sp;
             im = m->im;
         }
-        if (foe == 31) {
-            n2 = 2 + state.p[state.cpl].lv[1] / 2;
+        if (m && m->n2_lv_div > 0) {
+            n2 = m->n2 + state.p[state.cpl].lv[1] / m->n2_lv_div;
         }
     }
 
@@ -107,7 +107,7 @@ void encounter(int32_t foe, int32_t mandatory) {
     }
     if (c == 'R') {
         if (!mandatory) {
-            if (ryl_chance(95)) {
+            if (ryl_chance(res_combat_int("flee_chance"))) {
                 clw();
                 tx0(res_text("battle.run.coward"));
                 ryl_delay(800);
@@ -551,8 +551,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                     ryl_delay(1000);
                 }
                 defend++;
-                if (defend > 250) {
-                    defend = 250;
+                int32_t cap = res_combat_int("defend_cap");
+                if (cap > 0 && defend > cap) {
+                    defend = (uint8_t)cap;
                 }
                 if (ws > 2) {
                     ws -= 2;
@@ -586,7 +587,10 @@ void encounter(int32_t foe, int32_t mandatory) {
                     /* HIT */
                     dp = obdamage(state.p[state.cpl].wp[g]);
                     dp += ryl_random(0, 4);
-                    dp += state.p[state.cpl].hp[g] / 12;
+                    int32_t hpd = res_combat_int("hp_defense_div");
+                    if (hpd > 0) {
+                        dp += state.p[state.cpl].hp[g] / hpd;
+                    }
                     clw();
                     tx("%s hits for\r\n", state.p[state.cpl].name[g]);
                     tx("%d damage pts!\r\n", dp);
@@ -627,11 +631,13 @@ void encounter(int32_t foe, int32_t mandatory) {
                 x = inv_find_empty();
                 i = 0;
                 if (x) {
-                    if (ryl_chance(5)) {
-                        if (ryl_chance(59)) {
-                            i = ryl_random(36, 46);
+                    if (ryl_chance(res_combat_int("drop_tables.default.drop_chance"))) {
+                        if (ryl_chance(res_combat_int("drop_tables.default.treasure_chance"))) {
+                            i = ryl_random(res_combat_int("drop_tables.default.treasure_lo"),
+                                           res_combat_int("drop_tables.default.treasure_hi"));
                         } else {
-                            i = ryl_random(100, 111);
+                            i = ryl_random(res_combat_int("drop_tables.default.magic_lo"),
+                                           res_combat_int("drop_tables.default.magic_hi"));
                         }
                         clw();
                         tx("You find a\r\n");

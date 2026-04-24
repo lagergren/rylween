@@ -20,6 +20,11 @@ typedef struct {
     int32_t ws;
     int32_t sp;
     int32_t im;
+    /* Optional level-scaling override: when non-zero, battle.c uses
+       n2 + state.p[state.cpl].lv[1] / n2_lv_div as the count-max
+       instead of the static n2. Encodes the legacy gnoll special
+       case `n2 = 2 + lv/2` as data. Zero means no override. */
+    int32_t n2_lv_div;
 } ryl_monster;
 
 /* Spell effect identities. Decouples behavior from UI slot — the menu
@@ -108,6 +113,14 @@ int32_t res_item_id(const char *sym);
 void res_items_foreach_special(
     int (*cb)(int id, const char *tag, void *user),
     void *user);
+
+/* Integer lookup under the combat: subtree by dotted string path.
+   E.g. res_combat_int("flee_chance") -> 95,
+        res_combat_int("drop_tables.default.treasure_chance") -> 59.
+   Returns 0 if any path component is missing or the leaf is not an
+   integer. Path keys are stable by convention; battle.c hard-codes
+   the names it asks for. */
+int32_t res_combat_int(const char *dotted_path);
 
 /* XP total needed to REACH the given level (2..28). Reads
    xp_thresholds[level] from the world tree. Returns 0 for out-of-range

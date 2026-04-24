@@ -372,6 +372,41 @@ void res_items_foreach_special(int (*cb)(int, const char *, void *),
     }
 }
 
+int32_t res_combat_int(const char *dotted_path) {
+    if (!world_tree || !dotted_path) {
+        return 0;
+    }
+    const node *cur = obj_get(world_tree, "combat");
+    if (!cur || cur->kind != N_OBJ) {
+        return 0;
+    }
+    char buf[128];
+    size_t n = strlen(dotted_path);
+    if (n >= sizeof buf) {
+        return 0;
+    }
+    memcpy(buf, dotted_path, n + 1);
+    char *p = buf;
+    while (*p) {
+        char *dot = strchr(p, '.');
+        if (dot) {
+            *dot = 0;
+        }
+        if (cur->kind != N_OBJ) {
+            return 0;
+        }
+        cur = obj_get(cur, p);
+        if (!cur) {
+            return 0;
+        }
+        if (!dot) {
+            break;
+        }
+        p = dot + 1;
+    }
+    return (cur->kind == N_INT) ? (int32_t)cur->u.iv : 0;
+}
+
 int32_t res_xp_threshold(int level) {
     if (!world_tree || level < 0) {
         return 0;
@@ -862,6 +897,8 @@ static void fold_monsters(const node *monsters_node, const char *path) {
         m->sp = (sp && sp->kind == N_INT) ? sp->u.iv : 0;
         const node *im = obj_get(rec, "im");
         m->im = (im && im->kind == N_INT) ? im->u.iv : 0;
+        const node *n2d = obj_get(rec, "n2_lv_div");
+        m->n2_lv_div = (n2d && n2d->kind == N_INT) ? n2d->u.iv : 0;
     }
 }
 
