@@ -72,4 +72,29 @@ void party_journal_add(struct party *p, const char *line);
    party-delete and at shutdown. */
 void free_journal(struct party *p);
 
+/* Allocate the per-member heap buffers on struct party (name, ws,
+   h, hp, wi, ma, ch, cl, ra, lv, ar, wp, exp, dead, gender) to
+   size res_party_member_max() + 1, zero-filled. Idempotent: any
+   previous buffers are freed first. Does NOT touch the journal —
+   its lifecycle is separate (load clears + re-appends per save).
+
+   Call once before the first per-member write: at createparty after
+   num_parties++, at read_current_world before rcw_i32_arr(..., p->ws,
+   ...), after position_locations / res_realize_npcs in the cold-
+   start path if the party slot will be used. */
+void party_realize(struct party *p);
+
+/* Free every per-member buffer allocated by party_realize. Does NOT
+   free the journal — use free_journal for that. Call from terminate
+   before the memmove that shifts state.p[] entries down (otherwise
+   the deleted slot's buffers leak). */
+void party_release_members(struct party *p);
+
+/* NULL out every heap-owned pointer on struct party (members +
+   journal) without freeing. Use after a memmove that shifts struct
+   party entries down in state.p[] — the tail slot's pointers still
+   alias the entries above it, so clearing them prevents save-time
+   double-emit and lets a future realize into that slot start clean. */
+void party_clear_heap_pointers(struct party *p);
+
 #endif

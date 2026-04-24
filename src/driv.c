@@ -599,7 +599,12 @@ void init() {
                            cleanexit()s before it matters anyway. */
                         clw();
                         tx0(res_text("driv.terminate.editing_realm"));
+                        /* Free both the journal and the per-member heap
+                           buffers on the slot that's about to be shifted
+                           over. The memmove below would otherwise leak
+                           them and duplicate the pointer in two slots. */
                         free_journal(&state.p[x]);
+                        party_release_members(&state.p[x]);
                         state.num_parties--;
                         for (i = 1; i <= res_npc_slot_max(); i++) {
                             for (j = 1; j < state.num_parties; j++) {
@@ -609,13 +614,12 @@ void init() {
                         if ((int)x <= state.num_parties) {
                             memmove(&state.p[x], &state.p[x + 1],
                                     (size_t)(state.num_parties + 1 - x) * sizeof state.p[0]);
-                            /* memmove duplicated the old tail's journal
-                               pointer; clear it so save doesn't double-emit
-                               and future reuse of the slot starts clean. */
-                            struct party *tail = &state.p[state.num_parties + 1];
-                            tail->journal = NULL;
-                            tail->journal_n = 0;
-                            tail->journal_cap = 0;
+                            /* memmove duplicated the old tail's heap
+                               pointers (journal + every per-member buf);
+                               NULL them on the tail so save doesn't
+                               double-emit and a future realize into the
+                               slot starts clean. */
+                            party_clear_heap_pointers(&state.p[state.num_parties + 1]);
                         }
                         ryl_delay(1000);
 
@@ -1217,6 +1221,12 @@ static int read_current_world() {
             }
             struct party *p = &state.p[i];
 
+            /* Allocate per-member heap buffers before any
+               rcw_i32_arr(..., p->ws, 5) writes below. Idempotent;
+               re-entry on a concurrent-refresh path frees + reallocates
+               cleanly (§19.3). */
+            party_realize(p);
+
             rcw_str(pnode, "player", p->player, sizeof p->player);
             rcw_str(pnode, "party_name", p->party_name, sizeof p->party_name);
 
@@ -1342,6 +1352,12 @@ static void createparty() {
     state.num_parties++;
     a = state.num_parties;
     state.cpl = a;
+
+    /* Allocate per-member heap buffers before the first state.p[a].<f>[g]
+       write below. state.p[] is a static BSS global so the pointers
+       start NULL; without this the ws/h/hp/... writes would segfault
+       (§19.3). Safe to call twice — party_realize is idempotent. */
+    party_realize(&state.p[a]);
 
     while (1) {
         tx0(res_text("driv.create.name_q"));

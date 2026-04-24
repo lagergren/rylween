@@ -141,3 +141,89 @@ void free_journal(struct party *p) {
     p->journal_n = 0;
     p->journal_cap = 0;
 }
+
+/* Grow a single zeroed heap buffer of `bytes` bytes, or die.
+   Private to this file since every member-array alloc is "size =
+   (mmax+1) * sizeof T, memset 0" — the helper keeps the realize
+   path readable instead of 14 repeated malloc/memset/null-check
+   blocks. */
+static void *alloc_zero(size_t bytes) {
+    void *p = malloc(bytes);
+    if (!p) {
+        fprintf(stderr, "party_realize: malloc(%zu) failed\n", bytes);
+        exit(1);
+    }
+    memset(p, 0, bytes);
+    return p;
+}
+
+void party_realize(struct party *p) {
+    if (!p) {
+        return;
+    }
+    /* Idempotent: free any previous allocation first so a re-realize
+       after a load into an already-populated slot doesn't leak. The
+       journal is NOT touched here — it's managed separately through
+       free_journal / party_journal_add so load/save can read-clear-
+       reappend independent of member-array lifetime. */
+    party_release_members(p);
+
+    size_t slots = (size_t)res_party_member_max() + 1;
+    p->name = alloc_zero(slots * sizeof *p->name);
+    p->ws = alloc_zero(slots * sizeof *p->ws);
+    p->h = alloc_zero(slots * sizeof *p->h);
+    p->hp = alloc_zero(slots * sizeof *p->hp);
+    p->wi = alloc_zero(slots * sizeof *p->wi);
+    p->ma = alloc_zero(slots * sizeof *p->ma);
+    p->ch = alloc_zero(slots * sizeof *p->ch);
+    p->cl = alloc_zero(slots * sizeof *p->cl);
+    p->ra = alloc_zero(slots * sizeof *p->ra);
+    p->lv = alloc_zero(slots * sizeof *p->lv);
+    p->ar = alloc_zero(slots * sizeof *p->ar);
+    p->wp = alloc_zero(slots * sizeof *p->wp);
+    p->exp = alloc_zero(slots * sizeof *p->exp);
+    p->dead = alloc_zero(slots * sizeof *p->dead);
+    p->gender = alloc_zero(slots * sizeof *p->gender);
+}
+
+void party_release_members(struct party *p) {
+    if (!p) {
+        return;
+    }
+    free(p->name);
+    free(p->ws);
+    free(p->h);
+    free(p->hp);
+    free(p->wi);
+    free(p->ma);
+    free(p->ch);
+    free(p->cl);
+    free(p->ra);
+    free(p->lv);
+    free(p->ar);
+    free(p->wp);
+    free(p->exp);
+    free(p->dead);
+    free(p->gender);
+    p->name = NULL;
+    p->ws = p->h = p->hp = p->wi = p->ma = p->ch = NULL;
+    p->cl = p->ra = p->lv = p->ar = p->wp = NULL;
+    p->exp = NULL;
+    p->dead = NULL;
+    p->gender = NULL;
+}
+
+void party_clear_heap_pointers(struct party *p) {
+    if (!p) {
+        return;
+    }
+    p->name = NULL;
+    p->ws = p->h = p->hp = p->wi = p->ma = p->ch = NULL;
+    p->cl = p->ra = p->lv = p->ar = p->wp = NULL;
+    p->exp = NULL;
+    p->dead = NULL;
+    p->gender = NULL;
+    p->journal = NULL;
+    p->journal_n = 0;
+    p->journal_cap = 0;
+}

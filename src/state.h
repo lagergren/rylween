@@ -24,15 +24,20 @@
    future limits: knob overrides. */
 #define INVENTORY_SLOT_MAX 16
 
-/* Party-member slot count — the party has a fixed 1..4 layout baked
-   into the save format (struct party.*[5], index 0 unused). There
-   is no world.json5 knob because changing this would break saves,
-   UI digit prompts ("Who? (1-4)"), and story assumptions. This is
-   the named constant to replace the raw `< 5` and `<= 4` literals
-   in member-iteration loops. res_party_member_max() is the runtime
-   accessor that C and DSL callers go through; it always returns
-   this value. */
+/* Party-member slot default. The per-member arrays on struct party
+   are heap-allocated off res_party_member_max() at party-realize /
+   load time (§19.3), so the bound is a data-driven knob:
+   world.json5 `limits.party_member_max` overrides, default 4.
+   Story / combat / damage tables bake 4-member assumptions in
+   subtle ways, so treat N != 4 as experimental. This #define is
+   just the compile-time fallback for the res_party_member_max()
+   accessor when the data knob is absent. */
 #define PARTY_MEMBER_MAX 4
+
+/* Forward decl so pm_of's bounds assert and struct-party accessors
+   can reach the data knob without pulling res.h (which includes
+   state.h — would be circular). Implemented in res.c. */
+int res_party_member_max(void);
 
 struct person {
     int32_t job; /* 1 Merchant */
@@ -71,7 +76,18 @@ struct person {
 struct party {
     char player[30];
     char party_name[30];
-    char name[5][30];
+
+    /* Per-member arrays below (name, ws, h, ..., gender). All are
+       heap-allocated to size res_party_member_max() + 1 at party-
+       realize / load time; slot 0 is still reserved (legacy 1-indexed
+       iteration), members live at slots 1..res_party_member_max().
+       party_realize / party_release in party.c own the lifecycle.
+
+       `name` stays as an array-of-arrays view so `p->name[m]` is
+       still a `char[30]` (every getstr/strncpy/sizeof call site
+       keeps working); other fields are plain int32_t * / uint32_t *
+       / unsigned char *. */
+    char (*name)[30];
 
     unsigned char flag[40];
 
@@ -100,23 +116,23 @@ struct party {
 
     int32_t inventory[INVENTORY_SLOT_MAX + 1];
 
-    int32_t ws[5]; /* Wisdom */
-    int32_t h[5];  /* Health */
-    int32_t hp[5]; /* HitPts */
-    int32_t wi[5]; /* Wisdom */
-    int32_t ma[5]; /* Magic  */
-    int32_t ch[5]; /* Charis */
+    int32_t *ws; /* Weapon Skill */
+    int32_t *h;  /* Health       */
+    int32_t *hp; /* HitPts       */
+    int32_t *wi; /* Wisdom       */
+    int32_t *ma; /* Magic        */
+    int32_t *ch; /* Charisma     */
 
-    int32_t cl[5]; /* Class  */
-    int32_t ra[5]; /* Race   */
-    int32_t lv[5]; /* Level  */
+    int32_t *cl; /* Class  */
+    int32_t *ra; /* Race   */
+    int32_t *lv; /* Level  */
 
-    int32_t ar[5]; /* Ready Armour */
-    int32_t wp[5]; /* Ready Weapon */
-    uint32_t exp[5];
+    int32_t *ar; /* Ready Armour */
+    int32_t *wp; /* Ready Weapon */
+    uint32_t *exp;
 
-    int32_t dead[5];                /* Dead | Alive - dead[0] contains number of times door was opened today */
-    unsigned char gender[5];        /* 1= male , 2 = female */
+    int32_t *dead;                  /* Dead | Alive — dead[0] contains number of times door was opened today */
+    unsigned char *gender;          /* 1=male, 2=female */
     unsigned char attack_today[26]; /* parties attacked today */
                                     /* turns to zero every time the attacked
                                      party logs on */
