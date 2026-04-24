@@ -27,7 +27,7 @@ void encounter(int32_t foe, int32_t mandatory) {
     int32_t sp;             /* Fire frost hold */
     int32_t im;             /* Immune to magic? */
     int32_t ws = 0;         /* WS */
-    int32_t x, i, mh[15], deadc[15], vem, dp, g, noc, mhtemp, spelldamage;
+    int32_t x, i, mh[15], deadc[15], who, dp, g, noc, mhtemp, spelldamage;
     int32_t oc;
     uint8_t defend = 0;
 
@@ -181,24 +181,24 @@ void encounter(int32_t foe, int32_t mandatory) {
                             switch (oc) {
                                 case 100:
                                     state.p[state.cpl].inventory[d - 64] = 0;
-                                    for (i = 1, vem = 0; i < noc + 1; i++) {
+                                    for (i = 1, who = 0; i < noc + 1; i++) {
                                         if (!deadc[i]) {
-                                            vem = i;
+                                            who = i;
                                             break;
                                         }
                                     }
-                                    if (vem) {
+                                    if (who) {
                                         spelldamage = ryl_random(5, 11) + state.p[state.cpl].lv[g];
                                         clw();
                                         tx("%s chills %s\r\n", state.p[state.cpl].name[g], fn);
                                         tx("for %d damage pts.\r\n", spelldamage);
                                         ryl_delay(1000);
-                                        mh[vem] -= spelldamage;
-                                        if (mh[vem] <= 0) {
-                                            mh[vem] = 0;
+                                        mh[who] -= spelldamage;
+                                        if (mh[who] <= 0) {
+                                            mh[who] = 0;
                                             tx("...KILLED!");
                                             ryl_delay(600);
-                                            deadc[vem] = 1;
+                                            deadc[who] = 1;
                                         }
                                     }
                                     break;
@@ -245,13 +245,13 @@ void encounter(int32_t foe, int32_t mandatory) {
 
                                 case 104:
                                     state.p[state.cpl].inventory[d - 64] = 0;
-                                    for (i = 1, vem = 0; i < noc + 1; i++) {
+                                    for (i = 1, who = 0; i < noc + 1; i++) {
                                         if (!deadc[i]) {
-                                            vem = i;
+                                            who = i;
                                             break;
                                         }
                                     }
-                                    if (vem) {
+                                    if (who) {
                                         clw();
                                         tx("%s summons death\r\n", state.p[state.cpl].name[g]);
                                         tx("to take a %s\r\n", fn);
@@ -259,8 +259,8 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         ryl_delay(2000);
                                         tx0(res_text("battle.killed"));
                                         ryl_delay(600);
-                                        deadc[vem] = 1;
-                                        mh[vem] = 0;
+                                        deadc[who] = 1;
+                                        mh[who] = 0;
                                         clw();
                                     }
                                     break;
@@ -491,18 +491,18 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         break;
                                     }
                                 }
-                                vem = d - 64;
-                                if (ryl_random(0, 199) < mh[vem]) {
+                                who = d - 64;
+                                if (ryl_random(0, 199) < mh[who]) {
                                     clw();
                                     tx0(res_text("battle.spell.annihilate.resist"));
                                     ryl_delay(2000);
-                                    mh[vem] = 1;
+                                    mh[who] = 1;
                                 } else {
                                     clw();
                                     tx0(res_text("battle.spell.annihilate.kill"));
                                     ryl_delay(2000);
-                                    deadc[vem] = 1;
-                                    mh[vem] = 0;
+                                    deadc[who] = 1;
+                                    mh[who] = 0;
                                 }
                                 break;
                             case SE_HOLD:
@@ -580,7 +580,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         break;
                     }
                 }
-                vem = d - 64;
+                who = d - 64;
                 x = state.p[state.cpl].ws[g];
                 if (playerconfused) {
                     x /= 3;
@@ -597,10 +597,10 @@ void encounter(int32_t foe, int32_t mandatory) {
                     tx("%s hits for\r\n", state.p[state.cpl].name[g]);
                     tx("%d damage pts!\r\n", dp);
                     ryl_delay(600);
-                    mh[vem] -= dp;
-                    if (mh[vem] <= 0) {
-                        mh[vem] = 0;
-                        deadc[vem] = 1;
+                    mh[who] -= dp;
+                    if (mh[who] <= 0) {
+                        mh[who] = 0;
+                        deadc[who] = 1;
                         tx0(res_text("battle.killed"));
                         ryl_delay(600);
                     }
@@ -686,23 +686,23 @@ void encounter(int32_t foe, int32_t mandatory) {
                             case 0: /* Monster casts frost   */
                                 tx("Frost Finger\r\n");
                                 while (1) {
-                                    vem = ryl_random(1, 4);
-                                    if (!state.p[state.cpl].dead[vem]) {
+                                    who = ryl_random(1, 4);
+                                    if (!state.p[state.cpl].dead[who]) {
                                         break;
                                     }
                                 }
-                                tx("on %s!\r\n", state.p[state.cpl].name[vem]);
+                                tx("on %s!\r\n", state.p[state.cpl].name[who]);
                                 ryl_delay(1000);
                                 dp = h2 / 5 + ryl_random(0, 3);
                                 tx("and does %d pts\r\n", dp);
                                 tx("of damage!\r\n");
                                 ryl_delay(1000);
-                                state.p[state.cpl].hp[vem] -= dp;
-                                if (state.p[state.cpl].hp[vem] <= 0) {
-                                    state.p[state.cpl].hp[vem] = 0;
-                                    state.p[state.cpl].dead[vem] = 1;
+                                state.p[state.cpl].hp[who] -= dp;
+                                if (state.p[state.cpl].hp[who] <= 0) {
+                                    state.p[state.cpl].hp[who] = 0;
+                                    state.p[state.cpl].dead[who] = 1;
                                     state.p[state.cpl].pl--;
-                                    tx("[31m%s DIES![37m\r\n", state.p[state.cpl].name[vem]);
+                                    tx("[31m%s DIES![37m\r\n", state.p[state.cpl].name[who]);
                                     ryl_delay(1000);
                                 }
                                 break;
@@ -744,32 +744,32 @@ void encounter(int32_t foe, int32_t mandatory) {
                         }
                     } else {
                         while (1) {
-                            vem = ryl_random(1, 4);
-                            if (!state.p[state.cpl].dead[vem]) {
+                            who = ryl_random(1, 4);
+                            if (!state.p[state.cpl].dead[who]) {
                                 break;
                             }
                         }
                         clw();
                         tx("%s attacks\r\n", fn);
-                        tx("%s!\r\n", state.p[state.cpl].name[vem]);
+                        tx("%s!\r\n", state.p[state.cpl].name[who]);
                         ryl_delay(400);
                         if (ryl_chance(ws + 1)) {
                             dp = mh[x] / 6;
                             dp += ryl_random(0, 9);
-                            dp -= obdamage(state.p[state.cpl].ar[vem]);
+                            dp -= obdamage(state.p[state.cpl].ar[who]);
                             if (dp < 1) {
                                 dp = 1;
                             }
                             tx("And hits for\r\n");
                             tx("%d damage pts!!!\r\n", dp);
-                            state.p[state.cpl].hp[vem] -= dp;
-                            if (state.p[state.cpl].hp[vem] <= 0) {
+                            state.p[state.cpl].hp[who] -= dp;
+                            if (state.p[state.cpl].hp[who] <= 0) {
                                 if (state.p[state.cpl].pl) {
                                     state.p[state.cpl].pl--;
                                 }
-                                state.p[state.cpl].hp[vem] = 0;
-                                state.p[state.cpl].dead[vem] = 1;
-                                tx("[31m%s DIES!!![37m\r\n", state.p[state.cpl].name[vem]);
+                                state.p[state.cpl].hp[who] = 0;
+                                state.p[state.cpl].dead[who] = 1;
+                                tx("[31m%s DIES!!![37m\r\n", state.p[state.cpl].name[who]);
                                 ryl_delay(1000);
                             }
                             ryl_delay(1000);

@@ -248,19 +248,19 @@ void enter() {
 /* §17-F migration: wrapper owns the static entry scene (clr_map_window
    + blitgfx + entry text + fixed 600ms hold). The interactive
    greeter/menu loop is `towne.hut` in data/world/scripts/towne.json5;
-   play_script receives `vem` (which NPC occupies the square) and
+   play_script receives `who` (which NPC occupies the square) and
    `npc_job` (its job id) as int bindings — the DSL resolves the
    display strings via engine_bind res_enum on each iteration. */
 static void hut() {
-    int32_t i, vem = 0;
+    int32_t i, who = 0;
     int nmax = res_npc_slot_max();
 
     for (i = 1; i <= nmax; i++) {
         if (state.npc[i].x == state.p[state.cpl].x && state.npc[i].y == state.p[state.cpl].y) {
-            vem = i;
+            who = i;
         }
     }
-    if (!vem) {
+    if (!who) {
         return; /* Error */
     }
 
@@ -270,11 +270,11 @@ static void hut() {
     tx0(res_text("towne.hut.enter"));
     ryl_delay(600);
 
-    char vem_s[8], job_s[8];
-    snprintf(vem_s, sizeof vem_s, "%d", vem);
-    snprintf(job_s, sizeof job_s, "%d", state.npc[vem].job);
+    char who_s[8], job_s[8];
+    snprintf(who_s, sizeof who_s, "%d", who);
+    snprintf(job_s, sizeof job_s, "%d", state.npc[who].job);
     play_script("towne.hut", (ryl_bind[]){
-                                 {"vem", vem_s},
+                                 {"who", who_s},
                                  {"npc_job", job_s},
                                  {0},
                              });

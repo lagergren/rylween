@@ -718,7 +718,7 @@ void hunt() {
 }
 void spell(int32_t place) {
     char b, c, d;
-    int32_t i, vem, x, oc;
+    int32_t i, who, x, oc;
     pm_t caster;
     const ryl_spell *s;
 
@@ -730,8 +730,8 @@ void spell(int32_t place) {
             break;
         }
     }
-    vem = (c - 48);
-    caster = pm_cur(vem);
+    who = (c - 48);
+    caster = pm_cur(who);
 
     clw();
     if (pm_is_mage(caster)) {
@@ -790,7 +790,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
+            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
@@ -798,7 +798,7 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            x = ryl_random(10, 19) + (state.p[state.cpl].lv[vem] * 2);
+            x = ryl_random(10, 19) + (state.p[state.cpl].lv[who] * 2);
             if (state.p[state.cpl].dead[d - 48]) {
                 clw();
                 tx("Dead.\r\n");
@@ -811,7 +811,7 @@ void spell(int32_t place) {
                 state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
             }
             clw();
-            tx("%s heals\r\n", state.p[state.cpl].name[vem]);
+            tx("%s heals\r\n", state.p[state.cpl].name[who]);
             tx("%s\r\n", state.p[state.cpl].name[d - 48]);
             tx("for %d hit points...\r\n", x);
             ryl_delay(1500);
@@ -826,7 +826,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
+            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
             tx("Who? (1-4)\r\n");
             while (1) {
                 d = key();
@@ -836,7 +836,7 @@ void spell(int32_t place) {
             }
             state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
             clw();
-            tx("%s heals\r\n", state.p[state.cpl].name[vem]);
+            tx("%s heals\r\n", state.p[state.cpl].name[who]);
             tx("%s\r\n", state.p[state.cpl].name[d - 48]);
             tx("fully...\r\n");
             ryl_delay(1500);
@@ -864,7 +864,7 @@ void spell(int32_t place) {
                 ryl_delay(1500);
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
+            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
             state.p[state.cpl].dead[d - 48] = 0;
             state.p[state.cpl].hp[d - 48] = 1;
             clw();
@@ -892,13 +892,13 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
+            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
             clw();
-            tx("%s raises %s hands.\r\n", state.p[state.cpl].name[vem], pronoun(vem, 3));
-            tx("%s gathers divine power\r\n", pronoun(vem, 1));
-            tx("between %s palms, and\r\n", pronoun(vem, 3));
+            tx("%s raises %s hands.\r\n", state.p[state.cpl].name[who], pronoun(who, 3));
+            tx("%s gathers divine power\r\n", pronoun(who, 1));
+            tx("between %s palms, and\r\n", pronoun(who, 3));
             tx("suddenly clasps them.\r\n");
-            tx("together over %s head.\r\n", pronoun(vem, 3));
+            tx("together over %s head.\r\n", pronoun(who, 3));
             tx0(res_text("spell.priest.banish.thunder"));
             ryl_pause();
             clw();
@@ -922,7 +922,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
+            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
             if (ryl_chance(59)) {
                 clw();
                 tx("There is nothing\r\n");
@@ -976,19 +976,19 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
+            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
             clw();
-            tx("%s carefully\r\n", state.p[state.cpl].name[vem]);
+            tx("%s carefully\r\n", state.p[state.cpl].name[who]);
             tx("prepares the ritual of\r\n");
-            tx("Teleportation. %s spends\r\n", pronoun(vem, 1));
+            tx("Teleportation. %s spends\r\n", pronoun(who, 1));
             tx("an hour chanting mantras\r\n");
             tx("and burning blue candles.\r\n\r\n");
             advance_hour();
             ryl_pause();
             clw();
-            tx("%s picks up a stone slab\r\n", pronoun(vem, 1));
+            tx("%s picks up a stone slab\r\n", pronoun(who, 1));
             tx0(res_text("spell.priest.teleport.satchel"));
-            tx("%s wants you to teleport\r\n", pronoun(vem, 1));
+            tx("%s wants you to teleport\r\n", pronoun(who, 1));
             tx("to.\r\n\r\n");
             ryl_pause();
             clw();
@@ -1058,8 +1058,8 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[vem] -= (s->base_cost + pm_lv(caster));
-            tx("%s utters\r\n", state.p[state.cpl].name[vem]);
+            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
+            tx("%s utters\r\n", state.p[state.cpl].name[who]);
             tx0(res_text("spell.priest.earthquake.incantation"));
             ryl_delay(2000);
             tx0(res_text("spell.priest.earthquake.eruption"));
