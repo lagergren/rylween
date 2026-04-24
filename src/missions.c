@@ -189,7 +189,7 @@ static void apply_post(enum mission_post_op op) {
         case POST_NONE:
             break;
         case POST_SET_JAZZYFOOT:
-            state.p[state.cpl].jazzyfoot = 1;
+            party_award_special(PS_JAZZYFOOT);
             break;
     }
 }

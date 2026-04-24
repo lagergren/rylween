@@ -837,85 +837,11 @@ void expcheck() {
     for (i = 1; i <= res_party_member_max(); i++) {
         l = state.p[state.cpl].lv[i];
         e = state.p[state.cpl].exp[i];
-        if (l < 2 && e >= 2000) {
-            add[i]++;
-        }
-        if (l < 3 && e >= 4000) {
-            add[i]++;
-        }
-        if (l < 4 && e >= 8000) {
-            add[i]++;
-        }
-        if (l < 5 && e >= 12000) {
-            add[i]++;
-        }
-        if (l < 6 && e >= 20000) {
-            add[i]++;
-        }
-        if (l < 7 && e >= 28000) {
-            add[i]++;
-        }
-        if (l < 8 && e >= 36000) {
-            add[i]++;
-        }
-        if (l < 9 && e >= 48000) {
-            add[i]++;
-        }
-        if (l < 10 && e >= 54000) {
-            add[i]++;
-        }
-        if (l < 11 && e >= 64000) {
-            add[i]++;
-        }
-        if (l < 12 && e >= 74000) {
-            add[i]++;
-        }
-        if (l < 13 && e >= 86000) {
-            add[i]++;
-        }
-        if (l < 14 && e >= 98000) {
-            add[i]++;
-        }
-        if (l < 15 && e >= 110000) {
-            add[i]++;
-        }
-        if (l < 16 && e >= 125000) {
-            add[i]++;
-        }
-        if (l < 17 && e >= 150000) {
-            add[i]++;
-        }
-        if (l < 18 && e >= 180000) {
-            add[i]++;
-        }
-        if (l < 19 && e >= 240000) {
-            add[i]++;
-        }
-        if (l < 20 && e >= 300000) {
-            add[i]++;
-        }
-        if (l < 21 && e >= 400000) {
-            add[i]++;
-        }
-        if (l < 22 && e >= 550000) {
-            add[i]++;
-        }
-        if (l < 23 && e >= 700000) {
-            add[i]++;
-        }
-        if (l < 24 && e >= 900000) {
-            add[i]++;
-        }
-        if (l < 25 && e >= 1100000) {
-            add[i]++;
-        }
-        if (l < 26 && e >= 1500000) {
-            add[i]++;
-        }
-        if (l < 27 && e >= 2000000) {
-            add[i]++;
-        }
-        if (l < 28 && e >= 2800000) {
+        for (int n = l + 1; n <= 28; n++) {
+            int32_t need = res_xp_threshold(n);
+            if (need <= 0 || e < (uint32_t)need) {
+                break;
+            }
             add[i]++;
         }
     }
@@ -927,61 +853,26 @@ void expcheck() {
             tx("experience levels.\r\n");
             ryl_delay(600);
             state.p[state.cpl].lv[i] += add[i];
-            switch (state.p[state.cpl].cl[i]) {
-                case 1:
-                    state.p[state.cpl].ws[i] += 3;
-                    state.p[state.cpl].h[i] += 8;
-                    state.p[state.cpl].wi[i] += 1;
-                    state.p[state.cpl].ch[i] += 1;
-                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
-                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
-                    }
-                    break;
-                case 2:
-                    state.p[state.cpl].ws[i] += 1;
-                    state.p[state.cpl].h[i] += 5;
-                    state.p[state.cpl].wi[i] += 1;
-                    state.p[state.cpl].ch[i] += 2;
-                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
-                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
-                    }
-                    break;
-                case 3:
-                    state.p[state.cpl].ws[i] += 1;
-                    state.p[state.cpl].h[i] += 4;
-                    state.p[state.cpl].wi[i] += 7;
-                    state.p[state.cpl].ch[i] += 2;
-                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
-                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
-                    }
-                    break;
-                case 4:
-                    state.p[state.cpl].ws[i] += 1;
-                    state.p[state.cpl].h[i] += 5;
-                    state.p[state.cpl].wi[i] += 8;
-                    state.p[state.cpl].ch[i] += 3;
-                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
-                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
-                    }
-                    break;
-                case 5:
-                    state.p[state.cpl].ws[i] += 2;
-                    state.p[state.cpl].h[i] += 7;
-                    state.p[state.cpl].wi[i] += 2;
-                    state.p[state.cpl].ch[i] += 6;
-                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
-                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
-                    }
-                    break;
-                case 6:
-                    state.p[state.cpl].ws[i] += 2;
-                    state.p[state.cpl].h[i] += 8;
-                    state.p[state.cpl].wi[i] += 3;
-                    state.p[state.cpl].ch[i] += 3;
-                    if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
-                        state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
-                    }
-                    break;
+            /* PC_* ids are 1..6; the lowercased names here must
+               match the classes.<cls> shard keys in world.json5.
+               data/missing classes return 0 deltas (no-op). */
+            static const char *const pc_class_key[] = {
+                "",
+                "fighter",
+                "thief",
+                "mage",
+                "priest",
+                "bard",
+                "ranger",
+            };
+            int cl_id = state.p[state.cpl].cl[i];
+            const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
+            state.p[state.cpl].ws[i] += res_class_levelup(cls, "ws");
+            state.p[state.cpl].h[i] += res_class_levelup(cls, "h");
+            state.p[state.cpl].wi[i] += res_class_levelup(cls, "wi");
+            state.p[state.cpl].ch[i] += res_class_levelup(cls, "ch");
+            if (state.p[state.cpl].hp[i] < (state.p[state.cpl].h[i] * 2) / 3) {
+                state.p[state.cpl].hp[i] = (state.p[state.cpl].h[i] * 2) / 3;
             }
         }
     }

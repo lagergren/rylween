@@ -109,6 +109,20 @@ void res_items_foreach_special(
     int (*cb)(int id, const char *tag, void *user),
     void *user);
 
+/* XP total needed to REACH the given level (2..28). Reads
+   xp_thresholds[level] from the world tree. Returns 0 for out-of-range
+   or missing entries — level 1 and slots past 28 are guard values, and
+   the battle.c caller treats 0 as "no further threshold" and stops the
+   loop naturally. */
+int32_t res_xp_threshold(int level);
+
+/* Per-class level-up delta applied on each gained level. `cls` is a
+   lowercased class name ("fighter", "thief", ...) matching the
+   classes.<cls> shard key; `stat` is one of "ws" / "h" / "wi" / "ch".
+   Returns 0 for unknown class or stat — callers treat zero as "no
+   change", which is the natural no-op. */
+int32_t res_class_levelup(const char *cls, const char *stat);
+
 /* Monsters 0..90. NULL if no record. */
 const ryl_monster *res_monster(int id);
 

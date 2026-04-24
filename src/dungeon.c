@@ -310,7 +310,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 ryl_pause();
                 lvl[cl] = 0;
                 clw();
-                state.p[state.cpl].fireshield = 1;
+                party_award_special(PS_FIRESHIELD);
                 state.p[state.cpl].flag[33] = 4;
                 break;
 
@@ -429,7 +429,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 lvl[cl] = 0;
                 ryl_pause();
                 clw();
-                state.p[state.cpl].bracelets = 1;
+                party_award_special(PS_BRACELETS);
                 state.p[state.cpl].flag[13] = 2;
                 break;
 
@@ -527,7 +527,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 blitgfx(insidecavepic);
                 clw();
                 state.p[state.cpl].flag[23] = 10;
-                state.p[state.cpl].mastercrown = 1;
+                party_award_special(PS_MASTERCROWN);
                 lvl[cl] = 0;
                 break;
 
@@ -660,7 +660,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("you pick it up!!!\r\n\r\n");
                 ryl_pause();
                 clw();
-                state.p[state.cpl].silverkey = 1;
+                party_award_special(PS_SILVERKEY);
                 state.p[state.cpl].flag[6] = 6;
                 lvl[cl] = 0;
                 break;

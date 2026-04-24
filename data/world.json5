@@ -83,12 +83,19 @@
   // call sites migrate. `casts_in` is recorded for the benefit of the
   // evaluator's future menu gating.
   classes: {
+    // `levelup` deltas are applied in battle.c on each level gained:
+    // hp is clamped up to (2/3)*h post-gain. Stat keys match the
+    // party fields: ws = weapon-skill, h = max health, wi = wisdom,
+    // ch = charisma. Spells live on the two caster classes only.
+    fighter: { levelup: { ws: 3, h: 8, wi: 1, ch: 1 } },
+    thief:   { levelup: { ws: 1, h: 5, wi: 1, ch: 2 } },
     mage: {
       spells: [
         'mage.frost', 'mage.fire', 'mage.confusion',
         'mage.death', 'mage.hold', 'mage.antimagic',
       ],
       casts_in: ['combat'],
+      levelup: { ws: 1, h: 4, wi: 7, ch: 2 },
     },
     priest: {
       spells: [
@@ -97,8 +104,24 @@
         'priest.earthquake',
       ],
       casts_in: ['combat'],
+      levelup: { ws: 1, h: 5, wi: 8, ch: 3 },
     },
+    bard:   { levelup: { ws: 2, h: 7, wi: 2, ch: 6 } },
+    ranger: { levelup: { ws: 2, h: 8, wi: 3, ch: 3 } },
   },
+
+  // XP totals needed to REACH each level. xp_thresholds[N] is the
+  // cumulative experience a member needs to hit level N. Indexed
+  // by target level (2..28); slots 0..1 unused sentinel-0s so the
+  // array indexing reads naturally at call site. Final growth curve
+  // matches the original game's linear-then-exponential ramp.
+  xp_thresholds: [
+    0, 0,
+    2000, 4000, 8000, 12000, 20000, 28000, 36000, 48000, 54000,
+    64000, 74000, 86000, 98000, 110000, 125000, 150000, 180000,
+    240000, 300000, 400000, 550000, 700000, 900000, 1100000,
+    1500000, 2000000, 2800000,
+  ],
 
   // Spells (§3.4). Nested by class so each shard owns its own file.
   // res_spell_node(class, slot) finds the entry whose slot matches,

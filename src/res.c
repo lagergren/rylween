@@ -372,6 +372,41 @@ void res_items_foreach_special(int (*cb)(int, const char *, void *),
     }
 }
 
+int32_t res_xp_threshold(int level) {
+    if (!world_tree || level < 0) {
+        return 0;
+    }
+    const node *arr = obj_get(world_tree, "xp_thresholds");
+    if (!arr || arr->kind != N_ARR) {
+        return 0;
+    }
+    if ((size_t)level >= arr->u.arr.n) {
+        return 0;
+    }
+    const node *v = arr->u.arr.items[level];
+    return (v && v->kind == N_INT) ? (int32_t)v->u.iv : 0;
+}
+
+int32_t res_class_levelup(const char *cls, const char *stat) {
+    if (!world_tree || !cls || !stat) {
+        return 0;
+    }
+    const node *classes_n = obj_get(world_tree, "classes");
+    if (!classes_n || classes_n->kind != N_OBJ) {
+        return 0;
+    }
+    const node *cls_n = obj_get(classes_n, cls);
+    if (!cls_n || cls_n->kind != N_OBJ) {
+        return 0;
+    }
+    const node *lvl_n = obj_get(cls_n, "levelup");
+    if (!lvl_n || lvl_n->kind != N_OBJ) {
+        return 0;
+    }
+    const node *v = obj_get(lvl_n, stat);
+    return (v && v->kind == N_INT) ? (int32_t)v->u.iv : 0;
+}
+
 const ryl_monster *res_monster(int id) {
     if (id < 0 || id > RES_MAX_MONSTER_ID) {
         return NULL;
