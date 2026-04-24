@@ -378,4 +378,60 @@ static inline void party_set_gold(int32_t v) {
    resource loader to map JSON class strings to the runtime enum. */
 int pm_class_id(const char *name);
 
+/* ---- NPC handle ---------------------------------------------------
+   View over a single state.npc[] record, mirroring pm_t for party
+   members. Bundles the `struct person *` with the slot id so
+   accessors that need the slot (npc_name -> res_enum("name", slot))
+   don't have to reach back into state.npc arithmetic.
+
+   Two constructors:
+
+     npc_at_slot(slot)   — slot is already known (iteration, tests)
+     npc_for_role(role)  — look up via npc_roles: in world.json5,
+                           fatal if the role isn't bound (caller
+                           bug or data rename out of sync)
+
+   Accessors are pointer-chases through n.p for the struct-person
+   fields; npc_name goes through res_enum since the display string
+   lives in the name enum, not the struct. */
+
+/* Forward declarations (implemented in res.c). Keeps state.h from
+   pulling in res.h / ryl.h — the NPC handle only needs res_npc_role
+   to resolve role->slot and res_enum to format the display name. */
+int32_t res_npc_role(const char *role);
+const char *res_enum(const char *id, int index);
+
+typedef struct {
+    struct person *p;
+    int slot;
+} npc_t;
+
+static inline npc_t npc_at_slot(int slot) {
+    assert(slot >= 0);
+    npc_t r = {&state.npc[slot], slot};
+    return r;
+}
+static inline npc_t npc_for_role(const char *role) {
+    return npc_at_slot(res_npc_role(role));
+}
+
+static inline int32_t npc_towne(npc_t n) {
+    return n.p->towne;
+}
+static inline int32_t npc_x(npc_t n) {
+    return n.p->x;
+}
+static inline int32_t npc_y(npc_t n) {
+    return n.p->y;
+}
+static inline int32_t npc_job(npc_t n) {
+    return n.p->job;
+}
+static inline unsigned char npc_gender(npc_t n) {
+    return n.p->gender;
+}
+static inline const char *npc_name(npc_t n) {
+    return res_enum("name", n.slot);
+}
+
 #endif

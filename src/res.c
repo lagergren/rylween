@@ -747,6 +747,14 @@ int32_t res_npc_slot(const char *name) {
    Fatal on unknown role (C typo or role absent from data), fatal on
    role pointing at an NPC that isn't in npcs: (dangling binding).
    Both conditions are load-time bugs we want surfaced loudly. */
+void npc_loc_str(npc_t n, char *dst, size_t dst_sz) {
+    if (n.p->towne) {
+        snprintf(dst, dst_sz, "in %s", res_town_name(n.p->towne));
+    } else {
+        snprintf(dst, dst_sz, "at %dx%d", n.p->x, n.p->y);
+    }
+}
+
 int32_t res_npc_role(const char *role) {
     if (!world_tree || !role) {
         fprintf(stderr, "res_npc_role: world not loaded / null role\n");

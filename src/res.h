@@ -1,6 +1,7 @@
 #ifndef RES_H__
 #define RES_H__
 
+#include <stddef.h>
 #include <stdint.h>
 
 /* Resource types and accessors. Data is loaded from data/world.json5
@@ -274,6 +275,14 @@ int32_t res_npc_slot(const char *name);
    npcs: or reassign quest roles without touching C. Fatal on unknown
    role or dangling binding. */
 int32_t res_npc_role(const char *role);
+
+/* Format an NPC's location into dst: "in <town>" when the NPC is
+   fixed to a town, "at NxN" when wandering the wilderness. Mirrors
+   the repeated snippet at every rumour/quest site that has to show
+   where an NPC lives. npc_t lives in state.h — we pull it in here
+   so callers don't need to include both headers. */
+#include "state.h"
+void npc_loc_str(npc_t n, char *dst, size_t dst_sz);
 
 /* Highest valid party-inventory slot id. Defaults to INVENTORY_SLOT_
    MAX (state.h); overrideable via limits.inventory_slot_max in

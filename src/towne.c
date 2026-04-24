@@ -47,32 +47,22 @@ void rumour() {
                                 {0}});
             break;
         case RUMOUR_BROTH_CROWN: {
-            int32_t slot = res_npc_role("crown_seer");
-            const struct person *n = &state.npc[slot];
-            if (n->towne) {
-                snprintf(loc, sizeof loc, "in %s", res_town_name(n->towne));
-            } else {
-                snprintf(loc, sizeof loc, "at %dx%d", n->x, n->y);
-            }
+            npc_t seer = npc_for_role("crown_seer");
+            npc_loc_str(seer, loc, sizeof loc);
             tx_fmt("towne.rumour.r25",
                    (ryl_bind[]){
-                       {"name15", res_enum("name", slot)},
+                       {"name15", npc_name(seer)},
                        {"loc15", loc},
                        {0},
                    });
             break;
         }
         case RUMOUR_HARRY_TEMPLE: {
-            int32_t slot = res_npc_role("temple_of_thun_seer");
-            const struct person *n = &state.npc[slot];
-            if (n->towne) {
-                snprintf(loc, sizeof loc, "in %s", res_town_name(n->towne));
-            } else {
-                snprintf(loc, sizeof loc, "at %dx%d", n->x, n->y);
-            }
+            npc_t seer = npc_for_role("temple_of_thun_seer");
+            npc_loc_str(seer, loc, sizeof loc);
             tx_fmt("towne.rumour.r27",
                    (ryl_bind[]){
-                       {"name13", res_enum("name", slot)},
+                       {"name13", npc_name(seer)},
                        {"loc13", loc},
                        {0},
                    });

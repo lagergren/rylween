@@ -149,17 +149,16 @@ void speak(int32_t bld, int32_t tow) {
         }
     }
 
-    if (state.npc[talk].visited[state.cpl]) {
+    npc_t talker = npc_at_slot(talk);
+    int female = (npc_gender(talker) == res_enum_id("gender", "female"));
+
+    if (talker.p->visited[state.cpl]) {
         clw();
-        tx("%s nods as\r\n", res_enum("name", talk));
-        if (state.npc[talk].gender == res_enum_id("gender", "female")) {
-            tx0(res_text("speak.recognize_she"));
-        } else {
-            tx0(res_text("speak.recognize_he"));
-        }
+        tx("%s nods as\r\n", npc_name(talker));
+        tx0(res_text(female ? "speak.recognize_she" : "speak.recognize_he"));
         ryl_delay(800);
     } else {
-        state.npc[talk].visited[state.cpl] = 1;
+        talker.p->visited[state.cpl] = 1;
     }
 
     while (1) {
@@ -168,7 +167,7 @@ void speak(int32_t bld, int32_t tow) {
         clw();
         tx_fmt("speak.chatting",
                (ryl_bind[]){
-                   {"npc_name", res_enum("name", talk)},
+                   {"npc_name", npc_name(talker)},
                    {0},
                });
 
@@ -185,7 +184,7 @@ void speak(int32_t bld, int32_t tow) {
         if (c == 'R') {
             clw();
             if (!rumours) {
-                tx("%s tells you:\r\n\r\n", res_enum("name", talk));
+                tx("%s tells you:\r\n\r\n", npc_name(talker));
                 rumour();
                 ryl_pause();
                 rumours = 1;
@@ -200,22 +199,18 @@ void speak(int32_t bld, int32_t tow) {
             clw();
             switch (x) {
                 case 0:
-                    tx0(res_text(state.npc[talk].gender == res_enum_id("gender", "female")
-                                     ? "speak.chit.well_f"
-                                     : "speak.chit.well_m"));
+                    tx0(res_text(female ? "speak.chit.well_f" : "speak.chit.well_m"));
                     break;
                 case 1:
                     tx0(res_text("speak.chit.weather"));
                     break;
                 case 2:
-                    tx0(res_text(state.npc[talk].gender == res_enum_id("gender", "female")
-                                     ? "speak.chit.health_f"
-                                     : "speak.chit.health_m"));
+                    tx0(res_text(female ? "speak.chit.health_f" : "speak.chit.health_m"));
                     break;
             }
             ryl_delay(1000);
             tx("\r\n");
-            reply_chitchat(x, state.npc[talk].job);
+            reply_chitchat(x, npc_job(talker));
             tx("\r\n");
             ryl_pause();
         }
@@ -227,28 +222,28 @@ void speak(int32_t bld, int32_t tow) {
             d = toupper(d);
             if (d == 'P') {
                 tx("\r\n");
-                if (state.npc[talk].job == res_enum_id("jobname", "Bard")) {
+                if (npc_job(talker) == res_enum_id("jobname", "Bard")) {
                     tx_fmt("speak.people.j8",
                            (ryl_bind[]){
                                {"fighter_name",
-                                res_enum("name", res_npc_role("fighter_intro"))},
+                                npc_name(npc_for_role("fighter_intro"))},
                                {0},
                            });
                 } else {
-                    txi("speak.people.j%d", state.npc[talk].job);
+                    txi("speak.people.j%d", npc_job(talker));
                 }
                 tx("\r\n");
                 ryl_pause();
             }
             if (d == 'M') {
                 tx("\r\n");
-                txi("speak.magic.j%d", state.npc[talk].job);
+                txi("speak.magic.j%d", npc_job(talker));
                 tx("\r\n");
                 ryl_pause();
             }
             if (d == 'L') {
                 tx("\r\n");
-                if (state.npc[talk].job == res_enum_id("jobname", "Bargirl")) {
+                if (npc_job(talker) == res_enum_id("jobname", "Bargirl")) {
                     char price[16];
                     snprintf(price, sizeof price, "%d", 50 * state.p[state.cpl].lv[1]);
                     clw();
@@ -278,7 +273,7 @@ void speak(int32_t bld, int32_t tow) {
                         }
                     }
                 } else {
-                    txi("speak.lodge.j%d", state.npc[talk].job);
+                    txi("speak.lodge.j%d", npc_job(talker));
                 }
                 tx("\r\n");
                 ryl_pause();
@@ -317,7 +312,7 @@ static void reply_chitchat(int32_t subj, int32_t jb) {
 
 enum mission_bind_kind {
     BIND_NPC_NAME = 1, /* res_enum("name", arg) */
-    BIND_NPC_LOC,      /* "in <town>" | "at <x>x<y>" via fmt_npc_loc */
+    BIND_NPC_LOC,      /* "in <town>" | "at <x>x<y>" via npc_loc_str */
     BIND_DX_STR,       /* state.dx[arg] stringified */
     BIND_DY_STR,       /* state.dy[arg] stringified */
 };
@@ -350,15 +345,6 @@ typedef struct {
 
 #define MAX_BINDINGS   4  /* max per stage observed today: 2 */
 #define BIND_ZONE_SIZE 80 /* per-binding scratch (NPC_LOC needs ~40) */
-
-/* Write "in <town>" OR "at <x>x<y>" for NPC `slot` into `dst`. */
-static void fmt_npc_loc(int32_t slot, char *dst, size_t dst_sz) {
-    if (state.npc[slot].towne) {
-        snprintf(dst, dst_sz, "in %s", res_town_name(state.npc[slot].towne));
-    } else {
-        snprintf(dst, dst_sz, "at %dx%d", state.npc[slot].x, state.npc[slot].y);
-    }
-}
 
 /* Stage tables. First-match-wins within each NPC; stages are never
    expected to fire simultaneously for a single flag snapshot. Cond
@@ -526,7 +512,7 @@ static void mission_resolve_bindings(const mission_stage *st, ryl_bind *out,
                 out[i].value = res_enum("name", b->arg);
                 break;
             case BIND_NPC_LOC:
-                fmt_npc_loc(b->arg, zone, BIND_ZONE_SIZE);
+                npc_loc_str(npc_at_slot(b->arg), zone, BIND_ZONE_SIZE);
                 out[i].value = zone;
                 break;
             case BIND_DX_STR:
@@ -604,28 +590,24 @@ static void npc_mission_hint(int32_t npc) {
     if (npc == res_npc_role("fighter_intro")) {
         if (pa_flag_is("fighter.priest_book", "none")) {
             char loc[80];
-            int32_t priest = res_npc_role("priest_with_book");
-            if (state.npc[priest].towne) {
-                snprintf(loc, sizeof loc, "in %s", res_town_name(state.npc[priest].towne));
-            } else {
-                snprintf(loc, sizeof loc, "at %dx%d", state.npc[priest].x, state.npc[priest].y);
-            }
+            npc_t priest = npc_for_role("priest_with_book");
+            npc_loc_str(priest, loc, sizeof loc);
             clw();
             tx0(res_text("speak.fighter.intro"));
             ryl_pause();
             clw();
             tx_fmt("speak.fighter.favour",
                    (ryl_bind[]){
-                       {"priest_name", res_enum("name", priest)},
+                       {"priest_name", npc_name(priest)},
                        {0},
                    });
             ryl_pause();
             clw();
-            tx("%s lives\r\n", res_enum("name", priest));
+            tx("%s lives\r\n", npc_name(priest));
             tx("%s.\r\n\r\n", loc);
             journalf("%d %s, %s's friend lives %s\n",
-                     state.cpl, res_enum("name", priest),
-                     res_enum("name", npc), loc);
+                     state.cpl, npc_name(priest),
+                     npc_name(npc_at_slot(npc)), loc);
             ryl_pause();
             clw();
             pa_flag_set("fighter.priest_book", "priest_told");

@@ -241,6 +241,9 @@ items above land.
   `npc_roles:` subtree in world.json5 — §17-W
 - `res_enum_id("jobname", "Bard")` / `res_enum_id("gender", "female")`
   at speak.c + driv.c — §17-X
+- `npc_t` handle + `npc_at_slot` / `npc_for_role` /
+  `npc_name` / `npc_job` / `npc_gender` / `npc_towne` / `npc_x` /
+  `npc_y` / `npc_loc_str(n, buf, sz)` — §17-Y
 
 ## Out of scope for this doc
 
