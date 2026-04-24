@@ -1136,7 +1136,7 @@ static void eval_ask_target(const node *n, env_t *e) {
         int32_t i;
         while (1) {
             clw();
-            tx0(res_text("battle.prompt.who"));
+            tx_fmt("battle.prompt.who", NULL);
             for (i = 1; i < e->noc + 1; i++) {
                 if (e->deadc[i]) {
                     strcpy(str, "Dead.");

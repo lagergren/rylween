@@ -47,7 +47,7 @@
   },
 
   view: {
-    who: ['Who? (1-4/Q/A)'],
+    who: ['Who? (1-{party_max}/Q/A)'],
   },
 
   drop: {

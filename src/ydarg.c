@@ -400,14 +400,14 @@ void ydarg() {
         if (c == 'V') {
             showparty();
             clw();
-            tx0(res_text("ydarg.nav.view_who"));
+            tx_fmt("ydarg.nav.view_who", NULL);
             while (1) {
                 d = key();
-                if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A') {
+                if (pm_digit_in_range(d) || toupper(d) == 'Q' || toupper(d) == 'A') {
                     break;
                 }
             }
-            if (d >= '1' && d <= '4') {
+            if (pm_digit_in_range(d)) {
                 show(d - 48);
             }
             if (toupper(d) == 'A') {

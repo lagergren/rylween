@@ -142,6 +142,22 @@ void bind_expand(const char *src, const ryl_bind *bindings,
                 break;
             }
         }
+        /* Engine-provided bindings — always available in every tx_fmt /
+           script emit without the caller having to thread them. Caller
+           bindings above take precedence (matched first). Kept to the
+           data knobs that shape UI prompts: party_max / inventory_max.
+           Per-placeholder static buffer — values are memcpy'd into
+           `out` immediately after, so reuse across iterations is safe. */
+        char engine_buf[16];
+        if (!val) {
+            if (strcmp(name, "party_max") == 0) {
+                snprintf(engine_buf, sizeof engine_buf, "%d", res_party_member_max());
+                val = engine_buf;
+            } else if (strcmp(name, "inventory_max") == 0) {
+                snprintf(engine_buf, sizeof engine_buf, "%d", res_inventory_slot_max());
+                val = engine_buf;
+            }
+        }
         if (!val) {
             snprintf(diag, sizeof diag,
                      "bind_expand: unbound '{%s}' in '%s'", name, ctx);

@@ -177,7 +177,7 @@
             '(R)aise dead',
             '(E)nergize',
             '(L)eave'],
-    who:   ['Who? (1-4)'],
+    who:   ['Who? (1-{party_max})'],
     // --- energize branch ---
     not_spellcaster: ['Not a spellcaster!'],
     no_need_sp: ['That character needs',
@@ -329,7 +329,7 @@
                 '(R)umors',
                 '(L)eave'],
     story_who: ['Who wants to tell',
-                'a story? (1-4)'],
+                'a story? (1-{party_max})'],
     dead_story: ['Dead men do not',
                  'tell any great',
                  'stories...'],

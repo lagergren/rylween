@@ -37,7 +37,7 @@
                       'mortally wounded foes!'],
   },
   prompt: {
-    on_whom:         ['On Whom? (1-4)'],
+    on_whom:         ['On Whom? (1-{party_max})'],
     who:             ['Who?', ''],
   },
   spell: {

@@ -214,17 +214,17 @@ static inline int is_hour_in_range(int lo, int hi) {
 
 /* View handle over a single party member. Cheap by-value. Field access
    goes through pm_* accessors so call sites read `pm_lv(pm)` instead of
-   `state.p[state.cpl].lv[m]`. The existing `struct party` SoA layout is
-   preserved (save-format compatibility); pm_t is purely a readability
-   wrapper. New code should prefer pm_*; legacy sites stay as-is until
-   a deliberate migration phase. */
+   `state.p[state.cpl].lv[m]`. The `struct party` SoA layout is per-
+   member heap-allocated off res_party_member_max() (§19.3); pm_t is
+   purely a readability wrapper. New code should prefer pm_*; legacy
+   sites stay as-is until a deliberate migration phase. */
 typedef struct {
     struct party *party;
-    int m; /* 1..4 */
+    int m; /* 1..N, where N = res_party_member_max() */
 } pm_t;
 
 static inline pm_t pm_of(struct party *p, int m) {
-    assert(p && m >= 1 && m <= 4);
+    assert(p && m >= 1 && m <= res_party_member_max());
     pm_t r = {p, m};
     return r;
 }
@@ -233,14 +233,28 @@ static inline pm_t pm_cur(int m) {
     return pm_of(&state.p[state.cpl], m);
 }
 
-/* Member-index from an ASCII digit keypress. '1'..'4' -> pm_cur(1..4).
+/* Member-index from an ASCII digit keypress. '1'..'N' -> pm_cur(1..N).
    Any other byte returns an invalid handle with m out of range; callers
-   are expected to validate the keypress before calling. Replaces the
-   ubiquitous `state.p[state.cpl].<field>[c - 48]` pattern so the member
-   index stays inside a typed handle rather than a loose ASCII subtract
-   peppered through combat / spell / interact code. */
+   are expected to validate the keypress before calling (pm_digit_in_range
+   below). Replaces the ubiquitous `state.p[state.cpl].<field>[c - 48]`
+   pattern so the member index stays inside a typed handle rather than a
+   loose ASCII subtract peppered through combat / spell / interact code. */
 static inline pm_t pm_from_digit(char c) {
     return pm_cur((int)(c - '0'));
+}
+
+/* Is an ASCII digit keypress a valid party-member selector?
+   Predicate variant of pm_from_digit: returns 1 iff c is '1'..'N'
+   where N = res_party_member_max(). Replaces the hardcoded
+   `c >= '1' && c <= '4'` guard that gates nearly every "Who? (1-4)"
+   prompt; the bound now tracks the data knob instead of assuming 4.
+   Caller is expected to toupper() or equivalent if the prompt is
+   case-insensitive — this helper only looks at the ASCII byte. */
+static inline int pm_digit_in_range(char c) {
+    if (c < '1') {
+        return 0;
+    }
+    return (int)(c - '0') <= res_party_member_max();
 }
 
 /* Inventory slot from an ASCII letter keypress. 'A'..'P' -> 1..16.

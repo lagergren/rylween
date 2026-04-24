@@ -238,9 +238,9 @@ void weaponoff() {
     int32_t x;
 
     clw();
-    tx("Who? (1-4)\r\n");
+    tx("Who? (1-%d)\r\n", res_party_member_max());
     c = key();
-    if (c >= '1' && c <= '4') {
+    if (pm_digit_in_range(c)) {
         if (state.p[state.cpl].wp[c - 48] == 0) {
             clw();
             tx("%s has no weapon!\r\n", pronoun(c - 48, 1));
@@ -272,9 +272,9 @@ void armouroff() {
     int32_t x;
 
     clw();
-    tx("Who? (1-4)\r\n");
+    tx("Who? (1-%d)\r\n", res_party_member_max());
     c = key();
-    if (c >= '1' && c <= '4') {
+    if (pm_digit_in_range(c)) {
         if (state.p[state.cpl].ar[c - 48] == 0) {
             clw();
             tx("%s has no armour!\r\n", pronoun(c - 48, 1));
@@ -321,7 +321,7 @@ void weaponr() {
     }
 
     clw();
-    tx("Who? (1-4)\r\n");
+    tx("Who? (1-%d)\r\n", res_party_member_max());
     char b = key();
     if (b < '1' || b > '4') {
         clw();
@@ -362,7 +362,7 @@ void armourr() {
     }
 
     clw();
-    tx("Who? (1-4)\r\n");
+    tx("Who? (1-%d)\r\n", res_party_member_max());
     char b = key();
     if (b < '1' || b > '4') {
         clw();
@@ -461,10 +461,10 @@ void camp() {
     if (c == 'Y') {
         while (1) {
             clw();
-            tx("Who? (1-4)\r\n");
+            tx("Who? (1-%d)\r\n", res_party_member_max());
             d = key();
             d = toupper(d);
-            if (d >= '1' && d <= '4') {
+            if (pm_digit_in_range(d)) {
                 if (!(state.p[state.cpl].dead[d - 48])) {
                     break;
                 } else {
@@ -605,11 +605,11 @@ void quaff() {
     }
 
     clw();
-    tx("Who? (1-4)\r\n");
+    tx("Who? (1-%d)\r\n", res_party_member_max());
     while (1) {
         c = key();
         c = toupper(c);
-        if (c >= '1' && c <= '4') {
+        if (pm_digit_in_range(c)) {
             if (!state.p[state.cpl].dead[c - 48]) {
                 break;
             } else {
@@ -672,10 +672,10 @@ void hunt() {
 
     while (1) {
         clw();
-        tx("Who? (1-4)\r\n");
+        tx("Who? (1-%d)\r\n", res_party_member_max());
         c = key();
         c = toupper(c);
-        if (c >= '1' && c <= '4') {
+        if (pm_digit_in_range(c)) {
             if (!state.p[state.cpl].dead[c - 48]) {
                 break;
             } else {
@@ -723,10 +723,10 @@ void spell(int32_t place) {
     const ryl_spell *s;
 
     clw();
-    tx("Who? (1-4)\r\n");
+    tx("Who? (1-%d)\r\n", res_party_member_max());
     while (1) {
         c = key();
-        if (c >= '1' && c <= '4') {
+        if (pm_digit_in_range(c)) {
             break;
         }
     }
@@ -791,10 +791,10 @@ void spell(int32_t place) {
                 break;
             }
             state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
-            tx("Who? (1-4)\r\n");
+            tx("Who? (1-%d)\r\n", res_party_member_max());
             while (1) {
                 d = key();
-                if (d >= '1' && d <= '4') {
+                if (pm_digit_in_range(d)) {
                     break;
                 }
             }
@@ -827,10 +827,10 @@ void spell(int32_t place) {
                 break;
             }
             state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
-            tx("Who? (1-4)\r\n");
+            tx("Who? (1-%d)\r\n", res_party_member_max());
             while (1) {
                 d = key();
-                if (d >= '1' && d <= '4') {
+                if (pm_digit_in_range(d)) {
                     break;
                 }
             }
@@ -851,10 +851,10 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            tx("Who? (1-4)\r\n");
+            tx("Who? (1-%d)\r\n", res_party_member_max());
             while (1) {
                 d = key();
-                if (d >= '1' && d <= '4') {
+                if (pm_digit_in_range(d)) {
                     break;
                 }
             }

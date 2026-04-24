@@ -850,14 +850,14 @@ void dungeon(int32_t levels, int32_t flag) {
             if (c == 'V') {
                 showparty();
                 clw();
-                tx("Who? (1-4/Q/A)\r\n");
+                tx("Who? (1-%d/Q/A)\r\n", res_party_member_max());
                 while (1) {
                     d = key();
-                    if ((d >= '1' && d <= '4') || toupper(d) == 'Q' || toupper(d) == 'A') {
+                    if (pm_digit_in_range(d) || toupper(d) == 'Q' || toupper(d) == 'A') {
                         break;
                     }
                 }
-                if (d >= '1' && d <= '4') {
+                if (pm_digit_in_range(d)) {
                     show(d - 48);
                 }
                 if (toupper(d) == 'A') {

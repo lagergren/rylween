@@ -268,10 +268,10 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 105: {
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx0(res_text("battle.prompt.on_whom"));
+                                    tx_fmt("battle.prompt.on_whom", NULL);
                                     while (1) {
                                         d = key();
-                                        if (d >= '1' && d <= '4') {
+                                        if (pm_digit_in_range(d)) {
                                             break;
                                         }
                                     }
@@ -313,10 +313,10 @@ void encounter(int32_t foe, int32_t mandatory) {
 
                                 case 108: {
                                     clw();
-                                    tx0(res_text("battle.prompt.on_whom"));
+                                    tx_fmt("battle.prompt.on_whom", NULL);
                                     while (1) {
                                         b = key();
-                                        if (b >= '1' && b <= '4') {
+                                        if (pm_digit_in_range(b)) {
                                             break;
                                         }
                                     }
@@ -476,7 +476,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                             case SE_DEATH:
                                 while (1) {
                                     clw();
-                                    tx0(res_text("battle.prompt.who"));
+                                    tx_fmt("battle.prompt.who", NULL);
                                     for (i = 1; i < noc + 1; i++) {
                                         if (deadc[i]) {
                                             strcpy(str, "Dead.");
@@ -565,7 +565,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             if (c == 'A') {
                 while (1) {
                     clw();
-                    tx0(res_text("battle.prompt.who"));
+                    tx_fmt("battle.prompt.who", NULL);
                     for (i = 1; i < noc + 1; i++) {
                         if (deadc[i]) {
                             strcpy(str, "Dead.");

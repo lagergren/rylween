@@ -158,7 +158,7 @@
     go_south:  ['South.'],
     go_east:   ['East.'],
     go_west:   ['West.'],
-    view_who:  ['Who? (1-4/Q/A)'],
+    view_who:  ['Who? (1-{party_max}/Q/A)'],
   },
 
   // --- confrontation() on the roof deck ---------------------------
