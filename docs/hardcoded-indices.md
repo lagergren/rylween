@@ -19,8 +19,11 @@ acting — they may have shifted.
 
 ## Priority order
 
-- [ ] **P1 — Flag-index names**
-      (~29 call sites, ~8 distinct indices, highest opacity)
+- [x] **P1 — Flag-index names** (landed §17-S.1..S.4)
+      Flags are now a data dictionary in `data/world.json5` + DSL tag
+      strings + `pa_flag_is`/`pa_flag_set` at C sites + a JSON5 map
+      at the save/snapshot layer. See "Reference: already-migrated
+      patterns" below.
 - [ ] **P2 — Monster / encounter IDs**
       (~23 `encounter(N, M)` calls in dungeon.c + a handful elsewhere)
 - [ ] **P3 — Class-ID comparisons**
@@ -34,29 +37,43 @@ acting — they may have shifted.
       bargirl chitchat already moved to gender in §17-R; lodging-
       offer and bard Q&A remain)
 
+### P1 follow-ups (not blocking)
+
+- `mission_spec` tables in `src/speak.c` still use `.flag = N,
+  .when = K` literals. They parallel the now-tag-based scripts and
+  should flip to `.flag_tag = "silver_key", .when = "note_found"`
+  — mechanical, no behavior change. Not done in §17-S because the
+  struct-shape change touches every mission_spec[] instantiation
+  and is easier in a dedicated pass.
+- `src/missions.c` has one fresh `pa_flag_is` site but the other
+  trigger guards still live in a table of `.flag = N` ints. Same
+  pattern as above; same follow-up.
+- The save loader still accepts the legacy `flag: [...]` byte-array
+  shape for round-tripping pre-§17-S saves. Once no such save exists,
+  that branch can be deleted.
+
 ---
 
-## P1 — Flag indices
+## P1 — Flag indices (DONE §17-S.1..S.4)
 
-`state.p[state.cpl].flag[N]` is a 40-byte per-party array. N is opaque
-at the call site — nothing tells the reader what flag 23 or flag 19
-means. Observed indices (as of the audit): **3, 6, 8, 13, 19, 22, 23,
-33**. 1–8 are partially named in `mission_spec` tables already.
+Landed end-to-end as a four-commit series:
 
-Approach: add an enum (`PF_*` or a `flags:` block in `world.json5` with
-named slots) and a thin `flag_get(p, PF_X)` / `flag_set(p, PF_X, v)`
-pair. Migrate per-flag across every file that touches it.
-
-Concentration: speak.c (~16), dungeon.c (~9), missions.c (~4).
-
-- [ ] Audit each flag: grep `flag\[N\]` across src/; write a 1-line
-      meaning for each index
-- [ ] Author the `flags:` enum (world.json5) or `PF_*` constants
-- [ ] Add `flag_get` / `flag_set` helpers (state.h or inventory.c)
-- [ ] Migrate speak.c
-- [ ] Migrate dungeon.c
-- [ ] Migrate missions.c
-- [ ] Migrate any stragglers (interact.c, subs.c)
+1. **§17-S.1** — extended `data/world.json5` `flags:` with every live
+   tag (garth.bandits, ranger.letter, fighter.priest_book, silver_key,
+   erethor.lute, bracelets.thun, nymph.seeker, peasant_wife,
+   jazzy_ogre, mastercrown, hermit.troll_tooth). Each has a named
+   `values:` array covering the observed state machine.
+2. **§17-S.2** — flipped every `{ set_flag: N, value: K }` in
+   `data/world/scripts/*.json5` to `{ set_flag: '<tag>', value:
+   '<state>' }`. DSL extended (`do_set_flag`, `eval_cond`) to accept
+   string values via `res_flag_value_id()`; typos now die at load.
+3. **§17-S.3** — added `pa_flag_get`/`pa_flag_is`/`pa_flag_set` in
+   `src/party.c` and migrated all 18 raw `state.p[cpl].flag[N]` reads
+   and writes in `src/speak.c`, `src/dungeon.c`, `src/missions.c`.
+4. **§17-S.4** — save format + fixture snapshot now emit
+   `flags: { tag: 'state', ... }` (sparse map) instead of a 40-byte
+   hex blob. Reader accepts both shapes. Struct layout unchanged
+   (still `unsigned char flag[40]`); wire shape is tag-based.
 
 ## P2 — Monster / encounter IDs
 
@@ -146,6 +163,10 @@ items above land.
 - `res_formula_int("donkey_food_cap", "y", y)` — §17-O
 - `res_npc_gender` / `state.npc[].gender` — §17-R
 - `res_xp_threshold(lv)` / `res_class_levelup(cls, stat)` — §17-I
+- `pa_flag_is("silver_key", "note_found")` /
+  `pa_flag_set("peasant_wife", "rescued")` — §17-S
+- `res_flag_slot("tag")` / `res_flag_value_id("tag", "state")` /
+  `res_flag_value("tag", idx)` / `res_flag_id_for_slot(slot)` — §17-S
 
 ## Out of scope for this doc
 
