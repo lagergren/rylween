@@ -311,21 +311,22 @@ static void reply_chitchat(int32_t subj, int32_t jb) {
    only reads flags here. */
 
 enum mission_bind_kind {
-    BIND_NPC_NAME = 1, /* res_enum("name", arg) */
-    BIND_NPC_LOC,      /* "in <town>" | "at <x>x<y>" via npc_loc_str */
+    BIND_NPC_NAME = 1, /* res_enum("name", res_npc_role(b->npc_role)) */
+    BIND_NPC_LOC,      /* npc_loc_str(npc_for_role(b->npc_role), ...) */
     BIND_DX_STR,       /* state.dx[arg] stringified */
     BIND_DY_STR,       /* state.dy[arg] stringified */
 };
 
 typedef struct {
-    int32_t flag;
-    int32_t when;
+    const char *flag_tag;   /* world.json5 flags: key */
+    const char *when_state; /* values[] name in that flag's shard */
 } mission_cond;
 
 typedef struct {
-    const char *name; /* placeholder id */
+    const char *name;       /* placeholder id in the script */
     enum mission_bind_kind kind;
-    int32_t arg; /* npc slot or dungeon index, per kind */
+    int32_t arg;            /* dungeon index (DX/DY) */
+    const char *npc_role;   /* set for BIND_NPC_NAME / BIND_NPC_LOC */
 } mission_binding;
 
 typedef struct {
@@ -338,7 +339,7 @@ typedef struct {
 } mission_stage;
 
 typedef struct {
-    int32_t npc_slot;
+    const char *npc_role;      /* resolved via res_npc_role at dispatch */
     const mission_stage *stages;
     size_t nstages;
 } mission_spec;
@@ -351,148 +352,157 @@ typedef struct {
    and binding arrays use C99 compound literals so adding a stage is
    a single struct-literal append. */
 
-static const mission_stage stages_npc1[] = {
-    {.conds = (const mission_cond[]){{.flag = 1, .when = 0}}, .nconds = 1, .script = "speak.merchant.first_visit", .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag = 1, .when = 2}}, .nconds = 1, .script = "speak.merchant.grateful", .pre_clw = 1},
+static const mission_stage stages_merchant[] = {
+    {.conds = (const mission_cond[]){{.flag_tag = "garth.bandits", .when_state = "none"}}, .nconds = 1, .script = "speak.merchant.first_visit", .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag_tag = "garth.bandits", .when_state = "recovered"}}, .nconds = 1, .script = "speak.merchant.grateful", .pre_clw = 1},
 };
 
-static const mission_stage stages_npc2[] = {
-    {.conds = (const mission_cond[]){{.flag = 2, .when = 0}}, .nconds = 1, .script = "speak.ranger.first_visit", .binds = (const mission_binding[]){
-                                                                                                                     {"ranger_name", BIND_NPC_NAME, 14},
-                                                                                                                     {"ranger_loc", BIND_NPC_LOC, 14},
-                                                                                                                 },
+static const mission_stage stages_ranger[] = {
+    {.conds = (const mission_cond[]){{.flag_tag = "ranger.letter", .when_state = "none"}}, .nconds = 1, .script = "speak.ranger.first_visit",
+     .binds = (const mission_binding[]){
+         {.name = "ranger_name", .kind = BIND_NPC_NAME, .npc_role = "ranger_brother"},
+         {.name = "ranger_loc",  .kind = BIND_NPC_LOC,  .npc_role = "ranger_brother"},
+     },
      .nbinds = 2,
      .pre_clw = 0},
 };
 
-static const mission_stage stages_npc3[] = {
-    /* flag[3]==0 (fighter intro) stays inline — no script yet. */
-    {.conds = (const mission_cond[]){{.flag = 3, .when = 3}}, .nconds = 1, .script = "speak.fighter.grateful", .pre_clw = 1},
+static const mission_stage stages_fighter[] = {
+    /* flag[3] == 'none' (fighter intro) stays inline — no script yet. */
+    {.conds = (const mission_cond[]){{.flag_tag = "fighter.priest_book", .when_state = "wizard_robbed"}}, .nconds = 1, .script = "speak.fighter.grateful", .pre_clw = 1},
 };
 
-static const mission_stage stages_npc4[] = {
-    /* NPC 4 reads flag[3] (priest-chain's flag). */
-    {.conds = (const mission_cond[]){{.flag = 3, .when = 2}}, .nconds = 1, .script = "speak.wizard.robbed_flow", .pre_clw = 1},
+static const mission_stage stages_wizard_robbed[] = {
+    /* Wizard reads the priest-chain flag. */
+    {.conds = (const mission_cond[]){{.flag_tag = "fighter.priest_book", .when_state = "priest_visited"}}, .nconds = 1, .script = "speak.wizard.robbed_flow", .pre_clw = 1},
 };
 
-static const mission_stage stages_npc5[] = {
-    {.conds = (const mission_cond[]){{.flag = 3, .when = 1}}, .nconds = 1, .script = "speak.priest.intro_flow", .binds = (const mission_binding[]){
-                                                                                                                    {"wizard_name", BIND_NPC_NAME, 4},
-                                                                                                                    {"giver_name", BIND_NPC_NAME, 3},
-                                                                                                                },
+static const mission_stage stages_priest[] = {
+    {.conds = (const mission_cond[]){{.flag_tag = "fighter.priest_book", .when_state = "priest_told"}}, .nconds = 1, .script = "speak.priest.intro_flow",
+     .binds = (const mission_binding[]){
+         {.name = "wizard_name", .kind = BIND_NPC_NAME, .npc_role = "wizard_robbed"},
+         {.name = "giver_name",  .kind = BIND_NPC_NAME, .npc_role = "fighter_intro"},
+     },
      .nbinds = 2,
      .pre_clw = 1},
 };
 
-static const mission_stage stages_npc8[] = {
-    {.conds = (const mission_cond[]){{.flag = 8, .when = 0}}, .nconds = 1, .script = "speak.erethor.first_visit", .pre_clw = 0},
-    {.conds = (const mission_cond[]){{.flag = 8, .when = 2}}, .nconds = 1, .script = "speak.erethor.delivered_lute", .binds = (const mission_binding[]){
-                                                                                                                         {"minstrel_name", BIND_NPC_NAME, 20},
-                                                                                                                         {"minstrel_loc", BIND_NPC_LOC, 20},
-                                                                                                                     },
+static const mission_stage stages_erethor_bard[] = {
+    {.conds = (const mission_cond[]){{.flag_tag = "erethor.lute", .when_state = "none"}}, .nconds = 1, .script = "speak.erethor.first_visit", .pre_clw = 0},
+    {.conds = (const mission_cond[]){{.flag_tag = "erethor.lute", .when_state = "lute_taken"}}, .nconds = 1, .script = "speak.erethor.delivered_lute",
+     .binds = (const mission_binding[]){
+         {.name = "minstrel_name", .kind = BIND_NPC_NAME, .npc_role = "minstrel_cloak"},
+         {.name = "minstrel_loc",  .kind = BIND_NPC_LOC,  .npc_role = "minstrel_cloak"},
+     },
      .nbinds = 2,
      .pre_clw = 1},
 };
 
-static const mission_stage stages_npc14[] = {
-    /* NPC 14 (brother) reads flag[2] (ranger's flag). */
-    {.conds = (const mission_cond[]){{.flag = 2, .when = 1}}, .nconds = 1, .script = "speak.brother.give_sword", .pre_clw = 1},
+static const mission_stage stages_ranger_brother[] = {
+    /* Brother reads the ranger's flag. */
+    {.conds = (const mission_cond[]){{.flag_tag = "ranger.letter", .when_state = "accepted"}}, .nconds = 1, .script = "speak.brother.give_sword", .pre_clw = 1},
 };
 
-static const mission_stage stages_npc15[] = {
-    {.conds = (const mission_cond[]){{.flag = 15, .when = 0}}, .nconds = 1, .script = "speak.nymph.know_flow", .binds = (const mission_binding[]){
-                                                                                                                   {"seeker_name", BIND_NPC_NAME, 23},
-                                                                                                                   {"seeker_loc", BIND_NPC_LOC, 23},
-                                                                                                               },
+static const mission_stage stages_crown_seer[] = {
+    {.conds = (const mission_cond[]){{.flag_tag = "nymph.seeker", .when_state = "none"}}, .nconds = 1, .script = "speak.nymph.know_flow",
+     .binds = (const mission_binding[]){
+         {.name = "seeker_name", .kind = BIND_NPC_NAME, .npc_role = "wizard_three_tasks"},
+         {.name = "seeker_loc",  .kind = BIND_NPC_LOC,  .npc_role = "wizard_three_tasks"},
+     },
      .nbinds = 2,
      .pre_clw = 1},
 };
 
-static const mission_stage stages_npc18[] = {
-    /* NPC 18 (thief 2) reads flag[6] (silver-key). */
-    {.conds = (const mission_cond[]){{.flag = 6, .when = 2}}, .nconds = 1, .script = "speak.thief2.squeezed", .binds = (const mission_binding[]){
-                                                                                                                  {"smith_name", BIND_NPC_NAME, 24},
-                                                                                                              },
+static const mission_stage stages_master_thief[] = {
+    /* Master thief reads the silver-key chain flag. */
+    {.conds = (const mission_cond[]){{.flag_tag = "silver_key", .when_state = "note_found"}}, .nconds = 1, .script = "speak.thief2.squeezed",
+     .binds = (const mission_binding[]){
+         {.name = "smith_name", .kind = BIND_NPC_NAME, .npc_role = "silver_key_smith"},
+     },
      .nbinds = 1,
      .pre_clw = 1},
 };
 
-static const mission_stage stages_npc19[] = {
-    {.conds = (const mission_cond[]){{.flag = 19, .when = 0}}, .nconds = 1, .script = "speak.husband.first_visit", .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag = 19, .when = 2}}, .nconds = 1, .script = "speak.husband.rescued", .pre_clw = 1},
+static const mission_stage stages_peasant_husband[] = {
+    {.conds = (const mission_cond[]){{.flag_tag = "peasant_wife", .when_state = "none"}}, .nconds = 1, .script = "speak.husband.first_visit", .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag_tag = "peasant_wife", .when_state = "rescued"}}, .nconds = 1, .script = "speak.husband.rescued", .pre_clw = 1},
 };
 
-static const mission_stage stages_npc20[] = {
-    /* NPC 20 (minstrel) reads flag[8] (Erethor-chain). */
-    {.conds = (const mission_cond[]){{.flag = 8, .when = 3}}, .nconds = 1, .script = "speak.minstrel.gives_cloak", .binds = (const mission_binding[]){
-                                                                                                                       {"minstrel_name", BIND_NPC_NAME, 20},
-                                                                                                                       {"next_town", BIND_NPC_NAME, 8},
-                                                                                                                   },
+static const mission_stage stages_minstrel_cloak[] = {
+    /* Minstrel reads the Erethor-chain flag. */
+    {.conds = (const mission_cond[]){{.flag_tag = "erethor.lute", .when_state = "note_received"}}, .nconds = 1, .script = "speak.minstrel.gives_cloak",
+     .binds = (const mission_binding[]){
+         {.name = "minstrel_name", .kind = BIND_NPC_NAME, .npc_role = "minstrel_cloak"},
+         {.name = "next_town",     .kind = BIND_NPC_NAME, .npc_role = "erethor_lute_bard"},
+     },
      .nbinds = 2,
      .pre_clw = 1},
 };
 
-static const mission_stage stages_npc23[] = {
-    /* task1 is a two-condition stage (flag[15]==1 AND flag[23]==0). */
+static const mission_stage stages_wizard_three_tasks[] = {
+    /* task1 is a two-condition stage (nymph seen AND crown-chain idle). */
     {.conds = (const mission_cond[]){
-         {.flag = 15, .when = 1},
-         {.flag = 23, .when = 0},
+         {.flag_tag = "nymph.seeker", .when_state = "told"},
+         {.flag_tag = "mastercrown",  .when_state = "none"},
      },
      .nconds = 2,
      .script = "speak.wizard3t.task1_flow",
      .binds = (const mission_binding[]){
-         {"kobold_x", BIND_DX_STR, 3},
-         {"kobold_y", BIND_DY_STR, 3},
+         {.name = "kobold_x", .kind = BIND_DX_STR, .arg = 3},
+         {.name = "kobold_y", .kind = BIND_DY_STR, .arg = 3},
      },
      .nbinds = 2,
      .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag = 23, .when = 2}}, .nconds = 1, .script = "speak.wizard3t.task2_flow", .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag = 23, .when = 4}}, .nconds = 1, .script = "speak.wizard3t.task3_flow", .binds = (const mission_binding[]){
-                                                                                                                       {"dwarf_x", BIND_DX_STR, 4},
-                                                                                                                       {"dwarf_y", BIND_DY_STR, 4},
-                                                                                                                   },
+    {.conds = (const mission_cond[]){{.flag_tag = "mastercrown", .when_state = "task1_done"}}, .nconds = 1, .script = "speak.wizard3t.task2_flow", .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag_tag = "mastercrown", .when_state = "task2_done"}}, .nconds = 1, .script = "speak.wizard3t.task3_flow",
+     .binds = (const mission_binding[]){
+         {.name = "dwarf_x", .kind = BIND_DX_STR, .arg = 4},
+         {.name = "dwarf_y", .kind = BIND_DY_STR, .arg = 4},
+     },
      .nbinds = 2,
      .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag = 23, .when = 8}}, .nconds = 1, .script = "speak.wizard3t.grateful_flow", .binds = (const mission_binding[]){
-                                                                                                                          {"crown_x", BIND_DX_STR, 6},
-                                                                                                                          {"crown_y", BIND_DY_STR, 6},
-                                                                                                                      },
-     .nbinds = 2,
-     .pre_clw = 1},
-};
-
-static const mission_stage stages_npc24[] = {
-    {.conds = (const mission_cond[]){{.flag = 6, .when = 3}}, .nconds = 1, .script = "speak.smith.after_thief2", .pre_clw = 1},
-};
-
-static const mission_stage stages_npc33[] = {
-    {.conds = (const mission_cond[]){{.flag = 33, .when = 0}}, .nconds = 1, .script = "speak.hermit.welcome_visit", .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag = 33, .when = 2}}, .nconds = 1, .script = "speak.hermit.tooth_trade", .binds = (const mission_binding[]){
-                                                                                                                      {"cave_x", BIND_DX_STR, 1},
-                                                                                                                      {"cave_y", BIND_DY_STR, 1},
-                                                                                                                  },
+    {.conds = (const mission_cond[]){{.flag_tag = "mastercrown", .when_state = "borin_paid"}}, .nconds = 1, .script = "speak.wizard3t.grateful_flow",
+     .binds = (const mission_binding[]){
+         {.name = "crown_x", .kind = BIND_DX_STR, .arg = 6},
+         {.name = "crown_y", .kind = BIND_DY_STR, .arg = 6},
+     },
      .nbinds = 2,
      .pre_clw = 1},
 };
 
-#define MS_ENTRY(slot, arr) \
-    {slot, arr, sizeof arr / sizeof *arr}
+static const mission_stage stages_silver_key_smith[] = {
+    {.conds = (const mission_cond[]){{.flag_tag = "silver_key", .when_state = "thief2_squeezed"}}, .nconds = 1, .script = "speak.smith.after_thief2", .pre_clw = 1},
+};
+
+static const mission_stage stages_hermit[] = {
+    {.conds = (const mission_cond[]){{.flag_tag = "hermit.troll_tooth", .when_state = "none"}}, .nconds = 1, .script = "speak.hermit.welcome_visit", .pre_clw = 1},
+    {.conds = (const mission_cond[]){{.flag_tag = "hermit.troll_tooth", .when_state = "extracted"}}, .nconds = 1, .script = "speak.hermit.tooth_trade",
+     .binds = (const mission_binding[]){
+         {.name = "cave_x", .kind = BIND_DX_STR, .arg = 1},
+         {.name = "cave_y", .kind = BIND_DY_STR, .arg = 1},
+     },
+     .nbinds = 2,
+     .pre_clw = 1},
+};
+
+#define MS_ENTRY(role, arr) \
+    {.npc_role = (role), .stages = (arr), .nstages = sizeof(arr) / sizeof *(arr)}
 
 static const mission_spec mission_table[] = {
-    MS_ENTRY(1, stages_npc1),
-    MS_ENTRY(2, stages_npc2),
-    MS_ENTRY(3, stages_npc3),
-    MS_ENTRY(4, stages_npc4),
-    MS_ENTRY(5, stages_npc5),
-    MS_ENTRY(8, stages_npc8),
-    MS_ENTRY(14, stages_npc14),
-    MS_ENTRY(15, stages_npc15),
-    MS_ENTRY(18, stages_npc18),
-    MS_ENTRY(19, stages_npc19),
-    MS_ENTRY(20, stages_npc20),
-    MS_ENTRY(23, stages_npc23),
-    MS_ENTRY(24, stages_npc24),
-    MS_ENTRY(33, stages_npc33),
+    MS_ENTRY("bandits_quest_giver", stages_merchant),
+    MS_ENTRY("rangers_quest_giver", stages_ranger),
+    MS_ENTRY("fighter_intro",       stages_fighter),
+    MS_ENTRY("wizard_robbed",       stages_wizard_robbed),
+    MS_ENTRY("priest_with_book",    stages_priest),
+    MS_ENTRY("erethor_lute_bard",   stages_erethor_bard),
+    MS_ENTRY("ranger_brother",      stages_ranger_brother),
+    MS_ENTRY("crown_seer",          stages_crown_seer),
+    MS_ENTRY("master_thief",        stages_master_thief),
+    MS_ENTRY("peasant_husband",     stages_peasant_husband),
+    MS_ENTRY("minstrel_cloak",      stages_minstrel_cloak),
+    MS_ENTRY("wizard_three_tasks",  stages_wizard_three_tasks),
+    MS_ENTRY("silver_key_smith",    stages_silver_key_smith),
+    MS_ENTRY("hermit_troll_tooth",  stages_hermit),
 };
 
 #undef MS_ENTRY
@@ -509,10 +519,10 @@ static void mission_resolve_bindings(const mission_stage *st, ryl_bind *out,
         out[i].name = b->name;
         switch (b->kind) {
             case BIND_NPC_NAME:
-                out[i].value = res_enum("name", b->arg);
+                out[i].value = res_enum("name", res_npc_role(b->npc_role));
                 break;
             case BIND_NPC_LOC:
-                npc_loc_str(npc_at_slot(b->arg), zone, BIND_ZONE_SIZE);
+                npc_loc_str(npc_for_role(b->npc_role), zone, BIND_ZONE_SIZE);
                 out[i].value = zone;
                 break;
             case BIND_DX_STR:
@@ -530,17 +540,17 @@ static void mission_resolve_bindings(const mission_stage *st, ryl_bind *out,
 
 /* Returns 1 if a stage fired, 0 otherwise. */
 static int mission_dispatch(int32_t npc) {
-    const unsigned char *flag = state.p[state.cpl].flag;
     for (size_t i = 0; i < sizeof mission_table / sizeof *mission_table; i++) {
         const mission_spec *spec = &mission_table[i];
-        if (spec->npc_slot != npc) {
+        if (res_npc_role(spec->npc_role) != npc) {
             continue;
         }
         for (size_t j = 0; j < spec->nstages; j++) {
             const mission_stage *st = &spec->stages[j];
             int match = 1;
             for (size_t c = 0; c < st->nconds; c++) {
-                if (flag[st->conds[c].flag] != (unsigned char)st->conds[c].when) {
+                if (!pa_flag_is(st->conds[c].flag_tag,
+                                st->conds[c].when_state)) {
                     match = 0;
                     break;
                 }

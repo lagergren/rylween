@@ -389,15 +389,23 @@
   // or renaming a role IS a C-visible change since the role key is a
   // string literal at the call site.
   npc_roles: {
-    bandits_quest_giver: 'Garth',     // towne.c rumour r12
-    rangers_quest_giver: "Nrim'to",   // towne.c rumour r13
-    crown_seer:          'Broth',     // towne.c rumour r25
+    bandits_quest_giver: 'Garth',     // towne.c rumour r12 + speak stages_npc1
+    rangers_quest_giver: "Nrim'to",   // towne.c rumour r13 + speak stages_npc2
+    crown_seer:          'Broth',     // towne.c rumour r25 + speak stages_npc15
     temple_of_thun_seer: 'Harry',     // towne.c rumour r27 + speak case 13
-    master_thief:        'Gotharp',   // dungeon.c silver-key note author
-    fighter_intro:       'Areth',     // speak.c case 3 + bard fighter_name bind
-    priest_with_book:    'Gorm',      // speak.c case 3 target NPC
+    master_thief:        'Gotharp',   // dungeon.c silver-key note + speak stages_npc18
+    fighter_intro:       'Areth',     // speak.c case 3 + bard fighter_name + speak stages_npc3
+    priest_with_book:    'Gorm',      // speak.c case 3 target + speak stages_npc5
     silver_key_vendor:   'Bernak',    // speak.c case 6
     jazzy_ogre_trader:   'Leander',   // speak.c case 22
+    wizard_robbed:       'Nevaak',    // speak stages_npc4 (stolen-book chain)
+    erethor_lute_bard:   'Tybalt',    // speak stages_npc8 (Erethor / Lute intro)
+    ranger_brother:      'Marraga',   // speak stages_npc14 (sword delivery)
+    peasant_husband:     'Ron',       // speak stages_npc19 + missions husband_cave bind
+    minstrel_cloak:      'Kaal',      // speak stages_npc20 (Lute -> Cloak handoff)
+    wizard_three_tasks:  'Ithienn',   // speak stages_npc23 (wizard3t / Master Crown)
+    silver_key_smith:    'Azaaza',    // speak stages_npc24 (after thief2 squeeze)
+    hermit_troll_tooth:  'Marcus',    // speak stages_npc33 (tooth trade)
   },
 
   // Enum tables — res_enum(id, index) reads values[index]. Slot 0 is

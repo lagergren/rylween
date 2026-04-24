@@ -35,16 +35,19 @@ enum mission_guard_kind {
 };
 
 enum mission_bind_kind {
-    MB_NPC_NAME = 1, /* res_enum("name", arg)                   */
-    MB_PLAYER_NAME,  /* state.p[cpl].name[arg] (party-slot name)*/
-    MB_DX_STR,       /* state.dx[arg] stringified               */
-    MB_DY_STR,       /* state.dy[arg] stringified               */
+    MB_NPC_NAME = 1, /* res_enum("name", res_npc_role(b->npc_role))  */
+    MB_PLAYER_NAME,  /* state.p[cpl].name[b->arg] (party-slot name)  */
+    MB_DX_STR,       /* state.dx[b->arg] stringified                 */
+    MB_DY_STR,       /* state.dy[b->arg] stringified                 */
 };
 
 typedef struct {
     const char *name; /* placeholder ident in the script */
     enum mission_bind_kind kind;
-    int32_t arg;
+    int32_t arg;             /* dungeon index / player-member slot */
+    const char *npc_role;    /* set for MB_NPC_NAME; resolved via
+                                res_npc_role so C doesn't name
+                                specific characters */
 } mission_binding;
 
 enum mission_post_op {
@@ -53,8 +56,8 @@ enum mission_post_op {
 };
 
 typedef struct {
-    int32_t flag;
-    int32_t when;
+    const char *flag_tag;    /* world.json5 flags: key (e.g. "silver_key") */
+    const char *when_state;  /* values[] name in that flag's shard        */
     enum mission_guard_kind kind;
     int32_t a, b;
     const char *script;
@@ -73,74 +76,70 @@ typedef struct {
    mission-control turn (blocks 9, 11, 12, 14, 16) — the other blocks
    fell through to the random-event roll in random_wilderness(). */
 static const mission_trigger mission_triggers[] = {
-    /* Block 1: Erethor temple at (6,20). Flag 8 == 1. */
-    {.flag = 8, .when = 1, .kind = MG_POS, .a = 6, .b = 20, .script = "missions.erethor_entry"},
+    /* Block 1: Erethor temple at (6,20). */
+    {.flag_tag = "erethor.lute", .when_state = "rumour_told", .kind = MG_POS, .a = 6, .b = 20, .script = "missions.erethor_entry"},
 
-    /* Block 2: Husband cave at (42,23). Flag 19 == 1. Binds `name19`. */
-    {.flag = 19, .when = 1, .kind = MG_POS, .a = 42, .b = 23, .script = "missions.husband_cave", .binds = (const mission_binding[]){{"name19", MB_NPC_NAME, 19}}, .nbinds = 1},
+    /* Block 2: Husband cave at (42,23). Binds `name19` to the
+       peasant-husband NPC's display name. */
+    {.flag_tag = "peasant_wife", .when_state = "accepted", .kind = MG_POS, .a = 42, .b = 23, .script = "missions.husband_cave", .binds = (const mission_binding[]){{.name = "name19", .kind = MB_NPC_NAME, .npc_role = "peasant_husband"}}, .nbinds = 1},
 
-    /* Block 3: Bandit cargo. Flag 1 == 1 + 9% chance. */
-    {.flag = 1, .when = 1, .kind = MG_CHANCE, .a = 9, .script = "missions.bandits"},
+    /* Block 3: Bandit cargo. 9% chance gate. */
+    {.flag_tag = "garth.bandits", .when_state = "accepted", .kind = MG_CHANCE, .a = 9, .script = "missions.bandits"},
 
-    /* Block 4: Troll tooth. Flag 33 == 1 + 9% chance. */
-    {.flag = 33, .when = 1, .kind = MG_CHANCE, .a = 9, .script = "missions.troll_tooth"},
+    /* Block 4: Troll tooth. 9% chance gate. */
+    {.flag_tag = "hermit.troll_tooth", .when_state = "accepted", .kind = MG_CHANCE, .a = 9, .script = "missions.troll_tooth"},
 
-    /* Block 4b: Hermit-quest dungeon. Flag 33 == 3 at dx[1],dy[1]. */
-    {.flag = 33, .when = 3, .kind = MG_DUNGEON_IDX, .a = 1, .script = "missions.hermit_dungeon"},
+    /* Block 4b: Hermit-quest dungeon at dx[1],dy[1]. */
+    {.flag_tag = "hermit.troll_tooth", .when_state = "delivered", .kind = MG_DUNGEON_IDX, .a = 1, .script = "missions.hermit_dungeon"},
 
-    /* Block 6: Kobold village. Flag 23 == 1 at dx[3],dy[3]. */
-    {.flag = 23, .when = 1, .kind = MG_DUNGEON_IDX, .a = 3, .script = "missions.kobold_village"},
+    /* Block 6: Kobold village at dx[3],dy[3]. */
+    {.flag_tag = "mastercrown", .when_state = "task1_assigned", .kind = MG_DUNGEON_IDX, .a = 3, .script = "missions.kobold_village"},
 
-    /* Block 7: Skullweed on terrain 't'. Flag 23 == 3. */
-    {.flag = 23, .when = 3, .kind = MG_TERRAIN, .a = 't', .script = "missions.skullweed"},
+    /* Block 7: Skullweed on terrain 't'. */
+    {.flag_tag = "mastercrown", .when_state = "task2_assigned", .kind = MG_TERRAIN, .a = 't', .script = "missions.skullweed"},
 
-    /* Block 8: Borin first visit. Flag 23 == 5 at dx[4],dy[4]. Binds
-       {dx5}/{dy5} for the crypt-location screen + journal. */
-    {.flag = 23, .when = 5, .kind = MG_DUNGEON_IDX, .a = 4, .script = "missions.borin_meet", .binds = (const mission_binding[]){
-                                                                                                 {"dx5", MB_DX_STR, 5},
-                                                                                                 {"dy5", MB_DY_STR, 5},
+    /* Block 8: Borin first visit at dx[4],dy[4]. Binds {dx5}/{dy5}
+       for the crypt-location screen + journal. */
+    {.flag_tag = "mastercrown", .when_state = "task3_assigned", .kind = MG_DUNGEON_IDX, .a = 4, .script = "missions.borin_meet", .binds = (const mission_binding[]){
+                                                                                                 {.name = "dx5", .kind = MB_DX_STR, .arg = 5},
+                                                                                                 {.name = "dy5", .kind = MB_DY_STR, .arg = 5},
                                                                                              },
      .nbinds = 2},
 
-    /* Block 9: Nolrim crypt. Flag 23 == 6 at dx[5],dy[5].
-       returns_on_skip: original `return 1` after L. */
-    {.flag = 23, .when = 6, .kind = MG_DUNGEON_IDX, .a = 5, .script = "missions.nolrim_crypt", .returns_on_skip = 1},
+    /* Block 9: Nolrim crypt at dx[5],dy[5]. */
+    {.flag_tag = "mastercrown", .when_state = "borin_met", .kind = MG_DUNGEON_IDX, .a = 5, .script = "missions.nolrim_crypt", .returns_on_skip = 1},
 
-    /* Block 10: Borin gift. Flag 23 == 7 at dx[4],dy[4]. */
-    {.flag = 23, .when = 7, .kind = MG_DUNGEON_IDX, .a = 4, .script = "missions.borin_gift"},
+    /* Block 10: Borin gift at dx[4],dy[4]. */
+    {.flag_tag = "mastercrown", .when_state = "dagger_taken", .kind = MG_DUNGEON_IDX, .a = 4, .script = "missions.borin_gift"},
 
-    /* Block 11: Master crown dungeon. Flag 23 == 9 at dx[6],dy[6].
-       returns_on_skip: original `return 1` after L. */
-    {.flag = 23, .when = 9, .kind = MG_DUNGEON_IDX, .a = 6, .script = "missions.master_crown", .returns_on_skip = 1},
+    /* Block 11: Master crown dungeon at dx[6],dy[6]. */
+    {.flag_tag = "mastercrown", .when_state = "crown_told", .kind = MG_DUNGEON_IDX, .a = 6, .script = "missions.master_crown", .returns_on_skip = 1},
 
-    /* Block 12: Ogre cave. Flag 22 == 1 at dx[7],dy[7]. Binds
-       {p2_name} (player-slot 2's name, used in the 'note-found'
-       screen). returns_on_skip: original `return 1` after L. */
-    {.flag = 22, .when = 1, .kind = MG_DUNGEON_IDX, .a = 7, .script = "missions.ogre_cave", .returns_on_skip = 1, .binds = (const mission_binding[]){
-                                                                                                                      {"p2_name", MB_PLAYER_NAME, 2},
+    /* Block 12: Ogre cave at dx[7],dy[7]. Binds {p2_name} (player
+       member 2's name, used in the note-found screen). */
+    {.flag_tag = "jazzy_ogre", .when_state = "accepted", .kind = MG_DUNGEON_IDX, .a = 7, .script = "missions.ogre_cave", .returns_on_skip = 1, .binds = (const mission_binding[]){
+                                                                                                                      {.name = "p2_name", .kind = MB_PLAYER_NAME, .arg = 2},
                                                                                                                   },
      .nbinds = 1},
 
-    /* Block 13: Foot of Jazzy altar on terrain 'f'. Flag 22 == 2.
-       Post-action sets state.p[cpl].jazzyfoot = 1 — not yet a DSL
-       primitive, applied in C after the script returns. */
-    {.flag = 22, .when = 2, .kind = MG_TERRAIN, .a = 'f', .script = "missions.jazzy_foot", .post = POST_SET_JAZZYFOOT},
+    /* Block 13: Foot of Jazzy altar on terrain 'f'. Post-action
+       sets state.p[cpl].jazzyfoot = 1 — not yet a DSL primitive,
+       applied in C after the script returns. */
+    {.flag_tag = "jazzy_ogre", .when_state = "ogres_cleared", .kind = MG_TERRAIN, .a = 'f', .script = "missions.jazzy_foot", .post = POST_SET_JAZZYFOOT},
 
-    /* Block 14: Silver key dungeon. Flag 6 == 1 at dx[8],dy[8].
-       returns_on_skip: original `return 1` after L. */
-    {.flag = 6, .when = 1, .kind = MG_DUNGEON_IDX, .a = 8, .script = "missions.silver_key", .returns_on_skip = 1},
+    /* Block 14: Silver key dungeon at dx[8],dy[8]. */
+    {.flag_tag = "silver_key", .when_state = "map_bought", .kind = MG_DUNGEON_IDX, .a = 8, .script = "missions.silver_key", .returns_on_skip = 1},
 
-    /* Block 15: Hobgoblin caravan. Flag 6 == 4 + 9% chance. Binds
-       {dx9}/{dy9} for the interrogate screen + journal. */
-    {.flag = 6, .when = 4, .kind = MG_CHANCE, .a = 9, .script = "missions.hobgoblin_caravan", .binds = (const mission_binding[]){
-                                                                                                  {"dx9", MB_DX_STR, 9},
-                                                                                                  {"dy9", MB_DY_STR, 9},
+    /* Block 15: Hobgoblin caravan. 9% chance + binds {dx9}/{dy9}
+       for the interrogate screen + journal. */
+    {.flag_tag = "silver_key", .when_state = "smith_confessed", .kind = MG_CHANCE, .a = 9, .script = "missions.hobgoblin_caravan", .binds = (const mission_binding[]){
+                                                                                                  {.name = "dx9", .kind = MB_DX_STR, .arg = 9},
+                                                                                                  {.name = "dy9", .kind = MB_DY_STR, .arg = 9},
                                                                                               },
      .nbinds = 2},
 
-    /* Block 16: Hobgoblin cave (pit). Flag 6 == 5 at dx[9],dy[9].
-       returns_on_skip: original `return 1` after L. */
-    {.flag = 6, .when = 5, .kind = MG_DUNGEON_IDX, .a = 9, .script = "missions.hobgoblin_cave", .returns_on_skip = 1},
+    /* Block 16: Hobgoblin cave (pit) at dx[9],dy[9]. */
+    {.flag_tag = "silver_key", .when_state = "cave_located", .kind = MG_DUNGEON_IDX, .a = 9, .script = "missions.hobgoblin_cave", .returns_on_skip = 1},
 };
 
 static int guard_matches(const mission_trigger *t) {
@@ -167,7 +166,7 @@ static void resolve_bindings(const mission_trigger *t, ryl_bind *out,
         out[i].name = b->name;
         switch (b->kind) {
             case MB_NPC_NAME:
-                out[i].value = res_enum("name", b->arg);
+                out[i].value = res_enum("name", res_npc_role(b->npc_role));
                 break;
             case MB_PLAYER_NAME:
                 out[i].value = state.p[state.cpl].name[b->arg];
@@ -199,10 +198,9 @@ static void apply_post(enum mission_post_op op) {
    (returns_on_skip), 0 when a trigger fired fall-through, -1 when no
    trigger matched. */
 static int dispatch_triggers(void) {
-    const unsigned char *flag = state.p[state.cpl].flag;
     for (size_t i = 0; i < sizeof mission_triggers / sizeof *mission_triggers; i++) {
         const mission_trigger *t = &mission_triggers[i];
-        if (flag[t->flag] != (unsigned char)t->when) {
+        if (!pa_flag_is(t->flag_tag, t->when_state)) {
             continue;
         }
         if (!guard_matches(t)) {

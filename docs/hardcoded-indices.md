@@ -56,20 +56,21 @@ acting — they may have shifted.
       gender check (works identically today because all bargirls
       are female, but wouldn't survive a non-bargirl female NPC).
 
-### P1 follow-ups (not blocking)
+### P1 follow-ups
 
-- `mission_spec` tables in `src/speak.c` still use `.flag = N,
-  .when = K` literals. They parallel the now-tag-based scripts and
-  should flip to `.flag_tag = "silver_key", .when = "note_found"`
-  — mechanical, no behavior change. Not done in §17-S because the
-  struct-shape change touches every mission_spec[] instantiation
-  and is easier in a dedicated pass.
-- `src/missions.c` has one fresh `pa_flag_is` site but the other
-  trigger guards still live in a table of `.flag = N` ints. Same
-  pattern as above; same follow-up.
-- The save loader still accepts the legacy `flag: [...]` byte-array
-  shape for round-tripping pre-§17-S saves. Once no such save exists,
-  that branch can be deleted.
+- [x] `mission_spec` tables in `src/speak.c` — flipped in §17-Z to
+      `.flag_tag = "silver_key", .when_state = "note_found"` shape;
+      `.npc_slot` also became `.npc_role`, keyed on world.json5's
+      `npc_roles:` subtree, so C names the quest role not the
+      character.
+- [x] `src/missions.c` mission_trigger table — same shape
+      migration (§17-Z). Dispatch uses pa_flag_is.
+- [x] mission_binding NPC binds (`MB_NPC_NAME`, `BIND_NPC_NAME`,
+      `BIND_NPC_LOC`) — `.arg = <slot>` replaced by
+      `.npc_role = "<role>"`, resolved via res_npc_role (§17-Z).
+- [ ] The save loader still accepts the legacy `flag: [...]`
+      byte-array shape for round-tripping pre-§17-S saves. Once no
+      such save exists, that branch can be deleted.
 
 ---
 
@@ -244,6 +245,9 @@ items above land.
 - `npc_t` handle + `npc_at_slot` / `npc_for_role` /
   `npc_name` / `npc_job` / `npc_gender` / `npc_towne` / `npc_x` /
   `npc_y` / `npc_loc_str(n, buf, sz)` — §17-Y
+- mission_trigger / mission_cond `.flag_tag` + `.when_state` /
+  mission_spec `.npc_role` / mission_binding `.npc_role` — §17-Z
+  (P1 follow-ups)
 
 ## Out of scope for this doc
 
