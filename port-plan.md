@@ -1108,13 +1108,25 @@ open:
   clang-format reformat) so `git blame -w --ignore-revs-file
   .git-blame-ignore-revs` skips it. Easy win, do next time
   `.git*` files are open.
-- **Journal code lives in the wrong module.** `read_journal` /
-  `journal` / the `journal` editor helpers currently live in
-  `driv.c` (lines ~256, ~1083, ~1115, ~1136, ~1153, ~1175).
-  Semantically it's a multi-user / BBS feature that never
-  shipped; belongs alongside guild / mail / trade in
-  `interact.c`. When you move it, update `driv.h`/`interact.h`
-  and the tailored include lists accordingly.
+- **Journal code lives in the wrong module.** §19.2 shrank
+  this: the file-backed `journal()` / `clrjr()` helpers are
+  gone, only `read_journal()` (viewer) and `journalf()`
+  (single-line writer, thin wrapper over
+  `party_journal_add`) still live in `driv.c`. Still fits
+  better alongside guild / mail / trade in `interact.c`, but
+  the move is now ~40 lines, not the BBS-era sprawl it used
+  to be.
+- **Makefile header dependency tracking (`-MMD -MP`).**
+  Surfaced during §19.2.2: editing `state.h` and running
+  `make build` only rebuilt the `.c` files whose source
+  changed, so `snapshot.o` / `driv.o` / etc. linked against
+  the old `struct party` layout and produced garbage
+  snapshots. Current mitigation is `make clean` before any
+  build that touches a widely-included header; proper fix is
+  a one-liner switch to `-MMD -MP` plus `include $(OBJ:.o=.d)`
+  so make tracks header deps automatically. Keep it tight: one
+  Makefile edit, verify incremental rebuild on a `state.h`
+  edit covers every dependent `.c`, re-bless not required.
 - **Clangd cache drift.** Background `<new-diagnostics>`
   reminders sometimes reference symbols that no longer exist
   (e.g. `sextext`, `kar`, `ryl_seed_now`, `strid.c`). The
@@ -2092,6 +2104,21 @@ scoped pass. Sequence them D → B → C: fixture coverage first so
 subsequent refactors are caught by `make test` instead of eye-
 balling replay output.
 
+**Status (2026-04-24).** D starter bank and B both landed. C is
+next.
+
+- §19.1 (D) — starter bank of 11 Thord-centred fixtures landed.
+  Broader coverage (other towns, huts, remaining mission stages)
+  deferred; see §19.1 for the list.
+- §19.2 (B) — per-party in-memory journal with save/load, all
+  four `journalf` / `do_journal` / `eval.c journal` write paths
+  migrated, `data/journal` file retired. Gated by a new
+  silver-key-map replay fixture (fixture bank now 15).
+- §19.3 (C) — data-driven party size. Not started. §19.2 has
+  already introduced the first heap-allocated per-party array
+  (`char **journal`), so the allocation/teardown pattern is
+  proven before the bulk of the per-member fields follow.
+
 ### 19.1 (D) Town-level replay fixtures — starter bank landed (2026-04-24)
 
 Landed in `cc92304` (§19-D) and `822b456` (§19-D.2). Eleven
@@ -2213,69 +2240,60 @@ the `state` dump. Starter set:
 canned realizer load) as one commit. Then one fixture at a time
 so each landing gives a clean `make test` and a reviewable diff.
 
-### 19.2 (B) Journal into party state / save
+### 19.2 (B) Journal into party state / save — landed (2026-04-24)
 
-**Current shape.** Journal lives in `data/journal`, a flat file in
-the process's cwd:
+Landed in four step-commits (§19.2.1..§19.2.4):
 
-- `journalf(...)` (driv.c:1610) formats a line and calls
-  `journal()` (driv.c:1583).
-- `journal()` opens `data/journal`, linear-scans for the exact
-  same string (dedup), appends if absent.
-- Per-party scoping is via a leading `"%d "` cpl prefix on each
-  line; the viewer (driv.c:265) filters `plr == state.cpl` at
-  display time, and `clrjr(nr)` rewrites the file omitting a
-  party's lines on new-campaign.
-- Two write paths: the four `journalf` sites in speak.c, and the
-  DSL `{ journal: "..." }` op in script.c:910 which covers ~11
-  entries in `data/world/scripts/{speak,missions}.json5`.
-- Legacy Amiga source had the same shape
-  (`Doors:Rylween/Journal`) — this isn't a regression, it's
-  been that way forever. User's preference is to fix it in this
-  port.
+- `12ceb3e` §19.2.1 — plumbing: `char **journal`, `journal_n`,
+  `journal_cap` on `struct party`; `party_journal_add`
+  (case-insensitive dedup, matches the file-backed `stricmp`
+  predecessor); `free_journal` tears down. No callers migrated
+  yet, file-backed `journal()` still authoritative.
+- `efd95ba` §19.2.2 — migrate every writer: `journalf` vsnprintf's
+  and delegates to `party_journal_add(party_current(), …)`; DSL
+  `do_journal` in script.c and the effect-DSL `journal` op in
+  eval.c both stop composing the cpl prefix + `\n`; three
+  `speak.c` sites drop the `"%d "` and `"\n"` from their format
+  strings. `journal()` / `clrjr()` and the `data/journal`
+  file-open loops are gone. `read_journal` iterates the in-memory
+  list. Party-terminate flow calls `free_journal` before the
+  memmove that shifts higher slots down, then zeros the
+  duplicated tail pointers so save sees no aliased journals.
+- `d708b61` §19.2.3 — persist through save: `write_current_world`
+  emits `journal: ['line', ...]` per party; `read_current_world`
+  `free_journal`s and re-appends each entry (missing key →
+  empty list, so pre-§19.2 saves load clean).
+  `snapshot.c emit_party` adds a `journal_n` header plus
+  `journal[i]=<line>` rows, gated on `journal_n > 0` so every
+  pre-§19.2 fixture baseline stays diff-clean.
+- `1e33da3` §19.2.4 — gate: new fixture
+  `towne-thord-tavern-bernak-map`. Seed 1 keeps Bernak in Thord's
+  inn (default seed 42 shuffles him to Wilor, forcing a 42-square
+  overland detour); tavern → S → C reaches him. A new test-only
+  env hook `RYL_STARTING_GOLD` preloads the bank (clamped
+  `>= 1000`, production never sets it, same shape as
+  `RYL_REPLAY_RUMOUR`). Snapshot asserts
+  `journal[0]=The Pit of the Silver Key is at 8x8`.
 
-**Target shape.** Per-party list of journal lines that
-round-trips through the save. Concrete design:
+**Behaviour deltas from the file-backed shape.**
 
-- In `struct party`, add a variable-length journal (see §19.3 —
-  ideally the same mechanism used for dynamic member sizing):
-  ```c
-  char **journal;       // NULL-terminated list
-  size_t journal_n;     // number of entries
-  size_t journal_cap;   // allocated capacity
-  ```
-- A single writer `party_journal_add(struct party *p, const char *line)`
-  takes an already-formatted line (no cpl prefix — that's a
-  display-time quirk of the file-backed impl and becomes
-  unnecessary in memory). Dedup check and grow-capacity live
-  there.
-- `journalf(...)` becomes a thin wrapper that `vsnprintf`s into a
-  stack buffer and delegates to `party_journal_add(party_current(), ...)`.
-- `do_journal` in script.c:910 drops the `"%d %s\n"` prefix +
-  trailing newline and calls the same helper.
-- Viewer iterates `state.p[state.cpl].journal[0..journal_n-1]`;
-  `clrjr(party_nr)` becomes `free_journal(&state.p[party_nr])`.
-- Serializer (save): emit `journal: ['line 1', 'line 2', ...]`
-  in current-world.json5. Reader populates the list.
-- `data/journal` disappears. Kill the file-open / append loop.
+- Journals no longer cross parties on the same machine. The
+  `"%d "` cpl prefix was a display-time quirk of the shared file;
+  with per-party storage the filtering is automatic. This is the
+  intended fix, not a regression.
+- Dedup remains case-insensitive (`stricmp` parity). Tightening is
+  a follow-up if we want it.
+- `driv.journal.header` text is still authored as-is.
 
-**Migration watchouts.**
-
-- The file's dedup is case-insensitive (`stricmp`) — the in-memory
-  version should match for behavior parity, then we can tighten
-  in a follow-up.
-- Multiple parties on one machine used to share `data/journal`;
-  the per-party split at display was how parties didn't see each
-  other's notes. In the save-embedded shape this is automatic and
-  the cross-party sharing stops. That's a feature, but call it
-  out in the commit message.
-- `driv.journal.header` text stays authored as-is.
-- Pre-§19.2 saves won't have a journal: array — loader should
-  accept its absence and start empty.
-
-**Gate.** Fixture from §19.1 that hits a location-reveal flow
-(silver-key map-buy: `journal` must contain "The Pit of the Silver
-Key is at NxN" after the purchase, serialized into the snapshot).
+**Build-system footgun surfaced.** The Makefile has no header
+dependency tracking, so editing `state.h` and running `make build`
+only rebuilds the `.c` files whose source changed — the rest link
+against the old struct layout. During §19.2.2 this produced the
+"HP 68/64" phantom: `snapshot.c` and `statusline()` read from
+stale offsets after `struct party` grew. `make clean && make
+build` fixed it. Worth a proper `-MMD -MP` pass in a future
+infrastructure commit; for now, a clean rebuild after any
+`state.h` change is the mitigation.
 
 ### 19.3 (C) Data-driven party size
 
@@ -2327,7 +2345,13 @@ land:
 to prove the dynamic path — neither should wedge even if the
 latter has gameplay rough edges.
 
-**Sequencing.** After §19.2 so the journal's
-`char **journal` lives alongside the other heap-allocated
-per-party arrays; the allocation/teardown patterns mirror each
-other.
+**Sequencing.** §19.2 already landed the first heap-allocated
+per-party field (`char **journal` + `free_journal` + json5
+list serializer). §19.3 follows the same pattern for the
+thirteen-or-so per-member arrays: allocate at realize/load,
+free in the same `free_journal`-sibling teardown, emit/load as
+variable-length JSON arrays. The save-format break watchout
+above still applies — `hp: [...]` today assumes exactly 5
+entries (slot 0 unused + 1..4), and the loader's fixed
+`rcw_i32_arr(..., 5)` calls need to size off
+`res_party_member_max()`.
