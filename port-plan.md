@@ -2082,3 +2082,202 @@ assumes 1-cell-wide rendering of Unicode block characters; use
 iTerm2, Ghostty, Alacritty, Kitty, or WezTerm. macOS Terminal.app
 renders block glyphs as 2 cells and the layout drifts. See
 port-plan §18 for the details."
+
+## 19. Post-§17 follow-ups surfaced during the hardcoded-indices sweep
+
+Captured 2026-04-24 after the §17-T..§17-Z commits closed P1-P3
+and P5-P6 on `docs/hardcoded-indices.md`. These three items are
+structural, not mechanical symbol swaps, and each wants its own
+scoped pass. Sequence them D → B → C: fixture coverage first so
+subsequent refactors are caught by `make test` instead of eye-
+balling replay output.
+
+### 19.1 (D) Town-level replay fixtures
+
+**Problem.** `tools/replay/` has exactly three fixtures:
+`title-create-party-combat`, `title-create-party-exit`,
+`title-menu-exit`. All three stop at the title menu or combat
+initialization. There is **no coverage** of:
+
+- Entering a town (Thord / Ollk / Wilor / Murn).
+- Inn sleep / tavern rumour / shop buy/sell / smith repair.
+- `speak()` — the entire chitchat / rumour / Q&A / mission_dispatch
+  flow for every NPC.
+- Quest progression: flag transitions end-to-end (none of the
+  `pa_flag_set` sites in §17-S/Z fire in the current fixtures).
+- Coordinate reveals (silver-key pit, Temple of Thun, Beast Cave,
+  hermit dungeon, Crown chain).
+- Journal writes (see §19.2 — both the 4 `journalf` sites and the
+  ~11 `{ journal: ... }` DSL ops would benefit).
+
+The §17 refactors ran green on three tiny fixtures because those
+paths don't touch speak.c / towne.c / missions.c / dungeon.c quest
+logic at all. Behavior-preserving claims stay optimistic until the
+fixture net catches them.
+
+**What to build.** A town-interaction replay bank, each fixture
+scripted to enter a town, step a specific NPC flow to a
+well-defined terminal state, and snapshot both the transcript and
+the `state` dump. Starter set:
+
+- `towne-thord-merchant-bandits` — Garth: rumour → accept → camp
+  loop (flag `garth.bandits` goes `none` → `accepted`).
+- `towne-thord-ranger-letter` — Nrim'to: accept ranger quest +
+  brother sword delivery (`ranger.letter` chain).
+- `towne-ollk-priest-book` — Gorm → Nevaak → Areth handoff on
+  `fighter.priest_book`.
+- `towne-wilor-silver-key-map` — Bernak map buy (`silver_key` →
+  `map_bought`, journal entry for Pit coords).
+- `towne-murn-jazzy-ogre-trade` — Leander invlist item trade
+  (`jazzy_ogre` → `accepted`, journal "Beast Cave" entry).
+- `towne-rumours` — rumour bank sweep: R_* deterministic via a
+  seeded `ryl_random` driver so every parametric rumour
+  (bandits/hunter/crown/temple) exercises its binding and
+  `res_npc_role` / `npc_loc_str` path.
+- `towne-hermit-troll-tooth` — Marcus tooth trade and Fire Shield
+  reveal (`hermit.troll_tooth` chain).
+
+**Infrastructure gaps to fill first.**
+
+- `replay.sh` drives the game via `stdin` + an `.env` for seeds.
+  The current seed knob is coarse (one `RYL_SEED`); rumour-bank
+  coverage wants either per-invocation seeds or a per-rumour
+  deterministic path. Cheapest: add a "rumour debug" dev-only
+  override that forces `pick` so the fixture covers a specific
+  rumour id. Guard it behind `#ifdef RYL_REPLAY_HOOKS`.
+- Some NPC flows gate on being at the NPC's towne tile
+  (`speak()` looks up `state.npc[i].x/y`). Fixtures will need a
+  deterministic realizer seed so NPC placements are stable.
+  Currently `res_realize_npcs` runs from scratch on first boot;
+  a fixture-mode flag that loads a canned `current-world.json5`
+  instead of realizing is cleanest. This overlaps with §15.
+
+- `.expect_snapshot` diff today is whole-file; per-fixture we
+  might want to snapshot only the `[party 1].flags=` /
+  `[party 1].journal=` fields rather than the full map blob, so
+  a trivial NPC realizer tweak doesn't invalidate every town
+  fixture. `tools/replay.sh` supports this today if we pass a
+  subset list.
+
+**Sequencing inside D.** Land infrastructure (seeded rumour pick,
+canned realizer load) as one commit. Then one fixture at a time
+so each landing gives a clean `make test` and a reviewable diff.
+
+### 19.2 (B) Journal into party state / save
+
+**Current shape.** Journal lives in `data/journal`, a flat file in
+the process's cwd:
+
+- `journalf(...)` (driv.c:1610) formats a line and calls
+  `journal()` (driv.c:1583).
+- `journal()` opens `data/journal`, linear-scans for the exact
+  same string (dedup), appends if absent.
+- Per-party scoping is via a leading `"%d "` cpl prefix on each
+  line; the viewer (driv.c:265) filters `plr == state.cpl` at
+  display time, and `clrjr(nr)` rewrites the file omitting a
+  party's lines on new-campaign.
+- Two write paths: the four `journalf` sites in speak.c, and the
+  DSL `{ journal: "..." }` op in script.c:910 which covers ~11
+  entries in `data/world/scripts/{speak,missions}.json5`.
+- Legacy Amiga source had the same shape
+  (`Doors:Rylween/Journal`) — this isn't a regression, it's
+  been that way forever. User's preference is to fix it in this
+  port.
+
+**Target shape.** Per-party list of journal lines that
+round-trips through the save. Concrete design:
+
+- In `struct party`, add a variable-length journal (see §19.3 —
+  ideally the same mechanism used for dynamic member sizing):
+  ```c
+  char **journal;       // NULL-terminated list
+  size_t journal_n;     // number of entries
+  size_t journal_cap;   // allocated capacity
+  ```
+- A single writer `party_journal_add(struct party *p, const char *line)`
+  takes an already-formatted line (no cpl prefix — that's a
+  display-time quirk of the file-backed impl and becomes
+  unnecessary in memory). Dedup check and grow-capacity live
+  there.
+- `journalf(...)` becomes a thin wrapper that `vsnprintf`s into a
+  stack buffer and delegates to `party_journal_add(party_current(), ...)`.
+- `do_journal` in script.c:910 drops the `"%d %s\n"` prefix +
+  trailing newline and calls the same helper.
+- Viewer iterates `state.p[state.cpl].journal[0..journal_n-1]`;
+  `clrjr(party_nr)` becomes `free_journal(&state.p[party_nr])`.
+- Serializer (save): emit `journal: ['line 1', 'line 2', ...]`
+  in current-world.json5. Reader populates the list.
+- `data/journal` disappears. Kill the file-open / append loop.
+
+**Migration watchouts.**
+
+- The file's dedup is case-insensitive (`stricmp`) — the in-memory
+  version should match for behavior parity, then we can tighten
+  in a follow-up.
+- Multiple parties on one machine used to share `data/journal`;
+  the per-party split at display was how parties didn't see each
+  other's notes. In the save-embedded shape this is automatic and
+  the cross-party sharing stops. That's a feature, but call it
+  out in the commit message.
+- `driv.journal.header` text stays authored as-is.
+- Pre-§19.2 saves won't have a journal: array — loader should
+  accept its absence and start empty.
+
+**Gate.** Fixture from §19.1 that hits a location-reveal flow
+(silver-key map-buy: `journal` must contain "The Pit of the Silver
+Key is at NxN" after the purchase, serialized into the snapshot).
+
+### 19.3 (C) Data-driven party size
+
+**Current shape.** `PARTY_MEMBER_MAX = 4` is a `#define` in
+`state.h:34`. The struct has flat arrays of 5 (index 0 unused,
+members 1..4):
+
+```c
+int32_t ws[5];  // skill
+int32_t h[5];   // health
+int32_t hp[5];  // hit points
+// …ten more
+```
+
+`res_party_member_max()` returns the `#define`. Every iteration
+already goes through that accessor, so the bound is virtualised,
+but the arrays themselves are static-sized.
+
+**Target.** Size driven by `limits.party_member_max` in
+`world.json5` (default 4 to match existing saves). Changes to
+land:
+
+- Replace each `int32_t ws[5]`-style field in `struct party` with
+  `int32_t *ws` (heap). Same for the other thirteen per-member
+  fields and `name[5][30]`.
+- Allocate at party-realization / load time from
+  `res_party_member_max()`.
+- Free on party teardown (aligns with §13 leak audit work).
+- Save/load emits variable-length arrays:
+  `hp: [67, 45, 42, 60]` etc.
+- UI bits that hardcode "(1-4)" — grep for `"(1-4)"` and
+  `'1' && c <= '4'`, there are a handful — become
+  `res_party_member_max()`-driven. `pm_from_digit` in state.h
+  already accepts any digit through `pm_cur`; just bounds-check
+  against the data value.
+- `pm_t`'s `int m; /* 1..4 */` comment updates to `1..N`.
+
+**Watchouts.**
+
+- Save-format break: pre-§19.3 saves assumed 4 slots with fixed
+  offsets. Loader either rejects (cleanest — we're still porting)
+  or reshapes.
+- `pm_is_class(pm, cls)` and friends are size-agnostic; no touch.
+- Story / combat / damage-tables assume 4 members in subtle
+  places. Don't bump the default. Treat N != 4 as experimental.
+
+**Gate.** Same fixture bank from §19.1 with a second pass run at
+`limits.party_member_max: 4` and one synthetic fixture at `:5`
+to prove the dynamic path — neither should wedge even if the
+latter has gameplay rough edges.
+
+**Sequencing.** After §19.2 so the journal's
+`char **journal` lives alongside the other heap-allocated
+per-party arrays; the allocation/teardown patterns mirror each
+other.
