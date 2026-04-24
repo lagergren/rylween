@@ -656,7 +656,7 @@ void quaff() {
         case 38:
             if (state.p[state.cpl].cl[c - 48] == 3 || state.p[state.cpl].cl[c - 48] == 4) {
                 tx("It tingles slightly in\r\n");
-                tx("%s body, as all his\r\n", pronoun(c - 48, 3));
+                tx("%s body, as all %s\r\n", pronoun(c - 48, 3), pronoun(c - 48, 3));
                 tx("spell points return.\r\n\r\n");
                 ryl_pause();
                 clw();

@@ -768,7 +768,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 clw();
                 tx("%s suddenly\r\n", state.p[state.cpl].name[3]);
                 tx("hears something behind\r\n");
-                tx("him!\r\n\r\n");
+                tx("%s!\r\n\r\n", pronoun(3, 2));
                 ryl_pause();
                 clw();
                 tx("You scream in terror\r\n");
