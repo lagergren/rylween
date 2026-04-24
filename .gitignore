@@ -17,6 +17,7 @@ data/realm.dat
 data/rylween.log
 data/score.txt
 data/vscore.txt
+data/current-world.json5
 
 # Editor / local tool state
 .claude/

@@ -51,7 +51,7 @@ static void emit_party(FILE *f, int idx) {
     }
     fputc('\n', f);
 
-    for (int m = 1; m <= PARTY_MEMBER_MAX; m++) {
+    for (int m = 1; m <= res_party_member_max(); m++) {
         fprintf(f,
                 "member[%d] name=%s gender=%u cl=%d ra=%d lv=%d dead=%d "
                 "h=%d hp=%d ws=%d wi=%d ma=%d ch=%d ar=%d wp=%d exp=%u\n",

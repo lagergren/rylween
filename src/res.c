@@ -788,6 +788,27 @@ int res_inventory_slot_max(void) {
 }
 
 int res_party_member_max(void) {
+    /* Test-harness override: RYL_PARTY_MEMBER_MAX is read once and
+       cached so res_party_member_max() stays cheap. Lets a §19.3.4
+       smoke fixture exercise N != 4 without authoring a separate
+       world.json5 — the env var wins over the limits: knob and the
+       compile-time default. Only honoured for values >= 1 (bad
+       values fall through to the data/compile-time chain). */
+    static int override = -2; /* -2 = unchecked, -1 = no override */
+    if (override == -2) {
+        override = -1;
+        const char *env = getenv("RYL_PARTY_MEMBER_MAX");
+        if (env && *env) {
+            char *end;
+            long v = strtol(env, &end, 10);
+            if (end != env && v >= 1 && v <= 100) {
+                override = (int)v;
+            }
+        }
+    }
+    if (override >= 1) {
+        return override;
+    }
     return (int)party_member_max;
 }
 

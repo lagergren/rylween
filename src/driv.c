@@ -1425,7 +1425,7 @@ static void createparty() {
 
     g = 1;
 
-    while (g < 5) {
+    while (g <= res_party_member_max()) {
         clw();
         tx("Stats for char: %d\r\n\r\n", g);
         state.p[a].ws[g] = ryl_random(15, 70);
@@ -1564,7 +1564,7 @@ static void createparty() {
     state.p[a].food = 100;
     state.p[a].time_left = 200;
     state.p[a].hours_rested = 14;
-    state.p[a].pl = 4;
+    state.p[a].pl = (unsigned char)res_party_member_max();
     state.p[a].fireshield = 0;
     state.p[a].bracelets = 0;
     state.p[a].mastercrown = 0;
