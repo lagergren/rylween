@@ -46,10 +46,15 @@ acting — they may have shifted.
       character's name, and renaming a character or reassigning a
       quest to a different character is a pure data change. See
       the P5 section below.
-- [ ] **P6 — Job-ID bare comparisons**
-      (2 sites in speak.c: `job == 8` bard, `job == 13` bargirl —
-      bargirl chitchat already moved to gender in §17-R; lodging-
-      offer and bard Q&A remain)
+- [x] **P6 — Job-ID bare comparisons** (landed §17-X)
+      speak.c's two `job == N` checks now compare against
+      `res_enum_id("jobname", "Bard"|"Bargirl")`. While there,
+      the bare `gender == 2` checks in speak.c / driv.c are now
+      `res_enum_id("gender", "female")`, and a latent
+      `job != 13` being used as a gender proxy at the
+      "recognize_he/she" branch has been corrected to a real
+      gender check (works identically today because all bargirls
+      are female, but wouldn't survive a non-bargirl female NPC).
 
 ### P1 follow-ups (not blocking)
 
@@ -190,16 +195,19 @@ Follow-up, not in §17-W (deliberately scoped out):
   binds / mission dispatches here" table would collapse both into
   generic iteration. Bigger engine change — separate pass.
 
-## P6 — Job-ID bare comparisons
+## P6 — Job-ID bare comparisons (DONE §17-X)
 
-Two sites left in speak.c:
-
-- [ ] `job == 8` (Bard) — used in `speak.people.j8` formatting.
-      Replace with `res_enum_id("jobname", "Bard")` or a named
-      constant.
-- [ ] `job == 13` (Bargirl) — lodging-offer branch. This one is
-      profession-specific so it stays on `job`, but the literal
-      13 should become a symbolic constant.
+- [x] speak.c bard Q&A (`job == 8`) now compares to
+      `res_enum_id("jobname", "Bard")`.
+- [x] speak.c bargirl lodging offer (`job == 13`) now compares to
+      `res_enum_id("jobname", "Bargirl")`.
+- [x] speak.c recognize_he/she branch was gating on `job != 13` —
+      gender proxy, not intent. Fixed to
+      `gender == res_enum_id("gender", "female")`.
+- [x] speak.c chit.well_ / chit.health_ and driv.c pronoun() clamp
+      — bare `gender == 2` folded into
+      `res_enum_id("gender", "female")` so the numeric enum slot
+      for "female" doesn't leak into C.
 
 ---
 
@@ -231,6 +239,8 @@ items above land.
   `pm_is_spellcaster` — §17-V
 - `res_npc_slot("<shard_key>")` / `res_npc_role("<role>")` /
   `npc_roles:` subtree in world.json5 — §17-W
+- `res_enum_id("jobname", "Bard")` / `res_enum_id("gender", "female")`
+  at speak.c + driv.c — §17-X
 
 ## Out of scope for this doc
 

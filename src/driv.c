@@ -1308,7 +1308,7 @@ void save() {
 char *pronoun(uint8_t nr, uint8_t xx) {
     uint8_t gender = state.p[state.cpl].gender[nr];
     /* Original: female's xx in {2,3} both returned "her"; clamp to match. */
-    if (gender == 2 && xx == 3) {
+    if (gender == res_enum_id("gender", "female") && xx == 3) {
         xx = 2;
     }
     return (char *)res_pronoun(gender, xx);

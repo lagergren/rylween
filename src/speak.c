@@ -152,10 +152,10 @@ void speak(int32_t bld, int32_t tow) {
     if (state.npc[talk].visited[state.cpl]) {
         clw();
         tx("%s nods as\r\n", res_enum("name", talk));
-        if (state.npc[talk].job != 13) {
-            tx0(res_text("speak.recognize_he"));
-        } else {
+        if (state.npc[talk].gender == res_enum_id("gender", "female")) {
             tx0(res_text("speak.recognize_she"));
+        } else {
+            tx0(res_text("speak.recognize_he"));
         }
         ryl_delay(800);
     } else {
@@ -200,13 +200,17 @@ void speak(int32_t bld, int32_t tow) {
             clw();
             switch (x) {
                 case 0:
-                    tx0(res_text(state.npc[talk].gender == 2 ? "speak.chit.well_f" : "speak.chit.well_m"));
+                    tx0(res_text(state.npc[talk].gender == res_enum_id("gender", "female")
+                                     ? "speak.chit.well_f"
+                                     : "speak.chit.well_m"));
                     break;
                 case 1:
                     tx0(res_text("speak.chit.weather"));
                     break;
                 case 2:
-                    tx0(res_text(state.npc[talk].gender == 2 ? "speak.chit.health_f" : "speak.chit.health_m"));
+                    tx0(res_text(state.npc[talk].gender == res_enum_id("gender", "female")
+                                     ? "speak.chit.health_f"
+                                     : "speak.chit.health_m"));
                     break;
             }
             ryl_delay(1000);
@@ -223,7 +227,7 @@ void speak(int32_t bld, int32_t tow) {
             d = toupper(d);
             if (d == 'P') {
                 tx("\r\n");
-                if (state.npc[talk].job == 8) {
+                if (state.npc[talk].job == res_enum_id("jobname", "Bard")) {
                     tx_fmt("speak.people.j8",
                            (ryl_bind[]){
                                {"fighter_name",
@@ -244,7 +248,7 @@ void speak(int32_t bld, int32_t tow) {
             }
             if (d == 'L') {
                 tx("\r\n");
-                if (state.npc[talk].job == 13) {
+                if (state.npc[talk].job == res_enum_id("jobname", "Bargirl")) {
                     char price[16];
                     snprintf(price, sizeof price, "%d", 50 * state.p[state.cpl].lv[1]);
                     clw();
