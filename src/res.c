@@ -462,6 +462,37 @@ int32_t res_class_levelup(const char *cls, const char *stat) {
     return (v && v->kind == N_INT) ? (int32_t)v->u.iv : 0;
 }
 
+/* Named-formula evaluator. `formulas.<name>` in world.json5 holds an
+   expression tree (e.g. ['+', 150, ['*', 150, '$y']]); compile_world_tree
+   has already rewritten `$y` into an N_PATH(PA_LOCAL). We spin up a
+   single-variable env, seed `var_name` with `val`, run eval_expr, and
+   tear the env back down. Fatal if the formula is missing — callers
+   treat a named formula as a load-time contract. */
+int32_t res_formula_int(const char *name, const char *var_name, int32_t val) {
+    if (!world_tree || !name) {
+        fprintf(stderr, "res_formula_int: world not loaded\n");
+        exit(1);
+    }
+    const node *fs = obj_get(world_tree, "formulas");
+    if (!fs || fs->kind != N_OBJ) {
+        fprintf(stderr, "res_formula_int: missing top-level 'formulas' block\n");
+        exit(1);
+    }
+    const node *body = obj_get(fs, name);
+    if (!body) {
+        fprintf(stderr, "res_formula_int: unknown formula '%s'\n", name);
+        exit(1);
+    }
+    env_t e;
+    env_init(&e);
+    if (var_name) {
+        env_set_local(&e, var_name, val);
+    }
+    int32_t r = eval_expr(body, &e);
+    env_free(&e);
+    return r;
+}
+
 const ryl_monster *res_monster(int id) {
     if (id < 0 || id > RES_MAX_MONSTER_ID) {
         return NULL;

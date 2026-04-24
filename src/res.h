@@ -154,6 +154,14 @@ int32_t res_xp_threshold(int level);
    change", which is the natural no-op. */
 int32_t res_class_levelup(const char *cls, const char *stat);
 
+/* Named-formula evaluator. Looks up formulas.<name> in the world tree,
+   evaluates the expression body after seeding one named local
+   (`$<var_name>` -> `val`) into a fresh env, and returns the resulting
+   int32. Intended for flat "game logic that should be data" arithmetic
+   like  `150 + 150 * y` — call sites stay a one-liner while the formula
+   itself lives in world.json5. Fatal if the formula is missing. */
+int32_t res_formula_int(const char *name, const char *var_name, int32_t val);
+
 /* Monsters 0..90. NULL if no record. */
 const ryl_monster *res_monster(int id);
 

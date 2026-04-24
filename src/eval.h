@@ -116,4 +116,13 @@ void compile_world_tree(node *root, const char *src_path);
 
 void eval_effect(const node *n, env_t *e);
 
+/* Expression entry point. Exposed so res.c's named-formula helper can
+   evaluate a preparsed expression node with a freshly-seeded local. */
+int32_t eval_expr(const node *n, env_t *e);
+
+/* Insert / overwrite one named local in the env's linear locals array.
+   Used by the formula helper to seed the one input variable before
+   calling eval_expr. */
+void env_set_local(env_t *e, const char *name, int32_t val);
+
 #endif

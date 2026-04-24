@@ -174,6 +174,22 @@
     1500000, 2000000, 2800000,
   ],
 
+  // Named formulas. Flat arithmetic ("game logic that should be data")
+  // authored as an expression tree and looked up by name from C via
+  // res_formula_int(name, var_name, val). Bodies use the usual DSL
+  // expression ops (+ - * / min max clamp cond rand) and may reference
+  // a single `$var` local seeded by the caller. First pilot:
+  //
+  //   donkey_food_cap: 150 + 150 * y
+  //
+  // subs.c drop() used this both as the cap test and the cap clamp
+  // when a donkey is dropped; before §17-O it was an inline literal
+  // pair. Other formulas follow as the `a + b*v` / `a * v + b` shapes
+  // across battle.c / dungeon.c / subs.c get lifted one by one.
+  formulas: {
+    donkey_food_cap: ['+', 150, ['*', 150, '$y']],
+  },
+
   // Spells (§3.4). Nested by class so each shard owns its own file.
   // res_spell_node(class, slot) finds the entry whose slot matches,
   // then hands the `do` body to eval_effect. Spells without a `do`

@@ -403,13 +403,14 @@ uint8_t drop() {
             ryl_delay(1000);
             if (state.p[state.cpl].inventory[d - 64] == 47) {
                 y = inv_count_in_range(47, 47) - 1;
-                if (state.p[state.cpl].food > (150 + 150 * y)) {
+                int32_t cap = res_formula_int("donkey_food_cap", "y", y);
+                if (state.p[state.cpl].food > cap) {
                     clw();
                     tx("You are forced to\r\n");
                     tx("leave some of your\r\n");
                     tx("food behind...\r\n");
                     ryl_delay(1000);
-                    state.p[state.cpl].food = (150 + 150 * y);
+                    state.p[state.cpl].food = cap;
                 }
             }
             state.p[state.cpl].inventory[d - 64] = 0;
