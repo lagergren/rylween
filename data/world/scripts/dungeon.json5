@@ -164,7 +164,7 @@
     { engine_call: 'clr_map_window' },
     { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
     { engine_call: 'clw' },
-    { chance: { pct: 39, then: [
+    { if: { cond: { chance: 39 }, then: [
       { engine_call: 'clw' },
       { emit: 'hobgoblin_patrol.password' },
       { wait_input: true },

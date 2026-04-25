@@ -21,7 +21,7 @@
     { if: {
         cond: { ne: [{ var: 'old' }, { var: 'new' }] },
         then: [
-          { chance: { pct: 9, then: [
+          { if: { cond: { chance: 9 }, then: [
             { engine_call: 'clw' },
             { switch: { expr: { var: 'new' }, cases: [
               { match: 's', then: [{ emit: 'plainland' }] },

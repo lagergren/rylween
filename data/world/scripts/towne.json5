@@ -328,8 +328,8 @@
             { engine_call: 'clw' },
             { engine_call: 'statusline' },
             { emit: 'intro' },
-            { chance: {
-                pct: 9,
+            { if: {
+                cond: { chance: 9 },
                 then: [
                   { emit: 'beer_offer' },
                   { menu_branch: {
@@ -690,8 +690,8 @@
           ] } },
 
           // One-shot offer gate. Fails -> straight to main loop.
-          { chance: {
-              pct: { add: [5, { var: 'priest_bonus' }] },
+          { if: {
+              cond: { chance: { add: [5, { var: 'priest_bonus' }] } },
               then: [
                 { engine_call: 'clw' },
                 { emit: 'scruffy_1' },
