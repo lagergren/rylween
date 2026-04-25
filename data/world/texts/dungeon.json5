@@ -258,6 +258,163 @@
     ],
   },
 
+  // case 1 — Find an object. {name} is the engine-bound object()
+  // result for the rolled item id.
+  find_object: {
+    found: [
+      'You find a',
+      '{name}.',
+      '',
+      '(T)ake it',
+      '(L)eave it',
+    ],
+    ok: [
+      '',
+      'Ok.',
+    ],
+    cant_carry: [
+      "You can't carry more.",
+    ],
+  },
+
+  // case 8 — Treasure chest with optional thief-checks-for-traps,
+  // three trap narrations interleaved with timed delays, and the
+  // chest-contains line.
+  gold_chest: {
+    found: [
+      'You find a chest!',
+      '',
+      '(O)pen chest',
+      '(L)eave',
+    ],
+    thief_check: [
+      '{thief_name} checks the',
+      'chest for traps.',
+    ],
+    trap: [
+      'A TRAP!',
+    ],
+    trap_gas_a: [
+      'Poisonous gas',
+      'hisses out through',
+      'hidden holes.',
+      '',
+    ],
+    trap_gas_b: [
+      'The party coughs',
+      'and retches.',
+    ],
+    trap_gas_c: [
+      'Finally. The gas clears.',
+      '',
+    ],
+    trap_pitfall_a: [
+      'A spiked pitfall',
+      'opens in the floor',
+      'beneath you.',
+      '',
+    ],
+    trap_pitfall_b: [
+      'You climb out of it,',
+      'badly wounded.',
+      '',
+    ],
+    trap_boulder_a: [
+      'A large boulder',
+      'drops from above!!!',
+    ],
+    trap_boulder_b: [
+      'Badly bruised, you',
+      'try to stand up again.',
+      '',
+    ],
+    contained: [
+      'The chest contained',
+      '{gold_amount} pieces of gold.',
+      '',
+    ],
+  },
+
+  // case 38 — Chamber of the Lute (long finale).
+  lute_chamber: {
+    altar: [
+      'This is the altar chamber',
+      'of the temple. Hooded',
+      'shapes kneel at the',
+      'blood stained altar at',
+      'the end of this chamber.',
+      '',
+    ],
+    rush: [
+      'You rush to attack the',
+      'priests...',
+      '',
+    ],
+    draw: [
+      'They quickly turn around',
+      'and draw their daggers.',
+      '',
+    ],
+    acolyte: [
+      'The acolyte kneels before',
+      'the altar in silent prayer',
+      'while the others form a',
+      'circle around him to',
+      'protect him.',
+      '',
+    ],
+    bang: [
+      'Suddenly there is an',
+      'ear splitting bang',
+      'and a ghastly creature',
+      'emerges from the shadows',
+      'of this uncanny sanctuary.',
+      '',
+    ],
+    more_priests: [
+      'More priests rush to',
+      'attack you...',
+      '',
+    ],
+    last_priest: [
+      'The last priest lies',
+      'dead. You stand still',
+      'for a moment, and then',
+      'start searching the',
+      'hall for the Lute.',
+      '',
+    ],
+    behind: [
+      '{m3_name} suddenly',
+      'hears something behind',
+      '{m3_pronoun}!',
+      '',
+    ],
+    scream: [
+      'You scream in terror',
+      'when you see the source',
+      'of that sound! ERETHOR',
+      'HAS COME TO LIFE ONCE',
+      'AGAIN!!!',
+      '',
+    ],
+    dead: [
+      'This time Erethor',
+      'remains dead. His flesh',
+      'blisters and bursts.',
+      'A rotten smell spreads',
+      'throughout the hall.',
+      '',
+    ],
+    find_lute: [
+      '{m4_name} finds the',
+      'Lute on a pedestal,',
+      'and you are all glad',
+      'to leave this place.',
+      '',
+    ],
+  },
+
   // case 27 — Colour-square antechamber (recurring).
   colour_riddle: {
     plaque: [

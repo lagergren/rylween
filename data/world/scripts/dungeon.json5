@@ -308,6 +308,193 @@
     } },
   ],
 
+  // case 1: Find an object — random kind selection (4-tier sub-roll)
+  // followed by a (T)ake / (L)eave menu. The legacy take-it path was
+  // simpler than the reward op's drop-option flow, so this uses the
+  // bespoke inv_add op (added/full bodies branch on the inv_add
+  // return) — full just shows "you can't carry more" without offering
+  // to swap items.
+  find_object: [
+    { let: 'roll', value: { random: [0, 4] } },
+    { if: {
+        cond: { gt: [{ var: 'roll' }, 0] },
+        then: [
+          // 4/5 chance: roll one of three sub-tables.
+          { let: 'sub', value: { random: [0, 2] } },
+          { if: { cond: { eq: [{ var: 'sub' }, 0] }, then: [
+            { let: 'oc', value: { add: [{ random: [0, 13] }, 1] } },
+          ] } },
+          { if: { cond: { eq: [{ var: 'sub' }, 1] }, then: [
+            { let: 'oc', value: { add: [{ random: [0, 6] }, 36] } },
+          ] } },
+          { if: { cond: { eq: [{ var: 'sub' }, 2] }, then: [
+            { let: 'oc', value: { add: [{ random: [0, 7] }, 39] } },
+          ] } },
+        ],
+        else: [
+          // 1/5 chance: rare/special items 100..111.
+          { let: 'oc', value: { add: [{ random: [0, 11] }, 100] } },
+        ],
+    } },
+    { engine_bind: { fn: 'object', args: [{ var: 'oc' }], var: 'name' } },
+    { emit: 'find_object.found' },
+    { menu_branch: {
+      options: [
+        { key: 'T', then: [
+          { inv_add: { item: { var: 'oc' },
+            added: [
+              { emit: 'find_object.ok' },
+              { pause: 800 },
+            ],
+            full: [
+              { engine_call: 'clw' },
+              { emit: 'find_object.cant_carry' },
+              { pause: 800 },
+            ],
+          } },
+        ] },
+      ],
+    } },
+  ],
+
+  // case 8: Treasure chest with a trap. Default 4-in-10 trap chance;
+  // a thief in the party halves it. The trap fires one of three
+  // narrations interleaved with timed delays, then damages every
+  // member by 4*lv (clamped to >= 1 hp). The chest's gold is
+  // 320..419 + first-member-exp/500.
+  gold_chest: [
+    { emit: 'gold_chest.found' },
+    { menu_branch: {
+      options: [
+        { key: 'O', then: [
+          // Trap chance: 4 in 10 by default, 2 in 10 if a thief
+          // checks the chest first.
+          { let: 'trap_chance', value: 4 },
+          { for_member: { var: 'm', then: [
+            { if: {
+              cond: { engine_int: 'pa_is_class',
+                      args: [{ var: 'm' },
+                             { enum: ['pc_class', 'Thief'] }] },
+              then: [
+                { engine_call: 'clw' },
+                { engine_bind: { fn: 'pa_name',
+                                 args: [{ var: 'm' }],
+                                 var: 'thief_name' } },
+                { emit: 'gold_chest.thief_check' },
+                { pause: 1000 },
+                { let: 'trap_chance', value: 2 },
+                { break: true },
+              ],
+            } },
+          ] } },
+          { if: {
+            cond: { lt: [{ random: [0, 9] }, { var: 'trap_chance' }] },
+            then: [
+              { engine_call: 'clw' },
+              { emit: 'gold_chest.trap' },
+              { pause: 600 },
+              { let: 'kind', value: { random: [0, 2] } },
+              { if: { cond: { eq: [{ var: 'kind' }, 0] }, then: [
+                { emit: 'gold_chest.trap_gas_a' },
+                { pause: 1400 },
+                { emit: 'gold_chest.trap_gas_b' },
+                { pause: 600 },
+                { emit: 'gold_chest.trap_gas_c' },
+              ] } },
+              { if: { cond: { eq: [{ var: 'kind' }, 1] }, then: [
+                { emit: 'gold_chest.trap_pitfall_a' },
+                { pause: 1400 },
+                { emit: 'gold_chest.trap_pitfall_b' },
+              ] } },
+              { if: { cond: { eq: [{ var: 'kind' }, 2] }, then: [
+                { emit: 'gold_chest.trap_boulder_a' },
+                { pause: 1400 },
+                { emit: 'gold_chest.trap_boulder_b' },
+              ] } },
+              { for_member: { var: 'm', then: [
+                { engine_call: 'pm_add_hp',
+                  args: [{ var: 'm' },
+                         { mul: [-4,
+                                 { member: { var: 'm' }, field: 'lv' }] }] },
+                { engine_call: 'pm_hp_floor', args: [{ var: 'm' }, 1] },
+              ] } },
+              { wait_input: true },
+            ],
+          } },
+          { engine_call: 'clw' },
+          { let: 'gold_amount', value: {
+            add: [
+              { add: [{ random: [0, 99] }, 320] },
+              { div: [{ member: 1, field: 'exp' }, 500] },
+            ],
+          } },
+          { emit: 'gold_chest.contained' },
+          { mutate: { target: { gold: 0 }, op: 'add',
+                      value: { var: 'gold_amount' } } },
+          { wait_input: true },
+        ] },
+      ],
+    } },
+  ],
+
+  // case 38: Chamber of the Lute — a long quest finale. Five text
+  // screens, then erethor + priest mob, more priests, the "behind
+  // you!" pivot using member-3's name + object pronoun, and finally
+  // erethor coming back to life one more time. Member-4 finds the
+  // lute. Mostly emit + wait_input + encounter; the only structural
+  // bit is the two engine_binds that drive the {m3_name},
+  // {m3_pronoun}, {m4_name} placeholders.
+  lute_chamber: [
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.altar' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.rush' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.draw' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.acolyte' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.bang' },
+    { wait_input: true },
+    { encounter: { foe: 'erethor', mandatory: true } },
+    { encounter: { foe: 'erethor_priest', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.more_priests' },
+    { wait_input: true },
+    { encounter: { foe: 'erethor_priest', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.last_priest' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { engine_bind: { fn: 'pa_name', args: [3], var: 'm3_name' } },
+    { engine_bind: { fn: 'pronoun', args: [3, 'object'], var: 'm3_pronoun' } },
+    { emit: 'lute_chamber.behind' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.scream' },
+    { wait_input: true },
+    { encounter: { foe: 'erethor', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.dead' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { engine_bind: { fn: 'pa_name', args: [4], var: 'm4_name' } },
+    { emit: 'lute_chamber.find_lute' },
+    { set_flag: 'erethor.lute', value: 'lute_taken' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+  ],
+
   // case 27: Colour-square antechamber (recurring; placed at levels
    // 13..19 of reebar_tomb). The plaque shows ANTECHAMBER #(cl-12);
    // the player picks one of seven colours (1..7); the pass condition

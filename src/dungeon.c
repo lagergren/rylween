@@ -1,25 +1,28 @@
 #include "ryl.h"
 #include "res.h"
-#include "battle.h"
 #include "driv.h"
 #include "dungeon.h"
 #include "gfx.h"
-#include "inventory.h"
-#include "party.h"
 #include "primitives.h"
 #include "script.h"
 #include "subs.h"
-#include "towne.h"
 
 void dungeon(int32_t levels, const char *scenario) {
-    /*
-	** scenario is a symbolic key into dungeons.scenarios. NULL means
-	** a randomly discovered cave (no quest placements).
-	*/
+    /* scenario: symbolic key into dungeons.scenarios in world.json5
+       (e.g. "fire_shield_cave"). NULL = randomly discovered cave with
+       no quest placements — random fill stands alone.
 
-    int32_t i, cl, oc, lvl[26];
+       Each dungeon level is filled with a random generic-event id
+       (1..9) and then overlaid with the scenario's quest events
+       (20..38). Inside the main loop, every visit dispatches lvl[cl]
+       through the dungeon_encounter enum to a `dungeon.<symbol>`
+       script in data/world/scripts/dungeon.json5. The script owns
+       all narration, combat, flag updates and inventory; the C side
+       is just the loop driver + the (D)escend / (A)scend / utility
+       sub-menu after each event. */
+
+    int32_t i, cl, lvl[26];
     char c, d;
-    int32_t x = 0;
 
     blitgfx(insidecavepic);
 
@@ -28,282 +31,38 @@ void dungeon(int32_t levels, const char *scenario) {
     for (i = 1; i < levels + 1; i++) {
         lvl[i] = ryl_random(1, 9);
     }
-    /* §20 L1: scenario placements live in dungeons.scenarios.<key>.
-       The encounter-id namespace is unchanged (20..38 → the cases in
-       the level-event switch below). NULL scenario leaves the random
-       fill intact. */
     res_dungeon_apply_placements(scenario, lvl, levels);
-
-    /*
-	** 0: Visited, Nothing left
-	** 1: Find an object
-	** 2: Find gold
-	** 3: Encounter
-	** 4: Encounter
-	** 5: Encounter
-	** 6: Nothing
-	** 7: Nothing
-	** 8: Find gold in chest
-	** 9: Find torches
-	** 20: The Guardian of the Fire Shield
-  ** 21: The Fire Shield.
-	** 22: Riddle 1, Thun
-	** 23: Riddle 2, Thun
-	** 24: Riddle 3, Thun
-	** 25: The Bracelets of Thun
-	** 26: Spectrum Message
-	** 27: Colour Riddle
-	** 28: Nolrim's Tomb & Reebar
-	** 29: The Master Crown
-	** 30: The Silver Sanctum
-	** 31: Hobgoblin Patrol (Kill one, get password)
-	** 32: Royal Guard one. Hobgoblin Skeletons
-	** 33: Royal Guard two. Hobgoblin Zombies
-	** 34: Hobgoblin Chief. Who is it?
-	** 35: Orc Nest
-	** 36: Tammy's Prison
-	** 37: Priests of Erethor
-	** 38: The Chamber of the Lute
-	*/
 
     cl = 1;
 
     while (1) {
         clw();
 
-        /* §20 L2: data-driven dispatch. lvl[cl] is an encounter id
-           (0..38); look up its symbol via the dungeon_encounter enum
-           and play `dungeon.<symbol>` if a script is registered.
-           Reset lvl[cl] unless the encounter is in dungeons.recurring
-           (default reset-after-fire matches the legacy
-           `lvl[cl] = 0` lines). Slot 0 / 10..19 are sentinels — the
-           enum returns "" so no script fires and the loop falls
-           through to the legacy switch (still home to unmigrated
-           cases). The post-switch `if (cl >= 20)` catchall stays
-           until every level-20+ case has been migrated. */
+        /* Resolve the encounter id at this level to its symbol and
+           play dungeon.<symbol>. Slot 0 / 10..19 are sentinels —
+           res_enum returns "" so the loop falls through to the
+           post-event utility menu. After the script, reset lvl[cl]
+           unless dungeons.recurring marks the encounter as recurring
+           (optionally `until_flag` is satisfied). */
         const char *enc_sym = res_enum("dungeon_encounter", lvl[cl]);
         if (enc_sym[0]) {
             char script_id[96];
             snprintf(script_id, sizeof script_id, "dungeon.%s", enc_sym);
-            if (res_script(script_id)) {
-                /* `cl` is the current dungeon level — exposed so the
-                   colour_riddle script can render "ANTECHAMBER #N"
-                   and pick the correct passing colour by level. */
-                char cl_s[8];
-                snprintf(cl_s, sizeof cl_s, "%d", (int)cl);
-                play_script(script_id, (ryl_bind[]){
-                                           {"cl", cl_s},
-                                           {0},
-                                       });
-                if (!res_dungeon_encounter_recurring(enc_sym)) {
-                    lvl[cl] = 0;
-                }
-                goto post_event;
+            /* `cl` is exposed as a binding so colour_riddle can
+               render ANTECHAMBER #(cl-12) and pick the per-level
+               passing colour. */
+            char cl_s[8];
+            snprintf(cl_s, sizeof cl_s, "%d", (int)cl);
+            play_script(script_id, (ryl_bind[]){
+                                       {"cl", cl_s},
+                                       {0},
+                                   });
+            if (!res_dungeon_encounter_recurring(enc_sym)) {
+                lvl[cl] = 0;
             }
         }
 
-        switch (lvl[cl]) {
-            case 0:
-                break;
-
-            case 1:
-                lvl[cl] = 0;
-                x = ryl_random(0, 4);
-                if (x) {
-                    x = ryl_random(0, 2);
-                    if (x == 0) {
-                        oc = ryl_random(0, 13);
-                        oc += 1;
-                    } /* 0-13 + 1 = 1-14 */
-                    if (x == 1) {
-                        oc = ryl_random(0, 6);
-                        oc += 36;
-                    } /* 0-6  + 36= 36-42 */
-                    if (x == 2) {
-                        oc = ryl_random(0, 7);
-                        oc += 39;
-                    } /* 0-7  + 39= 39-46 */
-                } else { /* 0-11 + 100, ger 100-111 */
-                    oc = ryl_random(0, 11);
-                    oc += 100;
-                }
-                tx("You find a\r\n");
-                tx("%s.\r\n\r\n", object(oc));
-                tx("(T)ake it\r\n");
-                tx("(L)eave it\r\n");
-                c = key();
-                c = toupper(c);
-                if (c == 'T') {
-                    x = inv_add(oc) != 0;
-                    if (!x) {
-                        clw();
-                        tx("You can't carry more.\r\n");
-                        ryl_delay(800);
-                    } else {
-                        tx("\r\n");
-                        tx("Ok.\r\n");
-                        ryl_delay(800);
-                    }
-                }
-                break;
-
-            case 8:
-                tx("You find a chest!\r\n\r\n");
-                tx("(O)pen chest\r\n");
-                tx("(L)eave\r\n");
-                c = key();
-                c = toupper(c);
-                if (c == 'O') {
-                    lvl[cl] = 0;
-                    x = 4;
-                    for (i = 1; i <= res_party_member_max(); i++) {
-                        if (pm_is_thief(pm_cur(i))) {
-                            clw();
-                            tx("%s checks the\r\n", pm_name(pm_cur(i)));
-                            tx("chest for traps.\r\n");
-                            ryl_delay(1000);
-                            x = 2;
-                            break;
-                        }
-                    }
-                    if (ryl_random(0, 9) < x) {
-                        clw();
-                        tx("A TRAP!\r\n");
-                        ryl_delay(600);
-                        switch (ryl_random(0, 2)) {
-                            case 0:
-                                tx("Poisonous gas\r\n");
-                                tx("hisses out through\r\n");
-                                tx("hidden holes.\r\n\r\n");
-                                ryl_delay(1400);
-                                tx("The party coughs\r\n");
-                                tx("and retches.\r\n");
-                                ryl_delay(600);
-                                tx("Finally. The gas clears.\r\n\r\n");
-                                break;
-                            case 1:
-                                tx("A spiked pitfall\r\n");
-                                tx("opens in the floor\r\n");
-                                tx("beneath you.\r\n\r\n");
-                                ryl_delay(1400);
-                                tx("You climb out of it,\r\n");
-                                tx("badly wounded.\r\n\r\n");
-                                break;
-                            case 2:
-                                tx("A large boulder\r\n");
-                                tx("drops from above!!!\r\n");
-                                ryl_delay(1400);
-                                tx("Badly bruised, you\r\n");
-                                tx("try to stand up again.\r\n\r\n");
-                                break;
-                        }
-                        for (i = 1; i <= res_party_member_max(); i++) {
-                            pm_t pm = pm_cur(i);
-                            pm_add_hp(pm, -4 * pm_lv(pm));
-                            pm_hp_floor(pm, 1);
-                        }
-                        ryl_pause();
-                    }
-                    clw();
-                    tx("The chest contained\r\n");
-                    x = ryl_random(0, 99);
-                    x += 20;
-                    x += state.p[state.cpl].exp[1] / 500;
-                    x += 300;
-                    tx("%d pieces of gold.\r\n\r\n", x);
-                    party_add_gold(x);
-                    ryl_pause();
-                }
-                break;
-
-            case 38:
-                clw();
-                tx("This is the altar chamber\r\n");
-                tx("of the temple. Hooded\r\n");
-                tx("shapes kneel at the\r\n");
-                tx("blood stained altar at\r\n");
-                tx("the end of this chamber.\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("You rush to attack the\r\n");
-                tx("priests...\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("They quickly turn around\r\n");
-                tx("and draw their daggers.\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("The acolyte kneels before\r\n");
-                tx("the altar in silent prayer\r\n");
-                tx("while the others form a\r\n");
-                tx("circle around him to\r\n");
-                tx("protect him.\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("Suddenly there is an\r\n");
-                tx("ear splitting bang\r\n");
-                tx("and a ghastly creature\r\n");
-                tx("emerges from the shadows\r\n");
-                tx("of this uncanny sanctuary.\r\n\r\n");
-                ryl_pause();
-                encounter(res_monster_id("erethor"), 1);
-                encounter(res_monster_id("erethor_priest"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                tx("More priests rush to\r\n");
-                tx("attack you...\r\n\r\n");
-                ryl_pause();
-                encounter(res_monster_id("erethor_priest"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                tx("The last priest lies\r\n");
-                tx("dead. You stand still\r\n");
-                tx("for a moment, and then\r\n");
-                tx("start searching the\r\n");
-                tx("hall for the Lute.\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("%s suddenly\r\n", pm_name(pm_cur(3)));
-                tx("hears something behind\r\n");
-                tx("%s!\r\n\r\n", pronoun(3, 2));
-                ryl_pause();
-                clw();
-                tx("You scream in terror\r\n");
-                tx("when you see the source\r\n");
-                tx("of that sound! ERETHOR\r\n");
-                tx("HAS COME TO LIFE ONCE\r\n");
-                tx("AGAIN!!!\r\n\r\n");
-                ryl_pause();
-                encounter(res_monster_id("erethor"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                tx("This time Erethor\r\n");
-                tx("remains dead. His flesh\r\n");
-                tx("blisters and bursts.\r\n");
-                tx("A rotten smell spreads\r\n");
-                tx("throughout the hall.\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("%s finds the\r\n", pm_name(pm_cur(4)));
-                tx("Lute on a pedestal,\r\n");
-                tx("and you are all glad\r\n");
-                tx("to leave this place.\r\n\r\n");
-                lvl[cl] = 0;
-                pa_flag_set("erethor.lute", "lute_taken");
-                ryl_pause();
-                clw();
-                break;
-        }
-
-    post_event:
-        /* Pick an alternative - Encounter over */
-
-        if (cl >= 20) {
-            lvl[cl] = 0;
-        }
+        /* Pick an alternative — encounter over. */
         while (1) {
             clw();
             statusline();

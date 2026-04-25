@@ -435,6 +435,11 @@ static int32_t expr_member_field(const node *op, const char *script_id,
     if (strcmp(field, "ra") == 0) {
         return p->ra[m];
     }
+    if (strcmp(field, "exp") == 0) {
+        /* uint32 → int32 cast: exp values stay well below 2^31 in
+           legacy save files (the experience cap is much lower). */
+        return (int32_t)p->exp[m];
+    }
     if (strcmp(field, "dead") == 0) {
         return p->dead[m];
     }
@@ -1188,6 +1193,19 @@ static void eng_rumour(const int32_t *a) {
     (void)a;
     rumour();
 }
+/* §20 L2: per-member HP delta — pm_add_hp(pm_cur(member), delta).
+   Used by the chest-trap damage in dungeon.gold_chest (case 8)
+   inside a for_member loop. Negative deltas damage; pair with
+   pm_hp_floor to clamp from below. */
+static void eng_pm_add_hp(const int32_t *a) {
+    pm_add_hp(pm_cur((int)a[0]), (int)a[1]);
+}
+/* §20 L2: clamp HP from below — pm_hp_floor(pm_cur(member), floor).
+   Used right after pm_add_hp so the trap can't reduce a member to
+   a negative HP. */
+static void eng_pm_hp_floor(const int32_t *a) {
+    pm_hp_floor(pm_cur((int)a[0]), (int)a[1]);
+}
 
 typedef struct {
     const char *name;
@@ -1207,6 +1225,8 @@ static const engine_entry engine_tbl[] = {
     {"showparty", 0, eng_showparty},
     {"drop_option", 0, eng_drop_option},
     {"rumour", 0, eng_rumour},
+    {"pm_add_hp", 2, eng_pm_add_hp},
+    {"pm_hp_floor", 2, eng_pm_hp_floor},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps
@@ -2286,6 +2306,37 @@ static void do_input_number(const node *op, const char *script_id, size_t idx,
     rt_bind_set(env, var_n->u.sv, v, script_id, idx);
 }
 
+/* §20 L2: { inv_add: { item: <expr>, added?: [...], full?: [...] } }.
+   Calls inv_add(item) and dispatches on the return — slot != 0 means
+   placed (runs `added`), slot == 0 means inventory full (runs `full`).
+   Distinct from the reward op's `cant_carry_screen` path because the
+   chest/object find flow doesn't offer drop_option — full is just a
+   "you can't carry more" message + delay. Item arg is any expression
+   (typically a `{ var: 'oc' }` from the find-object roll). */
+static ops_result do_inv_add(const node *op, const char *script_id,
+                             size_t idx, const char *parent,
+                             const ryl_bind *bindings, rt_env *env) {
+    const node *body = obj_get(op, "inv_add");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "inv_add: value must be object");
+    }
+    const node *item_n = obj_get(body, "item");
+    if (!item_n) {
+        die_at(script_id, idx, "inv_add: item required");
+    }
+    int32_t item = eval_expr(item_n, script_id, idx, bindings, env);
+    int slot = inv_add((int)item);
+    const node *take = (slot != 0) ? obj_get(body, "added")
+                                   : obj_get(body, "full");
+    if (!take) {
+        return OPS_NORMAL;
+    }
+    if (take->kind != N_ARR) {
+        die_at(script_id, idx, "inv_add: added/full must be array");
+    }
+    return play_ops(take, script_id, parent, bindings, env);
+}
+
 /* §20 L2: { input_string: { lg: N, accept: '<sym>'|[ '<sym>'... ],
    match?: [...], miss?: [...] } }. Reads a getstr(lg)-bounded line,
    compares it case-insensitively against each `accept` entry, and
@@ -2615,6 +2666,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         do_input_number(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "input_string")) {
         return do_input_string(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "inv_add")) {
+        return do_inv_add(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "input_item")) {
         return do_input_item(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "for_member")) {
