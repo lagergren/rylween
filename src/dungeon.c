@@ -27,55 +27,11 @@ void dungeon(int32_t levels, int32_t flag) {
     for (i = 1; i < levels + 1; i++) {
         lvl[i] = ryl_random(1, 9);
     }
-    switch (flag) {
-        case 1:
-            lvl[19] = 20;
-            lvl[20] = 21;
-            break;
-        case 2:
-            lvl[4] = 22;
-            lvl[8] = 23;
-            lvl[12] = 24;
-            lvl[18] = 25;
-            break;
-        case 3:
-            lvl[20] = 28;
-            lvl[19] = 27;
-            lvl[18] = 27;
-            lvl[17] = 27;
-            lvl[16] = 27;
-            lvl[15] = 27;
-            lvl[14] = 27;
-            lvl[13] = 27;
-            lvl[12] = 26;
-            break;
-        case 4:
-            lvl[10] = 29;
-            break;
-        case 5:
-            lvl[20] = 30;
-            break;
-        case 6:
-            lvl[3] = 31;
-            lvl[6] = 31;
-            lvl[9] = 31;
-            lvl[14] = 31;
-            lvl[17] = 31;
-            lvl[19] = 31;
-            lvl[20] = 32;
-            lvl[21] = 33;
-            lvl[22] = 34;
-            break;
-        case 7:
-            lvl[6] = 35;
-            lvl[7] = 36;
-            break;
-        case 8:
-            lvl[3] = 37;
-            lvl[7] = 37;
-            lvl[12] = 38;
-            break;
-    }
+    /* §20 L1: scenario placements live in dungeons.scenarios.<flag>.
+       The encounter-id namespace is unchanged (20..38 → the cases in
+       the level-event switch below). flag == 0 leaves the random fill
+       intact. */
+    res_dungeon_apply_placements(flag, lvl, levels);
 
     /*
 	** 0: Visited, Nothing left

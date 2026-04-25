@@ -211,6 +211,14 @@ int32_t res_monster_id(const char *sym);
    know which id range maps to which pool. Fatal on empty tier. */
 int32_t res_monster_tier_pick(const char *tier);
 
+/* §20 L1: overlay scenario `flag`'s special-encounter placements onto
+   `lvl[1..n_lvl]`. flag == 0 is a no-op (random caves carry no
+   placements). The scenarios subtree is `dungeons.scenarios.<flag>.
+   placements: [ { level, encounter }, ... ]`. Fatal on unknown flag
+   (>0 with no record) or out-of-range level (a placement targets a
+   slot outside [1, n_lvl]). Replaces the dungeon.c case-1..8 switch. */
+void res_dungeon_apply_placements(int32_t flag, int32_t *lvl, size_t n_lvl);
+
 /* Spell for a given class ("priest" or "mage") and slot (1..7). NULL if missing. */
 const ryl_spell *res_spell(const char *class_name, int slot);
 

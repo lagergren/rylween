@@ -1,0 +1,111 @@
+// §20 L1: dungeon scenario placement tables.
+//
+// dungeon(levels, flag) in dungeon.c first fills lvl[1..levels] with
+// random encounter ids 1..9 (the generic-cave events), then overlays
+// scenario-specific writes when `flag` is non-zero. Before §20 L1
+// those writes lived as a hand-authored switch in dungeon.c:30-78;
+// this file owns the placements so adding / re-tuning a quest
+// dungeon is a data edit. The scenario key is the integer flag the
+// C/DSL caller passes.
+//
+// Encounter id namespace:
+//   1..9   generic cave events (object/gold/encounter/etc.)
+//          dispatched by dungeon.c's main loop. Not enumerated here
+//          because the random fill already covers them.
+//   20..38 hand-authored special encounters (Guardian, Fire Shield,
+//          Thun Riddles, etc.). Comments below name each one;
+//          dungeon.c's level-event switch resolves the actual
+//          behaviour. L2 will lift those into dungeon.json5 scripts
+//          and this file's `encounter:` ids will become symbolic
+//          script names.
+{
+  scenarios: {
+    // Mountain of the Fire Shield — Hermit's quest.
+    // Caller: missions.json5 hermit_dungeon (dungeon(20, 1)).
+    '1': {
+      placements: [
+        { level: 19, encounter: 20 },  // Guardian of the Fire Shield
+        { level: 20, encounter: 21 },  // The Fire Shield itself
+      ],
+    },
+
+    // Temple of Thun — three riddles + bracelets.
+    // Caller: missions.c case 4 (dungeon(18, 2)).
+    '2': {
+      placements: [
+        { level:  4, encounter: 22 },  // Riddle 1
+        { level:  8, encounter: 23 },  // Riddle 2
+        { level: 12, encounter: 24 },  // Riddle 3
+        { level: 18, encounter: 25 },  // The Bracelets of Thun
+      ],
+    },
+
+    // Reebar's Tomb — colour riddles + spectrum + Nolrim's Tomb.
+    // Caller: missions.json5 reebar_dungeon (dungeon(20, 3)).
+    '3': {
+      placements: [
+        { level: 12, encounter: 26 },  // Spectrum Message
+        { level: 13, encounter: 27 },  // Colour Riddle
+        { level: 14, encounter: 27 },  // Colour Riddle
+        { level: 15, encounter: 27 },  // Colour Riddle
+        { level: 16, encounter: 27 },  // Colour Riddle
+        { level: 17, encounter: 27 },  // Colour Riddle
+        { level: 18, encounter: 27 },  // Colour Riddle
+        { level: 19, encounter: 27 },  // Colour Riddle
+        { level: 20, encounter: 28 },  // Nolrim's Tomb & Reebar
+      ],
+    },
+
+    // Master Crown dungeon.
+    // Caller: missions.json5 master_crown (dungeon(10, 4)).
+    '4': {
+      placements: [
+        { level: 10, encounter: 29 },  // The Master Crown
+      ],
+    },
+
+    // The Silver Sanctum.
+    // Caller: missions.json5 silver_sanctum (dungeon(20, 5)).
+    '5': {
+      placements: [
+        { level: 20, encounter: 30 },  // The Silver Sanctum
+      ],
+    },
+
+    // Hobgoblin stronghold — six patrols on the way in, then royal
+    // guards and the chief at the bottom.
+    // Caller: missions.json5 hobgoblin_stronghold (dungeon(22, 6)).
+    '6': {
+      placements: [
+        { level:  3, encounter: 31 },  // Hobgoblin Patrol
+        { level:  6, encounter: 31 },  // Hobgoblin Patrol
+        { level:  9, encounter: 31 },  // Hobgoblin Patrol
+        { level: 14, encounter: 31 },  // Hobgoblin Patrol
+        { level: 17, encounter: 31 },  // Hobgoblin Patrol
+        { level: 19, encounter: 31 },  // Hobgoblin Patrol
+        { level: 20, encounter: 32 },  // Royal Guard 1 (Skeletons)
+        { level: 21, encounter: 33 },  // Royal Guard 2 (Zombies)
+        { level: 22, encounter: 34 },  // Hobgoblin Chief
+      ],
+    },
+
+    // Ogre cave — Tammy's prison.
+    // Caller: missions.json5 ogre_cave (dungeon(7, 7)).
+    '7': {
+      placements: [
+        { level: 6, encounter: 35 },  // Orc Nest
+        { level: 7, encounter: 36 },  // Tammy's Prison
+      ],
+    },
+
+    // Erethor temple — priests and the Chamber of the Lute.
+    // Caller: missions.json5 erethor_temple (dungeon(12, 8)).
+    '8': {
+      placements: [
+        { level:  3, encounter: 37 },  // Priests of Erethor
+        { level:  7, encounter: 37 },  // Priests of Erethor
+        { level: 12, encounter: 38 },  // The Chamber of the Lute
+      ],
+    },
+  },
+}
