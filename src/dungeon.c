@@ -163,7 +163,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 x = ryl_random(40, 339);
                 tx("You find %d\r\n", x);
                 tx("gold pieces.\r\n\r\n");
-                state.p[state.cpl].gold += x;
+                party_add_gold(x);
                 lvl[cl] = 0;
                 ryl_pause();
                 break;
@@ -211,7 +211,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     for (i = 1; i <= res_party_member_max(); i++) {
                         if (pm_is_thief(pm_cur(i))) {
                             clw();
-                            tx("%s checks the\r\n", state.p[state.cpl].name[i]);
+                            tx("%s checks the\r\n", pm_name(pm_cur(i)));
                             tx("chest for traps.\r\n");
                             ryl_delay(1000);
                             x = 2;
@@ -250,10 +250,9 @@ void dungeon(int32_t levels, int32_t flag) {
                                 break;
                         }
                         for (i = 1; i <= res_party_member_max(); i++) {
-                            state.p[state.cpl].hp[i] -= 4 * state.p[state.cpl].lv[i];
-                            if (state.p[state.cpl].hp[i] < 1) {
-                                state.p[state.cpl].hp[i] = 1;
-                            }
+                            pm_t pm = pm_cur(i);
+                            pm_add_hp(pm, -4 * pm_lv(pm));
+                            pm_hp_floor(pm, 1);
                         }
                         ryl_pause();
                     }
@@ -264,7 +263,7 @@ void dungeon(int32_t levels, int32_t flag) {
                     x += state.p[state.cpl].exp[1] / 500;
                     x += 300;
                     tx("%d pieces of gold.\r\n\r\n", x);
-                    state.p[state.cpl].gold += x;
+                    party_add_gold(x);
                     ryl_pause();
                 }
                 break;
@@ -769,7 +768,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("hall for the Lute.\r\n\r\n");
                 ryl_pause();
                 clw();
-                tx("%s suddenly\r\n", state.p[state.cpl].name[3]);
+                tx("%s suddenly\r\n", pm_name(pm_cur(3)));
                 tx("hears something behind\r\n");
                 tx("%s!\r\n\r\n", pronoun(3, 2));
                 ryl_pause();
@@ -791,7 +790,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 tx("throughout the hall.\r\n\r\n");
                 ryl_pause();
                 clw();
-                tx("%s finds the\r\n", state.p[state.cpl].name[4]);
+                tx("%s finds the\r\n", pm_name(pm_cur(4)));
                 tx("Lute on a pedestal,\r\n");
                 tx("and you are all glad\r\n");
                 tx("to leave this place.\r\n\r\n");
