@@ -147,34 +147,6 @@ void dungeon(int32_t levels, const char *scenario) {
                 }
                 break;
 
-            case 2:
-                x = ryl_random(40, 339);
-                tx("You find %d\r\n", x);
-                tx("gold pieces.\r\n\r\n");
-                party_add_gold(x);
-                lvl[cl] = 0;
-                ryl_pause();
-                break;
-
-            case 3:
-                encounter(res_monster_tier_pick("weak"), 0);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                break;
-            case 4:
-                encounter(res_monster_tier_pick("weak"), 0);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                break;
-            case 5:
-                encounter(res_monster_tier_pick("deep"), 0);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                break;
-
             case 8:
                 tx("You find a chest!\r\n\r\n");
                 tx("(O)pen chest\r\n");
@@ -244,36 +216,6 @@ void dungeon(int32_t levels, const char *scenario) {
                 }
                 break;
 
-            case 9:
-                clw();
-                x = ryl_random(0, 2);
-                x += 2;
-                tx("You find %d torches.\r\n\r\n", x);
-                state.p[state.cpl].torches += x;
-                lvl[cl] = 0;
-                ryl_pause();
-                break;
-
-                /***************************************************************/
-
-            case 20:
-                clw();
-                tx("As you enter this level\r\n");
-                tx("you hear a horrible\r\n");
-                tx("evil laughter.\r\n");
-                tx("Suddenly!\r\n");
-                tx("Out of the shadows,\r\n");
-                tx("something HIDEOUS\r\n");
-                tx("emerges.\r\n\r\n");
-                ryl_pause();
-                clw();
-                encounter(res_monster_id("guardian"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                lvl[cl] = 0;
-                ryl_pause();
-                break;
             case 22:
                 clw();
                 tx("You stand before a\r\n");
@@ -424,33 +366,6 @@ void dungeon(int32_t levels, const char *scenario) {
                 clw();
                 break;
 
-            case 29:
-                clw();
-                tx("FINALLY! In the hands of\r\n");
-                tx("a long dead warrior, who\r\n");
-                tx("is placed like a statue\r\n");
-                tx("by the east wall of this\r\n");
-                tx("chamber, is the Master\r\n");
-                tx("Crown. The most powerful\r\n");
-                tx("object in the realm.\r\n");
-                tx("It shines with an inner\r\n");
-                tx("light.\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("...but as you take it,\r\n");
-                tx("THE WARRIOR COMES\r\n");
-                tx("TO LIFE!!!\r\n\r\n");
-                ryl_pause();
-                clw();
-                encounter(res_monster_id("long_dead_warrior"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                pa_flag_set("mastercrown", "crown_taken");
-                party_award_special(PS_MASTERCROWN);
-                lvl[cl] = 0;
-                break;
-
             case 30:
                 clw();
                 tx("This room shines like\r\n");
@@ -483,57 +398,6 @@ void dungeon(int32_t levels, const char *scenario) {
                 ryl_pause();
                 clw();
                 pa_flag_set("silver_key", "note_found");
-                lvl[cl] = 0;
-                break;
-
-            case 31:
-                clw();
-                tx("You bump into a hobgoblin\r\n");
-                tx("patrol. With shiny and\r\n");
-                tx("well used scimitars, they\r\n");
-                tx("attack you!\r\n\r\n");
-                ryl_pause();
-                clw();
-                encounter(res_monster_id("hobgoblin"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                if (ryl_chance(39)) {
-                    clw();
-                    tx("You find a scribbled\r\n");
-                    tx("note on the leader:\r\n");
-                    tx("Password: 'RISH EKKIN'\r\n\r\n");
-                    ryl_pause();
-                    clw();
-                }
-                break;
-
-            case 32:
-                clw();
-                tx("As you enter this room\r\n");
-                tx("an army of hobgoblin\r\n");
-                tx("skeletons attack you!\r\n\r\n");
-                ryl_pause();
-                encounter(res_monster_id("hobgoblin_skeleton"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                lvl[cl] = 0;
-                break;
-
-            case 33:
-                clw();
-                tx("As you enter this room\r\n");
-                tx("an army of undead\r\n");
-                tx("hobgoblins, smelling\r\n");
-                tx("of rotting flesh and\r\n");
-                tx("brandising gleaming\r\n");
-                tx("tridents attack you.\r\n\r\n");
-                ryl_pause();
-                encounter(res_monster_id("undead_hobgoblin"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
                 lvl[cl] = 0;
                 break;
 
@@ -587,32 +451,6 @@ void dungeon(int32_t levels, const char *scenario) {
                 lvl[cl] = 0;
                 break;
 
-            case 35:
-                lvl[cl] = 0;
-                clw();
-                tx("Some orcs watch a trapdoor\r\n");
-                tx("in the floor here. As\r\n");
-                tx("you enter, they attack!\r\n\r\n");
-                ryl_pause();
-                encounter(res_monster_id("orc"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                tx("The last of the guardians\r\n");
-                tx("lie dead. Suddenly, more\r\n");
-                tx("orcs rush out of their\r\n");
-                tx("sleeping quarters,\r\n");
-                tx("disturbed by the noise.\r\n\r\n");
-                ryl_pause();
-                encounter(res_monster_id("orc"), 1);
-                encounter(res_monster_id("orc"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
-                tx("You have slain the orcs.\r\n\r\n");
-                ryl_pause();
-                break;
-
             case 36:
                 clw();
                 if (pa_flag_is("peasant_wife", "accepted")) {
@@ -624,19 +462,6 @@ void dungeon(int32_t levels, const char *scenario) {
                     pa_flag_set("peasant_wife", "rescued");
                     ryl_pause();
                 }
-                break;
-
-            case 37:
-                clw();
-                tx("You are spotted by\r\n");
-                tx("some priests. They\r\n");
-                tx("attack you with blind\r\n");
-                tx("fury.\r\n\r\n");
-                ryl_pause();
-                encounter(res_monster_id("erethor_priest"), 1);
-                clr_map_window();
-                blitgfx(insidecavepic);
-                clw();
                 break;
 
             case 38:

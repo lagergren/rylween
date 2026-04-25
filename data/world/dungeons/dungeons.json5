@@ -32,7 +32,19 @@
 // own per-case reset (or the cl >= 20 catchall).
 {
   recurring: [
-    'spectrum_message',  // re-reads the wall plaque on revisit
+    // Generic random-fill encounters: ryl_random(1,9) per dungeon
+    // level keeps re-rolling on revisit; the encounter symbols
+    // dispatch through dungeon.<sym> scripts but the lvl[cl] slot
+    // stays put.
+    'encounter_weak_a',
+    'encounter_weak_b',
+    'encounter_deep',
+    // case 26: re-reads the wall plaque on revisit.
+    'spectrum_message',
+    // case 31: every revisit triggers a fresh patrol fight.
+    'hobgoblin_patrol',
+    // case 37: priests keep attacking.
+    'erethor_priests',
   ],
 
   scenarios: {

@@ -73,4 +73,159 @@
     { wait_input: true },
     { set_flag: 'mastercrown', value: 'dagger_taken' },
   ],
+
+  // ----- random cave events (recurring) -----
+  // case 3 / 4: weak-tier encounter. The original switch had two
+  // identical arms so the random fill `ryl_random(1,9)` would weight
+  // weak encounters 2/9 vs deep 1/9. The bias is preserved by
+  // keeping both symbols (same script, two enum slots).
+  encounter_weak_a: [
+    { encounter: { tier: 'weak' } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+  encounter_weak_b: [
+    { encounter: { tier: 'weak' } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+  // case 5: deep-tier encounter (rare, harder monsters).
+  encounter_deep: [
+    { encounter: { tier: 'deep' } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+
+  // case 2: random gold pile (40..339gp). No clw in the original
+  // body; the outer loop's leading clw covers it.
+  gold: [
+    { let: 'amount', value: { random: [40, 339] } },
+    { emit: 'gold' },
+    { mutate: { target: { gold: 0 }, op: 'add', value: { var: 'amount' } } },
+    { wait_input: true },
+  ],
+
+  // case 9: random torch find (2..4 torches). Has explicit clw in
+  // the original body.
+  torches: [
+    { engine_call: 'clw' },
+    { let: 'n', value: { random: [2, 4] } },
+    { emit: 'torches' },
+    { mutate: { target: { torches: 0 }, op: 'add', value: { var: 'n' } } },
+    { wait_input: true },
+  ],
+
+  // ----- quest encounters (combat) -----
+  // case 20: Guardian of the Fire Shield (level 19 of fire_shield_cave).
+  // Trailing wait_input fires AFTER the redraw — preserved verbatim
+  // because the original body has its own ryl_pause at end.
+  fire_shield_guardian: [
+    { engine_call: 'clw' },
+    { emit: 'fire_shield_guardian' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { encounter: { foe: 'guardian', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { wait_input: true },
+  ],
+
+  // case 29: Master Crown — taking it wakes the long-dead warrior
+  // who was guarding it. Two screens of text, then the encounter,
+  // then award + flag.
+  master_crown: [
+    { engine_call: 'clw' },
+    { emit: 'master_crown.intro' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'master_crown.warrior_alive' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { encounter: { foe: 'long_dead_warrior', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { set_flag: 'mastercrown', value: 'crown_taken' },
+    { reward: { items: ['mastercrown'] } },
+  ],
+
+  // case 31: Hobgoblin patrol (recurring; placed at six levels of
+  // hobgoblin_stronghold). 39% chance of dropping the password note.
+  hobgoblin_patrol: [
+    { engine_call: 'clw' },
+    { emit: 'hobgoblin_patrol.attack' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { encounter: { foe: 'hobgoblin', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { chance: { pct: 39, then: [
+      { engine_call: 'clw' },
+      { emit: 'hobgoblin_patrol.password' },
+      { wait_input: true },
+      { engine_call: 'clw' },
+    ] } },
+  ],
+
+  // case 32: Royal guard 1 (skeletons). Note: no clw between the
+  // wait_input and the encounter — the original body matches.
+  royal_guard1: [
+    { engine_call: 'clw' },
+    { emit: 'royal_guard1' },
+    { wait_input: true },
+    { encounter: { foe: 'hobgoblin_skeleton', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+
+  // case 33: Royal guard 2 (zombies / undead hobgoblins).
+  royal_guard2: [
+    { engine_call: 'clw' },
+    { emit: 'royal_guard2' },
+    { wait_input: true },
+    { encounter: { foe: 'undead_hobgoblin', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+
+  // case 35: Orc nest. Three encounters: first orc patrol, then
+  // two more orc waves (back-to-back, no redraw between), then
+  // the slain message.
+  orc_nest: [
+    { engine_call: 'clw' },
+    { emit: 'orc_nest.guarding' },
+    { wait_input: true },
+    { encounter: { foe: 'orc', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'orc_nest.more' },
+    { wait_input: true },
+    { encounter: { foe: 'orc', mandatory: true } },
+    { encounter: { foe: 'orc', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'orc_nest.slain' },
+    { wait_input: true },
+  ],
+
+  // case 37: Erethor priests (recurring; placed at two levels of
+  // erethor_temple to ambush the player on the way to the lute).
+  erethor_priests: [
+    { engine_call: 'clw' },
+    { emit: 'erethor_priests' },
+    { wait_input: true },
+    { encounter: { foe: 'erethor_priest', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
 }

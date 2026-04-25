@@ -62,4 +62,118 @@
     'it in your backpack.',
     '',
   ],
+
+  // case 2 — random gold pile narration.
+  gold: [
+    'You find {amount}',
+    'gold pieces.',
+    '',
+  ],
+
+  // case 9 — torch find narration.
+  torches: [
+    'You find {n} torches.',
+    '',
+  ],
+
+  // case 20 — Fire Shield Guardian opening.
+  fire_shield_guardian: [
+    'As you enter this level',
+    'you hear a horrible',
+    'evil laughter.',
+    'Suddenly!',
+    'Out of the shadows,',
+    'something HIDEOUS',
+    'emerges.',
+    '',
+  ],
+
+  // case 29 — Master Crown two-screen flow.
+  master_crown: {
+    intro: [
+      'FINALLY! In the hands of',
+      'a long dead warrior, who',
+      'is placed like a statue',
+      'by the east wall of this',
+      'chamber, is the Master',
+      'Crown. The most powerful',
+      'object in the realm.',
+      'It shines with an inner',
+      'light.',
+      '',
+    ],
+    warrior_alive: [
+      '...but as you take it,',
+      'THE WARRIOR COMES',
+      'TO LIFE!!!',
+      '',
+    ],
+  },
+
+  // case 31 — Hobgoblin patrol (attack + drop note).
+  hobgoblin_patrol: {
+    attack: [
+      'You bump into a hobgoblin',
+      'patrol. With shiny and',
+      'well used scimitars, they',
+      'attack you!',
+      '',
+    ],
+    password: [
+      'You find a scribbled',
+      'note on the leader:',
+      "Password: 'RISH EKKIN'",
+      '',
+    ],
+  },
+
+  // case 32 — Royal Guard 1 (skeletons).
+  royal_guard1: [
+    'As you enter this room',
+    'an army of hobgoblin',
+    'skeletons attack you!',
+    '',
+  ],
+
+  // case 33 — Royal Guard 2 (undead hobgoblins).
+  royal_guard2: [
+    'As you enter this room',
+    'an army of undead',
+    'hobgoblins, smelling',
+    'of rotting flesh and',
+    'brandising gleaming',
+    'tridents attack you.',
+    '',
+  ],
+
+  // case 35 — Orc nest three-stage flow.
+  orc_nest: {
+    guarding: [
+      'Some orcs watch a trapdoor',
+      'in the floor here. As',
+      'you enter, they attack!',
+      '',
+    ],
+    more: [
+      'The last of the guardians',
+      'lie dead. Suddenly, more',
+      'orcs rush out of their',
+      'sleeping quarters,',
+      'disturbed by the noise.',
+      '',
+    ],
+    slain: [
+      'You have slain the orcs.',
+      '',
+    ],
+  },
+
+  // case 37 — Erethor priests (recurring ambush).
+  erethor_priests: [
+    'You are spotted by',
+    'some priests. They',
+    'attack you with blind',
+    'fury.',
+    '',
+  ],
 }
