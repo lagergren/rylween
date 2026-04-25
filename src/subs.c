@@ -117,6 +117,25 @@ void random_wilderness() {
     int32_t r;
     uint8_t rflag = 0;
 
+    /* Replay-mode override: fire one mandatory encounter with a named
+       monster on the next move and clear the env var so subsequent
+       moves resume the normal RNG path. Lets combat / spell fixtures
+       pin a known fight without seed-hunting the random_wilderness
+       roll. The post-encounter clr_map_window + update_map mirrors
+       the wilderness encounter return path. Production never sets
+       this. */
+    const char *force = getenv("RYL_FORCE_ENCOUNTER");
+    if (force && *force) {
+        int32_t foe = res_monster_id(force);
+        unsetenv("RYL_FORCE_ENCOUNTER");
+        if (foe >= 1) {
+            encounter(foe, 1);
+            clr_map_window();
+            update_map();
+            return;
+        }
+    }
+
     r = ryl_random(0, 99);
 
     rflag = mission_control();
