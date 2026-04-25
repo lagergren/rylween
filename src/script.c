@@ -504,14 +504,22 @@ static int32_t expr_var(const char *name, const char *script_id, size_t idx,
 /* Int-returning C entry points callable from `{ engine_int: '<name>',
    args: [<expr>...] }` expressions. Separate from engine_tbl (void
    return) and str_engine_tbl (const char *). All args are evaluated
-   as §17-F expressions; no string-literal positions. argc is
-   enforced strictly. */
+   as §17-F expressions, with one shortcut: an entry can mark a
+   positional arg as belonging to a `world.json5 enums:` table
+   (e.g. arg_enums[1] = "pc_class" on pa_is_class). When the script
+   passes a multi-char string literal in that position, the dispatch
+   resolves it via res_enum_id BEFORE eval_expr — so the script
+   author writes args: [{var:'who'}, 'Ranger'] instead of
+   args: [{var:'who'}, {enum:['pc_class','Ranger']}]. 1-char strings
+   keep their ASCII-int meaning (handled by eval_expr); ints / object
+   exprs are evaluated normally. argc is enforced strictly. */
 typedef int32_t (*int_engine_fn)(const int32_t *args);
 
 typedef struct {
     const char *name;
     int argc;
     int_engine_fn fn;
+    const char *arg_enums[4]; /* per-arg enum table; NULL = bare int */
 } int_engine_entry;
 
 static int32_t ie_pa_is_alive(const int32_t *a) {
@@ -569,22 +577,22 @@ static int32_t ie_wld_location_y(const int32_t *a) {
 }
 
 static const int_engine_entry int_engine_tbl[] = {
-    {"pa_is_alive", 1, ie_pa_is_alive},
-    {"pa_is_dead", 1, ie_pa_is_dead},
-    {"pa_is_spellcaster", 1, ie_pa_is_spellcaster},
-    {"pa_is_class", 2, ie_pa_is_class},
-    {"pa_first_alive", 0, ie_pa_first_alive},
-    {"pa_alive_count", 0, ie_pa_alive_count},
-    {"pa_first_level", 0, ie_pa_first_level},
-    {"pa_count_class", 1, ie_pa_count_class},
-    {"pa_count_alive_class", 1, ie_pa_count_alive_class},
-    {"inv_find_empty", 0, ie_inv_find_empty},
-    {"inv_find_item", 1, ie_inv_find_item},
-    {"inv_find_in_range", 2, ie_inv_find_in_range},
-    {"inv_count_in_range", 2, ie_inv_count_in_range},
-    {"pa_party_member_max", 0, ie_pa_party_member_max},
-    {"wld_location_x", 1, ie_wld_location_x},
-    {"wld_location_y", 1, ie_wld_location_y},
+    {"pa_is_alive",          1, ie_pa_is_alive,          {0}},
+    {"pa_is_dead",           1, ie_pa_is_dead,           {0}},
+    {"pa_is_spellcaster",    1, ie_pa_is_spellcaster,    {0}},
+    {"pa_is_class",          2, ie_pa_is_class,          {NULL, "pc_class"}},
+    {"pa_first_alive",       0, ie_pa_first_alive,       {0}},
+    {"pa_alive_count",       0, ie_pa_alive_count,       {0}},
+    {"pa_first_level",       0, ie_pa_first_level,       {0}},
+    {"pa_count_class",       1, ie_pa_count_class,       {"pc_class"}},
+    {"pa_count_alive_class", 1, ie_pa_count_alive_class, {"pc_class"}},
+    {"inv_find_empty",       0, ie_inv_find_empty,       {0}},
+    {"inv_find_item",        1, ie_inv_find_item,        {0}},
+    {"inv_find_in_range",    2, ie_inv_find_in_range,    {0}},
+    {"inv_count_in_range",   2, ie_inv_count_in_range,   {0}},
+    {"pa_party_member_max",  0, ie_pa_party_member_max,  {0}},
+    {"wld_location_x",       1, ie_wld_location_x,       {0}},
+    {"wld_location_y",       1, ie_wld_location_y,       {0}},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`
@@ -920,8 +928,24 @@ static int32_t eval_engine_int(const node *n, const char *script_id, size_t idx,
             die_at(script_id, idx, "engine_int: too many args (max 4)");
         }
         for (int i = 0; i < got; i++) {
-            args[i] = eval_expr(args_n->u.arr.items[i], script_id, idx,
-                                bindings, env);
+            const node *an = args_n->u.arr.items[i];
+            /* Multi-char string literal in an enum-tagged arg position
+               -> res_enum_id shortcut. (1-char strings still take the
+               ASCII-int path inside eval_expr.) */
+            if (i < e->argc && e->arg_enums[i] && an && an->kind == N_STR &&
+                an->u.sv && an->u.sv[0] && an->u.sv[1] != 0) {
+                int32_t v = res_enum_id(e->arg_enums[i], an->u.sv);
+                if (v < 0) {
+                    char buf[160];
+                    snprintf(buf, sizeof buf,
+                             "engine_int: '%s' arg %d: unknown %s '%s'",
+                             e->name, i, e->arg_enums[i], an->u.sv);
+                    die_at(script_id, idx, buf);
+                }
+                args[i] = v;
+            } else {
+                args[i] = eval_expr(an, script_id, idx, bindings, env);
+            }
         }
     }
     if (got != e->argc) {
@@ -1344,16 +1368,16 @@ static void do_dungeon(const node *op, const char *script_id, size_t idx,
     dungeon(levels, scenario);
 }
 
-/* §20 L2: { speak: { building: '<sym>'|<int>, town: <expr> } }. Wraps
+/* §20 L2: { speak: { building: '<sym>'|<int>, town?: <expr> } }. Wraps
    speak.c's speak(bld, tow) entry point — the chit-chat NPC picker.
    `building` accepts a symbol resolved through enums.building
-   ('none' / 'inn' / 'tavern') or a raw int. `town` is an expression
-   (typically `{ twn: 0 }` to read the engine binding for the
-   player's current town, or 0 for the wilderness/hut path).
-   Replaces the legacy { engine_call: 'speak', args: [int, int] }
-   shape. The legacy bld=1/inn vs bld=2/tavern semantics — under
-   which the inn lists tavern-NPCs and vice versa — is preserved
-   verbatim (see the inn/tavern callsites in towne.json5). */
+   ('none' / 'inn' / 'tavern') or a raw int. `town` is an expression;
+   omit it to default to state.twn (the player's current town). Pass
+   town: 0 explicitly for the wilderness/hut path. Replaces the legacy
+   { engine_call: 'speak', args: [int, int] } shape. The legacy
+   bld=1/inn vs bld=2/tavern semantics — under which the inn lists
+   tavern-NPCs and vice versa — is preserved verbatim (see the inn /
+   tavern callsites in towne.json5). */
 static void do_speak(const node *op, const char *script_id, size_t idx,
                      const ryl_bind *bindings, const rt_env *env) {
     const node *body = obj_get(op, "speak");
@@ -1364,9 +1388,6 @@ static void do_speak(const node *op, const char *script_id, size_t idx,
     const node *tow_n = obj_get(body, "town");
     if (!bld_n) {
         die_at(script_id, idx, "speak: building required");
-    }
-    if (!tow_n) {
-        die_at(script_id, idx, "speak: town required");
     }
     int32_t bld;
     if (bld_n->kind == N_INT) {
@@ -1383,7 +1404,9 @@ static void do_speak(const node *op, const char *script_id, size_t idx,
     } else {
         die_at(script_id, idx, "speak: building must be int or string");
     }
-    int32_t tow = eval_expr(tow_n, script_id, idx, bindings, env);
+    int32_t tow = tow_n
+        ? eval_expr(tow_n, script_id, idx, bindings, env)
+        : state.twn;
     speak(bld, tow);
 }
 

@@ -373,8 +373,7 @@
           { for_member: { var: 'member', then: [
             { if: {
               cond: { engine_int: 'pa_is_class',
-                      args: [{ var: 'member' },
-                             { enum: ['pc_class', 'Thief'] }] },
+                      args: [{ var: 'member' }, 'Thief'] },
               then: [
                 { engine_call: 'clw' },
                 { engine_bind: { fn: 'pa_name',

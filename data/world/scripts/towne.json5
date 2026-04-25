@@ -678,7 +678,7 @@
           { for_member: { var: 'member', then: [
             { if: {
                 cond: { eq: [{ member: { var: 'member' }, field: 'cl' },
-                              { enum: ['pc_class', 'Priest'] }] },
+                              { enum: ['pc_class', 'Priest'] }] }, // not engine_int — bare expr in eq:
                 then: [
                   { let: 'priest_bonus', value: { add: [
                     { var: 'priest_bonus' },
@@ -790,7 +790,7 @@
                     { break: true },
                   ] },
                   { key: 'S', then: [
-                    { speak: { building: 'inn', town: { twn: 0 } } },
+                    { speak: { building: 'inn' } },
                   ] },
                   // --- (T)ell story: pick a member (1..4). Dead
                   //     members produce the dead_story vignette.
@@ -1245,7 +1245,7 @@
                   prompt: 'chit_menu',
                   options: [
                     { key: 'C', then: [
-                      { speak: { building: 'tavern', town: { twn: 0 } } },
+                      { speak: { building: 'tavern' } },
                     ] },
                   ],
                   default: [
