@@ -5112,3 +5112,177 @@ hygiene session between §22.G and §23.A.
 **Bar per session.** Same as §22.8/§22.9/§22.10/§22.11:
 `make check` and `make testasan` both green at every
 commit.
+
+§22.14 — §22 closure + hygiene session (2026-04-26)
+
+Continuation of §22.13. Six commits this session, both gates
+green at every commit:
+
+  - `63a7a80` §22.F speak_missions micro-DSL retired. Each
+    NPC role's stages now lives as a `speak_missions.<role>`
+    dispatch script (`scripts:` subtree) — an if-chain over
+    flag values that resolves npc_name / npc_loc / dx / dy
+    bindings via two new engine_bind helpers (`npc_name_at_
+    role`, `npc_loc_at_role`) and `let` over the existing
+    `wld_location_x/y` engine_int, then `play_script`s the
+    matching `speak.<x>.<y>` body. The new `play_script` op
+    forwards merged caller bindings + rt_env entries to the
+    nested call. Retires `mission_dispatch` + `mission_resolve_
+    bindings` in `speak.c`, `mission_spec_` / `mission_stage`
+    / `mission_binding` types in `speak.h`, and `fold_speak_
+    missions` + `parse_bind_kind` in `res.c`. New helper
+    `res_role_for_slot(slot)` reverses `npc_roles:` so
+    `speak.c::npc_mission_hint` only needs the talker's slot.
+
+  - `ee8ba68` §22.G docs/dsl.md single-doc reference. Replaces
+    the historical Phase-6d design narrative with the post-§22
+    surface: worldfile shape, script anatomy + text-id
+    resolution, every op, expression vocabulary, mutate
+    lvalues, the three engine registries (engine_call /
+    engine_int / engine_bind names + sigs), automatic
+    placeholder bindings ({party_max} / {inventory_max} /
+    {cost:itemkey}), die_at error contract, three worked
+    examples (small spell, speak_missions dispatcher, formula).
+    `src/script.h` cross-links to docs/dsl.md as the user-
+    facing reference.
+
+  - `5371e5b` Phase 5c residuals — driv.c + ydarg.c. Sweep
+    the last 50 raw `state.p[state.cpl].*` hits between the
+    two files through pa_*/pm_* helpers. New helpers in
+    party.h/c: `pa_party_name()`, `pa_journal_n()` /
+    `pa_journal_line(i)`, and a parameterised `pa_special(int
+    which)` / `pa_set_special(int which, int v)` keyed by
+    the existing PS_* enum (covers ydarg's silverkey=2
+    state-bump that party_award_special's set-to-1 doesn't
+    express). driv.c + ydarg.c residual count drops from
+    50 to 0.
+
+  - `e61be95` port-plan §23.F. New §23 lookahead entry for
+    the ydarg "stairs" item-trade flow — a `switch (d - 48)`
+    over four special-item give-arms surfaced during the
+    Phase-5c sweep. Mechanically identical shape to the
+    §20 L7 camp/hunt/lodge flows; ~0.5 session lift into
+    a new `data/world/scripts/ydarg.json5` shard.
+
+  - `3271b14` §20 T3/T4 hardcoded data/ paths. New
+    `res_data_path(leaf, out, out_sz)` helper alongside
+    `res_ansi_path` / `res_map_path`. Sweeps the eight
+    remaining `disptext("data/...")` and `fopen("data/...")`
+    literals (driv.c S/D/H menus + ydarg.c heroes.txt log).
+    Asset-root rename is now one edit.
+
+  - `b258cb0` §22.10 dungeon_encounter slots 10..19 collapse.
+    Reserved hole was Amiga-numbering ballast; verified
+    nothing indexes into 10..19 (lvl[]'s only numeric range
+    check is `>= 3 && <= 5`, below the gap; placements use
+    symbols; lvl[] isn't persisted). Quest events shift from
+    20..38 to 10..28. Updated dungeon.c + dungeons.json5
+    docstrings to match.
+
+  - `d4c06d2` §22.5 #8a wilderness-priest-banish fixture.
+    Path 2 (earthquake bridge): two priests in slots 1+2,
+    RYL_FORCE_PARTY_LV=5 brings both to ma 99/95. Slot 1
+    casts earthquake (`Z17E`) → cave + dungeon descend; on
+    level 1 the random fill rolls `gold` (lvl[1]=2: 132 gp);
+    its wait_input is absorbed by a single \n. Slot 2 then
+    casts banish (`Z24`) — six-screen incantation, success
+    arm ends with state_banished=1, dungeon.c's post-spell
+    hook zeroes lvl[i] in 3..5. Snapshot pins
+    state.banished=1, slot 1 ma=39 (99-60), slot 2 ma=6
+    (95-90 + 1 from a foodhandler mana_regen tick during
+    earthquake's advance_hour beat). Closes §22.5 — 13/13
+    lane-A spell fixtures landed.
+
+**§22 status — CLOSED.** All bullets from §22.13's "what's
+left" list shipped:
+  - #8a banish fixture: landed.
+  - §22.F speak_missions rewrite: landed (parser retired).
+  - §22.G docs/dsl.md: landed (cross-linked from script.h).
+
+The pre-§22 stragglers from §22.12 also closed:
+  - Phase 5c driv.c/ydarg.c residuals: 0 raw hits remaining.
+  - §20 TINY T3/T4 path literals: lifted via res_data_path.
+  - §22.10 dungeon_encounter 10..19 reserved slots: collapsed.
+
+**Continuation prompt — what to do next session.**
+
+The repo is in a good rest state: §22 closed, the post-§22
+hygiene queue from §22.12 cleared, and §23 lookahead already
+written (§23.A monster nasty-magic, §23.B item-spell switch,
+§23.C combat constants, §23.D char-creation thresholds, §23.E
+dispatcher survey, §23.F ydarg stairs). Sequencing per §23's
+"recommended sequencing" prose:
+
+  1. **DSL prep commit before §23.A.** §23 calls out two DSL
+     gaps that should land first: (a) target-set iteration
+     with a predicate (`for_each_alive_player`,
+     `for_each_alive_monster`); (b) typed RNG / combat-ctx
+     bindings — frost damage `h2/5 + random(0,3)` reads `h2`
+     as a C local today, the combat ctx already plumbs
+     `mh[] / noc / ws / etc.` so extending the binding set
+     with `h2 / monster_idx / target_idx` and exposing them
+     via `{ var: 'h2' }` is the natural shape. Both have
+     analogues in the §22 lane-A migration; neither is a
+     deep change. ~1 session.
+
+  2. **§23.A — battle.c monster nasty-magic block** (lines
+     625-740, ~115 LOC). Highest-leverage extraction: the
+     `g==5` undead block (cast-gate `15 + sp/2`, four-spell
+     pick across frost/fire/hold/confuse, melee fallback
+     with `mh[x]/6 + random(0,9) - obdamage(armour)`). Lift
+     into `monster_spells.json5` shard with `do:` bodies
+     and a `monster_turn` runtime call. Per-monster spell
+     sets become a data edit. Forces the DSL prep. ~2-3
+     sessions.
+
+  3. **§23.B — item-spell switch** (battle.c:194-403, cases
+     100..111, ~210 LOC). Rides on §23.A's helpers (target
+     iteration + combat-ctx bindings already extended).
+     Items.json5 grows per-id `effect:` specs; the case
+     dispatch becomes `apply_item_effect(id, ctx)`. ~2
+     sessions.
+
+  4. **§23.C/D in parallel** — combat-constants sweep and
+     driv.c char-creation thresholds. Mechanical, small.
+     ~1 session each.
+
+  5. **§23.F (or §22.5 #8a-style fixture for it).** ydarg
+     stairs item-trade lift to data/world/scripts/ydarg.json5
+     — `menu_branch` over keys ['1'..'5','T'] with per-arm
+     `pa_special` gates and clears via `pa_set_special`
+     mutate-style. Independent of §23.A/B's combat work,
+     so it's a good warm-up commit if a session wants
+     something contained. ~0.5 session.
+
+  6. **§23.E survey.** Confirm there's no extraction
+     opportunity in driv.c wilderness-loop / dungeon level-
+     loop dispatchers; close as documentation if the
+     conclusion is "input dispatch, stays in C". ~0.25 session.
+
+**Estimated total for §23.** ~6-8 sessions A-D + §23.F's
+0.5 + §23.E's 0.25 ≈ ~7-9 sessions. The result: `battle.c`
+shrinks from ~850 LOC to ~350-400 of pure runtime; the
+bestiary, item-spell table, monster-spell table, and class
+threshold table all become first-class data shards.
+
+**Pre-§23 pre-flight notes:**
+
+  - `make check` + `make testasan` both green at HEAD
+    (commit `d4c06d2`). The §22 fixture set (12 lane-A
+    spell fixtures + the wilderness/towne battery) pins
+    every player-facing combat path byte-for-byte, so §23.A's
+    monster extractions land against known-good baselines.
+  - The new `play_script` op in §22.F is genuinely useful
+    beyond speak_missions — any future flow that wants to
+    fan out into nested scripts after gating gets the same
+    `forward bindings` mechanic for free. Worth keeping in
+    mind for §23.A's monster_turn.
+  - docs/dsl.md is now the single doc reference for the DSL.
+    Keep it in sync as §23 adds ops (target iteration,
+    combat-ctx bindings) — author rule: every new
+    op/expr/lvalue/registry entry gets a one-paragraph
+    addition there at the same commit it lands.
+
+**Bar per session.** Same as §22.8/§22.9/§22.10/§22.11/§22.12/
+§22.13: `make check` and `make testasan` both green at every
+commit.
