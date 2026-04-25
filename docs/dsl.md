@@ -1,808 +1,548 @@
-# Phase 6d DSL: hierarchical world definition + shared effect language
+# Rylween scripting DSL — single-doc reference
 
-Third pass. Supersedes the two earlier drafts (commits `1f0b59f` flat-record
-sketch and `99e3602` first hierarchical sketch). The inner expression
-language (conditions / effects / paths) is unchanged from those drafts and
-is locked at §6 below; this pass rewrites the **outer world-file shape**
-to fold in classes-as-spell-owners, town inhabitants, mission triggers
-beyond `when`-guards, and a small import mechanism so map data, large
-dialogue blocks, and shard files don't have to inline into the root.
+Authoritative reference for the script DSL as it stands after §22.F.
+The C header `src/script.h` is the in-source companion; this doc
+covers the same surface in one place plus worked examples and the
+text-binding rules.
 
----
-
-## 1. Goal
-
-Make the game world *data*: one JSON5 tree the C runtime walks, with all
-behaviour expressed as small array-form effect programs. Phase 6c already
-extracted static text into `data/resources.jsonl`; Phase 6d takes the next
-step and replaces the *behavioural* C in `speak.c`, `subs.c`, `strid.c`,
-`towne.c`, `missions.c` with data the same loader produces.
-
-Two concrete wins:
-
-- A designer can change a mission, an NPC's lines, or a spell's damage
-  formula by editing one tree node and re-running. No C edit, no rebuild.
-- The replay harness (`tools/replay.sh`) pins byte-identity across the
-  entire stream — RNG is single-source (commit landing in this same series),
-  delays are zero under `RYL_NO_DELAY`, and the DSL adds no new entropy
-  beyond `["rand", lo, hi]` which routes through `ryl_random`.
+The DSL is a JSON5 tree consumed by the interpreter in `src/script.c`
+(`play_script`, `play_spell_body`, `play_formula_int`). Every script
+is an array of one-op objects; every op is an object with a single
+identifying key (`screen`, `if`, `mutate`, …) plus its parameters.
+There is no array-form effect language anywhere in the runtime — the
+historical `["seq", ...]` shape from earlier design drafts has been
+fully retired.
 
 ---
 
-## 2. World file: one tree, with imports
+## 1. World file & shards
 
-The world lives at `data/world.json5`. JSON5 because designers hand-edit it:
-`// comments`, trailing commas, unquoted keys, single-or-double quotes.
-
-The root has one fixed shape — a small set of named subtrees, each owning
-one ontological domain:
+The world tree lives at `data/world.json5`. It is one JSON5 object
+the loader (`res_load`) parses, resolves `$import` directives in, and
+hands to the runtime read-only. All scripts live under the `scripts:`
+subtree, sharded by top-level prefix:
 
 ```json5
-{
-  meta:    { ... },   // version, schema id
-  flags:   { ... },   // symbolic name -> integer slot, value enum
-  items:   { ... },   // id-keyed item records
-  classes: { ... },   // class name -> stat ranges, ability list, spell list
-  spells:  { ... },   // spell id -> effect program (referenced by classes)
-  npcs:    { ... },   // npc id -> dialogue tree
-  towns:   { ... },   // town id -> coords, services, NPC inhabitants
-  monsters: { ... },  // foe id -> stats (folds in the {"kind":"monster"} JSONL)
-  encounters: { ... }, // wilderness/dungeon roll tables
-  missions: { ... },  // mission id -> stages, triggers, rewards
-  map:     { ... },   // map grid; usually an `$import` to a side file
-  texts:   { ... },   // text id -> string (folds in {"kind":"text"} JSONL)
+scripts: {
+  speak:           { $import: 'world/scripts/speak.json5' },
+  speak_missions:  { $import: 'world/scripts/speak_missions.json5' },
+  missions:        { $import: 'world/scripts/missions.json5' },
+  towne:           { $import: 'world/scripts/towne.json5' },
+  terrain:         { $import: 'world/scripts/terrain.json5' },
+  dungeon:         { $import: 'world/scripts/dungeon.json5' },
+  hunt:            { $import: 'world/scripts/hunt.json5' },
+  rest:            { $import: 'world/scripts/rest.json5' },
+  lodge:           { $import: 'world/scripts/lodge.json5' },
 }
 ```
 
-### 2.1 Imports
-
-Any subtree value may be replaced by an **import directive** — an object
-with one key, `$import`, whose value is a path relative to `data/`:
-
-```json5
-{
-  // ...
-  map: { $import: "world/map.json5" },
-  npcs: {
-    garth: { $import: "world/npcs/garth.json5" },
-    nrim:  { $import: "world/npcs/nrim.json5" },
-    // small NPCs can stay inline:
-    rumour_bartender: { dialogue: { ... } },
-  },
-}
-```
-
-Semantics:
-- The loader resolves `$import` recursively at load time, before the eval
-  loop starts. The runtime tree is one merged structure; the engine never
-  sees `$import`.
-- Cycles are a fatal load-time error.
-- `$import` of `*.dat` (e.g. the legacy `data/map.dat` 80×40 char grid) is
-  recognised as raw bytes and decoded by a per-target adapter — see §3.7.
-- One file = one tree. No partial-merge inside a file.
-
-This is the "single big JSON5 with file imports" pattern the task asks for:
-the *file layout* can be sharded for editor sanity; the *runtime tree* is
-one structure.
-
-### 2.2 What stays in JSONL
-
-`data/resources.jsonl` keeps **per-save player state** that doesn't belong
-in a designer-authored world file: blessed replay output, score tables, etc.
-World-DSL records (`{"kind":"text"}`, `{"kind":"monster"}`, `{"kind":"item"}`)
-migrate into `world.json5` under their home subtree; the loader reads both
-during the transition window with JSON5 records shadowing JSONL records of
-the same id. Once a kind has fully migrated, the JSONL records for it can be
-deleted.
-
-Deliberately *not* in the world file: live `state.p[*]`, `state.npc[*]`
-runtime fields. Those are persisted to `realm.dat` / `npc.dat` exactly as
-today; the world file is the *schema and content*, not the save.
+`$import` is recursive (cycles fatal). The loader walks every script
+once at world load (`res.c::fold_scripts_walk`) and runs sniff-tests
+on op shapes — unknown `engine_call`/`engine_int`/`engine_bind` fns,
+unknown flag tags, unknown enum / item / pic / monster / dungeon-
+scenario / building symbols all surface as `res: <path>:<line>` fatal
+errors at world load, before the engine starts. Typos die loudly.
 
 ---
 
-## 3. Subtree shapes
+## 2. Script anatomy
 
-Each subtree has a small, fixed schema. Cross-tree references are by id
-(usually the path component itself) — no string compares at runtime; the
-loader resolves them once into integer indices.
+A script is an `N_ARR` of op objects, addressed by dotted id. The
+runtime entry point `play_script("speak.merchant.first_visit", binds)`
+walks `scripts.speak.merchant.first_visit` in order, dispatching each
+op via `dispatch_op`.
 
-### 3.1 `flags`
+The dotted id also derives the **parent** used by every text-emitting
+op to resolve relative names: `speak.merchant.first_visit` → parent
+`speak.merchant`, so `{ screen: 'offer' }` resolves to the text id
+`speak.merchant.offer`. `resolve_text_id` two-step:
+1. If the name already contains a dot, use it verbatim.
+2. Else probe `<script_id>.<name>` (full id, e.g.
+   `speak.merchant.first_visit.offer`); on hit, use it.
+3. Otherwise fall back to `<parent>.<name>` (one segment stripped,
+   e.g. `speak.merchant.offer`).
 
-```json5
-flags: {
-  "garth.bandits":         { slot: 1,  values: ["none", "accepted", "recovered", "closed"] },
-  "hermit.troll_tooth":    { slot: 33, values: ["none", "accepted", "extracted", "delivered"] },
-  "church.donation.once":  { slot: 5,  values: ["no", "yes"] },
-  "encounter.immune":      { slot: 0, scope: "encounter", values: ["no", "yes"] },
-}
-```
+This lets shared text atoms (like `speak.recognize_he`) live one
+level up and be reused from every nested speak.* script without
+copying.
 
-`slot` is the integer index in `state.p[cpl].flag[]` (party scope) or in
-the encounter's transient flag set (`scope: "encounter"`). The string
-identifier is what every other subtree uses; the integer slot only exists
-for save-format compatibility.
+Three runtime entry points, all in `src/script.h`:
 
-### 3.2 `items`
-
-```json5
-items: {
-  ruby:        { id: 111, kind: "treasure", cost: 0,     damage: 0 },
-  fireshield:  { id:  27, kind: "armour",  cost: 15000, ac: 20,
-                 wieldable_by: ["fighter", "ranger", "priest"], slot: "armour",
-                 effect: ["set", "party.fireshield", 1] },
-  potion_heal: { id:  36, kind: "consumable", cost: 200,
-                 effect: ["seq",
-                   ["ask_target", "party_alive"],
-                   ["add", "target.hp", ["+", 15, "target.lv"]],
-                   ["set", "target.hp", ["min", "target.hp", "target.h"]]] },
-  flute_madness: { id: 109, kind: "magic_item", cost: 0,
-                   wieldable_by: ["bard"], slot: "consumable",
-                   effect: ["seq",
-                     ["say", "strid.item.flute_of_madness"],
-                     ["set_flag", "encounter.confused", 1]] },
-}
-```
-
-Fields, by `kind`:
-
-- `weapon`: `damage` (int), `wieldable_by` (class id list), `slot: "weapon"`
-- `armour`: `ac` (int), `wieldable_by`, `slot: "armour"`
-- `consumable`: `effect` (effect program), `slot: "consumable"`
-- `magic_item`: `effect`, optional `wieldable_by`, `slot`
-- `treasure`: bare `cost`; no effect
-
-`wieldable_by` references class ids (`classes.<id>`). `effect` is an effect
-program (§6) — that's how "what does this potion do" is expressed.
-
-### 3.3 `classes`
-
-A class names the stat prereqs, what items its members may wield, and which
-spells they can cast. The spells themselves live in the `spells` subtree —
-the class only references them.
-
-```json5
-classes: {
-  fighter: {
-    prereq: { ws_gte: 50 },
-    starting: { weapon: "shortsword", armour: "leather" },
-    spells: [],
-  },
-  mage: {
-    prereq: { wi_gte: 50 },
-    starting: { weapon: "dagger", armour: null },
-    spells: ["mage.frost", "mage.fire", "mage.hold", "mage.confusion",
-             "mage.annihilate"],
-    casts_in: ["combat"],   // mage spells are combat-only
-  },
-  priest: {
-    prereq: { wi_gte: 50 },
-    starting: { weapon: "mace", armour: "leather" },
-    spells: ["priest.heal", "priest.banish", "priest.teleport",
-             "priest.earthquake", "priest.silence", "priest.morale"],
-    casts_in: ["combat", "exploration"],
-  },
-  bard:    { prereq: { ch_gte: 50 }, spells: [], casts_in: [] },
-  thief:   { prereq: {}, spells: [], casts_in: [] },
-  ranger:  { prereq: {}, spells: [], casts_in: [] },
-}
-```
-
-`prereq` keys are `ws_gte`, `wi_gte`, `h_gte`, `ch_gte` (matches the four
-rolled stats). `casts_in` controls which UI exposes the spell menu —
-`combat` = strid.c's `(C)ast Spell`, `exploration` = driv.c's `Z` key.
-Empty list = no menu offered.
-
-### 3.4 `spells`
-
-Each spell is one record with `slot`, `base_cost`, and a `do` effect
-program. Class membership lives in `classes.<id>.spells` (§3.3).
-
-```json5
-spells: {
-  "mage.frost": {
-    slot: 1, base_cost: 8,
-    do: ["seq",
-      ["require", ["not", ["flag_eq", "encounter.immune", 1]]],
-      ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
-      ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
-      ["ask_target", "monster_alive"],
-      ["set", "$dmg", ["*", "caster.lv", ["+", ["rand", 0, 6], 2]]],
-      ["say", "spell.mage.frost.hit"],
-      ["sub", "target.hp", "$dmg"],
-      ["if", ["lt", "target.hp", 1],
-        ["seq", ["set", "target.hp", 0], ["set", "target.dead", 1],
-               ["say", "common.killed"]]]],
-  },
-  "priest.banish": {
-    slot: 4, base_cost: 85,
-    do: ["seq",
-      ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
-      ["require", ["in_dungeon"]],
-      ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
-      ["say", "spell.priest.banish.narration"],
-      ["pause"],
-      ["set", "state.banished", 1]],
-  },
-}
-```
-
-`base_cost` is a sugar name accessible as a path inside the spell's own `do`
-body — saves repeating the literal twice. `slot` is the menu number rendered
-for that spell within its class menu.
-
-### 3.5 `npcs`
-
-An NPC is one dialogue tree. Each branch is keyed by id; the engine picks
-the matching branch by evaluating `when` guards in file order and falling
-back to `default`.
-
-```json5
-npcs: {
-  garth: {
-    id: 1,             // matches person.c:76-81 / ryl.c:45 numbering
-    job: "merchant",
-    home: "thord",     // back-reference to towns.thord (§3.6)
-    dialogue: {
-      greeting: {
-        // First-visit vs repeat — same pattern as speak.c:124-131.
-        do: ["if", ["flag_eq", "speaker.visited", 0],
-              ["seq", ["say", "garth.greet.first"],
-                     ["set", "speaker.visited", 1]],
-              ["say", "garth.greet.repeat"]],
-      },
-      "refund.accept": {
-        when: ["flag_eq", "garth.bandits", 2],
-        do: ["seq",
-          ["say", "garth.refund.grateful"],
-          ["give_item", "ruby"],
-          ["give_gold", 2000],
-          ["pause"],
-          ["set_flag", "garth.bandits", 3]],
-      },
-      "rumour": {
-        when: ["flag_eq", "garth.bandits", 0],   // tells rumours only before mission
-        do: ["call", "lib.rumour"],              // shared library node, see §3.10
-      },
-    },
-  },
-  // hermit, priestess, smith, ...
-}
-```
-
-Implicit binding: inside an NPC's effect, `speaker` is the NPC node itself
-(so `speaker.visited` reads `npc[1].visited[cpl]`); `caster` is unbound.
-Use `party.*` to talk about the party-side state and `target` after an
-`ask_target`.
-
-### 3.6 `towns`
-
-A town is its coordinates plus a list of services and inhabitants.
-Inhabitants are NPC ids; the dialogue lives under `npcs.*` and is referenced
-here so "who lives in Thord" is one place.
-
-```json5
-towns: {
-  thord: {
-    id: 1, coord: [12, 11],
-    inhabitants: ["garth", "thord_innkeeper", "thord_priestess",
-                  "thord_smith", "thord_tavernkeeper", "thord_bartender"],
-    services: {
-      church: { npc: "thord_priestess",  do: ["call", "lib.church.menu"] },
-      inn:    { npc: "thord_innkeeper",  do: ["call", "lib.inn.menu"]    },
-      smith:  { npc: "thord_smith",      do: ["call", "lib.smith.menu"]  },
-      tavern: { npc: "thord_tavernkeeper", do: ["call", "lib.tavern.menu"] },
-      shop:   { npc: "garth",            do: ["call", "lib.merchant.menu"] },
-    },
-  },
-  ollk:  { id: 2, coord: [48, 12], inhabitants: [...], services: {...} },
-  wilor: { id: 3, coord: [43, 20], inhabitants: [...], services: {...} },
-  murn:  { id: 4, coord: [55, 29], inhabitants: [...], services: {...} },
-}
-```
-
-`coord` matches the existing hard-coded `(state.p[x].x == 12 && y == 11)`
-literals in `interact.c:144-156` — those become a single `find_town(x, y)`
-helper backed by the `towns` subtree.
-
-`services.<key>.do` is the effect program that runs when the player picks
-that service from the town menu. Most are `["call", "lib.…"]` into a
-shared library (§3.10) because every town's church/inn/smith/tavern is the
-same flow with NPC-specific narration.
-
-### 3.7 `map`
-
-The map is an 80×41 grid of terrain characters. Two ways to express it:
-
-```json5
-// inline (only viable for tiny test maps):
-map: {
-  width: 80, height: 41,
-  legend: { s: "plains", f: "foothills", m: "mountain", w: "water",
-            d: "desert", t: "swamp", g: "forest", "0": "town", "1": "hut",
-            "2": "castle" },
-  grid: ["smffss...", "ssss...", ...],
-}
-
-// production: external file via $import
-map: { $import: "world/map.json5" }
-```
-
-The legacy `data/map.dat` (raw bytes, 41 × 81-byte lines) is loaded by a
-shim adapter when the import path ends in `.dat`:
-
-```json5
-map: { $import: "map.dat", format: "amiga-grid", width: 80, height: 41 }
-```
-
-Same runtime tree shape after import; the file format choice is invisible
-to the rest of the world.
-
-### 3.8 `monsters` and `encounters`
-
-Monsters are stat blocks; encounter tables map a roll bucket to a monster
-id. Today these are split across the `{"kind":"monster"}` JSONL records and
-the `(rand() % 14) + 40` style ranges in `subs.c` slumpvis. The DSL
-collapses both:
-
-```json5
-monsters: {
-  warrior: { id:  4, name: "Warrior", n: [1, 4], h: [50, 99], ws: 60 },
-  troll:   { id:  3, name: "Troll",   n: [1, 3], h: [99, 199], ws: 55 },
-  // ...
-},
-
-encounters: {
-  // wilderness (slumpvis):
-  wild_low:  { roll: ["rand", 1, 10], table: [
-    [1, "kobold"], [2, "orc"], [3, "troll"], [4, "warrior"],
-    [5, "goblin"], [6, "wild_dog"], [7, "knight"], [8, "bandit"],
-    [9, "hobgoblin"], [10, "zombie"]] },
-  wild_high: { roll: ["rand", 40, 53], table: [...] },
-  ydarg:     { roll: ["rand", 60, 79], table: [...] },
-},
-```
-
-Slumpvis becomes:
-
-```json5
-exploration: {
-  // every successful move in the wilderness fires this
-  on_step: ["seq",
-    ["set", "$r", ["rand", 0, 99]],
-    ["if", ["lt", "$r", 3],
-      ["call", "lib.cave_found_prompt"],
-      ["if", ["gte", "$r", 94],
-        ["if", ["chance", 50],
-          ["spawn_encounter", "wild_low"],
-          ["spawn_encounter", "wild_high"]],
-        ["call", "lib.terrain_msg"]]]],
-}
-```
-
-(The literal r-thresholds `<3 / >=94` are kept verbatim from `subs.c:109,114`
-to preserve the encounter probability.)
-
-### 3.9 `missions`
-
-A mission is a state machine, with stages, **triggers** that drive
-transitions, and rewards.
-
-```json5
-missions: {
-  bandits: {
-    flag: "garth.bandits",
-    given_by: "garth",
-    accepted_by: "garth.dialogue.refund.accept_quest",   // dialogue branch id
-    stages: {
-      none:      { },
-      accepted:  {
-        triggers: [
-          // wilderness encounter that completes the find-the-cargo step
-          { on: "wilderness_encounter", chance: 9, foe: "bandit",
-            do: ["seq",
-              ["say", "mission.bandits.attacked"],
-              ["pause"],
-              ["spawn_encounter", { foe: "bandit", n: 8, mandatory: true }],
-              ["say", "mission.bandits.cargo_found"],
-              ["pause"],
-              ["set_flag", "garth.bandits", 2]] },
-        ],
-      },
-      recovered: {
-        // turn-in via dialogue; see npcs.garth.dialogue."refund.accept"
-        rewards: { gold: 2000, item: "ruby" },
-      },
-      closed: { },
-    },
-  },
-
-  troll_tooth: {
-    flag: "hermit.troll_tooth",
-    given_by: "hermit",
-    stages: {
-      accepted:  {
-        triggers: [
-          { on: "wilderness_encounter", chance: 9, foe: "troll",
-            do: ["seq",
-              ["spawn_encounter", { foe: "troll", mandatory: true }],
-              ["say", "mission.troll_tooth.extracted"],
-              ["set_flag", "hermit.troll_tooth", 2]] },
-        ],
-      },
-      extracted: {
-        triggers: [
-          { on: "step_on_coord", coord: ["dx[1]", "dy[1]"],
-            do: ["call", "lib.dungeon_skull_prompt"] },
-        ],
-      },
-      delivered: { rewards: { gold: 5000 } },
-    },
-  },
-
-  // example trigger types beyond the two above:
-  example_terrain_event: {
-    flag: "example.flag",
-    stages: {
-      accepted: {
-        triggers: [
-          // First time the party steps on a mountain tile after the mission
-          // is accepted. State carried in `mission_state.example.mountain_seen`.
-          { on: "first_terrain_step", terrain: "m",
-            do: ["seq",
-              ["say", "example.first_mountain"],
-              ["set_flag", "example.flag", 2]] },
-          { on: "step_on_coord", coord: [42, 23],
-            do: ["call", "lib.cave_entrance"] },
-          { on: "stage_entered",       // fires once when stage becomes active
-            do: ["say", "example.go_find_x"] },
-          { on: "stage_exited",        // fires once when stage advances
-            do: ["say", "example.farewell"] },
-          { on: "day_passes", count: 5,   // fires every 5 in-game days
-            do: ["say", "example.urgency"] },
-          { on: "talk_to_npc", npc: "hermit",
-            do: ["seq", ["say", "example.hint"], ["pause"]] },
-        ],
-      },
-    },
-  },
-}
-```
-
-**Trigger types** (the closed set the engine knows how to evaluate):
-
-| `on` | fired when | extra fields |
-|------|-----------|--------------|
-| `wilderness_encounter` | a slumpvis-driven combat begins | `chance` (% override), `foe` (filter) |
-| `step_on_coord` | party x/y matches | `coord: [x, y]` (path or literal) |
-| `step_on_terrain` | party moves onto matching tile | `terrain: <legend-key>` |
-| `first_terrain_step` | first matching tile since stage started | `terrain` |
-| `stage_entered` | stage becomes active (flag transitions in) | — |
-| `stage_exited` | stage becomes inactive (flag transitions out) | — |
-| `talk_to_npc` | dialogue branch entered | `npc`, optional `branch` |
-| `day_passes` | in-game day rollover | `count` (every N) |
-
-Engine maintains `mission_state.<id>.<bookkeeping>` to back the
-"first/since" predicates (e.g. a bit set per terrain glyph for
-`first_terrain_step`). Bookkeeping is per-party, persisted alongside
-`p[i].flag[]`.
-
-### 3.10 `lib`: shared subtrees
-
-For the inevitable "every town has the same church menu" duplication,
-declare a top-level `lib` and reference it from anywhere:
-
-```json5
-lib: {
-  "rumour": { do: ["seq", /* the 33-case switch from towne.c rumour() */] },
-  "church.menu": { do: ["seq", /* the heal/resurrect/bless menu */] },
-  "inn.menu":    { do: ["seq", /* room rental + camp prompt */] },
-  // ...
-},
-```
-
-`["call", "lib.<id>"]` is an effect that evaluates the named library node's
-`do` body in the current binding environment (so `speaker` and `target`
-flow in). Loader resolves the lib id at link time; missing id is fatal.
+- `play_script(id, bindings)` — dispatch ops as above.
+- `play_spell_body(spell_id, body_node, bindings, combat_ctx)` —
+  same machinery but takes a pre-resolved body node and exposes the
+  combat context (monster HP, per-encounter flags) for the spell-
+  effect ops below. `combat_ctx` may be NULL for out-of-combat
+  casters (priest spells via subs.c); `monster_*` and `battle_flag`
+  reads/writes die fatally in that case.
+- `play_formula_int(formula_id, body_node, bindings)` — evaluate a
+  single expression body and return its int. Used by
+  `res_formula_int_n` for damage / reward formulas.
 
 ---
 
-## 4. Loader
+## 3. Ops
 
-```
-res_load("data/world.json5")
-  -> parse JSON5 into in-memory tree (any C JSON5 parser)
-  -> resolve every $import recursively
-  -> link cross-tree refs (item ids, flag ids, lib ids, npc ids)
-     fail loudly on dangling reference
-  -> fold in legacy resources.jsonl records under their home subtrees
-  -> hand resolved tree to the runtime
-```
+Every op below is one entry in a script's array. Ops that produce a
+value into the runtime environment do so via `let` or `engine_bind` /
+`engine_int` results; ops that mutate game state use `mutate`.
 
-After `res_load`, the engine never re-parses or string-compares. All
-lookups are O(1) into integer-indexed tables built at load time. The world
-tree is read-only; mutable state lives in `ryl_state`.
+Control flow:
+
+- `{ if: { cond: <expr>, then: [...], else?: [...] } }` —
+  `then` fires when `cond` evaluates truthy (!= 0). `else` is
+  optional. Probability gate: `cond: { chance: <expr> }`.
+- `{ switch: { expr: <expr>, cases: [...] } }` — first-match-wins.
+  Each case is one of:
+  - `{ match: <expr>,        then: [...] }` — single-value match
+  - `{ in: [<expr>, ...],    then: [...] }` — match-any-of
+  - `{ default: true,        then: [...] }` — fallback (must be the
+    bool literal `true`)
+- `{ loop: [...] }` — infinite body; exits via inner `{ break: true }`,
+  restarts via `{ continue: true }` or natural fall-off. Both
+  `break` / `continue` are fatal outside a `loop`.
+- `{ for_member: { var: '<name>', then: [...] } }` —
+  iterate `1..res_party_member_max()` with the current member index
+  bound into `rt_env` under `var` (RT_INT). Body sees the var via
+  `{ var: '<name>' }` in expressions or `{<name>}` in text.
+- `{ for_inventory: { var: '<name>', then: [...] } }` —
+  iterate `1..res_inventory_slot_max()`. Guard on
+  `{ inventory: <var> }` if you only care about occupied slots.
+- `{ for_monster: { var: '<name>', then: [...] } }` —
+  iterate `1..combat_ctx.noc`. Fatal outside a combat ctx.
+
+Text + journal:
+
+- `{ screen: '<name>' }` — `tx_fmt(parent.<name>, bindings)` then
+  `ryl_pause()` then `clw()`. The bundled pause + clw is the right
+  pacing for the typical "narrate, wait for RETURN, clear" beat.
+- `{ emit: '<name>' }` — `tx_fmt` only (no pause, no clw). Use when
+  text interleaves with `engine_call` side effects whose redraws
+  would conflict with the bundled clw.
+- `{ emit_indexed: { fmt: '<name>{}<rest>', value: <expr> } }` —
+  substitutes `<value>` (decimal) into the single `{}` placeholder
+  in the template name, resolves to a text id under the script's
+  parent, emits via `tx_fmt`. Strict — the resolved id must exist.
+- `{ journal: '<text>' }` — `bind_expand`s the literal, prepends
+  `"<cpl> "` and appends `"\n"`, forwards to `journal()`. Use
+  `{<placeholder>}` for binding interpolation just like screens.
+
+Pause / input:
+
+- `{ pause: <int-ms> }` — `ryl_delay(N)` (engine-paced delay; the
+  no-delay test mode short-circuits this).
+- `{ wait_input: true }` — `ryl_pause()` (prompt + block until
+  RETURN). Distinct from `pause` (delay) and `screen`'s bundled pause.
+- `{ menu_branch: { prompt?: '<screen>', key_var?: '<name>',
+                    options: [...], default?: [...] } }` —
+  one `ryl_menu`-style key read. Each option:
+  - `{ key: 'K',                 then: [...] }`
+  - `{ keys: ['A', 'B', ...],    then: [...] }`
+  - `{ key_range: ['LO', 'HI'],  then: [...] }`
+  Optional `key_var` binds the matched (uppercased) key into rt_env
+  as a one-char string. Unmatched keys fall to `default:` if present.
+- `{ input_number: { prompt_screen?: '<name>', lg: N, var: '<name>',
+                     min: <expr>, max: <expr> } }` —
+  read a numeric line via `getstr(N)`, clamp into `[min, max]`,
+  bind under `var`. Non-numeric / empty input clamps to `min`.
+- `{ input_string: { lg: N, accept: '<sym>'|['<sym>'...],
+                     match?: [...], miss?: [...] } }` —
+  read `getstr(lg)`, case-insensitive compare against `accept`
+  (single string or array), play `match` or `miss` as appropriate.
+  `lg` ∈ 1..63.
+- `{ input_item: { slot_var: '<name>', item_var: '<name>',
+                   then?: [...] } }` —
+  read one key (uppercased), validate as inventory letter A..P
+  (slot 1..16). On hit: bind `slot_var` to the slot, `item_var` to
+  the item id at that slot, run `then`. On miss: skip silently.
+
+State:
+
+- `{ set_flag: '<tag>', value: '<state>' }` —
+  `state.p[cpl].flag[res_flag_slot(tag)] = res_flag_value_id(tag, state)`.
+  Both args symbolic; data is all-string. Legacy int forms are still
+  accepted but every shipped script uses symbols.
+- `{ let: '<name>', value: <expr> }` — evaluate `value`, bind into
+  rt_env as RT_INT under `<name>`. Read back via `{ var: '<name>' }`
+  in expressions or `{<name>}` in text.
+- `{ mutate: { target: <lvalue>, op: 'set'|'add'|'sub'|'mul'|'div',
+              value: <expr>, clamp?: { min?: <expr>, max?: <expr> } } }`
+  Read the lvalue, apply `op` against `value`, optionally clamp
+  result, write back. Lvalues:
+  - `{ gold }`, `{ torches }`, `{ food }`, `{ pl }` — party scalars
+  - `{ flag: <tag-or-slot-expr> }` — party flag at that slot
+  - `{ inventory: <slot-expr> }` — party inventory[1..N]
+  - `{ member_field: { idx: <expr>, field: '<name>' } }` —
+    `state.p[cpl].<field>[idx]`; field is one of `lv`/`hp`/`h`/`ma`/
+    `wi`/`ws`/`ch`/`cl`/`ra`/`dead`/`ar`/`wp`/`exp`/`gender`.
+  - `{ hours_rested }`, `{ hour_of_day }`, `{ time_left }` —
+    party-rest / wall-clock counters.
+  - `{ monster_hp: <slot-expr> }`, `{ monster_dead: <slot-expr> }` —
+    combat-ctx mh[i] / deadc[i]; fatal w/o combat ctx.
+  - `{ battle_flag: '<name>' }` — combat-ctx flag pointer; name ∈
+    `confused`/`held`/`antimagic`/`ws`. Fatal w/o ctx or NULL ptr.
+  - `{ state_banished: <any> }` — `state.banished` (`<any>` is just
+    a marker; mutate.value is what's written).
+
+Reward / inventory / dispatch:
+
+- `{ reward: { gold?: <int>, items?: [<int|sym>...],
+              cant_carry_screen?: '<name>',
+              picked_up_screen?: '<name>' } }` —
+  add `gold` to party, place each item into the first empty
+  inventory slot. On full inventory: `ryl_delay(800)` ↦
+  emit `cant_carry_screen` ↦ `drop_option()` ↦ on success emit
+  `picked_up_screen` then `ryl_pause()`. Item entries are literal
+  ids OR shard symbols (`'red_gem'`) resolved via `res_item_id`.
+- `{ inv_add: { item: <expr>, added?: [...], full?: [...] } }` —
+  `inv_add(item)` returns slot. Slot != 0 plays `added`, slot == 0
+  plays `full`. Distinct from `reward`'s `cant_carry` flow because
+  the find-object path doesn't offer drop-to-make-room.
+- `{ play_script: '<dotted-id>' }` — invoke a nested script.
+  Caller's bindings + rt_env entries are forwarded as the nested
+  call's `ryl_bind` list (rt_env first so it shadows caller). The
+  nested script gets a fresh rt_env. Used by the speak_missions
+  dispatcher scripts to fan out into the existing `speak.<x>.<y>`
+  bodies after gating on flags + populating role-keyed bindings.
+- `{ ask_target: '<kind>', var: '<name>' }` — interactive picker.
+  `kind` ∈ `monster_alive` / `party_member`. The first redraws the
+  combat ctx until the player picks a live monster letter; the
+  second prints `"Who? (1-N)"` and loops on `pm_digit_in_range`.
+  Result (1-based index) lands in rt_env under `var`.
+- `{ engine_call: '<fn>', args: [<int-expr>...] }` — call a void C
+  entry point with literal int args. See §6 for the registry.
+- `{ engine_bind: { fn: '<fn>', args: [<expr-or-str>...],
+                    var: '<name>' } }` —
+  call a string-returning C entry point and stash the result into
+  rt_env as RT_STR under `var`. `args` positions are typed by the
+  registry's sig string: `'i'` is an int expression, `'s'` is a
+  string literal (authoring-time constant). See §6.
+- `{ encounter: { foe: '<sym>'|<int>, n?: <expr>, mandatory?: <bool>,
+                  tier?: '<sym>' } }` — wrapper around `encounter()`.
+  Symbolic `foe` resolves via `res_monster_id`; symbolic `tier`
+  validates against the bestiary tier list.
+- `{ dungeon: { levels: <expr>, scenario?: '<sym>' } }` — wrapper
+  around `dungeon(levels, scenario)`. Symbolic scenario validates
+  against `dungeons.scenarios`.
+- `{ speak: { building: '<sym>'|<int>, town?: <expr> } }` — wrapper
+  around `speak(bld, tow)`.
+
+`engine_int` is **not** an op — it's an expression form. It returns
+an int and is read inside any `<expr>` slot.
 
 ---
 
-## 5. Runtime APIs
+## 4. Expressions
 
-The interpreter has four entry points, each consuming one tree path:
+Anywhere the grammar above says `<expr>`, the expression evaluator
+(`eval_expr`) accepts:
 
-```c
-// Dialogue: pick the matching branch under npcs.<npc>.dialogue and run it.
-void res_dialogue(const char *npc_id, const char *branch_id);
+Literals:
+- `<int>` — integer literal.
+- `<bool>` — JSON5 `true`/`false` (1/0).
+- One-char string — ASCII int (`'1'` ≡ 49). Multi-char strings are
+  fatal in int positions to catch accidental typos.
 
-// Spell: run classes.<class>.spells.<spell>.do (or spells.<id>.do).
-void res_spell(const char *class_id, int slot);
+State reads:
+- `{ flag: <tag-or-slot-expr> }` — party flag value (int).
+- `{ gold }`, `{ torches }`, `{ food }`, `{ pl }`, `{ twn }`,
+  `{ hour_of_day }`, `{ hours_rested }`, `{ time_left }`, `{ cpl }`
+  — party + state scalars.
+- `{ inventory: <slot-expr> }` — party inventory item id at slot.
+- `{ member: <idx-expr>, field: '<name>' }` — party member field
+  (same field list as the mutate `member_field` lvalue).
+- `{ var: '<name>' }` — read an rt_env binding (RT_INT only — RT_STR
+  is fatal here, those are text-only).
+- `{ monster_count }` — combat ctx `noc`. Fatal w/o ctx.
+- `{ monster_hp: <slot-expr> }`, `{ monster_dead: <slot-expr> }` —
+  combat ctx mh[i] / deadc[i]. Fatal w/o ctx or out-of-range idx.
+- `{ battle_flag: '<name>' }` — combat ctx flag value. Fatal w/o ctx.
+- `{ state_banished }` — `state.banished` (paired with the lvalue).
 
-// Town service: run towns.<town>.services.<service>.do.
-void res_service(const char *town_id, const char *service_id);
+RNG:
+- `{ random: [<lo-expr>, <hi-expr>] }` — `ryl_random(lo, hi)`,
+  inclusive both ends. Fatal if `lo > hi`.
+- `{ chance: <pct-expr> }` — `ryl_chance(pct)` → 0/1.
 
-// Mission trigger sweep: called on every move and every encounter start;
-// walks active stages and fires matching triggers. State machine.
-void res_mission_tick(int trigger_kind, /* event-specific payload */);
-```
+Arithmetic / logic (all arity-2 unless noted):
+- `{ add | sub | mul | div | mod | min | max: [a, b] }`
+- `{ eq | ne | lt | lte | gt | gte: [a, b] }`
+- `{ and | or: [a, b, ...] }` — variadic, short-circuit; result is
+  always 0 or 1.
+- `{ not: <expr> }` — 0 or 1.
 
-Each entry point pushes its own binding frame (`caster`, `speaker`,
-`target`, `$locals`) and tears it down on return.
-
----
-
-## 6. Inner expression language (LOCKED — verbatim from prior drafts)
-
-```bnf
-; conditions
-cond  ::= ["and",  cond, cond, …]
-        | ["or",   cond, cond, …]
-        | ["not",  cond]
-        | ["flag_eq",   flag-ref, int]
-        | ["has_item",  item-id [, count]]
-        | ["gold_gte",  int-expr]
-        | ["in_dungeon"] | ["in_town"] | ["in_wilderness"]
-        | ["class_is",  actor-ref, class-name]
-        | ["alive",     actor-ref]
-        | ["chance",    int]                        ; pct, true with prob pct/100
-        | ["eq", expr, expr] | ["lt", expr, expr] | ["gte", expr, expr]
-
-; effects
-effect ::= ["seq", effect, effect, …]
-         | ["if",  cond, effect [, effect]]         ; then [else]
-         | ["say", text-id]
-         | ["pause"] | ["clw"]
-         | ["set_flag", flag-ref, int]
-         | ["give_gold", int-expr] | ["take_gold", int-expr]
-         | ["give_item", item-id [, count]] | ["take_item", item-id [, count]]
-         | ["set", path, expr] | ["add", path, expr] | ["sub", path, expr]
-         | ["ask_target", target-kind]              ; binds `target`
-         | ["require", cond]                        ; aborts enclosing seq on false
-         | ["journal", text-id]
-         | ["spawn_encounter", encounter-spec]      ; id or {foe,n,mandatory}
-         | ["call", lib-id]                         ; inline a lib node's do
-
-; expressions
-expr ::= int | string | path
-       | ["+", expr, expr, …] | ["-", expr, expr]
-       | ["*", expr, expr, …] | ["/", expr, expr]
-       | ["min", expr, …] | ["max", expr, …] | ["clamp", expr, expr, expr]
-       | ["rand", int, int]                         ; inclusive both ends
-       | ["cond", cond, expr, expr]                 ; ternary
-
-; references
-path  ::= actor "." field | "state." state-field | "party." party-field
-        | "npc[" int "]." npc-field | "$" ident    ; $ident = local binding
-actor ::= "caster" | "target" | "speaker" | "self"
-field ::= "hp" | "h" | "ma" | "wi" | "lv" | "ac" | "dead" | "name"
-        | "cl" | "gold" | "inventory[" int "]" | "visited"
-flag-ref  ::= "ident.ident…"     ; symbolic, resolved via flags subtree
-text-id   ::= "ident.ident…"
-item-id   ::= int | "ident"      ; ident resolved via items subtree
-target-kind ::= "party_alive" | "party_any" | "party_dead"
-              | "monster_alive" | "monster_any" | "self"
-```
-
-Targeting, evaluation order, short-circuit, `require` semantics, missing-id
-fatality, integer width — all unchanged from the prior draft (commit
-`99e3602` §6); see that history for the rationale.
-
-`["chance", N]` is new sugar over `["lt", ["rand", 0, 99], N]` matching the
-runtime `ryl_chance(N)` helper. Same probability, less line noise.
+Symbol resolution:
+- `{ item: '<sym>'|<int> }` — `res_item_id` for strings, validate
+  via `res_item` for ints. Die-on-unknown.
+- `{ pic: '<sym>'|<int> }` — `res_enum_id("pic", sym)` for strings.
+- `{ enum: ['<table>', '<value>'] }` — generic enums lookup.
+- `{ flag_value: ['<tag>', '<value>'] }` —
+  `res_flag_value_id(tag, value)`; pairs with `{ flag: <tag> }`
+  to compose symbolic flag comparisons.
+- `{ obcost: <id-expr> }` / `{ obdamage: <id-expr> }` —
+  `res_item(id)->cost` / `->damage`.
+- `{ engine_int: '<fn>', args: [<expr>...] }` — call an int-
+  returning C entry point. Some args are tagged with an enum (§6.2)
+  so a multi-char string literal in that slot is auto-resolved
+  before reaching `eval_expr`.
 
 ---
 
-## 7. Worked examples
+## 5. Bindings & rt_env
 
-### 7.1 Church heal (`towne.c:661-695`)
+There are two kinds of bindings the interpreter merges:
 
-Tree path: `lib.church.menu.do` (referenced by every town's `services.church.do`).
+- **Caller `ryl_bind[]`** — passed to `play_script` from C
+  (e.g., towne wrappers that `snprintf` a price into
+  `{"price", price_str}` before invoking a script). Read-only
+  inside the script.
+- **`rt_env`** — runtime binding store filled by `let`,
+  `input_number`, `input_string`, `input_item`,
+  `menu_branch.key_var`, `for_member`/`for_inventory`/`for_monster`
+  loop vars, `engine_bind`, `ask_target`. Bindings have two
+  kinds: RT_INT (every source above except `engine_bind`) and
+  RT_STR (`engine_bind` results only). RT_STR is text-only —
+  using one in `{ var: ... }` is fatal.
+
+Order: `rt_env` shadows caller bindings (rt_env-first when the
+runtime merges them into the `ryl_bind*` for nested calls). Within
+rt_env, newest entry wins on duplicate names — this is what makes
+nested `for_*` loops with the same loop var name shadow cleanly.
+
+**Automatic bindings.** `bind_expand` (used by every text-emitting
+op for `{...}` interpolation) recognises three engine-provided
+names without any caller plumbing:
+
+- `{party_max}` → `res_party_member_max()`
+- `{inventory_max}` → `res_inventory_slot_max()`
+- `{cost:<itemkey>}` → `res_item(res_item_id(<itemkey>))->cost`
+
+These let prompts read `Who? (1-{party_max})` and shop screens read
+`The price is {cost:torch} gold.` without any per-call binding
+preamble. They are unbound names so caller / rt_env bindings of the
+same name take precedence.
+
+---
+
+## 6. Engine registries
+
+The C↔DSL boundary is three explicit registries in `src/script.c`.
+Each registry's argc / sig is enforced both at world load (via
+`script_engine_*_argc` from `script.h`) and at runtime (via
+`do_engine_*` in `script.c`). Adding a new fn means appending to
+the matching tbl — see the "Adding a registry entry" recipe below.
+
+### 6.1 `engine_call` — void void(int32_t* args)
+
+Op form: `{ engine_call: '<name>', args: [<int-expr>...] }`. Args are
+literal ints from `eval_expr`. Current registry:
+
+| name              | argc | side effect                              |
+|-------------------|-----:|------------------------------------------|
+| `update_map`      | 0    | `update_map()` redraw                    |
+| `clr_map_window`  | 0    | clear map area only                      |
+| `blitgfx`         | 1    | `blitgfx((uint8_t)pic_id)`               |
+| `statusline`      | 0    | redraw status line                       |
+| `clw`             | 0    | clear window                             |
+| `advance_hour`    | 0    | `advance_hour()` tick                    |
+| `weaponr`         | 0    | wield-weapon prompt                      |
+| `armourr`         | 0    | wield-armour prompt                      |
+| `invlist`         | 0    | inventory listing                        |
+| `showparty`       | 0    | party stats panel                        |
+| `drop_option`     | 0    | drop-from-inventory picker               |
+| `rumour`          | 0    | one rumour line emitted                  |
+| `pm_add_hp`       | 2    | `pm_add_hp(pm_cur(member), delta)`       |
+| `pm_hp_floor`     | 2    | `pm_hp_floor(pm_cur(member), floor)`     |
+| `pa_teleport_step`| 2    | priest.teleport movement loop            |
+
+### 6.2 `engine_int` — int32_t int(int32_t* args)
+
+Expression form: `{ engine_int: '<name>', args: [<expr>...] }`.
+Registry:
+
+| name                     | argc | arg-enum tags          |
+|--------------------------|-----:|------------------------|
+| `pa_is_alive`            | 1    | —                      |
+| `pa_is_dead`             | 1    | —                      |
+| `pa_is_spellcaster`      | 1    | —                      |
+| `pa_is_class`            | 2    | —, `pc_class`          |
+| `pa_first_alive`         | 0    | —                      |
+| `pa_alive_count`         | 0    | —                      |
+| `pa_first_level`         | 0    | —                      |
+| `pa_count_class`         | 1    | `pc_class`             |
+| `pa_count_alive_class`   | 1    | `pc_class`             |
+| `inv_find_empty`         | 0    | —                      |
+| `inv_find_item`          | 1    | `item`                 |
+| `inv_find_in_range`      | 2    | `item`, `item`         |
+| `inv_count_in_range`     | 2    | `item`, `item`         |
+| `pa_party_member_max`    | 0    | —                      |
+| `inv_slot_max`           | 0    | —                      |
+| `wld_location_x`         | 1    | `world_locations`      |
+| `wld_location_y`         | 1    | `world_locations`      |
+
+Args tagged with an enum (`pc_class`, `world_locations`, …) accept
+a multi-char string literal in that position; the loader resolves
+the symbol via `res_enum_id` (or `res_item_id` for the special
+`item` tag) before `eval_expr` sees the int. Single-char strings
+still take the ASCII-int path.
+
+### 6.3 `engine_bind` — void(int32_t* ints, char** strs, char* out, size_t)
+
+Op form: `{ engine_bind: { fn: '<name>', args: [<expr-or-str>...],
+                           var: '<name>' } }`. Each arg position is
+an `'i'` (int expression) or `'s'` (N_STR literal) per the registry's
+sig string.
+
+| name               | sig | result                                       |
+|--------------------|-----|----------------------------------------------|
+| `object`           | `i` | `object(item_id)` display name               |
+| `pronoun`          | `is`| `pronoun(gender, case)` — case ∈ subject/object/possessive |
+| `res_town_name`    | `i` | town name by id                              |
+| `res_enum`         | `si`| `res_enum(table, id)` display string         |
+| `npc_in_town`      | `si`| first NPC in town with given job symbol      |
+| `res_npc_role`     | `s` | numeric string of `res_npc_role(role)` slot  |
+| `pa_name`          | `i` | party member name (slot 1..party_max)        |
+| `npc_name_at_role` | `s` | display name of the NPC bound to `role`      |
+| `npc_loc_at_role`  | `s` | NPC location string ("in <town>" / "at NxN") |
+
+Result strings cap at `RT_SV_CAP` chars (currently 47); overflow is
+fatal so a too-long registry result fails loudly.
+
+### 6.4 Adding a registry entry
+
+1. Define the C entry point. It takes the raw int / str arrays and
+   either returns an int (`engine_int`), writes a string into `out`
+   (`engine_bind`), or returns void with side effects (`engine_call`).
+2. Append the row to the matching tbl in `src/script.c`.
+3. The world-load validator already pulls argc / sig via
+   `script_engine_*_argc` — no extra registration needed.
+
+---
+
+## 7. Error contract
+
+Every fatal error inside the interpreter goes through `die_at` and
+prints
+
+```
+play_script '<id>' op <N>: <message>
+```
+
+where `<id>` is the dotted script id and `<N>` is the (zero-based)
+index of the offending op in the script body. Sub-clauses (cond
+inside an `if`, expr inside a `mutate`, etc.) report against the
+enclosing op's index. Spell bodies report as
+`spells.<class>.<name> op <N>:`.
+
+World-load errors use `res: <path>:<line>: <message>`. The validator
+in `res.c::fold_scripts_walk` runs the sniff-tests at fold time, so
+typos in flag names, engine fns, item / enum / pic symbols all fail
+before the engine starts.
+
+---
+
+## 8. Worked examples
+
+### 8.1 Small spell — `mage.frost` (excerpt)
+
+The mana-cost deduction is done in C before the body runs (battle.c
+checks `pm_ma >= base_cost + lv` and debits via `pm_add_ma`); the
+spell body just renders narration and applies damage. Caller binding
+is `caster_idx` (1..party_max).
 
 ```json5
-do: ["seq",
-  ["ask_target", "party_alive"],
-  ["if", ["eq", "target.hp", "target.h"],
-    ["seq", ["say", "church.heal.already_full"], ["pause"]],
-    ["seq",
-      ["say", "church.heal.quote"],
-      ["set", "$cost", ["*", 7, ["-", "target.h", "target.hp"]]],
-      ["if", ["gold_gte", "$cost"],
-        ["seq", ["take_gold", "$cost"],
-                ["set", "target.hp", "target.h"],
-                ["say", "church.heal.success"]],
-        ["say", "church.heal.no_gold"]]]]]
-```
-
-### 7.2 Garth refund (`speak.c:401-447`, `flag[1] == 2`)
-
-Tree path: `npcs.garth.dialogue."refund.accept"`. Garth is npc 1 = merchant
-(per `person.c:76-81` and `ryl.c:45`); the "refund" is the bandit-cargo
-recovery payoff.
-
-```json5
-"refund.accept": {
-  when: ["flag_eq", "garth.bandits", 2],
-  do: ["seq",
-    ["say", "garth.refund.grateful"],
-    ["give_item", "ruby"],
-    ["give_gold", 2000],
-    ["pause"],
-    ["set_flag", "garth.bandits", 3]],
+frost: {
+  slot: 1, base_cost: 8, name: 'Frost Finger',
+  do: [
+    { ask_target: 'monster_alive', var: 'target_idx' },
+    { let: 'dmg', value: { mul: [
+        { member: { var: 'caster_idx' }, field: 'lv' },
+        { random: [2, 8] },
+    ]}},
+    { engine_call: 'clw' },
+    { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                     var: 'caster' } },
+    { emit: 'battle.spell.frost.chills' },
+    { emit: 'battle.spell.frost.damage' },
+    { mutate: { target: { monster_hp: { var: 'target_idx' } },
+                op: 'sub', value: { var: 'dmg' } }},
+    { if: { cond: { lt: [{ monster_hp: { var: 'target_idx' } }, 1] },
+            then: [
+              { mutate: { target: { monster_hp: { var: 'target_idx' } },
+                          op: 'set', value: 0 }},
+              { mutate: { target: { monster_dead: { var: 'target_idx' } },
+                          op: 'set', value: 1 }},
+              { emit: 'battle.killed' },
+            ] }},
+  ],
 }
 ```
 
-### 7.3 mage.frost (`strid.c:442-478`, `d == '1'`)
+Note the absolute (non-parent-relative) text ids `battle.spell.
+frost.chills` / `battle.killed` — `emit` and `screen` accept either
+shape. Parent-relative is preferred; absolute is used here when
+referring to a separate texts shard.
 
-Tree path: `spells."mage.frost"`.
+### 8.2 Small towne flow — speak_missions dispatcher
 
-```json5
-do: ["seq",
-  ["require", ["not", ["flag_eq", "encounter.immune", 1]]],
-  ["require", ["gte", "caster.ma", ["+", "base_cost", "caster.lv"]]],
-  ["sub", "caster.ma", ["+", "base_cost", "caster.lv"]],
-  ["ask_target", "monster_alive"],
-  ["set", "$dmg", ["*", "caster.lv", ["+", ["rand", 0, 6], 2]]],
-  ["say", "spell.mage.frost.hit"],
-  ["sub", "target.hp", "$dmg"],
-  ["if", ["lt", "target.hp", 1],
-    ["seq", ["set", "target.hp", 0], ["set", "target.dead", 1],
-           ["say", "common.killed"]]]]
-```
-
-### 7.4 Bandits mission's "wilderness intercept"
-
-Trigger evaluated by `res_mission_tick(WILDERNESS_ENCOUNTER, ...)` once per
-spawned encounter, before strid.c displays the foe.
+A `speak_missions.<role>` script gates a stage on flag values, sets
+up role-keyed bindings, and fans into the matching `speak.<x>.<y>`
+body via `play_script`:
 
 ```json5
-missions.bandits.stages.accepted.triggers: [
-  { on: "wilderness_encounter", chance: 9,
-    do: ["seq",
-      ["say", "mission.bandits.attacked"],
-      ["pause"],
-      ["spawn_encounter", { foe: "bandit", n: 8, mandatory: true }],
-      ["say", "mission.bandits.cargo_found"],
-      ["pause"],
-      ["set_flag", "garth.bandits", 2]] },
-]
+rangers_quest_giver: [
+  { if: { cond: { eq: [{ flag: 'ranger.letter' },
+                       { flag_value: ['ranger.letter', 'none'] }] },
+          then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['ranger_brother'],
+                             var: 'ranger_name' } },
+            { engine_bind: { fn: 'npc_loc_at_role',
+                             args: ['ranger_brother'],
+                             var: 'ranger_loc' } },
+            { play_script: 'speak.ranger.first_visit' },
+          ] } },
+],
 ```
 
-`chance: 9` matches `missions.c:52` (`rand() % 100 > 90`); the engine evaluates
-the trigger only after a base wilderness encounter has been picked, then
-overrides it.
+The nested `speak.ranger.first_visit` reads `{ranger_name}` and
+`{ranger_loc}` in its screen / journal text — both come through the
+forwarded rt_env entries.
 
-### 7.5 First-mountain trigger
+### 8.3 Formula — encounter HP scaling
 
-Demonstrates `first_terrain_step` and the `mission_state` bookkeeping the
-engine carries:
+Formulas live under the top-level `formulas:` subtree. The value
+of a formula key is **directly** an expression node (no wrapper
+object) evaluated via `play_formula_int`. Caller bindings carry
+the input variables:
 
 ```json5
-missions.example.stages.accepted.triggers: [
-  { on: "first_terrain_step", terrain: "m",
-    do: ["seq",
-      ["clw"],
-      ["say", "example.first_mountain.flavor"],
-      ["pause"],
-      ["set_flag", "example.flag", 2]] },
-]
+formulas: {
+  // h2 = h2_base + first_level * 3
+  encounter_h2_scaled: { add: [
+    { var: 'h2_base' },
+    { mul: [{ var: 'first_level' }, 3] },
+  ]},
+}
 ```
 
-After the trigger fires once, the engine sets
-`mission_state.example.first_terrain_step.m = 1` so a subsequent step on
-mountain doesn't re-fire.
+C side (battle.c) calls `res_formula_int_n("encounter_h2_scaled",
+binds, 2)` with `binds = [{name:"h2_base", value:...},
+{name:"first_level", value:...}]`.
 
 ---
 
-## 8. Boundaries
+## 9. Cross-references
 
-Things deliberately **out of scope** for the world DSL:
-
-- **UI layout.** The four-corner status line, map window, MORE prompt
-  rendering — staying in C primitives. The DSL only emits text; layout is
-  the engine's job.
-- **Save format.** `realm.dat` / `npc.dat` byte layout is unchanged. The
-  DSL describes content; the save snapshots state.
-- **RNG implementation.** `ryl_random_init` / `ryl_random` / `ryl_chance`
-  live in C. `["rand", lo, hi]` and `["chance", pct]` are leaves that call
-  into them; the DSL never seeds or branches on RNG implementation
-  details.
-- **Networking, file I/O.** No `["http_get"]`, no `["fopen"]`. The
-  interpreter is pure with respect to the outside world; only the engine
-  owns side channels.
-
-Things deliberately **in scope** but not yet specified:
-
-- **Sextext templating.** `say` records will eventually carry `{he}/{she}`
-  slots filled per-target. Current draft punts; narration records are
-  pre-rendered with hard-coded pronouns until 6e.
-- **Inventory-full handling.** `give_item` to a full pack must reproduce
-  the existing "drop one to make room?" prompt (`speak.c:428-440`). DSL
-  exposes `give_item` as one primitive; engine implements the prompt.
-- **Active mission stages.** Today the `missions` subtree gates progress
-  but doesn't itself emit narration on stage transitions beyond the
-  trigger-list approach above. A later pass can lift more dialogue branches
-  *into* the mission tree if that proves more readable.
-
----
-
-## 9. Migration plan
-
-1. **Parser + import resolver land first** as a standalone commit on top
-   of the existing JSONL loader. Both parsers coexist; loader reads JSON5
-   then JSONL; record kinds shadow.
-2. **Migrate one record at a time**, preferring leaf-level ports
-   (mage.frost first — exercises require/ask_target/rand/sub/kill-on-zero
-   in ~10 nodes; byte-identity verified against `strid.c` output via
-   `tools/replay.sh title-create-party-combat`).
-3. **Per-domain sweeps** once the interpreter handles all primitives a
-   domain needs: spells (strid.c + subs.c), then dialogue (speak.c), then
-   town services (towne.c), then missions (missions.c + interact.c
-   wilderness branch).
-4. **Drop `resources.jsonl`** when every record has migrated. Keep the
-   per-save persistence files (`realm.dat`, `npc.dat`).
-5. **Map externalisation last**. The 6c `map.dat` byte loader works fine;
-   replacing it with `map: { $import: "world/map.json5", format: ... }`
-   is mechanical once the import resolver exists. No rush.
-
-Each step preserves byte-identity by construction: the C reference and the
-DSL-driven runtime emit the same text and consume the same input. The
-replay harness gates every commit.
-
----
-
-## 10. Open questions (deferred)
-
-1. **Let-bindings.** Examples 7.1 and 7.3 use `$locals`. Formalise as
-   `["let", [[name, expr], …], effect]` if a third site needs it.
-2. **`require` non-local exit.** Aborts enclosing `seq` only. If a deeper
-   exit is ever needed, add `["exit", level]`. Probably not.
-3. **Multiple matching `when` guards.** File order wins. Codify when the
-   first conflict appears.
-4. **Trigger frequency knobs.** `day_passes` / `step_on_terrain` could
-   gain a `cooldown` field; defer until used.
-5. **Typed load pass.** A schema validator (e.g. mismatched arg counts on
-   effects, wrong-typed paths) would catch a lot of hand-edit bugs at
-   load. Add when a designer asks.
-6. **Text record templating.** Sextext, capitalisation, list-joining
-   helpers. Defer to 6e.
-7. **Library node parameters.** `["call", "lib.x"]` runs in the caller's
-   environment. If a lib needs explicit args, generalise to
-   `["call", "lib.x", { arg: val, … }]`. Defer.
-8. **Auto line-wrap for paragraph-form texts.** Today every text record
-   is either a string (verbatim) or an array of lines joined with `\r\n`
-   and a trailing `\r\n` — authors control every break. `meta.text_window`
-   (`max_lines` / `max_cols`) records the target geometry but doesn't
-   drive formatting yet. When migration is complete and byte-identity is
-   no longer the correctness gate, introduce a third leaf form: a single
-   long string (JSON5 multiline OK) that the loader word-wraps at
-   `max_cols`, pushing breaks at spaces and emitting `\r\n`. Array form
-   remains as an escape hatch for author-forced breaks. Rationale: the
-   existing breaks were authorial judgment calls the original runtime
-   can't reproduce from a wrapper; enforcing wrap now would re-bless
-   every replay baseline, which we only want to do once the evaluator
-   is actually generating most of the text on its own.
-9. **Longer text conveniences.** Once (8) lands: accept JSON5 multiline
-   string literals for records that span many visual lines; allow
-   `{ wrap: false, text: "..." }` form to opt a specific record back
-   out of wrapping; allow `{ lines: [...] }` as an explicit-lines form
-   for symmetry with wrap-enabled records. None of this needs to land
-   before the world + save split; all three are compatible additions
-   to the existing array-of-strings convention.
+- `src/script.h` — in-source op + expression contract; this doc
+  expands its grammar into a single human-readable reference.
+- `src/script.c` — interpreter implementation; `dispatch_op` is the
+  one entry point that names every op listed in §3.
+- `src/res.c::fold_scripts_walk` — world-load validator; the place
+  to add a new sniff-test if a future op gains a symbol arg that
+  should fail at load instead of at first fire.
+- `data/world/scripts/*.json5` — every shipped script. Browse
+  `speak.json5` for typical NPC dialogue, `dungeon.json5` for the
+  largest single body (the level-event switch), `towne.json5` for
+  shop / inn / smith / tavern flows, `speak_missions.json5` for the
+  per-role mission-stage dispatchers.

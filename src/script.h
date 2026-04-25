@@ -12,6 +12,13 @@ struct node;
 
 /* §16.4 + §17-E + §17-F dialogue / mission script interpreter.
  *
+ * The single-doc reference for the DSL — every op, expression form,
+ * lvalue, registry, and the text-binding rules — lives at
+ * docs/dsl.md. This header is the in-source companion: it documents
+ * the surface the runtime accepts in enough detail to keep the C
+ * call sites self-contained, but designers and authors should read
+ * docs/dsl.md first.
+ *
  * A script is an array node in the `scripts.*` subtree of data/world.json5
  * (authored in data/world/scripts/). Each element is a one-op object.
  *
