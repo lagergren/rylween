@@ -429,169 +429,42 @@ uint8_t drop() {
         return 0;
     }
 }
+/* §20 L7: party-rest flow. C wrapper resolves the eleven balance.rest
+   tunables (ambush%, healing/food cost, hours advanced, temperature
+   thresholds + damage values) and hands them to play_script as int
+   bindings. The script in data/world/scripts/rest.json5 owns the
+   not-tired / wiped-out early-outs, the tent/notent pic select, the
+   (Y/N) guard prompt with its inner who-loop, the temperature roll
+   + damage pass, the time/food/heal sweep, and the ambush vs
+   well-rested split (including the random surprise-kill arm). */
 void camp() {
-    int32_t i, death, guard = 0, temperature, x;
-    char c, d;
-
-    if (pa_hours_rested() > 0) {
-        clw();
-        tx("Not tired.\r\n");
-        ryl_delay(600);
-        clw();
-        return;
-    }
-
-    if (pa_alive_count() == 0) {
-        return;
-    }
-
-    clr_map_window();
-
-    x = inv_find_item(34) != 0;
-
-    if (x) {
-        blitgfx(17);
-    } else {
-        blitgfx(18);
-    }
-    clw();
-
-    tx("Camp.\r\n\r\n");
-    tx("Post a guard?\r\n\r\n");
-    tx0(res_text("common.yes"));
-    tx0(res_text("common.no"));
-    c = key();
-    c = toupper(c);
-    if (c == 'Y') {
-        while (1) {
-            clw();
-            tx("Who? (1-%d)\r\n", res_party_member_max());
-            d = key();
-            d = toupper(d);
-            if (pm_digit_in_range(d)) {
-                if (!pm_dead(pm_from_digit(d))) {
-                    break;
-                } else {
-                    clw();
-                    tx("Dead.\r\n");
-                    ryl_delay(1000);
-                }
-            } else {
-                clw();
-                tx("Not valid!\r\n");
-                ryl_delay(1000);
-            }
-        }
-        guard = d - 48;
-        clw();
-        tx("%s stands guard.\r\n", pm_name(pm_from_digit(d)));
-        tx("%s won't get any\r\n", pronoun(d - 48, 1));
-        tx("health back during\r\n");
-        tx("this rest.\r\n\r\n");
-        ryl_pause();
-    }
-    clw();
-    tx("Zzz...\r\n");
-    ryl_delay(1500);
-
-    /* TEMPERATURE CHECK */
-
-    int32_t temp_max = res_int_path("balance.rest.temperature_max");
-    int32_t temp_low_lo = res_int_path("balance.rest.temp_low_lo");
-    int32_t temp_low_hi = res_int_path("balance.rest.temp_low_hi");
-    int32_t temp_very_low_lo = res_int_path("balance.rest.temp_very_low_lo");
-    int32_t temp_low_dmg = res_int_path("balance.rest.temp_low_damage");
-    int32_t temp_very_low_dmg = res_int_path("balance.rest.temp_very_low_damage");
-    temperature = ryl_random(1, temp_max);
-    if (temperature >= temp_low_lo && temperature < temp_low_hi) {
-        clw();
-        tx("Low Temperature.\r\n");
-        ryl_delay(600);
-        x = inv_find_in_range(33, 34) != 0;
-        if (!x) {
-            tx("No good equipment,\r\n");
-            tx("Party loses 5 health.\r\n");
-            ryl_delay(1500);
-            for (i = 1; i <= res_party_member_max(); i++) {
-                pm_t pm = pm_cur(i);
-                pm_add_hp(pm, -temp_low_dmg);
-                pm_hp_floor(pm, 1);
-            }
-        }
-    }
-    if (temperature >= temp_very_low_lo) {
-        tx("Very low temperature.\r\n");
-        x = inv_find_item(34) != 0;
-        ryl_delay(600);
-        if (!x) {
-            tx("No good equipment,\r\n");
-            tx("Party loses 10 health.\r\n");
-            ryl_delay(1500);
-            for (i = 1; i <= res_party_member_max(); i++) {
-                pm_t pm = pm_cur(i);
-                pm_add_hp(pm, -temp_very_low_dmg);
-                pm_hp_floor(pm, 1);
-            }
-        }
-    }
-
-    /* INCREASE TIME */
-
-    int32_t rest_hours = res_int_path("balance.rest.hours_advanced");
-    int32_t food_per_member = res_int_path("balance.rest.food_cost_per_member");
-    int32_t rest_health = res_int_path("balance.rest.health_gain");
-    int32_t hours_rested_reset = res_int_path("balance.rest.hours_rested_reset");
-    int32_t ambush_chance = res_int_path("balance.rest.ambush_chance");
-    for (i = 1; i <= rest_hours; i++) {
-        advance_hour();
-    }
-    pa_set_hours_rested(hours_rested_reset);
-    int32_t rest_food_cost = food_per_member * pa_pl();
-    if (pa_food() < rest_food_cost) {
-        pa_set_food(0);
-    } else {
-        pa_add_food(-rest_food_cost);
-    }
-    if (pa_food() < 0) {
-        pa_set_food(0);
-    }
-    for (i = 1; i <= res_party_member_max(); i++) {
-        if (i != guard) {
-            pm_t pm = pm_cur(i);
-            if (!pm_dead(pm)) {
-                pm_add_hp(pm, rest_health);
-            }
-            if (pm_hp(pm) > pm_h(pm)) {
-                pm_set_hp(pm, pm_h(pm));
-            }
-        }
-    }
-    if (ryl_chance(ambush_chance)) {
-        clw();
-        tx("Ambush!!!\r\n");
-        ryl_delay(1000);
-        if (!guard && pa_pl() > 1) {
-            death = ryl_random(1, 4);
-            pm_t victim = pm_cur(death);
-            tx("%s is dead\r\n", pm_name(victim));
-            tx("before you can\r\n");
-            tx("react!!!\r\n\r\n");
-            pm_set_hp(victim, 0);
-            pm_set_dead(victim, 1);
-            pa_add_pl(-1);
-            ryl_pause();
-        }
-        encounter(res_monster_tier_pick("weak"), 0);
-        //		update_map();
-    } else {
-        clw();
-        tx("You wake up 8 hours\r\n");
-        tx("later. Well rested.\r\n\r\n");
-        ryl_pause();
-        clr_map_window();
-        clw();
-    }
-    update_map();
+    char ap[16], hg[16], fpm[16], rh[16], hrr[16];
+    char tmx[16], tll[16], tlh[16], tvll[16], tld[16], tvld[16];
+    snprintf(ap,   sizeof ap,   "%d", res_int_path("balance.rest.ambush_chance"));
+    snprintf(hg,   sizeof hg,   "%d", res_int_path("balance.rest.health_gain"));
+    snprintf(fpm,  sizeof fpm,  "%d", res_int_path("balance.rest.food_cost_per_member"));
+    snprintf(rh,   sizeof rh,   "%d", res_int_path("balance.rest.hours_advanced"));
+    snprintf(hrr,  sizeof hrr,  "%d", res_int_path("balance.rest.hours_rested_reset"));
+    snprintf(tmx,  sizeof tmx,  "%d", res_int_path("balance.rest.temperature_max"));
+    snprintf(tll,  sizeof tll,  "%d", res_int_path("balance.rest.temp_low_lo"));
+    snprintf(tlh,  sizeof tlh,  "%d", res_int_path("balance.rest.temp_low_hi"));
+    snprintf(tvll, sizeof tvll, "%d", res_int_path("balance.rest.temp_very_low_lo"));
+    snprintf(tld,  sizeof tld,  "%d", res_int_path("balance.rest.temp_low_damage"));
+    snprintf(tvld, sizeof tvld, "%d", res_int_path("balance.rest.temp_very_low_damage"));
+    play_script("rest", (ryl_bind[]){
+        {"ambush_pct",         ap},
+        {"health_gain",        hg},
+        {"food_per_member",    fpm},
+        {"rest_hours",         rh},
+        {"hours_rested_reset", hrr},
+        {"temp_max",           tmx},
+        {"temp_low_lo",        tll},
+        {"temp_low_hi",        tlh},
+        {"temp_very_low_lo",   tvll},
+        {"temp_low_dmg",       tld},
+        {"temp_very_low_dmg",  tvld},
+        {0},
+    });
 }
 void quaff() {
     int32_t oc;

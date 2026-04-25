@@ -1,0 +1,40 @@
+// L7 step 3: camp/rest narration. Lifted verbatim from subs.c:431-594
+// (the strings the C printed via tx() before the migration). Keys
+// match the script's `emit` calls in data/world/scripts/rest.json5.
+{
+  rest: {
+    not_tired: ['Not tired.'],
+    camp_intro: ['Camp.',
+                 '',
+                 'Post a guard?',
+                 ''],
+    // {party_max} = res_party_member_max() (auto-bound by primitives).
+    who:        ['Who? (1-{party_max})'],
+    dead:       ['Dead.'],
+    not_valid:  ['Not valid!'],
+    // {guard_name} = pa_name(guard), {pro_sub} = pronoun(guard,'subject')
+    stands_guard: ['{guard_name} stands guard.',
+                   "{pro_sub} won't get any",
+                   'health back during',
+                   'this rest.',
+                   ''],
+    zzz:        ['Zzz...'],
+    temp_low:   ['Low Temperature.'],
+    // The original prints "Very low temperature." without a leading
+    // clw, so it stacks under any prior text — preserved here.
+    temp_very_low: ['Very low temperature.'],
+    no_gear_5:  ['No good equipment,',
+                 'Party loses 5 health.'],
+    no_gear_10: ['No good equipment,',
+                 'Party loses 10 health.'],
+    ambush:     ['Ambush!!!'],
+    // {victim_name} = pa_name(victim) for the random surprise-kill.
+    surprise_kill: ['{victim_name} is dead',
+                    'before you can',
+                    'react!!!',
+                    ''],
+    well_rested: ['You wake up 8 hours',
+                  'later. Well rested.',
+                  ''],
+  },
+}
