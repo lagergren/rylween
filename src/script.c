@@ -530,6 +530,14 @@ static int32_t ie_pa_first_alive(const int32_t *a) {
     (void)a;
     return pa_first_alive();
 }
+static int32_t ie_pa_alive_count(const int32_t *a) {
+    (void)a;
+    return pa_alive_count();
+}
+static int32_t ie_pa_first_level(const int32_t *a) {
+    (void)a;
+    return pa_first_level();
+}
 static int32_t ie_pa_count_class(const int32_t *a) {
     return pa_count_class((int)a[0]);
 }
@@ -566,6 +574,8 @@ static const int_engine_entry int_engine_tbl[] = {
     {"pa_is_spellcaster", 1, ie_pa_is_spellcaster},
     {"pa_is_class", 2, ie_pa_is_class},
     {"pa_first_alive", 0, ie_pa_first_alive},
+    {"pa_alive_count", 0, ie_pa_alive_count},
+    {"pa_first_level", 0, ie_pa_first_level},
     {"pa_count_class", 1, ie_pa_count_class},
     {"pa_count_alive_class", 1, ie_pa_count_alive_class},
     {"inv_find_empty", 0, ie_inv_find_empty},
@@ -628,6 +638,12 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
     }
     if (obj_get(n, "hour_of_day")) {
         return state.hour_of_day;
+    }
+    if (obj_get(n, "hours_rested")) {
+        return pa_hours_rested();
+    }
+    if (obj_get(n, "time_left")) {
+        return pa_time_left();
     }
     if (obj_get(n, "cpl")) {
         return state.cpl;
@@ -1158,6 +1174,10 @@ static void eng_clw(const int32_t *a) {
     (void)a;
     clw();
 }
+static void eng_advance_hour(const int32_t *a) {
+    (void)a;
+    advance_hour();
+}
 static void eng_weaponr(const int32_t *a) {
     (void)a;
     weaponr();
@@ -1216,6 +1236,7 @@ static const engine_entry engine_tbl[] = {
     {"blitgfx", 1, eng_blitgfx},
     {"statusline", 0, eng_statusline},
     {"clw", 0, eng_clw},
+    {"advance_hour", 0, eng_advance_hour},
     {"weaponr", 0, eng_weaponr},
     {"armourr", 0, eng_armourr},
     {"invlist", 0, eng_invlist},
@@ -1935,6 +1956,7 @@ typedef enum {
     LV_MEMBER_FIELD,
     LV_HOURS_RESTED,
     LV_HOUR_OF_DAY,
+    LV_TIME_LEFT,
 } mutate_lv_kind;
 
 typedef struct {
@@ -1965,6 +1987,9 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
     }
     if (obj_get(tgt, "hour_of_day")) {
         return (mutate_lv){LV_HOUR_OF_DAY, 0, NULL};
+    }
+    if (obj_get(tgt, "time_left")) {
+        return (mutate_lv){LV_TIME_LEFT, 0, NULL};
     }
     const node *flag_n = obj_get(tgt, "flag");
     if (flag_n) {
@@ -2023,6 +2048,8 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
             return pa_hours_rested();
         case LV_HOUR_OF_DAY:
             return state.hour_of_day;
+        case LV_TIME_LEFT:
+            return pa_time_left();
         case LV_FLAG:
             return pa_flag(lv->index);
         case LV_INVENTORY:
@@ -2108,6 +2135,9 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                        "mutate: hour_of_day must be 1..24");
             }
             state.hour_of_day = v;
+            return;
+        case LV_TIME_LEFT:
+            pa_set_time_left(v);
             return;
         case LV_FLAG:
             pa_set_flag(lv->index, (int)v);
