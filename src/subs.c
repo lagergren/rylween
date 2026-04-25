@@ -10,6 +10,7 @@
 #include "missions.h"
 #include "party.h"
 #include "primitives.h"
+#include "replay_knobs.h"
 #include "script.h"
 #include "subs.h"
 #include "towne.h"
@@ -117,17 +118,14 @@ void random_wilderness() {
     int32_t r;
     uint8_t rflag = 0;
 
-    /* Replay-mode override: fire one mandatory encounter with a named
-       monster on the next move and clear the env var so subsequent
-       moves resume the normal RNG path. Lets combat / spell fixtures
-       pin a known fight without seed-hunting the random_wilderness
-       roll. The post-encounter clr_map_window + update_map mirrors
-       the wilderness encounter return path. Production never sets
-       this. */
-    const char *force = getenv("RYL_FORCE_ENCOUNTER");
-    if (force && *force) {
+    /* Replay-mode override (rk_force_encounter): fire one mandatory
+       encounter with a named monster on the next move and resume the
+       natural RNG path on subsequent moves. The post-encounter
+       clr_map_window + update_map mirrors the wilderness encounter
+       return path. */
+    const char *force = rk_force_encounter();
+    if (force) {
         int32_t foe = res_monster_id(force);
-        unsetenv("RYL_FORCE_ENCOUNTER");
         if (foe >= 1) {
             encounter(foe, 1);
             clr_map_window();

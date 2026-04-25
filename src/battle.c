@@ -6,6 +6,7 @@
 #include "inventory.h"
 #include "party.h"
 #include "primitives.h"
+#include "replay_knobs.h"
 #include "script.h"
 #include "subs.h"
 #include "towne.h"
@@ -63,22 +64,10 @@ void encounter(int32_t foe, int32_t mandatory) {
     if (noc < n1) {
         noc = n1;
     }
-    /* Replay-mode override: pin the foe count after the regular roll
-       so a fixture can target a specific (single, paired, ...)
-       encounter shape independent of the monster's n1/n2 range. The
-       env var is one-shot — cleared after consumption so subsequent
-       encounters fall back to the natural roll. Production never sets
-       this. The roll above still consumes one RNG draw so the post-
-       encounter state matches the unforced path. */
-    const char *force_noc = getenv("RYL_FORCE_ENCOUNTER_NOC");
-    if (force_noc && *force_noc) {
-        char *end;
-        long v = strtol(force_noc, &end, 10);
-        unsetenv("RYL_FORCE_ENCOUNTER_NOC");
-        if (end != force_noc && v >= 1 && v <= 0x7fffffff) {
-            noc = (int32_t)v;
-        }
-    }
+    /* Replay-mode override (rk_force_encounter_noc): pin the foe
+       count after the natural roll above so the post-encounter RNG
+       state matches the unforced path. */
+    noc = rk_force_encounter_noc(noc);
     int32_t foe_max = res_combat_int("encounter_foe_count_max");
     int32_t party_avg =
         (pm_lv(pm_cur(1)) + pm_lv(pm_cur(2)) + pm_lv(pm_cur(3)) + pm_lv(pm_cur(4))) / 4;

@@ -1,6 +1,7 @@
 #include "io.h"
 #include "json5.h"
 #include "party.h"
+#include "replay_knobs.h"
 #include "res.h"
 #include "ryl.h"
 #include "driv.h"
@@ -1578,19 +1579,7 @@ static void createparty() {
     }
     state.p[a].x = 12;
     state.p[a].y = 9;
-    state.p[a].gold = 1000;
-    /* Replay-mode override: fixtures that exercise a high-cost
-       purchase (silver-key map: 50000) set RYL_STARTING_GOLD to
-       preload the bank. Clamped to >= 1000 so a malformed value
-       can't under-fund a normal run. Production never sets this. */
-    const char *gold_env = getenv("RYL_STARTING_GOLD");
-    if (gold_env && *gold_env) {
-        char *end;
-        long v = strtol(gold_env, &end, 10);
-        if (end != gold_env && v >= 1000 && v <= 2000000000L) {
-            state.p[a].gold = (int32_t)v;
-        }
-    }
+    state.p[a].gold = rk_starting_gold(1000);
     state.p[a].torches = 5;
     state.p[a].food = 100;
     state.p[a].time_left = 200;
@@ -1618,42 +1607,8 @@ static void createparty() {
     for (i = 1; i <= res_party_member_max(); i++) {
         state.p[a].dead[i] = 0;
     }
-    /* Replay-mode override: fixtures that exercise spells whose
-       cost (base + lv) exceeds a fresh lv-1 spellcaster's ma
-       cap (= seed wi, max 70) set RYL_FORCE_PARTY_LV=<n>. The
-       knob raises every member's lv to <n> and applies the
-       per-class levelup deltas (n-1 times) to ws/h/wi/ch — same
-       shape battle.c::level_up_check applies on combat XP gain,
-       fired once per gained level rather than once per call.
-       Spellcasters' ma is reset to the bumped wi cap so the
-       fixture can cast immediately. Clamped to [1, 28] (the
-       engine's level ceiling). Production never sets this. */
-    const char *lv_env = getenv("RYL_FORCE_PARTY_LV");
-    if (lv_env && *lv_env) {
-        char *end;
-        long lv_target = strtol(lv_env, &end, 10);
-        if (end != lv_env && lv_target >= 1 && lv_target <= 28) {
-            static const char *const pc_class_key[] = {
-                "", "fighter", "thief", "mage", "priest", "bard", "ranger",
-            };
-            for (i = 1; i <= res_party_member_max(); i++) {
-                pm_t pm = pm_of(&state.p[a], i);
-                int cl_id = pm_cl(pm);
-                const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
-                for (long n = 1; n < lv_target; n++) {
-                    pm_add_ws(pm, res_class_levelup(cls, "ws"));
-                    pm_add_h(pm, res_class_levelup(cls, "h"));
-                    pm_add_wi(pm, res_class_levelup(cls, "wi"));
-                    pm_add_ch(pm, res_class_levelup(cls, "ch"));
-                }
-                state.p[a].lv[i] = (int32_t)lv_target;
-                if (pm_is_spellcaster(pm)) {
-                    pm_set_ma(pm, pm_wi(pm));
-                }
-            }
-            unsetenv("RYL_FORCE_PARTY_LV");
-        }
-    }
+    rk_apply_party_lv(a);
+    rk_apply_dead_slots(a);
     strcpy(state.p[a].player, state.global_name);
     clw();
     tx0(res_text("driv.create.saving"));
