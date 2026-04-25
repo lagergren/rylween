@@ -2899,11 +2899,16 @@ Recurrent literals worth a single-source-of-truth helper:
 
 - L1. **dungeon.c:30-78 special-encounter switch** →
   dungeons.json5 scenario descriptor array. Engine `dungeon(flag)`
-  becomes a lookup + dispatch.
+  becomes a lookup + dispatch. **DONE 2026-04-25** (commit
+  1962bd9 + dungeons.scenarios subtree; flag-int signature replaced
+  by symbolic scenario name).
 - L2. **dungeon.c:117-803 level-event switch** → dungeon.json5
   scripts with conditional branches. ~700 LOC of C → ~50 lines
   of JSON5. The mother of all extractions. Prerequisite: L1
   done, plus encounter-id enum (`res_enum("dungeon_encounter", ...)`).
+  **DONE 2026-04-25** (commits 28f4d40..fc599b3, 7 steps; the
+  switch is gone, dungeon.c is 870 → 171 lines, all 25 cases live
+  in data/world/scripts/dungeon.json5).
 - L3. **battle.c item-effect switch** (181-390, 11 magic items)
   → items.json5 effect specs + generic `apply_item_effect`.
   Prerequisite: DSL effect-syntax (damage formula, target
@@ -2940,3 +2945,74 @@ The cleanest dependency order is:
 The full-game gate (project_full_game_gate.md) wants L7's flow
 lifts done before the longplay fixture, so any session focused
 on that goal should pick L7 items.
+
+### 20.16 Coverage + validator additions (2026-04-25, post-L2)
+
+Two follow-ups from the L2-closing continuation prompt landed in a
+short coverage / hygiene session:
+
+- **wilderness-cave-descent replay fixture** (commit 06b7ec3).
+  Closes the L1.5 / L2 coverage gap noted in the previous session
+  marker — until now no fixture under tools/replay/ entered a cave.
+  Walks the seed-42 entropy stream until the random cave-found
+  prompt fires, enters via E, takes the level-1 generic gold
+  encounter (193gp), descends to level 2 (consumes one torch),
+  ascends back, ascends out of the cavern, exits on EOF. Exercises
+  subs.c::random_wilderness cave dispatch + dungeon() level driver
+  + (D)/(A) menu + the random-fill DSL scripts (gold here, with
+  the emit + mutate + wait_input shape). 17 → 18 fixtures, byte-
+  identical, deterministic across re-runs.
+
+- **Fold-time script-body symbol validator** (commit 55d0b1f).
+  New `fold_scripts` walks `data/world/scripts/*` at world load
+  and resolves every symbol-typed field through the matching
+  res_* table. Covers encounter.foe / encounter.tier /
+  dungeon.scenario / speak.building / reward.items[] / set_flag
+  tag+value / engine_call / engine_int / engine_bind.fn / enum /
+  item / pic / flag. Diagnostic style matches fold_dungeons (`res:
+  <path>:<line>: scripts.<breadcrumb>: unknown ...`). Two new
+  helpers (`res_monster_tier_exists`, `res_dungeon_scenario_exists`)
+  and three script-introspection wrappers
+  (`script_engine_{call,int,bind}_argc`) so the walker doesn't
+  duplicate the engine_tbl lists. Required publishing
+  `world_tree` to res.c's static slot before the walk because the
+  existing res_*_id helpers read off it; the path-compile pass
+  that runs after still mutates `root` in place safely.
+
+### 20.17 Single-ownership status (snapshot 2026-04-25)
+
+Per `feedback_state_abstraction.md`, the long-running goal is one
+owner per `state` field — every read/write should route through
+`pa_*` / `pm_*` / `inv_*` / `wld_*` / `res_*` rather than indexing
+`state.p[state.cpl].*` directly. Counts since the audit memory was
+written:
+
+  | file        | state.* baseline | state.* now | helpers now | trend             |
+  |-------------|------------------|-------------|-------------|-------------------|
+  | battle.c    | 71               | 22          | 147         | -69%              |
+  | subs.c      | 123              | 100         | 153         | -19%, helpers now lead |
+  | driv.c      | 177              | 167         | 140         | -6%, near parity  |
+  | speak.c     | 30               | 15          | 53          | -50%              |
+  | dungeon.c   | (high)           | 4           | 8           | effectively done  |
+  | towne.c     | -                | 14          | 38          | helpers lead      |
+  | missions.c  | -                | 13          | 10          | balanced          |
+  | ydarg.c     | -                | 13          | 77          | helpers dominate  |
+  | interact.c  | -                | 0           | -           | DONE              |
+  | script.c    | -                | 36          | 102         | DSL bridge layer  |
+
+In every file except subs.c (just barely behind) and missions.c,
+helper calls now outnumber raw `state.*` accesses. dungeon.c and
+interact.c are essentially fully migrated; battle.c is 2/3 lifted;
+speak.c is half; subs.c and driv.c are the dominant remaining
+debt. driv.c's high count is mostly main-loop dispatch (movement
+arms reading `state.last_terrain`, `state.p[cpl].time_left`); the
+real reduction wedge there is wld_*/pa_* helpers for the
+movement bookkeeping, not a DSL migration. subs.c's 100 sites
+mix camp/hunt/lodge/tavern logic (will fall to L7) and party-
+mutation hot spots (need pa_/pm_ retrofits per S1/S2).
+
+The script.c count is the engine bridge — `ie_*` / `sb_*` / `eng_*`
+wrappers that read state on the DSL's behalf. Per the rule,
+**these should themselves call `pa_*`/`pm_*` rather than read
+state directly**; auditing the existing wrappers for compliance
+is the next hygiene pass after the LARGE bucket.
