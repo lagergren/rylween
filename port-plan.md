@@ -4573,3 +4573,87 @@ more sessions to fully close §22.
 
 **Bar per session.** Same as §22.8/§22.9: `make check` and
 `make testasan` both green at every commit.
+
+§22.11 — wilderness-priest-teleport fixture (#8c)
+
+Continuation of §22.10. One commit this micro-session, both
+gates green:
+
+  - §22.5 #8c wilderness-priest-teleport fixture. Reuses the
+    seed-5 walk-to-cave entry from #8b verbatim
+    (`C82828282828282E\n`), then casts teleport from inside the
+    cavern. Slot 1 priest at lv 1 (seed 5 wi=52, ma=52) covers
+    cost (35 + lv 1 = 36) without RYL_FORCE_PARTY_LV.
+
+**The wait_input layout for teleport.** Two ryl_pause-gated
+narration blocks back-to-back inside the spell body
+(carefully/prepares/spends/chanting/candles + advance_hour, then
+picks_slab/satchel/wants_you/to). Each needs a single literal `\n`
+absorber per the §22.10 rule — split across separate lines in
+the .in file so each ends as a clean newline byte. The compass
+and how-far prompts are loop+menu_branch reads, so `2` (south)
+and `1` are inlined on one line as `21\n`; the trailing `\n`
+falls through the dungeon level loop's D/A re-prompt before the
+final `A` ascend.
+
+**Direction choice — terrain matters.** First bless used dir 8
+(north): pa_teleport_step's `state.map[y-1][x] != 'm'` guard
+hit a mountain at (12, 7) and the call no-oped, leaving y=8
+unchanged. Switched to dir 2 (south) — (12, 9) and (12, 10)
+are both grass — so the snapshot now pins an actual coord
+change (12,8) → (12,10). Worth flagging for any future
+teleport fixture: pick a direction with no mountain blocker at
+the cave's wilderness coords, or the side-effect under test
+silently disappears.
+
+**What's pinned by this fixture.** Cost check passes (52 >= 36),
+mutate `ma -= (35 + lv)` debits 36 (52 → 16 in the snapshot).
+Both wait_input blocks fire in order, compass/how-far menu_
+branches read 2/1, pa_teleport_step iterates `distance * 2 = 2`
+times adding 1 to y each iteration ((12,8) → (12,10), both
+walkable grass), advance_hour fires once (snapshot
+hour_of_day=13 — same as #8b, which also advances once during
+cast). update_map repaints the new tile.
+
+**What's not pinned (deferred).** The not_enough_pts else-arm
+(ma < 36 + lv) needs a different fixture seed or cast order. A
+mountain-blocked direction (no-op move) would be a separate
+fixture if we ever care to assert the bounds-check explicitly;
+not worth a dedicated case today.
+
+**What's not done — by spell.** One fixture left from the §22.8
+list: priest banish (#8a). The plan is unchanged from §22.10
+— path 2 (earthquake bridge), two priests in slots 1+2 (seed 2
+wi 67/63 — both qualify with RYL_FORCE_PARTY_LV=5), slot 1
+casts earthquake to spawn a cave + dive into a 5..18-level
+dungeon, slot 2 casts banish to set state.banished and trip
+the level-3..5 lvl[] zero-out in dungeon.c.
+
+**Recommended order — what to do next.**
+
+  1. **Land priest-banish (§22.5 #8a)** via path 2.
+     RYL_FORCE_PARTY_LV=5, two priests in slots 1+2 (seed 2
+     wi 67/63 — both qualify). Slot 1 casts earthquake
+     (`Z 1 7 E`) → spawns cave, enters new dungeon. Slot 2
+     casts banish (`Z 2 4`) — sets state.banished, success
+     arm ends with state_banished mutate. The earthquake-
+     spawned dungeon has 5..18 levels (random); pin a seed
+     where the level-1 random fill is reproducible.
+
+  2. **§22.F speak_missions.json5 rewrite + parser retire.**
+     Untouched. Plan unchanged from §22.7/§22.8/§22.9/§22.10.
+
+  3. **§22.G docs/dsl.md single-doc reference.** Untouched.
+     Should follow §22.F so the doc reflects the post-
+     migration surface.
+
+**Cleanup follow-up — `dungeon_encounter` reserved slots.**
+Carry-over from §22.10. Still not blocking; flag for the post-
+§22 hardcoded-indices cleanup pass.
+
+**Estimated remaining effort.** Banish ~60 min of spell-fixture
+work remaining. §22.F is ~0.5-1 session; §22.G is ~0.5 session.
+Cumulative ~1 more session to fully close §22.
+
+**Bar per session.** Same as §22.8/§22.9/§22.10: `make check`
+and `make testasan` both green at every commit.
