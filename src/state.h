@@ -378,6 +378,16 @@ static inline int pm_ar(pm_t pm) {
 static inline void pm_set_ar(pm_t pm, int v) {
     pm.party->ar[pm.m] = v;
 }
+/* Equipped-slot predicates. wp/ar of 0 means no weapon / no armour
+   equipped — the inventory item-id 0 sentinel doubles as "empty".
+   Replaces the bare `pm_wp(pm) != 0` peppered through battle / spell
+   gating. */
+static inline int pm_has_weapon(pm_t pm) {
+    return pm_wp(pm) != 0;
+}
+static inline int pm_has_armour(pm_t pm) {
+    return pm_ar(pm) != 0;
+}
 
 /* Heal to full: hp = h. No-op if dead. */
 static inline void pm_full_heal(pm_t pm) {

@@ -64,6 +64,33 @@ int pa_count_alive_class(int cl) {
     return count;
 }
 
+int pa_alive_count(void) {
+    int mmax = res_party_member_max();
+    int count = 0;
+    for (int i = 1; i <= mmax; i++) {
+        if (!state.p[state.cpl].dead[i]) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int32_t pa_x(void) {
+    return state.p[state.cpl].x;
+}
+
+int32_t pa_y(void) {
+    return state.p[state.cpl].y;
+}
+
+int32_t pa_gold(void) {
+    return state.p[state.cpl].gold;
+}
+
+int pa_first_level(void) {
+    return state.p[state.cpl].lv[1];
+}
+
 static int pa_flag_slot(const char *tag) {
     int32_t slot = res_flag_slot(tag);
     if (slot < 0) {

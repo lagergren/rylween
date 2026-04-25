@@ -40,6 +40,32 @@ int pa_count_class(int cl);
 /* Count members with cl[m] == cl and !dead[m]. */
 int pa_count_alive_class(int cl);
 
+/* Count of !dead[m] members across the whole party. Scaling helper
+   for any flow whose damage / healing / reward should track surviving
+   headcount rather than raw party size. */
+int pa_alive_count(void);
+
+/* Current-party world-map coordinates. Centralises the
+   state.p[state.cpl].{x,y} reads scattered through driv.c / subs.c
+   so future map-frame translation lands in one place. */
+int32_t pa_x(void);
+int32_t pa_y(void);
+
+/* Current-party gold (state.p[state.cpl].gold). Pa-prefixed sibling
+   to party_gold() so call sites that already use the pa_* / pm_*
+   abstraction layer don't have to reach back into the party_*
+   namespace. The two are aliases today; new code should prefer
+   pa_gold so a future S2 sweep can retire party_gold cleanly. */
+int32_t pa_gold(void);
+
+/* First member's level (state.p[state.cpl].lv[1]). Used as the
+   party's "headline" level for content-scaling decisions (encounter
+   tier, dungeon depth, special-encounter chance). The 70+ raw
+   `lv[1]` reads in dungeon.c / battle.c / driv.c are queued for an
+   S2 sweep; this helper is the single point of truth they migrate
+   to. */
+int pa_first_level(void);
+
 /* Party mission / quest flags (data/world.json5 `flags:` subtree).
    All three helpers operate on state.p[state.cpl].flag[slot] where
    slot is resolved from `tag` via res_flag_slot(). An unknown tag —
