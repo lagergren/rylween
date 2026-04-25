@@ -8,6 +8,7 @@
 #include "interact.h"
 #include "inventory.h"
 #include "missions.h"
+#include "party.h"
 #include "primitives.h"
 #include "subs.h"
 #include "towne.h"
@@ -38,7 +39,7 @@ void foodhandler() {
     if (tick > 0 && !(p->time_left % tick)) {
         p->food -= p->pl;
         if (lv_div > 0) {
-            p->food -= p->lv[1] / lv_div;
+            p->food -= pa_first_level() / lv_div;
         }
     }
     if (p->food < 0) {
@@ -61,7 +62,7 @@ void foodhandler() {
                 ryl_delay(1000);
                 clw();
                 pm_set_dead(pm, 1);
-                if (p->dead[1] && p->dead[2] && p->dead[3] && p->dead[4]) {
+                if (pa_alive_count() == 0) {
                     losegame();
                 }
             }
@@ -200,8 +201,8 @@ void losegame() {
    c() (see primitives.c), so driving the render cell-by-cell would
    bloat the output with redundant escapes. */
 void update_map() {
-    const int32_t px = state.p[state.cpl].x;
-    const int32_t py = state.p[state.cpl].y;
+    const int32_t px = pa_x();
+    const int32_t py = pa_y();
 
     for (int dy = -2; dy <= 2; dy++) {
         char row[256];
@@ -241,7 +242,7 @@ void weaponoff() {
     tx("Who? (1-%d)\r\n", res_party_member_max());
     c = key();
     if (pm_digit_in_range(c)) {
-        if (state.p[state.cpl].wp[c - 48] == 0) {
+        if (!pm_has_weapon(pm_from_digit(c))) {
             clw();
             tx("%s has no weapon!\r\n", pronoun(c - 48, 1));
             ryl_delay(800);
@@ -275,7 +276,7 @@ void armouroff() {
     tx("Who? (1-%d)\r\n", res_party_member_max());
     c = key();
     if (pm_digit_in_range(c)) {
-        if (state.p[state.cpl].ar[c - 48] == 0) {
+        if (!pm_has_armour(pm_from_digit(c))) {
             clw();
             tx("%s has no armour!\r\n", pronoun(c - 48, 1));
             ryl_delay(800);
@@ -437,7 +438,7 @@ void camp() {
         return;
     }
 
-    if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
+    if (pa_alive_count() == 0) {
         return;
     }
 
@@ -703,7 +704,7 @@ void hunt() {
     tx("to trap a rabbit...\r\n");
     ryl_delay(1400);
     if (ryl_chance(45)) {
-        fdplus = ryl_random(10, 19) + state.p[state.cpl].lv[1];
+        fdplus = ryl_random(10, 19) + pa_first_level();
         tx("...and succeeds.\r\n");
         tx("The party gains\r\n");
         tx("%d food rations.\r\n\r\n", fdplus);
