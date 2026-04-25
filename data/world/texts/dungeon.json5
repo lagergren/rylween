@@ -26,4 +26,40 @@
     'theIR naTuRAl oRDeR...',
     '',
   ],
+
+  // case 21 — Fire Shield pedestal narration.
+  fire_shield: [
+    'After you have bested',
+    'the foul thing, the',
+    'dungeon is strangely',
+    'quiet. Upon entering',
+    'this level, you find the',
+    'marvelous FIRE SHIELD on',
+    'a pedestal! You take it.',
+    '',
+  ],
+
+  // case 25 — Bracelets of Thun chamber narration.
+  bracelets: [
+    'This whole chamber',
+    'shines of a bright',
+    'white light! On a',
+    'table before you,',
+    'lie the fabled',
+    'Bracelets of Thun!',
+    'The glow fades as',
+    'you put them in your',
+    'backpack.',
+    '',
+  ],
+
+  // case 28 — Nolrim's tomb (the dagger you seek).
+  nolrim_tomb: [
+    "Nolrim's body rests on",
+    'a stone slab in this room.',
+    'On his chest lies the',
+    'dagger you seek. You put',
+    'it in your backpack.',
+    '',
+  ],
 }

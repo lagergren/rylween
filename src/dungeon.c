@@ -266,22 +266,6 @@ void dungeon(int32_t levels, int32_t flag) {
                 lvl[cl] = 0;
                 ryl_pause();
                 break;
-            case 21:
-                clw();
-                tx("After you have bested\r\n");
-                tx("the foul thing, the\r\n");
-                tx("dungeon is strangely\r\n");
-                tx("quiet. Upon entering\r\n");
-                tx("this level, you find the\r\n");
-                tx("marvelous FIRE SHIELD on\r\n");
-                tx("a pedestal! You take it.\r\n\r\n");
-                ryl_pause();
-                lvl[cl] = 0;
-                clw();
-                party_award_special(PS_FIRESHIELD);
-                pa_flag_set("hermit.troll_tooth", "fire_shield_acquired");
-                break;
-
             case 22:
                 clw();
                 tx("You stand before a\r\n");
@@ -383,24 +367,6 @@ void dungeon(int32_t levels, int32_t flag) {
                 }
                 break;
 
-            case 25:
-                clw();
-                tx("This whole chamber\r\n");
-                tx("shines of a bright\r\n");
-                tx("white light! On a\r\n");
-                tx("table before you,\r\n");
-                tx("lie the fabled\r\n");
-                tx("Bracelets of Thun!\r\n");
-                tx("The glow fades as\r\n");
-                tx("you put them in your\r\n");
-                tx("backpack.\r\n\r\n");
-                lvl[cl] = 0;
-                ryl_pause();
-                clw();
-                party_award_special(PS_BRACELETS);
-                pa_flag_set("bracelets.thun", "bracelets_taken");
-                break;
-
             case 27:
                 clw();
                 tx("A plaque here reads:\r\n");
@@ -448,18 +414,6 @@ void dungeon(int32_t levels, int32_t flag) {
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
-                break;
-
-            case 28:
-                clw();
-                tx("Nolrim's body rests on\r\n");
-                tx("a stone slab in this room.\r\n");
-                tx("On his chest lies the\r\n");
-                tx("dagger you seek. You put\r\n");
-                tx("it in your backpack.\r\n\r\n");
-                ryl_pause();
-                pa_flag_set("mastercrown", "dagger_taken");
-                lvl[cl] = 0;
                 break;
 
             case 29:

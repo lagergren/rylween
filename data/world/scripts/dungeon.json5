@@ -38,4 +38,39 @@
     { emit: 'spectrum_message' },
     { wait_input: true },
   ],
+
+  // case 21: Fire Shield pedestal (Hermit's troll-tooth quest).
+  // Original closes with a second clw() before awarding. The
+  // reward op recognises 'fireshield' as a special and routes to
+  // party_award_special instead of inv_add (no output for specials).
+  fire_shield: [
+    { engine_call: 'clw' },
+    { emit: 'fire_shield' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { reward: { items: ['fireshield'] } },
+    { set_flag: 'hermit.troll_tooth', value: 'fire_shield_acquired' },
+  ],
+
+  // case 25: Bracelets of Thun chamber (Temple of Thun, bottom).
+  // Same shape as fire_shield: text → pause → clw → award special →
+  // record flag.
+  bracelets: [
+    { engine_call: 'clw' },
+    { emit: 'bracelets' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { reward: { items: ['bracelets'] } },
+    { set_flag: 'bracelets.thun', value: 'bracelets_taken' },
+  ],
+
+  // case 28: Nolrim's tomb dagger (Reebar dungeon, level 20). Plain
+  // text + flag set; no reward (the dagger isn't an inventory item,
+  // only the flag tracks it).
+  nolrim_tomb: [
+    { engine_call: 'clw' },
+    { emit: 'nolrim_tomb' },
+    { wait_input: true },
+    { set_flag: 'mastercrown', value: 'dagger_taken' },
+  ],
 }
