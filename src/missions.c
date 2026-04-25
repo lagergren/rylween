@@ -8,6 +8,7 @@
 #include "primitives.h"
 #include "script.h"
 #include "state.h"
+#include "wld.h"
 #include "subs.h"
 
 #include <ctype.h>
@@ -149,7 +150,7 @@ static int guard_matches(const mission_trigger *t) {
         case MG_POS:
             return x == t->a && y == t->b;
         case MG_DUNGEON_IDX:
-            return x == state.dx[t->a] && y == state.dy[t->a];
+            return x == wld_location_x(t->a) && y == wld_location_y(t->a);
         case MG_TERRAIN:
             return state.map[y][x] == (char)t->a;
         case MG_CHANCE:
@@ -172,11 +173,11 @@ static void resolve_bindings(const mission_trigger *t, ryl_bind *out,
                 out[i].value = state.p[state.cpl].name[b->arg];
                 break;
             case MB_DX_STR:
-                snprintf(zone, BIND_ZONE_SIZE, "%d", state.dx[b->arg]);
+                snprintf(zone, BIND_ZONE_SIZE, "%d", wld_location_x(b->arg));
                 out[i].value = zone;
                 break;
             case MB_DY_STR:
-                snprintf(zone, BIND_ZONE_SIZE, "%d", state.dy[b->arg]);
+                snprintf(zone, BIND_ZONE_SIZE, "%d", wld_location_y(b->arg));
                 out[i].value = zone;
                 break;
         }
@@ -238,7 +239,7 @@ uint8_t mission_control() {
     /* Block 5: temple of Thun gem altar. Inventory-count check
        (>=5 gems of ids 39..41) isn't expressible in the DSL —
        single remaining inline block. */
-    if (pa_flag_is("bracelets.thun", "map_bought") && state.p[state.cpl].x == state.dx[2] && state.p[state.cpl].y == state.dy[2]) {
+    if (pa_flag_is("bracelets.thun", "map_bought") && pa_x() == wld_location_x(2) && pa_y() == wld_location_y(2)) {
         clw();
         tx("You stand before the\r\n");
         tx("ancient temple of Thun.\r\n");

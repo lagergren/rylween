@@ -29,3 +29,25 @@ int wld_is_passable(int x, int y) {
     char c = state.map[y][x];
     return c != 'm' && c != 'w';
 }
+
+enum { WLD_LOCATION_SLOTS = 15 };
+
+static int location_in_range(int slot) {
+    return slot >= 0 && slot < WLD_LOCATION_SLOTS;
+}
+
+int32_t wld_location_x(int slot) {
+    return location_in_range(slot) ? state.dx[slot] : 0;
+}
+
+int32_t wld_location_y(int slot) {
+    return location_in_range(slot) ? state.dy[slot] : 0;
+}
+
+void wld_location_set(int slot, int32_t x, int32_t y) {
+    if (!location_in_range(slot)) {
+        return;
+    }
+    state.dx[slot] = x;
+    state.dy[slot] = y;
+}

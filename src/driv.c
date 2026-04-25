@@ -7,6 +7,7 @@
 #include "primitives.h"
 #include "subs.h"
 #include "towne.h"
+#include "wld.h"
 
 static void createparty(void);
 static void position_locations(void);
@@ -100,8 +101,8 @@ static void the_game() {
                     tx0(res_text("driv.move.no_moves"));
                     break;
                 }
-                if (state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'm' && state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'w') {
-                    state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+                if (wld_is_passable(pa_x(), pa_y() - 1)) {
+                    state.last_terrain = wld_tile_at(pa_x(), pa_y());
                     state.p[state.cpl].y--;
                     update_map();
                     random_wilderness();
@@ -114,8 +115,8 @@ static void the_game() {
                     tx0(res_text("driv.move.no_moves"));
                     break;
                 }
-                if (state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'm' && state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'w') {
-                    state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+                if (wld_is_passable(pa_x() - 1, pa_y())) {
+                    state.last_terrain = wld_tile_at(pa_x(), pa_y());
                     state.p[state.cpl].x--;
                     update_map();
                     random_wilderness();
@@ -128,8 +129,8 @@ static void the_game() {
                     tx0(res_text("driv.move.no_moves"));
                     break;
                 }
-                if (state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'm' && state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'w') {
-                    state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+                if (wld_is_passable(pa_x(), pa_y() + 1)) {
+                    state.last_terrain = wld_tile_at(pa_x(), pa_y());
                     state.p[state.cpl].y++;
                     update_map();
                     random_wilderness();
@@ -142,8 +143,8 @@ static void the_game() {
                     tx0(res_text("driv.move.no_moves"));
                     break;
                 }
-                if (state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'm' && state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'w') {
-                    state.last_terrain = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+                if (wld_is_passable(pa_x() + 1, pa_y())) {
+                    state.last_terrain = wld_tile_at(pa_x(), pa_y());
                     state.p[state.cpl].x++;
                     update_map();
                     random_wilderness();
@@ -336,8 +337,7 @@ static void position_locations() {
     int32_t i;
 
     for (i = 0; i < 15; i++) {
-        state.dx[i] = 0;
-        state.dy[i] = 0;
+        wld_location_set(i, 0, 0);
     }
 
     int32_t x_lo = res_int_path("map.location_bounds.x_min");
@@ -350,9 +350,10 @@ static void position_locations() {
     }
     for (i = 1; i < 10; i++) {
         while (1) {
-            state.dx[i] = ryl_random(x_lo, x_hi);
-            state.dy[i] = ryl_random(y_lo, y_hi);
-            if (!strchr(avoid, state.map[state.dy[i]][state.dx[i]])) {
+            int32_t rx = ryl_random(x_lo, x_hi);
+            int32_t ry = ryl_random(y_lo, y_hi);
+            wld_location_set(i, rx, ry);
+            if (!strchr(avoid, wld_tile_at(rx, ry))) {
                 break;
             }
         }

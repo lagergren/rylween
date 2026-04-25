@@ -6,6 +6,7 @@
 #include "script.h"
 #include "speak.h"
 #include "towne.h"
+#include "wld.h"
 
 static void npc_mission_hint(int32_t);
 static void reply_chitchat(int32_t, int32_t);
@@ -517,11 +518,11 @@ static void mission_resolve_bindings(const mission_stage *st, ryl_bind *out,
                 out[i].value = zone;
                 break;
             case BIND_DX_STR:
-                snprintf(zone, BIND_ZONE_SIZE, "%d", state.dx[b->arg]);
+                snprintf(zone, BIND_ZONE_SIZE, "%d", wld_location_x(b->arg));
                 out[i].value = zone;
                 break;
             case BIND_DY_STR:
-                snprintf(zone, BIND_ZONE_SIZE, "%d", state.dy[b->arg]);
+                snprintf(zone, BIND_ZONE_SIZE, "%d", wld_location_y(b->arg));
                 out[i].value = zone;
                 break;
         }
@@ -646,8 +647,8 @@ static void npc_mission_hint(int32_t npc) {
                 clw();
                 {
                     char x[8], y[8];
-                    snprintf(x, sizeof x, "%d", state.dx[8]);
-                    snprintf(y, sizeof y, "%d", state.dy[8]);
+                    snprintf(x, sizeof x, "%d", wld_location_x(8));
+                    snprintf(y, sizeof y, "%d", wld_location_y(8));
                     tx_fmt("speak.silver_key.map",
                            (ryl_bind[]){
                                {"pit_x", x},
@@ -656,7 +657,7 @@ static void npc_mission_hint(int32_t npc) {
                            });
                 }
                 pa_flag_set("silver_key", "map_bought");
-                journalf("The Pit of the Silver Key is at %dx%d", state.dx[8], state.dy[8]);
+                journalf("The Pit of the Silver Key is at %dx%d", wld_location_x(8), wld_location_y(8));
                 ryl_pause();
                 clw();
             } else {
@@ -687,8 +688,8 @@ static void npc_mission_hint(int32_t npc) {
                 clw();
                 {
                     char x[8], y[8];
-                    snprintf(x, sizeof x, "%d", state.dx[2]);
-                    snprintf(y, sizeof y, "%d", state.dy[2]);
+                    snprintf(x, sizeof x, "%d", wld_location_x(2));
+                    snprintf(y, sizeof y, "%d", wld_location_y(2));
                     tx_fmt("speak.thun.map",
                            (ryl_bind[]){
                                {"temple_x", x},
@@ -696,7 +697,7 @@ static void npc_mission_hint(int32_t npc) {
                                {0},
                            });
                 }
-                journalf("The Temple of Thun is at %dx%d", state.dx[2], state.dy[2]);
+                journalf("The Temple of Thun is at %dx%d", wld_location_x(2), wld_location_y(2));
                 pa_flag_set("bracelets.thun", "map_bought");
                 ryl_pause();
                 clw();
@@ -734,8 +735,8 @@ static void npc_mission_hint(int32_t npc) {
                     clw();
                     {
                         char x[8], y[8];
-                        snprintf(x, sizeof x, "%d", state.dx[7]);
-                        snprintf(y, sizeof y, "%d", state.dy[7]);
+                        snprintf(x, sizeof x, "%d", wld_location_x(7));
+                        snprintf(y, sizeof y, "%d", wld_location_y(7));
                         tx_fmt("speak.jazzy_ogre.accept",
                                (ryl_bind[]){
                                    {"cave_x", x},
@@ -743,7 +744,7 @@ static void npc_mission_hint(int32_t npc) {
                                    {0},
                                });
                     }
-                    journalf("The 'Beast Cave' is at %dx%d.", state.dx[7], state.dy[7]);
+                    journalf("The 'Beast Cave' is at %dx%d.", wld_location_x(7), wld_location_y(7));
                     pa_flag_set("jazzy_ogre", "accepted");
                     state.p[state.cpl].inventory[d - 64] = 0;
                     ryl_pause();
