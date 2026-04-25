@@ -3751,7 +3751,7 @@ Sweep 4 towne.json5 sites; drop two `sub:N` conversions.
   apply. Briefing's "4 sites" was an overcount; only the two
   ['A','P'] sites are inventory-slot decoders.
 
-**E. Op-shape consistency** (tier 4, items 9-12). After A-D land.
+**E. Op-shape consistency** (tier 4, items 9-12). **LANDED 2026-04-25.**
 
   Steps:
    - Item 9 (drop legacy `if.cond` shorthand): grep for `flag:.*eq:`,
@@ -3764,6 +3764,24 @@ Sweep 4 towne.json5 sites; drop two `sub:N` conversions.
      up the shape and decide.
    - Item 12 (micro-inconsistencies): document the rule, no code
      changes.
+
+  Landed: items 9 + 10. Item 9 — only one `flag:.*eq:` callsite
+  remained in the corpus (`dungeon.json5` tammys_prison) and
+  zero `gold:.*(gte|lt):` callsites; the briefing's "30-50"
+  estimate predated several earlier sweeps that had already
+  migrated callers. New `flag_value: ['<tag>', '<value>']`
+  expression primitive (mirrors `enum:`) makes symbolic
+  flag-value comparisons compose in expression form. Legacy
+  branch retired from `eval_cond`, which is now a thin
+  truthy-check around `eval_expr`. The `eval_expr` ambiguity
+  guard for `{flag, eq|ne}` stays as a redirect diagnostic.
+  Item 10 — four `{ chance: { pct, then, else } }` op-form
+  callsites collapsed to `{ if: { cond: { chance: <expr> },
+  ... } }`; `do_chance` plus its dispatch arm retired (~25
+  lines). Items 11 + 12 deferred — engine registry unification
+  is a separate scoped sweep, and the micro-inconsistency rule
+  set reduces to "everything new flows through eval_expr"
+  which is now self-evident from the engine code.
 
 **F. `speak_missions.json5` rewrite** (tier 1, item 3). Depends
 on A landing (script DSL has loops/switch/conds rich enough
@@ -3785,18 +3803,15 @@ order to land them: A (spell DSL convergence) and B (enum
 shape) can run in parallel; both unlock C+D+E. F depends on
 A. G is the documentation pass after the surface stabilises.
 
-B, C, D have landed (2026-04-25). Remaining: A, E, F, G.
-There is no "blocking" priority among A vs E —
-whichever migration is most pressing for the next gameplay
-slice should drive. If no slice is pressing, A is the highest
-absolute leverage because retiring `eval.c` immediately
-collapses ~1400 lines of engine and removes one of the two
-languages a reader has to learn. E is independent and cheap
-(~½ session); a final warm-up before A.
+B, C, D, E have landed (2026-04-25). Remaining: A, F, G. A is
+the next one to land — retiring `eval.c` immediately collapses
+~1400 lines of engine and removes one of the two languages a
+reader has to learn. F depends on A; G is the documentation
+pass after the surface stabilises.
 
 Estimated remaining work: ~1-2 sessions for A, ~0.5 session
-for each of E/F, ~0.5 session for G. Cumulative ~2.5-4
-sessions if done sequentially.
+for F, ~0.5 session for G. Cumulative ~2-3 sessions if done
+sequentially.
 
 ### 22.4 Non-goals
 
