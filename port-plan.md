@@ -4657,3 +4657,180 @@ Cumulative ~1 more session to fully close §22.
 
 **Bar per session.** Same as §22.8/§22.9/§22.10: `make check`
 and `make testasan` both green at every commit.
+
+§23 — engine→data extraction (post-§22 planning)
+
+This section is a planning lookahead, not an active queue.
+§22 finishes the lane-A spell migration and the speak/missions/
+docs cleanup; once those land there are still meaningful
+chunks of native C that *should* live on the data side. The
+asymmetry is most visible in `battle.c`: the player-facing
+spell flows are now fully scripted (priest.json5,
+mage.json5), but the **monster** behaviour — including
+the spells monsters cast and how much damage they do — is
+still a hardcoded native switch. Same shape on the item-
+spell side: `(U)se Item` dispatches to a 12-arm switch that
+is verbatim 1980s-style native code. The goal of §23 is to
+finish closing that gap so the engine ends up looking like
+a script *runtime* (input + RNG + bindings + emit/mutate
+opcodes) and not a script *implementation*.
+
+**§23.A — battle.c monster nasty-magic block (lines 625-740,
+~115 LOC).** The single highest-leverage extraction. Today
+this is:
+
+```
+if (g == 5) {
+  if (!antimagic && sp && ryl_chance(15 + sp/2)) {
+    switch (ryl_random(0, 3)) {
+      case 0: /* Frost Finger */ dp = h2/5 + ryl_random(0,3); ...
+      case 1: /* Cloud of Fire */ dp = h2/5 + ryl_random(0,4); ...
+      case 2: /* Hold Creature */ playerheld = 1;
+      case 3: /* Confusion    */ playerconfused = 1;
+    }
+  } else {
+    /* plain melee — ws hit-roll + mh[x]/6 + ryl_random(0,9) */
+  }
+}
+```
+
+Every probability and every damage formula is a literal in
+the source: `15 + sp/2` for the cast gate, `h2/5 + ryl_random
+(0,3)` for frost, `h2/5 + ryl_random(0,4)` for fire, the
+4-way uniform pick across the spell list, the implicit
+"every monster knows the same four spells" assumption. The
+right shape for this on the data side mirrors what we
+already have for player spells: a `monster_spells.json5`
+shard with `frost`/`fire`/`hold`/`confuse` entries (or
+whatever name set we want — the bestiary could plausibly
+gain more), each with a `do:` body in the existing DSL.
+The cast-gate formula and the spell-pick weights both
+become res-resolved formulas. The `g == 5` block then
+becomes: `for each undead monster, run res_monster_turn(...)`
+where the runtime walks the data-side decision tree. The
+melee-attack arm should also extract — same `ryl_chance(ws+1)`
+gate and `mh[x]/6 + ryl_random(0,9) - obdamage(armour)`
+formula now lives in C but is structurally identical to a
+spell `do:` body.
+
+A nice side effect: per-monster spell sets become possible
+without touching C. The bestiary already has `sp` as the
+"spellpower" hint; today it only modulates the cast gate.
+With `monster_spells` keyed by tier or by monster name, the
+designer surface widens significantly without engine work.
+Effort estimate: ~2-3 sessions to migrate the four spells +
+the gate + the melee arm, with one fixture per arm
+(combat-monster-{frost,fire,hold,confuse,melee}) to pin
+RNG state across the boundary. Likely needs a small DSL
+extension for monster-side targeting (`pick_alive_player`
+helper + `damage_all_alive_players` loop), but both fit
+the existing emit/mutate vocabulary.
+
+**§23.B — battle.c item-spell switch (cases 100..111, lines
+194-403, ~210 LOC).** Twelve hardcoded magic-item effects
+dispatched on `oc` (object code). About half already use
+`res_text(...)` for narration but the **dispatch table**
+and all damage formulae are native — `ryl_random(5,11) +
+pm_lv(...)` for case 100 (chill), `pm_lv(...) * ryl_random
+(3,8)` for case 101 (burn), etc. Each case is structurally
+a tiny spell: take target / pick alive / mutate hp /
+maybe tx0 narration / pause. The right shape: a
+`magic_items.json5` shard keyed by object code with `do:`
+bodies, indexed via `res_magic_item(oc)` analogous to
+`res_spell("priest", slot)`. The C dispatcher reduces to:
+read inv letter, look up oc, `play_spell_body(...)`. Cases
+105/108 (heal-target / rebirth-target) need a target
+prompt + key read — the DSL already has menu_branch +
+key_var so this is straightforward; cases 109/110 (axe,
+handgrenade) need a "damage all foes" loop that mirrors
+the monster-fire arm above so §23.A and §23.B share that
+helper. Effort: ~2 sessions; can be sequenced after §23.A
+so the monster-loop helper is in place. Three or four
+fixtures cover the per-arm shapes (single-target damage,
+all-target damage, target-prompt heal, target-prompt
+rebirth, narration-only fizzle).
+
+**§23.C — battle.c hit-roll and miscellaneous combat
+constants.** Smaller items that carry no large data shape
+of their own, but are stylistic eyesores once §23.A/B
+land. The player-attack hit-roll `ryl_chance(x + 1)` and
+damage `obdamage(wp) + ryl_random(0,4) + pm_hp/hpd` are
+half data-driven (`hp_defense_div` is in res) and half
+literal. The confusion divisor `x /= 3` (line 534), the
+battle-cry `ws -= 4` (482), the defend `ws -= 2` (508),
+the desperate-flee `ryl_chance(31)` (776), and the
+`pm_lv` defend heal at 490-494 are all literals that
+belong in `combat.json5`. None require new DSL — just
+res-int lookups. Effort: ~1 session of mechanical sweeps,
+no fixture additions needed (existing combat fixtures
+pin the formulas).
+
+**§23.D — driv.c character-creation thresholds.** Class-
+passing thresholds (lines 1528-1567) are 50/50/50 literal
+checks against `ws`/`wi`/`ch` per class. The class table
+in `world.json5` already names classes — extending each
+record with `min_stat: { name: 'wi', value: 50 }` (or a
+list for multi-stat classes if we ever want them) closes
+this. The `ryl_random(15, 70)` stat-roll range (lines
+1463-1467) and the starting-state init block (1580-1609:
+x=12, y=9, gold=1000, torches=5, food=100, time_left=200,
+hours_rested=14) are all numeric literals that should be
+in `driv.start.*` or `world.start.*`. Effort: ~0.5 session;
+existing title-create-party fixtures pin the values.
+
+**§23.E — bestiary special-encounter switches (driv.c lines
+~478, 688 outside the create-party block; dungeon.c level-
+loop key dispatch).** Survey-only at this point — the
+patterns look more like UI dispatchers than data, but worth
+a once-over after §23.A/B to confirm there's no extraction
+opportunity hiding in the wilderness/dungeon command
+handlers. The dungeon level-loop `if (c == 'D') ... if
+(c == 'A') ...` chain (dungeon.c:71-169) is fundamentally
+input dispatch and probably stays in C; the descend/ascend
+*actions* are short enough that a data table buys little.
+
+**Cross-cutting — DSL gaps.** §23.A and §23.B will likely
+surface two genuinely missing primitives:
+
+  - **target-set iteration** with a predicate
+    (`for_each_alive_player`, `for_each_alive_monster`).
+    Today individual spells like priest.heal use `menu_
+    branch` + `pm_*` accessors per slot; a fire-hits-all-
+    party shape needs a loop over the bound combat ctx.
+    Already half-present in `mage.json5` via the combat
+    ctx struct; needs to formalize into a DSL op.
+  - **typed RNG bindings for combat** — frost damage is
+    `h2/5 + random(0,3)` where `h2` is the encounter HP
+    cap, currently a C local. The combat ctx already
+    plumbs `mh[]`, `noc`, `ws`, etc. through to scripted
+    spells; extending the binding set with `h2` /
+    `monster_idx` / `target_idx` and exposing them via
+    `{ var: 'h2' }` lookups in the DSL covers this.
+
+Neither is a deep change; both already have analogues in
+the §22 lane-A migration. Plan to land the DSL pieces in a
+prep commit before §23.A so the monster spells can use the
+real ops on day one.
+
+**Recommended sequencing.** §23.A first (highest leverage,
+forces the DSL prep), then §23.B (rides on §23.A's helpers),
+then §23.C/D in parallel as small mechanical sweeps. §23.E
+as a survey only, possibly closed without code changes.
+
+**Estimated total effort.** ~6-8 sessions across §23.A-D.
+The result: `battle.c` shrinks from ~850 LOC to perhaps
+350-400 LOC of pure runtime (input loop, RNG plumbing, ctx
+binding, victory/loss handoff). The bestiary, item-spell
+table, monster-spell table, and class threshold table all
+become first-class data shards a designer can edit without
+a recompile. That's the same shape player spells have today
+post-§22.
+
+**Why post-§22.** §22 is mid-flight and the spell-fixture
+queue (#8a banish + §22.F + §22.G) needs to land first to
+keep the lane-A migration coherent. §23 starts after §22
+closes; sequencing the other way would mean rewriting fixtures
+mid-extraction. The §22.5 fixture set (combat-mage-* and
+combat-attack-win) already pins the player-side combat path
+byte-for-byte, so §23.A's monster extractions land against
+known-good baselines.
