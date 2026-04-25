@@ -11,6 +11,11 @@
       target:      ['{target}'],
       points:      ['for {x} hit points...'],
     },
+    restoration: {
+      heals:  ['{caster} heals'],
+      target: ['{target}'],
+      fully:  ['fully...'],
+    },
     banish: {
       thunder: ['There is a deafening clap',
                 'of thunder, and you hear',

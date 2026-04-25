@@ -66,7 +66,47 @@
       }},
     ],
   },
-  restoration: { slot: 2, base_cost: 20, name: 'Restoration', legacy_effect: 'restoration' },
+  // §22 Lane A: restoration. Same shape as heal but skips the random
+  // roll and the dead-check — the legacy code unconditionally pegs
+  // target.hp to target.h regardless of whether the target is dead.
+  restoration: {
+    slot: 2, base_cost: 20, name: 'Restoration',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'ma' },
+          { add: [20, { member: { var: 'caster_idx' }, field: 'lv' }] },
+        ]},
+        then: [
+          { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                field: 'ma' } },
+                      op: 'sub',
+                      value: { add: [20, { member: { var: 'caster_idx' },
+                                                     field: 'lv' }] } }},
+          { ask_target: 'party_member', var: 'target_idx' },
+          { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                field: 'hp' } },
+                      op: 'set',
+                      value: { member: { var: 'target_idx' }, field: 'h' } }},
+          { engine_call: 'clw' },
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                           var: 'caster' }},
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'target_idx' }],
+                           var: 'target' }},
+          { emit: 'spell.priest.restoration.heals' },
+          { emit: 'spell.priest.restoration.target' },
+          { emit: 'spell.priest.restoration.fully' },
+          { pause: 1500 },
+          { engine_call: 'clw' },
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
   rebirth:     { slot: 3, base_cost: 90, name: 'Rebirth',     legacy_effect: 'rebirth' },
   banish:      { slot: 4, base_cost: 85, name: 'Banish Evil', legacy_effect: 'banish' },
   revelation:  { slot: 5, base_cost: 40, name: 'Revelation',  legacy_effect: 'revelation' },

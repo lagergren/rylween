@@ -623,34 +623,6 @@ void spell(int32_t place) {
     }
 
     switch (s->effect) {
-        case SE_RESTORATION:
-            clw();
-            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx0(res_text("spell.not_enough_pts"));
-                ryl_delay(1000);
-                clw();
-                break;
-            }
-            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
-            tx("Who? (1-%d)\r\n", res_party_member_max());
-            while (1) {
-                d = key();
-                if (pm_digit_in_range(d)) {
-                    break;
-                }
-            }
-            {
-                pm_t r = pm_from_digit(d);
-                pm_set_hp(r, pm_h(r));
-                clw();
-                tx("%s heals\r\n", pm_name(caster));
-                tx("%s\r\n", pm_name(r));
-            }
-            tx("fully...\r\n");
-            ryl_delay(1500);
-            clw();
-            break;
-
         case SE_REBIRTH:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
