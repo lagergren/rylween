@@ -2925,6 +2925,22 @@ Recurrent literals worth a single-source-of-truth helper:
   inline subs.c / towne.c flows into `data/world/scripts/{rest,
   hunt,lodge,tavern}.json5`. Last of these is the longplay-
   fixture prerequisite (per project_full_game_gate.md).
+  **PARTIALLY DONE 2026-04-25** (commits e355ef8 + d283423 +
+  ecfd183, 3 steps): `subs.c` `hunt()` and `camp()` now live in
+  `data/world/scripts/{hunt,rest}.json5` + `texts/{hunt,rest}.json5`.
+  C wrappers resolve the four `balance.hunt` and eleven
+  `balance.rest` tunables, hand them to `play_script` as int
+  bindings, and own nothing else; the scripts handle every
+  narration line, the digit-bound who-loops, the temperature roll
+  + damage pass, the food / heal / advance-hour sweep, and the
+  ambush-vs-well-rested split. Step 1 extended the DSL with two
+  read-side expr forms (`{hours_rested:0}` / `{time_left:0}`),
+  one mutate target (`{time_left:0}` → `pa_set_time_left`), two
+  `engine_int` helpers (`pa_alive_count`, `pa_first_level`), and
+  one `engine_call` (`advance_hour`). Tavern is already in
+  towne.json5 (§17-F). Remaining: speak.c bargirl Q→L lodge
+  branch (~30 lines) and the per-job lodge-text dispatch in the
+  same arm.
 
 ### 20.15 Prerequisites & ordering
 
