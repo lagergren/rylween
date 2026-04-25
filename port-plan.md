@@ -4006,3 +4006,110 @@ eval.c, when the gate is stable.
 two combat fixtures and writing the commit message. The
 hardest part is deciding whether the canonical number is the
 divided or un-divided one; the rest is mechanical.
+
+### 22.7 Continuation prompt — what remains and in what order
+
+This is the literal handoff for the next session. Lane A
+landed in 16 commits between `8a25b20` and `ca8aaa0` (2026-04-25);
+the engine now speaks one DSL and `eval.c` is gone. The list
+below is what stays — in the order I'd actually do it:
+
+**1. Reward-gold display fix (§22.6).** ~30 min. Single
+   commit. Lowest cost, highest player-visible payoff. Done
+   first because it has no dependencies and doesn't compete
+   with the fixture work. Steps:
+   - Decide canonical number — almost certainly the un-divided
+     `reward_gold_party` (the displayed-1, awarded-5 example
+     in §22.6 makes "5 is correct" the obvious read).
+   - Drop `reward_gold_per_survivor` from `formulas:`.
+   - In `battle.c::encounter` victory render, the
+     `gold_display` local goes away; use `gold_gain`
+     (`reward_gold_party`) directly in the `tx("...gets %d
+     gold pieces.\r\n", ...)` call.
+   - Re-bless `title-create-party-combat` and
+     `wilderness-cave-descent` — both will diff because the
+     displayed gold quadruples.
+   - Commit message clearly labelled "balance fix" with
+     before/after numbers in the body.
+
+**2. Combat-attack-win fixture (§22.5 #1).** ~30-60 min.
+   Single commit. Highest leverage of the §22.5 queue because
+   it pins the encounter / reward / expcheck path that every
+   spell fixture below will reuse. Without this, the spell
+   fixtures land on top of an unpinned baseline and any drift
+   in encounter rendering masquerades as spell drift. Steps:
+   - Author `tools/replay/combat-attack-win.{in,env}` —
+     party with a fighter that can finish a low-HP foe in
+     ~3 attacks; pick a target (A), attack, repeat until
+     the WIN screen + reward render fires.
+   - `tools/replay.sh combat-attack-win --bless` to capture
+     `.expect` + `.expect_snapshot`.
+   - Verify the fixture fires the encounter scaling formulas
+     (already covered) AND the new `gold_gain` display from
+     §22.6 above.
+
+**3. Spell fixtures (§22.5 #2–#8).** ~3-4 hours. One commit
+   per fixture or grouped where natural (the flag-trio is
+   one fixture firing three casts; rebirth is one fixture
+   firing alive + dead). Order: mage frost → mage fire → mage
+   flag-trio (confusion + hold + antimagic) → mage death →
+   priest heal → priest restoration + rebirth → priest banish
+   + revelation → priest teleport + earthquake. Each fixture
+   captures an `.expect_snapshot` so future engine changes
+   gate on byte identity.
+
+   - Skip if you'd rather batch these into one big "spell
+     fixture pass" commit; the per-fixture grain is a
+     review-cost decision, not a correctness one. The data
+     authoring is the bulk of the work.
+
+**4. §22.F — `speak_missions.json5` rewrite.** ~0.5 session.
+   Depends on Lane A (now landed). Convert each NPC role's
+   mission stages from the speak.c micro-DSL into a script
+   DSL `play_script` that fires the right body with bindings.
+   Retire the `mission_spec_` parser arm in res.c and the
+   speak.c interpreter loop. Touches: `data/world/scripts/
+   speak_missions.json5`, `src/speak.c`, `src/res.c`,
+   `src/missions.c`. Make sure `make check` is green at every
+   step; the towne speak fixtures cover most of the affected
+   surface.
+
+**5. §22.G — `docs/dsl.md` single-doc reference.** ~0.5
+   session. Last because it crystallises the surface. Cover:
+   - Control flow (if / loop / break / continue / for_*
+     family / switch).
+   - Expressions (literals, arithmetic, comparisons, flag /
+     gold / member / inventory / monster_* reads, var,
+     engine_int, engine_bind, item / pic / enum /
+     flag_value / state_banished).
+   - Mutate lvalues (gold / torches / food / pl / flag /
+     inventory / member_field / hours_rested / hour_of_day /
+     time_left / monster_hp / monster_dead / battle_flag /
+     state_banished).
+   - Bindings (caller ryl_bind, rt_env, automatic
+     {party_max} / {inventory_max} / {cost:itemkey}).
+   - Op registry (engine_call, engine_int, engine_bind —
+     names + signatures).
+   - Error contract (die_at format, fatal-on-typo).
+   - Examples — small spell, small towne flow, formula.
+   - Cross-link from `src/script.h` header.
+
+**Skipped permanently / not worth doing here:**
+   - Item 11 (engine registry unification — `engine_call` /
+     `engine_int` / `engine_bind` collapsed into one). Already
+     deferred in §22.E; the three-registry shape works and
+     unification is cosmetic.
+   - Item 12 (op-shape micro-inconsistencies). Same reason —
+     the rule "everything new flows through eval_expr" is
+     self-evident from the engine code now.
+
+**Bar per session.** `make check` green at every commit,
+`make testasan` clean for any commit that touches engine
+memory (none of the §22.6 / §22.F / §22.G commits should —
+they're data and docs). Each step from #1-#3 retroactively
+covers Lane A's spell paths; #4 retires another DSL; #5
+makes "read the data alone" actually true.
+
+**Estimated total.** ~1-2 sessions for #1+#2+#3,
+~0.5 session for #4, ~0.5 session for #5. Cumulative
+~2-3 sessions to fully close §22.
