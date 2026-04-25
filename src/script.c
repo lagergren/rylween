@@ -1140,9 +1140,6 @@ typedef void (*engine_fn)(const int32_t *args);
 static void eng_dungeon(const int32_t *a) {
     dungeon(a[0], a[1]);
 }
-static void eng_encounter(const int32_t *a) {
-    encounter(a[0], a[1]);
-}
 static void eng_update_map(const int32_t *a) {
     (void)a;
     update_map();
@@ -1206,7 +1203,6 @@ typedef struct {
 
 static const engine_entry engine_tbl[] = {
     {"dungeon", 2, eng_dungeon},
-    {"encounter", 2, eng_encounter},
     {"update_map", 0, eng_update_map},
     {"clr_map_window", 0, eng_clr_map_window},
     {"blitgfx", 1, eng_blitgfx},
@@ -1220,6 +1216,47 @@ static const engine_entry engine_tbl[] = {
     {"drop_option", 0, eng_drop_option},
     {"rumour", 0, eng_rumour},
 };
+
+/* §20 L2: { encounter: { foe: '<sym>'|<int>, mandatory?: <bool>|<int> } }.
+   Calls battle.c's encounter(foe_id, mandatory). `foe` is a monster
+   symbol (resolved via res_monster_id) or a raw monsters.json5 id.
+   `mandatory` defaults to false (player may try to flee); set true
+   to lock out the (R)un option (used by quest encounters).
+   Replaces the legacy { engine_call: 'encounter', args: [int, int] }
+   shape so foe ids and the mandatory flag both read symbolically at
+   the callsite. */
+static void do_encounter(const node *op, const char *script_id, size_t idx,
+                         const ryl_bind *bindings, const rt_env *env) {
+    const node *body = obj_get(op, "encounter");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "encounter: value must be object");
+    }
+    const node *foe_n = obj_get(body, "foe");
+    if (!foe_n) {
+        die_at(script_id, idx, "encounter: foe required");
+    }
+    int32_t foe;
+    if (foe_n->kind == N_INT) {
+        foe = (int32_t)foe_n->u.iv;
+    } else if (foe_n->kind == N_STR) {
+        int id = res_monster_id(foe_n->u.sv);
+        if (id < 0) {
+            char buf[128];
+            snprintf(buf, sizeof buf,
+                     "encounter: unknown foe symbol '%s'", foe_n->u.sv);
+            die_at(script_id, idx, buf);
+        }
+        foe = (int32_t)id;
+    } else {
+        die_at(script_id, idx, "encounter: foe must be int or string");
+    }
+    int32_t mandatory = 0;
+    const node *mand_n = obj_get(body, "mandatory");
+    if (mand_n) {
+        mandatory = eval_expr(mand_n, script_id, idx, bindings, env);
+    }
+    encounter(foe, mandatory);
+}
 
 /* §17-E: { engine_call: '<name>', args: [<expr>...] }. Args are
    evaluated as §17-F expressions — literal ints still work, but
@@ -2392,6 +2429,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         return do_if(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "menu_branch")) {
         return do_menu_branch(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "encounter")) {
+        do_encounter(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "engine_call")) {
         do_engine_call(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "engine_bind")) {
