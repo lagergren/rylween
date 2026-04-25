@@ -1561,6 +1561,13 @@ static void sb_res_enum(const int32_t *ints, const char **strs, char *out,
                         size_t out_sz) {
     snprintf(out, out_sz, "%s", res_enum(strs[0], (int)ints[0]));
 }
+/* Display name of the first NPC whose `job:` matches the symbol and
+   whose `towne:` matches the int — replaces the retired
+   res_enum('innkeepers'|'tavernkeepers', twn) DSL pattern. */
+static void sb_npc_in_town(const int32_t *ints, const char **strs, char *out,
+                           size_t out_sz) {
+    snprintf(out, out_sz, "%s", res_npc_in_town((int)ints[0], strs[0]));
+}
 /* §20 L2: role-keyed NPC slot lookup, mirrors res_npc_role. Used by
    dungeon scripts that need to render an NPC name without knowing
    the cold-start slot — e.g. silver_sanctum's "...by the Master
@@ -1589,6 +1596,7 @@ static const str_engine_entry str_engine_tbl[] = {
     {"pronoun", "is", sb_pronoun},
     {"res_town_name", "i", sb_res_town_name},
     {"res_enum", "si", sb_res_enum},
+    {"npc_in_town", "si", sb_npc_in_town},
     {"res_npc_role", "s", sb_res_npc_role},
     {"pa_name", "i", sb_pa_name},
 };

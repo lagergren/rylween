@@ -777,8 +777,8 @@
           { let: 'rumours', value: 0 },
           { loop: [
             { engine_call: 'clw' },
-            { engine_bind: { fn: 'res_enum',
-                             args: ['tavernkeepers', { twn: 0 }],
+            { engine_bind: { fn: 'npc_in_town',
+                             args: ['tavernkeeper', { twn: 0 }],
                              var: 'name' } },
             { emit: 'greeter' },
             { menu_branch: {
@@ -1067,8 +1067,8 @@
 
       // --- Supper
       { engine_call: 'clw' },
-      { engine_bind: { fn: 'res_enum',
-                       args: ['innkeepers', { twn: 0 }],
+      { engine_bind: { fn: 'npc_in_town',
+                       args: ['innkeeper', { twn: 0 }],
                        var: 'name' } },
       { emit: 'greeter' },
       { emit: 'common.yes' },

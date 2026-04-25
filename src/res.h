@@ -350,6 +350,11 @@ const char *res_npc_sym(int32_t slot);
    `enums.name` array is retired. */
 const char *res_npc_name(int32_t slot);
 
+/* First NPC whose `job:` matches `job_sym` (jobname symbol, e.g.
+   "innkeeper") and whose `towne:` matches `twn` — display name.
+   Used by the town greeter binds; returns "" on no-match. */
+const char *res_npc_in_town(int32_t twn, const char *job_sym);
+
 /* Resolve a quest-role name (key in world.json5's npc_roles: subtree)
    to an NPC slot. The C side passes a stable role like
    "bandits_quest_giver" / "master_thief" / "silver_key_vendor";

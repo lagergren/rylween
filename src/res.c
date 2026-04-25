@@ -1082,6 +1082,48 @@ const char *res_npc_name(int32_t slot) {
     return (name_n && name_n->kind == N_STR) ? name_n->u.sv : "";
 }
 
+/* First NPC matching (job_sym, twn) — display name. The town greeter
+   binds in the inn / tavern scripts use this to pick the right keeper
+   (innkeeper / tavernkeeper) for state.twn without a parallel
+   positional array. Returns "" when no NPC matches; both the inn and
+   tavern populations have one NPC per town in the current data. */
+const char *res_npc_in_town(int32_t twn, const char *job_sym) {
+    if (!world_tree || !job_sym) {
+        return "";
+    }
+    int target_job = res_enum_id("jobname", job_sym);
+    if (target_job < 0) {
+        return "";
+    }
+    const node *npcs = obj_get(world_tree, "npcs");
+    if (!npcs || npcs->kind != N_OBJ) {
+        return "";
+    }
+    for (size_t i = 0; i < npcs->u.obj.n; i++) {
+        const node *rec = npcs->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *job_n = obj_get(rec, "job");
+        const node *twn_n = obj_get(rec, "towne");
+        if (!job_n || job_n->kind != N_STR) {
+            continue;
+        }
+        if (!twn_n || twn_n->kind != N_STR) {
+            continue;
+        }
+        if (res_enum_id("jobname", job_n->u.sv) != target_job) {
+            continue;
+        }
+        if (res_enum_id("towne", twn_n->u.sv) != twn) {
+            continue;
+        }
+        const node *name_n = obj_get(rec, "name");
+        return (name_n && name_n->kind == N_STR) ? name_n->u.sv : "";
+    }
+    return "";
+}
+
 /* Quest-role -> NPC slot indirection. The role name (e.g.
    "bandits_quest_giver", "master_thief") is C-stable; the binding
    to a specific character's shard key lives in world.json5's
