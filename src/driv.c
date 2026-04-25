@@ -12,12 +12,13 @@ static void createparty(void);
 static void position_locations(void);
 static void read_journal(void);
 static int read_current_world(void);
-static void spelet(void);
+static void the_game(void);
 static void write_current_world(void);
 
-static void spelet() {
+static void the_game() {
     char cc, d;
     int32_t i;
+    char path[64];
 
     clw();
     state.hour_of_day = 5;
@@ -48,7 +49,8 @@ static void spelet() {
         if (io_winch_pending) {
             io_winch_pending = 0;
             cl();
-            disptext("data/ansi/screen.ans");
+            res_ansi_path("screen", path, sizeof path);
+            disptext(path);
             update_map();
             clw();
         }
@@ -164,7 +166,8 @@ static void spelet() {
                 break;
             case '!':
                 cl();
-                disptext("data/ansi/screen.ans");
+                res_ansi_path("screen", path, sizeof path);
+                disptext(path);
                 update_map();
                 clw();
                 break;
@@ -175,7 +178,8 @@ static void spelet() {
                 cl();
                 c(49, 6);
                 clw();
-                disptext("data/ansi/screen.ans");
+                res_ansi_path("screen", path, sizeof path);
+                disptext(path);
                 update_map();
                 clw();
                 break;
@@ -355,7 +359,8 @@ void init() {
 
     tx("[30m%c%c%c%c%c[37m", 27, 91, 48, 32, 112);
 
-    if (!(fh = fopen("data/map.dat", "rb"))) {
+    res_map_path(path, sizeof path);
+    if (!(fh = fopen(path, "rb"))) {
         c(49, 6);
         clw();
         tx0(res_text("driv.init.no_map"));
@@ -381,7 +386,8 @@ void init() {
     }
 
     cl();
-    disptext("data/ansi/title.ans");
+    res_ansi_path("title", path, sizeof path);
+    disptext(path);
     tx0(res_text("driv.more"));
     key();
 
@@ -409,7 +415,8 @@ void init() {
     state.day_at_game_start = kl[3];
 
     cl();
-    disptext("data/ansi/screen.ans");
+    res_ansi_path("screen", path, sizeof path);
+    disptext(path);
 
     while (!abort) {
         clw();
@@ -467,7 +474,8 @@ void init() {
                 cl();
                 c(49, 6);
                 clw();
-                disptext("data/ansi/screen.ans");
+                res_ansi_path("screen", path, sizeof path);
+                disptext(path);
                 clw();
                 tx0(res_text("driv.scores.verbose_q"));
                 d = key();
@@ -480,7 +488,8 @@ void init() {
                     cl();
                     c(49, 6);
                     clw();
-                    disptext("data/ansi/screen.ans");
+                    res_ansi_path("screen", path, sizeof path);
+                    disptext(path);
                 }
                 break;
 
@@ -495,7 +504,8 @@ void init() {
                 cl();
                 c(49, 6);
                 clw();
-                disptext("data/ansi/screen.ans");
+                res_ansi_path("screen", path, sizeof path);
+                disptext(path);
                 break;
 
             case 'H':
@@ -506,7 +516,8 @@ void init() {
                 cl();
                 c(49, 6);
                 clw();
-                disptext("data/ansi/screen.ans");
+                res_ansi_path("screen", path, sizeof path);
+                disptext(path);
                 break;
 
             case 'N':
@@ -639,7 +650,7 @@ void init() {
         }
     }
     abort = 0;
-    spelet();
+    the_game();
 }
 
 /* Enum -> string via res_enum(enum_id, v). Writes the quoted symbolic

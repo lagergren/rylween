@@ -2017,6 +2017,20 @@ static void reset_pronoun_from_tree(const node *pronoun_node) {
     }
 }
 
+void res_ansi_path(const char *leaf, char *out, size_t out_sz) {
+    if (out_sz == 0) {
+        return;
+    }
+    snprintf(out, out_sz, "data/ansi/%s.ans", leaf ? leaf : "");
+}
+
+void res_map_path(char *out, size_t out_sz) {
+    if (out_sz == 0) {
+        return;
+    }
+    snprintf(out, out_sz, "data/map.dat");
+}
+
 void res_shutdown(void) {
     /* Order matters: legacy tables first (they walk world_tree to drive
        their loops); world_tree itself last. */

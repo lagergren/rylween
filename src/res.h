@@ -303,6 +303,14 @@ int res_inventory_slot_max(void);
    members as `for (i = 1; i <= res_party_member_max(); i++)`. */
 int res_party_member_max(void);
 
+/* On-disk path helpers (§20 T3 / T4). Caller-supplied buffer pattern,
+   mirroring ryl_state_path in src/compat.c — avoids a const-cast at
+   the disptext() / fopen() boundary. Centralise the previously
+   hardcoded data/ansi/<leaf>.ans and data/map.dat strings so a future
+   asset-root rename is one edit, not eight. */
+void res_ansi_path(const char *leaf, char *out, size_t out_sz);
+void res_map_path(char *out, size_t out_sz);
+
 /* Uniform "res: path:line: msg" fatal error. Used by the JSON5 parser /
    import resolver (json5.c) and the world-folds (res.c) so every loader
    diagnostic has one shape. Never returns. */

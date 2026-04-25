@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 /* Driver / main-loop UI. Owns init, the party-create flow, save/load,
-   the main game loop (spelet), and the HUD pieces (statusline, showparty,
+   the main game loop (the_game), and the HUD pieces (statusline, showparty,
    invlist, journal). */
 
 void init(void);
