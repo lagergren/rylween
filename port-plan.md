@@ -4366,3 +4366,107 @@ remaining: ~3-4 hours. §22.F is ~0.5-1 session; §22.G is
 green at every commit. The lv knob commit is the only one
 that touches engine code directly; every other commit is
 data + .in/.expect/.expect_snapshot quartets.
+
+§22.9 — replay-knobs centralization + spell fixtures #5/#7b
+
+Continuation of §22.8. Four commits this micro-session, all
+gates green at each step:
+
+  - `eac3317` §22.5 RYL_FORCE_PARTY_LV knob in createparty
+    (~36 lines added inline at the time). Bumps lv plus the
+    per-class wi/h/ws/ch deltas (n-1 times) and resets ma to
+    the new wi cap for spellcasters. Verified at seed 2 with
+    LV=3: slot-1 mage 67→81 wi/ma — death cost 78+3=81 just
+    fits.
+
+  - `bb8eee8` §22.5 #5 combat-mage-death fixture. Same shape
+    as combat-mage-frost, swapped C1→C4 for the death menu
+    slot, env adds RYL_FORCE_PARTY_LV=3. The deterministic
+    RNG draw lands the kill arm (random(0,199) >= 27 monster
+    hp ≈ 87% odds), pinning the monster_dead/monster_hp=0
+    mutate path. The resist arm would need a different
+    encounter to flip the gate — open follow-up if/when we
+    want both arms.
+
+  - `675a73d` refactor: extract replay-mode env knobs into
+    src/replay_knobs.{c,h}. Centralizes all five one-shot
+    knobs (RYL_STARTING_GOLD, RYL_FORCE_ENCOUNTER,
+    RYL_FORCE_ENCOUNTER_NOC, RYL_FORCE_PARTY_LV,
+    RYL_FORCE_DEAD_SLOT) — previously inlined across driv.c
+    (3), subs.c (1), battle.c (1) — into one TU. Call sites
+    collapse to one-line `rk_*` helpers. Pure refactor; every
+    fixture passes byte-identical. The always-on infra knobs
+    (RYL_FAKE_EPOCH / RYL_FAKE_SEED / RYL_NO_DELAY /
+    RYL_SNAPSHOT) are NOT routed through this file — they're
+    consumed every call by lower-level primitives (ryl.c /
+    io_tty.c / snapshot.c). Header notes the split.
+
+  - `86346e3` §22.5 #7b wilderness-priest-rebirth fixture.
+    First fixture to use the new RYL_FORCE_DEAD_SLOT knob.
+    Both arms of rebirth's alive-vs-dead branch in a single
+    wilderness session — no encounter, no combat. Slot 1
+    priest at lv 5 (post-knob wi = 67 + 8×4 = 99, ma cap =
+    99) just covers cost (90 + lv 5 = 95). Cast order: alive
+    first (no debit), then dead (debits 95 → 4). Reverse
+    order would trip the not_enough_pts gate. Snapshot
+    confirms slot-1 ma=4 (one debit) and slot-3 hp=1, dead=0
+    (the dead-arm mutates ran).
+
+**New convention — test-only env knobs.** New replay knobs
+go in `src/replay_knobs.{c,h}`, NOT inlined at the call site.
+The pattern: declare an `rk_*` helper in the header, impl in
+the .c file (with the `getenv` + validate + `unsetenv` + apply/
+return logic), and the consumer adds `#include "replay_knobs.h"`
+plus a one-line invocation. This keeps the inventory of test-
+only gameplay state greppable in one TU rather than scattered
+across the codebase. Always-on infra knobs stay where they are.
+
+**What's not done — by spell.** Three fixtures left:
+priest revelation (#8b), priest teleport (#8c), priest banish
+(#8a). The §22.8 plan applies verbatim — path 1 (wild-roll
+cave at seed 5) for revelation + teleport; path 2 (earthquake
+bridge with two priests) for banish. The lv knob is now
+landed, so banish is unblocked the moment the two-priest
+setup is wired.
+
+**Recommended order — what to do next.**
+
+  1. **Land priest-revelation (§22.5 #8b)** via path 1. Seed
+     5 wild-roll cave, slot 1 priest, walk pattern + `E` to
+     enter, then `Z 1 5` (cast slot 5 = revelation) with
+     space absorbers per the §22.8 key-accounting notes. The
+     chance(59) gate has two arms — the "nothing" arm and
+     the "find object" arm. Whichever arm fires at this seed
+     pins one of the two paths.
+
+  2. **Land priest-teleport (§22.5 #8c)** via path 1. Same
+     seed, same dungeon entry. `Z 1 6` (slot 6 = teleport),
+     then the compass + how-far prompts (8/2/4/6 + 1-9 keys).
+     One byte per prompt — confirm at the call site.
+
+  3. **Land priest-banish (§22.5 #8a)** via path 2.
+     RYL_FORCE_PARTY_LV=5, two priests in slots 1 + 2 (seed
+     2 has wi 67 / 63 in slots 1 / 2 — both qualify). Slot 1
+     casts earthquake (`Z 1 7 E`) → spawns cave, enters new
+     dungeon. Slot 2 casts banish (`Z 2 4`) — sets
+     state.banished, the success arm ends with the
+     state_banished mutate. Trickiest fixture: both casters
+     on cooldown after their own cast (no further casts in
+     same combat) AND the earthquake-spawned dungeon has
+     5-18 levels (random). Pin a seed where the level-1
+     random fill is reproducible.
+
+  4. **§22.F speak_missions.json5 rewrite + parser retire.**
+     Untouched. Plan unchanged from §22.7/§22.8.
+
+  5. **§22.G docs/dsl.md single-doc reference.** Untouched.
+     Should follow §22.F so the doc reflects the post-
+     migration surface.
+
+**Estimated remaining effort.** Revelation ~45 min, teleport
+~45 min, banish ~60 min = ~2.5 hours of spell-fixture work
+remaining. §22.F ~0.5-1 session; §22.G ~0.5 session.
+Cumulative ~1-2 more sessions to fully close §22.
+
+**Bar per session.** Same as §22.8: `make check` and
+`make testasan` both green at every commit.
