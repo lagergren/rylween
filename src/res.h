@@ -211,6 +211,16 @@ int32_t res_monster_id(const char *sym);
    know which id range maps to which pool. Fatal on empty tier. */
 int32_t res_monster_tier_pick(const char *tier);
 
+/* 1 if any monster record carries `tier: <name>`, else 0. Distinct
+   from res_monster_tier_pick because callers (fold_scripts) need to
+   probe a tier name without exiting on empty/unknown. */
+int res_monster_tier_exists(const char *tier);
+
+/* 1 if `dungeons.scenarios` has a key matching <name>, else 0. Used
+   by fold_scripts to validate { dungeon: { scenario: '<name>' } }
+   without invoking the placement applier. */
+int res_dungeon_scenario_exists(const char *scenario);
+
 /* §20 L1: overlay `scenario`'s special-encounter placements onto
    `lvl[1..n_lvl]`. NULL scenario is a no-op (random caves carry no
    placements). The scenarios subtree is `dungeons.scenarios.<key>.

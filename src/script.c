@@ -1488,6 +1488,34 @@ static const str_engine_entry str_engine_tbl[] = {
     {"pa_name", "i", sb_pa_name},
 };
 
+/* Whitelist introspection — see script.h. -1 if <name> isn't in the
+   matching registry; the registry's argc (or sig length, for
+   engine_bind) on hit. */
+int script_engine_call_argc(const char *name) {
+    for (size_t i = 0; i < sizeof engine_tbl / sizeof *engine_tbl; i++) {
+        if (strcmp(engine_tbl[i].name, name) == 0) {
+            return engine_tbl[i].argc;
+        }
+    }
+    return -1;
+}
+int script_engine_int_argc(const char *name) {
+    for (size_t i = 0; i < sizeof int_engine_tbl / sizeof *int_engine_tbl; i++) {
+        if (strcmp(int_engine_tbl[i].name, name) == 0) {
+            return int_engine_tbl[i].argc;
+        }
+    }
+    return -1;
+}
+int script_engine_bind_argc(const char *name) {
+    for (size_t i = 0; i < sizeof str_engine_tbl / sizeof *str_engine_tbl; i++) {
+        if (strcmp(str_engine_tbl[i].name, name) == 0) {
+            return (int)strlen(str_engine_tbl[i].sig);
+        }
+    }
+    return -1;
+}
+
 /* §17-F step 5: { engine_bind: { fn:'<name>', args:[<expr>|'<str>',
    ...], var:'<name>' } }. Calls a whitelisted string-returning C
    entry point and stashes the result into rt_env as RT_STR so

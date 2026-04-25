@@ -191,4 +191,14 @@
  */
 void play_script(const char *script_id, const ryl_bind *bindings);
 
+/* Whitelist introspection for fold-time validation in res.c::fold_scripts.
+   Each returns the registry entry's argc (>=0) when <name> is a known
+   engine_call / engine_int / engine_bind fn, or -1 if unknown. The DSL
+   evaluator already enforces argc at runtime; these are exposed so the
+   script-walker can fail at world load on a typo'd fn name rather than
+   only when the script fires. */
+int script_engine_call_argc(const char *name);
+int script_engine_int_argc(const char *name);
+int script_engine_bind_argc(const char *name);
+
 #endif

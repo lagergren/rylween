@@ -31,6 +31,7 @@
 #include "json5.h"
 #include "primitives.h"
 #include "ryl.h"
+#include "script.h"
 #include "speak.h"
 #include "towne.h"
 
@@ -633,6 +634,43 @@ int32_t res_monster_tier_pick(const char *tier) {
         exit(1);
     }
     return ids[ryl_random(0, (int32_t)n - 1)];
+}
+
+int res_monster_tier_exists(const char *tier) {
+    if (!world_tree || !tier) {
+        return 0;
+    }
+    const node *mon_n = obj_get(world_tree, "monsters");
+    if (!mon_n || mon_n->kind != N_OBJ) {
+        return 0;
+    }
+    for (size_t i = 0; i < mon_n->u.obj.n; i++) {
+        const node *rec = mon_n->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *tier_n = obj_get(rec, "tier");
+        if (tier_n && tier_n->kind == N_STR &&
+            strcmp(tier_n->u.sv, tier) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int res_dungeon_scenario_exists(const char *scenario) {
+    if (!world_tree || !scenario) {
+        return 0;
+    }
+    const node *d_n = obj_get(world_tree, "dungeons");
+    if (!d_n || d_n->kind != N_OBJ) {
+        return 0;
+    }
+    const node *sc_n = obj_get(d_n, "scenarios");
+    if (!sc_n || sc_n->kind != N_OBJ) {
+        return 0;
+    }
+    return obj_get(sc_n, scenario) != NULL;
 }
 
 void res_dungeon_apply_placements(const char *scenario, int32_t *lvl,
@@ -2094,6 +2132,220 @@ static void fold_dungeons(const node *dungeons_node, const char *path) {
     }
 }
 
+/* Recursive validator for the scripts subtree. Walks every node under
+   `scripts.*` and, on any object that looks like a known op or
+   expression with a symbol-typed field, resolves the symbol against
+   the matching res_*_id table — failing at world load on a typo
+   instead of waiting for the script to fire. The walk is structural
+   (descend into every child object/array, no whitelist of "op array"
+   field names) so new control-flow ops with nested bodies don't need
+   to be added here.
+
+   What's checked:
+     { encounter: { foe: '<sym>' } }      res_monster_id
+     { encounter: { tier: '<sym>' } }     res_monster_tier_exists
+     { dungeon:   { scenario: '<sym>' } } res_dungeon_scenario_exists
+     { speak:     { building: '<sym>' } } res_enum_id("building", ...)
+     { reward:    { items: ['<sym>'...] } } res_item_id (each N_STR slot)
+     { set_flag:  '<tag>', value: '<v>' } res_flag_slot + res_flag_value_id
+     { engine_call: '<fn>' }              script_engine_call_argc
+     { engine_int:  '<fn>' }              script_engine_int_argc
+     { engine_bind: { fn: '<fn>' } }      script_engine_bind_argc
+     { enum:        ['<table>','<v>'] }   res_enum_id
+     { item:        '<sym>' }             res_item_id  (in expressions)
+     { pic:         '<sym>' }             res_enum_id("pic", ...)
+     { flag:        '<tag>' }             res_flag_slot (cond/expr/mutate)
+
+   Skipped (runtime-only, intentionally):
+     - { var: 'name' } indirection (rt_env binding name, not a symbol)
+     - { random: [...] } / { add: [...] } / etc. arithmetic operands
+     - input_string `accept` (user-input strings, not symbols)
+     - text-template placeholders (resolved by tx_fmt at runtime) */
+static void fold_scripts_walk(const node *n, const char *path,
+                              const char *script_id) {
+    if (!n) {
+        return;
+    }
+    if (n->kind == N_OBJ) {
+        const node *enc = obj_get(n, "encounter");
+        if (enc && enc->kind == N_OBJ) {
+            const node *foe = obj_get(enc, "foe");
+            if (foe && foe->kind == N_STR &&
+                res_monster_id(foe->u.sv) < 0) {
+                fprintf(stderr,
+                        "res: %s:%d: scripts.%s: unknown monster symbol "
+                        "'%s' in encounter.foe\n",
+                        path, foe->line, script_id, foe->u.sv);
+                exit(1);
+            }
+            const node *tier = obj_get(enc, "tier");
+            if (tier && tier->kind == N_STR &&
+                !res_monster_tier_exists(tier->u.sv)) {
+                fprintf(stderr,
+                        "res: %s:%d: scripts.%s: unknown monster tier "
+                        "'%s' in encounter.tier\n",
+                        path, tier->line, script_id, tier->u.sv);
+                exit(1);
+            }
+        }
+        const node *dgn = obj_get(n, "dungeon");
+        if (dgn && dgn->kind == N_OBJ) {
+            const node *sc = obj_get(dgn, "scenario");
+            if (sc && sc->kind == N_STR &&
+                !res_dungeon_scenario_exists(sc->u.sv)) {
+                fprintf(stderr,
+                        "res: %s:%d: scripts.%s: unknown dungeons.scenarios "
+                        "key '%s' in dungeon.scenario\n",
+                        path, sc->line, script_id, sc->u.sv);
+                exit(1);
+            }
+        }
+        const node *spk = obj_get(n, "speak");
+        if (spk && spk->kind == N_OBJ) {
+            const node *bld = obj_get(spk, "building");
+            if (bld && bld->kind == N_STR &&
+                res_enum_id("building", bld->u.sv) < 0) {
+                fprintf(stderr,
+                        "res: %s:%d: scripts.%s: unknown building symbol "
+                        "'%s' in speak.building\n",
+                        path, bld->line, script_id, bld->u.sv);
+                exit(1);
+            }
+        }
+        const node *rew = obj_get(n, "reward");
+        if (rew && rew->kind == N_OBJ) {
+            const node *items = obj_get(rew, "items");
+            if (items && items->kind == N_ARR) {
+                for (size_t i = 0; i < items->u.arr.n; i++) {
+                    const node *e = items->u.arr.items[i];
+                    if (e && e->kind == N_STR &&
+                        res_item_id(e->u.sv) < 0) {
+                        fprintf(stderr,
+                                "res: %s:%d: scripts.%s: unknown item "
+                                "symbol '%s' in reward.items[%zu]\n",
+                                path, e->line, script_id, e->u.sv, i);
+                        exit(1);
+                    }
+                }
+            }
+        }
+        const node *sf = obj_get(n, "set_flag");
+        if (sf && sf->kind == N_STR) {
+            if (res_flag_slot(sf->u.sv) < 0) {
+                fprintf(stderr,
+                        "res: %s:%d: scripts.%s: unknown flag '%s' in "
+                        "set_flag\n",
+                        path, sf->line, script_id, sf->u.sv);
+                exit(1);
+            }
+            const node *vn = obj_get(n, "value");
+            if (vn && vn->kind == N_STR &&
+                res_flag_value_id(sf->u.sv, vn->u.sv) < 0) {
+                fprintf(stderr,
+                        "res: %s:%d: scripts.%s: unknown value '%s' for "
+                        "flag '%s' in set_flag.value\n",
+                        path, vn->line, script_id, vn->u.sv, sf->u.sv);
+                exit(1);
+            }
+        }
+        const node *ec = obj_get(n, "engine_call");
+        if (ec && ec->kind == N_STR &&
+            script_engine_call_argc(ec->u.sv) < 0) {
+            fprintf(stderr,
+                    "res: %s:%d: scripts.%s: unknown engine_call fn '%s'\n",
+                    path, ec->line, script_id, ec->u.sv);
+            exit(1);
+        }
+        const node *ei = obj_get(n, "engine_int");
+        if (ei && ei->kind == N_STR &&
+            script_engine_int_argc(ei->u.sv) < 0) {
+            fprintf(stderr,
+                    "res: %s:%d: scripts.%s: unknown engine_int fn '%s'\n",
+                    path, ei->line, script_id, ei->u.sv);
+            exit(1);
+        }
+        const node *eb = obj_get(n, "engine_bind");
+        if (eb && eb->kind == N_OBJ) {
+            const node *fn = obj_get(eb, "fn");
+            if (fn && fn->kind == N_STR &&
+                script_engine_bind_argc(fn->u.sv) < 0) {
+                fprintf(stderr,
+                        "res: %s:%d: scripts.%s: unknown engine_bind fn "
+                        "'%s'\n",
+                        path, fn->line, script_id, fn->u.sv);
+                exit(1);
+            }
+        }
+        const node *en = obj_get(n, "enum");
+        if (en && en->kind == N_ARR && en->u.arr.n == 2) {
+            const node *ename = en->u.arr.items[0];
+            const node *eval = en->u.arr.items[1];
+            if (ename && ename->kind == N_STR && eval &&
+                eval->kind == N_STR &&
+                res_enum_id(ename->u.sv, eval->u.sv) < 0) {
+                fprintf(stderr,
+                        "res: %s:%d: scripts.%s: unknown enum '%s' value "
+                        "'%s'\n",
+                        path, eval->line, script_id, ename->u.sv,
+                        eval->u.sv);
+                exit(1);
+            }
+        }
+        const node *item = obj_get(n, "item");
+        if (item && item->kind == N_STR &&
+            res_item_id(item->u.sv) < 0) {
+            fprintf(stderr,
+                    "res: %s:%d: scripts.%s: unknown item symbol '%s'\n",
+                    path, item->line, script_id, item->u.sv);
+            exit(1);
+        }
+        const node *pic = obj_get(n, "pic");
+        if (pic && pic->kind == N_STR &&
+            res_enum_id("pic", pic->u.sv) < 0) {
+            fprintf(stderr,
+                    "res: %s:%d: scripts.%s: unknown pic symbol '%s'\n",
+                    path, pic->line, script_id, pic->u.sv);
+            exit(1);
+        }
+        const node *fln = obj_get(n, "flag");
+        if (fln && fln->kind == N_STR &&
+            res_flag_slot(fln->u.sv) < 0) {
+            fprintf(stderr,
+                    "res: %s:%d: scripts.%s: unknown flag '%s'\n",
+                    path, fln->line, script_id, fln->u.sv);
+            exit(1);
+        }
+
+        /* Recurse into every child value. Use the child key as a path
+           segment for diagnostics so a typo in
+           scripts.dungeon.find_object surfaces with that breadcrumb. */
+        for (size_t i = 0; i < n->u.obj.n; i++) {
+            char child_id[256];
+            const char *key = n->u.obj.items[i].key;
+            if (script_id[0]) {
+                snprintf(child_id, sizeof child_id, "%s.%s", script_id, key);
+            } else {
+                snprintf(child_id, sizeof child_id, "%s", key);
+            }
+            fold_scripts_walk(n->u.obj.items[i].val, path, child_id);
+        }
+    } else if (n->kind == N_ARR) {
+        for (size_t i = 0; i < n->u.arr.n; i++) {
+            fold_scripts_walk(n->u.arr.items[i], path, script_id);
+        }
+    }
+}
+
+static void fold_scripts(const node *scripts_node, const char *path) {
+    if (!scripts_node) {
+        return;
+    }
+    if (scripts_node->kind != N_OBJ) {
+        res_die(path, scripts_node->line, "scripts: expected object");
+    }
+    fold_scripts_walk(scripts_node, path, "");
+}
+
 static void fold_enums(const node *enums_node, const char *path) {
     if (!enums_node) {
         return;
@@ -2159,13 +2411,18 @@ void res_load_world(const char *path) {
     fold_limits(obj_get(root, "limits"), path);
     fold_enums(obj_get(root, "enums"), path);
     fold_dungeons(obj_get(root, "dungeons"), path);
+    /* fold_scripts uses res_monster_id / res_item_id / etc., all of
+       which read off `world_tree`. Publish the (still-uncompiled) tree
+       before walking scripts so the lookups can resolve; the path-
+       compile pass below leaves identity lookups untouched. */
+    world_tree = root;
+    fold_scripts(obj_get(root, "scripts"), path);
     fold_texts(obj_get(root, "texts"), path);
 
     /* Walk every effect / cond / expr array in the tree and rewrite path
        strings (e.g. "caster.hp", "$dmg") in place to N_PATH. After this,
        the evaluator hot path does zero strcmp on actor/field names. */
     compile_world_tree(root, path);
-    world_tree = root;
     texts_sort();
 
     /* Register the teardown the first time a world is loaded. Guarded
