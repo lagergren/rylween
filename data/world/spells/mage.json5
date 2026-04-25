@@ -92,7 +92,40 @@
       { mutate: { target: { battle_flag: 'confused' }, op: 'set', value: 1 }},
     ],
   },
-  death:     { slot: 4, base_cost: 78, name: 'Death Strike',  legacy_effect: 'death' },
+  // §22 Lane A: death. Single-target picker via ask_target
+  // monster_alive; resist roll is ryl_random(0, 199) < monster_hp,
+  // so high-HP targets resist (clamp to 1) and low-HP targets die
+  // (deadc=1, mh=0). RNG identity preserved — random draws once
+  // as the lt's left operand, monster_hp read on the right (no
+  // RNG). Order of writes in the kill arm matches the legacy
+  // (deadc=1 first, then mh=0).
+  death: {
+    slot: 4, base_cost: 78, name: 'Death Strike',
+    do: [
+      { ask_target: 'monster_alive', var: 'target_idx' },
+      { if: { cond: { lt: [
+          { random: [0, 199] },
+          { monster_hp: { var: 'target_idx' } },
+        ]},
+        then: [
+          { engine_call: 'clw' },
+          { emit: 'battle.spell.annihilate.resist' },
+          { pause: 2000 },
+          { mutate: { target: { monster_hp: { var: 'target_idx' } },
+                      op: 'set', value: 1 }},
+        ],
+        else: [
+          { engine_call: 'clw' },
+          { emit: 'battle.spell.annihilate.kill' },
+          { pause: 2000 },
+          { mutate: { target: { monster_dead: { var: 'target_idx' } },
+                      op: 'set', value: 1 }},
+          { mutate: { target: { monster_hp: { var: 'target_idx' } },
+                      op: 'set', value: 0 }},
+        ],
+      }},
+    ],
+  },
   // §22 Lane A: hold. Sets the encounter-local held flag; the
   // monster-turn loop in battle.c gates monster actions on !held.
   hold: {

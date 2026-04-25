@@ -441,71 +441,30 @@ void encounter(int32_t foe, int32_t mandatory) {
                         ryl_delay(1000);
                     } else {
                         pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
+                        /* §22 Lane A: every mage spell carries a do:
+                           body — res_spell_node always resolves. */
                         const void *spell_node = res_spell_node("mage", d - 48);
-                        if (spell_node) {
-                            char caster_buf[8];
-                            snprintf(caster_buf, sizeof caster_buf, "%d", g);
-                            ryl_bind binds[] = {
-                                {"caster_idx", caster_buf},
-                                {"monster_name", fn},
-                                {0},
-                            };
-                            int ws_int = ws;
-                            struct script_combat_ctx ctx = {
-                                .noc = noc,
-                                .mh = mh,
-                                .deadc = deadc,
-                                .fn = fn,
-                                .confused = &confused,
-                                .held = &held,
-                                .antimagic = &antimagic,
-                                .ws = &ws_int,
-                            };
-                            play_spell_body(s->id ? s->id : "mage.(unknown)",
-                                            spell_node, binds, &ctx);
-                            ws = (int32_t)ws_int;
-                            /* DSL path handled the spell; skip the
-                               legacy enum switch entirely. */
-                            spell_node = NULL; /* fall through past switch */
-                            goto after_mage_switch;
-                        }
-                        switch (s->effect) {
-                            case SE_DEATH:
-                                while (1) {
-                                    clw();
-                                    tx_fmt("battle.prompt.who", NULL);
-                                    for (i = 1; i < noc + 1; i++) {
-                                        if (deadc[i]) {
-                                            strcpy(str, "Dead.");
-                                        } else {
-                                            strcpy(str, "Alive.");
-                                        }
-                                        tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
-                                    }
-                                    d = key();
-                                    d = toupper(d);
-                                    if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
-                                        break;
-                                    }
-                                }
-                                who = d - 64;
-                                if (ryl_random(0, 199) < mh[who]) {
-                                    clw();
-                                    tx0(res_text("battle.spell.annihilate.resist"));
-                                    ryl_delay(2000);
-                                    mh[who] = 1;
-                                } else {
-                                    clw();
-                                    tx0(res_text("battle.spell.annihilate.kill"));
-                                    ryl_delay(2000);
-                                    deadc[who] = 1;
-                                    mh[who] = 0;
-                                }
-                                break;
-                            default:
-                                break;
-                        }
-                    after_mage_switch:;
+                        char caster_buf[8];
+                        snprintf(caster_buf, sizeof caster_buf, "%d", g);
+                        ryl_bind binds[] = {
+                            {"caster_idx", caster_buf},
+                            {"monster_name", fn},
+                            {0},
+                        };
+                        int ws_int = ws;
+                        struct script_combat_ctx ctx = {
+                            .noc = noc,
+                            .mh = mh,
+                            .deadc = deadc,
+                            .fn = fn,
+                            .confused = &confused,
+                            .held = &held,
+                            .antimagic = &antimagic,
+                            .ws = &ws_int,
+                        };
+                        play_spell_body(s->id ? s->id : "mage.(unknown)",
+                                        spell_node, binds, &ctx);
+                        ws = (int32_t)ws_int;
                     }
                 }
             }
