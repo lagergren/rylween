@@ -107,5 +107,19 @@
       { mutate: { target: { battle_flag: 'held' }, op: 'set', value: 1 }},
     ],
   },
-  antimagic: { slot: 6, base_cost: 28, name: 'Anti Magic',    legacy_effect: 'antimagic' },
+  // §22 Lane A: antimagic. Sets the encounter-local antimagic flag;
+  // monsters with non-zero sp can't cast while it's set. Note the
+  // 2800-ms delay vs confusion/hold's 2000-ms — preserved verbatim.
+  antimagic: {
+    slot: 6, base_cost: 28, name: 'Anti Magic',
+    do: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { emit: 'battle.spell.utters_word' },
+      { emit: 'battle.spell.silence' },
+      { pause: 2800 },
+      { mutate: { target: { battle_flag: 'antimagic' }, op: 'set', value: 1 }},
+    ],
+  },
 }
