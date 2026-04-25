@@ -1435,6 +1435,45 @@ static void eng_pm_hp_floor(const int32_t *a) {
     pm_hp_floor(pm_cur((int)a[0]), (int)a[1]);
 }
 
+/* §22 Lane A: priest.teleport movement loop. dir is the ASCII digit
+   key the player pressed ('2'/'4'/'6'/'8' = south/west/east/north;
+   passed as int via {var:'<key_var>'}); distance is the ASCII digit
+   '1'..'9'. Loop count is (distance - '0') * 2 — same legacy
+   formula. Each step gates on the next-tile NOT being a 'm' (mountain)
+   so chains of mountains halt the teleport mid-flight. */
+static void eng_pa_teleport_step(const int32_t *a) {
+    int dir = (int)a[0];
+    int distance = (int)a[1] - '0';
+    if (distance < 1) {
+        return;
+    }
+    int steps = distance * 2;
+    for (int i = 1; i < steps + 1; i++) {
+        switch (dir) {
+            case '2':
+                if (state.map[pa_y() + 1][pa_x()] != 'm') {
+                    pa_add_y(1);
+                }
+                break;
+            case '4':
+                if (state.map[pa_y()][pa_x() - 1] != 'm') {
+                    pa_add_x(-1);
+                }
+                break;
+            case '6':
+                if (state.map[pa_y()][pa_x() + 1] != 'm') {
+                    pa_add_x(1);
+                }
+                break;
+            case '8':
+                if (state.map[pa_y() - 1][pa_x()] != 'm') {
+                    pa_add_y(-1);
+                }
+                break;
+        }
+    }
+}
+
 typedef struct {
     const char *name;
     int argc;
@@ -1456,6 +1495,7 @@ static const engine_entry engine_tbl[] = {
     {"rumour", 0, eng_rumour},
     {"pm_add_hp", 2, eng_pm_add_hp},
     {"pm_hp_floor", 2, eng_pm_hp_floor},
+    {"pa_teleport_step", 2, eng_pa_teleport_step},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps

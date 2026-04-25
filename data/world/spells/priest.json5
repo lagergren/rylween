@@ -320,6 +320,74 @@
       }},
     ],
   },
-  teleport:    { slot: 6, base_cost: 35, name: 'Teleport',    legacy_effect: 'teleport' },
+  // §22 Lane A: teleport. Two ryl_pause-gated narration blocks set up
+  // the ritual; advance_hour fires between them. The compass + how_far
+  // prompts use loop+menu_branch with key_var so the captured key
+  // ASCII codes feed pa_teleport_step (encapsulated movement loop —
+  // the legacy nested for/switch/map-bounds-check stays in C since
+  // it's a one-spell special). update_map paints the new tile.
+  // No leading clw — SE_TELEPORT skipped that uniquely; mana-fail
+  // still trails with clw.
+  teleport: {
+    slot: 6, base_cost: 35, name: 'Teleport',
+    do: [
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'ma' },
+          { add: [35, { member: { var: 'caster_idx' }, field: 'lv' }] },
+        ]},
+        then: [
+          { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                field: 'ma' } },
+                      op: 'sub',
+                      value: { add: [35, { member: { var: 'caster_idx' },
+                                                     field: 'lv' }] } }},
+          { engine_call: 'clw' },
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                           var: 'caster' }},
+          { engine_bind: { fn: 'pronoun',
+                           args: [{ var: 'caster_idx' }, 'subject'],
+                           var: 'csr_subj' }},
+          { emit: 'spell.priest.teleport.carefully' },
+          { emit: 'spell.priest.teleport.prepares' },
+          { emit: 'spell.priest.teleport.spends' },
+          { emit: 'spell.priest.teleport.chanting' },
+          { emit: 'spell.priest.teleport.candles' },
+          { engine_call: 'advance_hour' },
+          { wait_input: true },
+          { engine_call: 'clw' },
+          { emit: 'spell.priest.teleport.picks_slab' },
+          { emit: 'spell.priest.teleport.satchel' },
+          { emit: 'spell.priest.teleport.wants_you' },
+          { emit: 'spell.priest.teleport.to' },
+          { wait_input: true },
+          { engine_call: 'clw' },
+          { emit: 'spell.priest.teleport.compass' },
+          { loop: [
+            { menu_branch: { key_var: 'dir', options: [
+              { keys: ['2', '4', '6', '8'], then: [{ break: true }] },
+            ]}},
+          ]},
+          { engine_call: 'clw' },
+          { emit: 'spell.priest.teleport.how_far' },
+          { loop: [
+            { menu_branch: { key_var: 'distance', options: [
+              { key_range: ['1', '9'], then: [{ break: true }] },
+            ]}},
+          ]},
+          { engine_call: 'pa_teleport_step',
+            args: [{ var: 'dir' }, { var: 'distance' }] },
+          { emit: 'spell.priest.teleport.arrived' },
+          { engine_call: 'update_map' },
+          { pause: 1200 },
+          { engine_call: 'clw' },
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
   earthquake:  { slot: 7, base_cost: 55, name: 'Earthquake',  legacy_effect: 'earthquake' },
 }
