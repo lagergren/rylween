@@ -481,7 +481,8 @@ void init() {
         switch (toupper(ch)) {
             case 'S':
                 cl();
-                disptext("data/score.txt");
+                res_data_path("score.txt", path, sizeof path);
+                disptext(path);
                 tx0(res_text("driv.more"));
                 key();
                 cl();
@@ -495,7 +496,8 @@ void init() {
                 d = toupper(d);
                 if (d == 'Y') {
                     cl();
-                    disptext("data/vscore.txt");
+                    res_data_path("vscore.txt", path, sizeof path);
+                    disptext(path);
                     tx0(res_text("driv.more"));
                     key();
                     cl();
@@ -511,7 +513,8 @@ void init() {
                 tx0(res_text("driv.docs.capture"));
                 ryl_pause();
                 cl();
-                disptext("data/rylween.doc");
+                res_data_path("rylween.doc", path, sizeof path);
+                disptext(path);
                 tx0(res_text("driv.more"));
                 key();
                 cl();
@@ -523,7 +526,8 @@ void init() {
 
             case 'H':
                 cl();
-                disptext("data/heroes.txt");
+                res_data_path("heroes.txt", path, sizeof path);
+                disptext(path);
                 tx0(res_text("driv.more"));
                 key();
                 cl();

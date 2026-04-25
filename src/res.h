@@ -361,9 +361,13 @@ int res_party_member_max(void);
    mirroring ryl_state_path in src/compat.c — avoids a const-cast at
    the disptext() / fopen() boundary. Centralise the previously
    hardcoded data/ansi/<leaf>.ans and data/map.dat strings so a future
-   asset-root rename is one edit, not eight. */
+   asset-root rename is one edit, not eight. res_data_path takes a
+   filename relative to the data/ root (e.g. "score.txt",
+   "heroes.txt") for the static-asset disptext / fopen sites that
+   don't fit the ansi or map shape. */
 void res_ansi_path(const char *leaf, char *out, size_t out_sz);
 void res_map_path(char *out, size_t out_sz);
+void res_data_path(const char *leaf, char *out, size_t out_sz);
 
 /* Uniform "res: path:line: msg" fatal error. Used by the JSON5 parser /
    import resolver (json5.c) and the world-folds (res.c) so every loader

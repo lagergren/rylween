@@ -2790,6 +2790,13 @@ void res_map_path(char *out, size_t out_sz) {
     snprintf(out, out_sz, "data/map.dat");
 }
 
+void res_data_path(const char *leaf, char *out, size_t out_sz) {
+    if (out_sz == 0) {
+        return;
+    }
+    snprintf(out, out_sz, "data/%s", leaf ? leaf : "");
+}
+
 void res_shutdown(void) {
     /* Order matters: legacy tables first (they walk world_tree to drive
        their loops); world_tree itself last. */

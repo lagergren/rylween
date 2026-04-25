@@ -427,6 +427,7 @@ static void confrontation() {
     char str[80];
     char kl[8];
     char mstr[15];
+    char path[512];
 
     clw();
     tx0(res_text("ydarg.conf.trapdoor_slam"));
@@ -490,8 +491,9 @@ static void confrontation() {
     ryl_pause();
     clw();
 
-    if (!(fh = fopen("data/heroes.txt", "r"))) {
-        fh = fopen("data/heroes.txt", "w");
+    res_data_path("heroes.txt", path, sizeof path);
+    if (!(fh = fopen(path, "r"))) {
+        fh = fopen(path, "w");
         snprintf(str, sizeof str, "%c\n", 12);
         fputs(str, fh);
         fputs(" +============================================================================+\n",
@@ -503,7 +505,7 @@ static void confrontation() {
         fclose(fh);
     }
 
-    if (!(fh = fopen("data/heroes.txt", "a+"))) {
+    if (!(fh = fopen(path, "a+"))) {
         return;
     }
 
