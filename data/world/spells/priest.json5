@@ -226,7 +226,100 @@
       }},
     ],
   },
-  revelation:  { slot: 5, base_cost: 40, name: 'Revelation',  legacy_effect: 'revelation' },
+  // §22 Lane A: revelation. The dungeon-only / mana-pass / 59% chance
+  // of nothing-near branches stack as nested ifs; on success the
+  // category roll picks one of three id ranges via switch (1..14
+  // weapons, 36..42 ?, 100..111 magic items) and the result feeds
+  // a (T)ake/(L)eave menu_branch wrapping inv_add. RNG identity:
+  // ryl_chance(59) draws first; on success ryl_random(0, 2) draws
+  // the category, then exactly one inner ryl_random fires for the
+  // matched id range — same 1+1+1 sequence as the legacy.
+  revelation: {
+    slot: 5, base_cost: 40, name: 'Revelation',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'ma' },
+          { add: [40, { member: { var: 'caster_idx' }, field: 'lv' }] },
+        ]},
+        then: [
+          { if: { cond: { eq: [{ var: 'place' }, 1] },
+            then: [
+              { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                    field: 'ma' } },
+                          op: 'sub',
+                          value: { add: [40, { member: { var: 'caster_idx' },
+                                                         field: 'lv' }] } }},
+              { if: { cond: { chance: 59 },
+                then: [
+                  { engine_call: 'clw' },
+                  { emit: 'spell.priest.revelation.nothing1' },
+                  { emit: 'spell.priest.revelation.nothing2' },
+                  { wait_input: true },
+                  { engine_call: 'clw' },
+                ],
+                else: [
+                  { engine_call: 'clw' },
+                  { emit: 'spell.priest.revelation.special1' },
+                  { emit: 'spell.priest.revelation.special2' },
+                  { pause: 1500 },
+                  { engine_call: 'clw' },
+                  { let: 'cat', value: { random: [0, 2] }},
+                  { switch: { expr: { var: 'cat' }, cases: [
+                    { match: 0, then: [
+                      { let: 'oc', value: { add: [{ random: [0, 13] }, 1] }},
+                    ]},
+                    { match: 1, then: [
+                      { let: 'oc', value: { add: [{ random: [0, 6] }, 36] }},
+                    ]},
+                    { match: 2, then: [
+                      { let: 'oc', value: { add: [{ random: [0, 11] }, 100] }},
+                    ]},
+                  ]}},
+                  { engine_bind: { fn: 'object', args: [{ var: 'oc' }],
+                                   var: 'oc_name' }},
+                  { emit: 'spell.priest.revelation.you_find' },
+                  { emit: 'spell.priest.revelation.object_dot' },
+                  { emit: 'spell.priest.revelation.take_prompt' },
+                  { emit: 'spell.priest.revelation.leave_prompt' },
+                  { menu_branch: { options: [
+                    { key: 'T', then: [
+                      { inv_add: {
+                          item: { var: 'oc' },
+                          added: [
+                            { emit: 'spell.priest.revelation.added_blank' },
+                            { emit: 'spell.priest.revelation.added_ok' },
+                            { pause: 800 },
+                          ],
+                          full: [
+                            { engine_call: 'clw' },
+                            { emit: 'spell.priest.revelation.cant_carry' },
+                            { pause: 800 },
+                          ],
+                      }},
+                    ]},
+                  ]}},
+                ],
+              }},
+            ],
+            else: [
+              { emit: 'spell.priest.revelation.dungeon_only1' },
+              { emit: 'spell.priest.revelation.dungeon_only2' },
+              { emit: 'spell.priest.revelation.dungeon_only3' },
+              { emit: 'spell.priest.revelation.dungeon_only4' },
+              { wait_input: true },
+              { engine_call: 'clw' },
+            ],
+          }},
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
   teleport:    { slot: 6, base_cost: 35, name: 'Teleport',    legacy_effect: 'teleport' },
   earthquake:  { slot: 7, base_cost: 55, name: 'Earthquake',  legacy_effect: 'earthquake' },
 }
