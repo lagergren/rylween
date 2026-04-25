@@ -24,6 +24,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* §22 Lane A: file-static pointer to the active in-combat ctx. Set by
+   play_spell_body and cleared on its way out so the surrounding
+   battle.c stack frame's mh[] / deadc[] live exactly as long as the
+   spell body runs. Out-of-combat callers (priest path via subs.c)
+   leave it NULL — monster_* exprs and ask_target monster_alive die
+   loudly when that's the case rather than touching freed memory. */
+static const struct script_combat_ctx *g_combat_ctx = NULL;
+
 /* Build the parent-path prefix for resolving relative {screen: 'name'}
    text ids. Script id "speak.erethor.first_visit" -> "speak.erethor".
    Writes into `out` (bounded); caller guarantees enough room. */
@@ -929,6 +937,73 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
 
     if (obj_get(n, "engine_int")) {
         return eval_engine_int(n, script_id, idx, bindings, env);
+    }
+
+    /* §22 Lane A: { monster_count } — read combat ctx noc.
+       { monster_hp: <expr> } / { monster_dead: <expr> } — read mh[idx]
+       / deadc[idx]. Index 1..noc; out of range / no ctx is fatal. */
+    if (obj_get(n, "monster_count")) {
+        if (!g_combat_ctx) {
+            die_at(script_id, idx,
+                   "expr monster_count: no combat ctx (called outside spell body)");
+        }
+        return g_combat_ctx->noc;
+    }
+    const node *mhp_n = obj_get(n, "monster_hp");
+    const node *mdd_n = obj_get(n, "monster_dead");
+    if (mhp_n || mdd_n) {
+        if (!g_combat_ctx) {
+            die_at(script_id, idx,
+                   "expr monster_hp/monster_dead: no combat ctx");
+        }
+        int32_t i = eval_expr(mhp_n ? mhp_n : mdd_n, script_id, idx,
+                              bindings, env);
+        if (i < 1 || i > g_combat_ctx->noc) {
+            die_at(script_id, idx,
+                   "expr monster_hp/monster_dead: idx out of range");
+        }
+        return mhp_n ? g_combat_ctx->mh[i] : g_combat_ctx->deadc[i];
+    }
+
+    /* §22 Lane A: { battle_flag: '<name>' } — read a per-encounter
+       flag through the combat ctx pointer table. Names map 1:1 to
+       struct script_combat_ctx fields (confused / held / antimagic /
+       ws). NULL pointer (caller didn't expose that flag) is fatal —
+       script authoring bug. Pair with the matching mutate lvalue. */
+    const node *bf_n = obj_get(n, "battle_flag");
+    if (bf_n) {
+        if (!g_combat_ctx) {
+            die_at(script_id, idx, "expr battle_flag: no combat ctx");
+        }
+        if (bf_n->kind != N_STR) {
+            die_at(script_id, idx, "expr battle_flag: name must be string");
+        }
+        int *p = NULL;
+        if (strcmp(bf_n->u.sv, "confused") == 0) {
+            p = g_combat_ctx->confused;
+        } else if (strcmp(bf_n->u.sv, "held") == 0) {
+            p = g_combat_ctx->held;
+        } else if (strcmp(bf_n->u.sv, "antimagic") == 0) {
+            p = g_combat_ctx->antimagic;
+        } else if (strcmp(bf_n->u.sv, "ws") == 0) {
+            p = g_combat_ctx->ws;
+        } else {
+            die_at(script_id, idx, "expr battle_flag: unknown name "
+                                   "(use confused/held/antimagic/ws)");
+        }
+        if (!p) {
+            die_at(script_id, idx,
+                   "expr battle_flag: pointer NULL — caller didn't expose flag");
+        }
+        return *p;
+    }
+
+    /* §22 Lane A: { state_banished } — read state.banished. Paired with
+       the state_banished lvalue used by priest.banish; not strictly
+       needed but symmetry-friendly so {state_banished} works inside an
+       if-cond. */
+    if (obj_get(n, "state_banished")) {
+        return state.banished;
     }
 
     die_at(script_id, idx, "expr: unknown expression form");
@@ -2061,12 +2136,22 @@ typedef enum {
     LV_HOURS_RESTED,
     LV_HOUR_OF_DAY,
     LV_TIME_LEFT,
+    /* §22 Lane A — combat-ctx-resident lvalues. Index encodes the
+       monster slot for monster_hp/_dead; battle_flag picks the
+       in-encounter int* (confused/held/antimagic/ws); state_banished
+       writes state.banished. */
+    LV_MONSTER_HP,
+    LV_MONSTER_DEAD,
+    LV_BATTLE_FLAG,
+    LV_STATE_BANISHED,
 } mutate_lv_kind;
 
 typedef struct {
     mutate_lv_kind kind;
-    int32_t index;     /* flag slot / inventory slot / member idx 1..4 */
-    const char *field; /* LV_MEMBER_FIELD only — borrowed AST string */
+    int32_t index;     /* flag slot / inventory slot / member idx 1..4 /
+                          monster idx 1..noc */
+    const char *field; /* LV_MEMBER_FIELD only — borrowed AST string;
+                          LV_BATTLE_FLAG reuses for the flag name */
 } mutate_lv;
 
 static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
@@ -2133,6 +2218,40 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
                    "mutate: member_field idx out of range");
         }
         return (mutate_lv){LV_MEMBER_FIELD, m, f_n->u.sv};
+    }
+    /* §22 Lane A combat-ctx targets: { monster_hp: <expr> },
+       { monster_dead: <expr> }, { battle_flag: '<name>' },
+       { state_banished: <any> }. The first two need 1..noc; the
+       battle_flag carries the flag name in `field`. ctx-NULL is
+       fatal so a script-author bug fires immediately. */
+    const node *mhp_n = obj_get(tgt, "monster_hp");
+    const node *mdd_n = obj_get(tgt, "monster_dead");
+    if (mhp_n || mdd_n) {
+        if (!g_combat_ctx) {
+            die_at(script_id, idx,
+                   "mutate monster_hp/monster_dead: no combat ctx");
+        }
+        int32_t i = eval_expr(mhp_n ? mhp_n : mdd_n, script_id, idx,
+                              bindings, env);
+        if (i < 1 || i > g_combat_ctx->noc) {
+            die_at(script_id, idx,
+                   "mutate monster_hp/monster_dead: idx out of range");
+        }
+        return (mutate_lv){mhp_n ? LV_MONSTER_HP : LV_MONSTER_DEAD,
+                           i, NULL};
+    }
+    const node *bf_n = obj_get(tgt, "battle_flag");
+    if (bf_n) {
+        if (!g_combat_ctx) {
+            die_at(script_id, idx, "mutate battle_flag: no combat ctx");
+        }
+        if (bf_n->kind != N_STR) {
+            die_at(script_id, idx, "mutate battle_flag: name must be string");
+        }
+        return (mutate_lv){LV_BATTLE_FLAG, 0, bf_n->u.sv};
+    }
+    if (obj_get(tgt, "state_banished")) {
+        return (mutate_lv){LV_STATE_BANISHED, 0, NULL};
     }
     die_at(script_id, idx, "mutate: unknown target shape");
 }
@@ -2205,6 +2324,33 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
             }
             die_at(script_id, idx, "mutate: member_field unknown field name");
         }
+        case LV_MONSTER_HP:
+            return g_combat_ctx->mh[lv->index];
+        case LV_MONSTER_DEAD:
+            return g_combat_ctx->deadc[lv->index];
+        case LV_BATTLE_FLAG: {
+            const char *f = lv->field;
+            int *p = NULL;
+            if (strcmp(f, "confused") == 0) {
+                p = g_combat_ctx->confused;
+            } else if (strcmp(f, "held") == 0) {
+                p = g_combat_ctx->held;
+            } else if (strcmp(f, "antimagic") == 0) {
+                p = g_combat_ctx->antimagic;
+            } else if (strcmp(f, "ws") == 0) {
+                p = g_combat_ctx->ws;
+            } else {
+                die_at(script_id, idx,
+                       "mutate battle_flag: unknown name");
+            }
+            if (!p) {
+                die_at(script_id, idx,
+                       "mutate battle_flag: pointer NULL — caller didn't expose");
+            }
+            return *p;
+        }
+        case LV_STATE_BANISHED:
+            return state.banished;
     }
     die_at(script_id, idx, "mutate: corrupt lvalue tag");
 }
@@ -2314,6 +2460,37 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
             }
             die_at(script_id, idx, "mutate: member_field unknown field name");
         }
+        case LV_MONSTER_HP:
+            g_combat_ctx->mh[lv->index] = (int)v;
+            return;
+        case LV_MONSTER_DEAD:
+            g_combat_ctx->deadc[lv->index] = (int)v;
+            return;
+        case LV_BATTLE_FLAG: {
+            const char *f = lv->field;
+            int *p = NULL;
+            if (strcmp(f, "confused") == 0) {
+                p = g_combat_ctx->confused;
+            } else if (strcmp(f, "held") == 0) {
+                p = g_combat_ctx->held;
+            } else if (strcmp(f, "antimagic") == 0) {
+                p = g_combat_ctx->antimagic;
+            } else if (strcmp(f, "ws") == 0) {
+                p = g_combat_ctx->ws;
+            } else {
+                die_at(script_id, idx,
+                       "mutate battle_flag: unknown name");
+            }
+            if (!p) {
+                die_at(script_id, idx,
+                       "mutate battle_flag: pointer NULL — caller didn't expose");
+            }
+            *p = (int)v;
+            return;
+        }
+        case LV_STATE_BANISHED:
+            state.banished = v;
+            return;
     }
     die_at(script_id, idx, "mutate: corrupt lvalue tag");
 }
@@ -2590,6 +2767,72 @@ static ops_result do_input_item(const node *op, const char *script_id, size_t id
     return play_ops(then_n, script_id, parent, bindings, env);
 }
 
+/* §22 Lane A: { ask_target: 'monster_alive', var: '<name>' } picks one
+   live monster from the combat ctx and binds the (1-based) index into
+   rt_env. The render loop reproduces battle.c:424-441 byte-for-byte —
+   `clw + battle.prompt.who` header, one "letter. Alive./Dead. (NNN hp)"
+   row per monster, keypress that must land on a live slot — so a DSL-
+   driven cast emits the exact same bytes as the legacy hand-rolled
+   monster picker. Fatal outside combat ctx.
+
+   { ask_target: 'party_member', var: '<name>' } prints "Who? (1-N)"
+   and loops on key() until pm_digit_in_range fires; binds the digit
+   1..party_max into rt_env. Mirrors the prompt every priest spell
+   uses to pick a target party member (subs.c). */
+static void do_ask_target(const node *op, const char *script_id, size_t idx,
+                          rt_env *env) {
+    const node *kind_n = obj_get(op, "ask_target");
+    const node *var_n = obj_get(op, "var");
+    if (!kind_n || kind_n->kind != N_STR) {
+        die_at(script_id, idx, "ask_target: kind must be string");
+    }
+    if (!var_n || var_n->kind != N_STR) {
+        die_at(script_id, idx, "ask_target: var must be string");
+    }
+    if (strcmp(kind_n->u.sv, "monster_alive") == 0) {
+        if (!g_combat_ctx) {
+            die_at(script_id, idx,
+                   "ask_target monster_alive: no combat ctx");
+        }
+        char str[16], d;
+        int i;
+        while (1) {
+            clw();
+            tx_fmt("battle.prompt.who", NULL);
+            for (i = 1; i < g_combat_ctx->noc + 1; i++) {
+                if (g_combat_ctx->deadc[i]) {
+                    strcpy(str, "Dead.");
+                } else {
+                    strcpy(str, "Alive.");
+                }
+                tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, g_combat_ctx->mh[i]);
+            }
+            d = key();
+            d = (char)toupper((unsigned char)d);
+            if (d >= 'A' && d <= 64 + g_combat_ctx->noc &&
+                !g_combat_ctx->deadc[d - 64]) {
+                break;
+            }
+        }
+        rt_bind_set(env, var_n->u.sv, (int32_t)(d - 64), script_id, idx);
+        return;
+    }
+    if (strcmp(kind_n->u.sv, "party_member") == 0) {
+        char d;
+        tx("Who? (1-%d)\r\n", res_party_member_max());
+        while (1) {
+            d = key();
+            if (pm_digit_in_range(d)) {
+                break;
+            }
+        }
+        rt_bind_set(env, var_n->u.sv, (int32_t)(d - '0'), script_id, idx);
+        return;
+    }
+    die_at(script_id, idx,
+           "ask_target: kind must be 'monster_alive' or 'party_member'");
+}
+
 /* §17-F: { loop: [...ops...] } — run the body repeatedly until an
    inner `{ break }` fires. `{ continue }` restarts the loop early;
    a natural fall-off of the end of the body also restarts (the
@@ -2829,6 +3072,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         return do_for_inventory(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "switch")) {
         return do_switch(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "ask_target")) {
+        do_ask_target(op, script_id, idx, env);
     } else {
         die_at(script_id, idx, "unknown op");
     }
@@ -2864,5 +3109,38 @@ void play_script(const char *script_id, const ryl_bind *bindings) {
     }
     if (r == OPS_CONTINUE) {
         ryl_die("play_script: `continue` with no enclosing loop");
+    }
+}
+
+/* §22 Lane A entry point. Same machinery as play_script but takes a
+   pre-resolved body node (from res_spell_node) and a combat ctx
+   pointer; spell_id is borrowed for diagnostics so a die_at fires
+   with "spells.mage.frost op N: ..." instead of an anonymous body.
+   The static g_combat_ctx is set on entry and cleared on exit so
+   any non-combat caller of script.c that runs while a spell body
+   is suspended (none today, but a future engine_call into a script
+   that itself called play_script would compose) sees NULL. */
+void play_spell_body(const char *spell_id, const struct node *body,
+                     const ryl_bind *bindings,
+                     const struct script_combat_ctx *ctx) {
+    const node *b = (const node *)body;
+    if (!b || b->kind != N_ARR) {
+        char buf[160];
+        snprintf(buf, sizeof buf,
+                 "play_spell_body: '%s' body not an array", spell_id);
+        ryl_die(buf);
+    }
+    char parent[256];
+    script_parent(spell_id, parent, sizeof parent);
+    const struct script_combat_ctx *prev = g_combat_ctx;
+    g_combat_ctx = ctx;
+    rt_env env = {{{0}}, 0};
+    ops_result r = play_ops(b, spell_id, parent, bindings, &env);
+    g_combat_ctx = prev;
+    if (r == OPS_BREAK) {
+        ryl_die("play_spell_body: `break` with no enclosing loop");
+    }
+    if (r == OPS_CONTINUE) {
+        ryl_die("play_spell_body: `continue` with no enclosing loop");
     }
 }

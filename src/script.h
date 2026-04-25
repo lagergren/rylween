@@ -3,6 +3,13 @@
 
 #include "primitives.h"
 
+/* Forward decl of the JSON5 node — script body access for play_spell_body
+   below. The struct lives in src/json5.h; we don't pull it in here so
+   battle.c / subs.c can include script.h without dragging in the parser
+   surface. Callers that already speak in nodes (battle.c via
+   res_spell_node) simply pass the void* through. */
+struct node;
+
 /* §16.4 + §17-E + §17-F dialogue / mission script interpreter.
  *
  * A script is an array node in the `scripts.*` subtree of data/world.json5
@@ -195,6 +202,37 @@
  * diagnostic naming the script id and op index.
  */
 void play_script(const char *script_id, const ryl_bind *bindings);
+
+/* §22 Lane A: combat context for in-battle spell `do:` bodies. battle.c
+   sets this struct's contents to the local mh[] / deadc[] / noc / fn /
+   per-encounter-flag pointers, calls play_spell_body, then lets the
+   pointers fall out of scope. The script DSL uses the ctx through a
+   file-static pointer in script.c (see script_combat_ctx_set / clear);
+   spell ops read combat state via expressions like { monster_hp: <expr> }
+   and { battle_flag: 'confused' } and write via the matching mutate
+   lvalues. NULL on out-of-combat callers (priest spells via subs.c) —
+   any monster_* / battle_flag access in that ctx dies loudly. */
+struct script_combat_ctx {
+    int noc;          /* live monster count (1..noc are valid indices) */
+    int *mh;          /* mh[0] unused; mh[1..noc] = current HP */
+    int *deadc;       /* deadc[0] unused; deadc[1..noc] = 0 alive / 1 dead */
+    const char *fn;   /* monster display name for caster.name-style binds */
+    int *confused;    /* per-encounter flags — NULL if the spell can't set */
+    int *held;
+    int *antimagic;
+    int *ws;          /* monster work-skill (mage.confusion halves it) */
+};
+
+/* §22 Lane A: run a spell `do:` body (a node*) under the script DSL.
+   `spell_id` is borrowed for diagnostics ("mage.frost"); `body` is the
+   N_ARR returned by res_spell_node. `bindings` carries caster_idx /
+   place / etc. as ryl_bind ints. `ctx` is non-NULL for in-combat casts
+   (battle.c) and NULL for the out-of-combat priest path (subs.c).
+   The static combat-ctx pointer is set on entry, cleared on exit so
+   nested calls (none today) would re-establish their own ctx. */
+void play_spell_body(const char *spell_id, const struct node *body,
+                     const ryl_bind *bindings,
+                     const struct script_combat_ctx *ctx);
 
 /* Whitelist introspection for fold-time validation in res.c::fold_scripts.
    Each returns the registry entry's argc (>=0) when <name> is a known
