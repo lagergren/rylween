@@ -634,13 +634,14 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
         die_at(script_id, idx, "expr: must be int or object");
     }
 
-    /* Legacy-cond guard: `{flag:5, eq:2}` shape is valid in eval_cond
-       only; as a bare expression it's ambiguous — die early with a
-       pointing diagnostic rather than silently returning the flag. */
+    /* `{flag:N, eq|ne:V}` was the legacy if.cond shorthand (retired);
+       diagnose it with a redirect to the expression form rather than
+       silently returning the flag value alone. */
     const node *flag_n = obj_get(n, "flag");
     if (flag_n && (obj_get(n, "eq") || obj_get(n, "ne"))) {
         die_at(script_id, idx,
-               "expr: legacy {flag:N, eq|ne:V} shape only valid in if.cond");
+               "expr: legacy {flag:N, eq|ne:V} shape retired — "
+               "use { eq: [{flag:N}, V] } or flag_value: for symbolic V");
     }
 
     if (flag_n) {
@@ -1772,83 +1773,13 @@ static ops_result do_chance(const node *op, const char *script_id, size_t idx,
     return play_ops(take, script_id, parent, bindings, env);
 }
 
-/* Evaluate an `if` condition object.
- *
- * Two accepted shapes:
- *
- *   Legacy shorthand (preserved for back-compat with earlier §17-E
- *   scripts, though no current script in the corpus uses it):
- *     { flag: <int|name>, eq: <int> }        flag slot == value
- *     { flag: <int|name>, ne: <int> }        flag slot != value
- *     { gold: { gte: <int> } }               party gold >= value
- *     { gold: { lt: <int> } }                party gold <  value
- *
- *   Bare expression (§17-F step 2 — preferred):
- *     any node accepted by eval_expr. Truthy (!= 0) -> 1, else 0.
- *
- * Disambiguation: the legacy shapes are identified by their distinctive
- * sibling-key pattern (flag + eq|ne siblings; gold with an object
- * value). Everything else falls through to eval_expr. */
+/* Evaluate an `if` condition object: any node accepted by
+ * eval_expr. Truthy (!= 0) -> 1, else 0. */
 static int eval_cond(const node *cond, const char *script_id, size_t idx,
                      const ryl_bind *bindings, const rt_env *env) {
     if (!cond || cond->kind != N_OBJ) {
         die_at(script_id, idx, "if: cond must be object");
     }
-    const node *flag_n = obj_get(cond, "flag");
-    const node *gold_n = obj_get(cond, "gold");
-    const node *eq_n = obj_get(cond, "eq");
-    const node *ne_n = obj_get(cond, "ne");
-
-    if (flag_n && (eq_n || ne_n)) {
-        int32_t slot;
-        const char *flag_id = NULL;
-        if (flag_n->kind == N_INT) {
-            slot = (int32_t)flag_n->u.iv;
-        } else if (flag_n->kind == N_STR) {
-            flag_id = flag_n->u.sv;
-            slot = res_flag_slot(flag_id);
-            if (slot < 0) {
-                die_at(script_id, idx, "if: unknown symbolic flag id");
-            }
-        } else {
-            die_at(script_id, idx, "if: flag must be int or string");
-        }
-        if (slot < 0 || slot >= pa_flag_count()) {
-            die_at(script_id, idx, "if: flag slot out of range");
-        }
-        int cur = pa_flag(slot);
-        const node *cmp_n = eq_n ? eq_n : ne_n;
-        int32_t cmp;
-        if (cmp_n->kind == N_INT) {
-            cmp = (int32_t)cmp_n->u.iv;
-        } else if (cmp_n->kind == N_STR) {
-            if (!flag_id) {
-                die_at(script_id, idx,
-                       "if: string eq/ne requires symbolic flag id");
-            }
-            cmp = res_flag_value_id(flag_id, cmp_n->u.sv);
-            if (cmp < 0) {
-                die_at(script_id, idx,
-                       "if: eq/ne value not in flag's values[] array");
-            }
-        } else {
-            die_at(script_id, idx, "if: flag eq/ne value must be int or string");
-        }
-        return eq_n ? (cur == cmp) : (cur != cmp);
-    }
-    if (gold_n && gold_n->kind == N_OBJ) {
-        int32_t cur = pa_gold();
-        const node *gte = obj_get(gold_n, "gte");
-        const node *lt = obj_get(gold_n, "lt");
-        if (gte && gte->kind == N_INT) {
-            return cur >= (int32_t)gte->u.iv;
-        }
-        if (lt && lt->kind == N_INT) {
-            return cur < (int32_t)lt->u.iv;
-        }
-        die_at(script_id, idx, "if: gold needs gte or lt");
-    }
-
     return eval_expr(cond, script_id, idx, bindings, env) != 0 ? 1 : 0;
 }
 

@@ -132,6 +132,11 @@
  *          | { item: '<name>'|<int> }    res_item_id('torch') etc.
  *          | { pic:  '<name>'|<int> }    res_enum_id('pic', ...)
  *          | { enum: ['<tab>','<val>'] } generic res_enum_id lookup
+ *          | { flag_value: ['<tag>','<val>'] }
+ *                                        res_flag_value_id lookup —
+ *                                        symbolic value of a flag's
+ *                                        values[] array, paired with
+ *                                        `{flag:'<tag>'}` for compares.
  *          | { engine_int: '<name>',     whitelisted int-returning
  *              args: [<expr>...] }       C entry point (argc enforced
  *                                        by registry). Current names:
@@ -146,11 +151,8 @@
  *                                        expressions (eg. if.cond,
  *                                        mutate.value, let.value).
  *
- *   `if.cond` also accepts two legacy shorthands for back-compat:
- *     { flag: <slot-or-name>, eq|ne: <int> }
- *     { gold: { gte|lt: <int> } }
- *   Anything else in the cond slot falls through to eval_expr with a
- *   truthy check.
+ *   `if.cond` is just an expression — eval_expr is run on the cond
+ *   node and the result is truthy-checked.
  *
  * §17-F step 3 — mutate + runtime bindings + input_number:
  *
