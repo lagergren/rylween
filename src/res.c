@@ -1223,7 +1223,8 @@ void res_realize_npcs(void) {
        ceil(N/T) + npc_slack guarantees total capacity T*cap >= N, so
        the linear probe below always finds a free bin. With today's
        N=23, T=5, slack=1 => cap=6 per bin. Both T and slot_max come
-       from the folded world tree — towns: and enums.name respectively. */
+       from the folded world tree — towns: and the npcs subtree's
+       largest declared `id:` respectively. */
     int T = 1 + (int)n_towns;
     int slot_max = npc_slot_max();
     int N = 0;

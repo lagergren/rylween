@@ -325,9 +325,9 @@ int res_building_hours(const char *name, int *opens_at, int *closes_at);
    cold-start only; the caller follows up with write_current_world(). */
 void res_realize_npcs(void);
 
-/* Highest valid NPC slot id in the current world. Derived from
-   enums.name's entry count (sentinel at 0, one name per populated
-   slot). Iterate NPCs as `for (i = 1; i <= res_npc_slot_max(); i++)`.
+/* Highest valid NPC slot id in the current world. Derived from the
+   largest `id:` declared in the npcs subtree, cached on first call.
+   Iterate NPCs as `for (i = 1; i <= res_npc_slot_max(); i++)`.
    Returns 0 before the world has loaded. */
 int res_npc_slot_max(void);
 
