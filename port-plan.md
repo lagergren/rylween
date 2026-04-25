@@ -2412,3 +2412,520 @@ design — just that the dynamic path doesn't wedge).
   etc.) apply identically at every slot, so a party of N=5
   still has to roll stats that pass each member's chosen
   class. Nothing new here beyond what N=4 already required.
+
+## 20. Code-as-data extraction queue (audit 2026-04-25)
+
+Comprehensive audit of every src/*.c file outside the engine plumbing
+(script.c, json5.c, snapshot.c, eval.c, primitives.c, ryl.c,
+compat.c, gfx.c, io_tty.c, res.c are excluded — those are mechanism,
+not content). Goal: list every place in the codebase where scenario
+content, balance numbers, narrative text, or hardcoded layouts live
+in C source instead of JSON5. Plus the related state-coupling debt:
+direct `state.p[state.cpl].FIELD` access bypassing the `pa_*` /
+`pm_*` / `inv_*` / `res_*` abstractions.
+
+This section is a punch list, not a sequencing plan — the order
+inside each bucket is the natural read order, not the work order.
+Sequencing notes are at the bottom.
+
+Related memory:
+- `feedback_state_abstraction.md` — abstraction-routing rule
+- `feedback_battle_data_extraction.md` — earlier sketch (folded
+  into this section but still relevant for the "why")
+- `project_full_game_gate.md` — the migration → snapshot → longplay
+  → harness end goal that this work feeds into
+
+### 20.1 Categories used
+
+For each file we list offenders by category:
+
+  A. **Scenario-as-switch / literal table** — switch arms where the
+     body is "set field X = literal Y" (data, not control flow), or
+     `static const T table[] = {...}` records baking scenario specs
+     into C source.
+  B. **Magic balance numbers** — numeric literals representing
+     balance or scenario choices, not engine mechanics. Multipliers,
+     thresholds, percentages, magic dimensions.
+  C. **Direct `state.*` access** — sites that read or mutate
+     `state.p[state.cpl].FIELD` (or `state.<global>`) directly
+     instead of going through `pa_*` / `pm_*` / `inv_*` / `res_*`.
+  D. **Hardcoded narration** — `tx("English text\r\n")` calls in C
+     instead of `res_text("namespaced.id")` lookups.
+  E. **Hardcoded paths** — `fopen("data/...")` / `disptext("data/...")`
+     literals that should go through a `res_path()` helper.
+  F. **Unwired DSL hooks** — `rdie(...)` / "not yet wired" markers
+     for engine ops the DSL surface promises but the runtime
+     refuses.
+
+### 20.2 battle.c (890 lines, ~70 raw `state.*` sites)
+
+A. Scenario tables masquerading as switches:
+- battle.c:181-390 — `switch (oc)` item-use dispatch in combat.
+  11 magic items (ids 100..111), each arm hardcodes inventory slot
+  consumption, damage range, target effect, and narration text.
+  Migration: items.json5 entries get an `effect: {...}` payload
+  describing damage/target/text. Engine becomes generic `apply_item_effect`.
+- battle.c:449-524 — `switch (s->effect)` spell effect dispatch
+  (SE_FIRE, SE_CONFUSION, SE_DEATH, SE_HOLD, SE_ANTIMAGIC). DSL
+  spell-effect path already exists (lines 436-447); finish it and
+  retire the switch.
+- battle.c:685-744 — `switch (ryl_random(0, 3))` monster-magic
+  dispatch (frost/fire/hold/confuse). Belongs in monsters.json5
+  per-monster spell pool with damage scaling expression.
+
+B. Magic balance numbers:
+- battle.c:65 — `((lv[1]+lv[2]+lv[3]+lv[4])/4) * 2` party-avg HP
+  scaling
+- battle.c:67 — `lv[1] * 2`, line 69 `lv[1] * 3` leader HP scaling
+- battle.c:74-75 — `noc > 8` foe-count cap
+- battle.c:80 — `ws += lv[1]` weapon-skill bonus
+- battle.c:191, 209, 452 — spell damage multipliers (1-4x, 3-8x)
+- battle.c:629-630 — victory rewards `(noc * h2/4 * ws/4)` exp,
+  `(noc * h2/7 * ws/4)/4` gold
+- battle.c:696 — `h2 / 5` monster magic damage divisor
+- All extract to `data/world/balance/combat.json5` keyed by
+  formula name (encounter_hp_party_factor, leader_hp_factor,
+  foe_count_cap, weapon_skill_leader_bonus, etc.).
+
+C. Worst raw-state offenders:
+- battle.c:65-80 (encounter scaling, repeated `lv[1..4]` reads)
+- battle.c:138-143 (combat loop, per-member name/dead/cls reads)
+- battle.c:181-390 (item arms, per-slot inventory mutations)
+- battle.c:542-600 (spell casting, target indexing)
+- Already-pattern: lines 397-443 use `pm_cur(g)` + `pm_*` —
+  generalise outward from there.
+
+D. Hardcoded narration (sample, not exhaustive):
+- battle.c:37 "ENCOUNTER!\r\n", line 97 "You face\r\n"
+- battle.c:132 "Blood shall flow!\r\n"
+- battle.c:141 "What now?\r\n", line 160 "Use what?\r\n"
+- battle.c:383-386 Flute of Madness narration
+- battle.c:687 "Frost Finger\r\n", line 710 "Cloud of Fire!\r\n",
+  line 731 "Hold Creature!\r\n", line 738 "Confusion!\r\n"
+- battle.c:763 "And hits for\r\n", line 777 "Blow misses!\r\n"
+- All move to `data/world/scripts/battle.json5` text subtree
+  (model: existing `battle.run.coward` / `battle.run.fail_away`
+  res_text usage at lines 112-125).
+
+E. None.
+
+F. None.
+
+### 20.3 dungeon.c (915 lines) — the worst offender
+
+A. Scenario tables:
+- dungeon.c:30-78 — **the canonical worst case.** `switch (flag)`
+  mapping scenario flag (1..8) to which dungeon levels carry which
+  encounter id. Pure scenario layout:
+    flag 1 → Fire Shield Guardian (lvl[19]=20) + Fire Shield (lvl[20]=21)
+    flag 2 → Thun riddles on lvl[4,8,12,18] + Bracelets (lvl[18]=25)
+    flag 3 → Nolrim's Tomb chain (lvl[12..20])
+    flag 4 → Master Crown (lvl[10]=29)
+    flag 5 → Silver Sanctum (lvl[20]=30)
+    flag 6 → Hobgoblin chain (9 level assignments)
+    flag 7 → Orc Nest + Tammy's Prison (lvl[6,7])
+    flag 8 → Erethor + Lute chain (lvl[3,7,12])
+  Migration: `data/world/dungeons.json5` array of scenario
+  descriptors, each with `levels: N` + `encounters: [{level, id}]`.
+  Engine `dungeon(flag)` becomes a one-line lookup + dispatch.
+
+- dungeon.c:117-803 — `switch (lvl[cl])` over encounter ids 0..38.
+  Each case is a per-encounter scenario event:
+    1: find an object (3 item-pool branches with id ranges
+       1..14 / 36..42 / 39..46 / 100..111)
+    2: find gold
+    3..5: encounter
+    6,7: nothing
+    8: chest with `ryl_random(40, 339)` gold
+    9: torches
+    20: Fire Shield Guardian
+    21: Fire Shield
+    22..24: Thun riddles
+    25: Bracelets of Thun
+    26: Spectrum message
+    27: Colour riddle
+    28: Nolrim's Tomb + Reebar
+    29: Master Crown
+    30: Silver Sanctum
+    31: Hobgoblin patrol
+    32-34: Royal Guard chain
+    35: Orc Nest
+    36: Tammy's Prison
+    37: Priests of Erethor
+    38: Chamber of the Lute
+  Migration: `data/world/scripts/dungeon.json5` with conditional
+  branches (`if lvl == 20 then ...`). The encounter id space (0..38)
+  itself becomes a `res_enum("dungeon_encounter", "fire_shield")`
+  set, retiring the numeric soup.
+
+B. Magic balance:
+- dungeon.c:28 — `ryl_random(1, 9)` per-level encounter roll
+- dungeon.c:163 — `ryl_random(40, 339)` chest gold range
+- dungeon.c:210, 217 — trap-disarm thief chance (4-in-10, 2-in-10)
+- dungeon.c:225-264 — trap damage `4 * lv[i]`, chest gold
+  `ryl_random(0, 99) + 20 + exp[1]/500 + 300`
+- dungeon.c:473-475 — colour-puzzle hardcoded answer binding
+
+C. Raw-state hot spots:
+- dungeon.c:166, 267, 277 — `state.p[cpl].gold` mutations
+- dungeon.c:214, 253, 264 — `lv[i]` reads in trap scaling
+- dungeon.c:675-795 — `name[i]` / `dead[i]` reads in narrative
+
+D. Massive narration blocks (lines 97, 142, 192, 227-250, 286-793).
+   Migrate alongside the level switch — separating text from logic
+   is what the DSL exists for.
+
+E. None.
+
+F. None directly, but the level switch is a `play_script` migration
+   target — once §20.7 lands, replace the dispatch wholesale.
+
+### 20.4 driv.c (1704 lines)
+
+A. None pure-scenario (the main-loop switch at 90-242 is dispatcher
+   logic — keep). Menu text lines 93/112/126/140 should use res_text.
+
+B. Magic numbers:
+- driv.c:24 — `hours_rested = 14` initial
+- driv.c:176 — `c(49, 6)` magic cursor coords (one of multiple)
+- driv.c:294-303 — time-of-day boundaries (dawn 6-11, midday
+  12-17, twilight 18-23, midnight 24-5)
+- driv.c:305, 311 — hunger threshold `food < pl * 3`
+- driv.c:341-342 — `ryl_random(5, 74)` x-bound, `ryl_random(5, 34)`
+  y-bound for `position_locations()`
+- driv.c:343-344 — tile blacklist literal chars `'w'/'m'/'0'/'1'/'2'`
+- driv.c:334-339 — `15` location slots, `1..9` placed
+- driv.c:365 — `for (i = 1; i < 41; i++)` map row count
+- driv.c:401 — `time_left = 175` daily play-time budget
+- All extract to `data/world/balance/upkeep.json5` and a new
+  `data/world/map.json5` (or extend world.json5) with map
+  dimensions / safe-zone bounds / passable-tile class.
+
+C. Direct state access (177 sites — highest count of any file).
+   Most are unavoidable in main-loop dispatch. Targets:
+- driv.c:96-148 movement arms repeat the `!= 'm' && != 'w'` tile
+  blacklist — extract `wld_is_passable(tile)` helper.
+- driv.c:101, 115, 129, 143 `state.map[y][x]` reads — wrap with
+  `wld_tile_at(x, y)`.
+
+D. Mostly already res_text. Remaining:
+- driv.c:1430-1654 — character stats display (showparty / show)
+  has `tx("Stats for char: %d\r\n", g)`, `tx("Weapon Skill : %2d\r\n", ...)`,
+  etc. Move to res_text fmt strings.
+- driv.c:1444 — `tx("Give Character %d a name!\r\n", g)`.
+
+E. Hardcoded paths (12+ sites):
+- driv.c:51, 167, 178, 384, 412, 464, 470, 477, 483, 492, 498, 503,
+  509 — `disptext("data/ansi/<name>.ans")`
+- driv.c:358 — `fopen("data/map.dat", "rb")`
+- Wrap with `res_ansi_path("name")` and `res_map_path()`.
+
+F. None.
+
+### 20.5 subs.c (1271 lines, 123 raw `state.*` sites)
+
+A. Scenario-as-switch:
+- subs.c:628-667 — `switch (oc)` potion-use dispatch (3 cases:
+  ids 36 healing, 37 poison, 38 mana restore). Each arm has its
+  own effect formula and narration. Migration: items.json5 gains
+  a `category: 'potion'` typed class with declarative `effect`
+  spec — `{ kind: 'heal', amount: { add: [15, { var: 'lv' }] } }`
+  etc. Engine `apply_potion()` becomes one generic call. Same
+  pattern naturally extends to scrolls, food, torches.
+
+B. Balance numbers:
+- subs.c:495-527 — temperature damage thresholds (temp 6-9 low,
+  ≥10 very low; 5 hp damage per tick — note line 522 may have
+  the very-low arm using same `5` as low arm, possible bug)
+- subs.c:535-539 — rest restore `hours_rested = 14`, food cost
+  `4 * pl`
+- subs.c:547-568 — ambush `ryl_chance(19)`, random death pick
+  `ryl_random(1, 4)`
+- subs.c:634, 646 — potion heal/poison `15 + level`
+- subs.c:705-706 — hunt success `ryl_chance(45)`, food gain
+  `ryl_random(10, 19) + lv[1]`
+- All extract to `data/world/balance/{rest,wilderness,hunt}.json5`.
+
+C. Direct-state hotspots:
+- subs.c:72-106 — sleep cycle: `hours_rested--`, per-member
+  `hp[i]--` damage. Use `pm_add_hp(slot, delta)` once it exists.
+- subs.c:244-297 — drop/swap weapon/armour: direct `wp[i] = 0`,
+  `ar[i] = 0`, `inventory[x] = ...`. Use pm + inv abstractions.
+- subs.c:396-412 — inventory item-use dispatch (food cap fix-up,
+  torch consumption). Direct `inventory[d-64]`, `food = cap`.
+- subs.c:432-440 — rest gate: `dead[1] && dead[2] && dead[3] && dead[4]`
+  hardcoded 4-member loop (should be `pa_count_alive() == 0`).
+- subs.c:506-524 — temperature damage loop: per-member hp
+  decrement.
+
+D. Narration (sample):
+- subs.c:455 "Camp.", 490 "Post a guard?", 502 "Zzz...", 514
+  "Horrible pain sears...", 556 "Ambush!!!", 572 "You wake up
+  8 hours later..."
+- Move to `data/world/scripts/{rest,hunt}.json5` text subtrees.
+
+E. None.
+
+F. None.
+
+### 20.6 towne.c (389 lines)
+
+A. towne.c:217 — `has_church = (state.twn == 1 || state.twn == 3)`
+   hardcoded town ids. Migration: `data/world.json5` towns array
+   gets a `has_church: true/false` per record. Same pattern for
+   any other "only towns N and M have feature X" checks.
+
+B. Magic numbers:
+- towne.c:148 — `lv[1] < 5` minimum level for tax (parameterise)
+- towne.c:151-152 — tax formula `(gold * tax) / 100` is fine
+  (`tax` already res-driven), but the `100` divisor is implicit
+  percent — could be res_path("balance.tax_divisor") for clarity.
+
+C. Direct state: lines 174, 189, 194, 199-200 — `state.p[cpl].x/y`,
+   `state.map[y][x]`, `state.twn` for town entry flow. The enter()
+   migration depends on `pa_x()`, `pa_y()`, `wld_tile_at()`,
+   `pa_first_level()` helpers landing first.
+
+D. Mostly migrated.
+
+E. None new.
+
+F. None.
+
+### 20.7 ydarg.c (554 lines)
+
+A. ydarg.c:234-275 — `switch (d - 48)` four special-item arms
+   (fireshield, mastercrown, jazzyfoot, bracelets). Each checks
+   `state.p[state.cpl].FIELD == 0` and consumes the item.
+   Migration: table of `[item_flag, gate_text, success_text]`
+   tuples in `data/world/scripts/ydarg.json5`.
+
+B. Quest-specific magic numbers throughout (item ids, room ids,
+   gold rewards) — each will surface during the migration.
+
+C. Heavy `state.p[cpl].FIELD` access (lines 105, 115, 142, 236-272).
+   Same abstraction story as battle.c.
+
+D. Mostly migrated to res_text.
+
+E. None.
+
+F. None.
+
+### 20.8 speak.c (765 lines) — dialog DSL is mature, BUT
+
+A. **Mission-stage tables baked as C arrays.** speak.c:355-399
+   has `static const mission_stage stages_<role>[]` for merchant /
+   ranger / fighter / wizard_robbed / priest / erethor_bard. Each
+   record is a flag-condition + script-id + binding spec. Pure
+   scenario data living in C source. Migration: `data/world/missions.json5`
+   (or new `data/world/speak_missions.json5`) gains an array of
+   stage records keyed by NPC role. The struct is well-formed
+   enough for a near-mechanical lift.
+
+A.2 **jazzy_ogre_trader inline flow.** speak.c:720-758 —
+   hardcoded inventory key range `'A'..'P'` (line 736), magic
+   item-id threshold `oc < 35` (line 738), magic location index
+   `state.dx[7]` / `state.dy[7]` for "Beast Cave" (lines 746-747),
+   direct `state.p[cpl].inventory[d-64]` mutation (line 757),
+   hardcoded English in `journalf("The 'Beast Cave' is at %dx%d.", ...)`
+   (line 755). Should be a `speak.jazzy_ogre.*` script with a
+   reward op (already exists in DSL).
+
+A.3 speak.c outer dispatch (lines 179-259) hardcodes keypress
+   chars (`'B'`, `'R'`, `'C'`, `'Q'`, `'P'`) — the dispatch shape
+   itself is fine but should match the menu_branch shape used
+   elsewhere.
+
+B. speak.c:248 — lodge price `50 * lv[1]` (50 gold per leader
+   level). Per-NPC pricing constants embedded throughout. Move
+   to `data/world.json5` NPC role records.
+
+C. Heavy `state.p[cpl].lv[1]` and `gold` reads in pricing logic
+   (lines 121-145, 248-265).
+
+D. Mostly migrated; speak.c:187 chitchat uses res_text.
+
+E. None.
+
+F. None in speak.c itself.
+
+### 20.9 interact.c (59 lines) — entirely an offender
+
+The whole file is `check_terrain(char old, char new)`:
+- interact.c:5-59 — `switch (new)` over terrain chars
+  (`'s'/'1'/'0'/'f'/'d'/'t'/'g'/'2'`), each arm writes 1-6 lines
+  of hardcoded English narration.
+- interact.c:9 — `ryl_chance(9)` 9% trigger rate (magic).
+- interact.c:6 — only matches on transitions where `old != new`,
+  but doesn't actually use `old` for narration shape.
+
+**Extension idea (user-flagged):** the data model should support
+`old → new` transition arcs, not just per-new descriptions.
+Entering a desert from grasslands should be able to read
+differently than entering from a forest. Schema: a sparse
+transition matrix in `data/world/scripts/terrain.json5` —
+default per-terrain narration plus optional `transitions: { from:
+{ to: ... } }` overrides.
+
+Migration: `data/world/scripts/terrain.json5`, with the trigger
+rate as a `chance` field. Engine becomes a thin
+`check_terrain(old, new)` that dispatches into the script.
+
+### 20.10 missions.c (292 lines)
+
+A. **Already gold-standard.** missions.c lines 78-143 use
+   `mission_triggers[]` table + DSL dispatch. Use this as the
+   reference shape for everything else in this section.
+
+   But: missions.c:148 still has `switch (t->kind)` and 167
+   `switch (b->kind)` that dispatch to per-trigger handlers —
+   those are engine logic (interpreter), so keep.
+
+B. Per-mission balance bits already in data.
+
+C. Lower coupling than peer files but still some `state.*` —
+   sweep on contact.
+
+D. Mostly migrated.
+
+E. None.
+
+F. None directly. (See §20.12 for the unwired hooks in eval.c.)
+
+### 20.11 party.c, inventory.c — abstraction layers
+
+These are the abstraction layer the rest of the code should be
+calling. No scenario data baked in. Used as the reference
+pattern for `pa_*` / `inv_*` callers.
+
+One nit: inventory.c:67-84 `tag_to_which()` hardcodes a small
+enum map (fireshield → PS_FIRESHIELD etc.). Acceptable as a
+bridge today; should auto-generate from items.json5 special
+tags eventually.
+
+### 20.12 Unwired DSL hooks (eval.c)
+
+- eval.c:1267-1268 — `spawn_encounter`: rdie "engine hook not
+  wired up". The DSL surface promises this op (eval.c:436, 469
+  parser-side) but the runtime refuses.
+- eval.c:1270-1271 — `call`: rdie "lib subtree not yet
+  consulted". Library-routine dispatch, also promised but unwired.
+
+These are honest TODOs in the runtime. Wiring them likely
+unblocks several mission scripts that today have to fall back
+to inline C.
+
+### 20.13 Cross-file patterns
+
+Recurrent literals worth a single-source-of-truth helper:
+
+- `state.p[state.cpl].lv[1]` (leader level): 70+ sites across
+  battle / dungeon / subs / speak / ydarg. Helper:
+  `pa_first_level()` (party.h).
+- `state.p[state.cpl].pl` (alive count): 15+ sites. Helper:
+  `pa_alive_count()`.
+- `state.p[state.cpl].gold`: 20+ sites. Helpers: `pa_gold()`,
+  `pa_gold_add(delta)`.
+- Food consumption `* state.p[cpl].pl`: subs.c:39, 305, 311, 536,
+  539. Parameterise as `upkeep.food_cost_per_member`.
+- Map-passable test `tile != 'm' && tile != 'w'`: driv.c:101,
+  115, 129, 143; subs.c (terrain check). Helper:
+  `wld_is_passable(tile)`.
+- `state.p[cpl].x/y`: many sites. Helpers: `pa_x()`, `pa_y()`.
+- `state.map[y][x]`: many sites. Helper: `wld_tile_at(x, y)`.
+- Per-member equipment access (`wp[i]` / `ar[i]`): many sites.
+  Helpers: `pm_has_weapon(slot)`, `pm_has_armour(slot)`.
+- `ryl_chance(N)` percentage gates: 50+ sites total. Already
+  data-driven where convenient (wilderness / missions); the
+  remaining hardcodes should move to balance.json5 per-context.
+
+### 20.14 Sequencing — TINY / SMALL / LARGE buckets
+
+**TINY (single PR, no prerequisites):**
+
+- T1. interact.c → `data/world/scripts/terrain.json5`. Whole file
+  is 59 lines of pure data. Adds the optional `transitions: { from:
+  { to: ... } }` shape.
+- T2. towne.c:217 `has_church` → world.json5 town record field.
+- T3. driv.c hardcoded ANSI paths (12+ sites) → `res_ansi_path()`
+  helper.
+- T4. driv.c `fopen("data/map.dat", "rb")` → `res_map_path()`.
+- T5. inventory.c special-tag bridge (`tag_to_which`) — auto-gen
+  hook, low priority.
+
+**SMALL (1-2 sessions, may need a small abstraction first):**
+
+- S1. **Add the missing `pa_*` / `pm_*` / `wld_*` helpers**:
+  `pa_x`, `pa_y`, `pa_gold`, `pa_first_level`, `pa_alive_count`,
+  `pm_has_weapon`, `pm_has_armour`, `pm_add_hp`, `wld_tile_at`,
+  `wld_is_passable`. Pure-add commit, no behaviour change. Gates
+  green via existing fixtures.
+- S2. **State-coupling sweep** — retrofit battle.c, subs.c,
+  dungeon.c, ydarg.c to use the S1 helpers instead of raw
+  state.*. One commit per file. Byte-identical.
+- S3. **enter() migration** — once S1 lands, the towne.c::enter()
+  migration the user originally asked for becomes clean.
+- S4. **Potion category in items.json5** — declarative effect
+  spec for ids 36/37/38; replace subs.c:628-667 switch with
+  generic `apply_potion`. Pattern then extends to scrolls / food.
+- S5. **Battle balance constants** → combat.json5 (encounter
+  HP scaling, foe-count cap, ws bonus, victory rewards).
+- S6. **Wilderness / rest balance constants** (subs.c
+  thresholds, ambush %, hunt %) → balance subtree.
+- S7. **Wire `spawn_encounter` and `call` DSL ops** (eval.c:1267-1271).
+  Each is its own commit; both unblock currently-inline mission
+  flows.
+- S8. **speak.c stages_*[] tables** → speak_missions.json5. The
+  struct shape is already well-formed; near-mechanical lift.
+- S9. **speak.c jazzy_ogre_trader flow** → speak.jazzy_ogre.*
+  script with reward op.
+- S10. **Map dimensions / passable tile class** → world.json5
+  map subtree, replacing driv.c:341-365 magic 41/74/34 + tile
+  blacklist.
+
+**LARGE (multi-session epic):**
+
+- L1. **dungeon.c:30-78 special-encounter switch** →
+  dungeons.json5 scenario descriptor array. Engine `dungeon(flag)`
+  becomes a lookup + dispatch.
+- L2. **dungeon.c:117-803 level-event switch** → dungeon.json5
+  scripts with conditional branches. ~700 LOC of C → ~50 lines
+  of JSON5. The mother of all extractions. Prerequisite: L1
+  done, plus encounter-id enum (`res_enum("dungeon_encounter", ...)`).
+- L3. **battle.c item-effect switch** (181-390, 11 magic items)
+  → items.json5 effect specs + generic `apply_item_effect`.
+  Prerequisite: DSL effect-syntax (damage formula, target
+  selector, text template) per effect kind.
+- L4. **Spell DSL completion** — finish migrating battle.c:449-524
+  spell switch into the DSL spell-effect path that already exists
+  at lines 436-447. Retire the switch.
+- L5. **Monster magic table** (battle.c:685-744) →
+  monsters.json5 per-monster spell pool with damage scaling
+  expression.
+- L6. **Battle narration sweep** → `data/world/scripts/battle.json5`
+  text subtree (~30 hardcoded `tx()` strings).
+- L7. **Camp / hunt / lodge / tavern flow lifts** — convert
+  inline subs.c / towne.c flows into `data/world/scripts/{rest,
+  hunt,lodge,tavern}.json5`. Last of these is the longplay-
+  fixture prerequisite (per project_full_game_gate.md).
+
+### 20.15 Prerequisites & ordering
+
+The cleanest dependency order is:
+
+  1. T1, T2, T3, T4 (TINY, parallel) — buy quick clarity wins.
+  2. S1 (helpers) — unblocks every later state-coupling reduction.
+  3. S2 (sweep) and S7 (unwired hooks) in parallel — both improve
+     the platform before the heavy lifts.
+  4. S3 (enter migration) and S4 (potion category) — first uses
+     of the new helpers in real migrations.
+  5. S5, S6, S8, S9, S10 — incremental data extractions.
+  6. L1 → L2 (dungeon stack) — sequential.
+  7. L3 → L4 → L5 (combat data stack) — sequential.
+  8. L6, L7 — independent of the others; can land any time after
+     S1-S2.
+
+The full-game gate (project_full_game_gate.md) wants L7's flow
+lifts done before the longplay fixture, so any session focused
+on that goal should pick L7 items.
