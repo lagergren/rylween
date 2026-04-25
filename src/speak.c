@@ -245,36 +245,18 @@ void speak(int32_t bld, int32_t tow) {
             if (d == 'L') {
                 tx("\r\n");
                 if (npc_job(talker) == res_enum_id("jobname", "Bargirl")) {
+                    /* §20 L7: bargirl interactive flow lifts to
+                       data/world/scripts/lodge.json5 (lodge.bargirl).
+                       Wrapper resolves the leader-level fee and hands
+                       it as the `price` binding — used both as the
+                       {price} text placeholder and as the int gold
+                       threshold via {var:'price'}. */
                     char price[16];
-                    int32_t fee = 50 * pa_first_level();
-                    snprintf(price, sizeof price, "%d", fee);
-                    clw();
-                    tx_fmt("speak.lodge.j13.offer",
-                           (ryl_bind[]){
-                               {"price", price},
-                               {0},
-                           });
-                    tx("  %s", res_text("common.yes"));
-                    tx("  %s", res_text("common.no"));
-                    c = key();
-                    c = toupper(c);
-                    if (c == 'Y') {
-                        if (pa_gold() < fee) {
-                            clw();
-                            tx0(res_text("speak.lodge.j13.broke"));
-                            ryl_delay(2000);
-                        } else {
-                            pa_add_gold(-fee);
-                            clw();
-                            tx0(res_text("speak.lodge.j13.spent"));
-                            for (i = 1; i <= res_party_member_max(); i++) {
-                                pm_t pm = pm_cur(i);
-                                if (pm_hp(pm) > 1) {
-                                    pm_add_hp(pm, -1);
-                                }
-                            }
-                        }
-                    }
+                    snprintf(price, sizeof price, "%d", 50 * pa_first_level());
+                    play_script("lodge.bargirl", (ryl_bind[]){
+                        {"price", price},
+                        {0},
+                    });
                 } else {
                     txi("speak.lodge.j%d", npc_job(talker));
                 }
