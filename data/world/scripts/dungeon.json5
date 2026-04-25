@@ -1,0 +1,41 @@
+// §20 L2: dungeon level-event scripts. dungeon.c's main while-loop
+// dispatches by lvl[cl] — the integer encounter id stored in lvl[].
+// For each migrated case, the C arm is replaced by a single
+// play_script("dungeon.<symbol>") call; the symbol matches the
+// world.json5 enums.dungeon_encounter table. Unmigrated cases stay
+// in the C switch.
+//
+// Texts paired here live under data/world/texts/dungeon.json5; the
+// resolve_text_id "<script_id>.<name>" → "<parent>.<name>" two-step
+// (project_text_resolution.md) means scripts can reference text
+// names directly.
+//
+// Byte-identity convention: the C side calls clw() at the top of
+// every main-loop iteration before dispatch. Cases that had an extra
+// clw() in the body need an explicit { engine_call: 'clw' } here so
+// the output stream stays exactly equivalent.
+{
+  // case 6: "You find nothing special on this level."
+  // C side still does `lvl[cl] = 0` after play_script returns; the
+  // script owns only the visible side effects. No clw in the original
+  // body (the loop's leading clw is enough), so none here either.
+  nothing_a: [
+    { emit: 'nothing_a' },
+    { wait_input: true },
+  ],
+
+  // case 7: "This level is empty."
+  nothing_b: [
+    { emit: 'nothing_b' },
+    { wait_input: true },
+  ],
+
+  // case 26: Spectrum-Message wall plaque (Reebar's Tomb, level 12).
+  // Original body opens with an explicit clw(); preserve it so the
+  // byte stream is unchanged.
+  spectrum_message: [
+    { engine_call: 'clw' },
+    { emit: 'spectrum_message' },
+    { wait_input: true },
+  ],
+}

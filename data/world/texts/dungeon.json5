@@ -1,0 +1,29 @@
+// §20 L2: dungeon level-event texts. Authored alongside scripts at
+// data/world/scripts/dungeon.json5; resolve_text_id resolves
+// `dungeon.<name>` from each script via the script-id → parent
+// fallback. Array entries get CRLF appended per fold_texts.
+{
+  // case 6 — empty level (variant a).
+  nothing_a: [
+    'You find nothing',
+    'special on this level.',
+    '',
+  ],
+
+  // case 7 — empty level (variant b).
+  nothing_b: [
+    'This level is empty.',
+    '',
+  ],
+
+  // case 26 — Spectrum-Message plaque on the wall (Reebar's Tomb).
+  spectrum_message: [
+    'A message on the wall',
+    'reads:',
+    '',
+    "'M U R T C E P S'",
+    "THiNgs aren't aLways iN",
+    'theIR naTuRAl oRDeR...',
+    '',
+  ],
+}

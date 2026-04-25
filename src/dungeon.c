@@ -7,6 +7,7 @@
 #include "inventory.h"
 #include "party.h"
 #include "primitives.h"
+#include "script.h"
 #include "subs.h"
 #include "towne.h"
 
@@ -69,6 +70,29 @@ void dungeon(int32_t levels, int32_t flag) {
 
     while (1) {
         clw();
+
+        /* §20 L2: data-driven dispatch. lvl[cl] is an encounter id
+           (0..38); look up its symbol via the dungeon_encounter enum
+           and play `dungeon.<symbol>` if a script is registered.
+           Reset lvl[cl] unless the encounter is in dungeons.recurring
+           (default reset-after-fire matches the legacy
+           `lvl[cl] = 0` lines). Slot 0 / 10..19 are sentinels — the
+           enum returns "" so no script fires and the loop falls
+           through to the legacy switch (still home to unmigrated
+           cases). The post-switch `if (cl >= 20)` catchall stays
+           until every level-20+ case has been migrated. */
+        const char *enc_sym = res_enum("dungeon_encounter", lvl[cl]);
+        if (enc_sym[0]) {
+            char script_id[96];
+            snprintf(script_id, sizeof script_id, "dungeon.%s", enc_sym);
+            if (res_script(script_id)) {
+                play_script(script_id, NULL);
+                if (!res_dungeon_encounter_recurring(enc_sym)) {
+                    lvl[cl] = 0;
+                }
+                goto post_event;
+            }
+        }
 
         switch (lvl[cl]) {
             case 0:
@@ -141,18 +165,6 @@ void dungeon(int32_t levels, int32_t flag) {
                 clr_map_window();
                 blitgfx(insidecavepic);
                 clw();
-                break;
-
-            case 6:
-                tx("You find nothing\r\n");
-                tx("special on this level.\r\n\r\n");
-                lvl[cl] = 0;
-                ryl_pause();
-                break;
-            case 7:
-                tx("This level is empty.\r\n\r\n");
-                lvl[cl] = 0;
-                ryl_pause();
                 break;
 
             case 8:
@@ -387,16 +399,6 @@ void dungeon(int32_t levels, int32_t flag) {
                 clw();
                 party_award_special(PS_BRACELETS);
                 pa_flag_set("bracelets.thun", "bracelets_taken");
-                break;
-
-            case 26:
-                clw();
-                tx("A message on the wall\r\n");
-                tx("reads:\r\n\r\n");
-                tx("'M U R T C E P S'\r\n");
-                tx("THiNgs aren't aLways iN\r\n");
-                tx("theIR naTuRAl oRDeR...\r\n\r\n");
-                ryl_pause();
                 break;
 
             case 27:
@@ -757,6 +759,7 @@ void dungeon(int32_t levels, int32_t flag) {
                 break;
         }
 
+    post_event:
         /* Pick an alternative - Encounter over */
 
         if (cl >= 20) {

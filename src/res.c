@@ -702,6 +702,27 @@ void res_dungeon_apply_placements(int32_t flag, int32_t *lvl, size_t n_lvl) {
     }
 }
 
+int res_dungeon_encounter_recurring(const char *symbol) {
+    if (!symbol || !symbol[0] || !world_tree) {
+        return 0;
+    }
+    const node *d = obj_get(world_tree, "dungeons");
+    if (!d || d->kind != N_OBJ) {
+        return 0;
+    }
+    const node *r = obj_get(d, "recurring");
+    if (!r || r->kind != N_ARR) {
+        return 0;
+    }
+    for (size_t i = 0; i < r->u.arr.n; i++) {
+        const node *e = r->u.arr.items[i];
+        if (e && e->kind == N_STR && strcmp(e->u.sv, symbol) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 const ryl_spell *res_spell(const char *class_name, int slot) {
     if (slot < 1 || slot > RES_MAX_SPELL_SLOT) {
         return NULL;
@@ -1911,6 +1932,27 @@ static void fold_dungeons(const node *dungeons_node, const char *path) {
     }
     if (dungeons_node->kind != N_OBJ) {
         res_die(path, dungeons_node->line, "dungeons: expected object");
+    }
+    const node *recurring = obj_get(dungeons_node, "recurring");
+    if (recurring) {
+        if (recurring->kind != N_ARR) {
+            res_die(path, recurring->line,
+                    "dungeons.recurring: expected array");
+        }
+        for (size_t i = 0; i < recurring->u.arr.n; i++) {
+            const node *e = recurring->u.arr.items[i];
+            if (!e || e->kind != N_STR) {
+                res_die(path, e ? e->line : recurring->line,
+                        "dungeons.recurring entry must be string");
+            }
+            if (res_enum_id("dungeon_encounter", e->u.sv) < 0) {
+                fprintf(stderr,
+                        "res: %s:%d: dungeons.recurring[%zu]: unknown "
+                        "dungeon_encounter symbol '%s'\n",
+                        path, e->line, i, e->u.sv);
+                exit(1);
+            }
+        }
     }
     const node *scenarios = obj_get(dungeons_node, "scenarios");
     if (!scenarios) {

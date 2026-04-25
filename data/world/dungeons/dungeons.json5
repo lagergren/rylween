@@ -21,7 +21,19 @@
 //
 // `encounter:` is a string symbol resolved via the dungeon_encounter
 // enum. fold_dungeons rejects typos at world-load.
+//
+// recurring: list of dungeon_encounter symbols whose lvl[cl] slot is
+// NOT cleared after the script fires — the player faces the event
+// again on every revisit. Default is reset-after-fire (matches the
+// `lvl[cl] = 0` lines in the legacy dungeon.c switch). Used by the
+// data-driven dispatcher: encounters with a registered script use
+// this list; unmigrated encounters still in the C switch own their
+// own per-case reset (or the cl >= 20 catchall).
 {
+  recurring: [
+    'spectrum_message',  // re-reads the wall plaque on revisit
+  ],
+
   scenarios: {
     // Mountain of the Fire Shield — Hermit's quest.
     // Caller: missions.json5 hermit_dungeon (dungeon(20, 1)).

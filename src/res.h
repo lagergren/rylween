@@ -219,6 +219,14 @@ int32_t res_monster_tier_pick(const char *tier);
    slot outside [1, n_lvl]). Replaces the dungeon.c case-1..8 switch. */
 void res_dungeon_apply_placements(int32_t flag, int32_t *lvl, size_t n_lvl);
 
+/* §20 L2: 1 if `symbol` is in dungeons.recurring (the encounter's
+   lvl[cl] slot is NOT cleared after firing — re-trigger on revisit).
+   0 otherwise. Empty / unknown symbols return 0. fold_dungeons
+   validates that every entry resolves through the dungeon_encounter
+   enum, so unknown symbols here are always a code-path bug, not a
+   data typo. */
+int res_dungeon_encounter_recurring(const char *symbol);
+
 /* Spell for a given class ("priest" or "mage") and slot (1..7). NULL if missing. */
 const ryl_spell *res_spell(const char *class_name, int slot);
 
