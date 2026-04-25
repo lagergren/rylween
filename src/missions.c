@@ -282,7 +282,7 @@ uint8_t mission_control() {
             tx("You enter...\r\n\r\n");
             ryl_pause();
             clw();
-            dungeon(18, 2);
+            dungeon(18, "thun_temple");
             clr_map_window();
             update_map();
         }

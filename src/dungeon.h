@@ -5,6 +5,9 @@
 
 /* Dungeon exploration loop, entered from cave / crypt tiles. */
 
-void dungeon(int32_t, int32_t);
+/* §20 L2: scenario is a symbolic key into dungeons.scenarios in
+   world.json5 (e.g. "fire_shield_cave", "thun_temple"); NULL means
+   random cave (no quest placements). */
+void dungeon(int32_t levels, const char *scenario);
 
 #endif

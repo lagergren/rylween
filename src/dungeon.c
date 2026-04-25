@@ -11,10 +11,10 @@
 #include "subs.h"
 #include "towne.h"
 
-void dungeon(int32_t levels, int32_t flag) {
+void dungeon(int32_t levels, const char *scenario) {
     /*
-	** The flag determines if it is a special dungeon.
-	** Set to 0 if it's a randomly discovered one.
+	** scenario is a symbolic key into dungeons.scenarios. NULL means
+	** a randomly discovered cave (no quest placements).
 	*/
 
     int32_t i, cl, oc, lvl[26];
@@ -28,11 +28,11 @@ void dungeon(int32_t levels, int32_t flag) {
     for (i = 1; i < levels + 1; i++) {
         lvl[i] = ryl_random(1, 9);
     }
-    /* §20 L1: scenario placements live in dungeons.scenarios.<flag>.
+    /* §20 L1: scenario placements live in dungeons.scenarios.<key>.
        The encounter-id namespace is unchanged (20..38 → the cases in
-       the level-event switch below). flag == 0 leaves the random fill
-       intact. */
-    res_dungeon_apply_placements(flag, lvl, levels);
+       the level-event switch below). NULL scenario leaves the random
+       fill intact. */
+    res_dungeon_apply_placements(scenario, lvl, levels);
 
     /*
 	** 0: Visited, Nothing left

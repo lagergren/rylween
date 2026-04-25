@@ -635,8 +635,9 @@ int32_t res_monster_tier_pick(const char *tier) {
     return ids[ryl_random(0, (int32_t)n - 1)];
 }
 
-void res_dungeon_apply_placements(int32_t flag, int32_t *lvl, size_t n_lvl) {
-    if (flag == 0) {
+void res_dungeon_apply_placements(const char *scenario, int32_t *lvl,
+                                  size_t n_lvl) {
+    if (!scenario) {
         return;
     }
     if (!world_tree || !lvl) {
@@ -654,29 +655,27 @@ void res_dungeon_apply_placements(int32_t flag, int32_t *lvl, size_t n_lvl) {
                 "res_dungeon_apply_placements: dungeons.scenarios missing\n");
         exit(1);
     }
-    char key[16];
-    snprintf(key, sizeof key, "%d", (int)flag);
-    const node *s = obj_get(sc_n, key);
+    const node *s = obj_get(sc_n, scenario);
     if (!s || s->kind != N_OBJ) {
         fprintf(stderr,
-                "res_dungeon_apply_placements: unknown scenario flag %d\n",
-                (int)flag);
+                "res_dungeon_apply_placements: unknown scenario '%s'\n",
+                scenario);
         exit(1);
     }
     const node *placements = obj_get(s, "placements");
     if (!placements || placements->kind != N_ARR) {
         fprintf(stderr,
-                "res_dungeon_apply_placements: scenario %d missing placements\n",
-                (int)flag);
+                "res_dungeon_apply_placements: scenario '%s' missing placements\n",
+                scenario);
         exit(1);
     }
     for (size_t i = 0; i < placements->u.arr.n; i++) {
         const node *p = placements->u.arr.items[i];
         if (!p || p->kind != N_OBJ) {
             fprintf(stderr,
-                    "res_dungeon_apply_placements: scenario %d placements[%zu] "
+                    "res_dungeon_apply_placements: scenario '%s' placements[%zu] "
                     "must be object\n",
-                    (int)flag, i);
+                    scenario, i);
             exit(1);
         }
         const node *lvl_n = obj_get(p, "level");
@@ -684,17 +683,17 @@ void res_dungeon_apply_placements(int32_t flag, int32_t *lvl, size_t n_lvl) {
         if (!lvl_n || lvl_n->kind != N_INT || !enc_n ||
             enc_n->kind != N_STR) {
             fprintf(stderr,
-                    "res_dungeon_apply_placements: scenario %d placements[%zu] "
+                    "res_dungeon_apply_placements: scenario '%s' placements[%zu] "
                     "needs int level + string encounter\n",
-                    (int)flag, i);
+                    scenario, i);
             exit(1);
         }
         int32_t L = (int32_t)lvl_n->u.iv;
         if (L < 1 || (size_t)L > n_lvl) {
             fprintf(stderr,
-                    "res_dungeon_apply_placements: scenario %d placement level "
+                    "res_dungeon_apply_placements: scenario '%s' placement level "
                     "%d out of [1, %zu]\n",
-                    (int)flag, (int)L, n_lvl);
+                    scenario, (int)L, n_lvl);
             exit(1);
         }
         /* fold_dungeons has already verified the symbol resolves. */

@@ -1137,9 +1137,6 @@ static void do_wait_input(const node *op, const char *script_id, size_t idx) {
    symbol lookups. */
 typedef void (*engine_fn)(const int32_t *args);
 
-static void eng_dungeon(const int32_t *a) {
-    dungeon(a[0], a[1]);
-}
 static void eng_update_map(const int32_t *a) {
     (void)a;
     update_map();
@@ -1199,7 +1196,6 @@ typedef struct {
 } engine_entry;
 
 static const engine_entry engine_tbl[] = {
-    {"dungeon", 2, eng_dungeon},
     {"update_map", 0, eng_update_map},
     {"clr_map_window", 0, eng_clr_map_window},
     {"blitgfx", 1, eng_blitgfx},
@@ -1212,6 +1208,35 @@ static const engine_entry engine_tbl[] = {
     {"drop_option", 0, eng_drop_option},
     {"rumour", 0, eng_rumour},
 };
+
+/* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps
+   dungeon.c's dungeon(levels, scenario) entry — `levels` is the
+   number of dungeon levels to fill; `scenario` is a symbolic key
+   into dungeons.scenarios (e.g. 'fire_shield_cave'), or omit for a
+   random cave. Replaces the legacy { engine_call: 'dungeon', args:
+   [int, int] } shape so callers no longer juggle anonymous integer
+   flags. */
+static void do_dungeon(const node *op, const char *script_id, size_t idx,
+                       const ryl_bind *bindings, const rt_env *env) {
+    const node *body = obj_get(op, "dungeon");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "dungeon: value must be object");
+    }
+    const node *lvl_n = obj_get(body, "levels");
+    if (!lvl_n) {
+        die_at(script_id, idx, "dungeon: levels required");
+    }
+    int32_t levels = eval_expr(lvl_n, script_id, idx, bindings, env);
+    const node *sc_n = obj_get(body, "scenario");
+    const char *scenario = NULL;
+    if (sc_n) {
+        if (sc_n->kind != N_STR) {
+            die_at(script_id, idx, "dungeon: scenario must be string");
+        }
+        scenario = sc_n->u.sv;
+    }
+    dungeon(levels, scenario);
+}
 
 /* §20 L2: { speak: { building: '<sym>'|<int>, town: <expr> } }. Wraps
    speak.c's speak(bld, tow) entry point — the chit-chat NPC picker.
@@ -2482,6 +2507,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         return do_if(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "menu_branch")) {
         return do_menu_branch(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "dungeon")) {
+        do_dungeon(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "speak")) {
         do_speak(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "encounter")) {

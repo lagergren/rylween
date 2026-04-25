@@ -1064,7 +1064,7 @@ void spell(int32_t place) {
                     break;
                 }
                 clr_map_window();
-                dungeon(ryl_random(5, 18), 0);
+                dungeon(ryl_random(5, 18), NULL);
                 break;
             } else {
                 clw();

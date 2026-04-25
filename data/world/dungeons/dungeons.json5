@@ -1,12 +1,13 @@
 // §20 L1: dungeon scenario placement tables.
 //
-// dungeon(levels, flag) in dungeon.c first fills lvl[1..levels] with
-// random encounter ids 1..9 (the generic-cave events), then overlays
-// scenario-specific writes when `flag` is non-zero. Before §20 L1
-// those writes lived as a hand-authored switch in dungeon.c:30-78;
-// this file owns the placements so adding / re-tuning a quest
-// dungeon is a data edit. The scenario key is the integer flag the
-// C/DSL caller passes.
+// dungeon(levels, scenario) in dungeon.c first fills lvl[1..levels]
+// with random encounter ids 1..9 (the generic-cave events), then
+// overlays scenario-specific writes when `scenario` is non-NULL.
+// Before §20 L1 those writes lived as a hand-authored switch in
+// dungeon.c:30-78; this file owns the placements so adding /
+// re-tuning a quest dungeon is a data edit. The scenario key is the
+// symbolic string the C/DSL caller passes — NULL means random cave
+// (no placements).
 //
 // Encounter id namespace (see enums.dungeon_encounter in world.json5
 // for the symbol → numeric-id mapping):
@@ -36,8 +37,7 @@
 
   scenarios: {
     // Mountain of the Fire Shield — Hermit's quest.
-    // Caller: missions.json5 hermit_dungeon (dungeon(20, 1)).
-    '1': {
+    fire_shield_cave: {
       placements: [
         { level: 19, encounter: 'fire_shield_guardian' },
         { level: 20, encounter: 'fire_shield' },
@@ -45,8 +45,7 @@
     },
 
     // Temple of Thun — three riddles + bracelets.
-    // Caller: missions.c case 4 (dungeon(18, 2)).
-    '2': {
+    thun_temple: {
       placements: [
         { level:  4, encounter: 'thun_riddle1' },
         { level:  8, encounter: 'thun_riddle2' },
@@ -56,8 +55,7 @@
     },
 
     // Reebar's Tomb — colour riddles + spectrum + Nolrim's Tomb.
-    // Caller: missions.json5 reebar_dungeon (dungeon(20, 3)).
-    '3': {
+    reebar_tomb: {
       placements: [
         { level: 12, encounter: 'spectrum_message' },
         { level: 13, encounter: 'colour_riddle' },
@@ -72,16 +70,14 @@
     },
 
     // Master Crown dungeon.
-    // Caller: missions.json5 master_crown (dungeon(10, 4)).
-    '4': {
+    master_crown_dungeon: {
       placements: [
         { level: 10, encounter: 'master_crown' },
       ],
     },
 
-    // The Silver Sanctum.
-    // Caller: missions.json5 silver_sanctum (dungeon(20, 5)).
-    '5': {
+    // The Silver Sanctum (silver-key proof).
+    silver_sanctum: {
       placements: [
         { level: 20, encounter: 'silver_sanctum' },
       ],
@@ -89,8 +85,7 @@
 
     // Hobgoblin stronghold — six patrols on the way in, then royal
     // guards and the chief at the bottom.
-    // Caller: missions.json5 hobgoblin_stronghold (dungeon(22, 6)).
-    '6': {
+    hobgoblin_stronghold: {
       placements: [
         { level:  3, encounter: 'hobgoblin_patrol' },
         { level:  6, encounter: 'hobgoblin_patrol' },
@@ -105,8 +100,7 @@
     },
 
     // Ogre cave — Tammy's prison.
-    // Caller: missions.json5 ogre_cave (dungeon(7, 7)).
-    '7': {
+    ogre_cave: {
       placements: [
         { level: 6, encounter: 'orc_nest' },
         { level: 7, encounter: 'tammys_prison' },
@@ -114,8 +108,7 @@
     },
 
     // Erethor temple — priests and the Chamber of the Lute.
-    // Caller: missions.json5 erethor_temple (dungeon(12, 8)).
-    '8': {
+    erethor_temple: {
       placements: [
         { level:  3, encounter: 'erethor_priests' },
         { level:  7, encounter: 'erethor_priests' },

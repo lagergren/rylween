@@ -30,7 +30,7 @@
         prompt: 'prompt',
         options: [
           { key: 'E', then: [
-            { engine_call: 'dungeon', args: [12, 8] },
+            { dungeon: { levels: 12, scenario: 'erethor_temple' } },
             { engine_call: 'clr_map_window' },
             { engine_call: 'update_map' },
           ] },
@@ -49,7 +49,7 @@
         prompt: 'prompt',
         options: [
           { key: 'E', then: [
-            { engine_call: 'dungeon', args: [7, 7] },
+            { dungeon: { levels: 7, scenario: 'ogre_cave' } },
             { engine_call: 'clr_map_window' },
             { engine_call: 'update_map' },
           ] },
@@ -99,7 +99,7 @@
         prompt: 'prompt',
         options: [
           { key: 'E', then: [
-            { engine_call: 'dungeon', args: [20, 1] },
+            { dungeon: { levels: 20, scenario: 'fire_shield_cave' } },
             { engine_call: 'clr_map_window' },
             { engine_call: 'update_map' },
           ] },
@@ -186,7 +186,7 @@
         prompt: 'prompt',
         options: [
           { key: 'E', then: [
-            { engine_call: 'dungeon', args: [20, 3] },
+            { dungeon: { levels: 20, scenario: 'reebar_tomb' } },
             { engine_call: 'clr_map_window' },
             { engine_call: 'update_map' },
           ] },
@@ -216,7 +216,7 @@
         prompt: 'prompt',
         options: [
           { key: 'E', then: [
-            { engine_call: 'dungeon', args: [10, 4] },
+            { dungeon: { levels: 10, scenario: 'master_crown_dungeon' } },
             { engine_call: 'clr_map_window' },
             { engine_call: 'update_map' },
           ] },
@@ -301,7 +301,7 @@
         prompt: 'prompt',
         options: [
           { key: 'E', then: [
-            { engine_call: 'dungeon', args: [20, 5] },
+            { dungeon: { levels: 20, scenario: 'silver_sanctum' } },
             { engine_call: 'clr_map_window' },
             { engine_call: 'update_map' },
           ] },
@@ -335,7 +335,7 @@
         prompt: 'prompt',
         options: [
           { key: 'E', then: [
-            { engine_call: 'dungeon', args: [22, 6] },
+            { dungeon: { levels: 22, scenario: 'hobgoblin_stronghold' } },
             { engine_call: 'clr_map_window' },
             { engine_call: 'update_map' },
           ] },
