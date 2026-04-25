@@ -308,6 +308,99 @@
     } },
   ],
 
+  // case 27: Colour-square antechamber (recurring; placed at levels
+   // 13..19 of reebar_tomb). The plaque shows ANTECHAMBER #(cl-12);
+   // the player picks one of seven colours (1..7); the pass condition
+   // is cl + pick == 20 (i.e. level 13 → violet, level 19 → red);
+   // miss spawns a rainbow demon. Loop around the keypress so non-
+   // 1..7 input is silently re-prompted, matching the legacy
+   // `while (1) { c = key(); if (c>='1'&&c<='7') break; }`.
+  colour_riddle: [
+    { engine_call: 'clw' },
+    { let: 'antechamber', value: { sub: [{ var: 'cl' }, 12] } },
+    { emit: 'colour_riddle.plaque' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'colour_riddle.squares' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'colour_riddle.menu' },
+    { loop: [
+      { menu_branch: {
+        key_var: 'pick',
+        options: [
+          { key_range: ['1', '7'], then: [
+            { if: {
+              cond: { eq: [{ add: [{ var: 'cl' }, { var: 'pick' }] }, 20] },
+              then: [
+                { engine_call: 'clw' },
+                { emit: 'colour_riddle.tingle' },
+                { wait_input: true },
+              ],
+              else: [
+                { engine_call: 'clw' },
+                { emit: 'colour_riddle.demon_appears' },
+                { wait_input: true },
+                { encounter: { foe: 'rainbow_demon', mandatory: true } },
+                { engine_call: 'clr_map_window' },
+                { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+                { engine_call: 'clw' },
+              ],
+            } },
+            { break: true },
+          ] },
+        ],
+      } },
+    ] },
+  ],
+
+  // case 30: Silver Sanctum — empty room with a planted "Master
+   // Thief was here" note. The thief's name is randomized at cold
+   // start; res_npc_role('master_thief') gives the slot, res_enum
+   // 'name' resolves it to a human name. Two engine_binds chain
+   // (slot string → atoi → name lookup) into the {mt_name}
+   // placeholder used twice in the note text.
+  silver_sanctum: [
+    { engine_call: 'clw' },
+    { emit: 'silver_sanctum.disappointment' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'silver_sanctum.about_to_leave' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'silver_sanctum.find_paper' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { engine_bind: { fn: 'res_npc_role', args: ['master_thief'],
+                     var: 'mt_slot' } },
+    { engine_bind: { fn: 'res_enum', args: ['name', { var: 'mt_slot' }],
+                     var: 'mt_name' } },
+    { emit: 'silver_sanctum.note' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { set_flag: 'silver_key', value: 'note_found' },
+  ],
+
+  // case 36: Tammy's Prison — recurring until rescued. The room
+   // gates on flag peasant_wife being 'accepted' (player has been
+   // briefed by the husband). Before that flag flips, every visit
+   // shows just the cleared screen and the slot stays put. Once
+   // accepted, the rescue text fires and flag becomes 'rescued';
+   // the data-driven recurring entry's `until_flag: { tag, value }`
+   // matches that state so the dispatcher resets lvl[cl] on the
+   // SAME visit, retiring the room.
+  tammys_prison: [
+    { engine_call: 'clw' },
+    { if: {
+        cond: { flag: 'peasant_wife', eq: 'accepted' },
+        then: [
+          { emit: 'tammys_prison' },
+          { set_flag: 'peasant_wife', value: 'rescued' },
+          { wait_input: true },
+        ],
+    } },
+  ],
+
   // case 34: Hobgoblin chief — password gate to a quest fight.
   // Both match (correct password) and miss (guards rush in) branches
   // converge to the trailing "you killed the chief / Silver Key

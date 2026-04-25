@@ -41,10 +41,22 @@
     'encounter_deep',
     // case 26: re-reads the wall plaque on revisit.
     'spectrum_message',
+    // case 27: each colour-square room re-prompts on revisit; the
+    // pass condition (cl + pick == 20) is per-level so the puzzle
+    // stays solvable after a wrong-answer fight.
+    'colour_riddle',
     // case 31: every revisit triggers a fresh patrol fight.
     'hobgoblin_patrol',
     // case 37: priests keep attacking.
     'erethor_priests',
+    // case 36: Tammy's prison fires every visit until the player
+    // has briefed with the peasant husband (flag flips to
+    // 'accepted') and then completes the rescue here (flag flips
+    // to 'rescued'). The conditional shape lets the dispatcher
+    // reset lvl[cl] on the rescue visit; before that the room
+    // stays armed.
+    { symbol: 'tammys_prison',
+      until_flag: { tag: 'peasant_wife', value: 'rescued' } },
   ],
 
   scenarios: {

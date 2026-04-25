@@ -258,6 +258,94 @@
     ],
   },
 
+  // case 27 — Colour-square antechamber (recurring).
+  colour_riddle: {
+    plaque: [
+      'A plaque here reads:',
+      'ANTECHAMBER #{antechamber}',
+      '',
+    ],
+    squares: [
+      'Before you are seven',
+      'squares of 20x20 feet.',
+      'To get across this room',
+      'you will need to step',
+      'on one of them.',
+      '',
+    ],
+    menu: [
+      '1. Red Square',
+      '2. Orange Square',
+      '3. Yellow Square',
+      '4. Green Square',
+      '5. Blue Square',
+      '6. Indigo Square',
+      '7. Violet Square',
+    ],
+    tingle: [
+      'You feel a slight',
+      'tingle in your bodies,',
+      'but otherwise, nothing',
+      'happens.',
+      '',
+    ],
+    demon_appears: [
+      'With a horrible scream',
+      'a shape of pure colour',
+      'forms in thin air before',
+      'you!',
+      '',
+    ],
+  },
+
+  // case 30 — Silver Sanctum. {mt_name} expands to the cold-start
+  // randomized Master Thief NPC name (engine_bind chain in the
+  // matching script).
+  silver_sanctum: {
+    disappointment: [
+      'This room shines like',
+      'silver. You can see your',
+      'mirror image in the',
+      'walls. After searching',
+      'the room thorougly, you',
+      'find nothing. No Silver',
+      'Key, no treasure.',
+      '',
+    ],
+    about_to_leave: [
+      'You curse the rouge who',
+      'tricked you and are just',
+      'about to leave...',
+      '',
+    ],
+    find_paper: [
+      '...when you spot a paper',
+      'of some kind in a crack',
+      'in the wall... You pull',
+      'it out and read...',
+      '',
+    ],
+    note: [
+      "'Guild Master: This is",
+      'the proof that I, {mt_name}',
+      'am worthy of the title',
+      "Master Thief.'",
+      '      - {mt_name}',
+      '',
+    ],
+  },
+
+  // case 36 — Tammy's Prison rescue body (only fires when the
+  // peasant_wife flag is 'accepted'). Pre-rescue, the script's
+  // if-branch is a no-op so the player just sees a cleared screen.
+  tammys_prison: [
+    "The peasant's wife is in",
+    'this room. You untie',
+    'her bonds and let her',
+    'join your party!',
+    '',
+  ],
+
   // case 34 — Hobgoblin chief password gate. The trailing
   // silver_key text fires regardless of which branch ran.
   hobgoblin_chief: {

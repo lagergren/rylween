@@ -715,9 +715,47 @@ int res_dungeon_encounter_recurring(const char *symbol) {
     }
     for (size_t i = 0; i < r->u.arr.n; i++) {
         const node *e = r->u.arr.items[i];
-        if (e && e->kind == N_STR && strcmp(e->u.sv, symbol) == 0) {
+        if (!e) {
+            continue;
+        }
+        /* Plain-string entry: unconditionally recurring. */
+        if (e->kind == N_STR) {
+            if (strcmp(e->u.sv, symbol) == 0) {
+                return 1;
+            }
+            continue;
+        }
+        /* Object entry: { symbol: 's', until_flag: { tag, value } }.
+           Recurring as long as the named flag has not yet been set
+           to the named value. Once the flag matches, the encounter
+           "completes" — dispatcher resets lvl[cl] on this visit
+           even though the symbol is in the recurring list. */
+        if (e->kind != N_OBJ) {
+            continue;
+        }
+        const node *sym_n = obj_get(e, "symbol");
+        if (!sym_n || sym_n->kind != N_STR) {
+            continue;
+        }
+        if (strcmp(sym_n->u.sv, symbol) != 0) {
+            continue;
+        }
+        const node *uf = obj_get(e, "until_flag");
+        if (!uf || uf->kind != N_OBJ) {
             return 1;
         }
+        const node *tag_n = obj_get(uf, "tag");
+        const node *val_n = obj_get(uf, "value");
+        if (!tag_n || tag_n->kind != N_STR ||
+            !val_n || val_n->kind != N_STR) {
+            return 1;
+        }
+        int32_t slot = res_flag_slot(tag_n->u.sv);
+        int32_t want = res_flag_value_id(tag_n->u.sv, val_n->u.sv);
+        if (slot < 0 || want < 0) {
+            return 1;
+        }
+        return state.p[state.cpl].flag[slot] != (unsigned char)want;
     }
     return 0;
 }
@@ -1940,16 +1978,64 @@ static void fold_dungeons(const node *dungeons_node, const char *path) {
         }
         for (size_t i = 0; i < recurring->u.arr.n; i++) {
             const node *e = recurring->u.arr.items[i];
-            if (!e || e->kind != N_STR) {
-                res_die(path, e ? e->line : recurring->line,
-                        "dungeons.recurring entry must be string");
+            if (!e) {
+                res_die(path, recurring->line,
+                        "dungeons.recurring entry missing");
             }
-            if (res_enum_id("dungeon_encounter", e->u.sv) < 0) {
+            const char *sym = NULL;
+            int line = e->line;
+            const node *uf = NULL;
+            if (e->kind == N_STR) {
+                sym = e->u.sv;
+            } else if (e->kind == N_OBJ) {
+                const node *sn = obj_get(e, "symbol");
+                if (!sn || sn->kind != N_STR) {
+                    res_die(path, e->line,
+                            "dungeons.recurring object entry needs symbol");
+                }
+                sym = sn->u.sv;
+                line = sn->line;
+                uf = obj_get(e, "until_flag");
+            } else {
+                res_die(path, e->line,
+                        "dungeons.recurring entry must be string or object");
+            }
+            if (res_enum_id("dungeon_encounter", sym) < 0) {
                 fprintf(stderr,
                         "res: %s:%d: dungeons.recurring[%zu]: unknown "
                         "dungeon_encounter symbol '%s'\n",
-                        path, e->line, i, e->u.sv);
+                        path, line, i, sym);
                 exit(1);
+            }
+            if (uf) {
+                if (uf->kind != N_OBJ) {
+                    res_die(path, uf->line,
+                            "dungeons.recurring until_flag must be object");
+                }
+                const node *tag_n = obj_get(uf, "tag");
+                const node *val_n = obj_get(uf, "value");
+                if (!tag_n || tag_n->kind != N_STR) {
+                    res_die(path, uf->line,
+                            "dungeons.recurring until_flag.tag missing");
+                }
+                if (!val_n || val_n->kind != N_STR) {
+                    res_die(path, uf->line,
+                            "dungeons.recurring until_flag.value missing");
+                }
+                if (res_flag_slot(tag_n->u.sv) < 0) {
+                    fprintf(stderr,
+                            "res: %s:%d: dungeons.recurring until_flag.tag "
+                            "'%s' has no record\n",
+                            path, tag_n->line, tag_n->u.sv);
+                    exit(1);
+                }
+                if (res_flag_value_id(tag_n->u.sv, val_n->u.sv) < 0) {
+                    fprintf(stderr,
+                            "res: %s:%d: dungeons.recurring until_flag.value "
+                            "'%s' not in flag '%s' values[]\n",
+                            path, val_n->line, val_n->u.sv, tag_n->u.sv);
+                    exit(1);
+                }
             }
         }
     }
