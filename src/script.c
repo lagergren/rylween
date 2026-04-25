@@ -1281,9 +1281,12 @@ static void do_speak(const node *op, const char *script_id, size_t idx,
     speak(bld, tow);
 }
 
-/* §20 L2: { encounter: { foe: '<sym>'|<int>, mandatory?: <bool>|<int> } }.
+/* §20 L2: { encounter: { foe: '<sym>'|<int>, mandatory?: <bool>|<int> } }
+       OR { encounter: { tier: '<sym>', mandatory?: ... } }
    Calls battle.c's encounter(foe_id, mandatory). `foe` is a monster
-   symbol (resolved via res_monster_id) or a raw monsters.json5 id.
+   symbol (resolved via res_monster_id) or a raw monsters.json5 id;
+   `tier` picks a random monster from a tier (e.g. 'weak' / 'deep')
+   via res_monster_tier_pick. Exactly one of foe/tier is required.
    `mandatory` defaults to false (player may try to flee); set true
    to lock out the (R)un option (used by quest encounters).
    Replaces the legacy { engine_call: 'encounter', args: [int, int] }
@@ -1296,11 +1299,20 @@ static void do_encounter(const node *op, const char *script_id, size_t idx,
         die_at(script_id, idx, "encounter: value must be object");
     }
     const node *foe_n = obj_get(body, "foe");
-    if (!foe_n) {
-        die_at(script_id, idx, "encounter: foe required");
+    const node *tier_n = obj_get(body, "tier");
+    if (!foe_n && !tier_n) {
+        die_at(script_id, idx, "encounter: foe or tier required");
+    }
+    if (foe_n && tier_n) {
+        die_at(script_id, idx, "encounter: foe and tier are exclusive");
     }
     int32_t foe;
-    if (foe_n->kind == N_INT) {
+    if (tier_n) {
+        if (tier_n->kind != N_STR) {
+            die_at(script_id, idx, "encounter: tier must be string");
+        }
+        foe = res_monster_tier_pick(tier_n->u.sv);
+    } else if (foe_n->kind == N_INT) {
         foe = (int32_t)foe_n->u.iv;
     } else if (foe_n->kind == N_STR) {
         int id = res_monster_id(foe_n->u.sv);
@@ -1420,6 +1432,18 @@ static void sb_res_enum(const int32_t *ints, const char **strs, char *out,
                         size_t out_sz) {
     snprintf(out, out_sz, "%s", res_enum(strs[0], (int)ints[0]));
 }
+/* §20 L2: role-keyed NPC slot lookup, mirrors res_npc_role. Used by
+   dungeon scripts that need to render an NPC name without knowing
+   the cold-start slot — e.g. silver_sanctum's "...by the Master
+   Thief" text resolves to the Master-Thief NPC's randomized name.
+   The result is the slot id rendered as a numeric string so the
+   next engine_bind ('res_enum') can re-read it as int via the
+   binding's atoi path. */
+static void sb_res_npc_role(const int32_t *ints, const char **strs,
+                            char *out, size_t out_sz) {
+    (void)ints;
+    snprintf(out, out_sz, "%d", (int)res_npc_role(strs[0]));
+}
 /* Active party member's name for slot 1..res_party_member_max(). Out-
    of-range slots render "-" (matches object's unknown-id fallback)
    rather than dying — callers already validate the slot via
@@ -1440,6 +1464,7 @@ static const str_engine_entry str_engine_tbl[] = {
     {"pronoun", "is", sb_pronoun},
     {"res_town_name", "i", sb_res_town_name},
     {"res_enum", "si", sb_res_enum},
+    {"res_npc_role", "s", sb_res_npc_role},
     {"pa_name", "i", sb_pa_name},
 };
 
@@ -2261,6 +2286,65 @@ static void do_input_number(const node *op, const char *script_id, size_t idx,
     rt_bind_set(env, var_n->u.sv, v, script_id, idx);
 }
 
+/* §20 L2: { input_string: { lg: N, accept: '<sym>'|[ '<sym>'... ],
+   match?: [...], miss?: [...] } }. Reads a getstr(lg)-bounded line,
+   compares it case-insensitively against each `accept` entry, and
+   plays the matching body. Used by the dungeon riddle/password
+   encounters (Thun riddles, hobgoblin chief). lg caps at 64 to fit
+   the local buffer; both bodies are optional (a missing body is a
+   no-op fall-through). Bubbles through break/continue from the
+   outer loop, like do_menu_branch. */
+static ops_result do_input_string(const node *op, const char *script_id,
+                                  size_t idx, const char *parent,
+                                  const ryl_bind *bindings, rt_env *env) {
+    const node *body = obj_get(op, "input_string");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "input_string: value must be object");
+    }
+    const node *lg_n = obj_get(body, "lg");
+    const node *acc_n = obj_get(body, "accept");
+    const node *match_n = obj_get(body, "match");
+    const node *miss_n = obj_get(body, "miss");
+    if (!lg_n || lg_n->kind != N_INT) {
+        die_at(script_id, idx, "input_string: lg must be int");
+    }
+    if (lg_n->u.iv < 1 || lg_n->u.iv > 63) {
+        die_at(script_id, idx, "input_string: lg out of range (1..63)");
+    }
+    if (!acc_n) {
+        die_at(script_id, idx, "input_string: accept required");
+    }
+    if (acc_n->kind != N_STR && acc_n->kind != N_ARR) {
+        die_at(script_id, idx, "input_string: accept must be string or array");
+    }
+    char buf[64];
+    getstr((uint8_t)lg_n->u.iv, buf, sizeof buf);
+    int matched = 0;
+    if (acc_n->kind == N_STR) {
+        matched = (stricmp(buf, acc_n->u.sv) == 0);
+    } else {
+        for (size_t i = 0; i < acc_n->u.arr.n; i++) {
+            const node *e = acc_n->u.arr.items[i];
+            if (!e || e->kind != N_STR) {
+                die_at(script_id, idx,
+                       "input_string: accept entry must be string");
+            }
+            if (stricmp(buf, e->u.sv) == 0) {
+                matched = 1;
+                break;
+            }
+        }
+    }
+    const node *take = matched ? match_n : miss_n;
+    if (!take) {
+        return OPS_NORMAL;
+    }
+    if (take->kind != N_ARR) {
+        die_at(script_id, idx, "input_string: match/miss must be array");
+    }
+    return play_ops(take, script_id, parent, bindings, env);
+}
+
 /* §20 follow-up: { input_item: { slot_var: '<name>', item_var: '<name>',
    then?: [...ops...] } }. Reads one key (uppercased), validates it as
    an inventory letter (A..P -> slot 1..16). On valid: binds slot_var
@@ -2529,6 +2613,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         do_mutate(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "input_number")) {
         do_input_number(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "input_string")) {
+        return do_input_string(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "input_item")) {
         return do_input_item(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "for_member")) {

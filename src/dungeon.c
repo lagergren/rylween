@@ -86,7 +86,15 @@ void dungeon(int32_t levels, const char *scenario) {
             char script_id[96];
             snprintf(script_id, sizeof script_id, "dungeon.%s", enc_sym);
             if (res_script(script_id)) {
-                play_script(script_id, NULL);
+                /* `cl` is the current dungeon level — exposed so the
+                   colour_riddle script can render "ANTECHAMBER #N"
+                   and pick the correct passing colour by level. */
+                char cl_s[8];
+                snprintf(cl_s, sizeof cl_s, "%d", (int)cl);
+                play_script(script_id, (ryl_bind[]){
+                                           {"cl", cl_s},
+                                           {0},
+                                       });
                 if (!res_dungeon_encounter_recurring(enc_sym)) {
                     lvl[cl] = 0;
                 }
