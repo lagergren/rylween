@@ -171,7 +171,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 d = toupper(d);
                 oc = 0;
                 if (d >= 'A' && d <= 'P') {
-                    oc = state.p[state.cpl].inventory[d - 64];
+                    oc = pa_inventory(inv_slot_from_letter(d));
                     if (!item_is_magic_item(oc)) {
                         clw();
                         tx("Not possible.\r\n");
@@ -180,7 +180,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         goto combat;
                     } else {
                         if (im) {
-                            state.p[state.cpl].inventory[d - 64] = 0;
+                            pa_set_inventory(inv_slot_from_letter(d), 0);
                             clw();
                             tx0(res_text("battle.item.magic_immune"));
                             ryl_delay(1000);
@@ -188,7 +188,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         } else {
                             switch (oc) {
                                 case 100:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     for (i = 1, who = 0; i < noc + 1; i++) {
                                         if (!deadc[i]) {
                                             who = i;
@@ -212,7 +212,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 101:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     for (i = 1; i < noc + 1; i++) {
                                         spelldamage = pm_lv(pm_cur(g)) * ryl_random(3, 8);
                                         if (!deadc[i]) {
@@ -232,7 +232,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 102:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
                                     tx("%s throws the\r\n", pm_name(pm_cur(g)));
                                     tx0(res_text("battle.item.sparks_bump"));
@@ -242,7 +242,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 103:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
                                     tx("%s throws the\r\n", pm_name(pm_cur(g)));
                                     tx0(res_text("battle.item.light_blind"));
@@ -252,7 +252,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 104:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     for (i = 1, who = 0; i < noc + 1; i++) {
                                         if (!deadc[i]) {
                                             who = i;
@@ -274,7 +274,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 105: {
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
                                     tx_fmt("battle.prompt.on_whom", NULL);
                                     while (1) {
@@ -294,7 +294,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 }
 
                                 case 106:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
                                     tx0(res_text("battle.spell.morale_quest"));
                                     ryl_pause();
@@ -309,7 +309,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 107:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
                                     tx0(res_text("battle.spell.party_healed"));
                                     ryl_pause();
@@ -337,7 +337,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         party_current()->pl++;
                                         pm_set_dead(target, 0);
                                         pm_set_hp(target, 1);
-                                        state.p[state.cpl].inventory[d - 64] = 0;
+                                        pa_set_inventory(inv_slot_from_letter(d), 0);
                                     } else {
                                         clw();
                                         tx("%s is not dead.\r\n", pm_name(target));
@@ -348,7 +348,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 }
 
                                 case 109:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
                                     tx("%s throws Kael's\r\n", pm_name(pm_cur(g)));
                                     tx("axe at the enemy!\r\n\r\n");
@@ -366,7 +366,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 110:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
                                     tx("%s pulls the\r\n", pm_name(pm_cur(g)));
                                     tx("holy pin, and lobbeth\r\n");
@@ -385,7 +385,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     break;
 
                                 case 111:
-                                    state.p[state.cpl].inventory[d - 64] = 0;
+                                    pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
                                     tx("%s plays the\r\n", pm_name(pm_cur(g)));
                                     tx("Flute of Madness.\r\n");
