@@ -286,4 +286,32 @@
       { set_flag: 'mastercrown', value: 'crown_told' },
     ],
   },
+
+  // §20 S9: Leander the jazzy_ogre trader. Three sub-flows; the
+  // C wrapper orchestrates the input letter (no DSL op for that
+  // shape today) and dispatches `intro` first, then either
+  // `refuse` (item id < 35) or `accept` (with cave_x / cave_y
+  // bindings from wld_location_*(7)). The post-trade slot clear
+  // also stays in C because the script doesn't see the
+  // inventory letter the player typed.
+  jazzy_ogre: {
+    intro: [
+      { screen: 'hear' },
+      { screen: 'trade' },
+      { engine_call: 'invlist' },
+    ],
+    refuse: [
+      { engine_call: 'clw' },
+      { emit: 'refuse' },
+      { pause: 1000 },
+    ],
+    accept: [
+      { engine_call: 'clw' },
+      { emit: 'accept' },
+      { journal: "The 'Beast Cave' is at {cave_x}x{cave_y}." },
+      { set_flag: 'jazzy_ogre', value: 'accepted' },
+      { wait_input: true },
+      { engine_call: 'clw' },
+    ],
+  },
 }

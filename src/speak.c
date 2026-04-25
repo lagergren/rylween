@@ -530,49 +530,34 @@ static void npc_mission_hint(int32_t npc) {
         return;
     }
 
-    /* Leander — jazzy_ogre trade.
-       invlist + key-letter + inventory lookup pattern; the item-keyed
-       branch isn't a reward/menu shape and stays inline pending §16.1
-       slice B. See port-plan §16.3. */
-    if (npc == res_npc_role("jazzy_ogre_trader")) {
-        if (pa_flag_is("jazzy_ogre", "none")) {
-            clw();
-            tx0(res_text("speak.jazzy_ogre.hear"));
-            ryl_pause();
-            clw();
-            tx0(res_text("speak.jazzy_ogre.trade"));
-            ryl_pause();
-            clw();
-            invlist();
-            d = key();
-            d = toupper(d);
-            oc = 0;
-            if (d >= 'A' && d <= 'P') {
-                oc = state.p[state.cpl].inventory[d - 64];
-                if (oc < 35) {
-                    clw();
-                    tx0(res_text("speak.jazzy_ogre.refuse"));
-                    ryl_delay(1000);
-                } else {
-                    clw();
-                    {
-                        char x[8], y[8];
-                        snprintf(x, sizeof x, "%d", wld_location_x(7));
-                        snprintf(y, sizeof y, "%d", wld_location_y(7));
-                        tx_fmt("speak.jazzy_ogre.accept",
-                               (ryl_bind[]){
-                                   {"cave_x", x},
-                                   {"cave_y", y},
-                                   {0},
-                               });
-                    }
-                    journalf("The 'Beast Cave' is at %dx%d.", wld_location_x(7), wld_location_y(7));
-                    pa_flag_set("jazzy_ogre", "accepted");
-                    state.p[state.cpl].inventory[d - 64] = 0;
-                    ryl_pause();
-                    clw();
-                }
-            }
+    /* Leander — jazzy_ogre trade. C wrapper handles the inventory-
+       letter input + accept/refuse decision + slot clear; the
+       narration / journal / set_flag flow is in
+       data/world/scripts/speak.json5 jazzy_ogre.{intro,refuse,accept}.
+       An `input_item` DSL op would push the wrapper down to a single
+       play_script call; queued for a follow-up. */
+    if (npc == res_npc_role("jazzy_ogre_trader") &&
+        pa_flag_is("jazzy_ogre", "none")) {
+        play_script("speak.jazzy_ogre.intro", NULL);
+        d = (char)toupper(key());
+        if (d < 'A' || d > 'P') {
+            return;
+        }
+        int slot = d - 64;
+        oc = state.p[state.cpl].inventory[slot];
+        if (oc < 35) {
+            play_script("speak.jazzy_ogre.refuse", NULL);
+        } else {
+            char cave_x[8], cave_y[8];
+            snprintf(cave_x, sizeof cave_x, "%d", wld_location_x(7));
+            snprintf(cave_y, sizeof cave_y, "%d", wld_location_y(7));
+            play_script("speak.jazzy_ogre.accept",
+                        (ryl_bind[]){
+                            {"cave_x", cave_x},
+                            {"cave_y", cave_y},
+                            {0},
+                        });
+            state.p[state.cpl].inventory[slot] = 0;
         }
         return;
     }
