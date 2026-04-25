@@ -228,4 +228,122 @@
     { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
     { engine_call: 'clw' },
   ],
+
+  // ----- Thun riddles (cases 22/23/24) -----
+  // Three near-identical mage-and-riddle screens. Each: intro
+  // (mage of <colour>), riddle text + "Answer: " prompt, then
+  // input_string compares to the accepted answer(s); on miss a
+  // monster appears. The match path emits the shared pass text;
+  // the miss text is shared too. The trailing redraw differs
+  // between riddle1 (clr_map_window + blitgfx) and riddle2/3 (just
+  // clw) — preserved verbatim from the legacy switch.
+  thun_riddle1: [
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle1.intro' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle1.riddle' },
+    { emit: 'thun_riddle.prompt' },
+    { input_string: { lg: 10, accept: 'water',
+      match: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.pass' },
+        { wait_input: true },
+      ],
+      miss: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.fail' },
+        { wait_input: true },
+        { encounter: { foe: 'norker', mandatory: true } },
+        { engine_call: 'clw' },
+        { engine_call: 'clr_map_window' },
+        { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+      ],
+    } },
+  ],
+
+  thun_riddle2: [
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle2.intro' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle2.riddle' },
+    { emit: 'thun_riddle.prompt' },
+    { input_string: { lg: 10, accept: ['night', 'darkness'],
+      match: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.pass' },
+        { wait_input: true },
+      ],
+      miss: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.fail' },
+        { wait_input: true },
+        { encounter: { foe: 'voodoo_lord', mandatory: true } },
+        { engine_call: 'clw' },
+      ],
+    } },
+  ],
+
+  thun_riddle3: [
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle3.intro' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle3.riddle' },
+    { emit: 'thun_riddle.prompt' },
+    { input_string: { lg: 10, accept: ['well', 'a well'],
+      match: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.pass' },
+        { wait_input: true },
+      ],
+      miss: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.fail' },
+        { wait_input: true },
+        { encounter: { foe: 'archdevil', mandatory: true } },
+        { engine_call: 'clw' },
+      ],
+    } },
+  ],
+
+  // case 34: Hobgoblin chief — password gate to a quest fight.
+  // Both match (correct password) and miss (guards rush in) branches
+  // converge to the trailing "you killed the chief / Silver Key
+  // hangs..." text + reward + flag.
+  hobgoblin_chief: [
+    { engine_call: 'clw' },
+    { emit: 'hobgoblin_chief.curtain' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'hobgoblin_chief.password_prompt' },
+    { input_string: { lg: 15, accept: 'RISH EKKIN',
+      match: [
+        { engine_call: 'clw' },
+        { emit: 'hobgoblin_chief.step_inside' },
+        { wait_input: true },
+        { encounter: { foe: 'hobgoblin_chief', mandatory: true } },
+        { engine_call: 'clr_map_window' },
+        { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+        { engine_call: 'clw' },
+      ],
+      miss: [
+        { engine_call: 'clw' },
+        { emit: 'hobgoblin_chief.guards' },
+        { pause: 2000 },
+        { encounter: { foe: 'hobgoblin', mandatory: true } },
+        { encounter: { foe: 'hobgoblin_chief', mandatory: true } },
+        { engine_call: 'clr_map_window' },
+        { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+        { engine_call: 'clw' },
+      ],
+    } },
+    { engine_call: 'clw' },
+    { emit: 'hobgoblin_chief.silver_key' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { reward: { items: ['silverkey'] } },
+    { set_flag: 'silver_key', value: 'key_taken' },
+  ],
 }

@@ -18,7 +18,7 @@ void dungeon(int32_t levels, const char *scenario) {
 	*/
 
     int32_t i, cl, oc, lvl[26];
-    char c, d, ans[80];
+    char c, d;
     int32_t x = 0;
 
     blitgfx(insidecavepic);
@@ -216,107 +216,6 @@ void dungeon(int32_t levels, const char *scenario) {
                 }
                 break;
 
-            case 22:
-                clw();
-                tx("You stand before a\r\n");
-                tx("mage dressed entirenly\r\n");
-                tx("in red.\r\n\r\n");
-                tx("- Answer this, fools, or\r\n");
-                tx("  die where you stand!\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("'Between fire and ice,\r\n");
-                tx("who ends the fight?\r\n");
-                tx("Who stands between those\r\n");
-                tx("two? Not red, not white\r\n");
-                tx("but blue!\r\n\r\n");
-                tx("Answer: ");
-                getstr(10, ans, sizeof ans);
-                lvl[cl] = 0;
-                clw();
-                if (!stricmp("water", ans)) {
-                    tx("- Well done. Pass.\r\n\r\n");
-                    ryl_pause();
-                    break;
-                } else {
-                    tx("- FOOLS! Meet thy doom!\r\n");
-                    tx("at a gesture from him,\r\n");
-                    tx("something evil appears.\r\n\r\n");
-                    ryl_pause();
-                    encounter(res_monster_id("norker"), 1);
-                    clw();
-                    clr_map_window();
-                    blitgfx(insidecavepic);
-                    break;
-                }
-                break;
-
-            case 23:
-                clw();
-                tx("You stand before a\r\n");
-                tx("mage dressed entirenly\r\n");
-                tx("in green.\r\n\r\n");
-                tx("- Answer this, fools, or\r\n");
-                tx("  die where you stand!\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("'Siblings we are,\r\n");
-                tx("I'm black and she's\r\n");
-                tx("white. Each dreary\r\n");
-                tx("evening, I swallow her\r\n");
-                tx("light.'\r\n\r\n");
-                tx("Answer: ");
-                getstr(10, ans, sizeof ans);
-                lvl[cl] = 0;
-                clw();
-                if (!stricmp("night", ans) || !stricmp("darkness", ans)) {
-                    tx("- Well done. Pass.\r\n\r\n");
-                    ryl_pause();
-                    break;
-                } else {
-                    tx("- FOOLS! Meet thy doom!\r\n");
-                    tx("at a gesture from him,\r\n");
-                    tx("something evil appears.\r\n\r\n");
-                    ryl_pause();
-                    encounter(res_monster_id("voodoo_lord"), 1);
-                    clw();
-                    break;
-                }
-                break;
-
-            case 24:
-                clw();
-                tx("You stand before a\r\n");
-                tx("mage dressed entirenly\r\n");
-                tx("in blue.\r\n\r\n");
-                tx("- Answer this, fools, or\r\n");
-                tx("  die where you stand!\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("'Tall as a house,\r\n");
-                tx("round as a cup, and\r\n");
-                tx("all the king's horses\r\n");
-                tx("can't draw me up! What\r\n");
-                tx("am I?'\r\n\r\n");
-                tx("Answer: ");
-                getstr(10, ans, sizeof ans);
-                lvl[cl] = 0;
-                clw();
-                if ((!stricmp("well", ans)) || (!stricmp("a well", ans))) {
-                    tx("- Well done. Pass.\r\n\r\n");
-                    ryl_pause();
-                    break;
-                } else {
-                    tx("- FOOLS! Meet thy doom!\r\n");
-                    tx("at a gesture from him,\r\n");
-                    tx("something evil appears.\r\n\r\n");
-                    ryl_pause();
-                    encounter(res_monster_id("archdevil"), 1);
-                    clw();
-                    break;
-                }
-                break;
-
             case 27:
                 clw();
                 tx("A plaque here reads:\r\n");
@@ -398,56 +297,6 @@ void dungeon(int32_t levels, const char *scenario) {
                 ryl_pause();
                 clw();
                 pa_flag_set("silver_key", "note_found");
-                lvl[cl] = 0;
-                break;
-
-            case 34:
-                clw();
-                tx("You stand before a\r\n");
-                tx("silk curtain. You hear\r\n");
-                tx("someone moving behind\r\n");
-                tx("it. A voice calls:\r\n");
-                tx("- What's the password?\r\n\r\n");
-                ryl_pause();
-                clw();
-                tx("Password: ");
-                getstr(15, ans, sizeof ans);
-                if (!stricmp(ans, "RISH EKKIN")) {
-                    clw();
-                    tx("- Step inside and identify\r\n");
-                    tx("yourself. You do so. The\r\n");
-                    tx("hobgoblin chief eyes you\r\n");
-                    tx("suspiciously for a few\r\n");
-                    tx("seconds. Not hestitating\r\n");
-                    tx("a moment you attack.\r\n\r\n");
-                    ryl_pause();
-                    encounter(res_monster_id("hobgoblin_chief"), 1);
-                    clr_map_window();
-                    blitgfx(insidecavepic);
-                    clw();
-                } else {
-                    clw();
-                    tx("- GUARDS! GUARDS!\r\n\r\n");
-                    tx("(Hobgoblin guards rush\r\n");
-                    tx(" to confront you.)\r\n");
-                    ryl_delay(2000);
-                    encounter(res_monster_id("hobgoblin"), 1);
-                    encounter(res_monster_id("hobgoblin_chief"), 1);
-                    clr_map_window();
-                    blitgfx(insidecavepic);
-                    clw();
-                }
-                clw();
-                tx("You have killed the chief\r\n");
-                tx("of the hobgoblin tribe.\r\n");
-                tx("The precious Silver Key\r\n");
-                tx("hangs around his neck.\r\n");
-                tx("With trembling hands\r\n");
-                tx("you pick it up!!!\r\n\r\n");
-                ryl_pause();
-                clw();
-                party_award_special(PS_SILVERKEY);
-                pa_flag_set("silver_key", "key_taken");
                 lvl[cl] = 0;
                 break;
 

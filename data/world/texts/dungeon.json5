@@ -176,4 +176,123 @@
     'fury.',
     '',
   ],
+
+  // ----- Thun riddles -----
+  // Shared pieces used by all three: the "Answer: " prompt is a
+  // verbatim string (no trailing CRLF — getstr reads on the same
+  // line); pass / fail screens are identical text across riddles.
+  thun_riddle: {
+    prompt: 'Answer: ',
+    pass: [
+      '- Well done. Pass.',
+      '',
+    ],
+    fail: [
+      '- FOOLS! Meet thy doom!',
+      'at a gesture from him,',
+      'something evil appears.',
+      '',
+    ],
+  },
+
+  // Riddle 1 — red mage, fire/ice/water.
+  thun_riddle1: {
+    intro: [
+      'You stand before a',
+      'mage dressed entirenly',
+      'in red.',
+      '',
+      '- Answer this, fools, or',
+      '  die where you stand!',
+      '',
+    ],
+    riddle: [
+      "'Between fire and ice,",
+      'who ends the fight?',
+      'Who stands between those',
+      'two? Not red, not white',
+      'but blue!',
+      '',
+    ],
+  },
+
+  // Riddle 2 — green mage, siblings/night/darkness.
+  thun_riddle2: {
+    intro: [
+      'You stand before a',
+      'mage dressed entirenly',
+      'in green.',
+      '',
+      '- Answer this, fools, or',
+      '  die where you stand!',
+      '',
+    ],
+    riddle: [
+      "'Siblings we are,",
+      "I'm black and she's",
+      'white. Each dreary',
+      'evening, I swallow her',
+      "light.'",
+      '',
+    ],
+  },
+
+  // Riddle 3 — blue mage, well.
+  thun_riddle3: {
+    intro: [
+      'You stand before a',
+      'mage dressed entirenly',
+      'in blue.',
+      '',
+      '- Answer this, fools, or',
+      '  die where you stand!',
+      '',
+    ],
+    riddle: [
+      "'Tall as a house,",
+      'round as a cup, and',
+      "all the king's horses",
+      "can't draw me up! What",
+      "am I?'",
+      '',
+    ],
+  },
+
+  // case 34 — Hobgoblin chief password gate. The trailing
+  // silver_key text fires regardless of which branch ran.
+  hobgoblin_chief: {
+    curtain: [
+      'You stand before a',
+      'silk curtain. You hear',
+      'someone moving behind',
+      'it. A voice calls:',
+      "- What's the password?",
+      '',
+    ],
+    password_prompt: 'Password: ',
+    step_inside: [
+      '- Step inside and identify',
+      'yourself. You do so. The',
+      'hobgoblin chief eyes you',
+      'suspiciously for a few',
+      'seconds. Not hestitating',
+      'a moment you attack.',
+      '',
+    ],
+    guards: [
+      '- GUARDS! GUARDS!',
+      '',
+      '(Hobgoblin guards rush',
+      ' to confront you.)',
+    ],
+    silver_key: [
+      'You have killed the chief',
+      'of the hobgoblin tribe.',
+      'The precious Silver Key',
+      'hangs around his neck.',
+      'With trembling hands',
+      'you pick it up!!!',
+      '',
+    ],
+  },
 }
