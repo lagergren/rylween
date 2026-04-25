@@ -960,23 +960,61 @@ int res_npc_slot_max(void) {
     return npc_slot_max();
 }
 
-/* Symbolic NPC name (shard key, e.g. "Gorm", "Harry") -> state.npc[]
-   slot. Thin wrapper over res_enum_id("name", ...). Fatal on miss so
-   a C-side typo or a rename of the NPC in world.json5 doesn't silently
-   degrade to slot 0 (the wilderness sentinel).
+/* Symbolic NPC key (e.g. "gorm", "harry") -> state.npc[] slot. Walks
+   the npcs subtree directly and reads the entry's `id:` field. Fatal
+   on miss so a C-side typo or a rename of the NPC in world.json5
+   doesn't silently degrade to slot 0 (the wilderness sentinel).
 
    Prefer res_npc_role at mission / rumour / quest call sites so the
-   specific character's name doesn't leak into C; use res_npc_slot
+   specific character's symbol doesn't leak into C; use res_npc_slot
    only when an NPC's shard key is the actual identity (e.g. in the
    realizer, or in tests). */
-int32_t res_npc_slot(const char *name) {
-    int id = res_enum_id("name", name);
-    if (id < 0) {
-        fprintf(stderr, "res_npc_slot: unknown NPC '%s'\n",
-                name ? name : "(null)");
+int32_t res_npc_slot(const char *sym) {
+    if (!world_tree || !sym) {
+        fprintf(stderr, "res_npc_slot: world not loaded / null name\n");
         exit(1);
     }
-    return (int32_t)id;
+    const node *npcs = obj_get(world_tree, "npcs");
+    if (!npcs || npcs->kind != N_OBJ) {
+        fprintf(stderr, "res_npc_slot: npcs subtree missing\n");
+        exit(1);
+    }
+    const node *rec = obj_get(npcs, sym);
+    if (!rec || rec->kind != N_OBJ) {
+        fprintf(stderr, "res_npc_slot: unknown NPC '%s'\n", sym);
+        exit(1);
+    }
+    const node *id_n = obj_get(rec, "id");
+    if (!id_n || id_n->kind != N_INT) {
+        fprintf(stderr, "res_npc_slot: '%s' missing 'id'\n", sym);
+        exit(1);
+    }
+    return (int32_t)id_n->u.iv;
+}
+
+/* Inverse of res_npc_slot: state.npc[] slot id -> the npcs-subtree key
+   (lowercase symbol) for that entry. Returns NULL when no record claims
+   the slot — used by the persistent-save writer, which iterates slots
+   1..N regardless. */
+const char *res_npc_sym(int32_t slot) {
+    if (!world_tree || slot <= 0) {
+        return NULL;
+    }
+    const node *npcs = obj_get(world_tree, "npcs");
+    if (!npcs || npcs->kind != N_OBJ) {
+        return NULL;
+    }
+    for (size_t i = 0; i < npcs->u.obj.n; i++) {
+        const node *rec = npcs->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *id_n = obj_get(rec, "id");
+        if (id_n && id_n->kind == N_INT && id_n->u.iv == slot) {
+            return npcs->u.obj.items[i].key;
+        }
+    }
+    return NULL;
 }
 
 /* Quest-role -> NPC slot indirection. The role name (e.g.
@@ -1087,7 +1125,7 @@ void res_realize_npcs(void) {
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
-        int slot = rn_int(rec, "slot", 0);
+        int slot = rn_int(rec, "id", 0);
         if (slot < 1 || slot > slot_max) {
             continue;
         }
@@ -1103,7 +1141,7 @@ void res_realize_npcs(void) {
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
-        int slot = rn_int(rec, "slot", 0);
+        int slot = rn_int(rec, "id", 0);
         if (slot < 1 || slot > slot_max) {
             continue;
         }

@@ -882,11 +882,18 @@ static void write_current_world() {
     fputs("  npcs: {\n", f);
     for (int i = 1; i <= res_npc_slot_max(); i++) {
         const struct person *n = &state.npc[i];
-        const char *id = res_enum("name", i);
-        /* Always quote: names like "Nrim'to" aren't bare-identifier safe. */
+        const char *sym = res_npc_sym(i);
+        const char *display = res_enum("name", i);
+        if (!sym) {
+            continue;
+        }
+        /* Quote the key — symbols with apostrophes (legacy, while transition
+           proceeds) or future hyphens aren't bare-identifier safe. */
         fputs("    ", f);
-        wcw_str(f, id);
-        fprintf(f, ": { slot: %d, job: ", i);
+        wcw_str(f, sym);
+        fprintf(f, ": { id: %d, name: ", i);
+        wcw_str(f, display);
+        fputs(", job: ", f);
         wcw_enum(f, "jobname", n->job);
         fputs(", towne: ", f);
         wcw_enum(f, "towne", n->towne);
@@ -1261,7 +1268,7 @@ static int read_current_world() {
             if (!rec || rec->kind != N_OBJ) {
                 continue;
             }
-            int slot = rcw_int(rec, "slot", 0);
+            int slot = rcw_int(rec, "id", 0);
             if (slot < 1 || slot > 39) {
                 continue;
             }

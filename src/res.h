@@ -332,11 +332,16 @@ void res_realize_npcs(void);
 int res_npc_slot_max(void);
 
 /* Look up an NPC's runtime slot by its shard key in world.json5's
-   npcs: block (same spelling as in the data file — case-sensitive).
-   Fatal if the name isn't found. Prefer res_npc_role at mission /
-   rumour / quest call sites; this is for cases where a character's
-   shard key IS the stable identity (the realizer, tests). */
-int32_t res_npc_slot(const char *name);
+   npcs: block (same spelling as in the data file — case-sensitive,
+   lowercase symbol). Fatal if the symbol isn't found. Prefer
+   res_npc_role at mission / rumour / quest call sites; this is for
+   cases where a character's shard key IS the stable identity (the
+   realizer, tests). */
+int32_t res_npc_slot(const char *sym);
+
+/* Inverse: slot id -> the npcs-subtree key. Returns NULL for slots
+   without a record. Used by the persistent-save writer. */
+const char *res_npc_sym(int32_t slot);
 
 /* Resolve a quest-role name (key in world.json5's npc_roles: subtree)
    to an NPC slot. The C side passes a stable role like

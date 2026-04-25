@@ -395,30 +395,30 @@
   //     iterates slots 1..res_npc_slot_max() and save() / npc.dat
   //     mirror the same range.
   npcs: {
-    Garth:     { slot:  1, job: 'merchant', towne: 'Thord', building: 'inn' },
-    "Nrim'to": { slot:  2, job: 'ranger'   },
-    Areth:     { slot:  3, job: 'fighter'  },
-    Nevaak:    { slot:  4, job: 'wizard'   },
-    Gorm:      { slot:  5, job: 'priest'   },
-    Bernak:    { slot:  6, job: 'thief'    },
-    Matias:    { slot:  7, job: 'peasant'  },
-    Tybalt:    { slot:  8, job: 'bard'     },
-    Romeo:     { slot:  9, job: 'drifter'  },
-    Werra:     { slot: 10, job: 'half_orc' },
-    Arenjun:   { slot: 11, job: 'half_elf' },
-    Oskar:     { slot: 12, job: 'smith'    },
-    Harry:     { slot: 13, job: 'merchant' },
-    Marraga:   { slot: 14, job: 'ranger'   },
-    Broth:     { slot: 15, job: 'fighter'  },
-    Ebond:     { slot: 16, job: 'wizard'   },
-    Bolph:     { slot: 17, job: 'priest'   },
-    Gotharp:   { slot: 18, job: 'thief'    },
-    Ron:       { slot: 19, job: 'peasant'  },
-    Kaal:      { slot: 20, job: 'bard'     },
-    Daniel:    { slot: 21, job: 'drifter'  },
-    Leander:   { slot: 22, job: 'half_orc' },
-    Ithienn:   { slot: 23, job: 'half_elf' },
-    Azaaza:    { slot: 24, job: 'smith'    },
+    garth:    { id:  1, name: 'Garth',    job: 'merchant', towne: 'Thord', building: 'inn' },
+    nrim_to:  { id:  2, name: "Nrim'to",  job: 'ranger'   },
+    areth:    { id:  3, name: 'Areth',    job: 'fighter'  },
+    nevaak:   { id:  4, name: 'Nevaak',   job: 'wizard'   },
+    gorm:     { id:  5, name: 'Gorm',     job: 'priest'   },
+    bernak:   { id:  6, name: 'Bernak',   job: 'thief'    },
+    matias:   { id:  7, name: 'Matias',   job: 'peasant'  },
+    tybalt:   { id:  8, name: 'Tybalt',   job: 'bard'     },
+    romeo:    { id:  9, name: 'Romeo',    job: 'drifter'  },
+    werra:    { id: 10, name: 'Werra',    job: 'half_orc' },
+    arenjun:  { id: 11, name: 'Arenjun',  job: 'half_elf' },
+    oskar:    { id: 12, name: 'Oskar',    job: 'smith'    },
+    harry:    { id: 13, name: 'Harry',    job: 'merchant' },
+    marraga:  { id: 14, name: 'Marraga',  job: 'ranger'   },
+    broth:    { id: 15, name: 'Broth',    job: 'fighter'  },
+    ebond:    { id: 16, name: 'Ebond',    job: 'wizard'   },
+    bolph:    { id: 17, name: 'Bolph',    job: 'priest'   },
+    gotharp:  { id: 18, name: 'Gotharp',  job: 'thief'    },
+    ron:      { id: 19, name: 'Ron',      job: 'peasant'  },
+    kaal:     { id: 20, name: 'Kaal',     job: 'bard'     },
+    daniel:   { id: 21, name: 'Daniel',   job: 'drifter'  },
+    leander:  { id: 22, name: 'Leander',  job: 'half_orc' },
+    ithienn:  { id: 23, name: 'Ithienn',  job: 'half_elf' },
+    azaaza:   { id: 24, name: 'Azaaza',   job: 'smith'    },
     // Innkeepers: job 14, in the inn (building = 'inn'). The legacy
     // person.c:95-121 had these at building = 'tavern', which is
     // backwards — Hassan is the innkeeper of Thord's INN (towne.c:1265
@@ -427,15 +427,15 @@
     // write-only field today (grep confirms no reader), so the
     // correction is behavior-neutral but makes the save file say what
     // it should.
-    Hassan:    { slot: 25, job: 'innkeeper',    towne: 'Thord', building: 'inn' },
-    Luqas:     { slot: 26, job: 'innkeeper',    towne: 'Ollk',  building: 'inn' },
-    Darth:     { slot: 27, job: 'innkeeper',    towne: 'Wilor', building: 'inn' },
-    Yog:       { slot: 28, job: 'innkeeper',    towne: 'Murn',  building: 'inn' },
-    Niklas:    { slot: 29, job: 'tavernkeeper', towne: 'Thord', building: 'tavern' },
-    Tokawa:    { slot: 30, job: 'tavernkeeper', towne: 'Ollk',  building: 'tavern' },
-    Miyaki:    { slot: 31, job: 'tavernkeeper', towne: 'Wilor', building: 'tavern' },
-    Dargoth:   { slot: 32, job: 'tavernkeeper', towne: 'Murn',  building: 'tavern' },
-    Marcus:    { slot: 33, job: 'hermit',       towne: 'wilderness', x: 48, y: 7 },
+    hassan:   { id: 25, name: 'Hassan',   job: 'innkeeper',    towne: 'Thord', building: 'inn' },
+    luqas:    { id: 26, name: 'Luqas',    job: 'innkeeper',    towne: 'Ollk',  building: 'inn' },
+    darth:    { id: 27, name: 'Darth',    job: 'innkeeper',    towne: 'Wilor', building: 'inn' },
+    yog:      { id: 28, name: 'Yog',      job: 'innkeeper',    towne: 'Murn',  building: 'inn' },
+    niklas:   { id: 29, name: 'Niklas',   job: 'tavernkeeper', towne: 'Thord', building: 'tavern' },
+    tokawa:   { id: 30, name: 'Tokawa',   job: 'tavernkeeper', towne: 'Ollk',  building: 'tavern' },
+    miyaki:   { id: 31, name: 'Miyaki',   job: 'tavernkeeper', towne: 'Wilor', building: 'tavern' },
+    dargoth:  { id: 32, name: 'Dargoth',  job: 'tavernkeeper', towne: 'Murn',  building: 'tavern' },
+    marcus:   { id: 33, name: 'Marcus',   job: 'hermit',       towne: 'wilderness', x: 48, y: 7 },
 
     // Bargirls: job 13, in the tavern. Legacy person.c:163 had these
     // at building = 'inn' — another latent write-only bug: towne.c:1189
@@ -447,12 +447,12 @@
     // the res_pronoun lookup and the well_f / health_f chitchat
     // branches in speak.c. All other NPC records omit `gender` and
     // fall through the rn_enum default of 1 (male).
-    Deanna:    { slot: 34, job: 'bargirl',      towne: 'Thord', building: 'tavern', gender: 'female' },
-    Jeanne:    { slot: 35, job: 'bargirl',      towne: 'Wilor', building: 'tavern', gender: 'female' },
-    Alex:      { slot: 36, job: 'merchant',     towne: 'wilderness' },
-    Galdon:    { slot: 37, job: 'merchant',     towne: 'wilderness' },
-    Kosch:     { slot: 38, job: 'merchant',     towne: 'wilderness' },
-    Ufarsin:   { slot: 39, job: 'merchant',     towne: 'wilderness' },
+    deanna:   { id: 34, name: 'Deanna',   job: 'bargirl',      towne: 'Thord', building: 'tavern', gender: 'female' },
+    jeanne:   { id: 35, name: 'Jeanne',   job: 'bargirl',      towne: 'Wilor', building: 'tavern', gender: 'female' },
+    alex:     { id: 36, name: 'Alex',     job: 'merchant',     towne: 'wilderness' },
+    galdon:   { id: 37, name: 'Galdon',   job: 'merchant',     towne: 'wilderness' },
+    kosch:    { id: 38, name: 'Kosch',    job: 'merchant',     towne: 'wilderness' },
+    ufarsin:  { id: 39, name: 'Ufarsin',  job: 'merchant',     towne: 'wilderness' },
   },
 
   // Role -> NPC binding. The C side (rumour dispatch, speak cases,
@@ -467,23 +467,23 @@
   // or renaming a role IS a C-visible change since the role key is a
   // string literal at the call site.
   npc_roles: {
-    bandits_quest_giver: 'Garth',     // towne.c rumour r12 + speak stages_npc1
-    rangers_quest_giver: "Nrim'to",   // towne.c rumour r13 + speak stages_npc2
-    crown_seer:          'Broth',     // towne.c rumour r25 + speak stages_npc15
-    temple_of_thun_seer: 'Harry',     // towne.c rumour r27 + speak case 13
-    master_thief:        'Gotharp',   // dungeon.c silver-key note + speak stages_npc18
-    fighter_intro:       'Areth',     // speak.c case 3 + bard fighter_name + speak stages_npc3
-    priest_with_book:    'Gorm',      // speak.c case 3 target + speak stages_npc5
-    silver_key_vendor:   'Bernak',    // speak.c case 6
-    jazzy_ogre_trader:   'Leander',   // speak.c case 22
-    wizard_robbed:       'Nevaak',    // speak stages_npc4 (stolen-book chain)
-    erethor_lute_bard:   'Tybalt',    // speak stages_npc8 (Erethor / Lute intro)
-    ranger_brother:      'Marraga',   // speak stages_npc14 (sword delivery)
-    peasant_husband:     'Ron',       // speak stages_npc19 + missions husband_cave bind
-    minstrel_cloak:      'Kaal',      // speak stages_npc20 (Lute -> Cloak handoff)
-    wizard_three_tasks:  'Ithienn',   // speak stages_npc23 (wizard3t / Master Crown)
-    silver_key_smith:    'Azaaza',    // speak stages_npc24 (after thief2 squeeze)
-    hermit_troll_tooth:  'Marcus',    // speak stages_npc33 (tooth trade)
+    bandits_quest_giver: 'garth',    // towne.c rumour r12 + speak stages_npc1
+    rangers_quest_giver: 'nrim_to',  // towne.c rumour r13 + speak stages_npc2
+    crown_seer:          'broth',    // towne.c rumour r25 + speak stages_npc15
+    temple_of_thun_seer: 'harry',    // towne.c rumour r27 + speak case 13
+    master_thief:        'gotharp',  // dungeon.c silver-key note + speak stages_npc18
+    fighter_intro:       'areth',    // speak.c case 3 + bard fighter_name + speak stages_npc3
+    priest_with_book:    'gorm',     // speak.c case 3 target + speak stages_npc5
+    silver_key_vendor:   'bernak',   // speak.c case 6
+    jazzy_ogre_trader:   'leander',  // speak.c case 22
+    wizard_robbed:       'nevaak',   // speak stages_npc4 (stolen-book chain)
+    erethor_lute_bard:   'tybalt',   // speak stages_npc8 (Erethor / Lute intro)
+    ranger_brother:      'marraga',  // speak stages_npc14 (sword delivery)
+    peasant_husband:     'ron',      // speak stages_npc19 + missions husband_cave bind
+    minstrel_cloak:      'kaal',     // speak stages_npc20 (Lute -> Cloak handoff)
+    wizard_three_tasks:  'ithienn',  // speak stages_npc23 (wizard3t / Master Crown)
+    silver_key_smith:    'azaaza',   // speak stages_npc24 (after thief2 squeeze)
+    hermit_troll_tooth:  'marcus',   // speak stages_npc33 (tooth trade)
   },
 
   // Enum tables — res_enum(id, index) reads values[index]. Slot 0 is
