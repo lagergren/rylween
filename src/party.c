@@ -130,6 +130,94 @@ void pa_flag_set(const char *tag, const char *state_name) {
     state.p[state.cpl].flag[pa_flag_slot(tag)] = (unsigned char)want;
 }
 
+int pa_flag_count(void) {
+    return (int)(sizeof state.p[state.cpl].flag /
+                 sizeof state.p[state.cpl].flag[0]);
+}
+
+static void pa_check_flag_slot(const char *who, int slot) {
+    if (slot < 0 || slot >= pa_flag_count()) {
+        fprintf(stderr, "%s: slot %d out of range [0, %d)\n", who, slot,
+                pa_flag_count());
+        exit(1);
+    }
+}
+
+int pa_flag(int slot) {
+    pa_check_flag_slot("pa_flag", slot);
+    return state.p[state.cpl].flag[slot];
+}
+
+void pa_set_flag(int slot, int v) {
+    pa_check_flag_slot("pa_set_flag", slot);
+    state.p[state.cpl].flag[slot] = (unsigned char)v;
+}
+
+int32_t pa_torches(void) {
+    return (int32_t)state.p[state.cpl].torches;
+}
+
+void pa_set_torches(int32_t v) {
+    state.p[state.cpl].torches = (uint32_t)v;
+}
+
+int32_t pa_food(void) {
+    return state.p[state.cpl].food;
+}
+
+void pa_set_food(int32_t v) {
+    state.p[state.cpl].food = v;
+}
+
+int pa_pl(void) {
+    return (int)state.p[state.cpl].pl;
+}
+
+void pa_set_pl(int v) {
+    state.p[state.cpl].pl = (unsigned char)v;
+}
+
+int32_t pa_hours_rested(void) {
+    return state.p[state.cpl].hours_rested;
+}
+
+void pa_set_hours_rested(int32_t v) {
+    state.p[state.cpl].hours_rested = v;
+}
+
+void pa_set_gold(int32_t v) {
+    state.p[state.cpl].gold = v;
+}
+
+void pa_add_gold(int32_t delta) {
+    state.p[state.cpl].gold += delta;
+}
+
+static void pa_check_inv_slot(const char *who, int slot) {
+    if (slot < 1 || slot > INVENTORY_SLOT_MAX) {
+        fprintf(stderr, "%s: slot %d out of range [1, %d]\n", who, slot,
+                INVENTORY_SLOT_MAX);
+        exit(1);
+    }
+}
+
+int32_t pa_inventory(int slot) {
+    pa_check_inv_slot("pa_inventory", slot);
+    return state.p[state.cpl].inventory[slot];
+}
+
+void pa_set_inventory(int slot, int32_t item_id) {
+    pa_check_inv_slot("pa_set_inventory", slot);
+    state.p[state.cpl].inventory[slot] = item_id;
+}
+
+const char *pa_name(int m) {
+    if (m < 1 || m > res_party_member_max()) {
+        return NULL;
+    }
+    return state.p[state.cpl].name[m];
+}
+
 void party_journal_add(struct party *p, const char *line) {
     if (!p || !line || !line[0]) {
         return;

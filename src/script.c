@@ -381,7 +381,7 @@ static int32_t expr_flag_slot(const node *v, const char *script_id, size_t idx,
     } else {
         slot = eval_expr(v, script_id, idx, bindings, env);
     }
-    if (slot < 0 || slot >= (int32_t)(sizeof state.p[state.cpl].flag)) {
+    if (slot < 0 || slot >= pa_flag_count()) {
         die_at(script_id, idx, "expr flag: slot out of range");
     }
     return slot;
@@ -612,19 +612,19 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
 
     if (flag_n) {
         int32_t slot = expr_flag_slot(flag_n, script_id, idx, bindings, env);
-        return state.p[state.cpl].flag[slot];
+        return pa_flag(slot);
     }
     if (obj_get(n, "gold")) {
-        return state.p[state.cpl].gold;
+        return pa_gold();
     }
     if (obj_get(n, "torches")) {
-        return (int32_t)state.p[state.cpl].torches;
+        return pa_torches();
     }
     if (obj_get(n, "food")) {
-        return state.p[state.cpl].food;
+        return pa_food();
     }
     if (obj_get(n, "pl")) {
-        return (int32_t)state.p[state.cpl].pl;
+        return pa_pl();
     }
     if (obj_get(n, "twn")) {
         return state.twn;
@@ -661,7 +661,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
                      "expr inventory: slot must be 1..%d", smax);
             die_at(script_id, idx, buf);
         }
-        return state.p[state.cpl].inventory[slot];
+        return pa_inventory(slot);
     }
     if (obj_get(n, "member")) {
         return expr_member_field(n, script_id, idx, bindings, env);
@@ -994,7 +994,7 @@ static void do_reward(const node *op, const char *script_id, size_t idx,
         if (gold_n->kind != N_INT) {
             die_at(script_id, idx, "reward: gold must be int");
         }
-        state.p[state.cpl].gold += gold_n->u.iv;
+        pa_add_gold((int32_t)gold_n->u.iv);
     }
     if (!items_n) {
         return;
@@ -1033,7 +1033,7 @@ static void do_reward(const node *op, const char *script_id, size_t idx,
         uint8_t carry = drop_option();
         if (carry) {
             clw();
-            state.p[state.cpl].inventory[carry] = item_id;
+            pa_set_inventory(carry, item_id);
             if (pu_n) {
                 resolve_text_id(parent, pu_n->u.sv, text_id, sizeof text_id,
                                 script_id, idx, "reward picked_up_screen");
@@ -1067,7 +1067,7 @@ static void do_set_flag(const node *op, const char *script_id, size_t idx) {
     } else {
         die_at(script_id, idx, "set_flag: slot must be int or string");
     }
-    if (slot < 0 || slot >= (int32_t)(sizeof state.p[state.cpl].flag)) {
+    if (slot < 0 || slot >= pa_flag_count()) {
         die_at(script_id, idx, "set_flag: slot out of range");
     }
     int32_t value;
@@ -1086,7 +1086,7 @@ static void do_set_flag(const node *op, const char *script_id, size_t idx) {
     } else {
         die_at(script_id, idx, "set_flag: value must be int or string");
     }
-    state.p[state.cpl].flag[slot] = (unsigned char)value;
+    pa_set_flag(slot, (int)value);
 }
 
 /* §17-E: { pause: N } — ryl_delay(N) ms. Replaces inline ryl_delay()
@@ -1471,12 +1471,8 @@ static void sb_res_npc_role(const int32_t *ints, const char **strs,
 static void sb_pa_name(const int32_t *ints, const char **strs, char *out,
                        size_t out_sz) {
     (void)strs;
-    int m = (int)ints[0];
-    if (m < 1 || m > res_party_member_max()) {
-        snprintf(out, out_sz, "-");
-        return;
-    }
-    snprintf(out, out_sz, "%s", state.p[state.cpl].name[m]);
+    const char *nm = pa_name((int)ints[0]);
+    snprintf(out, out_sz, "%s", nm ? nm : "-");
 }
 
 static const str_engine_entry str_engine_tbl[] = {
@@ -1657,10 +1653,10 @@ static int eval_cond(const node *cond, const char *script_id, size_t idx,
         } else {
             die_at(script_id, idx, "if: flag must be int or string");
         }
-        if (slot < 0 || slot >= (int32_t)(sizeof state.p[state.cpl].flag)) {
+        if (slot < 0 || slot >= pa_flag_count()) {
             die_at(script_id, idx, "if: flag slot out of range");
         }
-        int cur = state.p[state.cpl].flag[slot];
+        int cur = pa_flag(slot);
         const node *cmp_n = eq_n ? eq_n : ne_n;
         int32_t cmp;
         if (cmp_n->kind == N_INT) {
@@ -1681,7 +1677,7 @@ static int eval_cond(const node *cond, const char *script_id, size_t idx,
         return eq_n ? (cur == cmp) : (cur != cmp);
     }
     if (gold_n && gold_n->kind == N_OBJ) {
-        int32_t cur = state.p[state.cpl].gold;
+        int32_t cur = pa_gold();
         const node *gte = obj_get(gold_n, "gte");
         const node *lt = obj_get(gold_n, "lt");
         if (gte && gte->kind == N_INT) {
@@ -2017,27 +2013,27 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
 
 static int32_t read_lv(const mutate_lv *lv, const char *script_id,
                        size_t idx) {
-    struct party *p = &state.p[state.cpl];
     switch (lv->kind) {
         case LV_GOLD:
-            return p->gold;
+            return pa_gold();
         case LV_TORCHES:
-            return (int32_t)p->torches;
+            return pa_torches();
         case LV_FOOD:
-            return p->food;
+            return pa_food();
         case LV_PL:
-            return (int32_t)p->pl;
+            return pa_pl();
         case LV_HOURS_RESTED:
-            return p->hours_rested;
+            return pa_hours_rested();
         case LV_HOUR_OF_DAY:
             return state.hour_of_day;
         case LV_FLAG:
-            return p->flag[lv->index];
+            return pa_flag(lv->index);
         case LV_INVENTORY:
-            return p->inventory[lv->index];
+            return pa_inventory(lv->index);
         case LV_MEMBER_FIELD: {
             int m = lv->index;
             const char *f = lv->field;
+            struct party *p = &state.p[state.cpl];
             if (strcmp(f, "lv") == 0) {
                 return p->lv[m];
             }
@@ -2088,28 +2084,27 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
 
 static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                      size_t idx) {
-    struct party *p = &state.p[state.cpl];
     switch (lv->kind) {
         case LV_GOLD:
-            p->gold = v;
+            pa_set_gold(v);
             return;
         case LV_TORCHES:
             if (v < 0) {
                 die_at(script_id, idx, "mutate: torches cannot be negative");
             }
-            p->torches = (uint32_t)v;
+            pa_set_torches(v);
             return;
         case LV_FOOD:
-            p->food = v;
+            pa_set_food(v);
             return;
         case LV_PL:
             if (v < 0 || v > 255) {
                 die_at(script_id, idx, "mutate: pl must be 0..255");
             }
-            p->pl = (unsigned char)v;
+            pa_set_pl((int)v);
             return;
         case LV_HOURS_RESTED:
-            p->hours_rested = v;
+            pa_set_hours_rested(v);
             return;
         case LV_HOUR_OF_DAY:
             if (v < 1 || v > 24) {
@@ -2119,14 +2114,15 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
             state.hour_of_day = v;
             return;
         case LV_FLAG:
-            p->flag[lv->index] = (unsigned char)v;
+            pa_set_flag(lv->index, (int)v);
             return;
         case LV_INVENTORY:
-            p->inventory[lv->index] = v;
+            pa_set_inventory(lv->index, v);
             return;
         case LV_MEMBER_FIELD: {
             int m = lv->index;
             const char *f = lv->field;
+            struct party *p = &state.p[state.cpl];
             if (strcmp(f, "lv") == 0) {
                 p->lv[m] = v;
                 return;
@@ -2453,7 +2449,7 @@ static ops_result do_input_item(const node *op, const char *script_id, size_t id
         return OPS_NORMAL;
     }
     int slot = d - 'A' + 1;
-    int oc = state.p[state.cpl].inventory[slot];
+    int oc = pa_inventory(slot);
     rt_bind_set(env, slot_var_n->u.sv, slot, script_id, idx);
     rt_bind_set(env, item_var_n->u.sv, oc, script_id, idx);
     if (!then_n) {

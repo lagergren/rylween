@@ -86,6 +86,45 @@ int pa_flag_is(const char *tag, const char *state);
 /* Set the slot to the value indexed by `state`. */
 void pa_flag_set(const char *tag, const char *state);
 
+/* Raw-slot party-state accessors. The tag-keyed pa_flag_get / pa_flag_is /
+   pa_flag_set above are for hand-written C; these slot-indexed forms are
+   for the DSL eval path (script.c eval_expr / do_mutate / eval_cond),
+   which has already resolved a slot via res_flag_slot. Both groups
+   bound-check and exit(1) on out-of-range. */
+
+/* Number of party-flag slots (sizeof state.p[cpl].flag). */
+int pa_flag_count(void);
+
+/* state.p[cpl].flag[slot] read / write. */
+int pa_flag(int slot);
+void pa_set_flag(int slot, int v);
+
+/* Top-level party scalars. The set_* siblings assume the caller has
+   already enforced the field's domain (DSL mutate paths do this with
+   die_at so script context is preserved in the error); they only do
+   the type narrowing. */
+int32_t pa_torches(void);
+void pa_set_torches(int32_t v);
+int32_t pa_food(void);
+void pa_set_food(int32_t v);
+int pa_pl(void);
+void pa_set_pl(int v);
+int32_t pa_hours_rested(void);
+void pa_set_hours_rested(int32_t v);
+
+/* Gold writes (pa_gold above is the read sibling). */
+void pa_set_gold(int32_t v);
+void pa_add_gold(int32_t delta);
+
+/* state.p[cpl].inventory[slot] read / write. slot is 1..INVENTORY_SLOT_MAX. */
+int32_t pa_inventory(int slot);
+void pa_set_inventory(int slot, int32_t item_id);
+
+/* Per-member display name. m is 1..res_party_member_max(); returns NULL on
+   out-of-range so the caller can fall back to a placeholder (sb_pa_name
+   renders "-" for invalid slots). */
+const char *pa_name(int m);
+
 /* Append `line` to p->journal, skipping if a case-insensitive duplicate is
    already present (behaviour parity with the file-backed `stricmp` dedup
    it replaces). The caller's buffer is copied; ownership moves into the
