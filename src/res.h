@@ -186,6 +186,16 @@ int32_t res_class_levelup(const char *cls, const char *stat);
    itself lives in world.json5. Fatal if the formula is missing. */
 int32_t res_formula_int(const char *name, const char *var_name, int32_t val);
 
+/* Multi-binding form. Same lookup, but seeds N named locals before
+   eval. Use when the formula references more than one input — battle.c
+   reward / encounter formulas need $noc/$h2/$ws/$sp etc. simultaneously.
+   Pass `n == 0` for a constant-folding formula. */
+typedef struct {
+    const char *name;
+    int32_t val;
+} res_binding;
+int32_t res_formula_int_n(const char *name, const res_binding *bindings, size_t n);
+
 /* Monsters 0..90. NULL if no record. */
 const ryl_monster *res_monster(int id);
 

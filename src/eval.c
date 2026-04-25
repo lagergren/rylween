@@ -362,7 +362,8 @@ static void compile_cond(node *n, const char *src_path) {
     } else if (strcmp(op, "chance") == 0) {
         check_arity(n, src_path, 2, 2);
         compile_expr(n->u.arr.items[1], src_path);
-    } else if (strcmp(op, "eq") == 0 || strcmp(op, "lt") == 0 || strcmp(op, "gte") == 0) {
+    } else if (strcmp(op, "eq") == 0 || strcmp(op, "lt") == 0 ||
+               strcmp(op, "gt") == 0 || strcmp(op, "gte") == 0) {
         check_arity(n, src_path, 3, 3);
         compile_expr(n->u.arr.items[1], src_path);
         compile_expr(n->u.arr.items[2], src_path);
@@ -476,7 +477,8 @@ static compile_fn compile_kind_for(const node *n) {
         strcmp(op, "in_town") == 0 || strcmp(op, "in_wilderness") == 0 ||
         strcmp(op, "class_is") == 0 || strcmp(op, "alive") == 0 ||
         strcmp(op, "chance") == 0 ||
-        strcmp(op, "eq") == 0 || strcmp(op, "lt") == 0 || strcmp(op, "gte") == 0) {
+        strcmp(op, "eq") == 0 || strcmp(op, "lt") == 0 ||
+        strcmp(op, "gt") == 0 || strcmp(op, "gte") == 0) {
         return compile_cond;
     }
     if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0 ||
@@ -1005,6 +1007,9 @@ static int eval_cond(const node *n, env_t *e) {
     }
     if (strcmp(op, "lt") == 0) {
         return eval_expr(n->u.arr.items[1], e) < eval_expr(n->u.arr.items[2], e);
+    }
+    if (strcmp(op, "gt") == 0) {
+        return eval_expr(n->u.arr.items[1], e) > eval_expr(n->u.arr.items[2], e);
     }
     if (strcmp(op, "gte") == 0) {
         return eval_expr(n->u.arr.items[1], e) >= eval_expr(n->u.arr.items[2], e);

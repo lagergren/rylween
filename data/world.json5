@@ -248,33 +248,18 @@
     defend_cap:     250,   // max accumulated defend pool before clamp
     hp_defense_div: 12,    // dp contribution per defender: hp[g] / N
 
-    // §20 S5: encounter HP scaling. h1 = monster's base min hp,
-    // h2 = base max hp; both grow with the party's level so a low-
-    // level encounter scales up as the party advances. The party-
-    // avg multiplier scales every monster, then the leader-only
-    // ladder kicks in once pa_first_level() crosses the threshold.
-    encounter_h1_party_avg_mul:    2,
-    encounter_h1_leader_threshold: 2,
-    encounter_h1_leader_mul:       2,
-    encounter_h2_leader_mul:       3,
+    // §20 S5/S11: encounter HP scaling and victory rewards live as
+    // named entries in the top-level `formulas:` block (encounter_h1_
+    // scaled / encounter_h2_scaled / reward_xp_per_survivor /
+    // reward_gold_party / reward_gold_per_survivor). The eleven flat
+    // knobs S5 added are inlined into those expression trees so the
+    // multiplication structure itself is now data, not C.
+
     // Cap on noc (number of co-encountered foes). monsters.json5
     // sets the per-record max; this is the global ceiling that
-    // backs the same UI display ("XX XX XX..." 8 slots).
+    // backs the same UI display ("XX XX XX..." 8 slots). Stays
+    // a flat constant — it's a clamp, not a formula.
     encounter_foe_count_max:       8,
-
-    // §20 S5: victory rewards. Total XP and gold awarded on a
-    // win, formula:
-    //   xp   = noc * (h2 / xp_h2_div) * (ws / xp_ws_div) + sp * xp_sp_mul
-    //   gold = noc * (h2 / gold_h2_div) * (ws / gold_ws_div)
-    // The display message divides the gold figure by gold_display_div
-    // (legacy mismatch between the per-survivor display and the
-    // whole-party award; preserved verbatim — fix is a separate ask).
-    reward_xp_h2_div:        4,
-    reward_xp_ws_div:        4,
-    reward_xp_sp_mul:        3,
-    reward_gold_h2_div:      7,
-    reward_gold_ws_div:      4,
-    reward_gold_display_div: 4,
 
     drop_tables: {
       default: {
@@ -313,6 +298,35 @@
   // across battle.c / dungeon.c / subs.c get lifted one by one.
   formulas: {
     donkey_food_cap: ['+', 150, ['*', 150, '$y']],
+
+    // §20 S11: encounter HP scaling. Both h1 (min) and h2 (max) grow
+    // with party stats so a low-level pool scales as the party levels.
+    // h1 picks up a flat party-average bonus plus a leader-only bonus
+    // once the leader passes level 2; h2 grows linearly with the leader
+    // level. Bindings: $h1_base / $h2_base (monster's stock h1/h2 from
+    // monsters.json5), $party_avg (average pm_lv across slots 1..4),
+    // $first_level (pa_first_level()).
+    encounter_h1_scaled: ['+', '$h1_base',
+                          ['+', ['*', '$party_avg', 2],
+                                ['cond', ['gt', '$first_level', 2],
+                                         ['*', '$first_level', 2],
+                                         0]]],
+    encounter_h2_scaled: ['+', '$h2_base', ['*', '$first_level', 3]],
+
+    // §20 S11: victory rewards. xp_per_survivor and gold_per_survivor
+    // back the "Each survivor gets X xp / Y gold" display lines;
+    // reward_gold_party is the un-divided figure that party_add_gold
+    // takes (legacy mismatch between the per-survivor display and
+    // the whole-party award; preserved verbatim — fix is a separate
+    // ask). Bindings: $noc, $h2 (post-scaling), $ws (post-scaling), $sp.
+    reward_xp_per_survivor: ['+', ['*', '$noc',
+                                       ['*', ['/', '$h2', 4], ['/', '$ws', 4]]],
+                                  ['*', '$sp', 3]],
+    reward_gold_party: ['*', '$noc',
+                            ['*', ['/', '$h2', 7], ['/', '$ws', 4]]],
+    reward_gold_per_survivor: ['/', ['*', '$noc',
+                                          ['*', ['/', '$h2', 7], ['/', '$ws', 4]]],
+                                    4],
   },
 
   // Spells (§3.4). Nested by class so each shard owns its own file.

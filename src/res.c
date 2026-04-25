@@ -523,10 +523,10 @@ int32_t res_class_levelup(const char *cls, const char *stat) {
 /* Named-formula evaluator. `formulas.<name>` in world.json5 holds an
    expression tree (e.g. ['+', 150, ['*', 150, '$y']]); compile_world_tree
    has already rewritten `$y` into an N_PATH(PA_LOCAL). We spin up a
-   single-variable env, seed `var_name` with `val`, run eval_expr, and
-   tear the env back down. Fatal if the formula is missing — callers
-   treat a named formula as a load-time contract. */
-int32_t res_formula_int(const char *name, const char *var_name, int32_t val) {
+   fresh env, seed every requested local, run eval_expr, then tear the
+   env back down. Fatal if the formula is missing — callers treat a
+   named formula as a load-time contract. */
+int32_t res_formula_int_n(const char *name, const res_binding *bindings, size_t n) {
     if (!world_tree || !name) {
         fprintf(stderr, "res_formula_int: world not loaded\n");
         exit(1);
@@ -543,12 +543,20 @@ int32_t res_formula_int(const char *name, const char *var_name, int32_t val) {
     }
     env_t e;
     env_init(&e);
-    if (var_name) {
-        env_set_local(&e, var_name, val);
+    for (size_t i = 0; i < n; i++) {
+        env_set_local(&e, bindings[i].name, bindings[i].val);
     }
     int32_t r = eval_expr(body, &e);
     env_free(&e);
     return r;
+}
+
+int32_t res_formula_int(const char *name, const char *var_name, int32_t val) {
+    if (!var_name) {
+        return res_formula_int_n(name, NULL, 0);
+    }
+    res_binding b = {var_name, val};
+    return res_formula_int_n(name, &b, 1);
 }
 
 const ryl_monster *res_monster(int id) {
