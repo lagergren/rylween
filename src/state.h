@@ -24,6 +24,15 @@
    future limits: knob overrides. */
 #define INVENTORY_SLOT_MAX 16
 
+/* The UI maps inventory letters to slots (A=1..P=16). The mapping
+   relies on the slot count fitting into the 26-letter alphabet; if
+   a future limits: knob ever pushes this past 26, the letter-decode
+   helpers below need a different keying strategy (chord, two
+   letters, etc.). Force a build break before the data drift gets
+   loose. */
+_Static_assert(INVENTORY_SLOT_MAX <= 26,
+               "inventory letter decode runs off the end of the alphabet");
+
 /* Party-member slot default. The per-member arrays on struct party
    are heap-allocated off res_party_member_max() at party-realize /
    load time (§19.3), so the bound is a data-driven knob:
@@ -271,6 +280,14 @@ static inline int inv_slot_from_letter(char c) {
         return (int)(c - 'A' + 1);
     }
     return 0;
+}
+
+/* Predicate sibling: 1 iff `c` decodes to a valid inventory slot.
+   Replaces the hardcoded `if (d >= 'A' && d <= 'P')` gates that
+   pre-filter user keystrokes — the upper bound now tracks
+   INVENTORY_SLOT_MAX rather than an open-coded 'P'. */
+static inline int inv_letter_in_range(char c) {
+    return inv_slot_from_letter(c) != 0;
 }
 
 static inline int pm_cl(pm_t pm) {

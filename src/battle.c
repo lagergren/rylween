@@ -170,7 +170,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 d = key();
                 d = toupper(d);
                 oc = 0;
-                if (d >= 'A' && d <= 'P') {
+                if (inv_letter_in_range(d)) {
                     oc = pa_inventory(inv_slot_from_letter(d));
                     if (!item_is_magic_item(oc)) {
                         clw();
