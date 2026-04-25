@@ -43,7 +43,7 @@
     //     i.e. subject form; "is not a ranger." follows.
     { if: {
         cond: { not: { engine_int: 'pa_is_class',
-                       args: [{ var: 'member_idx' }, 'Ranger'] } },
+                       args: [{ var: 'member_idx' }, 'ranger'] } },
         then: [
           { engine_call: 'clw' },
           { engine_bind: { fn: 'pronoun', args: [{ var: 'member_idx' }, 'subject'], var: 'pro_sub' } },

@@ -139,38 +139,6 @@
   // table to speak.c::mission_dispatch.
   speak_missions: { $import: 'world/scripts/speak_missions.json5' },
 
-  // Class records (§3.3). Only the `spells` list is consumed today —
-  // prereqs/starting gear stay in C (driv.c createparty) until those
-  // call sites migrate. `casts_in` is recorded for the benefit of the
-  // evaluator's future menu gating.
-  classes: {
-    // `levelup` deltas are applied in battle.c on each level gained:
-    // hp is clamped up to (2/3)*h post-gain. Stat keys match the
-    // party fields: ws = weapon-skill, h = max health, wi = wisdom,
-    // ch = charisma. Spells live on the two caster classes only.
-    fighter: { levelup: { ws: 3, h: 8, wi: 1, ch: 1 } },
-    thief:   { levelup: { ws: 1, h: 5, wi: 1, ch: 2 } },
-    mage: {
-      spells: [
-        'mage.frost', 'mage.fire', 'mage.confusion',
-        'mage.death', 'mage.hold', 'mage.antimagic',
-      ],
-      casts_in: ['combat'],
-      levelup: { ws: 1, h: 4, wi: 7, ch: 2 },
-    },
-    priest: {
-      spells: [
-        'priest.heal', 'priest.restoration', 'priest.rebirth',
-        'priest.banish', 'priest.revelation', 'priest.teleport',
-        'priest.earthquake',
-      ],
-      casts_in: ['combat'],
-      levelup: { ws: 1, h: 5, wi: 8, ch: 3 },
-    },
-    bard:   { levelup: { ws: 2, h: 7, wi: 2, ch: 6 } },
-    ranger: { levelup: { ws: 2, h: 8, wi: 3, ch: 3 } },
-  },
-
   // Per-tick upkeep. foodhandler() reads these every hour; callers
   // are in subs.c. Keep keys stable — C-side hard-codes the names.
   upkeep: {
@@ -551,9 +519,39 @@
     // show() screen. Matches driv.c's original hardcoded order.
     race: ['', 'Human', 'Dwarf', 'Elf', 'Halfling'],
 
-    // Player-party class (struct party.cl[], PC_* ids). Displayable —
-    // used by the show() screen. Matches state.h PC_FIGHTER..PC_RANGER.
-    pc_class: ['', 'Fighter', 'Thief', 'Mage', 'Priest', 'Bard', 'Ranger'],
+    // Player-party class (struct party.cl[], PC_* ids). The lowercase key
+    // is the script-stable symbol; `name` is the show()-screen display
+    // string. `levelup` deltas are applied by battle.c on each level
+    // gained (hp clamped up to (2/3)*h post-gain; stat keys mirror the
+    // party fields). Caster classes also carry their `spells:` list and
+    // a `casts_in:` annotation for the future menu-gating pass. Slot ids
+    // match state.h PC_FIGHTER..PC_RANGER (1..6); slot 0 is the
+    // "no class" sentinel and stays implicit.
+    pc_class: {
+      fighter: { id: 1, name: 'Fighter', levelup: { ws: 3, h: 8, wi: 1, ch: 1 } },
+      thief:   { id: 2, name: 'Thief',   levelup: { ws: 1, h: 5, wi: 1, ch: 2 } },
+      mage: {
+        id: 3, name: 'Mage',
+        spells: [
+          'mage.frost', 'mage.fire', 'mage.confusion',
+          'mage.death', 'mage.hold', 'mage.antimagic',
+        ],
+        casts_in: ['combat'],
+        levelup: { ws: 1, h: 4, wi: 7, ch: 2 },
+      },
+      priest: {
+        id: 4, name: 'Priest',
+        spells: [
+          'priest.heal', 'priest.restoration', 'priest.rebirth',
+          'priest.banish', 'priest.revelation', 'priest.teleport',
+          'priest.earthquake',
+        ],
+        casts_in: ['combat'],
+        levelup: { ws: 1, h: 5, wi: 8, ch: 3 },
+      },
+      bard:   { id: 5, name: 'Bard',   levelup: { ws: 2, h: 7, wi: 2, ch: 6 } },
+      ranger: { id: 6, name: 'Ranger', levelup: { ws: 2, h: 8, wi: 3, ch: 3 } },
+    },
 
     // Player-party member gender (struct party.gender[]). Not displayed
     // as text directly; keys match the pronoun table above.

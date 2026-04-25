@@ -678,7 +678,7 @@
           { for_member: { var: 'member', then: [
             { if: {
                 cond: { eq: [{ member: { var: 'member' }, field: 'cl' },
-                              { enum: ['pc_class', 'Priest'] }] }, // not engine_int — bare expr in eq:
+                              { enum: ['pc_class', 'priest'] }] }, // not engine_int — bare expr in eq:
                 then: [
                   { let: 'priest_bonus', value: { add: [
                     { var: 'priest_bonus' },

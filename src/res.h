@@ -97,12 +97,19 @@ const char *res_flag_value(const char *flag_id, int index);
    Returns NULL if no party-scoped flag tag claims that slot. */
 const char *res_flag_id_for_slot(int32_t slot);
 
-/* Enum: values[index] for matching record. "" if missing/out of range. */
+/* Enum: values[index] for matching record. "" if missing/out of range.
+   For keyed-record enums (pc_class etc.), this returns the .name display
+   string; res_enum_name is an explicit alias the §22 callers can use to
+   make the symbol-vs-display distinction obvious. */
 const char *res_enum(const char *id, int index);
+const char *res_enum_name(const char *id, int index);
 
-/* Enum inverse: index where values[i] matches `value`. -1 if the enum id
-   is unknown or no entry matches. Linear search — suitable for loader
-   paths, not hot-path code. */
+/* Enum inverse: index where the symbol or display string matches `value`.
+   On keyed-record enums the lowercase key (the script-stable symbol)
+   matches first; on legacy positional-array enums and when callers still
+   pass a display string during migration the visible-name fallback fires.
+   -1 if the enum id is unknown or no entry matches. Linear search —
+   suitable for loader paths, not hot-path code. */
 int res_enum_id(const char *id, const char *value);
 
 /* Text: content strings for {"kind":"text",...}. "" if missing. Never NULL. */

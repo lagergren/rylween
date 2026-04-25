@@ -44,7 +44,12 @@
 
 typedef struct {
     char *id;
-    char **values;
+    char **keys;     /* keys[idx] = lowercase symbol; NULL for the legacy
+                        positional-array shape and for sparse gaps in the
+                        keyed-record shape. */
+    char **values;   /* values[idx] = display string. For positional arrays
+                        this is the only string the entry has; for keyed
+                        records this comes from the entry's `name:` field. */
     size_t n_values;
 } enum_rec;
 
@@ -282,6 +287,17 @@ int res_enum_id(const char *id, const char *value) {
         if (strcmp(enums[i].id, id) != 0) {
             continue;
         }
+        /* Symbol match first (lowercase key on keyed-record enums). */
+        if (enums[i].keys) {
+            for (size_t j = 0; j < enums[i].n_values; j++) {
+                if (enums[i].keys[j] && strcmp(enums[i].keys[j], value) == 0) {
+                    return (int)j;
+                }
+            }
+        }
+        /* Display fallback — covers legacy positional-array enums and
+           keyed-record callers that still pass the .name string during
+           migration. */
         for (size_t j = 0; j < enums[i].n_values; j++) {
             if (strcmp(enums[i].values[j], value) == 0) {
                 return (int)j;
@@ -290,6 +306,10 @@ int res_enum_id(const char *id, const char *value) {
         return -1;
     }
     return -1;
+}
+
+const char *res_enum_name(const char *id, int index) {
+    return res_enum(id, index);
 }
 
 static int text_cmp(const void *a, const void *b) {
@@ -501,16 +521,33 @@ int32_t res_xp_threshold(int level) {
     return (v && v->kind == N_INT) ? (int32_t)v->u.iv : 0;
 }
 
+/* `pc_class` is the keyed-record enum carrying class data — id, display
+   name, and the `levelup`/`spells`/`casts_in` payload that lives on each
+   class record. There used to be a parallel `classes:` block; §22 folded
+   it into the enum record so the symbol-vs-display split is the single
+   source of truth. */
+static const node *pc_class_node(const char *cls) {
+    if (!world_tree || !cls) {
+        return NULL;
+    }
+    const node *enums_n = obj_get(world_tree, "enums");
+    if (!enums_n || enums_n->kind != N_OBJ) {
+        return NULL;
+    }
+    const node *pc = obj_get(enums_n, "pc_class");
+    if (!pc || pc->kind != N_OBJ) {
+        return NULL;
+    }
+    const node *rec = obj_get(pc, cls);
+    return (rec && rec->kind == N_OBJ) ? rec : NULL;
+}
+
 int32_t res_class_levelup(const char *cls, const char *stat) {
-    if (!world_tree || !cls || !stat) {
+    if (!stat) {
         return 0;
     }
-    const node *classes_n = obj_get(world_tree, "classes");
-    if (!classes_n || classes_n->kind != N_OBJ) {
-        return 0;
-    }
-    const node *cls_n = obj_get(classes_n, cls);
-    if (!cls_n || cls_n->kind != N_OBJ) {
+    const node *cls_n = pc_class_node(cls);
+    if (!cls_n) {
         return 0;
     }
     const node *lvl_n = obj_get(cls_n, "levelup");
@@ -2346,6 +2383,72 @@ static void fold_scripts(const node *scripts_node, const char *path) {
     fold_scripts_walk(scripts_node, path, "");
 }
 
+static void fold_enum_array(enum_rec *r, const node *arr, const char *path) {
+    r->n_values = arr->u.arr.n;
+    r->keys = NULL;
+    r->values = r->n_values ? malloc(r->n_values * sizeof *r->values) : NULL;
+    if (r->n_values && !r->values) {
+        res_die(path, arr->line, "oom");
+    }
+    for (size_t j = 0; j < arr->u.arr.n; j++) {
+        const node *v = arr->u.arr.items[j];
+        if (v->kind != N_STR) {
+            res_die(path, v->line, "enums: element must be string");
+        }
+        r->values[j] = strdup(v->u.sv);
+    }
+}
+
+/* Keyed-record enum shape: each child is an object carrying `id:` (slot
+   index) and `name:` (display string). The lowercase key becomes the
+   stable symbol; the display text moves into a separate field so renaming
+   the visible label doesn't change script identity. Unfilled slots stay
+   empty so the array indexing semantics match the legacy positional shape. */
+static void fold_enum_records(enum_rec *r, const node *obj, const char *path) {
+    int32_t max_id = 0;
+    for (size_t j = 0; j < obj->u.obj.n; j++) {
+        const node *rec = obj->u.obj.items[j].val;
+        if (rec->kind != N_OBJ) {
+            res_die(path, rec->line, "enums: keyed entry must be object");
+        }
+        const node *id_n = obj_get(rec, "id");
+        if (!id_n || id_n->kind != N_INT) {
+            res_die(path, rec->line, "enums: keyed entry missing 'id'");
+        }
+        if (id_n->u.iv < 0) {
+            res_die(path, id_n->line, "enums: keyed entry id must be >= 0");
+        }
+        if (id_n->u.iv > max_id) {
+            max_id = id_n->u.iv;
+        }
+    }
+    r->n_values = (size_t)max_id + 1;
+    r->keys = calloc(r->n_values, sizeof *r->keys);
+    r->values = calloc(r->n_values, sizeof *r->values);
+    if (!r->keys || !r->values) {
+        res_die(path, obj->line, "oom");
+    }
+    for (size_t j = 0; j < r->n_values; j++) {
+        r->values[j] = strdup("");
+    }
+    for (size_t j = 0; j < obj->u.obj.n; j++) {
+        const char *key = obj->u.obj.items[j].key;
+        const node *rec = obj->u.obj.items[j].val;
+        const node *id_n = obj_get(rec, "id");
+        const node *name_n = obj_get(rec, "name");
+        if (!name_n || name_n->kind != N_STR) {
+            res_die(path, rec->line, "enums: keyed entry missing 'name'");
+        }
+        size_t idx = (size_t)id_n->u.iv;
+        if (r->keys[idx]) {
+            res_die(path, id_n->line, "enums: duplicate id in keyed enum");
+        }
+        r->keys[idx] = strdup(key);
+        free(r->values[idx]);
+        r->values[idx] = strdup(name_n->u.sv);
+    }
+}
+
 static void fold_enums(const node *enums_node, const char *path) {
     if (!enums_node) {
         return;
@@ -2355,28 +2458,21 @@ static void fold_enums(const node *enums_node, const char *path) {
     }
     for (size_t i = 0; i < enums_node->u.obj.n; i++) {
         const char *id = enums_node->u.obj.items[i].key;
-        const node *arr = enums_node->u.obj.items[i].val;
-        if (arr->kind != N_ARR) {
-            res_die(path, arr->line, "enums: value must be array");
+        const node *val = enums_node->u.obj.items[i].val;
+        if (val->kind != N_ARR && val->kind != N_OBJ) {
+            res_die(path, val->line, "enums: value must be array or object");
         }
         enum_rec *grown = realloc(enums, (n_enums + 1) * sizeof *enums);
         if (!grown) {
-            res_die(path, arr->line, "oom");
+            res_die(path, val->line, "oom");
         }
         enums = grown;
         enum_rec *r = &enums[n_enums++];
         r->id = strdup(id);
-        r->n_values = arr->u.arr.n;
-        r->values = r->n_values ? malloc(r->n_values * sizeof *r->values) : NULL;
-        if (r->n_values && !r->values) {
-            res_die(path, arr->line, "oom");
-        }
-        for (size_t j = 0; j < arr->u.arr.n; j++) {
-            const node *v = arr->u.arr.items[j];
-            if (v->kind != N_STR) {
-                res_die(path, v->line, "enums: element must be string");
-            }
-            r->values[j] = strdup(v->u.sv);
+        if (val->kind == N_ARR) {
+            fold_enum_array(r, val, path);
+        } else {
+            fold_enum_records(r, val, path);
         }
     }
 }
@@ -2402,7 +2498,11 @@ void res_load_world(const char *path) {
     fold_flags(obj_get(root, "flags"), path);
     fold_items(obj_get(root, "items"), path);
     fold_monsters(obj_get(root, "monsters"), path);
-    fold_spells(obj_get(root, "classes"), obj_get(root, "spells"), path);
+    {
+        const node *enums_n = obj_get(root, "enums");
+        const node *pc_class_n = enums_n ? obj_get(enums_n, "pc_class") : NULL;
+        fold_spells(pc_class_n, obj_get(root, "spells"), path);
+    }
     fold_terrain(obj_get(root, "terrain"), path);
     fold_pronoun(obj_get(root, "pronoun"), path);
     fold_towns(obj_get(root, "towns"), path);
@@ -2484,11 +2584,7 @@ const void *res_spell_node(const char *class_id, int slot) {
     if (!root) {
         return NULL;
     }
-    const node *classes = obj_get(root, "classes");
-    if (!classes) {
-        return NULL;
-    }
-    const node *cls = obj_get(classes, class_id);
+    const node *cls = pc_class_node(class_id);
     if (!cls) {
         return NULL;
     }
@@ -2635,8 +2731,12 @@ static void reset_enums(void) {
     for (size_t i = 0; i < n_enums; i++) {
         free(enums[i].id);
         for (size_t j = 0; j < enums[i].n_values; j++) {
+            if (enums[i].keys) {
+                free(enums[i].keys[j]);
+            }
             free(enums[i].values[j]);
         }
+        free(enums[i].keys);
         free(enums[i].values);
     }
     free(enums);
@@ -2841,7 +2941,9 @@ void res_shutdown(void) {
         const node *root = world_tree;
         reset_items_from_tree(obj_get(root, "items"));
         reset_monsters_from_tree(obj_get(root, "monsters"));
-        reset_spells_from_tree(obj_get(root, "classes"), obj_get(root, "spells"));
+        const node *enums_n = obj_get(root, "enums");
+        const node *pc_class_n = enums_n ? obj_get(enums_n, "pc_class") : NULL;
+        reset_spells_from_tree(pc_class_n, obj_get(root, "spells"));
         reset_terrain_from_tree(obj_get(root, "terrain"));
         reset_pronoun_from_tree(obj_get(root, "pronoun"));
     }
