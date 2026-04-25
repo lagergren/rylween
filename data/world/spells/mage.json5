@@ -1,27 +1,41 @@
-// Mage spells — frost already runs on the DSL (`do:` body). The other
-// five carry `legacy_effect` pointing at the SE_* case still resident
-// in battle.c; they fall off as their behaviour migrates.
+// Mage spells. mage.frost runs on the script DSL (`do:` body); the
+// other five carry `legacy_effect` pointing at the SE_* case still
+// resident in battle.c — those fall off as their behaviour migrates
+// (§22 Lane A).
 {
-  // One-for-one port of battle.c:423-455. Order of operations preserves
-  // RNG identity: ryl_random(2, 8) is drawn exactly once (as the second
-  // factor of `*`), reproducing pm_lv(caster) * ryl_random(2, 8).
+  // §22 Lane A: re-port of the legacy frost spell to the script DSL.
+  // Order of operations preserves RNG identity — the multiply reads
+  // caster.lv first (no RNG), then draws ryl_random(2, 8) once, so
+  // the damage roll matches the original `pm_lv * ryl_random(2, 8)`.
+  // caster_idx is supplied as a caller binding by battle.c; ask_target
+  // binds the picked monster slot into target_idx; engine_bind pa_name
+  // lifts the caster's display name into {caster} for the text shards.
   frost: {
     slot: 1, base_cost: 8, name: 'Frost Finger',
-    do: ['seq',
-      ['ask_target', 'monster_alive'],
-      ['set', '$dmg', ['*', 'caster.lv', ['rand', 2, 8]]],
-      ['clw'],
-      ['say', 'battle.spell.frost.chills',      'caster.name'],
-      ['say', 'battle.spell.frost.damage',      '$dmg'],
-      ['say', 'battle.spell.frost.damage_pts'],
-      ['delay', 1600],
-      ['sub', 'target.hp', '$dmg'],
-      ['if', ['lt', 'target.hp', 1],
-        ['seq',
-          ['set', 'target.hp', 0],
-          ['set', 'target.dead', 1],
-          ['say', 'battle.killed'],
-          ['delay', 600]]],
+    do: [
+      { ask_target: 'monster_alive', var: 'target_idx' },
+      { let: 'dmg', value: { mul: [
+        { member: { var: 'caster_idx' }, field: 'lv' },
+        { random: [2, 8] },
+      ]}},
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { emit: 'battle.spell.frost.chills' },
+      { emit: 'battle.spell.frost.damage' },
+      { emit: 'battle.spell.frost.damage_pts' },
+      { pause: 1600 },
+      { mutate: { target: { monster_hp: { var: 'target_idx' } },
+                  op: 'sub', value: { var: 'dmg' } }},
+      { if: { cond: { lt: [{ monster_hp: { var: 'target_idx' } }, 1] },
+              then: [
+        { mutate: { target: { monster_hp: { var: 'target_idx' } },
+                    op: 'set', value: 0 }},
+        { mutate: { target: { monster_dead: { var: 'target_idx' } },
+                    op: 'set', value: 1 }},
+        { emit: 'battle.killed' },
+        { pause: 600 },
+      ]}},
     ],
   },
   fire:      { slot: 2, base_cost: 25, name: 'Fire Cloud',    legacy_effect: 'fire' },

@@ -67,11 +67,12 @@
     silence:         ['The enemy is now',
                       'stopped from using magic.',
                       'against you this round.'],
-    // Frost: migrated to world.json5 spells.'mage.frost' do-body
-    // (commit de9c178). %s = caster name, %d = damage roll.
+    // Frost: migrated to script DSL spells.'mage.frost' do-body
+    // (§22 Lane A). {caster} = caster name, {dmg} = damage roll —
+    // both bound by the do: body via engine_bind 'pa_name' / let.
     frost: {
-      chills:        ['%s chills the'],
-      damage:        ['opponent for %d'],
+      chills:        ['{caster} chills the'],
+      damage:        ['opponent for {dmg}'],
       damage_pts:    ['damage pts.'],
     },
   },
