@@ -3,6 +3,7 @@
 #include "driv.h"
 #include "gfx.h"
 #include "inventory.h"
+#include "party.h"
 #include "primitives.h"
 #include "res.h"
 #include "subs.h"
@@ -102,14 +103,14 @@ void ydarg() {
 
             case 2: /* Pitfall */
                 room[xl][yl] = 0;
-                tx("%s springs a\r\n", state.p[state.cpl].name[ryl_random(1, 4)]);
+                tx("%s springs a\r\n", pm_name(pm_cur(ryl_random(1, 4))));
                 tx("trap!!!\r\n");
                 ryl_delay(1500);
                 clw();
                 j = 0;
                 for (i = 1; i <= res_party_member_max(); i++) {
                     if (pm_is_thief(pm_cur(i))) {
-                        tx("%s tries to\r\n", state.p[state.cpl].name[i]);
+                        tx("%s tries to\r\n", pm_name(pm_cur(i)));
                         tx("disarm it...\r\n\r\n");
                         ryl_delay(1500);
                         if (ryl_chance(state.p[state.cpl].wi[i])) {
@@ -138,8 +139,9 @@ void ydarg() {
                     }
                     ryl_pause();
                     for (i = 1; i <= res_party_member_max(); i++) {
-                        if (!state.p[state.cpl].dead[i]) {
-                            state.p[state.cpl].hp[i] -= state.p[state.cpl].hp[i] / 6;
+                        if (pa_is_alive(i)) {
+                            pm_t pm = pm_cur(i);
+                            pm_add_hp(pm, -pm_hp(pm) / 6);
                         }
                     }
                 }
@@ -449,7 +451,7 @@ static void confrontation() {
     clw();
     tx_fmt("ydarg.conf.mages",
            (ryl_bind[]){
-               {"p1_name", state.p[state.cpl].name[1]},
+               {"p1_name", pm_name(pm_cur(1))},
                {0},
            });
     ryl_pause();
