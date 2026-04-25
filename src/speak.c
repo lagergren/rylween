@@ -258,7 +258,15 @@ void speak(int32_t bld, int32_t tow) {
                         {0},
                     });
                 } else {
-                    txi("speak.lodge.j%d", npc_job(talker));
+                    /* §20.20 #2: per-job static text now goes through
+                       lodge.nonbargirl, whose single emit_indexed op
+                       replaces the txi("speak.lodge.j%d", ...) callsite. */
+                    char job[16];
+                    snprintf(job, sizeof job, "%d", npc_job(talker));
+                    play_script("lodge.nonbargirl", (ryl_bind[]){
+                        {"job", job},
+                        {0},
+                    });
                 }
                 tx("\r\n");
                 ryl_pause();

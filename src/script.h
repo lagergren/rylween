@@ -42,6 +42,14 @@
  *                                    screen-op's bundled pause+clw would
  *                                    over-clear.
  *
+ *   { emit_indexed: {             - emit a text id constructed by
+ *       fmt: 'speak.lodge.j{}',     substituting an int into a format.
+ *       value: <expr> } }           Mirrors C-side txi(fmt, val): fmt
+ *                                    must contain exactly one '{}'
+ *                                    placeholder, replaced with the
+ *                                    decimal value. Strict — die_at if
+ *                                    the resolved id has no text record.
+ *
  *   { wait_input: true }          - ryl_pause() (prompts "Smash RETURN
  *                                    key", blocks until enter). Distinct
  *                                    from `pause`, which is ryl_delay.

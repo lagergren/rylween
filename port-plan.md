@@ -3188,17 +3188,19 @@ investments.
      when the registry sig says it's a class id. Saves the
      `enum:` boilerplate at every class-gate callsite.
 
-  2. **`txi`-style format-id-by-int op**. The non-bargirl arm
-     of speak.c `Q L` calls `txi("speak.lodge.j%d", npc_job)`
-     — emit a text id constructed from a sprintf format + an
-     int. The DSL has no equivalent today; the speak.c arm
-     keeps this in C as a single `txi(...)` line. Adding
+  2. **`txi`-style format-id-by-int op** — DONE 2026-04-25.
      `{ emit_indexed: { fmt: 'speak.lodge.j{}', value: <expr> } }`
-     (or similar) would let the whole `Q L` arm collapse to
-     a `play_script("lodge", { job:<int> })` call with the
-     non-bargirl branch becoming a one-liner emit_indexed.
-     Same shape applies to `speak.people.j%d` / `speak.magic.j%d`
-     / the 16-NPC chitchat replies.
+     lives in src/script.c as `do_emit_indexed`. Strict variant —
+     die_at if the resolved id has no text record (catches the
+     silent-empty-line failure mode). Proving callsite is
+     `lodge.nonbargirl` in data/world/scripts/lodge.json5; speak.c
+     L-arm now dispatches between `lodge.bargirl` and
+     `lodge.nonbargirl` based on `npc_job(talker) == Bargirl`.
+     Remaining txi callsites (`speak.people.j%d`, `speak.magic.j%d`,
+     `speak.chit.reply.<subj>.j%d`) can lift via the same pattern
+     when the speak.c residual sweep happens — chitchat has two
+     int axes, so it'd need a two-token fmt or a string-template
+     extension; defer until a clear win shows up.
 
   3. **`{path: 'dotted.path'}` expr — DSL-side `res_int_path`
      reader**. L7's camp wrapper marshals 11 balance constants

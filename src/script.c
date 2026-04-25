@@ -1135,6 +1135,62 @@ static void do_emit(const node *op, const char *script_id, size_t idx,
                                    script_id, idx));
 }
 
+/* §20.20 #2: { emit_indexed: { fmt: 'speak.lodge.j{}', value: <expr> } }
+   — emit a text id constructed by substituting an int into a format.
+   Mirrors the C-side txi("speak.lodge.j%d", job) shape so flows whose
+   text id is selected by job / class / item id collapse to a single
+   op rather than a switch over every value.
+
+   `fmt` must contain exactly one `{}` placeholder. The placeholder
+   is replaced with the decimal value of `value` (any expr), and the
+   result is run through resolve_text_id like a plain `emit`. Strict
+   variant — die_at if the resolved id has no text record, since a
+   mistyped fmt or out-of-range value silently producing an empty
+   line is the failure mode this op is meant to prevent. */
+static void do_emit_indexed(const node *op, const char *script_id, size_t idx,
+                            const char *parent, const ryl_bind *bindings,
+                            const rt_env *env) {
+    const node *body = obj_get(op, "emit_indexed");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "emit_indexed: value must be object");
+    }
+    const node *fmt_n = obj_get(body, "fmt");
+    if (!fmt_n || fmt_n->kind != N_STR) {
+        die_at(script_id, idx, "emit_indexed: fmt must be string");
+    }
+    const node *val_n = obj_get(body, "value");
+    if (!val_n) {
+        die_at(script_id, idx, "emit_indexed: value missing");
+    }
+    const char *fmt = fmt_n->u.sv;
+    const char *hole = strstr(fmt, "{}");
+    if (!hole || strstr(hole + 2, "{}")) {
+        die_at(script_id, idx,
+               "emit_indexed: fmt must contain exactly one '{}' placeholder");
+    }
+    int32_t v = eval_expr(val_n, script_id, idx, bindings, env);
+    char name[256];
+    int n = snprintf(name, sizeof name, "%.*s%d%s",
+                     (int)(hole - fmt), fmt, (int)v, hole + 2);
+    if (n < 0 || n >= (int)sizeof name) {
+        die_at(script_id, idx, "emit_indexed: formatted name too long");
+    }
+    char text_id[256];
+    resolve_text_id(parent, name, text_id, sizeof text_id,
+                    script_id, idx, "emit_indexed");
+    if (!res_text_exists(text_id)) {
+        char buf[384];
+        snprintf(buf, sizeof buf,
+                 "emit_indexed: unknown text id '%s' (fmt='%s', value=%d)",
+                 text_id, fmt, (int)v);
+        die_at(script_id, idx, buf);
+    }
+    ryl_bind merged[RT_ENV_CAP + 32];
+    tx_fmt(text_id, merge_bindings(bindings, env, merged,
+                                   sizeof merged / sizeof *merged,
+                                   script_id, idx));
+}
+
 /* §17-E: { wait_input: true } — ryl_pause(). Separate from `pause`
    because ryl_pause blocks on a keypress ("Smash RETURN key") and
    ryl_delay is a fixed-length sleep. Both appear in the original
@@ -2683,6 +2739,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         do_pause(op, script_id, idx);
     } else if (obj_get(op, "emit")) {
         do_emit(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "emit_indexed")) {
+        do_emit_indexed(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "wait_input")) {
         do_wait_input(op, script_id, idx);
     } else if (obj_get(op, "chance")) {

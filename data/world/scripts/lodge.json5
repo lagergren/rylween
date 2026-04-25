@@ -7,9 +7,10 @@
 // the int-valued threshold for the gold check (`{var:'price'}`
 // runs the binding's string through strtol).
 //
-// Non-bargirl lodge text (speak.lodge.j1..j16) stays in the C
-// arm — it's a flat per-job dispatch with no state mutation, and
-// the DSL has no `txi`-style "format-id by job number" op.
+// §20.20 #2: the non-bargirl lodge arm now lives in `nonbargirl`
+// — a one-op script that emits speak.lodge.j<job> via the new
+// emit_indexed op, replacing the C-side txi("speak.lodge.j%d", ...)
+// callsite.
 {
   bargirl: [
     { engine_call: 'clw' },
@@ -47,5 +48,8 @@
         // emits the closing newline + ryl_pause.
         default: [],
     } },
+  ],
+  nonbargirl: [
+    { emit_indexed: { fmt: 'speak.lodge.j{}', value: { var: 'job' } } },
   ],
 }
