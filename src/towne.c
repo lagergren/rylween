@@ -3,10 +3,12 @@
 #include "driv.h"
 #include "gfx.h"
 #include "inventory.h"
+#include "party.h"
 #include "primitives.h"
 #include "script.h"
 #include "subs.h"
 #include "towne.h"
+#include "wld.h"
 #include "ydarg.h"
 
 static void church(void);
@@ -171,7 +173,7 @@ static int enter_tax_preamble(const char *twnname) {
 }
 
 void enter() {
-    const char tile = state.map[state.p[state.cpl].y][state.p[state.cpl].x];
+    const char tile = wld_tile_at(pa_x(), pa_y());
 
     if (tile != '0' && tile != '1' && tile != '2') {
         clw();
@@ -185,13 +187,12 @@ void enter() {
         hut();
         return;
     }
-    if (tile == '2' &&
-        state.p[state.cpl].x == 14 && state.p[state.cpl].y == 30) {
+    if (tile == '2' && pa_x() == 14 && pa_y() == 30) {
         ydarg();
         return;
     }
 
-    state.twn = res_town_at(state.p[state.cpl].x, state.p[state.cpl].y);
+    state.twn = res_town_at(pa_x(), pa_y());
     if (!state.twn) {
         return;
     }
@@ -262,7 +263,7 @@ static void hut() {
     int nmax = res_npc_slot_max();
 
     for (i = 1; i <= nmax; i++) {
-        if (state.npc[i].x == state.p[state.cpl].x && state.npc[i].y == state.p[state.cpl].y) {
+        if (state.npc[i].x == pa_x() && state.npc[i].y == pa_y()) {
             who = i;
         }
     }
