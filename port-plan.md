@@ -3828,3 +3828,169 @@ sequentially.
   - **Not changing the byte-identity contract.** Every
     migration step must keep `make check` green at 22 fixtures
     + check_world.
+
+### 22.5 Battle / spell fixture queue (post-Lane-A coverage gap)
+
+**Problem.** The 22 existing fixtures cover terrain narration,
+towne services, hunt, rest, lodge, the encounter-and-flee path
+in `title-create-party-combat`, and the cave-entry / dungeon-
+discovery path in `wilderness-cave-descent`. None exercises:
+
+  - `(A)ttack` to combat completion (win or loss)
+  - `(C)ast Spell` from the combat menu (mage spells)
+  - `subs.c::spell()` out-of-combat priest casts
+  - any of the 12 spells migrated in Lane A (mage frost / fire /
+    confusion / death / hold / antimagic; priest heal /
+    restoration / rebirth / banish / revelation / teleport /
+    earthquake)
+
+So Lane A's 12 spell migrations rest on code review + RNG-
+identity reasoning + ASan clean. `make check` green confirms
+the surrounding paths weren't disturbed; it does NOT confirm
+that `mage.frost.do` produces the same bytes as the old SE_FIRE
+case did. A wrong-index in a `monster_hp` write, a missed `clw`
+or `pause`, a swapped `ws`/`confused` mutate target, or an
+off-by-one in `for_monster` — none of those would be caught by
+the current gate. That is a real outage risk for combat play.
+
+**Sequencing.** Add fixtures in roughly this priority order;
+each commit blesses one new fixture and runs the full gate
+green. None of these depends on Lane A landing in full — they
+can and should be added now to retroactively cover the spell
+migrations.
+
+  1. **`combat-attack-win`** (highest leverage). Build a party
+     that can win an early fight; (F)ight a mandatory encounter,
+     (A)ttack to completion. Catches: encounter scaling
+     formulas (already covered today), reward formula renders,
+     `pa_add_kills` count, exp/gold display, item-drop roll,
+     `expcheck` level-ups. This single fixture closes the
+     biggest part of the gap because every spell fixture below
+     reuses its setup pattern.
+
+  2. **`combat-mage-frost`**. Same shape as #1 but with a
+     mage in the party; cast Frost Finger on slot A. Tests
+     `play_spell_body` end-to-end, `ask_target monster_alive`,
+     `engine_bind 'pa_name'` for `{caster}`, `{dmg}` from a
+     `let`, `monster_hp` mutate via the `sub` op, the kill
+     branch + `battle.killed` emit. Most of the script-DSL
+     spell engine surface burns through this one cast.
+
+  3. **`combat-mage-fire`**. AOE — covers `for_monster`, the
+     per-iteration RNG draw on dead slots (regression-trap for
+     anyone who later "optimises" the loop to skip dead
+     slots), and the single-CSI-prefix-per-emit shape for
+     `{caster}`/`{monster_name}`/`{dmg}` lines.
+
+  4. **`combat-mage-flag-trio`** (one fixture, three casts).
+     Confusion → Hold → Antimagic in succession. Verifies the
+     `battle_flag` lvalues for all four flag pointers
+     (`confused` / `held` / `antimagic` / `ws`) and the shared
+     `battle.spell.utters_word` text shard. The combined
+     fixture is cheaper than three separate ones since the
+     setup is identical.
+
+  5. **`combat-mage-death`**. Resist + kill arms in one cast
+     each? — actually two fixtures (or one fixture that fires
+     death twice with different targets). Tests
+     `ryl_random(0, 199) < monster_hp` resist roll and the
+     `monster_dead`-then-`monster_hp` write order in the kill
+     arm.
+
+  6. **`towne-priest-heal`**. Out-of-combat priest cast from
+     the towne flow. Tests the subs.c dispatch shim, the
+     `ask_target party_member` digit prompt, the `pm_dead` /
+     `pm_h` clamp, and the `{caster} heals / {target} / for
+     {x} hit points...` narration. Covers the simplest priest
+     spell.
+
+  7. **`towne-priest-restoration`** + **`towne-priest-rebirth`**
+     (one fixture each — rebirth needs a dead member to test
+     the success arm AND a live member for the alive-and-
+     healthy early-out, so two casts in one fixture).
+
+  8. **`dungeon-priest-banish`** + **`dungeon-priest-revelation`**
+     + **`dungeon-priest-teleport`** + **`towne-priest-earthquake`**.
+     Each needs to be set in the right place context (banish /
+     revelation only fire in dungeon; earthquake only fires NOT
+     in dungeon). Teleport is the engine-call-encapsulated
+     `pa_teleport_step` exerciser; revelation hits the
+     three-category random-object switch + inv_add menu_branch.
+
+**Per-fixture pattern.** Each is a `tools/replay/<name>.{in,
+expect,expect_snapshot,env}` quartet. The `.env` pins
+`RYL_FAKE_EPOCH` / `RYL_FAKE_SEED` / `RYL_NO_DELAY=1`. The
+`.in` constructs a party (Replay name + 1-line per member),
+puts them in the right combat / towne / dungeon position,
+fires the cast keypress, and exits cleanly. Bless once with
+`tools/replay.sh <name> --bless`; subsequent migrations gate
+on byte identity.
+
+**Estimated effort.** ~1 fixture per 20-30 minutes once the
+first one is shaped. Total: ~3-5 hours of fixture-authoring
+and blessing for the full set, plus ~30 minutes per re-run
+under future engine changes. Reasonable for the safety it
+buys; the alternative is "code review is the contract" for
+all 12 spell paths and any future spell-related refactors.
+
+**Non-goals here.** Not a generic property-based combat
+fuzzer; not a coverage-tracker; not a CI coverage threshold.
+Just twelve fixtures that pin one canonical execution per
+spell.
+
+### 22.6 Reward gold display mismatch (separate from Lane A)
+
+**Symptom.** `formulas.reward_gold_per_survivor` is the
+divided-by-4 figure shown in the `Each survivor gets %d gold
+pieces.\r\n\r\n` victory line. `formulas.reward_gold_party` is
+the un-divided figure handed to `party_add_gold`. So the
+displayed number is exactly 1/4 of what actually arrives in
+the kitty.
+
+**Origin.** Inherited verbatim from the original Rylween C
+source (battle.c's `gold_display = ...per_survivor` vs
+`gold_gain = ...party`). Likely a long-standing oversight —
+"survivor" naming implies a 1/4 split, but the actual award
+skips the divide. Pre-Lane-A migrations preserved the legacy
+on the data-as-spec principle so byte-identity holds; both
+combat fixtures cover the math today and would diff under a
+fix.
+
+**Plan.** Single follow-up commit, scoped tightly:
+
+  1. Decide which number is canonical. Default: the un-
+     divided one is right (survivors share the kitty, they
+     don't each get 1/4 of an already-1/4'd amount). Confirm
+     by gameplay reasoning — at level 1 with `noc=2`, `h2=10`,
+     `ws=10`, the legacy display says "Each survivor gets 1
+     gold piece" and the party gets 5. Five gold is the
+     intended reward; one is the bug.
+  2. Drop `reward_gold_per_survivor` from `formulas:`. The
+     display reads `reward_gold_party` directly (renaming to
+     `reward_gold_total` would be cosmetic; defer).
+  3. Update battle.c's victory render: the `gold_display`
+     local goes away; the `tx("...gets %d gold pieces.\r\n",
+     gold_display)` call uses `gold_gain` (already computed
+     two lines down).
+  4. Bless the two affected combat fixtures (`title-create-
+     party-combat`, `wilderness-cave-descent`) — both will
+     diff because the displayed number changes from N to 4N.
+  5. Note in the commit message that the **actual** gold
+     awarded is unchanged; only the display alignment shifts.
+
+**Risk.** None to gameplay logic — `party.gold` arithmetic
+is identical. The only diff is one printed integer per
+victory.
+
+**Why a separate commit.** Lane A's contract is "every spell
+migrates byte-identically through the DSL; legacy bugs are
+preserved." Folding a player-facing display fix into Lane A
+would muddy that contract and force re-blessing the combat
+fixtures during the migration. Better to land the fix as a
+clearly-labelled "balance fix" commit AFTER Lane A retires
+eval.c, when the gate is stable.
+
+**Estimated effort.** ~30 minutes including re-blessing the
+two combat fixtures and writing the commit message. The
+hardest part is deciding whether the canonical number is the
+divided or un-divided one; the rest is mechanical.
