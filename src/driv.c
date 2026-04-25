@@ -894,7 +894,7 @@ static void write_current_world() {
         fprintf(f, ": { id: %d, name: ", i);
         wcw_str(f, display);
         fputs(", job: ", f);
-        wcw_enum(f, "jobname", n->job);
+        wcw_enum(f, "job", n->job);
         fputs(", towne: ", f);
         wcw_enum(f, "towne", n->towne);
         fputs(", building: ", f);
@@ -1274,7 +1274,7 @@ static int read_current_world() {
             }
             struct person *n = &state.npc[slot];
             n->nr = slot;
-            n->job = rcw_enum(rec, "job", "jobname", n->job);
+            n->job = rcw_enum(rec, "job", "job", n->job);
             n->towne = rcw_enum(rec, "towne", "towne", n->towne);
             n->building = rcw_enum(rec, "building", "building", n->building);
             n->x = rcw_int(rec, "x", n->x);

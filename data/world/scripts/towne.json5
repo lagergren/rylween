@@ -18,7 +18,7 @@
   hut: [
     { loop: [
       { engine_call: 'clw' },
-      { engine_bind: { fn: 'res_enum', args: ['jobname', { var: 'npc_job' }], var: 'job' } },
+      { engine_bind: { fn: 'res_enum', args: ['job', { var: 'npc_job' }], var: 'job' } },
       { engine_bind: { fn: 'res_enum', args: ['name',    { var: 'who' }],     var: 'name' } },
       { emit: 'greeter' },
       { menu_branch: {

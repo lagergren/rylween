@@ -3675,7 +3675,7 @@ Biggest leverage; collapses two evaluators into one. Touches
      fold spell-effect docs into `script.h`.
 
 **B. Enum keyed records with display split** (tier 2, items 4-5).
-Concurrent with A — touches different files.
+**LANDED 2026-04-25.** Concurrent with A — touches different files.
 
   Steps:
    - Engine: `res_enum_id()` accepts both array-of-string and
@@ -3689,6 +3689,21 @@ Concurrent with A — touches different files.
    - `race` next (4 entries), then `jobname` (16 entries).
    - Tighten `fold_enums` to warn on positional-array shape once
      all three are converted.
+
+  Landed (commits, oldest first): `97f235e` (pc_class), `5e41f5f`
+  (race), `bcf771c` (jobname), `dfeacae` + `1469f05` + `8cc2d6d` +
+  `78984ae` (npcs subtree + retiring `enums.name` /
+  `innkeepers` / `tavernkeepers` positional arrays). Plus
+  consistency rename `jobname` enum id → `job` (the field on NPC
+  records is `job:`, so the enum id matches now). All three
+  CapitalCased enums are keyed records with explicit `name:` for
+  display; lowercase key is the script-stable symbol. NPC records
+  use lowercase keys and explicit `name:` field. New helpers:
+  `res_npc_name(slot)`, `res_npc_sym(slot)`,
+  `res_npc_in_town(twn, job_sym)`. New string-engine fn:
+  `npc_in_town(job_sym, twn)`. `res_enum("name", idx)` is a thin
+  shim that routes through `res_npc_name`, so DSL bindings via
+  `{fn:'res_enum',args:['name',...]}` need no edits.
 
 **C. Symbolic args sweep** (tier 3, items 6-7). Small focused
 changes after A+B; can do per-shard.
@@ -3740,18 +3755,18 @@ order to land them: A (spell DSL convergence) and B (enum
 shape) can run in parallel; both unlock C+D+E. F depends on
 A. G is the documentation pass after the surface stabilises.
 
-There is no "blocking" priority among A vs B vs C+D+E —
+B has landed (2026-04-25). Remaining: A, C, D, E, F, G.
+There is no "blocking" priority among A vs C+D+E —
 whichever migration is most pressing for the next gameplay
 slice should drive. If no slice is pressing, A is the highest
 absolute leverage because retiring `eval.c` immediately
 collapses ~1400 lines of engine and removes one of the two
-languages a reader has to learn.
+languages a reader has to learn. C/D/E are independent and
+cheap (~½ session each); good warm-ups before A.
 
-Estimated total work: ~1-2 sessions for A, ~0.5 session per
-enum (pc_class, race, jobname) in B, ~0.5 session for each of
-C/D/E/F, ~0.5 session for G. Cumulative ~5-7 sessions if done
-sequentially; the actual budget will compress because most of
-these touch the same files and can land in single commits.
+Estimated remaining work: ~1-2 sessions for A, ~0.5 session
+for each of C/D/E/F, ~0.5 session for G. Cumulative ~4-6
+sessions if done sequentially.
 
 ### 22.4 Non-goals
 

@@ -10,8 +10,8 @@ acting — they may have shifted.
 - **State layer** (`src/state.h`: `struct party`, `struct person`) holds
   raw ints — that matches the save format and stays that way.
 - **Translation layer** (`src/res.c`, `src/inventory.c`) owns the
-  int↔tag mapping: `item_is_donkey(id)`, `res_enum_id("jobname",
-  "Bargirl")`, `res_npc_gender(slot)`, etc.
+  int↔tag mapping: `item_is_donkey(id)`, `res_enum_id("job",
+  "bargirl")`, `res_npc_gender(slot)`, etc.
 - **Gameplay layer** (`subs.c`, `battle.c`, `dungeon.c`, `missions.c`,
   `towne.c`, `interact.c`, `speak.c`, `driv.c`) should speak tags only.
   Literal comparisons like `foe == 31`, `inventory[X] == 47`, `flag[23]
@@ -48,7 +48,7 @@ acting — they may have shifted.
       the P5 section below.
 - [x] **P6 — Job-ID bare comparisons** (landed §17-X)
       speak.c's two `job == N` checks now compare against
-      `res_enum_id("jobname", "Bard"|"Bargirl")`. While there,
+      `res_enum_id("job", "bard"|"bargirl")`. While there,
       the bare `gender == 2` checks in speak.c / driv.c are now
       `res_enum_id("gender", "female")`, and a latent
       `job != 13` being used as a gender proxy at the
@@ -199,9 +199,9 @@ Follow-up, not in §17-W (deliberately scoped out):
 ## P6 — Job-ID bare comparisons (DONE §17-X)
 
 - [x] speak.c bard Q&A (`job == 8`) now compares to
-      `res_enum_id("jobname", "Bard")`.
+      `res_enum_id("job", "bard")`.
 - [x] speak.c bargirl lodging offer (`job == 13`) now compares to
-      `res_enum_id("jobname", "Bargirl")`.
+      `res_enum_id("job", "bargirl")`.
 - [x] speak.c recognize_he/she branch was gating on `job != 13` —
       gender proxy, not intent. Fixed to
       `gender == res_enum_id("gender", "female")`.
@@ -221,7 +221,7 @@ items above land.
   `item_is_potion(id)` / `item_is_treasure(id)` /
   `item_is_magic_item(id)` — §17-M
 - `res_item_kind(id)` — §17-M
-- `res_enum("jobname", n)` / `res_enum_id(enum_id, sym)` — §15
+- `res_enum("job", n)` / `res_enum_id(enum_id, sym)` — §15
 - `res_combat_int("drop_tables.default.treasure_chance")` /
   `res_int_path("upkeep.food_cost_leader_div")` — §17-J / §17-L
 - `party_award_special(PS_FIRESHIELD)` et al. — §17-G / §17-I
@@ -240,7 +240,7 @@ items above land.
   `pm_is_spellcaster` — §17-V
 - `res_npc_slot("<shard_key>")` / `res_npc_role("<role>")` /
   `npc_roles:` subtree in world.json5 — §17-W
-- `res_enum_id("jobname", "Bard")` / `res_enum_id("gender", "female")`
+- `res_enum_id("job", "bard")` / `res_enum_id("gender", "female")`
   at speak.c + driv.c — §17-X
 - `npc_t` handle + `npc_at_slot` / `npc_for_role` /
   `npc_name` / `npc_job` / `npc_gender` / `npc_towne` / `npc_x` /

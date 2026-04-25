@@ -350,7 +350,7 @@ const char *res_npc_sym(int32_t slot);
    `enums.name` array is retired. */
 const char *res_npc_name(int32_t slot);
 
-/* First NPC whose `job:` matches `job_sym` (jobname symbol, e.g.
+/* First NPC whose `job:` matches `job_sym` (job symbol, e.g.
    "innkeeper") and whose `towne:` matches `twn` — display name.
    Used by the town greeter binds; returns "" on no-match. */
 const char *res_npc_in_town(int32_t twn, const char *job_sym);

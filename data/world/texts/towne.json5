@@ -157,7 +157,7 @@
   // --- hut() --------------------------------------------------------
   hut: {
     enter: ['You enter the hut.'],
-    // {job} = res_enum("jobname", npc[who].job), {name} = res_enum("name", who)
+    // {job} = res_enum("job", npc[who].job), {name} = res_npc_name(who)
     greeter: ['A {job} who',
               'introduces himself as',
               '{name}, greets you.',

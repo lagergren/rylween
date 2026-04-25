@@ -866,7 +866,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
 
     /* `{ enum: ['<tab>', '<value>'] }` — generic enum symbol→int
        lookup for any world.json5 `enums:` table (pc_class / race /
-       jobname / towne / building / gender / name / pic / ...). Both
+       job / towne / building / gender / pic / ...). Both
        operands must be string literals; the pair goes through
        res_enum_id. Parallel to the `pic:` shortcut, which this form
        subsumes but is kept for readability. */

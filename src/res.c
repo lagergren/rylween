@@ -1091,7 +1091,7 @@ const char *res_npc_in_town(int32_t twn, const char *job_sym) {
     if (!world_tree || !job_sym) {
         return "";
     }
-    int target_job = res_enum_id("jobname", job_sym);
+    int target_job = res_enum_id("job", job_sym);
     if (target_job < 0) {
         return "";
     }
@@ -1112,7 +1112,7 @@ const char *res_npc_in_town(int32_t twn, const char *job_sym) {
         if (!twn_n || twn_n->kind != N_STR) {
             continue;
         }
-        if (res_enum_id("jobname", job_n->u.sv) != target_job) {
+        if (res_enum_id("job", job_n->u.sv) != target_job) {
             continue;
         }
         if (res_enum_id("towne", twn_n->u.sv) != twn) {
@@ -1255,7 +1255,7 @@ void res_realize_npcs(void) {
         }
         struct person *n = &state.npc[slot];
         n->nr = slot;
-        n->job = rn_enum(rec, "job", "jobname", 0);
+        n->job = rn_enum(rec, "job", "job", 0);
         n->gender = (unsigned char)rn_enum(rec, "gender", "gender", 1);
 
         const node *towne_node = obj_get(rec, "towne");
@@ -2174,8 +2174,8 @@ static void reset_limits(void) {
 }
 
 /* -------- enums subtree --------
-   `{ jobname: [...], name: [...] }` — key is the enum id, value is the
-   string table res_enum(id, index) indexes into. */
+   `{ job: {...}, towne: {...}, ... }` — key is the enum id, value is the
+   keyed-records table res_enum(id, index) indexes into. */
 /* §20 L1.5: validate dungeons.scenarios at load time so typos in
    placement encounter symbols fail fast (under --check-world) rather
    than only when a player triggers the scenario. Each placement is

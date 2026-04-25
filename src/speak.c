@@ -107,7 +107,7 @@ void speak(int32_t bld, int32_t tow) {
     if (tow) {
         for (i = 1, j = 1, x = 0; i < 40; i++) {
             if (state.npc[i].building == bld && state.npc[i].towne == tow) {
-                tx("%c. %-8s (%s)\r\n", j + 64, res_npc_name(state.npc[i].nr), res_enum("jobname", state.npc[i].job));
+                tx("%c. %-8s (%s)\r\n", j + 64, res_npc_name(state.npc[i].nr), res_enum("job", state.npc[i].job));
                 reference[j] = state.npc[i].nr;
                 j++;
                 x = 1;
@@ -210,7 +210,7 @@ void speak(int32_t bld, int32_t tow) {
             d = toupper(d);
             if (d == 'P') {
                 tx("\r\n");
-                if (npc_job(talker) == res_enum_id("jobname", "bard")) {
+                if (npc_job(talker) == res_enum_id("job", "bard")) {
                     tx_fmt("speak.people.j8",
                            (ryl_bind[]){
                                {"fighter_name",
@@ -241,7 +241,7 @@ void speak(int32_t bld, int32_t tow) {
             }
             if (d == 'L') {
                 tx("\r\n");
-                if (npc_job(talker) == res_enum_id("jobname", "bargirl")) {
+                if (npc_job(talker) == res_enum_id("job", "bargirl")) {
                     /* §20 L7: bargirl interactive flow lifts to
                        data/world/scripts/lodge.json5 (lodge.bargirl).
                        Wrapper resolves the leader-level fee and hands

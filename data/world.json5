@@ -496,7 +496,7 @@
     // symbol; `name` is the visible label rendered by the speak() listing
     // and saved into current-world.json5. Hyphenated display names
     // ('Half-Orc' / 'Half-Elf') become snake-cased symbols.
-    jobname: {
+    job: {
       merchant:     { id:  1, name: 'Merchant'     },
       ranger:       { id:  2, name: 'Ranger'       },
       fighter:      { id:  3, name: 'Fighter'      },
