@@ -2883,6 +2883,17 @@ Recurrent literals worth a single-source-of-truth helper:
 - S10. **Map dimensions / passable tile class** → world.json5
   map subtree, replacing driv.c:341-365 magic 41/74/34 + tile
   blacklist.
+- S11. **Lift battle reward + encounter formulas into `formulas:`
+  subtree** (follow-up to S5). The eleven `reward_*` / `encounter_*`
+  flat constants S5 added are individual knobs; the surrounding
+  multiplication structure still lives in battle.c. Lift the full
+  expressions into named formulas (`xp_award`, `gold_award`,
+  `encounter_h1_scaled`, `encounter_h2_scaled`). Requires extending
+  `res_formula_int` (currently single-var `$y`) to accept a binding
+  map, or exposing eval.c's `env_set_local` via a new
+  `res_eval_expr_with(name, bindings, n)`. Pattern extends to
+  dungeon.c chest-gold, hunt fdplus, subs.c starve damage, etc.
+  Depends on S5.
 
 **LARGE (multi-session epic):**
 
