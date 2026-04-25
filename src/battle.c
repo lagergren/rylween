@@ -5,6 +5,7 @@
 #include "driv.h"
 #include "gfx.h"
 #include "inventory.h"
+#include "party.h"
 #include "primitives.h"
 #include "subs.h"
 #include "towne.h"
@@ -54,7 +55,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             im = m->im;
         }
         if (m && m->n2_lv_div > 0) {
-            n2 = m->n2 + state.p[state.cpl].lv[1] / m->n2_lv_div;
+            n2 = m->n2 + pa_first_level() / m->n2_lv_div;
         }
     }
 
@@ -62,11 +63,11 @@ void encounter(int32_t foe, int32_t mandatory) {
     if (noc < n1) {
         noc = n1;
     }
-    h1 += ((state.p[state.cpl].lv[1] + state.p[state.cpl].lv[2] + state.p[state.cpl].lv[3] + state.p[state.cpl].lv[4]) / 4) * 2;
-    if (state.p[state.cpl].lv[1] > 2) {
-        h1 += state.p[state.cpl].lv[1] * 2;
+    h1 += ((pm_lv(pm_cur(1)) + pm_lv(pm_cur(2)) + pm_lv(pm_cur(3)) + pm_lv(pm_cur(4))) / 4) * 2;
+    if (pa_first_level() > 2) {
+        h1 += pa_first_level() * 2;
     }
-    h2 += state.p[state.cpl].lv[1] * 3;
+    h2 += pa_first_level() * 3;
     if (h1 > h2) {
         h1 = h2;
     }
@@ -77,7 +78,7 @@ void encounter(int32_t foe, int32_t mandatory) {
     assert(noc >= 1 && noc <= 8);
     assert(h1 <= h2);
 
-    ws += state.p[state.cpl].lv[1];
+    ws += pa_first_level();
 
     for (i = 1; i < noc + 1; i++) {
         mhtemp = ryl_random(1, h2);
@@ -135,9 +136,9 @@ void encounter(int32_t foe, int32_t mandatory) {
     g = 1;
     while (1) {
         clw();
-        if (!state.p[state.cpl].dead[g] && !playerheld) {
+        if (pa_is_alive(g) && !playerheld) {
         combat:
-            tx("%s\r\n", state.p[state.cpl].name[g]);
+            tx("%s\r\n", pm_name(pm_cur(g)));
             tx("What now?\r\n\r\n");
             tx("(A)ttack\r\n");
             tx("(D)efend\r\n");
@@ -188,9 +189,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         }
                                     }
                                     if (who) {
-                                        spelldamage = ryl_random(5, 11) + state.p[state.cpl].lv[g];
+                                        spelldamage = ryl_random(5, 11) + pm_lv(pm_cur(g));
                                         clw();
-                                        tx("%s chills %s\r\n", state.p[state.cpl].name[g], fn);
+                                        tx("%s chills %s\r\n", pm_name(pm_cur(g)), fn);
                                         tx("for %d damage pts.\r\n", spelldamage);
                                         ryl_delay(1000);
                                         mh[who] -= spelldamage;
@@ -206,10 +207,10 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 101:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     for (i = 1; i < noc + 1; i++) {
-                                        spelldamage = state.p[state.cpl].lv[g] * ryl_random(3, 8);
+                                        spelldamage = pm_lv(pm_cur(g)) * ryl_random(3, 8);
                                         if (!deadc[i]) {
                                             clw();
-                                            tx("%s burns %s\r\n", state.p[state.cpl].name[g], fn);
+                                            tx("%s burns %s\r\n", pm_name(pm_cur(g)), fn);
                                             tx("for %d pts!\r\n", spelldamage);
                                             ryl_delay(1000);
                                             mh[i] -= spelldamage;
@@ -226,7 +227,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 102:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s throws the\r\n", state.p[state.cpl].name[g]);
+                                    tx("%s throws the\r\n", pm_name(pm_cur(g)));
                                     tx0(res_text("battle.item.sparks_bump"));
                                     ryl_pause();
                                     clw();
@@ -236,7 +237,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 103:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s throws the\r\n", state.p[state.cpl].name[g]);
+                                    tx("%s throws the\r\n", pm_name(pm_cur(g)));
                                     tx0(res_text("battle.item.light_blind"));
                                     ryl_pause();
                                     clw();
@@ -253,7 +254,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     }
                                     if (who) {
                                         clw();
-                                        tx("%s summons death\r\n", state.p[state.cpl].name[g]);
+                                        tx("%s summons death\r\n", pm_name(pm_cur(g)));
                                         tx("to take a %s\r\n", fn);
                                         tx("away...\r\n");
                                         ryl_delay(2000);
@@ -342,7 +343,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 109:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s throws Kael's\r\n", state.p[state.cpl].name[g]);
+                                    tx("%s throws Kael's\r\n", pm_name(pm_cur(g)));
                                     tx("axe at the enemy!\r\n\r\n");
                                     ryl_delay(1500);
                                     tx0(res_text("battle.item.ghost_axe.wounds"));
@@ -360,7 +361,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 110:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s pulls the\r\n", state.p[state.cpl].name[g]);
+                                    tx("%s pulls the\r\n", pm_name(pm_cur(g)));
                                     tx("holy pin, and lobbeth\r\n");
                                     tx("the holy handgrenade\r\n");
                                     tx("at the foes...\r\n\r\n");
@@ -379,7 +380,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 case 111:
                                     state.p[state.cpl].inventory[d - 64] = 0;
                                     clw();
-                                    tx("%s plays the\r\n", state.p[state.cpl].name[g]);
+                                    tx("%s plays the\r\n", pm_name(pm_cur(g)));
                                     tx("Flute of Madness.\r\n");
                                     tx("It produces a shrill,\r\n");
                                     tx("fragile sound, and breaks.\r\n");
@@ -539,10 +540,11 @@ void encounter(int32_t foe, int32_t mandatory) {
             }
             /****************************************************************************/
             if (c == 'D') {
-                if (state.p[state.cpl].hp[g] + (state.p[state.cpl].lv[g]) > state.p[state.cpl].h[g]) {
-                    state.p[state.cpl].hp[g] = state.p[state.cpl].h[g];
+                pm_t pmg = pm_cur(g);
+                if (pm_hp(pmg) + pm_lv(pmg) > pm_h(pmg)) {
+                    pm_set_hp(pmg, pm_h(pmg));
                 } else {
-                    state.p[state.cpl].hp[g] += (state.p[state.cpl].lv[g]);
+                    pm_add_hp(pmg, pm_lv(pmg));
                 }
                 clw();
                 if (defend < 5) {
@@ -587,14 +589,14 @@ void encounter(int32_t foe, int32_t mandatory) {
                 }
                 if (ryl_chance(x + 1)) {
                     /* HIT */
-                    dp = obdamage(state.p[state.cpl].wp[g]);
+                    dp = obdamage(pm_wp(pm_cur(g)));
                     dp += ryl_random(0, 4);
                     int32_t hpd = res_combat_int("hp_defense_div");
                     if (hpd > 0) {
-                        dp += state.p[state.cpl].hp[g] / hpd;
+                        dp += pm_hp(pm_cur(g)) / hpd;
                     }
                     clw();
-                    tx("%s hits for\r\n", state.p[state.cpl].name[g]);
+                    tx("%s hits for\r\n", pm_name(pm_cur(g)));
                     tx("%d damage pts!\r\n", dp);
                     ryl_delay(600);
                     mh[who] -= dp;
@@ -607,7 +609,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 } else {
                     /* MISS */
                     clw();
-                    tx("%s misses!\r\n", state.p[state.cpl].name[g]);
+                    tx("%s misses!\r\n", pm_name(pm_cur(g)));
                     ryl_delay(600);
                 }
             }
@@ -672,7 +674,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             g = 1;
             x = 1;
             while (x < noc + 1) {
-                if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
+                if (pa_alive_count() == 0) {
                     losegame();
                 }
                 if (!deadc[x] && !held) {
@@ -687,22 +689,22 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 tx("Frost Finger\r\n");
                                 while (1) {
                                     who = ryl_random(1, 4);
-                                    if (!state.p[state.cpl].dead[who]) {
+                                    if (pa_is_alive(who)) {
                                         break;
                                     }
                                 }
-                                tx("on %s!\r\n", state.p[state.cpl].name[who]);
+                                tx("on %s!\r\n", pm_name(pm_cur(who)));
                                 ryl_delay(1000);
                                 dp = h2 / 5 + ryl_random(0, 3);
                                 tx("and does %d pts\r\n", dp);
                                 tx("of damage!\r\n");
                                 ryl_delay(1000);
-                                state.p[state.cpl].hp[who] -= dp;
-                                if (state.p[state.cpl].hp[who] <= 0) {
-                                    state.p[state.cpl].hp[who] = 0;
-                                    state.p[state.cpl].dead[who] = 1;
+                                pm_add_hp(pm_cur(who), -dp);
+                                if (pm_hp(pm_cur(who)) <= 0) {
+                                    pm_set_hp(pm_cur(who), 0);
+                                    pm_set_dead(pm_cur(who), 1);
                                     state.p[state.cpl].pl--;
-                                    tx("[31m%s DIES![37m\r\n", state.p[state.cpl].name[who]);
+                                    tx("[31m%s DIES![37m\r\n", pm_name(pm_cur(who)));
                                     ryl_delay(1000);
                                 }
                                 break;
@@ -710,18 +712,18 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 tx("Cloud of Fire!\r\n");
                                 ryl_delay(1000);
                                 for (i = 1; i <= res_party_member_max(); i++) {
-                                    if (!state.p[state.cpl].dead[i]) {
+                                    if (pa_is_alive(i)) {
                                         clw();
-                                        tx("%s is burnt for\r\n", state.p[state.cpl].name[i]);
+                                        tx("%s is burnt for\r\n", pm_name(pm_cur(i)));
                                         dp = h2 / 5 + ryl_random(0, 4);
                                         tx("%d damage pts!\r\n", dp);
                                         ryl_delay(1000);
-                                        state.p[state.cpl].hp[i] -= dp;
-                                        if (state.p[state.cpl].hp[i] <= 0) {
-                                            state.p[state.cpl].hp[i] = 0;
-                                            state.p[state.cpl].dead[i] = 1;
+                                        pm_add_hp(pm_cur(i), -dp);
+                                        if (pm_hp(pm_cur(i)) <= 0) {
+                                            pm_set_hp(pm_cur(i), 0);
+                                            pm_set_dead(pm_cur(i), 1);
                                             state.p[state.cpl].pl--;
-                                            tx("[31m%s DIES![37m\r\n", state.p[state.cpl].name[i]);
+                                            tx("[31m%s DIES![37m\r\n", pm_name(pm_cur(i)));
                                             ryl_delay(1000);
                                         }
                                     }
@@ -745,31 +747,31 @@ void encounter(int32_t foe, int32_t mandatory) {
                     } else {
                         while (1) {
                             who = ryl_random(1, 4);
-                            if (!state.p[state.cpl].dead[who]) {
+                            if (pa_is_alive(who)) {
                                 break;
                             }
                         }
                         clw();
                         tx("%s attacks\r\n", fn);
-                        tx("%s!\r\n", state.p[state.cpl].name[who]);
+                        tx("%s!\r\n", pm_name(pm_cur(who)));
                         ryl_delay(400);
                         if (ryl_chance(ws + 1)) {
                             dp = mh[x] / 6;
                             dp += ryl_random(0, 9);
-                            dp -= obdamage(state.p[state.cpl].ar[who]);
+                            dp -= obdamage(pm_ar(pm_cur(who)));
                             if (dp < 1) {
                                 dp = 1;
                             }
                             tx("And hits for\r\n");
                             tx("%d damage pts!!!\r\n", dp);
-                            state.p[state.cpl].hp[who] -= dp;
-                            if (state.p[state.cpl].hp[who] <= 0) {
+                            pm_add_hp(pm_cur(who), -dp);
+                            if (pm_hp(pm_cur(who)) <= 0) {
                                 if (state.p[state.cpl].pl) {
                                     state.p[state.cpl].pl--;
                                 }
-                                state.p[state.cpl].hp[who] = 0;
-                                state.p[state.cpl].dead[who] = 1;
-                                tx("[31m%s DIES!!![37m\r\n", state.p[state.cpl].name[who]);
+                                pm_set_hp(pm_cur(who), 0);
+                                pm_set_dead(pm_cur(who), 1);
+                                tx("[31m%s DIES!!![37m\r\n", pm_name(pm_cur(who)));
                                 ryl_delay(1000);
                             }
                             ryl_delay(1000);
@@ -792,7 +794,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 tx("PARTY IS HELD!\r\n");
                 ryl_delay(1000);
             } else {
-                if (state.p[state.cpl].dead[1] && state.p[state.cpl].dead[2] && state.p[state.cpl].dead[3] && state.p[state.cpl].dead[4]) {
+                if (pa_alive_count() == 0) {
                     losegame();
                 }
                 statusline();
