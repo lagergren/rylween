@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "compat.h" /* stricmp */
+#include "inventory.h" /* PS_* */
 #include "res.h"
 #include "ryl.h" /* state */
 
@@ -264,6 +265,50 @@ const char *pa_name(int m) {
         return NULL;
     }
     return state.p[state.cpl].name[m];
+}
+
+const char *pa_party_name(void) {
+    return state.p[state.cpl].party_name;
+}
+
+size_t pa_journal_n(void) {
+    return state.p[state.cpl].journal_n;
+}
+
+const char *pa_journal_line(size_t i) {
+    const struct party *p = &state.p[state.cpl];
+    if (i >= p->journal_n) {
+        return NULL;
+    }
+    return p->journal[i];
+}
+
+/* Special-item flag accessors. The five quest items live as
+   unsigned-char fields on struct party (state.h). silverkey is a
+   small state machine (0/1/2 for none/owned/returned-to-ydarg);
+   the others are 0/1. The PS_* enum lives in inventory.h. */
+static unsigned char *pa_special_ptr(int which) {
+    struct party *p = &state.p[state.cpl];
+    switch (which) {
+        case PS_FIRESHIELD:  return &p->fireshield;
+        case PS_BRACELETS:   return &p->bracelets;
+        case PS_MASTERCROWN: return &p->mastercrown;
+        case PS_JAZZYFOOT:   return &p->jazzyfoot;
+        case PS_SILVERKEY:   return &p->silverkey;
+        default:
+            fprintf(stderr,
+                    "pa_special: unknown which=%d (PS_NONE..PS_LAST)\n",
+                    which);
+            exit(1);
+    }
+}
+
+int pa_special(int which) {
+    return *pa_special_ptr(which);
+}
+
+void pa_set_special(int which, int v) {
+    *pa_special_ptr(which) = (unsigned char)v;
 }
 
 void party_journal_add(struct party *p, const char *line) {

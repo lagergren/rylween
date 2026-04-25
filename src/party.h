@@ -146,6 +146,28 @@ void pa_set_inventory(int slot, int32_t item_id);
    renders "-" for invalid slots). */
 const char *pa_name(int m);
 
+/* Party display name (state.p[cpl].party_name). Owned by struct party;
+   the returned pointer is valid until the party slot is freed. */
+const char *pa_party_name(void);
+
+/* Journal accessors. `pa_journal_n` is the line count, `pa_journal_line`
+   reads the i-th (0-based) line; out-of-range returns NULL. The buffer
+   is owned by struct party — pointers are valid until the party slot
+   is freed. */
+size_t pa_journal_n(void);
+const char *pa_journal_line(size_t i);
+
+/* Special-item flag read / write. `which` is a PS_* value from
+   inventory.h (PS_FIRESHIELD / PS_BRACELETS / PS_MASTERCROWN /
+   PS_JAZZYFOOT / PS_SILVERKEY). silverkey is a 3-state field
+   (0/1/2 for none / owned / returned-to-ydarg); the other four are
+   0/1. PS_NONE is fatal. The DSL reward op short-circuits via
+   inventory.c::party_award_special which sets the flag to 1; this
+   pair gives C call sites the read access plus the silverkey
+   value-2 write that ydarg uses. */
+int pa_special(int which);
+void pa_set_special(int which, int v);
+
 /* Append `line` to p->journal, skipping if a case-insensitive duplicate is
    already present (behaviour parity with the file-backed `stricmp` dedup
    it replaces). The caller's buffer is copied; ownership moves into the

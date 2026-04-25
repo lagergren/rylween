@@ -20,7 +20,7 @@ void ydarg() {
     clr_map_window();
     blitgfx(ydargpic);
     clw();
-    if (state.p[state.cpl].silverkey == 2) {
+    if (pa_special(PS_SILVERKEY) == 2) {
         tx0(res_text("ydarg.ruin"));
         ryl_pause();
         clr_map_window();
@@ -37,7 +37,7 @@ void ydarg() {
     tx0(res_text("ydarg.jaara_speech"));
     ryl_pause();
     clw();
-    if (!state.p[state.cpl].silverkey) {
+    if (!pa_special(PS_SILVERKEY)) {
         tx0(res_text("ydarg.no_key"));
         ryl_pause();
         clr_map_window();
@@ -113,7 +113,7 @@ void ydarg() {
                         tx("%s tries to\r\n", pm_name(pm_cur(i)));
                         tx("disarm it...\r\n\r\n");
                         ryl_delay(1500);
-                        if (ryl_chance(state.p[state.cpl].wi[i])) {
+                        if (ryl_chance(pm_wi(pm_cur(i)))) {
                             tx0(res_text("ydarg.room.trap.disarm_succeed"));
                             ryl_delay(1000);
                             j = 1;
@@ -235,43 +235,43 @@ void ydarg() {
                     j = 0;
                     switch (d - 48) {
                         case 1:
-                            if (!state.p[state.cpl].fireshield) {
+                            if (!pa_special(PS_FIRESHIELD)) {
                                 clw();
                                 tx0(res_text("ydarg.room.stairs.no_have_sing"));
                                 ryl_delay(1500);
                                 break;
                             }
-                            state.p[state.cpl].fireshield = 0;
+                            pa_set_special(PS_FIRESHIELD, 0);
                             j = 1;
                             break;
                         case 2:
-                            if (!state.p[state.cpl].mastercrown) {
+                            if (!pa_special(PS_MASTERCROWN)) {
                                 clw();
                                 tx0(res_text("ydarg.room.stairs.no_have_sing"));
                                 ryl_delay(1500);
                                 break;
                             }
-                            state.p[state.cpl].mastercrown = 0;
+                            pa_set_special(PS_MASTERCROWN, 0);
                             j = 1;
                             break;
                         case 3:
-                            if (!state.p[state.cpl].jazzyfoot) {
+                            if (!pa_special(PS_JAZZYFOOT)) {
                                 clw();
                                 tx0(res_text("ydarg.room.stairs.no_have_sing"));
                                 ryl_delay(1500);
                                 break;
                             }
-                            state.p[state.cpl].jazzyfoot = 0;
+                            pa_set_special(PS_JAZZYFOOT, 0);
                             j = 1;
                             break;
                         case 4:
-                            if (!state.p[state.cpl].bracelets) {
+                            if (!pa_special(PS_BRACELETS)) {
                                 clw();
                                 tx0(res_text("ydarg.room.stairs.no_have_plur"));
                                 ryl_delay(1500);
                                 break;
                             }
-                            state.p[state.cpl].bracelets = 0;
+                            pa_set_special(PS_BRACELETS, 0);
                             j = 1;
                             break;
                     }
@@ -481,7 +481,7 @@ static void confrontation() {
     tx0(res_text("ydarg.conf.congrats"));
     ryl_pause();
     clw();
-    state.p[state.cpl].silverkey = 2;
+    pa_set_special(PS_SILVERKEY, 2);
     save();
     tx0(res_text("ydarg.conf.heroes"));
     ryl_pause();
@@ -548,7 +548,7 @@ static void confrontation() {
             break;
     }
 
-    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", state.p[state.cpl].party_name, mstr, kl[3],
+    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", pa_party_name(), mstr, kl[3],
              kl[1] + 80);
     fputs(str, fh);
     fclose(fh);

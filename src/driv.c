@@ -1,4 +1,5 @@
 #include "io.h"
+#include "inventory.h"
 #include "json5.h"
 #include "party.h"
 #include "replay_knobs.h"
@@ -266,16 +267,16 @@ uint8_t drop_option() {
 }
 
 static void read_journal() {
-    const struct party *p = &state.p[state.cpl];
-    if (p->journal_n == 0) {
+    size_t n = pa_journal_n();
+    if (n == 0) {
         return;
     }
 
     tx0(res_text("driv.journal.header"));
 
     unsigned char line = 0;
-    for (size_t i = 0; i < p->journal_n; i++) {
-        tx("- %s\r\n", p->journal[i]);
+    for (size_t i = 0; i < n; i++) {
+        tx("- %s\r\n", pa_journal_line(i));
         line++;
         if (line == 16) {
             line = 0;
@@ -292,8 +293,8 @@ void statusline() {
     char str[256];
     char stline[256];
 
-    if (state.p[state.cpl].food < 0) {
-        state.p[state.cpl].food = 0;
+    if (pa_food() < 0) {
+        pa_set_food(0);
     }
     stline[0] = 0;
     if (is_hour_in_range(6, 11)) {
@@ -308,28 +309,30 @@ void statusline() {
     if (is_hour_in_range(24, 5)) {
         snprintf(stline, sizeof stline, "TIME: [33mMIDNIGHT[32m  ");
     }
-    if (state.p[state.cpl].food < state.p[state.cpl].pl * 3 && state.p[state.cpl].food) {
+    if (pa_food() < pa_pl() * 3 && pa_food()) {
         str_append(stline, sizeof stline, "ST: [35mHUNGRY  ");
     }
-    if (!state.p[state.cpl].food) {
+    if (!pa_food()) {
         str_append(stline, sizeof stline, "ST: [31mSTARVING[32m ");
     }
-    if (state.p[state.cpl].food && state.p[state.cpl].food >= state.p[state.cpl].pl * 3) {
+    if (pa_food() && pa_food() >= pa_pl() * 3) {
         str_append(stline, sizeof stline, "ST: [33mOK    ");
     }
-    snprintf(str, sizeof str, "[32m X: [33m%2d   [32mY: [33m%2d[32m     ", state.p[state.cpl].x, state.p[state.cpl].y);
+    snprintf(str, sizeof str, "[32m X: [33m%2d   [32mY: [33m%2d[32m     ", pa_x(), pa_y());
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "FD: [33m%4d[32m  ", state.p[state.cpl].food);
+    snprintf(str, sizeof str, "FD: [33m%4d[32m  ", pa_food());
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "MV: [33m%3d[32m  ", state.p[state.cpl].time_left);
+    snprintf(str, sizeof str, "MV: [33m%3d[32m  ", pa_time_left());
     str_append(stline, sizeof stline, str);
-    snprintf(str, sizeof str, "AU: [33m%6d[32m", state.p[state.cpl].gold);
+    snprintf(str, sizeof str, "AU: [33m%6d[32m", pa_gold());
     str_append(stline, sizeof stline, str);
     c(3, 21);
     tx("[32m%s    ", stline);
     snprintf(stline, sizeof stline, "H1: [33m%3d/%3d   [32mH2: [33m%3d/%3d   [32mH3: [33m%3d/%3d   [32mH4: [33m%3d/%3d[37m",
-             state.p[state.cpl].hp[1], state.p[state.cpl].h[1], state.p[state.cpl].hp[2], state.p[state.cpl].h[2], state.p[state.cpl].hp[3], state.p[state.cpl].h[3],
-             state.p[state.cpl].hp[4], state.p[state.cpl].h[4]);
+             pm_hp(pm_cur(1)), pm_h(pm_cur(1)),
+             pm_hp(pm_cur(2)), pm_h(pm_cur(2)),
+             pm_hp(pm_cur(3)), pm_h(pm_cur(3)),
+             pm_hp(pm_cur(4)), pm_h(pm_cur(4)));
     c(13, 22);
     tx("%s\r\n", stline);
     c(49, 6);
@@ -588,8 +591,8 @@ void init() {
 
                     read_current_world();
                     abort = 1;
-                    snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", state.p[state.cpl].name[1],
-                             pronoun(1, 3), state.p[state.cpl].party_name);
+                    snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", pa_name(1),
+                             pronoun(1, 3), pa_party_name());
                     ryl_log(str);
                     wld_set_last_terrain(0);
                 } else {
@@ -1409,7 +1412,7 @@ void save() {
 }
 
 char *pronoun(uint8_t nr, uint8_t xx) {
-    uint8_t gender = state.p[state.cpl].gender[nr];
+    uint8_t gender = pm_gender(pm_cur(nr));
     /* Original: female's xx in {2,3} both returned "her"; clamp to match. */
     if (gender == res_enum_id("gender", "female") && xx == 3) {
         xx = 2;
@@ -1618,22 +1621,22 @@ static void createparty() {
 
 void showparty() {
     clw();
-    tx("%u torches.\r\n", state.p[state.cpl].torches);
-    tx("%d rations.\r\n", state.p[state.cpl].food);
-    tx("%d gold.\r\n\r\n", state.p[state.cpl].gold);
-    if (state.p[state.cpl].fireshield) {
+    tx("%u torches.\r\n", pa_torches());
+    tx("%d rations.\r\n", pa_food());
+    tx("%d gold.\r\n\r\n", pa_gold());
+    if (pa_special(PS_FIRESHIELD)) {
         tx0(res_text("driv.party.has_shield"));
     }
-    if (state.p[state.cpl].bracelets) {
+    if (pa_special(PS_BRACELETS)) {
         tx0(res_text("driv.party.has_bracelets"));
     }
-    if (state.p[state.cpl].mastercrown) {
+    if (pa_special(PS_MASTERCROWN)) {
         tx0(res_text("driv.party.has_crown"));
     }
-    if (state.p[state.cpl].jazzyfoot) {
+    if (pa_special(PS_JAZZYFOOT)) {
         tx0(res_text("driv.party.has_foot"));
     }
-    if (state.p[state.cpl].silverkey) {
+    if (pa_special(PS_SILVERKEY)) {
         tx0(res_text("driv.party.has_key"));
     }
 
@@ -1652,7 +1655,7 @@ void invlist() {
     int smax = res_inventory_slot_max();
 
     for (int i = 1; i <= INVENTORY_SLOT_MAX; i++) {
-        int id = (i <= smax) ? state.p[state.cpl].inventory[i] : 0;
+        int id = (i <= smax) ? pa_inventory(i) : 0;
         strncpy(item[i], object(id), 9);
         item[i][9] = 0;
     }
@@ -1664,30 +1667,31 @@ void invlist() {
 
 void show(int32_t nr) {
     char str[10];
+    pm_t pm = pm_cur(nr);
 
     clw();
-    tx("Name      : %s\r\n", state.p[state.cpl].name[nr]);
-    tx("Race      : %s\r\n", res_enum("race", state.p[state.cpl].ra[nr]));
-    tx("Class     : %s\r\n", res_enum("pc_class", state.p[state.cpl].cl[nr]));
+    tx("Name      : %s\r\n", pm_name(pm));
+    tx("Race      : %s\r\n", res_enum("race", pm_ra(pm)));
+    tx("Class     : %s\r\n", res_enum("pc_class", pm_cl(pm)));
     tx("\r\n");
-    tx("Skill     : %d\r\n", state.p[state.cpl].ws[nr]);
-    tx("Hp/H      : %d/%d\r\n", state.p[state.cpl].hp[nr], state.p[state.cpl].h[nr]);
-    tx("Wisdom    : %d\r\n", state.p[state.cpl].wi[nr]);
-    tx("Charisma  : %d\r\n", state.p[state.cpl].ch[nr]);
-    tx("Magic     : %d\r\n", state.p[state.cpl].ma[nr]);
+    tx("Skill     : %d\r\n", pm_ws(pm));
+    tx("Hp/H      : %d/%d\r\n", pm_hp(pm), pm_h(pm));
+    tx("Wisdom    : %d\r\n", pm_wi(pm));
+    tx("Charisma  : %d\r\n", pm_ch(pm));
+    tx("Magic     : %d\r\n", pm_ma(pm));
     tx("\r\n");
     ryl_pause();
     clw();
-    tx("Level     : %d\r\n", state.p[state.cpl].lv[nr]);
-    tx("Weapon    : %s\r\n", object(state.p[state.cpl].wp[nr]));
-    tx("Armour    : %s\r\n\r\n", object(state.p[state.cpl].ar[nr]));
-    if (state.p[state.cpl].dead[nr]) {
+    tx("Level     : %d\r\n", pm_lv(pm));
+    tx("Weapon    : %s\r\n", object(pm_wp(pm)));
+    tx("Armour    : %s\r\n\r\n", object(pm_ar(pm)));
+    if (pm_dead(pm)) {
         strcpy(str, "Dead.");
     } else {
         strcpy(str, "Alive.");
     }
     tx("Status    : %s\r\n\r\n", str);
-    tx("Exp       : %u\r\n\r\n", state.p[state.cpl].exp[nr]);
+    tx("Exp       : %u\r\n\r\n", pm_exp(pm));
     ryl_pause();
 }
 
