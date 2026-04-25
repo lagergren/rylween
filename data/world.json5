@@ -122,6 +122,11 @@
     terrain: { $import: 'world/scripts/terrain.json5' },
   },
 
+  // §20 S8: speak.c per-NPC mission stage tables. Top-level keys are
+  // NPC role identifiers; res_speak_missions() exposes the runtime
+  // table to speak.c::mission_dispatch.
+  speak_missions: { $import: 'world/scripts/speak_missions.json5' },
+
   // Class records (§3.3). Only the `spells` list is consumed today —
   // prereqs/starting gear stay in C (driv.c createparty) until those
   // call sites migrate. `casts_in` is recorded for the benefit of the

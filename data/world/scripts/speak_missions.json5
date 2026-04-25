@@ -1,0 +1,197 @@
+// §20 S8: speak.c per-NPC mission stage tables, lifted from the
+// static `stages_*` arrays + `mission_table[]` at the top of
+// src/speak.c. Top-level keys are NPC role identifiers (resolved
+// via res_npc_role at dispatch); each value carries a `stages:`
+// array tried first-match-wins against the current flag snapshot.
+//
+// stage shape:
+//   conds: [{flag: <tag>, when: <state>}, ...]  // AND-of-all
+//   script: <play_script id>                    // dispatched on match
+//   pre_clw: <bool>                             // run clw() before play_script
+//   binds: [{name, kind, ...}]                  // optional ryl_bind list
+//
+// bind kinds:
+//   npc_name | npc_loc  — needs npc_role (string)
+//   dx_str  | dy_str    — needs arg     (int dungeon-location index)
+{
+  bandits_quest_giver: {
+    stages: [
+      { conds: [{flag: 'garth.bandits', when: 'none'}],
+        script: 'speak.merchant.first_visit',
+        pre_clw: true },
+      { conds: [{flag: 'garth.bandits', when: 'recovered'}],
+        script: 'speak.merchant.grateful',
+        pre_clw: true },
+    ],
+  },
+
+  rangers_quest_giver: {
+    stages: [
+      { conds: [{flag: 'ranger.letter', when: 'none'}],
+        script: 'speak.ranger.first_visit',
+        pre_clw: false,
+        binds: [
+          {name: 'ranger_name', kind: 'npc_name', npc_role: 'ranger_brother'},
+          {name: 'ranger_loc',  kind: 'npc_loc',  npc_role: 'ranger_brother'},
+        ] },
+    ],
+  },
+
+  fighter_intro: {
+    // flag[3] == 'none' (fighter intro) stays inline — no script yet.
+    stages: [
+      { conds: [{flag: 'fighter.priest_book', when: 'wizard_robbed'}],
+        script: 'speak.fighter.grateful',
+        pre_clw: true },
+    ],
+  },
+
+  wizard_robbed: {
+    // Wizard reads the priest-chain flag.
+    stages: [
+      { conds: [{flag: 'fighter.priest_book', when: 'priest_visited'}],
+        script: 'speak.wizard.robbed_flow',
+        pre_clw: true },
+    ],
+  },
+
+  priest_with_book: {
+    stages: [
+      { conds: [{flag: 'fighter.priest_book', when: 'priest_told'}],
+        script: 'speak.priest.intro_flow',
+        pre_clw: true,
+        binds: [
+          {name: 'wizard_name', kind: 'npc_name', npc_role: 'wizard_robbed'},
+          {name: 'giver_name',  kind: 'npc_name', npc_role: 'fighter_intro'},
+        ] },
+    ],
+  },
+
+  erethor_lute_bard: {
+    stages: [
+      { conds: [{flag: 'erethor.lute', when: 'none'}],
+        script: 'speak.erethor.first_visit',
+        pre_clw: false },
+      { conds: [{flag: 'erethor.lute', when: 'lute_taken'}],
+        script: 'speak.erethor.delivered_lute',
+        pre_clw: true,
+        binds: [
+          {name: 'minstrel_name', kind: 'npc_name', npc_role: 'minstrel_cloak'},
+          {name: 'minstrel_loc',  kind: 'npc_loc',  npc_role: 'minstrel_cloak'},
+        ] },
+    ],
+  },
+
+  ranger_brother: {
+    // Brother reads the ranger's flag.
+    stages: [
+      { conds: [{flag: 'ranger.letter', when: 'accepted'}],
+        script: 'speak.brother.give_sword',
+        pre_clw: true },
+    ],
+  },
+
+  crown_seer: {
+    stages: [
+      { conds: [{flag: 'nymph.seeker', when: 'none'}],
+        script: 'speak.nymph.know_flow',
+        pre_clw: true,
+        binds: [
+          {name: 'seeker_name', kind: 'npc_name', npc_role: 'wizard_three_tasks'},
+          {name: 'seeker_loc',  kind: 'npc_loc',  npc_role: 'wizard_three_tasks'},
+        ] },
+    ],
+  },
+
+  master_thief: {
+    // Master thief reads the silver-key chain flag.
+    stages: [
+      { conds: [{flag: 'silver_key', when: 'note_found'}],
+        script: 'speak.thief2.squeezed',
+        pre_clw: true,
+        binds: [
+          {name: 'smith_name', kind: 'npc_name', npc_role: 'silver_key_smith'},
+        ] },
+    ],
+  },
+
+  peasant_husband: {
+    stages: [
+      { conds: [{flag: 'peasant_wife', when: 'none'}],
+        script: 'speak.husband.first_visit',
+        pre_clw: true },
+      { conds: [{flag: 'peasant_wife', when: 'rescued'}],
+        script: 'speak.husband.rescued',
+        pre_clw: true },
+    ],
+  },
+
+  minstrel_cloak: {
+    // Minstrel reads the Erethor-chain flag.
+    stages: [
+      { conds: [{flag: 'erethor.lute', when: 'note_received'}],
+        script: 'speak.minstrel.gives_cloak',
+        pre_clw: true,
+        binds: [
+          {name: 'minstrel_name', kind: 'npc_name', npc_role: 'minstrel_cloak'},
+          {name: 'next_town',     kind: 'npc_name', npc_role: 'erethor_lute_bard'},
+        ] },
+    ],
+  },
+
+  wizard_three_tasks: {
+    stages: [
+      // task1 is a two-condition stage (nymph seen AND crown-chain idle).
+      { conds: [
+          {flag: 'nymph.seeker', when: 'told'},
+          {flag: 'mastercrown',  when: 'none'},
+        ],
+        script: 'speak.wizard3t.task1_flow',
+        pre_clw: true,
+        binds: [
+          {name: 'kobold_x', kind: 'dx_str', arg: 3},
+          {name: 'kobold_y', kind: 'dy_str', arg: 3},
+        ] },
+      { conds: [{flag: 'mastercrown', when: 'task1_done'}],
+        script: 'speak.wizard3t.task2_flow',
+        pre_clw: true },
+      { conds: [{flag: 'mastercrown', when: 'task2_done'}],
+        script: 'speak.wizard3t.task3_flow',
+        pre_clw: true,
+        binds: [
+          {name: 'dwarf_x', kind: 'dx_str', arg: 4},
+          {name: 'dwarf_y', kind: 'dy_str', arg: 4},
+        ] },
+      { conds: [{flag: 'mastercrown', when: 'borin_paid'}],
+        script: 'speak.wizard3t.grateful_flow',
+        pre_clw: true,
+        binds: [
+          {name: 'crown_x', kind: 'dx_str', arg: 6},
+          {name: 'crown_y', kind: 'dy_str', arg: 6},
+        ] },
+    ],
+  },
+
+  silver_key_smith: {
+    stages: [
+      { conds: [{flag: 'silver_key', when: 'thief2_squeezed'}],
+        script: 'speak.smith.after_thief2',
+        pre_clw: true },
+    ],
+  },
+
+  hermit_troll_tooth: {
+    stages: [
+      { conds: [{flag: 'hermit.troll_tooth', when: 'none'}],
+        script: 'speak.hermit.welcome_visit',
+        pre_clw: true },
+      { conds: [{flag: 'hermit.troll_tooth', when: 'extracted'}],
+        script: 'speak.hermit.tooth_trade',
+        pre_clw: true,
+        binds: [
+          {name: 'cave_x', kind: 'dx_str', arg: 1},
+          {name: 'cave_y', kind: 'dy_str', arg: 1},
+        ] },
+    ],
+  },
+}

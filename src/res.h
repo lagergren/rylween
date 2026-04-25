@@ -226,6 +226,14 @@ const void *res_script(const char *dotted_id);
    compile_world_tree's walk so call-sites don't compile per-call. */
 const void *res_lib_effect(const char *dotted_id);
 
+/* §20 S8: per-NPC mission stage table loaded from
+   data/world/scripts/speak_missions.json5. Returns the heap-allocated
+   array (or NULL if the world is empty / the subtree was missing) and
+   writes the entry count into *count. The struct shapes are declared
+   in src/speak.h; lifetime is tied to res_shutdown. */
+struct mission_spec_;
+const struct mission_spec_ *res_speak_missions(size_t *count);
+
 /* Terrain byte -> two-char glyph the renderer writes. "  " if unknown. */
 const char *res_glyph(char terrain);
 
