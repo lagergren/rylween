@@ -161,6 +161,10 @@ void pa_set_torches(int32_t v) {
     state.p[state.cpl].torches = (uint32_t)v;
 }
 
+void pa_add_torches(int32_t delta) {
+    state.p[state.cpl].torches += (uint32_t)delta;
+}
+
 int32_t pa_food(void) {
     return state.p[state.cpl].food;
 }
@@ -177,6 +181,10 @@ void pa_set_pl(int v) {
     state.p[state.cpl].pl = (unsigned char)v;
 }
 
+void pa_add_pl(int delta) {
+    state.p[state.cpl].pl = (unsigned char)((int)state.p[state.cpl].pl + delta);
+}
+
 int32_t pa_hours_rested(void) {
     return state.p[state.cpl].hours_rested;
 }
@@ -191,6 +199,10 @@ void pa_set_gold(int32_t v) {
 
 void pa_add_gold(int32_t delta) {
     state.p[state.cpl].gold += delta;
+}
+
+void pa_add_kills(uint32_t delta) {
+    state.p[state.cpl].kills += delta;
 }
 
 static void pa_check_inv_slot(const char *who, int slot) {

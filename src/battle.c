@@ -334,7 +334,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         tx("%s opens %s eyes!\r\n", pm_name(target),
                                            pronoun(b - 48, 3));
                                         ryl_delay(1000);
-                                        party_current()->pl++;
+                                        pa_add_pl(1);
                                         pm_set_dead(target, 0);
                                         pm_set_hp(target, 1);
                                         pa_set_inventory(inv_slot_from_letter(d), 0);
@@ -440,7 +440,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         tx0(res_text("battle.spell.not_enough_magic"));
                         ryl_delay(1000);
                     } else {
-                        state.p[state.cpl].ma[g] -= (s->base_cost + pm_lv(caster));
+                        pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
                         const void *spell_node = res_spell_node("mage", d - 48);
                         if (spell_node) {
                             env_t env;
@@ -590,7 +590,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                 }
                 who = d - 64;
-                x = state.p[state.cpl].ws[g];
+                x = pm_ws(pm_cur(g));
                 if (playerconfused) {
                     x /= 3;
                 }
@@ -651,7 +651,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 tx("%d experience pts\r\n", exp_gain);
                 tx("and %d gold pieces.\r\n\r\n", gold_display);
                 ryl_delay(1000);
-                party_current()->kills += noc;
+                pa_add_kills((uint32_t)noc);
                 x = inv_find_empty();
                 i = 0;
                 if (x) {
@@ -667,7 +667,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         tx("You find a\r\n");
                         tx("%s.\r\n", object(i));
                         ryl_delay(1500);
-                        state.p[state.cpl].inventory[x] = i;
+                        pa_set_inventory(x, i);
                     }
                 }
                 party_add_gold(gold_gain);
@@ -721,7 +721,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 if (pm_hp(pm_cur(who)) <= 0) {
                                     pm_set_hp(pm_cur(who), 0);
                                     pm_set_dead(pm_cur(who), 1);
-                                    state.p[state.cpl].pl--;
+                                    pa_add_pl(-1);
                                     tx("[31m%s DIES![37m\r\n", pm_name(pm_cur(who)));
                                     ryl_delay(1000);
                                 }
@@ -740,7 +740,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         if (pm_hp(pm_cur(i)) <= 0) {
                                             pm_set_hp(pm_cur(i), 0);
                                             pm_set_dead(pm_cur(i), 1);
-                                            state.p[state.cpl].pl--;
+                                            pa_add_pl(-1);
                                             tx("[31m%s DIES![37m\r\n", pm_name(pm_cur(i)));
                                             ryl_delay(1000);
                                         }
@@ -784,8 +784,8 @@ void encounter(int32_t foe, int32_t mandatory) {
                             tx("%d damage pts!!!\r\n", dp);
                             pm_add_hp(pm_cur(who), -dp);
                             if (pm_hp(pm_cur(who)) <= 0) {
-                                if (state.p[state.cpl].pl) {
-                                    state.p[state.cpl].pl--;
+                                if (pa_pl()) {
+                                    pa_add_pl(-1);
                                 }
                                 pm_set_hp(pm_cur(who), 0);
                                 pm_set_dead(pm_cur(who), 1);

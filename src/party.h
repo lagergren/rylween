@@ -105,16 +105,23 @@ void pa_set_flag(int slot, int v);
    the type narrowing. */
 int32_t pa_torches(void);
 void pa_set_torches(int32_t v);
+void pa_add_torches(int32_t delta);
 int32_t pa_food(void);
 void pa_set_food(int32_t v);
 int pa_pl(void);
 void pa_set_pl(int v);
+void pa_add_pl(int delta);
 int32_t pa_hours_rested(void);
 void pa_set_hours_rested(int32_t v);
 
 /* Gold writes (pa_gold above is the read sibling). */
 void pa_set_gold(int32_t v);
 void pa_add_gold(int32_t delta);
+
+/* Bump party.kills by `delta`. The save/load paths still go through
+   the raw `p->kills` since they iterate over arbitrary parties, not
+   the current one — pa_* helpers are current-party-specific. */
+void pa_add_kills(uint32_t delta);
 
 /* state.p[cpl].inventory[slot] read / write. slot is 1..INVENTORY_SLOT_MAX. */
 int32_t pa_inventory(int slot);
