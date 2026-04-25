@@ -631,17 +631,16 @@
       'encounter_deep',                                    // 5
       'nothing_a', 'nothing_b',                            // 6..7
       'gold_chest', 'torches',                             // 8..9
-      '', '', '', '', '', '', '', '', '', '',              // 10..19 (reserved)
-      'fire_shield_guardian', 'fire_shield',               // 20..21
-      'thun_riddle1', 'thun_riddle2', 'thun_riddle3',      // 22..24
-      'bracelets',                                         // 25
-      'spectrum_message', 'colour_riddle',                 // 26..27
-      'nolrim_tomb', 'master_crown',                       // 28..29
-      'silver_sanctum',                                    // 30
-      'hobgoblin_patrol',                                  // 31
-      'royal_guard1', 'royal_guard2', 'hobgoblin_chief',   // 32..34
-      'orc_nest', 'tammys_prison',                         // 35..36
-      'erethor_priests', 'lute_chamber',                   // 37..38
+      'fire_shield_guardian', 'fire_shield',               // 10..11
+      'thun_riddle1', 'thun_riddle2', 'thun_riddle3',      // 12..14
+      'bracelets',                                         // 15
+      'spectrum_message', 'colour_riddle',                 // 16..17
+      'nolrim_tomb', 'master_crown',                       // 18..19
+      'silver_sanctum',                                    // 20
+      'hobgoblin_patrol',                                  // 21
+      'royal_guard1', 'royal_guard2', 'hobgoblin_chief',   // 22..24
+      'orc_nest', 'tammys_prison',                         // 25..26
+      'erethor_priests', 'lute_chamber',                   // 27..28
     ],
 
     // Random-rolled map locations (struct state.dx[]/state.dy[],

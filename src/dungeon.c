@@ -15,7 +15,7 @@ void dungeon(int32_t levels, const char *scenario) {
 
        Each dungeon level is filled with a random generic-event id
        (1..9) and then overlaid with the scenario's quest events
-       (20..38). Inside the main loop, every visit dispatches lvl[cl]
+       (10..28). Inside the main loop, every visit dispatches lvl[cl]
        through the dungeon_encounter enum to a `dungeon.<symbol>`
        script in data/world/scripts/dungeon.json5. The script owns
        all narration, combat, flag updates and inventory; the C side
@@ -40,10 +40,10 @@ void dungeon(int32_t levels, const char *scenario) {
         clw();
 
         /* Resolve the encounter id at this level to its symbol and
-           play dungeon.<symbol>. Slot 0 / 10..19 are sentinels —
-           res_enum returns "" so the loop falls through to the
-           post-event utility menu. After the script, reset lvl[cl]
-           unless dungeons.recurring marks the encounter as recurring
+           play dungeon.<symbol>. Slot 0 is the sentinel returned by
+           res_enum as "" so the loop falls through to the post-event
+           utility menu. After the script, reset lvl[cl] unless
+           dungeons.recurring marks the encounter as recurring
            (optionally `until_flag` is satisfied). */
         const char *enc_sym = res_enum("dungeon_encounter", lvl[cl]);
         if (enc_sym[0]) {

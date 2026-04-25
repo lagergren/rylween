@@ -14,11 +14,13 @@
 //   1..9   generic cave events (object/gold/encounter/etc.)
 //          dispatched by dungeon.c's main loop. Not enumerated here
 //          because the random fill already covers them.
-//   20..38 hand-authored special encounters (Guardian, Fire Shield,
-//          Thun Riddles, etc.). dungeon.c's level-event switch
-//          resolves the actual behaviour. L2 will lift those into
-//          dungeon.json5 scripts and this file's `encounter:` symbols
-//          will become script names.
+//   10..28 hand-authored special encounters (Guardian, Fire Shield,
+//          Thun Riddles, etc.). dungeon.json5 scripts own the
+//          per-encounter narration / mutation; placements in this
+//          file pin which level each one occupies for a given
+//          scenario. The historical 10..19 reserved gap was
+//          collapsed in §22.10 — every entry below is symbolic so
+//          the collapse was a pure data shuffle.
 //
 // `encounter:` is a string symbol resolved via the dungeon_encounter
 // enum. fold_dungeons rejects typos at world-load.
