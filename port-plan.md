@@ -4470,3 +4470,106 @@ Cumulative ~1-2 more sessions to fully close §22.
 
 **Bar per session.** Same as §22.8: `make check` and
 `make testasan` both green at every commit.
+
+§22.10 — wilderness-priest-revelation fixture (#8b)
+
+Continuation of §22.9. One commit this micro-session, both
+gates green:
+
+  - §22.5 #8b wilderness-priest-revelation fixture. First
+    dungeon-context spell fixture, exercising path 1 from §22.8
+    (walk to wild-roll cave at seed 5, enter with E, cast
+    revelation from inside the cavern). No lv knob needed —
+    revelation is the cheapest dungeon-only priest spell
+    (base 40 + lv 1 = 41) and seed-5 slot-1 priest wi=52
+    just covers it.
+
+**The `wait_input` absorber rule — single newline, not space.**
+The trap I hit on this fixture: `wait_input: true` lowers to
+`ryl_pause()`, which loops on `io->getch()` until it sees `\r`
+(13) or `\n` (10). Any other byte (space, digit, letter) is
+consumed and the loop continues. So absorbers for `wait_input`
+have to be a literal newline in the `.in` file — using a space
+makes the absorber eat the rest of the input until the next
+real newline, which silently swallows the cast keys. The two
+spell fixtures that already shipped (combat-mage-* in towne)
+all happen to use `\n` because their .in lines naturally end at
+that point; this dungeon-context fixture is the first where I
+tried to inline the absorber on the same line and discovered
+the constraint. Worth flagging for the remaining spell fixtures
+(#8c teleport, #8a banish) — anywhere a wait_input fires inside
+a dungeon-context flow, the absorber is `\n`, not ` `.
+
+**What's pinned by this fixture.** The revelation cast itself:
+cost-check passes (52 >= 41), `mutate ma -= 41` debits to
+ma=11, `chance(59)` lands the find-object arm at this seed,
+the category roll picks weapons (cat=0), the inner roll picks
+Halbard (id 9), and the `T` byte after `Z15` takes the
+`(T)ake` branch of the menu_branch — `inv_add` writes id 9
+into inventory slot 1.
+
+**What's not pinned (deferred).** The `chance(59)` nothing arm
+and the `(L)eave` branch of the menu_branch are both reachable
+only from a different RNG state. A follow-up fixture at a
+different seed (or with different prior RNG draws) can pin the
+nothing arm. The `(L)eave` arm is trivial — same fixture with
+the `T` byte replaced by anything else (or omitted, letting the
+following `\n` fall through as the menu_branch byte) — but it
+adds no new mutations, so it's not worth a separate fixture
+unless we later care about explicit menu_branch coverage.
+
+**What's not done — by spell.** Two fixtures left from the
+§22.8 list: priest teleport (#8c), priest banish (#8a). The
+teleport plan is unchanged (path 1, same seed-5 cave entry,
+`Z 1 6` with the compass + how-far prompts). Banish is
+unchanged (path 2, two priests + earthquake bridge,
+RYL_FORCE_PARTY_LV=5).
+
+**Recommended order — what to do next.**
+
+  1. **Land priest-teleport (§22.5 #8c)** via path 1. Reuse
+     the seed-5 walk pattern + cave entry from this fixture
+     verbatim — `C82828282828282E\n` then `\n` absorber for
+     find_torches, then `Z16` for slot-6 teleport, then the
+     compass + how-far prompts. Compass keys are 8/2/4/6 (the
+     wilderness movement set) and how-far is a 1-9 digit; one
+     byte per prompt. Confirm at the call site whether either
+     prompt has a wait_input absorber after — if so, single
+     `\n` per absorber.
+
+  2. **Land priest-banish (§22.5 #8a)** via path 2.
+     RYL_FORCE_PARTY_LV=5, two priests in slots 1+2 (seed 2
+     wi 67 / 63 — both qualify). Slot 1 casts earthquake
+     (`Z 1 7 E`) → spawns cave, enters new dungeon. Slot 2
+     casts banish (`Z 2 4`) — sets state.banished, success
+     arm ends with state_banished mutate. The earthquake-
+     spawned dungeon has 5-18 levels (random); pin a seed
+     where the level-1 random fill is reproducible.
+
+  3. **§22.F speak_missions.json5 rewrite + parser retire.**
+     Untouched. Plan unchanged from §22.7/§22.8/§22.9.
+
+  4. **§22.G docs/dsl.md single-doc reference.** Untouched.
+     Should follow §22.F so the doc reflects the post-
+     migration surface.
+
+**Cleanup follow-up — `dungeon_encounter` reserved slots.**
+The `dungeon_encounter` enum in `data/world.json5` (line ~631)
+has slots 10..19 marked as empty strings — reserved holes
+between the random-fill range (1..9) and the quest-encounter
+range (20..38). They're a dead band: `res_dungeon_apply_placements`
+overlays the quest ids at 20+, the random fill rolls only 1..9,
+and slot 0 is the "visited" sentinel. Worth confirming nothing
+indexes into 10..19 (a grep for `lvl[`/`dungeon_encounter`-
+adjacent reads should rule it out), then collapsing the enum to
+just 0..9 + 20..38 — or keeping the holes if any C-side numeric
+constants assume the 20-offset. Not blocking §22; flag for the
+post-§22 hardcoded-indices cleanup pass.
+
+**Estimated remaining effort.** Teleport ~45 min, banish ~60
+min = ~1.75 hours of spell-fixture work remaining. §22.F is
+~0.5-1 session; §22.G is ~0.5 session. Cumulative ~1-1.5
+more sessions to fully close §22.
+
+**Bar per session.** Same as §22.8/§22.9: `make check` and
+`make testasan` both green at every commit.
