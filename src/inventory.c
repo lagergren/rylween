@@ -65,22 +65,32 @@ int inv_add(int id) {
    (matches the flag fields on struct party) but the tag string and
    the backing ids live in JSON5 — no symbol list baked into C. An
    unknown tag string is a hard error; so is a stale map that
-   doesn't cover every PS_* value. */
+   doesn't cover every PS_* value.
+
+   §20 T5: special_tab is the single source of truth that ties the
+   `special:` tag in items shards to the PS_* enum AND the named
+   struct-party flag field. Adding a new special is now: append a
+   row here, add the matching field to struct party (state.h),
+   add the PS_* enum value to inventory.h, and tag the item record.
+   tag_to_which and party_award_special drain through this table —
+   no per-special hardcoded branches in either function. */
+static const struct {
+    const char *tag;
+    int which;
+    size_t offset; /* byte offset into struct party */
+} special_tab[] = {
+    {"fireshield", PS_FIRESHIELD, offsetof(struct party, fireshield)},
+    {"bracelets", PS_BRACELETS, offsetof(struct party, bracelets)},
+    {"mastercrown", PS_MASTERCROWN, offsetof(struct party, mastercrown)},
+    {"jazzyfoot", PS_JAZZYFOOT, offsetof(struct party, jazzyfoot)},
+    {"silverkey", PS_SILVERKEY, offsetof(struct party, silverkey)},
+};
+
 static int tag_to_which(const char *tag) {
-    if (!strcmp(tag, "fireshield")) {
-        return PS_FIRESHIELD;
-    }
-    if (!strcmp(tag, "bracelets")) {
-        return PS_BRACELETS;
-    }
-    if (!strcmp(tag, "mastercrown")) {
-        return PS_MASTERCROWN;
-    }
-    if (!strcmp(tag, "jazzyfoot")) {
-        return PS_JAZZYFOOT;
-    }
-    if (!strcmp(tag, "silverkey")) {
-        return PS_SILVERKEY;
+    for (size_t i = 0; i < sizeof special_tab / sizeof *special_tab; i++) {
+        if (!strcmp(special_tab[i].tag, tag)) {
+            return special_tab[i].which;
+        }
     }
     return PS_NONE;
 }
@@ -175,24 +185,11 @@ int item_is_magic_item(int id) {
 
 void party_award_special(int which) {
     struct party *p = &state.p[state.cpl];
-    switch (which) {
-        case PS_FIRESHIELD:
-            p->fireshield = 1;
-            break;
-        case PS_BRACELETS:
-            p->bracelets = 1;
-            break;
-        case PS_MASTERCROWN:
-            p->mastercrown = 1;
-            break;
-        case PS_JAZZYFOOT:
-            p->jazzyfoot = 1;
-            break;
-        case PS_SILVERKEY:
-            p->silverkey = 1;
-            break;
-        default:
-            break;
+    for (size_t i = 0; i < sizeof special_tab / sizeof *special_tab; i++) {
+        if (special_tab[i].which == which) {
+            *(unsigned char *)((char *)p + special_tab[i].offset) = 1;
+            return;
+        }
     }
 }
 
