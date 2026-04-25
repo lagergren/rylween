@@ -320,28 +320,28 @@
         cond: { gt: [{ var: 'roll' }, 0] },
         then: [
           // 4/5 chance: roll one of three sub-tables.
-          { let: 'sub', value: { random: [0, 2] } },
-          { if: { cond: { eq: [{ var: 'sub' }, 0] }, then: [
-            { let: 'oc', value: { add: [{ random: [0, 13] }, 1] } },
+          { let: 'tier', value: { random: [0, 2] } },
+          { if: { cond: { eq: [{ var: 'tier' }, 0] }, then: [
+            { let: 'item_id', value: { add: [{ random: [0, 13] }, 1] } },
           ] } },
-          { if: { cond: { eq: [{ var: 'sub' }, 1] }, then: [
-            { let: 'oc', value: { add: [{ random: [0, 6] }, 36] } },
+          { if: { cond: { eq: [{ var: 'tier' }, 1] }, then: [
+            { let: 'item_id', value: { add: [{ random: [0, 6] }, 36] } },
           ] } },
-          { if: { cond: { eq: [{ var: 'sub' }, 2] }, then: [
-            { let: 'oc', value: { add: [{ random: [0, 7] }, 39] } },
+          { if: { cond: { eq: [{ var: 'tier' }, 2] }, then: [
+            { let: 'item_id', value: { add: [{ random: [0, 7] }, 39] } },
           ] } },
         ],
         else: [
           // 1/5 chance: rare/special items 100..111.
-          { let: 'oc', value: { add: [{ random: [0, 11] }, 100] } },
+          { let: 'item_id', value: { add: [{ random: [0, 11] }, 100] } },
         ],
     } },
-    { engine_bind: { fn: 'object', args: [{ var: 'oc' }], var: 'name' } },
+    { engine_bind: { fn: 'object', args: [{ var: 'item_id' }], var: 'name' } },
     { emit: 'find_object.found' },
     { menu_branch: {
       options: [
         { key: 'T', then: [
-          { inv_add: { item: { var: 'oc' },
+          { inv_add: { item: { var: 'item_id' },
             added: [
               { emit: 'find_object.ok' },
               { pause: 800 },
@@ -370,15 +370,15 @@
           // Trap chance: 4 in 10 by default, 2 in 10 if a thief
           // checks the chest first.
           { let: 'trap_chance', value: 4 },
-          { for_member: { var: 'm', then: [
+          { for_member: { var: 'member', then: [
             { if: {
               cond: { engine_int: 'pa_is_class',
-                      args: [{ var: 'm' },
+                      args: [{ var: 'member' },
                              { enum: ['pc_class', 'Thief'] }] },
               then: [
                 { engine_call: 'clw' },
                 { engine_bind: { fn: 'pa_name',
-                                 args: [{ var: 'm' }],
+                                 args: [{ var: 'member' }],
                                  var: 'thief_name' } },
                 { emit: 'gold_chest.thief_check' },
                 { pause: 1000 },
@@ -411,12 +411,12 @@
                 { pause: 1400 },
                 { emit: 'gold_chest.trap_boulder_b' },
               ] } },
-              { for_member: { var: 'm', then: [
+              { for_member: { var: 'member', then: [
                 { engine_call: 'pm_add_hp',
-                  args: [{ var: 'm' },
+                  args: [{ var: 'member' },
                          { mul: [-4,
-                                 { member: { var: 'm' }, field: 'lv' }] }] },
-                { engine_call: 'pm_hp_floor', args: [{ var: 'm' }, 1] },
+                                 { member: { var: 'member' }, field: 'lv' }] }] },
+                { engine_call: 'pm_hp_floor', args: [{ var: 'member' }, 1] },
               ] } },
               { wait_input: true },
             ],
@@ -504,7 +504,7 @@
    // `while (1) { c = key(); if (c>='1'&&c<='7') break; }`.
   colour_riddle: [
     { engine_call: 'clw' },
-    { let: 'antechamber', value: { sub: [{ var: 'cl' }, 12] } },
+    { let: 'antechamber', value: { sub: [{ var: 'class_id' }, 12] } },
     { emit: 'colour_riddle.plaque' },
     { wait_input: true },
     { engine_call: 'clw' },
@@ -518,7 +518,7 @@
         options: [
           { key_range: ['1', '7'], then: [
             { if: {
-              cond: { eq: [{ add: [{ var: 'cl' }, { var: 'pick' }] }, 20] },
+              cond: { eq: [{ add: [{ var: 'class_id' }, { var: 'pick' }] }, 20] },
               then: [
                 { engine_call: 'clw' },
                 { emit: 'colour_riddle.tingle' },

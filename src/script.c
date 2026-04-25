@@ -604,6 +604,18 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
     if (n->kind == N_BOOL) {
         return n->u.bv ? 1 : 0;
     }
+    /* Single-character string literal -> ASCII int. Lets switch/match
+       cases for keypress dispatch read as `match: '1'` / `match: 'A'`
+       instead of bare 49 / 65. Strict 1-char so multi-char strings
+       (likely bugs) still die_at. */
+    if (n->kind == N_STR) {
+        const char *s = n->u.sv;
+        if (!s || !s[0] || s[1] != 0) {
+            die_at(script_id, idx,
+                   "expr: string literal in int position must be a single character");
+        }
+        return (int32_t)(unsigned char)s[0];
+    }
     if (n->kind != N_OBJ) {
         die_at(script_id, idx, "expr: must be int or object");
     }

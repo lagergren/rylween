@@ -71,10 +71,10 @@
               { engine_call: 'clw' },
               { emit: 'who' },
               { menu_branch: {
-                  key_var: 'who_ch',
+                  key_var: 'who_key',
                   options: [
                     { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                      { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
+                      { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
                       { if: {
                           cond: { not: { engine_int: 'pa_is_spellcaster', args: [{ var: 'who' }] } },
                           then: [
@@ -150,10 +150,10 @@
               { engine_call: 'clw' },
               { emit: 'who' },
               { menu_branch: {
-                  key_var: 'who_ch',
+                  key_var: 'who_key',
                   options: [
                     { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                      { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
+                      { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
                       { if: {
                           cond: { engine_int: 'pa_is_alive', args: [{ var: 'who' }] },
                           then: [
@@ -204,10 +204,10 @@
               { engine_call: 'clw' },
               { emit: 'who' },
               { menu_branch: {
-                  key_var: 'who_ch',
+                  key_var: 'who_key',
                   options: [
                     { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                      { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
+                      { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
                       { if: {
                           cond: { engine_int: 'pa_is_dead', args: [{ var: 'who' }] },
                           then: [
@@ -376,24 +376,31 @@
                                 options: [
                                   // --- Armour buy
                                   { key: 'A', then: [
-                                      { let: 'p20', value: { obcost: 20 } },
-                                      { let: 'p21', value: { obcost: 21 } },
-                                      { let: 'p22', value: { obcost: 22 } },
-                                      { let: 'p23', value: { obcost: 23 } },
-                                      { let: 'p24', value: { obcost: 24 } },
-                                      { let: 'p25', value: { obcost: 25 } },
+                                      // armour_menu pulls prices via
+                                      // {cost:<itemkey>} from
+                                      // data/world/items/armour.json5
+                                      // — no per-item let prelude.
                                       { engine_call: 'clw' },
                                       { emit: 'we_have' },
                                       { emit: 'armour_menu' },
                                       { menu_branch: {
-                                          key_var: 'armour_ch',
+                                          key_var: 'armour_key',
                                           options: [
                                             { key_range: ['1', '6'], then: [
-                                              // oc = ch - 29 maps '1' (ASCII 49) -> 20 ... '6' (54) -> 25.
-                                              { let: 'oc', value: { sub: [{ var: 'armour_ch' }, 29] } },
-                                              { let: 'pr', value: { obcost: { var: 'oc' } } },
+                                              { switch: {
+                                                  expr: { var: 'armour_key' },
+                                                  cases: [
+                                                    { match: '1', then: [{ let: 'item_id', value: { item: 'leather'      } }] },
+                                                    { match: '2', then: [{ let: 'item_id', value: { item: 'chain_mail'   } }] },
+                                                    { match: '3', then: [{ let: 'item_id', value: { item: 'plate_mail'   } }] },
+                                                    { match: '4', then: [{ let: 'item_id', value: { item: 'ring_mail'    } }] },
+                                                    { match: '5', then: [{ let: 'item_id', value: { item: 'elvin_cloak'  } }] },
+                                                    { match: '6', then: [{ let: 'item_id', value: { item: 'mithril_mail' } }] },
+                                                  ],
+                                              } },
+                                              { let: 'price', value: { obcost: { var: 'item_id' } } },
                                               { if: {
-                                                  cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                                                  cond: { lt: [{ gold: 0 }, { var: 'price' }] },
                                                   then: [
                                                     { engine_call: 'clw' },
                                                     { emit: 'too_expensive' },
@@ -411,10 +418,10 @@
                                                         else: [
                                                           { mutate: { target: { inventory: { var: 'slot' } },
                                                                       op: 'set',
-                                                                      value: { var: 'oc' } } },
+                                                                      value: { var: 'item_id' } } },
                                                           { mutate: { target: { gold: 0 },
                                                                       op: 'sub',
-                                                                      value: { var: 'pr' } } },
+                                                                      value: { var: 'price' } } },
                                                           { emit: 'deal' },
                                                           { pause: 1000 },
                                                         ],
@@ -425,38 +432,31 @@
                                           ],
                                       } },
                                   ] },
-                                  // --- Weapon buy with N/P pagination
+                                  // --- Weapon buy with N/P pagination.
+                                  // Prices come straight from
+                                  // data/world/items/weapons.json5 via
+                                  // the {cost:<itemkey>} placeholder in
+                                  // weapon_page1/weapon_page2 — no
+                                  // per-item bindings needed.
                                   { key: 'W', then: [
-                                      { let: 'p1',  value: { obcost: 1 } },
-                                      { let: 'p2',  value: { obcost: 2 } },
-                                      { let: 'p3',  value: { obcost: 3 } },
-                                      { let: 'p4',  value: { obcost: 4 } },
-                                      { let: 'p9',  value: { obcost: 9 } },
-                                      { let: 'p11', value: { obcost: 11 } },
-                                      { let: 'p7',  value: { obcost: 7 } },
-                                      { let: 'p14', value: { obcost: 14 } },
-                                      { let: 'p10', value: { obcost: 10 } },
-                                      { let: 'p8',  value: { obcost: 8 } },
-                                      { let: 'p15', value: { obcost: 15 } },
-                                      { let: 'p16', value: { obcost: 16 } },
-                                      { let: 'menu', value: 1 },
+                                      { let: 'page', value: 1 },
                                       { loop: [
                                         { engine_call: 'clw' },
                                         { emit: 'we_have' },
-                                        { if: { cond: { eq: [{ var: 'menu' }, 1] },
+                                        { if: { cond: { eq: [{ var: 'page' }, 1] },
                                                 then: [{ emit: 'weapon_page1' }] } },
-                                        { if: { cond: { eq: [{ var: 'menu' }, 2] },
+                                        { if: { cond: { eq: [{ var: 'page' }, 2] },
                                                 then: [{ emit: 'weapon_page2' }] } },
                                         { menu_branch: {
-                                            key_var: 'weapon_ch',
+                                            key_var: 'weapon_key',
                                             options: [
                                               { key: 'N', then: [
-                                                  { if: { cond: { eq: [{ var: 'menu' }, 1] },
-                                                          then: [{ let: 'menu', value: 2 }] } },
+                                                  { if: { cond: { eq: [{ var: 'page' }, 1] },
+                                                          then: [{ let: 'page', value: 2 }] } },
                                               ] },
                                               { key: 'P', then: [
-                                                  { if: { cond: { eq: [{ var: 'menu' }, 2] },
-                                                          then: [{ let: 'menu', value: 1 }] } },
+                                                  { if: { cond: { eq: [{ var: 'page' }, 2] },
+                                                          then: [{ let: 'page', value: 1 }] } },
                                               ] },
                                             ],
                                             // key_var fires on default
@@ -466,32 +466,30 @@
                                             default: [{ break: true }],
                                         } },
                                       ] },
-                                      // ASCII-coded switch: '1'=49
-                                      // '9'=57, 'A'=65 'C'=67.
                                       { switch: {
-                                          expr: { var: 'weapon_ch' },
+                                          expr: { var: 'weapon_key' },
                                           cases: [
-                                            { match: 49, then: [{ let: 'oc', value: 1 }] },
-                                            { match: 50, then: [{ let: 'oc', value: 2 }] },
-                                            { match: 51, then: [{ let: 'oc', value: 3 }] },
-                                            { match: 52, then: [{ let: 'oc', value: 4 }] },
-                                            { match: 53, then: [{ let: 'oc', value: 9 }] },
-                                            { match: 54, then: [{ let: 'oc', value: 11 }] },
-                                            { match: 55, then: [{ let: 'oc', value: 7 }] },
-                                            { match: 56, then: [{ let: 'oc', value: 14 }] },
-                                            { match: 57, then: [{ let: 'oc', value: 10 }] },
-                                            { match: 65, then: [{ let: 'oc', value: 8 }] },
-                                            { match: 66, then: [{ let: 'oc', value: 15 }] },
-                                            { match: 67, then: [{ let: 'oc', value: 16 }] },
-                                            { default: true, then: [{ let: 'oc', value: 0 }] },
+                                            { match: '1', then: [{ let: 'item_id', value: { item: 'sword'          } }] },
+                                            { match: '2', then: [{ let: 'item_id', value: { item: 'axe'            } }] },
+                                            { match: '3', then: [{ let: 'item_id', value: { item: 'bow'            } }] },
+                                            { match: '4', then: [{ let: 'item_id', value: { item: 'club'           } }] },
+                                            { match: '5', then: [{ let: 'item_id', value: { item: 'halbard'        } }] },
+                                            { match: '6', then: [{ let: 'item_id', value: { item: 'crossbow'       } }] },
+                                            { match: '7', then: [{ let: 'item_id', value: { item: 'longsword'      } }] },
+                                            { match: '8', then: [{ let: 'item_id', value: { item: 'two_hand_sword' } }] },
+                                            { match: '9', then: [{ let: 'item_id', value: { item: 'pole_arm'       } }] },
+                                            { match: 'A', then: [{ let: 'item_id', value: { item: 'trident'        } }] },
+                                            { match: 'B', then: [{ let: 'item_id', value: { item: 'magic_dagger'   } }] },
+                                            { match: 'C', then: [{ let: 'item_id', value: { item: 'magic_sword'    } }] },
+                                            { default: true, then: [{ let: 'item_id', value: { item: 'blank'      } }] },
                                           ],
                                       } },
                                       { if: {
-                                          cond: { gt: [{ var: 'oc' }, 0] },
+                                          cond: { ne: [{ var: 'item_id' }, { item: 'blank' }] },
                                           then: [
-                                            { let: 'pr', value: { obcost: { var: 'oc' } } },
+                                            { let: 'price', value: { obcost: { var: 'item_id' } } },
                                             { if: {
-                                                cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                                                cond: { lt: [{ gold: 0 }, { var: 'price' }] },
                                                 then: [
                                                   { engine_call: 'clw' },
                                                   { emit: 'too_expensive' },
@@ -509,10 +507,10 @@
                                                       else: [
                                                         { mutate: { target: { inventory: { var: 'slot' } },
                                                                     op: 'set',
-                                                                    value: { var: 'oc' } } },
+                                                                    value: { var: 'item_id' } } },
                                                         { mutate: { target: { gold: 0 },
                                                                     op: 'sub',
-                                                                    value: { var: 'pr' } } },
+                                                                    value: { var: 'price' } } },
                                                         { emit: 'deal' },
                                                         { pause: 1000 },
                                                       ],
@@ -533,16 +531,16 @@
                             { emit: 'sell_prompt' },
                             { engine_call: 'invlist' },
                             { menu_branch: {
-                                key_var: 'sell_ch',
+                                key_var: 'sell_key',
                                 options: [
                                   { key_range: ['A', 'P'], then: [
-                                    { let: 'slot', value: { sub: [{ var: 'sell_ch' }, 64] } },
-                                    { let: 'oc', value: { inventory: { var: 'slot' } } },
-                                    { let: 'pr', value: { div: [{ obcost: { var: 'oc' } }, 2] } },
+                                    { let: 'slot', value: { sub: [{ var: 'sell_key' }, 64] } },
+                                    { let: 'item_id', value: { inventory: { var: 'slot' } } },
+                                    { let: 'price', value: { div: [{ obcost: { var: 'item_id' } }, 2] } },
                                     { if: {
                                         cond: { or: [
-                                          { eq: [{ var: 'oc' }, 0] },
-                                          { gt: [{ var: 'oc' }, 30] },
+                                          { eq: [{ var: 'item_id' }, 0] },
+                                          { gt: [{ var: 'item_id' }, 30] },
                                         ] },
                                         then: [
                                           { engine_call: 'clw' },
@@ -564,35 +562,35 @@
                                                                   value: 0 } },
                                                       { mutate: { target: { gold: 0 },
                                                                   op: 'add',
-                                                                  value: { var: 'pr' } } },
+                                                                  value: { var: 'price' } } },
                                                       { break: true },
                                                   ] },
                                                   { key: 'B', then: [
-                                                      { let: 'i', value: { random: [0, 99] } },
+                                                      { let: 'haggle_roll', value: { random: [0, 99] } },
                                                       { if: {
-                                                          cond: { gt: [{ var: 'i' }, 90] },
+                                                          cond: { gt: [{ var: 'haggle_roll' }, 90] },
                                                           then: [
-                                                            { let: 'pr', value: {
+                                                            { let: 'price', value: {
                                                                 add: [
-                                                                  { var: 'pr' },
-                                                                  { div: [{ var: 'pr' }, 4] },
+                                                                  { var: 'price' },
+                                                                  { div: [{ var: 'price' }, 4] },
                                                                 ],
                                                             } },
                                                           ],
                                                       } },
                                                       { if: {
-                                                          cond: { gt: [{ var: 'i' }, 75] },
+                                                          cond: { gt: [{ var: 'haggle_roll' }, 75] },
                                                           then: [
-                                                            { let: 'pr', value: {
+                                                            { let: 'price', value: {
                                                                 add: [
-                                                                  { var: 'pr' },
-                                                                  { div: [{ var: 'pr' }, 6] },
+                                                                  { var: 'price' },
+                                                                  { div: [{ var: 'price' }, 6] },
                                                                 ],
                                                             } },
                                                           ],
                                                       } },
                                                       { if: {
-                                                          cond: { lt: [{ var: 'i' }, 76] },
+                                                          cond: { lt: [{ var: 'haggle_roll' }, 76] },
                                                           then: [
                                                             { engine_call: 'clw' },
                                                             { emit: 'no_thanks' },
@@ -676,15 +674,15 @@
           // Scruffy-boost: sum of ch[m]/10 across priest members
           // (cl==5). Priest in a party raises the chance that the
           // scruffy dealer approaches.
-          { let: 'x', value: 0 },
-          { for_member: { var: 'm', then: [
+          { let: 'priest_bonus', value: 0 },
+          { for_member: { var: 'member', then: [
             { if: {
-                cond: { eq: [{ member: { var: 'm' }, field: 'cl' },
+                cond: { eq: [{ member: { var: 'member' }, field: 'cl' },
                               { enum: ['pc_class', 'Priest'] }] },
                 then: [
-                  { let: 'x', value: { add: [
-                    { var: 'x' },
-                    { div: [{ member: { var: 'm' }, field: 'ch' }, 10] },
+                  { let: 'priest_bonus', value: { add: [
+                    { var: 'priest_bonus' },
+                    { div: [{ member: { var: 'member' }, field: 'ch' }, 10] },
                   ] } },
                 ],
             } },
@@ -692,7 +690,7 @@
 
           // One-shot offer gate. Fails -> straight to main loop.
           { chance: {
-              pct: { add: [5, { var: 'x' }] },
+              pct: { add: [5, { var: 'priest_bonus' }] },
               then: [
                 { engine_call: 'clw' },
                 { emit: 'scruffy_1' },
@@ -700,31 +698,31 @@
                 { emit: 'scruffy_2' },
                 { pause: 3000 },
                 { engine_call: 'clw' },
-                { let: 'i', value: { add: [{ random: [0, 16] }, 1] } },
+                { let: 'item_id', value: { add: [{ random: [0, 16] }, 1] } },
                 { switch: {
-                    expr: { var: 'i' },
+                    expr: { var: 'item_id' },
                     cases: [
-                      { match: 1,  then: [{ let: 'i', value: { item: 'magic_dagger'        } }] },
-                      { match: 2,  then: [{ let: 'i', value: { item: 'magic_axe'           } }] },
-                      { match: 3,  then: [{ let: 'i', value: { item: 'admt_mail'           } }] },
-                      { match: 4,  then: [{ let: 'i', value: { item: 'amber_potion'        } }] },
-                      { match: 5,  then: [{ let: 'i', value: { item: 'green_gem'           } }] },
-                      { match: 6,  then: [{ let: 'i', value: { item: 'frost_wand'          } }] },
-                      { match: 7,  then: [{ let: 'i', value: { item: 'fire_wand'           } }] },
-                      { match: 8,  then: [{ let: 'i', value: { item: 'gem_of_confusion'    } }] },
-                      { match: 9,  then: [{ let: 'i', value: { item: 'gem_of_blindness'    } }] },
-                      { match: 10, then: [{ let: 'i', value: { item: 'drums_of_death'      } }] },
-                      { match: 11, then: [{ let: 'i', value: { item: 'staff_of_healing'    } }] },
-                      { match: 12, then: [{ let: 'i', value: { item: 'blessing_scroll'     } }] },
-                      { match: 13, then: [{ let: 'i', value: { item: 'staff_of_curing'     } }] },
-                      { match: 14, then: [{ let: 'i', value: { item: 'gem_of_resurrection' } }] },
-                      { match: 15, then: [{ let: 'i', value: { item: 'kaels_axe'           } }] },
-                      { match: 16, then: [{ let: 'i', value: { item: 'holy_handgrenade'    } }] },
-                      { match: 17, then: [{ let: 'i', value: { item: 'flute_of_madness'    } }] },
+                      { match: 1,  then: [{ let: 'item_id', value: { item: 'magic_dagger'        } }] },
+                      { match: 2,  then: [{ let: 'item_id', value: { item: 'magic_axe'           } }] },
+                      { match: 3,  then: [{ let: 'item_id', value: { item: 'admt_mail'           } }] },
+                      { match: 4,  then: [{ let: 'item_id', value: { item: 'amber_potion'        } }] },
+                      { match: 5,  then: [{ let: 'item_id', value: { item: 'green_gem'           } }] },
+                      { match: 6,  then: [{ let: 'item_id', value: { item: 'frost_wand'          } }] },
+                      { match: 7,  then: [{ let: 'item_id', value: { item: 'fire_wand'           } }] },
+                      { match: 8,  then: [{ let: 'item_id', value: { item: 'gem_of_confusion'    } }] },
+                      { match: 9,  then: [{ let: 'item_id', value: { item: 'gem_of_blindness'    } }] },
+                      { match: 10, then: [{ let: 'item_id', value: { item: 'drums_of_death'      } }] },
+                      { match: 11, then: [{ let: 'item_id', value: { item: 'staff_of_healing'    } }] },
+                      { match: 12, then: [{ let: 'item_id', value: { item: 'blessing_scroll'     } }] },
+                      { match: 13, then: [{ let: 'item_id', value: { item: 'staff_of_curing'     } }] },
+                      { match: 14, then: [{ let: 'item_id', value: { item: 'gem_of_resurrection' } }] },
+                      { match: 15, then: [{ let: 'item_id', value: { item: 'kaels_axe'           } }] },
+                      { match: 16, then: [{ let: 'item_id', value: { item: 'holy_handgrenade'    } }] },
+                      { match: 17, then: [{ let: 'item_id', value: { item: 'flute_of_madness'    } }] },
                     ],
                 } },
-                { engine_bind: { fn: 'object', args: [{ var: 'i' }], var: 'item' } },
-                { let: 'pr', value: { obcost: { var: 'i' } } },
+                { engine_bind: { fn: 'object', args: [{ var: 'item_id' }], var: 'item' } },
+                { let: 'price', value: { obcost: { var: 'item_id' } } },
                 { emit: 'scruffy_offer' },
                 { emit: 'buy_nothanks' },
                 // Original `while (1) { ... if (c=='N'||c=='B') break; }`
@@ -737,7 +735,7 @@
                         { key: 'B', then: [
                           { engine_call: 'clw' },
                           { if: {
-                              cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                              cond: { lt: [{ gold: 0 }, { var: 'price' }] },
                               then: [
                                 { emit: 'scruffy_broke' },
                                 { pause: 800 },
@@ -755,7 +753,7 @@
                                                   op: 'set', value: { var: 'i' } } },
                                       { emit: 'scruffy_deal' },
                                       { mutate: { target: { gold: 0 },
-                                                  op: 'sub', value: { var: 'pr' } } },
+                                                  op: 'sub', value: { var: 'price' } } },
                                       { pause: 800 },
                                     ],
                                 } },
@@ -805,12 +803,12 @@
                     { engine_call: 'clw' },
                     { emit: 'story_who' },
                     { menu_branch: {
-                        key_var: 'who_ch',
+                        key_var: 'who_key',
                         options: [
                           { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                            { let: 'mi', value: { sub: [{ var: 'who_ch' }, 48] } },
+                            { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
                             { if: {
-                                cond: { engine_int: 'pa_is_dead', args: [{ var: 'mi' }] },
+                                cond: { engine_int: 'pa_is_dead', args: [{ var: 'member_idx' }] },
                                 then: [
                                   { engine_call: 'clw' },
                                   { emit: 'dead_story' },
@@ -818,7 +816,7 @@
                                 ],
                                 else: [
                                   { engine_call: 'clw' },
-                                  { engine_bind: { fn: 'pa_name', args: [{ var: 'mi' }], var: 'who' } },
+                                  { engine_bind: { fn: 'pa_name', args: [{ var: 'member_idx' }], var: 'who' } },
                                   { emit: 'stands_up' },
                                   { pause: 2000 },
                                   { emit: 'yeah' },
@@ -835,25 +833,25 @@
                                         { key: 'B', then: [{ let: 'is_boast', value: 1 }] },
                                       ],
                                   } },
-                                  { let: 'st', value: 0 },
+                                  { let: 'score', value: 0 },
                                   { if: { cond: { eq: [{ var: 'is_boast' }, 1] },
-                                          then: [{ let: 'st', value: { add: [{ var: 'st' }, 100] } }] } },
+                                          then: [{ let: 'score', value: { add: [{ var: 'score' }, 100] } }] } },
                                   { if: { cond: { eq: [
-                                            { member: { var: 'mi' }, field: 'cl' },
+                                            { member: { var: 'member_idx' }, field: 'cl' },
                                             5,
                                           ] },
-                                          then: [{ let: 'st', value: { add: [{ var: 'st' }, 100] } }] } },
+                                          then: [{ let: 'score', value: { add: [{ var: 'score' }, 100] } }] } },
                                   { if: { cond: { gt: [
-                                            { member: { var: 'mi' }, field: 'ch' },
+                                            { member: { var: 'member_idx' }, field: 'ch' },
                                             90,
                                           ] },
-                                          then: [{ let: 'st', value: { add: [{ var: 'st' }, 50] } }] } },
+                                          then: [{ let: 'score', value: { add: [{ var: 'score' }, 50] } }] } },
                                   { if: { cond: { gt: [
-                                            { member: { var: 'mi' }, field: 'ch' },
+                                            { member: { var: 'member_idx' }, field: 'ch' },
                                             70,
                                           ] },
-                                          then: [{ let: 'st', value: { add: [{ var: 'st' }, 50] } }] } },
-                                  { let: 'st', value: { add: [{ var: 'st' }, { random: [1, 150] }] } },
+                                          then: [{ let: 'score', value: { add: [{ var: 'score' }, 50] } }] } },
+                                  { let: 'score', value: { add: [{ var: 'score' }, { random: [1, 150] }] } },
 
                                   // Boast + failed charisma roll:
                                   // thrown out, ch -= 10 (floor 0),
@@ -866,14 +864,14 @@
                                         { if: {
                                             cond: { gt: [
                                               { random: [0, 99] },
-                                              { member: { var: 'mi' }, field: 'ch' },
+                                              { member: { var: 'member_idx' }, field: 'ch' },
                                             ] },
                                             then: [
                                               { engine_call: 'clw' },
                                               { emit: 'liar_kicked' },
                                               { pause: 2000 },
                                               { emit: 'thrown_out' },
-                                              { mutate: { target: { member_field: { idx: { var: 'mi' }, field: 'ch' } },
+                                              { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
                                                           op: 'sub', value: 10,
                                                           clamp: { min: 0 } } },
                                               { engine_call: 'clr_map_window' },
@@ -884,54 +882,54 @@
                                   } },
 
                                   { engine_call: 'clw' },
-                                  { if: { cond: { gt: [{ var: 'st' }, 400] },
+                                  { if: { cond: { gt: [{ var: 'score' }, 400] },
                                           then: [
                                             { emit: 'st_superb' },
                                             { wait_input: true },
-                                            { mutate: { target: { member_field: { idx: { var: 'mi' }, field: 'ch' } },
+                                            { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
                                                         op: 'add', value: 3 } },
                                           ] } },
                                   { if: { cond: { and: [
-                                            { gt: [{ var: 'st' }, 300] },
-                                            { lt: [{ var: 'st' }, 401] },
+                                            { gt: [{ var: 'score' }, 300] },
+                                            { lt: [{ var: 'score' }, 401] },
                                           ] },
                                           then: [
                                             { emit: 'st_vgood' },
                                             { wait_input: true },
-                                            { mutate: { target: { member_field: { idx: { var: 'mi' }, field: 'ch' } },
+                                            { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
                                                         op: 'add', value: 1 } },
                                           ] } },
                                   { if: { cond: { and: [
-                                            { gt: [{ var: 'st' }, 150] },
-                                            { lt: [{ var: 'st' }, 301] },
+                                            { gt: [{ var: 'score' }, 150] },
+                                            { lt: [{ var: 'score' }, 301] },
                                           ] },
                                           then: [
                                             { emit: 'st_nice' },
                                             { wait_input: true },
                                           ] } },
                                   { if: { cond: { and: [
-                                            { gt: [{ var: 'st' }, 100] },
-                                            { lt: [{ var: 'st' }, 151] },
+                                            { gt: [{ var: 'score' }, 100] },
+                                            { lt: [{ var: 'score' }, 151] },
                                           ] },
                                           then: [
                                             { emit: 'st_bored' },
                                             { wait_input: true },
                                             { if: { cond: { gt: [
-                                                      { member: { var: 'mi' }, field: 'ch' },
+                                                      { member: { var: 'member_idx' }, field: 'ch' },
                                                       0,
                                                     ] },
-                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'mi' }, field: 'ch' } },
+                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
                                                                        op: 'sub', value: 1 } }] } },
                                           ] } },
-                                  { if: { cond: { lt: [{ var: 'st' }, 101] },
+                                  { if: { cond: { lt: [{ var: 'score' }, 101] },
                                           then: [
                                             { emit: 'st_asleep' },
                                             { wait_input: true },
                                             { if: { cond: { gte: [
-                                                      { member: { var: 'mi' }, field: 'ch' },
+                                                      { member: { var: 'member_idx' }, field: 'ch' },
                                                       3,
                                                     ] },
-                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'mi' }, field: 'ch' } },
+                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
                                                                        op: 'sub', value: 3 } }] } },
                                           ] } },
                                 ],
@@ -983,21 +981,21 @@
                     { emit: 'order_header' },
                     { emit: 'order_menu' },
                     { menu_branch: {
-                        key_var: 'drink_ch',
+                        key_var: 'drink_key',
                         options: [
                           { key_range: ['A', 'D'], then: [
-                            { let: 'pr', value: 0 },
+                            { let: 'price', value: 0 },
                             { switch: {
-                                expr: { var: 'drink_ch' },
+                                expr: { var: 'drink_key' },
                                 cases: [
-                                  { match: 65, then: [{ let: 'pr', value: 2 }] },
-                                  { match: 66, then: [{ let: 'pr', value: 3 }] },
-                                  { match: 67, then: [{ let: 'pr', value: 4 }] },
-                                  { match: 68, then: [{ let: 'pr', value: 1 }] },
+                                  { match: 'A', then: [{ let: 'price', value: 2 }] },
+                                  { match: 'B', then: [{ let: 'price', value: 3 }] },
+                                  { match: 'C', then: [{ let: 'price', value: 4 }] },
+                                  { match: 'D', then: [{ let: 'price', value: 1 }] },
                                 ],
                             } },
                             { if: {
-                                cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                                cond: { lt: [{ gold: 0 }, { var: 'price' }] },
                                 then: [
                                   { engine_call: 'clw' },
                                   { emit: 'no_drink' },
@@ -1005,7 +1003,7 @@
                                 ],
                                 else: [
                                   { engine_call: 'clw' },
-                                  { if: { cond: { ne: [{ var: 'drink_ch' }, 68] },
+                                  { if: { cond: { ne: [{ var: 'drink_key' }, 'D'] },
                                           then: [
                                             { emit: 'aah' },
                                             { pause: 1000 },
@@ -1014,13 +1012,13 @@
                                             { emit: 'laughed_at' },
                                             { pause: 2000 },
                                           ] } },
-                                  { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'pr' } } },
-                                  { for_member: { var: 'm', then: [
+                                  { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'price' } } },
+                                  { for_member: { var: 'member', then: [
                                     { mutate: {
-                                        target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
                                         op: 'add',
-                                        value: { add: [{ div: [{ var: 'pr' }, 2] }, 1] },
-                                        clamp: { max: { member: { var: 'm' }, field: 'h' } },
+                                        value: { add: [{ div: [{ var: 'price' }, 2] }, 1] },
+                                        clamp: { max: { member: { var: 'member' }, field: 'h' } },
                                     } },
                                   ] } },
                                 ],
@@ -1089,14 +1087,14 @@
                     { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
                     { engine_call: 'clw' },
                     { emit: 'supper_served' },
-                    { for_member: { var: 'm', then: [
+                    { for_member: { var: 'member', then: [
                       { if: {
-                          cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'm' }] } },
+                          cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
                           then: [
                             { mutate: {
-                                target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                                target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
                                 op: 'add', value: 6,
-                                clamp: { max: { member: { var: 'm' }, field: 'h' } },
+                                clamp: { max: { member: { var: 'member' }, field: 'h' } },
                             } },
                           ],
                       } },
@@ -1119,22 +1117,22 @@
               { engine_call: 'clw' },
               { emit: 'drink_menu' },
               { menu_branch: {
-                  key_var: 'drink_ch',
+                  key_var: 'drink_key',
                   options: [
                     { key_range: ['A', 'E'], then: [
-                      { let: 'pr', value: 0 },
+                      { let: 'price', value: 0 },
                       { switch: {
-                          expr: { var: 'drink_ch' },
+                          expr: { var: 'drink_key' },
                           cases: [
-                            { match: 65, then: [{ let: 'pr', value: 2 }] }, // A — Ale
-                            { match: 66, then: [{ let: 'pr', value: 3 }] }, // B — Mead
-                            { match: 67, then: [{ let: 'pr', value: 5 }] }, // C — Wine
-                            { match: 68, then: [{ let: 'pr', value: 7 }] }, // D — Whiskey
-                            { match: 69, then: [{ let: 'pr', value: 1 }] }, // E — Fanta
+                            { match: 'A', then: [{ let: 'price', value: 2 }] }, // Ale
+                            { match: 'B', then: [{ let: 'price', value: 3 }] }, // Mead
+                            { match: 'C', then: [{ let: 'price', value: 5 }] }, // Wine
+                            { match: 'D', then: [{ let: 'price', value: 7 }] }, // Whiskey
+                            { match: 'E', then: [{ let: 'price', value: 1 }] }, // Fanta
                           ],
                       } },
                       { if: {
-                          cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                          cond: { lt: [{ gold: 0 }, { var: 'price' }] },
                           then: [
                             { engine_call: 'clw' },
                             // Shared with tavern; absolute reference.
@@ -1142,23 +1140,23 @@
                             { pause: 1000 },
                           ],
                           else: [
-                            { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'pr' } } },
+                            { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'price' } } },
                             { engine_call: 'clw' },
                             { if: {
-                                cond: { ne: [{ var: 'drink_ch' }, 69] },
+                                cond: { ne: [{ var: 'drink_key' }, 69] },
                                 then: [{ emit: 'ahh' }],
                                 else: [{ emit: 'giggle' }],
                             } },
                             { pause: 1000 },
-                            { for_member: { var: 'm', then: [
+                            { for_member: { var: 'member', then: [
                               { if: {
-                                  cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'm' }] } },
+                                  cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
                                   then: [
                                     { mutate: {
-                                        target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
                                         op: 'add',
-                                        value: { add: [{ div: [{ var: 'pr' }, 2] }, 1] },
-                                        clamp: { max: { member: { var: 'm' }, field: 'h' } },
+                                        value: { add: [{ div: [{ var: 'price' }, 2] }, 1] },
+                                        clamp: { max: { member: { var: 'member' }, field: 'h' } },
                                     } },
                                   ],
                               } },
@@ -1209,15 +1207,15 @@
                             { emit: 'morning' },
                             { wait_input: true },
                             { mutate: { target: { hour_of_day: 0 }, op: 'set', value: 5 } },
-                            { for_member: { var: 'm', then: [
+                            { for_member: { var: 'member', then: [
                               { if: {
-                                  cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'm' }] } },
+                                  cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
                                   then: [
                                     { mutate: {
-                                        target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
                                         op: 'add',
-                                        value: { div: [{ member: { var: 'm' }, field: 'h' }, 4] },
-                                        clamp: { max: { member: { var: 'm' }, field: 'h' } },
+                                        value: { div: [{ member: { var: 'member' }, field: 'h' }, 4] },
+                                        clamp: { max: { member: { var: 'member' }, field: 'h' } },
                                     } },
                                   ],
                               } },
@@ -1337,18 +1335,18 @@
                     { engine_call: 'clw' },
                     { engine_call: 'invlist' },
                     { menu_branch: {
-                        key_var: 'sell_ch',
+                        key_var: 'sell_key',
                         options: [
                           { key_range: ['A', 'P'], then: [
-                            { let: 'slot', value: { sub: [{ var: 'sell_ch' }, 64] } },
-                            { let: 'oc', value: { inventory: { var: 'slot' } } },
+                            { let: 'slot', value: { sub: [{ var: 'sell_key' }, 64] } },
+                            { let: 'item_id', value: { inventory: { var: 'slot' } } },
                             { if: {
                                 // Reject anything below `torch` (id 31 — that's
                                 // the weapons / armour range) and the donkey
                                 // (the merchant won't take it back).
                                 cond: { or: [
-                                  { lt: [{ var: 'oc' }, { item: 'torch' }] },
-                                  { eq: [{ var: 'oc' }, { item: 'donkey' }] },
+                                  { lt: [{ var: 'item_id' }, { item: 'torch' }] },
+                                  { eq: [{ var: 'item_id' }, { item: 'donkey' }] },
                                 ] },
                                 then: [
                                   { engine_call: 'clw' },
@@ -1356,7 +1354,7 @@
                                   { pause: 1000 },
                                 ],
                                 else: [
-                                  { let: 'pr', value: { div: [{ obcost: { var: 'oc' } }, 2] } },
+                                  { let: 'price', value: { div: [{ obcost: { var: 'item_id' } }, 2] } },
                                   { engine_call: 'clw' },
                                   { emit: 'sell_offer' },
                                   { emit: 'common.yes' },
@@ -1367,7 +1365,7 @@
                                           { emit: 'sold' },
                                           { pause: 1000 },
                                           { mutate: { target: { gold: 0 },
-                                                      op: 'add', value: { var: 'pr' } } },
+                                                      op: 'add', value: { var: 'price' } } },
                                           { mutate: { target: { inventory: { var: 'slot' } },
                                                       op: 'set', value: 0 } },
                                           { engine_call: 'statusline' },
@@ -1395,7 +1393,7 @@
                         ] } },
                       { emit: 'buy_menu' },
                       { menu_branch: {
-                          key_var: 'buy_ch',
+                          key_var: 'buy_key',
                           options: [
                             { key_range: ['A', 'G'], then: [
                               // A(65)..G(71) → oc = buy_ch - 34 → 31..37 —
@@ -1404,19 +1402,19 @@
                               // (id 47) because that's how the menu layout
                               // reads (G = Donkey). 37 here is the sentinel
                               // from the ASCII math, not a real item probe.
-                              { let: 'oc', value: { sub: [{ var: 'buy_ch' }, 34] } },
+                              { let: 'item_id', value: { sub: [{ var: 'buy_key' }, 34] } },
                               { if: {
-                                  cond: { eq: [{ var: 'oc' }, 37] },
-                                  then: [{ let: 'oc', value: { item: 'donkey' } }],
+                                  cond: { eq: [{ var: 'item_id' }, 37] },
+                                  then: [{ let: 'item_id', value: { item: 'donkey' } }],
                               } },
 
                               // Base pr, with potion override.
-                              { let: 'pr', value: { obcost: { var: 'oc' } } },
+                              { let: 'price', value: { obcost: { var: 'item_id' } } },
                               { if: {
-                                  cond: { eq: [{ var: 'oc' }, { item: 'red_potion' }] },
+                                  cond: { eq: [{ var: 'item_id' }, { item: 'red_potion' }] },
                                   then: [
-                                    { let: 'pr', value: { add: [
-                                      { var: 'pr' },
+                                    { let: 'price', value: { add: [
+                                      { var: 'price' },
                                       { mul: [{ member: 1, field: 'lv' }, 3] },
                                     ] } },
                                   ],
@@ -1424,7 +1422,7 @@
 
                               { engine_call: 'clw' },
                               { switch: {
-                                  expr: { var: 'oc' },
+                                  expr: { var: 'item_id' },
                                   cases: [
                                     { match: { item: 'torch'      }, then: [{ emit: 'desc.torch'   }] },
                                     { match: { item: 'ration'     }, then: [{ emit: 'desc.food'    }] },
@@ -1438,14 +1436,14 @@
 
                               { if: {
                                   cond: { or: [
-                                    { eq: [{ var: 'oc' }, { item: 'torch'  }] },
-                                    { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                    { eq: [{ var: 'item_id' }, { item: 'torch'  }] },
+                                    { eq: [{ var: 'item_id' }, { item: 'ration' }] },
                                   ] },
                                   then: [
                                     // --- Torch / ration multi-buy
                                     { if: {
-                                        cond: { eq: [{ var: 'oc' }, { item: 'ration' }] },
-                                        then: [{ let: 'pr', value: { var: 'food_price' } }],
+                                        cond: { eq: [{ var: 'item_id' }, { item: 'ration' }] },
+                                        then: [{ let: 'price', value: { var: 'food_price' } }],
                                     } },
                                     { emit: 'each' },
                                     { input_number: { prompt_screen: 'how_many',
@@ -1454,7 +1452,7 @@
 
                                     // Torch cap: total torches ≤ 80.
                                     { if: {
-                                        cond: { eq: [{ var: 'oc' }, { item: 'torch' }] },
+                                        cond: { eq: [{ var: 'item_id' }, { item: 'torch' }] },
                                         then: [
                                           { if: {
                                               cond: { gt: [
@@ -1473,7 +1471,7 @@
 
                                     // Food cap: total food ≤ 150 * (donkeys+1).
                                     { if: {
-                                        cond: { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                        cond: { eq: [{ var: 'item_id' }, { item: 'ration' }] },
                                         then: [
                                           { let: 'cap', value: { add: [
                                             150,
@@ -1506,7 +1504,7 @@
                                     { if: {
                                         cond: { lt: [
                                           { gold: 0 },
-                                          { mul: [{ var: 'pr' }, { var: 'x' }] },
+                                          { mul: [{ var: 'price' }, { var: 'x' }] },
                                         ] },
                                         then: [
                                           { engine_call: 'clw' },
@@ -1516,16 +1514,16 @@
                                         else: [
                                           { mutate: { target: { gold: 0 },
                                                       op: 'sub',
-                                                      value: { mul: [{ var: 'pr' }, { var: 'x' }] } } },
+                                                      value: { mul: [{ var: 'price' }, { var: 'x' }] } } },
                                           { if: {
-                                              cond: { eq: [{ var: 'oc' }, { item: 'torch' }] },
+                                              cond: { eq: [{ var: 'item_id' }, { item: 'torch' }] },
                                               then: [
                                                 { mutate: { target: { torches: 0 },
                                                             op: 'add', value: { var: 'x' } } },
                                               ],
                                           } },
                                           { if: {
-                                              cond: { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                              cond: { eq: [{ var: 'item_id' }, { item: 'ration' }] },
                                               then: [
                                                 { mutate: { target: { food: 0 },
                                                             op: 'add', value: { var: 'x' } } },
@@ -1536,9 +1534,9 @@
                                           // ration only when x != 0.
                                           { if: {
                                               cond: { or: [
-                                                { eq: [{ var: 'oc' }, { item: 'torch' }] },
+                                                { eq: [{ var: 'item_id' }, { item: 'torch' }] },
                                                 { and: [
-                                                  { eq: [{ var: 'oc' }, { item: 'ration' }] },
+                                                  { eq: [{ var: 'item_id' }, { item: 'ration' }] },
                                                   { ne: [{ var: 'x' }, 0] },
                                                 ] },
                                               ] },
@@ -1556,7 +1554,7 @@
                                         options: [
                                           { key: 'P', then: [
                                             { if: {
-                                                cond: { lt: [{ gold: 0 }, { var: 'pr' }] },
+                                                cond: { lt: [{ gold: 0 }, { var: 'price' }] },
                                                 then: [
                                                   { engine_call: 'clw' },
                                                   { emit: 'too_expensive' },
@@ -1574,9 +1572,9 @@
                                                       ],
                                                       else: [
                                                         { mutate: { target: { inventory: { var: 'slot' } },
-                                                                    op: 'set', value: { var: 'oc' } } },
+                                                                    op: 'set', value: { var: 'item_id' } } },
                                                         { mutate: { target: { gold: 0 },
-                                                                    op: 'sub', value: { var: 'pr' } } },
+                                                                    op: 'sub', value: { var: 'price' } } },
                                                         { engine_call: 'clw' },
                                                         { emit: 'deal' },
                                                         { pause: 1000 },

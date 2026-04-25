@@ -147,7 +147,13 @@ void bind_expand(const char *src, const ryl_bind *bindings,
            bindings above take precedence (matched first). Kept to the
            data knobs that shape UI prompts: party_max / inventory_max.
            Per-placeholder static buffer — values are memcpy'd into
-           `out` immediately after, so reuse across iterations is safe. */
+           `out` immediately after, so reuse across iterations is safe.
+
+           Typed forms: {cost:<itemkey>} resolves the symbolic item key
+           to its id via res_item_id, then emits res_item(id)->cost as
+           decimal. Used by shop menus so the price defined in the
+           items shards is the single source of truth — no per-item
+           let-binding prelude in the script. */
         char engine_buf[16];
         if (!val) {
             if (strcmp(name, "party_max") == 0) {
@@ -155,6 +161,23 @@ void bind_expand(const char *src, const ryl_bind *bindings,
                 val = engine_buf;
             } else if (strcmp(name, "inventory_max") == 0) {
                 snprintf(engine_buf, sizeof engine_buf, "%d", res_inventory_slot_max());
+                val = engine_buf;
+            } else if (strncmp(name, "cost:", 5) == 0) {
+                int32_t id = res_item_id(name + 5);
+                if (id < 0) {
+                    snprintf(diag, sizeof diag,
+                             "bind_expand: unknown item key '{%s}' in '%s'",
+                             name, ctx);
+                    ryl_die(diag);
+                }
+                const ryl_item *it = res_item((int)id);
+                if (!it) {
+                    snprintf(diag, sizeof diag,
+                             "bind_expand: item id %d has no record (from '{%s}' in '%s')",
+                             (int)id, name, ctx);
+                    ryl_die(diag);
+                }
+                snprintf(engine_buf, sizeof engine_buf, "%d", it->cost);
                 val = engine_buf;
             }
         }

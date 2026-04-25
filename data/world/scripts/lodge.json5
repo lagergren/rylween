@@ -31,11 +31,11 @@
                   { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'price' } } },
                   { engine_call: 'clw' },
                   { emit: 'speak.lodge.j13.spent' },
-                  { for_member: { var: 'm', then: [
+                  { for_member: { var: 'member', then: [
                     { if: {
-                        cond: { gt: [{ member: { var: 'm' }, field: 'hp' }, 1] },
+                        cond: { gt: [{ member: { var: 'member' }, field: 'hp' }, 1] },
                         then: [
-                          { mutate: { target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                          { mutate: { target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
                                       op: 'sub', value: 1 } },
                         ],
                     } },

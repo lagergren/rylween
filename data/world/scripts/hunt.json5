@@ -14,17 +14,17 @@
   // --- Pick a member: loop until a live member's digit lands.
     //     Non-digits silently re-loop (matches the original `key()`
     //     spin); dead picks emit "Dead." and re-loop after 600ms.
-    { let: 'who', value: 0 },
+    { let: 'member_idx', value: 0 },
     { loop: [
       { engine_call: 'clw' },
       { emit: 'who' },
       { menu_branch: {
-          key_var: 'who_ch',
+          key_var: 'who_key',
           options: [
             { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-              { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
+              { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
               { if: {
-                  cond: { engine_int: 'pa_is_dead', args: [{ var: 'who' }] },
+                  cond: { engine_int: 'pa_is_dead', args: [{ var: 'member_idx' }] },
                   then: [
                     { engine_call: 'clw' },
                     { emit: 'dead' },
@@ -43,10 +43,10 @@
     //     i.e. subject form; "is not a ranger." follows.
     { if: {
         cond: { not: { engine_int: 'pa_is_class',
-                       args: [{ var: 'who' }, { enum: ['pc_class', 'Ranger'] }] } },
+                       args: [{ var: 'member_idx' }, { enum: ['pc_class', 'Ranger'] }] } },
         then: [
           { engine_call: 'clw' },
-          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'subject'], var: 'pro_sub' } },
+          { engine_bind: { fn: 'pronoun', args: [{ var: 'member_idx' }, 'subject'], var: 'pro_sub' } },
           { emit: 'not_ranger' },
           { pause: 700 },
           { engine_call: 'clw' },
@@ -63,7 +63,7 @@
               ],
               else: [
                 { mutate: { target: { time_left: 0 }, op: 'sub', value: { var: 'time_cost' } } },
-                { engine_bind: { fn: 'pa_name', args: [{ var: 'who' }], var: 'who_name' } },
+                { engine_bind: { fn: 'pa_name', args: [{ var: 'member_idx' }], var: 'who_name' } },
                 { emit: 'tries' },
                 { pause: 1400 },
                 { if: {

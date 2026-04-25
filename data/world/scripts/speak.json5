@@ -301,10 +301,10 @@
       { engine_call: 'invlist' },
       { input_item: {
           slot_var: 'slot',
-          item_var: 'oc',
+          item_var: 'item_id',
           then: [
             { if: {
-                cond: { lt: [{ var: 'oc' }, 35] },
+                cond: { lt: [{ var: 'item_id' }, 35] },
                 then: [
                   { engine_call: 'clw' },
                   { emit: 'refuse' },

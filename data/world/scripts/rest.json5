@@ -56,19 +56,19 @@
                           { engine_call: 'clw' },
                           { emit: 'who' },
                           { menu_branch: {
-                              key_var: 'who_ch',
+                              key_var: 'who_key',
                               options: [
                                 { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                                  { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
+                                  { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
                                   { if: {
-                                      cond: { engine_int: 'pa_is_dead', args: [{ var: 'who' }] },
+                                      cond: { engine_int: 'pa_is_dead', args: [{ var: 'member_idx' }] },
                                       then: [
                                         { engine_call: 'clw' },
                                         { emit: 'dead' },
                                         { pause: 1000 },
                                       ],
                                       else: [
-                                        { let: 'guard', value: { var: 'who' } },
+                                        { let: 'guard', value: { var: 'member_idx' } },
                                         { break: true },
                                       ],
                                   } },
@@ -121,9 +121,9 @@
                           then: [
                             { emit: 'no_gear_5' },
                             { pause: 1500 },
-                            { for_member: { var: 'm', then: [
-                              { engine_call: 'pm_add_hp',  args: [{ var: 'm' }, { sub: [0, { var: 'temp_low_dmg' }] }] },
-                              { engine_call: 'pm_hp_floor', args: [{ var: 'm' }, 1] },
+                            { for_member: { var: 'member', then: [
+                              { engine_call: 'pm_add_hp',  args: [{ var: 'member' }, { sub: [0, { var: 'temp_low_dmg' }] }] },
+                              { engine_call: 'pm_hp_floor', args: [{ var: 'member' }, 1] },
                             ] } },
                           ],
                       } },
@@ -142,9 +142,9 @@
                           then: [
                             { emit: 'no_gear_10' },
                             { pause: 1500 },
-                            { for_member: { var: 'm', then: [
-                              { engine_call: 'pm_add_hp',  args: [{ var: 'm' }, { sub: [0, { var: 'temp_very_low_dmg' }] }] },
-                              { engine_call: 'pm_hp_floor', args: [{ var: 'm' }, 1] },
+                            { for_member: { var: 'member', then: [
+                              { engine_call: 'pm_add_hp',  args: [{ var: 'member' }, { sub: [0, { var: 'temp_very_low_dmg' }] }] },
+                              { engine_call: 'pm_hp_floor', args: [{ var: 'member' }, 1] },
                             ] } },
                           ],
                       } },
@@ -152,14 +152,14 @@
                 } },
 
                 // --- Advance the in-game clock by `rest_hours`.
-                { let: 'i', value: 0 },
+                { let: 'hour', value: 0 },
                 { loop: [
                   { if: {
-                      cond: { gte: [{ var: 'i' }, { var: 'rest_hours' }] },
+                      cond: { gte: [{ var: 'hour' }, { var: 'rest_hours' }] },
                       then: [{ break: true }],
                   } },
                   { engine_call: 'advance_hour' },
-                  { let: 'i', value: { add: [{ var: 'i' }, 1] } },
+                  { let: 'hour', value: { add: [{ var: 'hour' }, 1] } },
                 ] },
 
                 // --- Reset hours_rested + pay the food cost. Original:
@@ -173,17 +173,17 @@
                             clamp: { min: 0 } } },
 
                 // --- Heal each non-guard, non-dead member; clamp to h.
-                { for_member: { var: 'm', then: [
+                { for_member: { var: 'member', then: [
                   { if: {
                       cond: { and: [
-                        { ne: [{ var: 'm' }, { var: 'guard' }] },
-                        { not: { engine_int: 'pa_is_dead', args: [{ var: 'm' }] } },
+                        { ne: [{ var: 'member' }, { var: 'guard' }] },
+                        { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
                       ] },
                       then: [
                         { mutate: {
-                            target: { member_field: { idx: { var: 'm' }, field: 'hp' } },
+                            target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
                             op: 'add', value: { var: 'health_gain' },
-                            clamp: { max: { member: { var: 'm' }, field: 'h' } },
+                            clamp: { max: { member: { var: 'member' }, field: 'h' } },
                         } },
                       ],
                   } },

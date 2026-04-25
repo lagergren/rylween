@@ -8,18 +8,10 @@
 // Bindings:
 //   old, new — ASCII byte values of the previous / current tile.
 //
-// Tile-byte → narration mapping (matches the world.json5 terrain
-// subtree keys, expressed here as ASCII ints because `switch` matches
-// integer expressions):
-//
-//   's' = 115  plainland
-//   '1' =  49  hut
-//   '0' =  48  towne
-//   'f' = 102  foothills
-//   'd' = 100  desert
-//   't' = 116  swamp
-//   'g' = 103  forest
-//   '2' =  50  castle
+// Tile-byte → narration mapping (keys match the world.json5 terrain
+// subtree; the script DSL coerces a 1-char string literal in an int
+// position to its ASCII byte, so `match: 's'` is the tile byte for
+// plainland).
 //
 // Other tiles fall through with no narration; the trailing `blank`
 // emit still fires because `tx("\r\n")` in the original ran after
@@ -32,14 +24,14 @@
           { chance: { pct: 9, then: [
             { engine_call: 'clw' },
             { switch: { expr: { var: 'new' }, cases: [
-              { match: 115, then: [{ emit: 'plainland' }] },
-              { match:  49, then: [{ emit: 'hut'       }] },
-              { match:  48, then: [{ emit: 'towne'     }] },
-              { match: 102, then: [{ emit: 'foothills' }] },
-              { match: 100, then: [{ emit: 'desert'    }] },
-              { match: 116, then: [{ emit: 'swamp'     }] },
-              { match: 103, then: [{ emit: 'forest'    }] },
-              { match:  50, then: [{ emit: 'castle'    }] },
+              { match: 's', then: [{ emit: 'plainland' }] },
+              { match: '1', then: [{ emit: 'hut'       }] },
+              { match: '0', then: [{ emit: 'towne'     }] },
+              { match: 'f', then: [{ emit: 'foothills' }] },
+              { match: 'd', then: [{ emit: 'desert'    }] },
+              { match: 't', then: [{ emit: 'swamp'     }] },
+              { match: 'g', then: [{ emit: 'forest'    }] },
+              { match: '2', then: [{ emit: 'castle'    }] },
             ] } },
             { emit: 'blank' },
           ] } },
