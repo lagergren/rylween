@@ -742,14 +742,16 @@ static void wcw_party_flags(FILE *f, const struct party *p) {
         if (!id) {
             fprintf(stderr,
                     "save: party flag slot %zu = %u but no tag claims "
-                    "that slot in data/world.json5 flags:\n", slot, v);
+                    "that slot in data/world.json5 flags:\n",
+                    slot, v);
             exit(1);
         }
         const char *vname = res_flag_value(id, (int)v);
         if (!vname || !*vname) {
             fprintf(stderr,
                     "save: party flag '%s' value %u out of range in "
-                    "its values[] array\n", id, v);
+                    "its values[] array\n",
+                    id, v);
             exit(1);
         }
         fputs(first ? " " : ", ", f);
@@ -1077,7 +1079,8 @@ static void rcw_party_flags(const node *pnode, unsigned char *flag, size_t flag_
             if (slot < 0 || (size_t)slot >= flag_n) {
                 fprintf(stderr,
                         "load: unknown party flag tag '%s' — "
-                        "add to data/world.json5 flags:\n", id);
+                        "add to data/world.json5 flags:\n",
+                        id);
                 exit(1);
             }
             int32_t v;
@@ -1086,7 +1089,8 @@ static void rcw_party_flags(const node *pnode, unsigned char *flag, size_t flag_
                 if (v < 0) {
                     fprintf(stderr,
                             "load: flag '%s' value '%s' not in its "
-                            "values[] array\n", id, val->u.sv);
+                            "values[] array\n",
+                            id, val->u.sv);
                     exit(1);
                 }
             } else if (val && val->kind == N_INT) {

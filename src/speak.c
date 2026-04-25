@@ -323,10 +323,10 @@ typedef struct {
 } mission_cond;
 
 typedef struct {
-    const char *name;       /* placeholder id in the script */
+    const char *name; /* placeholder id in the script */
     enum mission_bind_kind kind;
-    int32_t arg;            /* dungeon index (DX/DY) */
-    const char *npc_role;   /* set for BIND_NPC_NAME / BIND_NPC_LOC */
+    int32_t arg;          /* dungeon index (DX/DY) */
+    const char *npc_role; /* set for BIND_NPC_NAME / BIND_NPC_LOC */
 } mission_binding;
 
 typedef struct {
@@ -339,7 +339,7 @@ typedef struct {
 } mission_stage;
 
 typedef struct {
-    const char *npc_role;      /* resolved via res_npc_role at dispatch */
+    const char *npc_role; /* resolved via res_npc_role at dispatch */
     const mission_stage *stages;
     size_t nstages;
 } mission_spec;
@@ -358,11 +358,10 @@ static const mission_stage stages_merchant[] = {
 };
 
 static const mission_stage stages_ranger[] = {
-    {.conds = (const mission_cond[]){{.flag_tag = "ranger.letter", .when_state = "none"}}, .nconds = 1, .script = "speak.ranger.first_visit",
-     .binds = (const mission_binding[]){
-         {.name = "ranger_name", .kind = BIND_NPC_NAME, .npc_role = "ranger_brother"},
-         {.name = "ranger_loc",  .kind = BIND_NPC_LOC,  .npc_role = "ranger_brother"},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "ranger.letter", .when_state = "none"}}, .nconds = 1, .script = "speak.ranger.first_visit", .binds = (const mission_binding[]){
+                                                                                                                                                  {.name = "ranger_name", .kind = BIND_NPC_NAME, .npc_role = "ranger_brother"},
+                                                                                                                                                  {.name = "ranger_loc", .kind = BIND_NPC_LOC, .npc_role = "ranger_brother"},
+                                                                                                                                              },
      .nbinds = 2,
      .pre_clw = 0},
 };
@@ -378,22 +377,20 @@ static const mission_stage stages_wizard_robbed[] = {
 };
 
 static const mission_stage stages_priest[] = {
-    {.conds = (const mission_cond[]){{.flag_tag = "fighter.priest_book", .when_state = "priest_told"}}, .nconds = 1, .script = "speak.priest.intro_flow",
-     .binds = (const mission_binding[]){
-         {.name = "wizard_name", .kind = BIND_NPC_NAME, .npc_role = "wizard_robbed"},
-         {.name = "giver_name",  .kind = BIND_NPC_NAME, .npc_role = "fighter_intro"},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "fighter.priest_book", .when_state = "priest_told"}}, .nconds = 1, .script = "speak.priest.intro_flow", .binds = (const mission_binding[]){
+                                                                                                                                                              {.name = "wizard_name", .kind = BIND_NPC_NAME, .npc_role = "wizard_robbed"},
+                                                                                                                                                              {.name = "giver_name", .kind = BIND_NPC_NAME, .npc_role = "fighter_intro"},
+                                                                                                                                                          },
      .nbinds = 2,
      .pre_clw = 1},
 };
 
 static const mission_stage stages_erethor_bard[] = {
     {.conds = (const mission_cond[]){{.flag_tag = "erethor.lute", .when_state = "none"}}, .nconds = 1, .script = "speak.erethor.first_visit", .pre_clw = 0},
-    {.conds = (const mission_cond[]){{.flag_tag = "erethor.lute", .when_state = "lute_taken"}}, .nconds = 1, .script = "speak.erethor.delivered_lute",
-     .binds = (const mission_binding[]){
-         {.name = "minstrel_name", .kind = BIND_NPC_NAME, .npc_role = "minstrel_cloak"},
-         {.name = "minstrel_loc",  .kind = BIND_NPC_LOC,  .npc_role = "minstrel_cloak"},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "erethor.lute", .when_state = "lute_taken"}}, .nconds = 1, .script = "speak.erethor.delivered_lute", .binds = (const mission_binding[]){
+                                                                                                                                                           {.name = "minstrel_name", .kind = BIND_NPC_NAME, .npc_role = "minstrel_cloak"},
+                                                                                                                                                           {.name = "minstrel_loc", .kind = BIND_NPC_LOC, .npc_role = "minstrel_cloak"},
+                                                                                                                                                       },
      .nbinds = 2,
      .pre_clw = 1},
 };
@@ -404,21 +401,19 @@ static const mission_stage stages_ranger_brother[] = {
 };
 
 static const mission_stage stages_crown_seer[] = {
-    {.conds = (const mission_cond[]){{.flag_tag = "nymph.seeker", .when_state = "none"}}, .nconds = 1, .script = "speak.nymph.know_flow",
-     .binds = (const mission_binding[]){
-         {.name = "seeker_name", .kind = BIND_NPC_NAME, .npc_role = "wizard_three_tasks"},
-         {.name = "seeker_loc",  .kind = BIND_NPC_LOC,  .npc_role = "wizard_three_tasks"},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "nymph.seeker", .when_state = "none"}}, .nconds = 1, .script = "speak.nymph.know_flow", .binds = (const mission_binding[]){
+                                                                                                                                              {.name = "seeker_name", .kind = BIND_NPC_NAME, .npc_role = "wizard_three_tasks"},
+                                                                                                                                              {.name = "seeker_loc", .kind = BIND_NPC_LOC, .npc_role = "wizard_three_tasks"},
+                                                                                                                                          },
      .nbinds = 2,
      .pre_clw = 1},
 };
 
 static const mission_stage stages_master_thief[] = {
     /* Master thief reads the silver-key chain flag. */
-    {.conds = (const mission_cond[]){{.flag_tag = "silver_key", .when_state = "note_found"}}, .nconds = 1, .script = "speak.thief2.squeezed",
-     .binds = (const mission_binding[]){
-         {.name = "smith_name", .kind = BIND_NPC_NAME, .npc_role = "silver_key_smith"},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "silver_key", .when_state = "note_found"}}, .nconds = 1, .script = "speak.thief2.squeezed", .binds = (const mission_binding[]){
+                                                                                                                                                  {.name = "smith_name", .kind = BIND_NPC_NAME, .npc_role = "silver_key_smith"},
+                                                                                                                                              },
      .nbinds = 1,
      .pre_clw = 1},
 };
@@ -430,11 +425,10 @@ static const mission_stage stages_peasant_husband[] = {
 
 static const mission_stage stages_minstrel_cloak[] = {
     /* Minstrel reads the Erethor-chain flag. */
-    {.conds = (const mission_cond[]){{.flag_tag = "erethor.lute", .when_state = "note_received"}}, .nconds = 1, .script = "speak.minstrel.gives_cloak",
-     .binds = (const mission_binding[]){
-         {.name = "minstrel_name", .kind = BIND_NPC_NAME, .npc_role = "minstrel_cloak"},
-         {.name = "next_town",     .kind = BIND_NPC_NAME, .npc_role = "erethor_lute_bard"},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "erethor.lute", .when_state = "note_received"}}, .nconds = 1, .script = "speak.minstrel.gives_cloak", .binds = (const mission_binding[]){
+                                                                                                                                                            {.name = "minstrel_name", .kind = BIND_NPC_NAME, .npc_role = "minstrel_cloak"},
+                                                                                                                                                            {.name = "next_town", .kind = BIND_NPC_NAME, .npc_role = "erethor_lute_bard"},
+                                                                                                                                                        },
      .nbinds = 2,
      .pre_clw = 1},
 };
@@ -443,7 +437,7 @@ static const mission_stage stages_wizard_three_tasks[] = {
     /* task1 is a two-condition stage (nymph seen AND crown-chain idle). */
     {.conds = (const mission_cond[]){
          {.flag_tag = "nymph.seeker", .when_state = "told"},
-         {.flag_tag = "mastercrown",  .when_state = "none"},
+         {.flag_tag = "mastercrown", .when_state = "none"},
      },
      .nconds = 2,
      .script = "speak.wizard3t.task1_flow",
@@ -454,18 +448,16 @@ static const mission_stage stages_wizard_three_tasks[] = {
      .nbinds = 2,
      .pre_clw = 1},
     {.conds = (const mission_cond[]){{.flag_tag = "mastercrown", .when_state = "task1_done"}}, .nconds = 1, .script = "speak.wizard3t.task2_flow", .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag_tag = "mastercrown", .when_state = "task2_done"}}, .nconds = 1, .script = "speak.wizard3t.task3_flow",
-     .binds = (const mission_binding[]){
-         {.name = "dwarf_x", .kind = BIND_DX_STR, .arg = 4},
-         {.name = "dwarf_y", .kind = BIND_DY_STR, .arg = 4},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "mastercrown", .when_state = "task2_done"}}, .nconds = 1, .script = "speak.wizard3t.task3_flow", .binds = (const mission_binding[]){
+                                                                                                                                                       {.name = "dwarf_x", .kind = BIND_DX_STR, .arg = 4},
+                                                                                                                                                       {.name = "dwarf_y", .kind = BIND_DY_STR, .arg = 4},
+                                                                                                                                                   },
      .nbinds = 2,
      .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag_tag = "mastercrown", .when_state = "borin_paid"}}, .nconds = 1, .script = "speak.wizard3t.grateful_flow",
-     .binds = (const mission_binding[]){
-         {.name = "crown_x", .kind = BIND_DX_STR, .arg = 6},
-         {.name = "crown_y", .kind = BIND_DY_STR, .arg = 6},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "mastercrown", .when_state = "borin_paid"}}, .nconds = 1, .script = "speak.wizard3t.grateful_flow", .binds = (const mission_binding[]){
+                                                                                                                                                          {.name = "crown_x", .kind = BIND_DX_STR, .arg = 6},
+                                                                                                                                                          {.name = "crown_y", .kind = BIND_DY_STR, .arg = 6},
+                                                                                                                                                      },
      .nbinds = 2,
      .pre_clw = 1},
 };
@@ -476,11 +468,10 @@ static const mission_stage stages_silver_key_smith[] = {
 
 static const mission_stage stages_hermit[] = {
     {.conds = (const mission_cond[]){{.flag_tag = "hermit.troll_tooth", .when_state = "none"}}, .nconds = 1, .script = "speak.hermit.welcome_visit", .pre_clw = 1},
-    {.conds = (const mission_cond[]){{.flag_tag = "hermit.troll_tooth", .when_state = "extracted"}}, .nconds = 1, .script = "speak.hermit.tooth_trade",
-     .binds = (const mission_binding[]){
-         {.name = "cave_x", .kind = BIND_DX_STR, .arg = 1},
-         {.name = "cave_y", .kind = BIND_DY_STR, .arg = 1},
-     },
+    {.conds = (const mission_cond[]){{.flag_tag = "hermit.troll_tooth", .when_state = "extracted"}}, .nconds = 1, .script = "speak.hermit.tooth_trade", .binds = (const mission_binding[]){
+                                                                                                                                                            {.name = "cave_x", .kind = BIND_DX_STR, .arg = 1},
+                                                                                                                                                            {.name = "cave_y", .kind = BIND_DY_STR, .arg = 1},
+                                                                                                                                                        },
      .nbinds = 2,
      .pre_clw = 1},
 };
@@ -491,18 +482,18 @@ static const mission_stage stages_hermit[] = {
 static const mission_spec mission_table[] = {
     MS_ENTRY("bandits_quest_giver", stages_merchant),
     MS_ENTRY("rangers_quest_giver", stages_ranger),
-    MS_ENTRY("fighter_intro",       stages_fighter),
-    MS_ENTRY("wizard_robbed",       stages_wizard_robbed),
-    MS_ENTRY("priest_with_book",    stages_priest),
-    MS_ENTRY("erethor_lute_bard",   stages_erethor_bard),
-    MS_ENTRY("ranger_brother",      stages_ranger_brother),
-    MS_ENTRY("crown_seer",          stages_crown_seer),
-    MS_ENTRY("master_thief",        stages_master_thief),
-    MS_ENTRY("peasant_husband",     stages_peasant_husband),
-    MS_ENTRY("minstrel_cloak",      stages_minstrel_cloak),
-    MS_ENTRY("wizard_three_tasks",  stages_wizard_three_tasks),
-    MS_ENTRY("silver_key_smith",    stages_silver_key_smith),
-    MS_ENTRY("hermit_troll_tooth",  stages_hermit),
+    MS_ENTRY("fighter_intro", stages_fighter),
+    MS_ENTRY("wizard_robbed", stages_wizard_robbed),
+    MS_ENTRY("priest_with_book", stages_priest),
+    MS_ENTRY("erethor_lute_bard", stages_erethor_bard),
+    MS_ENTRY("ranger_brother", stages_ranger_brother),
+    MS_ENTRY("crown_seer", stages_crown_seer),
+    MS_ENTRY("master_thief", stages_master_thief),
+    MS_ENTRY("peasant_husband", stages_peasant_husband),
+    MS_ENTRY("minstrel_cloak", stages_minstrel_cloak),
+    MS_ENTRY("wizard_three_tasks", stages_wizard_three_tasks),
+    MS_ENTRY("silver_key_smith", stages_silver_key_smith),
+    MS_ENTRY("hermit_troll_tooth", stages_hermit),
 };
 
 #undef MS_ENTRY

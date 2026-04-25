@@ -21,10 +21,10 @@ static void tavern(void);
    default branch (tx0 on `towne.rumour.r<pick>`). Names track the
    in-rumour NPC reference, not the text topic. */
 enum {
-    RUMOUR_GARTH_BANDITS = 12,   /* {name1}  — Garth quest hook       */
-    RUMOUR_NRIMTO_HUNT   = 13,   /* {name2}  — Nrim'to hunter rumour  */
-    RUMOUR_BROTH_CROWN   = 25,   /* {name15}, {loc15} — Master Crown  */
-    RUMOUR_HARRY_TEMPLE  = 27,   /* {name13}, {loc13} — Temple of Thun */
+    RUMOUR_GARTH_BANDITS = 12, /* {name1}  — Garth quest hook       */
+    RUMOUR_NRIMTO_HUNT = 13,   /* {name2}  — Nrim'to hunter rumour  */
+    RUMOUR_BROTH_CROWN = 25,   /* {name15}, {loc15} — Master Crown  */
+    RUMOUR_HARRY_TEMPLE = 27,  /* {name13}, {loc13} — Temple of Thun */
 };
 
 void rumour() {
@@ -230,12 +230,17 @@ void enter() {
         tx0(res_text("towne.enter.prompt"));
 
         char c = (char)toupper(key());
-        if (c == 'C' && has_church) church();
-        else if (c == 'S') smith();
-        else if (c == 'I') inn();
-        else if (c == 'M') merchant();
-        else if (c == 'T') tavern();
-        else if (c == 'L') {
+        if (c == 'C' && has_church) {
+            church();
+        } else if (c == 'S') {
+            smith();
+        } else if (c == 'I') {
+            inn();
+        } else if (c == 'M') {
+            merchant();
+        } else if (c == 'T') {
+            tavern();
+        } else if (c == 'L') {
             enter_ready_prompt();
             clw();
             clr_map_window();
@@ -386,4 +391,3 @@ static void merchant() {
                                       {0},
                                   });
 }
-

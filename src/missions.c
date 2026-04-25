@@ -44,8 +44,8 @@ enum mission_bind_kind {
 typedef struct {
     const char *name; /* placeholder ident in the script */
     enum mission_bind_kind kind;
-    int32_t arg;             /* dungeon index / player-member slot */
-    const char *npc_role;    /* set for MB_NPC_NAME; resolved via
+    int32_t arg;          /* dungeon index / player-member slot */
+    const char *npc_role; /* set for MB_NPC_NAME; resolved via
                                 res_npc_role so C doesn't name
                                 specific characters */
 } mission_binding;
@@ -56,8 +56,8 @@ enum mission_post_op {
 };
 
 typedef struct {
-    const char *flag_tag;    /* world.json5 flags: key (e.g. "silver_key") */
-    const char *when_state;  /* values[] name in that flag's shard        */
+    const char *flag_tag;   /* world.json5 flags: key (e.g. "silver_key") */
+    const char *when_state; /* values[] name in that flag's shard        */
     enum mission_guard_kind kind;
     int32_t a, b;
     const char *script;
@@ -101,9 +101,9 @@ static const mission_trigger mission_triggers[] = {
     /* Block 8: Borin first visit at dx[4],dy[4]. Binds {dx5}/{dy5}
        for the crypt-location screen + journal. */
     {.flag_tag = "mastercrown", .when_state = "task3_assigned", .kind = MG_DUNGEON_IDX, .a = 4, .script = "missions.borin_meet", .binds = (const mission_binding[]){
-                                                                                                 {.name = "dx5", .kind = MB_DX_STR, .arg = 5},
-                                                                                                 {.name = "dy5", .kind = MB_DY_STR, .arg = 5},
-                                                                                             },
+                                                                                                                                     {.name = "dx5", .kind = MB_DX_STR, .arg = 5},
+                                                                                                                                     {.name = "dy5", .kind = MB_DY_STR, .arg = 5},
+                                                                                                                                 },
      .nbinds = 2},
 
     /* Block 9: Nolrim crypt at dx[5],dy[5]. */
@@ -118,8 +118,8 @@ static const mission_trigger mission_triggers[] = {
     /* Block 12: Ogre cave at dx[7],dy[7]. Binds {p2_name} (player
        member 2's name, used in the note-found screen). */
     {.flag_tag = "jazzy_ogre", .when_state = "accepted", .kind = MG_DUNGEON_IDX, .a = 7, .script = "missions.ogre_cave", .returns_on_skip = 1, .binds = (const mission_binding[]){
-                                                                                                                      {.name = "p2_name", .kind = MB_PLAYER_NAME, .arg = 2},
-                                                                                                                  },
+                                                                                                                                                   {.name = "p2_name", .kind = MB_PLAYER_NAME, .arg = 2},
+                                                                                                                                               },
      .nbinds = 1},
 
     /* Block 13: Foot of Jazzy altar on terrain 'f'. Post-action
@@ -133,9 +133,9 @@ static const mission_trigger mission_triggers[] = {
     /* Block 15: Hobgoblin caravan. 9% chance + binds {dx9}/{dy9}
        for the interrogate screen + journal. */
     {.flag_tag = "silver_key", .when_state = "smith_confessed", .kind = MG_CHANCE, .a = 9, .script = "missions.hobgoblin_caravan", .binds = (const mission_binding[]){
-                                                                                                  {.name = "dx9", .kind = MB_DX_STR, .arg = 9},
-                                                                                                  {.name = "dy9", .kind = MB_DY_STR, .arg = 9},
-                                                                                              },
+                                                                                                                                       {.name = "dx9", .kind = MB_DX_STR, .arg = 9},
+                                                                                                                                       {.name = "dy9", .kind = MB_DY_STR, .arg = 9},
+                                                                                                                                   },
      .nbinds = 2},
 
     /* Block 16: Hobgoblin cave (pit) at dx[9],dy[9]. */
@@ -238,8 +238,7 @@ uint8_t mission_control() {
     /* Block 5: temple of Thun gem altar. Inventory-count check
        (>=5 gems of ids 39..41) isn't expressible in the DSL —
        single remaining inline block. */
-    if (pa_flag_is("bracelets.thun", "map_bought")
-        && state.p[state.cpl].x == state.dx[2] && state.p[state.cpl].y == state.dy[2]) {
+    if (pa_flag_is("bracelets.thun", "map_bought") && state.p[state.cpl].x == state.dx[2] && state.p[state.cpl].y == state.dy[2]) {
         clw();
         tx("You stand before the\r\n");
         tx("ancient temple of Thun.\r\n");

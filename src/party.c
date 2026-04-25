@@ -68,7 +68,8 @@ static int pa_flag_slot(const char *tag) {
     int32_t slot = res_flag_slot(tag);
     if (slot < 0) {
         fprintf(stderr, "pa_flag: unknown tag '%s' — add it to "
-                        "data/world.json5 flags:\n", tag);
+                        "data/world.json5 flags:\n",
+                tag);
         exit(1);
     }
     if (slot >= (int32_t)sizeof state.p[state.cpl].flag) {
