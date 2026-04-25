@@ -231,9 +231,9 @@
     // §20 S5/S11: encounter HP scaling and victory rewards live as
     // named entries in the top-level `formulas:` block (encounter_h1_
     // scaled / encounter_h2_scaled / reward_xp_per_survivor /
-    // reward_gold_party / reward_gold_per_survivor). The eleven flat
-    // knobs S5 added are inlined into those expression trees so the
-    // multiplication structure itself is now data, not C.
+    // reward_gold_party). The eleven flat knobs S5 added are inlined
+    // into those expression trees so the multiplication structure
+    // itself is now data, not C.
 
     // Cap on noc (number of co-encountered foes). monsters.json5
     // sets the per-record max; this is the global ceiling that
@@ -308,12 +308,14 @@
       { mul: [{ var: 'first_level' }, 3] },
     ]},
 
-    // §20 S11: victory rewards. xp_per_survivor and gold_per_survivor
-    // back the "Each survivor gets X xp / Y gold" display lines;
-    // reward_gold_party is the un-divided figure that party_add_gold
-    // takes (legacy mismatch between the per-survivor display and
-    // the whole-party award; preserved verbatim — fix is a separate
-    // ask). Bindings: $noc, $h2 (post-scaling), $ws (post-scaling), $sp.
+    // §20 S11: victory rewards. reward_xp_per_survivor backs the
+    // "Each survivor gets X experience pts" display line. reward_
+    // gold_party is both the figure handed to party_add_gold and
+    // (post §22.6) the gold figure shown on the same victory line —
+    // the legacy `reward_gold_per_survivor` divisor was a display
+    // bug (kitty got 4× what the screen claimed) and has been
+    // dropped. Bindings: $noc, $h2 (post-scaling), $ws (post-
+    // scaling), $sp.
     reward_xp_per_survivor: { add: [
       { mul: [
         { var: 'noc' },
@@ -330,16 +332,6 @@
         { div: [{ var: 'h2' }, 7] },
         { div: [{ var: 'ws' }, 4] },
       ]},
-    ]},
-    reward_gold_per_survivor: { div: [
-      { mul: [
-        { var: 'noc' },
-        { mul: [
-          { div: [{ var: 'h2' }, 7] },
-          { div: [{ var: 'ws' }, 4] },
-        ]},
-      ]},
-      4,
     ]},
   },
 

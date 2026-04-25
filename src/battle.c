@@ -577,13 +577,11 @@ void encounter(int32_t foe, int32_t mandatory) {
                 size_t reward_n = sizeof reward_bindings / sizeof reward_bindings[0];
                 int32_t exp_gain =
                     res_formula_int_n("reward_xp_per_survivor", reward_bindings, reward_n);
-                int32_t gold_display =
-                    res_formula_int_n("reward_gold_per_survivor", reward_bindings, reward_n);
                 int32_t gold_gain =
                     res_formula_int_n("reward_gold_party", reward_bindings, reward_n);
                 tx("Each survivor gets\r\n");
                 tx("%d experience pts\r\n", exp_gain);
-                tx("and %d gold pieces.\r\n\r\n", gold_display);
+                tx("and %d gold pieces.\r\n\r\n", gold_gain);
                 ryl_delay(1000);
                 pa_add_kills((uint32_t)noc);
                 x = inv_find_empty();
