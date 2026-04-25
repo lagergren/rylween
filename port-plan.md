@@ -3705,8 +3705,8 @@ Biggest leverage; collapses two evaluators into one. Touches
   shim that routes through `res_npc_name`, so DSL bindings via
   `{fn:'res_enum',args:['name',...]}` need no edits.
 
-**C. Symbolic args sweep** (tier 3, items 6-7). Small focused
-changes after A+B; can do per-shard.
+**C. Symbolic args sweep** (tier 3, items 6-7). **LANDED 2026-04-25.**
+Small focused changes after A+B; can do per-shard.
 
   Steps:
    - Item 6 needs new data: a `world_locations:` registry mapping
@@ -3715,6 +3715,22 @@ changes after A+B; can do per-shard.
      dispatch via arg_enums).
    - Item 7 is a one-line registry edit (`arg_enums: {'item'}` on
      the three inv_* fns) plus a 3-site data sweep.
+
+  Landed: `world_locations:` keyed-records enum added to
+  world.json5 (9 slots: hermit_dungeon, thun_temple,
+  kobold_village, borin_camp, nolrim_crypt,
+  master_crown_dungeon, beast_cave, silver_key_pit,
+  hobgoblin_cave). `wld_location_x/y.arg[0]` tagged
+  `"world_locations"`; `inv_find_item.arg[0]`,
+  `inv_find_in_range.arg[0,1]`, `inv_count_in_range.arg[0,1]`
+  tagged `"item"`. The arg_enums dispatcher learned to route
+  `"item"` through `res_item_id` (items live in their own
+  shards, not enums:); other tags still go via res_enum_id.
+  Sweep: 1 site in scripts/speak.json5 (jazzy_ogre.beast_cave),
+  3 sites in scripts/rest.json5 (tent / blanket+tent / tent).
+  C-side bare-int callsites in speak.c/missions.c (slots 2/8 +
+  t->a/b->arg) deferred — they're a separate raw-int leak in
+  C, not in the data DSL.
 
 **D. Inventory letter-range dynamic bound** (tier 3, item 8).
 Engine extension: add `letter_range` op-option with
@@ -3755,17 +3771,17 @@ order to land them: A (spell DSL convergence) and B (enum
 shape) can run in parallel; both unlock C+D+E. F depends on
 A. G is the documentation pass after the surface stabilises.
 
-B has landed (2026-04-25). Remaining: A, C, D, E, F, G.
-There is no "blocking" priority among A vs C+D+E —
+B and C have landed (2026-04-25). Remaining: A, D, E, F, G.
+There is no "blocking" priority among A vs D+E —
 whichever migration is most pressing for the next gameplay
 slice should drive. If no slice is pressing, A is the highest
 absolute leverage because retiring `eval.c` immediately
 collapses ~1400 lines of engine and removes one of the two
-languages a reader has to learn. C/D/E are independent and
+languages a reader has to learn. D/E are independent and
 cheap (~½ session each); good warm-ups before A.
 
 Estimated remaining work: ~1-2 sessions for A, ~0.5 session
-for each of C/D/E/F, ~0.5 session for G. Cumulative ~4-6
+for each of D/E/F, ~0.5 session for G. Cumulative ~3-5
 sessions if done sequentially.
 
 ### 22.4 Non-goals

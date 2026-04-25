@@ -293,7 +293,7 @@
   // thanks to the `input_item` DSL op. A non-A..P key skips the
   // `then:` body so the script ends naturally without a refuse/
   // accept screen, matching the original C wrapper's `return`.
-  // cave_x / cave_y resolve via engine_int wld_location_x/y(7).
+  // cave_x / cave_y resolve via engine_int wld_location_x/y('beast_cave').
   jazzy_ogre: {
     trade: [
       { screen: 'hear' },
@@ -313,8 +313,8 @@
                 else: [
                   { engine_call: 'clw' },
                   { emit: 'accept' },
-                  { let: 'cave_x', value: { engine_int: 'wld_location_x', args: [7] } },
-                  { let: 'cave_y', value: { engine_int: 'wld_location_y', args: [7] } },
+                  { let: 'cave_x', value: { engine_int: 'wld_location_x', args: ['beast_cave'] } },
+                  { let: 'cave_y', value: { engine_int: 'wld_location_y', args: ['beast_cave'] } },
                   { journal: "The 'Beast Cave' is at {cave_x}x{cave_y}." },
                   { set_flag: 'jazzy_ogre', value: 'accepted' },
                   { wait_input: true },

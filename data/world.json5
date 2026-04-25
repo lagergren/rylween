@@ -622,5 +622,24 @@
       'orc_nest', 'tammys_prison',                         // 35..36
       'erethor_priests', 'lute_chamber',                   // 37..38
     ],
+
+    // Random-rolled map locations (struct state.dx[]/state.dy[],
+    // populated by driv.c::position_locations on cold-start). Slots
+    // 1..9 each hold a fixed quest/encounter; the lowercase key is
+    // the script-stable symbol, `name` is the in-game label
+    // (matching what the journal text uses). Engine_int args
+    // `wld_location_x` / `wld_location_y` accept these symbols
+    // directly via the §20.20 arg_enums shortcut.
+    world_locations: {
+      hermit_dungeon:       { id: 1, name: 'Hermit dungeon'        },
+      thun_temple:          { id: 2, name: 'Temple of Thun'        },
+      kobold_village:       { id: 3, name: 'Kobold village'        },
+      borin_camp:           { id: 4, name: 'Borin camp'            },
+      nolrim_crypt:         { id: 5, name: "Nolrim's crypt"        },
+      master_crown_dungeon: { id: 6, name: 'Master Crown dungeon'  },
+      beast_cave:           { id: 7, name: 'Beast Cave'            },
+      silver_key_pit:       { id: 8, name: 'Pit of the Silver Key' },
+      hobgoblin_cave:       { id: 9, name: 'Hobgoblin cave'        },
+    },
   },
 }

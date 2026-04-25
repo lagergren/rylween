@@ -38,7 +38,7 @@
                 // Tent in inventory? Pic 'tent' (id 17) on yes,
                 // 'notent' (id 18) on no — see enums.pic.
                 { if: {
-                    cond: { ne: [{ engine_int: 'inv_find_item', args: [34] }, 0] },
+                    cond: { ne: [{ engine_int: 'inv_find_item', args: ['tent'] }, 0] },
                     then: [{ engine_call: 'blitgfx', args: [{ pic: 'tent' }] }],
                     else: [{ engine_call: 'blitgfx', args: [{ pic: 'notent' }] }],
                 } },
@@ -114,10 +114,10 @@
                       { engine_call: 'clw' },
                       { emit: 'temp_low' },
                       { pause: 600 },
-                      // Blanket OR tent (item ids 33..34) shields the
-                      // party from low-temperature damage.
+                      // Blanket OR tent shields the party from
+                      // low-temperature damage.
                       { if: {
-                          cond: { eq: [{ engine_int: 'inv_find_in_range', args: [33, 34] }, 0] },
+                          cond: { eq: [{ engine_int: 'inv_find_in_range', args: ['blanket', 'tent'] }, 0] },
                           then: [
                             { emit: 'no_gear_5' },
                             { pause: 1500 },
@@ -136,9 +136,9 @@
                       // clw — it stacks under any prior text.
                       { emit: 'temp_very_low' },
                       { pause: 600 },
-                      // Tent only (id 34) shields against very-low.
+                      // Tent only shields against very-low.
                       { if: {
-                          cond: { eq: [{ engine_int: 'inv_find_item', args: [34] }, 0] },
+                          cond: { eq: [{ engine_int: 'inv_find_item', args: ['tent'] }, 0] },
                           then: [
                             { emit: 'no_gear_10' },
                             { pause: 1500 },

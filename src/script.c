@@ -587,12 +587,12 @@ static const int_engine_entry int_engine_tbl[] = {
     {"pa_count_class",       1, ie_pa_count_class,       {"pc_class"}},
     {"pa_count_alive_class", 1, ie_pa_count_alive_class, {"pc_class"}},
     {"inv_find_empty",       0, ie_inv_find_empty,       {0}},
-    {"inv_find_item",        1, ie_inv_find_item,        {0}},
-    {"inv_find_in_range",    2, ie_inv_find_in_range,    {0}},
-    {"inv_count_in_range",   2, ie_inv_count_in_range,   {0}},
+    {"inv_find_item",        1, ie_inv_find_item,        {"item"}},
+    {"inv_find_in_range",    2, ie_inv_find_in_range,    {"item", "item"}},
+    {"inv_count_in_range",   2, ie_inv_count_in_range,   {"item", "item"}},
     {"pa_party_member_max",  0, ie_pa_party_member_max,  {0}},
-    {"wld_location_x",       1, ie_wld_location_x,       {0}},
-    {"wld_location_y",       1, ie_wld_location_y,       {0}},
+    {"wld_location_x",       1, ie_wld_location_x,       {"world_locations"}},
+    {"wld_location_y",       1, ie_wld_location_y,       {"world_locations"}},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`
@@ -930,11 +930,19 @@ static int32_t eval_engine_int(const node *n, const char *script_id, size_t idx,
         for (int i = 0; i < got; i++) {
             const node *an = args_n->u.arr.items[i];
             /* Multi-char string literal in an enum-tagged arg position
-               -> res_enum_id shortcut. (1-char strings still take the
-               ASCII-int path inside eval_expr.) */
+               -> resolve the symbol before eval_expr sees it. (1-char
+               strings still take the ASCII-int path inside eval_expr.)
+               Tag "item" routes through res_item_id (items live in
+               their own shards, not the enums: subtree); every other
+               tag is an enums: table looked up via res_enum_id. */
             if (i < e->argc && e->arg_enums[i] && an && an->kind == N_STR &&
                 an->u.sv && an->u.sv[0] && an->u.sv[1] != 0) {
-                int32_t v = res_enum_id(e->arg_enums[i], an->u.sv);
+                int32_t v;
+                if (strcmp(e->arg_enums[i], "item") == 0) {
+                    v = res_item_id(an->u.sv);
+                } else {
+                    v = res_enum_id(e->arg_enums[i], an->u.sv);
+                }
                 if (v < 0) {
                     char buf[160];
                     snprintf(buf, sizeof buf,
