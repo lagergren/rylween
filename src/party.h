@@ -50,6 +50,10 @@ int pa_alive_count(void);
    so future map-frame translation lands in one place. */
 int32_t pa_x(void);
 int32_t pa_y(void);
+void pa_set_x(int32_t v);
+void pa_set_y(int32_t v);
+void pa_add_x(int32_t delta);
+void pa_add_y(int32_t delta);
 
 /* Current-party gold (state.p[state.cpl].gold). Pa-prefixed sibling
    to party_gold() so call sites that already use the pa_* / pm_*
@@ -108,11 +112,21 @@ void pa_set_torches(int32_t v);
 void pa_add_torches(int32_t delta);
 int32_t pa_food(void);
 void pa_set_food(int32_t v);
+void pa_add_food(int32_t delta);
 int pa_pl(void);
 void pa_set_pl(int v);
 void pa_add_pl(int delta);
 int32_t pa_hours_rested(void);
 void pa_set_hours_rested(int32_t v);
+void pa_add_hours_rested(int32_t delta);
+
+/* Per-tile move budget (state.p[cpl].time_left). Decremented on each
+   driv.c step / hunt / cave-entry; refilled at midnight by the realm
+   advance flow. The hunt/spell flow only checks magnitude, not signed
+   wrap, so callers stay unsigned in spirit. */
+int32_t pa_time_left(void);
+void pa_set_time_left(int32_t v);
+void pa_add_time_left(int32_t delta);
 
 /* Gold writes (pa_gold above is the read sibling). */
 void pa_set_gold(int32_t v);

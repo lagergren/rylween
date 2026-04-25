@@ -83,6 +83,22 @@ int32_t pa_y(void) {
     return state.p[state.cpl].y;
 }
 
+void pa_set_x(int32_t v) {
+    state.p[state.cpl].x = v;
+}
+
+void pa_set_y(int32_t v) {
+    state.p[state.cpl].y = v;
+}
+
+void pa_add_x(int32_t delta) {
+    state.p[state.cpl].x += delta;
+}
+
+void pa_add_y(int32_t delta) {
+    state.p[state.cpl].y += delta;
+}
+
 int32_t pa_gold(void) {
     return state.p[state.cpl].gold;
 }
@@ -173,6 +189,10 @@ void pa_set_food(int32_t v) {
     state.p[state.cpl].food = v;
 }
 
+void pa_add_food(int32_t delta) {
+    state.p[state.cpl].food += delta;
+}
+
 int pa_pl(void) {
     return (int)state.p[state.cpl].pl;
 }
@@ -191,6 +211,22 @@ int32_t pa_hours_rested(void) {
 
 void pa_set_hours_rested(int32_t v) {
     state.p[state.cpl].hours_rested = v;
+}
+
+void pa_add_hours_rested(int32_t delta) {
+    state.p[state.cpl].hours_rested += delta;
+}
+
+int32_t pa_time_left(void) {
+    return state.p[state.cpl].time_left;
+}
+
+void pa_set_time_left(int32_t v) {
+    state.p[state.cpl].time_left = v;
+}
+
+void pa_add_time_left(int32_t delta) {
+    state.p[state.cpl].time_left += delta;
 }
 
 void pa_set_gold(int32_t v) {
