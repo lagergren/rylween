@@ -515,9 +515,16 @@
     // name[] table.
     innkeepers:    ['', 'Hassan', 'Luqas',  'Darth',  'Yog'],
     tavernkeepers: ['', 'Niklas', 'Tokawa', 'Miyaki', 'Dargoth'],
-    // Player-party race (struct party.ra[]). Displayable — used by the
-    // show() screen. Matches driv.c's original hardcoded order.
-    race: ['', 'Human', 'Dwarf', 'Elf', 'Halfling'],
+    // Player-party race (struct party.ra[]). Lowercase key is the
+    // script-stable symbol; `name` is what the show() screen renders.
+    // Slot ids match driv.c's original hardcoded order; slot 0 is the
+    // "no race" sentinel and stays implicit.
+    race: {
+      human:    { id: 1, name: 'Human'    },
+      dwarf:    { id: 2, name: 'Dwarf'    },
+      elf:      { id: 3, name: 'Elf'      },
+      halfling: { id: 4, name: 'Halfling' },
+    },
 
     // Player-party class (struct party.cl[], PC_* ids). The lowercase key
     // is the script-stable symbol; `name` is the show()-screen display
