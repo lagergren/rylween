@@ -235,6 +235,10 @@ int32_t res_town_at(int x, int y);
 /* Percentage tax rate at the town entry (enter() tax preamble). 0 if
    twn is out of range or the town record omits `tax:`. */
 int32_t res_town_tax(int twn);
+/* 1 if the town record sets `has_church: true`, else 0. Drives the
+   towne.c::enter (C)hurch menu line and the (C)hurch keypress
+   gate. Default false: omitted records have no church. */
+int32_t res_town_has_church(int twn);
 
 /* Per-building opening hours. `name` matches a key under the
    `buildings` subtree of data/world.json5 (e.g. "smith"). Writes

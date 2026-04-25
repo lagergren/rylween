@@ -278,10 +278,10 @@
   // this table.
   towns: [
     null,
-    { name: 'Thord', x: 12, y: 11, tax:  7 },
-    { name: 'Ollk',  x: 48, y: 12, tax: 10 },
-    { name: 'Wilor', x: 43, y: 20, tax:  9 },
-    { name: 'Murn',  x: 55, y: 29, tax:  8 },
+    { name: 'Thord', x: 12, y: 11, tax:  7, has_church: true  },
+    { name: 'Ollk',  x: 48, y: 12, tax: 10, has_church: false },
+    { name: 'Wilor', x: 43, y: 20, tax:  9, has_church: true  },
+    { name: 'Murn',  x: 55, y: 29, tax:  8, has_church: false },
   ],
 
   // Per-building opening hours (§17-F). Keyed by a short building id

@@ -209,12 +209,13 @@ void enter() {
 
     clr_map_window();
 
-    /* Town menu loop. Only Thord and Wilor have a church; only
-       Murn and Ollk have a smith-only prompt (the others get the
+    /* Town menu loop. The set of towns with churches comes from
+       the world.json5 town record's `has_church` flag; only Murn
+       and Ollk have a smith-only prompt (the others get the
        combined smith+church line). Guild is an author-only back
        door keyed on the global name. L exits via the ready-prompt
        flow. */
-    const int has_church = (state.twn == 1 || state.twn == 3);
+    const int has_church = res_town_has_church(state.twn);
 
     while (1) {
         blitgfx(citypic);

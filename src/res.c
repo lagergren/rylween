@@ -134,6 +134,7 @@ typedef struct {
     char *name;
     int32_t x, y;
     int32_t tax;
+    int32_t has_church;
 } ryl_town;
 static ryl_town towns[5];
 /* Count of declared towns (slots 1..n_towns). Populated by fold_towns.
@@ -679,6 +680,13 @@ int32_t res_town_tax(int twn) {
         return 0;
     }
     return towns[twn].tax;
+}
+
+int32_t res_town_has_church(int twn) {
+    if (twn < 1 || twn > 4 || !towns[twn].name) {
+        return 0;
+    }
+    return towns[twn].has_church;
 }
 
 int res_building_hours(const char *name, int *opens_at, int *closes_at) {
@@ -1438,6 +1446,8 @@ static void fold_towns(const node *towns_node, const char *path) {
         towns[i].y = y->u.iv;
         const node *tax = obj_get(rec, "tax");
         towns[i].tax = (tax && tax->kind == N_INT) ? tax->u.iv : 0;
+        const node *ch = obj_get(rec, "has_church");
+        towns[i].has_church = (ch && ch->kind == N_BOOL && ch->u.bv) ? 1 : 0;
     }
 }
 
@@ -1449,6 +1459,7 @@ static void reset_towns(void) {
         towns[i].x = 0;
         towns[i].y = 0;
         towns[i].tax = 0;
+        towns[i].has_church = 0;
     }
     n_towns = 0;
 }
