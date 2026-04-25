@@ -105,7 +105,7 @@ static void resolve_text_id(const char *parent, const char *name, char *out,
 
 /* §17-F control-flow unwinding. `play_ops` threads these through every
    nested-body op so `break` / `continue` from deep inside a menu_branch
-   / if / chance correctly unwinds to the enclosing `loop`. */
+   / if correctly unwinds to the enclosing `loop`. */
 typedef enum {
     OPS_NORMAL = 0, /* finished naturally — advance to next op */
     OPS_BREAK,      /* break: exit innermost loop */
@@ -303,11 +303,11 @@ static const ryl_bind *merge_bindings(const ryl_bind *caller,
     return scratch;
 }
 
-/* Forward declarations: play_ops recurses into do_if / do_chance /
-   do_menu_branch / do_loop bodies. `parent` matches do_screen's
-   derivation so nested screens resolve against the same res_text
-   tree as the enclosing script. eval_expr is forward-declared so the
-   helpers below can call it without worrying about definition order. */
+/* Forward declarations: play_ops recurses into do_if / do_menu_branch
+   / do_loop bodies. `parent` matches do_screen's derivation so nested
+   screens resolve against the same res_text tree as the enclosing
+   script. eval_expr is forward-declared so the helpers below can call
+   it without worrying about definition order. */
 static ops_result play_ops(const node *ops, const char *script_id,
                            const char *parent, const ryl_bind *bindings,
                            rt_env *env);
@@ -1746,33 +1746,6 @@ static void do_engine_bind(const node *op, const char *script_id, size_t idx,
     rt_bind_set_str(env, var_n->u.sv, out, script_id, idx);
 }
 
-/* §17-E: { chance: { pct: N, then:[...], else:[...] } } — ryl_chance(pct)
-   gate. `then` and `else` are nested op arrays; both optional. §17-F
-   step 2: `pct` accepts any expression, not just a literal int. */
-static ops_result do_chance(const node *op, const char *script_id, size_t idx,
-                            const char *parent, const ryl_bind *bindings,
-                            rt_env *env) {
-    const node *ch = obj_get(op, "chance");
-    if (!ch || ch->kind != N_OBJ) {
-        die_at(script_id, idx, "chance: value must be object");
-    }
-    const node *pct_n = obj_get(ch, "pct");
-    if (!pct_n) {
-        die_at(script_id, idx, "chance: pct required");
-    }
-    int32_t pct = eval_expr(pct_n, script_id, idx, bindings, env);
-    const node *then_n = obj_get(ch, "then");
-    const node *else_n = obj_get(ch, "else");
-    const node *take = ryl_chance((int)pct) ? then_n : else_n;
-    if (!take) {
-        return OPS_NORMAL;
-    }
-    if (take->kind != N_ARR) {
-        die_at(script_id, idx, "chance: then/else must be array");
-    }
-    return play_ops(take, script_id, parent, bindings, env);
-}
-
 /* Evaluate an `if` condition object: any node accepted by
  * eval_expr. Truthy (!= 0) -> 1, else 0. */
 static int eval_cond(const node *cond, const char *script_id, size_t idx,
@@ -2818,8 +2791,6 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         do_emit_indexed(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "wait_input")) {
         do_wait_input(op, script_id, idx);
-    } else if (obj_get(op, "chance")) {
-        return do_chance(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "if")) {
         return do_if(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "menu_branch")) {

@@ -56,16 +56,10 @@
  *
  *   { pause: N }                  - ryl_delay(N) ms between screens.
  *
- *   { chance: {                   - ryl_chance(pct) gated branch.
- *       pct: N,
- *       then: [...],
- *       else: [...] } }
- *
- *   { if: {                       - flag / gold condition branch.
- *       cond: { flag|gold: ...,
- *               eq|ne|gte|lt: N },
- *       then: [...],
- *       else: [...] } }
+ *   { if: {                       - cond is any expression (eval_expr);
+ *       cond: <expr>,               truthy fires `then`, else fires
+ *       then: [...],                `else`. For probability gates use
+ *       else: [...] } }             `cond: { chance: <pct-expr> }`.
  *
  *   { menu_branch: {              - one ryl_menu-style keypress.
  *       prompt: '<name>',           Each option matches on exactly one
@@ -104,7 +98,8 @@
  *   { continue: true }            - restart innermost enclosing loop.
  *                                   Fatal error if no enclosing loop.
  *
- * §17-F step 2 — expression evaluator (used in if.cond and chance.pct):
+ * §17-F step 2 — expression evaluator (used in if.cond, mutate.value,
+ * let.value, etc.):
  *
  *   expr ::= <int>                       literal
  *          | { flag:   <expr-or-str> }   state.p[cpl].flag[slot]
