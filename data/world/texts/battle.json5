@@ -75,6 +75,12 @@
       damage:        ['opponent for {dmg}'],
       damage_pts:    ['damage pts.'],
     },
+    // Fire: §22 Lane A. {monster_name} comes from battle.c's binds;
+    // {caster} via engine_bind, {dmg} via let.
+    fire: {
+      burns:  ['{caster} burns {monster_name}'],
+      points: ['for {dmg} pts!'],
+    },
   },
   cry: {
     off_guard:       ['(You manage to scare your',

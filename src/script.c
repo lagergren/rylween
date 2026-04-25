@@ -2984,6 +2984,20 @@ static ops_result do_for_inventory(const node *op, const char *script_id,
                         "for_inventory", 1, res_inventory_slot_max());
 }
 
+/* §22 Lane A: { for_monster: { var:'name', then:[...] } } — iterate
+   1..combat_ctx->noc. Pairs with monster_hp / monster_dead reads
+   so a mass-AOE spell ({mage.fire}) can apply per-monster damage.
+   Fatal outside a combat ctx. */
+static ops_result do_for_monster(const node *op, const char *script_id,
+                                 size_t idx, const char *parent,
+                                 const ryl_bind *bindings, rt_env *env) {
+    if (!g_combat_ctx) {
+        die_at(script_id, idx, "for_monster: no combat ctx");
+    }
+    return do_for_range(op, script_id, idx, parent, bindings, env,
+                        "for_monster", 1, g_combat_ctx->noc);
+}
+
 /* §17-F step 4: { switch: { expr:<expr>, cases:[...] } }. Each case
    is either { match:<expr>, then:[...] }, { in:[<expr>,...],
    then:[...] }, or { default:true, then:[...] }. First-match-wins;
@@ -3110,6 +3124,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         return do_for_member(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "for_inventory")) {
         return do_for_inventory(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "for_monster")) {
+        return do_for_monster(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "switch")) {
         return do_switch(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "ask_target")) {

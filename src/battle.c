@@ -447,6 +447,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                             snprintf(caster_buf, sizeof caster_buf, "%d", g);
                             ryl_bind binds[] = {
                                 {"caster_idx", caster_buf},
+                                {"monster_name", fn},
                                 {0},
                             };
                             int ws_int = ws;
@@ -469,24 +470,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                             goto after_mage_switch;
                         }
                         switch (s->effect) {
-                            case SE_FIRE:
-                                for (i = 1; i < noc + 1; i++) {
-                                    spelldamage = pm_lv(caster) * ryl_random(1, 4);
-                                    if (!deadc[i]) {
-                                        clw();
-                                        tx("%s burns %s\r\n", pm_name(caster), fn);
-                                        tx("for %d pts!\r\n", spelldamage);
-                                        ryl_delay(1000);
-                                        mh[i] -= spelldamage;
-                                        if (mh[i] <= 0) {
-                                            mh[i] = 0;
-                                            tx0(res_text("battle.killed"));
-                                            ryl_delay(600);
-                                            deadc[i] = 1;
-                                        }
-                                    }
-                                }
-                                break;
                             case SE_CONFUSION:
                                 clw();
                                 tx("%s utters a word.\r\n", pm_name(caster));

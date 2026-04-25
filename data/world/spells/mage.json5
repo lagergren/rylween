@@ -38,7 +38,44 @@
       ]}},
     ],
   },
-  fire:      { slot: 2, base_cost: 25, name: 'Fire Cloud',    legacy_effect: 'fire' },
+  // §22 Lane A: fire — AOE over every monster slot 1..noc. RNG draws
+  // unconditionally per iteration (alive or dead) — preserved verbatim
+  // so cloud-of-fire's RNG advances exactly the legacy noc steps.
+  // The damage formula is pm_lv(caster) * ryl_random(1, 4); kills
+  // emit "...KILLED!" and flip deadc[i].
+  fire: {
+    slot: 2, base_cost: 25, name: 'Fire Cloud',
+    do: [
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { for_monster: { var: 'i', then: [
+        { let: 'dmg', value: { mul: [
+          { member: { var: 'caster_idx' }, field: 'lv' },
+          { random: [1, 4] },
+        ]}},
+        { if: { cond: { eq: [{ monster_dead: { var: 'i' } }, 0] },
+          then: [
+            { engine_call: 'clw' },
+            { emit: 'battle.spell.fire.burns' },
+            { emit: 'battle.spell.fire.points' },
+            { pause: 1000 },
+            { mutate: { target: { monster_hp: { var: 'i' } },
+                        op: 'sub', value: { var: 'dmg' } }},
+            { if: { cond: { lte: [{ monster_hp: { var: 'i' } }, 0] },
+              then: [
+                { mutate: { target: { monster_hp: { var: 'i' } },
+                            op: 'set', value: 0 }},
+                { emit: 'battle.killed' },
+                { pause: 600 },
+                { mutate: { target: { monster_dead: { var: 'i' } },
+                            op: 'set', value: 1 }},
+              ]
+            }},
+          ]
+        }},
+      ]}},
+    ],
+  },
   confusion: { slot: 3, base_cost: 17, name: 'Confusion',     legacy_effect: 'confusion' },
   death:     { slot: 4, base_cost: 78, name: 'Death Strike',  legacy_effect: 'death' },
   hold:      { slot: 5, base_cost: 43, name: 'Hold Enemies',  legacy_effect: 'hold' },
