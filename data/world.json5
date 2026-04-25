@@ -577,5 +577,34 @@
       'insidecave', 'cave', 'death', 'hut', 'ydarg',       // 10..14
       'city', 'wonbattle', 'tent', 'notent', 'guild',      // 15..19
     ],
+
+    // Dungeon level-event ids (struct lvl[] entries dispatched by
+    // dungeon.c's main switch). The id space is sparse: 1..9 are
+    // generic cave events (random-fill), 20..38 are hand-authored
+    // quest encounters set by dungeons.scenarios.<flag>.placements.
+    // Slots 0 and 10..19 are empty so the array index matches the
+    // numeric id. dungeons.json5 placements may write these as
+    // either ints or strings; res_dungeon_apply_placements resolves
+    // strings via res_enum_id. L2 will retire the numeric switch in
+    // favour of script names matching these symbols.
+    dungeon_encounter: [
+      '',                                                  // 0  visited
+      'object', 'gold',                                    // 1..2
+      'encounter_weak_a', 'encounter_weak_b',              // 3..4
+      'encounter_deep',                                    // 5
+      'nothing_a', 'nothing_b',                            // 6..7
+      'gold_chest', 'torches',                             // 8..9
+      '', '', '', '', '', '', '', '', '', '',              // 10..19 (reserved)
+      'fire_shield_guardian', 'fire_shield',               // 20..21
+      'thun_riddle1', 'thun_riddle2', 'thun_riddle3',      // 22..24
+      'bracelets',                                         // 25
+      'spectrum_message', 'colour_riddle',                 // 26..27
+      'nolrim_tomb', 'master_crown',                       // 28..29
+      'silver_sanctum',                                    // 30
+      'hobgoblin_patrol',                                  // 31
+      'royal_guard1', 'royal_guard2', 'hobgoblin_chief',   // 32..34
+      'orc_nest', 'tammys_prison',                         // 35..36
+      'erethor_priests', 'lute_chamber',                   // 37..38
+    ],
   },
 }

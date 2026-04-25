@@ -8,24 +8,27 @@
 // dungeon is a data edit. The scenario key is the integer flag the
 // C/DSL caller passes.
 //
-// Encounter id namespace:
+// Encounter id namespace (see enums.dungeon_encounter in world.json5
+// for the symbol → numeric-id mapping):
 //   1..9   generic cave events (object/gold/encounter/etc.)
 //          dispatched by dungeon.c's main loop. Not enumerated here
 //          because the random fill already covers them.
 //   20..38 hand-authored special encounters (Guardian, Fire Shield,
-//          Thun Riddles, etc.). Comments below name each one;
-//          dungeon.c's level-event switch resolves the actual
-//          behaviour. L2 will lift those into dungeon.json5 scripts
-//          and this file's `encounter:` ids will become symbolic
-//          script names.
+//          Thun Riddles, etc.). dungeon.c's level-event switch
+//          resolves the actual behaviour. L2 will lift those into
+//          dungeon.json5 scripts and this file's `encounter:` symbols
+//          will become script names.
+//
+// `encounter:` is a string symbol resolved via the dungeon_encounter
+// enum. fold_dungeons rejects typos at world-load.
 {
   scenarios: {
     // Mountain of the Fire Shield — Hermit's quest.
     // Caller: missions.json5 hermit_dungeon (dungeon(20, 1)).
     '1': {
       placements: [
-        { level: 19, encounter: 20 },  // Guardian of the Fire Shield
-        { level: 20, encounter: 21 },  // The Fire Shield itself
+        { level: 19, encounter: 'fire_shield_guardian' },
+        { level: 20, encounter: 'fire_shield' },
       ],
     },
 
@@ -33,10 +36,10 @@
     // Caller: missions.c case 4 (dungeon(18, 2)).
     '2': {
       placements: [
-        { level:  4, encounter: 22 },  // Riddle 1
-        { level:  8, encounter: 23 },  // Riddle 2
-        { level: 12, encounter: 24 },  // Riddle 3
-        { level: 18, encounter: 25 },  // The Bracelets of Thun
+        { level:  4, encounter: 'thun_riddle1' },
+        { level:  8, encounter: 'thun_riddle2' },
+        { level: 12, encounter: 'thun_riddle3' },
+        { level: 18, encounter: 'bracelets' },
       ],
     },
 
@@ -44,15 +47,15 @@
     // Caller: missions.json5 reebar_dungeon (dungeon(20, 3)).
     '3': {
       placements: [
-        { level: 12, encounter: 26 },  // Spectrum Message
-        { level: 13, encounter: 27 },  // Colour Riddle
-        { level: 14, encounter: 27 },  // Colour Riddle
-        { level: 15, encounter: 27 },  // Colour Riddle
-        { level: 16, encounter: 27 },  // Colour Riddle
-        { level: 17, encounter: 27 },  // Colour Riddle
-        { level: 18, encounter: 27 },  // Colour Riddle
-        { level: 19, encounter: 27 },  // Colour Riddle
-        { level: 20, encounter: 28 },  // Nolrim's Tomb & Reebar
+        { level: 12, encounter: 'spectrum_message' },
+        { level: 13, encounter: 'colour_riddle' },
+        { level: 14, encounter: 'colour_riddle' },
+        { level: 15, encounter: 'colour_riddle' },
+        { level: 16, encounter: 'colour_riddle' },
+        { level: 17, encounter: 'colour_riddle' },
+        { level: 18, encounter: 'colour_riddle' },
+        { level: 19, encounter: 'colour_riddle' },
+        { level: 20, encounter: 'nolrim_tomb' },
       ],
     },
 
@@ -60,7 +63,7 @@
     // Caller: missions.json5 master_crown (dungeon(10, 4)).
     '4': {
       placements: [
-        { level: 10, encounter: 29 },  // The Master Crown
+        { level: 10, encounter: 'master_crown' },
       ],
     },
 
@@ -68,7 +71,7 @@
     // Caller: missions.json5 silver_sanctum (dungeon(20, 5)).
     '5': {
       placements: [
-        { level: 20, encounter: 30 },  // The Silver Sanctum
+        { level: 20, encounter: 'silver_sanctum' },
       ],
     },
 
@@ -77,15 +80,15 @@
     // Caller: missions.json5 hobgoblin_stronghold (dungeon(22, 6)).
     '6': {
       placements: [
-        { level:  3, encounter: 31 },  // Hobgoblin Patrol
-        { level:  6, encounter: 31 },  // Hobgoblin Patrol
-        { level:  9, encounter: 31 },  // Hobgoblin Patrol
-        { level: 14, encounter: 31 },  // Hobgoblin Patrol
-        { level: 17, encounter: 31 },  // Hobgoblin Patrol
-        { level: 19, encounter: 31 },  // Hobgoblin Patrol
-        { level: 20, encounter: 32 },  // Royal Guard 1 (Skeletons)
-        { level: 21, encounter: 33 },  // Royal Guard 2 (Zombies)
-        { level: 22, encounter: 34 },  // Hobgoblin Chief
+        { level:  3, encounter: 'hobgoblin_patrol' },
+        { level:  6, encounter: 'hobgoblin_patrol' },
+        { level:  9, encounter: 'hobgoblin_patrol' },
+        { level: 14, encounter: 'hobgoblin_patrol' },
+        { level: 17, encounter: 'hobgoblin_patrol' },
+        { level: 19, encounter: 'hobgoblin_patrol' },
+        { level: 20, encounter: 'royal_guard1' },
+        { level: 21, encounter: 'royal_guard2' },
+        { level: 22, encounter: 'hobgoblin_chief' },
       ],
     },
 
@@ -93,8 +96,8 @@
     // Caller: missions.json5 ogre_cave (dungeon(7, 7)).
     '7': {
       placements: [
-        { level: 6, encounter: 35 },  // Orc Nest
-        { level: 7, encounter: 36 },  // Tammy's Prison
+        { level: 6, encounter: 'orc_nest' },
+        { level: 7, encounter: 'tammys_prison' },
       ],
     },
 
@@ -102,9 +105,9 @@
     // Caller: missions.json5 erethor_temple (dungeon(12, 8)).
     '8': {
       placements: [
-        { level:  3, encounter: 37 },  // Priests of Erethor
-        { level:  7, encounter: 37 },  // Priests of Erethor
-        { level: 12, encounter: 38 },  // The Chamber of the Lute
+        { level:  3, encounter: 'erethor_priests' },
+        { level:  7, encounter: 'erethor_priests' },
+        { level: 12, encounter: 'lute_chamber' },
       ],
     },
   },

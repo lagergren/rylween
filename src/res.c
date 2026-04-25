@@ -682,10 +682,10 @@ void res_dungeon_apply_placements(int32_t flag, int32_t *lvl, size_t n_lvl) {
         const node *lvl_n = obj_get(p, "level");
         const node *enc_n = obj_get(p, "encounter");
         if (!lvl_n || lvl_n->kind != N_INT || !enc_n ||
-            enc_n->kind != N_INT) {
+            enc_n->kind != N_STR) {
             fprintf(stderr,
                     "res_dungeon_apply_placements: scenario %d placements[%zu] "
-                    "needs int level/encounter\n",
+                    "needs int level + string encounter\n",
                     (int)flag, i);
             exit(1);
         }
@@ -697,7 +697,8 @@ void res_dungeon_apply_placements(int32_t flag, int32_t *lvl, size_t n_lvl) {
                     (int)flag, (int)L, n_lvl);
             exit(1);
         }
-        lvl[L] = (int32_t)enc_n->u.iv;
+        /* fold_dungeons has already verified the symbol resolves. */
+        lvl[L] = (int32_t)res_enum_id("dungeon_encounter", enc_n->u.sv);
     }
 }
 
@@ -1896,6 +1897,76 @@ static void reset_limits(void) {
 /* -------- enums subtree --------
    `{ jobname: [...], name: [...] }` — key is the enum id, value is the
    string table res_enum(id, index) indexes into. */
+/* §20 L1.5: validate dungeons.scenarios at load time so typos in
+   placement encounter symbols fail fast (under --check-world) rather
+   than only when a player triggers the scenario. Each placement is
+   { level: int, encounter: string } and the symbol must resolve via
+   the dungeon_encounter enum. fold runs after fold_enums so the enum
+   table is ready. Level upper bound is per-scenario (the C caller
+   supplies levels), so only the lower bound is checked here;
+   res_dungeon_apply_placements does the upper-bound check. */
+static void fold_dungeons(const node *dungeons_node, const char *path) {
+    if (!dungeons_node) {
+        return;
+    }
+    if (dungeons_node->kind != N_OBJ) {
+        res_die(path, dungeons_node->line, "dungeons: expected object");
+    }
+    const node *scenarios = obj_get(dungeons_node, "scenarios");
+    if (!scenarios) {
+        return;
+    }
+    if (scenarios->kind != N_OBJ) {
+        res_die(path, scenarios->line,
+                "dungeons.scenarios: expected object");
+    }
+    for (size_t i = 0; i < scenarios->u.obj.n; i++) {
+        const char *flag_key = scenarios->u.obj.items[i].key;
+        const node *s = scenarios->u.obj.items[i].val;
+        if (!s || s->kind != N_OBJ) {
+            res_die(path, s ? s->line : scenarios->line,
+                    "dungeons.scenarios entry must be object");
+        }
+        const node *placements = obj_get(s, "placements");
+        if (!placements) {
+            res_die(path, s->line,
+                    "dungeons.scenarios entry missing placements");
+        }
+        if (placements->kind != N_ARR) {
+            res_die(path, placements->line,
+                    "dungeons.scenarios.placements must be array");
+        }
+        for (size_t j = 0; j < placements->u.arr.n; j++) {
+            const node *p = placements->u.arr.items[j];
+            if (!p || p->kind != N_OBJ) {
+                res_die(path, p ? p->line : placements->line,
+                        "placement must be object");
+            }
+            const node *lvl_n = obj_get(p, "level");
+            const node *enc_n = obj_get(p, "encounter");
+            if (!lvl_n || lvl_n->kind != N_INT) {
+                res_die(path, p->line,
+                        "placement.level must be int");
+            }
+            if (lvl_n->u.iv < 1) {
+                res_die(path, lvl_n->line,
+                        "placement.level must be >= 1");
+            }
+            if (!enc_n || enc_n->kind != N_STR) {
+                res_die(path, p->line,
+                        "placement.encounter must be a string symbol");
+            }
+            if (res_enum_id("dungeon_encounter", enc_n->u.sv) < 0) {
+                fprintf(stderr,
+                        "res: %s:%d: scenario '%s' placement[%zu]: "
+                        "unknown dungeon_encounter symbol '%s'\n",
+                        path, enc_n->line, flag_key, j, enc_n->u.sv);
+                exit(1);
+            }
+        }
+    }
+}
+
 static void fold_enums(const node *enums_node, const char *path) {
     if (!enums_node) {
         return;
@@ -1960,6 +2031,7 @@ void res_load_world(const char *path) {
     fold_speak_missions(obj_get(root, "speak_missions"), path);
     fold_limits(obj_get(root, "limits"), path);
     fold_enums(obj_get(root, "enums"), path);
+    fold_dungeons(obj_get(root, "dungeons"), path);
     fold_texts(obj_get(root, "texts"), path);
 
     /* Walk every effect / cond / expr array in the tree and rewrite path
