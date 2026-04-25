@@ -4113,3 +4113,256 @@ makes "read the data alone" actually true.
 **Estimated total.** ~1-2 sessions for #1+#2+#3,
 ~0.5 session for #4, ~0.5 session for #5. Cumulative
 ~2-3 sessions to fully close §22.
+
+### 22.8 Continuation prompt — what shipped, what's next
+
+This is the second handoff for §22 — the literal next-session
+brief after the second wave of commits. Between `c4183ae` (the
+§22.6 fix) and the head of this branch, nine commits landed:
+
+  - `c4183ae` §22.6 reward-gold display fix.
+  - `a0a580f` §22.5 #1 combat-attack-win fixture, plus the
+    RYL_FORCE_ENCOUNTER + RYL_FORCE_ENCOUNTER_NOC scaffold
+    that makes the rest of the §22.5 list authoring-tractable.
+  - `b8b2f52` §22.5 #2 mage-frost.
+  - `eafb648` §22.5 #3 mage-fire.
+  - `e877b5f` §22.5 #4a mage-confusion-hold.
+  - `1b9acd9` §22.5 #4b mage-antimagic.
+  - `9826d35` §22.5 #6 priest-heal.
+  - `dac0e00` §22.5 #7a priest-restoration.
+  - `2c194b0` §22.5 #8d priest-earthquake.
+
+**What's done — by spell.** Mage frost, fire, confusion, hold,
+antimagic. Priest heal, restoration, earthquake. Plus the
+combat-attack-win baseline. Nine fixtures, all gating `make
+check` + `make testasan` green. Eight of the twelve spell
+paths Lane A migrated are now byte-pinned.
+
+**What's not done — by spell.** Mage death; priest rebirth,
+banish, revelation, teleport. Five fixtures left.
+
+**The single root cause for three of the five.** Mage death
+(cost 79), priest rebirth (91), priest banish (86) all exceed
+the spellcaster's lv-1 ma cap (= wi, max ~70 from the
+ryl_random(15,70) roll, observed 67 at the seeds we've used).
+Every "got blocked on cost" fixture below shares this single
+gate. The root fix is a small env knob:
+
+```
+RYL_FORCE_PARTY_LV=<n>     # clamp every member.lv to <n> after
+                            # createparty's lv=1 init in driv.c
+```
+
+Approach is identical to the existing replay-only env knobs
+(see RYL_STARTING_GOLD at driv.c:1583, RYL_FORCE_ENCOUNTER
+in subs.c::random_wilderness, RYL_FORCE_ENCOUNTER_NOC in
+battle.c::encounter): single-shot getenv read inside the
+party-creation lv loop, unsetenv after consumption,
+production never sets it. Caster's `ma` is set to `wi` at
+class assignment (createparty.c:1570 if pm_is_spellcaster);
+the lv bump alone is enough since per-spell cost = base + lv
+grows slower than the post-class ma cap. At lv 5 a priest
+has ma >= 90 → both rebirth and banish fit; at lv 3 a mage
+has ma >= 70+ → death (cost 81) just fits.
+
+**The other two — dungeon-context fixtures.** Priest revelation
+and priest teleport need place=1 (the int binding subs.c::
+spell passes when called from dungeon.c's Z-key). Two paths
+into a dungeon work:
+
+  1. **Walk to a wild-roll cave**, then E to enter. The seed
+     determines whether a cave appears in the first ~30 moves
+     (seed 5 yes, seed 2 no — slot 1 priest needs wi >= 50,
+     so seed-shopping is constrained). The trap I hit on the
+     first try: the cave-found prompt loops on key() until L
+     or E, eating every walk byte until a valid letter shows
+     up. So the natural `82828282...828282E` pattern works,
+     but `8282...82E + spaces + Z + 1 + 5` does NOT — the
+     dungeon-level-1 random-fill script's `wait_input`
+     consumes one of the spaces, and then the menu's key()
+     loop reads bytes one at a time. Off-by-one on key
+     accounting drops Z into the wrong slot.
+
+  2. **Cast earthquake first**, take the (E)nter arm of the
+     cave_found_prompt, descend into the ad-hoc dungeon.
+     Earthquake guarantees the cave; no seed-shopping. But
+     it spends ~58 ma on the casting priest, so the *same*
+     priest can't follow up with revelation (cost 41). The
+     two-priest trick: party has slot 1 priest casts
+     earthquake, slot 2 priest casts revelation/teleport in
+     dungeon. Seeds 2 and 31 both have wi >= 50 in slots 1
+     AND 2; either works.
+
+  Path 1 is simpler if you bookkeep the keys carefully (one
+  ' ' absorber per dungeon-level script's wait_input, then
+  Z 2 5, and one A to ascend out). Path 2 is more robust
+  but needs the two-priest party + the earthquake bridge in
+  every dungeon-context fixture. Pick path 1 for revelation/
+  teleport (single fixture each); reach for path 2 if the
+  cave roll for the seed needed elsewhere doesn't fire.
+
+**For banish.** Path 2 with two priests, slot 2 raised to lv 5
+via RYL_FORCE_PARTY_LV. Slot 2's ma cap = wi+28 = 91+
+floor(28×0.5) ≈ 91 if seed 2 wi=63 → 63+28=91. base 85 + lv 5
+= 90. Just fits.
+
+**Recommended order — what to do next.**
+
+  1. **Add RYL_FORCE_PARTY_LV knob.** ~10 lines in driv.c
+     createparty (before the `state.p[a].lv[i] = 1;` loop at
+     line 1607, read the env var, parse, clamp). Single-shot
+     unsetenv after the loop. Test by running an existing
+     fixture with the var set — every member's lv should
+     bump in the snapshot.
+
+  2. **Land mage-death (§22.5 #5).** RYL_FORCE_PARTY_LV=3 +
+     seed 2 mage in slot 1. Death (cost 81 at lv 3, mage ma
+     cap = wi+14×3 ≈ 88). Fixture cribs combat-mage-frost's
+     pattern — F + C4A (target slot 1) + AA*3 (slots 2-4
+     attack); the resist roll fires off ryl_random(0, 199)
+     vs monster_hp. With h2_scaled ~43 from #1 and rng draw
+     deterministic at this point, the fixture pins one
+     specific arm — if the canonical roll lands in the
+     resist arm, great; if it lands in the kill arm, also
+     great. The arm not pinned by this fixture lands by a
+     follow-up fixture with a different RYL_FORCE_ENCOUNTER
+     monster (different h2 → different pivot threshold).
+
+  3. **Land priest-rebirth (§22.5 #7b).** RYL_FORCE_PARTY_LV=4
+     + seed 2 priest in slot 1. The fixture needs both arms
+     of the alive-vs-dead branch. Two casts in one fixture:
+     the first targets a healthy member (alive arm — emits
+     "alive and healthy", no mana cost — legacy quirk
+     preserved verbatim); the second targets a dead member
+     (dead arm — eyelids/flicker/opens_eyes + ma debit).
+     Death needs to come from somewhere — pick a fixture
+     where one combat fight kills a slot, then cast rebirth.
+     Or cheap path: have the engine's losegame check skipped
+     (no, too invasive). Or: write a tiny RYL_FORCE_DEAD_SLOT
+     knob that flags one member dead at party-create time,
+     unsetenv'd after. Smallest change for the rebirth fixture
+     to land both arms.
+
+  4. **Solve dungeon-context, then land revelation + teleport
+     (§22.5 #8b, #8c).** Pick path 1 (wild-roll cave) at
+     seed 5 (slot 1 wi=52 → priest qualifies, cave triggers
+     within ~30 moves). The key accounting:
+     - Walk: `82` × N until a cave rolls; the cave-found
+       prompt eats walk bytes until L/E, so end the walk
+       with `E`.
+     - Inside the dungeon, the level-1 script's `wait_input`
+       consumes one byte; absorb with a single ` ` (space).
+     - Menu reads `Z` → spell(1) → `1` (caster) → `5`
+       (revelation) or `6` (teleport). For revelation, the
+       chance(59) gate has two arms — the "nothing" arm has
+       a wait_input absorber; the "find object" arm has a
+       menu_branch (T or anything). Append spaces for the
+       absorbers.
+     - For teleport, the compass + how-far prompts use loop
+       + menu_branch with key_var; their accepted keys are
+       8/2/4/6 + 1-9 (typical map-DSL conventions — confirm
+       at the call site). One byte per prompt.
+     - End with `A` (ascend to cl=1 → leaves cave) and `X`
+       to quit.
+
+  5. **Land priest-banish (§22.5 #8a).** Path 2 (earthquake
+     bridge), RYL_FORCE_PARTY_LV=5, two priests (slot 1 +
+     slot 2). Slot 1 casts earthquake (Z 1 7 E) → spawns
+     cave, enters new dungeon. Slot 2 casts banish (Z 2 4)
+     in the dungeon — sets state.banished, the success arm
+     ends with the state_banished mutate. Trickiest fixture
+     of the lot because both casters are on cooldown after
+     their cast (no further casts in the same combat) AND
+     because the earthquake-spawned dungeon has 5-18 levels
+     (random) — its level 1 random fill is a separate lvl[1]
+     roll that's not easy to predict.
+
+  6. **§22.F speak_missions.json5 rewrite + parser retire.**
+     Untouched this session. The plan remains as in §22.7:
+     convert each NPC role's mission stages from the speak.c
+     micro-DSL into a script DSL `play_script` that fires
+     the right body with bindings. Retire the
+     `mission_spec_` parser arm in res.c and the speak.c
+     interpreter loop. Touches: `data/world/scripts/
+     speak_missions.json5`, `src/speak.c`, `src/res.c`,
+     `src/missions.c`. The towne speak fixtures cover most
+     of the affected surface so make check is the gate;
+     do this before §22.G so the doc reflects the final
+     surface.
+
+  7. **§22.G docs/dsl.md single-doc reference.** Untouched.
+     Cover everything from §22.7's spec (control flow,
+     expressions, mutate lvalues, bindings, op registry,
+     error contract, examples, cross-link from
+     `src/script.h`).
+
+**What I learned about authoring fixtures (worth keeping).**
+
+  - **Spellcaster qualification by seed.** Slot 1 wi >= 50
+    is the blocker. Useful seeds: 2 (slot 1 wi=67, slot 2
+    wi=63 — best for two-priest trick), 5 (slot 1 wi=52,
+    cave triggers in ~30 moves at seed-5 walk), 31 (slot 1
+    wi=66, slot 2 wi=63 — alternative for the two-priest
+    trick), 17 (slot 1 wi=53, ch=63 — bard-qualifying as a
+    bonus for any future bard fixture).
+
+  - **Combat round key shape.** Per round: `F` (the F/R
+    re-prompt fires after each round) + 4 × (action +
+    target). Action is `A` for plain attack, `C<digit>` for
+    combat-cast. Target is one byte per attack (A-D for
+    monster slot). With NOC > 1 use the `AB` fallback target
+    pattern — the first byte tries slot A, the second is
+    consumed only if A is dead (the in-range-and-not-deadc
+    check rejects A and reads the next byte). 16 round_n
+    patterns generously covers any 4-attacker × 1-2-noc
+    fight; the surplus consumes silently as no-ops at the
+    world map after the win.
+
+  - **Combat menu cast layout.** `(C)ast Spell` only fires
+    for pm_is_mage. The menu is six lines (frost / fire /
+    confusion / death / hold / antimagic = slots 1-6) plus
+    `7. Abort`. Selector loop accepts '1'-'7'. After the
+    digit, the spell DSL takes over; ask_target prompts use
+    the same letter-by-monster-slot shape as the combat
+    target prompt.
+
+  - **Priest cast dispatch.** subs.c::spell(place) is the
+    entry; `Z` from driv.c (place=0, wilderness) or
+    dungeon.c (place=1, dungeon). Dispatch prompts "Who?"
+    (digit caster, gates pm_is_priest), then the priest
+    spell menu (1-7 + 8 Abort). After the digit, play_spell_
+    body for that spell runs; ma debit lives in the DSL,
+    not C — different from mage spells.
+
+  - **Wait_input absorbers.** Every dungeon level script
+    that emits + waits has one ryl_pause that consumes a
+    keypress. Same for the cave-no-moves arm. Use single
+    ` ` (space) bytes for these — innocuous everywhere.
+
+  - **Key-accounting trap (the dungeon-context one).** The
+    cave-found prompt at the wild-roll path loops key() on
+    every byte of the input stream until L or E. So
+    appending `E` at the end of a long walk pattern enters
+    the cave; appending `Z` would be ignored (Z != L/E).
+    This is why dungeon-context fixtures need `walk + 'E'`
+    as the cave entry, not `walk + spaces + Z + ...`.
+
+  - **Stats the seed gives.** Snapshot all four members'
+    ws/wi/ch/h on the first fresh-stats roll (no rerolls)
+    by writing a tiny probe `.in` file with `N\nReplay\nNA\n
+    1\n1\n2\n` repeated four times and reading the resulting
+    snapshot. Useful when a fixture needs a specific class
+    per slot.
+
+**Estimated remaining effort.** With the lv knob landed
+(~15 min), mage-death is ~30 min, priest-rebirth is ~45 min
+(two-arm fixture), revelation + teleport ~45 min each,
+banish ~60 min (two-priest setup). Total spell-fixture
+remaining: ~3-4 hours. §22.F is ~0.5-1 session; §22.G is
+~0.5 session. Cumulative ~1-2 more sessions to fully close
+§22.
+
+**Bar per session.** `make check` and `make testasan` both
+green at every commit. The lv knob commit is the only one
+that touches engine code directly; every other commit is
+data + .in/.expect/.expect_snapshot quartets.
