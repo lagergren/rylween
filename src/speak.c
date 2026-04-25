@@ -141,7 +141,7 @@ void speak(int32_t bld, int32_t tow) {
         talk = reference[c - 64];
     } else {
         for (i = 1, talk = 0; i < 40; i++) {
-            if (state.npc[i].x == state.p[state.cpl].x && state.npc[i].y == state.p[state.cpl].y) {
+            if (state.npc[i].x == pa_x() && state.npc[i].y == pa_y()) {
                 talk = i;
             }
         }
@@ -246,7 +246,8 @@ void speak(int32_t bld, int32_t tow) {
                 tx("\r\n");
                 if (npc_job(talker) == res_enum_id("jobname", "Bargirl")) {
                     char price[16];
-                    snprintf(price, sizeof price, "%d", 50 * state.p[state.cpl].lv[1]);
+                    int32_t fee = 50 * pa_first_level();
+                    snprintf(price, sizeof price, "%d", fee);
                     clw();
                     tx_fmt("speak.lodge.j13.offer",
                            (ryl_bind[]){
@@ -258,17 +259,18 @@ void speak(int32_t bld, int32_t tow) {
                     c = key();
                     c = toupper(c);
                     if (c == 'Y') {
-                        if (state.p[state.cpl].gold < 50 * state.p[state.cpl].lv[1]) {
+                        if (pa_gold() < fee) {
                             clw();
                             tx0(res_text("speak.lodge.j13.broke"));
                             ryl_delay(2000);
                         } else {
-                            state.p[state.cpl].gold -= 50 * state.p[state.cpl].lv[1];
+                            pa_add_gold(-fee);
                             clw();
                             tx0(res_text("speak.lodge.j13.spent"));
                             for (i = 1; i <= res_party_member_max(); i++) {
-                                if (state.p[state.cpl].hp[i] > 1) {
-                                    state.p[state.cpl].hp[i]--;
+                                pm_t pm = pm_cur(i);
+                                if (pm_hp(pm) > 1) {
+                                    pm_add_hp(pm, -1);
                                 }
                             }
                         }
@@ -455,14 +457,14 @@ static void npc_mission_hint(int32_t npc) {
             tx0(res_text("speak.silver_key.deal"));
             if (ryl_menu("speak.buy_nothanks",
                          (ryl_menu_opt[]){{'B', 1}, {0, 0}}) == 1) {
-                if (state.p[state.cpl].gold < 50000) {
+                if (pa_gold() < 50000) {
                     clw();
                     tx0(res_text("speak.silver_key.broke"));
                     ryl_pause();
                     clw();
                     return;
                 }
-                state.p[state.cpl].gold -= 50000;
+                pa_add_gold(-50000);
                 clw();
                 {
                     char x[8], y[8];
@@ -496,14 +498,14 @@ static void npc_mission_hint(int32_t npc) {
             tx0(res_text("speak.thun.offer"));
             if (ryl_menu("speak.buy_nothanks",
                          (ryl_menu_opt[]){{'B', 1}, {0, 0}}) == 1) {
-                if (state.p[state.cpl].gold < 10000) {
+                if (pa_gold() < 10000) {
                     clw();
                     tx0(res_text("speak.thun.broke"));
                     ryl_pause();
                     clw();
                     return;
                 }
-                state.p[state.cpl].gold -= 10000;
+                pa_add_gold(-10000);
                 clw();
                 {
                     char x[8], y[8];
