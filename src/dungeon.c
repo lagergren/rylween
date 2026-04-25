@@ -3,6 +3,7 @@
 #include "driv.h"
 #include "dungeon.h"
 #include "gfx.h"
+#include "party.h"
 #include "primitives.h"
 #include "script.h"
 #include "subs.h"
@@ -125,7 +126,7 @@ void dungeon(int32_t levels, const char *scenario) {
             }
 
             if (c == 'D') {
-                if (!state.p[state.cpl].torches) {
+                if (!pa_torches()) {
                     clw();
                     tx("You have used your last\r\n");
                     tx("torch. You can't go\r\n");
@@ -134,7 +135,7 @@ void dungeon(int32_t levels, const char *scenario) {
                     clw();
                 } else {
                     if (cl < levels) {
-                        state.p[state.cpl].torches--;
+                        pa_add_torches(-1);
                     }
                     if (cl == levels) {
                         clw();
