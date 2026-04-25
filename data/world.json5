@@ -201,6 +201,37 @@
     cave_entry_cost:    10,        // time_left ticks consumed on cave (E)nter
   },
 
+  // §20 S6: rest + hunt + fatigue tunables. Read by subs.c via
+  // res_int_path("balance.<subtree>.<key>").
+  balance: {
+    rest: {
+      ambush_chance:        19,    // pct; ryl_chance() to ambush a camped party
+      health_gain:          15,    // hp restored per non-guard member on rest
+      food_cost_per_member:  4,    // pa.food -= N * pl
+      hours_advanced:        8,    // advance_hour() called this many times
+      hours_rested_reset:   14,    // post-rest hours_rested floor
+      temperature_max:      15,    // ryl_random(1, N) roll
+      temp_low_lo:           6,    // [lo, hi) "low temperature" band
+      temp_low_hi:          10,
+      temp_very_low_lo:     10,    // [lo, ...) "very low temperature" band
+      temp_low_damage:       5,    // hp -= N when no warm gear in [lo, hi)
+      temp_very_low_damage:  5,    // hp -= N when no warm gear at very low
+    },
+    hunt: {
+      success_chance: 45,   // pct; ryl_chance() to bag a rabbit
+      time_cost:       5,   // time_left -= N (also the floor for "too few")
+      food_min:       10,
+      food_max:       19,   // ryl_random(food_min, food_max) + pa_first_level()
+    },
+    fatigue: {
+      // Thresholds the foodhandler ladder compares hours_rested to.
+      // Exhausted and weak are equality checks today; the < weak
+      // branch is the open-ended "faint" tail.
+      exhausted: -4,
+      weak:      -8,
+    },
+  },
+
   // Combat-system tuning. Named fields are read by battle.c via
   // res_combat_int("<dotted.path>"); keep keys stable across data edits
   // since the C side hard-codes the names (not the values). Drop

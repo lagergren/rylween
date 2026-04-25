@@ -493,8 +493,14 @@ void camp() {
 
     /* TEMPERATURE CHECK */
 
-    temperature = ryl_random(1, 15);
-    if (temperature >= 6 && temperature < 10) {
+    int32_t temp_max = res_int_path("balance.rest.temperature_max");
+    int32_t temp_low_lo = res_int_path("balance.rest.temp_low_lo");
+    int32_t temp_low_hi = res_int_path("balance.rest.temp_low_hi");
+    int32_t temp_very_low_lo = res_int_path("balance.rest.temp_very_low_lo");
+    int32_t temp_low_dmg = res_int_path("balance.rest.temp_low_damage");
+    int32_t temp_very_low_dmg = res_int_path("balance.rest.temp_very_low_damage");
+    temperature = ryl_random(1, temp_max);
+    if (temperature >= temp_low_lo && temperature < temp_low_hi) {
         clw();
         tx("Low Temperature.\r\n");
         ryl_delay(600);
@@ -504,14 +510,13 @@ void camp() {
             tx("Party loses 5 health.\r\n");
             ryl_delay(1500);
             for (i = 1; i <= res_party_member_max(); i++) {
-                state.p[state.cpl].hp[i] -= 5;
-                if (state.p[state.cpl].hp[i] < 1) {
-                    state.p[state.cpl].hp[i] = 1;
-                }
+                pm_t pm = pm_cur(i);
+                pm_add_hp(pm, -temp_low_dmg);
+                pm_hp_floor(pm, 1);
             }
         }
     }
-    if (temperature >= 10) {
+    if (temperature >= temp_very_low_lo) {
         tx("Very low temperature.\r\n");
         x = inv_find_item(34) != 0;
         ryl_delay(600);
@@ -520,39 +525,45 @@ void camp() {
             tx("Party loses 10 health.\r\n");
             ryl_delay(1500);
             for (i = 1; i <= res_party_member_max(); i++) {
-                state.p[state.cpl].hp[i] -= 5;
-                if (state.p[state.cpl].hp[i] < 1) {
-                    state.p[state.cpl].hp[i] = 1;
-                }
+                pm_t pm = pm_cur(i);
+                pm_add_hp(pm, -temp_very_low_dmg);
+                pm_hp_floor(pm, 1);
             }
         }
     }
 
     /* INCREASE TIME */
 
-    for (i = 1; i < 9; i++) {
+    int32_t rest_hours = res_int_path("balance.rest.hours_advanced");
+    int32_t food_per_member = res_int_path("balance.rest.food_cost_per_member");
+    int32_t rest_health = res_int_path("balance.rest.health_gain");
+    int32_t hours_rested_reset = res_int_path("balance.rest.hours_rested_reset");
+    int32_t ambush_chance = res_int_path("balance.rest.ambush_chance");
+    for (i = 1; i <= rest_hours; i++) {
         advance_hour();
     }
-    state.p[state.cpl].hours_rested = 14;
-    if (state.p[state.cpl].food < 4 * state.p[state.cpl].pl) {
+    state.p[state.cpl].hours_rested = hours_rested_reset;
+    int32_t rest_food_cost = food_per_member * state.p[state.cpl].pl;
+    if (state.p[state.cpl].food < rest_food_cost) {
         state.p[state.cpl].food = 0;
     } else {
-        state.p[state.cpl].food -= 4 * state.p[state.cpl].pl;
+        state.p[state.cpl].food -= rest_food_cost;
     }
     if (state.p[state.cpl].food < 0) {
         state.p[state.cpl].food = 0;
     }
     for (i = 1; i <= res_party_member_max(); i++) {
         if (i != guard) {
-            if (!state.p[state.cpl].dead[i]) {
-                state.p[state.cpl].hp[i] += 15;
+            pm_t pm = pm_cur(i);
+            if (!pm_dead(pm)) {
+                pm_add_hp(pm, rest_health);
             }
-            if (state.p[state.cpl].hp[i] > state.p[state.cpl].h[i]) {
-                state.p[state.cpl].hp[i] = state.p[state.cpl].h[i];
+            if (pm_hp(pm) > pm_h(pm)) {
+                pm_set_hp(pm, pm_h(pm));
             }
         }
     }
-    if (ryl_chance(19)) {
+    if (ryl_chance(ambush_chance)) {
         clw();
         tx("Ambush!!!\r\n");
         ryl_delay(1000);
@@ -655,17 +666,21 @@ void hunt() {
         return;
     }
     clw();
-    if (state.p[state.cpl].time_left < 5) {
+    int32_t hunt_cost = res_int_path("balance.hunt.time_cost");
+    int32_t hunt_chance = res_int_path("balance.hunt.success_chance");
+    int32_t hunt_food_min = res_int_path("balance.hunt.food_min");
+    int32_t hunt_food_max = res_int_path("balance.hunt.food_max");
+    if (state.p[state.cpl].time_left < hunt_cost) {
         tx("Too few moves for that.\r\n");
         ryl_delay(1000);
         return;
     }
-    state.p[state.cpl].time_left -= 5;
-    tx("%s tries\r\n", state.p[state.cpl].name[c - 48]);
+    state.p[state.cpl].time_left -= hunt_cost;
+    tx("%s tries\r\n", pm_name(pm_from_digit(c)));
     tx("to trap a rabbit...\r\n");
     ryl_delay(1400);
-    if (ryl_chance(45)) {
-        fdplus = ryl_random(10, 19) + pa_first_level();
+    if (ryl_chance(hunt_chance)) {
+        fdplus = ryl_random(hunt_food_min, hunt_food_max) + pa_first_level();
         tx("...and succeeds.\r\n");
         tx("The party gains\r\n");
         tx("%d food rations.\r\n\r\n", fdplus);
