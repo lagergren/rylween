@@ -223,6 +223,15 @@ struct script_combat_ctx {
     int *ws;          /* monster work-skill (mage.confusion halves it) */
 };
 
+/* §22 Lane A: evaluate a `formulas.<name>` body as an int expression
+   under the script DSL. Used by res_formula_int_n in place of the
+   retired eval.c expression evaluator. `bindings` carries the input
+   variables ($h1_base / $h2_base / $party_avg / etc. — names match
+   the {var:'<name>'} reads inside the formula body). Fatal on
+   unknown ops / wrong shape, with `formula_id` in the diagnostic. */
+int32_t play_formula_int(const char *formula_id, const struct node *body,
+                         const ryl_bind *bindings);
+
 /* §22 Lane A: run a spell `do:` body (a node*) under the script DSL.
    `spell_id` is borrowed for diagnostics ("mage.frost"); `body` is the
    N_ARR returned by res_spell_node. `bindings` carries caster_idx /

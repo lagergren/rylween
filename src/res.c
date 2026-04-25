@@ -590,14 +590,28 @@ int32_t res_formula_int_n(const char *name, const res_binding *bindings, size_t 
         fprintf(stderr, "res_formula_int: unknown formula '%s'\n", name);
         exit(1);
     }
-    env_t e;
-    env_init(&e);
-    for (size_t i = 0; i < n; i++) {
-        env_set_local(&e, bindings[i].name, bindings[i].val);
+    /* §22 Lane A: formulas now run through the script DSL evaluator.
+       Convert the int bindings to a ryl_bind list (script DSL atoi's
+       integer-string values inside expr_var) and call the public
+       formula entry. Cap of 16 inputs is comfortably above every
+       caller's needs (encounter scaling tops out at 4 bindings). */
+    enum { MAX_FORMULA_BINDINGS = 16 };
+    if (n > MAX_FORMULA_BINDINGS) {
+        fprintf(stderr,
+                "res_formula_int: '%s' too many bindings (%zu > %d)\n",
+                name, n, MAX_FORMULA_BINDINGS);
+        exit(1);
     }
-    int32_t r = eval_expr(body, &e);
-    env_free(&e);
-    return r;
+    char buf[MAX_FORMULA_BINDINGS][16];
+    ryl_bind binds[MAX_FORMULA_BINDINGS + 1] = {{0}};
+    for (size_t i = 0; i < n; i++) {
+        snprintf(buf[i], sizeof buf[i], "%d", (int)bindings[i].val);
+        binds[i].name = bindings[i].name;
+        binds[i].value = buf[i];
+    }
+    binds[n].name = NULL;
+    binds[n].value = NULL;
+    return play_formula_int(name, body, binds);
 }
 
 int32_t res_formula_int(const char *name, const char *var_name, int32_t val) {

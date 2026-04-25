@@ -3168,6 +3168,24 @@ void play_script(const char *script_id, const ryl_bind *bindings) {
     }
 }
 
+/* §22 Lane A: evaluate a formulas.<name> body via the script DSL's
+   eval_expr. Caller-supplied `bindings` carry the input ints (e.g.
+   $h1_base, $party_avg) — the formula reads them via {var:'<name>'}.
+   Wraps eval_expr with a fresh rt_env so any rt_env state from
+   surrounding play_script / play_spell_body invocations doesn't
+   leak in (formulas are pure functions of the bindings). */
+int32_t play_formula_int(const char *formula_id, const struct node *body,
+                         const ryl_bind *bindings) {
+    if (!body) {
+        char buf[160];
+        snprintf(buf, sizeof buf,
+                 "play_formula_int: '%s' body is NULL", formula_id);
+        ryl_die(buf);
+    }
+    rt_env env = {{{0}}, 0};
+    return eval_expr((const node *)body, formula_id, 0, bindings, &env);
+}
+
 /* §22 Lane A entry point. Same machinery as play_script but takes a
    pre-resolved body node (from res_spell_node) and a combat ctx
    pointer; spell_id is borrowed for diagnostics so a die_at fires

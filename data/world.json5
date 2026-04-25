@@ -276,8 +276,15 @@
   // when a donkey is dropped; before §17-O it was an inline literal
   // pair. Other formulas follow as the `a + b*v` / `a * v + b` shapes
   // across battle.c / dungeon.c / subs.c get lifted one by one.
+  // §22 Lane A: formulas migrated from the S-expr DSL to script DSL
+  // expression form. Each formula is a single expression node read
+  // by play_formula_int (script.c); binding names match the int
+  // bindings the C-side res_formula_int_n caller seeds. The cond
+  // ternary in encounter_h1_scaled is expressed as `(test) * value`
+  // — gt returns 0/1, multiplied by the then-arm gives 0 or
+  // first_level*2 — since script DSL has no ternary expression.
   formulas: {
-    donkey_food_cap: ['+', 150, ['*', 150, '$y']],
+    donkey_food_cap: { add: [150, { mul: [150, { var: 'y' }] }] },
 
     // §20 S11: encounter HP scaling. Both h1 (min) and h2 (max) grow
     // with party stats so a low-level pool scales as the party levels.
@@ -286,12 +293,20 @@
     // level. Bindings: $h1_base / $h2_base (monster's stock h1/h2 from
     // monsters.json5), $party_avg (average pm_lv across slots 1..4),
     // $first_level (pa_first_level()).
-    encounter_h1_scaled: ['+', '$h1_base',
-                          ['+', ['*', '$party_avg', 2],
-                                ['cond', ['gt', '$first_level', 2],
-                                         ['*', '$first_level', 2],
-                                         0]]],
-    encounter_h2_scaled: ['+', '$h2_base', ['*', '$first_level', 3]],
+    encounter_h1_scaled: { add: [
+      { var: 'h1_base' },
+      { add: [
+        { mul: [{ var: 'party_avg' }, 2] },
+        { mul: [
+          { gt: [{ var: 'first_level' }, 2] },
+          { mul: [{ var: 'first_level' }, 2] },
+        ]},
+      ]},
+    ]},
+    encounter_h2_scaled: { add: [
+      { var: 'h2_base' },
+      { mul: [{ var: 'first_level' }, 3] },
+    ]},
 
     // §20 S11: victory rewards. xp_per_survivor and gold_per_survivor
     // back the "Each survivor gets X xp / Y gold" display lines;
@@ -299,14 +314,33 @@
     // takes (legacy mismatch between the per-survivor display and
     // the whole-party award; preserved verbatim — fix is a separate
     // ask). Bindings: $noc, $h2 (post-scaling), $ws (post-scaling), $sp.
-    reward_xp_per_survivor: ['+', ['*', '$noc',
-                                       ['*', ['/', '$h2', 4], ['/', '$ws', 4]]],
-                                  ['*', '$sp', 3]],
-    reward_gold_party: ['*', '$noc',
-                            ['*', ['/', '$h2', 7], ['/', '$ws', 4]]],
-    reward_gold_per_survivor: ['/', ['*', '$noc',
-                                          ['*', ['/', '$h2', 7], ['/', '$ws', 4]]],
-                                    4],
+    reward_xp_per_survivor: { add: [
+      { mul: [
+        { var: 'noc' },
+        { mul: [
+          { div: [{ var: 'h2' }, 4] },
+          { div: [{ var: 'ws' }, 4] },
+        ]},
+      ]},
+      { mul: [{ var: 'sp' }, 3] },
+    ]},
+    reward_gold_party: { mul: [
+      { var: 'noc' },
+      { mul: [
+        { div: [{ var: 'h2' }, 7] },
+        { div: [{ var: 'ws' }, 4] },
+      ]},
+    ]},
+    reward_gold_per_survivor: { div: [
+      { mul: [
+        { var: 'noc' },
+        { mul: [
+          { div: [{ var: 'h2' }, 7] },
+          { div: [{ var: 'ws' }, 4] },
+        ]},
+      ]},
+      4,
+    ]},
   },
 
   // Spells (§3.4). Nested by class so each shard owns its own file.
