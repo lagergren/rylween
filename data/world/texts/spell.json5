@@ -5,6 +5,12 @@
 {
   not_enough_pts: ['Not enough spell pts!'],
   priest: {
+    heal: {
+      target_dead: ['Dead.'],
+      heals:       ['{caster} heals'],
+      target:      ['{target}'],
+      points:      ['for {x} hit points...'],
+    },
     banish: {
       thunder: ['There is a deafening clap',
                 'of thunder, and you hear',

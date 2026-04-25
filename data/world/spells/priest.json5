@@ -1,9 +1,71 @@
 // Priest spells — slot is menu order, legacy_effect picks the SE_* case
-// battle.c falls through to when the spell has no `do` DSL body. As each
+// subs.c falls through to when the spell has no `do:` DSL body. As each
 // spell's behaviour migrates to a `do:` program, its `legacy_effect` goes
-// away and dispatch flips to eval_effect.
+// away and dispatch flips to play_spell_body via the §22 Lane A shim.
 {
-  heal:        { slot: 1, base_cost: 8,  name: 'Healing',     legacy_effect: 'heal' },
+  // §22 Lane A: heal migrated from SE_HEAL. caster_idx + place arrive as
+  // ryl_bind ints from subs.c; ask_target party_member binds the picked
+  // target into target_idx. RNG identity preserved — ryl_random(10, 19)
+  // is the first factor of the add (drawn once before the lv*2 read),
+  // matching the legacy `ryl_random(10, 19) + (pm_lv(caster) * 2)`.
+  // Two early-exits — not-enough-mana and target-dead — sit as nested
+  // if/else cascades; the script DSL has no `return` op today.
+  heal: {
+    slot: 1, base_cost: 8, name: 'Healing',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'ma' },
+          { add: [8, { member: { var: 'caster_idx' }, field: 'lv' }] },
+        ]},
+        then: [
+          { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                field: 'ma' } },
+                      op: 'sub',
+                      value: { add: [8, { member: { var: 'caster_idx' },
+                                                    field: 'lv' }] } }},
+          { ask_target: 'party_member', var: 'target_idx' },
+          { let: 'x', value: { add: [
+            { random: [10, 19] },
+            { mul: [{ member: { var: 'caster_idx' }, field: 'lv' }, 2] },
+          ]}},
+          { if: { cond: { eq: [
+              { member: { var: 'target_idx' }, field: 'dead' }, 1
+            ]},
+            then: [
+              { engine_call: 'clw' },
+              { emit: 'spell.priest.heal.target_dead' },
+              { pause: 600 },
+              { engine_call: 'clw' },
+            ],
+            else: [
+              { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                    field: 'hp' } },
+                          op: 'add',
+                          value: { var: 'x' },
+                          clamp: { max: { member: { var: 'target_idx' },
+                                                    field: 'h' } } }},
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                               var: 'caster' }},
+              { engine_bind: { fn: 'pa_name', args: [{ var: 'target_idx' }],
+                               var: 'target' }},
+              { emit: 'spell.priest.heal.heals' },
+              { emit: 'spell.priest.heal.target' },
+              { emit: 'spell.priest.heal.points' },
+              { pause: 1500 },
+              { engine_call: 'clw' },
+            ],
+          }},
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
   restoration: { slot: 2, base_cost: 20, name: 'Restoration', legacy_effect: 'restoration' },
   rebirth:     { slot: 3, base_cost: 90, name: 'Rebirth',     legacy_effect: 'rebirth' },
   banish:      { slot: 4, base_cost: 85, name: 'Banish Evil', legacy_effect: 'banish' },

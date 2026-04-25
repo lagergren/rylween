@@ -600,44 +600,29 @@ void spell(int32_t place) {
         return;
     }
 
-    switch (s->effect) {
-        case SE_HEAL:
-            clw();
-            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx0(res_text("spell.not_enough_pts"));
-                ryl_delay(1000);
-                clw();
-                break;
-            }
-            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
-            tx("Who? (1-%d)\r\n", res_party_member_max());
-            while (1) {
-                d = key();
-                if (pm_digit_in_range(d)) {
-                    break;
-                }
-            }
-            x = ryl_random(10, 19) + (pm_lv(caster) * 2);
-            pm_t target = pm_from_digit(d);
-            if (pm_dead(target)) {
-                clw();
-                tx("Dead.\r\n");
-                ryl_delay(600);
-                clw();
-                break;
-            }
-            pm_add_hp(target, x);
-            if (pm_hp(target) > pm_h(target)) {
-                pm_set_hp(target, pm_h(target));
-            }
-            clw();
-            tx("%s heals\r\n", pm_name(caster));
-            tx("%s\r\n", pm_name(target));
-            tx("for %d hit points...\r\n", x);
-            ryl_delay(1500);
-            clw();
-            break;
+    /* §22 Lane A priest dispatch shim — mirror battle.c's gate. When the
+       spell record carries a `do:` body, route through play_spell_body
+       with caster_idx + place as bindings; ctx is NULL because priest
+       spells run out of combat. Falls through to the legacy SE_* switch
+       below for spells whose behaviour hasn't migrated yet. */
+    {
+        const void *spell_node = res_spell_node("priest", c - 48);
+        if (spell_node) {
+            char caster_buf[8], place_buf[8];
+            snprintf(caster_buf, sizeof caster_buf, "%d", who);
+            snprintf(place_buf, sizeof place_buf, "%d", (int)place);
+            ryl_bind binds[] = {
+                {"caster_idx", caster_buf},
+                {"place", place_buf},
+                {0},
+            };
+            play_spell_body(s->id ? s->id : "priest.(unknown)",
+                            spell_node, binds, NULL);
+            return;
+        }
+    }
 
+    switch (s->effect) {
         case SE_RESTORATION:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
