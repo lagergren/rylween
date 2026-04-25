@@ -294,6 +294,24 @@ static inline int pm_dead(pm_t pm) {
 static inline char *pm_name(pm_t pm) {
     return pm.party->name[pm.m];
 }
+static inline int pm_ws(pm_t pm) {
+    return pm.party->ws[pm.m];
+}
+static inline int pm_wi(pm_t pm) {
+    return pm.party->wi[pm.m];
+}
+static inline int pm_ch(pm_t pm) {
+    return pm.party->ch[pm.m];
+}
+static inline int pm_ra(pm_t pm) {
+    return pm.party->ra[pm.m];
+}
+static inline uint32_t pm_exp(pm_t pm) {
+    return pm.party->exp[pm.m];
+}
+static inline unsigned char pm_gender(pm_t pm) {
+    return pm.party->gender[pm.m];
+}
 
 static inline int pm_is_class(pm_t pm, int cls) {
     return pm_cl(pm) == cls;
@@ -360,8 +378,38 @@ static inline void pm_add_ch(pm_t pm, int d) {
 static inline void pm_add_lv(pm_t pm, int d) {
     pm.party->lv[pm.m] += d;
 }
+static inline void pm_set_lv(pm_t pm, int v) {
+    pm.party->lv[pm.m] = v;
+}
 static inline void pm_add_exp(pm_t pm, uint32_t d) {
     pm.party->exp[pm.m] += d;
+}
+static inline void pm_set_exp(pm_t pm, uint32_t v) {
+    pm.party->exp[pm.m] = v;
+}
+static inline void pm_set_ws(pm_t pm, int v) {
+    pm.party->ws[pm.m] = v;
+}
+static inline void pm_set_wi(pm_t pm, int v) {
+    pm.party->wi[pm.m] = v;
+}
+static inline void pm_set_ch(pm_t pm, int v) {
+    pm.party->ch[pm.m] = v;
+}
+static inline void pm_set_ma(pm_t pm, int v) {
+    pm.party->ma[pm.m] = v;
+}
+static inline void pm_add_ma(pm_t pm, int d) {
+    pm.party->ma[pm.m] += d;
+}
+static inline void pm_set_cl(pm_t pm, int v) {
+    pm.party->cl[pm.m] = v;
+}
+static inline void pm_set_ra(pm_t pm, int v) {
+    pm.party->ra[pm.m] = v;
+}
+static inline void pm_set_gender(pm_t pm, unsigned char v) {
+    pm.party->gender[pm.m] = v;
 }
 static inline void pm_set_dead(pm_t pm, int v) {
     pm.party->dead[pm.m] = v;
