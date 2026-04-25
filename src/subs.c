@@ -626,46 +626,7 @@ void quaff() {
     tx("Gulp!\r\n\r\n");
     ryl_delay(600);
 
-    switch (oc) {
-        case 36:
-            tx("The healing brew warms\r\n");
-            tx("%s inside...\r\n\r\n", pronoun(c - 48, 2));
-            ryl_pause();
-            clw();
-            state.p[state.cpl].hp[c - 48] += (15 + state.p[state.cpl].lv[c - 48]);
-            if (state.p[state.cpl].hp[c - 48] > state.p[state.cpl].h[c - 48]) {
-                state.p[state.cpl].hp[c - 48] = state.p[state.cpl].h[c - 48];
-            }
-            break;
-
-        case 37:
-            tx("Horrible pain sears %s\r\n", pronoun(c - 48, 3));
-            tx("entrails as the poison\r\n");
-            tx("begins to work.\r\n\r\n");
-            ryl_pause();
-            clw();
-            state.p[state.cpl].hp[c - 48] -= (15 + state.p[state.cpl].lv[c - 48]);
-            if (state.p[state.cpl].hp[c - 48] < 1) {
-                state.p[state.cpl].hp[c - 48] = 1;
-            }
-            break;
-
-        case 38:
-            if (pm_is_spellcaster(pm_from_digit(c))) {
-                tx("It tingles slightly in\r\n");
-                tx("%s body, as all %s\r\n", pronoun(c - 48, 3), pronoun(c - 48, 3));
-                tx("spell points return.\r\n\r\n");
-                ryl_pause();
-                clw();
-                state.p[state.cpl].ma[c - 48] = state.p[state.cpl].wi[c - 48];
-            } else {
-                tx("The potion has no special\r\n");
-                tx("effect on this character.\r\n\r\n");
-                ryl_pause();
-                clw();
-            }
-            break;
-    }
+    apply_potion(oc, pm_from_digit(c));
 }
 void hunt() {
     char c;

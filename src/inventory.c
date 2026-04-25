@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "driv.h"       /* pronoun */
+#include "primitives.h" /* tx, clw, ryl_pause */
 #include "res.h"
 #include "ryl.h" /* state */
 
@@ -191,5 +193,54 @@ void party_award_special(int which) {
             break;
         default:
             break;
+    }
+}
+
+/* §20 S4 dispatch table — branches on res_item(id)->effect_kind. The
+   per-kind narration is hardcoded here for now; a follow-up may push
+   it into texts (one text-id per kind would let new kinds be data-
+   only). Each kind owns its own ryl_pause + clw beats so the caller
+   sees a single "use this potion on this member" entry point. */
+void apply_potion(int item_id, pm_t pm) {
+    const ryl_item *it = res_item(item_id);
+    if (!it || !it->effect_kind) {
+        return;
+    }
+    if (!strcmp(it->effect_kind, "heal")) {
+        tx("The healing brew warms\r\n");
+        tx("%s inside...\r\n\r\n", pronoun(pm.m, 2));
+        ryl_pause();
+        clw();
+        pm_add_hp(pm, it->effect_amount + pm_lv(pm));
+        if (pm_hp(pm) > pm_h(pm)) {
+            pm_set_hp(pm, pm_h(pm));
+        }
+        return;
+    }
+    if (!strcmp(it->effect_kind, "poison")) {
+        tx("Horrible pain sears %s\r\n", pronoun(pm.m, 3));
+        tx("entrails as the poison\r\n");
+        tx("begins to work.\r\n\r\n");
+        ryl_pause();
+        clw();
+        pm_add_hp(pm, -(it->effect_amount + pm_lv(pm)));
+        pm_hp_floor(pm, 1);
+        return;
+    }
+    if (!strcmp(it->effect_kind, "restore_mana")) {
+        if (pm_is_spellcaster(pm)) {
+            tx("It tingles slightly in\r\n");
+            tx("%s body, as all %s\r\n", pronoun(pm.m, 3), pronoun(pm.m, 3));
+            tx("spell points return.\r\n\r\n");
+            ryl_pause();
+            clw();
+            pm.party->ma[pm.m] = pm.party->wi[pm.m];
+        } else {
+            tx("The potion has no special\r\n");
+            tx("effect on this character.\r\n\r\n");
+            ryl_pause();
+            clw();
+        }
+        return;
     }
 }

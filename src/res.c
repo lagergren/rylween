@@ -1088,6 +1088,24 @@ static void fold_items_section(const node *section, const char *section_key,
         } else {
             it->damage = 0;
         }
+        it->effect_kind = NULL;
+        it->effect_amount = 0;
+        /* §20 S4 consumable-effect spec. Object-form `effect:` is the
+           apply_potion dispatch payload; array-form `effect:` is
+           magic_items' legacy DSL expression and out of scope here.
+           Distinguish by node kind so the two coexist. */
+        const node *effect_n = obj_get(rec, "effect");
+        if (effect_n && effect_n->kind == N_OBJ) {
+            const node *kind_n = obj_get(effect_n, "kind");
+            if (!kind_n || kind_n->kind != N_STR) {
+                res_die(path, effect_n->line,
+                        "items: effect.kind must be string");
+            }
+            it->effect_kind = kind_n->u.sv;
+            const node *amt_n = obj_get(effect_n, "amount");
+            it->effect_amount =
+                (amt_n && amt_n->kind == N_INT) ? amt_n->u.iv : 0;
+        }
         fold_wieldable_by(rec, path);
     }
 }

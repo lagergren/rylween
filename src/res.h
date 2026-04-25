@@ -12,6 +12,13 @@ typedef struct {
     const char *name; /* NULL if no record for this id */
     int32_t cost;
     int32_t damage;
+    /* Optional consumable-effect spec (§20 S4). NULL effect_kind
+       means "not a consumable / no effect". Recognised kinds:
+       "heal" / "poison" / "restore_mana"; new kinds are a one-line
+       branch in apply_potion. amount is the per-kind base; heal/
+       poison add pm_lv at apply time, restore_mana ignores. */
+    const char *effect_kind;
+    int32_t effect_amount;
 } ryl_item;
 
 typedef struct {

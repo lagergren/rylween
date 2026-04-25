@@ -1,6 +1,8 @@
 #ifndef INVENTORY_H__
 #define INVENTORY_H__
 
+#include "state.h" /* pm_t */
+
 /* Party-inventory helpers. state.p[state.cpl].inventory[] is
    1-indexed with size INVENTORY_SLOT_MAX+1 (state.h); every helper
    here iterates slot 1..res_inventory_slot_max() — slot 0 is
@@ -90,5 +92,19 @@ int item_is_magic_item(int id);
    current party. PS_NONE is a no-op. Used by the DSL reward op to
    short-circuit inv_add for specials. */
 void party_award_special(int which);
+
+/* §20 S4: dispatch a potion's data-driven effect onto member `pm`.
+   Looks up the item record by `item_id`, branches on
+   res_item(id)->effect_kind, emits the per-kind narration, and
+   applies the per-kind state mutation (heal / poison adjust hp,
+   restore_mana sets ma to wi for spellcasters). Items without an
+   effect: spec are a no-op. The function owns the surrounding
+   ryl_pause / clw choreography so the caller's switch goes away.
+
+   Pattern is intentionally pre-DSL: the kind strings are matched
+   in C, narration is hardcoded per kind. L3 (battle item-effect
+   switch) extends this scaffold; eventually the per-kind switch
+   here drains into a DSL effect-spec resolver. */
+void apply_potion(int item_id, pm_t pm);
 
 #endif
