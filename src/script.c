@@ -341,6 +341,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
  *          | { item:     <str|int> } res_item_id('torch') / passthrough
  *          | { pic:      <str|int> } res_enum_id('pic', 'inn') / passthrough
  *          | { enum:     [<str>,<str>] } res_enum_id(tab, value)
+ *          | { flag_value:[<str>,<str>] } res_flag_value_id(tag, value)
  *
  * All evaluator failures (bad shape, wrong kind, out-of-range index,
  * divide-by-zero, unknown symbolic flag / binding) dispatch through
@@ -867,6 +868,35 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
             return id;
         }
         return eval_expr(pic_n, script_id, idx, bindings, env);
+    }
+
+    /* `{ flag_value: ['<tag>', '<value>'] }` — resolve a symbolic
+       flag value name through the flag's `values:` array. Mirrors
+       the legacy `if.cond` shorthand's `eq:'name'` resolution path
+       (res_flag_value_id) but in the expression namespace, so
+       comparisons compose: `{ eq: [{flag:'X'}, {flag_value:['X',
+       'val']}] }`. */
+    const node *fv_n = obj_get(n, "flag_value");
+    if (fv_n) {
+        if (fv_n->kind != N_ARR || fv_n->u.arr.n != 2) {
+            die_at(script_id, idx,
+                   "expr flag_value: value must be ['<tag>', '<value>']");
+        }
+        const node *tag_n = fv_n->u.arr.items[0];
+        const node *val_n = fv_n->u.arr.items[1];
+        if (!tag_n || tag_n->kind != N_STR || !val_n || val_n->kind != N_STR) {
+            die_at(script_id, idx,
+                   "expr flag_value: both entries must be strings");
+        }
+        int32_t id = res_flag_value_id(tag_n->u.sv, val_n->u.sv);
+        if (id < 0) {
+            char buf[128];
+            snprintf(buf, sizeof buf,
+                     "expr flag_value: unknown '%s.%s'",
+                     tag_n->u.sv, val_n->u.sv);
+            die_at(script_id, idx, buf);
+        }
+        return id;
     }
 
     /* `{ enum: ['<tab>', '<value>'] }` — generic enum symbol→int

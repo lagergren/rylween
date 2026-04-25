@@ -578,7 +578,8 @@
   tammys_prison: [
     { engine_call: 'clw' },
     { if: {
-        cond: { flag: 'peasant_wife', eq: 'accepted' },
+        cond: { eq: [{ flag:       'peasant_wife' },
+                     { flag_value: ['peasant_wife', 'accepted'] }] },
         then: [
           { emit: 'tammys_prison' },
           { set_flag: 'peasant_wife', value: 'rescued' },
