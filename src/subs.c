@@ -21,7 +21,6 @@ void timehandler() {
 }
 void foodhandler() {
     int32_t i;
-    struct party *p = party_current();
     int mm = res_party_member_max();
 
     // Regenerate mana //
@@ -29,25 +28,25 @@ void foodhandler() {
     for (i = 1; i <= mm; i++) {
         pm_t pm = pm_cur(i);
         if ((pm_is_mage(pm) || pm_is_priest(pm)) &&
-            pm_ma(pm) < pm.party->wi[pm.m] && ryl_chance(regen_pct)) {
-            pm.party->ma[pm.m]++;
+            pm_ma(pm) < pm_wi(pm) && ryl_chance(regen_pct)) {
+            pm_add_ma(pm, 1);
         }
     }
 
     int32_t tick = res_int_path("upkeep.food_tick_every");
     int32_t lv_div = res_int_path("upkeep.food_cost_leader_div");
-    if (tick > 0 && !(p->time_left % tick)) {
-        p->food -= p->pl;
+    if (tick > 0 && !(pa_time_left() % tick)) {
+        pa_add_food(-pa_pl());
         if (lv_div > 0) {
-            p->food -= pa_first_level() / lv_div;
+            pa_add_food(-(pa_first_level() / lv_div));
         }
     }
-    if (p->food < 0) {
-        p->food = 0;
+    if (pa_food() < 0) {
+        pa_set_food(0);
     }
     // Starving routine //
 
-    if (p->food == 0) {
+    if (pa_food() == 0) {
         int32_t damage = res_int_path("upkeep.starve_damage");
         for (i = 1; i <= mm; i++) {
             pm_t pm = pm_cur(i);
@@ -70,41 +69,44 @@ void foodhandler() {
     }
 
     // Time routine //
-    state.p[state.cpl].hours_rested--;
-    if (state.p[state.cpl].hours_rested == 0) {
+    pa_add_hours_rested(-1);
+    if (pa_hours_rested() == 0) {
         clw();
         tx("You begin to feel tired\r\n");
         return;
     }
-    if (state.p[state.cpl].hours_rested == -4) {
+    if (pa_hours_rested() == -4) {
         clw();
         tx("You are exhausted!!!\r\n");
         for (i = 1; i <= res_party_member_max(); i++) {
-            if (state.p[state.cpl].hp[i] > 1) {
-                state.p[state.cpl].hp[i]--;
+            pm_t pm = pm_cur(i);
+            if (pm_hp(pm) > 1) {
+                pm_add_hp(pm, -1);
             }
         }
         return;
     }
-    if (state.p[state.cpl].hours_rested == -8) {
+    if (pa_hours_rested() == -8) {
         clw();
         tx("You begin to feel weak\r\n");
         tx("from lack of sleep.\r\n\r\n");
         for (i = 1; i <= res_party_member_max(); i++) {
-            if (state.p[state.cpl].hp[i] > 1) {
-                state.p[state.cpl].hp[i]--;
+            pm_t pm = pm_cur(i);
+            if (pm_hp(pm) > 1) {
+                pm_add_hp(pm, -1);
             }
         }
         ryl_pause();
         clw();
         return;
     }
-    if (state.p[state.cpl].hours_rested < -8) {
+    if (pa_hours_rested() < -8) {
         clw();
         tx0(res_text("subs.faint"));
         for (i = 1; i <= res_party_member_max(); i++) {
-            if (state.p[state.cpl].hp[i] > 1) {
-                state.p[state.cpl].hp[i]--;
+            pm_t pm = pm_cur(i);
+            if (pm_hp(pm) > 1) {
+                pm_add_hp(pm, -1);
             }
         }
     }
@@ -113,7 +115,6 @@ void random_wilderness() {
     char c;
     int32_t r;
     uint8_t rflag = 0;
-    struct party *p = party_current();
 
     r = ryl_random(0, 99);
 
@@ -122,7 +123,7 @@ void random_wilderness() {
         return;
     }
 
-    if (!(p->time_left % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
+    if (!(pa_time_left() % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
         encounter(res_monster_id("skagerberg_killer"), 1);
     }
 
@@ -130,7 +131,7 @@ void random_wilderness() {
     int32_t quiet_hi = cave_lo + res_int_path("wilderness.quiet_chance");
     if (r >= cave_lo && r < quiet_hi) {
         // Nothing special, see if terrain has changed and display nice message //
-        check_terrain(state.last_terrain, state.map[p->y][p->x]);
+        check_terrain(state.last_terrain, state.map[pa_y()][pa_x()]);
         return;
     }
     if (r < cave_lo) {
@@ -147,8 +148,8 @@ void random_wilderness() {
         }
         if (c == 'E') {
             int32_t cost = res_int_path("wilderness.cave_entry_cost");
-            if (p->time_left > cost) {
-                p->time_left -= cost;
+            if (pa_time_left() > cost) {
+                pa_add_time_left(-cost);
             } else {
                 clw();
                 tx0(res_text("cave.no_moves"));
@@ -242,7 +243,8 @@ void weaponoff() {
     tx("Who? (1-%d)\r\n", res_party_member_max());
     c = key();
     if (pm_digit_in_range(c)) {
-        if (!pm_has_weapon(pm_from_digit(c))) {
+        pm_t pm = pm_from_digit(c);
+        if (!pm_has_weapon(pm)) {
             clw();
             tx("%s has no weapon!\r\n", pronoun(c - 48, 1));
             ryl_delay(800);
@@ -258,10 +260,10 @@ void weaponoff() {
             return;
         } else {
             clw();
-            tx("%s removed.\r\n", object(state.p[state.cpl].wp[c - 48]));
+            tx("%s removed.\r\n", object(pm_wp(pm)));
             ryl_delay(800);
-            state.p[state.cpl].inventory[x] = state.p[state.cpl].wp[c - 48];
-            state.p[state.cpl].wp[c - 48] = 0;
+            pa_set_inventory(x, pm_wp(pm));
+            pm_set_wp(pm, 0);
             clw();
             return;
         }
@@ -276,7 +278,8 @@ void armouroff() {
     tx("Who? (1-%d)\r\n", res_party_member_max());
     c = key();
     if (pm_digit_in_range(c)) {
-        if (!pm_has_armour(pm_from_digit(c))) {
+        pm_t pm = pm_from_digit(c);
+        if (!pm_has_armour(pm)) {
             clw();
             tx("%s has no armour!\r\n", pronoun(c - 48, 1));
             ryl_delay(800);
@@ -292,10 +295,10 @@ void armouroff() {
             return;
         } else {
             clw();
-            tx("%s removed.\r\n", object(state.p[state.cpl].ar[c - 48]));
+            tx("%s removed.\r\n", object(pm_ar(pm)));
             ryl_delay(800);
-            state.p[state.cpl].inventory[x] = state.p[state.cpl].ar[c - 48];
-            state.p[state.cpl].ar[c - 48] = 0;
+            pa_set_inventory(x, pm_ar(pm));
+            pm_set_ar(pm, 0);
             clw();
             return;
         }
@@ -303,7 +306,6 @@ void armouroff() {
     clw();
 }
 void weaponr() {
-    struct party *p = party_current();
     clw();
     invlist();
     char d = (char)toupper(key());
@@ -312,7 +314,7 @@ void weaponr() {
         clw();
         return;
     }
-    int32_t oc = p->inventory[slot];
+    int32_t oc = pa_inventory(slot);
     if (!item_is_weapon(oc)) {
         clw();
         tx("Not a valid weapon.\r\n");
@@ -335,8 +337,8 @@ void weaponr() {
         return;
     }
     int32_t temp = pm_wp(pm);
-    pm_set_wp(pm, p->inventory[slot]);
-    p->inventory[slot] = temp;
+    pm_set_wp(pm, pa_inventory(slot));
+    pa_set_inventory(slot, temp);
     clw();
     tx("Weapon changed.\r\n");
     ryl_delay(600);
@@ -344,7 +346,6 @@ void weaponr() {
     return;
 }
 void armourr() {
-    struct party *p = party_current();
     clw();
     invlist();
     char d = (char)toupper(key());
@@ -353,7 +354,7 @@ void armourr() {
         clw();
         return;
     }
-    int32_t oc = p->inventory[slot];
+    int32_t oc = pa_inventory(slot);
     if (!item_is_armour(oc)) {
         clw();
         tx("Not a valid armour.\r\n");
@@ -376,8 +377,8 @@ void armourr() {
         return;
     }
     int32_t temp = pm_ar(pm);
-    pm_set_ar(pm, p->inventory[slot]);
-    p->inventory[slot] = temp;
+    pm_set_ar(pm, pa_inventory(slot));
+    pa_set_inventory(slot, temp);
     clw();
     tx("Armour changed.\r\n");
     ryl_delay(600);
@@ -392,27 +393,28 @@ uint8_t drop() {
     invlist();
     d = key();
     d = toupper(d);
-    if (d >= 'A' && d <= 'P') {
+    if (inv_letter_in_range(d)) {
+        int slot = inv_slot_from_letter(d);
         clw();
-        if (state.p[state.cpl].inventory[d - 64]) {
+        if (pa_inventory(slot)) {
             tx("You drop the\r\n");
-            tx("%s.\r\n", object(state.p[state.cpl].inventory[d - 64]));
+            tx("%s.\r\n", object(pa_inventory(slot)));
             ryl_delay(1000);
-            if (state.p[state.cpl].inventory[d - 64] == 47) {
+            if (pa_inventory(slot) == 47) {
                 y = inv_count_in_range(47, 47) - 1;
                 int32_t cap = res_formula_int("donkey_food_cap", "y", y);
-                if (state.p[state.cpl].food > cap) {
+                if (pa_food() > cap) {
                     clw();
                     tx("You are forced to\r\n");
                     tx("leave some of your\r\n");
                     tx("food behind...\r\n");
                     ryl_delay(1000);
-                    state.p[state.cpl].food = cap;
+                    pa_set_food(cap);
                 }
             }
-            state.p[state.cpl].inventory[d - 64] = 0;
+            pa_set_inventory(slot, 0);
             clw();
-            return (uint8_t)(d - 64);
+            return (uint8_t)slot;
         } else {
             tx("Nothing to drop.\r\n");
             ryl_delay(600);
@@ -430,7 +432,7 @@ void camp() {
     int32_t i, death, guard = 0, temperature, x;
     char c, d;
 
-    if (state.p[state.cpl].hours_rested > 0) {
+    if (pa_hours_rested() > 0) {
         clw();
         tx("Not tired.\r\n");
         ryl_delay(600);
@@ -466,7 +468,7 @@ void camp() {
             d = key();
             d = toupper(d);
             if (pm_digit_in_range(d)) {
-                if (!(state.p[state.cpl].dead[d - 48])) {
+                if (!pm_dead(pm_from_digit(d))) {
                     break;
                 } else {
                     clw();
@@ -481,7 +483,7 @@ void camp() {
         }
         guard = d - 48;
         clw();
-        tx("%s stands guard.\r\n", state.p[state.cpl].name[d - 48]);
+        tx("%s stands guard.\r\n", pm_name(pm_from_digit(d)));
         tx("%s won't get any\r\n", pronoun(d - 48, 1));
         tx("health back during\r\n");
         tx("this rest.\r\n\r\n");
@@ -542,15 +544,15 @@ void camp() {
     for (i = 1; i <= rest_hours; i++) {
         advance_hour();
     }
-    state.p[state.cpl].hours_rested = hours_rested_reset;
-    int32_t rest_food_cost = food_per_member * state.p[state.cpl].pl;
-    if (state.p[state.cpl].food < rest_food_cost) {
-        state.p[state.cpl].food = 0;
+    pa_set_hours_rested(hours_rested_reset);
+    int32_t rest_food_cost = food_per_member * pa_pl();
+    if (pa_food() < rest_food_cost) {
+        pa_set_food(0);
     } else {
-        state.p[state.cpl].food -= rest_food_cost;
+        pa_add_food(-rest_food_cost);
     }
-    if (state.p[state.cpl].food < 0) {
-        state.p[state.cpl].food = 0;
+    if (pa_food() < 0) {
+        pa_set_food(0);
     }
     for (i = 1; i <= res_party_member_max(); i++) {
         if (i != guard) {
@@ -567,14 +569,15 @@ void camp() {
         clw();
         tx("Ambush!!!\r\n");
         ryl_delay(1000);
-        if (!guard && state.p[state.cpl].pl > 1) {
+        if (!guard && pa_pl() > 1) {
             death = ryl_random(1, 4);
-            tx("%s is dead\r\n", state.p[state.cpl].name[death]);
+            pm_t victim = pm_cur(death);
+            tx("%s is dead\r\n", pm_name(victim));
             tx("before you can\r\n");
             tx("react!!!\r\n\r\n");
-            state.p[state.cpl].hp[death] = 0;
-            state.p[state.cpl].dead[death] = 1;
-            state.p[state.cpl].pl--;
+            pm_set_hp(victim, 0);
+            pm_set_dead(victim, 1);
+            pa_add_pl(-1);
             ryl_pause();
         }
         encounter(res_monster_tier_pick("weak"), 0);
@@ -600,8 +603,8 @@ void quaff() {
         d = key();
         d = toupper(d);
         oc = 0;
-        if (d >= 'A' && d <= 'P') {
-            oc = state.p[state.cpl].inventory[d - 64];
+        if (inv_letter_in_range(d)) {
+            oc = pa_inventory(inv_slot_from_letter(d));
             if (!item_is_potion(oc)) {
                 clw();
                 tx("Not valid.\r\n");
@@ -622,7 +625,7 @@ void quaff() {
         c = key();
         c = toupper(c);
         if (pm_digit_in_range(c)) {
-            if (!state.p[state.cpl].dead[c - 48]) {
+            if (!pm_dead(pm_from_digit(c))) {
                 break;
             } else {
                 clw();
@@ -632,7 +635,7 @@ void quaff() {
             }
         }
     }
-    state.p[state.cpl].inventory[d - 64] = 0;
+    pa_set_inventory(inv_slot_from_letter(d), 0);
     clw();
     tx("Gulp!\r\n\r\n");
     ryl_delay(600);
@@ -649,7 +652,7 @@ void hunt() {
         c = key();
         c = toupper(c);
         if (pm_digit_in_range(c)) {
-            if (!state.p[state.cpl].dead[c - 48]) {
+            if (!pm_dead(pm_from_digit(c))) {
                 break;
             } else {
                 clw();
@@ -670,12 +673,12 @@ void hunt() {
     int32_t hunt_chance = res_int_path("balance.hunt.success_chance");
     int32_t hunt_food_min = res_int_path("balance.hunt.food_min");
     int32_t hunt_food_max = res_int_path("balance.hunt.food_max");
-    if (state.p[state.cpl].time_left < hunt_cost) {
+    if (pa_time_left() < hunt_cost) {
         tx("Too few moves for that.\r\n");
         ryl_delay(1000);
         return;
     }
-    state.p[state.cpl].time_left -= hunt_cost;
+    pa_add_time_left(-hunt_cost);
     tx("%s tries\r\n", pm_name(pm_from_digit(c)));
     tx("to trap a rabbit...\r\n");
     ryl_delay(1400);
@@ -684,7 +687,7 @@ void hunt() {
         tx("...and succeeds.\r\n");
         tx("The party gains\r\n");
         tx("%d food rations.\r\n\r\n", fdplus);
-        state.p[state.cpl].food += fdplus;
+        pa_add_food(fdplus);
         ryl_pause();
         clw();
         return;
@@ -767,7 +770,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
+            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
             tx("Who? (1-%d)\r\n", res_party_member_max());
             while (1) {
                 d = key();
@@ -775,21 +778,22 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            x = ryl_random(10, 19) + (state.p[state.cpl].lv[who] * 2);
-            if (state.p[state.cpl].dead[d - 48]) {
+            x = ryl_random(10, 19) + (pm_lv(caster) * 2);
+            pm_t target = pm_from_digit(d);
+            if (pm_dead(target)) {
                 clw();
                 tx("Dead.\r\n");
                 ryl_delay(600);
                 clw();
                 break;
             }
-            state.p[state.cpl].hp[d - 48] += x;
-            if (state.p[state.cpl].hp[d - 48] > state.p[state.cpl].h[d - 48]) {
-                state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
+            pm_add_hp(target, x);
+            if (pm_hp(target) > pm_h(target)) {
+                pm_set_hp(target, pm_h(target));
             }
             clw();
-            tx("%s heals\r\n", state.p[state.cpl].name[who]);
-            tx("%s\r\n", state.p[state.cpl].name[d - 48]);
+            tx("%s heals\r\n", pm_name(caster));
+            tx("%s\r\n", pm_name(target));
             tx("for %d hit points...\r\n", x);
             ryl_delay(1500);
             clw();
@@ -803,7 +807,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
+            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
             tx("Who? (1-%d)\r\n", res_party_member_max());
             while (1) {
                 d = key();
@@ -811,10 +815,13 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            state.p[state.cpl].hp[d - 48] = state.p[state.cpl].h[d - 48];
-            clw();
-            tx("%s heals\r\n", state.p[state.cpl].name[who]);
-            tx("%s\r\n", state.p[state.cpl].name[d - 48]);
+            {
+                pm_t r = pm_from_digit(d);
+                pm_set_hp(r, pm_h(r));
+                clw();
+                tx("%s heals\r\n", pm_name(caster));
+                tx("%s\r\n", pm_name(r));
+            }
             tx("fully...\r\n");
             ryl_delay(1500);
             clw();
@@ -835,19 +842,22 @@ void spell(int32_t place) {
                     break;
                 }
             }
-            if (!state.p[state.cpl].dead[d - 48]) {
-                tx("%s is alive and\r\n", state.p[state.cpl].name[d - 48]);
-                tx("healthy.\r\n");
-                ryl_delay(1500);
-                break;
+            {
+                pm_t r = pm_from_digit(d);
+                if (!pm_dead(r)) {
+                    tx("%s is alive and\r\n", pm_name(r));
+                    tx("healthy.\r\n");
+                    ryl_delay(1500);
+                    break;
+                }
+                pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
+                pm_set_dead(r, 0);
+                pm_set_hp(r, 1);
+                clw();
+                tx("%s's eyelids\r\n", pm_name(r));
+                tx("flicker, and finally\r\n");
+                tx("%s opens %s eyes!\r\n", pronoun(d - 48, 1), pronoun(d - 48, 3));
             }
-            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
-            state.p[state.cpl].dead[d - 48] = 0;
-            state.p[state.cpl].hp[d - 48] = 1;
-            clw();
-            tx("%s's eyelids\r\n", state.p[state.cpl].name[d - 48]);
-            tx("flicker, and finally\r\n");
-            tx("%s opens %s eyes!\r\n", pronoun(d - 48, 1), pronoun(d - 48, 3));
             ryl_delay(1700);
             clw();
             break;
@@ -869,9 +879,9 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
+            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
             clw();
-            tx("%s raises %s hands.\r\n", state.p[state.cpl].name[who], pronoun(who, 3));
+            tx("%s raises %s hands.\r\n", pm_name(caster), pronoun(who, 3));
             tx("%s gathers divine power\r\n", pronoun(who, 1));
             tx("between %s palms, and\r\n", pronoun(who, 3));
             tx("suddenly clasps them.\r\n");
@@ -899,7 +909,7 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
+            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
             if (ryl_chance(59)) {
                 clw();
                 tx("There is nothing\r\n");
@@ -953,9 +963,9 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
+            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
             clw();
-            tx("%s carefully\r\n", state.p[state.cpl].name[who]);
+            tx("%s carefully\r\n", pm_name(caster));
             tx("prepares the ritual of\r\n");
             tx("Teleportation. %s spends\r\n", pronoun(who, 1));
             tx("an hour chanting mantras\r\n");
@@ -987,29 +997,29 @@ void spell(int32_t place) {
             switch (d) {
                 case '2':
                     for (i = 1; i < ((b - 48) * 2) + 1; i++) {
-                        if (state.map[state.p[state.cpl].y + 1][state.p[state.cpl].x] != 'm') {
-                            state.p[state.cpl].y++;
+                        if (state.map[pa_y() + 1][pa_x()] != 'm') {
+                            pa_add_y(1);
                         }
                     }
                     break;
                 case '4':
                     for (i = 1; i < ((b - 48) * 2) + 1; i++) {
-                        if (state.map[state.p[state.cpl].y][state.p[state.cpl].x - 1] != 'm') {
-                            state.p[state.cpl].x--;
+                        if (state.map[pa_y()][pa_x() - 1] != 'm') {
+                            pa_add_x(-1);
                         }
                     }
                     break;
                 case '6':
                     for (i = 1; i < ((b - 48) * 2) + 1; i++) {
-                        if (state.map[state.p[state.cpl].y][state.p[state.cpl].x + 1] != 'm') {
-                            state.p[state.cpl].x++;
+                        if (state.map[pa_y()][pa_x() + 1] != 'm') {
+                            pa_add_x(1);
                         }
                     }
                     break;
                 case '8':
                     for (i = 1; i < ((b - 48) * 2) + 1; i++) {
-                        if (state.map[state.p[state.cpl].y - 1][state.p[state.cpl].x] != 'm') {
-                            state.p[state.cpl].y--;
+                        if (state.map[pa_y() - 1][pa_x()] != 'm') {
+                            pa_add_y(-1);
                         }
                     }
                     break;
@@ -1035,8 +1045,8 @@ void spell(int32_t place) {
                 clw();
                 break;
             }
-            state.p[state.cpl].ma[who] -= (s->base_cost + pm_lv(caster));
-            tx("%s utters\r\n", state.p[state.cpl].name[who]);
+            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
+            tx("%s utters\r\n", pm_name(caster));
             tx0(res_text("spell.priest.earthquake.incantation"));
             ryl_delay(2000);
             tx0(res_text("spell.priest.earthquake.eruption"));
@@ -1053,8 +1063,8 @@ void spell(int32_t place) {
                 }
             }
             if (c == 'E') {
-                if (state.p[state.cpl].time_left > 10) {
-                    state.p[state.cpl].time_left -= 10;
+                if (pa_time_left() > 10) {
+                    pa_add_time_left(-10);
                 } else {
                     clw();
                     tx0(res_text("cave.no_moves"));
