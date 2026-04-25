@@ -7,9 +7,11 @@
 // All ranger / dead checks go through engine_int helpers
 // (pa_is_class / pa_is_dead) so single-ownership of party state
 // stays unbroken.
-{
-  hunt: [
-    // --- Pick a member: loop until a live member's digit lands.
+//
+// Imported as scripts.hunt (top-level array), so play_script("hunt")
+// in subs.c walks straight to this body.
+[
+  // --- Pick a member: loop until a live member's digit lands.
     //     Non-digits silently re-loop (matches the original `key()`
     //     spin); dead picks emit "Dead." and re-loop after 600ms.
     { let: 'who', value: 0 },
@@ -85,5 +87,4 @@
           } },
         ],
     } },
-  ],
-}
+]

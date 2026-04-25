@@ -115,6 +115,8 @@
     missions: { $import: 'world/texts/missions.json5' },
     terrain: { $import: 'world/texts/terrain.json5' },
     dungeon: { $import: 'world/texts/dungeon.json5' },
+    hunt:   { $import: 'world/texts/hunt.json5' },
+    rest:   { $import: 'world/texts/rest.json5' },
   },
 
   // §16.4 dialogue scripts — arrays of one-op objects the interpreter
@@ -127,6 +129,9 @@
     towne: { $import: 'world/scripts/towne.json5' },
     terrain: { $import: 'world/scripts/terrain.json5' },
     dungeon: { $import: 'world/scripts/dungeon.json5' },
+    hunt: { $import: 'world/scripts/hunt.json5' },
+    rest: { $import: 'world/scripts/rest.json5' },
+    lodge: { $import: 'world/scripts/lodge.json5' },
   },
 
   // §20 S8: speak.c per-NPC mission stage tables. Top-level keys are

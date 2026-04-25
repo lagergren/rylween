@@ -12,9 +12,11 @@
 //   ambush_pct, health_gain, food_per_member, rest_hours,
 //   hours_rested_reset, temp_max, temp_low_lo, temp_low_hi,
 //   temp_very_low_lo, temp_low_dmg, temp_very_low_dmg
-{
-  rest: [
-    // --- Early outs -------------------------------------------------
+//
+// Imported as scripts.rest (top-level array), so play_script("rest")
+// in subs.c walks straight to this body.
+[
+  // --- Early outs -------------------------------------------------
     { if: {
         cond: { gt: [{ hours_rested: 0 }, 0] },
         then: [
@@ -231,5 +233,4 @@
           } },
         ],
     } },
-  ],
-}
+]
