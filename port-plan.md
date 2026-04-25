@@ -4994,6 +4994,26 @@ combat-attack-win) already pins the player-side combat path
 byte-for-byte, so §23.A's monster extractions land against
 known-good baselines.
 
+**§23.F — ydarg "stairs" item-trade flow.** The Baron Ydarg
+endgame in `src/ydarg.c` includes a mage-room subflow where
+the player descends a staircase, picks one of five quest
+items to surrender, and on success the wizard awards a stat
+boost. Currently this is a `switch (d - 48)` over the four
+special-item arms (fireshield / mastercrown / jazzyfoot /
+bracelets) plus a transparent "T" teleport-out branch — raw
+ASCII-digit math, four near-identical case bodies, all
+inline. The shape mirrors a small dungeon: keypress prompt,
+per-arm gating + state mutation, success/failure narration.
+The right lift is into `data/world/scripts/ydarg.json5`
+(new shard) as a `menu_branch` over `keys: ['1','2','3','4',
+'5','T']` with each `then:` body checking the matching
+`pa_special` via expr (or via a new flag) and using `mutate
+state_*` lvalues to clear it on success. Replaces the raw
+`d - 48` switch with the same pattern §20 L7 used for the
+camp/hunt/lodge flows. Effort: ~0.5 session; can land any
+time after §22 closes — independent of §23.A/B's combat-side
+work since this is exploration UI, not combat.
+
 §22.13 — Continuation prompt (session close, 2026-04-26)
 
 Continuation of §22.11. Three commits this session, both
