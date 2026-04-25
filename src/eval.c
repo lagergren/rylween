@@ -14,6 +14,7 @@
  */
 
 #include "eval.h"
+#include "battle.h"
 #include "json5.h"
 #include "party.h"
 #include "res.h"
@@ -1265,7 +1266,66 @@ void eval_effect(const node *n, env_t *e) {
         return;
     }
     if (strcmp(op, "spawn_encounter") == 0) {
-        rdie(n->line, "spawn_encounter: engine hook not wired up");
+        /* §20 S7. Two spec shapes:
+             - bare string: foe symbol -> res_monster_id (mandatory=0).
+             - object: { monster:'<sym>' | tier:'<name>', mandatory? }
+                       monster picks a specific id; tier picks a random
+                       monster from that tier band. mandatory defaults
+                       to false. */
+        const node *spec = n->u.arr.items[1];
+        int32_t foe = -1;
+        int32_t mandatory = 0;
+        if (spec->kind == N_STR) {
+            foe = res_monster_id(spec->u.sv);
+            if (foe < 0) {
+                rdie(spec->line,
+                     "spawn_encounter: unknown monster symbol");
+            }
+        } else if (spec->kind == N_OBJ) {
+            const node *m_n = obj_get(spec, "monster");
+            const node *t_n = obj_get(spec, "tier");
+            if (m_n && t_n) {
+                rdie(spec->line,
+                     "spawn_encounter: monster and tier are mutually exclusive");
+            }
+            if (m_n) {
+                if (m_n->kind != N_STR) {
+                    rdie(m_n->line,
+                         "spawn_encounter: monster must be string");
+                }
+                foe = res_monster_id(m_n->u.sv);
+                if (foe < 0) {
+                    rdie(m_n->line,
+                         "spawn_encounter: unknown monster symbol");
+                }
+            } else if (t_n) {
+                if (t_n->kind != N_STR) {
+                    rdie(t_n->line,
+                         "spawn_encounter: tier must be string");
+                }
+                foe = res_monster_tier_pick(t_n->u.sv);
+                if (foe <= 0) {
+                    rdie(t_n->line,
+                         "spawn_encounter: tier produced no monster");
+                }
+            } else {
+                rdie(spec->line,
+                     "spawn_encounter: spec needs monster or tier");
+            }
+            const node *m_man = obj_get(spec, "mandatory");
+            if (m_man) {
+                if (m_man->kind != N_BOOL) {
+                    rdie(m_man->line,
+                         "spawn_encounter: mandatory must be boolean");
+                }
+                mandatory = m_man->u.bv ? 1 : 0;
+            }
+        } else {
+            rdie(spec->line,
+                 "spawn_encounter: spec must be string or object");
+        }
+        encounter(foe, mandatory);
+        return;
     }
     if (strcmp(op, "call") == 0) {
         rdie(n->line, "call: lib subtree not yet consulted");
