@@ -502,13 +502,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     mh[who] = 0;
                                 }
                                 break;
-                            case SE_HOLD:
-                                clw();
-                                tx("%s utters a word.\r\n", pm_name(caster));
-                                tx0(res_text("battle.spell.hold_enemy"));
-                                ryl_delay(2000);
-                                held = 1;
-                                break;
                             case SE_ANTIMAGIC:
                                 clw();
                                 tx("%s utters a word.\r\n", pm_name(caster));

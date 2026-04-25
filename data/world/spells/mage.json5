@@ -93,6 +93,19 @@
     ],
   },
   death:     { slot: 4, base_cost: 78, name: 'Death Strike',  legacy_effect: 'death' },
-  hold:      { slot: 5, base_cost: 43, name: 'Hold Enemies',  legacy_effect: 'hold' },
+  // §22 Lane A: hold. Sets the encounter-local held flag; the
+  // monster-turn loop in battle.c gates monster actions on !held.
+  hold: {
+    slot: 5, base_cost: 43, name: 'Hold Enemies',
+    do: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { emit: 'battle.spell.utters_word' },
+      { emit: 'battle.spell.hold_enemy' },
+      { pause: 2000 },
+      { mutate: { target: { battle_flag: 'held' }, op: 'set', value: 1 }},
+    ],
+  },
   antimagic: { slot: 6, base_cost: 28, name: 'Anti Magic',    legacy_effect: 'antimagic' },
 }
