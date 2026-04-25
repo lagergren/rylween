@@ -16,6 +16,13 @@
       target: ['{target}'],
       fully:  ['fully...'],
     },
+    rebirth: {
+      alive:      ['{target} is alive and'],
+      healthy:    ['healthy.'],
+      eyelids:    ["{target}'s eyelids"],
+      flicker:    ['flicker, and finally'],
+      opens_eyes: ['{tgt_subj} opens {tgt_poss} eyes!'],
+    },
     banish: {
       thunder: ['There is a deafening clap',
                 'of thunder, and you hear',

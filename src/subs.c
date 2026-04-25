@@ -623,41 +623,6 @@ void spell(int32_t place) {
     }
 
     switch (s->effect) {
-        case SE_REBIRTH:
-            clw();
-            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx0(res_text("spell.not_enough_pts"));
-                ryl_delay(1000);
-                clw();
-                break;
-            }
-            tx("Who? (1-%d)\r\n", res_party_member_max());
-            while (1) {
-                d = key();
-                if (pm_digit_in_range(d)) {
-                    break;
-                }
-            }
-            {
-                pm_t r = pm_from_digit(d);
-                if (!pm_dead(r)) {
-                    tx("%s is alive and\r\n", pm_name(r));
-                    tx("healthy.\r\n");
-                    ryl_delay(1500);
-                    break;
-                }
-                pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
-                pm_set_dead(r, 0);
-                pm_set_hp(r, 1);
-                clw();
-                tx("%s's eyelids\r\n", pm_name(r));
-                tx("flicker, and finally\r\n");
-                tx("%s opens %s eyes!\r\n", pronoun(d - 48, 1), pronoun(d - 48, 3));
-            }
-            ryl_delay(1700);
-            clw();
-            break;
-
         case SE_BANISH:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {

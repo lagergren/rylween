@@ -107,7 +107,66 @@
       }},
     ],
   },
-  rebirth:     { slot: 3, base_cost: 90, name: 'Rebirth',     legacy_effect: 'rebirth' },
+  // §22 Lane A: rebirth. Two early-exit paths nest inside the mana
+  // gate: target-already-alive (no mana cost!) and the revival arm
+  // (deduct after the dead-check, set dead=0 + hp=1, narrate).
+  // Mana stays uncharged when the target is alive — preserved
+  // verbatim from the legacy SE_REBIRTH which sets pm_add_ma only
+  // inside the dead branch.
+  rebirth: {
+    slot: 3, base_cost: 90, name: 'Rebirth',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'ma' },
+          { add: [90, { member: { var: 'caster_idx' }, field: 'lv' }] },
+        ]},
+        then: [
+          { ask_target: 'party_member', var: 'target_idx' },
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'target_idx' }],
+                           var: 'target' }},
+          { if: { cond: { eq: [
+              { member: { var: 'target_idx' }, field: 'dead' }, 1 ]},
+            then: [
+              { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                    field: 'ma' } },
+                          op: 'sub',
+                          value: { add: [90, { member: { var: 'caster_idx' },
+                                                         field: 'lv' }] } }},
+              { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                    field: 'dead' } },
+                          op: 'set', value: 0 }},
+              { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                    field: 'hp' } },
+                          op: 'set', value: 1 }},
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'pronoun',
+                               args: [{ var: 'target_idx' }, 'subject'],
+                               var: 'tgt_subj' }},
+              { engine_bind: { fn: 'pronoun',
+                               args: [{ var: 'target_idx' }, 'possessive'],
+                               var: 'tgt_poss' }},
+              { emit: 'spell.priest.rebirth.eyelids' },
+              { emit: 'spell.priest.rebirth.flicker' },
+              { emit: 'spell.priest.rebirth.opens_eyes' },
+              { pause: 1700 },
+              { engine_call: 'clw' },
+            ],
+            else: [
+              { emit: 'spell.priest.rebirth.alive' },
+              { emit: 'spell.priest.rebirth.healthy' },
+              { pause: 1500 },
+            ],
+          }},
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
   banish:      { slot: 4, base_cost: 85, name: 'Banish Evil', legacy_effect: 'banish' },
   revelation:  { slot: 5, base_cost: 40, name: 'Revelation',  legacy_effect: 'revelation' },
   teleport:    { slot: 6, base_cost: 35, name: 'Teleport',    legacy_effect: 'teleport' },
