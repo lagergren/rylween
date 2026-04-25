@@ -340,12 +340,19 @@ static void position_locations() {
         state.dy[i] = 0;
     }
 
+    int32_t x_lo = res_int_path("map.location_bounds.x_min");
+    int32_t x_hi = res_int_path("map.location_bounds.x_max");
+    int32_t y_lo = res_int_path("map.location_bounds.y_min");
+    int32_t y_hi = res_int_path("map.location_bounds.y_max");
+    const char *avoid = res_str_path("map.dungeon_avoid");
+    if (!avoid) {
+        avoid = "";
+    }
     for (i = 1; i < 10; i++) {
         while (1) {
-            state.dx[i] = ryl_random(5, 74);
-            state.dy[i] = ryl_random(5, 34);
-            if (state.map[state.dy[i]][state.dx[i]] != 'w' && state.map[state.dy[i]][state.dx[i]] != 'm' && state.map[state.dy[i]][state.dx[i]] != '0' &&
-                state.map[state.dy[i]][state.dx[i]] != '1' && state.map[state.dy[i]][state.dx[i]] != '2') {
+            state.dx[i] = ryl_random(x_lo, x_hi);
+            state.dy[i] = ryl_random(y_lo, y_hi);
+            if (!strchr(avoid, state.map[state.dy[i]][state.dx[i]])) {
                 break;
             }
         }
@@ -367,7 +374,8 @@ void init() {
         ryl_pause();
         cleanexit();
     }
-    for (i = 1; i < 41; i++) {
+    int32_t map_rows = res_int_path("map.rows");
+    for (i = 1; i <= map_rows; i++) {
         fgets((char *)state.map[i], sizeof(state.map[i]), fh);
     }
     fclose(fh);

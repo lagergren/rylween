@@ -173,6 +173,23 @@
   //                                            encounter_easy_tier vs
   //                                            encounter_hard_tier
   //                                            (monster 'tier' keyword).
+  // §20 S10: world-map dimensions and placement rules. `rows` is how
+  // many lines driv.c::init reads from data/map.dat into state.map[]
+  // (slots 1..rows; row 0 stays zero so res-driven walls aren't
+  // overwritten). `location_bounds` are the inclusive-min,
+  // exclusive-max (x,y) box that position_locations rejects ouside
+  // of when picking a random dungeon-cave coord. `dungeon_avoid`
+  // lists every tile char position_locations re-rolls on so
+  // dungeons land on plain/forest/foothill/desert/swamp.
+  map: {
+    rows: 40,
+    location_bounds: {
+      x_min: 5, x_max: 74,
+      y_min: 5, y_max: 34,
+    },
+    dungeon_avoid: 'wm012',
+  },
+
   wilderness: {
     cave_chance:        3,
     quiet_chance:       91,
