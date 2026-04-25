@@ -569,6 +569,10 @@ static int32_t ie_pa_party_member_max(const int32_t *a) {
     (void)a;
     return res_party_member_max();
 }
+static int32_t ie_inv_slot_max(const int32_t *a) {
+    (void)a;
+    return res_inventory_slot_max();
+}
 static int32_t ie_wld_location_x(const int32_t *a) {
     return wld_location_x((int)a[0]);
 }
@@ -591,6 +595,7 @@ static const int_engine_entry int_engine_tbl[] = {
     {"inv_find_in_range",    2, ie_inv_find_in_range,    {"item", "item"}},
     {"inv_count_in_range",   2, ie_inv_count_in_range,   {"item", "item"}},
     {"pa_party_member_max",  0, ie_pa_party_member_max,  {0}},
+    {"inv_slot_max",         0, ie_inv_slot_max,         {0}},
     {"wld_location_x",       1, ie_wld_location_x,       {"world_locations"}},
     {"wld_location_y",       1, ie_wld_location_y,       {"world_locations"}},
 };
@@ -1842,19 +1847,24 @@ static ops_result do_if(const node *op, const char *script_id, size_t idx,
 }
 
 /* Does the N_STR `key_n` pattern match the uppercased input `ch`?
-   Accepts four per-option shapes: `key: 'K'` (single char),
+   Accepts five per-option shapes: `key: 'K'` (single char),
    `keys: ['A','B',...]` (any listed char), `key_range: ['LO','HI']`
-   (ASCII-inclusive range after upper-casing), and
+   (ASCII-inclusive literal range after upper-casing),
    `digit_range: { lo:<int-expr>, hi:<int-expr> }` (digit-char range
    evaluated dynamically via eval_expr — both bounds must land in
-   [1, 9]). Returns 1 on match. Fatal on malformed option.
+   [1, 9]), and `letter_range: { lo: 'A', count: <int-expr> }` (the
+   letter analogue of digit_range — N consecutive letters starting
+   at lo, count evaluated dynamically). Returns 1 on match. Fatal
+   on malformed option.
 
-   key_range remains the literal-char path (covers letter ranges
-   like ['A','P'] and fixed digit ranges like ['1','6'] for shop
-   menus). digit_range is the dynamic-bound shape — used where the
-   bound depends on something like res_party_member_max(); the DSL
-   author writes e.g. { lo: 1, hi: { engine_int: 'pa_party_member_max' } }
-   and the evaluator picks up whatever the engine exposes today. */
+   key_range remains the literal-char path (covers fixed letter and
+   digit ranges like ['A','G'] and ['1','6'] for shop menus).
+   digit_range and letter_range are the dynamic-bound shapes —
+   used where the bound depends on something like
+   res_party_member_max() / res_inventory_slot_max(). With
+   letter_range, the matched 1-based offset (`ch - lo + 1`) is
+   bound into rt_env via the option's optional `index_var:` so
+   scripts read the slot directly without ASCII arithmetic. */
 static int menu_opt_matches(const node *o, char ch, const char *script_id,
                             size_t idx, const ryl_bind *bindings,
                             const rt_env *env) {
@@ -1862,17 +1872,18 @@ static int menu_opt_matches(const node *o, char ch, const char *script_id,
     const node *keys_n = obj_get(o, "keys");
     const node *range_n = obj_get(o, "key_range");
     const node *digit_n = obj_get(o, "digit_range");
+    const node *letter_n = obj_get(o, "letter_range");
     int shapes = (key_n != NULL) + (keys_n != NULL) + (range_n != NULL) +
-                 (digit_n != NULL);
+                 (digit_n != NULL) + (letter_n != NULL);
     if (shapes == 0) {
         die_at(script_id, idx,
-               "menu_branch: option needs key, keys, key_range, or "
-               "digit_range");
+               "menu_branch: option needs key, keys, key_range, "
+               "digit_range, or letter_range");
     }
     if (shapes > 1) {
         die_at(script_id, idx,
-               "menu_branch: option key / keys / key_range / digit_range "
-               "are mutually exclusive");
+               "menu_branch: key / keys / key_range / digit_range / "
+               "letter_range are mutually exclusive");
     }
     if (key_n) {
         if (key_n->kind != N_STR || key_n->u.sv[0] == 0 ||
@@ -1927,6 +1938,42 @@ static int menu_opt_matches(const node *o, char ch, const char *script_id,
         int32_t cv = ch - '0';
         return cv >= lo_v && cv <= hi_v;
     }
+    if (letter_n) {
+        if (letter_n->kind != N_OBJ) {
+            die_at(script_id, idx,
+                   "menu_branch: letter_range must be object");
+        }
+        const node *lo_n = obj_get(letter_n, "lo");
+        const node *count_e = obj_get(letter_n, "count");
+        if (!lo_n || !count_e) {
+            die_at(script_id, idx,
+                   "menu_branch: letter_range needs lo and count");
+        }
+        if (lo_n->kind != N_STR || lo_n->u.sv[0] == 0 ||
+            lo_n->u.sv[1] != 0) {
+            die_at(script_id, idx,
+                   "menu_branch: letter_range lo must be one-char string");
+        }
+        char lo = (char)toupper((unsigned char)lo_n->u.sv[0]);
+        if (lo < 'A' || lo > 'Z') {
+            die_at(script_id, idx,
+                   "menu_branch: letter_range lo must be A..Z");
+        }
+        int32_t count = eval_expr(count_e, script_id, idx, bindings, env);
+        if (count < 0) {
+            die_at(script_id, idx,
+                   "menu_branch: letter_range count must be >= 0");
+        }
+        if (count == 0) {
+            return 0;
+        }
+        if (lo + count - 1 > 'Z') {
+            die_at(script_id, idx,
+                   "menu_branch: letter_range overflows past Z");
+        }
+        char hi = (char)(lo + count - 1);
+        return ch >= lo && ch <= hi;
+    }
     /* range_n (literal-char key_range) */
     if (range_n->kind != N_ARR || range_n->u.arr.n != 2) {
         die_at(script_id, idx,
@@ -1952,8 +1999,8 @@ static int menu_opt_matches(const node *o, char ch, const char *script_id,
    key_var: '<name>'?, options: [...], default: [...] } }. Optional
    `prompt` names a screen text id (parent-relative, like `screen`)
    emitted before the keypress; omit to stack on an earlier tx_fmt /
-   screen. Each option carries exactly one of `key:'K'`,
-   `keys:['A','B',...]`, or `key_range:['LO','HI']`. Optional
+   screen. See menu_opt_matches for the per-option shapes (key /
+   keys / key_range / digit_range / letter_range). Optional
    top-level `key_var` binds the matched (uppercased) key as a
    one-char string into rt_env for the selected then: body — the
    caller can then reference it as `{<key_var>}` inside nested
@@ -2008,6 +2055,22 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         }
         if (!menu_opt_matches(o, ch, script_id, idx, bindings, env)) {
             continue;
+        }
+        /* letter_range: bind the 1-based slot index (`ch - lo + 1`)
+           into rt_env so the body can use {var:'<index_var>'} or
+           {<index_var>} directly. menu_opt_matches already validated
+           lo / count, so the lo lookup here is safe. */
+        const node *letter_n = obj_get(o, "letter_range");
+        const node *index_var_n = obj_get(o, "index_var");
+        if (letter_n && index_var_n) {
+            if (index_var_n->kind != N_STR) {
+                die_at(script_id, idx,
+                       "menu_branch: index_var must be string");
+            }
+            const node *lo_n = obj_get(letter_n, "lo");
+            char lo = (char)toupper((unsigned char)lo_n->u.sv[0]);
+            int32_t slot = (int32_t)(ch - lo + 1);
+            rt_bind_set(env, index_var_n->u.sv, slot, script_id, idx);
         }
         const node *then_n = obj_get(o, "then");
         if (!then_n) {

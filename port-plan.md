@@ -3733,9 +3733,23 @@ Small focused changes after A+B; can do per-shard.
   C, not in the data DSL.
 
 **D. Inventory letter-range dynamic bound** (tier 3, item 8).
-Engine extension: add `letter_range` op-option with
-`count: <expr>`, `index_var:`, `letter_var:`. Sweep 4 towne.json5
-sites; drop two `sub:N` conversions.
+**LANDED 2026-04-25.** Engine extension: add `letter_range`
+op-option with `count: <expr>`, `index_var:`, `letter_var:`.
+Sweep 4 towne.json5 sites; drop two `sub:N` conversions.
+
+  Landed: new `letter_range: { lo: 'A', count: <expr> }` option
+  variant on `menu_branch` (parallel to `digit_range`), with
+  optional sibling `index_var:` that binds the matched 1-based
+  slot (`ch - lo + 1`) into rt_env. New `engine_int: 'inv_slot_max'`
+  exposes `res_inventory_slot_max()` so scripts read the dynamic
+  bound directly. Sweep: 2 sell-shop sites in towne.json5 (the
+  bargain-flow and the merchant `(S)ell` arm) — both lose their
+  `key_range:['A','P']` + `sub:[sell_key,64]` pair and read
+  `slot` from index_var. The buy-menu `key_range:['A','G']` site
+  stays as-is — its A..G letters map to specific item ids via a
+  fixed table, not to inventory slots, so letter_range doesn't
+  apply. Briefing's "4 sites" was an overcount; only the two
+  ['A','P'] sites are inventory-slot decoders.
 
 **E. Op-shape consistency** (tier 4, items 9-12). After A-D land.
 
@@ -3771,17 +3785,17 @@ order to land them: A (spell DSL convergence) and B (enum
 shape) can run in parallel; both unlock C+D+E. F depends on
 A. G is the documentation pass after the surface stabilises.
 
-B and C have landed (2026-04-25). Remaining: A, D, E, F, G.
-There is no "blocking" priority among A vs D+E —
+B, C, D have landed (2026-04-25). Remaining: A, E, F, G.
+There is no "blocking" priority among A vs E —
 whichever migration is most pressing for the next gameplay
 slice should drive. If no slice is pressing, A is the highest
 absolute leverage because retiring `eval.c` immediately
 collapses ~1400 lines of engine and removes one of the two
-languages a reader has to learn. D/E are independent and
-cheap (~½ session each); good warm-ups before A.
+languages a reader has to learn. E is independent and cheap
+(~½ session); a final warm-up before A.
 
 Estimated remaining work: ~1-2 sessions for A, ~0.5 session
-for each of D/E/F, ~0.5 session for G. Cumulative ~3-5
+for each of E/F, ~0.5 session for G. Cumulative ~2.5-4
 sessions if done sequentially.
 
 ### 22.4 Non-goals

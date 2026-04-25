@@ -533,8 +533,9 @@
                             { menu_branch: {
                                 key_var: 'sell_key',
                                 options: [
-                                  { key_range: ['A', 'P'], then: [
-                                    { let: 'slot', value: { sub: [{ var: 'sell_key' }, 64] } },
+                                  { letter_range: { lo: 'A', count: { engine_int: 'inv_slot_max' } },
+                                    index_var: 'slot',
+                                    then: [
                                     { let: 'item_id', value: { inventory: { var: 'slot' } } },
                                     { let: 'price', value: { div: [{ obcost: { var: 'item_id' } }, 2] } },
                                     { if: {
@@ -1337,8 +1338,9 @@
                     { menu_branch: {
                         key_var: 'sell_key',
                         options: [
-                          { key_range: ['A', 'P'], then: [
-                            { let: 'slot', value: { sub: [{ var: 'sell_key' }, 64] } },
+                          { letter_range: { lo: 'A', count: { engine_int: 'inv_slot_max' } },
+                            index_var: 'slot',
+                            then: [
                             { let: 'item_id', value: { inventory: { var: 'slot' } } },
                             { if: {
                                 // Reject anything below `torch` (id 31 — that's
