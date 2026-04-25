@@ -158,7 +158,7 @@
                           cond: { engine_int: 'pa_is_alive', args: [{ var: 'who' }] },
                           then: [
                             { engine_call: 'clw' },
-                            { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 1], var: 'pro_sub' } },
+                            { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'subject'], var: 'pro_sub' } },
                             { emit: 'alive' },
                             { pause: 1200 },
                           ],
@@ -183,7 +183,7 @@
                                           { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'dead' } }, op: 'set', value: 0 } },
                                           { mutate: { target: { pl: 0 }, op: 'add', value: 1 } },
                                           { engine_call: 'clw' },
-                                          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 2], var: 'pro_obj' } },
+                                          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'object'], var: 'pro_obj' } },
                                           { emit: 'raised' },
                                           { pause: 1000 },
                                         ],
@@ -224,7 +224,7 @@
                           ] },
                           then: [
                             { engine_call: 'clw' },
-                            { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 1], var: 'pro_sub' } },
+                            { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'subject'], var: 'pro_sub' } },
                             { emit: 'no_healing' },
                             { pause: 1000 },
                           ],
@@ -255,7 +255,7 @@
                                         else: [
                                           { engine_call: 'clw' },
                                           { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
-                                          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 2], var: 'pro_obj' } },
+                                          { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'object'], var: 'pro_obj' } },
                                           { emit: 'healed' },
                                           { pause: 1000 },
                                           { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hp' } },

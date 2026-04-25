@@ -1367,10 +1367,24 @@ static void sb_object(const int32_t *ints, const char **strs, char *out,
     (void)strs;
     snprintf(out, out_sz, "%s", object(ints[0]));
 }
+/* §20 L2: pronoun's grammatical-case arg now reads as a symbol —
+   'subject' / 'object' / 'possessive' (matches the keys folded by
+   res.c::fold_pronoun: pronoun_tab columns 1/2/3). Replaces the
+   legacy {1,2,3} ints at every callsite in towne.json5. */
 static void sb_pronoun(const int32_t *ints, const char **strs, char *out,
                        size_t out_sz) {
-    (void)strs;
-    snprintf(out, out_sz, "%s", pronoun((uint8_t)ints[0], (uint8_t)ints[1]));
+    int xx;
+    if (strcmp(strs[0], "subject") == 0) {
+        xx = 1;
+    } else if (strcmp(strs[0], "object") == 0) {
+        xx = 2;
+    } else if (strcmp(strs[0], "possessive") == 0) {
+        xx = 3;
+    } else {
+        snprintf(out, out_sz, "?case=%s?", strs[0]);
+        return;
+    }
+    snprintf(out, out_sz, "%s", pronoun((uint8_t)ints[0], (uint8_t)xx));
 }
 static void sb_res_town_name(const int32_t *ints, const char **strs, char *out,
                              size_t out_sz) {
@@ -1398,7 +1412,7 @@ static void sb_pa_name(const int32_t *ints, const char **strs, char *out,
 
 static const str_engine_entry str_engine_tbl[] = {
     {"object", "i", sb_object},
-    {"pronoun", "ii", sb_pronoun},
+    {"pronoun", "is", sb_pronoun},
     {"res_town_name", "i", sb_res_town_name},
     {"res_enum", "si", sb_res_enum},
     {"pa_name", "i", sb_pa_name},
