@@ -389,5 +389,83 @@
       }},
     ],
   },
-  earthquake:  { slot: 7, base_cost: 55, name: 'Earthquake',  legacy_effect: 'earthquake' },
+  // §22 Lane A: earthquake. The place check fires FIRST in this case
+  // — dungeon-already-here is the early-out (place == 1 is "in
+  // dungeon", and the spell would collapse the roof on the party).
+  // Mana check follows. Success: incantation + eruption + cave-pic +
+  // cave-found prompt; (E)nter consumes 10 time_left and dives into
+  // a 5..18-level dungeon (or "no moves" early-out at low time).
+  // (L)eave clears the cave pic and repaints the wilderness map.
+  earthquake: {
+    slot: 7, base_cost: 55, name: 'Earthquake',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { eq: [{ var: 'place' }, 1] },
+        then: [
+          { emit: 'spell.priest.earthquake.roof_cave1' },
+          { emit: 'spell.priest.earthquake.roof_cave2' },
+          { wait_input: true },
+          { engine_call: 'clw' },
+        ],
+        else: [
+          { if: { cond: { gte: [
+              { member: { var: 'caster_idx' }, field: 'ma' },
+              { add: [55, { member: { var: 'caster_idx' }, field: 'lv' }] },
+            ]},
+            then: [
+              { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                    field: 'ma' } },
+                          op: 'sub',
+                          value: { add: [55, { member: { var: 'caster_idx' },
+                                                         field: 'lv' }] } }},
+              { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                               var: 'caster' }},
+              { emit: 'spell.priest.earthquake.utters' },
+              { emit: 'spell.priest.earthquake.incantation' },
+              { pause: 2000 },
+              { emit: 'spell.priest.earthquake.eruption' },
+              { pause: 3000 },
+              { engine_call: 'clr_map_window' },
+              { engine_call: 'blitgfx', args: [{ pic: 'cave' }] },
+              { engine_call: 'clw' },
+              { emit: 'cave.found_prompt' },
+              { loop: [
+                { menu_branch: { options: [
+                  { key: 'L', then: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'clr_map_window' },
+                    { engine_call: 'update_map' },
+                    { break: true },
+                  ]},
+                  { key: 'E', then: [
+                    { if: { cond: { gt: [{ time_left: 1 }, 10] },
+                      then: [
+                        { mutate: { target: { time_left: 1 },
+                                    op: 'sub', value: 10 }},
+                        { engine_call: 'clr_map_window' },
+                        { dungeon: { levels: { random: [5, 18] } }},
+                      ],
+                      else: [
+                        { engine_call: 'clw' },
+                        { emit: 'cave.no_moves' },
+                        { wait_input: true },
+                        { engine_call: 'clr_map_window' },
+                        { engine_call: 'clw' },
+                      ],
+                    }},
+                    { break: true },
+                  ]},
+                ]}},
+              ]},
+            ],
+            else: [
+              { emit: 'spell.not_enough_pts' },
+              { pause: 1000 },
+              { engine_call: 'clw' },
+            ],
+          }},
+        ],
+      }},
+    ],
+  },
 }

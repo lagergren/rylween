@@ -536,8 +536,8 @@ void hunt() {
     });
 }
 void spell(int32_t place) {
-    char b, c, d;
-    int32_t i, who, x, oc;
+    char c;
+    int32_t who;
     pm_t caster;
     const ryl_spell *s;
 
@@ -600,82 +600,24 @@ void spell(int32_t place) {
         return;
     }
 
-    /* §22 Lane A priest dispatch shim — mirror battle.c's gate. When the
-       spell record carries a `do:` body, route through play_spell_body
-       with caster_idx + place as bindings; ctx is NULL because priest
-       spells run out of combat. Falls through to the legacy SE_* switch
-       below for spells whose behaviour hasn't migrated yet. */
+    /* §22 Lane A: every priest spell now carries a `do:` body. The
+       legacy SE_* switch retired with priest.earthquake; the shim
+       below is the sole dispatch path. */
     {
         const void *spell_node = res_spell_node("priest", c - 48);
-        if (spell_node) {
-            char caster_buf[8], place_buf[8];
-            snprintf(caster_buf, sizeof caster_buf, "%d", who);
-            snprintf(place_buf, sizeof place_buf, "%d", (int)place);
-            ryl_bind binds[] = {
-                {"caster_idx", caster_buf},
-                {"place", place_buf},
-                {0},
-            };
-            play_spell_body(s->id ? s->id : "priest.(unknown)",
-                            spell_node, binds, NULL);
+        if (!spell_node) {
             return;
         }
-    }
-
-    switch (s->effect) {
-        case SE_EARTHQUAKE:
-            clw();
-            if (place == 1) {
-                tx("The roof would cave\r\n");
-                tx("in on you!\r\n\r\n");
-                ryl_pause();
-                clw();
-                break;
-            }
-            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx0(res_text("spell.not_enough_pts"));
-                ryl_delay(1000);
-                clw();
-                break;
-            }
-            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
-            tx("%s utters\r\n", pm_name(caster));
-            tx0(res_text("spell.priest.earthquake.incantation"));
-            ryl_delay(2000);
-            tx0(res_text("spell.priest.earthquake.eruption"));
-            ryl_delay(3000);
-            clr_map_window();
-            blitgfx(cavepic);
-            clw();
-            tx0(res_text("cave.found_prompt"));
-            while (1) {
-                c = key();
-                c = toupper(c);
-                if (c == 'L' || c == 'E') {
-                    break;
-                }
-            }
-            if (c == 'E') {
-                if (pa_time_left() > 10) {
-                    pa_add_time_left(-10);
-                } else {
-                    clw();
-                    tx0(res_text("cave.no_moves"));
-                    ryl_pause();
-                    clr_map_window();
-                    clw();
-                    break;
-                }
-                clr_map_window();
-                dungeon(ryl_random(5, 18), NULL);
-                break;
-            } else {
-                clw();
-                clr_map_window();
-                update_map();
-                break;
-            }
-            break;
+        char caster_buf[8], place_buf[8];
+        snprintf(caster_buf, sizeof caster_buf, "%d", who);
+        snprintf(place_buf, sizeof place_buf, "%d", (int)place);
+        ryl_bind binds[] = {
+            {"caster_idx", caster_buf},
+            {"place", place_buf},
+            {0},
+        };
+        play_spell_body(s->id ? s->id : "priest.(unknown)",
+                        spell_node, binds, NULL);
     }
 }
 

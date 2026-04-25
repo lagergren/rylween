@@ -82,6 +82,9 @@
     earthquake: {
       incantation: ['three syllabels in an', 'archaic tongue...', ''],
       eruption:    ['and the ground cracks', 'open!'],
+      utters:      ['{caster} utters'],
+      roof_cave1:  ['The roof would cave'],
+      roof_cave2:  ['in on you!', ''],
     },
   },
 }
