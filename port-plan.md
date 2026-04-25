@@ -2925,22 +2925,23 @@ Recurrent literals worth a single-source-of-truth helper:
   inline subs.c / towne.c flows into `data/world/scripts/{rest,
   hunt,lodge,tavern}.json5`. Last of these is the longplay-
   fixture prerequisite (per project_full_game_gate.md).
-  **PARTIALLY DONE 2026-04-25** (commits e355ef8 + d283423 +
-  ecfd183, 3 steps): `subs.c` `hunt()` and `camp()` now live in
-  `data/world/scripts/{hunt,rest}.json5` + `texts/{hunt,rest}.json5`.
-  C wrappers resolve the four `balance.hunt` and eleven
-  `balance.rest` tunables, hand them to `play_script` as int
-  bindings, and own nothing else; the scripts handle every
-  narration line, the digit-bound who-loops, the temperature roll
-  + damage pass, the food / heal / advance-hour sweep, and the
-  ambush-vs-well-rested split. Step 1 extended the DSL with two
-  read-side expr forms (`{hours_rested:0}` / `{time_left:0}`),
-  one mutate target (`{time_left:0}` → `pa_set_time_left`), two
-  `engine_int` helpers (`pa_alive_count`, `pa_first_level`), and
-  one `engine_call` (`advance_hour`). Tavern is already in
-  towne.json5 (§17-F). Remaining: speak.c bargirl Q→L lodge
-  branch (~30 lines) and the per-job lodge-text dispatch in the
-  same arm.
+  **DONE 2026-04-25** (commits e355ef8 + d283423 + ecfd183 +
+  03d2eff, 4 steps): every inline-narration flow named in L7's
+  scope is now data-driven. See §20.18 for the full closure
+  write-up; key landings:
+    - `subs.c hunt()` 70 → 18 lines → `data/world/scripts/hunt.json5`
+      + `data/world/texts/hunt.json5`.
+    - `subs.c camp()` 164 → 35 lines → `data/world/scripts/rest.json5`
+      + `data/world/texts/rest.json5`.
+    - `speak.c` bargirl Q→L arm 35 → 13 lines → `data/world/scripts/lodge.json5`
+      (`lodge.bargirl`); non-bargirl per-job static lodge text
+      stays on `txi('speak.lodge.j%d', npc_job)`.
+    - Tavern was already migrated in §17-F (towne.json5).
+  Step 1 extended the DSL with two read-side expr forms
+  (`{hours_rested:0}` / `{time_left:0}`), one mutate target
+  (`{time_left:0}` → `pa_set_time_left`), two `engine_int`
+  helpers (`pa_alive_count`, `pa_first_level`), and one
+  `engine_call` (`advance_hour`).
 
 ### 20.15 Prerequisites & ordering
 
@@ -2995,40 +2996,223 @@ short coverage / hygiene session:
   existing res_*_id helpers read off it; the path-compile pass
   that runs after still mutates `root` in place safely.
 
-### 20.17 Single-ownership status (snapshot 2026-04-25)
+### 20.17 Single-ownership status (snapshot 2026-04-25 — post-L7)
 
 Per `feedback_state_abstraction.md`, the long-running goal is one
 owner per `state` field — every read/write should route through
 `pa_*` / `pm_*` / `inv_*` / `wld_*` / `res_*` rather than indexing
-`state.p[state.cpl].*` directly. Counts since the audit memory was
-written:
+`state.p[state.cpl].*` directly. Counts as of HEAD (post-L7):
 
-  | file        | state.* baseline | state.* now | helpers now | trend             |
-  |-------------|------------------|-------------|-------------|-------------------|
-  | battle.c    | 71               | 22          | 147         | -69%              |
-  | subs.c      | 123              | 100         | 153         | -19%, helpers now lead |
-  | driv.c      | 177              | 167         | 140         | -6%, near parity  |
-  | speak.c     | 30               | 15          | 53          | -50%              |
-  | dungeon.c   | (high)           | 4           | 8           | effectively done  |
-  | towne.c     | -                | 14          | 38          | helpers lead      |
-  | missions.c  | -                | 13          | 10          | balanced          |
-  | ydarg.c     | -                | 13          | 77          | helpers dominate  |
-  | interact.c  | -                | 0           | -           | DONE              |
-  | script.c    | -                | 36          | 102         | DSL bridge layer  |
+  | file        | state.* | helpers (pa/pm/inv/wld/res) | notes                                  |
+  |-------------|---------|-----------------------------|----------------------------------------|
+  | battle.c    | 1       | 168                         | effectively single-ownership clean     |
+  | subs.c      | 24      | 203                         | residual is map / global_name / hi-score |
+  | driv.c      | 167     | 134                         | main-loop dispatch — H2 target         |
+  | speak.c     | 6       | 53                          | residual is npc[i] direct-walk in speak() |
+  | dungeon.c   | 2       | 9                           | DONE (residual = 2 sentinel reads)     |
+  | towne.c     | 14      | 34                          | helpers lead                           |
+  | missions.c  | 13      | 9                           | residual is mission stage table reads  |
+  | ydarg.c     | 13      | 77                          | helpers dominate                       |
+  | interact.c  | 0       | (file is 1 trivial wrapper) | DONE                                   |
+  | script.c    | 17      | 162                         | DSL bridge layer (acceptable)          |
 
-In every file except subs.c (just barely behind) and missions.c,
-helper calls now outnumber raw `state.*` accesses. dungeon.c and
-interact.c are essentially fully migrated; battle.c is 2/3 lifted;
-speak.c is half; subs.c and driv.c are the dominant remaining
-debt. driv.c's high count is mostly main-loop dispatch (movement
-arms reading `state.last_terrain`, `state.p[cpl].time_left`); the
-real reduction wedge there is wld_*/pa_* helpers for the
-movement bookkeeping, not a DSL migration. subs.c's 100 sites
-mix camp/hunt/lodge/tavern logic (will fall to L7) and party-
-mutation hot spots (need pa_/pm_ retrofits per S1/S2).
+In every file except driv.c, helpers now outnumber raw `state.*`
+accesses. battle.c / dungeon.c / interact.c are essentially fully
+migrated; subs.c, speak.c, ydarg.c are predominantly through-helper.
+driv.c is the only single-ownership debt of meaningful size — its
+167 hits are mostly main-loop dispatch (movement arms reading
+`state.last_terrain` / `state.p[cpl].time_left`). The real
+reduction wedge there is `wld_*` / `pa_*` helpers for the movement
+bookkeeping, not a DSL migration. driv.c retrofit is the **H2**
+task — queued in the in-flight session continuation prompt; it
+can land independently of any data extraction.
 
 The script.c count is the engine bridge — `ie_*` / `sb_*` / `eng_*`
 wrappers that read state on the DSL's behalf. Per the rule,
 **these should themselves call `pa_*`/`pm_*` rather than read
 state directly**; auditing the existing wrappers for compliance
 is the next hygiene pass after the LARGE bucket.
+
+(Counts above are first-cut greps — `[^a-zA-Z_]state\.` for the
+state column and `(pa_|pm_|inv_|wld_|res_)[a-z_]+\(` for helpers.
+Comments and string literals can inflate either side; the trend,
+not the absolute count, is what matters.)
+
+### 20.18 L7 closure write-up (2026-04-25)
+
+L7 closed in four commits over a single session
+(`e355ef8` → `d283423` → `ecfd183` → `03d2eff`). The session
+exposed enough generalisable detail to warrant capturing as a
+playbook for future flow lifts.
+
+**DSL surface added in step 1** (`e355ef8`, src/script.c +30 LOC):
+
+  - read-side expr forms `{hours_rested:0}` / `{time_left:0}`
+    (mirror the existing mutate-target shapes — same convention
+    `gold` / `torches` / `food` / `pl` / `hour_of_day` already
+    use). Bare-int form means the value-arm `:0` is a placeholder.
+  - mutate target `{time_left:0}` (LV_TIME_LEFT) — paired with
+    `pa_set_time_left`. Closes the read+write pair so hunt's
+    `pa_add_time_left(-cost)` ports cleanly to a sub op.
+  - `engine_int pa_alive_count` (0-arg) — for the camp wipe-out
+    early-out (`pa_alive_count() == 0` / `pa_count_alive()` was
+    a pre-L7 follow-up note).
+  - `engine_int pa_first_level` (0-arg) — for the hunt food-gain
+    formula and the bargirl per-leader-level fee (50 * lv[1]).
+  - `engine_call advance_hour` (0-arg) — camp's 8-iteration
+    clock-bump loop.
+
+  Pattern: any time a script needs a piece of party state the
+  DSL can't see, the cheapest extension is one entry in the
+  matching registry. Read-only counters → `engine_int`;
+  read+write counters → expr form + LV_* + read_lv/write_lv;
+  void-return engine surfaces → `engine_call`.
+
+**C-wrapper convention (carries forward)**. The four wrappers
+follow the same shape — towne.c smith / tavern / inn / merchant
+established it in §17-F, and L7 reaffirms it for the subs.c side.
+
+  ```c
+  void <flow>() {
+      char buf1[16], buf2[16], ...;
+      snprintf(buf1, sizeof buf1, "%d", res_int_path("balance.<flow>.<key1>"));
+      snprintf(buf2, sizeof buf2, "%d", res_int_path("balance.<flow>.<key2>"));
+      ...
+      play_script("<script_id>", (ryl_bind[]){
+          {"<key1>", buf1},
+          {"<key2>", buf2},
+          ...
+          {0},
+      });
+  }
+  ```
+
+  The C wrapper owns: balance constant resolution, environment-
+  coupled values (opening hours via `res_building_hours`),
+  any pre-formatted strings the script's text placeholders need.
+  The DSL owns: every `tx*()` / `clw()` / `ryl_pause()` /
+  `ryl_delay()`, all keypress dispatch, all party-state mutation.
+  Splitting at this seam keeps `play_script` calls trivially
+  reviewable and survives DSL evolution without churn.
+
+**Cosmetic deltas (acceptable; documented in commit messages)**.
+Three patterns came up across the four steps:
+
+  - `tx("  %s", res_text("common.yes"))` (two-space indent) → bare
+    `emit common.yes` in the DSL (no indent). speak.c's bargirl
+    flow had this; matches inn / smith migrations from §17-F.
+  - `tx("Very low temperature.\r\n")` printed without a leading
+    `clw()` so it stacks under prior text in camp's temperature
+    check; preserved literally — the rest.json5 script omits the
+    `engine_call clw` in the `temp_very_low` arm.
+  - DSL `emit` of an array-of-strings text record adds a final
+    CRLF after the last line (the array→stream convention); some
+    C tx() sites historically did not. Indistinguishable on the
+    rendered terminal but visible in byte-stream diffs.
+
+  None of L7's flows have replay fixtures today, so byte-identity
+  isn't tested. Authoring fixtures (§20.19) will surface any of
+  these deltas as expected diffs.
+
+### 20.19 Fixture queue — replay coverage for L7 flows
+
+Three new replay fixtures should be authored to lock down byte-
+identity for the L7 surface. Naming convention follows the
+existing `tools/replay/<area>-<flow>[-<variant>].in/.expect/.expect_snapshot/.env`
+pattern. All three need an `RYL_FAKE_SEED` + `RYL_FAKE_EPOCH`
+in the `.env` to pin the entropy stream so the random rolls
+inside each flow are reproducible.
+
+  1. **`wilderness-hunt`** — exercises subs.c hunt() →
+     hunt.json5. Shape: create-party (one Ranger), spawn into
+     wilderness, press H, pick the ranger, observe success path
+     (food gain) and a separate fixture or seed step for the
+     failure path. Pin success/failure via the seed: with
+     RYL_FAKE_SEED=42 the next `ryl_chance(45)` after party-
+     creation is deterministic — pick whichever way it lands as
+     the "hunt-succeeds" fixture and add a -fail variant later
+     with a different seed (or by chaining moves to push the
+     RNG cursor). Validates: who-loop with digit_range,
+     pa_is_class enum lookup, time_left mutate sub, food
+     mutate add, pa_first_level engine_int.
+
+  2. **`wilderness-camp`** — exercises subs.c camp() →
+     rest.json5. Shape: create-party, spawn into wilderness,
+     advance time enough for `hours_rested <= 0` (or set up a
+     zero-hours_rested checkpoint via env override), press C,
+     decline guard (or pick guard 1 in a -guard variant),
+     verify the temperature roll, the heal pass, the
+     well-rested wake-up. Two variants: ambush-fires (chance%
+     pinned via seed) and well-rested. Validates: every L7
+     DSL extension at once — hours_rested expr, advance_hour
+     engine_call, pa_alive_count engine_int, food clamp:min,
+     hp clamp:max, encounter tier, surprise-kill member_field
+     mutate (hp/dead), pl mutate sub.
+
+  3. **`towne-thord-tavern-bargirl-lodge`** — exercises the
+     speak.c bargirl Q→L arm → lodge.bargirl. Shape: enter
+     Thord, T to tavern, S to speak, pick Bargirl, Q L Y to
+     pay, verify gold deduction + per-member 1 hp drain.
+     Add -broke variant where party gold is below the fee
+     (might need a seed that produces low starting gold, or
+     burn gold on inn/smith first to drop below 50*lv[1]).
+     Validates: gold mutate sub, member-field hp mutate sub
+     with `gt: hp > 1` guard, for_member loop over a non-state
+     mutation. The two-space-indent `(Y)es / (N)o` cosmetic
+     delta will surface as an expected diff vs the pre-L7
+     bytes; bless on first run.
+
+  Order of authoring: bargirl-lodge first (smallest, exercises
+  the most common DSL ops), then hunt (single-tier coverage),
+  then camp (covers the most DSL surface but also the largest
+  expected-output blob). All three fold into the existing
+  `make check` aggregate; no harness changes needed.
+
+### 20.20 DSL extensions discovered as nice-to-haves during L7
+
+Items that would have made L7 cheaper but weren't worth doing
+inline. None block subsequent migrations — they're ergonomics
+investments.
+
+  1. **`engine_int` class-id symbol args** (carried over from
+     pre-L7 follow-up list). Today `pa_is_class` takes two ints,
+     so the script writes
+     `args: [{var:'who'}, {enum:['pc_class','Ranger']}]` to
+     resolve the class-id symbolically. A nicer surface would
+     accept `args: [{var:'who'}, 'Ranger']` directly and look
+     the second positional up via `res_enum_id('pc_class', ...)`
+     when the registry sig says it's a class id. Saves the
+     `enum:` boilerplate at every class-gate callsite.
+
+  2. **`txi`-style format-id-by-int op**. The non-bargirl arm
+     of speak.c `Q L` calls `txi("speak.lodge.j%d", npc_job)`
+     — emit a text id constructed from a sprintf format + an
+     int. The DSL has no equivalent today; the speak.c arm
+     keeps this in C as a single `txi(...)` line. Adding
+     `{ emit_indexed: { fmt: 'speak.lodge.j{}', value: <expr> } }`
+     (or similar) would let the whole `Q L` arm collapse to
+     a `play_script("lodge", { job:<int> })` call with the
+     non-bargirl branch becoming a one-liner emit_indexed.
+     Same shape applies to `speak.people.j%d` / `speak.magic.j%d`
+     / the 16-NPC chitchat replies.
+
+  3. **`{path: 'dotted.path'}` expr — DSL-side `res_int_path`
+     reader**. L7's camp wrapper marshals 11 balance constants
+     into 11 int bindings; hunt does 4. Inlining the lookup
+     into the DSL via a `path:` expr form would let the script
+     read e.g. `{ path: 'balance.rest.health_gain' }` directly
+     and the C wrapper drops to a single-line `play_script(...)`
+     call. Footgun: `res_int_path` returns 0 on missing paths
+     today, so a typo silently breaks the flow. A strict variant
+     (`die_at` on missing) plus a fold-time symbol resolver
+     entry (already mostly in `fold_scripts`) covers this. Worth
+     doing before the next balance-heavy migration; defer until
+     a flow with 5+ tunables shows up again.
+
+  4. **Default-`{0}`-binding for speak op town arg**. Carried
+     over from the pre-L7 follow-up list — `{ speak: { building:
+     'tavern', town: { twn: 0 } } }` is verbose for "use the
+     party's current town". Either default `town:` to `state.twn`
+     when omitted, or accept a literal `town: 'current'` symbol.
+     Cosmetic; one callsite in towne.json5 (inn → C chitchat)
+     and zero in L7 itself.
