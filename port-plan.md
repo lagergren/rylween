@@ -4993,3 +4993,102 @@ mid-extraction. The §22.5 fixture set (combat-mage-* and
 combat-attack-win) already pins the player-side combat path
 byte-for-byte, so §23.A's monster extractions land against
 known-good baselines.
+
+§22.13 — Continuation prompt (session close, 2026-04-26)
+
+Continuation of §22.11. Three commits this session, both
+gates green at every commit:
+
+  - `b62d8a7` §22.5 #8c wilderness-priest-teleport fixture.
+    Path 1 (seed-5 wild-roll cave entry, reused verbatim
+    from #8b revelation), slot 1 priest at lv 1 covers
+    cost (35 + 1 = 36, ma 52 → 16). Two literal-`\n`
+    absorbers feed the back-to-back ryl_pause narration
+    blocks. Compass=2 + how-far=1 drives an actual coord
+    change ((12,8) → (12,10)) — direction 8 (north) was
+    a no-op due to a mountain at (12,7); env documents
+    the terrain dependency for future teleport fixtures.
+    §22.11 captures the full write-up.
+
+  - `493485e` §23 post-§22 engine→data extraction analysis.
+    Lookahead-only — no code changes. Five sub-sections:
+    §23.A monster nasty-magic block (battle.c g==5,
+    ~115 LOC), §23.B item-spell switch (cases 100-111,
+    ~210 LOC), §23.C combat-constants sweep, §23.D driv.c
+    character-creation thresholds, §23.E dispatcher survey.
+    Calls out two DSL gaps to land before §23.A starts
+    (target-set iteration with predicate, typed combat-ctx
+    bindings). Estimated ~6-8 sessions across §23.A-D;
+    battle.c expected to shrink from ~850 to ~350-400
+    LOC of pure runtime.
+
+  - `12445d2` §22.12 open-work audit. Pre-§23 status check
+    so the 4800-line plan is tractable. Five buckets
+    (DONE / PARTIAL / NOT DONE / NEEDS VERIFICATION /
+    SKIPPED). Pre-§22 stragglers that genuinely matter:
+    Phase 5c residuals (driv.c 37, ydarg.c 13 raw
+    `state.p[cpl]` hits), §20 TINY T3/T4 (driv.c
+    hardcoded `disptext("data/...")` and `fopen(...)`
+    literals, 8+ sites), and the §20 LARGE L3/L5 combat
+    extractions that §23.A/B already absorbs. §20.12's
+    eval.c reference is stale — `spawn_encounter` /
+    `call` no longer exist in the source tree; treat
+    as superseded.
+
+**What's left for §22.** One spell fixture (#8a banish)
+plus two cleanup tasks (§22.F speak_missions rewrite,
+§22.G docs/dsl.md). ~1 session total. Plan unchanged
+from §22.11:
+
+  1. **Land priest-banish (§22.5 #8a)** via path 2.
+     RYL_FORCE_PARTY_LV=5, two priests in slots 1+2
+     (seed 2 wi 67/63 — both qualify). Slot 1 casts
+     earthquake (`Z 1 7 E`) → spawns cave + dives into
+     the new dungeon. Slot 2 casts banish (`Z 2 4`) —
+     sets `state.banished`, success arm ends with the
+     state_banished mutate and the level-3..5 lvl[]
+     zero-out in dungeon.c (battle.c → dungeon.c bridge
+     lives at battle.c:99-105 still — banish flips the
+     flag, the next dungeon iteration sees it and
+     prunes). The earthquake-spawned dungeon has 5..18
+     levels (random); pin a seed where the level-1
+     random fill is reproducible.
+
+  2. **§22.F speak_missions.json5 rewrite + parser
+     retire.** Plan in §22.7. The speak_missions
+     micro-DSL evaluator in `speak.c` still alive;
+     convert each NPC role's stages to a script that
+     fires the right play_script. Removes the parser
+     entirely.
+
+  3. **§22.G docs/dsl.md single-doc reference.** Spec
+     in §22.7. Should follow §22.F so the doc reflects
+     the post-migration surface (no speak_missions
+     micro-DSL listed).
+
+After §22.G, the milestone is closed. §23 picks up next
+— start with the DSL prep commit (target-set iteration +
+typed combat-ctx bindings) before §23.A's monster spells.
+
+**Pre-§22 stragglers worth flagging.** Per §22.12:
+
+  - **Phase 5c (driv.c, ydarg.c).** ~50 raw `state.p[cpl]`
+    hits between the two files. driv.c is the H2 target
+    per §20.17. Mechanical sweep, no fixtures needed —
+    existing fixtures pin the byte-stream.
+
+  - **§20 TINY T3/T4.** driv.c `disptext("data/score.txt")`
+    / `fopen("data/map.dat")` literals at lines
+    372/412/481/495/511/523/550/580/858. Add `res_ansi_path()`
+    + `res_map_path()` helpers; sweep. Quick win.
+
+  - **§22.10 dungeon_encounter slots 10..19 cleanup.**
+    Confirm nothing indexes into the reserved hole, then
+    collapse the enum if safe. Carry-over follow-up.
+
+These don't block §22 close. They're candidates for a
+hygiene session between §22.G and §23.A.
+
+**Bar per session.** Same as §22.8/§22.9/§22.10/§22.11:
+`make check` and `make testasan` both green at every
+commit.
