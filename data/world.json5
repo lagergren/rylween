@@ -108,6 +108,7 @@
     speak:  { $import: 'world/texts/speak.json5' },
     towne:  { $import: 'world/texts/towne.json5' },
     missions: { $import: 'world/texts/missions.json5' },
+    terrain: { $import: 'world/texts/terrain.json5' },
   },
 
   // §16.4 dialogue scripts — arrays of one-op objects the interpreter
@@ -118,6 +119,7 @@
     speak: { $import: 'world/scripts/speak.json5' },
     missions: { $import: 'world/scripts/missions.json5' },
     towne: { $import: 'world/scripts/towne.json5' },
+    terrain: { $import: 'world/scripts/terrain.json5' },
   },
 
   // Class records (§3.3). Only the `spells` list is consumed today —

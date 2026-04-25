@@ -1,0 +1,49 @@
+// §20 T1: terrain-transition narration script. Replaces the inline
+// switch in src/interact.c::check_terrain. The C wrapper passes the
+// previous and current tile bytes (state.last_terrain and the new
+// map cell) as int bindings; this script owns the same-tile guard,
+// the 1-in-9 chance gate, the clw, and the per-tile-class text
+// dispatch.
+//
+// Bindings:
+//   old, new — ASCII byte values of the previous / current tile.
+//
+// Tile-byte → narration mapping (matches the world.json5 terrain
+// subtree keys, expressed here as ASCII ints because `switch` matches
+// integer expressions):
+//
+//   's' = 115  plainland
+//   '1' =  49  hut
+//   '0' =  48  towne
+//   'f' = 102  foothills
+//   'd' = 100  desert
+//   't' = 116  swamp
+//   'g' = 103  forest
+//   '2' =  50  castle
+//
+// Other tiles fall through with no narration; the trailing `blank`
+// emit still fires because `tx("\r\n")` in the original ran after
+// the switch unconditionally.
+{
+  transition: [
+    { if: {
+        cond: { ne: [{ var: 'old' }, { var: 'new' }] },
+        then: [
+          { chance: { pct: 9, then: [
+            { engine_call: 'clw' },
+            { switch: { expr: { var: 'new' }, cases: [
+              { match: 115, then: [{ emit: 'plainland' }] },
+              { match:  49, then: [{ emit: 'hut'       }] },
+              { match:  48, then: [{ emit: 'towne'     }] },
+              { match: 102, then: [{ emit: 'foothills' }] },
+              { match: 100, then: [{ emit: 'desert'    }] },
+              { match: 116, then: [{ emit: 'swamp'     }] },
+              { match: 103, then: [{ emit: 'forest'    }] },
+              { match:  50, then: [{ emit: 'castle'    }] },
+            ] } },
+            { emit: 'blank' },
+          ] } },
+        ],
+    } },
+  ],
+}
