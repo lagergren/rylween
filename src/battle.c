@@ -63,19 +63,24 @@ void encounter(int32_t foe, int32_t mandatory) {
     if (noc < n1) {
         noc = n1;
     }
-    h1 += ((pm_lv(pm_cur(1)) + pm_lv(pm_cur(2)) + pm_lv(pm_cur(3)) + pm_lv(pm_cur(4))) / 4) * 2;
-    if (pa_first_level() > 2) {
-        h1 += pa_first_level() * 2;
+    int32_t avg_mul = res_combat_int("encounter_h1_party_avg_mul");
+    int32_t leader_thr = res_combat_int("encounter_h1_leader_threshold");
+    int32_t leader_h1_mul = res_combat_int("encounter_h1_leader_mul");
+    int32_t leader_h2_mul = res_combat_int("encounter_h2_leader_mul");
+    int32_t foe_max = res_combat_int("encounter_foe_count_max");
+    h1 += ((pm_lv(pm_cur(1)) + pm_lv(pm_cur(2)) + pm_lv(pm_cur(3)) + pm_lv(pm_cur(4))) / 4) * avg_mul;
+    if (pa_first_level() > leader_thr) {
+        h1 += pa_first_level() * leader_h1_mul;
     }
-    h2 += pa_first_level() * 3;
+    h2 += pa_first_level() * leader_h2_mul;
     if (h1 > h2) {
         h1 = h2;
     }
 
-    if (noc > 8) {
-        noc = 8;
+    if (noc > foe_max) {
+        noc = foe_max;
     }
-    assert(noc >= 1 && noc <= 8);
+    assert(noc >= 1 && noc <= foe_max);
     assert(h1 <= h2);
 
     ws += pa_first_level();
@@ -627,9 +632,17 @@ void encounter(int32_t foe, int32_t mandatory) {
                 blitgfx(wonbattlepic);
                 clw();
                 tx0(res_text("battle.victory.bested"));
+                int32_t xp_h2_div = res_combat_int("reward_xp_h2_div");
+                int32_t xp_ws_div = res_combat_int("reward_xp_ws_div");
+                int32_t xp_sp_mul = res_combat_int("reward_xp_sp_mul");
+                int32_t gold_h2_div = res_combat_int("reward_gold_h2_div");
+                int32_t gold_ws_div = res_combat_int("reward_gold_ws_div");
+                int32_t gold_display_div = res_combat_int("reward_gold_display_div");
                 tx("Each survivor gets\r\n");
-                tx("%d experience pts\r\n", ((noc * (h2 / 4) * (ws / 4)) + sp * 3));
-                tx("and %d gold pieces.\r\n\r\n", ((noc * (h2 / 7) * (ws / 4)) / 4));
+                tx("%d experience pts\r\n",
+                   noc * (h2 / xp_h2_div) * (ws / xp_ws_div) + sp * xp_sp_mul);
+                tx("and %d gold pieces.\r\n\r\n",
+                   noc * (h2 / gold_h2_div) * (ws / gold_ws_div) / gold_display_div);
                 ryl_delay(1000);
                 party_current()->kills += noc;
                 x = inv_find_empty();
@@ -650,8 +663,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                         state.p[state.cpl].inventory[x] = i;
                     }
                 }
-                int32_t gold_gain = (noc * (h2 / 7) * (ws / 4));
-                int32_t exp_gain = ((noc * (h2 / 4) * (ws / 4)) + sp * 3);
+                int32_t gold_gain = noc * (h2 / gold_h2_div) * (ws / gold_ws_div);
+                int32_t exp_gain =
+                    noc * (h2 / xp_h2_div) * (ws / xp_ws_div) + sp * xp_sp_mul;
                 party_add_gold(gold_gain);
                 for (i = 1; i <= res_party_member_max(); i++) {
                     pm_t pm = pm_cur(i);

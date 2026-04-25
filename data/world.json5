@@ -211,6 +211,35 @@
     flee_chance:    95,    // pct; ryl_chance() to escape a non-mandatory encounter
     defend_cap:     250,   // max accumulated defend pool before clamp
     hp_defense_div: 12,    // dp contribution per defender: hp[g] / N
+
+    // §20 S5: encounter HP scaling. h1 = monster's base min hp,
+    // h2 = base max hp; both grow with the party's level so a low-
+    // level encounter scales up as the party advances. The party-
+    // avg multiplier scales every monster, then the leader-only
+    // ladder kicks in once pa_first_level() crosses the threshold.
+    encounter_h1_party_avg_mul:    2,
+    encounter_h1_leader_threshold: 2,
+    encounter_h1_leader_mul:       2,
+    encounter_h2_leader_mul:       3,
+    // Cap on noc (number of co-encountered foes). monsters.json5
+    // sets the per-record max; this is the global ceiling that
+    // backs the same UI display ("XX XX XX..." 8 slots).
+    encounter_foe_count_max:       8,
+
+    // §20 S5: victory rewards. Total XP and gold awarded on a
+    // win, formula:
+    //   xp   = noc * (h2 / xp_h2_div) * (ws / xp_ws_div) + sp * xp_sp_mul
+    //   gold = noc * (h2 / gold_h2_div) * (ws / gold_ws_div)
+    // The display message divides the gold figure by gold_display_div
+    // (legacy mismatch between the per-survivor display and the
+    // whole-party award; preserved verbatim — fix is a separate ask).
+    reward_xp_h2_div:        4,
+    reward_xp_ws_div:        4,
+    reward_xp_sp_mul:        3,
+    reward_gold_h2_div:      7,
+    reward_gold_ws_div:      4,
+    reward_gold_display_div: 4,
+
     drop_tables: {
       default: {
         drop_chance:     5,     // pct; outer roll to drop anything at all
