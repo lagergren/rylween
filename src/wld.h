@@ -32,4 +32,11 @@ int32_t wld_location_x(int slot);
 int32_t wld_location_y(int slot);
 void wld_location_set(int slot, int32_t x, int32_t y);
 
+/* Records the tile the party just stepped off — read by subs.c's
+   random_wilderness terrain-transition check (`check_terrain(
+   state.last_terrain, state.map[y][x])`). state.last_terrain is a
+   single global, treated as wld bookkeeping rather than party
+   state. */
+void wld_set_last_terrain(char tile);
+
 #endif

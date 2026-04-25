@@ -51,3 +51,7 @@ void wld_location_set(int slot, int32_t x, int32_t y) {
     state.dx[slot] = x;
     state.dy[slot] = y;
 }
+
+void wld_set_last_terrain(char tile) {
+    state.last_terrain = tile;
+}

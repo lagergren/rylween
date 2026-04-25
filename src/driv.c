@@ -23,7 +23,7 @@ static void the_game() {
 
     clw();
     state.hour_of_day = 5;
-    state.p[state.cpl].hours_rested = 14;
+    pa_set_hours_rested(14);
 
     tx0(res_text("title.header"));
 
@@ -61,7 +61,7 @@ static void the_game() {
         foodhandler();
         statusline();
 
-        if (!state.p[state.cpl].time_left) {
+        if (pa_time_left() == 0) {
             clw();
             tx0(res_text("driv.moves.out_of_moves"));
             tx0(res_text("driv.menu.out_of_moves"));
@@ -96,59 +96,59 @@ static void the_game() {
                 tx0(res_text("driv.move.pass"));
                 break;
             case '8':
-                if (!state.p[state.cpl].time_left) {
+                if (pa_time_left() == 0) {
                     clw();
                     tx0(res_text("driv.move.no_moves"));
                     break;
                 }
                 if (wld_is_passable(pa_x(), pa_y() - 1)) {
-                    state.last_terrain = wld_tile_at(pa_x(), pa_y());
-                    state.p[state.cpl].y--;
+                    wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
+                    pa_add_y(-1);
                     update_map();
                     random_wilderness();
-                    state.p[state.cpl].time_left--;
+                    pa_add_time_left(-1);
                 }
                 break;
             case '4':
-                if (!state.p[state.cpl].time_left) {
+                if (pa_time_left() == 0) {
                     clw();
                     tx0(res_text("driv.move.no_moves"));
                     break;
                 }
                 if (wld_is_passable(pa_x() - 1, pa_y())) {
-                    state.last_terrain = wld_tile_at(pa_x(), pa_y());
-                    state.p[state.cpl].x--;
+                    wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
+                    pa_add_x(-1);
                     update_map();
                     random_wilderness();
-                    state.p[state.cpl].time_left--;
+                    pa_add_time_left(-1);
                 }
                 break;
             case '2':
-                if (!state.p[state.cpl].time_left) {
+                if (pa_time_left() == 0) {
                     clw();
                     tx0(res_text("driv.move.no_moves"));
                     break;
                 }
                 if (wld_is_passable(pa_x(), pa_y() + 1)) {
-                    state.last_terrain = wld_tile_at(pa_x(), pa_y());
-                    state.p[state.cpl].y++;
+                    wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
+                    pa_add_y(1);
                     update_map();
                     random_wilderness();
-                    state.p[state.cpl].time_left--;
+                    pa_add_time_left(-1);
                 }
                 break;
             case '6':
-                if (!state.p[state.cpl].time_left) {
+                if (pa_time_left() == 0) {
                     clw();
                     tx0(res_text("driv.move.no_moves"));
                     break;
                 }
                 if (wld_is_passable(pa_x() + 1, pa_y())) {
-                    state.last_terrain = wld_tile_at(pa_x(), pa_y());
-                    state.p[state.cpl].x++;
+                    wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
+                    pa_add_x(1);
                     update_map();
                     random_wilderness();
-                    state.p[state.cpl].time_left--;
+                    pa_add_time_left(-1);
                 }
                 break;
 
@@ -590,7 +590,7 @@ void init() {
                     snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", state.p[state.cpl].name[1],
                              pronoun(1, 3), state.p[state.cpl].party_name);
                     ryl_log(str);
-                    state.last_terrain = 0;
+                    wld_set_last_terrain(0);
                 } else {
                     clw();
                     tx0(res_text("driv.menu.no_game"));
