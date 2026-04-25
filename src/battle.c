@@ -72,8 +72,9 @@ void encounter(int32_t foe, int32_t mandatory) {
         {"party_avg", party_avg},
         {"first_level", pa_first_level()},
     };
-    h1 = res_formula_int_n("encounter_h1_scaled", hp_bindings, 4);
-    h2 = res_formula_int_n("encounter_h2_scaled", hp_bindings, 4);
+    size_t hp_n = sizeof hp_bindings / sizeof hp_bindings[0];
+    h1 = res_formula_int_n("encounter_h1_scaled", hp_bindings, hp_n);
+    h2 = res_formula_int_n("encounter_h2_scaled", hp_bindings, hp_n);
     if (h1 > h2) {
         h1 = h2;
     }
@@ -639,12 +640,13 @@ void encounter(int32_t foe, int32_t mandatory) {
                     {"ws", ws},
                     {"sp", sp},
                 };
+                size_t reward_n = sizeof reward_bindings / sizeof reward_bindings[0];
                 int32_t exp_gain =
-                    res_formula_int_n("reward_xp_per_survivor", reward_bindings, 4);
+                    res_formula_int_n("reward_xp_per_survivor", reward_bindings, reward_n);
                 int32_t gold_display =
-                    res_formula_int_n("reward_gold_per_survivor", reward_bindings, 4);
+                    res_formula_int_n("reward_gold_per_survivor", reward_bindings, reward_n);
                 int32_t gold_gain =
-                    res_formula_int_n("reward_gold_party", reward_bindings, 4);
+                    res_formula_int_n("reward_gold_party", reward_bindings, reward_n);
                 tx("Each survivor gets\r\n");
                 tx("%d experience pts\r\n", exp_gain);
                 tx("and %d gold pieces.\r\n\r\n", gold_display);
