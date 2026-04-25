@@ -4658,6 +4658,165 @@ Cumulative ~1 more session to fully close §22.
 **Bar per session.** Same as §22.8/§22.9/§22.10: `make check`
 and `make testasan` both green at every commit.
 
+§22.12 — Open-work audit (post-§22.11 snapshot, 2026-04-26)
+
+The plan is a long historical record (4800+ lines) and the
+running narrative makes it hard to tell at a glance what's
+actually shipped vs still open. This subsection is a status
+snapshot — pure pointers into the existing sections, no new
+plan content. Use it to answer "is X done?" without reading
+4000 lines of context.
+
+**DONE — shipped and locked by fixtures.**
+
+  - §3 phases 1-5b: full engine port to ANSI C / portable
+    build. (See §3 commit list.)
+  - §16 hardcoded-indices sweep: P1..P6 priority list closed
+    or consciously deferred. (See `project_hardcoded_indices_doc.md`
+    in memory; §16.2 is closed per memory.)
+  - §17 DSL groundwork (play_script, screen / journal /
+    set_flag / emit / mutate / engine_call). §17-F migrations
+    (towne smith / tavern / inn / merchant). (See §17.)
+  - §18 monster bestiary + tier system. (See §18.)
+  - §19.1 town-level replay fixtures starter bank.
+    §19.2 journal into party state / save.
+    §19.3 data-driven party size + RYL_PARTY_MEMBER_MAX
+    smoke fixture.
+  - §20.L1 dungeon special-encounter switch (commit 1962bd9).
+  - §20.L2 dungeon level-event switch (915 → 171 LOC,
+    commits 28f4d40..fc599b3).
+  - §20.L7 camp / hunt / lodge flow lifts (4 commits e355ef8
+    .. 03d2eff). §20.18 has the closure write-up.
+  - §20 TINY bucket: T1 (interact.c → terrain.json5,
+    src/interact.c is now 20 lines), T2 (towne.c has_church
+    → world.json5 town record). T3/T4 status pending — see
+    PARTIAL below.
+  - §20 SMALL bucket S1 (helper additions), S5 (combat
+    balance constants in world.json5 — encounter_split,
+    flee_chance, defend_cap, hp_defense_div, drop_tables,
+    encounter_foe_count_max all present), S11 (formula
+    lifts: encounter_h1_scaled, encounter_h2_scaled,
+    reward_xp_per_survivor, reward_gold_party all live).
+    S2 mostly done per §20.17 (see PARTIAL for residual).
+  - §20.16 fold-time script-body symbol validator
+    (commit 55d0b1f).
+  - §20.19 fixture queue: wilderness-hunt, wilderness-camp,
+    towne-thord-tavern-bargirl-lodge all landed.
+  - §20.20 #2 (`emit_indexed` / `txi`-style format-id-by-int).
+  - §22.E op-shape consistency: items 9 + 10 landed; items
+    11 + 12 consciously skipped (engine registry unification
+    is cosmetic).
+  - §22.5 spell-fixture queue: #1 attack, #2 frost, #3 fire,
+    #4a confusion-hold, #4b antimagic, #5 mage-death, #6
+    priest-heal, #7a restoration, #7b rebirth, #8b
+    revelation, #8c teleport, #8d earthquake — twelve of
+    thirteen fixtures. (#8a banish remains; see NOT DONE.)
+  - §22.6 reward-gold display fix.
+  - §22.9 replay-knobs centralization (RYL_FORCE_PARTY_LV,
+    RYL_FORCE_DEAD_SLOT, RYL_FORCE_ENCOUNTER, etc. now in
+    src/replay_knobs.{c,h}).
+
+**PARTIAL — landed in part, residual debt tracked.**
+
+  - **Phase 5c (§7) — `pm_t` / `pa_*` migration.** Per
+    §20.17's table, every file except driv.c has helpers
+    outnumbering raw `state.*` access. Current raw
+    `state.p[cpl]` / `state.p[state.cpl]` counts (post-§22.11):
+
+        | file        | raw state.p[*] hits |
+        |-------------|---------------------|
+        | driv.c      | 37                  |
+        | ydarg.c     | 13                  |
+        | script.c    | 8                   |
+        | inventory.c | 6                   |
+        | missions.c  | 6                   |
+        | primitives.c| 6 (abstraction home — fine) |
+        | towne.c     | 5                   |
+        | res.c       | 2                   |
+        | party.c     | 45 (abstraction home — fine) |
+
+    driv.c remains the H2 target per §20.17's prose — its
+    hits are mostly main-loop dispatch reading
+    `state.last_terrain` / `state.p[cpl].time_left`.
+    ydarg.c is the second-largest residual. The other files
+    are cosmetic.
+
+  - **§20 TINY T3/T4 (driv.c hardcoded paths).** T3
+    `disptext("data/score.txt")` etc. — at least four
+    sites still in driv.c (lines 481/495/511/523). T4
+    `fopen("data/map.dat", "rb")` — fopen with literal
+    `path` strings still appears at driv.c:372/412/550/580/858.
+    Neither has been swept; both are quick wins.
+
+  - **§20 SMALL S6 (wilderness/rest balance constants).**
+    Most landed during §20.L7 (rest.json5, hunt.json5
+    constants). Verify residuals during banish-fixture
+    work — anything still hardcoded inside subs.c is
+    fair game.
+
+**NOT DONE — explicitly queued.**
+
+  - **§22.5 #8a banish fixture.** Last remaining lane-A
+    spell fixture. Plan unchanged from §22.10/§22.11
+    (path 2, two priests, RYL_FORCE_PARTY_LV=5).
+  - **§22.F speak_missions.json5 rewrite.** The
+    speak_missions micro-DSL evaluator in `speak.c`
+    still alive; rewrite plan in §22.7. Untouched
+    through §22.11.
+  - **§22.G docs/dsl.md single-doc reference.** Spec in
+    §22.7. Untouched. Should follow §22.F.
+  - **§20 LARGE L3 (battle.c item-effect switch
+    cases 100-111).** The switch is alive at battle.c:
+    194-403. Same surface as §23.B in the next section.
+  - **§20 LARGE L5 (monster magic table).** Alive at
+    battle.c:625-740 (the `g==5` block). Same surface
+    as §23.A.
+  - **§20 LARGE L6 (battle narration sweep).** Hardcoded
+    `tx("English text\\r\\n")` calls in battle.c outside
+    the §23.A/B targets — probably ~20-30 sites. Not yet
+    swept; consider folding into §23.A/B as those
+    extractions go.
+  - **§20.20 #1 / #3 / #4 (DSL ergonomics).** Class-id
+    symbol args, `{path: '…'}` expr form, default-`{0}`
+    speak op town arg — all deferred until a flow with
+    a clear win surfaces.
+  - **§22.10 cleanup — `dungeon_encounter` reserved
+    slots 10..19.** Carry-over follow-up; not blocking.
+    Confirm nothing indexes into 10..19, then collapse
+    if safe.
+
+**NEEDS VERIFICATION — stale plan, may be done.**
+
+  - **§20.12 unwired DSL hooks (`spawn_encounter`,
+    `call`).** Plan refers to `eval.c:1267-1271` but
+    src/eval.c no longer exists. Greps for
+    `spawn_encounter`, `"call"`, and `rdie` in src/ all
+    come up empty — the ops appear to have been removed
+    from the DSL surface entirely, not wired. Treat
+    §20.12 as superseded; if a script ever needs
+    `spawn_encounter` again, it'd be a new design.
+
+**CONSCIOUSLY SKIPPED — not coming back unless requirements change.**
+
+  - **§21 reentrancy / `ryl_ctx`.** §21.6 verdict was
+    "worth it only if a real multi-tenant use case
+    materialises." None has. Treat as documentation
+    only.
+  - **§22.E items 11 + 12 (engine registry unification,
+    op-shape micro-inconsistencies).** Cosmetic; the
+    rule "everything new flows through eval_expr" is
+    self-evident from current code.
+  - **§3 #6 C99 vs C++17 subset.** Decision deferred
+    indefinitely; the C99 path is working.
+
+**Summary at a glance.** §22 closes after #8a + §22.F +
+§22.G land — ~1 more session. The pre-§22 debt that
+genuinely affects code shape is (a) Phase 5c residuals
+in driv.c / ydarg.c, (b) the §20.LARGE combat extractions
+that were already re-scoped into §23.A/B, (c) the four
+small driv.c path-literal sweeps (§20 T3/T4). Everything
+else is either shipped or consciously deferred.
+
 §23 — engine→data extraction (post-§22 planning)
 
 This section is a planning lookahead, not an active queue.
