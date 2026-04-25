@@ -1159,9 +1159,6 @@ static void eng_clw(const int32_t *a) {
     (void)a;
     clw();
 }
-static void eng_speak(const int32_t *a) {
-    speak(a[0], a[1]);
-}
 static void eng_weaponr(const int32_t *a) {
     (void)a;
     weaponr();
@@ -1208,7 +1205,6 @@ static const engine_entry engine_tbl[] = {
     {"blitgfx", 1, eng_blitgfx},
     {"statusline", 0, eng_statusline},
     {"clw", 0, eng_clw},
-    {"speak", 2, eng_speak},
     {"weaponr", 0, eng_weaponr},
     {"armourr", 0, eng_armourr},
     {"invlist", 0, eng_invlist},
@@ -1216,6 +1212,49 @@ static const engine_entry engine_tbl[] = {
     {"drop_option", 0, eng_drop_option},
     {"rumour", 0, eng_rumour},
 };
+
+/* §20 L2: { speak: { building: '<sym>'|<int>, town: <expr> } }. Wraps
+   speak.c's speak(bld, tow) entry point — the chit-chat NPC picker.
+   `building` accepts a symbol resolved through enums.building
+   ('none' / 'inn' / 'tavern') or a raw int. `town` is an expression
+   (typically `{ twn: 0 }` to read the engine binding for the
+   player's current town, or 0 for the wilderness/hut path).
+   Replaces the legacy { engine_call: 'speak', args: [int, int] }
+   shape. The legacy bld=1/inn vs bld=2/tavern semantics — under
+   which the inn lists tavern-NPCs and vice versa — is preserved
+   verbatim (see the inn/tavern callsites in towne.json5). */
+static void do_speak(const node *op, const char *script_id, size_t idx,
+                     const ryl_bind *bindings, const rt_env *env) {
+    const node *body = obj_get(op, "speak");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "speak: value must be object");
+    }
+    const node *bld_n = obj_get(body, "building");
+    const node *tow_n = obj_get(body, "town");
+    if (!bld_n) {
+        die_at(script_id, idx, "speak: building required");
+    }
+    if (!tow_n) {
+        die_at(script_id, idx, "speak: town required");
+    }
+    int32_t bld;
+    if (bld_n->kind == N_INT) {
+        bld = (int32_t)bld_n->u.iv;
+    } else if (bld_n->kind == N_STR) {
+        int id = res_enum_id("building", bld_n->u.sv);
+        if (id < 0) {
+            char buf[128];
+            snprintf(buf, sizeof buf,
+                     "speak: unknown building symbol '%s'", bld_n->u.sv);
+            die_at(script_id, idx, buf);
+        }
+        bld = (int32_t)id;
+    } else {
+        die_at(script_id, idx, "speak: building must be int or string");
+    }
+    int32_t tow = eval_expr(tow_n, script_id, idx, bindings, env);
+    speak(bld, tow);
+}
 
 /* §20 L2: { encounter: { foe: '<sym>'|<int>, mandatory?: <bool>|<int> } }.
    Calls battle.c's encounter(foe_id, mandatory). `foe` is a monster
@@ -2429,6 +2468,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         return do_if(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "menu_branch")) {
         return do_menu_branch(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "speak")) {
+        do_speak(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "encounter")) {
         do_encounter(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "engine_call")) {

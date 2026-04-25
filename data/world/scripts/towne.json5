@@ -25,7 +25,7 @@
           prompt: 'menu',
           options: [
             { key: 'T', then: [
-              { engine_call: 'speak', args: [0, 0] },
+              { speak: { building: 'none', town: 0 } },
             ] },
             { key: 'L', then: [
               { engine_call: 'clw' },
@@ -792,7 +792,7 @@
                     { break: true },
                   ] },
                   { key: 'S', then: [
-                    { engine_call: 'speak', args: [1, { twn: 0 }] },
+                    { speak: { building: 'inn', town: { twn: 0 } } },
                   ] },
                   // --- (T)ell story: pick a member (1..4). Dead
                   //     members produce the dead_story vignette.
@@ -1247,7 +1247,7 @@
                   prompt: 'chit_menu',
                   options: [
                     { key: 'C', then: [
-                      { engine_call: 'speak', args: [2, { twn: 0 }] },
+                      { speak: { building: 'tavern', town: { twn: 0 } } },
                     ] },
                   ],
                   default: [
