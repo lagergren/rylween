@@ -10,6 +10,7 @@
 #include "missions.h"
 #include "party.h"
 #include "primitives.h"
+#include "script.h"
 #include "subs.h"
 #include "towne.h"
 
@@ -642,59 +643,24 @@ void quaff() {
 
     apply_potion(oc, pm_from_digit(c));
 }
+/* §20 L7: ranger food-trapping. C wrapper resolves the four
+   balance.hunt tunables (success%, time cost, food range) and hands
+   them to play_script as int bindings; the script owns the who-loop,
+   the ranger gate, the time-left gate, and the trap success / failure
+   narration in data/world/scripts/hunt.json5. */
 void hunt() {
-    char c;
-    int32_t fdplus;
-
-    while (1) {
-        clw();
-        tx("Who? (1-%d)\r\n", res_party_member_max());
-        c = key();
-        c = toupper(c);
-        if (pm_digit_in_range(c)) {
-            if (!pm_dead(pm_from_digit(c))) {
-                break;
-            } else {
-                clw();
-                tx("Dead.\r\n");
-                ryl_delay(600);
-            }
-        }
-    }
-    if (!pm_is_ranger(pm_from_digit(c))) {
-        clw();
-        tx("%s is not a ranger.\r\n", pronoun(c - 48, 1));
-        ryl_delay(700);
-        clw();
-        return;
-    }
-    clw();
-    int32_t hunt_cost = res_int_path("balance.hunt.time_cost");
-    int32_t hunt_chance = res_int_path("balance.hunt.success_chance");
-    int32_t hunt_food_min = res_int_path("balance.hunt.food_min");
-    int32_t hunt_food_max = res_int_path("balance.hunt.food_max");
-    if (pa_time_left() < hunt_cost) {
-        tx("Too few moves for that.\r\n");
-        ryl_delay(1000);
-        return;
-    }
-    pa_add_time_left(-hunt_cost);
-    tx("%s tries\r\n", pm_name(pm_from_digit(c)));
-    tx("to trap a rabbit...\r\n");
-    ryl_delay(1400);
-    if (ryl_chance(hunt_chance)) {
-        fdplus = ryl_random(hunt_food_min, hunt_food_max) + pa_first_level();
-        tx("...and succeeds.\r\n");
-        tx("The party gains\r\n");
-        tx("%d food rations.\r\n\r\n", fdplus);
-        pa_add_food(fdplus);
-        ryl_pause();
-        clw();
-        return;
-    }
-    tx("...but fails.\r\n\r\n");
-    ryl_pause();
-    clw();
+    char tc[16], sc[16], fmn[16], fmx[16];
+    snprintf(tc, sizeof tc, "%d", res_int_path("balance.hunt.time_cost"));
+    snprintf(sc, sizeof sc, "%d", res_int_path("balance.hunt.success_chance"));
+    snprintf(fmn, sizeof fmn, "%d", res_int_path("balance.hunt.food_min"));
+    snprintf(fmx, sizeof fmx, "%d", res_int_path("balance.hunt.food_max"));
+    play_script("hunt", (ryl_bind[]){
+        {"time_cost", tc},
+        {"success_pct", sc},
+        {"food_min", fmn},
+        {"food_max", fmx},
+        {0},
+    });
 }
 void spell(int32_t place) {
     char b, c, d;
