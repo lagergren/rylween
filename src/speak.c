@@ -11,19 +11,6 @@
 static void npc_mission_hint(int32_t);
 static void reply_chitchat(int32_t, int32_t);
 
-/* tx() a text record whose id is built from a printf-style format. Used
-   by the per-job fan-outs in speak() and reply_chitchat() to map a
-   (job-number, subject) pair onto a key in the speak.* shard without
-   an ad-hoc stack buffer at every call site. */
-__attribute__((format(printf, 1, 2))) static void txi(const char *fmt, ...) {
-    char id[96];
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(id, sizeof id, fmt, ap);
-    va_end(ap);
-    tx0(res_text(id));
-}
-
 /* Random coords:
 **
 ** Fire Shield Dungeon
@@ -231,14 +218,24 @@ void speak(int32_t bld, int32_t tow) {
                                {0},
                            });
                 } else {
-                    txi("speak.people.j%d", npc_job(talker));
+                    char job[16];
+                    snprintf(job, sizeof job, "%d", npc_job(talker));
+                    play_script("speak.people", (ryl_bind[]){
+                        {"job", job},
+                        {0},
+                    });
                 }
                 tx("\r\n");
                 ryl_pause();
             }
             if (d == 'M') {
                 tx("\r\n");
-                txi("speak.magic.j%d", npc_job(talker));
+                char job[16];
+                snprintf(job, sizeof job, "%d", npc_job(talker));
+                play_script("speak.magic", (ryl_bind[]){
+                    {"job", job},
+                    {0},
+                });
                 tx("\r\n");
                 ryl_pause();
             }
@@ -277,9 +274,18 @@ void speak(int32_t bld, int32_t tow) {
 
 static void reply_chitchat(int32_t subj, int32_t jb) {
     /* Caller picks subj via ryl_random(0, 2) and jb is the NPC job
-       (1..16), so both axes are always in range here. */
-    static const char *const subjects[3] = {"well", "weather", "health"};
-    txi("speak.chit.reply.%s.j%d", subjects[subj], jb);
+       (1..16), so both axes are always in range here. The script
+       speak.chit_reply switches on subj to pick the literal
+       well/weather/health segment of the text id, then emit_indexed
+       fans out on jb. */
+    char subj_s[8], job[16];
+    snprintf(subj_s, sizeof subj_s, "%d", subj);
+    snprintf(job, sizeof job, "%d", jb);
+    play_script("speak.chit_reply", (ryl_bind[]){
+        {"subj", subj_s},
+        {"job",  job},
+        {0},
+    });
 }
 /* §16.5 mission-state-machine dispatcher. Table-driven replacement for
    the historical `npc_mission_hint` switch (one case per NPC slot,
