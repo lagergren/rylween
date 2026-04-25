@@ -402,9 +402,6 @@ static void npc_mission_hint(int32_t npc) {
         return;
     }
 
-    int32_t oc;
-    char d;
-
     /* Areth — fighter intro.
        Left inline pending a data-authored script (per the §16.5 slice
        scope, the grateful branch shipped by the foreground is enough
@@ -530,35 +527,14 @@ static void npc_mission_hint(int32_t npc) {
         return;
     }
 
-    /* Leander — jazzy_ogre trade. C wrapper handles the inventory-
-       letter input + accept/refuse decision + slot clear; the
-       narration / journal / set_flag flow is in
-       data/world/scripts/speak.json5 jazzy_ogre.{intro,refuse,accept}.
-       An `input_item` DSL op would push the wrapper down to a single
-       play_script call; queued for a follow-up. */
+    /* Leander — jazzy_ogre trade. The DSL `input_item` op handles
+       the inventory-letter prompt, accept/refuse branch, journal
+       entry and slot clear; gating on the trade-not-yet-completed
+       flag stays here so speech() doesn't even invoke the script
+       once it's done. */
     if (npc == res_npc_role("jazzy_ogre_trader") &&
         pa_flag_is("jazzy_ogre", "none")) {
-        play_script("speak.jazzy_ogre.intro", NULL);
-        d = (char)toupper(key());
-        if (d < 'A' || d > 'P') {
-            return;
-        }
-        int slot = d - 64;
-        oc = state.p[state.cpl].inventory[slot];
-        if (oc < 35) {
-            play_script("speak.jazzy_ogre.refuse", NULL);
-        } else {
-            char cave_x[8], cave_y[8];
-            snprintf(cave_x, sizeof cave_x, "%d", wld_location_x(7));
-            snprintf(cave_y, sizeof cave_y, "%d", wld_location_y(7));
-            play_script("speak.jazzy_ogre.accept",
-                        (ryl_bind[]){
-                            {"cave_x", cave_x},
-                            {"cave_y", cave_y},
-                            {0},
-                        });
-            state.p[state.cpl].inventory[slot] = 0;
-        }
+        play_script("speak.jazzy_ogre.trade", NULL);
         return;
     }
 }

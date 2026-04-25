@@ -287,31 +287,43 @@
     ],
   },
 
-  // §20 S9: Leander the jazzy_ogre trader. Three sub-flows; the
-  // C wrapper orchestrates the input letter (no DSL op for that
-  // shape today) and dispatches `intro` first, then either
-  // `refuse` (item id < 35) or `accept` (with cave_x / cave_y
-  // bindings from wld_location_*(7)). The post-trade slot clear
-  // also stays in C because the script doesn't see the
-  // inventory letter the player typed.
+  // §20 S9 + follow-up: Leander the jazzy_ogre trader. The whole
+  // trade — intro screens, inventory-letter input, accept/refuse
+  // branch, journal entry, slot clear — runs as a single script
+  // thanks to the `input_item` DSL op. A non-A..P key skips the
+  // `then:` body so the script ends naturally without a refuse/
+  // accept screen, matching the original C wrapper's `return`.
+  // cave_x / cave_y resolve via engine_int wld_location_x/y(7).
   jazzy_ogre: {
-    intro: [
+    trade: [
       { screen: 'hear' },
       { screen: 'trade' },
       { engine_call: 'invlist' },
-    ],
-    refuse: [
-      { engine_call: 'clw' },
-      { emit: 'refuse' },
-      { pause: 1000 },
-    ],
-    accept: [
-      { engine_call: 'clw' },
-      { emit: 'accept' },
-      { journal: "The 'Beast Cave' is at {cave_x}x{cave_y}." },
-      { set_flag: 'jazzy_ogre', value: 'accepted' },
-      { wait_input: true },
-      { engine_call: 'clw' },
+      { input_item: {
+          slot_var: 'slot',
+          item_var: 'oc',
+          then: [
+            { if: {
+                cond: { lt: [{ var: 'oc' }, 35] },
+                then: [
+                  { engine_call: 'clw' },
+                  { emit: 'refuse' },
+                  { pause: 1000 },
+                ],
+                else: [
+                  { engine_call: 'clw' },
+                  { emit: 'accept' },
+                  { let: 'cave_x', value: { engine_int: 'wld_location_x', args: [7] } },
+                  { let: 'cave_y', value: { engine_int: 'wld_location_y', args: [7] } },
+                  { journal: "The 'Beast Cave' is at {cave_x}x{cave_y}." },
+                  { set_flag: 'jazzy_ogre', value: 'accepted' },
+                  { wait_input: true },
+                  { engine_call: 'clw' },
+                  { mutate: { target: { inventory: { var: 'slot' } }, op: 'set', value: 0 } },
+                ],
+            } },
+          ],
+      } },
     ],
   },
 }

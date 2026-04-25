@@ -17,6 +17,7 @@
 #include "state.h"
 #include "subs.h"
 #include "towne.h"
+#include "wld.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -550,6 +551,12 @@ static int32_t ie_pa_party_member_max(const int32_t *a) {
     (void)a;
     return res_party_member_max();
 }
+static int32_t ie_wld_location_x(const int32_t *a) {
+    return wld_location_x((int)a[0]);
+}
+static int32_t ie_wld_location_y(const int32_t *a) {
+    return wld_location_y((int)a[0]);
+}
 
 static const int_engine_entry int_engine_tbl[] = {
     {"pa_is_alive", 1, ie_pa_is_alive},
@@ -564,6 +571,8 @@ static const int_engine_entry int_engine_tbl[] = {
     {"inv_find_in_range", 2, ie_inv_find_in_range},
     {"inv_count_in_range", 2, ie_inv_count_in_range},
     {"pa_party_member_max", 0, ie_pa_party_member_max},
+    {"wld_location_x", 1, ie_wld_location_x},
+    {"wld_location_y", 1, ie_wld_location_y},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`
@@ -2137,6 +2146,47 @@ static void do_input_number(const node *op, const char *script_id, size_t idx,
     rt_bind_set(env, var_n->u.sv, v, script_id, idx);
 }
 
+/* §20 follow-up: { input_item: { slot_var: '<name>', item_var: '<name>',
+   then?: [...ops...] } }. Reads one key (uppercased), validates it as
+   an inventory letter (A..P -> slot 1..16). On valid: binds slot_var
+   to the slot index and item_var to state.p[cpl].inventory[slot] as
+   rt_env ints, then runs `then:`. On any other key: skips `then:`
+   silently — callers that want abort-on-cancel keep the rest of the
+   logic inside `then:`. Replaces the speak.c jazzy_ogre_trader thin
+   C wrapper that hand-rolled the same key/slot/dispatch shape. */
+static ops_result do_input_item(const node *op, const char *script_id, size_t idx,
+                                const char *parent, const ryl_bind *bindings,
+                                rt_env *env) {
+    const node *body = obj_get(op, "input_item");
+    if (!body || body->kind != N_OBJ) {
+        die_at(script_id, idx, "input_item: value must be object");
+    }
+    const node *slot_var_n = obj_get(body, "slot_var");
+    const node *item_var_n = obj_get(body, "item_var");
+    const node *then_n = obj_get(body, "then");
+    if (!slot_var_n || slot_var_n->kind != N_STR) {
+        die_at(script_id, idx, "input_item: slot_var must be string");
+    }
+    if (!item_var_n || item_var_n->kind != N_STR) {
+        die_at(script_id, idx, "input_item: item_var must be string");
+    }
+    char d = (char)toupper((unsigned char)key());
+    if (d < 'A' || d > 'P') {
+        return OPS_NORMAL;
+    }
+    int slot = d - 'A' + 1;
+    int oc = state.p[state.cpl].inventory[slot];
+    rt_bind_set(env, slot_var_n->u.sv, slot, script_id, idx);
+    rt_bind_set(env, item_var_n->u.sv, oc, script_id, idx);
+    if (!then_n) {
+        return OPS_NORMAL;
+    }
+    if (then_n->kind != N_ARR) {
+        die_at(script_id, idx, "input_item: then must be array");
+    }
+    return play_ops(then_n, script_id, parent, bindings, env);
+}
+
 /* §17-F: { loop: [...ops...] } — run the body repeatedly until an
    inner `{ break }` fires. `{ continue }` restarts the loop early;
    a natural fall-off of the end of the body also restarts (the
@@ -2358,6 +2408,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         do_mutate(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "input_number")) {
         do_input_number(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "input_item")) {
+        return do_input_item(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "for_member")) {
         return do_for_member(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "for_inventory")) {
