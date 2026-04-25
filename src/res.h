@@ -219,6 +219,13 @@ const void *res_spell_node(const char *class_id, int slot);
    pointer is owned by the world tree; callers must not free it. */
 const void *res_script(const char *dotted_id);
 
+/* Effect-DSL library lookup (§20 S7). `lib.<dotted_id>` in world.json5
+   holds reusable effect arrays callable from the eval.c `call` op.
+   Returns the effect node (an N_ARR) or NULL when the path does not
+   resolve / is not an array. The pre-compiled tree is shared with
+   compile_world_tree's walk so call-sites don't compile per-call. */
+const void *res_lib_effect(const char *dotted_id);
+
 /* Terrain byte -> two-char glyph the renderer writes. "  " if unknown. */
 const char *res_glyph(char terrain);
 

@@ -1328,7 +1328,18 @@ void eval_effect(const node *n, env_t *e) {
         return;
     }
     if (strcmp(op, "call") == 0) {
-        rdie(n->line, "call: lib subtree not yet consulted");
+        /* §20 S7. arg[1] is a dotted lib id. lib.<id> resolves to a
+           pre-compiled effect array; we reuse the same env so locals
+           ($caster, $target, ...) are visible inside the called
+           fragment. Lookup miss is fatal — adding a `lib:` entry is
+           a one-line data edit, callers should not silently skip. */
+        const node *id_n = n->u.arr.items[1];
+        const node *body = res_lib_effect(id_n->u.sv);
+        if (!body) {
+            rdie(id_n->line, "call: lib id not found");
+        }
+        eval_effect(body, e);
+        return;
     }
     rdie(n->line, "unknown effect op");
 }

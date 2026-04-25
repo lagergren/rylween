@@ -1819,6 +1819,45 @@ const void *res_script(const char *dotted_id) {
     return (cur->kind == N_ARR) ? cur : NULL;
 }
 
+/* §20 S7: lookup for the eval.c effect-DSL `call` op. Walks
+   lib.<dotted_id> in the world tree, mirrors res_script's
+   resolution shape. Returns the effect-array node (already
+   compiled by compile_world_tree on load) or NULL when no
+   record exists at that path. */
+const void *res_lib_effect(const char *dotted_id) {
+    const node *cur = world_tree;
+    if (!cur || cur->kind != N_OBJ) {
+        return NULL;
+    }
+    cur = obj_get(cur, "lib");
+    if (!cur || cur->kind != N_OBJ) {
+        return NULL;
+    }
+    const char *p = dotted_id;
+    while (*p) {
+        const char *dot = strchr(p, '.');
+        size_t seg_len = dot ? (size_t)(dot - p) : strlen(p);
+        if (seg_len == 0 || seg_len >= 128) {
+            return NULL;
+        }
+        char seg[128];
+        memcpy(seg, p, seg_len);
+        seg[seg_len] = 0;
+        if (cur->kind != N_OBJ) {
+            return NULL;
+        }
+        cur = obj_get(cur, seg);
+        if (!cur) {
+            return NULL;
+        }
+        if (!dot) {
+            break;
+        }
+        p = dot + 1;
+    }
+    return (cur->kind == N_ARR) ? cur : NULL;
+}
+
 /* ---------------------------------------------------------------- */
 /*  Teardown                                                        */
 /* ---------------------------------------------------------------- */
