@@ -470,14 +470,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                             goto after_mage_switch;
                         }
                         switch (s->effect) {
-                            case SE_CONFUSION:
-                                clw();
-                                tx("%s utters a word.\r\n", pm_name(caster));
-                                tx0(res_text("battle.spell.mirror"));
-                                ryl_delay(2000);
-                                ws /= 2;
-                                confused = 1;
-                                break;
                             case SE_DEATH:
                                 while (1) {
                                     clw();

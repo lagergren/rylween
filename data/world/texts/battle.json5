@@ -51,6 +51,9 @@
                       'this creature is immune',
                       'to ordinary magic!!!'],
     not_enough_magic:['Not enough magic!'],
+    // Shared opener for the three flag-setter spells (confusion /
+    // hold / antimagic). §22 Lane A.
+    utters_word:     ['{caster} utters a word.'],
     mirror:          ['Your images wavers and',
                       'blurs in front of your',
                       'enemies'],
