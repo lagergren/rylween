@@ -3116,57 +3116,61 @@ Three patterns came up across the four steps:
 
 ### 20.19 Fixture queue — replay coverage for L7 flows
 
-Three new replay fixtures should be authored to lock down byte-
-identity for the L7 surface. Naming convention follows the
-existing `tools/replay/<area>-<flow>[-<variant>].in/.expect/.expect_snapshot/.env`
-pattern. All three need an `RYL_FAKE_SEED` + `RYL_FAKE_EPOCH`
-in the `.env` to pin the entropy stream so the random rolls
-inside each flow are reproducible.
+Three new replay fixtures lock down byte-identity for the L7
+surface. All three landed in the post-L7 fixture-author session
+and fold into the existing `make check` aggregate; total replay
+fixture count moves 18 → 21.
 
-  1. **`wilderness-hunt`** — exercises subs.c hunt() →
-     hunt.json5. Shape: create-party (one Ranger), spawn into
-     wilderness, press H, pick the ranger, observe success path
-     (food gain) and a separate fixture or seed step for the
-     failure path. Pin success/failure via the seed: with
-     RYL_FAKE_SEED=42 the next `ryl_chance(45)` after party-
-     creation is deterministic — pick whichever way it lands as
-     the "hunt-succeeds" fixture and add a -fail variant later
-     with a different seed (or by chaining moves to push the
-     RNG cursor). Validates: who-loop with digit_range,
-     pa_is_class enum lookup, time_left mutate sub, food
-     mutate add, pa_first_level engine_int.
+  1. **`wilderness-hunt`** [DONE] — exercises subs.c hunt() →
+     hunt.json5. Four-Ranger party, H from spawn (12,9), member 1
+     picked. Seed-42 lands on success → "20 food rations" trap
+     (random[10,19]+pa_first_level=1 = 20). Validates: who-loop
+     digit_range, pa_is_class enum lookup, time_left mutate sub,
+     food mutate add, pa_first_level engine_int. The `-fail`
+     variant is a follow-up — would need a different seed or
+     enough RNG burn to push `ryl_chance(45)` past success.
 
-  2. **`wilderness-camp`** — exercises subs.c camp() →
-     rest.json5. Shape: create-party, spawn into wilderness,
-     advance time enough for `hours_rested <= 0` (or set up a
-     zero-hours_rested checkpoint via env override), press C,
-     decline guard (or pick guard 1 in a -guard variant),
-     verify the temperature roll, the heal pass, the
-     well-rested wake-up. Two variants: ambush-fires (chance%
-     pinned via seed) and well-rested. Validates: every L7
+  2. **`wilderness-camp`** [DONE] — exercises subs.c camp() →
+     rest.json5. Burns 14 X+N (cancelled-quit) cycles to drain
+     hours_rested 14→0 without firing random_wilderness
+     encounters (movement keys would). C N to enter camp without
+     guard. Seed-42 lands on temperature [6,10) → "Low
+     Temperature" + "Party loses 5 health"; ambush_pct(19%) roll
+     misses → well_rested wake-up; heal+15 clamps every member
+     back to full hp from the temp damage. Validates: every L7
      DSL extension at once — hours_rested expr, advance_hour
      engine_call, pa_alive_count engine_int, food clamp:min,
-     hp clamp:max, encounter tier, surprise-kill member_field
-     mutate (hp/dead), pl mutate sub.
+     hp clamp:max, mutate set on hours_rested + hour_of_day. The
+     `-ambush` and `-guard` variants are follow-ups; this one
+     covers the largest single-fixture DSL surface today.
 
-  3. **`towne-thord-tavern-bargirl-lodge`** — exercises the
-     speak.c bargirl Q→L arm → lodge.bargirl. Shape: enter
-     Thord, T to tavern, S to speak, pick Bargirl, Q L Y to
-     pay, verify gold deduction + per-member 1 hp drain.
-     Add -broke variant where party gold is below the fee
-     (might need a seed that produces low starting gold, or
-     burn gold on inn/smith first to drop below 50*lv[1]).
-     Validates: gold mutate sub, member-field hp mutate sub
-     with `gt: hp > 1` guard, for_member loop over a non-state
-     mutation. The two-space-indent `(Y)es / (N)o` cosmetic
-     delta will surface as an expected diff vs the pre-L7
-     bytes; bless on first run.
+  3. **`towne-thord-tavern-bargirl-lodge`** [DONE] — exercises
+     the speak.c bargirl Q→L arm → lodge.bargirl. Important:
+     reach is via inn() chitchat (`I N N N C` then NPC letter),
+     NOT tavern S — the tavern's S key still calls `speak(building='inn')`
+     under the legacy bld=1/inn vs bld=2/tavern semantics
+     (script.c:1287 documents this preserved Amiga-era cross-
+     listing). The bargirl Deanna only shows in the inn's
+     chitchat list. Letter E (after 3 random NPCs + Niklas at
+     building=tavern). Q L Y → 50 gold deducted (gold 1000→950),
+     each member -1 hp via the `gt: hp > 1` guard. Validates:
+     gold mutate sub, member-field hp mutate sub with the gt
+     guard, for_member loop. The `-broke` variant is a follow-up;
+     hardest part is dropping gold below 50 (RYL_STARTING_GOLD
+     env caps at ≥1000, so the variant needs ≥20 lodge-pay
+     iterations or a merchant-spend prelude).
 
-  Order of authoring: bargirl-lodge first (smallest, exercises
-  the most common DSL ops), then hunt (single-tier coverage),
-  then camp (covers the most DSL surface but also the largest
-  expected-output blob). All three fold into the existing
-  `make check` aggregate; no harness changes needed.
+  Pre-flight wiring fix landed alongside this session: L7 steps
+  2/3/4 added the script files (data/world/scripts/{hunt,rest,
+  lodge}.json5) and texts (data/world/texts/{hunt,rest}.json5)
+  but never added the matching `$import` lines to world.json5's
+  scripts: and texts: subtrees. play_script("hunt"|"rest"|
+  "lodge.bargirl") would die at lookup. Fix: import all three
+  scripts and the two text shards; unwrap the `{ hunt: [...] }`
+  / `{ rest: [...] }` outer keys so the imports flatten to ARR
+  (play_script("hunt") needs scripts.hunt to BE the array, not
+  contain a `.hunt` key). lodge.json5 keeps the outer wrapper —
+  scripts.lodge needs to be an OBJ for the lodge.bargirl path.
 
 ### 20.20 DSL extensions discovered as nice-to-haves during L7
 
