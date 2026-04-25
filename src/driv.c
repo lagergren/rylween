@@ -1618,6 +1618,42 @@ static void createparty() {
     for (i = 1; i <= res_party_member_max(); i++) {
         state.p[a].dead[i] = 0;
     }
+    /* Replay-mode override: fixtures that exercise spells whose
+       cost (base + lv) exceeds a fresh lv-1 spellcaster's ma
+       cap (= seed wi, max 70) set RYL_FORCE_PARTY_LV=<n>. The
+       knob raises every member's lv to <n> and applies the
+       per-class levelup deltas (n-1 times) to ws/h/wi/ch — same
+       shape battle.c::level_up_check applies on combat XP gain,
+       fired once per gained level rather than once per call.
+       Spellcasters' ma is reset to the bumped wi cap so the
+       fixture can cast immediately. Clamped to [1, 28] (the
+       engine's level ceiling). Production never sets this. */
+    const char *lv_env = getenv("RYL_FORCE_PARTY_LV");
+    if (lv_env && *lv_env) {
+        char *end;
+        long lv_target = strtol(lv_env, &end, 10);
+        if (end != lv_env && lv_target >= 1 && lv_target <= 28) {
+            static const char *const pc_class_key[] = {
+                "", "fighter", "thief", "mage", "priest", "bard", "ranger",
+            };
+            for (i = 1; i <= res_party_member_max(); i++) {
+                pm_t pm = pm_of(&state.p[a], i);
+                int cl_id = pm_cl(pm);
+                const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
+                for (long n = 1; n < lv_target; n++) {
+                    pm_add_ws(pm, res_class_levelup(cls, "ws"));
+                    pm_add_h(pm, res_class_levelup(cls, "h"));
+                    pm_add_wi(pm, res_class_levelup(cls, "wi"));
+                    pm_add_ch(pm, res_class_levelup(cls, "ch"));
+                }
+                state.p[a].lv[i] = (int32_t)lv_target;
+                if (pm_is_spellcaster(pm)) {
+                    pm_set_ma(pm, pm_wi(pm));
+                }
+            }
+            unsetenv("RYL_FORCE_PARTY_LV");
+        }
+    }
     strcpy(state.p[a].player, state.global_name);
     clw();
     tx0(res_text("driv.create.saving"));
