@@ -3446,3 +3446,325 @@ once every gameplay file routes through helpers. It's not
 gating anything in flight, but the inventory above should be
 re-read before any helper grows a non-trivial new global, so
 the eventual ctx migration doesn't get worse over time.
+
+## 22. DSL unification plan (audit 2026-04-25)
+
+Goal: a reader who has never seen the C source should be able
+to reproduce the entire game by reading the data shards alone.
+Today the data is partway there — `data/world/items/`,
+`data/world/monsters/`, `data/world/scripts/`,
+`data/world/texts/` already cover most of the gameplay surface
+— but multiple inconsistencies and parallel mechanisms get in
+the way. This section catalogues every place the DSL fails the
+"same patterns look the same" test, with a sequenced plan to
+collapse them.
+
+The principle, restated: **one DSL, one expression model, one
+binding model, one engine registry, one set of enum records
+keyed by lowercase symbol with a `name:` field for display**.
+The shards are the program; the engine is just the runtime.
+
+### 22.1 Audit findings (sorted by leverage)
+
+#### Tier 1 — different DSLs for similar things
+
+The single biggest thing in the way of "read the data alone"
+is that there are three independent DSLs in the data tree, with
+incompatible syntaxes, vocabularies, and evaluators.
+
+  1. **Script DSL** — `src/script.c` (~3000 lines), object-shaped
+     JSON5. Owns dialogue / mission / town-service / dungeon
+     scripts. Vocabulary: `{ if: { cond: ..., then: [...] } }`,
+     `{ mutate: { target: ..., op: ..., value: ... } }`,
+     `{ engine_call: 'name', args: [...] }`,
+     `{ for_member: { var: 'm', then: [...] } }`,
+     `{ switch: { expr: ..., cases: [{match: V, then: [...]}] } }`,
+     etc. Expression grammar: `{ add | sub | mul | div: [a,b] }`,
+     `{ eq | ne | lt | gt: [a,b] }`, `{ var: 'name' }`,
+     `{ member: <expr>, field: '<name>' }`, etc. This is the
+     mature, growing surface — driven by the L2/L7/§17-F arc.
+
+  2. **Spell DSL** — `src/eval.c` (~1350 lines), Lisp-style
+     S-expressions. Owns spell effect bodies under `do:`.
+     Vocabulary: `['seq', ...]`, `['if', cond, then]`, `['set',
+     '$dmg', expr]`, `['*', 'caster.lv', ['rand', 2, 8]]`,
+     `['say', 'battle.spell.frost.damage', '$dmg']`. Path syntax
+     is `'caster.hp'` / `'target.dead'` / `'$dmg'` (string-as-path),
+     vs the script DSL's `{ member: <expr>, field: 'hp' }` shape.
+     Operator names diverge: `'rand'` vs `'random'`, `'*'` vs
+     `'mul'`, positional `'sub'` (binary subtract) vs script's
+     `op: 'sub'` (mutate's subtract-into-slot).
+
+     Today: `mage.frost` is the only spell with a `do:` body.
+     Every other spell carries `legacy_effect: '<name>'` pointing
+     at the SE_* case still resident in `battle.c`. The spell
+     DSL was designed to receive those migrations but the
+     battle.c dispatcher hasn't yet been routed.
+
+  3. **speak_missions DSL** — `data/world/scripts/speak_missions.json5`,
+     a third micro-DSL. Vocabulary:
+     `conds: [{flag: '<tag>', when: '<state>'}]` for AND-of-N
+     condition matching, `binds: [{name, kind, npc_role|arg}]`
+     with hardcoded kinds (`npc_name`, `npc_loc`, `dx_str`,
+     `dy_str`) for resolved bindings. Both shapes parallel script
+     DSL primitives but use entirely different keys: the cond
+     shape parallels `if.cond`, the bind shape parallels
+     `engine_bind`, the kind enum parallels `engine_bind_tbl`'s
+     fn registry.
+
+#### Tier 2 — symbol/identity hygiene
+
+  4. **Enums shaped as positional CapitalCased arrays.**
+
+     ```json5
+     pc_class: ['', 'Fighter', 'Thief', 'Mage', 'Priest', 'Bard', 'Ranger'],
+     race:     ['', 'Human', 'Dwarf', 'Elf', 'Halfling'],
+     jobname:  ['', 'Merchant', 'Ranger', 'Fighter', 'Wizard', ...],
+     ```
+
+     Two coupled smells: (a) the script symbol IS the display
+     string ('Priest' is both what the script says and what the
+     UI renders), so renaming "Priest" to "Cleric" silently
+     re-points every dispatch; (b) the case style is inconsistent
+     across enums — `pc_class`/`race`/`jobname` are CapitalCased,
+     `building`/`gender`/`pic` are lowercase symbols, `name`/
+     `towne` are proper nouns. Scripts can't tell which to expect.
+
+     Map-keyed records resolve both — the lowercase key is the
+     symbol, an explicit `name:` field is the display string.
+
+  5. **Map-keyed records over positional arrays everywhere
+     identity matters.** Items shards (`weapons`, `armour`,
+     `magic_items`, `specials`, `treasures`, `gear`, `potions`),
+     `monsters`, `dungeons`, `flags`, `terrain`, `towns`,
+     `buildings` (subtree, not the enum) are all keyed correctly
+     today — the `id:` field is just the runtime int, the key
+     carries the identity. The remaining offenders are the three
+     enums above. Apply the same shape.
+
+#### Tier 3 — magic ints leaking into the data DSL
+
+  6. **No symbolic registry for `wld_location_*` slots.** Today:
+     `{ engine_int: 'wld_location_x', args: [7] }`. Slot 7 is the
+     beast cave (per `world.json5:56` comment) but the data
+     doesn't say so. Add a `world_locations:` registry with
+     symbolic keys (`fire_shield_cave`, `beast_cave`, `silver_pit`,
+     ...) carrying `slot:` fields, then tag
+     `wld_location_x.arg[0]` and `wld_location_y.arg[0]` with the
+     new enum via the `arg_enums[]` shortcut landed in §20.20 #1.
+     Scripts read `args: ['beast_cave']`.
+
+  7. **Engine_int item-id args still bare ints.** Sites:
+     `inv_find_item(34)` (tent), `inv_find_in_range(33, 34)`
+     (blanket..tent). Tag those arg positions with `'item'` in the
+     registry; scripts read `args: ['tent']` and `args: ['blanket',
+     'tent']`. Same mechanism as #6, applied to existing enum.
+
+  8. **ASCII-offset arithmetic in inventory key handling.**
+     Today scripts decode the captured letter back into a slot
+     index by hand:
+
+     ```json5
+     { let: 'slot',    value: { sub: [{ var: 'sell_key' }, 64] } },
+     { let: 'item_id', value: { sub: [{ var: 'buy_key' },  34] } },
+     ```
+
+     Bare 64 and 34 are ASCII offsets ('A'-1 and 'A'-31
+     respectively). Smelly. Plus `key_range: ['A', 'P']` hardcodes
+     16 inventory slots — but the inventory bound is dynamic
+     (`INVENTORY_SLOT_MAX` / `res_inventory_slot_max()`). The
+     `digit_range: { lo:1, hi:{engine_int:'pa_party_member_max'} }`
+     pattern proves the dynamic-bound model works; needs a
+     `letter_range` analogue plus an automatic slot-index binding.
+
+     Proposed shape:
+
+     ```json5
+     { letter_range: { lo: 'A', count: { engine_int: 'inv_slot_max' } },
+       index_var:  'slot',     // 1..N, slot index
+       letter_var: 'sell_key', // optional, the actual letter
+       then: [...] }
+     ```
+
+     Affects 4 sites in `towne.json5` (Sell shop, generic-buy,
+     spell-buy at line ~1398, and one more). Drops two `sub:N`
+     conversions and 4 hardcoded ranges; ties everything to a
+     single `INVENTORY_SLOT_MAX` source of truth.
+
+#### Tier 4 — op-shape consistency
+
+  9. **Legacy shorthand in `if.cond` should go.** Today `if.cond`
+     accepts `{ flag: 'tag', eq: 'value' }` (legacy) AND
+     `{ eq: [{ flag: 'tag' }, 'value'] }` (modern expr form). Two
+     ways to write the same thing. Sweep all data sites onto the
+     modern form, drop legacy in `eval_cond`.
+
+ 10. **Unify `chance:` and `if:` shape.** Today `chance` is its
+     own control-flow op:
+     `{ chance: { pct: N, then: [...], else: [...] } }`.
+     But `chance` is already an expression form (§17-F:
+     `{ chance: <expr> }` returns 0/1). So the op-shape collapses
+     to `{ if: { cond: { chance: N }, then: [...], else: [...] } }`
+     — drops one op from the surface; control flow goes through
+     one primitive.
+
+ 11. **Three engine registries with different arg shapes.**
+     `engine_call` (void return, args evaluated as exprs),
+     `engine_int` (int return, args evaluated as exprs, optional
+     `arg_enums[]` for symbolic resolution), `engine_bind` (string
+     return, mixed string/expr args, output via `var:`). One
+     registry with `kind: void|int|str` per entry would let a
+     uniform call shape land at every site:
+
+     ```json5
+     { engine: 'pa_is_class', args: [{var:'who'}, 'Ranger'] }   // returns int
+     { engine: 'invlist' }                                      // returns void
+     { engine: 'pa_name', args: [{var:'who'}], var: 'who_name' }// returns str
+     ```
+
+     One vocab to learn instead of three. Cosmetic — defer if
+     items 1-10 are enough.
+
+ 12. **Op-shape micro-inconsistencies.** `set_flag: '<tag>',
+     value: '<state>'` is a flat 2-key op; everything else nests
+     under one key. `pause: 1000` is a raw int next to
+     `wait_input: true`. `keys: ['A', 'B']` is array-shaped vs
+     `key: 'A'` scalar. These are minor — document the rule "one
+     obvious arg takes it directly, multiple args nest in an
+     object" and call it done.
+
+#### Tier 5 — case/style consistency
+
+ 13. **Lowercase symbol style across all enums.** Falls out of #4
+     automatically — once enums are keyed records, the *key* is
+     always lowercase symbol, the *display* is whatever `name`
+     field carries. The case-style smell goes away.
+
+#### Tier 6 — documentation
+
+ 14. **Single canonical DSL reference.** `src/eval.c:1` references
+     `docs/dsl.md §6` but the file doesn't exist. `src/script.h`
+     header has the script DSL ops table. `speak_missions.json5`
+     header documents its mini-DSL. Three sources, one missing.
+     After tiers 1+2+3 land, write `docs/dsl.md` as the single
+     reference covering control flow, expressions, bindings,
+     enum shape, and the registry. The shards plus the doc =
+     the reproducible game spec.
+
+### 22.2 Sequenced execution plan
+
+**A. Spell DSL → script DSL convergence** (tier 1, item 1).
+Biggest leverage; collapses two evaluators into one. Touches
+`src/eval.c`, `src/battle.c` spell dispatch, all
+`data/world/spells/*.json5` shards, and the 5 unmigrated
+`legacy_effect` cases still in `battle.c`.
+
+  Steps:
+   - Add the missing primitives to script DSL: target picking
+     (`ask_target` op), spell-context bindings (`caster.lv`,
+     `caster.name`, `target.hp`, `target.dead`), in-battle
+     `say` op (parallel to `emit` but with the battle-screen
+     formatter).
+   - Port `mage.frost.do` to the script DSL shape; verify
+     RNG-identity preserved (the §17-F note about `random:[2,8]`
+     drawn once still applies).
+   - Migrate one `legacy_effect` per commit (priest.heal first —
+     simplest), retire the SE_* C case as each lands.
+   - Once the last `legacy_effect` is gone, delete `src/eval.c`,
+     remove the `do:` vs S-expression dispatch from `battle.c`,
+     fold spell-effect docs into `script.h`.
+
+**B. Enum keyed records with display split** (tier 2, items 4-5).
+Concurrent with A — touches different files.
+
+  Steps:
+   - Engine: `res_enum_id()` accepts both array-of-string and
+     object-of-records shapes (transition-friendly); add
+     `res_enum_name(table, id)` returning `.name` field for the
+     new shape, falling back to slot-string for old.
+   - Migrate `pc_class` first (6 entries, prove the path; fold
+     existing `classes:` `levelup:` records into the same object).
+     Sweep ~30 callsites across C and ~10 across data
+     (`'Priest'` → `'priest'`).
+   - `race` next (4 entries), then `jobname` (16 entries).
+   - Tighten `fold_enums` to warn on positional-array shape once
+     all three are converted.
+
+**C. Symbolic args sweep** (tier 3, items 6-7). Small focused
+changes after A+B; can do per-shard.
+
+  Steps:
+   - Item 6 needs new data: a `world_locations:` registry mapping
+     symbolic name → slot. C side: `wld_location_x/y` accept a
+     symbolic key (or keep int slots; resolve at engine_int
+     dispatch via arg_enums).
+   - Item 7 is a one-line registry edit (`arg_enums: {'item'}` on
+     the three inv_* fns) plus a 3-site data sweep.
+
+**D. Inventory letter-range dynamic bound** (tier 3, item 8).
+Engine extension: add `letter_range` op-option with
+`count: <expr>`, `index_var:`, `letter_var:`. Sweep 4 towne.json5
+sites; drop two `sub:N` conversions.
+
+**E. Op-shape consistency** (tier 4, items 9-12). After A-D land.
+
+  Steps:
+   - Item 9 (drop legacy `if.cond` shorthand): grep for `flag:.*eq:`,
+     `flag:.*ne:`, `gold:.*gte:`, `gold:.*lt:`; rewrite each onto
+     expression form; remove the legacy branch from `eval_cond`.
+   - Item 10 (collapse `chance:` into `if {cond:{chance:...}}`):
+     grep for `{ chance: { pct:`, rewrite, remove the `do_chance`
+     control-flow op (keep the `chance` expression form).
+   - Item 11 (engine registry unification) — defer or do; write
+     up the shape and decide.
+   - Item 12 (micro-inconsistencies): document the rule, no code
+     changes.
+
+**F. `speak_missions.json5` rewrite** (tier 1, item 3). Depends
+on A landing (script DSL has loops/switch/conds rich enough
+already). Convert each NPC role's stages into a script that
+fires the right play_script with the right bindings. Remove
+the speak_missions micro-DSL evaluator from `speak.c`.
+
+**G. Single-doc DSL reference** (tier 6, item 14). After A-F.
+Write `docs/dsl.md` covering: control flow, expressions,
+bindings, lvalues, enum shape, registry vocabulary, error
+contract, examples. This is what makes "read the data alone"
+actually true.
+
+### 22.3 What lands when
+
+Tier 1 is the strategic capstone — the rest is mechanical or
+narrowly-scoped extensions of existing patterns. The right
+order to land them: A (spell DSL convergence) and B (enum
+shape) can run in parallel; both unlock C+D+E. F depends on
+A. G is the documentation pass after the surface stabilises.
+
+There is no "blocking" priority among A vs B vs C+D+E —
+whichever migration is most pressing for the next gameplay
+slice should drive. If no slice is pressing, A is the highest
+absolute leverage because retiring `eval.c` immediately
+collapses ~1400 lines of engine and removes one of the two
+languages a reader has to learn.
+
+Estimated total work: ~1-2 sessions for A, ~0.5 session per
+enum (pc_class, race, jobname) in B, ~0.5 session for each of
+C/D/E/F, ~0.5 session for G. Cumulative ~5-7 sessions if done
+sequentially; the actual budget will compress because most of
+these touch the same files and can land in single commits.
+
+### 22.4 Non-goals
+
+  - **Not a rewrite.** Every existing op stays; this is sweep
+    + collapse + retire, not redesign.
+  - **Not a typing overhaul.** No formal type system on the
+    DSL; `eval_expr` still returns `int32_t` and dies on
+    mismatches. The `arg_enums[]` shortcut is the only new
+    mechanism, and it's already shipping.
+  - **Not a graphical layer.** Texts stay as
+    `data/world/texts/*.json5`; the `{cost:itemkey}` placeholder
+    pattern can grow more typed forms (`{name:itemkey}`,
+    `{damage:itemkey}`) as needed but no general template engine.
+  - **Not changing the byte-identity contract.** Every
+    migration step must keep `make check` green at 22 fixtures
+    + check_world.
