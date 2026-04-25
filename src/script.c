@@ -403,57 +403,54 @@ static int32_t expr_member_field(const node *op, const char *script_id,
         die_at(script_id, idx, "expr member: field must be string");
     }
     int32_t m = eval_expr(m_n, script_id, idx, bindings, env);
-    if (m < 1 || m > 4) {
-        die_at(script_id, idx, "expr member: idx must be 1..4");
+    if (m < 1 || m > res_party_member_max()) {
+        die_at(script_id, idx, "expr member: idx out of range");
     }
     const char *field = f_n->u.sv;
-    struct party *p = &state.p[state.cpl];
+    pm_t pm = pm_cur((int)m);
     if (strcmp(field, "lv") == 0) {
-        return p->lv[m];
+        return pm_lv(pm);
     }
     if (strcmp(field, "hp") == 0) {
-        return p->hp[m];
+        return pm_hp(pm);
     }
     if (strcmp(field, "h") == 0) {
-        return p->h[m];
+        return pm_h(pm);
     }
     if (strcmp(field, "ma") == 0) {
-        return p->ma[m];
+        return pm_ma(pm);
     }
     if (strcmp(field, "wi") == 0) {
-        return p->wi[m];
+        return pm_wi(pm);
     }
     if (strcmp(field, "ws") == 0) {
-        return p->ws[m];
+        return pm_ws(pm);
     }
     if (strcmp(field, "ch") == 0) {
-        return p->ch[m];
+        return pm_ch(pm);
     }
     if (strcmp(field, "cl") == 0) {
-        return p->cl[m];
+        return pm_cl(pm);
     }
     if (strcmp(field, "ra") == 0) {
-        return p->ra[m];
+        return pm_ra(pm);
     }
     if (strcmp(field, "exp") == 0) {
         /* uint32 → int32 cast: exp values stay well below 2^31 in
            legacy save files (the experience cap is much lower). */
-        return (int32_t)p->exp[m];
+        return (int32_t)pm_exp(pm);
     }
     if (strcmp(field, "dead") == 0) {
-        return p->dead[m];
+        return pm_dead(pm);
     }
     if (strcmp(field, "ar") == 0) {
-        return p->ar[m];
+        return pm_ar(pm);
     }
     if (strcmp(field, "wp") == 0) {
-        return p->wp[m];
-    }
-    if (strcmp(field, "exp") == 0) {
-        return (int32_t)p->exp[m];
+        return pm_wp(pm);
     }
     if (strcmp(field, "gender") == 0) {
-        return p->gender[m];
+        return pm_gender(pm);
     }
     die_at(script_id, idx, "expr member: unknown field name");
 }
@@ -2002,9 +1999,9 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
                    "mutate: member_field field must be string");
         }
         int32_t m = eval_expr(i_n, script_id, idx, bindings, env);
-        if (m < 1 || m > 4) {
+        if (m < 1 || m > res_party_member_max()) {
             die_at(script_id, idx,
-                   "mutate: member_field idx must be 1..4");
+                   "mutate: member_field idx out of range");
         }
         return (mutate_lv){LV_MEMBER_FIELD, m, f_n->u.sv};
     }
@@ -2031,50 +2028,49 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
         case LV_INVENTORY:
             return pa_inventory(lv->index);
         case LV_MEMBER_FIELD: {
-            int m = lv->index;
+            pm_t pm = pm_cur(lv->index);
             const char *f = lv->field;
-            struct party *p = &state.p[state.cpl];
             if (strcmp(f, "lv") == 0) {
-                return p->lv[m];
+                return pm_lv(pm);
             }
             if (strcmp(f, "hp") == 0) {
-                return p->hp[m];
+                return pm_hp(pm);
             }
             if (strcmp(f, "h") == 0) {
-                return p->h[m];
+                return pm_h(pm);
             }
             if (strcmp(f, "ma") == 0) {
-                return p->ma[m];
+                return pm_ma(pm);
             }
             if (strcmp(f, "wi") == 0) {
-                return p->wi[m];
+                return pm_wi(pm);
             }
             if (strcmp(f, "ws") == 0) {
-                return p->ws[m];
+                return pm_ws(pm);
             }
             if (strcmp(f, "ch") == 0) {
-                return p->ch[m];
+                return pm_ch(pm);
             }
             if (strcmp(f, "cl") == 0) {
-                return p->cl[m];
+                return pm_cl(pm);
             }
             if (strcmp(f, "ra") == 0) {
-                return p->ra[m];
+                return pm_ra(pm);
             }
             if (strcmp(f, "dead") == 0) {
-                return p->dead[m];
+                return pm_dead(pm);
             }
             if (strcmp(f, "ar") == 0) {
-                return p->ar[m];
+                return pm_ar(pm);
             }
             if (strcmp(f, "wp") == 0) {
-                return p->wp[m];
+                return pm_wp(pm);
             }
             if (strcmp(f, "exp") == 0) {
-                return (int32_t)p->exp[m];
+                return (int32_t)pm_exp(pm);
             }
             if (strcmp(f, "gender") == 0) {
-                return p->gender[m];
+                return pm_gender(pm);
             }
             die_at(script_id, idx, "mutate: member_field unknown field name");
         }
@@ -2120,55 +2116,54 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
             pa_set_inventory(lv->index, v);
             return;
         case LV_MEMBER_FIELD: {
-            int m = lv->index;
+            pm_t pm = pm_cur(lv->index);
             const char *f = lv->field;
-            struct party *p = &state.p[state.cpl];
             if (strcmp(f, "lv") == 0) {
-                p->lv[m] = v;
+                pm_set_lv(pm, (int)v);
                 return;
             }
             if (strcmp(f, "hp") == 0) {
-                p->hp[m] = v;
+                pm_set_hp(pm, (int)v);
                 return;
             }
             if (strcmp(f, "h") == 0) {
-                p->h[m] = v;
+                pm_set_h(pm, (int)v);
                 return;
             }
             if (strcmp(f, "ma") == 0) {
-                p->ma[m] = v;
+                pm_set_ma(pm, (int)v);
                 return;
             }
             if (strcmp(f, "wi") == 0) {
-                p->wi[m] = v;
+                pm_set_wi(pm, (int)v);
                 return;
             }
             if (strcmp(f, "ws") == 0) {
-                p->ws[m] = v;
+                pm_set_ws(pm, (int)v);
                 return;
             }
             if (strcmp(f, "ch") == 0) {
-                p->ch[m] = v;
+                pm_set_ch(pm, (int)v);
                 return;
             }
             if (strcmp(f, "cl") == 0) {
-                p->cl[m] = v;
+                pm_set_cl(pm, (int)v);
                 return;
             }
             if (strcmp(f, "ra") == 0) {
-                p->ra[m] = v;
+                pm_set_ra(pm, (int)v);
                 return;
             }
             if (strcmp(f, "dead") == 0) {
-                p->dead[m] = v;
+                pm_set_dead(pm, (int)v);
                 return;
             }
             if (strcmp(f, "ar") == 0) {
-                p->ar[m] = v;
+                pm_set_ar(pm, (int)v);
                 return;
             }
             if (strcmp(f, "wp") == 0) {
-                p->wp[m] = v;
+                pm_set_wp(pm, (int)v);
                 return;
             }
             if (strcmp(f, "exp") == 0) {
@@ -2176,11 +2171,11 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                     die_at(script_id, idx,
                            "mutate: member_field exp cannot be negative");
                 }
-                p->exp[m] = (uint32_t)v;
+                pm_set_exp(pm, (uint32_t)v);
                 return;
             }
             if (strcmp(f, "gender") == 0) {
-                p->gender[m] = (unsigned char)v;
+                pm_set_gender(pm, (unsigned char)v);
                 return;
             }
             die_at(script_id, idx, "mutate: member_field unknown field name");
