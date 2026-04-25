@@ -3222,3 +3222,227 @@ investments.
      when omitted, or accept a literal `town: 'current'` symbol.
      Cosmetic; one callsite in towne.json5 (inn → C chitchat)
      and zero in L7 itself.
+
+## 21. Reentrancy / thread-safety plan (audit 2026-04-25)
+
+The user asked: can the gate tests run in different threads or
+parallel processes? And, more strategically, what would it take
+to make the engine reentrant — pass a context around, drop the
+global state — so a single binary could host multiple independent
+game instances?
+
+### 21.1 Parallel-process tests — already done
+
+`tools/replay.sh --all` forks one `rylween` subprocess per
+fixture, waits for all of them, and prints buffered output in
+script order so the summary is deterministic. Each fixture has
+its own tmp `HOME`, env sidecar, stdin, RYL_SNAPSHOT path, and
+stdout buffer. There is nothing to change: 22 fixtures already
+run on whatever cores the OS hands out.
+
+`make check` invokes `tools/replay.sh --all` and `tools/check_world.sh`
+back-to-back. The fan-out lives inside the replay script; the
+build itself is single-threaded `make` because the source set
+is tiny enough that parallel cc isn't a wallclock win.
+
+### 21.2 In-process threading — what blocks it today
+
+Several pieces of process-singleton state would have to be lifted
+into a per-instance context. Audited 2026-04-25:
+
+  - **Game state** — `struct ryl_state state;` defined in
+    `src/ryl.c` and read/written by every gameplay file. The big
+    target: every `state.*` and helper (`pa_*` / `pm_*` / `inv_*`)
+    becomes ctx-aware.
+
+  - **RNG** — `static uint64_t rng_state` in `compat.c` (XorShift64*).
+    Seeded at startup from `RYL_FAKE_SEED` or `time^pid`. Every
+    `ryl_random` / `ryl_chance` advances it. Must be per-context;
+    otherwise two threads draining the same generator would
+    interleave non-deterministically and break replay.
+
+  - **World tree** — `static node *world_tree` in `res.c`. The
+    JSON5 AST that backs `res_text`, `res_int_path`, `res_enum_id`,
+    `fold_scripts`, etc. *Read-only after `res_load_world`*, so
+    in principle it can be shared across threads — but every
+    dependent table (items, monsters, spells, glyphs, towns,
+    flags, mission tables, enums) is also a `static` in res.c
+    and they're all read-only post-fold. **Shareable as a unit**
+    if we encode "world is immutable after load" as a discipline.
+
+  - **Lazy env caches** — `compat.c` has function-statics for
+    `RYL_NO_DELAY`, `RYL_FAKE_EPOCH`, and the resolved
+    `$HOME/.rylween` path. Each one-shot at first call. Either
+    move into ctx or accept that env-var reads are
+    process-scoped (i.e., all threads share the same
+    RYL_NO_DELAY setting); the latter is fine for testing as
+    long as fixtures never need different env values
+    concurrently, which today they always do (FAKE_SEED
+    differs per fixture).
+
+  - **I/O backend** — `io_backend *io = NULL;` in `io_tty.c`,
+    plus `static struct termios saved_termios` and
+    `volatile sig_atomic_t io_winch_pending`. The terminal is a
+    process-singleton resource — can't have two threads driving
+    raw mode on the same tty. For threaded tests, `io` must be
+    per-context and configured for in-memory or
+    pipe-backed I/O; the `tty_backend` would be a single-thread
+    interactive-only path.
+
+  - **atexit handlers** — three of them: `res_shutdown`,
+    `tty_restore`, `snapshot_write`. atexit is process-global
+    and runs in LIFO order at process exit. None of these are
+    per-context-friendly. For threaded mode, replace with
+    explicit `ryl_ctx_free(ctx)` lifecycle and skip atexit.
+
+  - **SIGWINCH** — single signal handler shared by the process,
+    sets `io_winch_pending`. Each context would need its own
+    pending flag; but a process can only deliver a signal to one
+    "place," so the handler dispatches to per-thread state via
+    something like `pthread_self()` or a TLS slot. Practically:
+    threaded engine instances probably don't care about
+    SIGWINCH — only the interactive single-threaded session
+    does. Make the handler conditional on "this ctx is the
+    interactive one."
+
+  - **stdio** — `printf` / `fprintf(stderr)` calls live in
+    `primitives.c` (heavy), `res.c`, `snapshot.c`, `json5.c`.
+    For threaded mode, every direct stdio call has to route
+    through `ctx->io` instead. A grep + audit would find them;
+    the non-error path is mostly already through tx/tx_fmt/clw,
+    which themselves call into the io_backend.
+
+  - **getenv reads at startup** — `RYL_FAKE_SEED`,
+    `RYL_FAKE_EPOCH`, `RYL_NO_DELAY`, `RYL_SNAPSHOT`,
+    `RYL_STARTING_GOLD`, `RYL_PARTY_MEMBER_MAX`,
+    `RYL_REPLAY_RUMOUR`, `HOME`. Process-global today. Per-ctx
+    config would override these via a `ryl_ctx_config` struct
+    populated by the harness.
+
+### 21.3 Target shape — `ryl_ctx`
+
+  ```c
+  struct ryl_ctx {
+      struct ryl_state state;       /* the current state struct */
+      uint64_t rng_state;
+      io_backend *io;               /* may be tty-shared, in-mem, etc. */
+      const node *world;            /* shared, read-only post-fold */
+
+      /* config replacing env-var reads */
+      uint64_t fake_seed;
+      time_t   fake_epoch;
+      int      no_delay;
+      const char *snapshot_path;
+      const char *home_dir;
+
+      /* per-instance siblings of res.c's tables, IF we want each
+         ctx to reload world (probably not — share it). Otherwise
+         skip; world is immutable after load. */
+  };
+  ```
+
+  Every gameplay function gains a `ryl_ctx *ctx` first parameter.
+  Helpers (`pa_*`, `pm_*`, `inv_*`, `wld_*`, `res_*`) read from
+  `ctx->state` / `ctx->world` instead of file-scope globals.
+  `ryl_random(ctx, lo, hi)` advances `ctx->rng_state`.
+  Engine bindings registered in `script.c` thread the ctx through
+  to the C surfaces they call.
+
+### 21.4 Sequencing — what to do first
+
+  1. **Lift `struct ryl_state state` into ctx.** This is the
+     biggest mechanical change but also the most contained: every
+     `state.*` becomes `ctx->state.*` (or, better, the existing
+     `pa_*`/`pm_*` helpers grow a `ctx` arg and stay the only
+     readers). `feedback_state_abstraction.md` is the in-flight
+     hygiene push for exactly this; finishing that work is the
+     precondition for ctx-ifying the engine.
+
+  2. **Lift the RNG.** Small, mechanical, deterministic. Adds a
+     ctx arg to `ryl_random` / `ryl_chance` / `ryl_seed`. Once
+     done, two ctxs can run pure-data scripts independently
+     without RNG cross-talk.
+
+  3. **Lift the env-var lazy caches.** Replace function-statics
+     in `compat.c` with `ctx->no_delay` / `ctx->fake_epoch` /
+     `ctx->home_dir`. Cheap, isolating change.
+
+  4. **Decide world sharing.** Either keep `static` tables in
+     res.c and document "world is process-shared, read-only
+     post-fold" (cheapest), or duplicate every res.c table into
+     ctx and reload per ctx (expensive, only matters if we ever
+     want two ctxs running different world data — unlikely).
+     Recommend: keep shared. Lock `world_tree` to read-only
+     after `res_load_world` and assert no late writers exist.
+
+  5. **Lift the I/O backend.** `io_backend *` becomes `ctx->io`.
+     Add an in-memory backend (writes to a buffer instead of
+     stdout, returns canned input) for headless testing. The
+     replay harness would then be a Linux executable that
+     spawns N threads, each with its own ctx and in-memory
+     I/O, instead of N processes.
+
+  6. **Drop atexit handlers** in favor of explicit
+     `ryl_ctx_free()`. The single-process binary still calls
+     `ryl_ctx_free()` from `main` (or from a thin
+     `atexit(free_main_ctx)` shim).
+
+  7. **Audit direct stdio.** Replace `fprintf(stderr, ...)` with
+     `ctx_log(ctx, ...)` or similar. Same for fatal `ryl_die`
+     paths. This is mostly mechanical but spreads across many
+     files.
+
+### 21.5 What's hard / will resist
+
+  - **`ryl_die`** is currently `noreturn`-on-process-exit. In a
+    threaded engine, dying the whole process kills sibling
+    instances. Need a setjmp/longjmp escape to a per-ctx error
+    handler, or convert the fatal contract to "raise this thread
+    out of `ryl_ctx_run` with an error code." Affects every
+    `die_at` site in `script.c` / `res.c`.
+
+  - **Terminal raw mode** — fundamentally a process-singleton.
+    Two ctxs can't both be the foreground tty driver. Threaded
+    engine is for headless / scripted contexts only; the
+    interactive game stays single-threaded.
+
+  - **Signals** — see SIGWINCH note above. The model is "only
+    one ctx is allowed to be the signal handler"; auxiliary
+    ctxs install no-op handlers.
+
+  - **atexit replacement** — needs a coordinated lifecycle, not
+    just removing the calls. snapshot_write specifically
+    *expects* to fire on process exit; in threaded mode we'd
+    call it from `ryl_ctx_free` with a per-ctx path.
+
+### 21.6 Verdict — when is this worth doing?
+
+Process-level parallelism (already shipping) covers the
+testing use case. The 22 fixtures take ~2s wall-clock under
+`replay.sh --all`. Switching to threads would shave maybe
+500ms by avoiding fork/exec and cold-start fold; not nothing,
+but not load-bearing either.
+
+The deeper reason to do this is **codebase health**: every
+`static` global is a hidden coupling, and migrating to
+explicit ctx-passing surfaces those couplings as type-checked
+function signatures. The single-ownership work
+(`feedback_state_abstraction.md`) is already the first leg of
+this — `pa_*`/`pm_*`/`inv_*` helpers are the natural insertion
+points for a `ctx` arg.
+
+**Recommended sequencing**:
+  - Finish single-ownership migration first (driv.c is the
+    debt-bearer; H2 already queued).
+  - Once helpers have one owner, add `ctx` to their signatures
+    in one mechanical pass.
+  - At that point `state` has effectively migrated; the
+    remaining ctx work (RNG, env caches, I/O backend) is small.
+  - World sharing stays as-is; document the "read-only
+    post-fold" contract.
+
+The thread-safety endgame is post-port — a "phase 6" cleanup
+once every gameplay file routes through helpers. It's not
+gating anything in flight, but the inventory above should be
+re-read before any helper grows a non-trivial new global, so
+the eventual ctx migration doesn't get worse over time.
