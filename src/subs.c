@@ -623,36 +623,6 @@ void spell(int32_t place) {
     }
 
     switch (s->effect) {
-        case SE_BANISH:
-            clw();
-            if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
-                tx0(res_text("spell.not_enough_pts"));
-                ryl_delay(1000);
-                clw();
-                break;
-            }
-            if (place != 1) {
-                tx("There is no particular\r\n");
-                tx("target for this banishing.\r\n");
-                tx("This spell is meant for\r\n");
-                tx("use in dungeons and caves.\r\n\r\n");
-                ryl_pause();
-                clw();
-                break;
-            }
-            pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
-            clw();
-            tx("%s raises %s hands.\r\n", pm_name(caster), pronoun(who, 3));
-            tx("%s gathers divine power\r\n", pronoun(who, 1));
-            tx("between %s palms, and\r\n", pronoun(who, 3));
-            tx("suddenly clasps them.\r\n");
-            tx("together over %s head.\r\n", pronoun(who, 3));
-            tx0(res_text("spell.priest.banish.thunder"));
-            ryl_pause();
-            clw();
-            state.banished = 1;
-            break;
-
         case SE_REVELATION:
             clw();
             if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
