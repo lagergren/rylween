@@ -3654,25 +3654,37 @@ incompatible syntaxes, vocabularies, and evaluators.
 ### 22.2 Sequenced execution plan
 
 **A. Spell DSL → script DSL convergence** (tier 1, item 1).
-Biggest leverage; collapses two evaluators into one. Touches
-`src/eval.c`, `src/battle.c` spell dispatch, all
-`data/world/spells/*.json5` shards, and the 5 unmigrated
-`legacy_effect` cases still in `battle.c`.
+**LANDED 2026-04-25.** Collapsed two evaluators into one. Retired
+`src/eval.c` + `src/eval.h` (~1480 lines), the `SE_*` enum,
+`se_from_legacy_effect`, the `effect` field on `ryl_spell`, the
+`res_spell_node`-vs-fallback dispatch in battle.c / subs.c, and
+`res_lib_effect` (no callers). Migrated all 12 spell behaviours
+(mage frost / fire / confusion / death / hold / antimagic;
+priest heal / restoration / rebirth / banish / revelation /
+teleport / earthquake) plus the six `formulas:` records to the
+script DSL. New script.c surface: `play_spell_body`,
+`play_formula_int`, `script_combat_ctx` (mh/deadc/noc/fn +
+encounter-flag pointers), `ask_target` (monster_alive +
+party_member), `for_monster`, `monster_hp` / `monster_dead` /
+`monster_count` / `battle_flag` / `state_banished` exprs and
+matching mutate lvalues, `pa_teleport_step` engine_call (the
+one-spell-special movement loop kept in C).
 
-  Steps:
-   - Add the missing primitives to script DSL: target picking
-     (`ask_target` op), spell-context bindings (`caster.lv`,
-     `caster.name`, `target.hp`, `target.dead`), in-battle
-     `say` op (parallel to `emit` but with the battle-screen
-     formatter).
-   - Port `mage.frost.do` to the script DSL shape; verify
-     RNG-identity preserved (the §17-F note about `random:[2,8]`
-     drawn once still applies).
-   - Migrate one `legacy_effect` per commit (priest.heal first —
-     simplest), retire the SE_* C case as each lands.
-   - Once the last `legacy_effect` is gone, delete `src/eval.c`,
-     remove the `do:` vs S-expression dispatch from `battle.c`,
-     fold spell-effect docs into `script.h`.
+  Landed (commits, oldest first): `8a25b20` engine surface,
+  `3fe6792` mage.frost, `4e651d8` priest dispatch shim +
+  priest.heal, `5e4d9a3` priest.restoration, `c2bcc32`
+  priest.rebirth, `9bf262f` priest.banish, `06158ba`
+  priest.revelation, `73225fe` priest.teleport, `79e4fcd`
+  priest.earthquake (last priest legacy_effect), `d8a6e86`
+  mage.fire + for_monster op, `91405c1` mage.confusion,
+  `b8a5406` mage.hold, `6e72948` mage.antimagic, `b65a18c`
+  mage.death + dispatch cleanup, `70c7c98` formulas migration,
+  `<this commit>` eval.c retirement + cleanup.
+
+  Coverage gap captured: §22.5 plans the spell-cast fixture
+  queue. The 22 existing fixtures cover no spell path, so the
+  migrations rest on code review + RNG identity reasoning +
+  ASan clean. Adding the queue is the natural follow-up.
 
 **B. Enum keyed records with display split** (tier 2, items 4-5).
 **LANDED 2026-04-25.** Concurrent with A — touches different files.
@@ -3803,15 +3815,15 @@ order to land them: A (spell DSL convergence) and B (enum
 shape) can run in parallel; both unlock C+D+E. F depends on
 A. G is the documentation pass after the surface stabilises.
 
-B, C, D, E have landed (2026-04-25). Remaining: A, F, G. A is
-the next one to land — retiring `eval.c` immediately collapses
-~1400 lines of engine and removes one of the two languages a
-reader has to learn. F depends on A; G is the documentation
-pass after the surface stabilises.
+B, C, D, E, A have landed (2026-04-25). Remaining: F, G. F
+depends on A (now landed); G is the documentation pass after
+the surface stabilises. The post-Lane-A coverage queue
+(§22.5) and the reward-gold display fix (§22.6) are tracked
+as follow-ups, not blockers.
 
-Estimated remaining work: ~1-2 sessions for A, ~0.5 session
-for F, ~0.5 session for G. Cumulative ~2-3 sessions if done
-sequentially.
+Estimated remaining work: ~0.5 session for F, ~0.5 session
+for G, plus ~3-5 hours for §22.5 and ~30 minutes for §22.6.
+Cumulative ~1.5-2 sessions if done sequentially.
 
 ### 22.4 Non-goals
 

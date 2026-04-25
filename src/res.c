@@ -15,9 +15,6 @@
  *      classes+spells / texts / terrain / pronoun / enums) and populate
  *      the matching legacy in-memory tables (ryl_item / ryl_monster /
  *      ryl_spell / glyph_tab / color_tab / pronoun_tab / enums / texts).
- *   4. compile_world_tree: rewrite every path-position N_STR (e.g.
- *      "caster.hp", "$dmg") to a packed N_PATH so the evaluator hot
- *      path does zero strcmp on actor/field names.
  *
  * The folds are forgiving about field order and missing optionals but
  * fatal on structural surprises; errors dispatch through res_die with a
@@ -27,7 +24,6 @@
  */
 
 #include "res.h"
-#include "eval.h"
 #include "json5.h"
 #include "primitives.h"
 #include "ryl.h"
@@ -214,57 +210,13 @@ static flag_rec *flags_tab;
 static size_t n_flags_tab;
 
 /* JSON5 world tree + its lazily-built per-subtree indices. Raw node
-   pointers live here; the evaluator walks them via eval.h. */
+   pointers live here; the script DSL evaluator (script.c) walks them
+   on demand. */
 static node *world_tree;
 
 __attribute__((noreturn)) void res_die(const char *path, int line, const char *msg) {
     fprintf(stderr, "res: %s:%d: %s\n", path, line, msg);
     exit(1);
-}
-
-/* Map a `legacy_effect` string from the world tree to the SE_* enum
-   battle.c's priest/mage switches dispatch on. Returns -1 for unknown
-   names so the caller can res_die() with a path:line pointing at the tree
-   node. Phase 6d retired the JSONL handle_spell; this helper owns the
-   string table on behalf of fold_spells. */
-static int32_t se_from_legacy_effect(const char *eff) {
-    if (strcmp(eff, "heal") == 0) {
-        return SE_HEAL;
-    }
-    if (strcmp(eff, "restoration") == 0) {
-        return SE_RESTORATION;
-    }
-    if (strcmp(eff, "rebirth") == 0) {
-        return SE_REBIRTH;
-    }
-    if (strcmp(eff, "banish") == 0) {
-        return SE_BANISH;
-    }
-    if (strcmp(eff, "revelation") == 0) {
-        return SE_REVELATION;
-    }
-    if (strcmp(eff, "teleport") == 0) {
-        return SE_TELEPORT;
-    }
-    if (strcmp(eff, "earthquake") == 0) {
-        return SE_EARTHQUAKE;
-    }
-    if (strcmp(eff, "fire") == 0) {
-        return SE_FIRE;
-    }
-    if (strcmp(eff, "confusion") == 0) {
-        return SE_CONFUSION;
-    }
-    if (strcmp(eff, "death") == 0) {
-        return SE_DEATH;
-    }
-    if (strcmp(eff, "hold") == 0) {
-        return SE_HOLD;
-    }
-    if (strcmp(eff, "antimagic") == 0) {
-        return SE_ANTIMAGIC;
-    }
-    return -1;
 }
 
 /* Forward decl: defined alongside the npc subtree walkers below. */
@@ -569,12 +521,12 @@ int32_t res_class_levelup(const char *cls, const char *stat) {
     return (v && v->kind == N_INT) ? (int32_t)v->u.iv : 0;
 }
 
-/* Named-formula evaluator. `formulas.<name>` in world.json5 holds an
-   expression tree (e.g. ['+', 150, ['*', 150, '$y']]); compile_world_tree
-   has already rewritten `$y` into an N_PATH(PA_LOCAL). We spin up a
-   fresh env, seed every requested local, run eval_expr, then tear the
-   env back down. Fatal if the formula is missing — callers treat a
-   named formula as a load-time contract. */
+/* Named-formula evaluator. `formulas.<name>` in world.json5 holds a
+   single script DSL expression node (e.g. {add: [150, {mul: [150,
+   {var:'y'}]}]}). The int bindings are converted to a ryl_bind list
+   (script DSL atoi's them inside expr_var) and handed to
+   play_formula_int. Fatal if the formula is missing — callers treat
+   a named formula as a load-time contract. */
 int32_t res_formula_int_n(const char *name, const res_binding *bindings, size_t n) {
     if (!world_tree || !name) {
         fprintf(stderr, "res_formula_int: world not loaded\n");
@@ -1643,12 +1595,10 @@ static void fold_texts(const node *texts_node, const char *path) {
    indexing into the per-class subtree.
 
    Each spell folds into the legacy ryl_spell table so the cast menu
-   can still render name/base_cost. Effect dispatch:
-     - `do` present        -> SE_NONE; battle.c's res_spell_node path
-                              runs eval_effect on the body instead of
-                              reaching the switch.
-     - `legacy_effect` set -> se_from_legacy_effect() picks the SE_*
-                              the remaining switch cases fire on. */
+   can still render name/base_cost. Behaviour dispatch goes through
+   res_spell_node: every spell carries a `do:` body that battle.c /
+   subs.c hand to play_spell_body. The legacy `legacy_effect` /
+   SE_* switch retired with §22 Lane A. */
 static void fold_spells(const node *classes_node, const node *spells_node, const char *path) {
     if (!classes_node || !spells_node) {
         return;
@@ -1710,19 +1660,6 @@ static void fold_spells(const node *classes_node, const node *spells_node, const
             s->name = strdup((name_n && name_n->kind == N_STR) ? name_n->u.sv : id_n->u.sv);
             s->slot = slot;
             s->base_cost = (cost_n && cost_n->kind == N_INT) ? cost_n->u.iv : 0;
-            const node *leg_n = obj_get(spell, "legacy_effect");
-            if (leg_n) {
-                if (leg_n->kind != N_STR) {
-                    res_die(path, leg_n->line, "spell: legacy_effect must be string");
-                }
-                int32_t se = se_from_legacy_effect(leg_n->u.sv);
-                if (se < 0) {
-                    res_die(path, leg_n->line, "spell: unknown legacy_effect");
-                }
-                s->effect = se;
-            } else {
-                s->effect = SE_NONE;
-            }
         }
     }
 }
@@ -2678,11 +2615,6 @@ void res_load_world(const char *path) {
     world_tree = root;
     fold_scripts(obj_get(root, "scripts"), path);
     fold_texts(obj_get(root, "texts"), path);
-
-    /* Walk every effect / cond / expr array in the tree and rewrite path
-       strings (e.g. "caster.hp", "$dmg") in place to N_PATH. After this,
-       the evaluator hot path does zero strcmp on actor/field names. */
-    compile_world_tree(root, path);
     texts_sort();
 
     /* Register the teardown the first time a world is loaded. Guarded
@@ -2793,45 +2725,6 @@ const void *res_script(const char *dotted_id) {
         return NULL;
     }
     cur = obj_get(cur, "scripts");
-    if (!cur || cur->kind != N_OBJ) {
-        return NULL;
-    }
-    const char *p = dotted_id;
-    while (*p) {
-        const char *dot = strchr(p, '.');
-        size_t seg_len = dot ? (size_t)(dot - p) : strlen(p);
-        if (seg_len == 0 || seg_len >= 128) {
-            return NULL;
-        }
-        char seg[128];
-        memcpy(seg, p, seg_len);
-        seg[seg_len] = 0;
-        if (cur->kind != N_OBJ) {
-            return NULL;
-        }
-        cur = obj_get(cur, seg);
-        if (!cur) {
-            return NULL;
-        }
-        if (!dot) {
-            break;
-        }
-        p = dot + 1;
-    }
-    return (cur->kind == N_ARR) ? cur : NULL;
-}
-
-/* §20 S7: lookup for the eval.c effect-DSL `call` op. Walks
-   lib.<dotted_id> in the world tree, mirrors res_script's
-   resolution shape. Returns the effect-array node (already
-   compiled by compile_world_tree on load) or NULL when no
-   record exists at that path. */
-const void *res_lib_effect(const char *dotted_id) {
-    const node *cur = world_tree;
-    if (!cur || cur->kind != N_OBJ) {
-        return NULL;
-    }
-    cur = obj_get(cur, "lib");
     if (!cur || cur->kind != N_OBJ) {
         return NULL;
     }
@@ -3030,7 +2923,6 @@ static void reset_spells_from_tree(const node *classes_node, const node *spells_
             tab[slot].name = NULL;
             tab[slot].slot = 0;
             tab[slot].base_cost = 0;
-            tab[slot].effect = SE_NONE;
         }
     }
 }

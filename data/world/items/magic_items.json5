@@ -1,7 +1,8 @@
-// Magic items shard — ids 100–111. Most will grow an `effect` DSL
-// program once the evaluator owns use/consume. flute_of_madness already
-// carries one as a placeholder (inert until eval_effect dispatches
-// through a use hook — see docs/dsl.md §10).
+// Magic items shard — ids 100–111. Most will grow an `effect:` DSL
+// program once the use/consume hook wires it up. flute_of_madness
+// carries an inert placeholder (never read by C — the field is parsed
+// as JSON5 but no code path reaches it; rewriting it to script DSL
+// shape is a follow-up when the use hook lands).
 {
   frost_wand:         { id: 100, name: 'Frost Wand',          cost: 1000 },
   fire_wand:          { id: 101, name: 'Fire Wand',           cost: 3000 },

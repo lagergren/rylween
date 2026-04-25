@@ -345,9 +345,8 @@
 
   // Spells (§3.4). Nested by class so each shard owns its own file.
   // res_spell_node(class, slot) finds the entry whose slot matches,
-  // then hands the `do` body to eval_effect. Spells without a `do`
-  // carry `legacy_effect: "..."` — a string mapped to the SE_* enum
-  // battle.c still switches on; those cases migrate to `do:` one by one.
+  // then hands the `do` body to play_spell_body — the script DSL
+  // evaluator that runs every spell after §22 Lane A.
   spells: {
     mage:   { $import: 'world/spells/mage.json5' },
     priest: { $import: 'world/spells/priest.json5' },

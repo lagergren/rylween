@@ -1,7 +1,5 @@
-// Mage spells. mage.frost runs on the script DSL (`do:` body); the
-// other five carry `legacy_effect` pointing at the SE_* case still
-// resident in battle.c — those fall off as their behaviour migrates
-// (§22 Lane A).
+// Mage spells. Every entry carries a `do:` body; battle.c hands it
+// to play_spell_body (§22 Lane A retired the legacy SE_* switch).
 {
   // §22 Lane A: re-port of the legacy frost spell to the script DSL.
   // Order of operations preserves RNG identity — the multiply reads

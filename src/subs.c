@@ -599,26 +599,20 @@ void spell(int32_t place) {
     if (!s) {
         return;
     }
-
-    /* §22 Lane A: every priest spell now carries a `do:` body. The
-       legacy SE_* switch retired with priest.earthquake; the shim
-       below is the sole dispatch path. */
-    {
-        const void *spell_node = res_spell_node("priest", c - 48);
-        if (!spell_node) {
-            return;
-        }
-        char caster_buf[8], place_buf[8];
-        snprintf(caster_buf, sizeof caster_buf, "%d", who);
-        snprintf(place_buf, sizeof place_buf, "%d", (int)place);
-        ryl_bind binds[] = {
-            {"caster_idx", caster_buf},
-            {"place", place_buf},
-            {0},
-        };
-        play_spell_body(s->id ? s->id : "priest.(unknown)",
-                        spell_node, binds, NULL);
+    const void *spell_node = res_spell_node("priest", c - 48);
+    if (!spell_node) {
+        return;
     }
+    char caster_buf[8], place_buf[8];
+    snprintf(caster_buf, sizeof caster_buf, "%d", who);
+    snprintf(place_buf, sizeof place_buf, "%d", (int)place);
+    ryl_bind binds[] = {
+        {"caster_idx", caster_buf},
+        {"place", place_buf},
+        {0},
+    };
+    play_spell_body(s->id ? s->id : "priest.(unknown)",
+                    spell_node, binds, NULL);
 }
 
 void scorelist() {

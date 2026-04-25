@@ -35,32 +35,11 @@ typedef struct {
     int32_t n2_lv_div;
 } ryl_monster;
 
-/* Spell effect identities. Decouples behavior from UI slot — the menu
-   order (`slot`) can change without breaking dispatch. Each SE_* gets a
-   corresponding case in the priest/mage effect switches; when the phase
-   6d DSL lands, each case becomes `eval_effect(s->effect_tree)`. */
-enum ryl_spell_effect {
-    SE_NONE = 0,
-    SE_HEAL,
-    SE_RESTORATION,
-    SE_REBIRTH,
-    SE_BANISH,
-    SE_REVELATION,
-    SE_TELEPORT,
-    SE_EARTHQUAKE,
-    SE_FIRE,
-    SE_CONFUSION,
-    SE_DEATH,
-    SE_HOLD,
-    SE_ANTIMAGIC,
-};
-
 typedef struct {
     const char *id;
     const char *name; /* NULL if no record for this slot */
     int32_t slot;
     int32_t base_cost;
-    int32_t effect; /* enum ryl_spell_effect */
 } ryl_spell;
 
 /* Phase 6d: hierarchical JSON5 world loader. Parses data/world.json5
@@ -262,13 +241,6 @@ const void *res_spell_node(const char *class_id, int slot);
    wrong kind, or the scripts subtree itself is absent). The returned
    pointer is owned by the world tree; callers must not free it. */
 const void *res_script(const char *dotted_id);
-
-/* Effect-DSL library lookup (§20 S7). `lib.<dotted_id>` in world.json5
-   holds reusable effect arrays callable from the eval.c `call` op.
-   Returns the effect node (an N_ARR) or NULL when the path does not
-   resolve / is not an array. The pre-compiled tree is shared with
-   compile_world_tree's walk so call-sites don't compile per-call. */
-const void *res_lib_effect(const char *dotted_id);
 
 /* §20 S8: per-NPC mission stage table loaded from
    data/world/scripts/speak_missions.json5. Returns the heap-allocated

@@ -5,10 +5,9 @@
 #include <stdint.h>
 
 /* JSON5 front-end: parses data/world.json5 and its $import shards into a
- * tagged `node` tree. Shared vocabulary between the parser (json5.c) and
- * the evaluator (eval.c) — the evaluator walks the same nodes directly,
- * rewriting N_STR nodes at path positions into N_PATH in place via
- * compile_world_tree (see eval.h).
+ * tagged `node` tree. The script DSL evaluator (script.c) walks the same
+ * nodes directly — there is no compile pass; placeholder substitution
+ * and path-style reads happen at evaluation time against the rt_env.
  *
  * Parser errors dispatch through res_die (declared in res.h) so all
  * path:line:msg messages share one format.
@@ -21,19 +20,7 @@ typedef enum {
     N_STR,
     N_ARR,
     N_OBJ,
-    N_PATH,
 } node_kind;
-
-/* Compiled path form. Populated by the eval-layer compile pass; laid out
-   here because it's a member of the node union. `actor` and `field` hold
-   path_actor / path_field values (see eval.h). */
-typedef struct {
-    int8_t actor;
-    int8_t field;
-    int32_t index;
-    char *local; /* owned; non-NULL iff actor == PA_LOCAL */
-    int line;
-} path_t;
 
 typedef struct node_kv node_kv;
 typedef struct node node;
@@ -53,7 +40,6 @@ struct node {
             node_kv *items;
             size_t n;
         } obj;
-        path_t path;
     } u;
 };
 

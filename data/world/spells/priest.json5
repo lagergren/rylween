@@ -1,7 +1,7 @@
-// Priest spells — slot is menu order, legacy_effect picks the SE_* case
-// subs.c falls through to when the spell has no `do:` DSL body. As each
-// spell's behaviour migrates to a `do:` program, its `legacy_effect` goes
-// away and dispatch flips to play_spell_body via the §22 Lane A shim.
+// Priest spells. Every entry carries a `do:` body; subs.c::spell()
+// hands it to play_spell_body (§22 Lane A retired the legacy SE_*
+// switch). caster_idx + place arrive as ryl_bind ints from the C
+// dispatch; ctx is NULL because priest casts run out of combat.
 {
   // §22 Lane A: heal migrated from SE_HEAL. caster_idx + place arrive as
   // ryl_bind ints from subs.c; ask_target party_member binds the picked

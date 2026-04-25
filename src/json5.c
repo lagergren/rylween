@@ -58,9 +58,6 @@ void node_free(node *n) {
             }
             free(n->u.obj.items);
             break;
-        case N_PATH:
-            free(n->u.path.local);
-            break;
         default:
             break;
     }
