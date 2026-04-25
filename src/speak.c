@@ -107,7 +107,7 @@ void speak(int32_t bld, int32_t tow) {
     if (tow) {
         for (i = 1, j = 1, x = 0; i < 40; i++) {
             if (state.npc[i].building == bld && state.npc[i].towne == tow) {
-                tx("%c. %-8s (%s)\r\n", j + 64, res_enum("name", state.npc[i].nr), res_enum("jobname", state.npc[i].job));
+                tx("%c. %-8s (%s)\r\n", j + 64, res_npc_name(state.npc[i].nr), res_enum("jobname", state.npc[i].job));
                 reference[j] = state.npc[i].nr;
                 j++;
                 x = 1;
@@ -329,7 +329,7 @@ static void mission_resolve_bindings(const mission_stage *st, ryl_bind *out,
         out[i].name = b->name;
         switch (b->kind) {
             case BIND_NPC_NAME:
-                out[i].value = res_enum("name", res_npc_role(b->npc_role));
+                out[i].value = res_npc_name(res_npc_role(b->npc_role));
                 break;
             case BIND_NPC_LOC:
                 npc_loc_str(npc_for_role(b->npc_role), zone, BIND_ZONE_SIZE);

@@ -267,6 +267,9 @@ static int32_t se_from_legacy_effect(const char *eff) {
     return -1;
 }
 
+/* Forward decl: defined alongside the npc subtree walkers below. */
+const char *res_npc_name(int32_t slot);
+
 const char *res_enum(const char *id, int index) {
     for (size_t i = 0; i < n_enums; i++) {
         if (strcmp(enums[i].id, id) == 0) {
@@ -275,6 +278,14 @@ const char *res_enum(const char *id, int index) {
             }
             return enums[i].values[index];
         }
+    }
+    /* `name` no longer lives as a positional array; the per-record
+       `.name` field on the npcs subtree is the source of truth. The
+       fallthrough keeps the engine_bind {fn:'res_enum',args:['name',...]}
+       DSL surface working without forcing every script to migrate to
+       a parallel new fn. */
+    if (strcmp(id, "name") == 0) {
+        return res_npc_name(index);
     }
     return "";
 }
@@ -936,24 +947,40 @@ static int32_t rn_int(const node *obj, const char *key, int32_t dflt) {
     return (n && n->kind == N_INT) ? n->u.iv : dflt;
 }
 
-/* Internal: number of values in an enum table by id (the raw array
-   length, so res_enum(id, n - 1) is the highest valid index). 0 if the
-   enum wasn't declared. Used to derive iteration bounds from data. */
-static size_t enum_count(const char *id) {
-    for (size_t i = 0; i < n_enums; i++) {
-        if (strcmp(enums[i].id, id) == 0) {
-            return enums[i].n_values;
-        }
-    }
-    return 0;
+/* Highest `id:` claimed by any record in the npcs subtree. Cached on
+   first call after world load — the writer iterates slots 1..N every
+   save, so the linear scan would otherwise repeat per call. The cache
+   is invalidated by res_shutdown when world_tree is freed. */
+static int npc_slot_max_cache = -1;
+
+static void npc_slot_max_invalidate(void) {
+    npc_slot_max_cache = -1;
 }
 
-/* Highest valid NPC slot id. enums.name has a sentinel at index 0 and
-   one name per populated slot thereafter, so max_slot = count - 1. The
-   state.npc[] array is oversized to hold this range plus a guard. */
 static int npc_slot_max(void) {
-    size_t n = enum_count("name");
-    return n > 0 ? (int)(n - 1) : 0;
+    if (npc_slot_max_cache >= 0) {
+        return npc_slot_max_cache;
+    }
+    if (!world_tree) {
+        return 0;
+    }
+    const node *npcs = obj_get(world_tree, "npcs");
+    if (!npcs || npcs->kind != N_OBJ) {
+        return 0;
+    }
+    int max_id = 0;
+    for (size_t i = 0; i < npcs->u.obj.n; i++) {
+        const node *rec = npcs->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *id_n = obj_get(rec, "id");
+        if (id_n && id_n->kind == N_INT && id_n->u.iv > max_id) {
+            max_id = (int)id_n->u.iv;
+        }
+    }
+    npc_slot_max_cache = max_id;
+    return max_id;
 }
 
 int res_npc_slot_max(void) {
@@ -992,6 +1019,30 @@ int32_t res_npc_slot(const char *sym) {
     return (int32_t)id_n->u.iv;
 }
 
+/* Slot-keyed walk over the npcs subtree. Returns the matching record,
+   or NULL when no entry claims the slot. Both res_npc_sym and
+   res_npc_name are thin shells around this. */
+static const node *npc_record_for_slot(int32_t slot) {
+    if (!world_tree || slot <= 0) {
+        return NULL;
+    }
+    const node *npcs = obj_get(world_tree, "npcs");
+    if (!npcs || npcs->kind != N_OBJ) {
+        return NULL;
+    }
+    for (size_t i = 0; i < npcs->u.obj.n; i++) {
+        const node *rec = npcs->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *id_n = obj_get(rec, "id");
+        if (id_n && id_n->kind == N_INT && id_n->u.iv == slot) {
+            return rec;
+        }
+    }
+    return NULL;
+}
+
 /* Inverse of res_npc_slot: state.npc[] slot id -> the npcs-subtree key
    (lowercase symbol) for that entry. Returns NULL when no record claims
    the slot — used by the persistent-save writer, which iterates slots
@@ -1015,6 +1066,20 @@ const char *res_npc_sym(int32_t slot) {
         }
     }
     return NULL;
+}
+
+/* Display name for an NPC slot. Replaces the legacy res_enum("name",
+   slot) lookup; the source of truth is the per-record `.name` field
+   on the npcs subtree, not a parallel positional array. Returns "" on
+   miss so callers that format directly into tx() see an empty string
+   instead of a NULL deref. */
+const char *res_npc_name(int32_t slot) {
+    const node *rec = npc_record_for_slot(slot);
+    if (!rec) {
+        return "";
+    }
+    const node *name_n = obj_get(rec, "name");
+    return (name_n && name_n->kind == N_STR) ? name_n->u.sv : "";
 }
 
 /* Quest-role -> NPC slot indirection. The role name (e.g.
@@ -2992,6 +3057,7 @@ void res_shutdown(void) {
     reset_buildings();
     reset_speak_missions();
     reset_limits();
+    npc_slot_max_invalidate();
     node_free(world_tree);
     world_tree = NULL;
     color_default = ANSI_FG_CYAN;

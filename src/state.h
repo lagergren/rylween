@@ -494,7 +494,7 @@ int pm_class_id(const char *name);
 /* ---- NPC handle ---------------------------------------------------
    View over a single state.npc[] record, mirroring pm_t for party
    members. Bundles the `struct person *` with the slot id so
-   accessors that need the slot (npc_name -> res_enum("name", slot))
+   accessors that need the slot (npc_name -> res_npc_name(slot))
    don't have to reach back into state.npc arithmetic.
 
    Two constructors:
@@ -505,14 +505,15 @@ int pm_class_id(const char *name);
                            bug or data rename out of sync)
 
    Accessors are pointer-chases through n.p for the struct-person
-   fields; npc_name goes through res_enum since the display string
-   lives in the name enum, not the struct. */
+   fields; npc_name goes through res_npc_name since the display
+   string lives on the npcs subtree's per-record `.name` field, not
+   the struct. */
 
 /* Forward declarations (implemented in res.c). Keeps state.h from
    pulling in res.h / ryl.h — the NPC handle only needs res_npc_role
-   to resolve role->slot and res_enum to format the display name. */
+   to resolve role->slot and res_npc_name to format the display string. */
 int32_t res_npc_role(const char *role);
-const char *res_enum(const char *id, int index);
+const char *res_npc_name(int32_t slot);
 
 typedef struct {
     struct person *p;
@@ -544,7 +545,7 @@ static inline unsigned char npc_gender(npc_t n) {
     return n.p->gender;
 }
 static inline const char *npc_name(npc_t n) {
-    return res_enum("name", n.slot);
+    return res_npc_name(n.slot);
 }
 
 #endif

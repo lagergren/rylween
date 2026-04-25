@@ -15,7 +15,7 @@ void speak(int32_t, int32_t);
    location index for DX/DY kinds, `npc_role` is a string id resolved
    via res_npc_role at dispatch for NPC kinds. */
 enum mission_bind_kind {
-    BIND_NPC_NAME = 1, /* res_enum("name", res_npc_role(b->npc_role)) */
+    BIND_NPC_NAME = 1, /* res_npc_name(res_npc_role(b->npc_role))     */
     BIND_NPC_LOC,      /* npc_loc_str(npc_for_role(b->npc_role), ...) */
     BIND_DX_STR,       /* state.dx[arg] stringified */
     BIND_DY_STR,       /* state.dy[arg] stringified */

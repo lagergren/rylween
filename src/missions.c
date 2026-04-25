@@ -36,7 +36,7 @@ enum mission_guard_kind {
 };
 
 enum mission_bind_kind {
-    MB_NPC_NAME = 1, /* res_enum("name", res_npc_role(b->npc_role))  */
+    MB_NPC_NAME = 1, /* res_npc_name(res_npc_role(b->npc_role))      */
     MB_PLAYER_NAME,  /* state.p[cpl].name[b->arg] (party-slot name)  */
     MB_DX_STR,       /* state.dx[b->arg] stringified                 */
     MB_DY_STR,       /* state.dy[b->arg] stringified                 */
@@ -167,7 +167,7 @@ static void resolve_bindings(const mission_trigger *t, ryl_bind *out,
         out[i].name = b->name;
         switch (b->kind) {
             case MB_NPC_NAME:
-                out[i].value = res_enum("name", res_npc_role(b->npc_role));
+                out[i].value = res_npc_name(res_npc_role(b->npc_role));
                 break;
             case MB_PLAYER_NAME:
                 out[i].value = state.p[state.cpl].name[b->arg];

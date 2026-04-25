@@ -514,15 +514,9 @@
       tavernkeeper: { id: 15, name: 'Tavernkeeper' },
       hermit:       { id: 16, name: 'Hermit'       },
     },
-    name: [
-      '', 'Garth', "Nrim'to", 'Areth', 'Nevaak', 'Gorm', 'Bernak',
-      'Matias', 'Tybalt', 'Romeo', 'Werra', 'Arenjun', 'Oskar',
-      'Harry', 'Marraga', 'Broth', 'Ebond', 'Bolph', 'Gotharp',
-      'Ron', 'Kaal', 'Daniel', 'Leander', 'Ithienn', 'Azaaza',
-      'Hassan', 'Luqas', 'Darth', 'Yog', 'Niklas', 'Tokawa',
-      'Miyaki', 'Dargoth', 'Marcus', 'Deanna', 'Jeanne', 'Alex',
-      'Galdon', 'Kosch', 'Ufarsin',
-    ],
+    // (`name` enum retired — display strings live on each npcs.<sym>.name
+    // field; res_enum("name", slot) and res_npc_name(slot) both read
+    // through the npcs subtree.)
 
     // Role-keyed NPC name sub-enums. Both are indexed by twn (1..4);
     // slot 0 is the wilderness sentinel. Entries are spelt identically

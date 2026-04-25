@@ -883,7 +883,7 @@ static void write_current_world() {
     for (int i = 1; i <= res_npc_slot_max(); i++) {
         const struct person *n = &state.npc[i];
         const char *sym = res_npc_sym(i);
-        const char *display = res_enum("name", i);
+        const char *display = res_npc_name(i);
         if (!sym) {
             continue;
         }

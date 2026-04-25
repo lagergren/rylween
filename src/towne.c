@@ -53,13 +53,13 @@ void rumour() {
         case RUMOUR_GARTH_BANDITS:
             tx_fmt("towne.rumour.r12",
                    (ryl_bind[]){{"name1",
-                                 res_enum("name", res_npc_role("bandits_quest_giver"))},
+                                 res_npc_name(res_npc_role("bandits_quest_giver"))},
                                 {0}});
             break;
         case RUMOUR_NRIMTO_HUNT:
             tx_fmt("towne.rumour.r13",
                    (ryl_bind[]){{"name2",
-                                 res_enum("name", res_npc_role("rangers_quest_giver"))},
+                                 res_npc_name(res_npc_role("rangers_quest_giver"))},
                                 {0}});
             break;
         case RUMOUR_BROTH_CROWN: {

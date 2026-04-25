@@ -343,6 +343,13 @@ int32_t res_npc_slot(const char *sym);
    without a record. Used by the persistent-save writer. */
 const char *res_npc_sym(int32_t slot);
 
+/* Display string for an NPC slot ("Garth", "Nrim'to", ...). Sourced
+   from the per-record `.name` field on the npcs subtree; returns "" on
+   miss so format-into-tx callers see an empty string rather than NULL.
+   Replaces the legacy res_enum("name", slot) lookup; the positional
+   `enums.name` array is retired. */
+const char *res_npc_name(int32_t slot);
+
 /* Resolve a quest-role name (key in world.json5's npc_roles: subtree)
    to an NPC slot. The C side passes a stable role like
    "bandits_quest_giver" / "master_thief" / "silver_key_vendor";
