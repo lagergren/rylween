@@ -242,14 +242,6 @@ const void *res_spell_node(const char *class_id, int slot);
    pointer is owned by the world tree; callers must not free it. */
 const void *res_script(const char *dotted_id);
 
-/* §20 S8: per-NPC mission stage table loaded from
-   data/world/scripts/speak_missions.json5. Returns the heap-allocated
-   array (or NULL if the world is empty / the subtree was missing) and
-   writes the entry count into *count. The struct shapes are declared
-   in src/speak.h; lifetime is tied to res_shutdown. */
-struct mission_spec_;
-const struct mission_spec_ *res_speak_missions(size_t *count);
-
 /* Terrain byte -> two-char glyph the renderer writes. "  " if unknown. */
 const char *res_glyph(char terrain);
 
@@ -334,6 +326,13 @@ const char *res_npc_in_town(int32_t twn, const char *job_sym);
    npcs: or reassign quest roles without touching C. Fatal on unknown
    role or dangling binding. */
 int32_t res_npc_role(const char *role);
+
+/* §22.F: reverse lookup — npc_roles: key whose binding resolves to
+   `slot`, or NULL if `slot` isn't bound to any role. Used by
+   speak.c::npc_mission_hint to pick the matching speak_missions.<role>
+   dispatch script for the current talker; returning NULL is a normal
+   "this NPC has no quest role" outcome (chitchat-only NPCs, etc.). */
+const char *res_role_for_slot(int32_t slot);
 
 /* Format an NPC's location into dst: "in <town>" when the NPC is
    fixed to a town, "at NxN" when wandering the wilderness. Mirrors

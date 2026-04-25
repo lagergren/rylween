@@ -1749,6 +1749,25 @@ static void sb_pa_name(const int32_t *ints, const char **strs, char *out,
     const char *nm = pa_name((int)ints[0]);
     snprintf(out, out_sz, "%s", nm ? nm : "-");
 }
+/* §22.F: NPC display name keyed by quest-role symbol. Resolves the
+   role through res_npc_role (fatal on unknown role / dangling
+   binding), then renders the matched NPC's display name. Lets the
+   speak_missions dispatcher scripts produce {npc_name}-style
+   bindings without going through C. */
+static void sb_npc_name_at_role(const int32_t *ints, const char **strs,
+                                char *out, size_t out_sz) {
+    (void)ints;
+    snprintf(out, out_sz, "%s", res_npc_name(res_npc_role(strs[0])));
+}
+/* §22.F: NPC location string keyed by quest-role symbol. Mirrors
+   npc_loc_str (towne ? "in <town>" : "at <x>x<y>"); used by
+   speak_missions stages to build the {npc_loc} placeholder for
+   the nested speak.<x>.<y> screen + journal text. */
+static void sb_npc_loc_at_role(const int32_t *ints, const char **strs,
+                               char *out, size_t out_sz) {
+    (void)ints;
+    npc_loc_str(npc_for_role(strs[0]), out, out_sz);
+}
 
 static const str_engine_entry str_engine_tbl[] = {
     {"object", "i", sb_object},
@@ -1758,6 +1777,8 @@ static const str_engine_entry str_engine_tbl[] = {
     {"npc_in_town", "si", sb_npc_in_town},
     {"res_npc_role", "s", sb_res_npc_role},
     {"pa_name", "i", sb_pa_name},
+    {"npc_name_at_role", "s", sb_npc_name_at_role},
+    {"npc_loc_at_role", "s", sb_npc_loc_at_role},
 };
 
 /* Whitelist introspection — see script.h. -1 if <name> isn't in the
@@ -3066,6 +3087,25 @@ static ops_result do_switch(const node *op, const char *script_id, size_t idx,
     return OPS_NORMAL;
 }
 
+/* §22.F: invoke a nested script by id, forwarding the current
+   bindings + rt_env entries (rt_env first so it shadows). The nested
+   play_script gets a fresh rt_env so its own let/engine_bind work
+   doesn't leak back. Used by the speak_missions dispatcher scripts
+   to fan out into the existing speak.<x>.<y> bodies after gating
+   on flags + populating role-keyed bindings. */
+static void do_play_script(const node *op, const char *script_id, size_t idx,
+                           const ryl_bind *bindings, rt_env *env) {
+    const node *id_n = obj_get(op, "play_script");
+    if (!id_n || id_n->kind != N_STR) {
+        die_at(script_id, idx, "play_script: id must be string");
+    }
+    ryl_bind scratch[RT_ENV_CAP + 16];
+    const ryl_bind *merged = merge_bindings(bindings, env, scratch,
+                                            sizeof scratch / sizeof *scratch,
+                                            script_id, idx);
+    play_script(id_n->u.sv, merged);
+}
+
 static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
                               const char *parent, const ryl_bind *bindings,
                               rt_env *env) {
@@ -3130,6 +3170,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         return do_switch(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "ask_target")) {
         do_ask_target(op, script_id, idx, env);
+    } else if (obj_get(op, "play_script")) {
+        do_play_script(op, script_id, idx, bindings, env);
     } else {
         die_at(script_id, idx, "unknown op");
     }

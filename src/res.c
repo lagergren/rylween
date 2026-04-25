@@ -28,7 +28,6 @@
 #include "primitives.h"
 #include "ryl.h"
 #include "script.h"
-#include "speak.h"
 #include "towne.h"
 
 #include <stdio.h>
@@ -157,20 +156,6 @@ typedef struct {
 } ryl_building;
 static ryl_building *buildings_tab;
 static size_t n_buildings;
-
-/* §20 S8: per-NPC mission-stage table loaded from
-   data/world/scripts/speak_missions.json5. Heap-allocated arrays:
-   speak_missions_tab is a flat array of mission_spec (one per
-   NPC role), and the contiguous backing store for stages, conds,
-   and binds is owned alongside so the per-stage `conds` /
-   `binds` pointers stay valid for the life of the world. Strings
-   (npc_role, flag_tag, when_state, script, name) are borrowed
-   pointers into the world tree; lifetime tracks res_shutdown. */
-static mission_spec *speak_missions_tab;
-static size_t n_speak_missions;
-static mission_stage *speak_missions_stages;
-static mission_cond *speak_missions_conds;
-static mission_binding *speak_missions_binds;
 
 /* Cold-start realization knobs (port-plan §15.4). npc_slack is the
    `slack` term added to ceil(N/T) when computing the per-bin cap for
@@ -1125,6 +1110,26 @@ int32_t res_npc_role(const char *role) {
     return res_npc_slot(binding->u.sv);
 }
 
+const char *res_role_for_slot(int32_t slot) {
+    if (!world_tree) {
+        return NULL;
+    }
+    const node *roles = obj_get(world_tree, "npc_roles");
+    if (!roles || roles->kind != N_OBJ) {
+        return NULL;
+    }
+    for (size_t i = 0; i < roles->u.obj.n; i++) {
+        const node *binding = roles->u.obj.items[i].val;
+        if (!binding || binding->kind != N_STR) {
+            continue;
+        }
+        if (res_npc_slot(binding->u.sv) == slot) {
+            return roles->u.obj.items[i].key;
+        }
+    }
+    return NULL;
+}
+
 int res_inventory_slot_max(void) {
     return (int)inventory_slot_max;
 }
@@ -1863,206 +1868,6 @@ static void fold_buildings(const node *buildings_node, const char *path) {
     n_buildings = count;
 }
 
-static enum mission_bind_kind parse_bind_kind(const char *s, const char *path,
-                                              int line) {
-    if (!s) {
-        res_die(path, line, "speak_missions: bind kind required");
-    }
-    if (!strcmp(s, "npc_name")) {
-        return BIND_NPC_NAME;
-    }
-    if (!strcmp(s, "npc_loc")) {
-        return BIND_NPC_LOC;
-    }
-    if (!strcmp(s, "dx_str")) {
-        return BIND_DX_STR;
-    }
-    if (!strcmp(s, "dy_str")) {
-        return BIND_DY_STR;
-    }
-    res_die(path, line, "speak_missions: unknown bind kind");
-}
-
-/* §20 S8: build the per-NPC mission stage table from the
-   data/world/scripts/speak_missions.json5 subtree. Two-pass: first
-   total the (specs, stages, conds, binds) counts, then allocate
-   contiguous arrays and populate. Strings (npc_role, flag_tag,
-   when_state, script, name) borrow into the world tree. */
-static void fold_speak_missions(const node *root_node, const char *path) {
-    if (!root_node) {
-        return;
-    }
-    if (root_node->kind != N_OBJ) {
-        res_die(path, root_node->line,
-                "speak_missions: expected object");
-    }
-    size_t spec_count = root_node->u.obj.n;
-    if (spec_count == 0) {
-        return;
-    }
-    size_t stage_count = 0, cond_count = 0, bind_count = 0;
-    for (size_t i = 0; i < spec_count; i++) {
-        const node *spec = root_node->u.obj.items[i].val;
-        if (!spec || spec->kind != N_OBJ) {
-            res_die(path, spec ? spec->line : root_node->line,
-                    "speak_missions: spec must be object");
-        }
-        const node *stages = obj_get(spec, "stages");
-        if (!stages || stages->kind != N_ARR) {
-            res_die(path, spec->line,
-                    "speak_missions: stages must be array");
-        }
-        for (size_t j = 0; j < stages->u.arr.n; j++) {
-            const node *st = stages->u.arr.items[j];
-            if (!st || st->kind != N_OBJ) {
-                res_die(path, st ? st->line : stages->line,
-                        "speak_missions: stage must be object");
-            }
-            stage_count++;
-            const node *conds = obj_get(st, "conds");
-            if (!conds || conds->kind != N_ARR || conds->u.arr.n == 0) {
-                res_die(path, st->line,
-                        "speak_missions: stage needs non-empty conds");
-            }
-            cond_count += conds->u.arr.n;
-            const node *binds = obj_get(st, "binds");
-            if (binds) {
-                if (binds->kind != N_ARR) {
-                    res_die(path, st->line,
-                            "speak_missions: binds must be array");
-                }
-                bind_count += binds->u.arr.n;
-            }
-        }
-    }
-    speak_missions_tab = calloc(spec_count, sizeof *speak_missions_tab);
-    speak_missions_stages = calloc(stage_count, sizeof *speak_missions_stages);
-    speak_missions_conds = calloc(cond_count, sizeof *speak_missions_conds);
-    speak_missions_binds = calloc(bind_count, sizeof *speak_missions_binds);
-    if (!speak_missions_tab || !speak_missions_stages ||
-        !speak_missions_conds || !speak_missions_binds) {
-        fprintf(stderr, "res: oom\n");
-        exit(1);
-    }
-    size_t stage_off = 0, cond_off = 0, bind_off = 0;
-    for (size_t i = 0; i < spec_count; i++) {
-        const char *role = root_node->u.obj.items[i].key;
-        const node *spec = root_node->u.obj.items[i].val;
-        const node *stages = obj_get(spec, "stages");
-        speak_missions_tab[i].npc_role = role;
-        speak_missions_tab[i].stages = &speak_missions_stages[stage_off];
-        speak_missions_tab[i].nstages = stages->u.arr.n;
-        for (size_t j = 0; j < stages->u.arr.n; j++) {
-            const node *st = stages->u.arr.items[j];
-            mission_stage *out = &speak_missions_stages[stage_off++];
-            const node *conds = obj_get(st, "conds");
-            out->conds = &speak_missions_conds[cond_off];
-            out->nconds = conds->u.arr.n;
-            for (size_t c = 0; c < conds->u.arr.n; c++) {
-                const node *cn = conds->u.arr.items[c];
-                if (!cn || cn->kind != N_OBJ) {
-                    res_die(path, cn ? cn->line : conds->line,
-                            "speak_missions: cond must be object");
-                }
-                const node *flag_n = obj_get(cn, "flag");
-                const node *when_n = obj_get(cn, "when");
-                if (!flag_n || flag_n->kind != N_STR) {
-                    res_die(path, cn->line,
-                            "speak_missions: cond.flag string required");
-                }
-                if (!when_n || when_n->kind != N_STR) {
-                    res_die(path, cn->line,
-                            "speak_missions: cond.when string required");
-                }
-                speak_missions_conds[cond_off + c].flag_tag = flag_n->u.sv;
-                speak_missions_conds[cond_off + c].when_state = when_n->u.sv;
-            }
-            cond_off += conds->u.arr.n;
-            const node *script = obj_get(st, "script");
-            if (!script || script->kind != N_STR) {
-                res_die(path, st->line,
-                        "speak_missions: stage.script string required");
-            }
-            out->script = script->u.sv;
-            const node *pre_clw = obj_get(st, "pre_clw");
-            out->pre_clw = (pre_clw && pre_clw->kind == N_BOOL && pre_clw->u.bv)
-                               ? 1
-                               : 0;
-            const node *binds = obj_get(st, "binds");
-            if (binds && binds->u.arr.n > 0) {
-                out->binds = &speak_missions_binds[bind_off];
-                out->nbinds = binds->u.arr.n;
-                for (size_t b = 0; b < binds->u.arr.n; b++) {
-                    const node *bn = binds->u.arr.items[b];
-                    if (!bn || bn->kind != N_OBJ) {
-                        res_die(path, bn ? bn->line : binds->line,
-                                "speak_missions: bind must be object");
-                    }
-                    const node *name_n = obj_get(bn, "name");
-                    const node *kind_n = obj_get(bn, "kind");
-                    if (!name_n || name_n->kind != N_STR) {
-                        res_die(path, bn->line,
-                                "speak_missions: bind.name string required");
-                    }
-                    if (!kind_n || kind_n->kind != N_STR) {
-                        res_die(path, bn->line,
-                                "speak_missions: bind.kind string required");
-                    }
-                    mission_binding *bo =
-                        &speak_missions_binds[bind_off + b];
-                    bo->name = name_n->u.sv;
-                    bo->kind =
-                        parse_bind_kind(kind_n->u.sv, path, kind_n->line);
-                    if (bo->kind == BIND_NPC_NAME ||
-                        bo->kind == BIND_NPC_LOC) {
-                        const node *role_n = obj_get(bn, "npc_role");
-                        if (!role_n || role_n->kind != N_STR) {
-                            res_die(path, bn->line,
-                                    "speak_missions: bind.npc_role string "
-                                    "required for npc_* kinds");
-                        }
-                        bo->npc_role = role_n->u.sv;
-                        bo->arg = 0;
-                    } else {
-                        const node *arg_n = obj_get(bn, "arg");
-                        if (!arg_n || arg_n->kind != N_INT) {
-                            res_die(path, bn->line,
-                                    "speak_missions: bind.arg int required "
-                                    "for d[xy]_str kinds");
-                        }
-                        bo->arg = arg_n->u.iv;
-                        bo->npc_role = NULL;
-                    }
-                }
-                bind_off += binds->u.arr.n;
-            } else {
-                out->binds = NULL;
-                out->nbinds = 0;
-            }
-        }
-    }
-    n_speak_missions = spec_count;
-}
-
-static void reset_speak_missions(void) {
-    free(speak_missions_tab);
-    free(speak_missions_stages);
-    free(speak_missions_conds);
-    free(speak_missions_binds);
-    speak_missions_tab = NULL;
-    speak_missions_stages = NULL;
-    speak_missions_conds = NULL;
-    speak_missions_binds = NULL;
-    n_speak_missions = 0;
-}
-
-const mission_spec *res_speak_missions(size_t *count) {
-    if (count) {
-        *count = n_speak_missions;
-    }
-    return speak_missions_tab;
-}
-
 static void reset_buildings(void) {
     for (size_t i = 0; i < n_buildings; i++) {
         free(buildings_tab[i].name);
@@ -2604,7 +2409,6 @@ void res_load_world(const char *path) {
     fold_pronoun(obj_get(root, "pronoun"), path);
     fold_towns(obj_get(root, "towns"), path);
     fold_buildings(obj_get(root, "buildings"), path);
-    fold_speak_missions(obj_get(root, "speak_missions"), path);
     fold_limits(obj_get(root, "limits"), path);
     fold_enums(obj_get(root, "enums"), path);
     fold_dungeons(obj_get(root, "dungeons"), path);
@@ -3004,7 +2808,6 @@ void res_shutdown(void) {
     reset_texts();
     reset_towns();
     reset_buildings();
-    reset_speak_missions();
     reset_limits();
     npc_slot_max_invalidate();
     node_free(world_tree);

@@ -125,6 +125,7 @@
   // `erethor.first_visit` to text id `speak.erethor.rumour`.
   scripts: {
     speak: { $import: 'world/scripts/speak.json5' },
+    speak_missions: { $import: 'world/scripts/speak_missions.json5' },
     missions: { $import: 'world/scripts/missions.json5' },
     towne: { $import: 'world/scripts/towne.json5' },
     terrain: { $import: 'world/scripts/terrain.json5' },
@@ -133,11 +134,6 @@
     rest: { $import: 'world/scripts/rest.json5' },
     lodge: { $import: 'world/scripts/lodge.json5' },
   },
-
-  // §20 S8: speak.c per-NPC mission stage tables. Top-level keys are
-  // NPC role identifiers; res_speak_missions() exposes the runtime
-  // table to speak.c::mission_dispatch.
-  speak_missions: { $import: 'world/scripts/speak_missions.json5' },
 
   // Per-tick upkeep. foodhandler() reads these every hour; callers
   // are in subs.c. Keep keys stable — C-side hard-codes the names.

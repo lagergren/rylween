@@ -87,6 +87,18 @@ struct node;
  *                                   clr_map_window(0) blitgfx(1)
  *                                   statusline(0) clw(0).
  *
+ *   { play_script: '<id>' }       - invoke a nested script by dotted id
+ *                                   (resolved via res_script). Caller
+ *                                   bindings + the current rt_env entries
+ *                                   are forwarded as the nested call's
+ *                                   ryl_bind list (rt_env first so it
+ *                                   shadows). The nested script gets a
+ *                                   fresh rt_env. Used by the speak_
+ *                                   missions dispatcher scripts to fan
+ *                                   out into the existing speak.<x>.<y>
+ *                                   bodies after gating on flags +
+ *                                   populating role-keyed bindings.
+ *
  * §17-F control-flow ops (step 1 — loop primitives):
  *
  *   { loop: [...ops...] }         - run the body repeatedly until an

@@ -287,117 +287,27 @@ static void reply_chitchat(int32_t subj, int32_t jb) {
         {0},
     });
 }
-/* §16.5 mission-state-machine dispatcher. Table-driven replacement for
-   the historical `npc_mission_hint` switch (one case per NPC slot,
-   flag-guarded if-chains, inline tx_fmt / play_script).
-
-   The stage tables are pure data — adding a new NPC or stage is a
-   data edit, no new C functions. Conditions (mission_cond) are
-   AND-of-N: a stage fires only when every listed flag slot matches
-   its expected value. OR across stages is implicit — stages are
-   tried in order and the first match wins; multi-way OR is expressed
-   by listing the stage N times with different conds + same script.
-
-   Bindings are authored as {name, kind, arg} triples. The four
-   primitive kinds (NPC_NAME / NPC_LOC / DX_STR / DY_STR) cover every
-   call site the original C had; widening the vocabulary is a data
-   edit plus one `case` in mission_resolve_bindings.
-
-   NPCs whose "hint" is a menu / invlist-keyed branch (cases 6, 13,
-   22) are NOT in the table — they need DSL ops that don't exist yet
-   (conditional gold-check, inventory-letter key) and stay inline
-   below. Flag advancement is the script's job (`set_flag` op); C
-   only reads flags here. */
-
-/* §20 S8: per-NPC mission stage struct types live in speak.h so res.c
-   can fold the runtime table from world.json5 speak_missions: into
-   them at load. The static stages_*[] arrays + mission_table[] that
-   used to live here are now data, retrieved via res_speak_missions(). */
-
-#define MAX_BINDINGS   4  /* max per stage observed today: 2 */
-#define BIND_ZONE_SIZE 80 /* per-binding scratch (NPC_LOC needs ~40) */
-
-/* Resolve `st->binds[]` into `out` (+ trailing {0} sentinel), using
-   per-binding zones of BIND_ZONE_SIZE bytes in `scratch` for any
-   values that need inline formatting. `scratch` must be at least
-   nbinds * BIND_ZONE_SIZE bytes. */
-static void mission_resolve_bindings(const mission_stage *st, ryl_bind *out,
-                                     char *scratch) {
-    for (size_t i = 0; i < st->nbinds; i++) {
-        const mission_binding *b = &st->binds[i];
-        char *zone = scratch + i * BIND_ZONE_SIZE;
-        out[i].name = b->name;
-        switch (b->kind) {
-            case BIND_NPC_NAME:
-                out[i].value = res_npc_name(res_npc_role(b->npc_role));
-                break;
-            case BIND_NPC_LOC:
-                npc_loc_str(npc_for_role(b->npc_role), zone, BIND_ZONE_SIZE);
-                out[i].value = zone;
-                break;
-            case BIND_DX_STR:
-                snprintf(zone, BIND_ZONE_SIZE, "%d", wld_location_x(b->arg));
-                out[i].value = zone;
-                break;
-            case BIND_DY_STR:
-                snprintf(zone, BIND_ZONE_SIZE, "%d", wld_location_y(b->arg));
-                out[i].value = zone;
-                break;
-        }
-    }
-    out[st->nbinds] = (ryl_bind){0};
-}
-
-/* Returns 1 if a stage fired, 0 otherwise. */
-static int mission_dispatch(int32_t npc) {
-    size_t mission_count = 0;
-    const mission_spec *missions = res_speak_missions(&mission_count);
-    for (size_t i = 0; i < mission_count; i++) {
-        const mission_spec *spec = &missions[i];
-        if (res_npc_role(spec->npc_role) != npc) {
-            continue;
-        }
-        for (size_t j = 0; j < spec->nstages; j++) {
-            const mission_stage *st = &spec->stages[j];
-            int match = 1;
-            for (size_t c = 0; c < st->nconds; c++) {
-                if (!pa_flag_is(st->conds[c].flag_tag,
-                                st->conds[c].when_state)) {
-                    match = 0;
-                    break;
-                }
-            }
-            if (!match) {
-                continue;
-            }
-            ryl_bind binds[MAX_BINDINGS + 1];
-            char scratch[MAX_BINDINGS * BIND_ZONE_SIZE];
-            const ryl_bind *pass = NULL;
-            if (st->nbinds > 0) {
-                mission_resolve_bindings(st, binds, scratch);
-                pass = binds;
-            }
-            if (st->pre_clw) {
-                clw();
-            }
-            play_script(st->script, pass);
-            return 1;
-        }
-        return 0;
-    }
-    return 0;
-}
-
-/* Per-NPC mission state-machine step. Dispatches scripted flows via the
-   `mission_table` above; the remaining quest-role NPCs use menus or
-   invlist lookups that don't fit the screen/journal/set_flag/reward
-   DSL and stay inline pending §16.1 slice B work. Dispatch goes
-   through res_npc_role so neither the specific character's name nor
-   their numeric slot is baked into C — world.json5's npc_roles:
-   subtree is the one place that binds a role to a character. */
+/* §22.F: per-NPC mission state-machine step. Looks up the role bound
+   to this slot via res_role_for_slot, then plays the matching
+   `speak_missions.<role>` dispatch script (an if-chain over flag
+   conditions; bodies inline pre_clw + role-keyed bindings + play_
+   script of the existing speak.<x>.<y> body). Dispatch script not
+   present == role has no scriptable stages yet; fall through to the
+   inline blocks below for menu / invlist branches the DSL can't
+   express today (silver-key map purchase, Thun gem altar offer,
+   Jazzy ogre item-trade, fighter-intro location-split intro).
+   Flag advancement is the script's job (`set_flag` op); C only reads
+   flags in the residual inline blocks here. */
 static void npc_mission_hint(int32_t npc) {
-    if (mission_dispatch(npc)) {
-        return;
+    const char *role = res_role_for_slot(npc);
+    if (role) {
+        char dispatch_id[96];
+        int n = snprintf(dispatch_id, sizeof dispatch_id,
+                         "speak_missions.%s", role);
+        if (n > 0 && (size_t)n < sizeof dispatch_id &&
+            res_script(dispatch_id)) {
+            play_script(dispatch_id, NULL);
+        }
     }
 
     /* Areth — fighter intro.
