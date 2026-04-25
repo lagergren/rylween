@@ -45,12 +45,12 @@
   // clr_map_window); H-on-corpse exits abruptly (clw + corpse +
   // 1200ms, no clr_map_window — matches the original's `return;`).
   //
-  // key_range: ['1', '4'] is a literal char range; the DSL does not
-  // yet let us write "1..res_party_member_max()" symbolically (see
-  // script.c menu_opt_matches comment). PARTY_MEMBER_MAX is pinned
-  // at 4 by the save format, so the hardcode is safe today — if
-  // the cap ever changes, lift this with the match-shape work
-  // described there.
+  // The "Who? (1-N)" sub-menus use digit_range, the dynamic-bound
+  // shape added alongside res_party_member_max(): hi is the
+  // engine_int 'pa_party_member_max', so the prompt automatically
+  // tracks whatever the engine reports (default 4, overridable via
+  // the limits.party_member_max knob and the RYL_PARTY_MEMBER_MAX
+  // smoke-fixture env override).
   church: [
     { engine_call: 'clr_map_window' },
     { engine_call: 'blitgfx', args: [{ pic: 'church' }] },
@@ -73,7 +73,7 @@
               { menu_branch: {
                   key_var: 'who_ch',
                   options: [
-                    { key_range: ['1', '4'], then: [
+                    { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
                       { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
                       { if: {
                           cond: { not: { engine_int: 'pa_is_spellcaster', args: [{ var: 'who' }] } },
@@ -152,7 +152,7 @@
               { menu_branch: {
                   key_var: 'who_ch',
                   options: [
-                    { key_range: ['1', '4'], then: [
+                    { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
                       { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
                       { if: {
                           cond: { engine_int: 'pa_is_alive', args: [{ var: 'who' }] },
@@ -206,7 +206,7 @@
               { menu_branch: {
                   key_var: 'who_ch',
                   options: [
-                    { key_range: ['1', '4'], then: [
+                    { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
                       { let: 'who', value: { sub: [{ var: 'who_ch' }, 48] } },
                       { if: {
                           cond: { engine_int: 'pa_is_dead', args: [{ var: 'who' }] },
@@ -807,7 +807,7 @@
                     { menu_branch: {
                         key_var: 'who_ch',
                         options: [
-                          { key_range: ['1', '4'], then: [
+                          { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
                             { let: 'mi', value: { sub: [{ var: 'who_ch' }, 48] } },
                             { if: {
                                 cond: { engine_int: 'pa_is_dead', args: [{ var: 'mi' }] },

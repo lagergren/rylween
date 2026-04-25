@@ -546,6 +546,10 @@ static int32_t ie_inv_find_in_range(const int32_t *a) {
 static int32_t ie_inv_count_in_range(const int32_t *a) {
     return inv_count_in_range((int)a[0], (int)a[1]);
 }
+static int32_t ie_pa_party_member_max(const int32_t *a) {
+    (void)a;
+    return res_party_member_max();
+}
 
 static const int_engine_entry int_engine_tbl[] = {
     {"pa_is_alive", 1, ie_pa_is_alive},
@@ -559,6 +563,7 @@ static const int_engine_entry int_engine_tbl[] = {
     {"inv_find_item", 1, ie_inv_find_item},
     {"inv_find_in_range", 2, ie_inv_find_in_range},
     {"inv_count_in_range", 2, ie_inv_count_in_range},
+    {"pa_party_member_max", 0, ie_pa_party_member_max},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`
@@ -1519,36 +1524,37 @@ static ops_result do_if(const node *op, const char *script_id, size_t idx,
 }
 
 /* Does the N_STR `key_n` pattern match the uppercased input `ch`?
-   Accepts three per-option shapes: `key: 'K'` (single char),
+   Accepts four per-option shapes: `key: 'K'` (single char),
    `keys: ['A','B',...]` (any listed char), `key_range: ['LO','HI']`
-   (ASCII-inclusive range after upper-casing). Returns 1 on match.
-   Fatal on malformed option.
+   (ASCII-inclusive range after upper-casing), and
+   `digit_range: { lo:<int-expr>, hi:<int-expr> }` (digit-char range
+   evaluated dynamically via eval_expr — both bounds must land in
+   [1, 9]). Returns 1 on match. Fatal on malformed option.
 
-   key_range uses literal one-char strings. It does NOT accept an
-   int-returning expression for the bounds; "1..PARTY_MEMBER_MAX"
-   still has to be authored as ['1', '4']. A clean single-source-
-   of-truth variant would need either (a) a new match shape that
-   takes int exprs and maps digit N to char '0'+N (range 1..9), or
-   (b) a DSL-level symbolic reference to res_party_member_max()
-   that evaluates to a char. Both are deferred — every current
-   call site is 1..4 and changing PARTY_MEMBER_MAX is blocked by
-   the save format, so there is no observable drift risk today.
-   Revisit if a new digit-prompt site appears with a different
-   bound, or if the save format ever opens up the member cap. */
+   key_range remains the literal-char path (covers letter ranges
+   like ['A','P'] and fixed digit ranges like ['1','6'] for shop
+   menus). digit_range is the dynamic-bound shape — used where the
+   bound depends on something like res_party_member_max(); the DSL
+   author writes e.g. { lo: 1, hi: { engine_int: 'pa_party_member_max' } }
+   and the evaluator picks up whatever the engine exposes today. */
 static int menu_opt_matches(const node *o, char ch, const char *script_id,
-                            size_t idx) {
+                            size_t idx, const ryl_bind *bindings,
+                            const rt_env *env) {
     const node *key_n = obj_get(o, "key");
     const node *keys_n = obj_get(o, "keys");
     const node *range_n = obj_get(o, "key_range");
-    int shapes = (key_n != NULL) + (keys_n != NULL) + (range_n != NULL);
+    const node *digit_n = obj_get(o, "digit_range");
+    int shapes = (key_n != NULL) + (keys_n != NULL) + (range_n != NULL) +
+                 (digit_n != NULL);
     if (shapes == 0) {
         die_at(script_id, idx,
-               "menu_branch: option needs key, keys, or key_range");
+               "menu_branch: option needs key, keys, key_range, or "
+               "digit_range");
     }
     if (shapes > 1) {
         die_at(script_id, idx,
-               "menu_branch: option key / keys / key_range are mutually "
-               "exclusive");
+               "menu_branch: option key / keys / key_range / digit_range "
+               "are mutually exclusive");
     }
     if (key_n) {
         if (key_n->kind != N_STR || key_n->u.sv[0] == 0 ||
@@ -1576,7 +1582,34 @@ static int menu_opt_matches(const node *o, char ch, const char *script_id,
         }
         return 0;
     }
-    /* range_n */
+    if (digit_n) {
+        if (digit_n->kind != N_OBJ) {
+            die_at(script_id, idx,
+                   "menu_branch: digit_range must be object");
+        }
+        const node *lo_e = obj_get(digit_n, "lo");
+        const node *hi_e = obj_get(digit_n, "hi");
+        if (!lo_e || !hi_e) {
+            die_at(script_id, idx,
+                   "menu_branch: digit_range needs lo and hi");
+        }
+        int32_t lo_v = eval_expr(lo_e, script_id, idx, bindings, env);
+        int32_t hi_v = eval_expr(hi_e, script_id, idx, bindings, env);
+        if (lo_v < 1 || lo_v > 9 || hi_v < 1 || hi_v > 9) {
+            die_at(script_id, idx,
+                   "menu_branch: digit_range bounds must be in [1, 9]");
+        }
+        if (lo_v > hi_v) {
+            die_at(script_id, idx,
+                   "menu_branch: digit_range lo > hi");
+        }
+        if (ch < '0' || ch > '9') {
+            return 0;
+        }
+        int32_t cv = ch - '0';
+        return cv >= lo_v && cv <= hi_v;
+    }
+    /* range_n (literal-char key_range) */
     if (range_n->kind != N_ARR || range_n->u.arr.n != 2) {
         die_at(script_id, idx,
                "menu_branch: key_range must be [lo, hi] array");
@@ -1655,7 +1688,7 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         if (!o || o->kind != N_OBJ) {
             die_at(script_id, idx, "menu_branch: option must be object");
         }
-        if (!menu_opt_matches(o, ch, script_id, idx)) {
+        if (!menu_opt_matches(o, ch, script_id, idx, bindings, env)) {
             continue;
         }
         const node *then_n = obj_get(o, "then");
