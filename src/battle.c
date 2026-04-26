@@ -191,94 +191,62 @@ void encounter(int32_t foe, int32_t mandatory) {
                             ryl_delay(1000);
                             clw();
                         } else {
-                            /* §23.B Group A: items with `effect:` bodies in
-                               magic_items.json5 dispatch through the script
-                               DSL via play_spell_body. The legacy switch
-                               below covers items still pending migration
-                               (Groups B–E). Inventory consume stays in C —
-                               the body assumes the slot is already cleared
-                               (case 108 is the exception and stays in its
-                               legacy arm until Group D). */
+                            /* §23.B closed: every magic item has an
+                               `effect:` DSL body in magic_items.json5;
+                               the dispatcher routes every Use-Item
+                               invocation through play_spell_body.
+                               Inventory consume is body-owned
+                               (pa_set_inventory engine_call) so
+                               conditional consumers like
+                               gem_of_resurrection can defer to their
+                               success branch. */
                             const char *slug = NULL;
                             const void *effect =
                                 res_magic_item_effect_node(oc, &slug);
-                            if (effect) {
-                                /* Inventory consume is body-owned
-                                   (pa_set_inventory engine_call) so a
-                                   conditional consumer like
-                                   gem_of_resurrection can defer to its
-                                   success branch. The dispatcher just
-                                   binds the slot the player chose. */
-                                char caster_buf[8];
-                                snprintf(caster_buf, sizeof caster_buf, "%d", g);
-                                char inv_slot_buf[8];
-                                snprintf(inv_slot_buf, sizeof inv_slot_buf,
-                                         "%d", inv_slot_from_letter(d));
-                                ryl_bind binds[] = {
-                                    {"caster_idx", caster_buf},
-                                    {"monster_name", fn},
-                                    {"inv_slot", inv_slot_buf},
-                                    {0},
-                                };
-                                int ws_int = ws;
-                                int action_retry = 0;
-                                struct script_combat_ctx ctx = {
-                                    .noc = noc,
-                                    .mh = mh,
-                                    .deadc = deadc,
-                                    .fn = fn,
-                                    .confused = &confused,
-                                    .held = &held,
-                                    .antimagic = &antimagic,
-                                    .ws = &ws_int,
-                                    .action_retry = &action_retry,
-                                    .h2 = h2,
-                                };
-                                char id_buf[80];
-                                snprintf(id_buf, sizeof id_buf,
-                                         "magic_items.%s",
-                                         slug ? slug : "(unknown)");
-                                play_spell_body(id_buf, effect, binds, &ctx);
-                                ws = (int32_t)ws_int;
-                                if (action_retry) {
-                                    /* gem_of_resurrection's not-dead
-                                       branch — re-prompt the player's
-                                       action menu without consuming
-                                       a turn (legacy `goto combat`). */
-                                    goto combat;
-                                }
-                            } else
-                            switch (oc) {
-                                /* §23.B A/B/C/D: 100/101/102/103/104/105/108/
-                                   109/110/111 are migrated to magic_items
-                                   effect: bodies. Group E will hollow out
-                                   the remaining arms (106/107). */
-                                case 106:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    clw();
-                                    tx0(res_text("battle.spell.morale_quest"));
-                                    ryl_pause();
-                                    clw();
-                                    for (i = 1; i <= res_party_member_max(); i++) {
-                                        pm_t pm = pm_cur(i);
-                                        pm_add_ws(pm, 3);
-                                        pm_add_h(pm, 3);
-                                        pm_add_ch(pm, 3);
-                                        pm_add_wi(pm, 3);
-                                    }
-                                    break;
-
-                                case 107:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    clw();
-                                    tx0(res_text("battle.spell.party_healed"));
-                                    ryl_pause();
-                                    clw();
-                                    for (i = 1; i <= res_party_member_max(); i++) {
-                                        pm_full_heal(pm_cur(i));
-                                    }
-                                    break;
-
+                            if (!effect) {
+                                char err[96];
+                                snprintf(err, sizeof err,
+                                         "magic_items: no effect body for id %d",
+                                         (int)oc);
+                                ryl_die(err);
+                            }
+                            char caster_buf[8];
+                            snprintf(caster_buf, sizeof caster_buf, "%d", g);
+                            char inv_slot_buf[8];
+                            snprintf(inv_slot_buf, sizeof inv_slot_buf,
+                                     "%d", inv_slot_from_letter(d));
+                            ryl_bind binds[] = {
+                                {"caster_idx", caster_buf},
+                                {"monster_name", fn},
+                                {"inv_slot", inv_slot_buf},
+                                {0},
+                            };
+                            int ws_int = ws;
+                            int action_retry = 0;
+                            struct script_combat_ctx ctx = {
+                                .noc = noc,
+                                .mh = mh,
+                                .deadc = deadc,
+                                .fn = fn,
+                                .confused = &confused,
+                                .held = &held,
+                                .antimagic = &antimagic,
+                                .ws = &ws_int,
+                                .action_retry = &action_retry,
+                                .h2 = h2,
+                            };
+                            char id_buf[80];
+                            snprintf(id_buf, sizeof id_buf,
+                                     "magic_items.%s",
+                                     slug ? slug : "(unknown)");
+                            play_spell_body(id_buf, effect, binds, &ctx);
+                            ws = (int32_t)ws_int;
+                            if (action_retry) {
+                                /* gem_of_resurrection's not-dead branch
+                                   — re-prompt the player's action menu
+                                   without consuming a turn (legacy
+                                   `goto combat`). */
+                                goto combat;
                             }
                         }
                     }

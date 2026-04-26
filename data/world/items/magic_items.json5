@@ -178,8 +178,53 @@
       }},
     ],
   },
-  blessing_scroll:    { id: 106, name: 'Blessing Scroll',     cost: 2000 },
-  staff_of_curing:    { id: 107, name: 'Staff of Curing',     cost: 4343 },
+  // §23.B Group E: blessing_scroll. Party-wide stat boost — every
+  // member 1..party_member_max gets +3 to ws / h / ch / wi (max-HP
+  // bumps but current hp untouched). Iterates ALL members regardless
+  // of dead bit (legacy for-loop has no `if (!dead)` gate); for_member
+  // matches that. RNG-free.
+  blessing_scroll: {
+    id: 106, name: 'Blessing Scroll', cost: 2000,
+    effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
+      { engine_call: 'clw' },
+      { emit: 'battle.spell.morale_quest' },
+      { wait_input: true },
+      { engine_call: 'clw' },
+      { for_member: { var: 'm', then: [
+          { mutate: { target: { member_field: { idx: { var: 'm' },
+                                                field: 'ws' } },
+                      op: 'add', value: 3 }},
+          { mutate: { target: { member_field: { idx: { var: 'm' },
+                                                field: 'h' } },
+                      op: 'add', value: 3 }},
+          { mutate: { target: { member_field: { idx: { var: 'm' },
+                                                field: 'ch' } },
+                      op: 'add', value: 3 }},
+          { mutate: { target: { member_field: { idx: { var: 'm' },
+                                                field: 'wi' } },
+                      op: 'add', value: 3 }},
+      ]}},
+    ],
+  },
+  // §23.B Group E: staff_of_curing. Party-wide full heal — pm_full_heal
+  // on every member 1..party_member_max. The C helper itself no-ops
+  // on dead members so for_member (full range) and for_each_alive_player
+  // are observably equivalent here; for_member matches the legacy
+  // for-loop bound exactly.
+  staff_of_curing: {
+    id: 107, name: 'Staff of Curing', cost: 4343,
+    effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
+      { engine_call: 'clw' },
+      { emit: 'battle.spell.party_healed' },
+      { wait_input: true },
+      { engine_call: 'clw' },
+      { for_member: { var: 'm', then: [
+          { engine_call: 'pm_full_heal', args: [{ var: 'm' }] },
+      ]}},
+    ],
+  },
   // §23.B Group D: gem_of_resurrection. Conditional consume — the
   // inventory slot is cleared only inside the success branch (target
   // was dead). On the not-dead branch, the body sets battle_flag
