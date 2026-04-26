@@ -21,18 +21,18 @@
     {
       name: 'Frost Finger',
       do: [
-        { emit: 'monster.frost.name' },
+        { emit: 'battle.monster.frost.name' },
         { let: 'who', value: { engine_int: 'pick_random_alive_player' }},
         { engine_bind: { fn: 'pa_name', args: [{ var: 'who' }],
                          var: 'target_name' }},
-        { emit: 'monster.frost.on_target' },
+        { emit: 'battle.monster.frost.on_target' },
         { pause: 1000 },
         { let: 'dmg', value: { add: [
           { div: [{ var: 'h2' }, 5] },
           { random: [0, 3] },
         ]}},
-        { emit: 'monster.frost.does_pts' },
-        { emit: 'monster.frost.of_damage' },
+        { emit: 'battle.monster.frost.does_pts' },
+        { emit: 'battle.monster.frost.of_damage' },
         { pause: 1000 },
         { mutate: { target: { member_field: { idx: { var: 'who' },
                                               field: 'hp' } },
@@ -46,7 +46,7 @@
                                                   field: 'dead' } },
                         op: 'set', value: 1 }},
             { engine_call: 'pa_add_pl', args: [-1] },
-            { emit: 'monster.player_dies' },
+            { emit: 'battle.monster.player_dies' },
             { pause: 1000 },
           ]
         }},
@@ -60,18 +60,18 @@
     {
       name: 'Cloud of Fire',
       do: [
-        { emit: 'monster.fire.name' },
+        { emit: 'battle.monster.fire.name' },
         { pause: 1000 },
         { for_each_alive_player: { then: [
           { engine_call: 'clw' },
           { engine_bind: { fn: 'pa_name', args: [{ var: 'target_idx' }],
                            var: 'target_name' }},
-          { emit: 'monster.fire.burnt_for' },
+          { emit: 'battle.monster.fire.burnt_for' },
           { let: 'dmg', value: { add: [
             { div: [{ var: 'h2' }, 5] },
             { random: [0, 4] },
           ]}},
-          { emit: 'monster.fire.dmg_pts' },
+          { emit: 'battle.monster.fire.dmg_pts' },
           { pause: 1000 },
           { mutate: { target: { member_field: { idx: { var: 'target_idx' },
                                                 field: 'hp' } },
@@ -86,7 +86,7 @@
                                                     field: 'dead' } },
                           op: 'set', value: 1 }},
               { engine_call: 'pa_add_pl', args: [-1] },
-              { emit: 'monster.player_dies' },
+              { emit: 'battle.monster.player_dies' },
               { pause: 1000 },
             ]
           }},
@@ -100,9 +100,9 @@
     {
       name: 'Hold Creature',
       do: [
-        { emit: 'monster.hold.name' },
+        { emit: 'battle.monster.hold.name' },
         { pause: 600 },
-        { emit: 'monster.hold_player' },
+        { emit: 'battle.monster.hold_player' },
         { pause: 1500 },
         { mutate: { target: { battle_flag: 'player_held' },
                     op: 'set', value: 1 }},
@@ -115,9 +115,9 @@
     {
       name: 'Confusion',
       do: [
-        { emit: 'monster.confuse.name' },
+        { emit: 'battle.monster.confuse.name' },
         { pause: 600 },
-        { emit: 'monster.confusion' },
+        { emit: 'battle.monster.confusion' },
         { pause: 1500 },
         { mutate: { target: { battle_flag: 'player_confused' },
                     op: 'set', value: 1 }},
