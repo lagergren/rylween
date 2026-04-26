@@ -23,7 +23,7 @@
 [6C▓▓[35m[7C███▄██[30;41m███[35;40m ███▄▄[30;41m██████[35;40m▄▌[30;41m███[35;40m▐███████████▀▀▀▀▀    ▀▀▀▀██[0m    ▐[31;47m█[40m▌[33m
 [6C▓█[35m[9C▀▀▀█▌[30;41m██[35;40m▌█▀▀▀▀█▄▄▄███▀[30;41m██[35;40m ████▀▀▀▀[31m[24C█[0m
 [0C
-[37m<MORE>
+[0C[37m<MORE>
 [0;0H[0C[30m[6;0H[49C[37m[49CFirst Game of the Day... Updating... Please Wait...[0m[2J[32m[27CADVENTURERS OF RYLWEEN
  [33;41m░[31;40m█[33;41m░[31;40m█[33;41m░▒[31;40m██[45m▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒░░░░░░░░░[35;40m█████████[31;45m░░░░░░▒▒▒▒▒▓▓▓[40m██████[41m        [35m░░▒▒▓▓█[31;40m
  █[33;41m▒░▒▒[31;43m▓█[45m▓▓▓▓▒[43m▒▒░         [33;40m███████████████[31;43m▄[33;41m▀▀▀▀[40m█[31;43m■[33;41m▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀[31;43m■[33;40m█[45m▄[35;41m▓
@@ -54,13 +54,13 @@
 [49C                          
 [49C                          
 [6;0H[49CTest User's copy.
-
+[49C
 [49CN. Create New Party
 [49CS. View Currect Scores
 [49CH. View Hall of Fame
 [49CD. View Documentation
 [49CX. Exit
-
+[49C
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -73,11 +73,11 @@
 [49C                          
 [49C                          
 [6;0H[49CPlease read the manual
-before starting play.
-You will understand
-_very_ little of the
-game otherwise...
-
+[49Cbefore starting play.
+[49CYou will understand
+[49C_very_ little of the
+[49Cgame otherwise...
+[49C
 [49C(Thrash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -102,10 +102,10 @@ game otherwise...
 [49C                          
 [49C                          
 [6;0H[49CParty Creation
-
+[49C
 [49CWhat is the name of your
-party?
-
+[49Cparty?
+[49C
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -118,12 +118,12 @@ party?
 [49C                          
 [49C                          
 [6;0H[49CStats for char: 1
-
+[49C
 [49CWeapon Skill : 60
 [49CHealth       : 36
 [49CWisdom       : 67
 [49CCharisma     : 21
-
+[49C
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
 [49C                          
@@ -148,10 +148,10 @@ party?
 [49C                          
 [49C                          
 [6;0H[49CWhat gender is
-A?
-
+[49CA?
+[49C
 [49C1. Male
-2. Female
+[49C2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -164,10 +164,10 @@ A?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-A?
-
+[49CA?
+[49C
 [49C1. Human  2. Dwarf
-3. Elf    4. Halfling
+[49C3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -180,11 +180,11 @@ A?
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-character...
-
-1. Fighter 2. Thief
-3. Mage    4. Priest
-5. Bard    6. Ranger
+[49Ccharacter...
+[49C
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -232,11 +232,11 @@ character...
 [6;0H[49CLevel     : 0
 [49CWeapon    : -
 [49CArmour    : -
-
+[49C
 [49CStatus    : Alive.
-
+[49C
 [49CExp       : 0
-
+[49C
 [49C(Brain RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -250,12 +250,12 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CStats for char: 2
-
+[49C
 [49CWeapon Skill : 43
 [49CHealth       : 62
 [49CWisdom       : 63
 [49CCharisma     : 66
-
+[49C
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
 [49C                          
@@ -280,10 +280,10 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat gender is
-B?
-
+[49CB?
+[49C
 [49C1. Male
-2. Female
+[49C2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -296,10 +296,10 @@ B?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-B?
-
+[49CB?
+[49C
 [49C1. Human  2. Dwarf
-3. Elf    4. Halfling
+[49C3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -312,11 +312,11 @@ B?
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-character...
-
-1. Fighter 2. Thief
-3. Mage    4. Priest
-5. Bard    6. Ranger
+[49Ccharacter...
+[49C
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -364,11 +364,11 @@ character...
 [6;0H[49CLevel     : 0
 [49CWeapon    : -
 [49CArmour    : -
-
+[49C
 [49CStatus    : Alive.
-
+[49C
 [49CExp       : 0
-
+[49C
 [49C(Brain RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -382,12 +382,12 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CStats for char: 3
-
+[49C
 [49CWeapon Skill : 39
 [49CHealth       : 38
 [49CWisdom       : 31
 [49CCharisma     : 19
-
+[49C
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
 [49C                          
@@ -412,10 +412,10 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat gender is
-C?
-
+[49CC?
+[49C
 [49C1. Male
-2. Female
+[49C2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -428,10 +428,10 @@ C?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-C?
-
+[49CC?
+[49C
 [49C1. Human  2. Dwarf
-3. Elf    4. Halfling
+[49C3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -444,11 +444,11 @@ C?
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-character...
-
-1. Fighter 2. Thief
-3. Mage    4. Priest
-5. Bard    6. Ranger
+[49Ccharacter...
+[49C
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -496,11 +496,11 @@ character...
 [6;0H[49CLevel     : 0
 [49CWeapon    : -
 [49CArmour    : -
-
+[49C
 [49CStatus    : Alive.
-
+[49C
 [49CExp       : 0
-
+[49C
 [49C(Destroy RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -514,12 +514,12 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CStats for char: 4
-
+[49C
 [49CWeapon Skill : 16
 [49CHealth       : 69
 [49CWisdom       : 57
 [49CCharisma     : 58
-
+[49C
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
 [49C                          
@@ -544,10 +544,10 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat gender is
-D?
-
+[49CD?
+[49C
 [49C1. Male
-2. Female
+[49C2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -560,10 +560,10 @@ D?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-D?
-
+[49CD?
+[49C
 [49C1. Human  2. Dwarf
-3. Elf    4. Halfling
+[49C3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -576,11 +576,11 @@ D?
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-character...
-
-1. Fighter 2. Thief
-3. Mage    4. Priest
-5. Bard    6. Ranger
+[49Ccharacter...
+[49C
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -628,11 +628,11 @@ character...
 [6;0H[49CLevel     : 0
 [49CWeapon    : -
 [49CArmour    : -
-
+[49C
 [49CStatus    : Alive.
-
+[49C
 [49CExp       : 0
-
+[49C
 [49C(Bash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -658,14 +658,14 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CTest User's copy.
-
+[49C
 [49CC. Continue Saved Game
 [49CT. Terminate Party
 [49CS. View Currect Scores
 [49CH. View Hall of Fame
 [49CD. View Documentation
 [49CX. Exit
-
+[49C
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -678,13 +678,13 @@ character...
 [49C                          
 [49C                          
 [6;0H[49C ADVENTURERS of RYLWEEN
-
+[49C
 [49CProgramming & Design by:
 [49C    Marcus Lagergren
-
+[49C
 [49C      Created by:
 [49C    Niklas Blomqvist
-
+[49C
 [49C      Graphics by:
 [49C     Matias Larsson   v3
 [6;0H[9C[33m.. [33m.. [37m/\ [33m.. [33m..[8;0H[9C[33m.. [37m^^ [37m^^ [33m.. [33m..[10;0H[9C[33m.. [33m.. [44m[33m..[40m [37m^^ [33m..[12;0H[9C[33m.. [33m.. [33m.. [33m.. [33m..[14;0H[9C[33m.. [33m.. [37mTT [33m.. [33m..[37m[21;0H[3C[32mTIME: [33mDAWN[32m      ST: [33mOK    [32m X: [33m12   [32mY: [33m 9[32m     FD: [33m  96[32m  MV: [33m200[32m  AU: [33m  1000[32m    [22;0H[13CH1: [33m 36/ 44   [32mH2: [33m 62/ 72   [32mH3: [33m 38/ 48   [32mH4: [33m 69/ 79[37m
@@ -700,7 +700,7 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CENCOUNTER!
-
+[49C
 [49C[37m[40m[6;0H[8C                [7;0H[8C                [8;0H[8C                [9;0H[8C                [10;0H[8C                [11;0H[8C                [12;0H[8C                [13;0H[8C                [14;0H[8C                [8C[37m[40m[6;0H[8C                [7;0H[8C                [8;0H[8C                [9;0H[8C                [10;0H[8C                [11;0H[8C                [12;0H[8C                [13;0H[8C                [14;0H[8C                [6;8H[31;45m█████▓▒░░▒▓█████[7;8H███▓▒░    ░▒▓███[8;8H█▓▒░   [35;40m▀▀█[45m [31m░▒▓██[9;8H▓▒[30m▄▄  [35;40m▌[31m■■[35m▐[45m  [40m▀▀[31;45m▒▓[10;8H▓░[30m▐▀██▄[2C▄██▀▌[31m░▓[11;8H▒    [30m██████   [35;41m█[31;45m▒[12;8H░    [30m▐████▌   [35;41m█[31;45m░[13;8H[37m     [30m██████   [35;41m█[45m [14;8H[37m    [30m▐██████▌  [35;41m█[45m [0m[15;8H[0m[0m[8C[37m[40m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -714,7 +714,7 @@ character...
 [49C                          
 [6;0H[49CYou face
 [49C1 Wild Dog
-
+[49C
 [49C(F)ight
 [49C(R)un
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -742,7 +742,7 @@ character...
 [49C                          
 [6;0H[49CA
 [49CWhat now?
-
+[49C
 [49C(A)ttack
 [49C(D)efend
 [49C(U)se Item
@@ -778,7 +778,7 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWho?
-
+[49C
 [49CA. Alive.  ( 27 hp)
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
@@ -792,8 +792,8 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CThe enemy is wiped
-straigt off the surface
-of the earth!
+[49Cstraigt off the surface
+[49Cof the earth!
 [49C[37m[40m[6;0H[8C                [7;0H[8C                [8;0H[8C                [9;0H[8C                [10;0H[8C                [11;0H[8C                [12;0H[8C                [13;0H[8C                [14;0H[8C                [8C[37m[40m[6;0H[8C                [7;0H[8C                [8;0H[8C                [9;0H[8C                [10;0H[8C                [11;0H[8C                [12;0H[8C                [13;0H[8C                [14;0H[8C                [6;8H[41m   [35m░▒▓███▓▒░    [7;8H[37m  [35m░░▒[30;45m▀▄[35;41m███▓▒░░  [8;8H[37m [35m░▒▒█[30;45m▄[35;41m█[30;45m█▄[35;41m███▒▒░ [9;8H[37m [35m▒[30;45m▐▌██▐▌[35;41m█[30;45m▀▄[35;41m██▓▒ [10;8H░▓█[30;45m▐███[35;41m███████▓░[11;8H▒██[45m [30m██▌[35;41m████████▒[12;8H▓███[30;45m▐██▌[35;41m███████▓[13;8H███[30;45m▄█▀[35;41m█[30;45m█▄[35;41m██[30;45m▄▄▄[35;41m██		[14;8H█[30;45m▄▄█████████████[0m[15;8H[0m[0m[8C[37m[40m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -806,12 +806,12 @@ of the earth!
 [49C                          
 [49C                          
 [6;0H[49CThou hast bested
-thy foes.
-
+[49Cthy foes.
+[49C
 [49CEach survivor gets
 [49C180 experience pts
 [49Cand 105 gold pieces.
-
+[49C
 [6;0H[49C                          
 [49C                          
 [49C                          
@@ -893,7 +893,7 @@ thy foes.
 [49C                          
 [6;0H[49CYou begin to feel weak
 [49Cfrom lack of sleep.
-
+[49C
 [49C(Thrash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -919,7 +919,7 @@ thy foes.
 [49C                          
 [49C                          
 [6;0H[49CYou faint from lack
-of well needed sleep.
+[49Cof well needed sleep.
 [21;0H[3C[32mTIME: [33mMIDNIGHT[32m  ST: [33mOK    [32m X: [33m12   [32mY: [33m10[32m     FD: [33m  96[32m  MV: [33m199[32m  AU: [33m  1105[32m    [22;0H[13CH1: [33m 33/ 44   [32mH2: [33m 59/ 72   [32mH3: [33m 35/ 48   [32mH4: [33m 66/ 79[37m
 [6;0H[0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
@@ -933,6 +933,6 @@ of well needed sleep.
 [49C                          
 [49C                          
 [6;0H[49CYou faint from lack
-of well needed sleep.
+[49Cof well needed sleep.
 [21;0H[3C[32mTIME: [33mMIDNIGHT[32m  ST: [33mOK    [32m X: [33m12   [32mY: [33m10[32m     FD: [33m  96[32m  MV: [33m199[32m  AU: [33m  1105[32m    [22;0H[13CH1: [33m 32/ 44   [32mH2: [33m 58/ 72   [32mH3: [33m 34/ 48   [32mH4: [33m 65/ 79[37m
 [6;0H[0;0H[0C[30m[6;0H[49C[37m[49C[30m[ p[37m

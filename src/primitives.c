@@ -28,47 +28,69 @@ void c(uint8_t x, uint8_t y) {
     io->write(pos, (size_t)n);
 }
 
+/* Write `s` to the terminal, prefixing each line with a cursor-right
+   jump (ESC[<global_x>C) so multi-line content stays inside the right
+   text window. tx0/tx route through this helper.
+
+   The bug we're fixing: clw() positions the cursor at the left margin
+   of the right text window via c(49, 6) (state.global_x = 49). A
+   single ESC[49C at the head of the buffer only positions the FIRST
+   line; the embedded \r\n's that separate subsequent lines return the
+   cursor to column 1, and lines 2+ render at the left margin instead
+   of inside the text window. Walking the buffer and re-emitting the
+   column jump after each \n keeps every line in the right column.
+
+   Empty buffers still emit one jump (matching the old behavior so any
+   call site relying on the side effect of "cursor was positioned, no
+   content written" — e.g. tx("") — continues to work). */
+static uint32_t emit_with_col_jump(const char *s) {
+    char jump[16];
+    int32_t jn = snprintf(jump, sizeof jump, ANSI_CSI "%dC", state.global_x);
+    if (jn <= 0) {
+        return 0;
+    }
+    if (!s || !*s) {
+        io->write(jump, (size_t)jn);
+        return 0;
+    }
+    size_t total = 0;
+    const char *line = s;
+    while (*line) {
+        const char *nl = strchr(line, '\n');
+        size_t len = nl ? (size_t)(nl - line + 1) : strlen(line);
+        io->write(jump, (size_t)jn);
+        io->write(line, len);
+        total += len;
+        if (!nl || !nl[1]) {
+            break;
+        }
+        line = nl + 1;
+    }
+    return (uint32_t)total;
+}
+
 uint32_t tx(const char *fmtstr, ...) {
     char buffer[512];
-    char jump[16];
     va_list var_args;
     int32_t n;
-
-    n = snprintf(jump, sizeof jump, ANSI_CSI "%dC", state.global_x);
-    if (n > 0) {
-        io->write(jump, (size_t)n);
-    }
 
     va_start(var_args, fmtstr);
     n = vsnprintf(buffer, sizeof buffer, (char *)fmtstr, var_args);
     va_end(var_args);
 
-    if (n > 0) {
-        io->write(buffer, (size_t)n);
+    if (n <= 0) {
+        return 0;
     }
-    return n > 0 ? (uint32_t)n : 0UL;
+    return emit_with_col_jump(buffer);
 }
 
-/* tx0: emit a ready-made string as data, not format. Same cursor-right
-   prefix as tx(), but skips vsnprintf — so the payload is not bounded
-   by tx()'s 512-byte buffer and % bytes in the payload are safe. Use
-   for res_text(), pronoun(), object(), pre-built row buffers, and any
-   literal without format specifiers. */
+/* tx0: emit a ready-made string as data, not format. Same per-line
+   cursor-right prefix as tx(), but skips vsnprintf — so the payload
+   is not bounded by tx()'s 512-byte buffer and % bytes in the payload
+   are safe. Use for res_text(), pronoun(), object(), pre-built row
+   buffers, and any literal without format specifiers. */
 uint32_t tx0(const char *s) {
-    char jump[16];
-    int32_t n;
-    size_t len;
-
-    n = snprintf(jump, sizeof jump, ANSI_CSI "%dC", state.global_x);
-    if (n > 0) {
-        io->write(jump, (size_t)n);
-    }
-
-    len = strlen(s);
-    if (len > 0) {
-        io->write(s, len);
-    }
-    return (uint32_t)len;
+    return emit_with_col_jump(s);
 }
 
 /* Fatal runtime error from the primitives layer. Prints "ryl: <msg>" to

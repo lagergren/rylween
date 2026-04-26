@@ -23,7 +23,7 @@
 [6C▓▓[35m[7C███▄██[30;41m███[35;40m ███▄▄[30;41m██████[35;40m▄▌[30;41m███[35;40m▐███████████▀▀▀▀▀    ▀▀▀▀██[0m    ▐[31;47m█[40m▌[33m
 [6C▓█[35m[9C▀▀▀█▌[30;41m██[35;40m▌█▀▀▀▀█▄▄▄███▀[30;41m██[35;40m ████▀▀▀▀[31m[24C█[0m
 [0C
-[37m<MORE>
+[0C[37m<MORE>
 [0;0H[0C[30m[6;0H[49C[37m[49CFirst Game of the Day... Updating... Please Wait...[0m[2J[32m[27CADVENTURERS OF RYLWEEN
  [33;41m░[31;40m█[33;41m░[31;40m█[33;41m░▒[31;40m██[45m▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒░░░░░░░░░[35;40m█████████[31;45m░░░░░░▒▒▒▒▒▓▓▓[40m██████[41m        [35m░░▒▒▓▓█[31;40m
  █[33;41m▒░▒▒[31;43m▓█[45m▓▓▓▓▒[43m▒▒░         [33;40m███████████████[31;43m▄[33;41m▀▀▀▀[40m█[31;43m■[33;41m▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀[31;43m■[33;40m█[45m▄[35;41m▓
@@ -54,13 +54,13 @@
 [49C                          
 [49C                          
 [6;0H[49CTest User's copy.
-
+[49C
 [49CN. Create New Party
 [49CS. View Currect Scores
 [49CH. View Hall of Fame
 [49CD. View Documentation
 [49CX. Exit
-
+[49C
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -73,11 +73,11 @@
 [49C                          
 [49C                          
 [6;0H[49CPlease read the manual
-before starting play.
-You will understand
-_very_ little of the
-game otherwise...
-
+[49Cbefore starting play.
+[49CYou will understand
+[49C_very_ little of the
+[49Cgame otherwise...
+[49C
 [49C(Mutilate RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -102,10 +102,10 @@ game otherwise...
 [49C                          
 [49C                          
 [6;0H[49CParty Creation
-
+[49C
 [49CWhat is the name of your
-party?
-
+[49Cparty?
+[49C
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -118,12 +118,12 @@ party?
 [49C                          
 [49C                          
 [6;0H[49CStats for char: 1
-
+[49C
 [49CWeapon Skill : 27
 [49CHealth       : 68
 [49CWisdom       : 27
 [49CCharisma     : 49
-
+[49C
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
 [49C                          
@@ -148,10 +148,10 @@ party?
 [49C                          
 [49C                          
 [6;0H[49CWhat gender is
-A?
-
+[49CA?
+[49C
 [49C1. Male
-2. Female
+[49C2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -164,10 +164,10 @@ A?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-A?
-
+[49CA?
+[49C
 [49C1. Human  2. Dwarf
-3. Elf    4. Halfling
+[49C3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -180,11 +180,11 @@ A?
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-character...
-
-1. Fighter 2. Thief
-3. Mage    4. Priest
-5. Bard    6. Ranger
+[49Ccharacter...
+[49C
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -232,11 +232,11 @@ character...
 [6;0H[49CLevel     : 0
 [49CWeapon    : -
 [49CArmour    : -
-
+[49C
 [49CStatus    : Alive.
-
+[49C
 [49CExp       : 0
-
+[49C
 [49C(Lunge at RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -250,12 +250,12 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CStats for char: 2
-
+[49C
 [49CWeapon Skill : 42
 [49CHealth       : 46
 [49CWisdom       : 48
 [49CCharisma     : 64
-
+[49C
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
 [49C                          
@@ -280,10 +280,10 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat gender is
-B?
-
+[49CB?
+[49C
 [49C1. Male
-2. Female
+[49C2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -296,10 +296,10 @@ B?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-B?
-
+[49CB?
+[49C
 [49C1. Human  2. Dwarf
-3. Elf    4. Halfling
+[49C3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -312,11 +312,11 @@ B?
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-character...
-
-1. Fighter 2. Thief
-3. Mage    4. Priest
-5. Bard    6. Ranger
+[49Ccharacter...
+[49C
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -364,11 +364,11 @@ character...
 [6;0H[49CLevel     : 0
 [49CWeapon    : -
 [49CArmour    : -
-
+[49C
 [49CStatus    : Alive.
-
+[49C
 [49CExp       : 0
-
+[49C
 [49C(Crush RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -382,12 +382,12 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CStats for char: 3
-
+[49C
 [49CWeapon Skill : 31
 [49CHealth       : 43
 [49CWisdom       : 63
 [49CCharisma     : 58
-
+[49C
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
 [49C                          
@@ -412,10 +412,10 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat gender is
-C?
-
+[49CC?
+[49C
 [49C1. Male
-2. Female
+[49C2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -428,10 +428,10 @@ C?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-C?
-
+[49CC?
+[49C
 [49C1. Human  2. Dwarf
-3. Elf    4. Halfling
+[49C3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -444,11 +444,11 @@ C?
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-character...
-
-1. Fighter 2. Thief
-3. Mage    4. Priest
-5. Bard    6. Ranger
+[49Ccharacter...
+[49C
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -496,11 +496,11 @@ character...
 [6;0H[49CLevel     : 0
 [49CWeapon    : -
 [49CArmour    : -
-
+[49C
 [49CStatus    : Alive.
-
+[49C
 [49CExp       : 0
-
+[49C
 [49C(Destroy RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -514,12 +514,12 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CStats for char: 4
-
+[49C
 [49CWeapon Skill : 55
 [49CHealth       : 61
 [49CWisdom       : 31
 [49CCharisma     : 62
-
+[49C
 [49CReroll (y/N) [6;0H[49C                          
 [49C                          
 [49C                          
@@ -544,10 +544,10 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CWhat gender is
-D?
-
+[49CD?
+[49C
 [49C1. Male
-2. Female
+[49C2. Female
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -560,10 +560,10 @@ D?
 [49C                          
 [49C                          
 [6;0H[49CWhat race is
-D?
-
+[49CD?
+[49C
 [49C1. Human  2. Dwarf
-3. Elf    4. Halfling
+[49C3. Elf    4. Halfling
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -576,11 +576,11 @@ D?
 [49C                          
 [49C                          
 [6;0H[49CPick a class for this
-character...
-
-1. Fighter 2. Thief
-3. Mage    4. Priest
-5. Bard    6. Ranger
+[49Ccharacter...
+[49C
+[49C1. Fighter 2. Thief
+[49C3. Mage    4. Priest
+[49C5. Bard    6. Ranger
 [49C: [6;0H[49C                          
 [49C                          
 [49C                          
@@ -628,11 +628,11 @@ character...
 [6;0H[49CLevel     : 0
 [49CWeapon    : -
 [49CArmour    : -
-
+[49C
 [49CStatus    : Alive.
-
+[49C
 [49CExp       : 0
-
+[49C
 [49C(Slash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
 [49C                          
@@ -658,14 +658,14 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CTest User's copy.
-
+[49C
 [49CC. Continue Saved Game
 [49CT. Terminate Party
 [49CS. View Currect Scores
 [49CH. View Hall of Fame
 [49CD. View Documentation
 [49CX. Exit
-
+[49C
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -678,13 +678,13 @@ character...
 [49C                          
 [49C                          
 [6;0H[49C ADVENTURERS of RYLWEEN
-
+[49C
 [49CProgramming & Design by:
 [49C    Marcus Lagergren
-
+[49C
 [49C      Created by:
 [49C    Niklas Blomqvist
-
+[49C
 [49C      Graphics by:
 [49C     Matias Larsson   v3
 [6;0H[9C[33m.. [33m.. [37m/\ [33m.. [33m..[8;0H[9C[33m.. [37m^^ [37m^^ [33m.. [33m..[10;0H[9C[33m.. [33m.. [44m[33m..[40m [37m^^ [33m..[12;0H[9C[33m.. [33m.. [33m.. [33m.. [33m..[14;0H[9C[33m.. [33m.. [37mTT [33m.. [33m..[37m[21;0H[3C[32mTIME: [33mDAWN[32m      ST: [33mOK    [32m X: [33m12   [32mY: [33m 9[32m     FD: [33m  96[32m  MV: [33m200[32m  AU: [33m  1000[32m    [22;0H[13CH1: [33m 68/ 68   [32mH2: [33m 46/ 46   [32mH3: [33m 43/ 43   [32mH4: [33m 61/ 61[37m
@@ -704,12 +704,12 @@ character...
 [6;0H[21;0H[3C[32mTIME: [33mDAWN[32m      ST: [33mOK    [32m X: [33m12   [32mY: [33m11[32m     FD: [33m  96[32m  MV: [33m198[32m  AU: [33m  1000[32m    [22;0H[13CH1: [33m 68/ 68   [32mH2: [33m 46/ 46   [32mH3: [33m 43/ 43   [32mH4: [33m 61/ 61[37m
 [6;0H[49CVillage of Thord
 [49C=======================
-
+[49C
 [49C(M)erchant  (I)nn
-(T)avern    (G)uild
+[49C(T)avern    (G)uild
 [49C(S)mith     (C)hurch
 [49C(L)eave
-
+[49C
 [49C: [0;0H[0C[30m[6;0H[49C[37m[49C[37m[40m[6;0H[8C                [7;0H[8C                [8;0H[8C                [9;0H[8C                [10;0H[8C                [11;0H[8C                [12;0H[8C                [13;0H[8C                [14;0H[8C                [8C[37m[40m[6;0H[8C                [7;0H[8C                [8;0H[8C                [9;0H[8C                [10;0H[8C                [11;0H[8C                [12;0H[8C                [13;0H[8C                [14;0H[8C                [6;8H[46m▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒[7;8H▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒[8;8H[33m▀█▀▀▀▀▀▀▀█▀[37m░░▒▒▒[9;8H[33m▀[37m▐[33m▄▄▄▄▄▄▄[37m▌  ░░░▒[10;8H [43m [30m▐▌█▐▐▌▌[33;40m█[46m    [37m░▒[11;8H [43m [30m▐▌▌█▐▐▌[33;40m█[46m     [37m░[12;8H [33m▀[40m███████[46m▀      [13;8H                [14;8H                [15;8H[0m[0m[8C[37m[40m[6;0H[6;0H[49C                          
 [49C                          
 [49C                          
@@ -722,11 +722,11 @@ character...
 [49C                          
 [49C                          
 [6;0H[49CHassan, the Innkeeper
-welcomes you.
-
-Do you want supper,
-travellers?
-
+[49Cwelcomes you.
+[49C
+[49CDo you want supper,
+[49Ctravellers?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -741,7 +741,7 @@ travellers?
 [49C                          
 [49C                          
 [6;0H[49CAnything to drink?
-
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -756,8 +756,8 @@ travellers?
 [49C                          
 [49C                          
 [6;0H[49CAre you in need
-of lodging?
-
+[49Cof lodging?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -772,9 +772,9 @@ of lodging?
 [49C                          
 [49C                          
 [6;0H[49CThe innkeeper leaves.
-
+[49C
 [49C(C)hitchat with guests
-(L)eave
+[49C(L)eave
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -804,12 +804,12 @@ of lodging?
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -822,9 +822,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -838,10 +838,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -856,10 +856,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Destroy RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -874,12 +874,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -892,9 +892,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -908,10 +908,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -926,10 +926,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Smash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -944,12 +944,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -962,9 +962,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -978,10 +978,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -996,10 +996,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Brain RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1014,12 +1014,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1032,9 +1032,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1048,10 +1048,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1066,10 +1066,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Slash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1084,12 +1084,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1102,9 +1102,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1118,10 +1118,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1136,10 +1136,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Destroy RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1154,12 +1154,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1172,9 +1172,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1188,10 +1188,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1206,10 +1206,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Destroy RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1224,12 +1224,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1242,9 +1242,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1258,10 +1258,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1276,10 +1276,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Thrash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1294,12 +1294,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1312,9 +1312,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1328,10 +1328,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1346,10 +1346,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Slash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1364,12 +1364,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1382,9 +1382,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1398,10 +1398,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1416,10 +1416,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Crush RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1434,12 +1434,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1452,9 +1452,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1468,10 +1468,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1486,10 +1486,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Smash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1504,12 +1504,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1522,9 +1522,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1538,10 +1538,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1556,10 +1556,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Crush RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1574,12 +1574,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1592,9 +1592,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1608,10 +1608,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1626,10 +1626,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Smash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1644,12 +1644,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1662,9 +1662,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1678,10 +1678,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1696,10 +1696,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Mutilate RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1714,12 +1714,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1732,9 +1732,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1748,10 +1748,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1766,10 +1766,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Lunge at RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1784,12 +1784,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1802,9 +1802,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1818,10 +1818,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1836,10 +1836,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Stab RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1854,12 +1854,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1872,9 +1872,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1888,10 +1888,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1906,10 +1906,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Thrash RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1924,12 +1924,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -1942,9 +1942,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -1958,10 +1958,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -1976,10 +1976,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Destroy RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -1994,12 +1994,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -2012,9 +2012,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -2028,10 +2028,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -2046,10 +2046,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Crush RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -2064,12 +2064,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -2082,9 +2082,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -2098,10 +2098,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -2116,10 +2116,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Destroy RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -2134,12 +2134,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -2152,9 +2152,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -2168,10 +2168,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -2186,10 +2186,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CYou spend a very
-exhausting hour
-upstairs.
-(PERVERT!) ;-)
-
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
 [49C
 [49C(Stab RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -2204,12 +2204,12 @@ upstairs.
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -2222,9 +2222,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C(L)odging
-(M)agic
-(P)eople
-(N)othing
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
 [0;0H[0C[30m[6;0H[49C[37m[49C
 [6;0H[49C                          
 [49C                          
@@ -2238,10 +2238,10 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- Would you like to,
-  spend an hour
-  upstairs for 50
-  gold coins?
-
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
@@ -2256,8 +2256,8 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49C- No money, eh?
-  don't bother
-  to come back!
+[49C  don't bother
+[49C  to come back!
 [49C
 [49C(Brain RETURN key)
 [0;0H[0C[30m[0C[37m[6;0H[6;0H[49C                          
@@ -2272,12 +2272,12 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CChatting with
-Deanna:
-
+[49CDeanna:
+[49C
 [49C(C)hitchat
-(Q)uestion
-(R)umors
-(B)ye
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -2301,9 +2301,9 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CThe innkeeper leaves.
-
+[49C
 [49C(C)hitchat with guests
-(L)eave
+[49C(L)eave
 [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -2329,12 +2329,12 @@ Deanna:
 [6;0H[21;0H[3C[32mTIME: [33mDAWN[32m      ST: [33mOK    [32m X: [33m12   [32mY: [33m11[32m     FD: [33m  96[32m  MV: [33m198[32m  AU: [33m     0[32m    [22;0H[13CH1: [33m 48/ 68   [32mH2: [33m 26/ 46   [32mH3: [33m 23/ 43   [32mH4: [33m 41/ 61[37m
 [6;0H[49CVillage of Thord
 [49C=======================
-
+[49C
 [49C(M)erchant  (I)nn
-(T)avern    (G)uild
+[49C(T)avern    (G)uild
 [49C(S)mith     (C)hurch
 [49C(L)eave
-
+[49C
 [49C: [0;0H[0C[30m[6;0H[49C[37m[6;0H[49C                          
 [49C                          
 [49C                          
@@ -2359,8 +2359,8 @@ Deanna:
 [49C                          
 [49C                          
 [6;0H[49CDo you really want
-to quit?
-
+[49Cto quit?
+[49C
 [49C(Y)es
 [49C(N)o
 [0;0H[0C[30m[6;0H[49C[37m[49C[30m[ p[37m
