@@ -435,7 +435,6 @@ void init() {
     while (!abort) {
         clw();
 
-        tx0(res_text("driv.menu.banner"));
         tx_fmt("driv.menu.owner",
                (ryl_bind[]){
                    {"name", state.global_name},
