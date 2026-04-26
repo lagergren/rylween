@@ -1,0 +1,127 @@
+// §23.A: monster nasty-magic spells lifted from battle.c's g==5
+// switch over ryl_random(0, 3). Order is load-bearing — the C
+// dispatcher draws random(0, n-1) into this list, so case 0 = frost
+// / 1 = fire / 2 = hold / 3 = confuse must match the legacy mapping
+// for byte-identical RNG. battle.c's monster_cast_spell sets up a
+// combat ctx (h2 + per-encounter flag pointers) and binds
+// monster_name; bodies emit text, draw RNG, mutate party state.
+//
+// RNG identity per case (legacy, preserved by these bodies):
+//   frost  : pick_random_alive_player draw-loop, then random(0,3)
+//   fire   : per-alive-player random(0,4) inside the iteration
+//   hold   : no draws
+//   confuse: no draws
+{
+  spells: [
+    // §23.A case 0: Frost Finger. Single-target — the legacy picks
+    // a party member by while-loop on random(1, 4) until pa_is_alive
+    // hits; pick_random_alive_player encapsulates that draw-loop so
+    // the post-pick RNG state is identical. Damage = h2/5 + random(0,3),
+    // matching the legacy `dp = h2/5 + ryl_random(0, 3)`.
+    {
+      name: 'Frost Finger',
+      do: [
+        { emit: 'monster.frost.name' },
+        { let: 'who', value: { engine_int: 'pick_random_alive_player' }},
+        { engine_bind: { fn: 'pa_name', args: [{ var: 'who' }],
+                         var: 'target_name' }},
+        { emit: 'monster.frost.on_target' },
+        { pause: 1000 },
+        { let: 'dmg', value: { add: [
+          { div: [{ var: 'h2' }, 5] },
+          { random: [0, 3] },
+        ]}},
+        { emit: 'monster.frost.does_pts' },
+        { emit: 'monster.frost.of_damage' },
+        { pause: 1000 },
+        { mutate: { target: { member_field: { idx: { var: 'who' },
+                                              field: 'hp' } },
+                    op: 'sub', value: { var: 'dmg' } }},
+        { if: { cond: { lte: [{ member: { var: 'who' }, field: 'hp' }, 0] },
+          then: [
+            { mutate: { target: { member_field: { idx: { var: 'who' },
+                                                  field: 'hp' } },
+                        op: 'set', value: 0 }},
+            { mutate: { target: { member_field: { idx: { var: 'who' },
+                                                  field: 'dead' } },
+                        op: 'set', value: 1 }},
+            { engine_call: 'pa_add_pl', args: [-1] },
+            { emit: 'monster.player_dies' },
+            { pause: 1000 },
+          ]
+        }},
+      ],
+    },
+
+    // §23.A case 1: Cloud of Fire. AOE — damages every alive party
+    // member. RNG identity uses for_each_alive_player (alive-only
+    // iteration) since the legacy already gates `if (pa_is_alive(i))`
+    // around the random(0, 4) draw + damage application.
+    {
+      name: 'Cloud of Fire',
+      do: [
+        { emit: 'monster.fire.name' },
+        { pause: 1000 },
+        { for_each_alive_player: { then: [
+          { engine_call: 'clw' },
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'target_idx' }],
+                           var: 'target_name' }},
+          { emit: 'monster.fire.burnt_for' },
+          { let: 'dmg', value: { add: [
+            { div: [{ var: 'h2' }, 5] },
+            { random: [0, 4] },
+          ]}},
+          { emit: 'monster.fire.dmg_pts' },
+          { pause: 1000 },
+          { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                field: 'hp' } },
+                      op: 'sub', value: { var: 'dmg' } }},
+          { if: { cond: { lte: [{ member: { var: 'target_idx' },
+                                  field: 'hp' }, 0] },
+            then: [
+              { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                    field: 'hp' } },
+                          op: 'set', value: 0 }},
+              { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                    field: 'dead' } },
+                          op: 'set', value: 1 }},
+              { engine_call: 'pa_add_pl', args: [-1] },
+              { emit: 'monster.player_dies' },
+              { pause: 1000 },
+            ]
+          }},
+        ]}},
+      ],
+    },
+
+    // §23.A case 2: Hold Creature. Sets player_held (battle.c's
+    // playerheld flag — the post-loop block emits "PARTY IS HELD!"
+    // and skips the next player-input prompt). No RNG, no damage.
+    {
+      name: 'Hold Creature',
+      do: [
+        { emit: 'monster.hold.name' },
+        { pause: 600 },
+        { emit: 'monster.hold_player' },
+        { pause: 1500 },
+        { mutate: { target: { battle_flag: 'player_held' },
+                    op: 'set', value: 1 }},
+      ],
+    },
+
+    // §23.A case 3: Confusion. Sets player_confused — the post-loop
+    // block uses it to halve player ws on the upcoming attack draw.
+    // Same shape as hold; different flag, different text.
+    {
+      name: 'Confusion',
+      do: [
+        { emit: 'monster.confuse.name' },
+        { pause: 600 },
+        { emit: 'monster.confusion' },
+        { pause: 1500 },
+        { mutate: { target: { battle_flag: 'player_confused' },
+                    op: 'set', value: 1 }},
+      ],
+    },
+  ],
+}

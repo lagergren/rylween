@@ -637,68 +637,57 @@ void encounter(int32_t foe, int32_t mandatory) {
                     if (!antimagic && sp &&
                         ryl_chance(15 + sp / 2)) /* MOSTERS PRACTICE NASTY MAGIC */
                     {
+                        /* §23.A: monster nasty-magic dispatcher.
+                           clw + "<monster> casts" stay in C (shared
+                           prefix across all spells); the spell-pick
+                           random(0, n-1) and the body run via the
+                           script DSL. n comes from data so an author
+                           can grow the spell list without touching
+                           battle.c. RNG order matches the legacy
+                           switch — pick draw fires AFTER the casts
+                           line and BEFORE the body's first emit. */
                         clw();
-                        tx("%s casts\r\n", fn);
-
-                        switch (ryl_random(0, 3)) {
-                            case 0: /* Monster casts frost   */
-                                tx("Frost Finger\r\n");
-                                while (1) {
-                                    who = ryl_random(1, 4);
-                                    if (pa_is_alive(who)) {
-                                        break;
-                                    }
-                                }
-                                tx("on %s!\r\n", pm_name(pm_cur(who)));
-                                ryl_delay(1000);
-                                dp = h2 / 5 + ryl_random(0, 3);
-                                tx("and does %d pts\r\n", dp);
-                                tx("of damage!\r\n");
-                                ryl_delay(1000);
-                                pm_add_hp(pm_cur(who), -dp);
-                                if (pm_hp(pm_cur(who)) <= 0) {
-                                    pm_set_hp(pm_cur(who), 0);
-                                    pm_set_dead(pm_cur(who), 1);
-                                    pa_add_pl(-1);
-                                    tx("[31m%s DIES![37m\r\n", pm_name(pm_cur(who)));
-                                    ryl_delay(1000);
-                                }
-                                break;
-                            case 1: /* Monster casts fire    */
-                                tx("Cloud of Fire!\r\n");
-                                ryl_delay(1000);
-                                for (i = 1; i <= res_party_member_max(); i++) {
-                                    if (pa_is_alive(i)) {
-                                        clw();
-                                        tx("%s is burnt for\r\n", pm_name(pm_cur(i)));
-                                        dp = h2 / 5 + ryl_random(0, 4);
-                                        tx("%d damage pts!\r\n", dp);
-                                        ryl_delay(1000);
-                                        pm_add_hp(pm_cur(i), -dp);
-                                        if (pm_hp(pm_cur(i)) <= 0) {
-                                            pm_set_hp(pm_cur(i), 0);
-                                            pm_set_dead(pm_cur(i), 1);
-                                            pa_add_pl(-1);
-                                            tx("[31m%s DIES![37m\r\n", pm_name(pm_cur(i)));
-                                            ryl_delay(1000);
-                                        }
-                                    }
-                                }
-                                break;
-                            case 2: /* Monster casts hold    */
-                                tx("Hold Creature!\r\n");
-                                ryl_delay(600);
-                                tx0(res_text("battle.monster.hold_player"));
-                                ryl_delay(1500);
-                                playerheld = 1;
-                                break;
-                            case 3: /* Monster casts confuse */
-                                tx("Confusion!\r\n");
-                                ryl_delay(600);
-                                tx0(res_text("battle.monster.confusion"));
-                                ryl_delay(1500);
-                                playerconfused = 1;
-                                break;
+                        ryl_bind cast_binds[] = {
+                            {"monster_name", fn},
+                            {0},
+                        };
+                        tx_fmt("battle.monster.casts", cast_binds);
+                        int spell_count = res_monster_spell_count();
+                        if (spell_count > 0) {
+                            int pick = ryl_random(0, spell_count - 1);
+                            const void *spell_body =
+                                res_monster_spell_node(pick);
+                            if (spell_body) {
+                                char caster_buf[8];
+                                snprintf(caster_buf, sizeof caster_buf,
+                                         "%d", x);
+                                ryl_bind binds[] = {
+                                    {"caster_idx", caster_buf},
+                                    {"monster_name", fn},
+                                    {0},
+                                };
+                                int ws_int = ws;
+                                struct script_combat_ctx ctx = {
+                                    .noc = noc,
+                                    .mh = mh,
+                                    .deadc = deadc,
+                                    .fn = fn,
+                                    .confused = &confused,
+                                    .held = &held,
+                                    .antimagic = &antimagic,
+                                    .ws = &ws_int,
+                                    .player_held = &playerheld,
+                                    .player_confused = &playerconfused,
+                                    .h2 = h2,
+                                };
+                                char id_buf[64];
+                                snprintf(id_buf, sizeof id_buf,
+                                         "monster_spells.spells[%d]",
+                                         pick);
+                                play_spell_body(id_buf, spell_body, binds,
+                                                &ctx);
+                                ws = (int32_t)ws_int;
+                            }
                         }
                     } else {
                         while (1) {

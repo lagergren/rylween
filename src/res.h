@@ -234,6 +234,20 @@ const ryl_spell *res_spell(const char *class_name, int slot);
    enum dispatch). The returned pointer is owned by the world tree. */
 const void *res_spell_node(const char *class_id, int slot);
 
+/* §23.A monster nasty-magic spell lookup. Indexes into
+   `monster_spells.spells[idx]` — an ordered array (not a slot map)
+   where idx = ryl_random(0, count-1) picks one of the four ported
+   spells (frost / fire / hold / confuse). Returns the `do` body
+   node, or NULL if idx is out of range or the world tree carries
+   no monster_spells subtree. Pointer is owned by the world tree. */
+const void *res_monster_spell_node(int idx);
+
+/* §23.A: total number of monster spell entries in
+   `monster_spells.spells`. Returned to battle.c so the
+   ryl_random(0, n-1) draw matches the data shape rather than a
+   hardcoded 4. 0 if the subtree is absent or empty. */
+int res_monster_spell_count(void);
+
 /* §16.4 dialogue script lookup. Returns the array node at
    `scripts.<dotted_id>` — e.g. res_script("speak.erethor.first_visit")
    returns the screen/journal/set_flag op list authored in the scripts

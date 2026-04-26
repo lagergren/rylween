@@ -100,8 +100,36 @@
     bested:          ['Thou hast bested', 'thy foes.', ''],
   },
   monster: {
+    // Shared opener: "<monster> casts" — emitted by battle.c's
+    // monster_cast_spell dispatcher BEFORE the spell-pick RNG
+    // draw, so the casting line is unconditional even though the
+    // do: bodies own everything that follows. {monster_name} is
+    // bound from battle.c's combat ctx (foe display name).
+    casts:           ['{monster_name} casts'],
     hold_player:     ['You realize with horror', 'that you cannot move!'],
     confusion:       ['You are almost blinded', 'by a colorful haze.'],
+    // §23.A: per-spell name + per-line shards used by the four
+    // monster nasty-magic do: bodies in spells/monster.json5.
+    // Color codes ([31m / [37m) match the legacy
+    // tx("[31m...DIES![37m") byte-for-byte.
+    player_dies:     ['[31m{target_name} DIES![37m'],
+    frost: {
+      name:          ['Frost Finger'],
+      on_target:     ['on {target_name}!'],
+      does_pts:      ['and does {dmg} pts'],
+      of_damage:     ['of damage!'],
+    },
+    fire: {
+      name:          ['Cloud of Fire!'],
+      burnt_for:     ['{target_name} is burnt for'],
+      dmg_pts:       ['{dmg} damage pts!'],
+    },
+    hold: {
+      name:          ['Hold Creature!'],
+    },
+    confuse: {
+      name:          ['Confusion!'],
+    },
   },
   killed:            ['...KILLED!'],
 }

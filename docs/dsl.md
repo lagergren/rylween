@@ -193,7 +193,10 @@ State:
   - `{ monster_hp: <slot-expr> }`, `{ monster_dead: <slot-expr> }` —
     combat-ctx mh[i] / deadc[i]; fatal w/o combat ctx.
   - `{ battle_flag: '<name>' }` — combat-ctx flag pointer; name ∈
-    `confused`/`held`/`antimagic`/`ws`. Fatal w/o ctx or NULL ptr.
+    `confused`/`held`/`antimagic`/`ws`/`player_held`/`player_confused`.
+    Fatal w/o ctx or NULL ptr. The `player_*` pair is set by monster
+    nasty-magic spells (see `data/world/spells/monster.json5`); the
+    others by mage spells targeting monsters.
   - `{ state_banished: <any> }` — `state.banished` (`<any>` is just
     a marker; mutate.value is what's written).
 
@@ -269,7 +272,9 @@ State reads:
 - `{ monster_count }` — combat ctx `noc`. Fatal w/o ctx.
 - `{ monster_hp: <slot-expr> }`, `{ monster_dead: <slot-expr> }` —
   combat ctx mh[i] / deadc[i]. Fatal w/o ctx or out-of-range idx.
-- `{ battle_flag: '<name>' }` — combat ctx flag value. Fatal w/o ctx.
+- `{ battle_flag: '<name>' }` — combat ctx flag value; name ∈
+  `confused`/`held`/`antimagic`/`ws`/`player_held`/`player_confused`.
+  Fatal w/o ctx.
 - `{ state_banished }` — `state.banished` (paired with the lvalue).
 
 RNG:
@@ -381,6 +386,7 @@ literal ints from `eval_expr`. Current registry:
 | `pm_add_hp`       | 2    | `pm_add_hp(pm_cur(member), delta)`       |
 | `pm_hp_floor`     | 2    | `pm_hp_floor(pm_cur(member), floor)`     |
 | `pa_teleport_step`| 2    | priest.teleport movement loop            |
+| `pa_add_pl`       | 1    | `pa_add_pl(delta)` (u8-cast wrap)        |
 
 ### 6.2 `engine_int` — int32_t int(int32_t* args)
 
@@ -406,6 +412,7 @@ Registry:
 | `inv_slot_max`           | 0    | —                      |
 | `wld_location_x`         | 1    | `world_locations`      |
 | `wld_location_y`         | 1    | `world_locations`      |
+| `pick_random_alive_player` | 0  | —                      |
 
 Args tagged with an enum (`pc_class`, `world_locations`, …) accept
 a multi-char string literal in that position; the loader resolves

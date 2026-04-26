@@ -589,6 +589,23 @@ static int32_t ie_wld_location_y(const int32_t *a) {
     return wld_location_y((int)a[0]);
 }
 
+/* §23.A: monster nasty-magic frost target pick. Mirrors the legacy
+   `while (1) { who = ryl_random(1, 4); if (pa_is_alive(who)) break; }`
+   loop byte-for-byte — every draw advances RNG, the first alive hit
+   returns. Caller must guarantee at least one party member is alive
+   (battle.c gates the cast block on pa_alive_count(); a wipe takes
+   the losegame() path before this is reached). */
+static int32_t ie_pick_random_alive_player(const int32_t *a) {
+    (void)a;
+    int max = res_party_member_max();
+    while (1) {
+        int who = ryl_random(1, max);
+        if (pa_is_alive(who)) {
+            return who;
+        }
+    }
+}
+
 static const int_engine_entry int_engine_tbl[] = {
     {"pa_is_alive",          1, ie_pa_is_alive,          {0}},
     {"pa_is_dead",           1, ie_pa_is_dead,           {0}},
@@ -607,6 +624,7 @@ static const int_engine_entry int_engine_tbl[] = {
     {"inv_slot_max",         0, ie_inv_slot_max,         {0}},
     {"wld_location_x",       1, ie_wld_location_x,       {"world_locations"}},
     {"wld_location_y",       1, ie_wld_location_y,       {"world_locations"}},
+    {"pick_random_alive_player", 0, ie_pick_random_alive_player, {0}},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`
@@ -987,9 +1005,14 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
             p = g_combat_ctx->antimagic;
         } else if (strcmp(bf_n->u.sv, "ws") == 0) {
             p = g_combat_ctx->ws;
+        } else if (strcmp(bf_n->u.sv, "player_held") == 0) {
+            p = g_combat_ctx->player_held;
+        } else if (strcmp(bf_n->u.sv, "player_confused") == 0) {
+            p = g_combat_ctx->player_confused;
         } else {
-            die_at(script_id, idx, "expr battle_flag: unknown name "
-                                   "(use confused/held/antimagic/ws)");
+            die_at(script_id, idx,
+                   "expr battle_flag: unknown name (use confused/held/"
+                   "antimagic/ws/player_held/player_confused)");
         }
         if (!p) {
             die_at(script_id, idx,
@@ -1428,6 +1451,14 @@ static void eng_rumour(const int32_t *a) {
 static void eng_pm_add_hp(const int32_t *a) {
     pm_add_hp(pm_cur((int)a[0]), (int)a[1]);
 }
+/* §23.A: add `delta` to the active party's `pl` (alive-member count
+   of the current sub-party). Wraps through pa_add_pl for u8-cast
+   parity with the legacy `pa_add_pl(-1)` calls in battle.c monster
+   spells; mutate's `LV_PL` path die_at's on negatives, which would
+   diverge from the legacy when pl is already 0. */
+static void eng_pa_add_pl(const int32_t *a) {
+    pa_add_pl((int)a[0]);
+}
 /* §20 L2: clamp HP from below — pm_hp_floor(pm_cur(member), floor).
    Used right after pm_add_hp so the trap can't reduce a member to
    a negative HP. */
@@ -1496,6 +1527,7 @@ static const engine_entry engine_tbl[] = {
     {"pm_add_hp", 2, eng_pm_add_hp},
     {"pm_hp_floor", 2, eng_pm_hp_floor},
     {"pa_teleport_step", 2, eng_pa_teleport_step},
+    {"pa_add_pl", 1, eng_pa_add_pl},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps
@@ -2400,6 +2432,10 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
                 p = g_combat_ctx->antimagic;
             } else if (strcmp(f, "ws") == 0) {
                 p = g_combat_ctx->ws;
+            } else if (strcmp(f, "player_held") == 0) {
+                p = g_combat_ctx->player_held;
+            } else if (strcmp(f, "player_confused") == 0) {
+                p = g_combat_ctx->player_confused;
             } else {
                 die_at(script_id, idx,
                        "mutate battle_flag: unknown name");
@@ -2538,6 +2574,10 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                 p = g_combat_ctx->antimagic;
             } else if (strcmp(f, "ws") == 0) {
                 p = g_combat_ctx->ws;
+            } else if (strcmp(f, "player_held") == 0) {
+                p = g_combat_ctx->player_held;
+            } else if (strcmp(f, "player_confused") == 0) {
+                p = g_combat_ctx->player_confused;
             } else {
                 die_at(script_id, idx,
                        "mutate battle_flag: unknown name");

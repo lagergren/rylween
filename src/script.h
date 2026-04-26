@@ -240,6 +240,12 @@ struct script_combat_ctx {
     int *held;
     int *antimagic;
     int *ws;          /* monster work-skill (mage.confusion halves it) */
+    int *player_held; /* §23.A: monster.hold sets this — battle.c's */
+                      /* outer loop emits "PARTY IS HELD!" and skips */
+                      /* the next player-input round. Distinct from */
+                      /* `held` (player→monster hold above). */
+    int *player_confused; /* §23.A: monster.confuse sets this; the */
+                      /* upcoming player attack roll halves ws. */
     int h2;           /* per-encounter monster max-HP scalar (reward + */
                       /* monster-spell scaling). Pushed into rt_env as */
                       /* `h2` on play_spell_body entry so combat bodies */

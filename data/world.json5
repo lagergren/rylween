@@ -340,6 +340,14 @@
     priest: { $import: 'world/spells/priest.json5' },
   },
 
+  // §23.A: monster nasty-magic spells. Sibling tree to `spells:`
+  // because monsters cast outside the class+slot machinery — this
+  // is an ordered list keyed by ryl_random(0, n-1), not a slot map.
+  // battle.c::monster_cast_spell looks up `monster_spells.spells[i]`
+  // by index after drawing the pick. See spells/monster.json5 for the
+  // four ported entries (frost / fire / hold / confuse).
+  monster_spells: { $import: 'world/spells/monster.json5' },
+
   // Terrain — keyed by the literal map.dat byte so the author can see
   // exactly which map character gets which rendered form. `glyph` is
   // the two-char cell the renderer writes to the terminal; `color` is

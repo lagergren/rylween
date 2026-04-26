@@ -2523,6 +2523,49 @@ const void *res_spell_node(const char *class_id, int slot) {
     return NULL;
 }
 
+/* §23.A: monster nasty-magic spell list lookup helpers. The data
+   shape is monster_spells.spells: [<spell-obj>, ...] — an ordered
+   array, not a slot map; battle.c::monster_cast_spell draws
+   ryl_random(0, count-1) and asks for the body at that index. */
+const void *res_monster_spell_node(int idx) {
+    const node *root = world_tree;
+    if (!root) {
+        return NULL;
+    }
+    const node *ms = obj_get(root, "monster_spells");
+    if (!ms || ms->kind != N_OBJ) {
+        return NULL;
+    }
+    const node *spells = obj_get(ms, "spells");
+    if (!spells || spells->kind != N_ARR) {
+        return NULL;
+    }
+    if (idx < 0 || (size_t)idx >= spells->u.arr.n) {
+        return NULL;
+    }
+    const node *spell = spells->u.arr.items[idx];
+    if (!spell || spell->kind != N_OBJ) {
+        return NULL;
+    }
+    return obj_get(spell, "do");
+}
+
+int res_monster_spell_count(void) {
+    const node *root = world_tree;
+    if (!root) {
+        return 0;
+    }
+    const node *ms = obj_get(root, "monster_spells");
+    if (!ms || ms->kind != N_OBJ) {
+        return 0;
+    }
+    const node *spells = obj_get(ms, "spells");
+    if (!spells || spells->kind != N_ARR) {
+        return 0;
+    }
+    return (int)spells->u.arr.n;
+}
+
 const void *res_script(const char *dotted_id) {
     const node *cur = world_tree;
     if (!cur || cur->kind != N_OBJ) {
