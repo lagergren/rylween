@@ -15,6 +15,7 @@ static void confrontation(void);
 void ydarg() {
     int32_t room[8][8];
     int32_t xl, yl, lvl, n, s, e, w, i, j, x, oc;
+    int32_t map_size = res_int_path("ydarg.map.size");
     char c, d;
 
     clr_map_window();
@@ -79,12 +80,12 @@ void ydarg() {
     lvl = 1;
     xl = 1;
     yl = 1;
-    for (i = 1; i < 6; i++) {
-        for (j = 1; j < 6; j++) {
+    for (i = 1; i <= map_size; i++) {
+        for (j = 1; j <= map_size; j++) {
             room[i][j] = ryl_random(1, 5);
         }
     }
-    room[5][5] = 50;
+    room[map_size][map_size] = 50;
     ryl_pause();
 
     while (1) {
@@ -311,10 +312,10 @@ void ydarg() {
         if (xl > 1) {
             w = 1;
         }
-        if (xl < 5) {
+        if (xl < map_size) {
             e = 1;
         }
-        if (yl < 5) {
+        if (yl < map_size) {
             s = 1;
         }
         if (n) {

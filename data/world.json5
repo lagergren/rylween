@@ -431,6 +431,17 @@
     merchant: { opens_at: 6, closes_at: 18 },
   },
 
+  // Castle Ydarg per-floor map dimensions. Each of the four floors
+  // is a `size x size` grid (1-indexed; slot 0 is the unused C-array
+  // padding). ydarg.c reads this once per ydarg() entry to seed the
+  // room[] roll, the exit gate at room[size][size] = 50, and the
+  // east/south boundary checks. Bump cautiously: the C array is
+  // declared `room[8][8]` so size <= 7 is the safe ceiling without
+  // touching the source.
+  ydarg: {
+    map: { size: 5 },
+  },
+
   // NPCs — one entry per slot, keyed by display name (the same
   // strings served by enums.name; slot count comes from that enum
   // via res_npc_slot_max, not a hard 40). `slot` pins the numeric id
