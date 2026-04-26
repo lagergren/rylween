@@ -143,6 +143,13 @@ void inv_init(void) {
     special_map_ready = 1;
 }
 
+int inv_special_id_for_tag(const char *tag) {
+    if (!tag) {
+        return PS_NONE;
+    }
+    return tag_to_which(tag);
+}
+
 int item_is_special(int id, int *which) {
     inv_init();
     for (int i = 0; i < special_map_n; i++) {

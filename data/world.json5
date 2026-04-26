@@ -515,6 +515,22 @@
       'thyraga',
       'liche',
     ],
+
+    // §23.F: stairs (G)ive-item dispatch. The mage on each floor's
+    // 50-tile asks for one of four quest items; the digit prompt
+    // 1..4 maps onto a special-flag tag (matched against
+    // data/world/items/specials.json5 via inv_special_id_for_tag)
+    // and a rejection-message id ("...sing" for singular items,
+    // "...plur" for the pluralized BRACELETS message).
+    // Order matches the `give_menu` text byte-for-byte.
+    stairs: {
+      items: [
+        { digit: 1, special: 'fireshield',  reject_msg: 'no_have_sing' },
+        { digit: 2, special: 'mastercrown', reject_msg: 'no_have_sing' },
+        { digit: 3, special: 'jazzyfoot',   reject_msg: 'no_have_sing' },
+        { digit: 4, special: 'bracelets',   reject_msg: 'no_have_plur' },
+      ],
+    },
   },
 
   // NPCs — one entry per slot, keyed by display name (the same

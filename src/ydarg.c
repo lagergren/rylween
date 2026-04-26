@@ -229,47 +229,21 @@ void ydarg() {
                         }
                     }
                     j = 0;
-                    switch (d - 48) {
-                        case 1:
-                            if (!pa_special(PS_FIRESHIELD)) {
-                                clw();
-                                tx0(res_text("ydarg.room.stairs.no_have_sing"));
-                                ryl_delay(1500);
-                                break;
-                            }
-                            pa_set_special(PS_FIRESHIELD, 0);
+                    const char *sp_tag = NULL;
+                    const char *reject = NULL;
+                    if (res_ydarg_stairs_item(d - 48, &sp_tag, &reject)) {
+                        int ps = inv_special_id_for_tag(sp_tag);
+                        if (ps == PS_NONE || !pa_special(ps)) {
+                            clw();
+                            char tid[64];
+                            snprintf(tid, sizeof tid,
+                                     "ydarg.room.stairs.%s", reject);
+                            tx0(res_text(tid));
+                            ryl_delay(1500);
+                        } else {
+                            pa_set_special(ps, 0);
                             j = 1;
-                            break;
-                        case 2:
-                            if (!pa_special(PS_MASTERCROWN)) {
-                                clw();
-                                tx0(res_text("ydarg.room.stairs.no_have_sing"));
-                                ryl_delay(1500);
-                                break;
-                            }
-                            pa_set_special(PS_MASTERCROWN, 0);
-                            j = 1;
-                            break;
-                        case 3:
-                            if (!pa_special(PS_JAZZYFOOT)) {
-                                clw();
-                                tx0(res_text("ydarg.room.stairs.no_have_sing"));
-                                ryl_delay(1500);
-                                break;
-                            }
-                            pa_set_special(PS_JAZZYFOOT, 0);
-                            j = 1;
-                            break;
-                        case 4:
-                            if (!pa_special(PS_BRACELETS)) {
-                                clw();
-                                tx0(res_text("ydarg.room.stairs.no_have_plur"));
-                                ryl_delay(1500);
-                                break;
-                            }
-                            pa_set_special(PS_BRACELETS, 0);
-                            j = 1;
-                            break;
+                        }
                     }
                     if (j) {
                         clw();

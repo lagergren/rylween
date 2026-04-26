@@ -180,6 +180,14 @@ int32_t res_class_levelup(const char *cls, const char *stat);
 int res_class_min_stat_check(int cl_id, int ws, int wi, int ch,
                              const char **fail_text);
 
+/* §23.F: ydarg stairs (G)ive-item dispatch. Looks up the
+   `ydarg.stairs.items[]` entry whose `digit:` matches `digit` and
+   yields its `special:` tag (e.g. "fireshield") + `reject_msg:`
+   short-id (e.g. "no_have_sing"). Returns 1 on hit, 0 if no entry
+   matches the digit. Out-params left untouched on miss. */
+int res_ydarg_stairs_item(int digit, const char **out_special,
+                          const char **out_reject_msg);
+
 /* Named-formula evaluator. Looks up formulas.<name> in the world tree,
    evaluates the expression body after seeding one named local
    (`$<var_name>` -> `val`) into a fresh env, and returns the resulting

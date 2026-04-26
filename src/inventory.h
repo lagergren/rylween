@@ -73,6 +73,12 @@ void inv_init(void);
    if it hasn't already. */
 int item_is_special(int id, int *which);
 
+/* Map a special-tag string ("fireshield", "bracelets", "mastercrown",
+   "jazzyfoot", "silverkey") to its PS_* value. Returns PS_NONE for
+   unknown tags. Used by data-driven dispatchers (ydarg.stairs item
+   trade) that author the tag in JSON5 instead of the int. */
+int inv_special_id_for_tag(const char *tag);
+
 /* Item-kind predicates. Each asks res_item_kind(id) and returns
    non-zero when the id was loaded from the matching shard under
    data/world/items/. `id == 0` is the empty-slot sentinel and

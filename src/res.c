@@ -520,6 +520,55 @@ const char *res_str_arr_at(const char *dotted_path, int idx) {
     return (el && el->kind == N_STR) ? el->u.sv : NULL;
 }
 
+/* §23.F: ydarg stairs (G)ive-item dispatch. Walks
+   `ydarg.stairs.items[]` looking for the entry whose `digit:` matches
+   `digit`. Stores the entry's `special:` tag in *out_special and the
+   `reject_msg:` short-id in *out_reject_msg, then returns 1. Returns
+   0 if no entry has that digit (out-params untouched). The caller
+   maps the tag to PS_* via inv_special_id_for_tag and concatenates
+   the reject_msg under "ydarg.room.stairs.<msg>". */
+int res_ydarg_stairs_item(int digit, const char **out_special,
+                          const char **out_reject_msg) {
+    if (!world_tree) {
+        return 0;
+    }
+    const node *yd = obj_get(world_tree, "ydarg");
+    if (!yd || yd->kind != N_OBJ) {
+        return 0;
+    }
+    const node *stairs = obj_get(yd, "stairs");
+    if (!stairs || stairs->kind != N_OBJ) {
+        return 0;
+    }
+    const node *items = obj_get(stairs, "items");
+    if (!items || items->kind != N_ARR) {
+        return 0;
+    }
+    for (size_t i = 0; i < items->u.arr.n; i++) {
+        const node *rec = items->u.arr.items[i];
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *d_n = obj_get(rec, "digit");
+        if (!d_n || d_n->kind != N_INT || (int)d_n->u.iv != digit) {
+            continue;
+        }
+        const node *sp_n = obj_get(rec, "special");
+        const node *rj_n = obj_get(rec, "reject_msg");
+        if (!sp_n || sp_n->kind != N_STR || !rj_n || rj_n->kind != N_STR) {
+            return 0;
+        }
+        if (out_special) {
+            *out_special = sp_n->u.sv;
+        }
+        if (out_reject_msg) {
+            *out_reject_msg = rj_n->u.sv;
+        }
+        return 1;
+    }
+    return 0;
+}
+
 int32_t res_combat_int(const char *dotted_path) {
     char buf[192];
     int n = snprintf(buf, sizeof buf, "combat.%s", dotted_path ? dotted_path : "");
