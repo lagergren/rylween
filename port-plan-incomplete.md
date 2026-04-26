@@ -4127,3 +4127,195 @@ Bar per session: `make check` + `make testasan` both green
 at every commit.
 
 ==== END CONTINUATION PROMPT ====
+
+## Session 2026-04-26 #2 — Mac Terminal rendering + DSL polish
+
+This session detoured from §23.B into a chain of UI / DSL fixes
+prompted by visual bugs the user hit while playing the build in
+Mac Terminal.app. §23.B itself remains queued (start of session
+work was a survey + design pass, no code landed).
+
+Nine commits on `lagergren/port1`, all green at HEAD (`051557d`):
+
+  1. `24ea66e`  title-menu (B): split `driv.menu.header` /
+     `driv.menu.common` into per-line records so each
+     `tx0`/`tx_fmt` call gets its own ESC[<x>C cursor jump.
+     Author rule for menu records that target the right text
+     window: each visible row is its own 1-line record.
+
+  2. `d632da6`  title-menu: dropped the redundant white banner
+     `driv.menu.banner` ("ADVENTURERS of RYLWEEN" lowercase
+     `of`). The all-caps green banner from
+     `data/ansi/screen.ans` is the canonical title; menu data
+     no longer re-emits it. Owner line ("{name}'s copy.") is
+     now the first row of the menu's right-window content.
+
+  3. `d69664e`  primitives: `tx0`/`tx` re-emit ESC[<x>C between
+     lines. Multi-line text records (`join_lines_crlf`) put
+     `\r\n` between lines; the original code only emitted the
+     column prefix once at the head of the buffer, so lines
+     2+ rendered at column 1 instead of inside the text
+     window. First version of the fix.
+
+  4. `7c5f033`  primitives: robust per-line cursor positioning.
+     Replaced the bare `ESC[<x>C` (relative cursor-right) with
+     `\r ESC[<x>C` so the CR forces cursor to column 1 before
+     the relative jump. `c(x, y)` also switched from
+     `ESC[<y>;0H` to `ESC[<y>;1H` (col=0 has terminal-
+     dependent behavior; col=1 is unambiguous).
+
+  5. `c73652a`  primitives: `cl()` emits `ESC[2J ESC[H` instead
+     of bare form feed (0x0c). On Mac Terminal / iTerm2 form
+     feed is treated as LF only (no clear, no home), so the
+     screen.ans's own ESC[2J cleared but didn't home the
+     cursor — picture rendered shifted to wherever the prior
+     `tx` had left the cursor.
+
+  6. `22856cb`  primitives: `cl()` / `disptext` use explicit
+     `ESC[1;1H`. Defense-in-depth: `disptext` itself prepends
+     `ESC[1;1H` before dumping the .ans, so a picture always
+     starts rendering from a known (1,1) state regardless of
+     upstream cursor history.
+
+  7. `089277e`  towne.church: fix unbound 'who' in E/R/H
+     branches. Real game bug surfaced by the user — the three
+     church-service branches each `let: 'member_idx', value:
+     { sub: [{ var: 'who_key' }, 48] }` but the body
+     downstream reads `{ var: 'who' }` (25 references). The
+     DSL aborts at runtime with "unbound 'who'" the moment the
+     player picks E/R/H + a digit. Partial rename. Smaller fix:
+     rename the 3 lets back to `'who'`. The 4th identical-
+     looking line in tavern story is correctly named, left
+     alone.
+
+  8. `b5cda77`  scripts: `48` -> `'0'` in who_key digit
+     arithmetic across 6 sites. The DSL's expr evaluator
+     accepts a single-char string in int position and returns
+     its ASCII int. `'0'` reads at a glance; bare `48` doesn't.
+
+  9. `051557d`  script: `digit_range` `index_var` auto-bind,
+     kill who_key indirection. Extended `digit_range` to
+     accept an optional `index_var:` mirroring the long-
+     standing `letter_range` pattern. On match the engine
+     binds the digit's int value (`ch - '0'`) into `rt_env`
+     directly. Six callsites lose the `key_var: 'who_key'` on
+     menu_branch and the `let` arithmetic line. The `'0'`
+     subtraction (which only worked because `lo` happens to be
+     1) is gone from the script layer entirely — the engine
+     knows the menu's bounds and computes the slot itself.
+
+State at HEAD:
+  - make check + make testasan green at `051557d`.
+  - port-plan-complete.md unchanged (no plan section closed).
+  - port-plan.md (45-line master TOC) unchanged.
+  - port-plan-incomplete.md: this section appended.
+
+==== CONTINUATION PROMPT (paste verbatim next session) ====
+
+Read port-plan-incomplete.md's "Session 2026-04-26 #2" section
+above this prompt. Nine commits since the last continuation
+prompt — see the list there for context. The §23 lookahead in
+§22.14 / §23.B is still relevant for the queued work.
+
+Recommended sequencing for next session(s):
+
+  1. **§23.B — battle.c item-spell switch** (~2 sessions,
+     biggest §23 piece remaining). cases 100..111 at lines
+     194-403, ~210 LOC. Survey was done early in the previous
+     session and recorded informally in conversation; key
+     groupings:
+       - Group A (narration-only): 102 (gem of confusion),
+         103 (gem of blindness), 111 (flute of madness).
+         Easiest. Validates the dispatcher infrastructure
+         with no RNG complications.
+       - Group B (first-alive-monster): 100 (frost wand),
+         104 (drums of death). Need a `pick_first_alive_
+         monster` engine_int.
+       - Group C (AOE foes): 101 (fire wand), 109 (kael's
+         axe), 110 (holy handgrenade). Use the existing
+         `for_each_alive_monster` op.
+       - Group D (target-prompt): 105 (staff of healing),
+         108 (gem of resurrection). Need a digit-key prompt
+         that binds target_idx — the new `digit_range +
+         index_var:` shape from `051557d` covers this; reuse
+         it.
+       - Group E (party-wide): 106 (blessing scroll),
+         107 (staff of curing). 106 needs a new
+         `for_each_member` op (alive+dead, distinct from
+         `for_each_alive_player`); 107 can use the existing
+         alive iterator.
+     Data shape: each `data/world/items/magic_items.json5`
+     entry grows an `effect:` body (the `flute_of_madness`
+     entry already has a placeholder). Lookup helper:
+     `res_magic_item_effect_node(int oc)` parallel to
+     `res_monster_spell_node`. Dispatcher: keep inv-letter
+     read in C, look up `oc`, call `play_spell_body(...)`.
+     Inventory consumption pattern: most cases consume up-
+     front; case 108 only on success — handle in C around
+     the play_spell_body call. RNG identity preserved per
+     case (only 100/101/109 draw RNG).
+
+  2. **§24.A1 — bulk fprintf-to-LOG_* migration** (~1 session,
+     mechanical). ~75 callsites: res.c x44, driv.c x36,
+     snapshot.c x28, party.c x10, json5.c x5, primitives.c
+     x2, ryl.c x3, inventory.c x3. None fire under existing
+     fixtures (zero stderr bytes during fixture playback), so
+     bless-free in expectation. Author rule: LOG_E for
+     "couldn't proceed, returned default"; LOG_W for "shape
+     was wrong, falling back". Either before or after §23.B
+     — both orderings fine.
+
+  3. **§23.C / §23.D in parallel** (~1 session each,
+     mechanical). Combat-constants sweep + driv.c
+     char-creation thresholds. Small.
+
+  4. **§24.B** (~1 session). File + null sinks behind
+     `RYL_LOG=file:…` / `RYL_LOG=null`. Replay harness
+     defaults to `RYL_LOG=null` after this lands; re-bless
+     drops residual stderr noise.
+
+  5. **§23.F + §23.E** (closeouts). ydarg stairs (already
+     partly done in `e61be95`) + bestiary special-encounter
+     survey (likely closes as documentation).
+
+  6. **Later: §24.C** (TCP listener). **§25** (1-indexed
+     cleanup, low priority). `plans/future-directions.md`
+     multi-party MUD work — only after §22 / §23 / §24 are
+     fully closed.
+
+Pre-flight:
+  - `make check` + `make testasan` green at HEAD (`051557d`).
+  - 9 commits this session on `lagergren/port1`. All pushed
+    to origin.
+  - The §22.5 spell fixtures + §23.A combat-monster-magic
+    fixture pin the player-side combat path byte-for-byte.
+    Frost and Confusion are not byte-pinned by any current
+    fixture — the dispatcher coverage they get is structural.
+  - §24.A0 default threshold is WARN. `RYL_LOG_LEVEL=info`
+    shows the realm-realization trace. AUDIT bypasses
+    threshold (writes to `data/rylween.log`).
+  - `tx0`/`tx` now re-emit `\r ESC[<x>C` per line. New code
+    that emits multi-line text into the right text window
+    just works; no need to split records. The earlier B-side
+    (`24ea66e`) per-line driv.menu records still work — they
+    could be merged back to multi-line shape but no
+    incentive to.
+  - `digit_range` now supports `index_var:` (`051557d`).
+    Future menu_branch sites that read a 1..N digit pick can
+    use that shape directly — no `key_var` indirection, no
+    `let` arithmetic. Pattern:
+        { digit_range: { lo: 1, hi: <max> },
+          index_var: '<name>', then: [...] }
+  - Mac Terminal renders block-char-edge gaps weirdly
+    (Apple's font glyph metrics for U+258x). Pure rendering
+    cosmetic; ignore.
+  - port-plan.md is the 45-line master TOC. New section work
+    appends to port-plan-incomplete.md; close moves to
+    port-plan-complete.md.
+  - plans/future-directions.md is outside the port plan —
+    multi-party MUD scoping, not on the critical path.
+
+Bar per session: `make check` + `make testasan` both green
+at every commit.
+
+==== END CONTINUATION PROMPT ====
