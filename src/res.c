@@ -25,6 +25,7 @@
 
 #include "res.h"
 #include "json5.h"
+#include "log.h"
 #include "primitives.h"
 #include "ryl.h"
 #include "script.h"
@@ -1177,13 +1178,15 @@ static int32_t rn_enum(const node *obj, const char *key, const char *enum_id, in
 
 void res_realize_npcs(void) {
     tx("%cSetting up new campaign. Please wait.", 12);
-    ryl_log("A new campaign starts. Baron Ydarg awaits...\n");
+    LOG_A("realm", "A new campaign starts. Baron Ydarg awaits...");
 
     const node *root = world_tree;
     const node *npcs = root ? obj_get(root, "npcs") : NULL;
     if (!npcs || npcs->kind != N_OBJ) {
         /* Without a spec there's nothing to realize. Keep state.npc[]
            zeroed from static init; step 2 reader will see empty slots. */
+        LOG_W("realm", "no npcs subtree in world tree; campaign will start "
+                       "with no realized NPCs");
         tx("%c", 12);
         return;
     }
@@ -1199,6 +1202,7 @@ void res_realize_npcs(void) {
     int T = 1 + (int)n_towns;
     int slot_max = npc_slot_max();
     int N = 0;
+    int fixed_count = 0;
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
         const node *rec = npcs->u.obj.items[i].val;
         if (!rec || rec->kind != N_OBJ) {
@@ -1210,9 +1214,15 @@ void res_realize_npcs(void) {
         }
         if (!obj_get(rec, "towne")) {
             N++;
+        } else {
+            fixed_count++;
         }
     }
     int cap = (N + T - 1) / T + npc_slack;
+    LOG_I("realm",
+          "realizing %d NPC(s): %d fixed + %d random across %d bin(s) "
+          "(capacity %d/bin, slot_max=%d)",
+          N + fixed_count, fixed_count, N, T, cap, slot_max);
     int counts[sizeof towns / sizeof towns[0]] = {0};
 
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
@@ -1242,8 +1252,13 @@ void res_realize_npcs(void) {
                towne draw — roll, then linear-probe to the next eligible
                bin on overflow. Building (1..2) and wilderness (x,y)
                rolls are untouched; the collision loop's accept predicate
-               (ut > 1) is preserved verbatim from person.c:64-76. */
-            ryl_delay(600);
+               (ut > 1) is preserved verbatim from person.c:64-76.
+               §24.A: cosmetic per-NPC delay shortened from 600ms to
+               40ms. The original spacing was hiding Amiga disk loads;
+               the modern build has nothing to hide, but a brief tick
+               between dots keeps the visual pacing recognizable
+               (~1s total over ~23 random NPCs vs the prior ~14s). */
+            ryl_delay(40);
             int twn = ryl_random(0, T - 1);
             while (counts[twn] >= cap) {
                 twn = (twn + 1) % T;
@@ -1278,6 +1293,13 @@ void res_realize_npcs(void) {
                 }
             }
             tx(".");
+            const node *name = obj_get(rec, "name");
+            const char *who = (name && name->kind == N_STR) ? name->u.sv
+                                                            : npcs->u.obj.items[i].key;
+            LOG_I("realm", "  realized random NPC '%s' -> slot %d in %s",
+                  who, slot,
+                  n->towne == 0 ? "wilderness"
+                                : towns[n->towne].name);
         }
     }
     tx("%c", 12);
@@ -1288,6 +1310,7 @@ void res_realize_npcs(void) {
     for (int i = 1; i <= slot_max; i++) {
         memset(state.npc[i].visited, 0, sizeof state.npc[i].visited);
     }
+    LOG_I("realm", "campaign realized");
 }
 
 /* -------- flags subtree -------- */

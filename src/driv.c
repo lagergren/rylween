@@ -1,6 +1,7 @@
 #include "io.h"
 #include "inventory.h"
 #include "json5.h"
+#include "log.h"
 #include "party.h"
 #include "replay_knobs.h"
 #include "res.h"
@@ -595,9 +596,9 @@ void init() {
 
                     read_current_world();
                     abort = 1;
-                    snprintf(str, sizeof str, "%s and %s party '%s' entered the realm.", pa_name(1),
-                             pronoun(1, 3), pa_party_name());
-                    ryl_log(str);
+                    LOG_A("realm",
+                          "%s and %s party '%s' entered the realm.",
+                          pa_name(1), pronoun(1, 3), pa_party_name());
                     wld_set_last_terrain(0);
                 } else {
                     clw();

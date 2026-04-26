@@ -61,7 +61,6 @@ void ryl_pause(void);
 uint8_t hotkey(void);
 char key(void);
 void render_at(const char *, uint8_t, uint8_t);
-void ryl_log(char *);
 void disptext(char *);
 
 #endif
