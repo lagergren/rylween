@@ -634,6 +634,17 @@
     // displayed. speak.c:106 filters NPCs in inn/tavern by this id.
     building: ['none', 'inn', 'tavern'],
 
+    // Calendar month (1..12). 1-based; slot 0 is the empty sentinel
+    // so res_enum("month", kl[2]) returns the display name for the
+    // wall-clock month byte from getclk(). Used by ydarg.c's
+    // confrontation() to format the heroes.txt timestamp line.
+    month: [
+      '',
+      'January', 'February', 'March',     'April',
+      'May',     'June',     'July',      'August',
+      'September', 'October', 'November', 'December',
+    ],
+
     // blitgfx pic ids — mirrors the #defines in src/ryl.h. The
     // table is sparse (slots 0, 6..9 have no pic); empty strings
     // fill the gaps so the array index matches the #define. Read

@@ -426,8 +426,8 @@ static void confrontation() {
     FILE *fh;
     char str[80];
     char kl[8];
-    char mstr[15];
     char path[512];
+    const char *mstr;
 
     clw();
     tx0(res_text("ydarg.conf.trapdoor_slam"));
@@ -510,45 +510,7 @@ static void confrontation() {
     }
 
     getclk(kl);
-
-    switch (kl[2]) {
-        case 1:
-            strcpy(mstr, "January");
-            break;
-        case 2:
-            strcpy(mstr, "February");
-            break;
-        case 3:
-            strcpy(mstr, "March");
-            break;
-        case 4:
-            strcpy(mstr, "April");
-            break;
-        case 5:
-            strcpy(mstr, "May");
-            break;
-        case 6:
-            strcpy(mstr, "June");
-            break;
-        case 7:
-            strcpy(mstr, "July");
-            break;
-        case 8:
-            strcpy(mstr, "August");
-            break;
-        case 9:
-            strcpy(mstr, "September");
-            break;
-        case 10:
-            strcpy(mstr, "October");
-            break;
-        case 11:
-            strcpy(mstr, "November");
-            break;
-        case 12:
-            strcpy(mstr, "December");
-            break;
-    }
+    mstr = res_enum("month", kl[2]);
 
     snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", pa_party_name(), mstr, kl[3],
              kl[1] + 80);
