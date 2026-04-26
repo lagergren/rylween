@@ -516,6 +516,29 @@
       'liche',
     ],
 
+    // §23.H: per-room dispatch tunables.
+    //   - `room_type_max` is the upper bound of ryl_random(1, N) at
+    //     ydarg() room-init: each non-stairs slot rolls 1..N. Slots
+    //     1..3 are active (monster/pitfall/treasure); 4..N fall
+    //     through the room dispatcher as no-ops, padding the
+    //     "empty room" probability. Bumping changes RNG identity.
+    room: { type_max: 5 },
+
+    // §23.H: pitfall (case 2) tunables. Trap-type narration is
+    // a string-array; ydarg.c rolls ryl_random(0, count-1) and
+    // emits res_text(trap_types[k]). Adding a fourth trap type
+    // grows the array (and shifts RNG identity). `damage_div` is
+    // the party-damage divisor in pm_hp / N applied to every alive
+    // member when a trap is not disarmed.
+    pitfall: {
+      trap_types: [
+        'ydarg.room.trap.arrows',
+        'ydarg.room.trap.poison',
+        'ydarg.room.trap.shurikens',
+      ],
+      damage_div: 6,
+    },
+
     // §23.F: stairs (G)ive-item dispatch. The mage on each floor's
     // 50-tile asks for one of four quest items; the digit prompt
     // 1..4 maps onto a special-flag tag (matched against

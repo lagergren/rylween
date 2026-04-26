@@ -80,9 +80,10 @@ void ydarg() {
     lvl = 1;
     xl = 1;
     yl = 1;
+    int room_type_max = res_int_path("ydarg.room.type_max");
     for (i = 1; i <= map_size; i++) {
         for (j = 1; j <= map_size; j++) {
-            room[i][j] = ryl_random(1, 5);
+            room[i][j] = ryl_random(1, room_type_max);
         }
     }
     room[map_size][map_size] = 50;
@@ -127,22 +128,23 @@ void ydarg() {
                     }
                 }
                 if (!j) {
-                    switch (ryl_random(0, 2)) {
-                        case 0:
-                            tx0(res_text("ydarg.room.trap.arrows"));
-                            break;
-                        case 1:
-                            tx0(res_text("ydarg.room.trap.poison"));
-                            break;
-                        case 2:
-                            tx0(res_text("ydarg.room.trap.shurikens"));
-                            break;
+                    int n_traps = res_str_arr_count("ydarg.pitfall.trap_types");
+                    if (n_traps > 0) {
+                        const char *trap_id = res_str_arr_at(
+                            "ydarg.pitfall.trap_types",
+                            ryl_random(0, n_traps - 1));
+                        if (trap_id) {
+                            tx0(res_text(trap_id));
+                        }
                     }
                     ryl_pause();
+                    int32_t dmg_div = res_int_path("ydarg.pitfall.damage_div");
                     for (i = 1; i <= res_party_member_max(); i++) {
                         if (pa_is_alive(i)) {
                             pm_t pm = pm_cur(i);
-                            pm_add_hp(pm, -pm_hp(pm) / 6);
+                            if (dmg_div > 0) {
+                                pm_add_hp(pm, -pm_hp(pm) / dmg_div);
+                            }
                         }
                     }
                 }
