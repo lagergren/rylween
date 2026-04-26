@@ -1963,10 +1963,13 @@ static ops_result do_if(const node *op, const char *script_id, size_t idx,
    digit ranges like ['A','G'] and ['1','6'] for shop menus).
    digit_range and letter_range are the dynamic-bound shapes —
    used where the bound depends on something like
-   res_party_member_max() / res_inventory_slot_max(). With
-   letter_range, the matched 1-based offset (`ch - lo + 1`) is
-   bound into rt_env via the option's optional `index_var:` so
-   scripts read the slot directly without ASCII arithmetic. */
+   res_party_member_max() / res_inventory_slot_max(). Both support
+   an optional `index_var:` on the option that auto-binds the
+   matched ordinal into rt_env so the body reads the slot directly
+   without ASCII arithmetic: letter_range binds `ch - lo + 1`
+   (1-based offset from `lo`), digit_range binds `ch - '0'` (the
+   matched digit's int value, which equals the menu's `lo` when the
+   user picked the lowest option). */
 static int menu_opt_matches(const node *o, char ch, const char *script_id,
                             size_t idx, const ryl_bind *bindings,
                             const rt_env *env) {
@@ -2158,20 +2161,34 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         if (!menu_opt_matches(o, ch, script_id, idx, bindings, env)) {
             continue;
         }
-        /* letter_range: bind the 1-based slot index (`ch - lo + 1`)
-           into rt_env so the body can use {var:'<index_var>'} or
-           {<index_var>} directly. menu_opt_matches already validated
-           lo / count, so the lo lookup here is safe. */
+        /* letter_range / digit_range: bind the matched ordinal into
+           rt_env so the body can use {var:'<index_var>'} or
+           {<index_var>} directly without ASCII arithmetic. For
+           letter_range the bound int is 1-based (`ch - lo + 1`); for
+           digit_range it's the digit's int value (`ch - '0'`, which
+           equals `lo` when the user picked the lowest option, etc.).
+           menu_opt_matches already validated bounds so the lookup
+           here is safe. */
         const node *letter_n = obj_get(o, "letter_range");
+        const node *digit_n = obj_get(o, "digit_range");
         const node *index_var_n = obj_get(o, "index_var");
-        if (letter_n && index_var_n) {
+        if (index_var_n) {
             if (index_var_n->kind != N_STR) {
                 die_at(script_id, idx,
                        "menu_branch: index_var must be string");
             }
-            const node *lo_n = obj_get(letter_n, "lo");
-            char lo = (char)toupper((unsigned char)lo_n->u.sv[0]);
-            int32_t slot = (int32_t)(ch - lo + 1);
+            int32_t slot;
+            if (letter_n) {
+                const node *lo_n = obj_get(letter_n, "lo");
+                char lo = (char)toupper((unsigned char)lo_n->u.sv[0]);
+                slot = (int32_t)(ch - lo + 1);
+            } else if (digit_n) {
+                slot = (int32_t)(ch - '0');
+            } else {
+                die_at(script_id, idx,
+                       "menu_branch: index_var requires letter_range "
+                       "or digit_range option");
+            }
             rt_bind_set(env, index_var_n->u.sv, slot, script_id, idx);
         }
         const node *then_n = obj_get(o, "then");

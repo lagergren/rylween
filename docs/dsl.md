@@ -151,7 +151,15 @@ Pause / input:
   one `ryl_menu`-style key read. Each option:
   - `{ key: 'K',                 then: [...] }`
   - `{ keys: ['A', 'B', ...],    then: [...] }`
-  - `{ key_range: ['LO', 'HI'],  then: [...] }`
+  - `{ key_range: ['LO', 'HI'],  then: [...] }` (literal char range)
+  - `{ digit_range: { lo: <expr>, hi: <expr> }, index_var?: '<name>',
+                                  then: [...] }` (digit char range,
+    bounds in [1,9]; on match `index_var` auto-binds the matched
+    digit's int value, e.g. pressing '3' binds 3)
+  - `{ letter_range: { lo: 'A', count: <expr> }, index_var?: '<name>',
+                                  then: [...] }` (N consecutive
+    letters from `lo`; on match `index_var` auto-binds the 1-based
+    offset `ch - lo + 1`)
   Optional `key_var` binds the matched (uppercased) key into rt_env
   as a one-char string. Unmatched keys fall to `default:` if present.
 - `{ input_number: { prompt_screen?: '<name>', lg: N, var: '<name>',

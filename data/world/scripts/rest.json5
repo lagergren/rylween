@@ -56,10 +56,8 @@
                           { engine_call: 'clw' },
                           { emit: 'who' },
                           { menu_branch: {
-                              key_var: 'who_key',
                               options: [
-                                { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                                  { let: 'member_idx', value: { sub: [{ var: 'who_key' }, '0'] } },
+                                { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, index_var: 'member_idx', then: [
                                   { if: {
                                       cond: { engine_int: 'pa_is_dead', args: [{ var: 'member_idx' }] },
                                       then: [
