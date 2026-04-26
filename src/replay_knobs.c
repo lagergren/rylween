@@ -108,6 +108,35 @@ void rk_apply_party_lv(int a) {
     unsetenv("RYL_FORCE_PARTY_LV");
 }
 
+void rk_apply_pos(int a) {
+    /* Fixtures that exercise an entry-tile flow (castle Ydarg at
+       (14,30), the Hut at random map slots) need the party to start
+       on the target tile without 20+ wilderness moves on stdin —
+       each move triggers a wilderness encounter roll and accumulates
+       hours/food/etc. that perturb the post-arrival RNG state.
+       Format: RYL_FORCE_POS=X,Y (decimal). Out-of-map values (driv's
+       map is 82x42) are silently ignored so a malformed knob can't
+       leave the party stranded. */
+    const char *env = getenv("RYL_FORCE_POS");
+    if (!env || !*env) {
+        return;
+    }
+    char *end;
+    long x = strtol(env, &end, 10);
+    if (end == env || *end != ',') {
+        unsetenv("RYL_FORCE_POS");
+        return;
+    }
+    const char *yp = end + 1;
+    long y = strtol(yp, &end, 10);
+    unsetenv("RYL_FORCE_POS");
+    if (end == yp || x < 0 || x >= 82 || y < 0 || y >= 42) {
+        return;
+    }
+    state.p[a].x = (int32_t)x;
+    state.p[a].y = (int32_t)y;
+}
+
 void rk_apply_dead_slots(int a) {
     /* Fixtures that exercise the dead-arm of party-target spells
        (priest rebirth) need a member who starts dead without a

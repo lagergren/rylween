@@ -1620,6 +1620,7 @@ static void createparty() {
     }
     rk_apply_party_lv(a);
     rk_apply_dead_slots(a);
+    rk_apply_pos(a);
     strcpy(state.p[a].player, state.global_name);
     clw();
     tx0(res_text("driv.create.saving"));

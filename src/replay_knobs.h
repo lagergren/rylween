@@ -27,5 +27,6 @@ const char *rk_force_encounter(void);
 int32_t rk_force_encounter_noc(int32_t defv);
 void rk_apply_party_lv(int a);
 void rk_apply_dead_slots(int a);
+void rk_apply_pos(int a);
 
 #endif
