@@ -248,6 +248,20 @@ const void *res_monster_spell_node(int idx);
    hardcoded 4. 0 if the subtree is absent or empty. */
 int res_monster_spell_count(void);
 
+/* §23.B magic-item effect lookup. Searches `magic_items.<key>` for
+   the entry whose `id` field matches `oc` (the inventory object code,
+   100..111) and returns its `effect:` body node — the array of script
+   ops play_spell_body executes when the player triggers the item in
+   battle.c's "I" branch. NULL if no entry has that id or the entry
+   has no `effect:` key (legacy items pre-§23.B migration). Pointer is
+   owned by the world tree.
+
+   `*slug_out` (optional, may be NULL) is set to the entry's key —
+   "gem_of_confusion", "flute_of_madness", etc. — so battle.c can hand
+   it to play_spell_body as the diagnostic id. The slug is owned by
+   the world tree and outlives the call. */
+const void *res_magic_item_effect_node(int oc, const char **slug_out);
+
 /* §16.4 dialogue script lookup. Returns the array node at
    `scripts.<dotted_id>` — e.g. res_script("speak.erethor.first_visit")
    returns the screen/journal/set_flag op list authored in the scripts

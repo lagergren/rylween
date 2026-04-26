@@ -2589,6 +2589,46 @@ int res_monster_spell_count(void) {
     return (int)spells->u.arr.n;
 }
 
+/* §23.B magic-item effect lookup. magic_items is an OBJ keyed by
+   slug ('frost_wand', 'gem_of_confusion', ...); each value carries an
+   integer `id` field (100..111). Walk the OBJ until we find the entry
+   whose `id` matches `oc`, then return its `effect:` body. Linear
+   scan is fine — the table is fixed at ~12 entries and this lookup
+   only fires on the player's "use magic item" branch in combat. */
+const void *res_magic_item_effect_node(int oc, const char **slug_out) {
+    if (slug_out) {
+        *slug_out = NULL;
+    }
+    const node *root = world_tree;
+    if (!root) {
+        return NULL;
+    }
+    const node *items = obj_get(root, "magic_items");
+    if (!items || items->kind != N_OBJ) {
+        return NULL;
+    }
+    for (size_t i = 0; i < items->u.obj.n; i++) {
+        const node_kv *kv = &items->u.obj.items[i];
+        const node *entry = kv->val;
+        if (!entry || entry->kind != N_OBJ) {
+            continue;
+        }
+        const node *id_n = obj_get(entry, "id");
+        if (!id_n || id_n->kind != N_INT) {
+            continue;
+        }
+        if (id_n->u.iv != oc) {
+            continue;
+        }
+        const node *eff = obj_get(entry, "effect");
+        if (eff && slug_out) {
+            *slug_out = kv->key;
+        }
+        return eff;
+    }
+    return NULL;
+}
+
 const void *res_script(const char *dotted_id) {
     const node *cur = world_tree;
     if (!cur || cur->kind != N_OBJ) {

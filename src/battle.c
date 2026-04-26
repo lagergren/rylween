@@ -191,6 +191,45 @@ void encounter(int32_t foe, int32_t mandatory) {
                             ryl_delay(1000);
                             clw();
                         } else {
+                            /* §23.B Group A: items with `effect:` bodies in
+                               magic_items.json5 dispatch through the script
+                               DSL via play_spell_body. The legacy switch
+                               below covers items still pending migration
+                               (Groups B–E). Inventory consume stays in C —
+                               the body assumes the slot is already cleared
+                               (case 108 is the exception and stays in its
+                               legacy arm until Group D). */
+                            const char *slug = NULL;
+                            const void *effect =
+                                res_magic_item_effect_node(oc, &slug);
+                            if (effect) {
+                                pa_set_inventory(inv_slot_from_letter(d), 0);
+                                char caster_buf[8];
+                                snprintf(caster_buf, sizeof caster_buf, "%d", g);
+                                ryl_bind binds[] = {
+                                    {"caster_idx", caster_buf},
+                                    {"monster_name", fn},
+                                    {0},
+                                };
+                                int ws_int = ws;
+                                struct script_combat_ctx ctx = {
+                                    .noc = noc,
+                                    .mh = mh,
+                                    .deadc = deadc,
+                                    .fn = fn,
+                                    .confused = &confused,
+                                    .held = &held,
+                                    .antimagic = &antimagic,
+                                    .ws = &ws_int,
+                                    .h2 = h2,
+                                };
+                                char id_buf[80];
+                                snprintf(id_buf, sizeof id_buf,
+                                         "magic_items.%s",
+                                         slug ? slug : "(unknown)");
+                                play_spell_body(id_buf, effect, binds, &ctx);
+                                ws = (int32_t)ws_int;
+                            } else
                             switch (oc) {
                                 case 100:
                                     pa_set_inventory(inv_slot_from_letter(d), 0);
@@ -236,26 +275,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     }
                                     break;
 
-                                case 102:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    clw();
-                                    tx("%s throws the\r\n", pm_name(pm_cur(g)));
-                                    tx0(res_text("battle.item.sparks_bump"));
-                                    ryl_pause();
-                                    clw();
-                                    ws /= 2;
-                                    break;
-
-                                case 103:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    clw();
-                                    tx("%s throws the\r\n", pm_name(pm_cur(g)));
-                                    tx0(res_text("battle.item.light_blind"));
-                                    ryl_pause();
-                                    clw();
-                                    ws = 5;
-                                    break;
-
+                                /* §23.B Group A: cases 102/103/111 migrated
+                                   to magic_items.json5 effect: bodies; the
+                                   dispatcher above (res_magic_item_effect_node
+                                   != NULL) routes them through play_spell_body
+                                   before this switch is entered. Groups B–E
+                                   will hollow out the remaining arms. */
                                 case 104:
                                     pa_set_inventory(inv_slot_from_letter(d), 0);
                                     for (i = 1, who = 0; i < noc + 1; i++) {
@@ -389,17 +414,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     }
                                     break;
 
-                                case 111:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    clw();
-                                    tx("%s plays the\r\n", pm_name(pm_cur(g)));
-                                    tx("Flute of Madness.\r\n");
-                                    tx("It produces a shrill,\r\n");
-                                    tx("fragile sound, and breaks.\r\n");
-                                    tx("Nothing happens.\r\n\r\n");
-                                    ryl_pause();
-                                    clw();
-                                    break;
                             }
                         }
                     }

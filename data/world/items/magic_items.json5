@@ -1,13 +1,47 @@
-// Magic items shard — ids 100–111. Most will grow an `effect:` DSL
-// program once the use/consume hook wires it up. flute_of_madness
-// carries an inert placeholder (never read by C — the field is parsed
-// as JSON5 but no code path reaches it; rewriting it to script DSL
-// shape is a follow-up when the use hook lands).
+// Magic items shard — ids 100–111. Each entry that has been
+// migrated to §23.B carries an `effect:` body — an array of script
+// DSL ops play_spell_body executes when the player triggers the item
+// from battle.c's "I" branch. Entries without `effect:` are still
+// handled by battle.c's legacy switch arms; they will grow bodies as
+// §23.B's groups B–E land. The `effect:` shape mirrors spells/mage's
+// `do:` body — same op vocabulary (engine_call / emit / mutate /
+// for_each_alive_monster / etc.) and the same script_combat_ctx is
+// active during the body so `battle_flag` / `monster_hp` lvalues work.
 {
   frost_wand:         { id: 100, name: 'Frost Wand',          cost: 1000 },
   fire_wand:          { id: 101, name: 'Fire Wand',           cost: 3000 },
-  gem_of_confusion:   { id: 102, name: 'Gem of Confusion',    cost: 1560 },
-  gem_of_blindness:   { id: 103, name: 'Gem of Blindness',    cost: 4900 },
+  // §23.B Group A: gem_of_confusion. RNG-free narration + ws/=2.
+  // Inventory consume happens in C up-front (battle.c). The trailing
+  // `wait_input + clw` mirrors the legacy `ryl_pause(); clw();` at
+  // the end of the case, before the combat loop redraws.
+  gem_of_confusion: {
+    id: 102, name: 'Gem of Confusion', cost: 1560,
+    effect: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { emit: 'battle.item.throws_the' },
+      { emit: 'battle.item.sparks_bump' },
+      { wait_input: true },
+      { engine_call: 'clw' },
+      { mutate: { target: { battle_flag: 'ws' }, op: 'div', value: 2 }},
+    ],
+  },
+  // §23.B Group A: gem_of_blindness. Same shape as 102 — narration
+  // + ws clamp. Legacy set ws = 5 (regardless of prior value).
+  gem_of_blindness: {
+    id: 103, name: 'Gem of Blindness', cost: 4900,
+    effect: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { emit: 'battle.item.throws_the' },
+      { emit: 'battle.item.light_blind' },
+      { wait_input: true },
+      { engine_call: 'clw' },
+      { mutate: { target: { battle_flag: 'ws' }, op: 'set', value: 5 }},
+    ],
+  },
   drums_of_death:     { id: 104, name: 'Drums of Death',      cost: 4500 },
   staff_of_healing:   { id: 105, name: 'Staff of Healing',    cost: 670 },
   blessing_scroll:    { id: 106, name: 'Blessing Scroll',     cost: 2000 },
@@ -15,19 +49,19 @@
   gem_of_resurrection:{ id: 108, name: 'Gem of Resurrection', cost: 9000 },
   kaels_axe:          { id: 109, name: "Kael's Axe",          cost: 14000 },
   holy_handgrenade:   { id: 110, name: 'Holy Handgrenade',    cost: 5600 },
+  // §23.B Group A: flute_of_madness. Pure narration — no state
+  // mutation, no RNG. Legacy emitted six tx() calls, the last with
+  // a doubled `\r\n\r\n` tail; `flute_of_madness.played` carries
+  // the trailing '' to reproduce the blank line.
   flute_of_madness: {
-    id:   111,
-    name: 'Flute of Madness',
-    cost: 9000,
-    kind: 'magic_item',
-    wieldable_by: ['bard'],
-    slot: 'consumable',
-    // Effect program placeholder — inert until the item-use hook wires
-    // eval_effect into speak.c / battle.c. Preserved byte-for-byte from
-    // the prior data/world/items.json5 so compile_world_tree exercises
-    // the same path it did last commit.
-    effect: ['seq',
-      ['say', 'battle.item.flute_of_madness'],
-      ['set_flag', 'encounter.confused', 1]],
+    id: 111, name: 'Flute of Madness', cost: 9000,
+    effect: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { emit: 'battle.item.flute_of_madness.played' },
+      { wait_input: true },
+      { engine_call: 'clw' },
+    ],
   },
 }

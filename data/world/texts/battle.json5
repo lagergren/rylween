@@ -11,6 +11,10 @@
   item: {
     magic_immune:    ["The magic item doesn't seem",
                       'to work on this enemy!!!'],
+    // §23.B shared opener for gem_of_confusion / gem_of_blindness.
+    // Legacy `tx("%s throws the\r\n", caster_name)` — the second
+    // line ('at the enemy. It' / 'gem at the enemy.') is per-item.
+    throws_the:      ['{caster} throws the'],
     sparks_bump:     ['at the enemy. It',
                       'breaks before them in',
                       'a rain of sparks.',
@@ -35,6 +39,16 @@
     battle_cry:      ['With a raging battle',
                       'cry, you attack the',
                       'mortally wounded foes!'],
+    // §23.B flute_of_madness narration. Six lines including a
+    // trailing empty for the legacy `\r\n\r\n` blank-line tail.
+    flute_of_madness: {
+      played:        ['{caster} plays the',
+                      'Flute of Madness.',
+                      'It produces a shrill,',
+                      'fragile sound, and breaks.',
+                      'Nothing happens.',
+                      ''],
+    },
   },
   prompt: {
     on_whom:         ['On Whom? (1-{party_max})'],
