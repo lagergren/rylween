@@ -581,6 +581,84 @@ int32_t res_class_levelup(const char *cls, const char *stat) {
     return (v && v->kind == N_INT) ? (int32_t)v->u.iv : 0;
 }
 
+/* Look up the pc_class slug whose `id:` field matches `cl_id`. Returns
+   NULL on unknown id — driv.c guarantees state.p[].cl is in 1..6 via
+   the input-loop guard, so NULL means a corrupt save or out-of-range
+   probe. */
+static const char *pc_class_key_by_id(int cl_id) {
+    if (!world_tree) {
+        return NULL;
+    }
+    const node *enums_n = obj_get(world_tree, "enums");
+    if (!enums_n || enums_n->kind != N_OBJ) {
+        return NULL;
+    }
+    const node *pc = obj_get(enums_n, "pc_class");
+    if (!pc || pc->kind != N_OBJ) {
+        return NULL;
+    }
+    for (size_t i = 0; i < pc->u.obj.n; i++) {
+        const node *rec = pc->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *id_n = obj_get(rec, "id");
+        if (id_n && id_n->kind == N_INT && (int)id_n->u.iv == cl_id) {
+            return pc->u.obj.items[i].key;
+        }
+    }
+    return NULL;
+}
+
+/* createparty() class gate. Reads enums.pc_class.<slug>.min_stat and
+   compares the named stat against `value`. Classes without a min_stat
+   record (thief, ranger) pass unconditionally. On failure, *fail_text
+   is set to the text id from the record (e.g. "driv.create.ws_low")
+   and the function returns 0; otherwise returns 1. */
+int res_class_min_stat_check(int cl_id, int ws, int wi, int ch,
+                             const char **fail_text) {
+    if (fail_text) {
+        *fail_text = NULL;
+    }
+    const char *cls = pc_class_key_by_id(cl_id);
+    if (!cls) {
+        return 1;
+    }
+    const node *cls_n = pc_class_node(cls);
+    if (!cls_n) {
+        return 1;
+    }
+    const node *ms = obj_get(cls_n, "min_stat");
+    if (!ms || ms->kind != N_OBJ) {
+        return 1;
+    }
+    const node *name_n = obj_get(ms, "name");
+    const node *val_n  = obj_get(ms, "value");
+    if (!name_n || name_n->kind != N_STR || !val_n || val_n->kind != N_INT) {
+        return 1;
+    }
+    int got;
+    if (strcmp(name_n->u.sv, "ws") == 0) {
+        got = ws;
+    } else if (strcmp(name_n->u.sv, "wi") == 0) {
+        got = wi;
+    } else if (strcmp(name_n->u.sv, "ch") == 0) {
+        got = ch;
+    } else {
+        return 1;
+    }
+    if (got >= (int)val_n->u.iv) {
+        return 1;
+    }
+    if (fail_text) {
+        const node *txt_n = obj_get(ms, "fail_text");
+        if (txt_n && txt_n->kind == N_STR) {
+            *fail_text = txt_n->u.sv;
+        }
+    }
+    return 0;
+}
+
 /* Named-formula evaluator. `formulas.<name>` in world.json5 holds a
    single script DSL expression node (e.g. {add: [150, {mul: [150,
    {var:'y'}]}]}). The int bindings are converted to a ryl_bind list

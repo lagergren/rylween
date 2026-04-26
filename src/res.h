@@ -172,6 +172,14 @@ int32_t res_xp_threshold(int level);
    change", which is the natural no-op. */
 int32_t res_class_levelup(const char *cls, const char *stat);
 
+/* createparty() class gate (§23.D). Returns 1 if the class allows the
+   character with these rolled stats; returns 0 with `*fail_text`
+   pointing at the text id of the rejection message ("Wisdom must be
+   > 50.") otherwise. Classes without a `min_stat` record pass
+   unconditionally and set `*fail_text` to NULL. */
+int res_class_min_stat_check(int cl_id, int ws, int wi, int ch,
+                             const char **fail_text);
+
 /* Named-formula evaluator. Looks up formulas.<name> in the world tree,
    evaluates the expression body after seeding one named local
    (`$<var_name>` -> `val`) into a fresh env, and returns the resulting

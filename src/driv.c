@@ -1468,14 +1468,16 @@ static void createparty() {
 
     g = 1;
 
+    int sr_lo = res_int_path("driv.stat_roll.min");
+    int sr_hi = res_int_path("driv.stat_roll.max");
     while (g <= res_party_member_max()) {
         clw();
         tx("Stats for char: %d\r\n\r\n", g);
-        state.p[a].ws[g] = ryl_random(15, 70);
-        state.p[a].wi[g] = ryl_random(15, 70);
-        state.p[a].h[g] = ryl_random(15, 70);
+        state.p[a].ws[g] = ryl_random(sr_lo, sr_hi);
+        state.p[a].wi[g] = ryl_random(sr_lo, sr_hi);
+        state.p[a].h[g] = ryl_random(sr_lo, sr_hi);
         state.p[a].hp[g] = state.p[a].h[g];
-        state.p[a].ch[g] = ryl_random(15, 70);
+        state.p[a].ch[g] = ryl_random(sr_lo, sr_hi);
         tx("Weapon Skill : %2d\r\n", state.p[a].ws[g]);
         tx("Health       : %2d\r\n", state.p[a].h[g]);
         tx("Wisdom       : %2d\r\n", state.p[a].wi[g]);
@@ -1535,46 +1537,15 @@ static void createparty() {
             }
             state.p[a].cl[g] = str[0] - 48;
             clw();
-            passed = 0;
-            switch (state.p[a].cl[g]) {
-                case 1:
-                    if (state.p[a].ws[g] < 50) {
-                        tx0(res_text("driv.create.ws_low"));
-                        ryl_delay(1000);
-                    } else {
-                        passed = 1;
-                    }
-                    break;
-                case 2:
-                    passed = 1;
-                    break;
-                case 3:
-                    if (state.p[a].wi[g] < 50) {
-                        tx0(res_text("driv.create.wi_low"));
-                        ryl_delay(1000);
-                    } else {
-                        passed = 1;
-                    }
-                    break;
-                case 4:
-                    if (state.p[a].wi[g] < 50) {
-                        tx0(res_text("driv.create.wi_low"));
-                        ryl_delay(1000);
-                    } else {
-                        passed = 1;
-                    }
-                    break;
-                case 5:
-                    if (state.p[a].ch[g] < 50) {
-                        tx0(res_text("driv.create.ch_low"));
-                        ryl_delay(1000);
-                    } else {
-                        passed = 1;
-                    }
-                    break;
-                case 6:
-                    passed = 1;
-                    break;
+            const char *fail_text = NULL;
+            passed = res_class_min_stat_check(state.p[a].cl[g],
+                                              state.p[a].ws[g],
+                                              state.p[a].wi[g],
+                                              state.p[a].ch[g],
+                                              &fail_text);
+            if (!passed && fail_text) {
+                tx0(res_text(fail_text));
+                ryl_delay(1000);
             }
             if (passed) {
                 passed = 0;
@@ -1588,13 +1559,13 @@ static void createparty() {
             }
         }
     }
-    state.p[a].x = 12;
-    state.p[a].y = 9;
-    state.p[a].gold = rk_starting_gold(1000);
-    state.p[a].torches = 5;
-    state.p[a].food = 100;
-    state.p[a].time_left = 200;
-    state.p[a].hours_rested = 14;
+    state.p[a].x = res_int_path("driv.start.x");
+    state.p[a].y = res_int_path("driv.start.y");
+    state.p[a].gold = rk_starting_gold(res_int_path("driv.start.gold"));
+    state.p[a].torches = res_int_path("driv.start.torches");
+    state.p[a].food = res_int_path("driv.start.food");
+    state.p[a].time_left = res_int_path("driv.start.time_left");
+    state.p[a].hours_rested = res_int_path("driv.start.hours_rested");
     state.p[a].pl = (unsigned char)res_party_member_max();
     state.p[a].fireshield = 0;
     state.p[a].bracelets = 0;

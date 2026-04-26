@@ -238,6 +238,25 @@
     },
   },
 
+  // §23.D: createparty() literals — stat-roll range and the
+  // fresh-party initial state. Read via res_int_path("driv.<key>").
+  // The `start:` block reproduces the original
+  // state.p[a].{x,y,gold,torches,food,time_left,hours_rested}
+  // assignment block at the end of createparty(); fixtures pin
+  // these values byte-for-byte.
+  driv: {
+    stat_roll: { min: 15, max: 70 },
+    start: {
+      x:             12,
+      y:              9,
+      gold:        1000,
+      torches:        5,
+      food:         100,
+      time_left:    200,
+      hours_rested:  14,
+    },
+  },
+
   // Combat-system tuning. Named fields are read by battle.c via
   // res_combat_int("<dotted.path>"); keep keys stable across data edits
   // since the C side hard-codes the names (not the values). Drop
@@ -635,11 +654,21 @@
     // a `casts_in:` annotation for the future menu-gating pass. Slot ids
     // match state.h PC_FIGHTER..PC_RANGER (1..6); slot 0 is the
     // "no class" sentinel and stays implicit.
+    // `min_stat:` (optional) is the createparty() class gate: if the
+    // rolled stat named here is below `value`, the prompt prints
+    // `fail_text` and re-rolls. Classes without a min (thief, ranger)
+    // omit the field. Matches the original driv.c switch on state.p[].cl
+    // case 1..6 byte-for-byte.
     pc_class: {
-      fighter: { id: 1, name: 'Fighter', levelup: { ws: 3, h: 8, wi: 1, ch: 1 } },
-      thief:   { id: 2, name: 'Thief',   levelup: { ws: 1, h: 5, wi: 1, ch: 2 } },
+      fighter: {
+        id: 1, name: 'Fighter',
+        min_stat: { name: 'ws', value: 50, fail_text: 'driv.create.ws_low' },
+        levelup: { ws: 3, h: 8, wi: 1, ch: 1 },
+      },
+      thief: { id: 2, name: 'Thief', levelup: { ws: 1, h: 5, wi: 1, ch: 2 } },
       mage: {
         id: 3, name: 'Mage',
+        min_stat: { name: 'wi', value: 50, fail_text: 'driv.create.wi_low' },
         spells: [
           'mage.frost', 'mage.fire', 'mage.confusion',
           'mage.death', 'mage.hold', 'mage.antimagic',
@@ -649,6 +678,7 @@
       },
       priest: {
         id: 4, name: 'Priest',
+        min_stat: { name: 'wi', value: 50, fail_text: 'driv.create.wi_low' },
         spells: [
           'priest.heal', 'priest.restoration', 'priest.rebirth',
           'priest.banish', 'priest.revelation', 'priest.teleport',
@@ -657,7 +687,11 @@
         casts_in: ['combat'],
         levelup: { ws: 1, h: 5, wi: 8, ch: 3 },
       },
-      bard:   { id: 5, name: 'Bard',   levelup: { ws: 2, h: 7, wi: 2, ch: 6 } },
+      bard: {
+        id: 5, name: 'Bard',
+        min_stat: { name: 'ch', value: 50, fail_text: 'driv.create.ch_low' },
+        levelup: { ws: 2, h: 7, wi: 2, ch: 6 },
+      },
       ranger: { id: 6, name: 'Ranger', levelup: { ws: 2, h: 8, wi: 3, ch: 3 } },
     },
 
