@@ -435,7 +435,8 @@ void init() {
     while (!abort) {
         clw();
 
-        tx_fmt("driv.menu.header",
+        tx0(res_text("driv.menu.banner"));
+        tx_fmt("driv.menu.owner",
                (ryl_bind[]){
                    {"name", state.global_name},
                    {0},
@@ -468,7 +469,10 @@ void init() {
         if (x) {
             tx0(res_text("driv.menu.terminate"));
         }
-        tx0(res_text("driv.menu.common"));
+        tx0(res_text("driv.menu.common_s"));
+        tx0(res_text("driv.menu.common_h"));
+        tx0(res_text("driv.menu.common_d"));
+        tx0(res_text("driv.menu.common_x"));
 
         ch = '\0';
 
