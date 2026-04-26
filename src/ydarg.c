@@ -5,6 +5,7 @@
 #include "inventory.h"
 #include "party.h"
 #include "primitives.h"
+#include "replay_knobs.h"
 #include "res.h"
 #include "subs.h"
 #include "towne.h"
@@ -81,9 +82,14 @@ void ydarg() {
     xl = 1;
     yl = 1;
     int room_type_max = res_int_path("ydarg.room.type_max");
+    int easy_rooms = rk_ydarg_easy_rooms();
     for (i = 1; i <= map_size; i++) {
         for (j = 1; j <= map_size; j++) {
-            room[i][j] = ryl_random(1, room_type_max);
+            /* Easy-rooms knob fills with case 4 (no-op) so the
+               keystroke stream of a confrontation fixture isn't at
+               the mercy of the per-slot RNG draw. Production builds
+               never see this branch. */
+            room[i][j] = easy_rooms ? 4 : ryl_random(1, room_type_max);
         }
     }
     room[map_size][map_size] = 50;

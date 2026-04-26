@@ -137,6 +137,39 @@ void rk_apply_pos(int a) {
     state.p[a].y = (int32_t)y;
 }
 
+void rk_apply_ydarg_grants(int a) {
+    /* §23.J: grant the four quest items the stairs G-prompt expects
+       so a confrontation-walkthrough fixture can advance through
+       all four floors without prerequisite town/cave detours.
+       Sets each PS_* flag directly; party_realize already guarantees
+       the struct slot exists. Silverkey is granted too so the gate
+       at the entrance accepts the party. The knob is one-shot;
+       fixtures stack RYL_FORCE_PARTY_LV separately for the level
+       bump that gives Baron Ydarg's fight a fighting chance. */
+    const char *env = getenv("RYL_FORCE_YDARG_GRANTS");
+    if (!env || !*env) {
+        return;
+    }
+    unsetenv("RYL_FORCE_YDARG_GRANTS");
+    state.p[a].fireshield  = 1;
+    state.p[a].mastercrown = 1;
+    state.p[a].jazzyfoot   = 1;
+    state.p[a].bracelets   = 1;
+    state.p[a].silverkey   = 1;
+}
+
+int rk_ydarg_easy_rooms(void) {
+    const char *env = getenv("RYL_FORCE_YDARG_EASY_ROOMS");
+    if (!env || !*env) {
+        return 0;
+    }
+    /* Don't unsetenv — ydarg() may be re-entered (e.g. via the
+       teleport-out / re-enter path) and a fixture that walks all
+       four floors expects every entry to honour the flag. Fixtures
+       set the var once at boot; production builds never set it. */
+    return 1;
+}
+
 void rk_apply_dead_slots(int a) {
     /* Fixtures that exercise the dead-arm of party-target spells
        (priest rebirth) need a member who starts dead without a
