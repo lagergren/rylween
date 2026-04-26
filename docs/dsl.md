@@ -110,6 +110,19 @@ Control flow:
   `{ inventory: <var> }` if you only care about occupied slots.
 - `{ for_monster: { var: '<name>', then: [...] } }` —
   iterate `1..combat_ctx.noc`. Fatal outside a combat ctx.
+- `{ for_each_alive_monster: { then: [...] } }` —
+  iterate `1..combat_ctx.noc`, skipping slots where `deadc[i]` is set.
+  Body sees the current slot via `{ var: 'monster_idx' }` (fixed name —
+  no `var:` parameter). RNG and side effects only fire on alive
+  iterations, so this is **not** a drop-in for `for_monster` when
+  byte-identity with a noc-wide legacy loop matters; use it for new
+  combat bodies (§23.A monster-spell dispatch) where an alive-only
+  pass is the intent. Fatal outside a combat ctx.
+- `{ for_each_alive_player: { then: [...] } }` —
+  iterate `1..res_party_member_max()`, skipping members with
+  `pm_dead` set. Body sees the current slot via `{ var: 'target_idx' }`
+  — the same name `ask_target` uses, so single-target ops compose
+  unchanged inside the loop. No combat ctx required.
 
 Text + journal:
 
@@ -299,7 +312,9 @@ There are two kinds of bindings the interpreter merges:
 - **`rt_env`** — runtime binding store filled by `let`,
   `input_number`, `input_string`, `input_item`,
   `menu_branch.key_var`, `for_member`/`for_inventory`/`for_monster`
-  loop vars, `engine_bind`, `ask_target`. Bindings have two
+  loop vars, `for_each_alive_monster` (`monster_idx`) /
+  `for_each_alive_player` (`target_idx`),
+  `engine_bind`, `ask_target`. Bindings have two
   kinds: RT_INT (every source above except `engine_bind`) and
   RT_STR (`engine_bind` results only). RT_STR is text-only —
   using one in `{ var: ... }` is fatal.
@@ -321,6 +336,18 @@ These let prompts read `Who? (1-{party_max})` and shop screens read
 `The price is {cost:torch} gold.` without any per-call binding
 preamble. They are unbound names so caller / rt_env bindings of the
 same name take precedence.
+
+**Combat-ctx bindings.** When `play_spell_body` is called with a
+non-NULL `script_combat_ctx`, the entry pushes one rt_env binding
+before running the body:
+
+- `h2` → `ctx->h2` (per-encounter monster max-HP scalar). Spells
+  read it as `{ var: 'h2' }`; expressions like `{ add: [{ div: [
+  { var: 'h2' }, 5 ]}, { random: [0, 3] } ]}` express the legacy
+  `h2/5 + random(0,3)` monster-spell damage formula without a C
+  local. Out-of-combat callers (priest spells via `subs.c`) leave
+  ctx NULL — `{ var: 'h2' }` there dies with the standard "expr
+  var: unbound" diagnostic.
 
 ---
 

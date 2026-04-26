@@ -3019,6 +3019,94 @@ static ops_result do_for_monster(const node *op, const char *script_id,
                         "for_monster", 1, g_combat_ctx->noc);
 }
 
+/* §23 prep: shared helper for the alive-only iterators. Same shape as
+   do_for_range but takes a fixed loop-var name and skips indices where
+   the predicate is false (no rt_env update, no body call, no RNG draw).
+   The body sees the loop var as `{ var: '<fixed_var>' }`; inner
+   break/continue propagate. `kind` selects the predicate:
+     ALIVE_MONSTER → !g_combat_ctx->deadc[i] (caller validates ctx)
+     ALIVE_PLAYER  → pa_is_alive(i)          (no ctx required) */
+typedef enum { ALIVE_MONSTER, ALIVE_PLAYER } alive_kind;
+
+static int alive_at(alive_kind kind, int32_t i) {
+    if (kind == ALIVE_MONSTER) {
+        return !g_combat_ctx->deadc[i];
+    }
+    return pa_is_alive((int)i);
+}
+
+static ops_result do_for_range_alive(const node *op, const char *script_id,
+                                     size_t idx, const char *parent,
+                                     const ryl_bind *bindings, rt_env *env,
+                                     const char *body_key, alive_kind kind,
+                                     const char *fixed_var,
+                                     int32_t lo, int32_t hi) {
+    const node *body = obj_get(op, body_key);
+    if (!body || body->kind != N_OBJ) {
+        char buf[64];
+        snprintf(buf, sizeof buf, "%s: value must be object", body_key);
+        die_at(script_id, idx, buf);
+    }
+    const node *then_n = obj_get(body, "then");
+    if (!then_n || then_n->kind != N_ARR) {
+        char buf[64];
+        snprintf(buf, sizeof buf, "%s: then must be array", body_key);
+        die_at(script_id, idx, buf);
+    }
+    size_t mark = rt_env_mark(env);
+    size_t slot = rt_bind_push_int(env, fixed_var, lo, script_id, idx);
+    for (int32_t i = lo; i <= hi; i++) {
+        if (!alive_at(kind, i)) {
+            continue;
+        }
+        rt_bind_update_int(env, slot, i);
+        ops_result r = play_ops(then_n, script_id, parent, bindings, env);
+        if (r == OPS_BREAK) {
+            rt_env_rewind(env, mark);
+            return OPS_NORMAL;
+        }
+    }
+    rt_env_rewind(env, mark);
+    return OPS_NORMAL;
+}
+
+/* §23 prep: { for_each_alive_monster: { then: [...] } } — iterate
+   1..combat_ctx->noc, skipping slots where deadc[i] is set. Body
+   sees the current monster slot as `{ var: 'monster_idx' }` (fixed
+   name, no `var:` parameter — these ops formalize the §23 monster-
+   spell pattern where battle.c reads/writes a stable index). Fatal
+   outside a combat ctx. RNG and side effects only fire on alive
+   slots — note this differs from for_monster, which always loops
+   noc times for byte-identity with the legacy mage.fire AOE. */
+static ops_result do_for_each_alive_monster(const node *op,
+                                            const char *script_id, size_t idx,
+                                            const char *parent,
+                                            const ryl_bind *bindings,
+                                            rt_env *env) {
+    if (!g_combat_ctx) {
+        die_at(script_id, idx, "for_each_alive_monster: no combat ctx");
+    }
+    return do_for_range_alive(op, script_id, idx, parent, bindings, env,
+                              "for_each_alive_monster", ALIVE_MONSTER,
+                              "monster_idx", 1, g_combat_ctx->noc);
+}
+
+/* §23 prep: { for_each_alive_player: { then: [...] } } — iterate
+   1..res_party_member_max(), skipping members with pm_dead set.
+   Body sees the current member slot as `{ var: 'target_idx' }` —
+   the same name `ask_target` uses for picked targets, so single-
+   target ops compose under the iterator. No combat ctx required
+   (works in both subs.c-style and battle.c-style callers). */
+static ops_result do_for_each_alive_player(const node *op,
+                                           const char *script_id, size_t idx,
+                                           const char *parent,
+                                           const ryl_bind *bindings,
+                                           rt_env *env) {
+    return do_for_range_alive(op, script_id, idx, parent, bindings, env,
+                              "for_each_alive_player", ALIVE_PLAYER,
+                              "target_idx", 1, res_party_member_max());
+}
+
 /* §17-F step 4: { switch: { expr:<expr>, cases:[...] } }. Each case
    is either { match:<expr>, then:[...] }, { in:[<expr>,...],
    then:[...] }, or { default:true, then:[...] }. First-match-wins;
@@ -3166,6 +3254,12 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         return do_for_inventory(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "for_monster")) {
         return do_for_monster(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "for_each_alive_monster")) {
+        return do_for_each_alive_monster(op, script_id, idx, parent, bindings,
+                                         env);
+    } else if (obj_get(op, "for_each_alive_player")) {
+        return do_for_each_alive_player(op, script_id, idx, parent, bindings,
+                                        env);
     } else if (obj_get(op, "switch")) {
         return do_switch(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "ask_target")) {
@@ -3251,6 +3345,14 @@ void play_spell_body(const char *spell_id, const struct node *body,
     const struct script_combat_ctx *prev = g_combat_ctx;
     g_combat_ctx = ctx;
     rt_env env = {{{0}}, 0};
+    /* §23 prep: surface combat-ctx scalar `h2` (per-encounter monster
+       max-HP) as a top-level rt_env binding so `do:` bodies can read
+       it via `{ var: 'h2' }`. Out-of-combat callers (subs.c) leave
+       ctx NULL — h2 stays unbound there and any `{ var: 'h2' }` will
+       die with the standard "expr var: unbound" message. */
+    if (ctx) {
+        rt_bind_push_int(&env, "h2", ctx->h2, spell_id, 0);
+    }
     ops_result r = play_ops(b, spell_id, parent, bindings, &env);
     g_combat_ctx = prev;
     if (r == OPS_BREAK) {

@@ -240,6 +240,10 @@ struct script_combat_ctx {
     int *held;
     int *antimagic;
     int *ws;          /* monster work-skill (mage.confusion halves it) */
+    int h2;           /* per-encounter monster max-HP scalar (reward + */
+                      /* monster-spell scaling). Pushed into rt_env as */
+                      /* `h2` on play_spell_body entry so combat bodies */
+                      /* read it via { var: 'h2' } without a C local. */
 };
 
 /* §22 Lane A: evaluate a `formulas.<name>` body as an int expression

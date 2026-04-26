@@ -466,6 +466,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                             .held = &held,
                             .antimagic = &antimagic,
                             .ws = &ws_int,
+                            .h2 = h2,
                         };
                         play_spell_body(s->id ? s->id : "mage.(unknown)",
                                         spell_node, binds, &ctx);
