@@ -4849,3 +4849,84 @@ Bar per session: `make check` + `make testasan` both
 green at every commit. Push at session close.
 
 ==== END CONTINUATION PROMPT ====
+
+## Session 2026-04-26 #5 — §23 swept end-to-end
+
+Walked the entire §23 queue in one session. Closures live in
+`port-plan-complete.md` under "§23 closures". Status:
+
+  - §23.D, §23.C, §23.F, §23.I, §23.H — all migrated.
+    Six commits on `lagergren/port1`:
+      4960a34 §23.D driv char-creation thresholds
+      e6282bf §23.C battle.c combat constants
+      1dca812 §23.F ydarg stairs item-trade
+      a6430bb §23.I tx_narrate + ydarg.confrontation
+      b9d183a §23.H ydarg room dispatcher leftovers
+      e480e05 §23.J knobs (RYL_FORCE_YDARG_GRANTS +
+              RYL_FORCE_YDARG_EASY_ROOMS)
+  - §23.G — closed as planning artifact (no race switch
+    exists in the codebase; plan conflated it with the
+    class switch closed by §23.D).
+  - §23.E — closed as documentation (UI dispatchers, not
+    data targets, per the original §23.E plan note).
+  - §23.J — knobs landed, fixture authoring deferred.
+
+State at HEAD:
+  - 6 commits on `lagergren/port1` since the prior push
+    (b3d52b4); each green on `make check` + `make testasan`.
+  - 29 fixtures total. No new fixtures this session.
+  - `combat.attack.*` / `combat.battle_cry.*` /
+    `combat.defend.*` / `combat.run.*` subtrees added;
+    `enums.pc_class.<key>.min_stat` records added; `driv.*`
+    top-level subtree added; `ydarg.{stairs,narration,
+    pitfall,room}` subtrees added.
+
+**Remaining §23 work is one item only:** the §23.J fixture
+itself (ydarg-confrontation). Knobs `RYL_FORCE_YDARG_GRANTS`
++ `RYL_FORCE_YDARG_EASY_ROOMS` are wired and tested. The
+fixture needs:
+
+  1. RYL_FORCE_YDARG_GRANTS=1, RYL_FORCE_YDARG_EASY_ROOMS=1,
+     RYL_FORCE_PARTY_LV=28, RYL_FORCE_POS=14,30 in env.
+  2. Title sequence (party creation, 4 chars, all class 2
+     thief — no min-stat gate, fastest).
+  3. Wilderness E to enter castle.
+  4. 5 ryl_pauses (approach, jaara_form, jaara_speech,
+     key_accepted, enter), then the door-slam delay (no
+     input), then the post-room-init pause.
+  5. Per floor (×4): 8 moves to (5,5) (4× '6' east + 4×
+     '2' south); each move triggers a no-op room body
+     (case 4) + nav prompt. Then on stairs: G + digit
+     (1..4 in floor order) + ryl_pause for mage_grateful.
+  6. Confrontation: 2 ryl_pauses (act1), then 4-monster
+     encounter sequence (~10 attack rounds each at LV=28),
+     7 ryl_pauses (act2), baron_ydarg fight (~10 rounds),
+     5 ryl_pauses (act3), 2 ryl_pauses (act4),
+     cleanexit().
+
+Estimated keystroke count: ~500 (the four pre-confrontation
+monsters + baron_ydarg dominate). Fragile to RNG shifts in
+combat (per-round damage rolls). The easy-rooms knob covers
+ydarg's per-tile RNG; combat RNG is still an open exposure.
+
+**Recommended next session order:**
+
+  1. **§23.J fixture authoring + bless** (~1 sess). The
+     only remaining §23 piece. Author with `--bless` after
+     each act block to localize the diff if the keystroke
+     stream is wrong. If a combat fight goes too many
+     rounds and breaches the keystroke budget, consider
+     RYL_FORCE_PARTY_LV=28 stacked with RYL_FORCE_GOLD or
+     a hypothetical RYL_FORCE_WEAPON_DAMAGE knob — but
+     defer those if not strictly needed.
+  2. **§24.A1 — fprintf-to-LOG_*** (~1 sess, mechanical).
+     ~75 callsites; LOG_E for "couldn't proceed", LOG_W
+     for "shape was wrong, fallback".
+  3. **§24.B** file/null log sinks (~1 sess); replay
+     harness default to RYL_LOG=null after this.
+  4. **Later:** §24.C (TCP listener), §25 (1-indexed),
+     §24bis (id: → slug, post-§25), then
+     plans/future-directions.md.
+
+Bar per session: `make check` + `make testasan` both
+green at every commit.

@@ -1687,3 +1687,127 @@ pattern (the `&slug_out` parameter on
 `res_magic_item_effect_node`) is also a small but
 reusable convention worth re-applying when other
 data-keyed-by-int subsystems migrate.
+
+## §23 closures (session 2026-04-26 #5) — six items in one pass
+
+This session walked the §23 queue end-to-end. Each item below
+landed as its own commit on `lagergren/port1`; the section is
+otherwise closed except for §23.J's fixture authoring (knobs
+landed; fixture deferred).
+
+**§23.D — driv char-creation thresholds.** Class min-stat
+checks (50/50/50 + per-stat fail texts), stat-roll range
+(15-70), and the seven starting-state fields (x=12, y=9,
+gold=1000, torches=5, food=100, time_left=200,
+hours_rested=14) all moved into world.json5. New:
+`enums.pc_class.<key>.min_stat: { name, value, fail_text }`
+records gate the createparty class prompt;
+`res_class_min_stat_check(cl_id, ws, wi, ch, &fail_text)`
+dispatches the gate from C. `driv.stat_roll.{min,max}` +
+`driv.start.*` provide the rest. Commit `4960a34`.
+
+**§23.C — battle.c combat constants.** Lifted seven literals
+into `combat.*` subtrees: `attack.{hit_bonus,
+damage_spread_max, confusion_div}` for the player hit-roll;
+`battle_cry.ws_penalty` and `defend.{ws_penalty,
+rest_threshold}` for the post-action ws penalties;
+`run.desperate_chance` for the (R)un branch's
+ryl_chance(31). The paired `ws > N` guard + `ws -= N`
+penalty stay tied to a single `ws_penalty` field so they
+move in lockstep. Commit `e6282bf`.
+
+**§23.F — ydarg stairs item-trade.** The case-50 stairs
+G-prompt's digit-1..4 → PS_FIRESHIELD/etc dispatch lifted to
+`ydarg.stairs.items[]`, each entry carrying a
+`{ digit, special_tag, reject_msg }` triple. New helpers:
+`inv_special_id_for_tag(tag)` (public version of the
+inventory-internal tag-to-PS_* mapping) and
+`res_ydarg_stairs_item(digit, &tag, &reject)`. The four
+near-identical case arms collapsed to one path that resolves
+the tag to a flag, checks ownership, deducts on success, and
+concatenates `"ydarg.room.stairs." + reject_msg` for the
+sing/plur rejection text. Commit `1dca812`.
+
+**§23.G — driv race switch.** Closed as a planning artifact:
+no race switch exists in the codebase. The §23.G plan entry
+described a six-arm switch on `state.p[a].ra` at
+driv.c:1540-1575, but inspection (and the original 1980s
+source at 75e6b0e) confirmed no such block — race is just
+stored on input and looked up via `res_enum("race",
+pm_ra(pm))` for display. The plan likely conflated this with
+the class switch already closed by §23.D. No commit.
+
+**§23.I — multi-screen narration helper.** Added
+`tx_narrate(acts_path, binds)` to primitives — walks a
+string-array of text ids and emits each with the standard
+clw + tx_fmt(id, binds) + ryl_pause cycle, no leading or
+trailing clw. ydarg.confrontation is the first user; the
+four narration runs (conf_act1..conf_act4) lift to
+`ydarg.narration.*` arrays of existing text ids. The
+~60-line tx0/clw/ryl_pause chain in confrontation()
+collapses to four tx_narrate calls plus the inter-act side
+effects. Byte-for-byte preserved including the original
+"no clw before heroes" asymmetry — by dropping the explicit
+pre-save clw, tx_narrate's leading clw lands in the same
+position the original's pre-save clw did (save() emits no
+terminal bytes). Commit `a6430bb`.
+
+**§23.H — ydarg room dispatcher leftovers.** The largest
+pieces (case 1 monster encounter, case 3 treasure drop
+table, case 50 stairs) were already data-driven by recent
+commits. What remained: `ydarg.room.type_max` (the upper
+bound of `ryl_random(1, N)` at room init),
+`ydarg.pitfall.trap_types[]` (the 3-arm switch on
+`ryl_random(0, 2)` for arrows/poison/shurikens), and
+`ydarg.pitfall.damage_div` (the `pm_hp / 6` party damage
+divisor). What stays in C: the case-1/2/3 frame itself
+(genuine UI dispatch), the thief-disarm probe
+(`pm_is_thief` + `ryl_chance(pm_wi(pm))`), and the
+trap-spring random target (already bounded by
+res_party_member_max). Commit `b9d183a`.
+
+**§23.E — bestiary special-encounter survey.** Closed as
+documentation. dungeon.c's level-loop key dispatch
+(D/A/L/T/P/W/R/Q/Z/V/?), driv.c's title menu key dispatch
+(N/C/X/T/S/H/D), and subs.c's wilderness-encounter handler
+are all UI dispatchers, not data extraction targets —
+confirmed per the §23.E plan note. The wilderness side is
+already data-driven via `wilderness.cave_chance`,
+`encounter_split`, `encounter_easy_tier/hard_tier`. No
+commit.
+
+**§23.J — full ydarg walk-through fixture.** Knobs landed
+(commit `e480e05`):
+
+  - `RYL_FORCE_YDARG_GRANTS=1` — applied at end of party
+    creation, sets all four quest-item flags + silverkey so
+    each floor's stairs G-prompt has a valid donation and
+    the gate accepts the party. One-shot consume.
+  - `RYL_FORCE_YDARG_EASY_ROOMS=1` — read every time
+    `ydarg()` enters (NOT consumed), fills every
+    non-stairs slot with case 4 (no-op) so the keystroke
+    stream is not at the mercy of room-content RNG.
+
+Full fixture authoring deferred — the input stream is
+~500 keystrokes (4-monster sequence + baron_ydarg fight,
+~10 attack rounds each) and bless requires careful
+manual playthrough. Knobs are functional, the fixture
+authoring is a self-contained follow-on session.
+
+**Cross-cutting:**
+
+  - The slug-yielding resolver pattern (callee fills both
+    a body pointer and a slug string) reused twice this
+    session (`res_class_min_stat_check` doesn't return a
+    slug but does fill a fail-text string; same shape).
+    Cementing this as the convention for any future
+    int-keyed → data-keyed dispatcher.
+  - `tx_narrate` is the third "screen-iterator" helper
+    after `tx_fmt` and `ryl_menu` — they're starting to
+    form a natural family of "one helper, one prompt
+    pattern" surfaces in primitives.
+  - The combat-constants block (`combat.attack.*`,
+    `combat.battle_cry.*`, `combat.defend.*`,
+    `combat.run.*`) is the pattern other small-literal
+    sweeps should follow: group by gameplay-concept,
+    not by file or function.
