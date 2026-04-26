@@ -4002,3 +4002,128 @@ class of bugs the §24.A0 commit just demonstrated.
 **Bar per session.** Same as elsewhere: `make check` +
 `make testasan` green at every commit.
 
+## Session 2026-04-26 closure + continuation prompt
+
+This session shipped five commits on `lagergren/port1`:
+
+  - `ce7af68` — §23.A fixture: combat-monster-magic
+    byte-identity baseline + texts-path bug fix in
+    `data/world/spells/monster.json5`. The `do:` bodies were
+    referencing `monster.frost.name` etc., but the texts live
+    at `battle.monster.*`; resolve_text_id short-circuits on
+    names containing `.` (treats them as absolute), so the
+    lookups silently failed and every monster cast was
+    emitting blank bytes. Invisible because no prior fixture
+    exercised the dispatcher.
+  - `5dfa961` — §24.A0: `src/log.{c,h}` with `LOG_D/I/W/E/A`
+    macros, default threshold WARN. `ryl_log()` retired, two
+    callers migrated to `LOG_A`. `res_realize_npcs` grew
+    descriptive `LOG_I` lines + cosmetic delay 600ms→40ms
+    (campaign setup ~14s → ~1s with the dot pacing intact).
+  - `d3047d2` — port-plan split: master `port-plan.md` (45
+    lines, TOC only) + `port-plan-complete.md` +
+    `port-plan-incomplete.md`. New §24 (logging plan) + §25
+    (1-indexed cleanup) sections drafted.
+    `plans/future-directions.md` (multi-party / MUD /
+    shared-realm scoping) created.
+  - This commit — session closure + continuation prompt.
+
+**State at end of session.** §23.A complete with fixture
+coverage (Hold + Cloud-of-Fire pinned at seed 42; Frost +
+Confusion share the same machinery). §24.A0 (minimal logging
+API) landed; the 75-site `fprintf(stderr, …)` migration is
+queued as §24.A1. `plans/future-directions.md` captures the
+multi-party scoping the unfinished "version 3" started
+exploring. `make check` + `make testasan` green at HEAD
+(`d3047d2`).
+
+==== CONTINUATION PROMPT (paste verbatim next session) ====
+
+Read `port-plan-incomplete.md`'s "Session 2026-04-26 closure
++ continuation prompt" section. Five commits since the last
+continuation prompt; the §23 lookahead in §22.14 is still
+relevant for everything beyond §23.A.
+
+Recommended sequencing for next session(s):
+
+  1. **§24.A1** (~1 session, mechanical). Bulk-migrate the
+     remaining ~75 `fprintf(stderr, …)` callsites to
+     `LOG_W` / `LOG_E` per severity. Distribution: res.c x44,
+     driv.c x36, snapshot.c x28, party.c x10, json5.c x5,
+     primitives.c x2, ryl.c x3, inventory.c x3. None of them
+     fire under existing fixtures today (zero stderr bytes
+     during fixture playback), so the migration is bless-free
+     in expectation. Validates the logging API end-to-end
+     before more §23 / §24 work stacks callers on top of the
+     legacy pattern. Author rule: severity is `LOG_E` for
+     "couldn't proceed, returned default" sites
+     (`res_formula_int: world not loaded`, `res: oom`);
+     `LOG_W` for "shape was wrong, falling back" sites
+     (unknown enum tag, slot out of range, malformed record).
+
+  2. **§23.B** (~2 sessions). battle.c item-spell switch
+     (cases 100..111, lines 194-403, ~210 LOC). Biggest §23
+     piece remaining. Pattern: `data/world/items/*.json5`
+     grows per-id `effect:` specs; the case dispatch becomes
+     `apply_item_effect(id, ctx)` (or the data-shape
+     equivalent). Rides on §23.A's prep ops + combat-ctx
+     bindings already landed. After §24.A1 lands, any new
+     diagnostic logging in §23.B uses `LOG_*` directly.
+
+  3. **§23.C / §23.D in parallel** (~1 session each,
+     mechanical). Combat-constants sweep + driv.c
+     char-creation thresholds. Small.
+
+  4. **§24.B** (~1 session). File + null sinks behind
+     `RYL_LOG=file:…` / `RYL_LOG=null`. The null sink lets
+     fixtures opt out of stderr noise once §24.A1 has
+     migrated everything; the file sink replaces the
+     implicit `~/.rylween/rylween.log` write with an explicit
+     env-var path. After §24.A1 + §24.B land, the replay
+     harness can default to `RYL_LOG=null` per fixture and a
+     re-bless drops any residual noise lines.
+
+  5. **§23.F + §23.E** (closeouts). ydarg stairs (already
+     partly done in `e61be95`; close out the remaining
+     branches) + bestiary special-encounter survey (likely
+     closes as documentation).
+
+  6. **Later: §24.C** (TCP listener — telnet-friendly remote
+     console; bind to 127.0.0.1 by default). **§25**
+     (1-indexed → 0-indexed cleanup, low priority, post-§22-
+     §24). **`plans/future-directions.md`** multi-party MUD
+     work — only after §22 / §23 / §24 are fully closed.
+
+Pick (1) for a mechanical warm-up; the prompt for (2) is
+already in §22.14 of `port-plan-incomplete.md` ("§23.B —
+battle.c item-spell switch"). (1) before (2) avoids
+re-touching the same callsites; either order is otherwise
+fine.
+
+Pre-flight notes:
+
+  - `make check` + `make testasan` both green at HEAD
+    (`d3047d2`).
+  - All four §23.A monster-spell bodies share machinery; the
+    seed-42 fixture exercises Hold + Cloud-of-Fire. Frost
+    and Confusion are not byte-pinned by any current
+    fixture — the dispatcher coverage they get is
+    structural, not byte-identity. If §23.B introduces any
+    monster-side logic that depends on Frost / Confusion
+    firing, add a second seed/encounter at that time.
+  - §24.A0 default threshold is WARN. Set
+    `RYL_LOG_LEVEL=info` to see the realm-realization trace.
+    AUDIT bypasses the threshold (writes to
+    `data/rylween.log`).
+  - `port-plan.md` is now a 45-line master TOC. Active queue
+    lives in `port-plan-incomplete.md`. When a section
+    closes, move its body across to `port-plan-complete.md`
+    and update the master TOC's File column.
+  - `plans/future-directions.md` is deliberately *outside*
+    the port plan — don't merge it back; it captures
+    multi-party MUD scoping that's not on any critical path.
+
+Bar per session: `make check` + `make testasan` both green
+at every commit.
+
+==== END CONTINUATION PROMPT ====
