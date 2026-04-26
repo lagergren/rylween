@@ -74,7 +74,7 @@
                   key_var: 'who_key',
                   options: [
                     { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                      { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
+                      { let: 'who', value: { sub: [{ var: 'who_key' }, 48] } },
                       { if: {
                           cond: { not: { engine_int: 'pa_is_spellcaster', args: [{ var: 'who' }] } },
                           then: [
@@ -153,7 +153,7 @@
                   key_var: 'who_key',
                   options: [
                     { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                      { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
+                      { let: 'who', value: { sub: [{ var: 'who_key' }, 48] } },
                       { if: {
                           cond: { engine_int: 'pa_is_alive', args: [{ var: 'who' }] },
                           then: [
@@ -207,7 +207,7 @@
                   key_var: 'who_key',
                   options: [
                     { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } }, then: [
-                      { let: 'member_idx', value: { sub: [{ var: 'who_key' }, 48] } },
+                      { let: 'who', value: { sub: [{ var: 'who_key' }, 48] } },
                       { if: {
                           cond: { engine_int: 'pa_is_dead', args: [{ var: 'who' }] },
                           then: [
