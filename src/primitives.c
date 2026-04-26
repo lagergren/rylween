@@ -21,7 +21,7 @@ void cl(void) {
        cursor on those terminals — leaving the picture rendered at
        wherever the prior tx left the cursor. ESC[2J + ESC[H does
        both explicitly. */
-    static const char clear_home[] = "\033[2J\033[H";
+    static const char clear_home[] = "\033[2J\033[1;1H";
     io->write(clear_home, sizeof clear_home - 1);
 }
 
@@ -409,6 +409,13 @@ void ryl_pause(void) {
 }
 
 void disptext(char *namn) {
+    /* Home the cursor before dumping the .ans. .ans files use relative
+       cursor moves (ESC[<n>C) and rely on starting at (1,1); their
+       internal ESC[2J doesn't home the cursor on Mac Terminal /
+       iTerm2 so the picture would render shifted to wherever the
+       previous tx left the cursor. */
+    static const char home[] = "\033[1;1H";
+    io->write(home, sizeof home - 1);
     io->dump_file(namn);
 }
 
