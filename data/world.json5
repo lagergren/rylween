@@ -440,6 +440,26 @@
   // touching the source.
   ydarg: {
     map: { size: 5 },
+
+    // Treasure-room (case 3) drop table. Original RNG draw order:
+    //   ryl_random(0, gate_max)        — 0 selects magic, else regular
+    //   if regular: ryl_random(0, kind_max) — picks kind_<n>
+    //               ryl_random(lo, hi) on that kind's id range
+    //   if magic:   ryl_random(magic.lo, magic.hi)
+    // The bounds reflect the original ranges:
+    //   weapons 1..14, armour 36..42, gear 39..46, magic 100..111.
+    // Bumping any of these changes RNG identity — re-bless ydarg
+    // fixtures after a tweak.
+    drop_tables: {
+      room: {
+        gate_max:  4,                  // ryl_random(0, 4): 0 = magic, else regular
+        kind_max:  2,                  // ryl_random(0, 2) picks kind_<n>
+        kind_0: { lo: 1,   hi: 14  },  // weapons
+        kind_1: { lo: 36,  hi: 42  },  // armour
+        kind_2: { lo: 39,  hi: 46  },  // gear
+        magic:  { lo: 100, hi: 111 },
+      },
+    },
   },
 
   // NPCs — one entry per slot, keyed by display name (the same

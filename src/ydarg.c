@@ -150,24 +150,19 @@ void ydarg() {
 
             case 3:
                 room[xl][yl] = 0;
-                x = ryl_random(0, 4);
+                x = ryl_random(0, res_int_path("ydarg.drop_tables.room.gate_max"));
                 if (x) {
-                    x = ryl_random(0, 2);
-                    if (x == 0) {
-                        oc = ryl_random(0, 13);
-                        oc += 1;
-                    } /* 0-13 + 1 = 1-14 */
-                    if (x == 1) {
-                        oc = ryl_random(0, 6);
-                        oc += 36;
-                    } /* 0-6  + 36= 36-42 */
-                    if (x == 2) {
-                        oc = ryl_random(0, 7);
-                        oc += 39;
-                    } /* 0-7  + 39= 39-46 */
-                } else { /* 0-11 + 100, ger 100-111 */
-                    oc = ryl_random(0, 11);
-                    oc += 100;
+                    char rng_key[64];
+                    int32_t rng_lo, rng_hi;
+                    x = ryl_random(0, res_int_path("ydarg.drop_tables.room.kind_max"));
+                    snprintf(rng_key, sizeof rng_key, "ydarg.drop_tables.room.kind_%d.lo", x);
+                    rng_lo = res_int_path(rng_key);
+                    snprintf(rng_key, sizeof rng_key, "ydarg.drop_tables.room.kind_%d.hi", x);
+                    rng_hi = res_int_path(rng_key);
+                    oc = ryl_random(rng_lo, rng_hi);
+                } else {
+                    oc = ryl_random(res_int_path("ydarg.drop_tables.room.magic.lo"),
+                                    res_int_path("ydarg.drop_tables.room.magic.hi"));
                 }
                 tx_fmt("ydarg.room.treasure.find",
                        (ryl_bind[]){
