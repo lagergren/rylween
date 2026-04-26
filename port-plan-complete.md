@@ -1585,3 +1585,105 @@ design — just that the dynamic path doesn't wedge).
   still has to roll stats that pass each member's chosen
   class. Nothing new here beyond what N=4 already required.
 
+
+## §23.B closed (2026-04-26 #3)
+
+`battle.c`'s 12-arm magic-item switch (cases 100..111,
+~210 LOC at lines 194-403) is now data-driven. Every
+magic item carries an `effect:` DSL body in
+`data/world/items/magic_items.json5`; the Use-Item
+branch in `battle.c` looks up the body via
+`res_magic_item_effect_node(oc, &slug)` and dispatches
+through `play_spell_body`. No `case <int>:` for magic
+items remains in C.
+
+**Five group commits + one closeout commit on
+`lagergren/port1`:**
+
+  1. `4fc6962` Group A — gem_of_confusion / gem_of_blindness
+     / flute_of_madness. RNG-free narration items, used to
+     prove out the dispatcher infra (resolver +
+     play_spell_body call site) before the harder cases
+     landed. Pre-existing flute_of_madness placeholder
+     (an inert `['seq', ...]` from the pre-§22 era) was
+     replaced with the real DSL body.
+
+  2. `4e2eead` Group B — frost_wand / drums_of_death.
+     New `pick_first_alive_monster` engine_int (mirrors
+     the legacy `for (i=1, who=0; i<=noc; i++) if
+     (!deadc[i]) { who=i; break; }` idiom shared by both
+     items). frost_wand's pre-existing `tx("...KILLED!")`
+     missing-`\r\n` bug was fixed inline by routing
+     through `battle.killed`, matching every other kill
+     site in the file.
+
+  3. `f19b5f1` Group C — fire_wand / kaels_axe /
+     holy_handgrenade. Reused `for_monster` (RNG advances
+     on dead too — fire_wand's identity) and
+     `for_each_alive_monster` (RNG only on alive — axe and
+     handgrenade); no new engine ops. Mul-order preserved
+     for fire_wand's `pm_lv(...) * ryl_random(3, 8)`.
+
+  4. `2537f4a` Group D — staff_of_healing /
+     gem_of_resurrection. Drove a small refactor of the
+     dispatcher shape: every body now owns its inventory
+     consume via the new `pa_set_inventory` engine_call
+     (with the dispatcher binding `inv_slot`), so 108 can
+     defer the consume to its success branch — preserving
+     the legacy "no turn spent on a typo" semantics.
+     Group A/B/C bodies updated to start with
+     `engine_call: 'pa_set_inventory', args: [{ var:
+     'inv_slot' }, 0]` so all twelve items share one
+     mechanism. New `pm_full_heal` / `pm_set_dead`
+     engine_calls and a new `script_combat_ctx.action_retry`
+     flag (105 doesn't use it; 108 sets it on the
+     not-dead branch and battle.c's dispatcher checks
+     after `play_spell_body` returns and `goto combat`s
+     if set).
+
+  5. `3768f2e` Group E + closeout — blessing_scroll /
+     staff_of_curing. `for_member` covers both bodies
+     (party-wide stat boost / party-wide full heal). The
+     entire `else switch (oc) { case <N>: ... }` block
+     is gone — the dispatcher block is the only Use-Item
+     handler, with `ryl_die("magic_items: no effect body
+     for id N")` if a future authoring bug introduces an
+     item without a body.
+
+**Net count.** battle.c lost ~210 LOC from the switch +
+~10 LOC of related locals; magic_items.json5 grew by
+the equivalent (12 effect: bodies, 8 of which are
+substantial). Net wash on byte count; substantial win
+on data-vs-code separation.
+
+**Engine surface added in §23.B:**
+
+  - `res_magic_item_effect_node(oc, &slug)` (res.c +
+    res.h). Walks `magic_items.<key>` for the entry whose
+    `id:` matches `oc`, returns the `effect:` body and
+    yields the slug for diagnostic ids.
+  - `pick_first_alive_monster` engine_int.
+  - `pa_set_inventory` / `pm_full_heal` / `pm_set_dead`
+    engine_calls.
+  - `battle_flag: 'action_retry'` (read + mutate paths) +
+    `script_combat_ctx.action_retry` field.
+
+**Fixture state.** No new fixtures added in §23.B itself —
+the existing combat fixtures (combat-attack-win,
+combat-mage-*, combat-monster-magic) cover the player- and
+monster-side combat paths; magic-item triggering isn't
+exercised by any current fixture. Adding one or two
+combat-magic-item fixtures is queued as a follow-up but
+not strictly required (the dispatcher coverage is
+structural — body-shape errors fail at world load via
+fold_scripts).
+
+**Cross-cutting wins.** Body-owned inventory consume +
+the action_retry flag are reusable shapes for future
+script work — any new script body can claim an
+inventory slot or signal "abort, re-prompt" without
+adding more engine surface. The slug-yielding resolver
+pattern (the `&slug_out` parameter on
+`res_magic_item_effect_node`) is also a small but
+reusable convention worth re-applying when other
+data-keyed-by-int subsystems migrate.

@@ -3365,6 +3365,41 @@ handlers. The dungeon level-loop `if (c == 'D') ... if
 input dispatch and probably stays in C; the descend/ascend
 *actions* are short enough that a data table buys little.
 
+**§23.G — driv.c race switch (queued 2026-04-26 #3).** The
+character-creation race-pick block at driv.c:1540-1575 is a
+six-arm `switch (state.p[a].ra)` that dispatches on the int
+race id (1=human..6=??). Each arm sets per-race stat caps /
+class restrictions / a couple of localized adjustments. Same
+shape as §23.B was — keep state.p[].ra as an int (it's
+load-bearing across saves and pm_ra accessors), but lift the
+switch body into `world.json5`'s existing `enums.race.<key>`
+records as a `class_caps:`/`stat_adj:`/etc. body, dispatched
+through a new `res_race_dispatch(ra)` (or a script DSL
+`do:` body if the per-race logic warrants it). Effort: ~1
+session if the per-race bodies are simple enough to be plain
+data; ~1.5 sessions if they need DSL bodies. Existing
+title-create-party fixtures cover all six paths byte-for-byte.
+
+**§23.H — ydarg.c scenario / monster-type switches (queued
+2026-04-26 #3).** Several numeric `switch` blocks across
+ydarg.c — case 1=Monster / case 2=Pitfall / case 3=...
+(line 94-150 chunk), case 50=??? (line 192), the multi-arm
+encounter switch around line 237-310, the level-key chain
+around 515-540. Same migration shape as §23.B — the int
+switch arms become data-driven dispatch, with the int still
+stored in state but the per-case body authored in JSON5.
+Some arms are very thin (single tx0 + delay); those collapse
+to a single text shard. The encounter-type and level-key
+arms need DSL bodies. Worth a survey pass first (one session)
+to decide which arms are worth migrating vs. which stay in C
+because the C body is genuinely UI dispatch (input-key
+matching that doesn't read like data). Effort: 1 survey
+session + 1-2 migration sessions, depending on how much of
+ydarg.c's switch surface qualifies. Cave-descent /
+wilderness-camp / wilderness-cave-descent fixtures cover
+some paths; new fixtures may be needed for the
+special-encounter arms.
+
 **Cross-cutting — DSL gaps.** §23.A and §23.B will likely
 surface two genuinely missing primitives:
 
@@ -3903,6 +3938,67 @@ conflicts. §24.A can land between any two §23 commits.
 **Bar per session.** Same as §22 / §23: `make check` +
 `make testasan` green at every commit.
 
+## 24bis. `id: <number>` → slug-keyed state (deferred, post-§25)
+
+**Survey (2026-04-26 #3).** 205 occurrences of `id: <int>`
+across `data/` JSON5 shards: `world.json5` (39 NPCs in
+`npcs.<key>` + ~15 per enum across `enums.{job,race,
+pc_class,gender,...}`), `world/monsters/monsters.json5`,
+and seven item shards (`weapons.json5`, `armour.json5`,
+`gear.json5`, `potions.json5`, `specials.json5`,
+`treasures.json5`, `magic_items.json5`). Each `id:` is the
+bridge between data and an int-keyed C subsystem:
+
+  - `pa_inventory[slot]` stores item ids as ints; lookups
+    via `res_item(id)` / `object(id)` index off the int.
+  - `state.npc[slot]` is indexed by NPC id; `res_npc_slot
+    (sym)` reads the entry's `id:` to map slug → slot.
+  - `pm_cl(pm)` / `pm_ra(pm)` return int slots compared
+    against `PC_*` constants in `state.h`; `state.p[].cl/
+    ra/job` are uint8_t slots.
+  - Save format (`current-world.json5`) writes the int
+    ids directly — slug-keying state would change the
+    save format strictly.
+
+**Why deferred.** §23.B-style migrations (this session)
+keep the int storage and only move the *dispatcher* out
+of C. Eliminating the int entirely is a different shape:
+every state accessor (`pm_cl`, `pa_inventory`,
+`state.npc`), every save/snapshot path, and every C-side
+comparison (`if (cl == PC_FIGHTER)`) has to switch to
+slug strings. That's a coordinated cross-cutting refactor
+touching ~every C file, with no incremental win until the
+last call site flips.
+
+**Sketch of the work (one possible path).** Three phases:
+
+  1. **State layer flip.** Replace the int slot in
+     `state.p[].cl/ra/job`, `state.npc[]`, `pa_inventory[]`
+     with a slug-string-id (or a stable interned-symbol
+     handle). Provide `pa_class_sym(slot)` / `pa_race_sym
+     (slot)` / etc. helpers so accessors aren't bare
+     comparisons.
+  2. **Comparison-site sweep.** Every `if (cl ==
+     PC_FIGHTER)` becomes `if (pa_class_is(cl, "fighter"))`.
+     Largest churn site — driv.c, battle.c, subs.c are
+     full of these.
+  3. **Data-side cleanup.** Drop `id:` from all the
+     enum/NPC/item records once nothing reads them.
+     `res_npc_slot` becomes `res_npc_handle`; the int slot
+     mapping retires.
+
+**Sequencing.** Should land after §25 (1-indexed → 0-indexed)
+because that pass also touches every state accessor — bundling
+the two sweeps avoids re-touching the same call sites twice.
+Probably a 4-6 session block, with one "halt all other work"
+period because every C file changes.
+
+**Caveat.** Save format is the strict boundary. Either bump
+the save schema and document the break, or write a one-shot
+migration that translates legacy int-keyed saves to the
+slug-keyed form on first load. The latter is roughly one
+session of careful schema-walker code.
+
 ## 25. 1-indexed → 0-indexed cleanup (low-priority, post-§22-§24)
 
 **Problem.** A lot of the codebase carries the original 1-based
@@ -4310,6 +4406,143 @@ Pre-flight:
     (Apple's font glyph metrics for U+258x). Pure rendering
     cosmetic; ignore.
   - port-plan.md is the 45-line master TOC. New section work
+    appends to port-plan-incomplete.md; close moves to
+    port-plan-complete.md.
+  - plans/future-directions.md is outside the port plan —
+    multi-party MUD scoping, not on the critical path.
+
+Bar per session: `make check` + `make testasan` both green
+at every commit.
+
+==== END CONTINUATION PROMPT ====
+
+## Session 2026-04-26 #3 — §23.B closed
+
+§23.B (battle.c item-spell switch, cases 100..111) is now
+fully migrated to data. The legacy switch is gone; every
+magic item carries an `effect:` DSL body in
+`data/world/items/magic_items.json5` and battle.c's
+Use-Item branch dispatches through `play_spell_body` only.
+See port-plan-complete.md for the full closure detail.
+
+Five group commits + one closeout commit on
+`lagergren/port1`:
+
+  1. `4fc6962` Group A — gem_of_confusion / gem_of_blindness
+     / flute_of_madness (RNG-free narration). Validated the
+     dispatcher infra (res_magic_item_effect_node + the
+     per-item `effect:` body shape).
+  2. `4e2eead` Group B — frost_wand / drums_of_death.
+     pick_first_alive_monster engine_int.
+  3. `f19b5f1` Group C — fire_wand / kaels_axe /
+     holy_handgrenade. for_monster +
+     for_each_alive_monster cover the AOE shapes.
+  4. `2537f4a` Group D — staff_of_healing /
+     gem_of_resurrection. Body-owned inventory consume
+     (pa_set_inventory engine_call) so 108 can defer to
+     its success branch; action_retry battle_flag bumps
+     108-fail back to the action menu.
+  5. `3768f2e` Group E + closeout — blessing_scroll /
+     staff_of_curing. Switch removed; dispatcher now the
+     only Use-Item path.
+
+`make check` + `make testasan` green at each commit.
+
+**Followups identified during the work:**
+
+  - Survey for `id: <number>` patterns showed 205 hits
+    across world.json5 / monsters / items / NPCs. All are
+    load-bearing today (each id is the int the C state
+    layer stores in pa_inventory / state.npc / state.cl).
+    Eliminating them is a slug-keyed-state refactor —
+    out of scope for §23, queue as §25+ if/when wanted.
+  - Numeric `case <int>:` dispatches still appear in
+    driv.c (race switch, lines 1540-1575), ydarg.c
+    (scenario switches, multiple), speak.c (small).
+    Same shape as §23.B was — keep the int storage,
+    move the dispatch to data. Worth queueing as
+    §23.G (driv race), §23.H (ydarg scenarios), etc.
+
+**Remaining work in §23 / §24 / §25** is unchanged from
+the §23.B-pre continuation prompt: §23.C (combat
+constants), §23.D (driv char-creation thresholds),
+§24.A1 (LOG_* migration), §24.B (file/null log sinks),
+§23.F (ydarg stairs), §23.E (bestiary survey), §24.C
+(TCP listener), §25 (1-indexed cleanup).
+
+==== CONTINUATION PROMPT (paste verbatim next session) ====
+
+Read port-plan-incomplete.md's "Session 2026-04-26 #3"
+section above this prompt — the previous session closed
+§23.B in five group commits + one closeout commit. Plan-
+file move (the doc-only closure entry in
+port-plan-complete.md) is already done.
+
+Recommended sequencing for the next session(s):
+
+  1. **§23.C / §23.D in parallel** (~1 session each,
+     mechanical). Combat-constants sweep + driv.c
+     char-creation thresholds. The shape is just lifting
+     literals into res_combat_int / res_driv_int lookups;
+     no new DSL surface needed.
+
+  2. **§24.A1 — bulk fprintf-to-LOG_* migration**
+     (~1 session, mechanical). ~75 callsites: res.c x44,
+     driv.c x36, snapshot.c x28, party.c x10, json5.c x5,
+     primitives.c x2, ryl.c x3, inventory.c x3. Author rule:
+     LOG_E for "couldn't proceed, returned default";
+     LOG_W for "shape was wrong, falling back".
+
+  3. **§23.G / §23.H — race + ydarg-scenario dispatcher
+     migrations** (~1 session each). Same shape as §23.B
+     — `switch (n) { case 1: ...; case 2: ... }` becomes
+     a data-driven dispatch with bodies in JSON5. driv.c
+     race switch (1540-1575) + ydarg.c scenario switches
+     are the targets; both keep the int-keyed state, just
+     move the dispatch table out.
+
+  4. **§24.B** (~1 session). File + null sinks behind
+     `RYL_LOG=file:…` / `RYL_LOG=null`. Replay harness
+     defaults to `RYL_LOG=null` after this lands;
+     re-bless drops residual stderr noise.
+
+  5. **§23.F + §23.E** (closeouts). ydarg stairs (already
+     partly done) + bestiary special-encounter survey
+     (likely closes as documentation).
+
+  6. **Later: §24.C** (TCP listener). **§25** (1-indexed
+     cleanup, low priority). `plans/future-directions.md`
+     multi-party MUD work — only after §22-§24 are
+     fully closed.
+
+Pre-flight:
+  - `make check` + `make testasan` green at HEAD
+    (3768f2e or whatever the §23.B closeout commit was).
+  - 6 commits this session on `lagergren/port1`, all
+    pushed to origin.
+  - The §22.5 spell fixtures + §23.A combat-monster-magic
+    fixture pin the player-side combat path byte-for-byte.
+    Group A/B/C/D/E magic-item bodies are not byte-pinned
+    by any current fixture — the dispatcher coverage they
+    get is structural. (A combat-magic-item fixture
+    covering one or two of the items would be a low-cost
+    addition.)
+  - The per-item-effect dispatcher in battle.c is now
+    the only Use-Item path. A bad oc with no effect body
+    fires `ryl_die("magic_items: no effect body for id N")`
+    — instructive for authoring errors but never reaches
+    today (every item has a body).
+  - Body-owned inventory consume: every magic-item body
+    starts with `engine_call: 'pa_set_inventory', args: [
+    { var: 'inv_slot' }, 0 ]`. gem_of_resurrection is the
+    one exception that defers the consume to its success
+    branch. New magic items must follow the same pattern.
+  - script_combat_ctx.action_retry: a body sets it via
+    `mutate { battle_flag: 'action_retry' } = 1` to bump
+    battle.c back to the action menu without consuming
+    a turn. Used by 108-fail today; available to any
+    future body that needs the same shape.
+  - port-plan.md is the 45-line master TOC. Section work
     appends to port-plan-incomplete.md; close moves to
     port-plan-complete.md.
   - plans/future-directions.md is outside the port plan —

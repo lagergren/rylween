@@ -42,4 +42,5 @@ Section numbers are preserved across the split — every `§N` cross-reference i
 | 22 | DSL unification plan (audit 2026-04-25) — §22 closed; embeds §23 lookahead   | in-progress | port-plan-incomplete.md    |
 | 23 | Engine→data extraction (post-§22 planning)                                   | in-progress | port-plan-incomplete.md (inside §22) |
 | 24 | Logging + remote console (audit 2026-04-26)                                  | in-progress | port-plan-incomplete.md    |
+| 24bis | `id:` → slug-keyed state (deferred, post-§25)                              | deferred    | port-plan-incomplete.md    |
 | 25 | 1-indexed → 0-indexed cleanup (low-priority, post-§22-§24)                   | planned     | port-plan-incomplete.md    |
