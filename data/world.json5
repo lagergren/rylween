@@ -268,6 +268,30 @@
     defend_cap:     250,   // max accumulated defend pool before clamp
     hp_defense_div: 12,    // dp contribution per defender: hp[g] / N
 
+    // §23.C: player-attack tunables. `hit_bonus` is the +1 floor in
+    // ryl_chance(ws + N) so a 0-skill attacker still has a chance.
+    // `damage_spread_max` is the upper bound of the ryl_random(0, N)
+    // damage roll added on every successful hit. `confusion_div`
+    // halves... thirds... the effective ws when player_confused is
+    // set (mage confusion + monster confusion both go through this).
+    attack: {
+      hit_bonus:         1,
+      damage_spread_max: 4,
+      confusion_div:     3,
+    },
+
+    // §23.C: post-action ws penalties. battle_cry trades 4 ws for the
+    // off-guard message; defend trades 2 ws for the rest/stance gain.
+    // The `ws > N` guard prevents going below 1; tying penalty + guard
+    // to the same field keeps them in lockstep.
+    battle_cry: { ws_penalty: 4 },
+    defend:     { ws_penalty: 2, rest_threshold: 5 },
+
+    // §23.C: desperate-flee. (R)un after the F/R prompt rolls
+    // ryl_chance(N); on success the party is locked into combat and
+    // sees "Couldn't get away..."; on failure they escape.
+    run: { desperate_chance: 31 },
+
     // §20 S5/S11: encounter HP scaling and victory rewards live as
     // named entries in the top-level `formulas:` block (encounter_h1_
     // scaled / encounter_h2_scaled / reward_xp_per_survivor /

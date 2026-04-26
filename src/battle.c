@@ -327,8 +327,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                 tx("HI-YAAAA!\r\n\r\n");
                 ryl_delay(800);
                 tx0(res_text("battle.cry.off_guard"));
-                if (ws > 4) {
-                    ws -= 4;
+                int32_t cry_pen = res_combat_int("battle_cry.ws_penalty");
+                if (ws > cry_pen) {
+                    ws -= cry_pen;
                 }
                 ryl_delay(1500);
             }
@@ -341,7 +342,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     pm_add_hp(pmg, pm_lv(pmg));
                 }
                 clw();
-                if (defend < 5) {
+                if (defend < res_combat_int("defend.rest_threshold")) {
                     tx0(res_text("battle.rest.gain_hits"));
                     ryl_delay(1000);
                 } else {
@@ -353,8 +354,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                 if (cap > 0 && defend > cap) {
                     defend = (uint8_t)cap;
                 }
-                if (ws > 2) {
-                    ws -= 2;
+                int32_t def_pen = res_combat_int("defend.ws_penalty");
+                if (ws > def_pen) {
+                    ws -= def_pen;
                 }
             }
             /****************************************************************************/
@@ -379,12 +381,15 @@ void encounter(int32_t foe, int32_t mandatory) {
                 who = d - 64;
                 x = pm_ws(pm_cur(g));
                 if (playerconfused) {
-                    x /= 3;
+                    int32_t cdiv = res_combat_int("attack.confusion_div");
+                    if (cdiv > 0) {
+                        x /= cdiv;
+                    }
                 }
-                if (ryl_chance(x + 1)) {
+                if (ryl_chance(x + res_combat_int("attack.hit_bonus"))) {
                     /* HIT */
                     dp = obdamage(pm_wp(pm_cur(g)));
-                    dp += ryl_random(0, 4);
+                    dp += ryl_random(0, res_combat_int("attack.damage_spread_max"));
                     int32_t hpd = res_combat_int("hp_defense_div");
                     if (hpd > 0) {
                         dp += pm_hp(pm_cur(g)) / hpd;
@@ -610,7 +615,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         break;
                     }
                     if (c == 'R') {
-                        if (ryl_chance(31) || mandatory) {
+                        if (ryl_chance(res_combat_int("run.desperate_chance")) || mandatory) {
                             clw();
                             tx0(res_text("battle.run.fail_away"));
                             ryl_delay(1000);
