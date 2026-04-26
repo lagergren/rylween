@@ -15,8 +15,14 @@
 #include <time.h>
 
 void cl(void) {
-    char ff = 12;
-    io->write(&ff, 1);
+    /* Clear screen + home cursor. Form feed (0x0c) used to do this on
+       BBS terminals but on Mac Terminal / iTerm2 it's treated as LF
+       only (no clear), and screen.ans's own ESC[2J doesn't home the
+       cursor on those terminals — leaving the picture rendered at
+       wherever the prior tx left the cursor. ESC[2J + ESC[H does
+       both explicitly. */
+    static const char clear_home[] = "\033[2J\033[H";
+    io->write(clear_home, sizeof clear_home - 1);
 }
 
 void c(uint8_t x, uint8_t y) {
