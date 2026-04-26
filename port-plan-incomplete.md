@@ -4552,3 +4552,192 @@ Bar per session: `make check` + `make testasan` both green
 at every commit.
 
 ==== END CONTINUATION PROMPT ====
+
+## Session 2026-04-26 #3 (cont) — plan polish + temple-R fixture
+
+Two follow-on commits after the §23.B closeout:
+
+  1. `178ec7f` plan polish — port-plan-complete.md gets the
+     §23.B closure write-up; port-plan-incomplete.md gets
+     this session's log + new §23.G (driv race switch),
+     §23.H (ydarg scenario switches), §24bis (`id:` →
+     slug-keyed state, deferred); port-plan.md TOC adds
+     the §24bis row.
+  2. `b1cf2d9` fixture — `towne-thord-church-resurrect`.
+     Covers the temple (R)aise dead path that was broken
+     and fixed earlier in the session (089277e + b5cda77 +
+     051557d); without this fixture those fixes could
+     regress unnoticed. Uses RYL_FORCE_DEAD_SLOT=3 to
+     pre-seed a dead member without a combat detour.
+     Test count: 28 → 29 fixtures.
+
+State at HEAD (`b1cf2d9`):
+  - 8 commits on `lagergren/port1` since the prior push
+    point, all green on `make check` + `make testasan`.
+  - The full session list, in order:
+      4fc6962 §23.B Group A
+      4e2eead §23.B Group B
+      f19b5f1 §23.B Group C
+      2537f4a §23.B Group D
+      3768f2e §23.B Group E + closeout
+      178ec7f plan polish (§23.G/H queued, §24bis deferred)
+      b1cf2d9 towne-thord-church-resurrect fixture
+      (this commit) session #3 (cont) closure + continuation
+  - Fixture bank: 29 total. magic-item dispatcher is
+    structural-only; a combat-magic-item fixture is the
+    obvious follow-on — see continuation prompt below.
+
+==== CONTINUATION PROMPT (paste verbatim next session) ====
+
+Read this section of port-plan-incomplete.md (Session
+2026-04-26 #3 — both halves) for the full §23.B closure
+context. Eight commits on `lagergren/port1` since the
+prior session push. HEAD is `b1cf2d9` plus the doc-commit
+that wrote this prompt. `make check` + `make testasan`
+green at every step.
+
+**Where things stand right now (state worth keeping in
+mind before you start):**
+
+  - **Magic-item dispatcher pattern is established and
+    reusable.** Resolver returns (body, slug); body owns
+    its side effects (inventory consume,
+    state mutations); a battle_flag (`action_retry`) on
+    script_combat_ctx lets a body bump the dispatcher
+    back to the action menu without consuming a turn.
+    Same shape applies to §23.G (driv race switch) and
+    §23.H (ydarg scenarios); reuse it instead of growing
+    new ad-hoc dispatchers. The slug-yielding
+    `&slug_out` parameter on `res_magic_item_effect_node`
+    is the convention to copy when authoring future
+    int-keyed → data-keyed resolvers.
+
+  - **Body authoring rule: prefer mutate over
+    engine_call when the lvalue exists.** Magic-item
+    bodies use `mutate { target: { member_field: { idx,
+    field } }, op: 'add', value: 3 }` to express stat
+    bumps; an engine_call helper would have been a
+    needless duplicate of an existing path. The minimal
+    new engine surface §23.B added (pa_set_inventory /
+    pm_full_heal / pm_set_dead) is shape-driven —
+    pa_set_inventory because the body needs to clear the
+    triggering slot; pm_full_heal because it has a
+    dead-check guard the DSL doesn't reach for cleanly;
+    pm_set_dead because dead is a u8 with bit-flag
+    semantics. New engine_calls should clear the same
+    bar.
+
+  - **Iterator semantics matter for RNG identity.** The
+    three combat iterators are NOT interchangeable:
+      - `for_monster { var: 'i' }` — loops 1..noc
+        unconditionally; RNG draws inside fire on dead
+        slots too. Used by fire_wand to preserve the
+        legacy `for (i=1; i<=noc; i++) { spelldamage =
+        ...; if (!deadc[i]) ... }` byte stream.
+      - `for_each_alive_monster` — skips dead slots;
+        RNG draws only on alive. Used by kaels_axe /
+        holy_handgrenade. Body sees `monster_idx` as a
+        fixed-name binding.
+      - `for_each_alive_player` — symmetric for
+        party-side. Body sees `target_idx`.
+      - `for_member { var: 'm' }` — loops the full party
+        range; alive AND dead. Used by blessing_scroll
+        (for stat boosts that hit dead members too).
+    Pick by RNG identity first, then by intent.
+
+  - **Body-owned consume + action_retry are reusable.**
+    Any new script body that wants a "consume on success
+    only" or "retry the prompt" semantics has the
+    primitives in place. action_retry is currently only
+    set by gem_of_resurrection but the scaffolding is
+    there for any future case (e.g. a misclick on a
+    scroll target).
+
+  - **Pre-existing bugs surface during migrations** —
+    the rule is to fix them inline (matches the existing
+    "feedback_preexisting_bug_fixes" memory). §23.B Group
+    B fixed `tx("...KILLED!")` (no \r\n) by routing
+    through the standard battle.killed shard. Watch for
+    this pattern in §23.G/H.
+
+  - **Outstanding cleanup (low priority):**
+      - clangd flags `ryl.h` / `towne.h` as unused
+        includes in res.c, primitives.c, driv.c. Not
+        -Werror, so non-blocking, but a quiet sweep
+        through #include-cleanup is worth ~30 minutes.
+      - DSL `key_range: ['1','4']` literals in
+        data/world/scripts/towne.json5 don't track
+        res_party_member_max(); three or four sites.
+        Lift if a prompt ever needs N != 4.
+      - The §22 lane-A "inert pre-DSL placeholder"
+        cleanup — flute_of_madness was the last known
+        such; nothing else is currently flagged but
+        worth a grep for `['seq',\s*\['say'` / `set_flag`
+        legacy shapes if a future migration surfaces one.
+
+**Recommended sequencing for the next session(s):**
+
+  1. **Combat-magic-item fixture** (~0.5 session). Pick
+     one of the §23.B-migrated items (frost_wand is the
+     most distinctive — single-target damage with RNG)
+     and author a fixture that triggers it in combat.
+     Pattern: createparty → seed 42 → wilderness encounter
+     forced via RYL_FORCE_ENCOUNTER → in-combat (U)se
+     Item → letter for slot containing the wand. Pin the
+     RNG-identity stream + the H1..H4 / monster-HP block
+     in the snapshot.
+     This is the only §23.B coverage gap — the
+     dispatcher works (make check passes today) but no
+     fixture proves the body produces the right byte
+     stream.
+
+  2. **§23.C / §23.D** (~1 session each, mechanical).
+     Combat-constants sweep + driv.c char-creation
+     thresholds. Lift literals into res_combat_int /
+     res_driv_int. No new DSL.
+
+  3. **§24.A1 — fprintf-to-LOG_***  (~1 session,
+     mechanical). ~75 callsites; LOG_E for "couldn't
+     proceed", LOG_W for "shape was wrong, fallback".
+
+  4. **§23.G / §23.H** (~1 session each). Apply the
+     §23.B dispatcher pattern to driv.c race switch
+     (1540-1575) + ydarg.c scenario switches. Reuse
+     `res_<X>_effect_node(int, &slug)` resolver shape
+     and the body-owns-side-effects rule.
+
+  5. **§24.B** file/null log sinks (~1 session); replay
+     harness default to RYL_LOG=null after this.
+
+  6. **§23.F + §23.E closeouts** — finish ydarg stairs
+     (partly done in e61be95) and survey bestiary
+     special-encounter switches.
+
+  7. **Later:** §24.C (TCP listener), §25 (1-indexed),
+     §24bis (id: → slug, post-§25), then
+     plans/future-directions.md.
+
+Pre-flight:
+  - HEAD passes `make check` + `make testasan`.
+  - Magic-item dispatcher in battle.c is the only Use-
+    Item path; new items must author an `effect:` body
+    in magic_items.json5 (no C-side case arms).
+  - Inventory consume is body-owned: every magic-item
+    body opens with `engine_call: 'pa_set_inventory',
+    args: [{ var: 'inv_slot' }, 0]`. gem_of_resurrection
+    defers the consume to its success branch — pattern
+    for any future conditional consumer.
+  - action_retry battle_flag: set via
+    `mutate { battle_flag: 'action_retry' } = 1` to bump
+    battle.c back to the action menu. Reusable shape.
+  - 29 fixtures in the suite. New fixtures append to
+    tools/replay/<name>.{env,in,expect,expect_snapshot};
+    `tools/replay.sh <name> --bless` writes the baselines.
+  - port-plan.md is the 45-line master TOC. New work
+    appends to port-plan-incomplete.md; close moves to
+    port-plan-complete.md.
+
+Bar per session: `make check` + `make testasan` both
+green at every commit. Push at session close.
+
+==== END CONTINUATION PROMPT ====
