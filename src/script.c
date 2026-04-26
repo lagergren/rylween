@@ -1028,10 +1028,12 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
             p = g_combat_ctx->player_held;
         } else if (strcmp(bf_n->u.sv, "player_confused") == 0) {
             p = g_combat_ctx->player_confused;
+        } else if (strcmp(bf_n->u.sv, "action_retry") == 0) {
+            p = g_combat_ctx->action_retry;
         } else {
             die_at(script_id, idx,
                    "expr battle_flag: unknown name (use confused/held/"
-                   "antimagic/ws/player_held/player_confused)");
+                   "antimagic/ws/player_held/player_confused/action_retry)");
         }
         if (!p) {
             die_at(script_id, idx,
@@ -1485,6 +1487,34 @@ static void eng_pm_hp_floor(const int32_t *a) {
     pm_hp_floor(pm_cur((int)a[0]), (int)a[1]);
 }
 
+/* §23.B: pm_full_heal(pm_cur(member)) — hp = h. Used by Staff of
+   Healing's effect body. The C helper itself guards on pm_dead, so
+   the script can fire this unconditionally and let the engine no-op
+   on dead targets (matching the legacy `pm_full_heal(target)` call
+   in case 105). */
+static void eng_pm_full_heal(const int32_t *a) {
+    pm_full_heal(pm_cur((int)a[0]));
+}
+
+/* §23.B: pm_set_dead(pm_cur(member), value) — flip a member's dead
+   bit to 0 (resurrect) or 1 (kill). The Gem of Resurrection body
+   uses this to clear the dead flag once a target validates; pairs
+   with a `member_field hp` mutate to give the resurrected member
+   1 hp. */
+static void eng_pm_set_dead(const int32_t *a) {
+    pm_set_dead(pm_cur((int)a[0]), (int)a[1]);
+}
+
+/* §23.B: pa_set_inventory(slot, item_id). Magic-item effect bodies
+   call this to consume the triggering slot (`pa_set_inventory(slot,
+   0)`). Most items consume up-front (first op); gem_of_resurrection
+   consumes only inside its success branch. Lifting the consume into
+   the body keeps the dispatcher in battle.c uniform and lets the
+   data describe the policy. */
+static void eng_pa_set_inventory(const int32_t *a) {
+    pa_set_inventory((int)a[0], (int)a[1]);
+}
+
 /* §22 Lane A: priest.teleport movement loop. dir is the ASCII digit
    key the player pressed ('2'/'4'/'6'/'8' = south/west/east/north;
    passed as int via {var:'<key_var>'}); distance is the ASCII digit
@@ -1547,6 +1577,9 @@ static const engine_entry engine_tbl[] = {
     {"pm_hp_floor", 2, eng_pm_hp_floor},
     {"pa_teleport_step", 2, eng_pa_teleport_step},
     {"pa_add_pl", 1, eng_pa_add_pl},
+    {"pm_full_heal", 1, eng_pm_full_heal},
+    {"pm_set_dead", 2, eng_pm_set_dead},
+    {"pa_set_inventory", 2, eng_pa_set_inventory},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps
@@ -2472,6 +2505,8 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
                 p = g_combat_ctx->player_held;
             } else if (strcmp(f, "player_confused") == 0) {
                 p = g_combat_ctx->player_confused;
+            } else if (strcmp(f, "action_retry") == 0) {
+                p = g_combat_ctx->action_retry;
             } else {
                 die_at(script_id, idx,
                        "mutate battle_flag: unknown name");
@@ -2614,6 +2649,8 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                 p = g_combat_ctx->player_held;
             } else if (strcmp(f, "player_confused") == 0) {
                 p = g_combat_ctx->player_confused;
+            } else if (strcmp(f, "action_retry") == 0) {
+                p = g_combat_ctx->action_retry;
             } else {
                 die_at(script_id, idx,
                        "mutate battle_flag: unknown name");

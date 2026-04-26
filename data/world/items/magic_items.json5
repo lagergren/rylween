@@ -1,23 +1,29 @@
-// Magic items shard — ids 100–111. Each entry that has been
-// migrated to §23.B carries an `effect:` body — an array of script
-// DSL ops play_spell_body executes when the player triggers the item
-// from battle.c's "I" branch. Entries without `effect:` are still
-// handled by battle.c's legacy switch arms; they will grow bodies as
-// §23.B's groups B–E land. The `effect:` shape mirrors spells/mage's
-// `do:` body — same op vocabulary (engine_call / emit / mutate /
+// Magic items shard — ids 100–111. Each entry that has been migrated
+// to §23.B carries an `effect:` body — an array of script DSL ops
+// play_spell_body executes when the player triggers the item from
+// battle.c's "I" branch. The shape mirrors spells/mage.json5's `do:`
+// body — same op vocabulary (engine_call / emit / mutate /
 // for_each_alive_monster / etc.) and the same script_combat_ctx is
 // active during the body so `battle_flag` / `monster_hp` lvalues work.
+//
+// Inventory consume is body-owned: every effect: starts (or, for
+// gem_of_resurrection, conditionally branches to) `pa_set_inventory
+// inv_slot 0`. The dispatcher in battle.c binds `inv_slot` from
+// inv_slot_from_letter(d); bodies decide when to consume so a
+// conditional item like gem_of_resurrection can preserve the slot
+// when the action fails.
 {
   // §23.B Group B: frost_wand. Single-target damage on the lowest-
   // index alive monster. Damage = ryl_random(5, 11) + caster.lv. RNG
-  // identity preserved — random first (matches the legacy gcc-evaluation
-  // order; pm_lv has no side effects so order doesn't change RNG).
-  // Missing-\\r\\n bug from the legacy `tx("...KILLED!")` (no newline)
-  // is fixed inline by routing through battle.killed, matching every
-  // other kill site in the file.
+  // identity preserved — random first (matches the legacy gcc
+  // evaluation order; pm_lv has no side effects so order doesn't
+  // change RNG). Missing-\\r\\n bug from the legacy `tx("...KILLED!")`
+  // (no newline) is fixed inline by routing through battle.killed,
+  // matching every other kill site in the file.
   frost_wand: {
     id: 100, name: 'Frost Wand', cost: 1000,
     effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
       { engine_call: 'clw' },
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
@@ -53,6 +59,7 @@
   fire_wand: {
     id: 101, name: 'Fire Wand', cost: 3000,
     effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
       { engine_call: 'clw' },
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
@@ -83,12 +90,12 @@
     ],
   },
   // §23.B Group A: gem_of_confusion. RNG-free narration + ws/=2.
-  // Inventory consume happens in C up-front (battle.c). The trailing
-  // `wait_input + clw` mirrors the legacy `ryl_pause(); clw();` at
-  // the end of the case, before the combat loop redraws.
+  // Trailing wait_input + clw mirrors the legacy ryl_pause; clw
+  // tail before the combat loop redraws.
   gem_of_confusion: {
     id: 102, name: 'Gem of Confusion', cost: 1560,
     effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
       { engine_call: 'clw' },
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
@@ -104,6 +111,7 @@
   gem_of_blindness: {
     id: 103, name: 'Gem of Blindness', cost: 4900,
     effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
       { engine_call: 'clw' },
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
@@ -116,13 +124,11 @@
   },
   // §23.B Group B: drums_of_death. Single-target instakill on the
   // lowest-index alive monster. RNG-free. Legacy delays were 2000ms
-  // before "...KILLED!" then 600ms before clw — preserved here. The
-  // legacy clw at the end is implicit — battle.c's outer loop redraws
-  // on the next iteration; the body still emits a final clw to match
-  // the original sequencing.
+  // before "...KILLED!" then 600ms before clw — preserved here.
   drums_of_death: {
     id: 104, name: 'Drums of Death', cost: 4500,
     effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
       { engine_call: 'clw' },
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
@@ -140,10 +146,97 @@
       ]}},
     ],
   },
-  staff_of_healing:   { id: 105, name: 'Staff of Healing',    cost: 670 },
+  // §23.B Group D: staff_of_healing. Prompts for a target digit
+  // (1..party_member_max) and full-heals the chosen member. The
+  // pm_full_heal helper itself no-ops on dead members — the legacy
+  // narration "X is fully healed." prints regardless, preserved here
+  // (peculiar UX but byte-for-byte the original behavior).
+  staff_of_healing: {
+    id: 105, name: 'Staff of Healing', cost: 670,
+    effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
+      { engine_call: 'clw' },
+      { menu_branch: {
+          prompt: 'battle.prompt.on_whom',
+          options: [
+            { digit_range: { lo: 1,
+                             hi: { engine_int: 'pa_party_member_max' } },
+              index_var: 'target',
+              then: [
+                { engine_call: 'pm_full_heal',
+                  args: [{ var: 'target' }] },
+                { engine_call: 'clw' },
+                { engine_bind: { fn: 'pa_name',
+                                 args: [{ var: 'target' }],
+                                 var: 'target_name' }},
+                { emit: 'battle.item.staff_of_healing.fully_healed' },
+                { pause: 1000 },
+                { engine_call: 'clw' },
+              ],
+            },
+          ],
+      }},
+    ],
+  },
   blessing_scroll:    { id: 106, name: 'Blessing Scroll',     cost: 2000 },
   staff_of_curing:    { id: 107, name: 'Staff of Curing',     cost: 4343 },
-  gem_of_resurrection:{ id: 108, name: 'Gem of Resurrection', cost: 9000 },
+  // §23.B Group D: gem_of_resurrection. Conditional consume — the
+  // inventory slot is cleared only inside the success branch (target
+  // was dead). On the not-dead branch, the body sets battle_flag
+  // 'action_retry' to 1; battle.c's dispatcher checks it after the
+  // body returns and `goto combat`s to re-prompt the action menu,
+  // preserving the legacy "no turn spent on a typo" semantics.
+  gem_of_resurrection: {
+    id: 108, name: 'Gem of Resurrection', cost: 9000,
+    effect: [
+      { engine_call: 'clw' },
+      { menu_branch: {
+          prompt: 'battle.prompt.on_whom',
+          options: [
+            { digit_range: { lo: 1,
+                             hi: { engine_int: 'pa_party_member_max' } },
+              index_var: 'target',
+              then: [
+                { if: { cond: { eq: [{ member: { var: 'target' },
+                                                field: 'dead' }, 1] },
+                    then: [
+                      { engine_call: 'clw' },
+                      { engine_bind: { fn: 'pa_name',
+                                       args: [{ var: 'target' }],
+                                       var: 'target_name' }},
+                      { engine_bind: { fn: 'pronoun',
+                                       args: [{ var: 'target' },
+                                              'possessive'],
+                                       var: 'target_possessive' }},
+                      { emit: 'battle.item.gem_of_resurrection.opens_eyes' },
+                      { pause: 1000 },
+                      { engine_call: 'pa_add_pl', args: [1] },
+                      { engine_call: 'pm_set_dead',
+                        args: [{ var: 'target' }, 0] },
+                      { mutate: { target: { member_field: {
+                                              idx: { var: 'target' },
+                                              field: 'hp' } },
+                                  op: 'set', value: 1 }},
+                      { engine_call: 'pa_set_inventory',
+                        args: [{ var: 'inv_slot' }, 0] },
+                    ],
+                    else: [
+                      { engine_call: 'clw' },
+                      { engine_bind: { fn: 'pa_name',
+                                       args: [{ var: 'target' }],
+                                       var: 'target_name' }},
+                      { emit: 'battle.item.gem_of_resurrection.not_dead' },
+                      { pause: 1000 },
+                      { mutate: { target: { battle_flag: 'action_retry' },
+                                  op: 'set', value: 1 }},
+                    ],
+                }},
+              ],
+            },
+          ],
+      }},
+    ],
+  },
   // §23.B Group C: kaels_axe AOE. Sets every alive monster's HP to
   // ryl_random(1, 3) — leaves them near-dead, doesn't kill outright.
   // RNG draws ONLY for alive slots (legacy gates `if (!deadc[i])`
@@ -153,6 +246,7 @@
   kaels_axe: {
     id: 109, name: "Kael's Axe", cost: 14000,
     effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
       { engine_call: 'clw' },
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
@@ -175,6 +269,7 @@
   holy_handgrenade: {
     id: 110, name: 'Holy Handgrenade', cost: 5600,
     effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
       { engine_call: 'clw' },
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
@@ -198,6 +293,7 @@
   flute_of_madness: {
     id: 111, name: 'Flute of Madness', cost: 9000,
     effect: [
+      { engine_call: 'pa_set_inventory', args: [{ var: 'inv_slot' }, 0] },
       { engine_call: 'clw' },
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},

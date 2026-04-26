@@ -246,6 +246,10 @@ struct script_combat_ctx {
                       /* `held` (player→monster hold above). */
     int *player_confused; /* §23.A: monster.confuse sets this; the */
                       /* upcoming player attack roll halves ws. */
+    int *action_retry; /* §23.B: gem_of_resurrection's not-dead branch */
+                      /* sets this to abort the body and bump battle.c */
+                      /* back to the action menu (legacy `goto combat`). */
+                      /* NULL on callers that don't expose a retry path. */
     int h2;           /* per-encounter monster max-HP scalar (reward + */
                       /* monster-spell scaling). Pushed into rt_env as */
                       /* `h2` on play_spell_body entry so combat bodies */

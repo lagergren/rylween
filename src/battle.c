@@ -23,7 +23,7 @@ static void expcheck(void);
 void encounter(int32_t foe, int32_t mandatory) {
     assert(foe >= 1);
     assert(state.cpl >= 1 && state.cpl <= state.num_parties);
-    char fn[80], str[80], b, c, d;
+    char fn[80], str[80], c, d;
     int32_t n1 = 0, n2 = 0; /* Min & Max nr */
     int32_t h1 = 0, h2 = 0; /* Min & Max hp */
     int32_t sp;             /* Fire frost hold */
@@ -203,15 +203,25 @@ void encounter(int32_t foe, int32_t mandatory) {
                             const void *effect =
                                 res_magic_item_effect_node(oc, &slug);
                             if (effect) {
-                                pa_set_inventory(inv_slot_from_letter(d), 0);
+                                /* Inventory consume is body-owned
+                                   (pa_set_inventory engine_call) so a
+                                   conditional consumer like
+                                   gem_of_resurrection can defer to its
+                                   success branch. The dispatcher just
+                                   binds the slot the player chose. */
                                 char caster_buf[8];
                                 snprintf(caster_buf, sizeof caster_buf, "%d", g);
+                                char inv_slot_buf[8];
+                                snprintf(inv_slot_buf, sizeof inv_slot_buf,
+                                         "%d", inv_slot_from_letter(d));
                                 ryl_bind binds[] = {
                                     {"caster_idx", caster_buf},
                                     {"monster_name", fn},
+                                    {"inv_slot", inv_slot_buf},
                                     {0},
                                 };
                                 int ws_int = ws;
+                                int action_retry = 0;
                                 struct script_combat_ctx ctx = {
                                     .noc = noc,
                                     .mh = mh,
@@ -221,6 +231,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     .held = &held,
                                     .antimagic = &antimagic,
                                     .ws = &ws_int,
+                                    .action_retry = &action_retry,
                                     .h2 = h2,
                                 };
                                 char id_buf[80];
@@ -229,34 +240,19 @@ void encounter(int32_t foe, int32_t mandatory) {
                                          slug ? slug : "(unknown)");
                                 play_spell_body(id_buf, effect, binds, &ctx);
                                 ws = (int32_t)ws_int;
+                                if (action_retry) {
+                                    /* gem_of_resurrection's not-dead
+                                       branch — re-prompt the player's
+                                       action menu without consuming
+                                       a turn (legacy `goto combat`). */
+                                    goto combat;
+                                }
                             } else
                             switch (oc) {
-                                /* §23.B A/B/C: 100/101/102/103/104/109/110/111
-                                   are migrated to magic_items.json5 effect:
-                                   bodies; the dispatcher above routes them
-                                   through play_spell_body before this switch
-                                   is entered. Groups D+E will hollow out the
-                                   remaining arms (105/106/107/108). */
-                                case 105: {
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    clw();
-                                    tx_fmt("battle.prompt.on_whom", NULL);
-                                    while (1) {
-                                        d = key();
-                                        if (pm_digit_in_range(d)) {
-                                            break;
-                                        }
-                                    }
-                                    pm_t target = pm_cur(d - 48);
-                                    pm_full_heal(target);
-                                    clw();
-                                    tx("%s is fully\r\n", pm_name(target));
-                                    tx("healed.\r\n");
-                                    ryl_delay(1000);
-                                    clw();
-                                    break;
-                                }
-
+                                /* §23.B A/B/C/D: 100/101/102/103/104/105/108/
+                                   109/110/111 are migrated to magic_items
+                                   effect: bodies. Group E will hollow out
+                                   the remaining arms (106/107). */
                                 case 106:
                                     pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
@@ -282,34 +278,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                                         pm_full_heal(pm_cur(i));
                                     }
                                     break;
-
-                                case 108: {
-                                    clw();
-                                    tx_fmt("battle.prompt.on_whom", NULL);
-                                    while (1) {
-                                        b = key();
-                                        if (pm_digit_in_range(b)) {
-                                            break;
-                                        }
-                                    }
-                                    pm_t target = pm_cur(b - 48);
-                                    if (pm_dead(target)) {
-                                        clw();
-                                        tx("%s opens %s eyes!\r\n", pm_name(target),
-                                           pronoun(b - 48, 3));
-                                        ryl_delay(1000);
-                                        pa_add_pl(1);
-                                        pm_set_dead(target, 0);
-                                        pm_set_hp(target, 1);
-                                        pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    } else {
-                                        clw();
-                                        tx("%s is not dead.\r\n", pm_name(target));
-                                        ryl_delay(1000);
-                                        goto combat;
-                                    }
-                                    break;
-                                }
 
                             }
                         }

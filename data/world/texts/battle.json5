@@ -90,6 +90,20 @@
       ka_blam:       ['KA-BLAM!',
                       ''],
     },
+    // §23.B Group D: staff_of_healing — "X is fully healed."
+    // narration. Two lines (legacy tx() pair).
+    staff_of_healing: {
+      fully_healed:  ['{target_name} is fully',
+                      'healed.'],
+    },
+    // §23.B Group D: gem_of_resurrection. Success path renders the
+    // possessive pronoun via engine_bind 'pronoun' + 'possessive';
+    // the not-dead path is a single line + delay before the body
+    // signals action_retry to the dispatcher.
+    gem_of_resurrection: {
+      opens_eyes:    ['{target_name} opens {target_possessive} eyes!'],
+      not_dead:      ['{target_name} is not dead.'],
+    },
   },
   prompt: {
     on_whom:         ['On Whom? (1-{party_max})'],
