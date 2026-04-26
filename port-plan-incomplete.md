@@ -3400,6 +3400,60 @@ wilderness-camp / wilderness-cave-descent fixtures cover
 some paths; new fixtures may be needed for the
 special-encounter arms.
 
+**§23.J — Full ydarg walk-through + confrontation fixture
+(queued 2026-04-26 #4).** Companion to ydarg-no-key (which
+pins the gate-rejection path via RYL_FORCE_POS=14,30 + no
+silverkey). The full path needs three more pieces:
+
+  1. **Knob bundle** — easiest as one new `RYL_FORCE_YDARG=1`
+     knob that, applied at end of party creation:
+       - grants PS_SILVERKEY + PS_FIRESHIELD + PS_MASTERCROWN
+         + PS_JAZZYFOOT + PS_BRACELETS (so each floor's
+         "give item" prompt has a valid donation)
+       - bumps party level (probably stack on
+         RYL_FORCE_PARTY_LV=28 instead of replacing)
+     Plus a separate `RYL_FORCE_YDARG_EASY_ROOMS=1` that, in
+     ydarg() room init, fills every non-stairs slot with case
+     4 (no-op) instead of `ryl_random(1, 5)`. Without easy
+     rooms the fixture is fragile — one RNG-shifting refactor
+     and the whole ~100-keystroke input stream needs
+     re-authoring.
+
+  2. **Fixture authoring** — `ydarg-confrontation`. Sequence:
+       - title N → 4 char create
+       - title C → wilderness map (warped to 14, 30)
+       - E → enter castle
+       - 5 pause keys (approach, jaara_form, jaara_speech,
+         key_accepted, enter)
+       - door slams (delay, no input)
+       - per floor (×4):
+           - 8 moves to room[5][5] (4× `6` east, 4× `2`
+             south); each move triggers the floor-narration
+             block + nav prompt
+           - stairs body: G (give) + digit (1..4 in floor
+             order) + reroll-on-stat-cap if needed
+       - confrontation: pause through act1 narration, fight 4
+         monsters back-to-back (heavy keystroke load —
+         ~10 attacks per fight at LV=28), pause through act2
+         narration, fight baron_ydarg (the boss kill-shot is
+         where heroes.txt write fires + cleanexit())
+
+  3. **Heroes.txt sentinel** — the success path ends in
+     `cleanexit()` after writing `heroes.txt` with the
+     month-name string this session lifted to data. The
+     fixture's snapshot won't capture heroes.txt (it's
+     written under the data/ root, not the per-fixture
+     HOME). If pinning that line matters, add a snapshot
+     hook for it; otherwise the byte-for-byte stdout pin
+     proves the path ran.
+
+Effort: ~1 session including knob authoring + fixture +
+bless. baron_ydarg is the toughest creature in the game
+(h2=1000, ws=90); even a LV=28 party may need multiple
+attacks per round to drop him within the keystroke budget.
+If the boss kills the party first, the fixture instead
+pins the loss path, which is also a valid coverage.
+
 **§23.I — Multi-screen narration helper (queued 2026-04-26
 #4).** Pervasive pattern across ydarg.c / towne.c / dungeon.c
 (sample at ydarg.c::confrontation lines 432-491): runs of
