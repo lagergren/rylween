@@ -24,28 +24,41 @@ void c(uint8_t x, uint8_t y) {
     int32_t n;
 
     state.global_x = x;
-    n = snprintf(pos, sizeof pos, ANSI_CSI "%d;0H", y);
+    /* Use ";1H" (column 1, the leftmost column in 1-indexed CUP)
+       rather than ";0H". ECMA-48 says param 0 defaults to 1, but
+       terminal behavior varies — some implementations treat col=0
+       as "keep current column", which leaves the cursor mid-row and
+       breaks the relative ESC[<x>C jump that tx0/tx emits next. */
+    n = snprintf(pos, sizeof pos, ANSI_CSI "%d;1H", y);
     io->write(pos, (size_t)n);
 }
 
-/* Write `s` to the terminal, prefixing each line with a cursor-right
-   jump (ESC[<global_x>C) so multi-line content stays inside the right
-   text window. tx0/tx route through this helper.
+/* Write `s` to the terminal, prefixing each line with a CR + cursor-
+   right jump (\r ESC[<global_x>C) so multi-line content stays inside
+   the right text window regardless of where the cursor was when this
+   helper was entered. tx0/tx route through this helper.
 
    The bug we're fixing: clw() positions the cursor at the left margin
    of the right text window via c(49, 6) (state.global_x = 49). A
    single ESC[49C at the head of the buffer only positions the FIRST
    line; the embedded \r\n's that separate subsequent lines return the
    cursor to column 1, and lines 2+ render at the left margin instead
-   of inside the text window. Walking the buffer and re-emitting the
-   column jump after each \n keeps every line in the right column.
+   of inside the text window.
 
-   Empty buffers still emit one jump (matching the old behavior so any
-   call site relying on the side effect of "cursor was positioned, no
-   content written" — e.g. tx("") — continues to work). */
+   Why CR + ESC[<x>C and not just ESC[<x>C: the relative cursor-right
+   jump is interpreted from the current column. If the cursor isn't
+   already at column 1 (e.g. a prior tx left it mid-row, or c(x,y)'s
+   ;0H positioning didn't reset col), ESC[49C lands the cursor far
+   right of the text window. The leading \r forces the cursor back to
+   column 1, then ESC[<x>C jumps right by exactly x columns. Robust.
+
+   Empty buffers still emit one CR + jump (matching the old behavior
+   so call sites relying on the side effect of "cursor was positioned,
+   no content written" — e.g. tx("") — continue to work). */
 static uint32_t emit_with_col_jump(const char *s) {
-    char jump[16];
-    int32_t jn = snprintf(jump, sizeof jump, ANSI_CSI "%dC", state.global_x);
+    char jump[24];
+    int32_t jn = snprintf(jump, sizeof jump, "\r" ANSI_CSI "%dC",
+                          state.global_x);
     if (jn <= 0) {
         return 0;
     }
