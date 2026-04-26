@@ -3400,6 +3400,60 @@ wilderness-camp / wilderness-cave-descent fixtures cover
 some paths; new fixtures may be needed for the
 special-encounter arms.
 
+**§23.I — Multi-screen narration helper (queued 2026-04-26
+#4).** Pervasive pattern across ydarg.c / towne.c / dungeon.c
+(sample at ydarg.c::confrontation lines 432-491): runs of
+`tx0(res_text(id)) + ryl_pause() + clw()` where each screen
+is its own text key, even though the C-side ceremony is
+identical for every step. ydarg.conf alone has 14 such
+keys split into 4 narration runs (act1: trapdoor_slam →
+fools, 2 screens; act2: corpses → impress → sphere → mages
+[bind p1_name] → curses → trident → commence, 7 screens;
+act3: trident_falls → not_over → cloak → dust → congrats,
+5 screens; act4: heroes → signoff, 2 screens) — the boundaries
+fall on encounters / state mutations, not on rendering shape.
+
+**Shape A** (sugar) — flat list-of-lists; transition is
+`pause + clw` between, no trailing pause:
+
+    prelude: [
+      ['The last trapdoor', 'slams shut...', ''],
+      ['- Fools! ...', ''],
+    ],
+
+**Shape B** (annotated) — when transitions vary
+(`ryl_delay` between screens, "no pause" handoff, etc.):
+
+    prelude: [
+      { lines: [...], next: 'pause' },           // default; can omit
+      { lines: [...], next: { delay: 2000 } },
+      { lines: [...], next: 'none' },
+    ],
+
+C-side surface: one new helper `tx_narrate(const char *id,
+const ryl_bind *binds)` that walks the array, applies the
+default transition (or per-screen `next:` override), and
+threads `binds` through tx_fmt for screens that interpolate
+(`mages: '{p1_name}'`). A bare `[...]` is sugar for
+`{ lines: [...] }` with default transition.
+
+Where it pays off: ydarg.confrontation collapses ~15
+tx0/pause/clw triplets into 4 tx_narrate calls + 5
+encounter/state lines; ydarg() approach run (approach →
+jaara_form → jaara_speech) collapses 1:1; assorted
+towne.c and dungeon.c openers similarly.
+
+Tradeoff: once a screen is referenced from elsewhere
+(shared atom), it has to stay a top-level key. Audit each
+candidate run for cross-references before folding. None of
+ydarg.conf's screens look shared.
+
+Effort: ~0.5 session for the helper + ydarg.conf
+conversion as the first user; further conversions roll in
+opportunistically as adjacent work touches each call site.
+Independent of §23.G/H — can land before, between, or
+after.
+
 **Cross-cutting — DSL gaps.** §23.A and §23.B will likely
 surface two genuinely missing primitives:
 
