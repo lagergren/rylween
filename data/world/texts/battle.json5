@@ -49,6 +49,19 @@
                       'Nothing happens.',
                       ''],
     },
+    // §23.B Group B: frost_wand single-target chill — caster name +
+    // monster name in line 1; damage roll in line 2.
+    frost_wand: {
+      chills:        ['{caster} chills {monster_name}'],
+      damage_pts:    ['for {dmg} damage pts.'],
+    },
+    // §23.B Group B: drums_of_death single-target instakill narration.
+    // Three lines, then the shared battle.killed shard.
+    drums_of_death: {
+      summons_death: ['{caster} summons death',
+                      'to take a {monster_name}',
+                      'away...'],
+    },
   },
   prompt: {
     on_whom:         ['On Whom? (1-{party_max})'],

@@ -606,6 +606,24 @@ static int32_t ie_pick_random_alive_player(const int32_t *a) {
     }
 }
 
+/* §23.B: pick the lowest-index alive monster slot, or 0 if every
+   slot in the encounter is dead. Single-target frost wand / drums of
+   death use this — the legacy idiom is the same `for (i = 1, who = 0;
+   i <= noc; i++) if (!deadc[i]) { who = i; break; }` loop on both. No
+   RNG, no side effects; safe to call out of the cast-line gate. */
+static int32_t ie_pick_first_alive_monster(const int32_t *a) {
+    (void)a;
+    if (!g_combat_ctx) {
+        return 0;
+    }
+    for (int i = 1; i <= g_combat_ctx->noc; i++) {
+        if (!g_combat_ctx->deadc[i]) {
+            return i;
+        }
+    }
+    return 0;
+}
+
 static const int_engine_entry int_engine_tbl[] = {
     {"pa_is_alive",          1, ie_pa_is_alive,          {0}},
     {"pa_is_dead",           1, ie_pa_is_dead,           {0}},
@@ -625,6 +643,7 @@ static const int_engine_entry int_engine_tbl[] = {
     {"wld_location_x",       1, ie_wld_location_x,       {"world_locations"}},
     {"wld_location_y",       1, ie_wld_location_y,       {"world_locations"}},
     {"pick_random_alive_player", 0, ie_pick_random_alive_player, {0}},
+    {"pick_first_alive_monster", 0, ie_pick_first_alive_monster, {0}},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`

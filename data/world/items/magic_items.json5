@@ -8,7 +8,42 @@
 // for_each_alive_monster / etc.) and the same script_combat_ctx is
 // active during the body so `battle_flag` / `monster_hp` lvalues work.
 {
-  frost_wand:         { id: 100, name: 'Frost Wand',          cost: 1000 },
+  // §23.B Group B: frost_wand. Single-target damage on the lowest-
+  // index alive monster. Damage = ryl_random(5, 11) + caster.lv. RNG
+  // identity preserved — random first (matches the legacy gcc-evaluation
+  // order; pm_lv has no side effects so order doesn't change RNG).
+  // Missing-\\r\\n bug from the legacy `tx("...KILLED!")` (no newline)
+  // is fixed inline by routing through battle.killed, matching every
+  // other kill site in the file.
+  frost_wand: {
+    id: 100, name: 'Frost Wand', cost: 1000,
+    effect: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { let: 'target', value: { engine_int: 'pick_first_alive_monster' }},
+      { if: { cond: { gt: [{ var: 'target' }, 0] }, then: [
+          { let: 'dmg', value: { add: [
+              { random: [5, 11] },
+              { member: { var: 'caster_idx' }, field: 'lv' },
+          ]}},
+          { emit: 'battle.item.frost_wand.chills' },
+          { emit: 'battle.item.frost_wand.damage_pts' },
+          { pause: 1000 },
+          { mutate: { target: { monster_hp: { var: 'target' } },
+                      op: 'sub', value: { var: 'dmg' } }},
+          { if: { cond: { lte: [{ monster_hp: { var: 'target' } }, 0] },
+            then: [
+              { mutate: { target: { monster_hp: { var: 'target' } },
+                          op: 'set', value: 0 }},
+              { emit: 'battle.killed' },
+              { pause: 600 },
+              { mutate: { target: { monster_dead: { var: 'target' } },
+                          op: 'set', value: 1 }},
+          ]}},
+      ]}},
+    ],
+  },
   fire_wand:          { id: 101, name: 'Fire Wand',           cost: 3000 },
   // §23.B Group A: gem_of_confusion. RNG-free narration + ws/=2.
   // Inventory consume happens in C up-front (battle.c). The trailing
@@ -42,7 +77,32 @@
       { mutate: { target: { battle_flag: 'ws' }, op: 'set', value: 5 }},
     ],
   },
-  drums_of_death:     { id: 104, name: 'Drums of Death',      cost: 4500 },
+  // §23.B Group B: drums_of_death. Single-target instakill on the
+  // lowest-index alive monster. RNG-free. Legacy delays were 2000ms
+  // before "...KILLED!" then 600ms before clw — preserved here. The
+  // legacy clw at the end is implicit — battle.c's outer loop redraws
+  // on the next iteration; the body still emits a final clw to match
+  // the original sequencing.
+  drums_of_death: {
+    id: 104, name: 'Drums of Death', cost: 4500,
+    effect: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { let: 'target', value: { engine_int: 'pick_first_alive_monster' }},
+      { if: { cond: { gt: [{ var: 'target' }, 0] }, then: [
+          { emit: 'battle.item.drums_of_death.summons_death' },
+          { pause: 2000 },
+          { emit: 'battle.killed' },
+          { pause: 600 },
+          { mutate: { target: { monster_dead: { var: 'target' } },
+                      op: 'set', value: 1 }},
+          { mutate: { target: { monster_hp: { var: 'target' } },
+                      op: 'set', value: 0 }},
+          { engine_call: 'clw' },
+      ]}},
+    ],
+  },
   staff_of_healing:   { id: 105, name: 'Staff of Healing',    cost: 670 },
   blessing_scroll:    { id: 106, name: 'Blessing Scroll',     cost: 2000 },
   staff_of_curing:    { id: 107, name: 'Staff of Curing',     cost: 4343 },

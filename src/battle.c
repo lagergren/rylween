@@ -231,30 +231,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 ws = (int32_t)ws_int;
                             } else
                             switch (oc) {
-                                case 100:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    for (i = 1, who = 0; i < noc + 1; i++) {
-                                        if (!deadc[i]) {
-                                            who = i;
-                                            break;
-                                        }
-                                    }
-                                    if (who) {
-                                        spelldamage = ryl_random(5, 11) + pm_lv(pm_cur(g));
-                                        clw();
-                                        tx("%s chills %s\r\n", pm_name(pm_cur(g)), fn);
-                                        tx("for %d damage pts.\r\n", spelldamage);
-                                        ryl_delay(1000);
-                                        mh[who] -= spelldamage;
-                                        if (mh[who] <= 0) {
-                                            mh[who] = 0;
-                                            tx("...KILLED!");
-                                            ryl_delay(600);
-                                            deadc[who] = 1;
-                                        }
-                                    }
-                                    break;
-
                                 case 101:
                                     pa_set_inventory(inv_slot_from_letter(d), 0);
                                     for (i = 1; i < noc + 1; i++) {
@@ -275,34 +251,13 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     }
                                     break;
 
-                                /* §23.B Group A: cases 102/103/111 migrated
-                                   to magic_items.json5 effect: bodies; the
-                                   dispatcher above (res_magic_item_effect_node
-                                   != NULL) routes them through play_spell_body
-                                   before this switch is entered. Groups B–E
-                                   will hollow out the remaining arms. */
-                                case 104:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    for (i = 1, who = 0; i < noc + 1; i++) {
-                                        if (!deadc[i]) {
-                                            who = i;
-                                            break;
-                                        }
-                                    }
-                                    if (who) {
-                                        clw();
-                                        tx("%s summons death\r\n", pm_name(pm_cur(g)));
-                                        tx("to take a %s\r\n", fn);
-                                        tx("away...\r\n");
-                                        ryl_delay(2000);
-                                        tx0(res_text("battle.killed"));
-                                        ryl_delay(600);
-                                        deadc[who] = 1;
-                                        mh[who] = 0;
-                                        clw();
-                                    }
-                                    break;
-
+                                /* §23.B Groups A+B: 100/102/103/104/111 are
+                                   migrated to magic_items.json5 effect:
+                                   bodies; the dispatcher above routes them
+                                   through play_spell_body before this switch
+                                   is entered. Groups C–E will hollow out
+                                   the remaining arms (101/105/106/107/108/
+                                   109/110). */
                                 case 105: {
                                     pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
