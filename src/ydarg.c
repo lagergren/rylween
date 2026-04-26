@@ -423,10 +423,12 @@ static void confrontation() {
     tx0(res_text("ydarg.conf.fools"));
     ryl_pause();
     clw();
-    encounter(res_monster_id("crypt_horror"), 1);
-    encounter(res_monster_id("night_gaunt"), 1);
-    encounter(res_monster_id("thyraga"), 1);
-    encounter(res_monster_id("liche"), 1);
+    {
+        int n_seq = res_str_arr_count("ydarg.confrontation_sequence");
+        for (int k = 0; k < n_seq; k++) {
+            encounter(res_monster_id(res_str_arr_at("ydarg.confrontation_sequence", k)), 1);
+        }
+    }
     clw();
     tx0(res_text("ydarg.conf.corpses"));
     ryl_pause();

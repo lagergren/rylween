@@ -150,6 +150,14 @@ int32_t res_combat_int(const char *dotted_path);
    missing or the leaf is not a string. No copy, no caller free. */
 const char *res_str_path(const char *dotted_path);
 
+/* String-array helpers keyed by dotted path. res_str_arr_count returns
+   0 for missing path or non-array leaves (so callers can iterate
+   `for (i = 0; i < count; i++)` without a separate exists probe).
+   res_str_arr_at returns NULL on any miss (out of range, missing path,
+   non-string element). Pointers are owned by the world tree. */
+int res_str_arr_count(const char *dotted_path);
+const char *res_str_arr_at(const char *dotted_path, int idx);
+
 /* XP total needed to REACH the given level (2..28). Reads
    xp_thresholds[level] from the world tree. Returns 0 for out-of-range
    or missing entries — level 1 and slots past 28 are guard values, and

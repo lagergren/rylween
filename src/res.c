@@ -446,6 +446,80 @@ const char *res_str_path(const char *dotted_path) {
     return (cur->kind == N_STR) ? cur->u.sv : NULL;
 }
 
+/* Number of items in the array at `dotted_path`. 0 if the path doesn't
+   resolve to an array (missing path, scalar leaf, etc.) — callers can
+   treat that the same as "empty array" without a separate exists probe. */
+int res_str_arr_count(const char *dotted_path) {
+    if (!world_tree || !dotted_path) {
+        return 0;
+    }
+    char buf[192];
+    size_t n = strlen(dotted_path);
+    if (n >= sizeof buf) {
+        return 0;
+    }
+    memcpy(buf, dotted_path, n + 1);
+    const node *cur = world_tree;
+    char *p = buf;
+    while (*p) {
+        char *dot = strchr(p, '.');
+        if (dot) {
+            *dot = 0;
+        }
+        if (cur->kind != N_OBJ) {
+            return 0;
+        }
+        cur = obj_get(cur, p);
+        if (!cur) {
+            return 0;
+        }
+        if (!dot) {
+            break;
+        }
+        p = dot + 1;
+    }
+    return (cur->kind == N_ARR) ? (int)cur->u.arr.n : 0;
+}
+
+/* String-array element at `dotted_path[idx]`. NULL if the path doesn't
+   resolve to an array, the index is out of range, or the element isn't
+   a string. Pointer is owned by the world tree (valid until shutdown). */
+const char *res_str_arr_at(const char *dotted_path, int idx) {
+    if (!world_tree || !dotted_path || idx < 0) {
+        return NULL;
+    }
+    char buf[192];
+    size_t n = strlen(dotted_path);
+    if (n >= sizeof buf) {
+        return NULL;
+    }
+    memcpy(buf, dotted_path, n + 1);
+    const node *cur = world_tree;
+    char *p = buf;
+    while (*p) {
+        char *dot = strchr(p, '.');
+        if (dot) {
+            *dot = 0;
+        }
+        if (cur->kind != N_OBJ) {
+            return NULL;
+        }
+        cur = obj_get(cur, p);
+        if (!cur) {
+            return NULL;
+        }
+        if (!dot) {
+            break;
+        }
+        p = dot + 1;
+    }
+    if (cur->kind != N_ARR || (size_t)idx >= cur->u.arr.n) {
+        return NULL;
+    }
+    const node *el = cur->u.arr.items[idx];
+    return (el && el->kind == N_STR) ? el->u.sv : NULL;
+}
+
 int32_t res_combat_int(const char *dotted_path) {
     char buf[192];
     int n = snprintf(buf, sizeof buf, "combat.%s", dotted_path ? dotted_path : "");

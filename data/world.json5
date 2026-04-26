@@ -460,6 +460,18 @@
         magic:  { lo: 100, hi: 111 },
       },
     },
+
+    // Final-confrontation monster sequence (Baron Ydarg roof deck).
+    // ydarg.c::confrontation() runs encounter(<sym>, 1) for each
+    // entry in order; no narration between them (the act-1 narration
+    // bookends the sequence). Baron Ydarg himself stays separate
+    // because his fight is gated by its own act-2/3 narration block.
+    confrontation_sequence: [
+      'crypt_horror',
+      'night_gaunt',
+      'thyraga',
+      'liche',
+    ],
   },
 
   // NPCs — one entry per slot, keyed by display name (the same
