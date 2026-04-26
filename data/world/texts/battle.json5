@@ -62,6 +62,34 @@
                       'to take a {monster_name}',
                       'away...'],
     },
+    // §23.B Group C: fire_wand AOE per-monster narration. Format
+    // strings match the legacy `tx("...for %d pts!\\r\\n", dmg)` —
+    // "pts!" with no "damage" prefix, distinct from mage Fire Cloud's
+    // "for {dmg} damage pts!" wording.
+    fire_wand: {
+      burns:         ['{caster} burns {monster_name}'],
+      points:        ['for {dmg} pts!'],
+    },
+    // §23.B Group C: kaels_axe opener (the "throws Kael's axe at the
+    // enemy!" lines, before ghost_axe.wounds + battle_cry). Trailing
+    // '' reproduces the legacy `\\r\\n\\r\\n` blank line.
+    kaels_axe: {
+      thrown:        ["{caster} throws Kael's",
+                      'axe at the enemy!',
+                      ''],
+    },
+    // §23.B Group C: holy_handgrenade narration. Five-line opener
+    // and two-line KA-BLAM, both with trailing blank lines matching
+    // the legacy `\\r\\n\\r\\n` tails.
+    holy_handgrenade: {
+      lobbed:        ['{caster} pulls the',
+                      'holy pin, and lobbeth',
+                      'the holy handgrenade',
+                      'at the foes...',
+                      ''],
+      ka_blam:       ['KA-BLAM!',
+                      ''],
+    },
   },
   prompt: {
     on_whom:         ['On Whom? (1-{party_max})'],

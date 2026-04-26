@@ -44,7 +44,44 @@
       ]}},
     ],
   },
-  fire_wand:          { id: 101, name: 'Fire Wand',           cost: 3000 },
+  // §23.B Group C: fire_wand AOE damage. RNG identity: dmg draws
+  // ryl_random(3, 8) UNCONDITIONALLY per slot 1..noc — even on dead
+  // slots, matching the legacy `for (i=1; i<=noc; i++) { spelldamage
+  // = pm_lv * ryl_random(3, 8); if (!deadc[i]) ... }`. for_monster
+  // (not for_each_alive_monster) preserves that bookkeeping. mul order
+  // is lv * random — same as the legacy `pm_lv(...) * ryl_random(...)`.
+  fire_wand: {
+    id: 101, name: 'Fire Wand', cost: 3000,
+    effect: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { for_monster: { var: 'i', then: [
+          { let: 'dmg', value: { mul: [
+              { member: { var: 'caster_idx' }, field: 'lv' },
+              { random: [3, 8] },
+          ]}},
+          { if: { cond: { eq: [{ monster_dead: { var: 'i' } }, 0] },
+            then: [
+              { engine_call: 'clw' },
+              { emit: 'battle.item.fire_wand.burns' },
+              { emit: 'battle.item.fire_wand.points' },
+              { pause: 1000 },
+              { mutate: { target: { monster_hp: { var: 'i' } },
+                          op: 'sub', value: { var: 'dmg' } }},
+              { if: { cond: { lte: [{ monster_hp: { var: 'i' } }, 0] },
+                then: [
+                  { mutate: { target: { monster_hp: { var: 'i' } },
+                              op: 'set', value: 0 }},
+                  { emit: 'battle.killed' },
+                  { pause: 600 },
+                  { mutate: { target: { monster_dead: { var: 'i' } },
+                              op: 'set', value: 1 }},
+              ]}},
+          ]}},
+      ]}},
+    ],
+  },
   // §23.B Group A: gem_of_confusion. RNG-free narration + ws/=2.
   // Inventory consume happens in C up-front (battle.c). The trailing
   // `wait_input + clw` mirrors the legacy `ryl_pause(); clw();` at
@@ -107,8 +144,53 @@
   blessing_scroll:    { id: 106, name: 'Blessing Scroll',     cost: 2000 },
   staff_of_curing:    { id: 107, name: 'Staff of Curing',     cost: 4343 },
   gem_of_resurrection:{ id: 108, name: 'Gem of Resurrection', cost: 9000 },
-  kaels_axe:          { id: 109, name: "Kael's Axe",          cost: 14000 },
-  holy_handgrenade:   { id: 110, name: 'Holy Handgrenade',    cost: 5600 },
+  // §23.B Group C: kaels_axe AOE. Sets every alive monster's HP to
+  // ryl_random(1, 3) — leaves them near-dead, doesn't kill outright.
+  // RNG draws ONLY for alive slots (legacy gates `if (!deadc[i])`
+  // around the random call); for_each_alive_monster has the same
+  // semantics. No kill-check; monsters with hp=1..3 survive but are
+  // mortally wounded for the next attack round.
+  kaels_axe: {
+    id: 109, name: "Kael's Axe", cost: 14000,
+    effect: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { emit: 'battle.item.kaels_axe.thrown' },
+      { pause: 1500 },
+      { emit: 'battle.item.ghost_axe.wounds' },
+      { pause: 4000 },
+      { engine_call: 'clw' },
+      { emit: 'battle.item.battle_cry' },
+      { pause: 3000 },
+      { for_each_alive_monster: { then: [
+          { mutate: { target: { monster_hp: { var: 'monster_idx' } },
+                      op: 'set', value: { random: [1, 3] } }},
+      ]}},
+    ],
+  },
+  // §23.B Group C: holy_handgrenade AOE. Sets every alive monster's
+  // HP to (hp/4) + 1 — RNG-free. The /4 then ++ ordering matters
+  // (integer truncation followed by +1), expressed as two mutates.
+  holy_handgrenade: {
+    id: 110, name: 'Holy Handgrenade', cost: 5600,
+    effect: [
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                       var: 'caster' }},
+      { emit: 'battle.item.holy_handgrenade.lobbed' },
+      { pause: 3000 },
+      { emit: 'battle.item.holy_handgrenade.ka_blam' },
+      { pause: 1500 },
+      { engine_call: 'clw' },
+      { for_each_alive_monster: { then: [
+          { mutate: { target: { monster_hp: { var: 'monster_idx' } },
+                      op: 'div', value: 4 }},
+          { mutate: { target: { monster_hp: { var: 'monster_idx' } },
+                      op: 'add', value: 1 }},
+      ]}},
+    ],
+  },
   // §23.B Group A: flute_of_madness. Pure narration — no state
   // mutation, no RNG. Legacy emitted six tx() calls, the last with
   // a doubled `\r\n\r\n` tail; `flute_of_madness.played` carries

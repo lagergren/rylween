@@ -29,7 +29,7 @@ void encounter(int32_t foe, int32_t mandatory) {
     int32_t sp;             /* Fire frost hold */
     int32_t im;             /* Immune to magic? */
     int32_t ws = 0;         /* WS */
-    int32_t x, i, mh[15], deadc[15], who, dp, g, noc, mhtemp, spelldamage;
+    int32_t x, i, mh[15], deadc[15], who, dp, g, noc, mhtemp;
     int32_t oc;
     uint8_t defend = 0;
 
@@ -231,33 +231,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 ws = (int32_t)ws_int;
                             } else
                             switch (oc) {
-                                case 101:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    for (i = 1; i < noc + 1; i++) {
-                                        spelldamage = pm_lv(pm_cur(g)) * ryl_random(3, 8);
-                                        if (!deadc[i]) {
-                                            clw();
-                                            tx("%s burns %s\r\n", pm_name(pm_cur(g)), fn);
-                                            tx("for %d pts!\r\n", spelldamage);
-                                            ryl_delay(1000);
-                                            mh[i] -= spelldamage;
-                                            if (mh[i] <= 0) {
-                                                mh[i] = 0;
-                                                tx0(res_text("battle.killed"));
-                                                ryl_delay(600);
-                                                deadc[i] = 1;
-                                            }
-                                        }
-                                    }
-                                    break;
-
-                                /* §23.B Groups A+B: 100/102/103/104/111 are
-                                   migrated to magic_items.json5 effect:
+                                /* §23.B A/B/C: 100/101/102/103/104/109/110/111
+                                   are migrated to magic_items.json5 effect:
                                    bodies; the dispatcher above routes them
                                    through play_spell_body before this switch
-                                   is entered. Groups C–E will hollow out
-                                   the remaining arms (101/105/106/107/108/
-                                   109/110). */
+                                   is entered. Groups D+E will hollow out the
+                                   remaining arms (105/106/107/108). */
                                 case 105: {
                                     pa_set_inventory(inv_slot_from_letter(d), 0);
                                     clw();
@@ -331,43 +310,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                                     }
                                     break;
                                 }
-
-                                case 109:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    clw();
-                                    tx("%s throws Kael's\r\n", pm_name(pm_cur(g)));
-                                    tx("axe at the enemy!\r\n\r\n");
-                                    ryl_delay(1500);
-                                    tx0(res_text("battle.item.ghost_axe.wounds"));
-                                    ryl_delay(4000);
-                                    clw();
-                                    tx0(res_text("battle.item.battle_cry"));
-                                    ryl_delay(3000);
-                                    for (i = 1; i < noc + 1; i++) {
-                                        if (!deadc[i]) {
-                                            mh[i] = ryl_random(1, 3);
-                                        }
-                                    }
-                                    break;
-
-                                case 110:
-                                    pa_set_inventory(inv_slot_from_letter(d), 0);
-                                    clw();
-                                    tx("%s pulls the\r\n", pm_name(pm_cur(g)));
-                                    tx("holy pin, and lobbeth\r\n");
-                                    tx("the holy handgrenade\r\n");
-                                    tx("at the foes...\r\n\r\n");
-                                    ryl_delay(3000);
-                                    tx("KA-BLAM!\r\n\r\n");
-                                    ryl_delay(1500);
-                                    clw();
-                                    for (i = 1; i < noc + 1; i++) {
-                                        if (!deadc[i]) {
-                                            mh[i] /= 4;
-                                            mh[i]++;
-                                        }
-                                    }
-                                    break;
 
                             }
                         }
