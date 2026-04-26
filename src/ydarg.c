@@ -296,19 +296,10 @@ void ydarg() {
         statusline();
         tx("You are at %dx%d.\r\n\r\n", xl, yl, lvl);
         tx("You are on level %d.\r\n", lvl);
-        switch (lvl) {
-            case 1:
-                tx0(res_text("ydarg.nav.floor_1"));
-                break;
-            case 2:
-                tx0(res_text("ydarg.nav.floor_2"));
-                break;
-            case 3:
-                tx0(res_text("ydarg.nav.floor_3"));
-                break;
-            case 4:
-                tx0(res_text("ydarg.nav.floor_4"));
-                break;
+        {
+            char floor_id[32];
+            snprintf(floor_id, sizeof floor_id, "ydarg.nav.floor_%d", lvl);
+            tx0(res_text(floor_id));
         }
         n = 0;
         s = 0;
