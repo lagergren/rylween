@@ -28,6 +28,15 @@ typedef struct {
 
 uint32_t tx_fmt(const char *id, const ryl_bind *bindings);
 
+/* §23.I: multi-screen narration helper. `acts_path` is a dotted path
+   (e.g. "ydarg.narration.conf_act1") to a string array of text ids.
+   For each entry: clw, tx_fmt(id, bindings), ryl_pause. No leading or
+   trailing clw — call sites stay in charge of bracketing the run with
+   any pre-narration state and the post-narration jump (encounter,
+   save, etc.). `bindings` may be NULL; pass-through to tx_fmt for any
+   per-screen `{placeholder}` interpolation. */
+void tx_narrate(const char *acts_path, const ryl_bind *bindings);
+
 /* §16.1 menu helper. Emits a res_text() screen, reads one keypress via
    key(), upper-cases it, and returns the `result` of the first opts[]
    entry whose `letter` matches. When nothing matches (or the user hit

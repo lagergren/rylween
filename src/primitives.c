@@ -249,6 +249,23 @@ uint32_t tx_fmt(const char *id, const ryl_bind *bindings) {
     return tx0(buf);
 }
 
+/* §23.I: walk a string-array of text ids and emit each as a paused
+   screen (clw + tx_fmt + ryl_pause). See primitives.h for the
+   contract; `bindings` is forwarded to tx_fmt verbatim so any screen
+   that has a `{placeholder}` is resolved against the same set. */
+void tx_narrate(const char *acts_path, const ryl_bind *bindings) {
+    int n = res_str_arr_count(acts_path);
+    for (int i = 0; i < n; i++) {
+        const char *id = res_str_arr_at(acts_path, i);
+        if (!id) {
+            continue;
+        }
+        clw();
+        tx_fmt(id, bindings);
+        ryl_pause();
+    }
+}
+
 int ryl_menu(const char *screen_text_id, const ryl_menu_opt *opts) {
     if (screen_text_id) {
         tx0(res_text(screen_text_id));

@@ -390,12 +390,11 @@ static void confrontation() {
     char path[512];
     const char *mstr;
 
-    clw();
-    tx0(res_text("ydarg.conf.trapdoor_slam"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.fools"));
-    ryl_pause();
+    ryl_bind binds[] = {
+        {"p1_name", pm_name(pm_cur(1))},
+        {0},
+    };
+    tx_narrate("ydarg.narration.conf_act1", binds);
     clw();
     {
         int n_seq = res_str_arr_count("ydarg.confrontation_sequence");
@@ -403,55 +402,12 @@ static void confrontation() {
             encounter(res_monster_id(res_str_arr_at("ydarg.confrontation_sequence", k)), 1);
         }
     }
-    clw();
-    tx0(res_text("ydarg.conf.corpses"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.impress"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.sphere"));
-    ryl_pause();
-    clw();
-    tx_fmt("ydarg.conf.mages",
-           (ryl_bind[]){
-               {"p1_name", pm_name(pm_cur(1))},
-               {0},
-           });
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.curses"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.trident"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.commence"));
-    ryl_pause();
+    tx_narrate("ydarg.narration.conf_act2", binds);
     encounter(res_monster_id("baron_ydarg"), 1);
-    clw();
-    tx0(res_text("ydarg.conf.trident_falls"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.not_over"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.cloak"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.dust"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.congrats"));
-    ryl_pause();
-    clw();
+    tx_narrate("ydarg.narration.conf_act3", binds);
     pa_set_special(PS_SILVERKEY, 2);
     save();
-    tx0(res_text("ydarg.conf.heroes"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.conf.signoff"));
-    ryl_pause();
+    tx_narrate("ydarg.narration.conf_act4", binds);
     clw();
 
     res_data_path("heroes.txt", path, sizeof path);

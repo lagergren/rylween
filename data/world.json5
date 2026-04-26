@@ -531,6 +531,32 @@
         { digit: 4, special: 'bracelets',   reject_msg: 'no_have_plur' },
       ],
     },
+
+    // §23.I: confrontation() narration sequences. Each entry is an
+    // ordered list of text ids that tx_narrate walks with the
+    // standard `clw + tx_fmt + ryl_pause` step between screens.
+    // The boundaries between act1/2/3/4 fall on encounters or state
+    // mutations (mage-sphere fight, baron fight, save), not on
+    // rendering shape — keeping them as separate calls leaves the
+    // C side responsible for the inter-act side effects.
+    narration: {
+      conf_act1: [
+        'ydarg.conf.trapdoor_slam', 'ydarg.conf.fools',
+      ],
+      conf_act2: [
+        'ydarg.conf.corpses', 'ydarg.conf.impress', 'ydarg.conf.sphere',
+        'ydarg.conf.mages',   'ydarg.conf.curses',  'ydarg.conf.trident',
+        'ydarg.conf.commence',
+      ],
+      conf_act3: [
+        'ydarg.conf.trident_falls', 'ydarg.conf.not_over',
+        'ydarg.conf.cloak',         'ydarg.conf.dust',
+        'ydarg.conf.congrats',
+      ],
+      conf_act4: [
+        'ydarg.conf.heroes', 'ydarg.conf.signoff',
+      ],
+    },
   },
 
   // NPCs — one entry per slot, keyed by display name (the same
