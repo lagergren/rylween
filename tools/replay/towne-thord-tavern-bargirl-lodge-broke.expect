@@ -78,7 +78,7 @@
 [49C_very_ little of the
 [49Cgame otherwise...
 [49C
-[49C(Mutilate RETURN key)
+[49C(Hammer RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -237,7 +237,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Lunge at RETURN key)
+[49C(Annihilate RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -349,7 +349,7 @@
 [49CCharisma  : 64
 [49CMagic     : 0
 [49C
-[49C(Thrash RETURN key)
+[49C(Slam RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -481,7 +481,7 @@
 [49CCharisma  : 58
 [49CMagic     : 0
 [49C
-[49C(Mutilate RETURN key)
+[49C(Hammer RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -633,7 +633,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Slash RETURN key)
+[49C(Pulverize RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -931,7 +931,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Smash RETURN key)
+[49C(Cleave RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1001,287 +1001,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Brain RETURN key)
-[0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49CChatting with
-[49CDeanna:
-[49C
-[49C(C)hitchat
-[49C(Q)uestion
-[49C(R)umors
-[49C(B)ye
-[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49C(L)odging
-[49C(M)agic
-[49C(P)eople
-[49C(N)othing
-[0;1H[0C[30m[6;1H[49C[37m[49C
-[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49C- Would you like to,
-[49C  spend an hour
-[49C  upstairs for 50
-[49C  gold coins?
-[49C
-[49C(Y)es
-[49C(N)o
-[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49CYou spend a very
-[49Cexhausting hour
-[49Cupstairs.
-[49C(PERVERT!) ;-)
-[49C
-[49C
-[49C(Slash RETURN key)
-[0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49CChatting with
-[49CDeanna:
-[49C
-[49C(C)hitchat
-[49C(Q)uestion
-[49C(R)umors
-[49C(B)ye
-[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49C(L)odging
-[49C(M)agic
-[49C(P)eople
-[49C(N)othing
-[0;1H[0C[30m[6;1H[49C[37m[49C
-[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49C- Would you like to,
-[49C  spend an hour
-[49C  upstairs for 50
-[49C  gold coins?
-[49C
-[49C(Y)es
-[49C(N)o
-[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49CYou spend a very
-[49Cexhausting hour
-[49Cupstairs.
-[49C(PERVERT!) ;-)
-[49C
-[49C
-[49C(Destroy RETURN key)
-[0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49CChatting with
-[49CDeanna:
-[49C
-[49C(C)hitchat
-[49C(Q)uestion
-[49C(R)umors
-[49C(B)ye
-[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49C(L)odging
-[49C(M)agic
-[49C(P)eople
-[49C(N)othing
-[0;1H[0C[30m[6;1H[49C[37m[49C
-[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49C- Would you like to,
-[49C  spend an hour
-[49C  upstairs for 50
-[49C  gold coins?
-[49C
-[49C(Y)es
-[49C(N)o
-[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49CYou spend a very
-[49Cexhausting hour
-[49Cupstairs.
-[49C(PERVERT!) ;-)
-[49C
-[49C
-[49C(Destroy RETURN key)
-[0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49CChatting with
-[49CDeanna:
-[49C
-[49C(C)hitchat
-[49C(Q)uestion
-[49C(R)umors
-[49C(B)ye
-[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49C(L)odging
-[49C(M)agic
-[49C(P)eople
-[49C(N)othing
-[0;1H[0C[30m[6;1H[49C[37m[49C
-[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49C- Would you like to,
-[49C  spend an hour
-[49C  upstairs for 50
-[49C  gold coins?
-[49C
-[49C(Y)es
-[49C(N)o
-[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[49C                          
-[6;1H[49CYou spend a very
-[49Cexhausting hour
-[49Cupstairs.
-[49C(PERVERT!) ;-)
-[49C
-[49C
-[49C(Thrash RETURN key)
+[49C(Decapitate RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1421,7 +1141,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Crush RETURN key)
+[49C(Demolish RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1491,7 +1211,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Smash RETURN key)
+[49C(Trample RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1561,7 +1281,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Crush RETURN key)
+[49C(Slam RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1631,7 +1351,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Smash RETURN key)
+[49C(Skewer RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1701,7 +1421,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Mutilate RETURN key)
+[49C(Vanquish RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1771,7 +1491,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Lunge at RETURN key)
+[49C(Pummel RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1841,7 +1561,287 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Stab RETURN key)
+[49C(Vanquish RETURN key)
+[0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49CChatting with
+[49CDeanna:
+[49C
+[49C(C)hitchat
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
+[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49C(L)odging
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
+[0;1H[0C[30m[6;1H[49C[37m[49C
+[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49C- Would you like to,
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
+[49C(Y)es
+[49C(N)o
+[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49CYou spend a very
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
+[49C
+[49C(Pummel RETURN key)
+[0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49CChatting with
+[49CDeanna:
+[49C
+[49C(C)hitchat
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
+[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49C(L)odging
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
+[0;1H[0C[30m[6;1H[49C[37m[49C
+[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49C- Would you like to,
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
+[49C(Y)es
+[49C(N)o
+[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49CYou spend a very
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
+[49C
+[49C(Hammer RETURN key)
+[0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49CChatting with
+[49CDeanna:
+[49C
+[49C(C)hitchat
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
+[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49C(L)odging
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
+[0;1H[0C[30m[6;1H[49C[37m[49C
+[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49C- Would you like to,
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
+[49C(Y)es
+[49C(N)o
+[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49CYou spend a very
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
+[49C
+[49C(Annihilate RETURN key)
+[0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49CChatting with
+[49CDeanna:
+[49C
+[49C(C)hitchat
+[49C(Q)uestion
+[49C(R)umors
+[49C(B)ye
+[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49C(L)odging
+[49C(M)agic
+[49C(P)eople
+[49C(N)othing
+[0;1H[0C[30m[6;1H[49C[37m[49C
+[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49C- Would you like to,
+[49C  spend an hour
+[49C  upstairs for 50
+[49C  gold coins?
+[49C
+[49C(Y)es
+[49C(N)o
+[0;1H[0C[30m[6;1H[49C[37m[6;1H[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[49C                          
+[6;1H[49CYou spend a very
+[49Cexhausting hour
+[49Cupstairs.
+[49C(PERVERT!) ;-)
+[49C
+[49C
+[49C(Smite RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1981,7 +1981,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Destroy RETURN key)
+[49C(Demolish RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -2121,7 +2121,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Destroy RETURN key)
+[49C(Trample RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -2191,7 +2191,7 @@
 [49C(PERVERT!) ;-)
 [49C
 [49C
-[49C(Stab RETURN key)
+[49C(Smite RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          

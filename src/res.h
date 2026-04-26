@@ -248,6 +248,14 @@ const void *res_monster_spell_node(int idx);
    hardcoded 4. 0 if the subtree is absent or empty. */
 int res_monster_spell_count(void);
 
+/* UI verb pool for ryl_pause()'s "(<verb> RETURN key)" prompt.
+   Indexed by `ryl_random(0, res_pause_verb_count() - 1)` at the call
+   site. Pointers are owned by the world tree and outlive the call.
+   Returns NULL on out-of-range / missing-subtree (no UI verb
+   replaces the prompt — the call site falls back to "Press"). */
+const char *res_pause_verb(int idx);
+int res_pause_verb_count(void);
+
 /* §23.B magic-item effect lookup. Searches `magic_items.<key>` for
    the entry whose `id` field matches `oc` (the inventory object code,
    100..111) and returns its `effect:` body node — the array of script

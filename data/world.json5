@@ -21,6 +21,31 @@
     npc_slack: 1,
   },
 
+  // UI prompt verbs picked at random by the engine. Indexed by
+  // ryl_random(0, n-1) where n = the array length. Authors can grow
+  // the pool by appending new verbs; existing fixtures will need
+  // re-blessing whenever the modulo changes (the random pick consumes
+  // one rng_next() call regardless of bounds, but the visible result
+  // is `rng % n`). Keep the list ordered: first ten match the legacy
+  // C-side order so historical RNG-divergence audits can re-correlate.
+  prompts: {
+    // Verb pool for ryl_pause()'s "(<verb> RETURN key)" prompt. The
+    // legacy in-source array was the first ten entries below; the
+    // additional twenty (Pummel..Decapitate) widen the pool so
+    // reading the same prompt twice in close succession is less
+    // likely to repeat the same verb. Tone matches the original —
+    // aggressive verbs that read naturally as an action against a
+    // physical key.
+    pause_verbs: [
+      'Smash', 'Bash', 'Slash', 'Lunge at', 'Crush',
+      'Destroy', 'Mutilate', 'Thrash', 'Stab', 'Brain',
+      'Pummel', 'Whack', 'Pulverize', 'Annihilate', 'Obliterate',
+      'Demolish', 'Hammer', 'Pound', 'Maul', 'Wallop',
+      'Cleave', 'Mangle', 'Skewer', 'Eviscerate', 'Vanquish',
+      'Trample', 'Batter', 'Slam', 'Smite', 'Decapitate',
+    ],
+  },
+
   // Symbolic mission-flag names (§3.1). Authoritative dictionary:
   // every quest tag the runtime or a script can read or write lives
   // here. Tags are human-readable ids; `values:` names each state of

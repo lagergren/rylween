@@ -2589,6 +2589,50 @@ int res_monster_spell_count(void) {
     return (int)spells->u.arr.n;
 }
 
+/* UI verb pool — `prompts.pause_verbs[idx]`. Indexed by
+   ryl_random(0, count-1) at the ryl_pause call site so RNG identity
+   stays explicit there. Returns NULL on missing subtree, wrong
+   shape, or out-of-range idx; ryl_pause falls back to a static
+   "Press" prefix in that case. */
+const char *res_pause_verb(int idx) {
+    const node *root = world_tree;
+    if (!root) {
+        return NULL;
+    }
+    const node *prompts = obj_get(root, "prompts");
+    if (!prompts || prompts->kind != N_OBJ) {
+        return NULL;
+    }
+    const node *verbs = obj_get(prompts, "pause_verbs");
+    if (!verbs || verbs->kind != N_ARR) {
+        return NULL;
+    }
+    if (idx < 0 || (size_t)idx >= verbs->u.arr.n) {
+        return NULL;
+    }
+    const node *v = verbs->u.arr.items[idx];
+    if (!v || v->kind != N_STR) {
+        return NULL;
+    }
+    return v->u.sv;
+}
+
+int res_pause_verb_count(void) {
+    const node *root = world_tree;
+    if (!root) {
+        return 0;
+    }
+    const node *prompts = obj_get(root, "prompts");
+    if (!prompts || prompts->kind != N_OBJ) {
+        return 0;
+    }
+    const node *verbs = obj_get(prompts, "pause_verbs");
+    if (!verbs || verbs->kind != N_ARR) {
+        return 0;
+    }
+    return (int)verbs->u.arr.n;
+}
+
 /* §23.B magic-item effect lookup. magic_items is an OBJ keyed by
    slug ('frost_wand', 'gem_of_confusion', ...); each value carries an
    integer `id` field (100..111). Walk the OBJ until we find the entry

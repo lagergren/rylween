@@ -217,7 +217,7 @@
 [49CCharisma  : 21
 [49CMagic     : 67
 [49C
-[49C(Brain RETURN key)
+[49C(Wallop RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -237,7 +237,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Brain RETURN key)
+[49C(Wallop RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -349,7 +349,7 @@
 [49CCharisma  : 66
 [49CMagic     : 63
 [49C
-[49C(Slash RETURN key)
+[49C(Skewer RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -501,7 +501,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Destroy RETURN key)
+[49C(Trample RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -613,7 +613,7 @@
 [49CCharisma  : 58
 [49CMagic     : 0
 [49C
-[49C(Crush RETURN key)
+[49C(Vanquish RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -633,7 +633,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Bash RETURN key)
+[49C(Whack RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -863,7 +863,7 @@
 [49Cbeings scream in agony
 [49Cin the dungeon below...
 [49C
-[49C(Mutilate RETURN key)
+[49C(Hammer RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -923,7 +923,7 @@
 [6;1H[49CYou leave the
 [49Chideous cavern!
 [49C
-[49C(Smash RETURN key)
+[49C(Cleave RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[49C[37m[40m[6;1H[8C                [7;1H[8C                [8;1H[8C                [9;1H[8C                [10;1H[8C                [11;1H[8C                [12;1H[8C                [13;1H[8C                [14;1H[8C                [6;1H[9C[33m.. [33m.. [37m/\ [33m.. [33m..[8;1H[9C[33m.. [37m^^ [37m^^ [33m.. [33m..[10;1H[9C[33m.. [33m.. [44m[33m..[40m [37m^^ [33m..[12;1H[9C[33m.. [33m.. [33m.. [33m.. [33m..[14;1H[9C[33m.. [33m.. [37mTT [33m.. [33m..[37m[6;1H[49C                          
 [49C                          
 [49C                          

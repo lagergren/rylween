@@ -78,7 +78,7 @@
 [49C_very_ little of the
 [49Cgame otherwise...
 [49C
-[49C(Slash RETURN key)
+[49C(Skewer RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -237,7 +237,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Bash RETURN key)
+[49C(Mangle RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -369,7 +369,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Destroy RETURN key)
+[49C(Trample RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -501,7 +501,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Smash RETURN key)
+[49C(Cleave RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -613,7 +613,7 @@
 [49CCharisma  : 62
 [49CMagic     : 0
 [49C
-[49C(Slash RETURN key)
+[49C(Skewer RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -633,7 +633,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Crush RETURN key)
+[49C(Vanquish RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -762,7 +762,7 @@
 [6;1H[49C- There is an item of
 [49Cgreat power, he hisses.
 [49C
-[49C(Stab RETURN key)
+[49C(Smite RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -783,7 +783,7 @@
 [49Cthat 'only those of pure
 [49Cheart can enter'.
 [49C
-[49C(Brain RETURN key)
+[49C(Wallop RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -799,7 +799,7 @@
 [49Chorned creatures chased
 [49Cme through the woods.
 [49C
-[49C(Thrash RETURN key)
+[49C(Pound RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -854,7 +854,7 @@
 [49C8x8!
 [49C
 [49C
-[49C(Slash RETURN key)
+[49C(Pulverize RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          

@@ -78,7 +78,7 @@
 [49C_very_ little of the
 [49Cgame otherwise...
 [49C
-[49C(Brain RETURN key)
+[49C(Decapitate RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -217,7 +217,7 @@
 [49CCharisma  : 46
 [49CMagic     : 52
 [49C
-[49C(Stab RETURN key)
+[49C(Smite RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -237,7 +237,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Crush RETURN key)
+[49C(Vanquish RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -349,7 +349,7 @@
 [49CCharisma  : 66
 [49CMagic     : 0
 [49C
-[49C(Thrash RETURN key)
+[49C(Pound RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -369,7 +369,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Smash RETURN key)
+[49C(Pummel RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -481,7 +481,7 @@
 [49CCharisma  : 28
 [49CMagic     : 0
 [49C
-[49C(Slash RETURN key)
+[49C(Pulverize RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -501,7 +501,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Destroy RETURN key)
+[49C(Trample RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -613,7 +613,7 @@
 [49CCharisma  : 33
 [49CMagic     : 0
 [49C
-[49C(Brain RETURN key)
+[49C(Decapitate RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -633,7 +633,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Destroy RETURN key)
+[49C(Demolish RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -731,7 +731,7 @@
 [49C                          
 [6;1H[49CYou find 3 torches.
 [49C
-[49C(Smash RETURN key)
+[49C(Cleave RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -870,7 +870,7 @@
 [6;1H[49CYou leave the
 [49Chideous cavern!
 [49C
-[49C(Smash RETURN key)
+[49C(Pummel RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[49C[37m[40m[6;1H[8C                [7;1H[8C                [8;1H[8C                [9;1H[8C                [10;1H[8C                [11;1H[8C                [12;1H[8C                [13;1H[8C                [14;1H[8C                [6;1H[9C[37m/\ [37m/\ [37m/\ [37m/\ [33m..[8;1H[9C[33m.. [33m.. [37m/\ [33m.. [33m..[10;1H[9C[33m.. [37m^^ [44m[37m^^[40m [33m.. [33m..[12;1H[9C[33m.. [33m.. [33m.. [37m^^ [33m..[14;1H[9C[33m.. [33m.. [33m.. [33m.. [33m..[37m[6;1H[49C                          
 [49C                          
 [49C                          

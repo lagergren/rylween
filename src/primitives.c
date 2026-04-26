@@ -378,21 +378,11 @@ char key(void) {
 }
 
 void ryl_pause(void) {
-    static const char *verbs[] = {
-        "Smash",
-        "Bash",
-        "Slash",
-        "Lunge at",
-        "Crush",
-        "Destroy",
-        "Mutilate",
-        "Thrash",
-        "Stab",
-        "Brain",
-    };
     int32_t ch;
 
-    tx("(%s RETURN key)\r\n", verbs[ryl_random(0, 9)]);
+    int n = res_pause_verb_count();
+    const char *verb = (n > 0) ? res_pause_verb(ryl_random(0, n - 1)) : NULL;
+    tx("(%s RETURN key)\r\n", verb ? verb : "Press");
     c(0, 0);
     tx(ANSI_FG_BLACK);
     while (1) {

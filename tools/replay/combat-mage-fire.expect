@@ -217,7 +217,7 @@
 [49CCharisma  : 21
 [49CMagic     : 67
 [49C
-[49C(Brain RETURN key)
+[49C(Wallop RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -237,7 +237,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Brain RETURN key)
+[49C(Wallop RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -349,7 +349,7 @@
 [49CCharisma  : 66
 [49CMagic     : 0
 [49C
-[49C(Slash RETURN key)
+[49C(Skewer RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -501,7 +501,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Destroy RETURN key)
+[49C(Trample RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -613,7 +613,7 @@
 [49CCharisma  : 58
 [49CMagic     : 0
 [49C
-[49C(Crush RETURN key)
+[49C(Vanquish RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -633,7 +633,7 @@
 [49C
 [49CExp       : 0
 [49C
-[49C(Bash RETURN key)
+[49C(Whack RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
@@ -1787,7 +1787,7 @@
 [6;1H[49CYou begin to feel weak
 [49Cfrom lack of sleep.
 [49C
-[49C(Crush RETURN key)
+[49C(Obliterate RETURN key)
 [0;1H[0C[30m[0C[37m[6;1H[6;1H[49C                          
 [49C                          
 [49C                          
