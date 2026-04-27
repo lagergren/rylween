@@ -5534,3 +5534,136 @@ State at HEAD (`8353f16`):
 
 Bar per session: `make check` + `make testasan` both green at
 every commit. Push at session close.
+
+## Session 2026-04-27 #7 — §25.A.2 + §25.A.3 + §25.A.4 closed
+
+The remaining three §25.A axes — monster slots, NPC slots, town
+slots — landed in a single session. Each axis got its own iterator
+macro mirroring §25.A.1's `for_each_party_member` shape, with the
+slot-bound parameterized where it varies per call (monsters: encounter-
+local `noc`) and parameterless where it's a global (npc/town: derived
+from data). Per the §25.A.1 precedent, follow-up commits lifted same-
+shape hardcoded literal bounds (speak.c `< 40`).
+
+Four commits:
+
+  - `7411209` — `§25.A.2: for_each_monster iterator macro`. Macro in
+    src/battle.h takes the `noc` bound as a free arg (encounter-local,
+    not a global). 7 callsites migrated: battle.c x5 (encounter mh/
+    deadc init, 'A' show-list, alive-check accumulator, monster-nasty
+    `while (x < noc + 1)` turn → `for_each_monster(x, noc)` with the
+    macro-scoped int x shadowing the outer int32_t x per §25.A.1 — no
+    -Wshadow; "still face" survivor count) and script.c x2 (ie_pick-
+    _first_alive_monster's `<= noc` form, ask_target monster_alive
+    drops a redundant int i). The DSL `for_monster` op family
+    (do_for_monster / do_for_each_alive_monster / do_for_range_alive)
+    already routes through generic helpers that take the bound — no
+    migration needed there. Two `x = 0` accumulators lifted out of
+    for-init position to standalone statements.
+
+  - `28fd1d9` — `§25.A.3: for_each_npc iterator macro`. Macro in
+    src/res.h next to the existing `res_npc_slot_max()` decl. 5
+    callsites migrated: driv.c x3 (the_game's hut/cottage map seed,
+    init's party-shift visited-grid migration, write_current_world's
+    persistence writer); res.c x1 (realize_npcs's visited[] zero-out;
+    the local `slot_max` cache stays — still needed by the random-
+    placement bin draw and the `slot < 1 || slot > slot_max` guards);
+    towne.c::hut x1 (NPC-at-tile probe; outer `int32_t i` and `int
+    nmax = res_npc_slot_max()` retired together). The save/load
+    formal-zero loops (writer 0..slot_max, reader capped at slot_max
+    + 1) keep their explicit shape — those are file-format walks, not
+    slot iters.
+
+  - `e825dc2` — `§25.A.3 follow-up: lift speak.c hardcoded `< 40``.
+    Same-shape literal-bound cleanup at the loop-variable layer
+    (precedent: §25.A.1's commit 8353f16 lifting 15/10 in driv.c::-
+    position_locations). speak.c::speak's two NPC-slot loops (the
+    "list NPCs in a town building" picker and the wilderness "who's
+    on this tile" probe) used `i < 40` — half of state.npc[]'s 41-
+    slot capacity. Bound has been semantically equivalent to "every
+    realized NPC" since §15 step 3 (slots beyond res_npc_slot_max()
+    are zero-init by static and never realized; both loop predicates
+    require non-zero towne/building or a non-zero party position to
+    match). Replaced both with `for_each_npc(i)` — same semantics in
+    today's data, single source of truth for the iteration bound.
+    Three accumulator inits (`j = 1, x = 0` picker, `talk = 0`
+    probe) lifted out of for-init; outer `int32_t i` retired.
+
+  - `5dcbe74` — `§25.A.4: for_each_town iterator macro`. Macro in
+    src/res.h plus a public `res_town_count()` getter (file-static
+    `n_towns` now externally visible — required so the macro's
+    expansion can access the bound from any caller). One callsite
+    migrated: `res_town_at`'s linear scan, which was the last
+    `for (int i = 1; i <= 4; i++)` over `towns[i]` in the codebase —
+    the hardcoded `4` retired in favor of n_towns. The `twn > 4`
+    guards on `res_town_name` / `_x` / `_y` / `_tax` / `_has_church`
+    keep the hardcoded 4: those mirror the towns[5] static-array
+    capacity, not the iteration bound, and lifting them requires
+    expanding the realm past four towns (a structural change). Doc
+    note clarifies the towns[0] = JSON-null = wilderness convention
+    and the link back to the §24.A0 setup-logging off-by-one (which
+    landed precisely because of the bin-0-is-wilderness invariant).
+
+State at HEAD (`5dcbe74`):
+
+  - 39 fixtures green; `make check` + `make testasan` clean at every
+    commit.
+  - §25.A closed end-to-end. All four iteration axes (party member /
+    monster / npc / town) are now centralised behind their respective
+    `for_each_*` macros — single point of truth that §25.B will edit
+    when the codebase flips to 0-indexed.
+  - State abstraction inside §25.A's blast radius is clean across
+    every axis (party in §25.A.1, monsters touch only encounter-
+    local arrays not state, NPCs route through `state.npc[i]` reads
+    that already use struct-direct access, towns route through
+    `towns[i]` which is the file-static state). The broader audit
+    queued under `feedback_state_abstraction` (inventory.c x5,
+    primitives.c x7, missions.c MB_PLAYER_NAME, subs.c::scorelist
+    `[1..4]` fanouts, towne.c::enter_tax_preamble) remains the only
+    pending state-abstraction work; not blocking §25.B.
+
+**Recommended next session order:**
+
+  1. **§25.B — flip to 0-indexed** (~8-12 sessions). Now unblocked.
+     The macros at party.h::for_each_party_member, battle.h::for_each-
+     _monster, res.h::for_each_npc, res.h::for_each_town are the four
+     edit points; flipping each from `for (int slot = 1; slot <= N;
+     slot++)` to `for (int slot = 0; slot < N; slot++)` plus a
+     fixture re-bless wave is the bulk of the work. Constraints:
+       - The RYL_FAKE_SEED order has to stay identical — any draw-loop
+         that did `random(1, 4)` becomes `random(0, 3)`; value space
+         same, semantic-of-the-number changes.
+       - towns[0] / state.npc[0] / monster slot 0 / party slot 0
+         interpretations all change — towns[0] becomes a real town
+         (not the wilderness sentinel); the wilderness bin in
+         res_realize_npcs has to use a separate sentinel value
+         (-1 or a parallel flag) instead of overloading slot 0.
+         res_town_at / res_npc_sym / npc_at_slot bounds shift.
+       - Save/load fixtures: every fixture that emits npcs[].id /
+         visited_npcs[i] / etc. needs a re-bless. Bench with the
+         smallest fixture first (towne-thord-inn or similar) before
+         the wave.
+     Land as a single coherent wave (one PR or commit chain), not a
+     long-tail nibble — the half-flipped state is hard to reason
+     about and fixture re-blesses are wasted if a later step
+     reverses something.
+
+  2. **State-abstraction sweep** outside §25.A's blast radius. The
+     `feedback_state_abstraction` memory note tracks this; the next
+     time someone touches one of these files, route the new code
+     through `pm_*` / `pa_*` / `inv_*` / `res_*` helpers and leave
+     the untouched callsites alone (no speculative refactors).
+     Survey: inventory.c x5, primitives.c x7, subs.c::scorelist
+     (~10 raw `state.p[i].{exp,lv,kills,name}[1..4]` reads with
+     hardcoded 1..4 fanouts — the §25.A.1 #6 footer's call-out),
+     towne.c::enter_tax_preamble, missions.c MB_PLAYER_NAME binder.
+     Add helpers as needed; don't grow a parallel `pa_*_at(int slot,
+     ...)` family unless a test-infra caller forces it (replay-
+     _knobs.c::rk_apply_pos / rk_apply_ydarg_grants are the only
+     current candidates).
+
+  3. **Later:** §24bis (`id: <int>` → slug, post-§25), then
+     `plans/future-directions.md` multi-party MUD work.
+
+Bar per session: `make check` + `make testasan` both green at every
+commit. Push at session close.
