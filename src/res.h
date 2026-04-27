@@ -330,6 +330,25 @@ int32_t res_town_tax(int twn);
    gate. Default false: omitted records have no church. */
 int32_t res_town_has_church(int twn);
 
+/* Number of declared towns (slots 1..res_town_count()). towns[0] is
+   the JSON null sentinel (data/world.json5 `towns: [null, {...}, ...]`)
+   left zeroed — it represents the wilderness, never a real town. The
+   sentinel is structurally load-bearing: struct person.towne == 0
+   means "wilderness" (the npc-placement bin draw uses bins 0..n_towns
+   precisely because of this; see res_realize_npcs). The §24.A0 setup-
+   logging off-by-one landed exactly here.
+   Returns 0 before the world has loaded. */
+int res_town_count(void);
+
+/* §25.A.4: iterate town slots 1..res_town_count(). The wilderness
+   sentinel at towns[0] is never visited — callers that need to walk
+   "every bin including wilderness" (only res_realize_npcs's random-
+   placement draw today) keep an explicit 0..n loop shape. §25.B will
+   edit this macro (and re-bless fixtures) when the codebase flips to
+   0-indexed. */
+#define for_each_town(slot) \
+    for (int slot = 1; slot <= res_town_count(); slot++)
+
 /* Per-building opening hours. `name` matches a key under the
    `buildings` subtree of data/world.json5 (e.g. "smith"). Writes
    the configured opens_at / closes_at (inclusive 0..23 hours) into

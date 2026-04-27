@@ -1052,8 +1052,12 @@ int32_t res_town_y(int twn) {
     return towns[twn].y;
 }
 
+int res_town_count(void) {
+    return (int)n_towns;
+}
+
 int32_t res_town_at(int x, int y) {
-    for (int i = 1; i <= 4; i++) {
+    for_each_town(i) {
         if (towns[i].name && towns[i].x == x && towns[i].y == y) {
             return i;
         }
