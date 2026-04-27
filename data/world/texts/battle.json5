@@ -1,7 +1,22 @@
 // Combat text (battle.c). Grouped by combat-phase/effect so adjacent
-// records cluster like they read in the game: run/item/prompt/spell/
-// cry/rest/defend/victory/monster/killed.
+// records cluster like they read in the game: encounter/run/item/
+// prompt/spell/cry/rest/defend/attack/victory/monster/party/expgain/
+// killed.
+//
+// Records that carry a {placeholder} token are emitted via tx_fmt with
+// caller-supplied bindings; pure-static records use tx0(res_text(...)).
+// The handful of remaining inline tx() calls in battle.c carry pure
+// pass-through `%s\r\n` (monster name, caster name) or column-aligned
+// table rows (`%-13s` spell list, `%c. %-7s (%3d hp)` target list) —
+// no game-meaningful phrasing to lift.
 {
+  // Encounter banner + (still-)facing line. Used at fight start and
+  // each round's F/R re-prompt.
+  encounter: {
+    banner:          ['ENCOUNTER!', ''],
+    you_face:        ['You face'],
+    still_face:      ['You still face'],
+  },
   run: {
     coward:          ["Coward. You won't get",    'any EXP for this battle.'],
     desperate_fail:  ['You desperately try to',   'get away, but fail!'],
@@ -108,6 +123,21 @@
   prompt: {
     on_whom:         ['On Whom? (1-{party_max})'],
     who:             ['Who?', ''],
+    // Per-round F/R prompt, the round-opening banner, and the
+    // per-member action menu. `cast_spell` is only emitted when the
+    // current member is_mage. Empty trailing strings reproduce the
+    // legacy `\r\n\r\n` blank-line tails.
+    fight:           ['(F)ight'],
+    run:             ['(R)un'],
+    blood_flow:      ['Blood shall flow!'],
+    what_now:        ['What now?', ''],
+    attack:          ['(A)ttack'],
+    defend:          ['(D)efend'],
+    use_item:        ['(U)se Item'],
+    battle_cry:      ['(B)attle Cry'],
+    cast_spell:      ['(C)ast Spell'],
+    use_what:        ['Use what?', ''],
+    not_possible:    ['Not possible.'],
   },
   spell: {
     morale_quest:    ['The party feels their',
@@ -153,11 +183,18 @@
       burns:  ['{caster} burns {monster_name}'],
       points: ['for {dmg} pts!'],
     },
+    // Cast-menu Abort row (slot 7) shown after the six mage spell
+    // entries. The numbered spell rows use a column-aligned format
+    // (`%d. %-13s(%3d/%3d)`) and stay inline at the call site.
+    abort:           ['7. Abort'],
   },
   cry: {
     off_guard:       ['(You manage to scare your',
                       ' enemies enough to get',
                       ' them off guard.)'],
+    // Battle-cry pre-flavor — emitted before the off_guard body. The
+    // trailing empty matches the legacy `\r\n\r\n` blank line.
+    hi_yaaaa:        ['HI-YAAAA!', ''],
   },
   rest: {
     gain_hits:       ['You gain some hits pts', 'as you rest this round.'],
@@ -165,8 +202,25 @@
   defend: {
     stance:          ['You put up a defensive', 'stance...'],
   },
+  // Player melee narration. {attacker} = pm_name(caster); {dmg} =
+  // dp roll. The miss arm has no damage to print.
+  attack: {
+    hits_for:        ['{attacker} hits for'],
+    damage_pts:      ['{dmg} damage pts!'],
+    misses:          ['{attacker} misses!'],
+  },
   victory: {
     bested:          ['Thou hast bested', 'thy foes.', ''],
+    // Reward header + per-survivor line + and-gold tail. `and_gold`
+    // carries a trailing empty for the legacy `\r\n\r\n` blank line.
+    each_survivor:   ['Each survivor gets'],
+    exp_pts:         ['{exp} experience pts'],
+    and_gold:        ['and {gold} gold pieces.', ''],
+    // Post-fight loot drop. {object_name} = object(i) (already in the
+    // legacy form with no leading article, hence the lifted `You find
+    // a` opener stays in C as a separate emit).
+    you_find_a:      ['You find a'],
+    found_obj:       ['{object_name}.'],
   },
   monster: {
     // Shared opener: "<monster> casts" — emitted by battle.c's
@@ -199,6 +253,30 @@
     confuse: {
       name:          ['Confusion!'],
     },
+    // Monster melee turn — distinct from the §23.A nasty-magic
+    // shards above. {monster_name} = foe display name (fn);
+    // {target_name} = pm_name of victim. `melee_dies` carries a
+    // triple bang to differentiate from the spell-cast `player_dies`
+    // which uses a single bang. Color codes ([31m / [37m) match the
+    // legacy `tx("[31m...DIES!!![37m")` byte-for-byte.
+    attacks:         ['{monster_name} attacks'],
+    target_excl:     ['{target_name}!'],
+    and_hits_for:    ['And hits for'],
+    damage_pts:      ['{dmg} damage pts!!!'],
+    melee_dies:      ['[31m{target_name} DIES!!![37m'],
+    blow_misses:     ['Blow misses!'],
+  },
+  // Status callout when every player is held — replaces the
+  // status/F-R block for one round.
+  party: {
+    held:            ['PARTY IS HELD!'],
+  },
+  // Post-fight level-up narration (expcheck). {name} = pm_name;
+  // {levels} = number of levels gained (typically 1, can be more
+  // when crossing multiple thresholds).
+  expgain: {
+    gains:           ['{name} gains >{levels}<'],
+    exp_levels:      ['experience levels.'],
   },
   killed:            ['...KILLED!'],
 }

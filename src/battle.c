@@ -36,7 +36,7 @@ void encounter(int32_t foe, int32_t mandatory) {
     int32_t antimagic = 0, confused = 0, held = 0, playerheld = 0, playerconfused = 0;
 
     clw();
-    tx("ENCOUNTER!\r\n\r\n");
+    tx0(res_text("battle.encounter.banner"));
     clr_map_window();
     blitgfx(encounterpic + ryl_random(0, 4));
     ryl_delay(400);
@@ -107,10 +107,10 @@ void encounter(int32_t foe, int32_t mandatory) {
     }
     while (1) {
         clw();
-        tx("You face\r\n");
+        tx0(res_text("battle.encounter.you_face"));
         tx("%s\r\n\r\n", str);
-        tx("(F)ight\r\n");
-        tx("(R)un\r\n");
+        tx0(res_text("battle.prompt.fight"));
+        tx0(res_text("battle.prompt.run"));
 
         c = key();
         c = toupper(c);
@@ -142,7 +142,7 @@ void encounter(int32_t foe, int32_t mandatory) {
     }
 
     clw();
-    tx("Blood shall flow!\r\n");
+    tx0(res_text("battle.prompt.blood_flow"));
     ryl_delay(1000);
 
     g = 1;
@@ -151,13 +151,13 @@ void encounter(int32_t foe, int32_t mandatory) {
         if (pa_is_alive(g) && !playerheld) {
         combat:
             tx("%s\r\n", pm_name(pm_cur(g)));
-            tx("What now?\r\n\r\n");
-            tx("(A)ttack\r\n");
-            tx("(D)efend\r\n");
-            tx("(U)se Item\r\n");
-            tx("(B)attle Cry\r\n");
+            tx0(res_text("battle.prompt.what_now"));
+            tx0(res_text("battle.prompt.attack"));
+            tx0(res_text("battle.prompt.defend"));
+            tx0(res_text("battle.prompt.use_item"));
+            tx0(res_text("battle.prompt.battle_cry"));
             if (pm_is_mage(pm_cur(g))) {
-                tx("(C)ast Spell\r\n");
+                tx0(res_text("battle.prompt.cast_spell"));
             }
             while (1) {
                 c = key();
@@ -170,7 +170,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             /****************************************************************************/
             if (c == 'U') {
                 clw();
-                tx("Use what?\r\n\r\n");
+                tx0(res_text("battle.prompt.use_what"));
                 invlist();
                 d = key();
                 d = toupper(d);
@@ -179,7 +179,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     oc = pa_inventory(inv_slot_from_letter(d));
                     if (!item_is_magic_item(oc)) {
                         clw();
-                        tx("Not possible.\r\n");
+                        tx0(res_text("battle.prompt.not_possible"));
                         ryl_delay(1000);
                         clw();
                         goto combat;
@@ -265,7 +265,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     tx("%d. %-13s(%3d/%3d)\r\n", slot, s->name,
                        s->base_cost + pm_lv(caster), pm_ma(caster));
                 }
-                tx("7. Abort\r\n");
+                tx0(res_text("battle.spell.abort"));
                 while (1) {
                     d = key();
                     if (d >= '1' && d <= '7') {
@@ -324,7 +324,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             /****************************************************************************/
             if (c == 'B') {
                 clw();
-                tx("HI-YAAAA!\r\n\r\n");
+                tx0(res_text("battle.cry.hi_yaaaa"));
                 ryl_delay(800);
                 tx0(res_text("battle.cry.off_guard"));
                 int32_t cry_pen = res_combat_int("battle_cry.ws_penalty");
@@ -395,8 +395,15 @@ void encounter(int32_t foe, int32_t mandatory) {
                         dp += pm_hp(pm_cur(g)) / hpd;
                     }
                     clw();
-                    tx("%s hits for\r\n", pm_name(pm_cur(g)));
-                    tx("%d damage pts!\r\n", dp);
+                    char dp_buf[16];
+                    snprintf(dp_buf, sizeof dp_buf, "%d", dp);
+                    ryl_bind hit_binds[] = {
+                        {"attacker", pm_name(pm_cur(g))},
+                        {"dmg", dp_buf},
+                        {0},
+                    };
+                    tx_fmt("battle.attack.hits_for", hit_binds);
+                    tx_fmt("battle.attack.damage_pts", hit_binds);
                     ryl_delay(600);
                     mh[who] -= dp;
                     if (mh[who] <= 0) {
@@ -408,7 +415,11 @@ void encounter(int32_t foe, int32_t mandatory) {
                 } else {
                     /* MISS */
                     clw();
-                    tx("%s misses!\r\n", pm_name(pm_cur(g)));
+                    ryl_bind miss_binds[] = {
+                        {"attacker", pm_name(pm_cur(g))},
+                        {0},
+                    };
+                    tx_fmt("battle.attack.misses", miss_binds);
                     ryl_delay(600);
                 }
             }
@@ -438,9 +449,17 @@ void encounter(int32_t foe, int32_t mandatory) {
                     res_formula_int_n("reward_xp_per_survivor", reward_bindings, reward_n);
                 int32_t gold_gain =
                     res_formula_int_n("reward_gold_party", reward_bindings, reward_n);
-                tx("Each survivor gets\r\n");
-                tx("%d experience pts\r\n", exp_gain);
-                tx("and %d gold pieces.\r\n\r\n", gold_gain);
+                char exp_buf[16], gold_buf[16];
+                snprintf(exp_buf, sizeof exp_buf, "%d", exp_gain);
+                snprintf(gold_buf, sizeof gold_buf, "%d", gold_gain);
+                ryl_bind reward_binds[] = {
+                    {"exp", exp_buf},
+                    {"gold", gold_buf},
+                    {0},
+                };
+                tx0(res_text("battle.victory.each_survivor"));
+                tx_fmt("battle.victory.exp_pts", reward_binds);
+                tx_fmt("battle.victory.and_gold", reward_binds);
                 ryl_delay(1000);
                 pa_add_kills((uint32_t)noc);
                 x = inv_find_empty();
@@ -455,8 +474,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                                            res_combat_int("drop_tables.default.magic_hi"));
                         }
                         clw();
-                        tx("You find a\r\n");
-                        tx("%s.\r\n", object(i));
+                        ryl_bind loot_binds[] = {
+                            {"object_name", object(i)},
+                            {0},
+                        };
+                        tx0(res_text("battle.victory.you_find_a"));
+                        tx_fmt("battle.victory.found_obj", loot_binds);
                         ryl_delay(1500);
                         pa_set_inventory(x, i);
                     }
@@ -549,8 +572,15 @@ void encounter(int32_t foe, int32_t mandatory) {
                             }
                         }
                         clw();
-                        tx("%s attacks\r\n", fn);
-                        tx("%s!\r\n", pm_name(pm_cur(who)));
+                        char melee_dp_buf[16] = "0";
+                        ryl_bind melee_binds[] = {
+                            {"monster_name", fn},
+                            {"target_name", pm_name(pm_cur(who))},
+                            {"dmg", melee_dp_buf},
+                            {0},
+                        };
+                        tx_fmt("battle.monster.attacks", melee_binds);
+                        tx_fmt("battle.monster.target_excl", melee_binds);
                         ryl_delay(400);
                         if (ryl_chance(ws + 1)) {
                             dp = mh[x] / 6;
@@ -559,8 +589,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                             if (dp < 1) {
                                 dp = 1;
                             }
-                            tx("And hits for\r\n");
-                            tx("%d damage pts!!!\r\n", dp);
+                            snprintf(melee_dp_buf, sizeof melee_dp_buf, "%d", dp);
+                            tx0(res_text("battle.monster.and_hits_for"));
+                            tx_fmt("battle.monster.damage_pts", melee_binds);
                             pm_add_hp(pm_cur(who), -dp);
                             if (pm_hp(pm_cur(who)) <= 0) {
                                 if (pa_pl()) {
@@ -568,12 +599,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                                 }
                                 pm_set_hp(pm_cur(who), 0);
                                 pm_set_dead(pm_cur(who), 1);
-                                tx("[31m%s DIES!!![37m\r\n", pm_name(pm_cur(who)));
+                                tx_fmt("battle.monster.melee_dies", melee_binds);
                                 ryl_delay(1000);
                             }
                             ryl_delay(1000);
                         } else {
-                            tx("Blow misses!\r\n");
+                            tx0(res_text("battle.monster.blow_misses"));
                             ryl_delay(600);
                         }
                     }
@@ -587,14 +618,14 @@ void encounter(int32_t foe, int32_t mandatory) {
             held = 0;
             clw();
             if (playerheld) {
-                tx("PARTY IS HELD!\r\n");
+                tx0(res_text("battle.party.held"));
                 ryl_delay(1000);
             } else {
                 if (pa_alive_count() == 0) {
                     losegame();
                 }
                 statusline();
-                tx("You still face\r\n");
+                tx0(res_text("battle.encounter.still_face"));
                 x = 0;
                 for_each_monster(i, noc) {
                     if (!deadc[i]) {
@@ -606,8 +637,8 @@ void encounter(int32_t foe, int32_t mandatory) {
                     str_append(str, sizeof str, "s");
                 }
                 tx("%s\r\n\r\n", str);
-                tx("(F)ight\r\n");
-                tx("(R)un\r\n");
+                tx0(res_text("battle.prompt.fight"));
+                tx0(res_text("battle.prompt.run"));
                 while (1) {
                     c = key();
                     c = toupper(c);
@@ -668,8 +699,15 @@ void expcheck() {
         if (add[i]) {
             pm_t pm = pm_cur(i);
             clw();
-            tx("%s gains >%d<\r\n", pm_name(pm), add[i]);
-            tx("experience levels.\r\n");
+            char gain_buf[16];
+            snprintf(gain_buf, sizeof gain_buf, "%d", add[i]);
+            ryl_bind gain_binds[] = {
+                {"name", pm_name(pm)},
+                {"levels", gain_buf},
+                {0},
+            };
+            tx_fmt("battle.expgain.gains", gain_binds);
+            tx0(res_text("battle.expgain.exp_levels"));
             ryl_delay(600);
             pm_add_lv(pm, add[i]);
             int cl_id = pm_cl(pm);
