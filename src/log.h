@@ -4,9 +4,7 @@
 #include <stdarg.h>
 
 /* §24.A unified logging API. Replaces scattered `fprintf(stderr, …)`
-   call-sites and the legacy `ryl_log()` audit-trail helper. One sink
-   today (stderr for WARN/ERR, append-to-file for AUDIT); §24.B/C will
-   add `RYL_LOG=file:…` and `RYL_LOG=tcp:…` sinks behind the same API.
+   call-sites and the legacy `ryl_log()` audit-trail helper.
 
    Severity levels:
      LOG_LVL_DEBUG   trace-level, off by default
@@ -18,6 +16,15 @@
    Default threshold is WARN — INFO/DEBUG are silent unless
    `RYL_LOG_LEVEL=info|debug` is set in the env. AUDIT bypasses the
    threshold (it's history, not diagnostic) and always fires.
+
+   Sinks (WARN/ERR/INFO/DEBUG only — AUDIT always writes
+   data/rylween.log):
+     unset / `RYL_LOG=stderr`    stderr (the historical default)
+     `RYL_LOG=null`              drop the line
+     `RYL_LOG=file:<path>`       append to <path>, resolved through
+                                 ryl_state_path. §24.C will add
+                                 `tcp:<host>:<port>` behind the same
+                                 dispatch.
 
    `module` is a short ident ("res", "party", "battle") so a log line
    stays self-locating without `__FILE__` noise. Pick the
