@@ -1108,10 +1108,11 @@ static int32_t rn_int(const node *obj, const char *key, int32_t dflt) {
     return (n && n->kind == N_INT) ? n->u.iv : dflt;
 }
 
-/* Highest `id:` claimed by any record in the npcs subtree. Cached on
-   first call after world load — the writer iterates slots 1..N every
-   save, so the linear scan would otherwise repeat per call. The cache
-   is invalidated by res_shutdown when world_tree is freed. */
+/* Count of NPC records declared in the npcs subtree (slots
+   0..count-1, post-§25.B step 4). Cached on first call after world
+   load — the writer iterates every slot on save, so the linear scan
+   would otherwise repeat per call. The cache is invalidated by
+   res_shutdown when world_tree is freed. */
 static int npc_slot_max_cache = -1;
 
 static void npc_slot_max_invalidate(void) {
@@ -1129,26 +1130,38 @@ static int npc_slot_max(void) {
     if (!npcs || npcs->kind != N_OBJ) {
         return 0;
     }
-    int max_id = 0;
+    int max_id = -1;
+    int count = 0;
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
         const node *rec = npcs->u.obj.items[i].val;
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
         const node *id_n = obj_get(rec, "id");
-        if (id_n && id_n->kind == N_INT && id_n->u.iv > max_id) {
-            max_id = (int)id_n->u.iv;
+        if (id_n && id_n->kind == N_INT) {
+            count++;
+            if ((int)id_n->u.iv > max_id) {
+                max_id = (int)id_n->u.iv;
+            }
         }
     }
-    if (max_id >= NPC_SLOT_HARD_MAX) {
+    /* Ids must form 0..count-1 contiguous (post-§25.B step 4). */
+    if (count > 0 && max_id != count - 1) {
         LOG_E("realm",
-              "world.json5 npcs id=%d exceeds NPC_SLOT_HARD_MAX (%d); "
-              "bump state.h or trim ids",
-              max_id, NPC_SLOT_HARD_MAX);
+              "world.json5 npcs ids must be 0..count-1 contiguous "
+              "(max=%d, count=%d)",
+              max_id, count);
         exit(1);
     }
-    npc_slot_max_cache = max_id;
-    return max_id;
+    if (count > NPC_SLOT_HARD_MAX) {
+        LOG_E("realm",
+              "world.json5 npcs count=%d exceeds NPC_SLOT_HARD_MAX (%d); "
+              "bump state.h or trim ids",
+              count, NPC_SLOT_HARD_MAX);
+        exit(1);
+    }
+    npc_slot_max_cache = count;
+    return count;
 }
 
 int res_npc_slot_max(void) {
@@ -1189,9 +1202,11 @@ int32_t res_npc_slot(const char *sym) {
 
 /* Slot-keyed walk over the npcs subtree. Returns the matching record,
    or NULL when no entry claims the slot. Both res_npc_sym and
-   res_npc_name are thin shells around this. */
+   res_npc_name are thin shells around this. Slot 0 is a valid NPC
+   slot (post-§25.B step 4); negative slots are the only invalid
+   range. */
 static const node *npc_record_for_slot(int32_t slot) {
-    if (!world_tree || slot <= 0) {
+    if (!world_tree || slot < 0) {
         return NULL;
     }
     const node *npcs = obj_get(world_tree, "npcs");
@@ -1214,9 +1229,9 @@ static const node *npc_record_for_slot(int32_t slot) {
 /* Inverse of res_npc_slot: state.npc[] slot id -> the npcs-subtree key
    (lowercase symbol) for that entry. Returns NULL when no record claims
    the slot — used by the persistent-save writer, which iterates slots
-   1..N regardless. */
+   0..N-1 regardless. */
 const char *res_npc_sym(int32_t slot) {
-    if (!world_tree || slot <= 0) {
+    if (!world_tree || slot < 0) {
         return NULL;
     }
     const node *npcs = obj_get(world_tree, "npcs");
@@ -1424,11 +1439,11 @@ void res_realize_npcs(void) {
        entries in the spec (those without a declared `towne`). cap =
        ceil(N/T) + npc_slack guarantees total capacity T*cap >= N, so
        the linear probe below always finds a free bin. With today's
-       N=23, T=5, slack=1 => cap=6 per bin. Both T and slot_max come
+       N=23, T=5, slack=1 => cap=6 per bin. Both T and slot_count come
        from the folded world tree — towns: and the npcs subtree's
-       largest declared `id:` respectively. */
+       record count respectively. */
     int T = 1 + (int)n_towns;
-    int slot_max = npc_slot_max();
+    int slot_count = npc_slot_max();
     int N = 0;
     int fixed_count = 0;
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
@@ -1436,8 +1451,8 @@ void res_realize_npcs(void) {
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
-        int slot = rn_int(rec, "id", 0);
-        if (slot < 1 || slot > slot_max) {
+        int slot = rn_int(rec, "id", -1);
+        if (slot < 0 || slot >= slot_count) {
             continue;
         }
         if (!obj_get(rec, "towne")) {
@@ -1449,8 +1464,8 @@ void res_realize_npcs(void) {
     int cap = (N + T - 1) / T + npc_slack;
     LOG_I("realm",
           "realizing %d NPC(s): %d fixed + %d random across %d bin(s) "
-          "(capacity %d/bin, slot_max=%d)",
-          N + fixed_count, fixed_count, N, T, cap, slot_max);
+          "(capacity %d/bin, slot_count=%d)",
+          N + fixed_count, fixed_count, N, T, cap, slot_count);
     /* Sized to the static cap (T <= TOWN_SLOT_HARD_MAX); the active
        part is bins 0..T-1. Zero-initialized so unreached bins stay
        0 even when fewer towns than the cap are declared. */
@@ -1461,8 +1476,8 @@ void res_realize_npcs(void) {
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
-        int slot = rn_int(rec, "id", 0);
-        if (slot < 1 || slot > slot_max) {
+        int slot = rn_int(rec, "id", -1);
+        if (slot < 0 || slot >= slot_count) {
             continue;
         }
         struct person *n = &state.npc[slot];
@@ -1508,7 +1523,11 @@ void res_realize_npcs(void) {
                N-1 directly. The bin numbering is independent of the
                enums.towne index space (which dropped its wilderness
                entry in step 3b/C4); the bin draw is purely a
-               capacity-balancing roll. */
+               capacity-balancing roll. The collision loop walks
+               state.npc[0..slot] (post-§25.B step 4 NPC axis flip)
+               so a 0-indexed first-realized NPC is included; the
+               self-match at x=slot keeps the ut > 1 predicate's
+               meaning verbatim. */
             ryl_delay(40);
             int twn = ryl_random(0, T - 1);
             while (counts[twn] >= cap) {
@@ -1529,7 +1548,7 @@ void res_realize_npcs(void) {
                         n->x++;
                     }
                     int ut = 0;
-                    for (int x = 1; x < slot + 1; x++) {
+                    for (int x = 0; x < slot + 1; x++) {
                         if (state.npc[x].x == n->x && state.npc[x].y == n->y) {
                             ut++;
                         }
@@ -2709,18 +2728,24 @@ void res_load_world(const char *path) {
     fold_texts(obj_get(root, "texts"), path);
     texts_sort();
 
-    /* Right-size the runtime NPC table to (res_npc_slot_max() + 1)
-       entries (slot 0 + slots 1..max), zeroed. Idempotent so the
-       res_shutdown / res_load_world reload path drops the prior
-       allocation before allocating a freshly-sized one. The slot-max
-       cap check inside npc_slot_max() bounds this against
-       NPC_SLOT_HARD_MAX before we calloc anything bogus. */
+    /* Right-size the runtime NPC table to res_npc_slot_max() entries
+       (slots 0..count-1, post-§25.B step 4 NPC axis flip), zeroed.
+       Idempotent so the res_shutdown / res_load_world reload path
+       drops the prior allocation before allocating a freshly-sized
+       one. The slot-count cap check inside npc_slot_max() bounds
+       this against NPC_SLOT_HARD_MAX before we calloc anything
+       bogus. A degenerate world with zero NPC records leaves
+       state.npc as NULL — for_each_npc never iterates so no
+       accessor dereferences it. */
     free(state.npc);
-    size_t npc_n = (size_t)res_npc_slot_max() + 1;
-    state.npc = calloc(npc_n, sizeof(struct person));
-    if (!state.npc) {
-        LOG_E("realm", "out of memory allocating state.npc[%zu]", npc_n);
-        exit(1);
+    state.npc = NULL;
+    size_t npc_n = (size_t)res_npc_slot_max();
+    if (npc_n > 0) {
+        state.npc = calloc(npc_n, sizeof(struct person));
+        if (!state.npc) {
+            LOG_E("realm", "out of memory allocating state.npc[%zu]", npc_n);
+            exit(1);
+        }
     }
 
     /* Register the teardown the first time a world is loaded. Guarded

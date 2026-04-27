@@ -1012,7 +1012,7 @@ static void write_current_world() {
         fprintf(f, "      attacked: %u,\n", p->attacked);
         fprintf(f, "      kills: %u,\n", p->kills);
         fputs("      visited_npcs: [", f);
-        for (int j = 0; j <= res_npc_slot_max(); j++) {
+        for (int j = 0; j < res_npc_slot_max(); j++) {
             if (j > 0) {
                 fputs(", ", f);
             }
@@ -1218,8 +1218,9 @@ static void rcw_str(const node *obj, const char *key, char *out, int out_sz) {
 
    Expects the schema emitted by write_current_world (steps 1/1.5/1.6):
    realm{last_played_day}, locations{dx,dy}, npcs{<name>:{slot,...}},
-   parties[{..., visited_npcs:[40]}]. Per §15.5, the visited bits live
-   per-party; this loop rebuilds state.npc[j].visited[i]. */
+   parties[{..., visited_npcs:[res_npc_slot_max()]}]. Per §15.5, the
+   visited bits live per-party; this loop rebuilds
+   state.npc[j].visited[i]. */
 static int read_current_world() {
     char path[512];
     FILE *probe;
@@ -1269,8 +1270,8 @@ static int read_current_world() {
             if (!rec || rec->kind != N_OBJ) {
                 continue;
             }
-            int slot = rcw_int(rec, "id", 0);
-            if (slot < 1 || slot > 39) {
+            int slot = rcw_int(rec, "id", -1);
+            if (slot < 0 || slot >= res_npc_slot_max()) {
                 continue;
             }
             struct person *n = &state.npc[slot];
@@ -1373,7 +1374,7 @@ static int read_current_world() {
 
             const node *vn = obj_get(pnode, "visited_npcs");
             if (vn && vn->kind == N_ARR) {
-                size_t cap = (size_t)(res_npc_slot_max() + 1);
+                size_t cap = (size_t)res_npc_slot_max();
                 size_t nvn = vn->u.arr.n < cap ? vn->u.arr.n : cap;
                 for (size_t j = 0; j < nvn; j++) {
                     const node *it = vn->u.arr.items[j];

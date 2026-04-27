@@ -63,9 +63,9 @@ int res_party_member_max(void);
    layer (`res_npc_slot_max()`) and from `state.num_parties` — these
    constants are just the upper bounds the static table can hold so
    indexing `state.npc[slot]` / `state.p[i]` stays in-bounds for any
-   valid slot id. NPC capacity = slot 0 (wilderness sentinel today,
-   first realized NPC after §25.B step 4) + 40 NPC slots; party
-   capacity = slot 0 (unused) + 25 parties (driv.c::create_party
+   valid slot id. NPC capacity = up to NPC_SLOT_HARD_MAX records
+   (slots 0..NPC_SLOT_HARD_MAX-1, post-§25.B step 4 axis flip);
+   party capacity = slot 0 (unused) + 25 parties (driv.c::create_party
    refuses #26 with "all parties created"). Bumping these requires
    matching changes in the data layer; the NPC bound is also asserted
    against `res_npc_slot_max()` once the world has loaded. */
@@ -218,13 +218,14 @@ struct ryl_state {
     /* Persistent game data (flushed to realm.dat / npc.dat). */
     char map[42][82];
     struct party p[PARTY_SLOT_HARD_MAX];
-    /* NPC runtime table — heap-allocated to (res_npc_slot_max() + 1)
-       entries by res_load_world() so the size matches the data layer's
-       slot count. NPC_SLOT_HARD_MAX is the static ceiling
-       res_npc_slot_max() is asserted against; the in-memory table is
-       right-sized at world load. NULL until res_load_world() runs;
-       res_shutdown() frees it. All readers / writers index through
-       state.npc[slot] (slot <= res_npc_slot_max()). */
+    /* NPC runtime table — heap-allocated to res_npc_slot_max()
+       entries by res_load_world() (post-§25.B step 4 axis flip)
+       so the size matches the data layer's slot count.
+       NPC_SLOT_HARD_MAX is the static ceiling res_npc_slot_max() is
+       asserted against; the in-memory table is right-sized at world
+       load. NULL until res_load_world() runs; res_shutdown() frees
+       it. All readers / writers index through state.npc[slot]
+       (slot < res_npc_slot_max()). */
     struct person *npc;
 };
 

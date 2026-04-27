@@ -269,14 +269,17 @@ void enter() {
    `npc_job` (its job id) as int bindings — the DSL resolves the
    display strings via engine_bind res_enum on each iteration. */
 static void hut() {
-    int32_t who = 0;
+    /* -1 sentinel: post-§25.B step 4 NPC axis flip, slot 0 is a
+       real NPC (Garth), so the legacy `who = 0` / `if (!who)`
+       "not found" idiom collides with a valid slot. */
+    int32_t who = -1;
 
     for_each_npc(i) {
         if (npc_is_at(npc_at_slot(i), pa_x(), pa_y())) {
             who = i;
         }
     }
-    if (!who) {
+    if (who < 0) {
         return; /* Error */
     }
 

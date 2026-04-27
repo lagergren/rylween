@@ -135,13 +135,16 @@ void speak(int32_t bld, int32_t tow) {
         }
         talk = reference[c - 64];
     } else {
-        talk = 0;
+        /* -1 sentinel: post-§25.B step 4 NPC axis flip, slot 0 is
+           a real NPC (Garth), so the legacy `talk = 0` / `if (!talk)`
+           "not found" idiom collides with a valid slot. */
+        talk = -1;
         for_each_npc(i) {
             if (npc_is_at(npc_at_slot(i), pa_x(), pa_y())) {
                 talk = i;
             }
         }
-        if (!talk) {
+        if (talk < 0) {
             return; /* Error */
         }
     }
