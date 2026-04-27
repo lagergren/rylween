@@ -1,6 +1,6 @@
 #include "ryl.h"
 #include "res.h"
-#include "driv.h"
+#include "interact.h"
 #include "party.h"
 #include "primitives.h"
 #include "script.h"

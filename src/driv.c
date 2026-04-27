@@ -1,4 +1,5 @@
 #include "io.h"
+#include "interact.h"
 #include "inventory.h"
 #include "json5.h"
 #include "log.h"
@@ -14,7 +15,6 @@
 
 static void createparty(void);
 static void position_locations(void);
-static void read_journal(void);
 static int read_current_world(void);
 static void the_game(void);
 static void write_current_world(void);
@@ -267,27 +267,6 @@ uint8_t drop_option() {
     }
 }
 
-static void read_journal() {
-    size_t n = pa_journal_n();
-    if (n == 0) {
-        return;
-    }
-
-    tx0(res_text("driv.journal.header"));
-
-    unsigned char line = 0;
-    for (size_t i = 0; i < n; i++) {
-        tx("- %s\r\n", pa_journal_line(i));
-        line++;
-        if (line == 16) {
-            line = 0;
-            tx("\r\n");
-            ryl_pause();
-            cl();
-        }
-    }
-    ryl_pause();
-}
 void statusline() {
     /* Redo status line */
 
@@ -1668,26 +1647,6 @@ void show(int32_t nr) {
     ryl_pause();
 }
 
-/* vsnprintf'd wrapper over party_journal_add. Accepts call-site formats
-   that carry a trailing \n (the file-backed predecessor required it);
-   that byte is stripped before the line reaches storage. */
-void journalf(const char *fmt, ...) {
-    char line[144];
-    va_list ap;
-    va_start(ap, fmt);
-    int n = vsnprintf(line, sizeof line, fmt, ap);
-    va_end(ap);
-    if (n <= 0) {
-        return;
-    }
-    if (n >= (int)sizeof line) {
-        n = (int)sizeof line - 1;
-    }
-    if (line[n - 1] == '\n') {
-        line[n - 1] = '\0';
-    }
-    party_journal_add(party_current(), line);
-}
 void help() {
     clw();
     /* C E H J L  P Q R S T  V W X Z ! ? SPC */
