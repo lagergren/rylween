@@ -201,7 +201,7 @@ static size_t n_flags_tab;
 static node *world_tree;
 
 __attribute__((noreturn)) void res_die(const char *path, int line, const char *msg) {
-    fprintf(stderr, "res: %s:%d: %s\n", path, line, msg);
+    LOG_E("res", "%s:%d: %s", path, line, msg);
     exit(1);
 }
 
@@ -716,17 +716,17 @@ int res_class_min_stat_check(int cl_id, int ws, int wi, int ch,
    a named formula as a load-time contract. */
 int32_t res_formula_int_n(const char *name, const res_binding *bindings, size_t n) {
     if (!world_tree || !name) {
-        fprintf(stderr, "res_formula_int: world not loaded\n");
+        LOG_E("res", "res_formula_int: world not loaded");
         exit(1);
     }
     const node *fs = obj_get(world_tree, "formulas");
     if (!fs || fs->kind != N_OBJ) {
-        fprintf(stderr, "res_formula_int: missing top-level 'formulas' block\n");
+        LOG_E("res", "res_formula_int: missing top-level 'formulas' block");
         exit(1);
     }
     const node *body = obj_get(fs, name);
     if (!body) {
-        fprintf(stderr, "res_formula_int: unknown formula '%s'\n", name);
+        LOG_E("res", "res_formula_int: unknown formula '%s'", name);
         exit(1);
     }
     /* §22 Lane A: formulas now run through the script DSL evaluator.
@@ -736,9 +736,8 @@ int32_t res_formula_int_n(const char *name, const res_binding *bindings, size_t 
        caller's needs (encounter scaling tops out at 4 bindings). */
     enum { MAX_FORMULA_BINDINGS = 16 };
     if (n > MAX_FORMULA_BINDINGS) {
-        fprintf(stderr,
-                "res_formula_int: '%s' too many bindings (%zu > %d)\n",
-                name, n, MAX_FORMULA_BINDINGS);
+        LOG_E("res", "res_formula_int: '%s' too many bindings (%zu > %d)",
+              name, n, MAX_FORMULA_BINDINGS);
         exit(1);
     }
     char buf[MAX_FORMULA_BINDINGS][16];
@@ -802,12 +801,12 @@ int32_t res_monster_id(const char *sym) {
    and silent fallback (return a random non-tier monster) would bury it. */
 int32_t res_monster_tier_pick(const char *tier) {
     if (!world_tree || !tier) {
-        fprintf(stderr, "res_monster_tier_pick: world not loaded / null tier\n");
+        LOG_E("res", "res_monster_tier_pick: world not loaded / null tier");
         exit(1);
     }
     const node *mon_n = obj_get(world_tree, "monsters");
     if (!mon_n || mon_n->kind != N_OBJ) {
-        fprintf(stderr, "res_monster_tier_pick: monsters shard missing\n");
+        LOG_E("res", "res_monster_tier_pick: monsters shard missing");
         exit(1);
     }
     int32_t ids[RES_MAX_MONSTER_ID + 1];
@@ -831,7 +830,7 @@ int32_t res_monster_tier_pick(const char *tier) {
         ids[n++] = (int32_t)id_n->u.iv;
     }
     if (n == 0) {
-        fprintf(stderr, "res_monster_tier_pick: empty tier '%s'\n", tier);
+        LOG_E("res", "res_monster_tier_pick: empty tier '%s'", tier);
         exit(1);
     }
     return ids[ryl_random(0, (int32_t)n - 1)];
@@ -880,59 +879,58 @@ void res_dungeon_apply_placements(const char *scenario, int32_t *lvl,
         return;
     }
     if (!world_tree || !lvl) {
-        fprintf(stderr, "res_dungeon_apply_placements: world not loaded\n");
+        LOG_E("res", "res_dungeon_apply_placements: world not loaded");
         exit(1);
     }
     const node *d_n = obj_get(world_tree, "dungeons");
     if (!d_n || d_n->kind != N_OBJ) {
-        fprintf(stderr, "res_dungeon_apply_placements: dungeons shard missing\n");
+        LOG_E("res", "res_dungeon_apply_placements: dungeons shard missing");
         exit(1);
     }
     const node *sc_n = obj_get(d_n, "scenarios");
     if (!sc_n || sc_n->kind != N_OBJ) {
-        fprintf(stderr,
-                "res_dungeon_apply_placements: dungeons.scenarios missing\n");
+        LOG_E("res",
+              "res_dungeon_apply_placements: dungeons.scenarios missing");
         exit(1);
     }
     const node *s = obj_get(sc_n, scenario);
     if (!s || s->kind != N_OBJ) {
-        fprintf(stderr,
-                "res_dungeon_apply_placements: unknown scenario '%s'\n",
-                scenario);
+        LOG_E("res", "res_dungeon_apply_placements: unknown scenario '%s'",
+              scenario);
         exit(1);
     }
     const node *placements = obj_get(s, "placements");
     if (!placements || placements->kind != N_ARR) {
-        fprintf(stderr,
-                "res_dungeon_apply_placements: scenario '%s' missing placements\n",
-                scenario);
+        LOG_E("res",
+              "res_dungeon_apply_placements: scenario '%s' missing placements",
+              scenario);
         exit(1);
     }
     for (size_t i = 0; i < placements->u.arr.n; i++) {
         const node *p = placements->u.arr.items[i];
         if (!p || p->kind != N_OBJ) {
-            fprintf(stderr,
-                    "res_dungeon_apply_placements: scenario '%s' placements[%zu] "
-                    "must be object\n",
-                    scenario, i);
+            LOG_E("res",
+                  "res_dungeon_apply_placements: scenario '%s' placements[%zu] "
+                  "must be object",
+                  scenario, i);
             exit(1);
         }
         const node *lvl_n = obj_get(p, "level");
         const node *enc_n = obj_get(p, "encounter");
         if (!lvl_n || lvl_n->kind != N_INT || !enc_n ||
             enc_n->kind != N_STR) {
-            fprintf(stderr,
-                    "res_dungeon_apply_placements: scenario '%s' placements[%zu] "
-                    "needs int level + string encounter\n",
-                    scenario, i);
+            LOG_E("res",
+                  "res_dungeon_apply_placements: scenario '%s' placements[%zu] "
+                  "needs int level + string encounter",
+                  scenario, i);
             exit(1);
         }
         int32_t L = (int32_t)lvl_n->u.iv;
         if (L < 1 || (size_t)L > n_lvl) {
-            fprintf(stderr,
-                    "res_dungeon_apply_placements: scenario '%s' placement level "
-                    "%d out of [1, %zu]\n",
-                    scenario, (int)L, n_lvl);
+            LOG_E("res",
+                  "res_dungeon_apply_placements: scenario '%s' placement level "
+                  "%d out of [1, %zu]",
+                  scenario, (int)L, n_lvl);
             exit(1);
         }
         /* fold_dungeons has already verified the symbol resolves. */
@@ -1151,22 +1149,22 @@ int res_npc_slot_max(void) {
    realizer, or in tests). */
 int32_t res_npc_slot(const char *sym) {
     if (!world_tree || !sym) {
-        fprintf(stderr, "res_npc_slot: world not loaded / null name\n");
+        LOG_E("res", "res_npc_slot: world not loaded / null name");
         exit(1);
     }
     const node *npcs = obj_get(world_tree, "npcs");
     if (!npcs || npcs->kind != N_OBJ) {
-        fprintf(stderr, "res_npc_slot: npcs subtree missing\n");
+        LOG_E("res", "res_npc_slot: npcs subtree missing");
         exit(1);
     }
     const node *rec = obj_get(npcs, sym);
     if (!rec || rec->kind != N_OBJ) {
-        fprintf(stderr, "res_npc_slot: unknown NPC '%s'\n", sym);
+        LOG_E("res", "res_npc_slot: unknown NPC '%s'", sym);
         exit(1);
     }
     const node *id_n = obj_get(rec, "id");
     if (!id_n || id_n->kind != N_INT) {
-        fprintf(stderr, "res_npc_slot: '%s' missing 'id'\n", sym);
+        LOG_E("res", "res_npc_slot: '%s' missing 'id'", sym);
         exit(1);
     }
     return (int32_t)id_n->u.iv;
@@ -1296,17 +1294,17 @@ void npc_loc_str(npc_t n, char *dst, size_t dst_sz) {
 
 int32_t res_npc_role(const char *role) {
     if (!world_tree || !role) {
-        fprintf(stderr, "res_npc_role: world not loaded / null role\n");
+        LOG_E("res", "res_npc_role: world not loaded / null role");
         exit(1);
     }
     const node *roles = obj_get(world_tree, "npc_roles");
     if (!roles || roles->kind != N_OBJ) {
-        fprintf(stderr, "res_npc_role: npc_roles subtree missing\n");
+        LOG_E("res", "res_npc_role: npc_roles subtree missing");
         exit(1);
     }
     const node *binding = obj_get(roles, role);
     if (!binding || binding->kind != N_STR) {
-        fprintf(stderr, "res_npc_role: unknown role '%s'\n", role);
+        LOG_E("res", "res_npc_role: unknown role '%s'", role);
         exit(1);
     }
     return res_npc_slot(binding->u.sv);
@@ -1741,7 +1739,7 @@ static void fold_monsters(const node *monsters_node, const char *path) {
 static void emit_text(const char *id, const char *text) {
     text_rec *grown = realloc(texts, (n_texts + 1) * sizeof *texts);
     if (!grown) {
-        fprintf(stderr, "res: oom\n");
+        LOG_E("res", "oom");
         exit(1);
     }
     texts = grown;
@@ -2057,7 +2055,7 @@ static void fold_buildings(const node *buildings_node, const char *path) {
     }
     buildings_tab = calloc(count, sizeof *buildings_tab);
     if (!buildings_tab) {
-        fprintf(stderr, "res: oom\n");
+        LOG_E("res", "oom");
         exit(1);
     }
     for (size_t i = 0; i < count; i++) {
@@ -2202,10 +2200,10 @@ static void fold_dungeons(const node *dungeons_node, const char *path) {
                         "dungeons.recurring entry must be string or object");
             }
             if (res_enum_id("dungeon_encounter", sym) < 0) {
-                fprintf(stderr,
-                        "res: %s:%d: dungeons.recurring[%zu]: unknown "
-                        "dungeon_encounter symbol '%s'\n",
-                        path, line, i, sym);
+                LOG_E("res",
+                      "%s:%d: dungeons.recurring[%zu]: unknown "
+                      "dungeon_encounter symbol '%s'",
+                      path, line, i, sym);
                 exit(1);
             }
             if (uf) {
@@ -2224,17 +2222,17 @@ static void fold_dungeons(const node *dungeons_node, const char *path) {
                             "dungeons.recurring until_flag.value missing");
                 }
                 if (res_flag_slot(tag_n->u.sv) < 0) {
-                    fprintf(stderr,
-                            "res: %s:%d: dungeons.recurring until_flag.tag "
-                            "'%s' has no record\n",
-                            path, tag_n->line, tag_n->u.sv);
+                    LOG_E("res",
+                          "%s:%d: dungeons.recurring until_flag.tag "
+                          "'%s' has no record",
+                          path, tag_n->line, tag_n->u.sv);
                     exit(1);
                 }
                 if (res_flag_value_id(tag_n->u.sv, val_n->u.sv) < 0) {
-                    fprintf(stderr,
-                            "res: %s:%d: dungeons.recurring until_flag.value "
-                            "'%s' not in flag '%s' values[]\n",
-                            path, val_n->line, val_n->u.sv, tag_n->u.sv);
+                    LOG_E("res",
+                          "%s:%d: dungeons.recurring until_flag.value "
+                          "'%s' not in flag '%s' values[]",
+                          path, val_n->line, val_n->u.sv, tag_n->u.sv);
                     exit(1);
                 }
             }
@@ -2285,10 +2283,10 @@ static void fold_dungeons(const node *dungeons_node, const char *path) {
                         "placement.encounter must be a string symbol");
             }
             if (res_enum_id("dungeon_encounter", enc_n->u.sv) < 0) {
-                fprintf(stderr,
-                        "res: %s:%d: scenario '%s' placement[%zu]: "
-                        "unknown dungeon_encounter symbol '%s'\n",
-                        path, enc_n->line, flag_key, j, enc_n->u.sv);
+                LOG_E("res",
+                      "%s:%d: scenario '%s' placement[%zu]: "
+                      "unknown dungeon_encounter symbol '%s'",
+                      path, enc_n->line, flag_key, j, enc_n->u.sv);
                 exit(1);
             }
         }
@@ -2335,19 +2333,19 @@ static void fold_scripts_walk(const node *n, const char *path,
             const node *foe = obj_get(enc, "foe");
             if (foe && foe->kind == N_STR &&
                 res_monster_id(foe->u.sv) < 0) {
-                fprintf(stderr,
-                        "res: %s:%d: scripts.%s: unknown monster symbol "
-                        "'%s' in encounter.foe\n",
-                        path, foe->line, script_id, foe->u.sv);
+                LOG_E("res",
+                      "%s:%d: scripts.%s: unknown monster symbol "
+                      "'%s' in encounter.foe",
+                      path, foe->line, script_id, foe->u.sv);
                 exit(1);
             }
             const node *tier = obj_get(enc, "tier");
             if (tier && tier->kind == N_STR &&
                 !res_monster_tier_exists(tier->u.sv)) {
-                fprintf(stderr,
-                        "res: %s:%d: scripts.%s: unknown monster tier "
-                        "'%s' in encounter.tier\n",
-                        path, tier->line, script_id, tier->u.sv);
+                LOG_E("res",
+                      "%s:%d: scripts.%s: unknown monster tier "
+                      "'%s' in encounter.tier",
+                      path, tier->line, script_id, tier->u.sv);
                 exit(1);
             }
         }
@@ -2356,10 +2354,10 @@ static void fold_scripts_walk(const node *n, const char *path,
             const node *sc = obj_get(dgn, "scenario");
             if (sc && sc->kind == N_STR &&
                 !res_dungeon_scenario_exists(sc->u.sv)) {
-                fprintf(stderr,
-                        "res: %s:%d: scripts.%s: unknown dungeons.scenarios "
-                        "key '%s' in dungeon.scenario\n",
-                        path, sc->line, script_id, sc->u.sv);
+                LOG_E("res",
+                      "%s:%d: scripts.%s: unknown dungeons.scenarios "
+                      "key '%s' in dungeon.scenario",
+                      path, sc->line, script_id, sc->u.sv);
                 exit(1);
             }
         }
@@ -2368,10 +2366,10 @@ static void fold_scripts_walk(const node *n, const char *path,
             const node *bld = obj_get(spk, "building");
             if (bld && bld->kind == N_STR &&
                 res_enum_id("building", bld->u.sv) < 0) {
-                fprintf(stderr,
-                        "res: %s:%d: scripts.%s: unknown building symbol "
-                        "'%s' in speak.building\n",
-                        path, bld->line, script_id, bld->u.sv);
+                LOG_E("res",
+                      "%s:%d: scripts.%s: unknown building symbol "
+                      "'%s' in speak.building",
+                      path, bld->line, script_id, bld->u.sv);
                 exit(1);
             }
         }
@@ -2383,10 +2381,10 @@ static void fold_scripts_walk(const node *n, const char *path,
                     const node *e = items->u.arr.items[i];
                     if (e && e->kind == N_STR &&
                         res_item_id(e->u.sv) < 0) {
-                        fprintf(stderr,
-                                "res: %s:%d: scripts.%s: unknown item "
-                                "symbol '%s' in reward.items[%zu]\n",
-                                path, e->line, script_id, e->u.sv, i);
+                        LOG_E("res",
+                              "%s:%d: scripts.%s: unknown item "
+                              "symbol '%s' in reward.items[%zu]",
+                              path, e->line, script_id, e->u.sv, i);
                         exit(1);
                     }
                 }
@@ -2395,36 +2393,36 @@ static void fold_scripts_walk(const node *n, const char *path,
         const node *sf = obj_get(n, "set_flag");
         if (sf && sf->kind == N_STR) {
             if (res_flag_slot(sf->u.sv) < 0) {
-                fprintf(stderr,
-                        "res: %s:%d: scripts.%s: unknown flag '%s' in "
-                        "set_flag\n",
-                        path, sf->line, script_id, sf->u.sv);
+                LOG_E("res",
+                      "%s:%d: scripts.%s: unknown flag '%s' in "
+                      "set_flag",
+                      path, sf->line, script_id, sf->u.sv);
                 exit(1);
             }
             const node *vn = obj_get(n, "value");
             if (vn && vn->kind == N_STR &&
                 res_flag_value_id(sf->u.sv, vn->u.sv) < 0) {
-                fprintf(stderr,
-                        "res: %s:%d: scripts.%s: unknown value '%s' for "
-                        "flag '%s' in set_flag.value\n",
-                        path, vn->line, script_id, vn->u.sv, sf->u.sv);
+                LOG_E("res",
+                      "%s:%d: scripts.%s: unknown value '%s' for "
+                      "flag '%s' in set_flag.value",
+                      path, vn->line, script_id, vn->u.sv, sf->u.sv);
                 exit(1);
             }
         }
         const node *ec = obj_get(n, "engine_call");
         if (ec && ec->kind == N_STR &&
             script_engine_call_argc(ec->u.sv) < 0) {
-            fprintf(stderr,
-                    "res: %s:%d: scripts.%s: unknown engine_call fn '%s'\n",
-                    path, ec->line, script_id, ec->u.sv);
+            LOG_E("res",
+                  "%s:%d: scripts.%s: unknown engine_call fn '%s'",
+                  path, ec->line, script_id, ec->u.sv);
             exit(1);
         }
         const node *ei = obj_get(n, "engine_int");
         if (ei && ei->kind == N_STR &&
             script_engine_int_argc(ei->u.sv) < 0) {
-            fprintf(stderr,
-                    "res: %s:%d: scripts.%s: unknown engine_int fn '%s'\n",
-                    path, ei->line, script_id, ei->u.sv);
+            LOG_E("res",
+                  "%s:%d: scripts.%s: unknown engine_int fn '%s'",
+                  path, ei->line, script_id, ei->u.sv);
             exit(1);
         }
         const node *eb = obj_get(n, "engine_bind");
@@ -2432,10 +2430,10 @@ static void fold_scripts_walk(const node *n, const char *path,
             const node *fn = obj_get(eb, "fn");
             if (fn && fn->kind == N_STR &&
                 script_engine_bind_argc(fn->u.sv) < 0) {
-                fprintf(stderr,
-                        "res: %s:%d: scripts.%s: unknown engine_bind fn "
-                        "'%s'\n",
-                        path, fn->line, script_id, fn->u.sv);
+                LOG_E("res",
+                      "%s:%d: scripts.%s: unknown engine_bind fn "
+                      "'%s'",
+                      path, fn->line, script_id, fn->u.sv);
                 exit(1);
             }
         }
@@ -2446,36 +2444,36 @@ static void fold_scripts_walk(const node *n, const char *path,
             if (ename && ename->kind == N_STR && eval &&
                 eval->kind == N_STR &&
                 res_enum_id(ename->u.sv, eval->u.sv) < 0) {
-                fprintf(stderr,
-                        "res: %s:%d: scripts.%s: unknown enum '%s' value "
-                        "'%s'\n",
-                        path, eval->line, script_id, ename->u.sv,
-                        eval->u.sv);
+                LOG_E("res",
+                      "%s:%d: scripts.%s: unknown enum '%s' value "
+                      "'%s'",
+                      path, eval->line, script_id, ename->u.sv,
+                      eval->u.sv);
                 exit(1);
             }
         }
         const node *item = obj_get(n, "item");
         if (item && item->kind == N_STR &&
             res_item_id(item->u.sv) < 0) {
-            fprintf(stderr,
-                    "res: %s:%d: scripts.%s: unknown item symbol '%s'\n",
-                    path, item->line, script_id, item->u.sv);
+            LOG_E("res",
+                  "%s:%d: scripts.%s: unknown item symbol '%s'",
+                  path, item->line, script_id, item->u.sv);
             exit(1);
         }
         const node *pic = obj_get(n, "pic");
         if (pic && pic->kind == N_STR &&
             res_enum_id("pic", pic->u.sv) < 0) {
-            fprintf(stderr,
-                    "res: %s:%d: scripts.%s: unknown pic symbol '%s'\n",
-                    path, pic->line, script_id, pic->u.sv);
+            LOG_E("res",
+                  "%s:%d: scripts.%s: unknown pic symbol '%s'",
+                  path, pic->line, script_id, pic->u.sv);
             exit(1);
         }
         const node *fln = obj_get(n, "flag");
         if (fln && fln->kind == N_STR &&
             res_flag_slot(fln->u.sv) < 0) {
-            fprintf(stderr,
-                    "res: %s:%d: scripts.%s: unknown flag '%s'\n",
-                    path, fln->line, script_id, fln->u.sv);
+            LOG_E("res",
+                  "%s:%d: scripts.%s: unknown flag '%s'",
+                  path, fln->line, script_id, fln->u.sv);
             exit(1);
         }
 
