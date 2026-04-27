@@ -32,6 +32,9 @@
                                   non-blocking — slow readers drop
                                   lines rather than stalling the
                                   engine. See docs/log.md.
+     `RYL_LOG=syslog[:<ident>]`   route through syslog(3) with a
+                                  level → priority mapping (default
+                                  ident "rylween", facility LOG_USER).
      `RYL_LOG=stderr,file:foo,tcp:9999`
                                   tees to all three at once.
 

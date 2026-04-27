@@ -54,6 +54,7 @@ Recognized tokens:
 | `null`                 | no-op token; the only-token-in-list form silences |
 | `file:<leaf-or-path>`  | append `[lvl][mod] body\n` to a file              |
 | `tcp:[host:]port`      | bind a TCP listener; broadcast to every client    |
+| `syslog[:<ident>]`     | route through `syslog(3)` (default ident `rylween`) |
 
 Worked examples:
 
@@ -174,7 +175,51 @@ goodbye line" — readers see EOF.
 
 ---
 
-## 4. Runtime config file (`runtime.json5`)
+## 4. The syslog sink (`syslog[:<ident>]`)
+
+`RYL_LOG=syslog` opens a syslog channel via `openlog(ident, LOG_PID,
+LOG_USER)` — default ident is `rylween`. Each emitted line is sent
+through `syslog(3)` at a priority matching the log level:
+
+| level   | syslog priority |
+|---------|-----------------|
+| DEBUG   | `LOG_DEBUG`     |
+| INFO    | `LOG_INFO`      |
+| WARN    | `LOG_WARNING`   |
+| ERR     | `LOG_ERR`       |
+
+The body is `[lvl][mod] body` — same shape as the file/stderr/tcp
+sinks so a `grep '\[INF\]'` scan over a system log behaves
+identically. Trailing newlines are dropped because syslog handles
+its own framing.
+
+Where the messages land is controlled by the host's syslog
+facility:
+
+* **Linux (journald)**: `journalctl -t rylween` (or the ident you
+  passed). On rsyslog-only systems they typically end up under
+  `/var/log/syslog` or `/var/log/messages` per the LOG_USER
+  routing rules.
+* **macOS**: `log show --predicate 'process == "rylween"'` may show
+  records, though Apple's unified logging filters non-Apple
+  subsystems aggressively. macOS still calls these "ASL" records
+  internally; tools like `syslog -k Sender rylween` work for live
+  inspection. For most macOS dev workflows `tcp:<port>` or
+  `file:<path>` is more useful than `syslog`.
+
+A custom ident is useful when running multiple replays in parallel:
+
+```sh
+RYL_LOG=syslog:rylween-fixture-A ./rylween …
+RYL_LOG=syslog:rylween-fixture-B ./rylween …
+```
+
+`closelog` is registered through `atexit` so the syslog channel
+closes cleanly on normal shutdown.
+
+---
+
+## 5. Runtime config file (`runtime.json5`)
 
 `RYL_LOG`, `RYL_LOG_LEVEL` and the rest of the always-on `RYL_*`
 knobs all flow through a tiny lookup helper (`rcfg_get`) that
@@ -239,7 +284,7 @@ Non-scalar values get a one-shot `[WRN][rcfg]` and are skipped.
 
 ---
 
-## 5. AUDIT (`LOG_A`)
+## 6. AUDIT (`LOG_A`)
 
 `LOG_A` is for user-visible game history and routes unconditionally
 to `data/rylween.log` (or `$HOME/.rylween/rylween.log` under the

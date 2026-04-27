@@ -10,6 +10,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include "compat.h" /* getclk, ryl_state_path */
@@ -53,6 +54,16 @@
                                   (EPIPE/short write) so the engine
                                   never stalls. At most one tcp: sink
                                   per process. See docs/log.md.
+     syslog[:<ident>]          → openlog(ident, LOG_PID, LOG_USER) and
+                                  route each line through syslog(3)
+                                  with a level → priority mapping
+                                  (DEBUG/INFO/WARN/ERR →
+                                  LOG_DEBUG/INFO/WARNING/ERR). Default
+                                  ident is "rylween". One syslog sink
+                                  per process. The system facility's
+                                  filtering / forwarding rules apply;
+                                  on macOS see /var/log/system.log,
+                                  on Linux journald or rsyslog.
 
    Examples:
      RYL_LOG=stderr,file:dev.log              tee to stderr + a file
@@ -69,6 +80,7 @@
 #define SINK_BIT_STDERR (1u << 0)
 #define SINK_BIT_FILE   (1u << 1)
 #define SINK_BIT_TCP    (1u << 2)
+#define SINK_BIT_SYSLOG (1u << 3)
 
 /* §24.C TCP fan-out. N=8 is plenty for the rcon use-case (one or two
    operators tailing a running engine). New connections are accepted
@@ -126,6 +138,48 @@ static void sink_file_close(void) {
         fclose(sink_file);
         sink_file = NULL;
     }
+}
+
+/* §24.D syslog sink. The ident buffer is process-lifetime so closelog
+   doesn't read freed memory if openlog stashed the pointer. macOS's
+   syslog(3) does retain the pointer across calls; Linux glibc copies
+   it, but assuming retention is the safe portable contract. */
+static char syslog_ident[64];
+
+static void sink_syslog_close(void) {
+    closelog();
+}
+
+static int open_syslog_sink(const char *ident) {
+    if (!ident || !*ident) {
+        ident = "rylween";
+    }
+    strncpy(syslog_ident, ident, sizeof syslog_ident - 1);
+    syslog_ident[sizeof syslog_ident - 1] = '\0';
+    openlog(syslog_ident, LOG_PID, LOG_USER);
+    if (atexit(sink_syslog_close) != 0) {
+        fprintf(stderr,
+                "[ERR][log] atexit registration failed for RYL_LOG=syslog\n");
+        closelog();
+        return -1;
+    }
+    return 0;
+}
+
+static int syslog_priority(log_level lvl) {
+    switch (lvl) {
+        case LOG_LVL_DEBUG:
+            return LOG_DEBUG;
+        case LOG_LVL_INFO:
+            return LOG_INFO;
+        case LOG_LVL_WARN:
+            return LOG_WARNING;
+        case LOG_LVL_ERR:
+            return LOG_ERR;
+        case LOG_LVL_AUDIT:
+            return LOG_NOTICE; /* unreachable — AUDIT bypasses */
+    }
+    return LOG_INFO;
 }
 
 static void sink_tcp_close(void) {
@@ -395,10 +449,24 @@ static void apply_sink_token(const char *tok, unsigned *mask) {
         if (open_tcp_sink(tok + 4) == 0) {
             *mask |= SINK_BIT_TCP;
         }
+    } else if (!strncasecmp(tok, "syslog", 6) &&
+               (tok[6] == '\0' || tok[6] == ':')) {
+        if (*mask & SINK_BIT_SYSLOG) {
+            fprintf(stderr,
+                    "[ERR][log] RYL_LOG=%s: a syslog sink is already "
+                    "open; ignored\n",
+                    tok);
+            return;
+        }
+        const char *ident = (tok[6] == ':' && tok[7]) ? tok + 7 : NULL;
+        if (open_syslog_sink(ident) == 0) {
+            *mask |= SINK_BIT_SYSLOG;
+        }
     } else {
         fprintf(stderr,
                 "[ERR][log] unrecognized RYL_LOG token '%s' (expected "
-                "stderr|null|file:<path>|tcp:[host:]port)\n",
+                "stderr|null|file:<path>|tcp:[host:]port|"
+                "syslog[:<ident>])\n",
                 tok);
         *mask |= SINK_BIT_STDERR;
     }
@@ -522,5 +590,13 @@ void log_msg(log_level lvl, const char *module, const char *fmt, ...) {
     }
     if (mask & SINK_BIT_TCP) {
         sink_tcp_emit(line, len);
+    }
+    if (mask & SINK_BIT_SYSLOG) {
+        /* No trailing newline — syslog(3) framing handles it. The
+           level tag is redundant with the syslog priority but kept
+           so a `grep '\[INF\]'` over the system log behaves the
+           same as over a file: sink. */
+        syslog(syslog_priority(lvl), "[%s][%s] %s", lvl_tag(lvl), module,
+               body);
     }
 }
