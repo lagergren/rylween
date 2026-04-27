@@ -30,10 +30,8 @@ int wld_is_passable(int x, int y) {
     return c != 'm' && c != 'w';
 }
 
-enum { WLD_LOCATION_SLOTS = 15 };
-
 static int location_in_range(int slot) {
-    return slot >= 0 && slot < WLD_LOCATION_SLOTS;
+    return slot >= 0 && slot < WLD_LOCATION_SLOT_MAX;
 }
 
 int32_t wld_location_x(int slot) {

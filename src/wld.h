@@ -22,12 +22,24 @@ char wld_tile_at(int x, int y);
    wall). */
 int wld_is_passable(int x, int y);
 
-/* Random-location placements (state.dx[]/dy[]). 15 slots, written by
-   driv.c::position_locations on cold-start and read by mission
-   triggers / speak bindings to identify "the dungeon a quest sends
-   the party to". Slot indices are scenario-specific (see
-   missions.c usage); helpers do an internal 0..14 bounds check
-   and treat out-of-range slots as the (0,0) wilderness sentinel. */
+/* Random-location placements (state.dx[]/dy[]). WLD_LOCATION_SLOT_MAX
+   slots, written by driv.c::position_locations on cold-start and read
+   by mission triggers / speak bindings to identify "the dungeon a
+   quest sends the party to". Slot indices are scenario-specific (see
+   missions.c usage); helpers do an internal 0..MAX-1 bounds check and
+   treat out-of-range slots as the (0,0) wilderness sentinel.
+
+   WLD_LOCATION_SLOT_MAX is the array size (zero-init + save/load
+   bound). WLD_RANDOM_LOCATION_MAX is the upper bound (inclusive) of
+   the slots that get randomized at cold-start — slots 1..MAX get a
+   random (x,y) inside `map.location_bounds`; slot 0 stays the (0,0)
+   wilderness sentinel and slots above the random max stay at (0,0)
+   too (reserved for static / unused placements). */
+enum {
+    WLD_LOCATION_SLOT_MAX = 15,
+    WLD_RANDOM_LOCATION_MAX = 9,
+};
+
 int32_t wld_location_x(int slot);
 int32_t wld_location_y(int slot);
 void wld_location_set(int slot, int32_t x, int32_t y);

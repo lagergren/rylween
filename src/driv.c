@@ -339,9 +339,7 @@ void statusline() {
     c(49, 6);
 }
 static void position_locations() {
-    int32_t i;
-
-    for (i = 0; i < 15; i++) {
+    for (int i = 0; i < WLD_LOCATION_SLOT_MAX; i++) {
         wld_location_set(i, 0, 0);
     }
 
@@ -353,7 +351,7 @@ static void position_locations() {
     if (!avoid) {
         avoid = "";
     }
-    for (i = 1; i < 10; i++) {
+    for (int i = 1; i <= WLD_RANDOM_LOCATION_MAX; i++) {
         while (1) {
             int32_t rx = ryl_random(x_lo, x_hi);
             int32_t ry = ryl_random(y_lo, y_hi);
@@ -884,10 +882,10 @@ static void write_current_world() {
 
     fputs("  locations: {\n", f);
     fputs("    dx: ", f);
-    wcw_i32_arr(f, state.dx, 15);
+    wcw_i32_arr(f, state.dx, WLD_LOCATION_SLOT_MAX);
     fputs(",\n", f);
     fputs("    dy: ", f);
-    wcw_i32_arr(f, state.dy, 15);
+    wcw_i32_arr(f, state.dy, WLD_LOCATION_SLOT_MAX);
     fputs(",\n", f);
     fputs("  },\n\n", f);
 
@@ -1269,8 +1267,8 @@ static int read_current_world() {
 
     const node *loc = obj_get(root, "locations");
     if (loc && loc->kind == N_OBJ) {
-        rcw_i32_arr(obj_get(loc, "dx"), state.dx, 15);
-        rcw_i32_arr(obj_get(loc, "dy"), state.dy, 15);
+        rcw_i32_arr(obj_get(loc, "dx"), state.dx, WLD_LOCATION_SLOT_MAX);
+        rcw_i32_arr(obj_get(loc, "dy"), state.dy, WLD_LOCATION_SLOT_MAX);
     }
 
     const node *npcs = obj_get(root, "npcs");
