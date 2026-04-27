@@ -91,7 +91,7 @@ struct person {
     /* 16Hermit*/
 
     int32_t nr;                /* Reference number 1-40*/
-    int32_t towne;             /* What town? WILDERNESS_TOWN=wilderness*/
+    int32_t towne;             /* WILDERNESS_TOWN=wilderness, else town slot id*/
     int32_t building;          /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
     int32_t x;                 /* What X coord.*/
     int32_t y;                 /* What Y coord. Not valid for townes.*/
@@ -560,6 +560,9 @@ static inline npc_t npc_for_role(const char *role) {
 
 static inline int32_t npc_towne(npc_t n) {
     return n.p->towne;
+}
+static inline int npc_in_wilderness(npc_t n) {
+    return n.p->towne == WILDERNESS_TOWN;
 }
 static inline int32_t npc_x(npc_t n) {
     return n.p->x;

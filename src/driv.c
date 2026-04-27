@@ -42,7 +42,7 @@ static void the_game() {
 
     for_each_npc(i) {
         npc_t n = npc_at_slot(i);
-        if (!npc_towne(n)) {
+        if (npc_in_wilderness(n)) {
             state.map[npc_y(n)][npc_x(n)] = '1';
         }
     }
@@ -888,7 +888,10 @@ static void write_current_world() {
         fputs(", job: ", f);
         wcw_enum(f, "job", n->job);
         fputs(", towne: ", f);
-        wcw_enum(f, "towne", n->towne);
+        /* Save format keeps the symbolic "wilderness" string from
+           enums.towne[0]; the runtime sentinel WILDERNESS_TOWN
+           bridges back to that enum index here. */
+        wcw_enum(f, "towne", n->towne == WILDERNESS_TOWN ? 0 : n->towne);
         fputs(", building: ", f);
         wcw_enum(f, "building", n->building);
         fprintf(f, ", x: %d, y: %d, gender: ", n->x, n->y);
@@ -1267,7 +1270,11 @@ static int read_current_world() {
             struct person *n = &state.npc[slot];
             n->nr = slot;
             n->job = rcw_enum(rec, "job", "job", n->job);
-            n->towne = rcw_enum(rec, "towne", "towne", n->towne);
+            /* Save format encodes wilderness as the symbolic
+               "wilderness" string (enum index 0); bridge back to
+               WILDERNESS_TOWN for in-memory comparisons. */
+            int twne = rcw_enum(rec, "towne", "towne", 0);
+            n->towne = (twne == 0) ? WILDERNESS_TOWN : twne;
             n->building = rcw_enum(rec, "building", "building", n->building);
             n->x = rcw_int(rec, "x", n->x);
             n->y = rcw_int(rec, "y", n->y);

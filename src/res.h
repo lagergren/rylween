@@ -315,9 +315,11 @@ const char *res_pronoun(int gender, int xx);
 
 /* Towns — fixed display name and world-map coordinates per twn id 1..4
    (matching state.twn / struct person.towne). Order matches the
-   enums.towne table. res_town_name returns "" for 0 (wilderness) or out
-   of range; res_town_x / res_town_y return 0; res_town_at returns the
-   twn id for a (x,y) that matches a declared town, 0 otherwise. */
+   enums.towne table. res_town_name returns "" for 0 (the JSON-null
+   sentinel slot) or out of range; res_town_x / res_town_y return 0;
+   res_town_at returns the twn id for a (x,y) that matches a declared
+   town, 0 otherwise. NPCs in the wilderness use the dedicated runtime
+   sentinel WILDERNESS_TOWN (state.h), not towne == 0. */
 const char *res_town_name(int twn);
 int32_t res_town_x(int twn);
 int32_t res_town_y(int twn);
@@ -332,11 +334,12 @@ int32_t res_town_has_church(int twn);
 
 /* Number of declared towns (slots 1..res_town_count()). towns[0] is
    the JSON null sentinel (data/world.json5 `towns: [null, {...}, ...]`)
-   left zeroed — it represents the wilderness, never a real town. The
-   sentinel is structurally load-bearing: struct person.towne == 0
-   means "wilderness" (the npc-placement bin draw uses bins 0..n_towns
-   precisely because of this; see res_realize_npcs). The §24.A0 setup-
-   logging off-by-one landed exactly here.
+   left zeroed — never a real town. The npc-placement bin draw still
+   uses bins 0..n_towns where bin 0 corresponds to the wilderness (see
+   res_realize_npcs); the runtime NPC field uses WILDERNESS_TOWN
+   (state.h) — decoupled from town slot 0 in §25.B step 3a so that the
+   upcoming step 3b town-axis flip can repurpose towns[0] as a real
+   town. The §24.A0 setup-logging off-by-one landed in this area.
    Returns 0 before the world has loaded. */
 int res_town_count(void);
 
@@ -378,13 +381,15 @@ void res_realize_npcs(void);
 int res_npc_slot_max(void);
 
 /* §25.A.3: iterate NPC slots 1..res_npc_slot_max(). Slot 0 is the
-   wilderness sentinel left zeroed (struct person.towne == 0 means
-   "wilderness"); never realized. Body sees `slot` 1-based — single
-   point of truth for the dozen-odd loops in driv / res / towne /
-   speak. §25.B will edit this macro (and re-bless fixtures) when the
-   codebase flips to 0-indexed. The save/load path (writer emits
-   0..slot_max for forward compat; reader caps at slot_max + 1) keeps
-   its own loop shape — those are file-format loops, not slot-walks. */
+   un-iterated zero-init slot (post-§25.B step 3a wilderness lift,
+   wilderness NPCs are identified by `towne == WILDERNESS_TOWN`, not
+   by occupying slot 0); never realized. Body sees `slot` 1-based —
+   single point of truth for the dozen-odd loops in driv / res /
+   towne / speak. §25.B step 4 will edit this macro (and re-bless
+   fixtures) when the NPC axis flips to 0-indexed. The save/load path
+   (writer emits 0..slot_max for forward compat; reader caps at
+   slot_max + 1) keeps its own loop shape — those are file-format
+   loops, not slot-walks. */
 #define for_each_npc(slot) \
     for (int slot = 1; slot <= res_npc_slot_max(); slot++)
 

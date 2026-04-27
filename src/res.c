@@ -1297,10 +1297,10 @@ const char *res_npc_in_town(int32_t twn, const char *job_sym) {
    role pointing at an NPC that isn't in npcs: (dangling binding).
    Both conditions are load-time bugs we want surfaced loudly. */
 void npc_loc_str(npc_t n, char *dst, size_t dst_sz) {
-    if (n.p->towne) {
-        snprintf(dst, dst_sz, "in %s", res_town_name(n.p->towne));
-    } else {
+    if (npc_in_wilderness(n)) {
         snprintf(dst, dst_sz, "at %dx%d", n.p->x, n.p->y);
+    } else {
+        snprintf(dst, dst_sz, "in %s", res_town_name(n.p->towne));
     }
 }
 
@@ -1452,8 +1452,12 @@ void res_realize_npcs(void) {
 
         const node *towne_node = obj_get(rec, "towne");
         if (towne_node) {
-            /* FIXED: declared slot. Apply job/towne/building/x/y verbatim. */
-            n->towne = rn_enum(rec, "towne", "towne", 0);
+            /* FIXED: declared slot. Apply job/towne/building/x/y verbatim.
+               enums.towne[0] is the symbolic "wilderness" entry; remap
+               that to the runtime sentinel (which is decoupled from
+               town slot 0 ahead of the §25.B step 3b town-axis flip). */
+            int twne = rn_enum(rec, "towne", "towne", 0);
+            n->towne = (twne == 0) ? WILDERNESS_TOWN : twne;
             n->building = rn_enum(rec, "building", "building", 0);
             n->x = rn_int(rec, "x", 0);
             n->y = rn_int(rec, "y", 0);
@@ -1468,15 +1472,19 @@ void res_realize_npcs(void) {
                40ms. The original spacing was hiding Amiga disk loads;
                the modern build has nothing to hide, but a brief tick
                between dots keeps the visual pacing recognizable
-               (~1s total over ~23 random NPCs vs the prior ~14s). */
+               (~1s total over ~23 random NPCs vs the prior ~14s).
+               The bin draw range and the linear probe stay 0..T-1
+               (bin 0 = wilderness) so the RNG stream advances
+               identically to the pre-§25.B step 3a sequence — only
+               the post-mapping changes when twn lands on bin 0. */
             ryl_delay(40);
             int twn = ryl_random(0, T - 1);
             while (counts[twn] >= cap) {
                 twn = (twn + 1) % T;
             }
             counts[twn]++;
-            n->towne = twn;
-            if (n->towne) {
+            n->towne = (twn == 0) ? WILDERNESS_TOWN : twn;
+            if (!npc_in_wilderness(npc_at_slot(slot))) {
                 n->building = ryl_random(0, 1) + 1;
                 n->x = 0;
                 n->y = 0;
@@ -1509,8 +1517,8 @@ void res_realize_npcs(void) {
                                                             : npcs->u.obj.items[i].key;
             LOG_I("realm", "  realized random NPC '%s' -> slot %d in %s",
                   who, slot,
-                  n->towne == 0 ? "wilderness"
-                                : towns[n->towne].name);
+                  n->towne == WILDERNESS_TOWN ? "wilderness"
+                                              : towns[n->towne].name);
         }
     }
     tx("%c", 12);
