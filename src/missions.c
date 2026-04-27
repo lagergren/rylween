@@ -238,28 +238,18 @@ uint8_t mission_control() {
 
     /* Block 5: temple of Thun gem altar. Inventory-count check
        (>=5 gems of ids 39..41) isn't expressible in the DSL —
-       single remaining inline block. */
+       single remaining inline block. Text records live under
+       missions.thun_temple in data/world/texts/missions.json5;
+       gem_prompt bundles the (Y)es/(L)eave menu inline. */
     if (pa_flag_is("bracelets.thun", "map_bought") && pa_x() == wld_location_x(2) && pa_y() == wld_location_y(2)) {
         clw();
-        tx("You stand before the\r\n");
-        tx("ancient temple of Thun.\r\n");
-        tx("Around you are the ruins\r\n");
-        tx("of the once proud city\r\n");
-        tx("of Thun...\r\n\r\n");
+        tx0(res_text("missions.thun_temple.temple_arrival"));
         ryl_pause();
         clw();
-        tx("You see an altar\r\n");
-        tx("with five sockets before\r\n");
-        tx("you. Each is roughly\r\n");
-        tx("gem-sized. An inscription\r\n");
-        tx("says: 'Insert the gems\r\n");
-        tx("and your path shall open'\r\n\r\n");
+        tx0(res_text("missions.thun_temple.altar_inscription"));
         ryl_pause();
         clw();
-        tx("Do you want to put\r\n");
-        tx("five gems in the sockets?\r\n\r\n");
-        tx0(res_text("common.yes"));
-        tx("(L)eave\r\n");
+        tx0(res_text("missions.thun_temple.gem_prompt"));
         c = key();
         c = toupper(c);
         if (c == 'L') {
@@ -269,17 +259,13 @@ uint8_t mission_control() {
         gems = inv_count_in_range(39, 41);
         if (gems < 5) {
             clw();
-            tx("You don't have five\r\n");
-            tx("different gems.\r\n\r\n");
+            tx0(res_text("missions.thun_temple.no_gems"));
             ryl_pause();
             clw();
             return 1;
         } else {
             clw();
-            tx("With a resounding 'CRUNG'\r\n");
-            tx("the altar slides away\r\n");
-            tx("to reveal a dark pit.\r\n");
-            tx("You enter...\r\n\r\n");
+            tx0(res_text("missions.thun_temple.altar_opens"));
             ryl_pause();
             clw();
             dungeon(18, "thun_temple");

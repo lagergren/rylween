@@ -87,6 +87,53 @@
     ],
   },
 
+  // Block 5: flag[bracelets.thun]==map_bought at wld_location 2.
+  // Temple of Thun gem altar. The (Y)es/(L)eave key prompt followed
+  // by an inventory-count check (>=5 gems of ids 39..41) isn't yet
+  // expressible in the DSL; the C dispatcher in mission_control()
+  // keeps the control flow inline and only the text screens are
+  // lifted here. gem_prompt bundles the (Y)es/(L)eave menu inline,
+  // matching the menu-bundling convention used by the other
+  // prompt records (block 1, 4b, etc.).
+  thun_temple: {
+    temple_arrival: [
+      'You stand before the',
+      'ancient temple of Thun.',
+      'Around you are the ruins',
+      'of the once proud city',
+      'of Thun...',
+      '',
+    ],
+    altar_inscription: [
+      'You see an altar',
+      'with five sockets before',
+      'you. Each is roughly',
+      'gem-sized. An inscription',
+      'says: \'Insert the gems',
+      'and your path shall open\'',
+      '',
+    ],
+    gem_prompt: [
+      'Do you want to put',
+      'five gems in the sockets?',
+      '',
+      '(Y)es',
+      '(L)eave',
+    ],
+    no_gems: [
+      'You don\'t have five',
+      'different gems.',
+      '',
+    ],
+    altar_opens: [
+      'With a resounding \'CRUNG\'',
+      'the altar slides away',
+      'to reveal a dark pit.',
+      'You enter...',
+      '',
+    ],
+  },
+
   // Block 6: flag[23]==1 at dx[3],dy[3]. Kobold village. Three
   // encounters chained — (A)ttack branch only; (L)eave falls through
   // (no return 1). The original had no `else` branch at all; an
