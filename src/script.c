@@ -606,22 +606,24 @@ static int32_t ie_pick_random_alive_player(const int32_t *a) {
     }
 }
 
-/* §23.B: pick the lowest-index alive monster slot, or 0 if every
+/* §23.B: pick the lowest-index alive monster slot, or -1 if every
    slot in the encounter is dead. Single-target frost wand / drums of
-   death use this — the legacy idiom is the same `for (i = 1, who = 0;
-   i <= noc; i++) if (!deadc[i]) { who = i; break; }` loop on both. No
-   RNG, no side effects; safe to call out of the cast-line gate. */
+   death use this — the legacy idiom is the same `for (i = 0, who = -1;
+   i < noc; i++) if (!deadc[i]) { who = i; break; }` loop on both. No
+   RNG, no side effects; safe to call out of the cast-line gate.
+   Sentinel is -1 (not 0) post-§25.B since slot 0 is now a valid live
+   monster; DSL callers gate via `gte: [target, 0]`. */
 static int32_t ie_pick_first_alive_monster(const int32_t *a) {
     (void)a;
     if (!g_combat_ctx) {
-        return 0;
+        return -1;
     }
     for_each_monster(i, g_combat_ctx->noc) {
         if (!g_combat_ctx->deadc[i]) {
             return i;
         }
     }
-    return 0;
+    return -1;
 }
 
 static const int_engine_entry int_engine_tbl[] = {
@@ -978,7 +980,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
 
     /* §22 Lane A: { monster_count } — read combat ctx noc.
        { monster_hp: <expr> } / { monster_dead: <expr> } — read mh[idx]
-       / deadc[idx]. Index 1..noc; out of range / no ctx is fatal. */
+       / deadc[idx]. Index 0..noc-1; out of range / no ctx is fatal. */
     if (obj_get(n, "monster_count")) {
         if (!g_combat_ctx) {
             die_at(script_id, idx,
@@ -995,7 +997,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
         }
         int32_t i = eval_expr(mhp_n ? mhp_n : mdd_n, script_id, idx,
                               bindings, env);
-        if (i < 1 || i > g_combat_ctx->noc) {
+        if (i < 0 || i >= g_combat_ctx->noc) {
             die_at(script_id, idx,
                    "expr monster_hp/monster_dead: idx out of range");
         }
@@ -2395,7 +2397,7 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
         }
         int32_t i = eval_expr(mhp_n ? mhp_n : mdd_n, script_id, idx,
                               bindings, env);
-        if (i < 1 || i > g_combat_ctx->noc) {
+        if (i < 0 || i >= g_combat_ctx->noc) {
             die_at(script_id, idx,
                    "mutate monster_hp/monster_dead: idx out of range");
         }
@@ -2978,16 +2980,16 @@ static void do_ask_target(const node *op, const char *script_id, size_t idx,
                 } else {
                     strcpy(str, "Alive.");
                 }
-                tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, g_combat_ctx->mh[i]);
+                tx("%c. %-7s (%3d hp)\r\n", 'A' + i, str, g_combat_ctx->mh[i]);
             }
             d = key();
             d = (char)toupper((unsigned char)d);
-            if (d >= 'A' && d <= 64 + g_combat_ctx->noc &&
-                !g_combat_ctx->deadc[d - 64]) {
+            if (d >= 'A' && d < 'A' + g_combat_ctx->noc &&
+                !g_combat_ctx->deadc[d - 'A']) {
                 break;
             }
         }
-        rt_bind_set(env, var_n->u.sv, (int32_t)(d - 64), script_id, idx);
+        rt_bind_set(env, var_n->u.sv, (int32_t)(d - 'A'), script_id, idx);
         return;
     }
     if (strcmp(kind_n->u.sv, "party_member") == 0) {
@@ -3118,7 +3120,7 @@ static ops_result do_for_inventory(const node *op, const char *script_id,
 }
 
 /* §22 Lane A: { for_monster: { var:'name', then:[...] } } — iterate
-   1..combat_ctx->noc. Pairs with monster_hp / monster_dead reads
+   0..combat_ctx->noc-1. Pairs with monster_hp / monster_dead reads
    so a mass-AOE spell ({mage.fire}) can apply per-monster damage.
    Fatal outside a combat ctx. */
 static ops_result do_for_monster(const node *op, const char *script_id,
@@ -3128,7 +3130,7 @@ static ops_result do_for_monster(const node *op, const char *script_id,
         die_at(script_id, idx, "for_monster: no combat ctx");
     }
     return do_for_range(op, script_id, idx, parent, bindings, env,
-                        "for_monster", 1, g_combat_ctx->noc);
+                        "for_monster", 0, g_combat_ctx->noc - 1);
 }
 
 /* §23 prep: shared helper for the alive-only iterators. Same shape as
@@ -3200,7 +3202,7 @@ static ops_result do_for_each_alive_monster(const node *op,
     }
     return do_for_range_alive(op, script_id, idx, parent, bindings, env,
                               "for_each_alive_monster", ALIVE_MONSTER,
-                              "monster_idx", 1, g_combat_ctx->noc);
+                              "monster_idx", 0, g_combat_ctx->noc - 1);
 }
 
 /* §23 prep: { for_each_alive_player: { then: [...] } } — iterate

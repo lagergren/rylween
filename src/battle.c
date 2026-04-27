@@ -370,15 +370,15 @@ void encounter(int32_t foe, int32_t mandatory) {
                         } else {
                             strcpy(str, "Alive.");
                         }
-                        tx("%c. %-7s (%3d hp)\r\n", 64 + i, str, mh[i]);
+                        tx("%c. %-7s (%3d hp)\r\n", 'A' + i, str, mh[i]);
                     }
                     d = key();
                     d = toupper(d);
-                    if (d >= 'A' && d <= 64 + noc && !deadc[d - 64]) {
+                    if (d >= 'A' && d < 'A' + noc && !deadc[d - 'A']) {
                         break;
                     }
                 }
-                who = d - 64;
+                who = d - 'A';
                 x = pm_ws(pm_cur(g));
                 if (playerconfused) {
                     int32_t cdiv = res_combat_int("attack.confusion_div");

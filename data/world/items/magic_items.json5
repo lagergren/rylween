@@ -28,7 +28,7 @@
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
       { let: 'target', value: { engine_int: 'pick_first_alive_monster' }},
-      { if: { cond: { gt: [{ var: 'target' }, 0] }, then: [
+      { if: { cond: { gte: [{ var: 'target' }, 0] }, then: [
           { let: 'dmg', value: { add: [
               { random: [5, 11] },
               { member: { var: 'caster_idx' }, field: 'lv' },
@@ -133,7 +133,7 @@
       { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                        var: 'caster' }},
       { let: 'target', value: { engine_int: 'pick_first_alive_monster' }},
-      { if: { cond: { gt: [{ var: 'target' }, 0] }, then: [
+      { if: { cond: { gte: [{ var: 'target' }, 0] }, then: [
           { emit: 'battle.item.drums_of_death.summons_death' },
           { pause: 2000 },
           { emit: 'battle.killed' },
