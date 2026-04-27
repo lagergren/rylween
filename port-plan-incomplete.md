@@ -5037,3 +5037,73 @@ ydarg.c::confrontation.
 
 Bar per session: `make check` + `make testasan` both
 green at every commit.
+
+## Session 2026-04-27 #3 — §24.B closed
+
+Added the `RYL_LOG=` sink selector to `src/log.c` alongside the
+existing `RYL_LOG_LEVEL=` threshold knob. Three values land in
+this commit; a fourth (`tcp:`) is queued as §24.C.
+
+Recognized values (case-insensitive):
+  - unset / `RYL_LOG=stderr` — stderr (the historical default)
+  - `RYL_LOG=null` — drop every WARN/ERR/INFO/DEBUG line
+  - `RYL_LOG=file:<path>` — append `[lvl][mod] body\n` to
+    `<path>` resolved through `ryl_state_path` (so a bare leaf
+    lands under `$HOME/.rylween/` or `data/`, mirroring how
+    AUDIT resolves `rylween.log`)
+
+AUDIT (LOG_A) writes are unchanged — they still go to
+`data/rylween.log` regardless of `RYL_LOG=…`. Per the §24.A0
+docstring, AUDIT is "history, not diagnostic" and its sink is
+fixed. Only the WARN/ERR/INFO/DEBUG branch (the `fprintf` at
+the bottom of `log_msg`) routes through the new dispatch.
+
+Implementation notes:
+  - The selector is parsed once on first emit and cached in a
+    static `cached`, mirroring the existing `threshold()`
+    helper. No per-line getenv hits.
+  - The file: sink opens lazily with `fopen(path, "a")` and
+    registers `atexit(sink_file_close)` once. On open failure
+    we emit a one-shot `[ERR][log]` to stderr and degrade to
+    NULL for the rest of the run (silent rather than infinite
+    error spam).
+  - An unrecognized value (e.g. `RYL_LOG=garbage` or the empty
+    `file:`) emits a one-shot `[ERR][log] unrecognized RYL_LOG=…`
+    diagnostic and falls back to STDERR — strict-but-helpful.
+  - The `RYL_LOG=` parser is intentionally tiny — `strncasecmp`
+    on a 5-char prefix. §24.C `tcp:host:port` will follow the
+    same shape.
+
+Smoke-tested (one-off rig built against `log.c` + `compat.c`)
+across all five branches: default, `null`, `stderr`,
+`file:smoke.log`, and the two error-path values. Each behaved
+as documented; AUDIT continued writing through every variant.
+
+State at HEAD:
+  - 30 fixtures green, both `make check` and `make testasan`
+    clean. §23 fully closed; §24.A0 + §24.A1 + §24.B closed.
+    No open §23 / §24.A / §24.B items.
+  - The replay harness still uses the default stderr sink.
+    §24.E (per-fixture `RYL_LOG=null` opt-in) is next; it can
+    land in a small follow-up commit independent of any
+    further sink work.
+
+**Recommended next session order:**
+
+  1. **§24.E — replay-harness default `RYL_LOG=null`** (~0.5
+     sess). Wire `tools/replay.sh` (and the per-fixture
+     wrappers) to set `RYL_LOG=null` for each fixture so
+     future LOG_* drift can't propagate into baselines unless
+     a fixture explicitly captures it. Trivial; the
+     `RYL_LOG_LEVEL` setup in those scripts is the same
+     pattern.
+  2. **§24.C — TCP listener sink** (~1 sess). Add
+     `RYL_LOG=tcp:<host>:<port>`; same dispatch shape as
+     §24.B. Telnet-friendly remote log for the eventual
+     multi-party MUD work.
+  3. **§25 — 1-indexed → 0-indexed cleanup** (multi-sess).
+  4. **Later:** §24bis (id: → slug, post-§25), then
+     plans/future-directions.md.
+
+Bar per session: `make check` + `make testasan` both green
+at every commit. Push at session close.
