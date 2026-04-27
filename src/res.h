@@ -351,9 +351,23 @@ void res_realize_npcs(void);
 
 /* Highest valid NPC slot id in the current world. Derived from the
    largest `id:` declared in the npcs subtree, cached on first call.
-   Iterate NPCs as `for (i = 1; i <= res_npc_slot_max(); i++)`.
+   Iterate NPCs via for_each_npc(slot) below — direct callers are
+   res.c::res_realize_npcs (the writer fold) and the realm save/load
+   path (driv.c::write_current_world emits 0..slot_max for forward
+   compat; the reader caps at slot_max + 1).
    Returns 0 before the world has loaded. */
 int res_npc_slot_max(void);
+
+/* §25.A.3: iterate NPC slots 1..res_npc_slot_max(). Slot 0 is the
+   wilderness sentinel left zeroed (struct person.towne == 0 means
+   "wilderness"); never realized. Body sees `slot` 1-based — single
+   point of truth for the dozen-odd loops in driv / res / towne /
+   speak. §25.B will edit this macro (and re-bless fixtures) when the
+   codebase flips to 0-indexed. The save/load path (writer emits
+   0..slot_max for forward compat; reader caps at slot_max + 1) keeps
+   its own loop shape — those are file-format loops, not slot-walks. */
+#define for_each_npc(slot) \
+    for (int slot = 1; slot <= res_npc_slot_max(); slot++)
 
 /* Look up an NPC's runtime slot by its shard key in world.json5's
    npcs: block (same spelling as in the data file — case-sensitive,

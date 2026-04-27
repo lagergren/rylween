@@ -264,10 +264,9 @@ void enter() {
    `npc_job` (its job id) as int bindings — the DSL resolves the
    display strings via engine_bind res_enum on each iteration. */
 static void hut() {
-    int32_t i, who = 0;
-    int nmax = res_npc_slot_max();
+    int32_t who = 0;
 
-    for (i = 1; i <= nmax; i++) {
+    for_each_npc(i) {
         if (state.npc[i].x == pa_x() && state.npc[i].y == pa_y()) {
             who = i;
         }

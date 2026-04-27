@@ -41,7 +41,7 @@ static void the_game() {
 
     /* Prep map for positions of huts/cottages */
 
-    for (i = 1; i <= res_npc_slot_max(); i++) {
+    for_each_npc(i) {
         if (!state.npc[i].towne) {
             state.map[state.npc[i].y][state.npc[i].x] = '1';
         }
@@ -636,7 +636,7 @@ void init() {
                         free_journal(&state.p[x]);
                         party_release_members(&state.p[x]);
                         state.num_parties--;
-                        for (i = 1; i <= res_npc_slot_max(); i++) {
+                        for_each_npc(i) {
                             for (j = 1; j < state.num_parties; j++) {
                                 state.npc[i].visited[x] = state.npc[i].visited[x + 1];
                             }
@@ -890,7 +890,7 @@ static void write_current_world() {
     fputs("  },\n\n", f);
 
     fputs("  npcs: {\n", f);
-    for (int i = 1; i <= res_npc_slot_max(); i++) {
+    for_each_npc(i) {
         const struct person *n = &state.npc[i];
         const char *sym = res_npc_sym(i);
         const char *display = res_npc_name(i);

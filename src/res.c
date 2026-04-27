@@ -1507,7 +1507,7 @@ void res_realize_npcs(void) {
     /* Zero every NPC's visited[] grid — fresh realm means no party
        has met anyone yet. The caller (driv.c init()) follows up with
        write_current_world() to persist the realized state. */
-    for (int i = 1; i <= slot_max; i++) {
+    for_each_npc(i) {
         memset(state.npc[i].visited, 0, sizeof state.npc[i].visited);
     }
     LOG_I("realm", "campaign realized");
