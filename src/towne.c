@@ -5,6 +5,7 @@
 #include "inventory.h"
 #include "party.h"
 #include "primitives.h"
+#include "runtime_cfg.h"
 #include "script.h"
 #include "subs.h"
 #include "towne.h"
@@ -38,7 +39,7 @@ void rumour() {
        exercises the Garth-bandits branch, etc. Production never sets
        this env var. Clamped to 0..32 — out-of-range falls through to
        the random roll. */
-    const char *force = getenv("RYL_REPLAY_RUMOUR");
+    const char *force = rcfg_get("RYL_REPLAY_RUMOUR");
     if (force && *force) {
         char *end;
         long v = strtol(force, &end, 10);

@@ -27,6 +27,7 @@
 #include "json5.h"
 #include "log.h"
 #include "primitives.h"
+#include "runtime_cfg.h"
 #include "ryl.h"
 #include "script.h"
 #include "towne.h"
@@ -1344,7 +1345,7 @@ int res_party_member_max(void) {
     static int override = -2; /* -2 = unchecked, -1 = no override */
     if (override == -2) {
         override = -1;
-        const char *env = getenv("RYL_PARTY_MEMBER_MAX");
+        const char *env = rcfg_get("RYL_PARTY_MEMBER_MAX");
         if (env && *env) {
             char *end;
             long v = strtol(env, &end, 10);

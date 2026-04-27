@@ -17,9 +17,9 @@ ASAN_FLAGS := -fsanitize=address -fno-omit-frame-pointer -O1 -g
 SRC     := src/battle.c src/compat.c src/driv.c src/dungeon.c \
            src/gfx.c src/interact.c src/inventory.c src/io_tty.c \
            src/json5.c src/log.c src/missions.c src/party.c \
-           src/primitives.c src/replay_knobs.c src/res.c src/ryl.c \
-           src/script.c src/snapshot.c src/speak.c src/subs.c \
-           src/towne.c src/wld.c src/ydarg.c
+           src/primitives.c src/replay_knobs.c src/res.c \
+           src/runtime_cfg.c src/ryl.c src/script.c src/snapshot.c \
+           src/speak.c src/subs.c src/towne.c src/wld.c src/ydarg.c
 OBJ     := $(SRC:.c=.o)
 
 BIN       := rylween

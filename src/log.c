@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "compat.h" /* getclk, ryl_state_path */
+#include "runtime_cfg.h"
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -83,7 +84,7 @@ static log_level threshold(void) {
     if (cached >= 0) {
         return (log_level)cached;
     }
-    const char *env = getenv("RYL_LOG_LEVEL");
+    const char *env = rcfg_get("RYL_LOG_LEVEL");
     if (env && *env) {
         if (!strcasecmp(env, "debug")) {
             cached = LOG_LVL_DEBUG;
@@ -410,7 +411,7 @@ static unsigned resolve_mask(void) {
         return mask;
     }
     resolved = 1;
-    const char *env = getenv("RYL_LOG");
+    const char *env = rcfg_get("RYL_LOG");
     if (!env || !*env) {
         mask = SINK_BIT_STDERR; /* compat default — historical stderr */
         return mask;

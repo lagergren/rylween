@@ -6,6 +6,7 @@
 
 #include "log.h"
 #include "res.h"
+#include "runtime_cfg.h"
 #include "state.h"
 
 static char snapshot_path[512];
@@ -109,7 +110,7 @@ static void snapshot_write(void) {
 }
 
 void snapshot_init(void) {
-    const char *env = getenv("RYL_SNAPSHOT");
+    const char *env = rcfg_get("RYL_SNAPSHOT");
     if (!env || !env[0]) {
         return;
     }

@@ -1,5 +1,6 @@
 #include "compat.h"
 #include "ryl.h"
+#include "runtime_cfg.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -39,7 +40,7 @@ void ryl_delay(unsigned ms) {
     static int suppressed = 0;
     if (!resolved) {
         resolved = 1;
-        const char *e = getenv("RYL_NO_DELAY");
+        const char *e = rcfg_get("RYL_NO_DELAY");
         suppressed = (e && *e && *e != '0');
     }
     if (suppressed) {
@@ -66,7 +67,7 @@ static time_t ryl_time(time_t *out) {
 
     if (!resolved) {
         resolved = 1;
-        const char *e = getenv("RYL_FAKE_EPOCH");
+        const char *e = rcfg_get("RYL_FAKE_EPOCH");
         if (e && *e) {
             char *end;
             unsigned long v = strtoul(e, &end, 10);
@@ -89,7 +90,7 @@ static time_t ryl_time(time_t *out) {
 static uint64_t rng_state = 1;
 
 void ryl_random_init(void) {
-    const char *e = getenv("RYL_FAKE_SEED");
+    const char *e = rcfg_get("RYL_FAKE_SEED");
     if (e && *e) {
         char *end;
         unsigned long v = strtoul(e, &end, 10);

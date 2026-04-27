@@ -174,7 +174,72 @@ goodbye line" — readers see EOF.
 
 ---
 
-## 4. AUDIT (`LOG_A`)
+## 4. Runtime config file (`runtime.json5`)
+
+`RYL_LOG`, `RYL_LOG_LEVEL` and the rest of the always-on `RYL_*`
+knobs all flow through a tiny lookup helper (`rcfg_get`) that
+consults, in order:
+
+1. the environment variable (wins if non-empty)
+2. `$HOME/.rylween/runtime.json5` (personal default)
+3. `data/runtime.json5` (project shared default — not present in
+   the repo by default; only loaded if you commit one)
+4. the hard-coded fallback baked into each callsite
+
+Schema is a flat JSON5 object whose keys are the existing `RYL_*`
+names and whose values are scalars (strings, ints, or bools — ints
+and bools are stringified at load time):
+
+```json5
+// $HOME/.rylween/runtime.json5
+{
+    // Tee log to a TCP listener and a file; never silent.
+    RYL_LOG:        'tcp:9999,file:dev.log',
+    RYL_LOG_LEVEL:  'info',
+
+    // Always run with the artificial-delay loops short-circuited;
+    // pin the RNG seed for byte-stable replays during dev work.
+    RYL_NO_DELAY:   1,
+    RYL_FAKE_SEED:  12345,
+
+    // Reproducible audit/log timestamps:
+    RYL_FAKE_EPOCH: 1717200000,
+}
+```
+
+Recognised keys (the always-on bucket):
+
+| key                     | shape                  |
+|-------------------------|------------------------|
+| `RYL_LOG`               | sink list (§2)         |
+| `RYL_LOG_LEVEL`         | `debug`/`info`/`warn`/`err` |
+| `RYL_NO_DELAY`          | non-zero ⇒ skip waits  |
+| `RYL_FAKE_EPOCH`        | unix seconds (int)     |
+| `RYL_FAKE_SEED`         | RNG seed (int)         |
+| `RYL_PARTY_MEMBER_MAX`  | 1..100 (int)           |
+| `RYL_REPLAY_RUMOUR`     | 0..32 (int)            |
+| `RYL_SNAPSHOT`          | output path            |
+
+The replay harness pins env vars per-fixture; env always wins, so
+fixture determinism is unaffected by whatever is in your personal
+config. Replay runs also use `HOME=$(mktemp -d)`, so the personal
+config is unreachable during `make check` / `make testasan`.
+
+The **one-shot fixture knobs** in `src/replay_knobs.c`
+(`RYL_FORCE_*`, `RYL_STARTING_GOLD`, etc.) are intentionally NOT
+plumbed through `rcfg_get` — they `unsetenv()` themselves on first
+read and are by nature per-fixture. If you find yourself wanting one
+in a personal config, that's a hint the knob has graduated from
+fixture-only to general-purpose; in that case migrate it to the
+always-on bucket first, then add it to the table above.
+
+Missing file is silently OK; a malformed file errors loudly through
+the same `res_die` path the rest of the JSON5 loader uses.
+Non-scalar values get a one-shot `[WRN][rcfg]` and are skipped.
+
+---
+
+## 5. AUDIT (`LOG_A`)
 
 `LOG_A` is for user-visible game history and routes unconditionally
 to `data/rylween.log` (or `$HOME/.rylween/rylween.log` under the
