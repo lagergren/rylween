@@ -3986,13 +3986,80 @@ whatever sink is configured.
     values: unset / `stderr` (default), `null` (drop
     WARN/ERR/INFO/DEBUG), `file:<path>` (append, resolved
     through `ryl_state_path`). AUDIT path unchanged.
-  - **§24.C** (1 session): TCP listener sink. Bind to
-    `127.0.0.1` only by default; explicit
-    `RYL_LOG=tcp:0.0.0.0:9999` opts out. Non-blocking writes
-    so a stuck reader can't stall the engine. Document the
-    rcon-style protocol in `docs/log.md`.
-  - **§24.D** (optional, 0.5 session): syslog sink behind
-    `RYL_LOG=syslog`. Skip if no demand surfaces.
+  - **§24.C** (landed 2026-04-27): TCP listener sink **plus**
+    multi-sink fan-out. `RYL_LOG=tcp:[host:]port` binds a
+    non-blocking listener; every connected client (`telnet
+    host port`) gets a live tail of every WARN/ERR/INFO/DEBUG
+    line in the `[lvl][mod] body\n` shape the file/stderr
+    sinks already use. Default bind is loopback; explicit
+    `tcp:0.0.0.0:<port>` exposes on every interface. Up to 8
+    simultaneous clients (the `clients[]` slot table); a 9th
+    connect while the table is full is `accept`-ed and
+    immediately closed. Loss policy: `EAGAIN` drops the line
+    for that client only, `EPIPE`/short-write closes the fd
+    and frees the slot — the engine never blocks waiting for
+    a reader. SIGPIPE is dodged via `MSG_NOSIGNAL` on Linux
+    plus `SO_NOSIGPIPE` per accepted socket on macOS/BSD, so
+    no process-wide signal override. `atexit(sink_tcp_close)`
+    closes the listener fd + every client fd on normal exit.
+    Parser: `tcp:host:port`, `tcp::port`, `tcp:port` (last
+    two default host to 127.0.0.1).
+    During the same session `RYL_LOG` was generalised from a
+    single sink to a **comma-separated list** — every
+    enabled sink gets every line. Examples:
+    `RYL_LOG=stderr,file:dev.log` (tee to terminal + file),
+    `RYL_LOG=tcp:9999,file:run.log` (rcon + file). `null` is
+    a no-op token (alone in the list ⇒ silent, preserving
+    pre-existing `RYL_LOG=null` semantics). `file:` and
+    `tcp:` are single-instance; a duplicate emits a one-shot
+    diagnostic and is ignored. Open errors degrade only the
+    failing token, the rest of the list still applies.
+    `make check` + `make testasan` green at the §24.C commit
+    — fixture set is unchanged because every fixture pins
+    `RYL_LOG=null` post-§24.E, so the new arm only fires
+    when a developer opts in. New file: `docs/log.md`
+    documents the rcon-style protocol (port, bind discipline,
+    line format, loss policy on slow readers, `telnet
+    localhost <port>` usage). End-to-end smoke verified by
+    running `RYL_LOG=stderr,file:smoke.log,tcp:<port>` under
+    a fixture: stderr saw 25 LOG_I lines, the file saw the
+    same 25 lines clean, and an `nc 127.0.0.1 <port>` client
+    captured the 18 lines emitted *after* it connected
+    (lazy-accept, as designed).
+  - **§24.D** (landed 2026-04-27): syslog sink behind
+    `RYL_LOG=syslog[:<ident>]`. `openlog(ident, LOG_PID,
+    LOG_USER)` at first emit; level → priority mapping
+    (DEBUG/INFO/WARN/ERR → LOG_DEBUG/INFO/WARNING/ERR);
+    body keeps the `[lvl][mod] body` shape so grepping a
+    system log behaves the same as grepping a `file:` sink.
+    Composes with other sinks via the §24.C list parser.
+    Custom ident useful for parallel runs (`syslog:rylween-A`
+    + `syslog:rylween-B`). Default ident `rylween`. macOS's
+    unified-log UI filters non-Apple subsystems aggressively;
+    `tcp:` / `file:` are usually more useful there.
+  - **§24.F** (landed 2026-04-27): JSON5 runtime config for
+    the always-on `RYL_*` knobs. New `src/runtime_cfg.{c,h}`
+    exposes a single `rcfg_get(key)` helper with this lookup
+    order: env var (wins if non-empty) → `$HOME/.rylween/
+    runtime.json5` → `data/runtime.json5` (optional, not in
+    the repo) → callsite default. Schema is a flat JSON5
+    object whose keys are `RYL_*` names and whose values are
+    scalars (string/int/bool — ints/bools stringified at
+    load). Routed through `rcfg_get`: `RYL_LOG`,
+    `RYL_LOG_LEVEL`, `RYL_NO_DELAY`, `RYL_FAKE_EPOCH`,
+    `RYL_FAKE_SEED`, `RYL_PARTY_MEMBER_MAX`,
+    `RYL_REPLAY_RUMOUR`, `RYL_SNAPSHOT`. The one-shot fixture
+    knobs in `replay_knobs.c` (`RYL_FORCE_*`,
+    `RYL_STARTING_GOLD`) intentionally stay on raw `getenv` /
+    `unsetenv` because their per-fixture semantics are
+    incompatible with a personal-config default. Replay
+    harness runs with `HOME=$(mktemp -d)` so the personal
+    path is unreachable; `data/runtime.json5` is absent from
+    the repo to avoid leaking project-wide defaults into
+    fixtures. Cache is process-lifetime, freed via
+    `atexit(rcfg_close)` for LSan cleanliness on Linux. New
+    `docs/log.md` "Runtime config file" section documents
+    the schema and recognised keys.
   - **§24.E** (landed 2026-04-27): replay-harness default
     `RYL_LOG=null`. `tools/replay.sh` and `tools/replay_asan.sh`
     set `RYL_LOG=null` in the per-fixture subshell before
@@ -4004,9 +4071,11 @@ whatever sink is configured.
     needed — none of the LOG_W/LOG_E paths fire under the
     current fixture set, so baselines were already noise-free.
 
-**Estimated total.** ~3-4 sessions A+B+C, plus optional D+E.
-None of this gates §23 work — they're independent files, no
-conflicts. §24.A can land between any two §23 commits.
+**Estimated total.** ~3-4 sessions A+B+C, plus D+E+F.
+**§24 closed end-to-end** as of 2026-04-27 #5: A0/A1/B/C/D/E/F
+all landed, no items remaining in the logging plan.
+None of this gated §23 work — independent files, no
+conflicts.
 
 **Bar per session.** Same as §22 / §23: `make check` +
 `make testasan` green at every commit.
@@ -5171,6 +5240,179 @@ State at HEAD:
   2. **§25 — 1-indexed → 0-indexed cleanup** (multi-sess).
   3. **Later:** §24bis (id: → slug, post-§25), then
      plans/future-directions.md.
+
+Bar per session: `make check` + `make testasan` both green
+at every commit. Push at session close.
+
+## Session 2026-04-27 #5 — §24.C closed (+ multi-sink fan-out)
+
+Added the TCP listener sink to `src/log.c` and, in the same
+session, generalised `RYL_LOG` from a single sink into a
+comma-separated list so every enabled sink receives every
+WARN/ERR/INFO/DEBUG line. Both pieces shipped together because
+the multi-sink case is the only one where the rcon listener is
+genuinely useful (you almost always also want the lines on
+disk).
+
+Shape:
+  - `RYL_LOG=tcp:[host:]port` accepts `tcp:host:port`,
+    `tcp::port`, and `tcp:port`. The last two default the host
+    to `127.0.0.1`. IPv6 literals (bracket form) intentionally
+    not parsed — out of scope for the rcon use-case; pass an
+    IPv4 address or `0.0.0.0`.
+  - Default bind is loopback. `tcp:0.0.0.0:<port>` is the
+    explicit opt-out for "expose on every interface". No
+    authentication; treat as a development diagnostic, not an
+    operations-grade log shipper.
+  - Up to 8 simultaneous clients. Pending `accept`s drained
+    lazily inside `log_msg`'s emit branch (no separate event
+    loop). A 9th connection while the slot table is full is
+    accepted and immediately closed, so a runaway connect loop
+    can't exhaust fds.
+  - Loss policy on slow readers: `EAGAIN` / `EWOULDBLOCK` →
+    drop the line for that one client; `EPIPE` / other send
+    error / short write → close the fd and free its slot. The
+    engine never blocks waiting for a reader. SIGPIPE dodged
+    via `MSG_NOSIGNAL` on Linux + `SO_NOSIGPIPE` per accepted
+    socket on macOS/BSD; no process-wide signal override.
+  - `atexit(sink_tcp_close)` closes the listener fd plus every
+    client fd on normal exit. `SO_REUSEADDR` set on the
+    listener so a quick restart after `^C` doesn't trip
+    TIME_WAIT.
+  - Multi-sink list parser: comma-separated, tolerates stray
+    commas, per-token max 255 chars. `null` is a no-op token —
+    if it's the only entry, the effective mask is empty and
+    the engine drops every diag line (preserving pre-existing
+    `RYL_LOG=null` semantics). `file:` and `tcp:` are
+    single-instance per process; a duplicate emits a one-shot
+    `[ERR][log] …; ignored` and leaves the first instance
+    alone. Open errors degrade only the failing token, the
+    rest of the list still applies. Unknown tokens add the
+    stderr bit so the misconfig is visible.
+  - The fan-out point is `log_msg`: the line is `snprintf`-ed
+    once into a 1100-byte buffer and teed in stderr → file →
+    tcp order. AUDIT (`LOG_A`) is unchanged — still routed
+    unconditionally to `data/rylween.log`, untouched by
+    `RYL_LOG`.
+  - New file: `docs/log.md` documents severity / threshold,
+    the four sink tokens, bind discipline, on-wire format,
+    loss policy, and `telnet localhost <port>` usage.
+
+Smoke-tested end-to-end with
+`RYL_LOG=stderr,file:smoke.log,tcp:<port>` running the
+`title-create-party-5-exit` fixture: stderr + file each saw
+the same 25 LOG_I lines clean; an `nc 127.0.0.1 <port>`
+client captured the 18 lines emitted *after* it connected
+(lazy-accept by design — earlier lines went out before the
+client attached). The client got byte-identical
+`[INF][realm] …` lines to the file sink — confirming the
+single-format-once / tee-many path works.
+
+Fixture impact: zero. Every fixture pins `RYL_LOG=null` after
+§24.E, so the new dispatch arm only fires on developer
+opt-in. `make check` (39 fixtures + snapshot diffs) and
+`make testasan` (39 fixtures, no AddressSanitizer /
+LeakSanitizer markers) both green at the §24.C commit and
+again after this plan-update commit.
+
+State at HEAD:
+  - 39 fixtures green, `make check` + `make testasan` clean.
+    §23 fully closed; §24.A0 + §24.A1 + §24.B + §24.C +
+    §24.E closed. No open §23 / §24.A-C / §24.E items.
+  - Logging plan remaining: only the optional §24.D (syslog
+    sink). Skip if no demand surfaces.
+
+**Recommended next session order:**
+
+  1. **§25 — 1-indexed → 0-indexed cleanup** (multi-sess).
+  2. **Later:** §24bis (id: → slug, post-§25), then
+     plans/future-directions.md.
+
+Bar per session: `make check` + `make testasan` both green
+at every commit. Push at session close.
+
+## Session 2026-04-27 #5 — §24.C + §24.F + §24.D closed (§24 done)
+
+Three logging-plan items landed in one session, fully closing §24
+ahead of the "optional D" estimate. Order:
+  1. **§24.C** — TCP listener sink + `RYL_LOG` generalised to a
+     comma-separated multi-sink list. (See the §24.C session note
+     above for the full shape.)
+  2. **§24.F** — `runtime.json5` config layer driving the always-on
+     `RYL_*` knobs through a new `rcfg_get(name)` helper with
+     env-overrides-file priority.
+  3. **§24.D** — `RYL_LOG=syslog[:<ident>]` sink with a
+     level → syslog-priority mapping.
+
+Why bundled: §24.C's multi-sink fan-out is the load-bearing change;
+once tee-to-many works, §24.D (one extra arm) and §24.F (one
+indirection layer in front of `getenv`) are each tiny additions.
+Splitting them into separate sessions would have meant three rounds
+of "rebuild rylween-asan + replay all 39 fixtures + push" for what
+amounts to one logical change to the logging surface.
+
+Shape of §24.F (the only piece that touched callsites outside
+`log.c`):
+  - New `src/runtime_cfg.{c,h}`. Single public function
+    `rcfg_get(name)` with this priority: env var (non-empty wins)
+    → `$HOME/.rylween/runtime.json5` → `data/runtime.json5`
+    (optional, absent from repo) → caller's hard-coded fallback.
+  - Cache is a tiny first-writer-wins string table (`RCFG_MAX = 64`
+    entries). Personal config loaded first, project-default loaded
+    second — keys already in the table are skipped, preserving the
+    priority order. Keys are `RYL_*` names; values are JSON5
+    scalars (string / int / bool — ints/bools stringified at load).
+    Non-scalar values get a one-shot `[WRN][rcfg]` and are skipped.
+  - `init_once()` is lazy on first call, registers
+    `atexit(rcfg_close)` for LSan cleanliness.
+  - `json5_parse_file` is fatal on syntax/IO errors via `res_die`
+    — same policy as world.json5 — so a malformed config is loud,
+    not silently ignored. `access(path, F_OK)` gates the call so a
+    missing file is silently OK.
+  - Routed through `rcfg_get`: `RYL_LOG` (`log.c`),
+    `RYL_LOG_LEVEL` (`log.c`), `RYL_NO_DELAY` (`compat.c`),
+    `RYL_FAKE_EPOCH` (`compat.c`), `RYL_FAKE_SEED` (`compat.c`),
+    `RYL_PARTY_MEMBER_MAX` (`res.c`), `RYL_REPLAY_RUMOUR`
+    (`towne.c`), `RYL_SNAPSHOT` (`snapshot.c`).
+  - **Not** routed through `rcfg_get`: every knob in
+    `replay_knobs.c` (`RYL_FORCE_*`, `RYL_STARTING_GOLD`,
+    `RYL_FORCE_ENCOUNTER`, etc.). These `unsetenv()` themselves
+    on first read and are by nature per-fixture; a personal-config
+    default would have terrible-surprise semantics
+    ("every run starts with RYL_FORCE_PARTY_LV=10"). If a knob
+    graduates from fixture-only to general-purpose, migrate it
+    out of `replay_knobs.c` first, then add it to the always-on
+    bucket.
+
+Smoke-tested:
+  * §24.C end-to-end with `RYL_LOG=stderr,file:smoke.log,
+    tcp:<port>` running the title-create-party-5-exit fixture:
+    stderr + file each got the same 25 LOG_I lines clean; an
+    `nc 127.0.0.1 <port>` client captured the 18 lines emitted
+    after it connected (lazy-accept, by design).
+  * §24.F with a personal `runtime.json5` setting
+    `RYL_LOG: 'file:cfg.log'` + `RYL_LOG_LEVEL: 'info'` and no
+    env vars → 25 LOG_I lines into cfg.log under a fresh
+    `HOME=$(mktemp -d)`. Same config with env override
+    `RYL_LOG=null` → 0 LOG lines anywhere (env beat the config,
+    confirming the priority contract).
+  * §24.D fan-out with `RYL_LOG=syslog:rylween-test,file:syslog_
+    smoke.log`: file got 25 lines clean, stderr stayed silent,
+    syslog calls fired (verified by the sink-mask: every line
+    that reached the file also went through `syslog(3)`).
+
+State at HEAD:
+  - 39 fixtures green, `make check` + `make testasan` clean.
+    §23 fully closed; **§24 fully closed** (A0 / A1 / B / C / D /
+    E / F all landed).
+  - Logging plan has nothing remaining.
+
+**Recommended next session order:**
+
+  1. **§25 — 1-indexed → 0-indexed cleanup** (multi-sess).
+  2. **Later:** §24bis (`id: <int>` → slug, deferred until
+     after §25), then plans/future-directions.md (multi-party
+     MUD work).
 
 Bar per session: `make check` + `make testasan` both green
 at every commit. Push at session close.
