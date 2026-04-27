@@ -21,6 +21,20 @@ static char *glyph(char);
 void timehandler() {
     advance_hour();
 }
+
+/* Sleep-deprivation hp drain: -1 hp per member with hp > 1 (so the
+   penalty bruises the party rather than killing anyone outright).
+   Three foodhandler arms (-4, -8, < -8 hours_rested) all trigger
+   the same drain, with different surrounding text + pacing. */
+static void sleep_deprivation_drain(void) {
+    for_each_party_member(i) {
+        pm_t pm = pm_cur(i);
+        if (pm_hp(pm) > 1) {
+            pm_add_hp(pm, -1);
+        }
+    }
+}
+
 void foodhandler() {
     // Regenerate mana //
     int32_t regen_pct = res_int_path("upkeep.mana_regen_chance");
@@ -77,24 +91,14 @@ void foodhandler() {
     if (pa_hours_rested() == -4) {
         clw();
         tx("You are exhausted!!!\r\n");
-        for_each_party_member(i) {
-            pm_t pm = pm_cur(i);
-            if (pm_hp(pm) > 1) {
-                pm_add_hp(pm, -1);
-            }
-        }
+        sleep_deprivation_drain();
         return;
     }
     if (pa_hours_rested() == -8) {
         clw();
         tx("You begin to feel weak\r\n");
         tx("from lack of sleep.\r\n\r\n");
-        for_each_party_member(i) {
-            pm_t pm = pm_cur(i);
-            if (pm_hp(pm) > 1) {
-                pm_add_hp(pm, -1);
-            }
-        }
+        sleep_deprivation_drain();
         ryl_pause();
         clw();
         return;
@@ -102,12 +106,7 @@ void foodhandler() {
     if (pa_hours_rested() < -8) {
         clw();
         tx0(res_text("subs.faint"));
-        for_each_party_member(i) {
-            pm_t pm = pm_cur(i);
-            if (pm_hp(pm) > 1) {
-                pm_add_hp(pm, -1);
-            }
-        }
+        sleep_deprivation_drain();
     }
 }
 void random_wilderness() {

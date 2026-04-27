@@ -114,7 +114,8 @@ static void enter_ready_prompt(void) {
     x = inv_find_in_range(1, 19) != 0;
     y = 0;
     for_each_party_member(i) {
-        if (!state.p[state.cpl].dead[i] && !state.p[state.cpl].wp[i]) {
+        pm_t pm = pm_cur(i);
+        if (!pm_dead(pm) && !pm_wp(pm)) {
             y = 1;
         }
     }
@@ -131,7 +132,8 @@ static void enter_ready_prompt(void) {
     x = inv_find_in_range(20, 30) != 0;
     y = 0;
     for_each_party_member(i) {
-        if (!state.p[state.cpl].dead[i] && !state.p[state.cpl].ar[i]) {
+        pm_t pm = pm_cur(i);
+        if (!pm_dead(pm) && !pm_ar(pm)) {
             y = 1;
         }
     }

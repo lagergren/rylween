@@ -637,16 +637,12 @@ void encounter(int32_t foe, int32_t mandatory) {
 /****************************************************************************/
 
 void expcheck() {
-    int32_t add[5];
-
-    for_each_party_member(i) {
-        add[i] = 0;
-    }
+    int32_t add[5] = {0};
 
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
         int32_t l = pm_lv(pm);
-        uint32_t e = pm.party->exp[pm.m];
+        uint32_t e = pm_exp(pm);
         for (int n = l + 1; n <= 28; n++) {
             int32_t need = res_xp_threshold(n);
             if (need <= 0 || e < (uint32_t)need) {

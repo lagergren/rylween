@@ -1575,19 +1575,11 @@ static void createparty() {
     memset(state.p[a].inventory, 0, sizeof state.p[a].inventory);
     memset(state.p[a].flag, 0, sizeof state.p[a].flag);
     for_each_party_member(i) {
-        state.p[a].lv[i] = 1;
-    }
-    for_each_party_member(i) {
-        state.p[a].ar[i] = 0;
-    }
-    for_each_party_member(i) {
-        state.p[a].lv[i] = 1;
-    }
-    for_each_party_member(i) {
-        state.p[a].exp[i] = 0;
-    }
-    for_each_party_member(i) {
-        state.p[a].dead[i] = 0;
+        pm_t pm = pm_of(&state.p[a], i);
+        pm_set_lv(pm, 1);
+        pm_set_ar(pm, 0);
+        pm_set_exp(pm, 0);
+        pm_set_dead(pm, 0);
     }
     rk_apply_party_lv(a);
     rk_apply_dead_slots(a);

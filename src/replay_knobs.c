@@ -101,7 +101,7 @@ void rk_apply_party_lv(int a) {
             pm_add_wi(pm, res_class_levelup(cls, "wi"));
             pm_add_ch(pm, res_class_levelup(cls, "ch"));
         }
-        state.p[a].lv[i] = (int32_t)lv_target;
+        pm_set_lv(pm, (int)lv_target);
         if (pm_is_spellcaster(pm)) {
             pm_set_ma(pm, pm_wi(pm));
         }
@@ -193,7 +193,7 @@ void rk_apply_party_wp(int a) {
         return;
     }
     for_each_party_member(i) {
-        state.p[a].wp[i] = (int32_t)id;
+        pm_set_wp(pm_of(&state.p[a], i), (int)id);
     }
 }
 
@@ -212,10 +212,11 @@ void rk_apply_party_hp_full(int a) {
     }
     unsetenv("RYL_FORCE_PARTY_HP_FULL");
     for_each_party_member(i) {
-        if (state.p[a].dead[i]) {
+        pm_t pm = pm_of(&state.p[a], i);
+        if (pm_dead(pm)) {
             continue;
         }
-        state.p[a].hp[i] = state.p[a].h[i];
+        pm_set_hp(pm, pm_h(pm));
     }
 }
 
@@ -235,8 +236,9 @@ void rk_apply_dead_slots(int a) {
         char *end;
         long slot = strtol(p, &end, 10);
         if (end != p && slot >= 1 && slot <= res_party_member_max()) {
-            state.p[a].dead[slot] = 1;
-            state.p[a].hp[slot] = 0;
+            pm_t pm = pm_of(&state.p[a], (int)slot);
+            pm_set_dead(pm, 1);
+            pm_set_hp(pm, 0);
         }
         p = (*end == ',') ? end + 1 : end;
         if (p == end && *p == 0) {
