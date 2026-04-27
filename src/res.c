@@ -2655,6 +2655,20 @@ void res_load_world(const char *path) {
     fold_texts(obj_get(root, "texts"), path);
     texts_sort();
 
+    /* Right-size the runtime NPC table to (res_npc_slot_max() + 1)
+       entries (slot 0 + slots 1..max), zeroed. Idempotent so the
+       res_shutdown / res_load_world reload path drops the prior
+       allocation before allocating a freshly-sized one. The slot-max
+       cap check inside npc_slot_max() bounds this against
+       NPC_SLOT_HARD_MAX before we calloc anything bogus. */
+    free(state.npc);
+    size_t npc_n = (size_t)res_npc_slot_max() + 1;
+    state.npc = calloc(npc_n, sizeof(struct person));
+    if (!state.npc) {
+        LOG_E("realm", "out of memory allocating state.npc[%zu]", npc_n);
+        exit(1);
+    }
+
     /* Register the teardown the first time a world is loaded. Guarded
        so reload paths (res_shutdown followed by another res_load_world)
        don't stack LIFO copies on the atexit chain. */
@@ -3178,6 +3192,8 @@ void res_shutdown(void) {
     reset_buildings();
     reset_limits();
     npc_slot_max_invalidate();
+    free(state.npc);
+    state.npc = NULL;
     node_free(world_tree);
     world_tree = NULL;
     color_default = ANSI_FG_CYAN;

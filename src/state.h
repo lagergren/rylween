@@ -208,7 +208,14 @@ struct ryl_state {
     /* Persistent game data (flushed to realm.dat / npc.dat). */
     char map[42][82];
     struct party p[PARTY_SLOT_HARD_MAX];
-    struct person npc[NPC_SLOT_HARD_MAX];
+    /* NPC runtime table — heap-allocated to (res_npc_slot_max() + 1)
+       entries by res_load_world() so the size matches the data layer's
+       slot count. NPC_SLOT_HARD_MAX is the static ceiling
+       res_npc_slot_max() is asserted against; the in-memory table is
+       right-sized at world load. NULL until res_load_world() runs;
+       res_shutdown() frees it. All readers / writers index through
+       state.npc[slot] (slot <= res_npc_slot_max()). */
+    struct person *npc;
 };
 
 extern struct ryl_state state;
