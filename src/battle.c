@@ -582,12 +582,17 @@ void encounter(int32_t foe, int32_t mandatory) {
                         tx_fmt("battle.monster.attacks", melee_binds);
                         tx_fmt("battle.monster.target_excl", melee_binds);
                         ryl_delay(400);
-                        if (ryl_chance(ws + 1)) {
-                            dp = mh[x] / 6;
-                            dp += ryl_random(0, 9);
+                        if (ryl_chance(ws + res_combat_int("monster_attack.hit_bonus"))) {
+                            int32_t dmg_div =
+                                res_combat_int("monster_attack.damage_div");
+                            dp = (dmg_div > 0) ? mh[x] / dmg_div : mh[x];
+                            dp += ryl_random(
+                                0, res_combat_int("monster_attack.damage_spread_max"));
                             dp -= obdamage(pm_ar(pm_cur(who)));
-                            if (dp < 1) {
-                                dp = 1;
+                            int32_t dmg_min =
+                                res_combat_int("monster_attack.damage_min");
+                            if (dp < dmg_min) {
+                                dp = dmg_min;
                             }
                             snprintf(melee_dp_buf, sizeof melee_dp_buf, "%d", dp);
                             tx0(res_text("battle.monster.and_hits_for"));

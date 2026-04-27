@@ -287,6 +287,19 @@
     battle_cry: { ws_penalty: 4 },
     defend:     { ws_penalty: 2, rest_threshold: 5 },
 
+    // §23.A residual: monster-melee formula. The g==5 magic gate
+    // already routes nasty-magic through the script DSL; the melee
+    // fallback arm's numbers stay in C but pull through res so they
+    // can be tuned without a recompile. Hit-roll is ryl_chance(ws +
+    // hit_bonus); damage is mh[idx]/damage_div + ryl_random(0,
+    // damage_spread_max) - armor, floored at damage_min.
+    monster_attack: {
+      hit_bonus:         1,
+      damage_div:        6,
+      damage_spread_max: 9,
+      damage_min:        1,
+    },
+
     // §23.C: desperate-flee. (R)un after the F/R prompt rolls
     // ryl_chance(N); on success the party is locked into combat and
     // sees "Couldn't get away..."; on failure they escape.
