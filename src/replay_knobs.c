@@ -170,6 +170,54 @@ int rk_ydarg_easy_rooms(void) {
     return 1;
 }
 
+void rk_apply_party_wp(int a) {
+    /* §23.J: set every member's weapon to the slug-named item so a
+       confrontation fixture can deal monster-scaled damage without
+       a town pre-stop to buy gear. Slugs are world.json5 items.
+       weapons.<slug> keys (e.g. "dancing_sword"); res_item_id
+       walks every items.<section>.<slug> so the resolver does not
+       care which shard the slug lives in. Unknown slugs leave wp
+       untouched — fixtures that mistype the slug see their attacks
+       deal obdamage(0) damage and the bless surfaces the mistake. */
+    const char *env = getenv("RYL_FORCE_PARTY_WP");
+    if (!env || !*env) {
+        return;
+    }
+    char buf[64];
+    strncpy(buf, env, sizeof buf - 1);
+    buf[sizeof buf - 1] = 0;
+    unsetenv("RYL_FORCE_PARTY_WP");
+    int32_t id = res_item_id(buf);
+    if (id < 0) {
+        return;
+    }
+    for (int i = 1; i <= res_party_member_max(); i++) {
+        state.p[a].wp[i] = (int32_t)id;
+    }
+}
+
+void rk_apply_party_hp_full(int a) {
+    /* §23.J: heal every alive member's hp up to h. Pairs with
+       rk_apply_party_lv, which (deliberately) leaves hp at the
+       lv-1 roll so pre-existing fixtures' snapshots stay byte-
+       identical. A confrontation-walkthrough fixture that climbs
+       to the engine's level ceiling needs hp scaled up alongside
+       the h bumps or the first monster round one-shots the party.
+       Dead members are skipped — rk_apply_dead_slots may already
+       have flagged a slot dead, and an hp = h reset would undo it. */
+    const char *env = getenv("RYL_FORCE_PARTY_HP_FULL");
+    if (!env || !*env) {
+        return;
+    }
+    unsetenv("RYL_FORCE_PARTY_HP_FULL");
+    for (int i = 1; i <= res_party_member_max(); i++) {
+        if (state.p[a].dead[i]) {
+            continue;
+        }
+        state.p[a].hp[i] = state.p[a].h[i];
+    }
+}
+
 void rk_apply_dead_slots(int a) {
     /* Fixtures that exercise the dead-arm of party-target spells
        (priest rebirth) need a member who starts dead without a

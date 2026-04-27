@@ -39,4 +39,17 @@ void rk_apply_ydarg_grants(int a);
    is set (and consumes it), 0 otherwise. */
 int rk_ydarg_easy_rooms(void);
 
+/* §23.J knobs — combat-readiness for the confrontation fixture.
+   `rk_apply_party_wp` reads RYL_FORCE_PARTY_WP=<weapon_slug> and
+   sets every member's weapon slot to the resolved item id. Slugs
+   come from world.json5 items.weapons.<slug> via res_item_id;
+   unknown slugs leave wp untouched. `rk_apply_party_hp_full` reads
+   RYL_FORCE_PARTY_HP_FULL=1 and heals every alive member's hp up
+   to h (matching the natural mid-game state expcheck would have
+   left them in had they fought their way to lv 28 organically;
+   rk_apply_party_lv intentionally leaves hp at the lv-1 roll so
+   pre-existing fixtures' snapshots stay byte-identical). */
+void rk_apply_party_wp(int a);
+void rk_apply_party_hp_full(int a);
+
 #endif
