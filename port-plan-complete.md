@@ -4387,3 +4387,47 @@ byte-identical fixture output across the entire suite.
 
 Slice B (interact.c) is the next active item — same
 mechanical-Option-A shape, smaller footprint per the §17.3 table.
+
+### §17.A.4 slice B — interact.c (2026-04-27 #15, closed empty)
+
+The §17.1 table sized `interact.c` at 428 LOC with "party-level
+menus: drop / swap item flows, HP viewing, rest prompts" as the
+extraction target. By the time slice B was picked up, the file
+was 69 lines: the drop / swap / HP / rest flows had migrated
+during earlier §17 / §22 work, the journal helpers
+(`read_journal()` / `journalf()`) had moved in from `driv.c`
+during the §12.4 mechanical-residuals pass (commit `8442d03`),
+and `check_terrain()` had become a thin wrapper over
+`terrain.transition` in `data/world/scripts/terrain.json5`
+(§20 T1).
+
+The two remaining `tx(...)` call sites in `interact.c` are
+inside `read_journal()`:
+
+```c
+tx("- %s\r\n", pa_journal_line(i));   /* per-line bullet prefix */
+tx("\r\n");                           /* 16-line page break    */
+```
+
+Both match the inline convention noted in the §20 L6 closure for
+`battle.c` ("Five `tx()` remain inline as pure pass-through
+`%s\r\n` (monster/caster name) or column-aligned table rows"):
+the bullet prefix is row-formatting on data (`pa_journal_line(i)`
+is a stored journal entry), and `"\r\n"` is a literal page-break
+separator, neither of which is localizable prose. There's no
+`interact.json5` text shard and none was created — the only
+text that could conceivably be data is the `"- "` bullet prefix,
+and bundling it into a `journal.line_format` shard would mix
+formatting with content for no observable benefit at this
+fixture set.
+
+**Closure shape.** Slice B closes empty by the same convention
+as the §17.A.5 driv.c / ydarg.c residual closure (§17 footer:
+"A.5 (driv.c / ydarg.c residuals — closed empty; slices A/B/C
+of §16.3 caught everything)"). No source changes; no fixtures
+touched. The plan entry exists so future readers don't try the
+slice again expecting work.
+
+Slice C (dungeon.c) is the next active item — biggest of the
+remaining slices (917 lines, fixture-reachable via
+`wilderness-cave-descent`).
