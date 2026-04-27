@@ -133,19 +133,22 @@ static char *pronoun_tab[3][4];
 
 /* Town table. Slot 0 = null (wilderness sentinel); slots 1..n_towns
    carry a display name (owned string) plus fixed (x, y) world-map
-   coords. See data/world.json5 towns:. Static cap is named in state.h
-   as TOWN_SLOT_HARD_MAX so the same constant guards the array
-   declaration and the fold-time overflow check. */
+   coords. See data/world.json5 towns:. Heap-allocated by fold_towns
+   to (n_towns + 1) entries — slot 0 plus one slot per declared town.
+   Reset by reset_towns (which walks 0..towns_cap freeing owned name
+   strings). The TOWN_SLOT_HARD_MAX named cap in state.h is now only
+   the fold-time overflow check; the runtime allocation is data-
+   driven, so adding a 5th/6th town in world.json5 only requires
+   bumping that cap (and §12.3 will eventually retire it). */
 typedef struct {
     char *name;
     int32_t x, y;
     int32_t tax;
     int32_t has_church;
 } ryl_town;
-static ryl_town towns[TOWN_SLOT_HARD_MAX];
-/* Count of declared towns (slots 1..n_towns). Populated by fold_towns.
-   The fixed-size `towns` array caps this at TOWN_SLOT_HARD_MAX - 1;
-   fold_towns res_die()s if the data declares more. */
+static ryl_town *towns;
+static size_t towns_cap;
+/* Count of declared towns (slots 1..n_towns). Populated by fold_towns. */
 static size_t n_towns;
 
 /* Per-building opening hours. Looked up by name ("smith", "tavern",
@@ -1436,7 +1439,10 @@ void res_realize_npcs(void) {
           "realizing %d NPC(s): %d fixed + %d random across %d bin(s) "
           "(capacity %d/bin, slot_max=%d)",
           N + fixed_count, fixed_count, N, T, cap, slot_max);
-    int counts[sizeof towns / sizeof towns[0]] = {0};
+    /* Sized to the static cap (T <= TOWN_SLOT_HARD_MAX); the active
+       part is bins 0..T-1. Zero-initialized so unreached bins stay
+       0 even when fewer towns than the cap are declared. */
+    int counts[TOWN_SLOT_HARD_MAX] = {0};
 
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
         const node *rec = npcs->u.obj.items[i].val;
@@ -1996,8 +2002,9 @@ static void fold_pronoun(const node *pronoun_node, const char *path) {
 }
 
 /* -------- towns subtree --------
-   Array indexed by twn (slot 0 = null wilderness; 1..4 = towns). Each
-   record has a `name` string and `x` / `y` integer coords. */
+   Array indexed by twn (slot 0 = null wilderness; 1..n_towns = towns).
+   Heap-allocated to fit one slot per declared entry; the static cap
+   TOWN_SLOT_HARD_MAX is enforced at fold-time only. */
 static void fold_towns(const node *towns_node, const char *path) {
     if (!towns_node) {
         return;
@@ -2005,12 +2012,29 @@ static void fold_towns(const node *towns_node, const char *path) {
     if (towns_node->kind != N_ARR) {
         res_die(path, towns_node->line, "towns: expected array");
     }
-    size_t cap = sizeof towns / sizeof towns[0];
-    if (towns_node->u.arr.n > cap) {
+    if (towns_node->u.arr.n > TOWN_SLOT_HARD_MAX) {
         res_die(path, towns_node->line, "towns: too many entries");
     }
     size_t n = towns_node->u.arr.n;
     n_towns = n > 0 ? n - 1 : 0;
+
+    /* Drop any prior allocation; reload paths re-fold from scratch. */
+    for (size_t i = 0; i < towns_cap; i++) {
+        free(towns[i].name);
+    }
+    free(towns);
+    towns = NULL;
+    towns_cap = 0;
+    if (n == 0) {
+        return;
+    }
+
+    towns = calloc(n, sizeof *towns);
+    if (!towns) {
+        res_die(path, towns_node->line, "oom");
+    }
+    towns_cap = n;
+
     for (size_t i = 1; i < n; i++) {
         const node *rec = towns_node->u.arr.items[i];
         if (!rec || rec->kind == N_NULL) {
@@ -2039,15 +2063,12 @@ static void fold_towns(const node *towns_node, const char *path) {
 }
 
 static void reset_towns(void) {
-    size_t cap = sizeof towns / sizeof towns[0];
-    for (size_t i = 0; i < cap; i++) {
+    for (size_t i = 0; i < towns_cap; i++) {
         free(towns[i].name);
-        towns[i].name = NULL;
-        towns[i].x = 0;
-        towns[i].y = 0;
-        towns[i].tax = 0;
-        towns[i].has_church = 0;
     }
+    free(towns);
+    towns = NULL;
+    towns_cap = 0;
     n_towns = 0;
 }
 
