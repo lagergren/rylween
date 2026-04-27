@@ -116,7 +116,7 @@ void ydarg() {
                 ryl_delay(1500);
                 clw();
                 j = 0;
-                for (i = 1; i <= res_party_member_max(); i++) {
+                for_each_party_member(i) {
                     if (pm_is_thief(pm_cur(i))) {
                         tx("%s tries to\r\n", pm_name(pm_cur(i)));
                         tx("disarm it...\r\n\r\n");
@@ -145,7 +145,7 @@ void ydarg() {
                     }
                     ryl_pause();
                     int32_t dmg_div = res_int_path("ydarg.pitfall.damage_div");
-                    for (i = 1; i <= res_party_member_max(); i++) {
+                    for_each_party_member(i) {
                         if (pa_is_alive(i)) {
                             pm_t pm = pm_cur(i);
                             if (dmg_div > 0) {
@@ -382,7 +382,7 @@ void ydarg() {
                 show(d - 48);
             }
             if (toupper(d) == 'A') {
-                for (i = 1; i <= res_party_member_max(); i++) {
+                for_each_party_member(i) {
                     show(i);
                 }
             }

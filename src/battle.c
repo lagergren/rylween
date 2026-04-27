@@ -461,7 +461,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                 }
                 party_add_gold(gold_gain);
-                for (i = 1; i <= res_party_member_max(); i++) {
+                for_each_party_member(i) {
                     pm_t pm = pm_cur(i);
                     if (!pm_dead(pm)) {
                         pm_add_exp(pm, (uint32_t)exp_gain);
@@ -637,14 +637,13 @@ void encounter(int32_t foe, int32_t mandatory) {
 /****************************************************************************/
 
 void expcheck() {
-    int32_t i, add[5];
-    int mm = res_party_member_max();
+    int32_t add[5];
 
-    for (i = 1; i <= mm; i++) {
+    for_each_party_member(i) {
         add[i] = 0;
     }
 
-    for (i = 1; i <= mm; i++) {
+    for_each_party_member(i) {
         pm_t pm = pm_cur(i);
         int32_t l = pm_lv(pm);
         uint32_t e = pm.party->exp[pm.m];
@@ -669,7 +668,7 @@ void expcheck() {
         "bard",
         "ranger",
     };
-    for (i = 1; i <= mm; i++) {
+    for_each_party_member(i) {
         if (add[i]) {
             pm_t pm = pm_cur(i);
             clw();

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "party.h"
 #include "res.h"
 #include "state.h"
 
@@ -90,7 +91,7 @@ void rk_apply_party_lv(int a) {
     static const char *const pc_class_key[] = {
         "", "fighter", "thief", "mage", "priest", "bard", "ranger",
     };
-    for (int i = 1; i <= res_party_member_max(); i++) {
+    for_each_party_member(i) {
         pm_t pm = pm_of(&state.p[a], i);
         int cl_id = pm_cl(pm);
         const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
@@ -191,7 +192,7 @@ void rk_apply_party_wp(int a) {
     if (id < 0) {
         return;
     }
-    for (int i = 1; i <= res_party_member_max(); i++) {
+    for_each_party_member(i) {
         state.p[a].wp[i] = (int32_t)id;
     }
 }
@@ -210,7 +211,7 @@ void rk_apply_party_hp_full(int a) {
         return;
     }
     unsetenv("RYL_FORCE_PARTY_HP_FULL");
-    for (int i = 1; i <= res_party_member_max(); i++) {
+    for_each_party_member(i) {
         if (state.p[a].dead[i]) {
             continue;
         }

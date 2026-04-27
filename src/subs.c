@@ -22,12 +22,9 @@ void timehandler() {
     advance_hour();
 }
 void foodhandler() {
-    int32_t i;
-    int mm = res_party_member_max();
-
     // Regenerate mana //
     int32_t regen_pct = res_int_path("upkeep.mana_regen_chance");
-    for (i = 1; i <= mm; i++) {
+    for_each_party_member(i) {
         pm_t pm = pm_cur(i);
         if ((pm_is_mage(pm) || pm_is_priest(pm)) &&
             pm_ma(pm) < pm_wi(pm) && ryl_chance(regen_pct)) {
@@ -50,7 +47,7 @@ void foodhandler() {
 
     if (pa_food() == 0) {
         int32_t damage = res_int_path("upkeep.starve_damage");
-        for (i = 1; i <= mm; i++) {
+        for_each_party_member(i) {
             pm_t pm = pm_cur(i);
             if (!pm_dead(pm)) {
                 pm_add_hp(pm, -damage);
@@ -80,7 +77,7 @@ void foodhandler() {
     if (pa_hours_rested() == -4) {
         clw();
         tx("You are exhausted!!!\r\n");
-        for (i = 1; i <= res_party_member_max(); i++) {
+        for_each_party_member(i) {
             pm_t pm = pm_cur(i);
             if (pm_hp(pm) > 1) {
                 pm_add_hp(pm, -1);
@@ -92,7 +89,7 @@ void foodhandler() {
         clw();
         tx("You begin to feel weak\r\n");
         tx("from lack of sleep.\r\n\r\n");
-        for (i = 1; i <= res_party_member_max(); i++) {
+        for_each_party_member(i) {
             pm_t pm = pm_cur(i);
             if (pm_hp(pm) > 1) {
                 pm_add_hp(pm, -1);
@@ -105,7 +102,7 @@ void foodhandler() {
     if (pa_hours_rested() < -8) {
         clw();
         tx0(res_text("subs.faint"));
-        for (i = 1; i <= res_party_member_max(); i++) {
+        for_each_party_member(i) {
             pm_t pm = pm_cur(i);
             if (pm_hp(pm) > 1) {
                 pm_add_hp(pm, -1);

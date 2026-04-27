@@ -35,8 +35,7 @@ int pa_is_spellcaster(int m) {
 }
 
 int pa_first_alive(void) {
-    int mmax = res_party_member_max();
-    for (int i = 1; i <= mmax; i++) {
+    for_each_party_member(i) {
         if (!state.p[state.cpl].dead[i]) {
             return i;
         }
@@ -45,9 +44,8 @@ int pa_first_alive(void) {
 }
 
 int pa_count_class(int cl) {
-    int mmax = res_party_member_max();
     int count = 0;
-    for (int i = 1; i <= mmax; i++) {
+    for_each_party_member(i) {
         if (state.p[state.cpl].cl[i] == cl) {
             count++;
         }
@@ -56,9 +54,8 @@ int pa_count_class(int cl) {
 }
 
 int pa_count_alive_class(int cl) {
-    int mmax = res_party_member_max();
     int count = 0;
-    for (int i = 1; i <= mmax; i++) {
+    for_each_party_member(i) {
         if (state.p[state.cpl].cl[i] == cl && !state.p[state.cpl].dead[i]) {
             count++;
         }
@@ -67,9 +64,8 @@ int pa_count_alive_class(int cl) {
 }
 
 int pa_alive_count(void) {
-    int mmax = res_party_member_max();
     int count = 0;
-    for (int i = 1; i <= mmax; i++) {
+    for_each_party_member(i) {
         if (!state.p[state.cpl].dead[i]) {
             count++;
         }

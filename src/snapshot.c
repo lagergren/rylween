@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "log.h"
+#include "party.h"
 #include "res.h"
 #include "runtime_cfg.h"
 #include "state.h"
@@ -53,7 +54,7 @@ static void emit_party(FILE *f, int idx) {
     }
     fputc('\n', f);
 
-    for (int m = 1; m <= res_party_member_max(); m++) {
+    for_each_party_member(m) {
         fprintf(f,
                 "member[%d] name=%s gender=%u cl=%d ra=%d lv=%d dead=%d "
                 "h=%d hp=%d ws=%d wi=%d ma=%d ch=%d ar=%d wp=%d exp=%u\n",

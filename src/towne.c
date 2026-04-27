@@ -109,10 +109,11 @@ char *object(int32_t nr) {
    20..30. Prompt skips entirely when the party has none carried or
    every member already has one equipped. */
 static void enter_ready_prompt(void) {
-    int32_t x, y, i;
+    int32_t x, y;
 
     x = inv_find_in_range(1, 19) != 0;
-    for (i = 1, y = 0; i <= res_party_member_max(); i++) {
+    y = 0;
+    for_each_party_member(i) {
         if (!state.p[state.cpl].dead[i] && !state.p[state.cpl].wp[i]) {
             y = 1;
         }
@@ -128,7 +129,8 @@ static void enter_ready_prompt(void) {
     }
 
     x = inv_find_in_range(20, 30) != 0;
-    for (i = 1, y = 0; i <= res_party_member_max(); i++) {
+    y = 0;
+    for_each_party_member(i) {
         if (!state.p[state.cpl].dead[i] && !state.p[state.cpl].ar[i]) {
             y = 1;
         }

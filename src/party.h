@@ -146,6 +146,15 @@ void pa_set_inventory(int slot, int32_t item_id);
    renders "-" for invalid slots). */
 const char *pa_name(int m);
 
+/* §25.A.1: iterate party-member slots 1..res_party_member_max(). The
+   body sees `slot` 1-based — this macro is the single point of truth
+   for the dozens of `for (i = 1; i <= res_party_member_max(); i++)`
+   loops scattered across battle / driv / dungeon / snapshot / subs /
+   towne / ydarg / replay_knobs / party. §25.B will edit this macro
+   (and re-bless fixtures) when the codebase flips to 0-indexed. */
+#define for_each_party_member(slot) \
+    for (int slot = 1; slot <= res_party_member_max(); slot++)
+
 /* Party display name (state.p[cpl].party_name). Owned by struct party;
    the returned pointer is valid until the party slot is freed. */
 const char *pa_party_name(void);

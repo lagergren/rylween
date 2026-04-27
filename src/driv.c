@@ -207,7 +207,7 @@ static void the_game() {
                     show(d - 48);
                 }
                 if (toupper(d) == 'A') {
-                    for (i = 1; i <= res_party_member_max(); i++) {
+                    for_each_party_member(i) {
                         show(i);
                     }
                 }
@@ -1429,7 +1429,7 @@ char *pronoun(uint8_t nr, uint8_t xx) {
 }
 
 static void createparty() {
-    int32_t i, a, g, passed;
+    int32_t a, g, passed;
     char str[80];
 
     clw();
@@ -1574,19 +1574,19 @@ static void createparty() {
     state.p[a].silverkey = 0;
     memset(state.p[a].inventory, 0, sizeof state.p[a].inventory);
     memset(state.p[a].flag, 0, sizeof state.p[a].flag);
-    for (i = 1; i <= res_party_member_max(); i++) {
+    for_each_party_member(i) {
         state.p[a].lv[i] = 1;
     }
-    for (i = 1; i <= res_party_member_max(); i++) {
+    for_each_party_member(i) {
         state.p[a].ar[i] = 0;
     }
-    for (i = 1; i <= res_party_member_max(); i++) {
+    for_each_party_member(i) {
         state.p[a].lv[i] = 1;
     }
-    for (i = 1; i <= res_party_member_max(); i++) {
+    for_each_party_member(i) {
         state.p[a].exp[i] = 0;
     }
-    for (i = 1; i <= res_party_member_max(); i++) {
+    for_each_party_member(i) {
         state.p[a].dead[i] = 0;
     }
     rk_apply_party_lv(a);
