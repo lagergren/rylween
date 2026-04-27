@@ -267,7 +267,7 @@ static void hut() {
     int32_t who = 0;
 
     for_each_npc(i) {
-        if (state.npc[i].x == pa_x() && state.npc[i].y == pa_y()) {
+        if (npc_is_at(npc_at_slot(i), pa_x(), pa_y())) {
             who = i;
         }
     }
@@ -283,7 +283,7 @@ static void hut() {
 
     char who_s[8], job_s[8];
     snprintf(who_s, sizeof who_s, "%d", who);
-    snprintf(job_s, sizeof job_s, "%d", state.npc[who].job);
+    snprintf(job_s, sizeof job_s, "%d", npc_job(npc_at_slot(who)));
     play_script("towne.hut", (ryl_bind[]){
                                  {"who", who_s},
                                  {"npc_job", job_s},

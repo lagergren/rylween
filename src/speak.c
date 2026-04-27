@@ -108,9 +108,10 @@ void speak(int32_t bld, int32_t tow) {
         j = 1;
         x = 0;
         for_each_npc(i) {
-            if (state.npc[i].building == bld && state.npc[i].towne == tow) {
-                tx("%c. %-8s (%s)\r\n", j + 64, res_npc_name(state.npc[i].nr), res_enum("job", state.npc[i].job));
-                reference[j] = state.npc[i].nr;
+            npc_t n = npc_at_slot(i);
+            if (npc_building(n) == bld && npc_towne(n) == tow) {
+                tx("%c. %-8s (%s)\r\n", j + 64, npc_name(n), res_enum("job", npc_job(n)));
+                reference[j] = npc_nr(n);
                 j++;
                 x = 1;
             }
@@ -131,7 +132,7 @@ void speak(int32_t bld, int32_t tow) {
     } else {
         talk = 0;
         for_each_npc(i) {
-            if (state.npc[i].x == pa_x() && state.npc[i].y == pa_y()) {
+            if (npc_is_at(npc_at_slot(i), pa_x(), pa_y())) {
                 talk = i;
             }
         }

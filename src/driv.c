@@ -41,8 +41,9 @@ static void the_game() {
     /* Prep map for positions of huts/cottages */
 
     for_each_npc(i) {
-        if (!state.npc[i].towne) {
-            state.map[state.npc[i].y][state.npc[i].x] = '1';
+        npc_t n = npc_at_slot(i);
+        if (!npc_towne(n)) {
+            state.map[npc_y(n)][npc_x(n)] = '1';
         }
     }
 
@@ -617,8 +618,9 @@ void init() {
                         party_release_members(&state.p[x]);
                         state.num_parties--;
                         for_each_npc(i) {
+                            npc_t n = npc_at_slot(i);
                             for (j = 1; j < state.num_parties; j++) {
-                                state.npc[i].visited[x] = state.npc[i].visited[x + 1];
+                                npc_visited_set(n, x, npc_visited(n, x + 1));
                             }
                         }
                         if ((int)x <= state.num_parties) {

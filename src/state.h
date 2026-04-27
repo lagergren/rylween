@@ -573,8 +573,31 @@ static inline int32_t npc_job(npc_t n) {
 static inline unsigned char npc_gender(npc_t n) {
     return n.p->gender;
 }
+static inline int32_t npc_building(npc_t n) {
+    return n.p->building;
+}
+static inline int32_t npc_nr(npc_t n) {
+    return n.p->nr;
+}
 static inline const char *npc_name(npc_t n) {
     return res_npc_name(n.slot);
+}
+
+/* Per-NPC visited flag indexed by party slot. Sized to fit
+   PARTY_SLOT_HARD_MAX (struct person.visited is unsigned char[26],
+   matching the party-slot static cap). */
+static inline unsigned char npc_visited(npc_t n, int party_slot) {
+    assert(party_slot >= 0 &&
+           (size_t)party_slot < sizeof n.p->visited / sizeof n.p->visited[0]);
+    return n.p->visited[party_slot];
+}
+static inline void npc_visited_set(npc_t n, int party_slot, unsigned char v) {
+    assert(party_slot >= 0 &&
+           (size_t)party_slot < sizeof n.p->visited / sizeof n.p->visited[0]);
+    n.p->visited[party_slot] = v;
+}
+static inline int npc_is_at(npc_t n, int x, int y) {
+    return n.p->x == x && n.p->y == y;
 }
 
 #endif
