@@ -4196,3 +4196,92 @@ residuals** (surfaced during the C3 migration but out of scope):
     4 (NPC axis flip) lands so the writer's `<=
     res_npc_slot_max()` loop and the reader bound become
     symmetric.
+
+### §25.B step 3b — town-axis flip + heap-alloc + enum-wilderness lift (2026-04-27 #12, four commits `bedd842..f66247a`)
+
+Closes the third of four §25.B axes: the towns array flips from
+1-indexed (with a leading null wilderness sentinel) to 0-indexed
+end-to-end, the static `ryl_town towns[5]` is heap-allocated off
+the world.json5 array length, and `enums.towne` drops its leading
+'wilderness' entry — the runtime sentinel `WILDERNESS_TOWN` (-1)
+is now bridged by the literal string `"wilderness"` at the four
+callsites that span the enum boundary, never an enum entry. After
+this commit the towns table and the towne enum line up
+entry-for-entry, so adding a town to `data/world.json5` no longer
+requires juggling slot-0 reservations or enum-prefix entries.
+
+  - **C1 (`bedd842`) — name the town static cap.** Added
+    `TOWN_SLOT_HARD_MAX` (5) in `state.h` next to
+    `NPC_SLOT_HARD_MAX`; declared `towns[]` off the new name and
+    swapped the `sizeof towns / sizeof towns[0]` fold-time check
+    for it. Lifted the bare `4` upper bounds in `res_town_name`
+    / `_x` / `_y` / `_tax` / `_has_church` to `(int)n_towns` so
+    the per-callsite guards became data-driven (substitution
+    identity-only — `n_towns` folded to 4 against today's data).
+  - **C2 (`78bcac3`) — heap-allocate towns.** Replaced the
+    static `ryl_town towns[TOWN_SLOT_HARD_MAX]` array with a
+    `ryl_town *towns` pointer + `towns_cap` size shadow, sized
+    by `fold_towns` to the world.json5 array length and freed
+    in `reset_towns`. Mirrors the `state.npc` heap-alloc shape
+    from §25.B step 3a/C2. The fold-time overflow check is the
+    only place the static cap is consulted now; bumping the cap
+    is a one-line change. The `int counts[]` placement-bin
+    tally in `res_realize_npcs` swapped its `sizeof towns` size
+    hint for a literal `TOWN_SLOT_HARD_MAX` bound (the active
+    part is bins 0..T-1; cap is the upper bound on T).
+  - **C3 (`ac5943e`) — flip the town axis to 0-indexed.**
+    `for_each_town` macro to `slot = 0; slot < res_town_count()`.
+    `fold_towns` drops the leading-null skip and writes
+    `towns[0..n-1]`; `n_towns` becomes the array length
+    directly. Bounds in `res_town_*` shift from `twn < 1 ||
+    twn > n_towns` to `twn < 0 || twn >= n_towns`;
+    `res_town_at` returns `WILDERNESS_TOWN` on no-match.
+    `towne.c::enter` sets `state.twn = WILDERNESS_TOWN` at top
+    and tests against the sentinel in place of `!state.twn`;
+    the `state.twn == 3` city/village fork shifted to
+    `state.twn == 2` (Wilor moved from slot 3 to slot 2).
+    `speak.c::speak`'s `if (tow)` wilderness-vs-town selector
+    became `if (tow != WILDERNESS_TOWN)` so the now-valid
+    `towns[0]` doesn't fall through to the at-location path
+    (the load-bearing fix that turned up under fixture replay).
+    `driv.c::wcw_enum` / `rcw_enum` save-format bridge kept the
+    symbolic `'wilderness'` string on disk via a temporary
+    `+1` / `-1` offset against the still-1-indexed
+    `enums.towne` — that intermediate offset is what C4 retired.
+    `res.c::res_realize_npcs` FIXED + RANDOM apply the same
+    shift; `res_npc_in_town` runs the town string through
+    `res_enum_id` and shifts the result down by 1 before
+    compare. RNG identity preserved across both placement
+    paths — bin draws, count, and linear probe are unchanged;
+    only the bin → slot result mapping shifts. 17 fixtures'
+    `.expect_snapshot` diffed on the top-line `twn=N` only
+    (Thord 1→0, wilderness 0→-1); re-blessed in this commit.
+  - **C4 (`f66247a`) — lift `enums.towne` wilderness sentinel.**
+    Dropped `'wilderness'` from `enums.towne[0]`. The four
+    enum-spanning callsites (`driv.c::wcw_enum` /
+    `driv.c::rcw_enum` towne field, `res.c::res_realize_npcs`
+    FIXED, `res.c::res_npc_in_town`) now match the literal
+    string `"wilderness"` against the runtime
+    `WILDERNESS_TOWN` sentinel before falling through to the
+    enum lookup. Real towns now share the
+    `enums.towne` ↔ `towns[]` index space directly with no
+    offset. Save-format wire shape unchanged: a wilderness NPC
+    still serializes as `towne: "wilderness"`, a Thord NPC as
+    `towne: "Thord"`, so existing fixture `.expect_snapshot`
+    files are byte-identical. The visible payoff is that the
+    enum table no longer has implicit knowledge of the
+    sentinel — adding a 5th town is a pure
+    `data/world.json5` edit (append to `towns:` and
+    `enums.towne`); no slot juggling required.
+
+**Bar:** 39 fixtures green at every commit on `make check` +
+`make testasan`; byte-identical save format and snapshot on C4.
+
+**End-goal alignment** (per the user's "add a town/NPC purely
+via JSON5 → it just works" directive): the towns axis is now
+fully data-driven. Adding a 5th/6th town requires only the
+`world.json5` edit; the heap-alloc absorbs the cap, the bridges
+read the enum-without-offset, and the runtime sentinel is named
+inline at the boundary. The remaining static caps —
+`state.p[26]`, `map[42][82]`, party-inventory `[17]`, and
+`attack_today[26]` — stay queued under §12.3.
