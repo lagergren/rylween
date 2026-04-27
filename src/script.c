@@ -347,6 +347,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
  *          | { not:  <expr> }       !a -> 0/1
  *          | { obcost:   <expr> }   res_item(id)->cost
  *          | { obdamage: <expr> }   res_item(id)->damage
+ *          | { combat_int: '<dotted_path>' } res_combat_int (string-only)
  *          | { item:     <str|int> } res_item_id('torch') / passthrough
  *          | { pic:      <str|int> } res_enum_id('pic', 'inn') / passthrough
  *          | { enum:     [<str>,<str>] } res_enum_id(tab, value)
@@ -867,6 +868,22 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
             die_at(script_id, idx, buf);
         }
         return is_damage ? it->damage : it->cost;
+    }
+
+    /* §23.A follow-up: { combat_int: '<dotted_path>' } — read a
+       res_combat_int value from world.json5's combat: subtree. The
+       path is a string literal so the lookup is identical to the C
+       call sites it replaces (e.g. res_combat_int("monster_attack.
+       hit_bonus")). Restricted to N_STR — there's no use case yet
+       for a runtime-built path, and accepting one would hide typos
+       behind a non-fatal NULL return. die_at on a missing path. */
+    const node *cint_n = obj_get(n, "combat_int");
+    if (cint_n) {
+        if (cint_n->kind != N_STR) {
+            die_at(script_id, idx,
+                   "expr combat_int: path must be a string literal");
+        }
+        return res_combat_int(cint_n->u.sv);
     }
 
     /* `{ item: '<name>' }` — resolve a symbolic item key (the shard
