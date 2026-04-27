@@ -772,18 +772,18 @@ static void wcw_party_flags(FILE *f, const struct party *p) {
         }
         const char *id = res_flag_id_for_slot((int32_t)slot);
         if (!id) {
-            fprintf(stderr,
-                    "save: party flag slot %zu = %u but no tag claims "
-                    "that slot in data/world.json5 flags:\n",
-                    slot, v);
+            LOG_E("driv",
+                  "save: party flag slot %zu = %u but no tag claims "
+                  "that slot in data/world.json5 flags:",
+                  slot, v);
             exit(1);
         }
         const char *vname = res_flag_value(id, (int)v);
         if (!vname || !*vname) {
-            fprintf(stderr,
-                    "save: party flag '%s' value %u out of range in "
-                    "its values[] array\n",
-                    id, v);
+            LOG_E("driv",
+                  "save: party flag '%s' value %u out of range in "
+                  "its values[] array",
+                  id, v);
             exit(1);
         }
         fputs(first ? " " : ", ", f);
@@ -933,7 +933,7 @@ static void write_current_world() {
         int *cl_int = malloc((size_t)mlen * sizeof *cl_int);
         int *ra_int = malloc((size_t)mlen * sizeof *ra_int);
         if (!cl_int || !ra_int) {
-            fprintf(stderr, "write_current_world: malloc failed\n");
+            LOG_E("driv", "write_current_world: malloc failed");
             exit(1);
         }
         for (int m = 0; m < mlen; m++) {
@@ -1116,27 +1116,27 @@ static void rcw_party_flags(const node *pnode, unsigned char *flag, size_t flag_
             const node *val = obj->u.obj.items[i].val;
             int32_t slot = res_flag_slot(id);
             if (slot < 0 || (size_t)slot >= flag_n) {
-                fprintf(stderr,
-                        "load: unknown party flag tag '%s' — "
-                        "add to data/world.json5 flags:\n",
-                        id);
+                LOG_E("driv",
+                      "load: unknown party flag tag '%s' — "
+                      "add to data/world.json5 flags:",
+                      id);
                 exit(1);
             }
             int32_t v;
             if (val && val->kind == N_STR) {
                 v = res_flag_value_id(id, val->u.sv);
                 if (v < 0) {
-                    fprintf(stderr,
-                            "load: flag '%s' value '%s' not in its "
-                            "values[] array\n",
-                            id, val->u.sv);
+                    LOG_E("driv",
+                          "load: flag '%s' value '%s' not in its "
+                          "values[] array",
+                          id, val->u.sv);
                     exit(1);
                 }
             } else if (val && val->kind == N_INT) {
                 v = (int32_t)val->u.iv;
             } else {
-                fprintf(stderr,
-                        "load: flag '%s' value must be string or int\n", id);
+                LOG_E("driv",
+                      "load: flag '%s' value must be string or int", id);
                 exit(1);
             }
             flag[slot] = (unsigned char)v;
@@ -1256,13 +1256,13 @@ static int read_current_world() {
            we fall back to the current knob assuming default. */
         int save_mmax = rcw_int(realm, "party_member_max", res_party_member_max());
         if (save_mmax != res_party_member_max()) {
-            fprintf(stderr,
-                    "load: current-world.json5 recorded "
-                    "party_member_max=%d, current world limit=%d. "
-                    "Saves can't be loaded across member-max "
-                    "changes; either flip the world knob back or "
-                    "discard the save.\n",
-                    save_mmax, res_party_member_max());
+            LOG_E("driv",
+                  "load: current-world.json5 recorded "
+                  "party_member_max=%d, current world limit=%d. "
+                  "Saves can't be loaded across member-max "
+                  "changes; either flip the world knob back or "
+                  "discard the save.",
+                  save_mmax, res_party_member_max());
             exit(1);
         }
     }
