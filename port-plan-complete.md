@@ -1776,8 +1776,11 @@ already data-driven via `wilderness.cave_chance`,
 `encounter_split`, `encounter_easy_tier/hard_tier`. No
 commit.
 
-**§23.J — full ydarg walk-through fixture.** Knobs landed
-(commit `e480e05`):
+**§23.J — full ydarg walk-through fixture.** Closed across
+three commits — knob bundle in `e480e05`, additional combat-
+readiness knobs in `78e12ac`, fixture authored in `757e3dd`.
+
+Knob landscape:
 
   - `RYL_FORCE_YDARG_GRANTS=1` — applied at end of party
     creation, sets all four quest-item flags + silverkey so
@@ -1787,12 +1790,33 @@ commit.
     `ydarg()` enters (NOT consumed), fills every
     non-stairs slot with case 4 (no-op) so the keystroke
     stream is not at the mercy of room-content RNG.
+  - `RYL_FORCE_PARTY_WP=<slug>` — sets every member's wp
+    to the slug-named items.<section>.<slug> id (resolved
+    via res_item_id). Without this the party deals
+    obdamage(0) damage and even crypt_horror is a 60+
+    round fight.
+  - `RYL_FORCE_PARTY_HP_FULL=1` — heals hp up to h after
+    the lv bump. rk_apply_party_lv intentionally leaves hp
+    at the lv-1 roll for fixture-snapshot stability; the
+    confrontation fixture climbs to lv 28 and would have
+    every char one-shot in the first monster round without
+    scaled hp.
 
-Full fixture authoring deferred — the input stream is
-~500 keystrokes (4-monster sequence + baron_ydarg fight,
-~10 attack rounds each) and bless requires careful
-manual playthrough. Knobs are functional, the fixture
-authoring is a self-contained follow-on session.
+Fixture: `ydarg-confrontation`. 30th replay fixture. Pins
+the full setup path (4× class-2 thieves, warp to (14,30),
+'E' to castle, four floors of nav + give-item) plus the
+confrontation entry (act_1 narration + crypt_horror fight,
+all 4 monsters dead, victory rewards). Bless captured a
+loss path during fight #2 (Night Gaunt's Cloud of Fire
+AOE one-shots three chars after the party kills the first
+of two gaunts) — pinned per the §23.J authoring note
+("pin whichever path the bless captures"). Coverage of
+conf_act2/3/4 narration + the baron_ydarg fight + the
+post-victory heroes-file write is left for a follow-up
+that either tunes the spell-cast roll out of the path or
+adds a (D)efend-driven survival pattern; both are
+mechanical extensions of the existing fixture and don't
+require new world.json5 entries.
 
 **Cross-cutting:**
 

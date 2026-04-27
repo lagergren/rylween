@@ -3400,60 +3400,6 @@ wilderness-camp / wilderness-cave-descent fixtures cover
 some paths; new fixtures may be needed for the
 special-encounter arms.
 
-**§23.J — Full ydarg walk-through + confrontation fixture
-(queued 2026-04-26 #4).** Companion to ydarg-no-key (which
-pins the gate-rejection path via RYL_FORCE_POS=14,30 + no
-silverkey). The full path needs three more pieces:
-
-  1. **Knob bundle** — easiest as one new `RYL_FORCE_YDARG=1`
-     knob that, applied at end of party creation:
-       - grants PS_SILVERKEY + PS_FIRESHIELD + PS_MASTERCROWN
-         + PS_JAZZYFOOT + PS_BRACELETS (so each floor's
-         "give item" prompt has a valid donation)
-       - bumps party level (probably stack on
-         RYL_FORCE_PARTY_LV=28 instead of replacing)
-     Plus a separate `RYL_FORCE_YDARG_EASY_ROOMS=1` that, in
-     ydarg() room init, fills every non-stairs slot with case
-     4 (no-op) instead of `ryl_random(1, 5)`. Without easy
-     rooms the fixture is fragile — one RNG-shifting refactor
-     and the whole ~100-keystroke input stream needs
-     re-authoring.
-
-  2. **Fixture authoring** — `ydarg-confrontation`. Sequence:
-       - title N → 4 char create
-       - title C → wilderness map (warped to 14, 30)
-       - E → enter castle
-       - 5 pause keys (approach, jaara_form, jaara_speech,
-         key_accepted, enter)
-       - door slams (delay, no input)
-       - per floor (×4):
-           - 8 moves to room[5][5] (4× `6` east, 4× `2`
-             south); each move triggers the floor-narration
-             block + nav prompt
-           - stairs body: G (give) + digit (1..4 in floor
-             order) + reroll-on-stat-cap if needed
-       - confrontation: pause through act1 narration, fight 4
-         monsters back-to-back (heavy keystroke load —
-         ~10 attacks per fight at LV=28), pause through act2
-         narration, fight baron_ydarg (the boss kill-shot is
-         where heroes.txt write fires + cleanexit())
-
-  3. **Heroes.txt sentinel** — the success path ends in
-     `cleanexit()` after writing `heroes.txt` with the
-     month-name string this session lifted to data. The
-     fixture's snapshot won't capture heroes.txt (it's
-     written under the data/ root, not the per-fixture
-     HOME). If pinning that line matters, add a snapshot
-     hook for it; otherwise the byte-for-byte stdout pin
-     proves the path ran.
-
-Effort: ~1 session including knob authoring + fixture +
-bless. baron_ydarg is the toughest creature in the game
-(h2=1000, ws=90); even a LV=28 party may need multiple
-attacks per round to drop him within the keystroke budget.
-If the boss kills the party first, the fixture instead
-pins the loss path, which is also a valid coverage.
-
 **§23.I — Multi-screen narration helper (queued 2026-04-26
 #4).** Pervasive pattern across ydarg.c / towne.c / dungeon.c
 (sample at ydarg.c::confrontation lines 432-491): runs of
@@ -4927,6 +4873,73 @@ ydarg's per-tile RNG; combat RNG is still an open exposure.
   4. **Later:** §24.C (TCP listener), §25 (1-indexed),
      §24bis (id: → slug, post-§25), then
      plans/future-directions.md.
+
+Bar per session: `make check` + `make testasan` both
+green at every commit.
+
+## Session 2026-04-27 — §23.J fixture authored (loss path)
+
+Authored the §23.J ydarg-confrontation fixture and added
+the two remaining replay-only knobs needed for it. §23.J
+is now closed end-to-end (closure note moved to
+`port-plan-complete.md`). Two commits on `lagergren/port1`:
+
+  - 78e12ac §23.J prep #2: RYL_FORCE_PARTY_WP +
+    RYL_FORCE_PARTY_HP_FULL
+  - 757e3dd §23.J: ydarg-confrontation fixture (loss path
+    through fight #2)
+
+`RYL_FORCE_PARTY_WP=<slug>` resolves the slug through
+`res_item_id` and sets every member's wp; combined with
+`RYL_FORCE_PARTY_HP_FULL=1` (hp = h after the lv bump),
+a default-roll thief party at lv 28 deals ~65 dmg per
+hit instead of the obdamage(0)-only ~7 dmg the lv-1-hp
+path would give. Both knobs no-op when unset, so the
+combat-mage-death / combat-monster-magic /
+wilderness-priest-banish / wilderness-priest-rebirth
+fixtures (which use RYL_FORCE_PARTY_LV without these
+two) remain byte-identical.
+
+The bless captured a loss path during fight #2 — the Night
+Gaunt's Cloud of Fire AOE deals h2/5 + random(0,4) damage
+(~90 dmg per char with the scaled h2=434), which one-shots
+three of the four chars after the party kills the first of
+two gaunts. Per the §23.J authoring note ("pin whichever
+path the bless captures") the loss path is the fixture; a
+follow-up could either stratify (D)efend rounds in to keep
+hp above the 90-dmg threshold or add an explicit
+`RYL_FORCE_NO_MONSTER_MAGIC=1` knob to suppress the
+spell-cast roll entirely. Neither is needed for §23.J
+itself — the loss path covers act_1 narration + crypt_horror
+victory + monster-magic dispatch + losegame() narration,
+which is enough to verify every §23.I tx_narrate call site
+plus the §23.A monster nasty-magic dispatcher's spell-pick
+draw.
+
+State at HEAD (757e3dd):
+  - 30 fixtures total (`ydarg-confrontation` is the new
+    one). Both `make check` and `make testasan` green.
+  - All §23 sub-items closed except for the conf_act2/3/4
+    + baron_ydarg coverage extension above (optional;
+    no §23 code is unverified, only the data is).
+
+**Recommended next session order:**
+
+  1. **§24.A1 — fprintf-to-LOG_*** (~1 sess, mechanical).
+     ~75 callsites; LOG_E for "couldn't proceed", LOG_W
+     for "shape was wrong, fallback".
+  2. **§24.B** file/null log sinks (~1 sess); replay
+     harness default to RYL_LOG=null after this.
+  3. **Later:** §24.C (TCP listener), §25 (1-indexed),
+     §24bis (id: → slug, post-§25), then
+     plans/future-directions.md.
+
+Optional follow-up: extend ydarg-confrontation to a
+victory path (defend-driven survival or no-magic knob)
+to pin act_2/3/4 narration + the heroes-file write. Not
+load-bearing for any open §23 work; queue it if the
+plain-text-pin coverage matters for later refactors of
+ydarg.c::confrontation.
 
 Bar per session: `make check` + `make testasan` both
 green at every commit.
