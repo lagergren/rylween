@@ -70,12 +70,21 @@ run_one() {
     # runs under --all. RYL_SNAPSHOT is always exported so the binary
     # writes a fresh snapshot every run; the comparison vs. the baseline
     # only fires when <name>.expect_snapshot exists.
-    if [[ -f $envfile ]]; then
-        # shellcheck disable=SC1090
-        ( set -a; . "$envfile"; RYL_SNAPSHOT="$snap" HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 ) || true
-    else
-        RYL_SNAPSHOT="$snap" HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 || true
-    fi
+    #
+    # RYL_LOG defaults to `null` here (not in the Makefile gate) so future
+    # LOG_W/LOG_E drift can't leak into baselines unless a fixture opts in
+    # by setting RYL_LOG=stderr (or file:/tcp:) in its sidecar — symmetric
+    # with how RYL_FORCE_*, RYL_FAKE_EPOCH compose. AUDIT (LOG_A) is
+    # unaffected: it always writes data/rylween.log regardless of RYL_LOG.
+    (
+        set -a
+        RYL_LOG=null
+        if [[ -f $envfile ]]; then
+            # shellcheck disable=SC1090
+            . "$envfile"
+        fi
+        RYL_SNAPSHOT="$snap" HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1
+    ) || true
 
     local size
     size=$(wc -c < "$out" | tr -d ' ')

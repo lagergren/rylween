@@ -50,13 +50,20 @@ run_one() {
     # shellcheck disable=SC2064
     trap "rm -rf '$home' '$out'" RETURN
 
+    # RYL_LOG defaults to `null` per fixture so any future LOG_W/LOG_E
+    # drift stays out of the captured stream by default; a fixture opts
+    # in by setting RYL_LOG=stderr (or file:/tcp:) in its .env. Mirrors
+    # tools/replay.sh.
     local rc=0
-    if [[ -f $envfile ]]; then
-        # shellcheck disable=SC1090
-        ( set -a; . "$envfile"; HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 ) || rc=$?
-    else
-        HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1 || rc=$?
-    fi
+    (
+        set -a
+        RYL_LOG=null
+        if [[ -f $envfile ]]; then
+            # shellcheck disable=SC1090
+            . "$envfile"
+        fi
+        HOME="$home" "$BIN" "$PLAYER" < "$in" > "$out" 2>&1
+    ) || rc=$?
 
     local size marker
     size=$(wc -c < "$out" | tr -d ' ')
