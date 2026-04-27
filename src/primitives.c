@@ -4,6 +4,7 @@
 #include "ryl.h"
 #include "ansi.h"
 #include "driv.h"
+#include "log.h"
 #include "primitives.h"
 #include "res.h"
 
@@ -117,7 +118,7 @@ uint32_t tx0(const char *s) {
    placeholders — dev-time bugs, same spirit as res_die for loader
    diagnostics. */
 void ryl_die(const char *msg) {
-    fprintf(stderr, "ryl: %s\n", msg ? msg : "(no message)");
+    LOG_E("ryl", "%s", msg ? msg : "(no message)");
     exit(1);
 }
 

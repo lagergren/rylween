@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "driv.h"       /* pronoun */
+#include "log.h"
 #include "primitives.h" /* tx, clw, ryl_pause */
 #include "res.h"
 #include "ryl.h" /* state */
@@ -107,13 +108,11 @@ static int special_map_add(int id, const char *tag, void *user) {
     (void)user;
     int which = tag_to_which(tag);
     if (which == PS_NONE) {
-        fprintf(stderr, "inventory: unknown special tag '%s' (id %d)\n",
-                tag, id);
+        LOG_E("inventory", "unknown special tag '%s' (id %d)", tag, id);
         exit(1);
     }
     if (special_map_n >= SPECIAL_MAP_MAX) {
-        fprintf(stderr, "inventory: special_map capacity %d exceeded\n",
-                SPECIAL_MAP_MAX);
+        LOG_E("inventory", "special_map capacity %d exceeded", SPECIAL_MAP_MAX);
         exit(1);
     }
     special_map[special_map_n].id = id;
@@ -133,10 +132,10 @@ void inv_init(void) {
     }
     for (int w = PS_NONE + 1; w < PS_LAST; w++) {
         if (!(seen & (1u << w))) {
-            fprintf(stderr,
-                    "inventory: no item carries the special tag for "
-                    "PS_* value %d (check data/world/items/specials.json5)\n",
-                    w);
+            LOG_E("inventory",
+                  "no item carries the special tag for "
+                  "PS_* value %d (check data/world/items/specials.json5)",
+                  w);
             exit(1);
         }
     }
