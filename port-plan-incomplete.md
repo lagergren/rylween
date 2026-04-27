@@ -3965,13 +3965,22 @@ whatever sink is configured.
     realized NPC + a header + a footer). Per-NPC ryl_delay(600)
     cut to 40ms — campaign setup drops from ~14s to ~1s with
     the visual dot-pacing intact.
-  - **§24.A1** (1 session, queued): bulk-migrate the remaining
-    ~75 `fprintf(stderr, …)` sites (res.c x44, driv.c x36,
-    snapshot.c x28, party.c x10, json5.c x5, others) to
-    `LOG_W` / `LOG_E` per severity judgment. Bless any drift
-    from the `[lvl][mod]` prefix in one wave (none of the
-    current fixtures fire stderr today, so likely a no-op
-    bless).
+  - **§24.A1** (landed 2026-04-27): bulk-migrate the
+    `fprintf(stderr, …)` panic + warning sites to `LOG_W` /
+    `LOG_E` per severity judgment. 72 callsites total flipped
+    across 7 files — res.c 43, party.c 10, driv.c 7, json5.c
+    5, snapshot.c 3, inventory.c 3, primitives.c 1. All but
+    one (snapshot.c fopen recovery → LOG_W) were panic paths
+    followed by `exit(1)` and went to LOG_E. Module names use
+    file stems except primitives.c::ryl_die which kept module
+    "ryl" to match its public-API "ryl: <msg>" prefix
+    contract. ryl.c three remaining stderr sites — the
+    `--check-world` "world: ok" success line and the two argv
+    usage messages — intentionally stayed as fprintf since
+    they're CLI output, not diagnostics. log.c:97 itself is
+    the LOG_* emitter, not migrated. No fixture drift — none
+    of the migrated paths fire under the 30-fixture replay
+    set today.
   - **§24.B** (1 session): file + null sinks. Add the env-var
     parser; default still stderr.
   - **§24.C** (1 session): TCP listener sink. Bind to
@@ -4876,6 +4885,91 @@ ydarg's per-tile RNG; combat RNG is still an open exposure.
 
 Bar per session: `make check` + `make testasan` both
 green at every commit.
+
+## Session 2026-04-27 #2 — §24.A1 closed
+
+Bulk-migrated the `fprintf(stderr, …)` panic+warning sites to
+the `LOG_W` / `LOG_E` API landed in §24.A0. 72 callsites flipped
+across 7 files in 6 commits on `lagergren/port1`:
+
+  - 1c64859 §24.A1: res.c (43)
+  - ceccffa §24.A1: party.c (10)
+  - 02a75a9 §24.A1: driv.c (7)
+  - 4d04c02 §24.A1: json5.c (5)
+  - acae7e5 §24.A1: snapshot.c (3)
+  - a0129e6 §24.A1: inventory.c (3) + primitives.c::ryl_die (1)
+
+All but one site was a panic followed by `exit(1)` and went to
+LOG_E; the snapshot.c fopen-failure recovers (returns) and went
+to LOG_W. Module names are file stems (`res`, `party`, `driv`,
+`json5`, `snapshot`, `inventory`) — except primitives.c::ryl_die
+kept module `ryl` to match its public-API "ryl: <msg>" prefix
+contract that callers document.
+
+Three remaining stderr writes in src/ are intentionally not
+migrated:
+
+  - **ryl.c x3** — the `--check-world` "world: ok" success
+    line and the two argv usage messages. CLI output, not
+    diagnostics; the LOG_W/LOG_E severity rule does not apply.
+    Migrating them would either (a) silence "world: ok" under
+    the default WARN threshold, breaking the visible CI signal,
+    or (b) add `[INF][ryl]` prefix noise to a usage message.
+  - **log.c:97** — the `LOG_*` emitter implementation itself.
+
+No fixture drift. The 30-fixture replay set never exercises any
+of the migrated paths — they're "world failed to load" / "scripts
+contain a typo" / "save flag tag unknown" panics that a clean
+fixture run never hits. `make check` + `make testasan` green at
+every commit.
+
+The redundant `"res: "` / `"snapshot: "` / `"inventory: "` etc.
+file-tag prefixes inside the message bodies were dropped because
+the new `[ERR][module]` prefix carries that information. Function
+names like `res_formula_int:` / `pa_flag_set:` / `party_journal_add:`
+were kept inside the message body because they identify the
+specific call site, which the module tag alone cannot.
+
+State at HEAD (a0129e6):
+  - 30 fixtures green, both `make check` and `make testasan`
+    clean. §23 fully closed; §24.A0 + §24.A1 closed. No
+    open §23 / §24.A items.
+
+**Recommended next session order:**
+
+  1. **§24.B — file + null log sinks** (~1 sess). Add
+     `RYL_LOG=file:<path>` and `RYL_LOG=null` parsers in
+     `src/log.c`; default sink stays stderr. Once this lands,
+     the replay harness can default to `RYL_LOG=null` per
+     fixture so any future LOG_* drift doesn't propagate
+     into baselines unless explicitly captured. Also adds
+     a hook for §24.C (TCP) and §24.E (per-fixture opt-in).
+  2. **§25 — 1-indexed → 0-indexed cleanup** (multi-sess).
+     The §24 logging is now in place to surface noisy
+     bless waves; §25 can land in measured slices.
+  3. **Later:** §24.C (TCP listener — telnet-friendly remote
+     log), §24bis (id: → slug, post-§25), then
+     plans/future-directions.md (multi-party MUD work).
+
+**Pre-flight notes for §24.B:**
+
+  - The env-var parser slot is `RYL_LOG=...` (not the existing
+    `RYL_LOG_LEVEL=...` which is for threshold). `RYL_LOG=null`
+    drops everything; `RYL_LOG=file:<path>` writes
+    [lvl][mod] body lines to the named file (resolve relative
+    to `ryl_state_path` so the audit/log directory convention
+    holds).
+  - AUDIT writes (`LOG_A`) still go to `data/rylween.log`
+    regardless of `RYL_LOG=…`. The audit file is "history,
+    not diagnostic" per the §24.A0 docstring; its sink is
+    fixed.
+  - `RYL_LOG_LEVEL=…` still gates DEBUG/INFO. The two env
+    vars compose: `RYL_LOG_LEVEL=info RYL_LOG=null` yields a
+    silent-to-stderr but-still-info-threshold run, useful
+    when capturing AUDIT to file without stderr spam.
+
+Bar per session: `make check` + `make testasan` both green
+at every commit.
 
 ## Session 2026-04-27 — §23.J fixture authored (loss path)
 
