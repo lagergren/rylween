@@ -5416,3 +5416,121 @@ State at HEAD:
 
 Bar per session: `make check` + `make testasan` both green
 at every commit. Push at session close.
+
+## Session 2026-04-27 #6 — §25.A.1 (party-member iterator)
+
+First slice of §25.A: introduce a `for_each_party_member(slot)`
+macro in `src/party.h` and migrate every `for (i = 1; i <=
+res_party_member_max(); i++)` callsite to use it. The body keeps
+`slot` 1-based — no semantic change. The macro is the single
+point of truth that §25.B's eventual flip to 0-indexed will edit
+(plus a fixture re-bless) instead of revisiting two dozen call
+sites across nine .c files.
+
+Three commits:
+
+  - `571e47e` — `§25.A.1: for_each_party_member iterator macro`.
+    Macro definition (just `for (int slot = 1; slot <=
+    res_party_member_max(); slot++)` — calling the cached static
+    res_party_member_max getter once per iteration is trivially
+    cheap, no need to hoist the bound). 25 callsites migrated:
+    party.c x4 (pa_first_alive / pa_count_class /
+    pa_count_alive_class / pa_alive_count), subs.c x5 (foodhandler
+    mana regen + starve damage + three sleep arms — the outer
+    `int32_t i` and `int mm` cache retired), battle.c x4 (post-
+    combat exp grant + expcheck level-up tally x3), driv.c x6
+    (the_game 'A' show-all + createparty zero-init x5 — the
+    outer `int32_t i` retired), dungeon.c x1, ydarg.c x3,
+    towne.c x2 (the `y = 0` initializer lifted out of the
+    for-init expression), snapshot.c x1, replay_knobs.c x3.
+    party.h was added to snapshot.c and replay_knobs.c.
+
+  - `f813e2b` — `§25.A.1 follow-up: collapse same-range loops +
+    state abstraction`. Two adjacent cleanups surfaced during code
+    review of the iterator landing:
+      (1) **Loop-merge.** createparty was running five sequential
+          `for_each_party_member(i)` loops over the same 1..N range
+          to zero/init `lv` / `ar` / `exp` / `dead` (with `lv = 1`
+          written twice — a duplicate the original C had carried
+          forward through every refactor). One merged loop now
+          handles all four fields. battle.c expcheck dropped its
+          zero-init loop in favor of `int32_t add[5] = {0};` —
+          the second loop was the only writer. subs.c foodhandler
+          factored the three identical sleep-deprivation hp-drain
+          loops (-4 / -8 / < -8 hours_rested arms) into a single
+          `sleep_deprivation_drain()` helper.
+      (2) **State abstraction.** Routed every migrated loop body
+          through `pm_*` / `pa_*` instead of reaching back into
+          raw `state.p[a].<field>[i]`. createparty now uses
+          pm_set_lv / pm_set_ar / pm_set_exp / pm_set_dead.
+          replay_knobs.c rk_apply_party_lv / wp / hp_full /
+          dead_slots all use pm_set_* / pm_h / pm_dead. towne.c
+          enter_ready_prompt uses pm_dead / pm_wp / pm_ar.
+          battle.c expcheck reads exp via pm_exp(pm) instead of
+          pm.party->exp[pm.m]. The "state owned by party.c, accessed
+          via pm_*/pa_* everywhere else" rule is now honored across
+          every callsite §25.A.1 touched. Pre-existing raw-state
+          callers in inventory.c / primitives.c / missions.c /
+          subs.c::scorelist remain queued under the
+          `feedback_state_abstraction` memory note — out of scope
+          for this session's iterator-axis migration.
+
+  - `8353f16` — `§25.A.1 follow-up: lift hardcoded 15 / 10 in
+    driv.c::position_locations`. Same-axis cleanup at the
+    constant-bound layer rather than the loop-variable layer. Two
+    new public enums in `src/wld.h`: `WLD_LOCATION_SLOT_MAX = 15`
+    (total slot count — replaces the zero-init bound and the four
+    save/load array sizes) and `WLD_RANDOM_LOCATION_MAX = 9`
+    (inclusive upper bound for randomized slots — replaces the
+    `for (i = 1; i < 10; i++)` randomize loop). Wld.h's docstring
+    now spells out which slots are randomized vs reserved so the
+    gap between the two has an explicit semantic. wld.c's
+    file-static `WLD_LOCATION_SLOTS = 15` retired in favor of
+    the public enum.
+
+State at HEAD (`8353f16`):
+
+  - 39 fixtures green; `make check` + `make testasan` clean at
+    every commit.
+  - §25.A.1 closed: party-member axis is now centralised behind
+    `for_each_party_member`. The four-axis sweep (party → monster
+    → npc → town) now has 1 of 4 done.
+  - State abstraction inside §25.A.1's blast radius is clean.
+    The broader audit (inventory.c x5, primitives.c x7, missions.c
+    a few, subs.c::scorelist with hardcoded `[1..4]` fanouts) is
+    queued under the existing memory feedback note —
+    not blocking §25.A's remaining axes.
+
+**Recommended next session order:**
+
+  1. **§25.A.2 — monster-slot iterator** (~1 session, mechanical).
+     Same shape as §25.A.1 but for `for (i = 1; i < noc + 1; i++)`
+     loops over `mh[i] / deadc[i]` in battle.c (5 sites) and
+     script.c (1 site at line 2976) plus the matching `for_monster`
+     DSL op family. Macro lives in battle.h or a new combat.h, takes
+     a combat ctx (`for_each_monster(idx, ctx)`) so the body sees
+     `idx` 1-based. battle.c::expcheck is unrelated — it iterates
+     party members, already done. Smaller blast radius than §25.A.1
+     (two .c files vs nine).
+  2. **§25.A.3 — NPC-slot iterator** (~1 session). Loops over
+     `state.npc[1..res_npc_slot_max()]` in driv.c (3 sites) and
+     res.c. Slot 0 is unused. Macro `for_each_npc(slot)` in res.h
+     or a new npc.h. Touch is concentrated.
+  3. **§25.A.4 — town-slot iterator** (~1 session). The smallest
+     axis: `for (i = 1; i <= n_towns; i++)` in res.c / interact.c.
+     `towns[0]` is the JSON `null` sentinel left zeroed (the
+     §24.A0 setup-logging off-by-one landed precisely because of
+     this). Macro `for_each_town(slot)` plus the town-zero-sentinel
+     comment.
+  4. **§25.B — flip to 0-indexed** (~8-12 sessions). Only after all
+     four §25.A axes have iterators in place. Lots of fixture re-
+     blesses; each step is one fixture's worth at a time. The
+     RYL_FAKE_SEED order has to stay identical, so any draw-loop
+     that did `random(1, 4)` becomes `random(0, 3)` — value space
+     same, semantic-of-the-number changes. Land as a single
+     coherent wave, not a long-tail nibble.
+  5. **Later:** §24bis (`id: <int>` → slug, post-§25), then
+     `plans/future-directions.md` multi-party MUD work.
+
+Bar per session: `make check` + `make testasan` both green at
+every commit. Push at session close.
