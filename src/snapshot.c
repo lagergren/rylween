@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "log.h"
 #include "res.h"
 #include "state.h"
 
@@ -91,7 +92,7 @@ static void snapshot_write(void) {
     }
     FILE *f = fopen(snapshot_path, "w");
     if (!f) {
-        fprintf(stderr, "snapshot: cannot open '%s' for write\n", snapshot_path);
+        LOG_W("snapshot", "cannot open '%s' for write", snapshot_path);
         return;
     }
     fputs("# rylween state snapshot v1\n", f);
@@ -114,13 +115,13 @@ void snapshot_init(void) {
     }
     size_t n = strlen(env);
     if (n >= sizeof snapshot_path) {
-        fprintf(stderr, "snapshot: RYL_SNAPSHOT path too long (max %zu)\n",
-                sizeof snapshot_path - 1);
+        LOG_E("snapshot", "RYL_SNAPSHOT path too long (max %zu)",
+              sizeof snapshot_path - 1);
         exit(1);
     }
     memcpy(snapshot_path, env, n + 1);
     if (atexit(snapshot_write) != 0) {
-        fprintf(stderr, "snapshot: atexit registration failed\n");
+        LOG_E("snapshot", "atexit registration failed");
         exit(1);
     }
 }
