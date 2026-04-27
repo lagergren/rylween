@@ -92,7 +92,7 @@ void encounter(int32_t foe, int32_t mandatory) {
 
     ws += pa_first_level();
 
-    for (i = 1; i < noc + 1; i++) {
+    for_each_monster(i, noc) {
         mhtemp = ryl_random(1, h2);
         if (mhtemp < h1) {
             mhtemp = h1;
@@ -364,7 +364,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 while (1) {
                     clw();
                     tx_fmt("battle.prompt.who", NULL);
-                    for (i = 1; i < noc + 1; i++) {
+                    for_each_monster(i, noc) {
                         if (deadc[i]) {
                             strcpy(str, "Dead.");
                         } else {
@@ -414,7 +414,8 @@ void encounter(int32_t foe, int32_t mandatory) {
             }
             /* SLUTET */
 
-            for (i = 1, x = 0; i < noc + 1; i++) {
+            x = 0;
+            for_each_monster(i, noc) {
                 if (!deadc[i]) {
                     x = 1;
                 }
@@ -480,8 +481,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             playerconfused = 0;
             /* MONSTERS GET NASTY */
             g = 1;
-            x = 1;
-            while (x < noc + 1) {
+            for_each_monster(x, noc) {
                 if (pa_alive_count() == 0) {
                     losegame();
                 }
@@ -578,7 +578,6 @@ void encounter(int32_t foe, int32_t mandatory) {
                         }
                     }
                 }
-                x++;
             }
             antimagic = 0;
             if (confused) {
@@ -596,7 +595,8 @@ void encounter(int32_t foe, int32_t mandatory) {
                 }
                 statusline();
                 tx("You still face\r\n");
-                for (i = 1, x = 0; i < noc + 1; i++) {
+                x = 0;
+                for_each_monster(i, noc) {
                     if (!deadc[i]) {
                         x++;
                     }

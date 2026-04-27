@@ -616,7 +616,7 @@ static int32_t ie_pick_first_alive_monster(const int32_t *a) {
     if (!g_combat_ctx) {
         return 0;
     }
-    for (int i = 1; i <= g_combat_ctx->noc; i++) {
+    for_each_monster(i, g_combat_ctx->noc) {
         if (!g_combat_ctx->deadc[i]) {
             return i;
         }
@@ -2969,11 +2969,10 @@ static void do_ask_target(const node *op, const char *script_id, size_t idx,
                    "ask_target monster_alive: no combat ctx");
         }
         char str[16], d;
-        int i;
         while (1) {
             clw();
             tx_fmt("battle.prompt.who", NULL);
-            for (i = 1; i < g_combat_ctx->noc + 1; i++) {
+            for_each_monster(i, g_combat_ctx->noc) {
                 if (g_combat_ctx->deadc[i]) {
                     strcpy(str, "Dead.");
                 } else {
