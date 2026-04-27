@@ -4336,3 +4336,54 @@ heap-allocated off the world.json5 record counts (with `state.p`
 / `map` / inventory / `attack_today` as the remaining static caps
 queued under §12.3). The 1-indexed → 0-indexed migration that §25
 described is done.
+
+## §17.A.4 slice closures (in flight; slices move here as they land)
+
+§17.A.4's overall goal — Phase-6-class text-extraction across
+`missions.c`, `interact.c`, `dungeon.c`, `subs.c` (slices A-D)
+— is documented in §17 of `port-plan-incomplete.md`. Slices ship
+individually; the parent §17 section stays in `-incomplete.md`
+until all of A-D close.
+
+### §17.A.4 slice A — missions.c (2026-04-27 #14)
+
+The slice landed smaller than the §17.3 plan implied. Of the 16
+historical mission-control trigger blocks, 15 (Blocks 1, 2, 3, 4,
+4b, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16) had already migrated
+during the §16.5 / §22 mission-state-machine work — they live as
+declarative `mission_trigger` rows whose `script` field hands off
+to `play_script`, with text shards in
+`data/world/texts/missions.json5` and op bodies in
+`data/world/scripts/missions.json5`. Only **Block 5** (the temple
+of Thun gem altar at `flag[bracelets.thun]==map_bought` /
+`wld_location 2`) remained inline in `missions.c::mission_control`
+because its `inv_count_in_range(39, 41) >= 5` guard isn't
+expressible in the current DSL.
+
+Slice A lifts Block 5's five inline text screens
+(`temple_arrival`, `altar_inscription`, `gem_prompt`, `no_gems`,
+`altar_opens`) into `data/world/texts/missions.json5` under a new
+`thun_temple` entry and replaces the consecutive `tx("...")` runs
+with `tx0(res_text("missions.thun_temple.<screen>"))`. Block 5's
+control flow stays in C — the `(Y)es`/`(L)eave` keypress, the
+`inv_count_in_range` check, the `dungeon(18, "thun_temple")`
+handoff, and the `clr_map_window`/`update_map` cleanup are
+unchanged. The bundled `gem_prompt` record absorbed the previous
+`tx0(res_text("common.yes"))` call along with the `(L)eave` line,
+matching the menu-bundling convention used by the other prompt
+records in the file (Block 1's `erethor_entry`, Block 4b's
+`hermit_dungeon`, etc.).
+
+**Audit.** Block 5 is fixture-unreachable: the only `Thun` /
+`bracelets` references in any of the 39 fixtures are the
+unrelated tavern rumour text in `towne-thord-tavern-rumour-r27`
+(`Thun! He lives at 27x14`) and the special-item inventory line
+in `ydarg-confrontation` (`The Bracelets of Thun` as item 4).
+No fixture exercises the gem-altar block, so the migration is
+bytes-only safe and no `.expect_snapshot` rebless was required.
+
+**Bar:** 39 fixtures green on `make check` + `make testasan`;
+byte-identical fixture output across the entire suite.
+
+Slice B (interact.c) is the next active item — same
+mechanical-Option-A shape, smaller footprint per the §17.3 table.
