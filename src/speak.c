@@ -99,13 +99,15 @@ static void reply_chitchat(int32_t, int32_t);
 */
 
 void speak(int32_t bld, int32_t tow) {
-    int32_t talk, i, j, x, reference[40];
+    int32_t talk, j, x, reference[40];
     char c, d;
     int32_t rumours = 0;
 
     clw();
     if (tow) {
-        for (i = 1, j = 1, x = 0; i < 40; i++) {
+        j = 1;
+        x = 0;
+        for_each_npc(i) {
             if (state.npc[i].building == bld && state.npc[i].towne == tow) {
                 tx("%c. %-8s (%s)\r\n", j + 64, res_npc_name(state.npc[i].nr), res_enum("job", state.npc[i].job));
                 reference[j] = state.npc[i].nr;
@@ -127,7 +129,8 @@ void speak(int32_t bld, int32_t tow) {
         }
         talk = reference[c - 64];
     } else {
-        for (i = 1, talk = 0; i < 40; i++) {
+        talk = 0;
+        for_each_npc(i) {
             if (state.npc[i].x == pa_x() && state.npc[i].y == pa_y()) {
                 talk = i;
             }
