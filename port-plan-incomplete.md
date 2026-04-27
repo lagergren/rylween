@@ -3981,8 +3981,11 @@ whatever sink is configured.
     the LOG_* emitter, not migrated. No fixture drift — none
     of the migrated paths fire under the 30-fixture replay
     set today.
-  - **§24.B** (1 session): file + null sinks. Add the env-var
-    parser; default still stderr.
+  - **§24.B** (landed 2026-04-27): file + null sinks. Added
+    the `RYL_LOG=` env-var dispatch in `src/log.c`. Recognized
+    values: unset / `stderr` (default), `null` (drop
+    WARN/ERR/INFO/DEBUG), `file:<path>` (append, resolved
+    through `ryl_state_path`). AUDIT path unchanged.
   - **§24.C** (1 session): TCP listener sink. Bind to
     `127.0.0.1` only by default; explicit
     `RYL_LOG=tcp:0.0.0.0:9999` opts out. Non-blocking writes
@@ -3990,9 +3993,16 @@ whatever sink is configured.
     rcon-style protocol in `docs/log.md`.
   - **§24.D** (optional, 0.5 session): syslog sink behind
     `RYL_LOG=syslog`. Skip if no demand surfaces.
-  - **§24.E** (0.5 session): replay-harness opt-in to
-    `RYL_LOG=null` per fixture. Re-bless to drop noise lines
-    from baselines.
+  - **§24.E** (landed 2026-04-27): replay-harness default
+    `RYL_LOG=null`. `tools/replay.sh` and `tools/replay_asan.sh`
+    set `RYL_LOG=null` in the per-fixture subshell before
+    sourcing the optional `<name>.env`, so a fixture can opt
+    back in to stderr (or file:/tcp:) by setting `RYL_LOG=…`
+    in its sidecar — symmetric with how `RYL_FORCE_*` /
+    `RYL_FAKE_EPOCH` compose. AUDIT (LOG_A) is unaffected,
+    still writing to `data/rylween.log`. No fixture re-bless
+    needed — none of the LOG_W/LOG_E paths fire under the
+    current fixture set, so baselines were already noise-free.
 
 **Estimated total.** ~3-4 sessions A+B+C, plus optional D+E.
 None of this gates §23 work — they're independent files, no
@@ -5103,6 +5113,63 @@ State at HEAD:
      multi-party MUD work.
   3. **§25 — 1-indexed → 0-indexed cleanup** (multi-sess).
   4. **Later:** §24bis (id: → slug, post-§25), then
+     plans/future-directions.md.
+
+Bar per session: `make check` + `make testasan` both green
+at every commit. Push at session close.
+
+## Session 2026-04-27 #4 — §24.E closed
+
+Defaulted `RYL_LOG=null` in the per-fixture subshell of both
+replay harnesses (`tools/replay.sh` + `tools/replay_asan.sh`)
+so any future LOG_W/LOG_E drift cannot propagate into the
+baselines without a fixture explicitly opting in.
+
+Shape:
+  - The subshell sets `RYL_LOG=null` first under `set -a`,
+    then sources the optional `<name>.env`, then runs the
+    binary. Bash semantics → a `RYL_LOG=…` line in `.env`
+    overrides the default; no `.env` (or one that omits
+    `RYL_LOG`) keeps `null`.
+  - This composes with the existing replay knobs
+    (`RYL_FAKE_EPOCH`, `RYL_FAKE_SEED`, `RYL_FORCE_*`,
+    `RYL_NO_DELAY`, `RYL_PARTY_MEMBER_MAX`) which are sourced
+    the same way.
+  - AUDIT (LOG_A) is unaffected — it still writes to
+    `data/rylween.log` regardless of `RYL_LOG`. Each fixture
+    runs under a fresh `HOME=$(mktemp -d)` so the audit log
+    lands under `$home/.rylween/rylween.log` and is cleaned
+    up by the existing trap; nothing leaks across runs.
+
+The Makefile gate is unchanged on purpose — `make replay`
+(and `make check`) still default `RYL_LOG=null` only via the
+harness, so an interactive `./rylween` invocation outside the
+fixture path keeps the historical stderr behavior. A fixture
+that wants to capture stderr again only has to add
+`RYL_LOG=stderr` to its `.env`.
+
+No fixture re-bless was needed: none of the migrated
+LOG_W/LOG_E paths fire under the 39-fixture replay set today,
+so the baselines were already noise-free. Verified by
+re-running `make check` (39 fixtures + snapshot diffs green)
+and `make testasan` (39 fixtures, no AddressSanitizer/
+LeakSanitizer markers).
+
+State at HEAD:
+  - 39 fixtures green, both `make check` and `make testasan`
+    clean. §23 fully closed; §24.A0 + §24.A1 + §24.B + §24.E
+    closed. No open §23 / §24.A / §24.B / §24.E items.
+  - Logging plan remaining: §24.C (TCP listener sink) and the
+    optional §24.D (syslog).
+
+**Recommended next session order:**
+
+  1. **§24.C — TCP listener sink** (~1 sess). Add
+     `RYL_LOG=tcp:<host>:<port>`; same dispatch shape as
+     §24.B. Telnet-friendly remote log for the eventual
+     multi-party MUD work.
+  2. **§25 — 1-indexed → 0-indexed cleanup** (multi-sess).
+  3. **Later:** §24bis (id: → slug, post-§25), then
      plans/future-directions.md.
 
 Bar per session: `make check` + `make testasan` both green
