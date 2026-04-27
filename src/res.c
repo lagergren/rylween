@@ -131,19 +131,21 @@ static int32_t color_code_from_name(const char *name) {
 
 static char *pronoun_tab[3][4];
 
-/* Town table. Slot 0 = null (wilderness sentinel); slots 1..4 carry a
-   display name (owned string) plus fixed (x, y) world-map coords. See
-   data/world.json5 towns:. */
+/* Town table. Slot 0 = null (wilderness sentinel); slots 1..n_towns
+   carry a display name (owned string) plus fixed (x, y) world-map
+   coords. See data/world.json5 towns:. Static cap is named in state.h
+   as TOWN_SLOT_HARD_MAX so the same constant guards the array
+   declaration and the fold-time overflow check. */
 typedef struct {
     char *name;
     int32_t x, y;
     int32_t tax;
     int32_t has_church;
 } ryl_town;
-static ryl_town towns[5];
+static ryl_town towns[TOWN_SLOT_HARD_MAX];
 /* Count of declared towns (slots 1..n_towns). Populated by fold_towns.
-   The fixed-size `towns` array caps this at 4; fold_towns res_die()s if
-   the data declares more. */
+   The fixed-size `towns` array caps this at TOWN_SLOT_HARD_MAX - 1;
+   fold_towns res_die()s if the data declares more. */
 static size_t n_towns;
 
 /* Per-building opening hours. Looked up by name ("smith", "tavern",
@@ -1032,21 +1034,21 @@ const char *res_pronoun(int gender, int xx) {
 }
 
 const char *res_town_name(int twn) {
-    if (twn < 1 || twn > 4 || !towns[twn].name) {
+    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
         return "";
     }
     return towns[twn].name;
 }
 
 int32_t res_town_x(int twn) {
-    if (twn < 1 || twn > 4 || !towns[twn].name) {
+    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
         return 0;
     }
     return towns[twn].x;
 }
 
 int32_t res_town_y(int twn) {
-    if (twn < 1 || twn > 4 || !towns[twn].name) {
+    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
         return 0;
     }
     return towns[twn].y;
@@ -1066,14 +1068,14 @@ int32_t res_town_at(int x, int y) {
 }
 
 int32_t res_town_tax(int twn) {
-    if (twn < 1 || twn > 4 || !towns[twn].name) {
+    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
         return 0;
     }
     return towns[twn].tax;
 }
 
 int32_t res_town_has_church(int twn) {
-    if (twn < 1 || twn > 4 || !towns[twn].name) {
+    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
         return 0;
     }
     return towns[twn].has_church;

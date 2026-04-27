@@ -71,6 +71,15 @@ int res_party_member_max(void);
 #define NPC_SLOT_HARD_MAX 41
 #define PARTY_SLOT_HARD_MAX 26
 
+/* Compile-time cap on the towns[] table in res.c. The runtime-active
+   count comes from `res_town_count()`; this is just the static array
+   bound. Capacity = slot 0 (null wilderness sentinel pre-§25.B step
+   3b; first real town after) + up to TOWN_SLOT_HARD_MAX-1 declared
+   towns. Bumping requires no other changes (fold_towns res_die()s
+   if a world declares more than fit); §12.3 will eventually make
+   the table heap-allocated off `limits.towns_max`. */
+#define TOWN_SLOT_HARD_MAX 5
+
 struct person {
     int32_t job; /* 1 Merchant */
                  /* 2 Ranger   */
