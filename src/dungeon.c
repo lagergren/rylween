@@ -115,7 +115,7 @@ void dungeon(int32_t levels, const char *scenario) {
                     }
                 }
                 if (pm_digit_in_range(d)) {
-                    show(d - 48);
+                    show(d - '1');
                 }
                 if (toupper(d) == 'A') {
                     for_each_party_member(i) {

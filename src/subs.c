@@ -260,7 +260,7 @@ void weaponoff() {
         pm_t pm = pm_from_digit(c);
         if (!pm_has_weapon(pm)) {
             clw();
-            tx("%s has no weapon!\r\n", pronoun(c - 48, 1));
+            tx("%s has no weapon!\r\n", pronoun(c - '1', 1));
             ryl_delay(800);
             clw();
             return;
@@ -295,7 +295,7 @@ void armouroff() {
         pm_t pm = pm_from_digit(c);
         if (!pm_has_armour(pm)) {
             clw();
-            tx("%s has no armour!\r\n", pronoun(c - 48, 1));
+            tx("%s has no armour!\r\n", pronoun(c - '1', 1));
             ryl_delay(800);
             clw();
             return;
@@ -562,7 +562,7 @@ void spell(int32_t place) {
             break;
         }
     }
-    who = (c - 48);
+    who = c - '1';
     caster = pm_cur(who);
 
     clw();
@@ -636,18 +636,25 @@ void scorelist() {
     char pname[26][30], lname[26][30], temp_string[30];
     uint8_t cls[26][5], item[26][6], pnr[26], temp_ubyte[26];
 
+    int mmax = res_party_member_max();
     for (i = 1; i < state.num_parties + 1; i++) {
-        pts[i] = (state.p[i].exp[1] + state.p[i].exp[2] + state.p[i].exp[3] + state.p[i].exp[4]) / 4;
-        lvl[i] = (state.p[i].lv[1] + state.p[i].lv[2] + state.p[i].lv[3] + state.p[i].lv[4]) / 4;
+        uint32_t exp_sum = 0;
+        uint32_t lv_sum = 0;
+        for (j = 0; j < mmax; j++) {
+            exp_sum += state.p[i].exp[j];
+            lv_sum += (uint32_t)state.p[i].lv[j];
+        }
+        pts[i] = exp_sum / (uint32_t)mmax;
+        lvl[i] = lv_sum / (uint32_t)mmax;
         kills[i] = state.p[i].kills;
         strcpy(pname[i], state.p[i].party_name);
-        strcpy(lname[i], state.p[i].name[1]);
+        strcpy(lname[i], state.p[i].name[0]);
         item[i][1] = state.p[i].fireshield;
         item[i][2] = state.p[i].bracelets;
         item[i][3] = state.p[i].mastercrown;
         item[i][4] = state.p[i].silverkey;
         item[i][5] = state.p[i].jazzyfoot;
-        for (j = 1; j < 5; j++) {
+        for (j = 0; j < mmax; j++) {
             cls[i][j] = state.p[i].cl[j];
         }
         pnr[i] = i;
@@ -685,7 +692,7 @@ void scorelist() {
                 strcpy(lname[j], lname[q]);
                 strcpy(lname[q], temp_string);
                 // SWAP CLASSES
-                for (xx = 1; xx < 5; xx++) {
+                for (xx = 0; xx < mmax; xx++) {
                     temp_ubyte[xx] = cls[j][xx];
                     cls[j][xx] = cls[q][xx];
                     cls[q][xx] = temp_ubyte[xx];
@@ -719,7 +726,7 @@ void scorelist() {
         fputs(" +----------------------------------------------------------------------------+\n",
               fh);
         snprintf(str, sizeof str, "  Leader             : %s\n  Classes            : ", lname[i]);
-        for (j = 1; j < 5; j++) {
+        for (j = 0; j < mmax; j++) {
             switch (cls[i][j]) {
                 case 1:
                     str_append(str, sizeof str, "Fighter");
@@ -740,7 +747,7 @@ void scorelist() {
                     str_append(str, sizeof str, "Ranger");
                     break;
             }
-            if (j < 4) {
+            if (j < mmax - 1) {
                 str_append(str, sizeof str, ", ");
             }
         }

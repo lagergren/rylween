@@ -111,7 +111,7 @@ void ydarg() {
 
             case 2: /* Pitfall */
                 room[xl][yl] = 0;
-                tx("%s springs a\r\n", pm_name(pm_cur(ryl_random(1, 4))));
+                tx("%s springs a\r\n", pm_name(pm_cur(ryl_random(0, 3))));
                 tx("trap!!!\r\n");
                 ryl_delay(1500);
                 clw();
@@ -379,7 +379,7 @@ void ydarg() {
                 }
             }
             if (pm_digit_in_range(d)) {
-                show(d - 48);
+                show(d - '1');
             }
             if (toupper(d) == 'A') {
                 for_each_party_member(i) {
@@ -399,7 +399,7 @@ static void confrontation() {
     const char *mstr;
 
     ryl_bind binds[] = {
-        {"p1_name", pm_name(pm_cur(1))},
+        {"p1_name", pm_name(pm_cur(0))},
         {0},
     };
     tx_narrate("ydarg.narration.conf_act1", binds);

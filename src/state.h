@@ -87,9 +87,8 @@ struct party {
     char party_name[30];
 
     /* Per-member arrays below (name, ws, h, ..., gender). All are
-       heap-allocated to size res_party_member_max() + 1 at party-
-       realize / load time; slot 0 is still reserved (legacy 1-indexed
-       iteration), members live at slots 1..res_party_member_max().
+       heap-allocated to size res_party_member_max() at party-realize /
+       load time; members live at slots 0..res_party_member_max() - 1.
        party_realize / party_release in party.c own the lifecycle.
 
        `name` stays as an array-of-arrays view so `p->name[m]` is
@@ -140,7 +139,7 @@ struct party {
     int32_t *wp; /* Ready Weapon */
     uint32_t *exp;
 
-    int32_t *dead;                  /* Dead | Alive — dead[0] contains number of times door was opened today */
+    int32_t *dead;                  /* Dead | Alive */
     unsigned char *gender;          /* 1=male, 2=female */
     unsigned char attack_today[26]; /* parties attacked today */
                                     /* turns to zero every time the attacked
@@ -229,11 +228,11 @@ static inline int is_hour_in_range(int lo, int hi) {
    sites stay as-is until a deliberate migration phase. */
 typedef struct {
     struct party *party;
-    int m; /* 1..N, where N = res_party_member_max() */
+    int m; /* 0..N-1, where N = res_party_member_max() */
 } pm_t;
 
 static inline pm_t pm_of(struct party *p, int m) {
-    assert(p && m >= 1 && m <= res_party_member_max());
+    assert(p && m >= 0 && m < res_party_member_max());
     pm_t r = {p, m};
     return r;
 }
@@ -242,14 +241,14 @@ static inline pm_t pm_cur(int m) {
     return pm_of(&state.p[state.cpl], m);
 }
 
-/* Member-index from an ASCII digit keypress. '1'..'N' -> pm_cur(1..N).
-   Any other byte returns an invalid handle with m out of range; callers
-   are expected to validate the keypress before calling (pm_digit_in_range
-   below). Replaces the ubiquitous `state.p[state.cpl].<field>[c - 48]`
-   pattern so the member index stays inside a typed handle rather than a
-   loose ASCII subtract peppered through combat / spell / interact code. */
+/* Member-index from an ASCII digit keypress. '1'..'N' -> pm_cur(0..N-1).
+   The player-facing prompt stays "Who? (1-N)" so digit '1' is the first
+   member; the helper translates digit-displayed-as-1-based to slot-as-
+   0-based. Any other byte returns an invalid handle with m out of range;
+   callers are expected to validate the keypress before calling
+   (pm_digit_in_range below). */
 static inline pm_t pm_from_digit(char c) {
-    return pm_cur((int)(c - '0'));
+    return pm_cur((int)(c - '1'));
 }
 
 /* Is an ASCII digit keypress a valid party-member selector?

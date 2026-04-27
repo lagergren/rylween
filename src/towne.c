@@ -152,7 +152,7 @@ static void enter_ready_prompt(void) {
    a dispatcher. Returns 1 if the party paid (or wasn't prompted),
    0 if they refused and should bounce back to the wilderness. */
 static int enter_tax_preamble(const char *twnname) {
-    if (state.p[state.cpl].lv[1] < 5) {
+    if (pa_first_level() < 5) {
         return 1;
     }
     int32_t tax = res_town_tax(state.twn);

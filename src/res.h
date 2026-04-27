@@ -29,9 +29,9 @@ typedef struct {
     int32_t sp;
     int32_t im;
     /* Optional level-scaling override: when non-zero, battle.c uses
-       n2 + state.p[state.cpl].lv[1] / n2_lv_div as the count-max
-       instead of the static n2. Encodes the legacy gnoll special
-       case `n2 = 2 + lv/2` as data. Zero means no override. */
+       n2 + pa_first_level() / n2_lv_div as the count-max instead of
+       the static n2. Encodes the legacy gnoll special case
+       `n2 = 2 + lv/2` as data. Zero means no override. */
     int32_t n2_lv_div;
 } ryl_monster;
 
@@ -444,10 +444,11 @@ void npc_loc_str(npc_t n, char *dst, size_t dst_sz);
    INVENTORY_SLOT_MAX is the only safe override. */
 int res_inventory_slot_max(void);
 
-/* Highest valid party-member slot id. Always returns PARTY_MEMBER_MAX
-   (4). There is no world.json5 knob: 4 is pinned by the save format,
+/* Number of party members. Always returns PARTY_MEMBER_MAX (4).
+   There is no world.json5 knob: 4 is pinned by the save format,
    UI digit prompts ("Who? (1-4)"), and story assumptions. Iterate
-   members as `for (i = 1; i <= res_party_member_max(); i++)`. */
+   members via `for_each_party_member(slot)` (party.h) — slot is
+   0-based, 0..res_party_member_max() - 1. */
 int res_party_member_max(void);
 
 /* On-disk path helpers (§20 T3 / T4). Caller-supplied buffer pattern,

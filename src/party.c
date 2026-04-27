@@ -11,7 +11,7 @@
 #include "ryl.h" /* state */
 
 static int in_range(int m) {
-    return m >= 1 && m <= res_party_member_max();
+    return m >= 0 && m < res_party_member_max();
 }
 
 int pa_is_alive(int m) {
@@ -40,7 +40,7 @@ int pa_first_alive(void) {
             return i;
         }
     }
-    return 0;
+    return -1;
 }
 
 int pa_count_class(int cl) {
@@ -102,7 +102,15 @@ int32_t pa_gold(void) {
 }
 
 int pa_first_level(void) {
-    return state.p[state.cpl].lv[1];
+    return state.p[state.cpl].lv[0];
+}
+
+int32_t pa_lv_avg(void) {
+    int32_t sum = 0;
+    for_each_party_member(m) {
+        sum += state.p[state.cpl].lv[m];
+    }
+    return sum / res_party_member_max();
 }
 
 static int pa_flag_slot(const char *tag) {
@@ -258,7 +266,7 @@ void pa_set_inventory(int slot, int32_t item_id) {
 }
 
 const char *pa_name(int m) {
-    if (m < 1 || m > res_party_member_max()) {
+    if (m < 0 || m >= res_party_member_max()) {
         return NULL;
     }
     return state.p[state.cpl].name[m];
@@ -350,9 +358,9 @@ void free_journal(struct party *p) {
 
 /* Grow a single zeroed heap buffer of `bytes` bytes, or die.
    Private to this file since every member-array alloc is "size =
-   (mmax+1) * sizeof T, memset 0" — the helper keeps the realize
-   path readable instead of 14 repeated malloc/memset/null-check
-   blocks. */
+   res_party_member_max() * sizeof T, memset 0" — the helper keeps
+   the realize path readable instead of 14 repeated malloc / memset /
+   null-check blocks. */
 static void *alloc_zero(size_t bytes) {
     void *p = malloc(bytes);
     if (!p) {
@@ -374,7 +382,7 @@ void party_realize(struct party *p) {
        reappend independent of member-array lifetime. */
     party_release_members(p);
 
-    size_t slots = (size_t)res_party_member_max() + 1;
+    size_t slots = (size_t)res_party_member_max();
     p->name = alloc_zero(slots * sizeof *p->name);
     p->ws = alloc_zero(slots * sizeof *p->ws);
     p->h = alloc_zero(slots * sizeof *p->h);

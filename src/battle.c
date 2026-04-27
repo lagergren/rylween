@@ -69,8 +69,7 @@ void encounter(int32_t foe, int32_t mandatory) {
        state matches the unforced path. */
     noc = rk_force_encounter_noc(noc);
     int32_t foe_max = res_combat_int("encounter_foe_count_max");
-    int32_t party_avg =
-        (pm_lv(pm_cur(1)) + pm_lv(pm_cur(2)) + pm_lv(pm_cur(3)) + pm_lv(pm_cur(4))) / 4;
+    int32_t party_avg = pa_lv_avg();
     res_binding hp_bindings[] = {
         {"h1_base", h1},
         {"h2_base", h2},
@@ -145,7 +144,7 @@ void encounter(int32_t foe, int32_t mandatory) {
     tx0(res_text("battle.prompt.blood_flow"));
     ryl_delay(1000);
 
-    g = 1;
+    g = 0;
     while (1) {
         clw();
         if (pa_is_alive(g) && !playerheld) {
@@ -499,11 +498,11 @@ void encounter(int32_t foe, int32_t mandatory) {
         }
         g++;
         /****************************************************************************/
-        if (g == 5) {
+        if (g == res_party_member_max()) {
             playerheld = 0;
             playerconfused = 0;
             /* MONSTERS GET NASTY */
-            g = 1;
+            g = 0;
             for_each_monster(x, noc) {
                 if (pa_alive_count() == 0) {
                     losegame();
@@ -566,7 +565,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         }
                     } else {
                         while (1) {
-                            who = ryl_random(1, 4);
+                            who = ryl_random(0, 3);
                             if (pa_is_alive(who)) {
                                 break;
                             }

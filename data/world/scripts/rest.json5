@@ -44,8 +44,11 @@
                 } },
                 { engine_call: 'clw' },
 
-                // --- Guard prompt
-                { let: 'guard', value: 0 },
+                // --- Guard prompt. Sentinel `-1` means no guard;
+                // post-§25.B slot 0 is a real member, so the
+                // legacy `guard == 0` "no guard" can no longer
+                // double as a slot value.
+                { let: 'guard', value: -1 },
                 { emit: 'camp_intro' },
                 { emit: 'common.yes' },
                 { emit: 'common.no' },
@@ -197,14 +200,14 @@
                       // Surprise kill only when there's no guard AND
                       // the party has more than one member (so a solo
                       // hero never dies in their sleep). Random victim
-                      // is 1..4 to match the original literal range.
+                      // is 0..3 (party-member slots, post-§25.B).
                       { if: {
                           cond: { and: [
-                            { eq: [{ var: 'guard' }, 0] },
+                            { eq: [{ var: 'guard' }, -1] },
                             { gt: [{ pl: 0 }, 1] },
                           ] },
                           then: [
-                            { let: 'victim', value: { random: [1, 4] } },
+                            { let: 'victim', value: { random: [0, 3] } },
                             { engine_bind: { fn: 'pa_name', args: [{ var: 'victim' }], var: 'victim_name' } },
                             { emit: 'surprise_kill' },
                             { mutate: { target: { member_field: { idx: { var: 'victim' }, field: 'hp' } },

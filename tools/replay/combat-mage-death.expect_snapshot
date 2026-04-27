@@ -19,10 +19,10 @@ kills=1
 specials=0,0,0,0,0
 flags=
 inventory=0,102,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-member[1] name=A gender=1 cl=3 ra=1 lv=3 dead=0 h=44 hp=32 ws=62 wi=81 ma=14 ch=25 ar=0 wp=0 exp=180
-member[2] name=B gender=1 cl=2 ra=1 lv=3 dead=0 h=72 hp=58 ws=45 wi=65 ma=0 ch=70 ar=0 wp=0 exp=180
-member[3] name=C gender=1 cl=2 ra=1 lv=3 dead=0 h=48 hp=34 ws=41 wi=33 ma=0 ch=23 ar=0 wp=0 exp=180
-member[4] name=D gender=1 cl=2 ra=1 lv=3 dead=0 h=79 hp=65 ws=18 wi=59 ma=0 ch=62 ar=0 wp=0 exp=180
+member[0] name=A gender=1 cl=3 ra=1 lv=3 dead=0 h=44 hp=32 ws=62 wi=81 ma=14 ch=25 ar=0 wp=0 exp=180
+member[1] name=B gender=1 cl=2 ra=1 lv=3 dead=0 h=72 hp=58 ws=45 wi=65 ma=0 ch=70 ar=0 wp=0 exp=180
+member[2] name=C gender=1 cl=2 ra=1 lv=3 dead=0 h=48 hp=34 ws=41 wi=33 ma=0 ch=23 ar=0 wp=0 exp=180
+member[3] name=D gender=1 cl=2 ra=1 lv=3 dead=0 h=79 hp=65 ws=18 wi=59 ma=0 ch=62 ar=0 wp=0 exp=180
 map[00]=31000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 map[01]=6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d776d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d0a000000
 map[02]=6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d776d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d0a000000

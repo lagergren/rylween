@@ -223,10 +223,11 @@ void rk_apply_party_hp_full(int a) {
 void rk_apply_dead_slots(int a) {
     /* Fixtures that exercise the dead-arm of party-target spells
        (priest rebirth) need a member who starts dead without a
-       combat to kill them. Comma-separated list of slot indices
-       to flag dead — out-of-range entries silently skipped.
-       Mirrors the in-combat death state battle.c writes (dead=1
-       AND hp=0). */
+       combat to kill them. Comma-separated list of 1-based slot
+       indices to flag dead (matching the player-facing "Who? (1-N)"
+       convention; the C side is 0-based post-§25.B and converts
+       on entry). Out-of-range entries silently skipped. Mirrors
+       the in-combat death state battle.c writes (dead=1 AND hp=0). */
     const char *env = getenv("RYL_FORCE_DEAD_SLOT");
     if (!env || !*env) {
         return;
@@ -236,7 +237,7 @@ void rk_apply_dead_slots(int a) {
         char *end;
         long slot = strtol(p, &end, 10);
         if (end != p && slot >= 1 && slot <= res_party_member_max()) {
-            pm_t pm = pm_of(&state.p[a], (int)slot);
+            pm_t pm = pm_of(&state.p[a], (int)(slot - 1));
             pm_set_dead(pm, 1);
             pm_set_hp(pm, 0);
         }

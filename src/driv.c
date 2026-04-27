@@ -21,7 +21,6 @@ static void write_current_world(void);
 
 static void the_game() {
     char cc, d;
-    int32_t i;
     char path[64];
 
     clw();
@@ -204,7 +203,7 @@ static void the_game() {
                     }
                 }
                 if (pm_digit_in_range(d)) {
-                    show(d - 48);
+                    show(d - '1');
                 }
                 if (toupper(d) == 'A') {
                     for_each_party_member(i) {
@@ -309,10 +308,10 @@ void statusline() {
     c(3, 21);
     tx("[32m%s    ", stline);
     snprintf(stline, sizeof stline, "H1: [33m%3d/%3d   [32mH2: [33m%3d/%3d   [32mH3: [33m%3d/%3d   [32mH4: [33m%3d/%3d[37m",
+             pm_hp(pm_cur(0)), pm_h(pm_cur(0)),
              pm_hp(pm_cur(1)), pm_h(pm_cur(1)),
              pm_hp(pm_cur(2)), pm_h(pm_cur(2)),
-             pm_hp(pm_cur(3)), pm_h(pm_cur(3)),
-             pm_hp(pm_cur(4)), pm_h(pm_cur(4)));
+             pm_hp(pm_cur(3)), pm_h(pm_cur(3)));
     c(13, 22);
     tx("%s\r\n", stline);
     c(49, 6);
@@ -578,7 +577,7 @@ void init() {
                     abort = 1;
                     LOG_A("realm",
                           "%s and %s party '%s' entered the realm.",
-                          pa_name(1), pronoun(1, 3), pa_party_name());
+                          pa_name(0), pronoun(0, 3), pa_party_name());
                     wld_set_last_terrain(0);
                 } else {
                     clw();
@@ -896,10 +895,10 @@ static void write_current_world() {
 
     fputs("  parties: [\n", f);
     /* All per-member arrays on struct party share the same length:
-       res_party_member_max() + 1 (slot 0 reserved, slots 1..N used).
-       Cached once so the writer emits a consistent width everywhere
-       and the loader has one value to compare against. */
-    int mlen = res_party_member_max() + 1;
+       res_party_member_max() (slots 0..N-1 used). Cached once so the
+       writer emits a consistent width everywhere and the loader has
+       one value to compare against. */
+    int mlen = res_party_member_max();
     for (int i = 1; i <= state.num_parties; i++) {
         const struct party *p = &state.p[i];
         /* wcw_enum_arr wants plain int[], so materialize cl/ra into
@@ -1298,7 +1297,7 @@ static int read_current_world() {
             /* Per-member array width — the save's party_member_max
                must already match res_party_member_max() per the
                strict check on realm.party_member_max above. */
-            size_t mlen = (size_t)(res_party_member_max() + 1);
+            size_t mlen = (size_t)res_party_member_max();
 
             const node *names = obj_get(pnode, "name");
             if (names && names->kind == N_ARR) {
@@ -1443,13 +1442,16 @@ static void createparty() {
         }
     }
 
-    g = 1;
+    g = 0;
 
     int sr_lo = res_int_path("driv.stat_roll.min");
     int sr_hi = res_int_path("driv.stat_roll.max");
-    while (g <= res_party_member_max()) {
+    while (g < res_party_member_max()) {
         clw();
-        tx("Stats for char: %d\r\n\r\n", g);
+        /* Display the slot 1-based for the player ("Stats for char: 1");
+           the C side stores them 0-based but the UX still calls them
+           1..N to match the existing "Who? (1-N)" prompts. */
+        tx("Stats for char: %d\r\n\r\n", g + 1);
         state.p[a].ws[g] = ryl_random(sr_lo, sr_hi);
         state.p[a].wi[g] = ryl_random(sr_lo, sr_hi);
         state.p[a].h[g] = ryl_random(sr_lo, sr_hi);
@@ -1463,7 +1465,7 @@ static void createparty() {
         if (!hotkey()) {
             while (1) {
                 clw();
-                tx("Give Character %d a name!\r\n", g);
+                tx("Give Character %d a name!\r\n", g + 1);
                 tx(": ");
                 str[0] = 0;
                 getstr(12, state.p[a].name[g], sizeof state.p[a].name[g]);

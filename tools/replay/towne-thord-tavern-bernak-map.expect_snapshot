@@ -19,10 +19,10 @@ kills=0
 specials=0,0,0,0,0
 flags=silver_key=map_bought
 inventory=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-member[1] name=A gender=1 cl=2 ra=1 lv=1 dead=0 h=15 hp=15 ws=61 wi=43 ma=0 ch=19 ar=0 wp=0 exp=0
-member[2] name=B gender=1 cl=2 ra=1 lv=1 dead=0 h=21 hp=21 ws=63 wi=33 ma=0 ch=39 ar=0 wp=0 exp=0
-member[3] name=C gender=1 cl=2 ra=1 lv=1 dead=0 h=36 hp=36 ws=18 wi=50 ma=0 ch=40 ar=0 wp=0 exp=0
-member[4] name=D gender=1 cl=2 ra=1 lv=1 dead=0 h=30 hp=30 ws=56 wi=46 ma=0 ch=62 ar=0 wp=0 exp=0
+member[0] name=A gender=1 cl=2 ra=1 lv=1 dead=0 h=15 hp=15 ws=61 wi=43 ma=0 ch=19 ar=0 wp=0 exp=0
+member[1] name=B gender=1 cl=2 ra=1 lv=1 dead=0 h=21 hp=21 ws=63 wi=33 ma=0 ch=39 ar=0 wp=0 exp=0
+member[2] name=C gender=1 cl=2 ra=1 lv=1 dead=0 h=36 hp=36 ws=18 wi=50 ma=0 ch=40 ar=0 wp=0 exp=0
+member[3] name=D gender=1 cl=2 ra=1 lv=1 dead=0 h=30 hp=30 ws=56 wi=46 ma=0 ch=62 ar=0 wp=0 exp=0
 journal_n=1
 journal[0]=The Pit of the Silver Key is at 8x8
 map[00]=31000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000

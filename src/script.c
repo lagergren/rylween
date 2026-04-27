@@ -412,7 +412,7 @@ static int32_t expr_member_field(const node *op, const char *script_id,
         die_at(script_id, idx, "expr member: field must be string");
     }
     int32_t m = eval_expr(m_n, script_id, idx, bindings, env);
-    if (m < 1 || m > res_party_member_max()) {
+    if (m < 0 || m >= res_party_member_max()) {
         die_at(script_id, idx, "expr member: idx out of range");
     }
     const char *field = f_n->u.sv;
@@ -590,7 +590,7 @@ static int32_t ie_wld_location_y(const int32_t *a) {
 }
 
 /* §23.A: monster nasty-magic frost target pick. Mirrors the legacy
-   `while (1) { who = ryl_random(1, 4); if (pa_is_alive(who)) break; }`
+   `while (1) { who = ryl_random(0, max-1); if (pa_is_alive(who)) break; }`
    loop byte-for-byte — every draw advances RNG, the first alive hit
    returns. Caller must guarantee at least one party member is alive
    (battle.c gates the cast block on pa_alive_count(); a wipe takes
@@ -599,7 +599,7 @@ static int32_t ie_pick_random_alive_player(const int32_t *a) {
     (void)a;
     int max = res_party_member_max();
     while (1) {
-        int who = ryl_random(1, max);
+        int who = ryl_random(0, max - 1);
         if (pa_is_alive(who)) {
             return who;
         }
@@ -2218,11 +2218,11 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
         /* letter_range / digit_range: bind the matched ordinal into
            rt_env so the body can use {var:'<index_var>'} or
            {<index_var>} directly without ASCII arithmetic. For
-           letter_range the bound int is 1-based (`ch - lo + 1`); for
-           digit_range it's the digit's int value (`ch - '0'`, which
-           equals `lo` when the user picked the lowest option, etc.).
-           menu_opt_matches already validated bounds so the lookup
-           here is safe. */
+           letter_range the bound int is 1-based (`ch - lo + 1`,
+           inventory convention); for digit_range it's a 0-based
+           offset from `lo` (`ch - '0' - lo_v`, matching the §25.B
+           party-member 0-based slot convention). menu_opt_matches
+           already validated bounds so the lookup here is safe. */
         const node *letter_n = obj_get(o, "letter_range");
         const node *digit_n = obj_get(o, "digit_range");
         const node *index_var_n = obj_get(o, "index_var");
@@ -2237,7 +2237,14 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
                 char lo = (char)toupper((unsigned char)lo_n->u.sv[0]);
                 slot = (int32_t)(ch - lo + 1);
             } else if (digit_n) {
-                slot = (int32_t)(ch - '0');
+                /* §25.B: digit_range binds 0-based offset from `lo`.
+                   With `lo: 1` (the only form in use today, for party-
+                   member pickers), digit '1' binds 0, '4' binds 3 —
+                   matching the 0-based slot convention used by pa_*
+                   and pm_* and the for_each_party_member macro. */
+                const node *lo_n = obj_get(digit_n, "lo");
+                int32_t lo_v = eval_expr(lo_n, script_id, idx, bindings, env);
+                slot = (int32_t)(ch - '0') - lo_v;
             } else {
                 die_at(script_id, idx,
                        "menu_branch: index_var requires letter_range "
@@ -2377,7 +2384,7 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
                    "mutate: member_field field must be string");
         }
         int32_t m = eval_expr(i_n, script_id, idx, bindings, env);
-        if (m < 1 || m > res_party_member_max()) {
+        if (m < 0 || m >= res_party_member_max()) {
             die_at(script_id, idx,
                    "mutate: member_field idx out of range");
         }
@@ -3001,7 +3008,7 @@ static void do_ask_target(const node *op, const char *script_id, size_t idx,
                 break;
             }
         }
-        rt_bind_set(env, var_n->u.sv, (int32_t)(d - '0'), script_id, idx);
+        rt_bind_set(env, var_n->u.sv, (int32_t)(d - '1'), script_id, idx);
         return;
     }
     die_at(script_id, idx,
@@ -3096,15 +3103,15 @@ static ops_result do_for_range(const node *op, const char *script_id,
 }
 
 /* §17-F step 4: { for_member: { var:'name', then:[...] } } — binds
-   `name` to 1..res_party_member_max() in turn. Body sees the loop
-   var via `{var:'name'}` in expressions and `{name}` in screen /
-   journal text. Break and continue propagate through the shared
-   do_for_range helper. */
+   `name` to 0..res_party_member_max() - 1 in turn. Body sees the
+   loop var via `{var:'name'}` in expressions and `{name}` in
+   screen / journal text. Break and continue propagate through the
+   shared do_for_range helper. */
 static ops_result do_for_member(const node *op, const char *script_id,
                                 size_t idx, const char *parent,
                                 const ryl_bind *bindings, rt_env *env) {
     return do_for_range(op, script_id, idx, parent, bindings, env,
-                        "for_member", 1, res_party_member_max());
+                        "for_member", 0, res_party_member_max() - 1);
 }
 
 /* §17-F step 4: { for_inventory: { var:'name', then:[...] } } — same
@@ -3206,7 +3213,7 @@ static ops_result do_for_each_alive_monster(const node *op,
 }
 
 /* §23 prep: { for_each_alive_player: { then: [...] } } — iterate
-   1..res_party_member_max(), skipping members with pm_dead set.
+   0..res_party_member_max() - 1, skipping members with pm_dead set.
    Body sees the current member slot as `{ var: 'target_idx' }` —
    the same name `ask_target` uses for picked targets, so single-
    target ops compose under the iterator. No combat ctx required
@@ -3218,7 +3225,7 @@ static ops_result do_for_each_alive_player(const node *op,
                                            rt_env *env) {
     return do_for_range_alive(op, script_id, idx, parent, bindings, env,
                               "for_each_alive_player", ALIVE_PLAYER,
-                              "target_idx", 1, res_party_member_max());
+                              "target_idx", 0, res_party_member_max() - 1);
 }
 
 /* §17-F step 4: { switch: { expr:<expr>, cases:[...] } }. Each case

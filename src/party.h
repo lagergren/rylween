@@ -62,13 +62,20 @@ void pa_add_y(int32_t delta);
    pa_gold so a future S2 sweep can retire party_gold cleanly. */
 int32_t pa_gold(void);
 
-/* First member's level (state.p[state.cpl].lv[1]). Used as the
+/* First member's level (state.p[state.cpl].lv[0]). Used as the
    party's "headline" level for content-scaling decisions (encounter
    tier, dungeon depth, special-encounter chance). The 70+ raw
-   `lv[1]` reads in dungeon.c / battle.c / driv.c are queued for an
+   `lv[0]` reads in dungeon.c / battle.c / driv.c are queued for an
    S2 sweep; this helper is the single point of truth they migrate
    to. */
 int pa_first_level(void);
+
+/* Mean party-member level (sum of pm_lv across all slots, divided
+   by res_party_member_max()). Used by content-scaling consumers
+   that want to track every member's level rather than just the
+   first member's — encounter HP scaling reads it via the
+   "party_avg" formula binding. */
+int32_t pa_lv_avg(void);
 
 /* Party mission / quest flags (data/world.json5 `flags:` subtree).
    All three helpers operate on state.p[state.cpl].flag[slot] where
@@ -146,14 +153,12 @@ void pa_set_inventory(int slot, int32_t item_id);
    renders "-" for invalid slots). */
 const char *pa_name(int m);
 
-/* §25.A.1: iterate party-member slots 1..res_party_member_max(). The
-   body sees `slot` 1-based — this macro is the single point of truth
-   for the dozens of `for (i = 1; i <= res_party_member_max(); i++)`
-   loops scattered across battle / driv / dungeon / snapshot / subs /
-   towne / ydarg / replay_knobs / party. §25.B will edit this macro
-   (and re-bless fixtures) when the codebase flips to 0-indexed. */
+/* §25.A.1: iterate party-member slots 0..res_party_member_max()-1.
+   Body sees `slot` 0-based. Single point of truth for the dozens of
+   member-slot loops across battle / driv / dungeon / snapshot / subs
+   / towne / ydarg / replay_knobs / party. */
 #define for_each_party_member(slot) \
-    for (int slot = 1; slot <= res_party_member_max(); slot++)
+    for (int slot = 0; slot < res_party_member_max(); slot++)
 
 /* Party display name (state.p[cpl].party_name). Owned by struct party;
    the returned pointer is valid until the party slot is freed. */
