@@ -1835,3 +1835,294 @@ require new world.json5 entries.
     `combat.run.*`) is the pattern other small-literal
     sweeps should follow: group by gameplay-concept,
     not by file or function.
+
+## 24. Logging + remote console (audit 2026-04-26)
+
+Closed end-to-end 2026-04-27 #5: A0 / A1 / B / C / D / E / F all
+landed in seven sub-commits across four sessions. Body verbatim
+from `port-plan-incomplete.md` for archival.
+
+Two related complaints surfaced together — they share infra so
+they get planned as one section:
+
+  1. The "Setting up new campaign… Please Wait" dot loop takes
+     ~14 seconds. Confirmed cause: `res.c::res_realize_npcs`
+     emits one `ryl_delay(600)` per random NPC (line 1246) and
+     one `tx(".")` per NPC (line 1280); with N≈23 random NPCs
+     that's ~14s of purely cosmetic delay. The pacing is a
+     port-of-port artifact (the original Atari/Amiga build was
+     hiding disk loads behind it). Modern build has no disk to
+     hide — the delay loop is dead weight.
+  2. ~75 `fprintf(stderr, …)` sites + 1 `ryl_log()` (writes to
+     `data/rylween.log` via stale-format snprintf) + a few
+     scattered `tx()` debug atoms. Three different sinks, no
+     severity, no toggle, no remote read. We want a single
+     `log_*` API that any module calls, with the sink chosen
+     at runtime.
+
+### 24.1 Loading-cosmetics fix (one-liner, lands first)
+
+Either drop `ryl_delay(600)` at `res.c:1246` outright, or gate
+it behind the existing `RYL_NO_DELAY` env knob (`io_tty.c`'s
+`ryl_delay` already short-circuits on it for replay). Default
+to "no delay, ever" — the dots are still visible because each
+NPC realization writes one `tx(".")`, just at the speed of the
+JSON5 walk rather than wallclock. Confirm `make check` +
+`make testasan` stay green (no fixture pins this delay; the
+replay harness already sets `RYL_NO_DELAY=1`). One commit, no
+follow-up.
+
+### 24.2 Inventory of current emitters
+
+| Source                       | Count | Routes to                  |
+|------------------------------|------:|----------------------------|
+| `fprintf(stderr, …)`         |    75 | terminal stderr (mixed in with the game UI on the same TTY) |
+| `ryl_log(char *)`            |     2 | `~/.rylween/rylween.log` append-only |
+| `ryl_die(msg)`               |   ~30 | stderr + abort             |
+| stray `tx("debug…")`         |   few | the game's text window     |
+
+Severity is unwritten — every `fprintf(stderr,…)` site is some
+mix of warn/error/audit. The replay harness captures stderr
+into `.expect` (it does `2>&1`), which is *good* (it freezes
+warnings into baselines) but also *bad* (a new warning blows
+every baseline by ~one line). Today there's no way to silence
+log output without preprocessor work.
+
+### 24.3 Industry-standard mechanisms worth borrowing
+
+The space is well-trodden; the question is which standard fits
+a single-process, single-binary roguelike that does not run on
+a server farm. Options, in roughly increasing complexity:
+
+  1. **POSIX syslog (RFC 5424).** `openlog("rylween",
+     LOG_PID, LOG_USER)` + `syslog(LOG_INFO, fmt, …)`. Built
+     into libc. Remote sink falls out for free — `rsyslog` /
+     `syslog-ng` / `journald` all forward to network targets.
+     Cost: zero new code, zero deps. Limitation: macOS routes
+     it to `log show --predicate 'process == "rylween"'` (Mac
+     Console app), which is fine but not portable to "telnet
+     in and watch".
+  2. **Plain file + `tail -f`.** `RYL_LOG_FILE=/tmp/ryl.log`,
+     `tail -f` in another window. Same pattern as `ryl_log()`
+     today, generalized. Trivial to implement; trivial for the
+     user to read. Doesn't solve "remote machine" but covers
+     90% of the dev workflow.
+  3. **Unix domain socket listener.** `nc -U /tmp/ryl.sock` to
+     stream live. ~30 LOC of boilerplate (socket / bind / listen
+     / accept / non-blocking write fan-out). Local-only;
+     filesystem perms gate access. Telnet-style from one
+     machine, no network exposure.
+  4. **TCP listener ("rcon" pattern).** `RYL_LOG_LISTEN=:9999`
+     binds a TCP port; new line-broadcast to every client.
+     `telnet localhost 9999` reads live. Same pattern Quake/
+     Half-Life/Source-engine games shipped for ~25 years.
+     ~50 LOC. Adds a remote-read story — bind to `127.0.0.1`
+     by default, document the loopback discipline so a stray
+     `0.0.0.0` doesn't ship a debug surface to the internet.
+  5. **GELF / JSON-lines / OTel logs.** Modern structured-log
+     formats. Useful if rylween were one component of a fleet,
+     but a single-process roguelike doesn't justify the
+     dependency surface. Skip.
+  6. **named FIFO** (`mkfifo`). Mentioned for completeness;
+     fits between #2 and #3. Reader has to be running before
+     the writer or writes block. Rarely the right answer.
+
+### 24.4 Recommendation
+
+Land options **2 + 4 layered**, exposed via a single
+`RYL_LOG=` env var, with **stderr as the default** so behavior
+is unchanged unless the user opts in. Concretely:
+
+```
+RYL_LOG=stderr           (default — current behavior)
+RYL_LOG=file:/tmp/r.log  (append, no rotation)
+RYL_LOG=tcp:127.0.0.1:9999  (listen; broadcast every line)
+RYL_LOG=null             (drop everything — useful for replay)
+```
+
+Skip syslog as a first cut (#1) — a useful POSIX integration,
+but most dev workflows would rather `tail -f` a file. If/when
+someone runs rylween on a fleet, syslog is a 10-line addition
+behind `RYL_LOG=syslog`.
+
+Format: human-readable single-line, `[YYYY-MM-DD HH:MM:SS]
+[LVL] [module] message`. One line per log call. No JSON
+unless we hit a structured-ingest need — keep it grep-friendly.
+
+Severity levels: `LOG_DEBUG / LOG_INFO / LOG_WARN / LOG_ERR`
+plus a `LOG_AUDIT` for `ryl_log()`'s "campaign started" /
+"party died" trail (kept distinct because it's user-visible
+history, not engineering noise). Filter via
+`RYL_LOG_LEVEL=warn` etc.; default `info`.
+
+### 24.5 Replay-test interaction
+
+Replay tests today rely on `2>&1` redirection. Two ways the new
+logger can live with that:
+
+  - Default `RYL_LOG=stderr` keeps every existing baseline
+    valid byte-for-byte. The migration commit doesn't change
+    any `.expect` file.
+  - `tools/replay.sh` learns to set `RYL_LOG=null` per script
+    (or per-script via `<name>.env`), which removes the warning
+    noise from baselines. Future fixture commits can opt in.
+    Don't do this in the migration commit — it's a separate
+    bless wave once the `null` sink lands.
+
+### 24.6 API + module layout
+
+New file pair `src/log.{c,h}`. Three categories of caller:
+
+```c
+// log.h
+typedef enum {
+    LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERR, LOG_AUDIT,
+} log_level;
+
+void log_init(void);     // reads RYL_LOG / RYL_LOG_LEVEL once at startup
+void log_msg(log_level lvl, const char *module,
+             const char *fmt, ...);
+void log_shutdown(void); // close fd, drop listeners
+
+#define LOG_D(mod, ...) log_msg(LOG_DEBUG, mod, __VA_ARGS__)
+#define LOG_I(mod, ...) log_msg(LOG_INFO,  mod, __VA_ARGS__)
+#define LOG_W(mod, ...) log_msg(LOG_WARN,  mod, __VA_ARGS__)
+#define LOG_E(mod, ...) log_msg(LOG_ERR,   mod, __VA_ARGS__)
+#define LOG_A(mod, ...) log_msg(LOG_AUDIT, mod, __VA_ARGS__)
+```
+
+`module` is a short string ("res" / "party" / "battle") so a
+log line stays self-locating. `__FILE__` / `__LINE__` get
+folded in for `LOG_E` only — most warns are fine without.
+
+`ryl_die(msg)` stays — it's a panic, not a log; route it
+through `LOG_E` on the way to `abort()` so the panic lands in
+whatever sink is configured.
+
+### 24.7 Migration sequence
+
+  - **§24.A0** (landed): minimal API + audit migration + setup
+    logging + delay reduction. `src/log.{c,h}` with stderr sink
+    (WARN/ERR/INFO/DEBUG) + append-to-file sink (AUDIT). Default
+    threshold WARN — INFO/DEBUG silent unless RYL_LOG_LEVEL is
+    set, so existing replay baselines stay byte-identical.
+    `ryl_log()` (2 callers in driv.c + res.c) routed through
+    `LOG_A`; `primitives.c::ryl_log` body removed.
+    `res_realize_npcs` grew descriptive `LOG_I` lines (one per
+    realized NPC + a header + a footer). Per-NPC ryl_delay(600)
+    cut to 40ms — campaign setup drops from ~14s to ~1s with
+    the visual dot-pacing intact.
+  - **§24.A1** (landed 2026-04-27): bulk-migrate the
+    `fprintf(stderr, …)` panic + warning sites to `LOG_W` /
+    `LOG_E` per severity judgment. 72 callsites total flipped
+    across 7 files — res.c 43, party.c 10, driv.c 7, json5.c
+    5, snapshot.c 3, inventory.c 3, primitives.c 1. All but
+    one (snapshot.c fopen recovery → LOG_W) were panic paths
+    followed by `exit(1)` and went to LOG_E. Module names use
+    file stems except primitives.c::ryl_die which kept module
+    "ryl" to match its public-API "ryl: <msg>" prefix
+    contract. ryl.c three remaining stderr sites — the
+    `--check-world` "world: ok" success line and the two argv
+    usage messages — intentionally stayed as fprintf since
+    they're CLI output, not diagnostics. log.c:97 itself is
+    the LOG_* emitter, not migrated. No fixture drift — none
+    of the migrated paths fire under the 30-fixture replay
+    set today.
+  - **§24.B** (landed 2026-04-27): file + null sinks. Added
+    the `RYL_LOG=` env-var dispatch in `src/log.c`. Recognized
+    values: unset / `stderr` (default), `null` (drop
+    WARN/ERR/INFO/DEBUG), `file:<path>` (append, resolved
+    through `ryl_state_path`). AUDIT path unchanged.
+  - **§24.C** (landed 2026-04-27): TCP listener sink **plus**
+    multi-sink fan-out. `RYL_LOG=tcp:[host:]port` binds a
+    non-blocking listener; every connected client (`telnet
+    host port`) gets a live tail of every WARN/ERR/INFO/DEBUG
+    line in the `[lvl][mod] body\n` shape the file/stderr
+    sinks already use. Default bind is loopback; explicit
+    `tcp:0.0.0.0:<port>` exposes on every interface. Up to 8
+    simultaneous clients (the `clients[]` slot table); a 9th
+    connect while the table is full is `accept`-ed and
+    immediately closed. Loss policy: `EAGAIN` drops the line
+    for that client only, `EPIPE`/short-write closes the fd
+    and frees the slot — the engine never blocks waiting for
+    a reader. SIGPIPE is dodged via `MSG_NOSIGNAL` on Linux
+    plus `SO_NOSIGPIPE` per accepted socket on macOS/BSD, so
+    no process-wide signal override. `atexit(sink_tcp_close)`
+    closes the listener fd + every client fd on normal exit.
+    Parser: `tcp:host:port`, `tcp::port`, `tcp:port` (last
+    two default host to 127.0.0.1).
+    During the same session `RYL_LOG` was generalised from a
+    single sink to a **comma-separated list** — every
+    enabled sink gets every line. Examples:
+    `RYL_LOG=stderr,file:dev.log` (tee to terminal + file),
+    `RYL_LOG=tcp:9999,file:run.log` (rcon + file). `null` is
+    a no-op token (alone in the list ⇒ silent, preserving
+    pre-existing `RYL_LOG=null` semantics). `file:` and
+    `tcp:` are single-instance; a duplicate emits a one-shot
+    diagnostic and is ignored. Open errors degrade only the
+    failing token, the rest of the list still applies.
+    `make check` + `make testasan` green at the §24.C commit
+    — fixture set is unchanged because every fixture pins
+    `RYL_LOG=null` post-§24.E, so the new arm only fires
+    when a developer opts in. New file: `docs/log.md`
+    documents the rcon-style protocol (port, bind discipline,
+    line format, loss policy on slow readers, `telnet
+    localhost <port>` usage). End-to-end smoke verified by
+    running `RYL_LOG=stderr,file:smoke.log,tcp:<port>` under
+    a fixture: stderr saw 25 LOG_I lines, the file saw the
+    same 25 lines clean, and an `nc 127.0.0.1 <port>` client
+    captured the 18 lines emitted *after* it connected
+    (lazy-accept, as designed).
+  - **§24.D** (landed 2026-04-27): syslog sink behind
+    `RYL_LOG=syslog[:<ident>]`. `openlog(ident, LOG_PID,
+    LOG_USER)` at first emit; level → priority mapping
+    (DEBUG/INFO/WARN/ERR → LOG_DEBUG/INFO/WARNING/ERR);
+    body keeps the `[lvl][mod] body` shape so grepping a
+    system log behaves the same as grepping a `file:` sink.
+    Composes with other sinks via the §24.C list parser.
+    Custom ident useful for parallel runs (`syslog:rylween-A`
+    + `syslog:rylween-B`). Default ident `rylween`. macOS's
+    unified-log UI filters non-Apple subsystems aggressively;
+    `tcp:` / `file:` are usually more useful there.
+  - **§24.F** (landed 2026-04-27): JSON5 runtime config for
+    the always-on `RYL_*` knobs. New `src/runtime_cfg.{c,h}`
+    exposes a single `rcfg_get(key)` helper with this lookup
+    order: env var (wins if non-empty) → `$HOME/.rylween/
+    runtime.json5` → `data/runtime.json5` (optional, not in
+    the repo) → callsite default. Schema is a flat JSON5
+    object whose keys are `RYL_*` names and whose values are
+    scalars (string/int/bool — ints/bools stringified at
+    load). Routed through `rcfg_get`: `RYL_LOG`,
+    `RYL_LOG_LEVEL`, `RYL_NO_DELAY`, `RYL_FAKE_EPOCH`,
+    `RYL_FAKE_SEED`, `RYL_PARTY_MEMBER_MAX`,
+    `RYL_REPLAY_RUMOUR`, `RYL_SNAPSHOT`. The one-shot fixture
+    knobs in `replay_knobs.c` (`RYL_FORCE_*`,
+    `RYL_STARTING_GOLD`) intentionally stay on raw `getenv` /
+    `unsetenv` because their per-fixture semantics are
+    incompatible with a personal-config default. Replay
+    harness runs with `HOME=$(mktemp -d)` so the personal
+    path is unreachable; `data/runtime.json5` is absent from
+    the repo to avoid leaking project-wide defaults into
+    fixtures. Cache is process-lifetime, freed via
+    `atexit(rcfg_close)` for LSan cleanliness on Linux. New
+    `docs/log.md` "Runtime config file" section documents
+    the schema and recognised keys.
+  - **§24.E** (landed 2026-04-27): replay-harness default
+    `RYL_LOG=null`. `tools/replay.sh` and `tools/replay_asan.sh`
+    set `RYL_LOG=null` in the per-fixture subshell before
+    sourcing the optional `<name>.env`, so a fixture can opt
+    back in to stderr (or file:/tcp:) by setting `RYL_LOG=…`
+    in its sidecar — symmetric with how `RYL_FORCE_*` /
+    `RYL_FAKE_EPOCH` compose. AUDIT (LOG_A) is unaffected,
+    still writing to `data/rylween.log`. No fixture re-bless
+    needed — none of the LOG_W/LOG_E paths fire under the
+    current fixture set, so baselines were already noise-free.
+
+**Estimated total.** ~3-4 sessions A+B+C, plus D+E+F.
+**§24 closed end-to-end** as of 2026-04-27 #5: A0/A1/B/C/D/E/F
+all landed, no items remaining in the logging plan.
+None of this gated §23 work — independent files, no
+conflicts.
+
+**Bar per session.** Same as §22 / §23: `make check` +
+`make testasan` green at every commit.
