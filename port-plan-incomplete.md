@@ -2,9 +2,9 @@
 
 This file collects every section of `port-plan.md` that is in-progress, planned, or pure reference / vision material. Completed lifts live in `port-plan-complete.md`; the cross-section index lives in the master `port-plan.md`. Section numbers and `§N` cross-references are preserved verbatim — sections appear in their original §-order regardless of which file they live in.
 
-## Top of queue (status snapshot, 2026-04-27 #8)
+## Top of queue (status snapshot, 2026-04-27 #9)
 
-A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the §22.12 + §22.14 + the 2026-04-27 #7 snapshot, plus the audit cleanup at the end of session 2026-04-27 #8 (§20 L6 narration lift + §23.A residual).
+A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the §22.12 + §22.14 + the 2026-04-27 #7 snapshot, plus the audit cleanup at the end of session 2026-04-27 #8 (§20 L6 narration lift + §23.A residual), plus the four mechanical-residual closures in 2026-04-27 #9.
 
 ### Active — work is in flight or fully unblocked
 
@@ -15,10 +15,7 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 ### Mechanical residuals (small, ready when convenient)
 
-- **`.git-blame-ignore-revs`** (§12.4) — record `33ffc52` (clang-format reformat) so `git blame -w --ignore-revs-file` skips it. One-line addition.
-- **`title-menu-exit.env` sidecar** (§12.4) — `RYL_NO_DELAY=1` sidecar would shrink replay suite ~15s → ~3s. Needs a re-bless verify. (Sidecar exists with FAKE_EPOCH/FAKE_SEED but no NO_DELAY.)
-- **Journal code lives in the wrong module** (§12.4) — `read_journal()` + `journalf()` (~40 lines) still live in driv.c (lines 17, 270, 1674); fits better alongside guild/mail/trade in interact.c. Easy move.
-- **§18.5 — README paragraph for ANSI EAW / narrow-cell rendering**. Path A copy: document the macOS Terminal.app caveat, recommend iTerm2 / Ghostty / Alacritty / Kitty / WezTerm. ~15 minutes.
+(Empty — all four bullets that lived here closed in 2026-04-27 #9. See "Closed since the previous snapshot" below.)
 
 ### Deferred — work is queued but explicitly post-something
 
@@ -29,7 +26,7 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 ### Documented & deferred — won't land unless requirements change
 
-- **§18 — ANSI art EAW / narrow-cell rendering**. Path A chosen: document terminal-compat caveat in README. macOS Terminal.app renders ambiguous-width chars as 2 cells and the layout drifts; recommend iTerm2 / Ghostty / Alacritty / Kitty / WezTerm. Path B (rewrite art to symmetric blocks) is an art-rewrite job; Path D (Sixel/Kitty graphics) is a port-quality bump. None scheduled. (Open mechanical TODO: §18.5 README paragraph — see Mechanical residuals.)
+- **§18 — ANSI art EAW / narrow-cell rendering**. Path A shipped: README terminal-compat note documents the macOS Terminal.app drift and recommends iTerm2 / Ghostty / Alacritty / Kitty / WezTerm. Path B (rewrite art to symmetric blocks) is an art-rewrite job; Path D (Sixel/Kitty graphics) is a port-quality bump. Neither scheduled.
 - **§21 — reentrancy / `ryl_ctx`**. Per §22.12 verdict: "worth it only if a real multi-tenant use case materialises." None has. Treat §21 body as documentation only.
 - **§6 — C99 vs C++17 subset decision**. Decision deferred indefinitely; the C99 path is working.
 - **§22.E items 11 + 12 — engine registry unification + op-shape micro-inconsistencies**. Cosmetic; consciously skipped per §22.12.
@@ -39,6 +36,14 @@ A pointer-only triage of every open item below. The bodies still describe each t
 ### Closed but body still in this file (move-out queue)
 
 - **§22 — DSL unification**. Closed end-to-end per §22.14 (2026-04-26): all three lane-A stragglers (§22.5 #8a banish, §22.F speak_missions, §22.G docs/dsl.md) shipped, plus pre-§22 stragglers (Phase 5c driv.c/ydarg.c residuals, §20 TINY T3/T4 path literals, §22.10 dungeon_encounter slots). Body should move to `port-plan-complete.md` like §23 / §24 already did; leave a stub for the master TOC.
+
+### Closed since the previous snapshot (2026-04-27 #8)
+
+- **§12.4 mechanical residuals — all four shipped** (2026-04-27 #9, four commits on top of `6a6ee89`):
+  - `.git-blame-ignore-revs` records the `33ffc52` clang-format reformat so blame skips it (`88b33b5`).
+  - `title-menu-exit.env` gained `RYL_NO_DELAY=1`; replay drops ~15s → ~50ms, byte-identical (`22ad817`).
+  - `read_journal()` + `journalf()` lifted from `driv.c` to `interact.c` (43-line drop in driv.c); `speak.c` swapped its `driv.h` include for `interact.h` since `journalf` was the only driv.h symbol it used. Text id `driv.journal.header` left as-is (renaming would touch `data/world/texts/` + fixtures with no payoff). (`8442d03`).
+  - README §18.5 terminal-compat paragraph (Path A copy) (`4bcc0d9`).
 
 ### Closed since the previous snapshot (2026-04-27 #7)
 
@@ -54,7 +59,7 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 ### Recommended next session
 
-§25.B is the obvious unlock and the largest single item — that's the right next big bet. Smaller bites if you'd rather: §17.A.4 slice A (missions.c, mostly flag-guarded so fixture-unreachable, ~1 session), the journal-code move, the §18.5 README paragraph, or `.git-blame-ignore-revs`. §22's body should move to `port-plan-complete.md` whenever the next plan-hygiene pass runs. The state-abstraction sweep continues to ride along when one of inventory.c / missions.c / towne.c is touched.
+§25.B is the obvious unlock and the largest single item — that's the right next big bet. Smaller bites if you'd rather: §17.A.4 slice A (missions.c, mostly flag-guarded so fixture-unreachable, ~1 session), or the §23.A structure-extraction follow-up (the helpers + monster-melee branch lift). §22's body should move to `port-plan-complete.md` whenever the next plan-hygiene pass runs. The state-abstraction sweep continues to ride along when one of inventory.c / missions.c / towne.c is touched.
 
 ## 1. What the code actually is
 
