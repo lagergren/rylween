@@ -1414,7 +1414,7 @@ static void createparty() {
 
     tx0(res_text("driv.create.header"));
 
-    if (state.num_parties == 25) {
+    if (state.num_parties >= PARTY_SLOT_HARD_MAX - 1) {
         tx0(res_text("driv.create.full"));
         ryl_pause();
         cleanexit();

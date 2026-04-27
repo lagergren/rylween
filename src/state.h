@@ -48,6 +48,29 @@ _Static_assert(INVENTORY_SLOT_MAX <= 26,
    state.h — would be circular). Implemented in res.c. */
 int res_party_member_max(void);
 
+/* Sentinel value for `struct person.towne` when the NPC is placed in
+   the wilderness (no town). Decoupled from town-slot 0 in §25.B step
+   3a so that the upcoming step 3b can flip the towns array to
+   0-indexed without colliding with the wilderness marker. The
+   persistence layer (driv.c::write_current_world / read_current_world)
+   bridges WILDERNESS_TOWN <-> the symbolic "wilderness" enum string;
+   in-memory comparisons should use this constant directly. */
+#define WILDERNESS_TOWN (-1)
+
+/* Static caps for the persistent NPC and party slot tables on
+   `struct ryl_state`. The runtime-active counts come from the data
+   layer (`res_npc_slot_max()`) and from `state.num_parties` — these
+   constants are just the upper bounds the static table can hold so
+   indexing `state.npc[slot]` / `state.p[i]` stays in-bounds for any
+   valid slot id. NPC capacity = slot 0 (wilderness sentinel today,
+   first realized NPC after §25.B step 4) + 40 NPC slots; party
+   capacity = slot 0 (unused) + 25 parties (driv.c::create_party
+   refuses #26 with "all parties created"). Bumping these requires
+   matching changes in the data layer; the NPC bound is also asserted
+   against `res_npc_slot_max()` once the world has loaded. */
+#define NPC_SLOT_HARD_MAX 41
+#define PARTY_SLOT_HARD_MAX 26
+
 struct person {
     int32_t job; /* 1 Merchant */
                  /* 2 Ranger   */
@@ -68,7 +91,7 @@ struct person {
     /* 16Hermit*/
 
     int32_t nr;                /* Reference number 1-40*/
-    int32_t towne;             /* What town? 0=wilderness*/
+    int32_t towne;             /* What town? WILDERNESS_TOWN=wilderness*/
     int32_t building;          /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
     int32_t x;                 /* What X coord.*/
     int32_t y;                 /* What Y coord. Not valid for townes.*/
@@ -184,8 +207,8 @@ struct ryl_state {
 
     /* Persistent game data (flushed to realm.dat / npc.dat). */
     char map[42][82];
-    struct party p[26];
-    struct person npc[41];
+    struct party p[PARTY_SLOT_HARD_MAX];
+    struct person npc[NPC_SLOT_HARD_MAX];
 };
 
 extern struct ryl_state state;

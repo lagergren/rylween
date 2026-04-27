@@ -1135,6 +1135,13 @@ static int npc_slot_max(void) {
             max_id = (int)id_n->u.iv;
         }
     }
+    if (max_id >= NPC_SLOT_HARD_MAX) {
+        LOG_E("realm",
+              "world.json5 npcs id=%d exceeds NPC_SLOT_HARD_MAX (%d); "
+              "bump state.h or trim ids",
+              max_id, NPC_SLOT_HARD_MAX);
+        exit(1);
+    }
     npc_slot_max_cache = max_id;
     return max_id;
 }

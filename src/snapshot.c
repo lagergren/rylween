@@ -103,7 +103,7 @@ static void snapshot_write(void) {
     fprintf(f, "hour_of_day=%d\n", state.hour_of_day);
     fprintf(f, "banished=%d\n", state.banished);
     fprintf(f, "last_played_day=%d\n", state.last_played_day);
-    if (state.cpl >= 1 && state.cpl <= 25) {
+    if (state.cpl >= 1 && state.cpl < PARTY_SLOT_HARD_MAX) {
         emit_party(f, state.cpl);
     }
     emit_map(f);
