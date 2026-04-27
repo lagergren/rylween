@@ -4285,3 +4285,54 @@ read the enum-without-offset, and the runtime sentinel is named
 inline at the boundary. The remaining static caps —
 `state.p[26]`, `map[42][82]`, party-inventory `[17]`, and
 `attack_today[26]` — stay queued under §12.3.
+
+### §25.B step 4 — NPC axis flip (2026-04-27 #13, `404b1e8`)
+
+Closes the fourth and final §25.B axis: `state.npc[]` flips from
+`1..res_npc_slot_max()` to `0..res_npc_slot_max()-1` end-to-end.
+Slot 0 is the first realized NPC (Garth) — the dormant zero-init
+sentinel that shadowed the towne == 0 wilderness conflation in
+the legacy code is gone, and wilderness NPCs are still identified
+by `towne == WILDERNESS_TOWN` (lifted in step 3a/C4).
+
+`res_npc_slot_max()` switches semantics from "largest declared
+`id:`" to "count of NPC records"; `npc_slot_max()` validates that
+ids are 0..count-1 contiguous (a typo or a gap fails loudly at
+world load) and that count <= NPC_SLOT_HARD_MAX. The realizer's
+slot validation (`slot < 1 || slot > slot_max` →
+`slot < 0 || slot >= slot_count`), the wilderness collision loop
+(`for x = 1; x < slot+1` → `for x = 0; x < slot+1`), the heap-
+alloc sizing (drops the `+1`), and the speak.c / towne.c "no
+NPC at this square" sentinel (`talk = 0` / `who = 0` →
+`-1` with a `< 0` test, since slot 0 now collides with a valid
+NPC) all flip together. The save format's `id: <int>` decrements
+by 1 and the visited_npcs[] array shortens by one entry; the
+mechanical-residual `slot > 39` literal in `read_current_world`
+gets lifted to `slot >= res_npc_slot_max()` along the way.
+
+RNG identity preserved across both placement paths: the bin draw
+range, count, and linear probe are unchanged, and the wilderness
+collision loop walks the same set of state.npc entries (just
+shifted by one slot index). All 39 fixtures byte-identical on
+`make check` + `make testasan` with no `.expect_snapshot` rebless
+required (the snapshot doesn't dump NPC state).
+
+`data/world.json5` decremented `npcs.<key>.id` 1..39 → 0..38.
+Doc comments throughout — `state.h` `NPC_SLOT_HARD_MAX` framing,
+`res.h` `for_each_npc` macro and `res_npc_slot_max` semantics,
+`state.h` `state.npc` allocation, `driv.c::read_current_world`
+schema note — refreshed to drop the "slot 0 wilderness sentinel"
+framing.
+
+**Bar:** 39 fixtures green on `make check` + `make testasan`;
+byte-identical fixture output across the entire suite (no rebless
+needed).
+
+**§25.B closed end-to-end** with this commit. The four axis flips
+are: monster-slot (step 1), party-member (step 2), town (step 3b),
+NPC (step 4). All four iterate from 0 with `for_each_*` macros
+that the data layer drives, and the underlying state arrays are
+heap-allocated off the world.json5 record counts (with `state.p`
+/ `map` / inventory / `attack_today` as the remaining static caps
+queued under §12.3). The 1-indexed → 0-indexed migration that §25
+described is done.

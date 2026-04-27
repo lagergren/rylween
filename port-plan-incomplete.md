@@ -2,9 +2,9 @@
 
 This file collects every section of `port-plan.md` that is in-progress, planned, or pure reference / vision material. Completed lifts live in `port-plan-complete.md`; the cross-section index lives in the master `port-plan.md`. Section numbers and `§N` cross-references are preserved verbatim — sections appear in their original §-order regardless of which file they live in.
 
-## Top of queue (status snapshot, 2026-04-27 #12)
+## Top of queue (status snapshot, 2026-04-27 #13)
 
-A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the 2026-04-27 #11 snapshot (§25.B steps 1+2+3a), plus the §25.B step 3b closure (town axis flip + heap-alloc + enums.towne wilderness lift) in 2026-04-27 #12.
+A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the 2026-04-27 #12 snapshot (§25.B steps 1+2+3a+3b), plus the §25.B step 4 closure (NPC axis flip — slot 0 becomes the first realized NPC) in 2026-04-27 #13. **§25.B closed end-to-end.**
 
 ### Guiding principle (re-affirmed 2026-04-27 #12)
 
@@ -12,7 +12,6 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 ### Active — work is in flight or fully unblocked
 
-- **§25.B — flip 1-indexed → 0-indexed** (§25). **Step 3b closed in 2026-04-27 #12** (town axis flipped to 0-indexed end-to-end; `towns[]` heap-allocated off the world.json5 array length; `enums.towne` dropped its leading 'wilderness' entry — the `WILDERNESS_TOWN` sentinel is now bridged by the literal string `"wilderness"` at the four enum-spanning callsites). Four commits (`bedd842..f66247a`), 39 fixtures byte-identical on `make check` + `make testasan`; 17 fixtures' `.expect_snapshot` re-blessed for the `twn=N` top-line drift in C3, byte-identical otherwise. **Still pending:** **§25.B step 4** (NPC axis flip — `for_each_npc` to `slot = 0; slot < res_npc_slot_max()`, `state.npc[]` slot 0 becomes the first realized NPC). The npc-placement bin draw in `res.c::res_realize_npcs` (`ryl_random(0, T-1)` over bins `0..n_towns` where bin 0 = wilderness) still needs careful surgery in step 4 to keep RYL_FAKE_SEED RNG identity. Save/load `npcs[].id` 1-based encoding flips to 0-based — every fixture's `current-world.json5` reblesses (the `npcs:` block emits `id: <int>` under realm save). Estimate: ~1 session for step 4 + fixture re-bless inspection.
 - **§17.A.4 slices A-D — text extraction in missions / interact / dungeon / subs** (§17). Pending since 2026-04-23. Slice A (missions.c, 11 trigger blocks; mostly flag-guarded so likely fixture-unreachable) and B (interact.c, smaller) are mechanical Option-A migrations; C (dungeon.c, 917 lines, biggest fixture-rebless risk) and D (subs.c, overlaps §14.4 scorelist) are bigger jobs. Slice E (DSL `menu_branch` + `engine_call` ops) is conditional — only if A-D show enough repetition. None started.
 - **State-abstraction sweep** (§25.A.1 #6 footer; tracker: `feedback_state_abstraction.md`). Untouched callsites still reach into raw `state.p[state.cpl].FIELD` outside §25.A's blast radius. Current `state.p[cpl]` counts (post-§25.B step 2): driv.c=0, ydarg.c=0, subs.c=0, inventory.c=6, primitives.c=6 (abstraction home — fine), towne.c=2 (one lifted via `pa_first_level()` in §25.B step 2), missions.c=6. Cross-party `state.p[i].FIELD` access in subs.c::scorelist now routes through `mmax`-bound 0-indexed loops (no longer hardcoded `1..4`) but still reads `state.p[i].{exp,lv,kills,cl,name}` directly — a `pa_at(i)` style by-index helper is the next step. Per the broader survey: 17 .c files touch `state.*` directly today (battle/driv/dungeon/interact/inventory/missions/party/primitives/replay_knobs/res/ryl/script/snapshot/speak/subs/towne/wld); only party.c / state.h / res.c are the natural homes. Strategy: ride along when next touching one of these files; no speculative refactors. Each callsite's blast radius is small.
 - **§23.A structure-extraction (deeper than §23.A residual)**. The monster-melee fallback arm in battle.c is now numbers-from-data (combat.monster_attack subtree, 2026-04-27 #8) but the branch itself is still C control flow. Lifting the whole arm into a script DSL `do:` body the way the nasty-magic block already is needs two helpers: a `for_each_alive_player`-style predicate iterator and combat-ctx target binding. Smaller of the two §23 follow-ups; ~1 session if those helpers land first.
@@ -20,12 +19,11 @@ A pointer-only triage of every open item below. The bodies still describe each t
 ### Mechanical residuals (small, ready when convenient)
 
 - **driv.c::terminate visited-grid shift bug** (surfaced in 2026-04-27 #11 during the §25.B step 3a / C3 NPC-abstraction migration). The party-removal path in `driv.c` around line 619 has `for_each_npc(i) { for (j = 1; j < state.num_parties; j++) { npc_visited_set(n, x, npc_visited(n, x + 1)); } }` — the inner loop iterates `j` but the body never references `j`; it just rewrites `visited[x] = visited[x+1]` `num_parties-1` times (idempotent). Looks like the intended logic is `for (j = x; j < state.num_parties; j++) { npc_visited_set(n, j, npc_visited(n, j + 1)); }` — i.e. compact the visited grid down by one slot when party `x` is removed. Likely fixture-unreachable today (none of the 39 fixtures exercise terminate-realm-then-keep-playing); needs an audit pass + a one-line fix + a fixture if reachable. Migration commit `54e3e81` preserved the existing behavior verbatim.
-- **driv.c::read_current_world hardcoded `slot > 39`**. The persistence reader at driv.c:1267 still gates on `slot > 39` instead of `slot > res_npc_slot_max()`. The runtime npc-table size now lives in `NPC_SLOT_HARD_MAX` (state.h) and the dynamic count is `res_npc_slot_max()`; the literal 39 should swap to the dynamic accessor when §25.B step 4 (NPC axis flip) lands — at that point the writer's `for (int j = 0; j <= res_npc_slot_max(); j++)` loop and the reader bound become symmetric. Trivial to lift in step 4.
 - **towne.c `state.twn == 2` city/village fork** (surfaced in 2026-04-27 #12 during the §25.B step 3b/C3 axis flip). The city/village text-id pick at `towne.c::enter` is hardcoded to `state.twn == 2` (Wilor post-flip); ideally each town record carries its own settlement-class string-id (or a `class: 'city' | 'village'` enum) and the C lookup vanishes. Out of scope for §25.B; queues under §17.A.4 / §24bis text-extraction work.
 
 ### Deferred — work is queued but explicitly post-something
 
-- **§24bis — `id: <int>` → slug-keyed state**. Deferred until post-§25.B (bundled to avoid double-touching every state accessor). ~4-6 session block touching every C file.
+- **§24bis — `id: <int>` → slug-keyed state**. Deferred until post-§25.B (now unblocked — §25.B closed end-to-end in 2026-04-27 #13); bundled to avoid double-touching every state accessor. ~4-6 session block touching every C file.
 - **§12.3 — dynamic sizing from world.json5 (`limits` subtree)**. Cap-driven heap-backed flex arrays for `struct party` / `struct ryl_state`. §12.3 has the sequence; §12.2 leak audit (Commit C) already done. Safe-but-large; gated only on appetite. Save-format license (user-granted 2026-04-22) lets `realm.dat` / `npc.dat` migrate to JSON5.
 - **§12.1 — Dockerfile + GitHub CI**. Reproducible build for non-mac contributors. No code changes blocking it; ~1 session.
 - **Ydarg as a regular mission** (§12.4 residual). Move end-game boss from bespoke `ydarg()` / `confrontation()` into a regular mission with trigger + item-flag conditions. Blocked on the DSL evaluator learning mission triggers + item-flag paths.
@@ -42,6 +40,11 @@ A pointer-only triage of every open item below. The bodies still describe each t
 ### Closed but body still in this file (move-out queue)
 
 - **§22 — DSL unification**. Closed end-to-end per §22.14 (2026-04-26): all three lane-A stragglers (§22.5 #8a banish, §22.F speak_missions, §22.G docs/dsl.md) shipped, plus pre-§22 stragglers (Phase 5c driv.c/ydarg.c residuals, §20 TINY T3/T4 path literals, §22.10 dungeon_encounter slots). Body should move to `port-plan-complete.md` like §23 / §24 already did; leave a stub for the master TOC.
+- **§25 — 1-indexed → 0-indexed cleanup**. Closed end-to-end per §25.B step 4 (2026-04-27 #13): all four axis flips landed (monster, party-member, town, NPC) plus the §25.A iterator-abstraction prep work. Per-step closure bodies live under "§25.B step closures" in `port-plan-complete.md`; the parent §25 body in this file is now reference material for the migration approach and can move alongside §22.
+
+### Closed since the previous snapshot (2026-04-27 #12)
+
+- **§25.B step 4 — NPC axis flip** (single commit, `404b1e8`). Closes §25.B end-to-end. Body moved to `port-plan-complete.md` "§25.B step closures" section. 39 fixtures byte-identical on both gates with no `.expect_snapshot` rebless required.
 
 ### Closed since the previous snapshot (2026-04-27 #11)
 
@@ -79,17 +82,13 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 ### Recommended next session
 
-**Finish §25.B before anything else.** Step 3a (wilderness-sentinel lift + NPC abstraction + heap-alloc) closed in 2026-04-27 #11; step 3b (town axis + heap-alloc + enums.towne wilderness lift) closed in 2026-04-27 #12; only step 4 (NPC axis) remains.
+**§25.B closed end-to-end** in 2026-04-27 #13. The four axis flips landed clean (monster, party-member, town, NPC); the cap-driven heap-allocation pattern works as designed (`state.npc` and `towns[]` are right-sized off the world.json5 record counts at load time). Pick from the remaining open items in increasing cost order:
 
-  1. **Flip NPC axis** (§25.B step 4). `for_each_npc` macro to `slot = 0; slot < res_npc_slot_max()`. `state.npc[]` slot 0 becomes the first realized NPC (was zero-init wilderness sentinel — but with the wilderness sentinel now lifted to `WILDERNESS_TOWN`, slot 0 is just dormant). `res_realize_npcs` placement bin draw needs careful surgery: currently `ryl_random(0, T-1)` over bins `0..n_towns` where bin 0 = wilderness; the post-flip equivalent has to keep the SAME RNG draw count and SAME seed advance to preserve fixture identity, just remap the result. Save/load `npcs[].id` 1-based encoding flips to 0-based — every fixture's `current-world.json5` snapshot reblesses (the `npcs:` block emits `id: <int>` under realm save). The hardcoded `slot > 39` in `driv.c::read_current_world` (line 1267) lifts to `> res_npc_slot_max()` here. The right-sized `state.npc` allocation from C2 already covers slot 0 + 1..max; no resize needed. NPC bin → slot mapping in `res.c::res_realize_npcs` was just touched in step 3b/C4 — currently `bin == 0 → WILDERNESS_TOWN`, `bin >= 1 → towns slot N-1`; preserve that mapping shape.
-
-  2. **Re-bless wave**. Every fixture's `.expect_snapshot` will diff in the realm-NPC and party-NPC visited[] arrays where slot indices shift. Likely 38 fixtures touched again. RNG identity is the load-bearing constraint — if any draw count shifts, fixture `.expect` outputs drift too and that's a bug to find before blessing.
-
-After §25.B closes, the remaining work (in roughly increasing cost order):
   - **State-abstraction sweep**: 17 modules currently reach into `state.*` directly. The natural homes are state.h / party.c / res.c / snapshot.c (formatter); migration debt is in inventory.c (~5), primitives.c (~7 — actually fine, it IS a state-abstraction layer), missions.c (MB_PLAYER_NAME), subs.c::scorelist (cross-party access — needs a `pa_at(int party_idx)` by-index helper first), speak.c (state.npc walks), towne.c (2 raw `state.p[cpl]`). Ride along; no speculative refactors. ~3-5 sessions.
   - **§17.A.4 slices A-D** — text extraction in missions / interact / dungeon / subs (~3-4 sessions).
   - **§23.A structure-extraction follow-up** — lift the monster-melee fallback arm into a script DSL `do:` body (~1 session if helpers land first).
-  - Later: §24bis (`id: <int>` → slug, post-§25.B), §12.3 (dynamic sizing from world.json5), §12.1 (Dockerfile + CI), Ydarg-as-mission.
+  - **§24bis** — `id: <int>` → slug-keyed state, now unblocked. ~4-6 session block touching every C file.
+  - Later: §12.3 (dynamic sizing from world.json5 — the remaining static caps `state.p[26]`, `map[42][82]`, party-inventory `[17]`, `attack_today[26]`), §12.1 (Dockerfile + CI), Ydarg-as-mission.
 
 ## 1. What the code actually is
 

@@ -43,4 +43,4 @@ Section numbers are preserved across the split — every `§N` cross-reference i
 | 23 | Engine→data extraction (post-§22 planning)                                   | complete    | port-plan-complete.md      |
 | 24 | Logging + remote console (audit 2026-04-26)                                  | complete    | port-plan-complete.md      |
 | 24bis | `id:` → slug-keyed state (deferred, post-§25)                              | deferred    | port-plan-incomplete.md    |
-| 25 | 1-indexed → 0-indexed cleanup — §25.A all four iterator axes closed; §25.B (flip to 0-indexed) is the next big move | in-progress | port-plan-incomplete.md    |
+| 25 | 1-indexed → 0-indexed cleanup — §25.A iterator abstractions + §25.B four-axis flip closed end-to-end | complete    | port-plan-complete.md      |
