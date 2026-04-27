@@ -6,6 +6,7 @@
 
 #include "compat.h" /* stricmp */
 #include "inventory.h" /* PS_* */
+#include "log.h"
 #include "res.h"
 #include "ryl.h" /* state */
 
@@ -111,13 +112,13 @@ int pa_first_level(void) {
 static int pa_flag_slot(const char *tag) {
     int32_t slot = res_flag_slot(tag);
     if (slot < 0) {
-        fprintf(stderr, "pa_flag: unknown tag '%s' — add it to "
-                        "data/world.json5 flags:\n",
-                tag);
+        LOG_E("party",
+              "pa_flag: unknown tag '%s' — add it to data/world.json5 flags:",
+              tag);
         exit(1);
     }
     if (slot >= (int32_t)sizeof state.p[state.cpl].flag) {
-        fprintf(stderr, "pa_flag: tag '%s' slot %d out of range\n", tag, slot);
+        LOG_E("party", "pa_flag: tag '%s' slot %d out of range", tag, slot);
         exit(1);
     }
     return slot;
@@ -130,8 +131,8 @@ int pa_flag_get(const char *tag) {
 int pa_flag_is(const char *tag, const char *state_name) {
     int32_t want = res_flag_value_id(tag, state_name);
     if (want < 0) {
-        fprintf(stderr, "pa_flag_is: '%s' not in flag '%s' values[]\n",
-                state_name, tag);
+        LOG_E("party", "pa_flag_is: '%s' not in flag '%s' values[]",
+              state_name, tag);
         exit(1);
     }
     return state.p[state.cpl].flag[pa_flag_slot(tag)] == want;
@@ -140,8 +141,8 @@ int pa_flag_is(const char *tag, const char *state_name) {
 void pa_flag_set(const char *tag, const char *state_name) {
     int32_t want = res_flag_value_id(tag, state_name);
     if (want < 0) {
-        fprintf(stderr, "pa_flag_set: '%s' not in flag '%s' values[]\n",
-                state_name, tag);
+        LOG_E("party", "pa_flag_set: '%s' not in flag '%s' values[]",
+              state_name, tag);
         exit(1);
     }
     state.p[state.cpl].flag[pa_flag_slot(tag)] = (unsigned char)want;
@@ -154,8 +155,8 @@ int pa_flag_count(void) {
 
 static void pa_check_flag_slot(const char *who, int slot) {
     if (slot < 0 || slot >= pa_flag_count()) {
-        fprintf(stderr, "%s: slot %d out of range [0, %d)\n", who, slot,
-                pa_flag_count());
+        LOG_E("party", "%s: slot %d out of range [0, %d)", who, slot,
+              pa_flag_count());
         exit(1);
     }
 }
@@ -244,8 +245,8 @@ void pa_add_kills(uint32_t delta) {
 
 static void pa_check_inv_slot(const char *who, int slot) {
     if (slot < 1 || slot > INVENTORY_SLOT_MAX) {
-        fprintf(stderr, "%s: slot %d out of range [1, %d]\n", who, slot,
-                INVENTORY_SLOT_MAX);
+        LOG_E("party", "%s: slot %d out of range [1, %d]", who, slot,
+              INVENTORY_SLOT_MAX);
         exit(1);
     }
 }
@@ -296,9 +297,9 @@ static unsigned char *pa_special_ptr(int which) {
         case PS_JAZZYFOOT:   return &p->jazzyfoot;
         case PS_SILVERKEY:   return &p->silverkey;
         default:
-            fprintf(stderr,
-                    "pa_special: unknown which=%d (PS_NONE..PS_LAST)\n",
-                    which);
+            LOG_E("party",
+                  "pa_special: unknown which=%d (PS_NONE..PS_LAST)",
+                  which);
             exit(1);
     }
 }
@@ -324,7 +325,7 @@ void party_journal_add(struct party *p, const char *line) {
         size_t cap = p->journal_cap ? p->journal_cap * 2 : 8;
         char **grown = realloc(p->journal, cap * sizeof *grown);
         if (!grown) {
-            fprintf(stderr, "party_journal_add: realloc failed\n");
+            LOG_E("party", "party_journal_add: realloc failed");
             exit(1);
         }
         p->journal = grown;
@@ -332,7 +333,7 @@ void party_journal_add(struct party *p, const char *line) {
     }
     char *dup = strdup(line);
     if (!dup) {
-        fprintf(stderr, "party_journal_add: strdup failed\n");
+        LOG_E("party", "party_journal_add: strdup failed");
         exit(1);
     }
     p->journal[p->journal_n++] = dup;
@@ -359,7 +360,7 @@ void free_journal(struct party *p) {
 static void *alloc_zero(size_t bytes) {
     void *p = malloc(bytes);
     if (!p) {
-        fprintf(stderr, "party_realize: malloc(%zu) failed\n", bytes);
+        LOG_E("party", "party_realize: malloc(%zu) failed", bytes);
         exit(1);
     }
     memset(p, 0, bytes);
