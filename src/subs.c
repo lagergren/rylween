@@ -7,6 +7,7 @@
 #include "gfx.h"
 #include "interact.h"
 #include "inventory.h"
+#include "log.h"
 #include "missions.h"
 #include "party.h"
 #include "primitives.h"
@@ -258,6 +259,7 @@ void weaponoff() {
     c = key();
     if (pm_digit_in_range(c)) {
         pm_t pm = pm_from_digit(c);
+        LOG_D("input", "weaponoff: digit=%c -> slot=%d", c, pm.m);
         if (!pm_has_weapon(pm)) {
             clw();
             tx("%s has no weapon!\r\n", pronoun(c - '1', 1));
@@ -293,6 +295,7 @@ void armouroff() {
     c = key();
     if (pm_digit_in_range(c)) {
         pm_t pm = pm_from_digit(c);
+        LOG_D("input", "armouroff: digit=%c -> slot=%d", c, pm.m);
         if (!pm_has_armour(pm)) {
             clw();
             tx("%s has no armour!\r\n", pronoun(c - '1', 1));
@@ -563,6 +566,7 @@ void spell(int32_t place) {
         }
     }
     who = c - '1';
+    LOG_D("input", "priest cast: digit=%c -> caster slot=%d", c, who);
     caster = pm_cur(who);
 
     clw();

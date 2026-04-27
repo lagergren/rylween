@@ -12,6 +12,7 @@
 #include "json5.h"
 #include "party.h"
 #include "primitives.h"
+#include "log.h"
 #include "res.h"
 #include "speak.h"
 #include "state.h"
@@ -2232,10 +2233,12 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
                        "menu_branch: index_var must be string");
             }
             int32_t slot;
+            const char *bind_kind;
             if (letter_n) {
                 const node *lo_n = obj_get(letter_n, "lo");
                 char lo = (char)toupper((unsigned char)lo_n->u.sv[0]);
                 slot = (int32_t)(ch - lo + 1);
+                bind_kind = "letter_range";
             } else if (digit_n) {
                 /* §25.B: digit_range binds 0-based offset from `lo`.
                    With `lo: 1` (the only form in use today, for party-
@@ -2245,11 +2248,14 @@ static ops_result do_menu_branch(const node *op, const char *script_id,
                 const node *lo_n = obj_get(digit_n, "lo");
                 int32_t lo_v = eval_expr(lo_n, script_id, idx, bindings, env);
                 slot = (int32_t)(ch - '0') - lo_v;
+                bind_kind = "digit_range";
             } else {
                 die_at(script_id, idx,
                        "menu_branch: index_var requires letter_range "
                        "or digit_range option");
             }
+            LOG_D("input", "menu_branch %s: key=%c -> slot=%d (bind '%s')",
+                  bind_kind, ch, slot, index_var_n->u.sv);
             rt_bind_set(env, index_var_n->u.sv, slot, script_id, idx);
         }
         const node *then_n = obj_get(o, "then");
@@ -2996,7 +3002,10 @@ static void do_ask_target(const node *op, const char *script_id, size_t idx,
                 break;
             }
         }
-        rt_bind_set(env, var_n->u.sv, (int32_t)(d - 'A'), script_id, idx);
+        int32_t mon_slot = (int32_t)(d - 'A');
+        LOG_D("input", "ask_target monster_alive: letter=%c -> slot=%d (bind '%s')",
+              d, mon_slot, var_n->u.sv);
+        rt_bind_set(env, var_n->u.sv, mon_slot, script_id, idx);
         return;
     }
     if (strcmp(kind_n->u.sv, "party_member") == 0) {
@@ -3008,7 +3017,10 @@ static void do_ask_target(const node *op, const char *script_id, size_t idx,
                 break;
             }
         }
-        rt_bind_set(env, var_n->u.sv, (int32_t)(d - '1'), script_id, idx);
+        int32_t mem_slot = (int32_t)(d - '1');
+        LOG_D("input", "ask_target party_member: digit=%c -> slot=%d (bind '%s')",
+              d, mem_slot, var_n->u.sv);
+        rt_bind_set(env, var_n->u.sv, mem_slot, script_id, idx);
         return;
     }
     die_at(script_id, idx,

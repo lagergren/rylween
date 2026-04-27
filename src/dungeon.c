@@ -3,6 +3,7 @@
 #include "driv.h"
 #include "dungeon.h"
 #include "gfx.h"
+#include "log.h"
 #include "party.h"
 #include "primitives.h"
 #include "script.h"
@@ -115,7 +116,9 @@ void dungeon(int32_t levels, const char *scenario) {
                     }
                 }
                 if (pm_digit_in_range(d)) {
-                    show(d - '1');
+                    int slot = d - '1';
+                    LOG_D("input", "dungeon show: digit=%c -> slot=%d", d, slot);
+                    show(slot);
                 }
                 if (toupper(d) == 'A') {
                     for_each_party_member(i) {

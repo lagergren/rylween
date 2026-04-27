@@ -3,6 +3,7 @@
 #include "driv.h"
 #include "gfx.h"
 #include "inventory.h"
+#include "log.h"
 #include "party.h"
 #include "primitives.h"
 #include "replay_knobs.h"
@@ -379,7 +380,9 @@ void ydarg() {
                 }
             }
             if (pm_digit_in_range(d)) {
-                show(d - '1');
+                int slot = d - '1';
+                LOG_D("input", "ydarg show: digit=%c -> slot=%d", d, slot);
+                show(slot);
             }
             if (toupper(d) == 'A') {
                 for_each_party_member(i) {
