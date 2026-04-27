@@ -104,7 +104,12 @@ void speak(int32_t bld, int32_t tow) {
     int32_t rumours = 0;
 
     clw();
-    if (tow) {
+    /* WILDERNESS_TOWN selects the at-location single-NPC path used
+       when speaking outside any town; any real town slot id (0-indexed
+       post-§25.B step 3b) selects the building/town listing. The
+       prior `if (tow)` check used tow == 0 as the wilderness sentinel,
+       which collided with the now-valid towns[0] slot. */
+    if (tow != WILDERNESS_TOWN) {
         j = 1;
         x = 0;
         for_each_npc(i) {

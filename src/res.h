@@ -313,13 +313,14 @@ int32_t res_color(char terrain);
    3=possessive). "" if missing. Never NULL. */
 const char *res_pronoun(int gender, int xx);
 
-/* Towns — fixed display name and world-map coordinates per twn id 1..4
-   (matching state.twn / struct person.towne). Order matches the
-   enums.towne table. res_town_name returns "" for 0 (the JSON-null
-   sentinel slot) or out of range; res_town_x / res_town_y return 0;
-   res_town_at returns the twn id for a (x,y) that matches a declared
-   town, 0 otherwise. NPCs in the wilderness use the dedicated runtime
-   sentinel WILDERNESS_TOWN (state.h), not towne == 0. */
+/* Towns — fixed display name and world-map coordinates per twn slot
+   0..res_town_count()-1 (matching state.twn / struct person.towne).
+   Order matches the enums.towne table. res_town_name returns "" for
+   out-of-range slots; res_town_x / res_town_y return 0; res_town_at
+   returns the twn id for a (x,y) that matches a declared town, or
+   WILDERNESS_TOWN otherwise. The runtime "no town" / "in wilderness"
+   marker is WILDERNESS_TOWN (state.h) — never a valid array index
+   into towns[]. */
 const char *res_town_name(int twn);
 int32_t res_town_x(int twn);
 int32_t res_town_y(int twn);
@@ -332,25 +333,21 @@ int32_t res_town_tax(int twn);
    gate. Default false: omitted records have no church. */
 int32_t res_town_has_church(int twn);
 
-/* Number of declared towns (slots 1..res_town_count()). towns[0] is
-   the JSON null sentinel (data/world.json5 `towns: [null, {...}, ...]`)
-   left zeroed — never a real town. The npc-placement bin draw still
-   uses bins 0..n_towns where bin 0 corresponds to the wilderness (see
-   res_realize_npcs); the runtime NPC field uses WILDERNESS_TOWN
-   (state.h) — decoupled from town slot 0 in §25.B step 3a so that the
-   upcoming step 3b town-axis flip can repurpose towns[0] as a real
-   town. The §24.A0 setup-logging off-by-one landed in this area.
-   Returns 0 before the world has loaded. */
+/* Number of declared towns (slots 0..res_town_count()-1). The npc-
+   placement bin draw uses bins 0..n_towns where bin 0 corresponds to
+   the wilderness; the result-mapping shifts that to towns slot
+   draw-1 (see res_realize_npcs). The runtime NPC field uses
+   WILDERNESS_TOWN (state.h) for "in wilderness" — never a valid
+   towns[] index. Returns 0 before the world has loaded. */
 int res_town_count(void);
 
-/* §25.A.4: iterate town slots 1..res_town_count(). The wilderness
-   sentinel at towns[0] is never visited — callers that need to walk
-   "every bin including wilderness" (only res_realize_npcs's random-
-   placement draw today) keep an explicit 0..n loop shape. §25.B will
-   edit this macro (and re-bless fixtures) when the codebase flips to
-   0-indexed. */
+/* §25.A.4 (axis flipped in §25.B step 3b): iterate town slots
+   0..res_town_count()-1. Callers that need to walk "every bin
+   including wilderness" (only res_realize_npcs's random-placement
+   draw today) keep an explicit 0..T loop shape and apply the
+   draw-1 result mapping themselves. */
 #define for_each_town(slot) \
-    for (int slot = 1; slot <= res_town_count(); slot++)
+    for (int slot = 0; slot < res_town_count(); slot++)
 
 /* Per-building opening hours. `name` matches a key under the
    `buildings` subtree of data/world.json5 (e.g. "smith"). Writes

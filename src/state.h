@@ -48,12 +48,13 @@ _Static_assert(INVENTORY_SLOT_MAX <= 26,
    state.h — would be circular). Implemented in res.c. */
 int res_party_member_max(void);
 
-/* Sentinel value for `struct person.towne` when the NPC is placed in
-   the wilderness (no town). Decoupled from town-slot 0 in §25.B step
-   3a so that the upcoming step 3b can flip the towns array to
-   0-indexed without colliding with the wilderness marker. The
-   persistence layer (driv.c::write_current_world / read_current_world)
-   bridges WILDERNESS_TOWN <-> the symbolic "wilderness" enum string;
+/* Sentinel value for `struct person.towne` (NPC placed in the
+   wilderness) and `state.twn` (player not standing in any town).
+   Distinct from any valid towns[] slot id — towns are 0-indexed
+   after §25.B step 3b, so the sentinel sits below the valid range
+   to keep array-index comparisons unambiguous. The persistence
+   layer (driv.c::write_current_world / read_current_world) bridges
+   WILDERNESS_TOWN <-> the symbolic "wilderness" enum string;
    in-memory comparisons should use this constant directly. */
 #define WILDERNESS_TOWN (-1)
 

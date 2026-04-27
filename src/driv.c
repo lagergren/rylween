@@ -890,8 +890,12 @@ static void write_current_world() {
         fputs(", towne: ", f);
         /* Save format keeps the symbolic "wilderness" string from
            enums.towne[0]; the runtime sentinel WILDERNESS_TOWN
-           bridges back to that enum index here. */
-        wcw_enum(f, "towne", n->towne == WILDERNESS_TOWN ? 0 : n->towne);
+           bridges back to that enum index, and the 0-indexed
+           towns[] slot id (post-§25.B step 3b/C3) shifts up by 1
+           to land on the 1-indexed enum entry until step 3b/C4
+           drops the wilderness enum entry. */
+        wcw_enum(f, "towne",
+                 n->towne == WILDERNESS_TOWN ? 0 : n->towne + 1);
         fputs(", building: ", f);
         wcw_enum(f, "building", n->building);
         fprintf(f, ", x: %d, y: %d, gender: ", n->x, n->y);
@@ -1272,9 +1276,14 @@ static int read_current_world() {
             n->job = rcw_enum(rec, "job", "job", n->job);
             /* Save format encodes wilderness as the symbolic
                "wilderness" string (enum index 0); bridge back to
-               WILDERNESS_TOWN for in-memory comparisons. */
+               WILDERNESS_TOWN for in-memory comparisons. Enum
+               index N>=1 is a 1-indexed reference into the same
+               name list as the 0-indexed towns[] array, so shift
+               down by 1 to recover the runtime slot id (until
+               §25.B step 3b/C4 drops 'wilderness' from the enum
+               and the bridge swaps to a literal-string match). */
             int twne = rcw_enum(rec, "towne", "towne", 0);
-            n->towne = (twne == 0) ? WILDERNESS_TOWN : twne;
+            n->towne = (twne == 0) ? WILDERNESS_TOWN : twne - 1;
             n->building = rcw_enum(rec, "building", "building", n->building);
             n->x = rcw_int(rec, "x", n->x);
             n->y = rcw_int(rec, "y", n->y);

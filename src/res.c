@@ -1037,21 +1037,21 @@ const char *res_pronoun(int gender, int xx) {
 }
 
 const char *res_town_name(int twn) {
-    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
+    if (twn < 0 || twn >= (int)n_towns || !towns[twn].name) {
         return "";
     }
     return towns[twn].name;
 }
 
 int32_t res_town_x(int twn) {
-    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
+    if (twn < 0 || twn >= (int)n_towns || !towns[twn].name) {
         return 0;
     }
     return towns[twn].x;
 }
 
 int32_t res_town_y(int twn) {
-    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
+    if (twn < 0 || twn >= (int)n_towns || !towns[twn].name) {
         return 0;
     }
     return towns[twn].y;
@@ -1067,18 +1067,18 @@ int32_t res_town_at(int x, int y) {
             return i;
         }
     }
-    return 0;
+    return WILDERNESS_TOWN;
 }
 
 int32_t res_town_tax(int twn) {
-    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
+    if (twn < 0 || twn >= (int)n_towns || !towns[twn].name) {
         return 0;
     }
     return towns[twn].tax;
 }
 
 int32_t res_town_has_church(int twn) {
-    if (twn < 1 || twn > (int)n_towns || !towns[twn].name) {
+    if (twn < 0 || twn >= (int)n_towns || !towns[twn].name) {
         return 0;
     }
     return towns[twn].has_church;
@@ -1283,7 +1283,18 @@ const char *res_npc_in_town(int32_t twn, const char *job_sym) {
         if (res_enum_id("job", job_n->u.sv) != target_job) {
             continue;
         }
-        if (res_enum_id("towne", twn_n->u.sv) != twn) {
+        /* `twn_n` is the world.json5 string ('Thord' / 'wilderness' /
+           …); res_enum_id maps it to the enums.towne 1-indexed slot.
+           Shift down by 1 so it compares against the 0-indexed
+           towns[] slot id (or against WILDERNESS_TOWN = -1 when the
+           string is 'wilderness'). The §25.B step 3b/C4 commit will
+           drop 'wilderness' from the enum and switch this match to
+           a literal-string compare. */
+        int twn_id = res_enum_id("towne", twn_n->u.sv);
+        if (twn_id < 0) {
+            continue;
+        }
+        if (twn_id - 1 != twn) {
             continue;
         }
         const node *name_n = obj_get(rec, "name");
@@ -1461,11 +1472,14 @@ void res_realize_npcs(void) {
         const node *towne_node = obj_get(rec, "towne");
         if (towne_node) {
             /* FIXED: declared slot. Apply job/towne/building/x/y verbatim.
-               enums.towne[0] is the symbolic "wilderness" entry; remap
-               that to the runtime sentinel (which is decoupled from
-               town slot 0 ahead of the §25.B step 3b town-axis flip). */
+               enums.towne[0] is the symbolic "wilderness" entry → runtime
+               sentinel WILDERNESS_TOWN; enum index N>=1 maps to towns[]
+               slot N-1 (the §25.B step 3b axis flip dropped the slot-0
+               sentinel from the towns array, so enum and array share
+               the same name list offset by one until §25.B step 3b/C4
+               drops 'wilderness' from the enum). */
             int twne = rn_enum(rec, "towne", "towne", 0);
-            n->towne = (twne == 0) ? WILDERNESS_TOWN : twne;
+            n->towne = (twne == 0) ? WILDERNESS_TOWN : twne - 1;
             n->building = rn_enum(rec, "building", "building", 0);
             n->x = rn_int(rec, "x", 0);
             n->y = rn_int(rec, "y", 0);
@@ -1482,16 +1496,17 @@ void res_realize_npcs(void) {
                between dots keeps the visual pacing recognizable
                (~1s total over ~23 random NPCs vs the prior ~14s).
                The bin draw range and the linear probe stay 0..T-1
-               (bin 0 = wilderness) so the RNG stream advances
-               identically to the pre-§25.B step 3a sequence — only
-               the post-mapping changes when twn lands on bin 0. */
+               (bin 0 = wilderness, bins 1..n_towns = town slots
+               0..n_towns-1) so the RNG stream advances identically to
+               the pre-§25.B step 3a sequence — only the post-mapping
+               shifted in step 3b: bin N>=1 -> town slot N-1. */
             ryl_delay(40);
             int twn = ryl_random(0, T - 1);
             while (counts[twn] >= cap) {
                 twn = (twn + 1) % T;
             }
             counts[twn]++;
-            n->towne = (twn == 0) ? WILDERNESS_TOWN : twn;
+            n->towne = (twn == 0) ? WILDERNESS_TOWN : twn - 1;
             if (!npc_in_wilderness(npc_at_slot(slot))) {
                 n->building = ryl_random(0, 1) + 1;
                 n->x = 0;
@@ -2002,9 +2017,10 @@ static void fold_pronoun(const node *pronoun_node, const char *path) {
 }
 
 /* -------- towns subtree --------
-   Array indexed by twn (slot 0 = null wilderness; 1..n_towns = towns).
-   Heap-allocated to fit one slot per declared entry; the static cap
-   TOWN_SLOT_HARD_MAX is enforced at fold-time only. */
+   Array indexed by twn slot 0..n_towns-1. Heap-allocated to fit one
+   slot per declared entry; the static cap TOWN_SLOT_HARD_MAX is
+   enforced at fold-time only. The wilderness sentinel is the
+   distinct WILDERNESS_TOWN value (state.h), never a towns[] slot. */
 static void fold_towns(const node *towns_node, const char *path) {
     if (!towns_node) {
         return;
@@ -2016,7 +2032,7 @@ static void fold_towns(const node *towns_node, const char *path) {
         res_die(path, towns_node->line, "towns: too many entries");
     }
     size_t n = towns_node->u.arr.n;
-    n_towns = n > 0 ? n - 1 : 0;
+    n_towns = n;
 
     /* Drop any prior allocation; reload paths re-fold from scratch. */
     for (size_t i = 0; i < towns_cap; i++) {
@@ -2035,13 +2051,11 @@ static void fold_towns(const node *towns_node, const char *path) {
     }
     towns_cap = n;
 
-    for (size_t i = 1; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         const node *rec = towns_node->u.arr.items[i];
-        if (!rec || rec->kind == N_NULL) {
-            continue;
-        }
-        if (rec->kind != N_OBJ) {
-            res_die(path, rec->line, "towns: entry must be object or null");
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : towns_node->line,
+                    "towns: entry must be object");
         }
         const node *name = obj_get(rec, "name");
         const node *x = obj_get(rec, "x");

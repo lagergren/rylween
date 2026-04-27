@@ -186,7 +186,7 @@ void enter() {
         return;
     }
 
-    state.twn = 0;
+    state.twn = WILDERNESS_TOWN;
 
     if (tile == '1') {
         hut();
@@ -198,7 +198,7 @@ void enter() {
     }
 
     state.twn = res_town_at(pa_x(), pa_y());
-    if (!state.twn) {
+    if (state.twn == WILDERNESS_TOWN) {
         return;
     }
 
@@ -227,7 +227,12 @@ void enter() {
         blitgfx(citypic);
         clw();
         statusline();
-        tx_fmt(state.twn == 3 ? "towne.enter.city" : "towne.enter.village",
+        /* Wilor (towns[2] post-§25.B step 3b axis flip) is the only
+           town tagged "city"; the other three render as villages.
+           This is a hardcoded data dependency the §17.A.4 / §24bis
+           pass would lift to per-town data, but the constant suffices
+           as long as the towns table tops out at four entries. */
+        tx_fmt(state.twn == 2 ? "towne.enter.city" : "towne.enter.village",
                (ryl_bind[]){{"twn", twnname}, {0}});
         tx0(res_text("towne.enter.divider"));
         tx0(res_text("towne.enter.menu_core"));
