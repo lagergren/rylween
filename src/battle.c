@@ -564,52 +564,41 @@ void encounter(int32_t foe, int32_t mandatory) {
                             }
                         }
                     } else {
-                        while (1) {
-                            who = ryl_random(0, 3);
-                            if (pa_is_alive(who)) {
-                                break;
-                            }
-                        }
-                        clw();
-                        char melee_dp_buf[16] = "0";
-                        ryl_bind melee_binds[] = {
-                            {"monster_name", fn},
-                            {"target_name", pm_name(pm_cur(who))},
-                            {"dmg", melee_dp_buf},
-                            {0},
-                        };
-                        tx_fmt("battle.monster.attacks", melee_binds);
-                        tx_fmt("battle.monster.target_excl", melee_binds);
-                        ryl_delay(400);
-                        if (ryl_chance(ws + res_combat_int("monster_attack.hit_bonus"))) {
-                            int32_t dmg_div =
-                                res_combat_int("monster_attack.damage_div");
-                            dp = (dmg_div > 0) ? mh[x] / dmg_div : mh[x];
-                            dp += ryl_random(
-                                0, res_combat_int("monster_attack.damage_spread_max"));
-                            dp -= obdamage(pm_ar(pm_cur(who)));
-                            int32_t dmg_min =
-                                res_combat_int("monster_attack.damage_min");
-                            if (dp < dmg_min) {
-                                dp = dmg_min;
-                            }
-                            snprintf(melee_dp_buf, sizeof melee_dp_buf, "%d", dp);
-                            tx0(res_text("battle.monster.and_hits_for"));
-                            tx_fmt("battle.monster.damage_pts", melee_binds);
-                            pm_add_hp(pm_cur(who), -dp);
-                            if (pm_hp(pm_cur(who)) <= 0) {
-                                if (pa_pl()) {
-                                    pa_add_pl(-1);
-                                }
-                                pm_set_hp(pm_cur(who), 0);
-                                pm_set_dead(pm_cur(who), 1);
-                                tx_fmt("battle.monster.melee_dies", melee_binds);
-                                ryl_delay(1000);
-                            }
-                            ryl_delay(1000);
-                        } else {
-                            tx0(res_text("battle.monster.blow_misses"));
-                            ryl_delay(600);
+                        /* §23.A follow-up: monster-melee fallback arm
+                           lifted to monster_spells.melee.do. C side
+                           sets up the same combat ctx as the cast
+                           branch above and binds attacker_idx + the
+                           monster_name carrier; everything else
+                           (target pick, hit roll, damage formula,
+                           death narration) lives in the script body. */
+                        const void *melee_body = res_monster_melee_node();
+                        if (melee_body) {
+                            char attacker_buf[8];
+                            snprintf(attacker_buf, sizeof attacker_buf,
+                                     "%d", x);
+                            ryl_bind melee_binds[] = {
+                                {"attacker_idx", attacker_buf},
+                                {"monster_name", fn},
+                                {0},
+                            };
+                            int ws_int = ws;
+                            struct script_combat_ctx ctx = {
+                                .noc = noc,
+                                .mh = mh,
+                                .deadc = deadc,
+                                .fn = fn,
+                                .confused = &confused,
+                                .held = &held,
+                                .antimagic = &antimagic,
+                                .ws = &ws_int,
+                                .player_held = &playerheld,
+                                .player_confused = &playerconfused,
+                                .h2 = h2,
+                            };
+                            play_spell_body("monster_spells.melee",
+                                            melee_body, melee_binds,
+                                            &ctx);
+                            ws = (int32_t)ws_int;
                         }
                     }
                 }

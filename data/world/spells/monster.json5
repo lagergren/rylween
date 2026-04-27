@@ -11,6 +11,15 @@
 //   fire   : per-alive-player random(0,4) inside the iteration
 //   hold   : no draws
 //   confuse: no draws
+//
+// melee:  monster-melee fallback arm (the "else" of the cast-vs-
+// melee branch). Same combat-ctx wiring as the spell bodies above;
+// bound from C as `attacker_idx` (the active monster's slot from
+// the for_each_monster loop) plus `monster_name`. RNG identity:
+//   pick_random_alive_player draw-loop, then chance(ws+hit_bonus),
+//   then on hit random(0, damage_spread_max). Numeric constants
+//   live under combat.monster_attack in world.json5 and are read
+//   here via the { combat_int: '<path>' } expression form.
 {
   spells: [
     // §23.A case 0: Frost Finger. Single-target — the legacy picks
@@ -124,4 +133,85 @@
       ],
     },
   ],
+
+  // §23.A follow-up: monster-melee fallback arm. The legacy if/else
+  // in battle.c's nasty-magic dispatcher routes here when the cast
+  // gate `chance(15 + sp/2) && !antimagic` doesn't fire. RNG draws
+  // happen in the same order as the legacy C arm:
+  //
+  //   1. pick_random_alive_player    (the draw-loop on alive players)
+  //   2. chance(ws + hit_bonus)      (hit roll)
+  //   3. random(0, damage_spread_max) (only on hit)
+  //
+  // Damage formula:
+  //   dmg = max(monster_hp[attacker]/damage_div + random(0, spread)
+  //              - obdamage(member.ar), damage_min)
+  //
+  // The legacy C protected division by zero (`(damage_div > 0) ?
+  // mh/div : mh`); the data has damage_div=6 and that won't change,
+  // so the protect is dropped per the project's "no error handling
+  // for scenarios that can't happen" policy. If damage_div is ever
+  // set to 0 the script dies loudly via div-by-zero in the
+  // expression evaluator — louder than the C's silent fallback.
+  //
+  // The legacy `if (pa_pl()) pa_add_pl(-1)` guard is dropped to
+  // match the frost/fire spell bodies above, which call pa_add_pl
+  // unguarded. The outer for_each_monster loop is gated by
+  // pa_alive_count() > 0 (else losegame() takes over), so the
+  // guard never triggers in practice.
+  melee: {
+    do: [
+      { let: 'who', value: { engine_int: 'pick_random_alive_player' }},
+      { engine_call: 'clw' },
+      { engine_bind: { fn: 'pa_name', args: [{ var: 'who' }],
+                       var: 'target_name' }},
+      { emit: 'battle.monster.attacks' },
+      { emit: 'battle.monster.target_excl' },
+      { pause: 400 },
+      { if: { cond: { chance: { add: [
+                                  { battle_flag: 'ws' },
+                                  { combat_int: 'monster_attack.hit_bonus' },
+                              ]}},
+              then: [
+                { let: 'dmg', value: { max: [
+                    { sub: [
+                      { add: [
+                        { div: [
+                          { monster_hp: { var: 'attacker_idx' }},
+                          { combat_int: 'monster_attack.damage_div' },
+                        ]},
+                        { random: [0, { combat_int: 'monster_attack.damage_spread_max' }]},
+                      ]},
+                      { obdamage: { member: { var: 'who' }, field: 'ar' }},
+                    ]},
+                    { combat_int: 'monster_attack.damage_min' },
+                ]}},
+                { emit: 'battle.monster.and_hits_for' },
+                { emit: 'battle.monster.damage_pts' },
+                { mutate: { target: { member_field: { idx: { var: 'who' },
+                                                      field: 'hp' } },
+                            op: 'sub', value: { var: 'dmg' } }},
+                { if: { cond: { lte: [{ member: { var: 'who' },
+                                        field: 'hp' }, 0] },
+                  then: [
+                    { mutate: { target: { member_field: { idx: { var: 'who' },
+                                                          field: 'hp' } },
+                                op: 'set', value: 0 }},
+                    { mutate: { target: { member_field: { idx: { var: 'who' },
+                                                          field: 'dead' } },
+                                op: 'set', value: 1 }},
+                    { engine_call: 'pa_add_pl', args: [-1] },
+                    { emit: 'battle.monster.melee_dies' },
+                    { pause: 1000 },
+                  ]
+                }},
+                { pause: 1000 },
+              ],
+              else: [
+                { emit: 'battle.monster.blow_misses' },
+                { pause: 600 },
+              ],
+      } },
+    ],
+  },
 }

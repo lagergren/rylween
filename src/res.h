@@ -272,6 +272,12 @@ const void *res_monster_spell_node(int idx);
    hardcoded 4. 0 if the subtree is absent or empty. */
 int res_monster_spell_count(void);
 
+/* §23.A follow-up: monster-melee fallback body lookup. The melee
+   `do:` lives at `monster_spells.melee.do` (sibling of the spells
+   array). Returns the body node, or NULL if the subtree is
+   missing. Pointer is owned by the world tree. */
+const void *res_monster_melee_node(void);
+
 /* UI verb pool for ryl_pause()'s "(<verb> RETURN key)" prompt.
    Indexed by `ryl_random(0, res_pause_verb_count() - 1)` at the call
    site. Pointers are owned by the world tree and outlive the call.

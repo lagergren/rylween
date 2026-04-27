@@ -2893,6 +2893,28 @@ int res_monster_spell_count(void) {
     return (int)spells->u.arr.n;
 }
 
+/* §23.A follow-up: monster-melee body lookup at
+   monster_spells.melee.do. Sibling of spells: the melee turn's
+   `do:` body lives next to the spell array because both are
+   monster-side combat ops sharing the same combat-ctx wiring;
+   the file's top-level shape stays a single $import in
+   world.json5. */
+const void *res_monster_melee_node(void) {
+    const node *root = world_tree;
+    if (!root) {
+        return NULL;
+    }
+    const node *ms = obj_get(root, "monster_spells");
+    if (!ms || ms->kind != N_OBJ) {
+        return NULL;
+    }
+    const node *melee = obj_get(ms, "melee");
+    if (!melee || melee->kind != N_OBJ) {
+        return NULL;
+    }
+    return obj_get(melee, "do");
+}
+
 /* UI verb pool — `prompts.pause_verbs[idx]`. Indexed by
    ryl_random(0, count-1) at the ryl_pause call site so RNG identity
    stays explicit there. Returns NULL on missing subtree, wrong
