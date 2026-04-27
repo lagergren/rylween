@@ -10,7 +10,7 @@ The plan grew large enough that contributors were hitting closed lifts before re
 
 - **`port-plan.md` (this file)** — master overview only. The §1..§25 section index below names every section, its current status, and the file it lives in. No section bodies live here.
 - **`port-plan-complete.md`** — every section whose lift has fully landed (and the closed reference / decision sections that have no follow-up work). Bodies are verbatim from the original `port-plan.md`.
-- **`port-plan-incomplete.md`** — every section that is in-progress, planned, or pure reference / vision material that stays evergreen. Active engineering queues (§20, §22's embedded §23 lookahead, §24, §25) live here. Bodies are verbatim from the original `port-plan.md`.
+- **`port-plan-incomplete.md`** — every section that is in-progress, planned, or pure reference / vision material that stays evergreen. Active engineering queues (§20, §25) live here. Bodies are verbatim from the original `port-plan.md`.
 
 Section numbers are preserved across the split — every `§N` cross-reference in either file still points to the same section it always did. New work usually appends inside `port-plan-incomplete.md`; once a section closes, move it across to `port-plan-complete.md` (or split it if only part of it closed).
 
@@ -39,7 +39,7 @@ Section numbers are preserved across the split — every `§N` cross-reference i
 | 19 | Post-§17 follow-ups surfaced during the hardcoded-indices sweep              | complete    | port-plan-complete.md      |
 | 20 | Code-as-data extraction queue (audit 2026-04-25)                             | in-progress | port-plan-incomplete.md    |
 | 21 | Reentrancy / thread-safety plan (audit 2026-04-25)                           | planned     | port-plan-incomplete.md    |
-| 22 | DSL unification plan (audit 2026-04-25) — §22 closed bar three lane-A stragglers (§22.5 #8a, §22.F, §22.G); embeds §23 lookahead | in-progress | port-plan-incomplete.md    |
+| 22 | DSL unification plan (audit 2026-04-25)                                      | complete    | port-plan-complete.md      |
 | 23 | Engine→data extraction (post-§22 planning)                                   | complete    | port-plan-complete.md      |
 | 24 | Logging + remote console (audit 2026-04-26)                                  | complete    | port-plan-complete.md      |
 | 24bis | `id:` → slug-keyed state (deferred, post-§25)                              | deferred    | port-plan-incomplete.md    |

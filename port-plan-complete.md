@@ -1586,6 +1586,1937 @@ design — just that the dynamic path doesn't wedge).
   class. Nothing new here beyond what N=4 already required.
 
 
+## 22. DSL unification plan (audit 2026-04-25)
+
+Earlier subsections complete; outstanding work below (§22 itself closed per the §22.14 note inline; the embedded §23 lookahead at lines 4820-5015 is the active engine→data extraction queue and stays in this file).
+
+Goal: a reader who has never seen the C source should be able
+to reproduce the entire game by reading the data shards alone.
+Today the data is partway there — `data/world/items/`,
+`data/world/monsters/`, `data/world/scripts/`,
+`data/world/texts/` already cover most of the gameplay surface
+— but multiple inconsistencies and parallel mechanisms get in
+the way. This section catalogues every place the DSL fails the
+"same patterns look the same" test, with a sequenced plan to
+collapse them.
+
+The principle, restated: **one DSL, one expression model, one
+binding model, one engine registry, one set of enum records
+keyed by lowercase symbol with a `name:` field for display**.
+The shards are the program; the engine is just the runtime.
+
+### 22.1 Audit findings (sorted by leverage)
+
+#### Tier 1 — different DSLs for similar things
+
+The single biggest thing in the way of "read the data alone"
+is that there are three independent DSLs in the data tree, with
+incompatible syntaxes, vocabularies, and evaluators.
+
+  1. **Script DSL** — `src/script.c` (~3000 lines), object-shaped
+     JSON5. Owns dialogue / mission / town-service / dungeon
+     scripts. Vocabulary: `{ if: { cond: ..., then: [...] } }`,
+     `{ mutate: { target: ..., op: ..., value: ... } }`,
+     `{ engine_call: 'name', args: [...] }`,
+     `{ for_member: { var: 'm', then: [...] } }`,
+     `{ switch: { expr: ..., cases: [{match: V, then: [...]}] } }`,
+     etc. Expression grammar: `{ add | sub | mul | div: [a,b] }`,
+     `{ eq | ne | lt | gt: [a,b] }`, `{ var: 'name' }`,
+     `{ member: <expr>, field: '<name>' }`, etc. This is the
+     mature, growing surface — driven by the L2/L7/§17-F arc.
+
+  2. **Spell DSL** — `src/eval.c` (~1350 lines), Lisp-style
+     S-expressions. Owns spell effect bodies under `do:`.
+     Vocabulary: `['seq', ...]`, `['if', cond, then]`, `['set',
+     '$dmg', expr]`, `['*', 'caster.lv', ['rand', 2, 8]]`,
+     `['say', 'battle.spell.frost.damage', '$dmg']`. Path syntax
+     is `'caster.hp'` / `'target.dead'` / `'$dmg'` (string-as-path),
+     vs the script DSL's `{ member: <expr>, field: 'hp' }` shape.
+     Operator names diverge: `'rand'` vs `'random'`, `'*'` vs
+     `'mul'`, positional `'sub'` (binary subtract) vs script's
+     `op: 'sub'` (mutate's subtract-into-slot).
+
+     Today: `mage.frost` is the only spell with a `do:` body.
+     Every other spell carries `legacy_effect: '<name>'` pointing
+     at the SE_* case still resident in `battle.c`. The spell
+     DSL was designed to receive those migrations but the
+     battle.c dispatcher hasn't yet been routed.
+
+  3. **speak_missions DSL** — `data/world/scripts/speak_missions.json5`,
+     a third micro-DSL. Vocabulary:
+     `conds: [{flag: '<tag>', when: '<state>'}]` for AND-of-N
+     condition matching, `binds: [{name, kind, npc_role|arg}]`
+     with hardcoded kinds (`npc_name`, `npc_loc`, `dx_str`,
+     `dy_str`) for resolved bindings. Both shapes parallel script
+     DSL primitives but use entirely different keys: the cond
+     shape parallels `if.cond`, the bind shape parallels
+     `engine_bind`, the kind enum parallels `engine_bind_tbl`'s
+     fn registry.
+
+#### Tier 2 — symbol/identity hygiene
+
+  4. **Enums shaped as positional CapitalCased arrays.**
+
+     ```json5
+     pc_class: ['', 'Fighter', 'Thief', 'Mage', 'Priest', 'Bard', 'Ranger'],
+     race:     ['', 'Human', 'Dwarf', 'Elf', 'Halfling'],
+     jobname:  ['', 'Merchant', 'Ranger', 'Fighter', 'Wizard', ...],
+     ```
+
+     Two coupled smells: (a) the script symbol IS the display
+     string ('Priest' is both what the script says and what the
+     UI renders), so renaming "Priest" to "Cleric" silently
+     re-points every dispatch; (b) the case style is inconsistent
+     across enums — `pc_class`/`race`/`jobname` are CapitalCased,
+     `building`/`gender`/`pic` are lowercase symbols, `name`/
+     `towne` are proper nouns. Scripts can't tell which to expect.
+
+     Map-keyed records resolve both — the lowercase key is the
+     symbol, an explicit `name:` field is the display string.
+
+  5. **Map-keyed records over positional arrays everywhere
+     identity matters.** Items shards (`weapons`, `armour`,
+     `magic_items`, `specials`, `treasures`, `gear`, `potions`),
+     `monsters`, `dungeons`, `flags`, `terrain`, `towns`,
+     `buildings` (subtree, not the enum) are all keyed correctly
+     today — the `id:` field is just the runtime int, the key
+     carries the identity. The remaining offenders are the three
+     enums above. Apply the same shape.
+
+#### Tier 3 — magic ints leaking into the data DSL
+
+  6. **No symbolic registry for `wld_location_*` slots.** Today:
+     `{ engine_int: 'wld_location_x', args: [7] }`. Slot 7 is the
+     beast cave (per `world.json5:56` comment) but the data
+     doesn't say so. Add a `world_locations:` registry with
+     symbolic keys (`fire_shield_cave`, `beast_cave`, `silver_pit`,
+     ...) carrying `slot:` fields, then tag
+     `wld_location_x.arg[0]` and `wld_location_y.arg[0]` with the
+     new enum via the `arg_enums[]` shortcut landed in §20.20 #1.
+     Scripts read `args: ['beast_cave']`.
+
+  7. **Engine_int item-id args still bare ints.** Sites:
+     `inv_find_item(34)` (tent), `inv_find_in_range(33, 34)`
+     (blanket..tent). Tag those arg positions with `'item'` in the
+     registry; scripts read `args: ['tent']` and `args: ['blanket',
+     'tent']`. Same mechanism as #6, applied to existing enum.
+
+  8. **ASCII-offset arithmetic in inventory key handling.**
+     Today scripts decode the captured letter back into a slot
+     index by hand:
+
+     ```json5
+     { let: 'slot',    value: { sub: [{ var: 'sell_key' }, 64] } },
+     { let: 'item_id', value: { sub: [{ var: 'buy_key' },  34] } },
+     ```
+
+     Bare 64 and 34 are ASCII offsets ('A'-1 and 'A'-31
+     respectively). Smelly. Plus `key_range: ['A', 'P']` hardcodes
+     16 inventory slots — but the inventory bound is dynamic
+     (`INVENTORY_SLOT_MAX` / `res_inventory_slot_max()`). The
+     `digit_range: { lo:1, hi:{engine_int:'pa_party_member_max'} }`
+     pattern proves the dynamic-bound model works; needs a
+     `letter_range` analogue plus an automatic slot-index binding.
+
+     Proposed shape:
+
+     ```json5
+     { letter_range: { lo: 'A', count: { engine_int: 'inv_slot_max' } },
+       index_var:  'slot',     // 1..N, slot index
+       letter_var: 'sell_key', // optional, the actual letter
+       then: [...] }
+     ```
+
+     Affects 4 sites in `towne.json5` (Sell shop, generic-buy,
+     spell-buy at line ~1398, and one more). Drops two `sub:N`
+     conversions and 4 hardcoded ranges; ties everything to a
+     single `INVENTORY_SLOT_MAX` source of truth.
+
+#### Tier 4 — op-shape consistency
+
+  9. **Legacy shorthand in `if.cond` should go.** Today `if.cond`
+     accepts `{ flag: 'tag', eq: 'value' }` (legacy) AND
+     `{ eq: [{ flag: 'tag' }, 'value'] }` (modern expr form). Two
+     ways to write the same thing. Sweep all data sites onto the
+     modern form, drop legacy in `eval_cond`.
+
+ 10. **Unify `chance:` and `if:` shape.** Today `chance` is its
+     own control-flow op:
+     `{ chance: { pct: N, then: [...], else: [...] } }`.
+     But `chance` is already an expression form (§17-F:
+     `{ chance: <expr> }` returns 0/1). So the op-shape collapses
+     to `{ if: { cond: { chance: N }, then: [...], else: [...] } }`
+     — drops one op from the surface; control flow goes through
+     one primitive.
+
+ 11. **Three engine registries with different arg shapes.**
+     `engine_call` (void return, args evaluated as exprs),
+     `engine_int` (int return, args evaluated as exprs, optional
+     `arg_enums[]` for symbolic resolution), `engine_bind` (string
+     return, mixed string/expr args, output via `var:`). One
+     registry with `kind: void|int|str` per entry would let a
+     uniform call shape land at every site:
+
+     ```json5
+     { engine: 'pa_is_class', args: [{var:'who'}, 'Ranger'] }   // returns int
+     { engine: 'invlist' }                                      // returns void
+     { engine: 'pa_name', args: [{var:'who'}], var: 'who_name' }// returns str
+     ```
+
+     One vocab to learn instead of three. Cosmetic — defer if
+     items 1-10 are enough.
+
+ 12. **Op-shape micro-inconsistencies.** `set_flag: '<tag>',
+     value: '<state>'` is a flat 2-key op; everything else nests
+     under one key. `pause: 1000` is a raw int next to
+     `wait_input: true`. `keys: ['A', 'B']` is array-shaped vs
+     `key: 'A'` scalar. These are minor — document the rule "one
+     obvious arg takes it directly, multiple args nest in an
+     object" and call it done.
+
+#### Tier 5 — case/style consistency
+
+ 13. **Lowercase symbol style across all enums.** Falls out of #4
+     automatically — once enums are keyed records, the *key* is
+     always lowercase symbol, the *display* is whatever `name`
+     field carries. The case-style smell goes away.
+
+#### Tier 6 — documentation
+
+ 14. **Single canonical DSL reference.** `src/eval.c:1` references
+     `docs/dsl.md §6` but the file doesn't exist. `src/script.h`
+     header has the script DSL ops table. `speak_missions.json5`
+     header documents its mini-DSL. Three sources, one missing.
+     After tiers 1+2+3 land, write `docs/dsl.md` as the single
+     reference covering control flow, expressions, bindings,
+     enum shape, and the registry. The shards plus the doc =
+     the reproducible game spec.
+
+### 22.2 Sequenced execution plan
+
+**A. Spell DSL → script DSL convergence** (tier 1, item 1).
+**LANDED 2026-04-25.** Collapsed two evaluators into one. Retired
+`src/eval.c` + `src/eval.h` (~1480 lines), the `SE_*` enum,
+`se_from_legacy_effect`, the `effect` field on `ryl_spell`, the
+`res_spell_node`-vs-fallback dispatch in battle.c / subs.c, and
+`res_lib_effect` (no callers). Migrated all 12 spell behaviours
+(mage frost / fire / confusion / death / hold / antimagic;
+priest heal / restoration / rebirth / banish / revelation /
+teleport / earthquake) plus the six `formulas:` records to the
+script DSL. New script.c surface: `play_spell_body`,
+`play_formula_int`, `script_combat_ctx` (mh/deadc/noc/fn +
+encounter-flag pointers), `ask_target` (monster_alive +
+party_member), `for_monster`, `monster_hp` / `monster_dead` /
+`monster_count` / `battle_flag` / `state_banished` exprs and
+matching mutate lvalues, `pa_teleport_step` engine_call (the
+one-spell-special movement loop kept in C).
+
+  Landed (commits, oldest first): `8a25b20` engine surface,
+  `3fe6792` mage.frost, `4e651d8` priest dispatch shim +
+  priest.heal, `5e4d9a3` priest.restoration, `c2bcc32`
+  priest.rebirth, `9bf262f` priest.banish, `06158ba`
+  priest.revelation, `73225fe` priest.teleport, `79e4fcd`
+  priest.earthquake (last priest legacy_effect), `d8a6e86`
+  mage.fire + for_monster op, `91405c1` mage.confusion,
+  `b8a5406` mage.hold, `6e72948` mage.antimagic, `b65a18c`
+  mage.death + dispatch cleanup, `70c7c98` formulas migration,
+  `<this commit>` eval.c retirement + cleanup.
+
+  Coverage gap captured: §22.5 plans the spell-cast fixture
+  queue. The 22 existing fixtures cover no spell path, so the
+  migrations rest on code review + RNG identity reasoning +
+  ASan clean. Adding the queue is the natural follow-up.
+
+**B. Enum keyed records with display split** (tier 2, items 4-5).
+**LANDED 2026-04-25.** Concurrent with A — touches different files.
+
+  Steps:
+   - Engine: `res_enum_id()` accepts both array-of-string and
+     object-of-records shapes (transition-friendly); add
+     `res_enum_name(table, id)` returning `.name` field for the
+     new shape, falling back to slot-string for old.
+   - Migrate `pc_class` first (6 entries, prove the path; fold
+     existing `classes:` `levelup:` records into the same object).
+     Sweep ~30 callsites across C and ~10 across data
+     (`'Priest'` → `'priest'`).
+   - `race` next (4 entries), then `jobname` (16 entries).
+   - Tighten `fold_enums` to warn on positional-array shape once
+     all three are converted.
+
+  Landed (commits, oldest first): `97f235e` (pc_class), `5e41f5f`
+  (race), `bcf771c` (jobname), `dfeacae` + `1469f05` + `8cc2d6d` +
+  `78984ae` (npcs subtree + retiring `enums.name` /
+  `innkeepers` / `tavernkeepers` positional arrays). Plus
+  consistency rename `jobname` enum id → `job` (the field on NPC
+  records is `job:`, so the enum id matches now). All three
+  CapitalCased enums are keyed records with explicit `name:` for
+  display; lowercase key is the script-stable symbol. NPC records
+  use lowercase keys and explicit `name:` field. New helpers:
+  `res_npc_name(slot)`, `res_npc_sym(slot)`,
+  `res_npc_in_town(twn, job_sym)`. New string-engine fn:
+  `npc_in_town(job_sym, twn)`. `res_enum("name", idx)` is a thin
+  shim that routes through `res_npc_name`, so DSL bindings via
+  `{fn:'res_enum',args:['name',...]}` need no edits.
+
+**C. Symbolic args sweep** (tier 3, items 6-7). **LANDED 2026-04-25.**
+Small focused changes after A+B; can do per-shard.
+
+  Steps:
+   - Item 6 needs new data: a `world_locations:` registry mapping
+     symbolic name → slot. C side: `wld_location_x/y` accept a
+     symbolic key (or keep int slots; resolve at engine_int
+     dispatch via arg_enums).
+   - Item 7 is a one-line registry edit (`arg_enums: {'item'}` on
+     the three inv_* fns) plus a 3-site data sweep.
+
+  Landed: `world_locations:` keyed-records enum added to
+  world.json5 (9 slots: hermit_dungeon, thun_temple,
+  kobold_village, borin_camp, nolrim_crypt,
+  master_crown_dungeon, beast_cave, silver_key_pit,
+  hobgoblin_cave). `wld_location_x/y.arg[0]` tagged
+  `"world_locations"`; `inv_find_item.arg[0]`,
+  `inv_find_in_range.arg[0,1]`, `inv_count_in_range.arg[0,1]`
+  tagged `"item"`. The arg_enums dispatcher learned to route
+  `"item"` through `res_item_id` (items live in their own
+  shards, not enums:); other tags still go via res_enum_id.
+  Sweep: 1 site in scripts/speak.json5 (jazzy_ogre.beast_cave),
+  3 sites in scripts/rest.json5 (tent / blanket+tent / tent).
+  C-side bare-int callsites in speak.c/missions.c (slots 2/8 +
+  t->a/b->arg) deferred — they're a separate raw-int leak in
+  C, not in the data DSL.
+
+**D. Inventory letter-range dynamic bound** (tier 3, item 8).
+**LANDED 2026-04-25.** Engine extension: add `letter_range`
+op-option with `count: <expr>`, `index_var:`, `letter_var:`.
+Sweep 4 towne.json5 sites; drop two `sub:N` conversions.
+
+  Landed: new `letter_range: { lo: 'A', count: <expr> }` option
+  variant on `menu_branch` (parallel to `digit_range`), with
+  optional sibling `index_var:` that binds the matched 1-based
+  slot (`ch - lo + 1`) into rt_env. New `engine_int: 'inv_slot_max'`
+  exposes `res_inventory_slot_max()` so scripts read the dynamic
+  bound directly. Sweep: 2 sell-shop sites in towne.json5 (the
+  bargain-flow and the merchant `(S)ell` arm) — both lose their
+  `key_range:['A','P']` + `sub:[sell_key,64]` pair and read
+  `slot` from index_var. The buy-menu `key_range:['A','G']` site
+  stays as-is — its A..G letters map to specific item ids via a
+  fixed table, not to inventory slots, so letter_range doesn't
+  apply. Briefing's "4 sites" was an overcount; only the two
+  ['A','P'] sites are inventory-slot decoders.
+
+**E. Op-shape consistency** (tier 4, items 9-12). **LANDED 2026-04-25.**
+
+  Steps:
+   - Item 9 (drop legacy `if.cond` shorthand): grep for `flag:.*eq:`,
+     `flag:.*ne:`, `gold:.*gte:`, `gold:.*lt:`; rewrite each onto
+     expression form; remove the legacy branch from `eval_cond`.
+   - Item 10 (collapse `chance:` into `if {cond:{chance:...}}`):
+     grep for `{ chance: { pct:`, rewrite, remove the `do_chance`
+     control-flow op (keep the `chance` expression form).
+   - Item 11 (engine registry unification) — defer or do; write
+     up the shape and decide.
+   - Item 12 (micro-inconsistencies): document the rule, no code
+     changes.
+
+  Landed: items 9 + 10. Item 9 — only one `flag:.*eq:` callsite
+  remained in the corpus (`dungeon.json5` tammys_prison) and
+  zero `gold:.*(gte|lt):` callsites; the briefing's "30-50"
+  estimate predated several earlier sweeps that had already
+  migrated callers. New `flag_value: ['<tag>', '<value>']`
+  expression primitive (mirrors `enum:`) makes symbolic
+  flag-value comparisons compose in expression form. Legacy
+  branch retired from `eval_cond`, which is now a thin
+  truthy-check around `eval_expr`. The `eval_expr` ambiguity
+  guard for `{flag, eq|ne}` stays as a redirect diagnostic.
+  Item 10 — four `{ chance: { pct, then, else } }` op-form
+  callsites collapsed to `{ if: { cond: { chance: <expr> },
+  ... } }`; `do_chance` plus its dispatch arm retired (~25
+  lines). Items 11 + 12 deferred — engine registry unification
+  is a separate scoped sweep, and the micro-inconsistency rule
+  set reduces to "everything new flows through eval_expr"
+  which is now self-evident from the engine code.
+
+**F. `speak_missions.json5` rewrite** (tier 1, item 3). Depends
+on A landing (script DSL has loops/switch/conds rich enough
+already). Convert each NPC role's stages into a script that
+fires the right play_script with the right bindings. Remove
+the speak_missions micro-DSL evaluator from `speak.c`.
+
+**G. Single-doc DSL reference** (tier 6, item 14). After A-F.
+Write `docs/dsl.md` covering: control flow, expressions,
+bindings, lvalues, enum shape, registry vocabulary, error
+contract, examples. This is what makes "read the data alone"
+actually true.
+
+### 22.3 What lands when
+
+Tier 1 is the strategic capstone — the rest is mechanical or
+narrowly-scoped extensions of existing patterns. The right
+order to land them: A (spell DSL convergence) and B (enum
+shape) can run in parallel; both unlock C+D+E. F depends on
+A. G is the documentation pass after the surface stabilises.
+
+B, C, D, E, A have landed (2026-04-25). Remaining: F, G. F
+depends on A (now landed); G is the documentation pass after
+the surface stabilises. The post-Lane-A coverage queue
+(§22.5) and the reward-gold display fix (§22.6) are tracked
+as follow-ups, not blockers.
+
+Estimated remaining work: ~0.5 session for F, ~0.5 session
+for G, plus ~3-5 hours for §22.5 and ~30 minutes for §22.6.
+Cumulative ~1.5-2 sessions if done sequentially.
+
+### 22.4 Non-goals
+
+  - **Not a rewrite.** Every existing op stays; this is sweep
+    + collapse + retire, not redesign.
+  - **Not a typing overhaul.** No formal type system on the
+    DSL; `eval_expr` still returns `int32_t` and dies on
+    mismatches. The `arg_enums[]` shortcut is the only new
+    mechanism, and it's already shipping.
+  - **Not a graphical layer.** Texts stay as
+    `data/world/texts/*.json5`; the `{cost:itemkey}` placeholder
+    pattern can grow more typed forms (`{name:itemkey}`,
+    `{damage:itemkey}`) as needed but no general template engine.
+  - **Not changing the byte-identity contract.** Every
+    migration step must keep `make check` green at 22 fixtures
+    + check_world.
+
+### 22.5 Battle / spell fixture queue (post-Lane-A coverage gap)
+
+**Problem.** The 22 existing fixtures cover terrain narration,
+towne services, hunt, rest, lodge, the encounter-and-flee path
+in `title-create-party-combat`, and the cave-entry / dungeon-
+discovery path in `wilderness-cave-descent`. None exercises:
+
+  - `(A)ttack` to combat completion (win or loss)
+  - `(C)ast Spell` from the combat menu (mage spells)
+  - `subs.c::spell()` out-of-combat priest casts
+  - any of the 12 spells migrated in Lane A (mage frost / fire /
+    confusion / death / hold / antimagic; priest heal /
+    restoration / rebirth / banish / revelation / teleport /
+    earthquake)
+
+So Lane A's 12 spell migrations rest on code review + RNG-
+identity reasoning + ASan clean. `make check` green confirms
+the surrounding paths weren't disturbed; it does NOT confirm
+that `mage.frost.do` produces the same bytes as the old SE_FIRE
+case did. A wrong-index in a `monster_hp` write, a missed `clw`
+or `pause`, a swapped `ws`/`confused` mutate target, or an
+off-by-one in `for_monster` — none of those would be caught by
+the current gate. That is a real outage risk for combat play.
+
+**Sequencing.** Add fixtures in roughly this priority order;
+each commit blesses one new fixture and runs the full gate
+green. None of these depends on Lane A landing in full — they
+can and should be added now to retroactively cover the spell
+migrations.
+
+  1. **`combat-attack-win`** (highest leverage). Build a party
+     that can win an early fight; (F)ight a mandatory encounter,
+     (A)ttack to completion. Catches: encounter scaling
+     formulas (already covered today), reward formula renders,
+     `pa_add_kills` count, exp/gold display, item-drop roll,
+     `expcheck` level-ups. This single fixture closes the
+     biggest part of the gap because every spell fixture below
+     reuses its setup pattern.
+
+  2. **`combat-mage-frost`**. Same shape as #1 but with a
+     mage in the party; cast Frost Finger on slot A. Tests
+     `play_spell_body` end-to-end, `ask_target monster_alive`,
+     `engine_bind 'pa_name'` for `{caster}`, `{dmg}` from a
+     `let`, `monster_hp` mutate via the `sub` op, the kill
+     branch + `battle.killed` emit. Most of the script-DSL
+     spell engine surface burns through this one cast.
+
+  3. **`combat-mage-fire`**. AOE — covers `for_monster`, the
+     per-iteration RNG draw on dead slots (regression-trap for
+     anyone who later "optimises" the loop to skip dead
+     slots), and the single-CSI-prefix-per-emit shape for
+     `{caster}`/`{monster_name}`/`{dmg}` lines.
+
+  4. **`combat-mage-flag-trio`** (one fixture, three casts).
+     Confusion → Hold → Antimagic in succession. Verifies the
+     `battle_flag` lvalues for all four flag pointers
+     (`confused` / `held` / `antimagic` / `ws`) and the shared
+     `battle.spell.utters_word` text shard. The combined
+     fixture is cheaper than three separate ones since the
+     setup is identical.
+
+  5. **`combat-mage-death`**. Resist + kill arms in one cast
+     each? — actually two fixtures (or one fixture that fires
+     death twice with different targets). Tests
+     `ryl_random(0, 199) < monster_hp` resist roll and the
+     `monster_dead`-then-`monster_hp` write order in the kill
+     arm.
+
+  6. **`towne-priest-heal`**. Out-of-combat priest cast from
+     the towne flow. Tests the subs.c dispatch shim, the
+     `ask_target party_member` digit prompt, the `pm_dead` /
+     `pm_h` clamp, and the `{caster} heals / {target} / for
+     {x} hit points...` narration. Covers the simplest priest
+     spell.
+
+  7. **`towne-priest-restoration`** + **`towne-priest-rebirth`**
+     (one fixture each — rebirth needs a dead member to test
+     the success arm AND a live member for the alive-and-
+     healthy early-out, so two casts in one fixture).
+
+  8. **`dungeon-priest-banish`** + **`dungeon-priest-revelation`**
+     + **`dungeon-priest-teleport`** + **`towne-priest-earthquake`**.
+     Each needs to be set in the right place context (banish /
+     revelation only fire in dungeon; earthquake only fires NOT
+     in dungeon). Teleport is the engine-call-encapsulated
+     `pa_teleport_step` exerciser; revelation hits the
+     three-category random-object switch + inv_add menu_branch.
+
+**Per-fixture pattern.** Each is a `tools/replay/<name>.{in,
+expect,expect_snapshot,env}` quartet. The `.env` pins
+`RYL_FAKE_EPOCH` / `RYL_FAKE_SEED` / `RYL_NO_DELAY=1`. The
+`.in` constructs a party (Replay name + 1-line per member),
+puts them in the right combat / towne / dungeon position,
+fires the cast keypress, and exits cleanly. Bless once with
+`tools/replay.sh <name> --bless`; subsequent migrations gate
+on byte identity.
+
+**Estimated effort.** ~1 fixture per 20-30 minutes once the
+first one is shaped. Total: ~3-5 hours of fixture-authoring
+and blessing for the full set, plus ~30 minutes per re-run
+under future engine changes. Reasonable for the safety it
+buys; the alternative is "code review is the contract" for
+all 12 spell paths and any future spell-related refactors.
+
+**Non-goals here.** Not a generic property-based combat
+fuzzer; not a coverage-tracker; not a CI coverage threshold.
+Just twelve fixtures that pin one canonical execution per
+spell.
+
+### 22.6 Reward gold display mismatch (separate from Lane A)
+
+**Symptom.** `formulas.reward_gold_per_survivor` is the
+divided-by-4 figure shown in the `Each survivor gets %d gold
+pieces.\r\n\r\n` victory line. `formulas.reward_gold_party` is
+the un-divided figure handed to `party_add_gold`. So the
+displayed number is exactly 1/4 of what actually arrives in
+the kitty.
+
+**Origin.** Inherited verbatim from the original Rylween C
+source (battle.c's `gold_display = ...per_survivor` vs
+`gold_gain = ...party`). Likely a long-standing oversight —
+"survivor" naming implies a 1/4 split, but the actual award
+skips the divide. Pre-Lane-A migrations preserved the legacy
+on the data-as-spec principle so byte-identity holds; both
+combat fixtures cover the math today and would diff under a
+fix.
+
+**Plan.** Single follow-up commit, scoped tightly:
+
+  1. Decide which number is canonical. Default: the un-
+     divided one is right (survivors share the kitty, they
+     don't each get 1/4 of an already-1/4'd amount). Confirm
+     by gameplay reasoning — at level 1 with `noc=2`, `h2=10`,
+     `ws=10`, the legacy display says "Each survivor gets 1
+     gold piece" and the party gets 5. Five gold is the
+     intended reward; one is the bug.
+  2. Drop `reward_gold_per_survivor` from `formulas:`. The
+     display reads `reward_gold_party` directly (renaming to
+     `reward_gold_total` would be cosmetic; defer).
+  3. Update battle.c's victory render: the `gold_display`
+     local goes away; the `tx("...gets %d gold pieces.\r\n",
+     gold_display)` call uses `gold_gain` (already computed
+     two lines down).
+  4. Bless the two affected combat fixtures (`title-create-
+     party-combat`, `wilderness-cave-descent`) — both will
+     diff because the displayed number changes from N to 4N.
+  5. Note in the commit message that the **actual** gold
+     awarded is unchanged; only the display alignment shifts.
+
+**Risk.** None to gameplay logic — `party.gold` arithmetic
+is identical. The only diff is one printed integer per
+victory.
+
+**Why a separate commit.** Lane A's contract is "every spell
+migrates byte-identically through the DSL; legacy bugs are
+preserved." Folding a player-facing display fix into Lane A
+would muddy that contract and force re-blessing the combat
+fixtures during the migration. Better to land the fix as a
+clearly-labelled "balance fix" commit AFTER Lane A retires
+eval.c, when the gate is stable.
+
+**Estimated effort.** ~30 minutes including re-blessing the
+two combat fixtures and writing the commit message. The
+hardest part is deciding whether the canonical number is the
+divided or un-divided one; the rest is mechanical.
+
+### 22.7 Continuation prompt — what remains and in what order
+
+This is the literal handoff for the next session. Lane A
+landed in 16 commits between `8a25b20` and `ca8aaa0` (2026-04-25);
+the engine now speaks one DSL and `eval.c` is gone. The list
+below is what stays — in the order I'd actually do it:
+
+**1. Reward-gold display fix (§22.6).** ~30 min. Single
+   commit. Lowest cost, highest player-visible payoff. Done
+   first because it has no dependencies and doesn't compete
+   with the fixture work. Steps:
+   - Decide canonical number — almost certainly the un-divided
+     `reward_gold_party` (the displayed-1, awarded-5 example
+     in §22.6 makes "5 is correct" the obvious read).
+   - Drop `reward_gold_per_survivor` from `formulas:`.
+   - In `battle.c::encounter` victory render, the
+     `gold_display` local goes away; use `gold_gain`
+     (`reward_gold_party`) directly in the `tx("...gets %d
+     gold pieces.\r\n", ...)` call.
+   - Re-bless `title-create-party-combat` and
+     `wilderness-cave-descent` — both will diff because the
+     displayed gold quadruples.
+   - Commit message clearly labelled "balance fix" with
+     before/after numbers in the body.
+
+**2. Combat-attack-win fixture (§22.5 #1).** ~30-60 min.
+   Single commit. Highest leverage of the §22.5 queue because
+   it pins the encounter / reward / expcheck path that every
+   spell fixture below will reuse. Without this, the spell
+   fixtures land on top of an unpinned baseline and any drift
+   in encounter rendering masquerades as spell drift. Steps:
+   - Author `tools/replay/combat-attack-win.{in,env}` —
+     party with a fighter that can finish a low-HP foe in
+     ~3 attacks; pick a target (A), attack, repeat until
+     the WIN screen + reward render fires.
+   - `tools/replay.sh combat-attack-win --bless` to capture
+     `.expect` + `.expect_snapshot`.
+   - Verify the fixture fires the encounter scaling formulas
+     (already covered) AND the new `gold_gain` display from
+     §22.6 above.
+
+**3. Spell fixtures (§22.5 #2–#8).** ~3-4 hours. One commit
+   per fixture or grouped where natural (the flag-trio is
+   one fixture firing three casts; rebirth is one fixture
+   firing alive + dead). Order: mage frost → mage fire → mage
+   flag-trio (confusion + hold + antimagic) → mage death →
+   priest heal → priest restoration + rebirth → priest banish
+   + revelation → priest teleport + earthquake. Each fixture
+   captures an `.expect_snapshot` so future engine changes
+   gate on byte identity.
+
+   - Skip if you'd rather batch these into one big "spell
+     fixture pass" commit; the per-fixture grain is a
+     review-cost decision, not a correctness one. The data
+     authoring is the bulk of the work.
+
+**4. §22.F — `speak_missions.json5` rewrite.** ~0.5 session.
+   Depends on Lane A (now landed). Convert each NPC role's
+   mission stages from the speak.c micro-DSL into a script
+   DSL `play_script` that fires the right body with bindings.
+   Retire the `mission_spec_` parser arm in res.c and the
+   speak.c interpreter loop. Touches: `data/world/scripts/
+   speak_missions.json5`, `src/speak.c`, `src/res.c`,
+   `src/missions.c`. Make sure `make check` is green at every
+   step; the towne speak fixtures cover most of the affected
+   surface.
+
+**5. §22.G — `docs/dsl.md` single-doc reference.** ~0.5
+   session. Last because it crystallises the surface. Cover:
+   - Control flow (if / loop / break / continue / for_*
+     family / switch).
+   - Expressions (literals, arithmetic, comparisons, flag /
+     gold / member / inventory / monster_* reads, var,
+     engine_int, engine_bind, item / pic / enum /
+     flag_value / state_banished).
+   - Mutate lvalues (gold / torches / food / pl / flag /
+     inventory / member_field / hours_rested / hour_of_day /
+     time_left / monster_hp / monster_dead / battle_flag /
+     state_banished).
+   - Bindings (caller ryl_bind, rt_env, automatic
+     {party_max} / {inventory_max} / {cost:itemkey}).
+   - Op registry (engine_call, engine_int, engine_bind —
+     names + signatures).
+   - Error contract (die_at format, fatal-on-typo).
+   - Examples — small spell, small towne flow, formula.
+   - Cross-link from `src/script.h` header.
+
+**Skipped permanently / not worth doing here:**
+   - Item 11 (engine registry unification — `engine_call` /
+     `engine_int` / `engine_bind` collapsed into one). Already
+     deferred in §22.E; the three-registry shape works and
+     unification is cosmetic.
+   - Item 12 (op-shape micro-inconsistencies). Same reason —
+     the rule "everything new flows through eval_expr" is
+     self-evident from the engine code now.
+
+**Bar per session.** `make check` green at every commit,
+`make testasan` clean for any commit that touches engine
+memory (none of the §22.6 / §22.F / §22.G commits should —
+they're data and docs). Each step from #1-#3 retroactively
+covers Lane A's spell paths; #4 retires another DSL; #5
+makes "read the data alone" actually true.
+
+**Estimated total.** ~1-2 sessions for #1+#2+#3,
+~0.5 session for #4, ~0.5 session for #5. Cumulative
+~2-3 sessions to fully close §22.
+
+### 22.8 Continuation prompt — what shipped, what's next
+
+This is the second handoff for §22 — the literal next-session
+brief after the second wave of commits. Between `c4183ae` (the
+§22.6 fix) and the head of this branch, nine commits landed:
+
+  - `c4183ae` §22.6 reward-gold display fix.
+  - `a0a580f` §22.5 #1 combat-attack-win fixture, plus the
+    RYL_FORCE_ENCOUNTER + RYL_FORCE_ENCOUNTER_NOC scaffold
+    that makes the rest of the §22.5 list authoring-tractable.
+  - `b8b2f52` §22.5 #2 mage-frost.
+  - `eafb648` §22.5 #3 mage-fire.
+  - `e877b5f` §22.5 #4a mage-confusion-hold.
+  - `1b9acd9` §22.5 #4b mage-antimagic.
+  - `9826d35` §22.5 #6 priest-heal.
+  - `dac0e00` §22.5 #7a priest-restoration.
+  - `2c194b0` §22.5 #8d priest-earthquake.
+
+**What's done — by spell.** Mage frost, fire, confusion, hold,
+antimagic. Priest heal, restoration, earthquake. Plus the
+combat-attack-win baseline. Nine fixtures, all gating `make
+check` + `make testasan` green. Eight of the twelve spell
+paths Lane A migrated are now byte-pinned.
+
+**What's not done — by spell.** Mage death; priest rebirth,
+banish, revelation, teleport. Five fixtures left.
+
+**The single root cause for three of the five.** Mage death
+(cost 79), priest rebirth (91), priest banish (86) all exceed
+the spellcaster's lv-1 ma cap (= wi, max ~70 from the
+ryl_random(15,70) roll, observed 67 at the seeds we've used).
+Every "got blocked on cost" fixture below shares this single
+gate. The root fix is a small env knob:
+
+```
+RYL_FORCE_PARTY_LV=<n>     # clamp every member.lv to <n> after
+                            # createparty's lv=1 init in driv.c
+```
+
+Approach is identical to the existing replay-only env knobs
+(see RYL_STARTING_GOLD at driv.c:1583, RYL_FORCE_ENCOUNTER
+in subs.c::random_wilderness, RYL_FORCE_ENCOUNTER_NOC in
+battle.c::encounter): single-shot getenv read inside the
+party-creation lv loop, unsetenv after consumption,
+production never sets it. Caster's `ma` is set to `wi` at
+class assignment (createparty.c:1570 if pm_is_spellcaster);
+the lv bump alone is enough since per-spell cost = base + lv
+grows slower than the post-class ma cap. At lv 5 a priest
+has ma >= 90 → both rebirth and banish fit; at lv 3 a mage
+has ma >= 70+ → death (cost 81) just fits.
+
+**The other two — dungeon-context fixtures.** Priest revelation
+and priest teleport need place=1 (the int binding subs.c::
+spell passes when called from dungeon.c's Z-key). Two paths
+into a dungeon work:
+
+  1. **Walk to a wild-roll cave**, then E to enter. The seed
+     determines whether a cave appears in the first ~30 moves
+     (seed 5 yes, seed 2 no — slot 1 priest needs wi >= 50,
+     so seed-shopping is constrained). The trap I hit on the
+     first try: the cave-found prompt loops on key() until L
+     or E, eating every walk byte until a valid letter shows
+     up. So the natural `82828282...828282E` pattern works,
+     but `8282...82E + spaces + Z + 1 + 5` does NOT — the
+     dungeon-level-1 random-fill script's `wait_input`
+     consumes one of the spaces, and then the menu's key()
+     loop reads bytes one at a time. Off-by-one on key
+     accounting drops Z into the wrong slot.
+
+  2. **Cast earthquake first**, take the (E)nter arm of the
+     cave_found_prompt, descend into the ad-hoc dungeon.
+     Earthquake guarantees the cave; no seed-shopping. But
+     it spends ~58 ma on the casting priest, so the *same*
+     priest can't follow up with revelation (cost 41). The
+     two-priest trick: party has slot 1 priest casts
+     earthquake, slot 2 priest casts revelation/teleport in
+     dungeon. Seeds 2 and 31 both have wi >= 50 in slots 1
+     AND 2; either works.
+
+  Path 1 is simpler if you bookkeep the keys carefully (one
+  ' ' absorber per dungeon-level script's wait_input, then
+  Z 2 5, and one A to ascend out). Path 2 is more robust
+  but needs the two-priest party + the earthquake bridge in
+  every dungeon-context fixture. Pick path 1 for revelation/
+  teleport (single fixture each); reach for path 2 if the
+  cave roll for the seed needed elsewhere doesn't fire.
+
+**For banish.** Path 2 with two priests, slot 2 raised to lv 5
+via RYL_FORCE_PARTY_LV. Slot 2's ma cap = wi+28 = 91+
+floor(28×0.5) ≈ 91 if seed 2 wi=63 → 63+28=91. base 85 + lv 5
+= 90. Just fits.
+
+**Recommended order — what to do next.**
+
+  1. **Add RYL_FORCE_PARTY_LV knob.** ~10 lines in driv.c
+     createparty (before the `state.p[a].lv[i] = 1;` loop at
+     line 1607, read the env var, parse, clamp). Single-shot
+     unsetenv after the loop. Test by running an existing
+     fixture with the var set — every member's lv should
+     bump in the snapshot.
+
+  2. **Land mage-death (§22.5 #5).** RYL_FORCE_PARTY_LV=3 +
+     seed 2 mage in slot 1. Death (cost 81 at lv 3, mage ma
+     cap = wi+14×3 ≈ 88). Fixture cribs combat-mage-frost's
+     pattern — F + C4A (target slot 1) + AA*3 (slots 2-4
+     attack); the resist roll fires off ryl_random(0, 199)
+     vs monster_hp. With h2_scaled ~43 from #1 and rng draw
+     deterministic at this point, the fixture pins one
+     specific arm — if the canonical roll lands in the
+     resist arm, great; if it lands in the kill arm, also
+     great. The arm not pinned by this fixture lands by a
+     follow-up fixture with a different RYL_FORCE_ENCOUNTER
+     monster (different h2 → different pivot threshold).
+
+  3. **Land priest-rebirth (§22.5 #7b).** RYL_FORCE_PARTY_LV=4
+     + seed 2 priest in slot 1. The fixture needs both arms
+     of the alive-vs-dead branch. Two casts in one fixture:
+     the first targets a healthy member (alive arm — emits
+     "alive and healthy", no mana cost — legacy quirk
+     preserved verbatim); the second targets a dead member
+     (dead arm — eyelids/flicker/opens_eyes + ma debit).
+     Death needs to come from somewhere — pick a fixture
+     where one combat fight kills a slot, then cast rebirth.
+     Or cheap path: have the engine's losegame check skipped
+     (no, too invasive). Or: write a tiny RYL_FORCE_DEAD_SLOT
+     knob that flags one member dead at party-create time,
+     unsetenv'd after. Smallest change for the rebirth fixture
+     to land both arms.
+
+  4. **Solve dungeon-context, then land revelation + teleport
+     (§22.5 #8b, #8c).** Pick path 1 (wild-roll cave) at
+     seed 5 (slot 1 wi=52 → priest qualifies, cave triggers
+     within ~30 moves). The key accounting:
+     - Walk: `82` × N until a cave rolls; the cave-found
+       prompt eats walk bytes until L/E, so end the walk
+       with `E`.
+     - Inside the dungeon, the level-1 script's `wait_input`
+       consumes one byte; absorb with a single ` ` (space).
+     - Menu reads `Z` → spell(1) → `1` (caster) → `5`
+       (revelation) or `6` (teleport). For revelation, the
+       chance(59) gate has two arms — the "nothing" arm has
+       a wait_input absorber; the "find object" arm has a
+       menu_branch (T or anything). Append spaces for the
+       absorbers.
+     - For teleport, the compass + how-far prompts use loop
+       + menu_branch with key_var; their accepted keys are
+       8/2/4/6 + 1-9 (typical map-DSL conventions — confirm
+       at the call site). One byte per prompt.
+     - End with `A` (ascend to cl=1 → leaves cave) and `X`
+       to quit.
+
+  5. **Land priest-banish (§22.5 #8a).** Path 2 (earthquake
+     bridge), RYL_FORCE_PARTY_LV=5, two priests (slot 1 +
+     slot 2). Slot 1 casts earthquake (Z 1 7 E) → spawns
+     cave, enters new dungeon. Slot 2 casts banish (Z 2 4)
+     in the dungeon — sets state.banished, the success arm
+     ends with the state_banished mutate. Trickiest fixture
+     of the lot because both casters are on cooldown after
+     their cast (no further casts in the same combat) AND
+     because the earthquake-spawned dungeon has 5-18 levels
+     (random) — its level 1 random fill is a separate lvl[1]
+     roll that's not easy to predict.
+
+  6. **§22.F speak_missions.json5 rewrite + parser retire.**
+     Untouched this session. The plan remains as in §22.7:
+     convert each NPC role's mission stages from the speak.c
+     micro-DSL into a script DSL `play_script` that fires
+     the right body with bindings. Retire the
+     `mission_spec_` parser arm in res.c and the speak.c
+     interpreter loop. Touches: `data/world/scripts/
+     speak_missions.json5`, `src/speak.c`, `src/res.c`,
+     `src/missions.c`. The towne speak fixtures cover most
+     of the affected surface so make check is the gate;
+     do this before §22.G so the doc reflects the final
+     surface.
+
+  7. **§22.G docs/dsl.md single-doc reference.** Untouched.
+     Cover everything from §22.7's spec (control flow,
+     expressions, mutate lvalues, bindings, op registry,
+     error contract, examples, cross-link from
+     `src/script.h`).
+
+**What I learned about authoring fixtures (worth keeping).**
+
+  - **Spellcaster qualification by seed.** Slot 1 wi >= 50
+    is the blocker. Useful seeds: 2 (slot 1 wi=67, slot 2
+    wi=63 — best for two-priest trick), 5 (slot 1 wi=52,
+    cave triggers in ~30 moves at seed-5 walk), 31 (slot 1
+    wi=66, slot 2 wi=63 — alternative for the two-priest
+    trick), 17 (slot 1 wi=53, ch=63 — bard-qualifying as a
+    bonus for any future bard fixture).
+
+  - **Combat round key shape.** Per round: `F` (the F/R
+    re-prompt fires after each round) + 4 × (action +
+    target). Action is `A` for plain attack, `C<digit>` for
+    combat-cast. Target is one byte per attack (A-D for
+    monster slot). With NOC > 1 use the `AB` fallback target
+    pattern — the first byte tries slot A, the second is
+    consumed only if A is dead (the in-range-and-not-deadc
+    check rejects A and reads the next byte). 16 round_n
+    patterns generously covers any 4-attacker × 1-2-noc
+    fight; the surplus consumes silently as no-ops at the
+    world map after the win.
+
+  - **Combat menu cast layout.** `(C)ast Spell` only fires
+    for pm_is_mage. The menu is six lines (frost / fire /
+    confusion / death / hold / antimagic = slots 1-6) plus
+    `7. Abort`. Selector loop accepts '1'-'7'. After the
+    digit, the spell DSL takes over; ask_target prompts use
+    the same letter-by-monster-slot shape as the combat
+    target prompt.
+
+  - **Priest cast dispatch.** subs.c::spell(place) is the
+    entry; `Z` from driv.c (place=0, wilderness) or
+    dungeon.c (place=1, dungeon). Dispatch prompts "Who?"
+    (digit caster, gates pm_is_priest), then the priest
+    spell menu (1-7 + 8 Abort). After the digit, play_spell_
+    body for that spell runs; ma debit lives in the DSL,
+    not C — different from mage spells.
+
+  - **Wait_input absorbers.** Every dungeon level script
+    that emits + waits has one ryl_pause that consumes a
+    keypress. Same for the cave-no-moves arm. Use single
+    ` ` (space) bytes for these — innocuous everywhere.
+
+  - **Key-accounting trap (the dungeon-context one).** The
+    cave-found prompt at the wild-roll path loops key() on
+    every byte of the input stream until L or E. So
+    appending `E` at the end of a long walk pattern enters
+    the cave; appending `Z` would be ignored (Z != L/E).
+    This is why dungeon-context fixtures need `walk + 'E'`
+    as the cave entry, not `walk + spaces + Z + ...`.
+
+  - **Stats the seed gives.** Snapshot all four members'
+    ws/wi/ch/h on the first fresh-stats roll (no rerolls)
+    by writing a tiny probe `.in` file with `N\nReplay\nNA\n
+    1\n1\n2\n` repeated four times and reading the resulting
+    snapshot. Useful when a fixture needs a specific class
+    per slot.
+
+**Estimated remaining effort.** With the lv knob landed
+(~15 min), mage-death is ~30 min, priest-rebirth is ~45 min
+(two-arm fixture), revelation + teleport ~45 min each,
+banish ~60 min (two-priest setup). Total spell-fixture
+remaining: ~3-4 hours. §22.F is ~0.5-1 session; §22.G is
+~0.5 session. Cumulative ~1-2 more sessions to fully close
+§22.
+
+**Bar per session.** `make check` and `make testasan` both
+green at every commit. The lv knob commit is the only one
+that touches engine code directly; every other commit is
+data + .in/.expect/.expect_snapshot quartets.
+
+§22.9 — replay-knobs centralization + spell fixtures #5/#7b
+
+Continuation of §22.8. Four commits this micro-session, all
+gates green at each step:
+
+  - `eac3317` §22.5 RYL_FORCE_PARTY_LV knob in createparty
+    (~36 lines added inline at the time). Bumps lv plus the
+    per-class wi/h/ws/ch deltas (n-1 times) and resets ma to
+    the new wi cap for spellcasters. Verified at seed 2 with
+    LV=3: slot-1 mage 67→81 wi/ma — death cost 78+3=81 just
+    fits.
+
+  - `bb8eee8` §22.5 #5 combat-mage-death fixture. Same shape
+    as combat-mage-frost, swapped C1→C4 for the death menu
+    slot, env adds RYL_FORCE_PARTY_LV=3. The deterministic
+    RNG draw lands the kill arm (random(0,199) >= 27 monster
+    hp ≈ 87% odds), pinning the monster_dead/monster_hp=0
+    mutate path. The resist arm would need a different
+    encounter to flip the gate — open follow-up if/when we
+    want both arms.
+
+  - `675a73d` refactor: extract replay-mode env knobs into
+    src/replay_knobs.{c,h}. Centralizes all five one-shot
+    knobs (RYL_STARTING_GOLD, RYL_FORCE_ENCOUNTER,
+    RYL_FORCE_ENCOUNTER_NOC, RYL_FORCE_PARTY_LV,
+    RYL_FORCE_DEAD_SLOT) — previously inlined across driv.c
+    (3), subs.c (1), battle.c (1) — into one TU. Call sites
+    collapse to one-line `rk_*` helpers. Pure refactor; every
+    fixture passes byte-identical. The always-on infra knobs
+    (RYL_FAKE_EPOCH / RYL_FAKE_SEED / RYL_NO_DELAY /
+    RYL_SNAPSHOT) are NOT routed through this file — they're
+    consumed every call by lower-level primitives (ryl.c /
+    io_tty.c / snapshot.c). Header notes the split.
+
+  - `86346e3` §22.5 #7b wilderness-priest-rebirth fixture.
+    First fixture to use the new RYL_FORCE_DEAD_SLOT knob.
+    Both arms of rebirth's alive-vs-dead branch in a single
+    wilderness session — no encounter, no combat. Slot 1
+    priest at lv 5 (post-knob wi = 67 + 8×4 = 99, ma cap =
+    99) just covers cost (90 + lv 5 = 95). Cast order: alive
+    first (no debit), then dead (debits 95 → 4). Reverse
+    order would trip the not_enough_pts gate. Snapshot
+    confirms slot-1 ma=4 (one debit) and slot-3 hp=1, dead=0
+    (the dead-arm mutates ran).
+
+**New convention — test-only env knobs.** New replay knobs
+go in `src/replay_knobs.{c,h}`, NOT inlined at the call site.
+The pattern: declare an `rk_*` helper in the header, impl in
+the .c file (with the `getenv` + validate + `unsetenv` + apply/
+return logic), and the consumer adds `#include "replay_knobs.h"`
+plus a one-line invocation. This keeps the inventory of test-
+only gameplay state greppable in one TU rather than scattered
+across the codebase. Always-on infra knobs stay where they are.
+
+**What's not done — by spell.** Three fixtures left:
+priest revelation (#8b), priest teleport (#8c), priest banish
+(#8a). The §22.8 plan applies verbatim — path 1 (wild-roll
+cave at seed 5) for revelation + teleport; path 2 (earthquake
+bridge with two priests) for banish. The lv knob is now
+landed, so banish is unblocked the moment the two-priest
+setup is wired.
+
+**Recommended order — what to do next.**
+
+  1. **Land priest-revelation (§22.5 #8b)** via path 1. Seed
+     5 wild-roll cave, slot 1 priest, walk pattern + `E` to
+     enter, then `Z 1 5` (cast slot 5 = revelation) with
+     space absorbers per the §22.8 key-accounting notes. The
+     chance(59) gate has two arms — the "nothing" arm and
+     the "find object" arm. Whichever arm fires at this seed
+     pins one of the two paths.
+
+  2. **Land priest-teleport (§22.5 #8c)** via path 1. Same
+     seed, same dungeon entry. `Z 1 6` (slot 6 = teleport),
+     then the compass + how-far prompts (8/2/4/6 + 1-9 keys).
+     One byte per prompt — confirm at the call site.
+
+  3. **Land priest-banish (§22.5 #8a)** via path 2.
+     RYL_FORCE_PARTY_LV=5, two priests in slots 1 + 2 (seed
+     2 has wi 67 / 63 in slots 1 / 2 — both qualify). Slot 1
+     casts earthquake (`Z 1 7 E`) → spawns cave, enters new
+     dungeon. Slot 2 casts banish (`Z 2 4`) — sets
+     state.banished, the success arm ends with the
+     state_banished mutate. Trickiest fixture: both casters
+     on cooldown after their own cast (no further casts in
+     same combat) AND the earthquake-spawned dungeon has
+     5-18 levels (random). Pin a seed where the level-1
+     random fill is reproducible.
+
+  4. **§22.F speak_missions.json5 rewrite + parser retire.**
+     Untouched. Plan unchanged from §22.7/§22.8.
+
+  5. **§22.G docs/dsl.md single-doc reference.** Untouched.
+     Should follow §22.F so the doc reflects the post-
+     migration surface.
+
+**Estimated remaining effort.** Revelation ~45 min, teleport
+~45 min, banish ~60 min = ~2.5 hours of spell-fixture work
+remaining. §22.F ~0.5-1 session; §22.G ~0.5 session.
+Cumulative ~1-2 more sessions to fully close §22.
+
+**Bar per session.** Same as §22.8: `make check` and
+`make testasan` both green at every commit.
+
+§22.10 — wilderness-priest-revelation fixture (#8b)
+
+Continuation of §22.9. One commit this micro-session, both
+gates green:
+
+  - §22.5 #8b wilderness-priest-revelation fixture. First
+    dungeon-context spell fixture, exercising path 1 from §22.8
+    (walk to wild-roll cave at seed 5, enter with E, cast
+    revelation from inside the cavern). No lv knob needed —
+    revelation is the cheapest dungeon-only priest spell
+    (base 40 + lv 1 = 41) and seed-5 slot-1 priest wi=52
+    just covers it.
+
+**The `wait_input` absorber rule — single newline, not space.**
+The trap I hit on this fixture: `wait_input: true` lowers to
+`ryl_pause()`, which loops on `io->getch()` until it sees `\r`
+(13) or `\n` (10). Any other byte (space, digit, letter) is
+consumed and the loop continues. So absorbers for `wait_input`
+have to be a literal newline in the `.in` file — using a space
+makes the absorber eat the rest of the input until the next
+real newline, which silently swallows the cast keys. The two
+spell fixtures that already shipped (combat-mage-* in towne)
+all happen to use `\n` because their .in lines naturally end at
+that point; this dungeon-context fixture is the first where I
+tried to inline the absorber on the same line and discovered
+the constraint. Worth flagging for the remaining spell fixtures
+(#8c teleport, #8a banish) — anywhere a wait_input fires inside
+a dungeon-context flow, the absorber is `\n`, not ` `.
+
+**What's pinned by this fixture.** The revelation cast itself:
+cost-check passes (52 >= 41), `mutate ma -= 41` debits to
+ma=11, `chance(59)` lands the find-object arm at this seed,
+the category roll picks weapons (cat=0), the inner roll picks
+Halbard (id 9), and the `T` byte after `Z15` takes the
+`(T)ake` branch of the menu_branch — `inv_add` writes id 9
+into inventory slot 1.
+
+**What's not pinned (deferred).** The `chance(59)` nothing arm
+and the `(L)eave` branch of the menu_branch are both reachable
+only from a different RNG state. A follow-up fixture at a
+different seed (or with different prior RNG draws) can pin the
+nothing arm. The `(L)eave` arm is trivial — same fixture with
+the `T` byte replaced by anything else (or omitted, letting the
+following `\n` fall through as the menu_branch byte) — but it
+adds no new mutations, so it's not worth a separate fixture
+unless we later care about explicit menu_branch coverage.
+
+**What's not done — by spell.** Two fixtures left from the
+§22.8 list: priest teleport (#8c), priest banish (#8a). The
+teleport plan is unchanged (path 1, same seed-5 cave entry,
+`Z 1 6` with the compass + how-far prompts). Banish is
+unchanged (path 2, two priests + earthquake bridge,
+RYL_FORCE_PARTY_LV=5).
+
+**Recommended order — what to do next.**
+
+  1. **Land priest-teleport (§22.5 #8c)** via path 1. Reuse
+     the seed-5 walk pattern + cave entry from this fixture
+     verbatim — `C82828282828282E\n` then `\n` absorber for
+     find_torches, then `Z16` for slot-6 teleport, then the
+     compass + how-far prompts. Compass keys are 8/2/4/6 (the
+     wilderness movement set) and how-far is a 1-9 digit; one
+     byte per prompt. Confirm at the call site whether either
+     prompt has a wait_input absorber after — if so, single
+     `\n` per absorber.
+
+  2. **Land priest-banish (§22.5 #8a)** via path 2.
+     RYL_FORCE_PARTY_LV=5, two priests in slots 1+2 (seed 2
+     wi 67 / 63 — both qualify). Slot 1 casts earthquake
+     (`Z 1 7 E`) → spawns cave, enters new dungeon. Slot 2
+     casts banish (`Z 2 4`) — sets state.banished, success
+     arm ends with state_banished mutate. The earthquake-
+     spawned dungeon has 5-18 levels (random); pin a seed
+     where the level-1 random fill is reproducible.
+
+  3. **§22.F speak_missions.json5 rewrite + parser retire.**
+     Untouched. Plan unchanged from §22.7/§22.8/§22.9.
+
+  4. **§22.G docs/dsl.md single-doc reference.** Untouched.
+     Should follow §22.F so the doc reflects the post-
+     migration surface.
+
+**Cleanup follow-up — `dungeon_encounter` reserved slots.**
+The `dungeon_encounter` enum in `data/world.json5` (line ~631)
+has slots 10..19 marked as empty strings — reserved holes
+between the random-fill range (1..9) and the quest-encounter
+range (20..38). They're a dead band: `res_dungeon_apply_placements`
+overlays the quest ids at 20+, the random fill rolls only 1..9,
+and slot 0 is the "visited" sentinel. Worth confirming nothing
+indexes into 10..19 (a grep for `lvl[`/`dungeon_encounter`-
+adjacent reads should rule it out), then collapsing the enum to
+just 0..9 + 20..38 — or keeping the holes if any C-side numeric
+constants assume the 20-offset. Not blocking §22; flag for the
+post-§22 hardcoded-indices cleanup pass.
+
+**Estimated remaining effort.** Teleport ~45 min, banish ~60
+min = ~1.75 hours of spell-fixture work remaining. §22.F is
+~0.5-1 session; §22.G is ~0.5 session. Cumulative ~1-1.5
+more sessions to fully close §22.
+
+**Bar per session.** Same as §22.8/§22.9: `make check` and
+`make testasan` both green at every commit.
+
+§22.11 — wilderness-priest-teleport fixture (#8c)
+
+Continuation of §22.10. One commit this micro-session, both
+gates green:
+
+  - §22.5 #8c wilderness-priest-teleport fixture. Reuses the
+    seed-5 walk-to-cave entry from #8b verbatim
+    (`C82828282828282E\n`), then casts teleport from inside the
+    cavern. Slot 1 priest at lv 1 (seed 5 wi=52, ma=52) covers
+    cost (35 + lv 1 = 36) without RYL_FORCE_PARTY_LV.
+
+**The wait_input layout for teleport.** Two ryl_pause-gated
+narration blocks back-to-back inside the spell body
+(carefully/prepares/spends/chanting/candles + advance_hour, then
+picks_slab/satchel/wants_you/to). Each needs a single literal `\n`
+absorber per the §22.10 rule — split across separate lines in
+the .in file so each ends as a clean newline byte. The compass
+and how-far prompts are loop+menu_branch reads, so `2` (south)
+and `1` are inlined on one line as `21\n`; the trailing `\n`
+falls through the dungeon level loop's D/A re-prompt before the
+final `A` ascend.
+
+**Direction choice — terrain matters.** First bless used dir 8
+(north): pa_teleport_step's `state.map[y-1][x] != 'm'` guard
+hit a mountain at (12, 7) and the call no-oped, leaving y=8
+unchanged. Switched to dir 2 (south) — (12, 9) and (12, 10)
+are both grass — so the snapshot now pins an actual coord
+change (12,8) → (12,10). Worth flagging for any future
+teleport fixture: pick a direction with no mountain blocker at
+the cave's wilderness coords, or the side-effect under test
+silently disappears.
+
+**What's pinned by this fixture.** Cost check passes (52 >= 36),
+mutate `ma -= (35 + lv)` debits 36 (52 → 16 in the snapshot).
+Both wait_input blocks fire in order, compass/how-far menu_
+branches read 2/1, pa_teleport_step iterates `distance * 2 = 2`
+times adding 1 to y each iteration ((12,8) → (12,10), both
+walkable grass), advance_hour fires once (snapshot
+hour_of_day=13 — same as #8b, which also advances once during
+cast). update_map repaints the new tile.
+
+**What's not pinned (deferred).** The not_enough_pts else-arm
+(ma < 36 + lv) needs a different fixture seed or cast order. A
+mountain-blocked direction (no-op move) would be a separate
+fixture if we ever care to assert the bounds-check explicitly;
+not worth a dedicated case today.
+
+**What's not done — by spell.** One fixture left from the §22.8
+list: priest banish (#8a). The plan is unchanged from §22.10
+— path 2 (earthquake bridge), two priests in slots 1+2 (seed 2
+wi 67/63 — both qualify with RYL_FORCE_PARTY_LV=5), slot 1
+casts earthquake to spawn a cave + dive into a 5..18-level
+dungeon, slot 2 casts banish to set state.banished and trip
+the level-3..5 lvl[] zero-out in dungeon.c.
+
+**Recommended order — what to do next.**
+
+  1. **Land priest-banish (§22.5 #8a)** via path 2.
+     RYL_FORCE_PARTY_LV=5, two priests in slots 1+2 (seed 2
+     wi 67/63 — both qualify). Slot 1 casts earthquake
+     (`Z 1 7 E`) → spawns cave, enters new dungeon. Slot 2
+     casts banish (`Z 2 4`) — sets state.banished, success
+     arm ends with state_banished mutate. The earthquake-
+     spawned dungeon has 5..18 levels (random); pin a seed
+     where the level-1 random fill is reproducible.
+
+  2. **§22.F speak_missions.json5 rewrite + parser retire.**
+     Untouched. Plan unchanged from §22.7/§22.8/§22.9/§22.10.
+
+  3. **§22.G docs/dsl.md single-doc reference.** Untouched.
+     Should follow §22.F so the doc reflects the post-
+     migration surface.
+
+**Cleanup follow-up — `dungeon_encounter` reserved slots.**
+Carry-over from §22.10. Still not blocking; flag for the post-
+§22 hardcoded-indices cleanup pass.
+
+**Estimated remaining effort.** Banish ~60 min of spell-fixture
+work remaining. §22.F is ~0.5-1 session; §22.G is ~0.5 session.
+Cumulative ~1 more session to fully close §22.
+
+**Bar per session.** Same as §22.8/§22.9/§22.10: `make check`
+and `make testasan` both green at every commit.
+
+§22.12 — Open-work audit (post-§22.11 snapshot, 2026-04-26)
+
+The plan is a long historical record (4800+ lines) and the
+running narrative makes it hard to tell at a glance what's
+actually shipped vs still open. This subsection is a status
+snapshot — pure pointers into the existing sections, no new
+plan content. Use it to answer "is X done?" without reading
+4000 lines of context.
+
+**DONE — shipped and locked by fixtures.**
+
+  - §3 phases 1-5b: full engine port to ANSI C / portable
+    build. (See §3 commit list.)
+  - §16 hardcoded-indices sweep: P1..P6 priority list closed
+    or consciously deferred. (See `project_hardcoded_indices_doc.md`
+    in memory; §16.2 is closed per memory.)
+  - §17 DSL groundwork (play_script, screen / journal /
+    set_flag / emit / mutate / engine_call). §17-F migrations
+    (towne smith / tavern / inn / merchant). (See §17.)
+  - §18 monster bestiary + tier system. (See §18.)
+  - §19.1 town-level replay fixtures starter bank.
+    §19.2 journal into party state / save.
+    §19.3 data-driven party size + RYL_PARTY_MEMBER_MAX
+    smoke fixture.
+  - §20.L1 dungeon special-encounter switch (commit 1962bd9).
+  - §20.L2 dungeon level-event switch (915 → 171 LOC,
+    commits 28f4d40..fc599b3).
+  - §20.L7 camp / hunt / lodge flow lifts (4 commits e355ef8
+    .. 03d2eff). §20.18 has the closure write-up.
+  - §20 TINY bucket: T1 (interact.c → terrain.json5,
+    src/interact.c is now 20 lines), T2 (towne.c has_church
+    → world.json5 town record). T3/T4 status pending — see
+    PARTIAL below.
+  - §20 SMALL bucket S1 (helper additions), S5 (combat
+    balance constants in world.json5 — encounter_split,
+    flee_chance, defend_cap, hp_defense_div, drop_tables,
+    encounter_foe_count_max all present), S11 (formula
+    lifts: encounter_h1_scaled, encounter_h2_scaled,
+    reward_xp_per_survivor, reward_gold_party all live).
+    S2 mostly done per §20.17 (see PARTIAL for residual).
+  - §20.16 fold-time script-body symbol validator
+    (commit 55d0b1f).
+  - §20.19 fixture queue: wilderness-hunt, wilderness-camp,
+    towne-thord-tavern-bargirl-lodge all landed.
+  - §20.20 #2 (`emit_indexed` / `txi`-style format-id-by-int).
+  - §22.E op-shape consistency: items 9 + 10 landed; items
+    11 + 12 consciously skipped (engine registry unification
+    is cosmetic).
+  - §22.5 spell-fixture queue: #1 attack, #2 frost, #3 fire,
+    #4a confusion-hold, #4b antimagic, #5 mage-death, #6
+    priest-heal, #7a restoration, #7b rebirth, #8b
+    revelation, #8c teleport, #8d earthquake — twelve of
+    thirteen fixtures. (#8a banish remains; see NOT DONE.)
+  - §22.6 reward-gold display fix.
+  - §22.9 replay-knobs centralization (RYL_FORCE_PARTY_LV,
+    RYL_FORCE_DEAD_SLOT, RYL_FORCE_ENCOUNTER, etc. now in
+    src/replay_knobs.{c,h}).
+
+**PARTIAL — landed in part, residual debt tracked.**
+
+  - **Phase 5c (§7) — `pm_t` / `pa_*` migration.** Per
+    §20.17's table, every file except driv.c has helpers
+    outnumbering raw `state.*` access. Current raw
+    `state.p[cpl]` / `state.p[state.cpl]` counts (post-§22.11):
+
+        | file        | raw state.p[*] hits |
+        |-------------|---------------------|
+        | driv.c      | 37                  |
+        | ydarg.c     | 13                  |
+        | script.c    | 8                   |
+        | inventory.c | 6                   |
+        | missions.c  | 6                   |
+        | primitives.c| 6 (abstraction home — fine) |
+        | towne.c     | 5                   |
+        | res.c       | 2                   |
+        | party.c     | 45 (abstraction home — fine) |
+
+    driv.c remains the H2 target per §20.17's prose — its
+    hits are mostly main-loop dispatch reading
+    `state.last_terrain` / `state.p[cpl].time_left`.
+    ydarg.c is the second-largest residual. The other files
+    are cosmetic.
+
+  - **§20 TINY T3/T4 (driv.c hardcoded paths).** T3
+    `disptext("data/score.txt")` etc. — at least four
+    sites still in driv.c (lines 481/495/511/523). T4
+    `fopen("data/map.dat", "rb")` — fopen with literal
+    `path` strings still appears at driv.c:372/412/550/580/858.
+    Neither has been swept; both are quick wins.
+
+  - **§20 SMALL S6 (wilderness/rest balance constants).**
+    Most landed during §20.L7 (rest.json5, hunt.json5
+    constants). Verify residuals during banish-fixture
+    work — anything still hardcoded inside subs.c is
+    fair game.
+
+**NOT DONE — explicitly queued.**
+
+  - **§22.5 #8a banish fixture.** Last remaining lane-A
+    spell fixture. Plan unchanged from §22.10/§22.11
+    (path 2, two priests, RYL_FORCE_PARTY_LV=5).
+  - **§22.F speak_missions.json5 rewrite.** The
+    speak_missions micro-DSL evaluator in `speak.c`
+    still alive; rewrite plan in §22.7. Untouched
+    through §22.11.
+  - **§22.G docs/dsl.md single-doc reference.** Spec in
+    §22.7. Untouched. Should follow §22.F.
+  - **§20 LARGE L3 (battle.c item-effect switch
+    cases 100-111).** The switch is alive at battle.c:
+    194-403. Same surface as §23.B in the next section.
+  - **§20 LARGE L5 (monster magic table).** Alive at
+    battle.c:625-740 (the `g==5` block). Same surface
+    as §23.A.
+  - **§20 LARGE L6 (battle narration sweep).** Hardcoded
+    `tx("English text\\r\\n")` calls in battle.c outside
+    the §23.A/B targets — probably ~20-30 sites. Not yet
+    swept; consider folding into §23.A/B as those
+    extractions go.
+  - **§20.20 #1 / #3 / #4 (DSL ergonomics).** Class-id
+    symbol args, `{path: '…'}` expr form, default-`{0}`
+    speak op town arg — all deferred until a flow with
+    a clear win surfaces.
+  - **§22.10 cleanup — `dungeon_encounter` reserved
+    slots 10..19.** Carry-over follow-up; not blocking.
+    Confirm nothing indexes into 10..19, then collapse
+    if safe.
+
+**NEEDS VERIFICATION — stale plan, may be done.**
+
+  - **§20.12 unwired DSL hooks (`spawn_encounter`,
+    `call`).** Plan refers to `eval.c:1267-1271` but
+    src/eval.c no longer exists. Greps for
+    `spawn_encounter`, `"call"`, and `rdie` in src/ all
+    come up empty — the ops appear to have been removed
+    from the DSL surface entirely, not wired. Treat
+    §20.12 as superseded; if a script ever needs
+    `spawn_encounter` again, it'd be a new design.
+
+**CONSCIOUSLY SKIPPED — not coming back unless requirements change.**
+
+  - **§21 reentrancy / `ryl_ctx`.** §21.6 verdict was
+    "worth it only if a real multi-tenant use case
+    materialises." None has. Treat as documentation
+    only.
+  - **§22.E items 11 + 12 (engine registry unification,
+    op-shape micro-inconsistencies).** Cosmetic; the
+    rule "everything new flows through eval_expr" is
+    self-evident from current code.
+  - **§3 #6 C99 vs C++17 subset.** Decision deferred
+    indefinitely; the C99 path is working.
+
+**Summary at a glance.** §22 closes after #8a + §22.F +
+§22.G land — ~1 more session. The pre-§22 debt that
+genuinely affects code shape is (a) Phase 5c residuals
+in driv.c / ydarg.c, (b) the §20.LARGE combat extractions
+that were already re-scoped into §23.A/B, (c) the four
+small driv.c path-literal sweeps (§20 T3/T4). Everything
+else is either shipped or consciously deferred.
+
+§23 — engine→data extraction (post-§22 planning)
+
+This section is a planning lookahead, not an active queue.
+§22 finishes the lane-A spell migration and the speak/missions/
+docs cleanup; once those land there are still meaningful
+chunks of native C that *should* live on the data side. The
+asymmetry is most visible in `battle.c`: the player-facing
+spell flows are now fully scripted (priest.json5,
+mage.json5), but the **monster** behaviour — including
+the spells monsters cast and how much damage they do — is
+still a hardcoded native switch. Same shape on the item-
+spell side: `(U)se Item` dispatches to a 12-arm switch that
+is verbatim 1980s-style native code. The goal of §23 is to
+finish closing that gap so the engine ends up looking like
+a script *runtime* (input + RNG + bindings + emit/mutate
+opcodes) and not a script *implementation*.
+
+**§23.A — battle.c monster nasty-magic block (lines 625-740,
+~115 LOC).** The single highest-leverage extraction. Today
+this is:
+
+```
+if (g == 5) {
+  if (!antimagic && sp && ryl_chance(15 + sp/2)) {
+    switch (ryl_random(0, 3)) {
+      case 0: /* Frost Finger */ dp = h2/5 + ryl_random(0,3); ...
+      case 1: /* Cloud of Fire */ dp = h2/5 + ryl_random(0,4); ...
+      case 2: /* Hold Creature */ playerheld = 1;
+      case 3: /* Confusion    */ playerconfused = 1;
+    }
+  } else {
+    /* plain melee — ws hit-roll + mh[x]/6 + ryl_random(0,9) */
+  }
+}
+```
+
+Every probability and every damage formula is a literal in
+the source: `15 + sp/2` for the cast gate, `h2/5 + ryl_random
+(0,3)` for frost, `h2/5 + ryl_random(0,4)` for fire, the
+4-way uniform pick across the spell list, the implicit
+"every monster knows the same four spells" assumption. The
+right shape for this on the data side mirrors what we
+already have for player spells: a `monster_spells.json5`
+shard with `frost`/`fire`/`hold`/`confuse` entries (or
+whatever name set we want — the bestiary could plausibly
+gain more), each with a `do:` body in the existing DSL.
+The cast-gate formula and the spell-pick weights both
+become res-resolved formulas. The `g == 5` block then
+becomes: `for each undead monster, run res_monster_turn(...)`
+where the runtime walks the data-side decision tree. The
+melee-attack arm should also extract — same `ryl_chance(ws+1)`
+gate and `mh[x]/6 + ryl_random(0,9) - obdamage(armour)`
+formula now lives in C but is structurally identical to a
+spell `do:` body.
+
+A nice side effect: per-monster spell sets become possible
+without touching C. The bestiary already has `sp` as the
+"spellpower" hint; today it only modulates the cast gate.
+With `monster_spells` keyed by tier or by monster name, the
+designer surface widens significantly without engine work.
+Effort estimate: ~2-3 sessions to migrate the four spells +
+the gate + the melee arm, with one fixture per arm
+(combat-monster-{frost,fire,hold,confuse,melee}) to pin
+RNG state across the boundary. Likely needs a small DSL
+extension for monster-side targeting (`pick_alive_player`
+helper + `damage_all_alive_players` loop), but both fit
+the existing emit/mutate vocabulary.
+
+**§23.B — battle.c item-spell switch (cases 100..111, lines
+194-403, ~210 LOC).** Twelve hardcoded magic-item effects
+dispatched on `oc` (object code). About half already use
+`res_text(...)` for narration but the **dispatch table**
+and all damage formulae are native — `ryl_random(5,11) +
+pm_lv(...)` for case 100 (chill), `pm_lv(...) * ryl_random
+(3,8)` for case 101 (burn), etc. Each case is structurally
+a tiny spell: take target / pick alive / mutate hp /
+maybe tx0 narration / pause. The right shape: a
+`magic_items.json5` shard keyed by object code with `do:`
+bodies, indexed via `res_magic_item(oc)` analogous to
+`res_spell("priest", slot)`. The C dispatcher reduces to:
+read inv letter, look up oc, `play_spell_body(...)`. Cases
+105/108 (heal-target / rebirth-target) need a target
+prompt + key read — the DSL already has menu_branch +
+key_var so this is straightforward; cases 109/110 (axe,
+handgrenade) need a "damage all foes" loop that mirrors
+the monster-fire arm above so §23.A and §23.B share that
+helper. Effort: ~2 sessions; can be sequenced after §23.A
+so the monster-loop helper is in place. Three or four
+fixtures cover the per-arm shapes (single-target damage,
+all-target damage, target-prompt heal, target-prompt
+rebirth, narration-only fizzle).
+
+**§23.C — battle.c hit-roll and miscellaneous combat
+constants.** Smaller items that carry no large data shape
+of their own, but are stylistic eyesores once §23.A/B
+land. The player-attack hit-roll `ryl_chance(x + 1)` and
+damage `obdamage(wp) + ryl_random(0,4) + pm_hp/hpd` are
+half data-driven (`hp_defense_div` is in res) and half
+literal. The confusion divisor `x /= 3` (line 534), the
+battle-cry `ws -= 4` (482), the defend `ws -= 2` (508),
+the desperate-flee `ryl_chance(31)` (776), and the
+`pm_lv` defend heal at 490-494 are all literals that
+belong in `combat.json5`. None require new DSL — just
+res-int lookups. Effort: ~1 session of mechanical sweeps,
+no fixture additions needed (existing combat fixtures
+pin the formulas).
+
+**§23.D — driv.c character-creation thresholds.** Class-
+passing thresholds (lines 1528-1567) are 50/50/50 literal
+checks against `ws`/`wi`/`ch` per class. The class table
+in `world.json5` already names classes — extending each
+record with `min_stat: { name: 'wi', value: 50 }` (or a
+list for multi-stat classes if we ever want them) closes
+this. The `ryl_random(15, 70)` stat-roll range (lines
+1463-1467) and the starting-state init block (1580-1609:
+x=12, y=9, gold=1000, torches=5, food=100, time_left=200,
+hours_rested=14) are all numeric literals that should be
+in `driv.start.*` or `world.start.*`. Effort: ~0.5 session;
+existing title-create-party fixtures pin the values.
+
+**§23.E — bestiary special-encounter switches (driv.c lines
+~478, 688 outside the create-party block; dungeon.c level-
+loop key dispatch).** Survey-only at this point — the
+patterns look more like UI dispatchers than data, but worth
+a once-over after §23.A/B to confirm there's no extraction
+opportunity hiding in the wilderness/dungeon command
+handlers. The dungeon level-loop `if (c == 'D') ... if
+(c == 'A') ...` chain (dungeon.c:71-169) is fundamentally
+input dispatch and probably stays in C; the descend/ascend
+*actions* are short enough that a data table buys little.
+
+**§23.G — driv.c race switch (queued 2026-04-26 #3).** The
+character-creation race-pick block at driv.c:1540-1575 is a
+six-arm `switch (state.p[a].ra)` that dispatches on the int
+race id (1=human..6=??). Each arm sets per-race stat caps /
+class restrictions / a couple of localized adjustments. Same
+shape as §23.B was — keep state.p[].ra as an int (it's
+load-bearing across saves and pm_ra accessors), but lift the
+switch body into `world.json5`'s existing `enums.race.<key>`
+records as a `class_caps:`/`stat_adj:`/etc. body, dispatched
+through a new `res_race_dispatch(ra)` (or a script DSL
+`do:` body if the per-race logic warrants it). Effort: ~1
+session if the per-race bodies are simple enough to be plain
+data; ~1.5 sessions if they need DSL bodies. Existing
+title-create-party fixtures cover all six paths byte-for-byte.
+
+**§23.H — ydarg.c scenario / monster-type switches (queued
+2026-04-26 #3).** Several numeric `switch` blocks across
+ydarg.c — case 1=Monster / case 2=Pitfall / case 3=...
+(line 94-150 chunk), case 50=??? (line 192), the multi-arm
+encounter switch around line 237-310, the level-key chain
+around 515-540. Same migration shape as §23.B — the int
+switch arms become data-driven dispatch, with the int still
+stored in state but the per-case body authored in JSON5.
+Some arms are very thin (single tx0 + delay); those collapse
+to a single text shard. The encounter-type and level-key
+arms need DSL bodies. Worth a survey pass first (one session)
+to decide which arms are worth migrating vs. which stay in C
+because the C body is genuinely UI dispatch (input-key
+matching that doesn't read like data). Effort: 1 survey
+session + 1-2 migration sessions, depending on how much of
+ydarg.c's switch surface qualifies. Cave-descent /
+wilderness-camp / wilderness-cave-descent fixtures cover
+some paths; new fixtures may be needed for the
+special-encounter arms.
+
+**§23.I — Multi-screen narration helper (queued 2026-04-26
+#4).** Pervasive pattern across ydarg.c / towne.c / dungeon.c
+(sample at ydarg.c::confrontation lines 432-491): runs of
+`tx0(res_text(id)) + ryl_pause() + clw()` where each screen
+is its own text key, even though the C-side ceremony is
+identical for every step. ydarg.conf alone has 14 such
+keys split into 4 narration runs (act1: trapdoor_slam →
+fools, 2 screens; act2: corpses → impress → sphere → mages
+[bind p1_name] → curses → trident → commence, 7 screens;
+act3: trident_falls → not_over → cloak → dust → congrats,
+5 screens; act4: heroes → signoff, 2 screens) — the boundaries
+fall on encounters / state mutations, not on rendering shape.
+
+**Shape A** (sugar) — flat list-of-lists; transition is
+`pause + clw` between, no trailing pause:
+
+    prelude: [
+      ['The last trapdoor', 'slams shut...', ''],
+      ['- Fools! ...', ''],
+    ],
+
+**Shape B** (annotated) — when transitions vary
+(`ryl_delay` between screens, "no pause" handoff, etc.):
+
+    prelude: [
+      { lines: [...], next: 'pause' },           // default; can omit
+      { lines: [...], next: { delay: 2000 } },
+      { lines: [...], next: 'none' },
+    ],
+
+C-side surface: one new helper `tx_narrate(const char *id,
+const ryl_bind *binds)` that walks the array, applies the
+default transition (or per-screen `next:` override), and
+threads `binds` through tx_fmt for screens that interpolate
+(`mages: '{p1_name}'`). A bare `[...]` is sugar for
+`{ lines: [...] }` with default transition.
+
+Where it pays off: ydarg.confrontation collapses ~15
+tx0/pause/clw triplets into 4 tx_narrate calls + 5
+encounter/state lines; ydarg() approach run (approach →
+jaara_form → jaara_speech) collapses 1:1; assorted
+towne.c and dungeon.c openers similarly.
+
+Tradeoff: once a screen is referenced from elsewhere
+(shared atom), it has to stay a top-level key. Audit each
+candidate run for cross-references before folding. None of
+ydarg.conf's screens look shared.
+
+Effort: ~0.5 session for the helper + ydarg.conf
+conversion as the first user; further conversions roll in
+opportunistically as adjacent work touches each call site.
+Independent of §23.G/H — can land before, between, or
+after.
+
+**Cross-cutting — DSL gaps.** §23.A and §23.B will likely
+surface two genuinely missing primitives:
+
+  - **target-set iteration** with a predicate
+    (`for_each_alive_player`, `for_each_alive_monster`).
+    Today individual spells like priest.heal use `menu_
+    branch` + `pm_*` accessors per slot; a fire-hits-all-
+    party shape needs a loop over the bound combat ctx.
+    Already half-present in `mage.json5` via the combat
+    ctx struct; needs to formalize into a DSL op.
+  - **typed RNG bindings for combat** — frost damage is
+    `h2/5 + random(0,3)` where `h2` is the encounter HP
+    cap, currently a C local. The combat ctx already
+    plumbs `mh[]`, `noc`, `ws`, etc. through to scripted
+    spells; extending the binding set with `h2` /
+    `monster_idx` / `target_idx` and exposing them via
+    `{ var: 'h2' }` lookups in the DSL covers this.
+
+Neither is a deep change; both already have analogues in
+the §22 lane-A migration. Plan to land the DSL pieces in a
+prep commit before §23.A so the monster spells can use the
+real ops on day one.
+
+**Recommended sequencing.** §23.A first (highest leverage,
+forces the DSL prep), then §23.B (rides on §23.A's helpers),
+then §23.C/D in parallel as small mechanical sweeps. §23.E
+as a survey only, possibly closed without code changes.
+
+**Estimated total effort.** ~6-8 sessions across §23.A-D.
+The result: `battle.c` shrinks from ~850 LOC to perhaps
+350-400 LOC of pure runtime (input loop, RNG plumbing, ctx
+binding, victory/loss handoff). The bestiary, item-spell
+table, monster-spell table, and class threshold table all
+become first-class data shards a designer can edit without
+a recompile. That's the same shape player spells have today
+post-§22.
+
+**Why post-§22.** §22 is mid-flight and the spell-fixture
+queue (#8a banish + §22.F + §22.G) needs to land first to
+keep the lane-A migration coherent. §23 starts after §22
+closes; sequencing the other way would mean rewriting fixtures
+mid-extraction. The §22.5 fixture set (combat-mage-* and
+combat-attack-win) already pins the player-side combat path
+byte-for-byte, so §23.A's monster extractions land against
+known-good baselines.
+
+**§23.F — ydarg "stairs" item-trade flow.** The Baron Ydarg
+endgame in `src/ydarg.c` includes a mage-room subflow where
+the player descends a staircase, picks one of five quest
+items to surrender, and on success the wizard awards a stat
+boost. Currently this is a `switch (d - 48)` over the four
+special-item arms (fireshield / mastercrown / jazzyfoot /
+bracelets) plus a transparent "T" teleport-out branch — raw
+ASCII-digit math, four near-identical case bodies, all
+inline. The shape mirrors a small dungeon: keypress prompt,
+per-arm gating + state mutation, success/failure narration.
+The right lift is into `data/world/scripts/ydarg.json5`
+(new shard) as a `menu_branch` over `keys: ['1','2','3','4',
+'5','T']` with each `then:` body checking the matching
+`pa_special` via expr (or via a new flag) and using `mutate
+state_*` lvalues to clear it on success. Replaces the raw
+`d - 48` switch with the same pattern §20 L7 used for the
+camp/hunt/lodge flows. Effort: ~0.5 session; can land any
+time after §22 closes — independent of §23.A/B's combat-side
+work since this is exploration UI, not combat.
+
+§22.13 — Continuation prompt (session close, 2026-04-26)
+
+Continuation of §22.11. Three commits this session, both
+gates green at every commit:
+
+  - `b62d8a7` §22.5 #8c wilderness-priest-teleport fixture.
+    Path 1 (seed-5 wild-roll cave entry, reused verbatim
+    from #8b revelation), slot 1 priest at lv 1 covers
+    cost (35 + 1 = 36, ma 52 → 16). Two literal-`\n`
+    absorbers feed the back-to-back ryl_pause narration
+    blocks. Compass=2 + how-far=1 drives an actual coord
+    change ((12,8) → (12,10)) — direction 8 (north) was
+    a no-op due to a mountain at (12,7); env documents
+    the terrain dependency for future teleport fixtures.
+    §22.11 captures the full write-up.
+
+  - `493485e` §23 post-§22 engine→data extraction analysis.
+    Lookahead-only — no code changes. Five sub-sections:
+    §23.A monster nasty-magic block (battle.c g==5,
+    ~115 LOC), §23.B item-spell switch (cases 100-111,
+    ~210 LOC), §23.C combat-constants sweep, §23.D driv.c
+    character-creation thresholds, §23.E dispatcher survey.
+    Calls out two DSL gaps to land before §23.A starts
+    (target-set iteration with predicate, typed combat-ctx
+    bindings). Estimated ~6-8 sessions across §23.A-D;
+    battle.c expected to shrink from ~850 to ~350-400
+    LOC of pure runtime.
+
+  - `12445d2` §22.12 open-work audit. Pre-§23 status check
+    so the 4800-line plan is tractable. Five buckets
+    (DONE / PARTIAL / NOT DONE / NEEDS VERIFICATION /
+    SKIPPED). Pre-§22 stragglers that genuinely matter:
+    Phase 5c residuals (driv.c 37, ydarg.c 13 raw
+    `state.p[cpl]` hits), §20 TINY T3/T4 (driv.c
+    hardcoded `disptext("data/...")` and `fopen(...)`
+    literals, 8+ sites), and the §20 LARGE L3/L5 combat
+    extractions that §23.A/B already absorbs. §20.12's
+    eval.c reference is stale — `spawn_encounter` /
+    `call` no longer exist in the source tree; treat
+    as superseded.
+
+**What's left for §22.** One spell fixture (#8a banish)
+plus two cleanup tasks (§22.F speak_missions rewrite,
+§22.G docs/dsl.md). ~1 session total. Plan unchanged
+from §22.11:
+
+  1. **Land priest-banish (§22.5 #8a)** via path 2.
+     RYL_FORCE_PARTY_LV=5, two priests in slots 1+2
+     (seed 2 wi 67/63 — both qualify). Slot 1 casts
+     earthquake (`Z 1 7 E`) → spawns cave + dives into
+     the new dungeon. Slot 2 casts banish (`Z 2 4`) —
+     sets `state.banished`, success arm ends with the
+     state_banished mutate and the level-3..5 lvl[]
+     zero-out in dungeon.c (battle.c → dungeon.c bridge
+     lives at battle.c:99-105 still — banish flips the
+     flag, the next dungeon iteration sees it and
+     prunes). The earthquake-spawned dungeon has 5..18
+     levels (random); pin a seed where the level-1
+     random fill is reproducible.
+
+  2. **§22.F speak_missions.json5 rewrite + parser
+     retire.** Plan in §22.7. The speak_missions
+     micro-DSL evaluator in `speak.c` still alive;
+     convert each NPC role's stages to a script that
+     fires the right play_script. Removes the parser
+     entirely.
+
+  3. **§22.G docs/dsl.md single-doc reference.** Spec
+     in §22.7. Should follow §22.F so the doc reflects
+     the post-migration surface (no speak_missions
+     micro-DSL listed).
+
+After §22.G, the milestone is closed. §23 picks up next
+— start with the DSL prep commit (target-set iteration +
+typed combat-ctx bindings) before §23.A's monster spells.
+
+**Pre-§22 stragglers worth flagging.** Per §22.12:
+
+  - **Phase 5c (driv.c, ydarg.c).** ~50 raw `state.p[cpl]`
+    hits between the two files. driv.c is the H2 target
+    per §20.17. Mechanical sweep, no fixtures needed —
+    existing fixtures pin the byte-stream.
+
+  - **§20 TINY T3/T4.** driv.c `disptext("data/score.txt")`
+    / `fopen("data/map.dat")` literals at lines
+    372/412/481/495/511/523/550/580/858. Add `res_ansi_path()`
+    + `res_map_path()` helpers; sweep. Quick win.
+
+  - **§22.10 dungeon_encounter slots 10..19 cleanup.**
+    Confirm nothing indexes into the reserved hole, then
+    collapse the enum if safe. Carry-over follow-up.
+
+These don't block §22 close. They're candidates for a
+hygiene session between §22.G and §23.A.
+
+**Bar per session.** Same as §22.8/§22.9/§22.10/§22.11:
+`make check` and `make testasan` both green at every
+commit.
+
+§22.14 — §22 closure + hygiene session (2026-04-26)
+
+Continuation of §22.13. Six commits this session, both gates
+green at every commit:
+
+  - `63a7a80` §22.F speak_missions micro-DSL retired. Each
+    NPC role's stages now lives as a `speak_missions.<role>`
+    dispatch script (`scripts:` subtree) — an if-chain over
+    flag values that resolves npc_name / npc_loc / dx / dy
+    bindings via two new engine_bind helpers (`npc_name_at_
+    role`, `npc_loc_at_role`) and `let` over the existing
+    `wld_location_x/y` engine_int, then `play_script`s the
+    matching `speak.<x>.<y>` body. The new `play_script` op
+    forwards merged caller bindings + rt_env entries to the
+    nested call. Retires `mission_dispatch` + `mission_resolve_
+    bindings` in `speak.c`, `mission_spec_` / `mission_stage`
+    / `mission_binding` types in `speak.h`, and `fold_speak_
+    missions` + `parse_bind_kind` in `res.c`. New helper
+    `res_role_for_slot(slot)` reverses `npc_roles:` so
+    `speak.c::npc_mission_hint` only needs the talker's slot.
+
+  - `ee8ba68` §22.G docs/dsl.md single-doc reference. Replaces
+    the historical Phase-6d design narrative with the post-§22
+    surface: worldfile shape, script anatomy + text-id
+    resolution, every op, expression vocabulary, mutate
+    lvalues, the three engine registries (engine_call /
+    engine_int / engine_bind names + sigs), automatic
+    placeholder bindings ({party_max} / {inventory_max} /
+    {cost:itemkey}), die_at error contract, three worked
+    examples (small spell, speak_missions dispatcher, formula).
+    `src/script.h` cross-links to docs/dsl.md as the user-
+    facing reference.
+
+  - `5371e5b` Phase 5c residuals — driv.c + ydarg.c. Sweep
+    the last 50 raw `state.p[state.cpl].*` hits between the
+    two files through pa_*/pm_* helpers. New helpers in
+    party.h/c: `pa_party_name()`, `pa_journal_n()` /
+    `pa_journal_line(i)`, and a parameterised `pa_special(int
+    which)` / `pa_set_special(int which, int v)` keyed by
+    the existing PS_* enum (covers ydarg's silverkey=2
+    state-bump that party_award_special's set-to-1 doesn't
+    express). driv.c + ydarg.c residual count drops from
+    50 to 0.
+
+  - `e61be95` port-plan §23.F. New §23 lookahead entry for
+    the ydarg "stairs" item-trade flow — a `switch (d - 48)`
+    over four special-item give-arms surfaced during the
+    Phase-5c sweep. Mechanically identical shape to the
+    §20 L7 camp/hunt/lodge flows; ~0.5 session lift into
+    a new `data/world/scripts/ydarg.json5` shard.
+
+  - `3271b14` §20 T3/T4 hardcoded data/ paths. New
+    `res_data_path(leaf, out, out_sz)` helper alongside
+    `res_ansi_path` / `res_map_path`. Sweeps the eight
+    remaining `disptext("data/...")` and `fopen("data/...")`
+    literals (driv.c S/D/H menus + ydarg.c heroes.txt log).
+    Asset-root rename is now one edit.
+
+  - `b258cb0` §22.10 dungeon_encounter slots 10..19 collapse.
+    Reserved hole was Amiga-numbering ballast; verified
+    nothing indexes into 10..19 (lvl[]'s only numeric range
+    check is `>= 3 && <= 5`, below the gap; placements use
+    symbols; lvl[] isn't persisted). Quest events shift from
+    20..38 to 10..28. Updated dungeon.c + dungeons.json5
+    docstrings to match.
+
+  - `d4c06d2` §22.5 #8a wilderness-priest-banish fixture.
+    Path 2 (earthquake bridge): two priests in slots 1+2,
+    RYL_FORCE_PARTY_LV=5 brings both to ma 99/95. Slot 1
+    casts earthquake (`Z17E`) → cave + dungeon descend; on
+    level 1 the random fill rolls `gold` (lvl[1]=2: 132 gp);
+    its wait_input is absorbed by a single \n. Slot 2 then
+    casts banish (`Z24`) — six-screen incantation, success
+    arm ends with state_banished=1, dungeon.c's post-spell
+    hook zeroes lvl[i] in 3..5. Snapshot pins
+    state.banished=1, slot 1 ma=39 (99-60), slot 2 ma=6
+    (95-90 + 1 from a foodhandler mana_regen tick during
+    earthquake's advance_hour beat). Closes §22.5 — 13/13
+    lane-A spell fixtures landed.
+
+**§22 status — CLOSED.** All bullets from §22.13's "what's
+left" list shipped:
+  - #8a banish fixture: landed.
+  - §22.F speak_missions rewrite: landed (parser retired).
+  - §22.G docs/dsl.md: landed (cross-linked from script.h).
+
+The pre-§22 stragglers from §22.12 also closed:
+  - Phase 5c driv.c/ydarg.c residuals: 0 raw hits remaining.
+  - §20 TINY T3/T4 path literals: lifted via res_data_path.
+  - §22.10 dungeon_encounter 10..19 reserved slots: collapsed.
+
+**Continuation prompt — what to do next session.**
+
+The repo is in a good rest state: §22 closed, the post-§22
+hygiene queue from §22.12 cleared, and §23 lookahead already
+written (§23.A monster nasty-magic, §23.B item-spell switch,
+§23.C combat constants, §23.D char-creation thresholds, §23.E
+dispatcher survey, §23.F ydarg stairs). Sequencing per §23's
+"recommended sequencing" prose:
+
+  1. **DSL prep commit before §23.A.** §23 calls out two DSL
+     gaps that should land first: (a) target-set iteration
+     with a predicate (`for_each_alive_player`,
+     `for_each_alive_monster`); (b) typed RNG / combat-ctx
+     bindings — frost damage `h2/5 + random(0,3)` reads `h2`
+     as a C local today, the combat ctx already plumbs
+     `mh[] / noc / ws / etc.` so extending the binding set
+     with `h2 / monster_idx / target_idx` and exposing them
+     via `{ var: 'h2' }` is the natural shape. Both have
+     analogues in the §22 lane-A migration; neither is a
+     deep change. ~1 session.
+
+  2. **§23.A — battle.c monster nasty-magic block** (lines
+     625-740, ~115 LOC). Highest-leverage extraction: the
+     `g==5` undead block (cast-gate `15 + sp/2`, four-spell
+     pick across frost/fire/hold/confuse, melee fallback
+     with `mh[x]/6 + random(0,9) - obdamage(armour)`). Lift
+     into `monster_spells.json5` shard with `do:` bodies
+     and a `monster_turn` runtime call. Per-monster spell
+     sets become a data edit. Forces the DSL prep. ~2-3
+     sessions.
+
+  3. **§23.B — item-spell switch** (battle.c:194-403, cases
+     100..111, ~210 LOC). Rides on §23.A's helpers (target
+     iteration + combat-ctx bindings already extended).
+     Items.json5 grows per-id `effect:` specs; the case
+     dispatch becomes `apply_item_effect(id, ctx)`. ~2
+     sessions.
+
+  4. **§23.C/D in parallel** — combat-constants sweep and
+     driv.c char-creation thresholds. Mechanical, small.
+     ~1 session each.
+
+  5. **§23.F (or §22.5 #8a-style fixture for it).** ydarg
+     stairs item-trade lift to data/world/scripts/ydarg.json5
+     — `menu_branch` over keys ['1'..'5','T'] with per-arm
+     `pa_special` gates and clears via `pa_set_special`
+     mutate-style. Independent of §23.A/B's combat work,
+     so it's a good warm-up commit if a session wants
+     something contained. ~0.5 session.
+
+  6. **§23.E survey.** Confirm there's no extraction
+     opportunity in driv.c wilderness-loop / dungeon level-
+     loop dispatchers; close as documentation if the
+     conclusion is "input dispatch, stays in C". ~0.25 session.
+
+**Estimated total for §23.** ~6-8 sessions A-D + §23.F's
+0.5 + §23.E's 0.25 ≈ ~7-9 sessions. The result: `battle.c`
+shrinks from ~850 LOC to ~350-400 of pure runtime; the
+bestiary, item-spell table, monster-spell table, and class
+threshold table all become first-class data shards.
+
+**Pre-§23 pre-flight notes:**
+
+  - `make check` + `make testasan` both green at HEAD
+    (commit `d4c06d2`). The §22 fixture set (12 lane-A
+    spell fixtures + the wilderness/towne battery) pins
+    every player-facing combat path byte-for-byte, so §23.A's
+    monster extractions land against known-good baselines.
+  - The new `play_script` op in §22.F is genuinely useful
+    beyond speak_missions — any future flow that wants to
+    fan out into nested scripts after gating gets the same
+    `forward bindings` mechanic for free. Worth keeping in
+    mind for §23.A's monster_turn.
+  - docs/dsl.md is now the single doc reference for the DSL.
+    Keep it in sync as §23 adds ops (target iteration,
+    combat-ctx bindings) — author rule: every new
+    op/expr/lvalue/registry entry gets a one-paragraph
+    addition there at the same commit it lands.
+
+**Bar per session.** Same as §22.8/§22.9/§22.10/§22.11/§22.12/
+§22.13: `make check` and `make testasan` both green at every
+commit.
+
 ## §23.B closed (2026-04-26 #3)
 
 `battle.c`'s 12-arm magic-item switch (cases 100..111,
