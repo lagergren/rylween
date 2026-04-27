@@ -4431,3 +4431,93 @@ slice again expecting work.
 Slice C (dungeon.c) is the next active item — biggest of the
 remaining slices (917 lines, fixture-reachable via
 `wilderness-cave-descent`).
+
+## §23.A follow-up closure (2026-04-27 #16)
+
+The §23.A residual closure (2026-04-27 #8) lifted the four
+melee tuning constants (`hit_bonus`, `damage_div`,
+`damage_spread_max`, `damage_min`) into
+`combat.monster_attack` but left the surrounding C control flow
+inline in `battle.c::combat`'s nasty-magic dispatcher. This
+closure lifts that control flow — the entire monster-melee
+fallback arm (the "else" of the cast-vs-melee branch) — into a
+script DSL `do:` body parallel to the four spell bodies that
+already live under `monster_spells.spells[]`.
+
+**The plan's "two helpers needed" claim was stale.** The
+§17.A.4 / §23.A queue body said the lift needed (a) a
+`for_each_alive_player`-style predicate iterator and (b) combat-
+ctx target binding. Both shipped during the §23.A spell-DSL
+work: `for_each_alive_player` is the `cloud_of_fire` driver,
+`pick_random_alive_player` is the frost-targeting helper, and
+the combat-ctx target binding (`monster_hp` / `battle_flag` /
+`member_field` / `obdamage` / `chance` reads + writes) was the
+infrastructure that made the four spell bodies expressible at
+all. The only missing piece was a way to read `res_combat_int`
+values from a script body — needed because the four melee
+constants the §23.A residual closure lifted live in
+`world.json5::combat.monster_attack` and inlining them into the
+script body would un-lift them.
+
+**Two commits.**
+
+`4468739 script: add { combat_int: '<path>' } expression op`.
+Mirrors the `obdamage` / `obcost` shape — a string-only
+expression form that calls `res_combat_int(<dotted_path>)`.
+Restricted to `N_STR` so typos die_at the call site rather than
+hiding behind `res_combat_int`'s silent zero-on-missing return.
+17-line addition.
+
+`b99de4e §23.A follow-up: lift monster-melee fallback arm to
+DSL do: body`. Adds `monster_spells.melee.do` as a sibling of
+the `spells:` array in `data/world/spells/monster.json5`; the
+body picks the target via `pick_random_alive_player`, narrates
+attacks / target_excl, rolls `chance(ws + hit_bonus)`, on hit
+computes `max(monster_hp[attacker]/damage_div + random(0,
+spread) - obdamage(member.ar), damage_min)`, mutates `hp` /
+`dead` / `party.pl`, narrates damage_pts / melee_dies /
+blow_misses, and inserts the same `ryl_delay` pauses (400 /
+1000 / 600) the C arm emitted. Adds `res_monster_melee_node()`
+in `res.{c,h}` mirroring `res_monster_spell_node`. Replaces
+the C else-arm with a `play_spell_body` call under script_id
+`"monster_spells.melee"`, binding `attacker_idx` (the active
+monster's slot from the `for_each_monster` loop) and
+`monster_name`. The combat ctx is identical to the cast
+block (`noc` / `mh` / `deadc` / `fn` / per-encounter flag
+pointers / `h2`); the `ws_int` local + writeback dance mirrors
+the cast block too, even though the melee body never mutates
+ws — keeps the ctx shape consistent.
+
+**Two pre-existing C-level quirks dropped per project policy.**
+
+  - The `(damage_div > 0) ? mh/div : mh` protect: `damage_div`
+    is set to 6 in `world.json5` and won't change; if it ever
+    became 0 the script body now dies loudly via div-by-zero
+    rather than silently using full mh.
+  - The `if (pa_pl()) pa_add_pl(-1)` guard around the death-
+    decrement: the outer `for_each_monster` loop already gates
+    on `pa_alive_count() > 0` (else `losegame()` takes over),
+    and the frost / fire spells in the same file call
+    `pa_add_pl` unguarded. Matches the existing convention.
+
+**RNG identity preserved exactly.** `pick_random_alive_player`
+advances RNG the same way as the legacy `while (1) { who =
+ryl_random(0, 3); if (pa_is_alive(who)) break; }` loop (the
+legacy hardcoded `3` equals `res_party_member_max() - 1`, so
+the draw range is identical). Then `chance(ws + bonus)` fires
+once on the hit roll, then on hit `random(0, spread)` once.
+The `combat-monster-magic`, `ydarg-confrontation`, and
+`combat-attack-win` fixtures all exercise the melee arm and
+stay byte-identical on `make check` + `make testasan`; no
+`.expect_snapshot` rebless required.
+
+**§23.A closed end-to-end** with this commit. Both halves of the
+§23.A queue (numbers + structure) are now in data: the four
+spell bodies under `monster_spells.spells[]`, the melee body
+under `monster_spells.melee.do`, the four melee constants under
+`combat.monster_attack.*`, and the spell-side numbers (h2-
+scaled damage formulas) under `formulas.encounter_h2_scaled` /
+related. The dispatcher in `battle.c` now contains only the
+cast-vs-melee gate (`chance(15 + sp/2) && !antimagic`), the
+two `play_spell_body` callsites, and the for_each_monster
+loop — no inline combat narration or numbers.
