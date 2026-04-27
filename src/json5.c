@@ -15,6 +15,7 @@
  */
 
 #include "json5.h"
+#include "log.h"
 #include "res.h"
 
 #include <ctype.h>
@@ -29,7 +30,7 @@
 node *node_new(node_kind k, int line) {
     node *n = calloc(1, sizeof *n);
     if (!n) {
-        fprintf(stderr, "res: oom\n");
+        LOG_E("json5", "oom");
         exit(1);
     }
     n->kind = k;
@@ -455,7 +456,7 @@ static char *slurp_file(const char *path) {
 node *json5_parse_file(const char *path) {
     char *src = slurp_file(path);
     if (!src) {
-        fprintf(stderr, "res: cannot read %s\n", path);
+        LOG_E("json5", "cannot read %s", path);
         exit(1);
     }
     parser p = {.path = path, .src = src, .cur = src, .line = 1};
@@ -500,20 +501,20 @@ static node *load_import(const char *relpath, int directive_line,
     /* suffix check — only .json5 supported this commit */
     size_t len = strlen(relpath);
     if (len < 6 || strcmp(relpath + len - 6, ".json5") != 0) {
-        fprintf(stderr, "res: %s:%d: $import: only .json5 supported yet (%s)\n",
-                src_path, directive_line, relpath);
+        LOG_E("json5", "%s:%d: $import: only .json5 supported yet (%s)",
+              src_path, directive_line, relpath);
         exit(1);
     }
     char full[512];
     int wrote = snprintf(full, sizeof full, "data/%s", relpath);
     if (wrote < 0 || (size_t)wrote >= sizeof full) {
-        fprintf(stderr, "res: %s:%d: import path too long\n", src_path, directive_line);
+        LOG_E("json5", "%s:%d: import path too long", src_path, directive_line);
         exit(1);
     }
     for (import_frame *f = stack; f; f = f->prev) {
         if (strcmp(f->path, full) == 0) {
-            fprintf(stderr, "res: %s:%d: import cycle: %s\n",
-                    src_path, directive_line, full);
+            LOG_E("json5", "%s:%d: import cycle: %s",
+                  src_path, directive_line, full);
             exit(1);
         }
     }
