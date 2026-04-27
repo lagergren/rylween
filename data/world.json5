@@ -803,14 +803,13 @@
     gender: ['', 'male', 'female'],
 
     // Town name strings as they appear in current-world.json5 saves
-    // and npcs[].towne entries. Slot 0 is the symbolic 'wilderness'
-    // bridge: the runtime sentinel WILDERNESS_TOWN (-1) writes/reads
-    // through enum index 0 here, while real towns at enum indices
-    // 1..N map to towns[] slots 0..N-1 (the towns: array dropped its
-    // leading null in §25.B step 3b/C3). §25.B step 3b/C4 will drop
-    // 'wilderness' from this list and the save-format bridge will
-    // switch to writing/matching the literal string instead.
-    towne: ['wilderness', 'Thord', 'Ollk', 'Wilor', 'Murn'],
+    // and npcs[].towne entries. Slots 0..N-1 line up with the
+    // towns[] runtime array entry-for-entry; the runtime sentinel
+    // WILDERNESS_TOWN (-1) is bridged separately by the literal
+    // string "wilderness" in the save-format / fixed-NPC paths
+    // (driv.c::wcw_enum / rcw_enum towne, res.c::res_realize_npcs,
+    // res.c::res_npc_in_town) — never an enum entry here.
+    towne: ['Thord', 'Ollk', 'Wilor', 'Murn'],
 
     // Building within a town (struct person.building). 0 = none
     // (wilderness NPCs); 1 = inn; 2 = tavern. Symbolic ids; not

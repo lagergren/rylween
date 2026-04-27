@@ -1284,18 +1284,19 @@ const char *res_npc_in_town(int32_t twn, const char *job_sym) {
             continue;
         }
         /* `twn_n` is the world.json5 string ('Thord' / 'wilderness' /
-           …); res_enum_id maps it to the enums.towne 1-indexed slot.
-           Shift down by 1 so it compares against the 0-indexed
-           towns[] slot id (or against WILDERNESS_TOWN = -1 when the
-           string is 'wilderness'). The §25.B step 3b/C4 commit will
-           drop 'wilderness' from the enum and switch this match to
-           a literal-string compare. */
-        int twn_id = res_enum_id("towne", twn_n->u.sv);
-        if (twn_id < 0) {
-            continue;
-        }
-        if (twn_id - 1 != twn) {
-            continue;
+           …); 'wilderness' is matched as a literal (post-§25.B step
+           3b/C4 it is no longer an enums.towne entry), real town
+           names route through res_enum_id which shares the
+           enums.towne ↔ towns[] index space. */
+        if (strcmp(twn_n->u.sv, "wilderness") == 0) {
+            if (twn != WILDERNESS_TOWN) {
+                continue;
+            }
+        } else {
+            int twn_id = res_enum_id("towne", twn_n->u.sv);
+            if (twn_id < 0 || twn_id != twn) {
+                continue;
+            }
         }
         const node *name_n = obj_get(rec, "name");
         return (name_n && name_n->kind == N_STR) ? name_n->u.sv : "";
@@ -1472,14 +1473,18 @@ void res_realize_npcs(void) {
         const node *towne_node = obj_get(rec, "towne");
         if (towne_node) {
             /* FIXED: declared slot. Apply job/towne/building/x/y verbatim.
-               enums.towne[0] is the symbolic "wilderness" entry → runtime
-               sentinel WILDERNESS_TOWN; enum index N>=1 maps to towns[]
-               slot N-1 (the §25.B step 3b axis flip dropped the slot-0
-               sentinel from the towns array, so enum and array share
-               the same name list offset by one until §25.B step 3b/C4
-               drops 'wilderness' from the enum). */
-            int twne = rn_enum(rec, "towne", "towne", 0);
-            n->towne = (twne == 0) ? WILDERNESS_TOWN : twne - 1;
+               'wilderness' is recognized as a literal string and bridges
+               to the runtime sentinel WILDERNESS_TOWN — it is no longer
+               an enums.towne entry (dropped in §25.B step 3b/C4); real
+               town strings share the enums.towne ↔ towns[] index space
+               directly so the lookup returns the runtime slot id with
+               no offset. */
+            if (towne_node->kind == N_STR &&
+                strcmp(towne_node->u.sv, "wilderness") == 0) {
+                n->towne = WILDERNESS_TOWN;
+            } else {
+                n->towne = rn_enum(rec, "towne", "towne", WILDERNESS_TOWN);
+            }
             n->building = rn_enum(rec, "building", "building", 0);
             n->x = rn_int(rec, "x", 0);
             n->y = rn_int(rec, "y", 0);
@@ -1498,8 +1503,12 @@ void res_realize_npcs(void) {
                The bin draw range and the linear probe stay 0..T-1
                (bin 0 = wilderness, bins 1..n_towns = town slots
                0..n_towns-1) so the RNG stream advances identically to
-               the pre-§25.B step 3a sequence — only the post-mapping
-               shifted in step 3b: bin N>=1 -> town slot N-1. */
+               the pre-§25.B step 3a sequence; bin 0 maps to the
+               WILDERNESS_TOWN sentinel and bin N>=1 to towns[] slot
+               N-1 directly. The bin numbering is independent of the
+               enums.towne index space (which dropped its wilderness
+               entry in step 3b/C4); the bin draw is purely a
+               capacity-balancing roll. */
             ryl_delay(40);
             int twn = ryl_random(0, T - 1);
             while (counts[twn] >= cap) {

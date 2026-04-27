@@ -888,14 +888,16 @@ static void write_current_world() {
         fputs(", job: ", f);
         wcw_enum(f, "job", n->job);
         fputs(", towne: ", f);
-        /* Save format keeps the symbolic "wilderness" string from
-           enums.towne[0]; the runtime sentinel WILDERNESS_TOWN
-           bridges back to that enum index, and the 0-indexed
-           towns[] slot id (post-§25.B step 3b/C3) shifts up by 1
-           to land on the 1-indexed enum entry until step 3b/C4
-           drops the wilderness enum entry. */
-        wcw_enum(f, "towne",
-                 n->towne == WILDERNESS_TOWN ? 0 : n->towne + 1);
+        /* WILDERNESS_TOWN serializes as the literal string
+           "wilderness" — independent of any enum entry, since §25.B
+           step 3b/C4 dropped the dedicated enums.towne slot. Real
+           towns serialize as their enums.towne string, which now
+           lines up entry-for-entry with the towns[] array. */
+        if (n->towne == WILDERNESS_TOWN) {
+            fputs("\"wilderness\"", f);
+        } else {
+            wcw_enum(f, "towne", n->towne);
+        }
         fputs(", building: ", f);
         wcw_enum(f, "building", n->building);
         fprintf(f, ", x: %d, y: %d, gender: ", n->x, n->y);
@@ -1274,16 +1276,19 @@ static int read_current_world() {
             struct person *n = &state.npc[slot];
             n->nr = slot;
             n->job = rcw_enum(rec, "job", "job", n->job);
-            /* Save format encodes wilderness as the symbolic
-               "wilderness" string (enum index 0); bridge back to
-               WILDERNESS_TOWN for in-memory comparisons. Enum
-               index N>=1 is a 1-indexed reference into the same
-               name list as the 0-indexed towns[] array, so shift
-               down by 1 to recover the runtime slot id (until
-               §25.B step 3b/C4 drops 'wilderness' from the enum
-               and the bridge swaps to a literal-string match). */
-            int twne = rcw_enum(rec, "towne", "towne", 0);
-            n->towne = (twne == 0) ? WILDERNESS_TOWN : twne - 1;
+            /* Save format encodes wilderness as the literal string
+               "wilderness" (no longer an enums.towne entry post-
+               §25.B step 3b/C4); recognize it before falling
+               through to the enum lookup so the runtime sentinel
+               survives the round trip. Real towns share the
+               enums.towne ↔ towns[] index space directly now. */
+            const node *twne_n = obj_get(rec, "towne");
+            if (twne_n && twne_n->kind == N_STR &&
+                strcmp(twne_n->u.sv, "wilderness") == 0) {
+                n->towne = WILDERNESS_TOWN;
+            } else {
+                n->towne = rcw_enum(rec, "towne", "towne", n->towne);
+            }
             n->building = rcw_enum(rec, "building", "building", n->building);
             n->x = rcw_int(rec, "x", n->x);
             n->y = rcw_int(rec, "y", n->y);
