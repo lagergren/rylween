@@ -1,5 +1,5 @@
-#include "ryl.h"
 #include "battle.h"
+#include "compat.h"
 #include "driv.h"
 #include "gfx.h"
 #include "inventory.h"
@@ -10,9 +10,10 @@
 #include "res.h"
 #include "script.h"
 #include "subs.h"
-#include "towne.h"
 #include "wld.h"
 #include "ydarg.h"
+
+#include <ctype.h>
 
 /* §23.J ydarg DSL lift — function-local state hoisted to module
    scope so the per-case scripts can read/write it via engine_call
