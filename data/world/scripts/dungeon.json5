@@ -1,9 +1,9 @@
 // §20 L2: dungeon level-event scripts. dungeon.c's main while-loop
 // dispatches by lvl[cl] — the integer encounter id stored in lvl[].
-// For each migrated case, the C arm is replaced by a single
-// play_script("dungeon.<symbol>") call; the symbol matches the
-// world.json5 enums.dungeon_encounter table. Unmigrated cases stay
-// in the C switch.
+// Every encounter is a `play_script("dungeon.<symbol>")` call; the
+// symbol matches the world.json5 enums.dungeon_encounter table.
+// (The legacy C switch was retired in §20 L2 step 7; dungeon.c is
+// now a 180-line dispatch loop.)
 //
 // Texts paired here live under data/world/texts/dungeon.json5; the
 // resolve_text_id "<script_id>.<name>" → "<parent>.<name>" two-step
@@ -337,18 +337,18 @@
         ],
     } },
     { engine_bind: { fn: 'object', args: [{ var: 'item_id' }], var: 'name' } },
-    { emit: 'find_object.found' },
+    { emit: 'found' },
     { menu_branch: {
       options: [
         { key: 'T', then: [
           { inv_add: { item: { var: 'item_id' },
             added: [
-              { emit: 'find_object.ok' },
+              { emit: 'ok' },
               { pause: 800 },
             ],
             full: [
               { engine_call: 'clw' },
-              { emit: 'find_object.cant_carry' },
+              { emit: 'cant_carry' },
               { pause: 800 },
             ],
           } },

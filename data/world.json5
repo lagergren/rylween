@@ -884,17 +884,18 @@
     ],
 
     // Dungeon level-event ids (struct lvl[] entries dispatched by
-    // dungeon.c's main switch). The id space is sparse: 1..9 are
-    // generic cave events (random-fill), 20..38 are hand-authored
+    // dungeon.c). Slots 1..9 are generic cave events placed by the
+    // random fill (`ryl_random(1, 9)`); slots 10..28 are hand-authored
     // quest encounters set by dungeons.scenarios.<flag>.placements.
-    // Slots 0 and 10..19 are empty so the array index matches the
-    // numeric id. dungeons.json5 placements may write these as
-    // either ints or strings; res_dungeon_apply_placements resolves
-    // strings via res_enum_id. L2 will retire the numeric switch in
-    // favour of script names matching these symbols.
+    // dungeons.json5 placements may write these as either ints or
+    // strings; res_dungeon_apply_placements resolves strings via
+    // res_enum_id. Each non-empty symbol matches a top-level
+    // `dungeon.<symbol>` script in data/world/scripts/dungeon.json5
+    // — the dispatcher in dungeon.c builds the script id from this
+    // enum slot.
     dungeon_encounter: [
       '',                                                  // 0  visited
-      'object', 'gold',                                    // 1..2
+      'find_object', 'gold',                               // 1..2
       'encounter_weak_a', 'encounter_weak_b',              // 3..4
       'encounter_deep',                                    // 5
       'nothing_a', 'nothing_b',                            // 6..7
