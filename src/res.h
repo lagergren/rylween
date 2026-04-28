@@ -133,7 +133,7 @@ void res_items_foreach_special(
     void *user);
 
 /* Shard (kind) each item id was loaded from in data/world/items/,
-   e.g. "weapons", "armour", "gear", "potions", "treasures",
+   e.g. "weapons", "armor", "gear", "potions", "treasures",
    "magic_items", "specials". NULL for ids without a record. The
    kind comes straight from the items.<section>.<sym> shard name,
    so new shards pick their own kind without a C-side change.

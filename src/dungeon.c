@@ -84,7 +84,7 @@ void dungeon(int32_t levels, const char *scenario) {
                 drop();
             }
             if (c == 'T') {
-                armouroff();
+                armoroff();
             }
             if (c == 'P') {
                 weaponoff();
@@ -93,7 +93,7 @@ void dungeon(int32_t levels, const char *scenario) {
                 weaponr();
             }
             if (c == 'R') {
-                armourr();
+                armorr();
             }
             if (c == 'Q') {
                 quaff();

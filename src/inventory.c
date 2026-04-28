@@ -172,8 +172,8 @@ static int kind_equals(int id, const char *want) {
 int item_is_weapon(int id) {
     return kind_equals(id, "weapons");
 }
-int item_is_armour(int id) {
-    return kind_equals(id, "armour");
+int item_is_armor(int id) {
+    return kind_equals(id, "armor");
 }
 int item_is_gear(int id) {
     return kind_equals(id, "gear");

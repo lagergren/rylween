@@ -38,9 +38,9 @@ char *object(int32_t nr) {
     return it ? (char *)it->name : "-";
 }
 
-/* Post-shop exit flow: offer to ready any weapon / armour the party
+/* Post-shop exit flow: offer to ready any weapon / armor the party
    is carrying before returning to the wilderness map. Called once
-   from enter()'s L-arm; weapon range is item ids 1..19, armour is
+   from enter()'s L-arm; weapon range is item ids 1..19, armor is
    20..30. Prompt skips entirely when the party has none carried or
    every member already has one equipped. */
 static void enter_ready_prompt(void) {
@@ -68,17 +68,17 @@ static void enter_ready_prompt(void) {
     y = 0;
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
-        if (!pm_dead(pm) && !pm_armour(pm)) {
+        if (!pm_dead(pm) && !pm_armor(pm)) {
             y = 1;
         }
     }
     if (x && y) {
         clw();
-        tx0(res_text("towne.enter.armours_q"));
+        tx0(res_text("towne.enter.armors_q"));
         tx0(res_text("common.yes"));
         tx0(res_text("common.no"));
         if (toupper(key()) == 'Y') {
-            armourr();
+            armorr();
         }
     }
 }
@@ -246,14 +246,14 @@ static void church() {
    control to towne.smith in data/world/scripts/towne.json5. The
    script owns the closed screen, the clr_map_window + blitgfx entry
    scene, the main H/R/E/L style shop loop, the beer-offer chance
-   branch, the A/W/N buy flow with its armour / weapon pagination,
+   branch, the A/W/N buy flow with its armor / weapon pagination,
    and the S sell flow with the Y/N/B bargain loop. Opening hours
    stay in world.json5 (buildings.smith.opens_at / closes_at) so
    tavern / inn / merchant can use the same pattern as they migrate.
 
    Bug fixed in migration: the original weapon-buy path scanned
    inventory slots 1..15 (`for (i = 1; i < 16; i++)`) to place the
-   purchased item, while the armour path used `inv_add` which scans
+   purchased item, while the armor path used `inv_add` which scans
    1..16. The DSL rewrites both routes through inv_find_empty
    (1..16). Not covered by replay fixtures today, so no
    byte-identical regression path. */

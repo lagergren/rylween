@@ -150,7 +150,7 @@ struct party_member {
     const char *class_slug; /* §24bis phase 3 slug; res_enum_id recovers int */
     const char *race_slug;  /* §24bis phase 3 slug; res_enum_id recovers int */
     int32_t level;
-    int32_t armour;
+    int32_t armor;
     int32_t weapon;
     uint32_t experience;
     int32_t dead;
@@ -570,21 +570,21 @@ static inline int pm_weapon(pm_t pm) {
 static inline void pm_set_weapon(pm_t pm, int v) {
     pm_rec(pm)->weapon = v;
 }
-static inline int pm_armour(pm_t pm) {
-    return pm_rec(pm)->armour;
+static inline int pm_armor(pm_t pm) {
+    return pm_rec(pm)->armor;
 }
-static inline void pm_set_armour(pm_t pm, int v) {
-    pm_rec(pm)->armour = v;
+static inline void pm_set_armor(pm_t pm, int v) {
+    pm_rec(pm)->armor = v;
 }
-/* Equipped-slot predicates. wp/ar of 0 means no weapon / no armour
+/* Equipped-slot predicates. wp/ar of 0 means no weapon / no armor
    equipped — the inventory item-id 0 sentinel doubles as "empty".
    Replaces the bare `pm_weapon(pm) != 0` peppered through battle / spell
    gating. */
 static inline int pm_has_weapon(pm_t pm) {
     return pm_weapon(pm) != 0;
 }
-static inline int pm_has_armour(pm_t pm) {
-    return pm_armour(pm) != 0;
+static inline int pm_has_armor(pm_t pm) {
+    return pm_armor(pm) != 0;
 }
 
 /* Heal to full: hit_points = health. No-op if dead. */

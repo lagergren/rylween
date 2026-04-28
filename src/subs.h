@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/* Shared subsystems: time / food tick, map redraw, weapon / armour /
+/* Shared subsystems: time / food tick, map redraw, weapon / armor /
    inventory actions, spell / quaff from the inventory side, the
    per-turn chance of a random encounter, the end-of-game paths, and
    terrain colour/glyph lookups that the renderer uses. */
@@ -13,7 +13,7 @@ void foodhandler(void);
 void random_wilderness(void);
 void update_map(void);
 void weaponr(void);
-void armourr(void);
+void armorr(void);
 uint8_t drop(void);
 void camp(void);
 void spell(int32_t);
@@ -22,6 +22,6 @@ void losegame(void);
 void scorelist(void);
 void hunt(void);
 void weaponoff(void);
-void armouroff(void);
+void armoroff(void);
 
 #endif

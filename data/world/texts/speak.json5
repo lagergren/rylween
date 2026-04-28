@@ -77,7 +77,7 @@
       weather: {
         jmerchant:  ['- I think it will rain.'],
         jranger:  ['- Not a fine weather for', 'tracking, mind you!'],
-        jfighter:  ['- Yeah! But my armour', 'gets quite rusty.'],
+        jfighter:  ['- Yeah! But my armor', 'gets quite rusty.'],
         jwizard:  ['- Really?'],
         jpriest:  ['- The gods have been', 'kind to us, my son!'],
         jthief:  ['- Perfect weather', 'for stealing!'],
@@ -277,7 +277,7 @@
   erethor: {
     rumour:      ['- Rumor has it that', "Erethor's Lute, a", 'musical instrument with', 'magical properties', 'exists somewhere in', 'the realm.', ''],
     demon:       ['- Erethor is a mighty', 'demon...', ''],
-    poor_man:    ['- I am a very poor man', 'myself, but I know of', 'the Cloak of Gods,', 'the most powerful of', 'all armours. I will', ''],
+    poor_man:    ['- I am a very poor man', 'myself, but I know of', 'the Cloak of Gods,', 'the most powerful of', 'all armors. I will', ''],
     trade:       ['trade this information', "if you find me Erethor's", "Lute. One of Erethor's", 'temples, where mad', 'priests practise', 'blasphemous magic is', 'located at 6x20, near', 'the western peaks.', ''],
     dangerous:   ['- This may be a dangerous', 'mission for such a', 'small reward, but the', "Cloak will make it's", 'bearer almost', 'invulnerable.', ''],
     hand_lute:   ['You hand him the', 'golden lute...', ''],
@@ -358,10 +358,10 @@
   // case 19 — husband quest (Tammy).
   husband: {
     depressed:  ["- Oh, I'm so depressed.", 'Orcs have kidnapped my', 'wife, Tammy, and demand', 'a ransom for her. I will', 'give you my entire fortune', 'if you retrieve her.', ''],
-    fortune:    ['About 3000 gold coins,', 'a fine armour, and', 'some strange items my', 'father left me, will be', 'yours if you rescue her.', ''],
+    fortune:    ['About 3000 gold coins,', 'a fine armor, and', 'some strange items my', 'father left me, will be', 'yours if you rescue her.', ''],
     cave:       ['The orcs have a cave', 'at 42x23 in Lonewood.', ''],
     reunion:    ['When he sees Tammy enter', 'the room, he cries tears', 'of happiness and kisses', 'her. When they have had', 'this happy reunion, he', 'motions to you to follow.', ''],
-    gives:      ['He hands you 3000 gold,', 'an Adamantium Armour of', 'advanced craftmanship', 'and some other assorted', 'objects. (An amber potion', 'a holy handgrenade, a', 'fire wand and a crystal.', ''],
+    gives:      ['He hands you 3000 gold,', 'an Adamantium Armor of', 'advanced craftmanship', 'and some other assorted', 'objects. (An amber potion', 'a holy handgrenade, a', 'fire wand and a crystal.', ''],
     cant_carry: ["You can't carry all the", 'items...', ''],
   },
 

@@ -331,7 +331,7 @@
     ] },
   ],
 
-  // smith() — weapon / armour shop. C wrapper advances state.hour_of_day and
+  // smith() — weapon / armor shop. C wrapper advances state.hour_of_day and
   // resolves opening hours from world.json5's buildings.smith
   // (opens_at / closes_at), passing them in as `open_lo` / `open_hi`
   // bindings so the closed-screen check lives here and not in C.
@@ -342,7 +342,7 @@
   //   * Otherwise: B/S/L menu.
   //       L — bye + clr_map_window + break.
   //       B — A/W/N buy menu.
-  //           A — armour (ids 20..25, keys 1..6). oc = ch - 29 maps
+  //           A — armor (ids 20..25, keys 1..6). oc = ch - 29 maps
   //               '1'=49 -> 20, '6'=54 -> 25.
   //           W — weapon pagination loop. N/P flip the page; any
   //               other key exits. key_var holds the last keypress,
@@ -351,10 +351,10 @@
   //               (no purchase). The original's "inv_add(0) fills a
   //               slot with zero and prints Deal!" bug is fixed by
   //               that oc=0 gate — a pre-existing divergence between
-  //               the armour and weapon paths that replay fixtures
+  //               the armor and weapon paths that replay fixtures
   //               don't exercise today.
   //       S — sell any item in slots 1..16 (keys A..P). Filters
-  //           `oc == 0 || oc > 30` (non-weapon/armour items) and
+  //           `oc == 0 || oc > 30` (non-weapon/armor items) and
   //           falls into the bargain loop: Y sells at pr, B rolls
   //           0..99 with the 76/90 thresholds, N walks. Any other
   //           key re-prompts with the same pr.
@@ -428,21 +428,21 @@
                             { menu_branch: {
                                 prompt: 'buy_menu',
                                 options: [
-                                  // --- Armour buy
+                                  // --- Armor buy
                                   { key: 'A', then: [
-                                      // armour_menu pulls prices via
+                                      // armor_menu pulls prices via
                                       // {cost:<itemkey>} from
-                                      // data/world/items/armour.json5
+                                      // data/world/items/armor.json5
                                       // — no per-item let prelude.
                                       { engine_call: 'clw' },
                                       { emit: 'we_have' },
-                                      { emit: 'armour_menu' },
+                                      { emit: 'armor_menu' },
                                       { menu_branch: {
-                                          key_var: 'armour_key',
+                                          key_var: 'armor_key',
                                           options: [
                                             { key_range: ['1', '6'], then: [
                                               { switch: {
-                                                  expr: { var: 'armour_key' },
+                                                  expr: { var: 'armor_key' },
                                                   cases: [
                                                     { match: '1', then: [{ let: 'item_id', value: { item: 'leather'      } }] },
                                                     { match: '2', then: [{ let: 'item_id', value: { item: 'chain_mail'   } }] },
@@ -1324,7 +1324,7 @@
   // B enters the inner buy loop.
   //
   // Sell (S): invlist + single keypress A..P picks a slot. Slots
-  // holding items `oc < 32 || oc == 47` (weapons/armour and the
+  // holding items `oc < 32 || oc == 47` (weapons/armor and the
   // donkey) are rejected as wrong_kind. Otherwise offer
   // `obcost(oc)/2`; on Y, add gold, zero the slot, redraw
   // statusline.
@@ -1396,7 +1396,7 @@
                             { let: 'item_id', value: { inventory: { var: 'slot' } } },
                             { if: {
                                 // Reject anything below `torch` (id 31 — that's
-                                // the weapons / armour range) and the donkey
+                                // the weapons / armor range) and the donkey
                                 // (the merchant won't take it back).
                                 cond: { or: [
                                   { lt: [{ var: 'item_id' }, { item: 'torch' }] },

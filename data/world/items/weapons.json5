@@ -1,6 +1,6 @@
 // Weapons shard — ids 1–19. Plus the id 0 "empty slot" sentinel which
 // doesn't fit any other section; res_item(0) still returns this record
-// so object() renders "-" for empty hands / armour / backpack slots.
+// so object() renders "-" for empty hands / armor / backpack slots.
 //
 // Fields: id, name, cost, damage. Optional: wieldable_by (array of class
 // names; folded to a class-id bitmask at load — see fold_wieldable_by

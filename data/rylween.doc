@@ -234,12 +234,12 @@ strange coloured liquids, but do experiment. (Save your game first).
 There is no low-level-format-potion.  Your sysop will rejoice when he hears
 that.
 
-R = Ready Armour
+R = Ready Armor
 
-If you have an armour in the party inventory and want one of your 
-characters to wear it, select the armour and he will put it on.  If he 
-already was wearing an armour, he will take that one off and it will replace
-the new armour's position in the inventory.
+If you have an armor in the party inventory and want one of your 
+characters to wear it, select the armor and he will put it on.  If he 
+already was wearing an armor, he will take that one off and it will replace
+the new armor's position in the inventory.
 
 S = Save Game
 
@@ -249,9 +249,9 @@ game after leaving towns.  Save your game before entering that house with
 impaled human skulls outside.  Save your game whenever it seems appropriate.
 You can always go back to your last saved game if you are killed.
 
-T = Take Off Armour
+T = Take Off Armor
 
-Take off an armour you are wearing.
+Take off an armor you are wearing.
 
 V = View Party
 
@@ -260,7 +260,7 @@ will also see some general info about the party.
 
 W = Wield Weapon
 
-See wield armour.  It's the same, but the active objects are weapons.
+See wield armor.  It's the same, but the active objects are weapons.
 
 X = Quit Game (No Save)
 
@@ -347,7 +347,7 @@ You can visit all the institutions in a town. Here is a small explanation.
 
 SMITH
 -=-=-
-The smith is a nice chap. You can buy or sell armours and weapons here.
+The smith is a nice chap. You can buy or sell armors and weapons here.
 Sometimes he might even invite you for a beer.  It is always wise to accept.
 
 TAVERN

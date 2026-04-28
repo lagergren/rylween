@@ -430,7 +430,7 @@ static const pm_field pm_field_table[] = {
     {"wisdom", offsetof(struct party_member, wisdom), PMF_INT32},
     {"weapon_skill", offsetof(struct party_member, weapon_skill), PMF_INT32},
     {"charisma", offsetof(struct party_member, charisma), PMF_INT32},
-    {"armour", offsetof(struct party_member, armour), PMF_INT32},
+    {"armor", offsetof(struct party_member, armor), PMF_INT32},
     {"weapon", offsetof(struct party_member, weapon), PMF_INT32},
     {"dead", offsetof(struct party_member, dead), PMF_INT32},
     {"experience", offsetof(struct party_member, experience), PMF_UINT32},
@@ -1670,9 +1670,9 @@ static void eng_weaponr(const int32_t *a) {
     (void)a;
     weaponr();
 }
-static void eng_armourr(const int32_t *a) {
+static void eng_armorr(const int32_t *a) {
     (void)a;
-    armourr();
+    armorr();
 }
 static void eng_invlist(const int32_t *a) {
     (void)a;
@@ -1766,9 +1766,9 @@ static void eng_help(const int32_t *a) {
     (void)a;
     help();
 }
-static void eng_armouroff(const int32_t *a) {
+static void eng_armoroff(const int32_t *a) {
     (void)a;
-    armouroff();
+    armoroff();
 }
 static void eng_weaponoff(const int32_t *a) {
     (void)a;
@@ -1890,7 +1890,7 @@ static const engine_entry engine_tbl[] = {
     {"clw", 0, eng_clw},
     {"advance_hour", 0, eng_advance_hour},
     {"weaponr", 0, eng_weaponr},
-    {"armourr", 0, eng_armourr},
+    {"armorr", 0, eng_armorr},
     {"invlist", 0, eng_invlist},
     {"showparty", 0, eng_showparty},
     {"drop_option", 0, eng_drop_option},
@@ -1912,7 +1912,7 @@ static const engine_entry engine_tbl[] = {
     {"ydarg_pitfall_undisarmed_apply", 0, eng_ydarg_pitfall_undisarmed_apply},
     {"ydarg_teleport_exit", 0, eng_ydarg_teleport_exit},
     {"help", 0, eng_help},
-    {"armouroff", 0, eng_armouroff},
+    {"armoroff", 0, eng_armoroff},
     {"weaponoff", 0, eng_weaponoff},
     {"drop", 0, eng_drop},
     {"quaff", 0, eng_quaff},

@@ -105,7 +105,7 @@
   // still keyed by the flat `id` field.
   items: {
     weapons:     { $import: 'world/items/weapons.json5' },
-    armour:      { $import: 'world/items/armour.json5' },
+    armor:       { $import: 'world/items/armor.json5' },
     gear:        { $import: 'world/items/gear.json5' },
     potions:     { $import: 'world/items/potions.json5' },
     treasures:   { $import: 'world/items/treasures.json5' },
@@ -538,7 +538,7 @@
     //               ryl_random(lo, hi) on that kind's id range
     //   if magic:   ryl_random(magic.lo, magic.hi)
     // The bounds reflect the original ranges:
-    //   weapons 1..14, armour 36..42, gear 39..46, magic 100..111.
+    //   weapons 1..14, armor 36..42, gear 39..46, magic 100..111.
     // Bumping any of these changes RNG identity — re-bless ydarg
     // fixtures after a tweak.
     drop_tables: {
@@ -546,7 +546,7 @@
         gate_max:  4,                  // ryl_random(0, 4): 0 = magic, else regular
         kind_max:  2,                  // ryl_random(0, 2) picks kind_<n>
         kind_0: { lo: 1,   hi: 14  },  // weapons
-        kind_1: { lo: 36,  hi: 42  },  // armour
+        kind_1: { lo: 36,  hi: 42  },  // armor
         kind_2: { lo: 39,  hi: 46  },  // gear
         magic:  { lo: 100, hi: 111 },
       },

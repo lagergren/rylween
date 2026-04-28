@@ -66,10 +66,10 @@ static void emit_party(FILE *f, int idx) {
         fprintf(f,
                 "member[%d] name=%s gender=%u class=%s race=%s level=%d "
                 "dead=%d health=%d hit_points=%d weapon_skill=%d wisdom=%d "
-                "magic=%d charisma=%d armour=%d weapon=%d experience=%u\n",
+                "magic=%d charisma=%d armor=%d weapon=%d experience=%u\n",
                 m, r->name, r->gender, cl_s, ra_s, r->level,
                 r->dead, r->health, r->hit_points, r->weapon_skill, r->wisdom,
-                r->magic, r->charisma, r->armour, r->weapon, r->experience);
+                r->magic, r->charisma, r->armor, r->weapon, r->experience);
     }
     /* Journal lines as one-field-per-line so entries stay self-contained
        (commas and quotes are legal in journal prose; a delimited single

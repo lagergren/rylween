@@ -66,12 +66,12 @@ static size_t n_texts;
 static int texts_sorted;
 
 static ryl_item items[RES_MAX_ITEM_ID + 1];
-/* Shard each item id came from (e.g. "weapons", "armour", "specials").
+/* Shard each item id came from (e.g. "weapons", "armor", "specials").
    Pointer is borrowed from the world tree (shard key strings live on
    the node allocator) and valid until res_shutdown. NULL for ids with
    no record. Populated from fold_items; used by inventory.c for the
    item-kind predicates (item_is_weapon etc.) so C conditionals that
-   used to read `oc < 20 || oc > 29` for "armour?" now ask the data. */
+   used to read `oc < 20 || oc > 29` for "armor?" now ask the data. */
 static const char *item_kind[RES_MAX_ITEM_ID + 1];
 static ryl_monster monsters[RES_MAX_MONSTER_ID + 1];
 
@@ -1769,12 +1769,12 @@ static void fold_flags(const node *flags_node, const char *path) {
 }
 
 /* -------- items subtree (docs/dsl.md §2.2) --------
-   The items tree is sectioned by kind (weapons/armour/gear/potions/
+   The items tree is sectioned by kind (weapons/armor/gear/potions/
    treasures/magic_items); the sections are an authoring convenience,
    the legacy ryl_item[0..111] table is still keyed by flat `id`.
 
    For each record: id, name, cost are read and folded into the legacy
-   table. `damage` (weapons) and `ac` (armour) both land in the single
+   table. `damage` (weapons) and `ac` (armor) both land in the single
    ryl_item.damage slot — obdamage() at the call sites reads the same
    field for both roles. `wieldable_by` is rewritten in place from an
    array of class-name strings to an integer class-id bitmask so the

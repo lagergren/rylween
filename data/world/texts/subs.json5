@@ -5,7 +5,7 @@
 // historical top-level prefix.
 //
 // §17.A.4 slice D lifted the dispatcher narration in foodhandler/
-// weaponoff/armouroff/weaponr/armourr/drop/quaff/spell. The
+// weaponoff/armoroff/weaponr/armorr/drop/quaff/spell. The
 // column-aligned priest spell list at subs.c::spell stays inline per
 // the §20 L6 / §17.A.4 slice B convention (column-aligned table rows
 // + their static "8. Abort" trailer).
@@ -21,9 +21,9 @@
 
   // Shared across every "Who? (1-N)" prompt in subs.c (six callsites).
   who_prompt: ['Who? (1-{party_max})'],
-  // Shared across the four "Dead." early-outs (weaponr/armourr/quaff/spell).
+  // Shared across the four "Dead." early-outs (weaponr/armorr/quaff/spell).
   dead:       ['Dead.'],
-  // Shared across both "No room!" early-outs (weaponoff/armouroff).
+  // Shared across both "No room!" early-outs (weaponoff/armoroff).
   no_room:    ['No room!'],
 
   foodhandler: {
@@ -36,10 +36,10 @@
   weaponoff: {
     no_weapon: ['{pronoun} has no weapon!'],
   },
-  armouroff: {
-    no_armour: ['{pronoun} has no armour!'],
+  armoroff: {
+    no_armor: ['{pronoun} has no armor!'],
   },
-  // Shared across weaponoff/armouroff: "<object name> removed."
+  // Shared across weaponoff/armoroff: "<object name> removed."
   equipment: {
     removed:   ['{object} removed.'],
   },
@@ -48,9 +48,9 @@
     invalid:   ['Not a valid weapon.'],
     changed:   ['Weapon changed.'],
   },
-  armourr: {
-    invalid:   ['Not a valid armour.'],
-    changed:   ['Armour changed.'],
+  armorr: {
+    invalid:   ['Not a valid armor.'],
+    changed:   ['Armor changed.'],
   },
 
   drop: {

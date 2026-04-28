@@ -20,8 +20,8 @@
 static int32_t color(char);
 static char *glyph(char);
 
-/* "Who? (1-N)" — six callsites in subs.c (weaponoff/armouroff/
-   weaponr/armourr/quaff/spell). Resolves the party-member cap and
+/* "Who? (1-N)" — six callsites in subs.c (weaponoff/armoroff/
+   weaponr/armorr/quaff/spell). Resolves the party-member cap and
    emits subs.who_prompt with a {party_max} binding. */
 static void tx_who_prompt(void) {
     char max_s[8];
@@ -298,7 +298,7 @@ void weaponoff() {
     }
     clw();
 }
-void armouroff() {
+void armoroff() {
     char c;
     int32_t x;
 
@@ -307,10 +307,10 @@ void armouroff() {
     c = key();
     if (pm_digit_in_range(c)) {
         pm_t pm = pm_from_digit(c);
-        LOG_D("input", "armouroff: digit=%c -> slot=%d", c, pm.m);
-        if (!pm_has_armour(pm)) {
+        LOG_D("input", "armoroff: digit=%c -> slot=%d", c, pm.m);
+        if (!pm_has_armor(pm)) {
             clw();
-            tx_fmt("subs.armouroff.no_armour",
+            tx_fmt("subs.armoroff.no_armor",
                    (ryl_bind[]){{"pronoun", pronoun(c - '1', 1)}, {0}});
             ryl_delay(800);
             clw();
@@ -326,10 +326,10 @@ void armouroff() {
         } else {
             clw();
             tx_fmt("subs.equipment.removed",
-                   (ryl_bind[]){{"object", object(pm_armour(pm))}, {0}});
+                   (ryl_bind[]){{"object", object(pm_armor(pm))}, {0}});
             ryl_delay(800);
-            pa_set_inventory(x, pm_armour(pm));
-            pm_set_armour(pm, 0);
+            pa_set_inventory(x, pm_armor(pm));
+            pm_set_armor(pm, 0);
             clw();
             return;
         }
@@ -376,7 +376,7 @@ void weaponr() {
     clw();
     return;
 }
-void armourr() {
+void armorr() {
     clw();
     invlist();
     char d = (char)toupper(key());
@@ -386,9 +386,9 @@ void armourr() {
         return;
     }
     int32_t oc = pa_inventory(slot);
-    if (!item_is_armour(oc)) {
+    if (!item_is_armor(oc)) {
         clw();
-        tx0(res_text("subs.armourr.invalid"));
+        tx0(res_text("subs.armorr.invalid"));
         ryl_delay(600);
         clw();
         return;
@@ -407,11 +407,11 @@ void armourr() {
         tx0(res_text("subs.dead"));
         return;
     }
-    int32_t temp = pm_armour(pm);
-    pm_set_armour(pm, pa_inventory(slot));
+    int32_t temp = pm_armor(pm);
+    pm_set_armor(pm, pa_inventory(slot));
     pa_set_inventory(slot, temp);
     clw();
-    tx0(res_text("subs.armourr.changed"));
+    tx0(res_text("subs.armorr.changed"));
     ryl_delay(600);
     clw();
     return;

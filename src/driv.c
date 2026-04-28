@@ -139,7 +139,7 @@ static void the_game() {
                 weaponr();
                 break;
             case 'R':
-                armourr();
+                armorr();
                 break;
             case '!':
                 cl();
@@ -189,7 +189,7 @@ static void the_game() {
                 clw();
                 break;
             case 'T':
-                armouroff();
+                armoroff();
                 break;
             case 'P':
                 weaponoff();
@@ -895,8 +895,8 @@ static void write_current_world() {
                     p->members[m].health, p->members[m].hit_points);
             fprintf(f, ", weapon_skill: %d, wisdom: %d, magic: %d, charisma: %d",
                     p->members[m].weapon_skill, p->members[m].wisdom, p->members[m].magic, p->members[m].charisma);
-            fprintf(f, ", armour: %d, weapon: %d, experience: %u },\n",
-                    p->members[m].armour, p->members[m].weapon, p->members[m].experience);
+            fprintf(f, ", armor: %d, weapon: %d, experience: %u },\n",
+                    p->members[m].armor, p->members[m].weapon, p->members[m].experience);
         }
         fputs("      ],\n", f);
 
@@ -1269,7 +1269,11 @@ static int read_current_world() {
                     p->members[m].wisdom = rcw_int(mn, "wisdom", p->members[m].wisdom);
                     p->members[m].magic = rcw_int(mn, "magic", p->members[m].magic);
                     p->members[m].charisma = rcw_int(mn, "charisma", p->members[m].charisma);
-                    p->members[m].armour = rcw_int(mn, "armour", p->members[m].armour);
+                    /* Accept legacy `armour` key for one release; new
+                       saves emit `armor`. read_current_world stays
+                       lenient so older fixtures load unchanged. */
+                    p->members[m].armor = rcw_int(mn, "armor",
+                                                  rcw_int(mn, "armour", p->members[m].armor));
                     p->members[m].weapon = rcw_int(mn, "weapon", p->members[m].weapon);
                     p->members[m].experience = (uint32_t)rcw_int(mn, "experience", (int32_t)p->members[m].experience);
                 }
@@ -1534,7 +1538,7 @@ static void createparty() {
     for_each_party_member(i) {
         pm_t pm = pm_of(p, i);
         pm_set_level(pm, 1);
-        pm_set_armour(pm, 0);
+        pm_set_armor(pm, 0);
         pm_set_experience(pm, 0);
         pm_set_dead(pm, 0);
     }
@@ -1616,7 +1620,7 @@ void show(int32_t nr) {
     clw();
     tx("Level     : %d\r\n", pm_level(pm));
     tx("Weapon    : %s\r\n", object(pm_weapon(pm)));
-    tx("Armour    : %s\r\n\r\n", object(pm_armour(pm)));
+    tx("Armor     : %s\r\n\r\n", object(pm_armor(pm)));
     if (pm_dead(pm)) {
         strcpy(str, "Dead.");
     } else {

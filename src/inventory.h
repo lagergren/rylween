@@ -29,7 +29,7 @@ int inv_find_item(int id);
 
 /* First slot whose item id falls in [lo, hi] inclusive, or 0 if
    none. Early-exit variant of inv_count_in_range for "does the party
-   carry any weapon?" / "any armour?" style gating. */
+   carry any weapon?" / "any armor?" style gating. */
 int inv_find_in_range(int lo, int hi);
 
 /* Count items whose id is in [lo, hi] inclusive. Used by mission
@@ -84,11 +84,11 @@ int inv_special_id_for_tag(const char *tag);
    data/world/items/. `id == 0` is the empty-slot sentinel and
    returns 0 for every predicate. Use these everywhere you would
    otherwise hard-code an id range — `id < 20` for "weapon?",
-   `id >= 20 && id <= 29` for "armour?", etc. New shards pick up
+   `id >= 20 && id <= 29` for "armor?", etc. New shards pick up
    a predicate just by adding the helper and pointing it at the
    shard name; the data table owns the membership. */
 int item_is_weapon(int id);
-int item_is_armour(int id);
+int item_is_armor(int id);
 int item_is_gear(int id);
 int item_is_potion(int id);
 int item_is_treasure(int id);

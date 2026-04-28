@@ -1,4 +1,4 @@
-// Armour shard — ids 20–28. Armour stores AC in the same slot weapons
+// Armor shard — ids 20–28. Armor stores AC in the same slot weapons
 // use for damage (legacy ryl_item.damage is read by obdamage() in both
 // roles); fold_items accepts either `damage` or `ac` as the field name
 // so the shard reads the way the item actually behaves.

@@ -182,7 +182,7 @@
                         ]},
                         { random: [0, { combat_int: 'monster_attack.damage_spread_max' }]},
                       ]},
-                      { obdamage: { member: { var: 'who' }, field: 'armour' }},
+                      { obdamage: { member: { var: 'who' }, field: 'armor' }},
                     ]},
                     { combat_int: 'monster_attack.damage_min' },
                 ]}},
