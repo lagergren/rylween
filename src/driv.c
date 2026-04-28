@@ -367,9 +367,10 @@ void init() {
         fh = fopen(path, "wb");
         fclose(fh);
 
+        int32_t daily_time_left = res_int_path("driv.daily.time_left");
         for (i = 1; i < party_count() + 1; i++) {
             tx(".");
-            party_at(i)->time_left = 175;
+            party_at(i)->time_left = daily_time_left;
             ryl_delay(40);
         }
         session_set_day_at_game_start(clock_day());

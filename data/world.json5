@@ -252,7 +252,10 @@
   // The `start:` block reproduces the original
   // state.p[a].{x,y,gold,torches,food,time_left,hours_rested}
   // assignment block at the end of createparty(); fixtures pin
-  // these values byte-for-byte.
+  // these values byte-for-byte. The `daily:` block holds the
+  // per-day refresh budget driv.c::init applies to every party at
+  // the first-of-day rollover (intentionally smaller than `start.
+  // time_left` — a fresh party gets a one-time bonus on day 0).
   driv: {
     stat_roll: { min: 15, max: 70 },
     start: {
@@ -263,6 +266,9 @@
       food:         100,
       time_left:    200,
       hours_rested:  14,
+    },
+    daily: {
+      time_left: 175,
     },
   },
 
