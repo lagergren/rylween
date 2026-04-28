@@ -37,6 +37,10 @@ enum mission_guard_kind {
     MG_CHANCE,      /* ryl_chance(a) — rolled after the flag guard     */
     MG_TILE_AT_POS, /* (x, y) == res_int_path(`<pos_path>.x|.y`) AND
                        res_terrain_class(wld_tile_at(x,y)) == tile_class */
+    MG_SPECIAL_EQ,  /* MG_TILE_AT_POS + pa_special(special_tag) == a.
+                       Resolves the slug to PS_* via inv_special_id_for_tag
+                       so castle-entry triggers can split on silverkey
+                       state in data instead of the C body. */
 };
 
 /* Where the trigger fires from. Step-poll runs from random_wilderness
@@ -85,11 +89,15 @@ typedef struct {
     enum mission_where where;
     enum mission_guard_kind kind;
     int32_t a, b;
-    const char *tile_class; /* MG_TILE_AT_POS only: terrain class to match */
-    const char *pos_path;   /* MG_TILE_AT_POS only: dotted path to a {x,y}
-                               subtree under the world tree. Resolved via
-                               res_int_path("<pos_path>.x|.y") at guard
+    const char *tile_class;  /* MG_TILE_AT_POS / MG_SPECIAL_EQ: terrain class to match */
+    const char *pos_path;    /* MG_TILE_AT_POS / MG_SPECIAL_EQ: dotted path to a
+                               {x,y} subtree under the world tree. Resolved
+                               via res_int_path("<pos_path>.x|.y") at guard
                                time so the position lives in data, not C. */
+    const char *special_tag; /* MG_SPECIAL_EQ: special-tag slug ("silverkey"
+                                 etc.) — resolved to PS_* via
+                                 inv_special_id_for_tag. Compared against
+                                 `a` field. */
     enum mission_action_kind action;
     const char *script; /* MA_SCRIPT only */
     mission_c_fn fn;    /* MA_C_FN only   */
@@ -176,11 +184,16 @@ static const mission_trigger mission_triggers[] = {
     /* Castle Ydarg gate (E-key, not step-poll). The trigger fires
        from towne.c::enter when the party stands on the castle tile
        at the data-declared (ydarg.entry.x, ydarg.entry.y) position.
-       Action is a C function; the body still lives in ydarg.c
-       (multi-floor navigation + per-room dispatch). Inventory gating
-       (jazzyfoot / mastercrown / silverkey / bracelets) happens
-       inside ydarg() itself — not yet expressible as a trigger
-       predicate. */
+       Three arms gated by silverkey state via MG_SPECIAL_EQ:
+         - silverkey == 2 (castle is rubble): play ydarg.ruin
+         - silverkey == 0 (no key yet)      : play ydarg.no_key
+         - silverkey == 1 (legitimate entry): C fn ydarg() — multi-
+           floor navigation + per-room dispatch + confrontation are
+           still in C, gated by the position+terrain match (no
+           special filter so it fires for any non-{0,2} value, which
+           today is just 1). */
+    {.where = MW_ENTER_KEY, .kind = MG_SPECIAL_EQ, .tile_class = "castle", .pos_path = "ydarg.entry", .special_tag = "silverkey", .a = 2, .action = MA_SCRIPT, .script = "ydarg.ruin"},
+    {.where = MW_ENTER_KEY, .kind = MG_SPECIAL_EQ, .tile_class = "castle", .pos_path = "ydarg.entry", .special_tag = "silverkey", .a = 0, .action = MA_SCRIPT, .script = "ydarg.no_key"},
     {.where = MW_ENTER_KEY, .kind = MG_TILE_AT_POS, .tile_class = "castle", .pos_path = "ydarg.entry", .action = MA_C_FN, .fn = ydarg},
 };
 
@@ -207,6 +220,22 @@ static int guard_matches(const mission_trigger *t) {
             }
             const char *cls = res_terrain_class(wld_tile_at(x, y));
             return cls && t->tile_class && strcmp(cls, t->tile_class) == 0;
+        }
+        case MG_SPECIAL_EQ: {
+            char path[64];
+            snprintf(path, sizeof path, "%s.x", t->pos_path);
+            int32_t want_x = res_int_path(path);
+            snprintf(path, sizeof path, "%s.y", t->pos_path);
+            int32_t want_y = res_int_path(path);
+            if (x != want_x || y != want_y) {
+                return 0;
+            }
+            const char *cls = res_terrain_class(wld_tile_at(x, y));
+            if (!cls || !t->tile_class || strcmp(cls, t->tile_class) != 0) {
+                return 0;
+            }
+            int ps = inv_special_id_for_tag(t->special_tag);
+            return ps != PS_NONE && pa_special(ps) == t->a;
         }
     }
     return 0;

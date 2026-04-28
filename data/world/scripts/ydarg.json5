@@ -1,0 +1,43 @@
+// Castle Ydarg gate scripts — fired from missions.c::mission_try_at_enter
+// when the party stands on the castle tile (data/world.json5 ydarg.entry)
+// and presses E. The MG_SPECIAL_EQ guard kind splits on the silverkey
+// special so the three arms (ruin / no_key / entry) live as separate
+// trigger entries instead of the historical chain of early-returns at
+// the top of ydarg().
+//
+// Text records under data/world/texts/ydarg.json5 — the resolver finds
+// `ydarg.<name>` first, then falls back to the leaf-name lookup.
+//
+// `ruin` and `no_key` end with clr_map_window + update_map (matching
+// the legacy returns); `entry` is still the §17 / §23.J C body (the
+// per-room walkthrough + confrontation hasn't been lifted yet).
+{
+  // silverkey == 2 — castle has been beaten, party returns to ruins.
+  // No approach narration; the legacy block fires `ruin` immediately
+  // and exits.
+  ruin: [
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [14] },
+    { engine_call: 'clw' },
+    { screen: 'ruin' },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'update_map' },
+    { engine_call: 'clw' },
+  ],
+
+  // silverkey == 0 — party hasn't found the key yet. Run the full
+  // approach + Jaara narration (shared with the entry arm) then the
+  // no_key rejection screen and return to wilderness.
+  no_key: [
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [14] },
+    { engine_call: 'clw' },
+    { screen: 'approach' },
+    { screen: 'jaara_form' },
+    { screen: 'jaara_speech' },
+    { emit: 'no_key' },
+    { wait_input: true },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'update_map' },
+  ],
+}

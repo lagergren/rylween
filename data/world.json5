@@ -158,6 +158,7 @@
     hunt: { $import: 'world/scripts/hunt.json5' },
     rest: { $import: 'world/scripts/rest.json5' },
     lodge: { $import: 'world/scripts/lodge.json5' },
+    ydarg: { $import: 'world/scripts/ydarg.json5' },
   },
 
   // Per-tick upkeep. foodhandler() reads these every hour; callers

@@ -21,17 +21,12 @@ void ydarg() {
     int32_t map_size = res_int_path("ydarg.map.size");
     char c, d;
 
+    /* silverkey == 0 (no_key) and silverkey == 2 (ruin) are now
+       handled by the MG_SPECIAL_EQ triggers in missions.c —
+       ydarg() only runs for silverkey == 1 (legitimate entry). */
     clr_map_window();
     blitgfx(ydargpic);
     clw();
-    if (pa_special(PS_SILVERKEY) == 2) {
-        tx0(res_text("ydarg.ruin"));
-        ryl_pause();
-        clr_map_window();
-        update_map();
-        clw();
-        return;
-    }
     tx0(res_text("ydarg.approach"));
     ryl_pause();
     clw();
@@ -41,13 +36,6 @@ void ydarg() {
     tx0(res_text("ydarg.jaara_speech"));
     ryl_pause();
     clw();
-    if (!pa_special(PS_SILVERKEY)) {
-        tx0(res_text("ydarg.no_key"));
-        ryl_pause();
-        clr_map_window();
-        update_map();
-        return;
-    }
     tx0(res_text("ydarg.key_accepted"));
     ryl_pause();
     clw();
