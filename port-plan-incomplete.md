@@ -278,6 +278,25 @@ The catalog below is ordered by leverage — Tier 0 is the single biggest "why i
 
   - **B5. speak.c "%s nods as" / "%s tells you:" prose** (lines 161, 191). Two inline `tx()` callsites with name bindings. Should be `speak.recognize_pre` / `speak.tells_you_pre` text records. Trivial; bundles with B4.
 
+  - **B6. towne.c::enter keystroke dispatcher → data**. The 6-arm `if (c == 'C' && has_church) church(); else if (c == 'S') smith(); ...` cascade in towne.c:181-197 is pure keystroke→action data. Lift to a `town_keys: [...]` table in `world.json5` matching the `mission_triggers[]` shape:
+    ```
+    town_keys: [
+      { key: 'C', cond: 'has_church', action: 'play_script', script: 'towne.church' },
+      { key: 'S', action: 'play_script', script: 'towne.smith' },
+      { key: 'I', action: 'play_script', script: 'towne.inn' },
+      { key: 'M', action: 'play_script', script: 'towne.merchant' },
+      { key: 'T', action: 'play_script', script: 'towne.tavern' },
+      { key: 'L', action: 'leave_town' },  // engine-only action
+    ]
+    ```
+    The dispatcher loop walks the array; the `cond` string maps to engine predicates (just `has_church` today; future conds can be enum-extended). Authors add a fifth shop type (`forge`, `library`, `guild`) by appending to the table + writing the script + adding a menu_smith-style text record. Mirrors the §12.4 ydarg-as-mission lift's data-driven shape. **Note**: ydarg.c's character-command dispatch (T/P/L/W/R/Q/Z/V) was lifted to `ydarg.cmd_dispatch` DSL in #13; the `menu_branch` op already exists and could power towne_keys without new infrastructure.
+
+  - **B7. driv.c::the_game main-loop keystroke dispatcher → data**. The 15+ arm `case 'S'/'W'/'R'/'J'/'H'/'V'/'T'/'P'/'E'/'L'/'C'/'Z'/'Q'/'X'/'!'/'?'/...` switch in driv.c::the_game (lines 131-220) is the **primary input loop** for all wilderness movement + party commands. Pure keystroke→action data — every arm calls a single function (`showparty()`, `read_journal()`, `weaponoff()`, etc.) or invokes a small inline cascade (movement keys 8/4/6/2 → try_move dispatch). Lift to a `wilderness_keys: [...]` table same shape as B6, with engine-only actions for movement (`{key: '8', action: 'try_move', dir: 'north'}`). After this lift the entire main-loop body shrinks to a `key() → table-walk → dispatch` 3-line pattern. Largest single-function content extraction outside Tier 0.
+
+  - **B8. battle.c combat-action key dispatch → data**. Combat actions are scattered hardcoded `if (c == 'A') ... if (c == 'D') ... if (c == 'B') ... if (c == 'C') ...` checks (battle.c:116-639). Lift to a `combat_keys: [...]` table; engine-only actions cover `attack` / `defend` / `cast_spell` / `battle_cry` / `use_item` / `flee` / `run_for_it`. Smaller scope than B7 (~6 keys); could DSL-ify with new combat-context engine_calls.
+
+  - **B9. primitives.c sysop backdoor → data**. The "Marcus Lagergren" hardcoded player-name check at primitives.c:372 + the `/`/`(`/`)`/`&` keystroke dispatch are the same shape as the Karl Skagerberg easter egg (Tier C4). Lift to `world.json5 secrets:` subtree as cheats / debug actions keyed by player-name + key. Bundle with C4 — same `secrets_check` engine_call.
+
 #### Tier C — engine state with hardcoded shape
 
   - **C1. battle.c::expcheck level-up dispatcher** (lines 663-715). Several content-in-C items in one function:
@@ -324,6 +343,36 @@ For reference: these are NOT extraction candidates — they're the actual game e
   - `ydarg.c` (354 LOC after #13's lift) — `ydarg()` is a one-line `play_script("ydarg.main", NULL)` trampoline; the rest of the file is the `g_ydarg` state struct + 11 thin engine_call backers. Boundary is engine.
 
 **Pick order**: Tier 0 (mission_triggers — biggest single win) → Tier A (UI layer, highest call-site count) → Tier B/C as opportunity surfaces.
+
+#### Tier R — naming conventions (mechanical, but hits ~60 callsites and DSL refs)
+
+  - **R1. `armour` → `armor` (American spelling) — sweep**. ~110 occurrences across src/ + data/. Touches struct field name, accessor functions (`pm_armour` / `pm_set_armour` / `pm_add_armour`), DSL pm_field tag, every `field: 'armour'` in scripts, "Armour" labels in texts, save format key (with stricmp/dual-key reader for backward compat), snapshot fixture format (one-time rebless). Lifted via background agent in 2026-04-28 #14b session. **In flight.**
+
+  - **R2. Function names → snake_case** (mechanical sweep, lands AFTER R1). The single-word-mash function names in src/*.c get underscores + American spelling per user direction. Final mapping:
+    ```
+    showparty   → show_party
+    weaponoff   → weapon_off
+    armouroff   → armor_off    (post-R1: was armouroff → armoroff in agent's pass)
+    weaponr     → weapon_ready
+    armourr     → armor_ready  (post-R1)
+    read_journal → show_journal  (semantic rename, was already snake)
+    journalf    → journal_add  (write helper; current name implied printf-like)
+    expcheck    → exp_check
+    createparty → create_party
+    invlist     → inv_list
+    losegame    → lose_game
+    scorelist   → score_list
+    timehandler → time_handler
+    foodhandler → food_handler
+    cleanexit   → clean_exit
+    statusline  → status_line
+    disptext    → disp_text
+    getstr      → get_str
+    hotkey      → hot_key
+    ```
+    Functions kept as-is (single-word words / conventional shortnames): `cl` / `clw` / `c` / `tx` / `tx0` / `tx_fmt` / `key` / `object` / `save` / `init` / `help` / `camp` / `quaff` / `hunt` / `church` / `hut` / `inn` / `merchant` / `smith` / `tavern` / `rumour`. Already snake-cased: `update_map` / `try_move` / `random_wilderness` / `the_game` / `read_current_world` / `write_current_world` / `position_locations`.
+
+    Touches the C function definitions/decls + every callsite + the `engine_call` dispatch table in src/script.c + every `engine_call: 'name'` reference in `data/world/scripts/*.json5` + `data/world/spells/*.json5` + `data/world/items/*.json5`. Snapshot fixtures and replay fixtures unaffected (they observe text, not engine_call names).
 
 Per-session bar: `make check` + `make testasan` both green at every commit; format gate (`make format`) now also runs in CI on push + PR. Push only on explicit user approval (per AGENTS.md).
 
