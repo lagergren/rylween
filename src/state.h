@@ -61,15 +61,18 @@ int res_party_member_max(void);
 
 /* Static caps for the persistent NPC and party slot tables on
    `struct ryl_state`. The runtime-active counts come from the data
-   layer (`res_npc_slot_max()`) and from `state.num_parties` — these
-   constants are just the upper bounds the static table can hold so
-   indexing `state.npc[slot]` / `state.p[i]` stays in-bounds for any
-   valid slot id. NPC capacity = up to NPC_SLOT_HARD_MAX records
-   (slots 0..NPC_SLOT_HARD_MAX-1, post-§25.B step 4 axis flip);
-   party capacity = slot 0 (unused) + 25 parties (driv.c::create_party
-   refuses #26 with "all parties created"). Bumping these requires
-   matching changes in the data layer; the NPC bound is also asserted
-   against `res_npc_slot_max()` once the world has loaded. */
+   layer (`res_npc_slot_max()` / `res_party_slot_max()`) and from
+   `state.num_parties` — these constants are just the upper bounds
+   the static table can hold so indexing `state.npc[slot]` /
+   `state.p[i]` stays in-bounds for any valid slot id. NPC capacity =
+   up to NPC_SLOT_HARD_MAX records (slots 0..NPC_SLOT_HARD_MAX-1,
+   post-§25.B step 4 axis flip); party capacity = slot 0 (unused) +
+   25 parties (driv.c::create_party refuses past
+   `res_party_slot_max() - 1` with "all parties created"). Bumping
+   these requires matching changes in the data layer; the NPC bound
+   is also asserted against `res_npc_slot_max()` once the world has
+   loaded. world.json5 `limits.party_slot_max` lowers the party gate
+   without rebuilding (clamped to PARTY_SLOT_HARD_MAX). */
 #define NPC_SLOT_HARD_MAX   41
 #define PARTY_SLOT_HARD_MAX 26
 
@@ -93,15 +96,15 @@ struct person {
         13 Bargirl   /14 Innkeeper /15 Tavernkeeper /16 Hermit       */
     const char *job;
 
-    int32_t nr;                /* Reference number 1-40*/
-    int32_t towne;             /* WILDERNESS_TOWN=wilderness, else town slot id*/
-    int32_t building;          /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
-    int32_t x;                 /* What X coord.*/
-    int32_t y;                 /* What Y coord. Not valid for townes.*/
-                               /* The wilderness X&Y coord automagically become*/
-                               /* HH (hut), if they are set for a character*/
-    unsigned char visited[26]; /* Start at 0. Visited before???*/
-    unsigned char gender;      /* 1=male, 2=female. Drives res_pronoun
+    int32_t nr;                                 /* Reference number 1-40*/
+    int32_t towne;                              /* WILDERNESS_TOWN=wilderness, else town slot id*/
+    int32_t building;                           /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
+    int32_t x;                                  /* What X coord.*/
+    int32_t y;                                  /* What Y coord. Not valid for townes.*/
+                                                /* The wilderness X&Y coord automagically become*/
+                                                /* HH (hut), if they are set for a character*/
+    unsigned char visited[PARTY_SLOT_HARD_MAX]; /* Start at 0. Visited before???*/
+    unsigned char gender;                       /* 1=male, 2=female. Drives res_pronoun
                                   when the NPC is referred to in prose
                                   and splits gender-flavoured chitchat
                                   in speak.c. Authored in world.json5
@@ -167,11 +170,11 @@ struct party {
 
     int32_t inventory[INVENTORY_SLOT_MAX + 1];
 
-    unsigned char attack_today[26]; /* parties attacked today */
-                                    /* turns to zero every time the attacked
-                                     party logs on */
-    unsigned char waiting_mail;     /* For the guild */
-    unsigned char attacked;         /* Attack bulletin to display upon login */
+    unsigned char attack_today[PARTY_SLOT_HARD_MAX]; /* parties attacked today */
+                                                     /* turns to zero every time the
+                                                        attacked party logs on */
+    unsigned char waiting_mail;                      /* For the guild */
+    unsigned char attacked;                          /* Attack bulletin to display upon login */
 
     uint32_t kills;
 
@@ -268,7 +271,7 @@ static inline pm_t pm_of(struct party *p, int m) {
     return r;
 }
 static inline pm_t pm_cur(int m) {
-    assert(state.cpl >= 1 && state.cpl <= 25);
+    assert(state.cpl >= 1 && state.cpl < PARTY_SLOT_HARD_MAX);
     return pm_of(&state.p[state.cpl], m);
 }
 
@@ -744,7 +747,7 @@ static inline const char *npc_name(npc_t n) {
 }
 
 /* Per-NPC visited flag indexed by party slot. Sized to fit
-   PARTY_SLOT_HARD_MAX (struct person.visited is unsigned char[26],
+   PARTY_SLOT_HARD_MAX (struct person.visited is the same width,
    matching the party-slot static cap). */
 static inline unsigned char npc_visited(npc_t n, int party_slot) {
     assert(party_slot >= 0 &&

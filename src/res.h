@@ -480,6 +480,15 @@ int res_inventory_slot_max(void);
    0-based, 0..res_party_member_max() - 1. */
 int res_party_member_max(void);
 
+/* Highest party-slot id usable for state.p[] / struct party.attack_today /
+   struct person.visited (these three arrays are sized to PARTY_SLOT_HARD_MAX
+   in state.h). Defaults to PARTY_SLOT_HARD_MAX, overrideable via
+   limits.party_slot_max in world.json5 — clamped to PARTY_SLOT_HARD_MAX
+   since the C arrays are sized at compile time. Slot 0 is reserved
+   (1-indexed party table); valid party ids are 1..res_party_slot_max()-1.
+   driv.c::create_party gates new-party creation against this. */
+int res_party_slot_max(void);
+
 /* On-disk path helpers (§20 T3 / T4). Caller-supplied buffer pattern,
    mirroring ryl_state_path in src/compat.c — avoids a const-cast at
    the disptext() / fopen() boundary. Centralise the previously

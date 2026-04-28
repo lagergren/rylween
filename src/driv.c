@@ -898,7 +898,7 @@ static void write_current_world() {
         fputs("      ],\n", f);
 
         fputs("      attack_today: ", f);
-        wcw_byte_arr(f, p->attack_today, 26);
+        wcw_byte_arr(f, p->attack_today, PARTY_SLOT_HARD_MAX);
         fputs(",\n", f);
         fprintf(f, "      waiting_mail: %u,\n", p->waiting_mail);
         fprintf(f, "      attacked: %u,\n", p->attacked);
@@ -1258,7 +1258,8 @@ static int read_current_world() {
                 }
             }
 
-            rcw_byte_arr(obj_get(pnode, "attack_today"), p->attack_today, 26);
+            rcw_byte_arr(obj_get(pnode, "attack_today"), p->attack_today,
+                         PARTY_SLOT_HARD_MAX);
             p->waiting_mail = (unsigned char)rcw_int(pnode, "waiting_mail", p->waiting_mail);
             p->attacked = (unsigned char)rcw_int(pnode, "attacked", p->attacked);
             p->kills = (uint32_t)rcw_int(pnode, "kills", p->kills);
@@ -1325,7 +1326,7 @@ static void createparty() {
 
     tx0(res_text("driv.create.header"));
 
-    if (party_count() >= PARTY_SLOT_HARD_MAX - 1) {
+    if (party_count() >= res_party_slot_max() - 1) {
         tx0(res_text("driv.create.full"));
         ryl_pause();
         cleanexit();

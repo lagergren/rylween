@@ -647,9 +647,12 @@ void scorelist() {
     FILE *fh;
     char str[144];
     uint8_t i, j, xx, o, n, q;
-    uint32_t pts[26], lvl[26], temp_ulong, kills[26];
-    char pname[26][30], lname[26][30], temp_string[30];
-    uint8_t cls[26][5], item[26][6], pnr[26], temp_ubyte[26];
+    uint32_t pts[PARTY_SLOT_HARD_MAX], lvl[PARTY_SLOT_HARD_MAX], temp_ulong,
+        kills[PARTY_SLOT_HARD_MAX];
+    char pname[PARTY_SLOT_HARD_MAX][30], lname[PARTY_SLOT_HARD_MAX][30],
+        temp_string[30];
+    uint8_t cls[PARTY_SLOT_HARD_MAX][5], item[PARTY_SLOT_HARD_MAX][6],
+        pnr[PARTY_SLOT_HARD_MAX], temp_ubyte[PARTY_SLOT_HARD_MAX];
 
     int mmax = res_party_member_max();
     for (i = 1; i < party_count() + 1; i++) {

@@ -191,6 +191,14 @@ static int32_t inventory_slot_max = INVENTORY_SLOT_MAX;
    past the "(1-N)" digit prompts. */
 static int32_t party_member_max = PARTY_MEMBER_MAX;
 
+/* Party-slot cap. Default matches PARTY_SLOT_HARD_MAX; overrideable
+   via limits.party_slot_max, clamped to the compile-time array
+   bound (state.p / attack_today / visited are static arrays sized
+   to PARTY_SLOT_HARD_MAX). A smaller-than-default value lowers the
+   "all parties created" gate in driv.c::create_party without
+   rebuilding. */
+static int32_t party_slot_max = PARTY_SLOT_HARD_MAX;
+
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
    Populated from data/world.json5 flags subtree; empty until world loads. */
 typedef struct {
@@ -1421,6 +1429,10 @@ int res_inventory_slot_max(void) {
     return (int)inventory_slot_max;
 }
 
+int res_party_slot_max(void) {
+    return (int)party_slot_max;
+}
+
 int res_party_member_max(void) {
     /* Test-harness override: RYL_PARTY_MEMBER_MAX is read once and
        cached so res_party_member_max() stays cheap. Lets a §19.3.4
@@ -2296,12 +2308,25 @@ static void fold_limits(const node *limits_node, const char *path) {
         }
         party_member_max = pmm->u.iv;
     }
+    const node *psm = obj_get(limits_node, "party_slot_max");
+    if (psm) {
+        if (psm->kind != N_INT) {
+            res_die(path, psm->line,
+                    "limits.party_slot_max: expected integer");
+        }
+        if (psm->u.iv < 2 || psm->u.iv > PARTY_SLOT_HARD_MAX) {
+            res_die(path, psm->line,
+                    "limits.party_slot_max: must be in 2..26");
+        }
+        party_slot_max = psm->u.iv;
+    }
 }
 
 static void reset_limits(void) {
     npc_slack = 1;
     inventory_slot_max = INVENTORY_SLOT_MAX;
     party_member_max = PARTY_MEMBER_MAX;
+    party_slot_max = PARTY_SLOT_HARD_MAX;
 }
 
 /* -------- enums subtree --------
