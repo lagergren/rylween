@@ -269,6 +269,25 @@ const char *res_enum_name(const char *id, int index) {
     return res_enum(id, index);
 }
 
+const char *res_enum_sym(const char *id, int index) {
+    for (size_t i = 0; i < n_enums; i++) {
+        if (strcmp(enums[i].id, id) != 0) {
+            continue;
+        }
+        if (index < 0 || (size_t)index >= enums[i].n_values) {
+            return "";
+        }
+        if (!enums[i].keys || !enums[i].keys[index]) {
+            /* Positional-array enum (no per-entry symbol) or empty
+               slot — fall through to the display string so callers
+               that just want a stable label still get one. */
+            return enums[i].values[index] ? enums[i].values[index] : "";
+        }
+        return enums[i].keys[index];
+    }
+    return "";
+}
+
 static int text_cmp(const void *a, const void *b) {
     return strcmp(((const text_rec *)a)->id, ((const text_rec *)b)->id);
 }

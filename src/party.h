@@ -29,6 +29,16 @@ int pa_is_spellcaster(int m);
 /* Is member `m` of class `cl`? 0 on out-of-range m. */
 int pa_is_class(int m, int cl);
 
+/* §24bis phase 1 — slug-form accessors for class/race on the current
+   party. pa_class_sym / pa_race_sym return the lowercase enum key
+   ("fighter" / "thief" / "human" / ...) or "" on out-of-range m or
+   the no-class / no-race sentinel slot 0. The is_sym predicates compare
+   the slug against `sym` (string equality, NULL/empty-safe). */
+const char *pa_class_sym(int m);
+const char *pa_race_sym(int m);
+int pa_class_is_sym(int m, const char *sym);
+int pa_race_is_sym(int m, const char *sym);
+
 /* First slot m in 1..4 with !dead[m], or 0 if every member is
    dead (a game-over state state.p[cpl].pl should mirror). */
 int pa_first_alive(void);

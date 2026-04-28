@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 /* Game state shapes + party-member accessors.
  *
@@ -373,6 +374,31 @@ static inline unsigned char pm_gender(pm_t pm) {
 static inline int pm_is_class(pm_t pm, int cls) {
     return pm_cl(pm) == cls;
 }
+
+/* Forward declaration (implemented in res.c). Same pattern as
+   res_npc_role / res_npc_name above — keeps state.h from pulling res.h. */
+const char *res_enum_sym(const char *id, int index);
+
+/* §24bis phase 1 — slug-form siblings to pm_cl / pm_ra. Returns the
+   lowercase enum key ("fighter" / "thief" / ... for class; "human" /
+   "dwarf" / ... for race) so call sites can compare against script-
+   stable symbols rather than the PC_FIGHTER / 1..6 magic numbers.
+   Storage is unchanged; the helpers just translate at the boundary.
+   Empty string for the no-class / no-race sentinel slot 0. */
+static inline const char *pm_class_sym(pm_t pm) {
+    return res_enum_sym("pc_class", pm_cl(pm));
+}
+static inline const char *pm_race_sym(pm_t pm) {
+    return res_enum_sym("race", pm_ra(pm));
+}
+static inline int pm_class_is_sym(pm_t pm, const char *sym) {
+    const char *s = pm_class_sym(pm);
+    return s && sym && strcmp(s, sym) == 0;
+}
+static inline int pm_race_is_sym(pm_t pm, const char *sym) {
+    const char *s = pm_race_sym(pm);
+    return s && sym && strcmp(s, sym) == 0;
+}
 static inline int pm_is_fighter(pm_t pm) {
     return pm_is_class(pm, PC_FIGHTER);
 }
@@ -709,6 +735,17 @@ static inline void npc_visited_set(npc_t n, int party_slot, unsigned char v) {
 }
 static inline int npc_is_at(npc_t n, int x, int y) {
     return n.p->x == x && n.p->y == y;
+}
+
+/* §24bis phase 1 — slug-form sibling to npc_job. Returns the lowercase
+   `job` enum key (e.g. "merchant", "innkeeper") so dispatch code can
+   compare against script-stable symbols rather than the int slot. */
+static inline const char *npc_job_sym(npc_t n) {
+    return res_enum_sym("job", npc_job(n));
+}
+static inline int npc_job_is_sym(npc_t n, const char *sym) {
+    const char *s = npc_job_sym(n);
+    return s && sym && strcmp(s, sym) == 0;
 }
 
 #endif

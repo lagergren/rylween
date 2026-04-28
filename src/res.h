@@ -83,6 +83,13 @@ const char *res_flag_id_for_slot(int32_t slot);
 const char *res_enum(const char *id, int index);
 const char *res_enum_name(const char *id, int index);
 
+/* §24bis phase 1: keyed-enum symbol (lowercase key) at index. Returns
+   "" for unknown enum-id or out-of-range index. For positional-array
+   enums (no per-entry symbol) falls back to the display string so
+   callers always get a stable label. Pairs with res_enum_id (the
+   symbol→index inverse). */
+const char *res_enum_sym(const char *id, int index);
+
 /* Enum inverse: index where the symbol or display string matches `value`.
    On keyed-record enums the lowercase key (the script-stable symbol)
    matches first; on legacy positional-array enums and when callers still

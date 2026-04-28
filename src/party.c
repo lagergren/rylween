@@ -26,6 +26,34 @@ int pa_is_class(int m, int cl) {
     return in_range(m) && state.p[state.cpl].cl[m] == cl;
 }
 
+/* §24bis phase 1 — slug-form siblings to pa_is_class. The current-party
+   variants of pm_class_sym / pm_race_sym; bound-check m and return ""
+   for out-of-range slots so caller string compares can't match by
+   accident. */
+const char *pa_class_sym(int m) {
+    if (!in_range(m)) {
+        return "";
+    }
+    return res_enum_sym("pc_class", state.p[state.cpl].cl[m]);
+}
+
+const char *pa_race_sym(int m) {
+    if (!in_range(m)) {
+        return "";
+    }
+    return res_enum_sym("race", state.p[state.cpl].ra[m]);
+}
+
+int pa_class_is_sym(int m, const char *sym) {
+    const char *s = pa_class_sym(m);
+    return s && sym && s[0] && strcmp(s, sym) == 0;
+}
+
+int pa_race_is_sym(int m, const char *sym) {
+    const char *s = pa_race_sym(m);
+    return s && sym && s[0] && strcmp(s, sym) == 0;
+}
+
 int pa_is_spellcaster(int m) {
     if (!in_range(m)) {
         return 0;
