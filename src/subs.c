@@ -19,6 +19,16 @@
 static int32_t color(char);
 static char *glyph(char);
 
+/* "Who? (1-N)" — six callsites in subs.c (weaponoff/armouroff/
+   weaponr/armourr/quaff/spell). Resolves the party-member cap and
+   emits subs.who_prompt with a {party_max} binding. */
+static void tx_who_prompt(void) {
+    char max_s[8];
+    snprintf(max_s, sizeof max_s, "%d", res_party_member_max());
+    tx_fmt("subs.who_prompt",
+           (ryl_bind[]){{"party_max", max_s}, {0}});
+}
+
 void timehandler() {
     advance_hour();
 }
@@ -70,8 +80,8 @@ void foodhandler() {
             if (pm_hp(pm) < 1 && !pm_dead(pm)) {
                 pm_set_hp(pm, 0);
                 clw();
-                tx("%s starved\r\n", pm_name(pm));
-                tx("to death!!!\r\n");
+                tx_fmt("subs.foodhandler.starved",
+                       (ryl_bind[]){{"name", pm_name(pm)}, {0}});
                 ryl_delay(1000);
                 clw();
                 pm_set_dead(pm, 1);
@@ -86,19 +96,18 @@ void foodhandler() {
     pa_add_hours_rested(-1);
     if (pa_hours_rested() == 0) {
         clw();
-        tx("You begin to feel tired\r\n");
+        tx0(res_text("subs.foodhandler.tired"));
         return;
     }
     if (pa_hours_rested() == -4) {
         clw();
-        tx("You are exhausted!!!\r\n");
+        tx0(res_text("subs.foodhandler.exhausted"));
         sleep_deprivation_drain();
         return;
     }
     if (pa_hours_rested() == -8) {
         clw();
-        tx("You begin to feel weak\r\n");
-        tx("from lack of sleep.\r\n\r\n");
+        tx0(res_text("subs.foodhandler.weak"));
         sleep_deprivation_drain();
         ryl_pause();
         clw();
@@ -255,14 +264,15 @@ void weaponoff() {
     int32_t x;
 
     clw();
-    tx("Who? (1-%d)\r\n", res_party_member_max());
+    tx_who_prompt();
     c = key();
     if (pm_digit_in_range(c)) {
         pm_t pm = pm_from_digit(c);
         LOG_D("input", "weaponoff: digit=%c -> slot=%d", c, pm.m);
         if (!pm_has_weapon(pm)) {
             clw();
-            tx("%s has no weapon!\r\n", pronoun(c - '1', 1));
+            tx_fmt("subs.weaponoff.no_weapon",
+                   (ryl_bind[]){{"pronoun", pronoun(c - '1', 1)}, {0}});
             ryl_delay(800);
             clw();
             return;
@@ -270,13 +280,14 @@ void weaponoff() {
         x = inv_find_empty();
         if (!x) {
             clw();
-            tx("No room!\r\n");
+            tx0(res_text("subs.no_room"));
             ryl_delay(600);
             clw();
             return;
         } else {
             clw();
-            tx("%s removed.\r\n", object(pm_wp(pm)));
+            tx_fmt("subs.equipment.removed",
+                   (ryl_bind[]){{"object", object(pm_wp(pm))}, {0}});
             ryl_delay(800);
             pa_set_inventory(x, pm_wp(pm));
             pm_set_wp(pm, 0);
@@ -291,14 +302,15 @@ void armouroff() {
     int32_t x;
 
     clw();
-    tx("Who? (1-%d)\r\n", res_party_member_max());
+    tx_who_prompt();
     c = key();
     if (pm_digit_in_range(c)) {
         pm_t pm = pm_from_digit(c);
         LOG_D("input", "armouroff: digit=%c -> slot=%d", c, pm.m);
         if (!pm_has_armour(pm)) {
             clw();
-            tx("%s has no armour!\r\n", pronoun(c - '1', 1));
+            tx_fmt("subs.armouroff.no_armour",
+                   (ryl_bind[]){{"pronoun", pronoun(c - '1', 1)}, {0}});
             ryl_delay(800);
             clw();
             return;
@@ -306,13 +318,14 @@ void armouroff() {
         x = inv_find_empty();
         if (!x) {
             clw();
-            tx("No room!\r\n");
+            tx0(res_text("subs.no_room"));
             ryl_delay(600);
             clw();
             return;
         } else {
             clw();
-            tx("%s removed.\r\n", object(pm_ar(pm)));
+            tx_fmt("subs.equipment.removed",
+                   (ryl_bind[]){{"object", object(pm_ar(pm))}, {0}});
             ryl_delay(800);
             pa_set_inventory(x, pm_ar(pm));
             pm_set_ar(pm, 0);
@@ -334,14 +347,14 @@ void weaponr() {
     int32_t oc = pa_inventory(slot);
     if (!item_is_weapon(oc)) {
         clw();
-        tx("Not a valid weapon.\r\n");
+        tx0(res_text("subs.weaponr.invalid"));
         ryl_delay(600);
         clw();
         return;
     }
 
     clw();
-    tx("Who? (1-%d)\r\n", res_party_member_max());
+    tx_who_prompt();
     char b = key();
     if (b < '1' || b > '4') {
         clw();
@@ -350,14 +363,14 @@ void weaponr() {
     pm_t pm = pm_from_digit(b);
     if (pm_dead(pm)) {
         clw();
-        tx("Dead.\r\n");
+        tx0(res_text("subs.dead"));
         return;
     }
     int32_t temp = pm_wp(pm);
     pm_set_wp(pm, pa_inventory(slot));
     pa_set_inventory(slot, temp);
     clw();
-    tx("Weapon changed.\r\n");
+    tx0(res_text("subs.weaponr.changed"));
     ryl_delay(600);
     clw();
     return;
@@ -374,14 +387,14 @@ void armourr() {
     int32_t oc = pa_inventory(slot);
     if (!item_is_armour(oc)) {
         clw();
-        tx("Not a valid armour.\r\n");
+        tx0(res_text("subs.armourr.invalid"));
         ryl_delay(600);
         clw();
         return;
     }
 
     clw();
-    tx("Who? (1-%d)\r\n", res_party_member_max());
+    tx_who_prompt();
     char b = key();
     if (b < '1' || b > '4') {
         clw();
@@ -390,14 +403,14 @@ void armourr() {
     pm_t pm = pm_from_digit(b);
     if (pm_dead(pm)) {
         clw();
-        tx("Dead.\r\n");
+        tx0(res_text("subs.dead"));
         return;
     }
     int32_t temp = pm_ar(pm);
     pm_set_ar(pm, pa_inventory(slot));
     pa_set_inventory(slot, temp);
     clw();
-    tx("Armour changed.\r\n");
+    tx0(res_text("subs.armourr.changed"));
     ryl_delay(600);
     clw();
     return;
@@ -414,17 +427,15 @@ uint8_t drop() {
         int slot = inv_slot_from_letter(d);
         clw();
         if (pa_inventory(slot)) {
-            tx("You drop the\r\n");
-            tx("%s.\r\n", object(pa_inventory(slot)));
+            tx_fmt("subs.drop.you_drop",
+                   (ryl_bind[]){{"object", object(pa_inventory(slot))}, {0}});
             ryl_delay(1000);
             if (pa_inventory(slot) == 47) {
                 y = inv_count_in_range(47, 47) - 1;
                 int32_t cap = res_formula_int("donkey_food_cap", "y", y);
                 if (pa_food() > cap) {
                     clw();
-                    tx("You are forced to\r\n");
-                    tx("leave some of your\r\n");
-                    tx("food behind...\r\n");
+                    tx0(res_text("subs.drop.donkey_food_cap"));
                     ryl_delay(1000);
                     pa_set_food(cap);
                 }
@@ -433,14 +444,14 @@ uint8_t drop() {
             clw();
             return (uint8_t)slot;
         } else {
-            tx("Nothing to drop.\r\n");
+            tx0(res_text("subs.drop.nothing"));
             ryl_delay(600);
             clw();
             return 0;
         }
     } else {
         clw();
-        tx("Aborted.\r\n");
+        tx0(res_text("subs.drop.aborted"));
         ryl_delay(600);
         return 0;
     }
@@ -487,7 +498,7 @@ void quaff() {
     char c, d;
 
     clw();
-    tx("Quaff what?\r\n\r\n");
+    tx0(res_text("subs.quaff.prompt"));
     invlist();
     while (1) {
         d = key();
@@ -497,7 +508,7 @@ void quaff() {
             oc = pa_inventory(inv_slot_from_letter(d));
             if (!item_is_potion(oc)) {
                 clw();
-                tx("Not valid.\r\n");
+                tx0(res_text("subs.quaff.invalid"));
                 ryl_delay(1000);
                 clw();
                 return;
@@ -510,7 +521,7 @@ void quaff() {
     }
 
     clw();
-    tx("Who? (1-%d)\r\n", res_party_member_max());
+    tx_who_prompt();
     while (1) {
         c = key();
         c = toupper(c);
@@ -519,7 +530,7 @@ void quaff() {
                 break;
             } else {
                 clw();
-                tx("Dead.\r\n");
+                tx0(res_text("subs.dead"));
                 ryl_delay(600);
                 clw();
             }
@@ -527,7 +538,7 @@ void quaff() {
     }
     pa_set_inventory(inv_slot_from_letter(d), 0);
     clw();
-    tx("Gulp!\r\n\r\n");
+    tx0(res_text("subs.quaff.gulp"));
     ryl_delay(600);
 
     apply_potion(oc, pm_from_digit(c));
@@ -558,7 +569,7 @@ void spell(int32_t place) {
     const ryl_spell *s;
 
     clw();
-    tx("Who? (1-%d)\r\n", res_party_member_max());
+    tx_who_prompt();
     while (1) {
         c = key();
         if (pm_digit_in_range(c)) {
@@ -571,21 +582,20 @@ void spell(int32_t place) {
 
     clw();
     if (pm_is_mage(caster)) {
-        tx("Sorry. Mage spells are\r\n");
-        tx("combat-only.\r\n");
+        tx0(res_text("subs.spell.mage_combat_only"));
         ryl_delay(1500);
         clw();
         return;
     }
     if (!pm_is_priest(caster)) {
-        tx("Wrong class.\r\n");
+        tx0(res_text("subs.spell.wrong_class"));
         ryl_delay(1000);
         clw();
         return;
     }
     if (pm_dead(caster)) {
         clw();
-        tx("Dead.\r\n");
+        tx0(res_text("subs.dead"));
         ryl_delay(600);
         return;
     }
