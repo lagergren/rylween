@@ -3420,3 +3420,175 @@ State at HEAD (`5dcbe74`):
 
 Bar per session: `make check` + `make testasan` both green at every
 commit. Push at session close.
+
+## Session 2026-04-28 #5 closure + continuation prompt
+
+Ten commits on `lagergren/port1` (`0d075c3..877ded4`), all pushed to
+origin. 39 fixtures byte-identical on `make check` + `make testasan` at
+every commit; no `.expect_snapshot` rebless required.
+
+What landed (in commit order):
+
+  - `0d075c3` state.npc[] — adds `npc_record_at(slot)` in state.h;
+    driv.c's four save/load sites (write_current_world emit + visited
+    writer; read_current_world populator + visited reader) lift to
+    npc_record_at + the existing npc_visited / npc_visited_set
+    helpers.
+
+  - `26941a2` state.map[][] — adds wld_rows/wld_cols/wld_set_tile_at/
+    wld_load_row/wld_last_terrain to wld.c/h. Lifts driv.c (NPC hut
+    stamp + map.dat row loader), subs.c (check_terrain + 5x5
+    update_map blit), script.c (movement mountain-block test, four
+    directions), snapshot.c (map emit), missions.c (MG_TERRAIN guard).
+    Snapshot byte-identity preserved — `%02d` vs `%02zu` emit
+    identical bytes for 0..41.
+
+  - `a4bb984` state.cpl + state.num_parties — adds
+    party_current_slot / party_set_current_slot / party_count /
+    party_count_inc / party_count_dec / party_set_count inline in
+    state.h alongside party_current(). Lifts driv.c (26 sites:
+    asserts, login matching, createparty, terminate's free + memmove +
+    clear-tail block, write/read_current_world), subs.c::scorelist
+    (4 sites), snapshot.c (3 cpl emit sites), speak.c (npc_visited
+    party-slot args), battle.c (encounter assert), script.c (`{cpl}`
+    DSL binding).
+
+  - `c55888d` global session scalars — adds session_player_name /
+    session_last_played_day(+set) / session_day_at_game_start(+set) /
+    session_banished(+set) / session_hour(+set) / session_current_town
+    (+set) inline helpers in state.h, plus wld_locations_dx/dy array
+    handles for save/load. Lifts driv.c (login menu owner, entry.dat
+    dedup + append, sysop/createparty player init, hour=5 init, all
+    last_played_day + day_at_game_start sites, dx/dy save+load),
+    dungeon.c (banished read+reset), primitives.c (sysop name compare),
+    script.c ({twn / hour_of_day / state_banished} bindings,
+    LV_HOUR_OF_DAY / LV_STATE_BANISHED mutate paths), snapshot.c
+    (twn / hour / banished / last_played_day emit), subs.c (sysop
+    name compare).
+
+  - `c411fdc` retire getclk + kl[N] — drops the legacy Amiga
+    `getclk(char kl[8])` + opaque kl[1]/kl[2]/kl[3] indexing. Adds
+    `struct wall_clock { year, month, day, hour, minute, second,
+    weekday }` + `clock_now(out)` for atomic snapshots and
+    `clock_year` / `clock_month` / `clock_day` / `clock_hour` /
+    `clock_minute` shortcuts. clock_year() returns the full 4-digit
+    year; the kl[1] year-1980 encoding is gone. Migrates driv.c
+    (4 day-check sites — local `char kl[8]` arrays drop from `init`
+    and `save`), log.c (audit timestamp uses clock_now() into struct
+    for atomicity), ydarg.c (heroes-file inscription, preserves the
+    legacy "19%d" + (year-1900) Y2K cosmetic format verbatim with a
+    comment pointing at compat.h).
+
+  - `d8db513` driv.c::terminate visited-grid shift bug — the inner
+    `for (j=1; j<num_parties; j++) { npc_visited_set(n, x,
+    npc_visited(n, x+1)); }` body never referenced `j`, so only
+    `visited[x]` was overwritten — `visited[x+1..count]` still
+    pointed at their pre-shift owners. Fix: `for (j=x;
+    j<party_count(); j++) { npc_visited_set(n, j, npc_visited(n,
+    j+1)); }` — proper compaction. After party_count_dec the count
+    is the new (smaller) value; reading j+1 up to the old tail
+    reads the about-to-be-discarded data correctly. Fixture-
+    unreachable today (no fixture exercises terminate-realm-then-
+    keep-playing).
+
+  - `5493dff` towne.c::enter `state.twn == 2` city/village fork —
+    lifted to per-town data. Each towns[] record in
+    `data/world.json5` now carries `class: 'city' | 'village'`
+    (default 'village' if absent). New helper `res_town_is_city(int
+    twn)` in res.c/h. towne.c::enter swaps the hardcoded `state.twn
+    == 2` to `res_town_is_city(state.twn)`. Adding a fifth town as
+    a city is now a pure data edit.
+
+  - `b08978d` §24bis phase 1 — slug-form sym accessors. Adds
+    `res_enum_sym(id, index)` (returns enums[i].keys[idx] — the
+    lowercase key — for keyed-record enums; falls back to display
+    string for positional arrays). Paired helpers in state.h:
+    `pm_class_sym` / `pm_race_sym` / `pm_class_is_sym` /
+    `pm_race_is_sym` (per-member); `npc_job_sym` / `npc_job_is_sym`
+    (per-NPC). Paired helpers in party.c/h: `pa_class_sym(m)` /
+    `pa_race_sym(m)` / `pa_class_is_sym(m, sym)` / `pa_race_is_sym(m,
+    sym)` (current-party). Storage stays int — helpers translate at
+    the boundary.
+
+  - `f21f7af` §24bis phase 2 — speak.c npc_job slug compares. The two
+    `npc_job(talker) == res_enum_id("job", "bard"|"bargirl")` sites
+    in speak.c::speak Q-prompt dispatch swap to
+    `npc_job_is_sym(talker, "<sym>")` — direct enum-key compare, no
+    res_enum_id lookup per dispatch. Phase 2 sweep verified ~complete:
+    only 13 PC_* references remain (compat.c name→id mapper,
+    party.c::pa_is_spellcaster, res.c spell-book / loader) — all in
+    translator/loader code where the int form is correct. The plan's
+    "driv.c, battle.c, subs.c are full of these" estimate was stale;
+    those moved to data-driven dispatch in the §22 / §23 sweeps.
+
+  - `877ded4` plan refresh — top-of-queue snapshot to 2026-04-28 #5,
+    mechanical residuals queue empty, recommended-next-session list
+    rewritten to point at §12.1 / §24bis phase 3 / §12.3 / Ydarg.
+
+State at end of session. **State-abstraction sweep total**: every
+top-level `struct ryl_state` field (p[], npc[], map[][], cpl,
+num_parties, global_name, last_played_day, day_at_game_start,
+banished, hour_of_day, twn, dx[], dy[], last_terrain) is accessed
+exclusively through helpers from outside its abstraction-home file.
+Abstraction-home files retaining direct `state.X` access by design:
+party.c (state.p[], state.cpl), inventory.c (state.p[].inventory),
+ryl.c (state.global_name init from argv), towne.c (state.twn
+writes on enter/leave), wld.c (state.dx/dy/map/last_terrain).
+
+§24bis phase 1 closed; phase 2 ~complete; phase 3 (drop the int from
+struct party / state.npc storage) remains a coordinated multi-session
+refactor — but now genuinely unblocked. Memory note
+`feedback_state_abstraction.md` was updated to reflect the total
+closure + the §24bis phase-1 helpers landing.
+
+Continuation prompt for next session.
+
+  Ten new commits on `lagergren/port1` (`0d075c3..877ded4`), all
+  pushed to origin. 39 fixtures byte-identical on `make check` +
+  `make testasan` at every commit. State-abstraction sweep is now
+  total across every top-level `struct ryl_state` field — every
+  consumer outside the abstraction-home files routes through
+  helpers. §24bis phase 1 (slug-form sym accessors) landed; phase 2
+  partially closed; phase 3 (storage flip) remains unblocked but
+  multi-session.
+
+  Recommended next session:
+
+    - **§12.1 — Dockerfile + GitHub CI**. The clearest concrete next
+      item. ~1 session, no code changes blocking it. Plan §12.1
+      describes the multi-stage Dockerfile (debian:stable-slim
+      builder → tester running tools/replay.sh --all +
+      tools/check_world.sh → slim runtime) and the
+      `.github/workflows/ci.yml` shape (push + PR trigger,
+      ubuntu-latest with gcc + clang, `make test` + `make testasan`
+      + `make format` as gates). Verify both legs locally before
+      committing the workflow file.
+
+    - **§24bis phase 3 — drop the int from struct party / state.npc
+      storage**. Genuinely unblocked but 2-3 sessions because
+      save-format JSON5 emit + read paths flip together. Plan
+      §24bis sketches three sub-phases.
+
+    - **§12.3 — dynamic sizing from world.json5 (`limits` subtree)**.
+      Remaining static caps `state.p[26]`, `map[42][82]`,
+      party-inventory `[17]`, `attack_today[26]`. Save-format
+      license already granted (2026-04-22).
+
+    - **ydarg inscription Y2K cosmetic** (mechanical residual). "%d"
+      + `clock_year()` instead of "19%d" + `(year-1900)`; needs a
+      ydarg-confrontation fixture rebless.
+
+    - **Ydarg as a regular mission** — still blocked on the DSL
+      evaluator learning mission triggers + item-flag paths.
+
+  Memory notes worth re-reading: `feedback_state_abstraction.md`
+  (total closure + §24bis phase 1 helpers; the rule for new code is
+  pa_* / pm_* / inv_* / res_* / npc_* / session_* / wld_*, and the
+  *_sym variants for class/race/job comparisons),
+  `feedback_preexisting_bug_fixes.md`,
+  `feedback_replay_knobs_centralized.md`,
+  `feedback_script_text_wiring.md`. The cap-driven heap-allocation
+  principle from §25.B still applies for §12.3's remaining targets.
+
+  Bar per session: `make check` + `make testasan` both green at
+  every commit. Push only on explicit user approval (per AGENTS.md).
