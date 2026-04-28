@@ -21,6 +21,7 @@
 #include "wld.h"
 
 #include <ctype.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -398,10 +399,113 @@ static int32_t expr_flag_slot(const node *v, const char *script_id, size_t idx,
     return slot;
 }
 
-/* `{member: <expr>, field: '<name>'}` — resolve a party-array field
-   read. Member idx must be 1..4 (pm_t convention). Field names match
-   the plan's inventory; `ws` is included so the full struct party
-   SoA is reachable. */
+/* Single table backing every DSL `field: '<name>'` read / write site.
+   Maps each script-stable field name to its offset in struct
+   party_member plus a type tag that picks the int32 coercion at the
+   read/write boundary. The three dispatch sites (expr_member_field
+   for {member: <expr>, field: 'X'}, read_lv / write_lv for the
+   member_field lvalue) all funnel through pm_field_lookup; adding a
+   new field is now one row instead of three strcmp arms. */
+typedef enum {
+    PMF_INT32,  /* int32_t */
+    PMF_UINT32, /* uint32_t (experience) — write rejects negatives */
+    PMF_UCHAR,  /* unsigned char (gender) */
+    PMF_CLASS,  /* slug pointer; int form via res_enum_id("pc_class") */
+    PMF_RACE,   /* slug pointer; int form via res_enum_id("race") */
+} pm_field_kind;
+
+typedef struct {
+    const char *name;
+    size_t offset;
+    pm_field_kind kind;
+} pm_field;
+
+static const pm_field pm_field_table[] = {
+    {"level", offsetof(struct party_member, level), PMF_INT32},
+    {"hit_points", offsetof(struct party_member, hit_points), PMF_INT32},
+    {"health", offsetof(struct party_member, health), PMF_INT32},
+    {"magic", offsetof(struct party_member, magic), PMF_INT32},
+    {"wisdom", offsetof(struct party_member, wisdom), PMF_INT32},
+    {"weapon_skill", offsetof(struct party_member, weapon_skill), PMF_INT32},
+    {"charisma", offsetof(struct party_member, charisma), PMF_INT32},
+    {"armour", offsetof(struct party_member, armour), PMF_INT32},
+    {"weapon", offsetof(struct party_member, weapon), PMF_INT32},
+    {"dead", offsetof(struct party_member, dead), PMF_INT32},
+    {"experience", offsetof(struct party_member, experience), PMF_UINT32},
+    {"gender", offsetof(struct party_member, gender), PMF_UCHAR},
+    {"class", offsetof(struct party_member, class_slug), PMF_CLASS},
+    {"race", offsetof(struct party_member, race_slug), PMF_RACE},
+};
+
+static const pm_field *pm_field_lookup(const char *name) {
+    if (!name) {
+        return NULL;
+    }
+    for (size_t i = 0;
+         i < sizeof pm_field_table / sizeof pm_field_table[0]; i++) {
+        if (strcmp(pm_field_table[i].name, name) == 0) {
+            return &pm_field_table[i];
+        }
+    }
+    return NULL;
+}
+
+static int32_t pm_field_read_at(struct party_member *r, const pm_field *f) {
+    char *base = (char *)r + f->offset;
+    switch (f->kind) {
+        case PMF_INT32:
+            return *(int32_t *)base;
+        case PMF_UINT32:
+            return (int32_t)*(uint32_t *)base;
+        case PMF_UCHAR:
+            return (int32_t)*(unsigned char *)base;
+        case PMF_CLASS: {
+            const char *s = *(const char **)base;
+            return s ? res_enum_id("pc_class", s) : 0;
+        }
+        case PMF_RACE: {
+            const char *s = *(const char **)base;
+            return s ? res_enum_id("race", s) : 0;
+        }
+    }
+    return 0;
+}
+
+static void pm_field_write_at(struct party_member *r, const pm_field *f,
+                              int32_t v, const char *script_id, size_t idx) {
+    char *base = (char *)r + f->offset;
+    switch (f->kind) {
+        case PMF_INT32:
+            *(int32_t *)base = v;
+            return;
+        case PMF_UINT32:
+            if (v < 0) {
+                char err[96];
+                snprintf(err, sizeof err,
+                         "mutate: member_field %s cannot be negative",
+                         f->name);
+                die_at(script_id, idx, err);
+            }
+            *(uint32_t *)base = (uint32_t)v;
+            return;
+        case PMF_UCHAR:
+            *(unsigned char *)base = (unsigned char)v;
+            return;
+        case PMF_CLASS: {
+            const char *s = res_enum_sym("pc_class", (int)v);
+            *(const char **)base = (s && s[0]) ? s : NULL;
+            return;
+        }
+        case PMF_RACE: {
+            const char *s = res_enum_sym("race", (int)v);
+            *(const char **)base = (s && s[0]) ? s : NULL;
+            return;
+        }
+    }
+}
+
+/* `{member: <expr>, field: '<name>'}` — resolve a party-member field
+   read. Member idx is 0..N-1; field names live in pm_field_table. */
 static int32_t expr_member_field(const node *op, const char *script_id,
                                  size_t idx, const ryl_bind *bindings,
                                  const rt_env *env) {
@@ -417,53 +521,11 @@ static int32_t expr_member_field(const node *op, const char *script_id,
     if (m < 0 || m >= res_party_member_max()) {
         die_at(script_id, idx, "expr member: idx out of range");
     }
-    const char *field = f_n->u.sv;
-    pm_t pm = pm_cur((int)m);
-    if (strcmp(field, "level") == 0) {
-        return pm_level(pm);
+    const pm_field *f = pm_field_lookup(f_n->u.sv);
+    if (!f) {
+        die_at(script_id, idx, "expr member: unknown field name");
     }
-    if (strcmp(field, "hit_points") == 0) {
-        return pm_hit_points(pm);
-    }
-    if (strcmp(field, "health") == 0) {
-        return pm_health(pm);
-    }
-    if (strcmp(field, "magic") == 0) {
-        return pm_magic(pm);
-    }
-    if (strcmp(field, "wisdom") == 0) {
-        return pm_wisdom(pm);
-    }
-    if (strcmp(field, "weapon_skill") == 0) {
-        return pm_weapon_skill(pm);
-    }
-    if (strcmp(field, "charisma") == 0) {
-        return pm_charisma(pm);
-    }
-    if (strcmp(field, "class") == 0) {
-        return pm_class_id(pm);
-    }
-    if (strcmp(field, "race") == 0) {
-        return pm_race_id(pm);
-    }
-    if (strcmp(field, "experience") == 0) {
-        /* uint32 → int32 cast: experience values stay well below 2^31
-           in legacy save files (the experience cap is much lower). */
-        return (int32_t)pm_experience(pm);
-    }
-    if (strcmp(field, "dead") == 0) {
-        return pm_dead(pm);
-    }
-    if (strcmp(field, "armour") == 0) {
-        return pm_armour(pm);
-    }
-    if (strcmp(field, "weapon") == 0) {
-        return pm_weapon(pm);
-    }
-    if (strcmp(field, "gender") == 0) {
-        return pm_gender(pm);
-    }
-    die_at(script_id, idx, "expr member: unknown field name");
+    return pm_field_read_at(pm_rec(pm_cur((int)m)), f);
 }
 
 /* `{var: 'name'}` — look up a runtime binding first, then fall through
@@ -2472,51 +2534,12 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
         case LV_INVENTORY:
             return pa_inventory(lv->index);
         case LV_MEMBER_FIELD: {
-            pm_t pm = pm_cur(lv->index);
-            const char *f = lv->field;
-            if (strcmp(f, "level") == 0) {
-                return pm_level(pm);
+            const pm_field *f = pm_field_lookup(lv->field);
+            if (!f) {
+                die_at(script_id, idx,
+                       "mutate: member_field unknown field name");
             }
-            if (strcmp(f, "hit_points") == 0) {
-                return pm_hit_points(pm);
-            }
-            if (strcmp(f, "health") == 0) {
-                return pm_health(pm);
-            }
-            if (strcmp(f, "magic") == 0) {
-                return pm_magic(pm);
-            }
-            if (strcmp(f, "wisdom") == 0) {
-                return pm_wisdom(pm);
-            }
-            if (strcmp(f, "weapon_skill") == 0) {
-                return pm_weapon_skill(pm);
-            }
-            if (strcmp(f, "charisma") == 0) {
-                return pm_charisma(pm);
-            }
-            if (strcmp(f, "class") == 0) {
-                return pm_class_id(pm);
-            }
-            if (strcmp(f, "race") == 0) {
-                return pm_race_id(pm);
-            }
-            if (strcmp(f, "dead") == 0) {
-                return pm_dead(pm);
-            }
-            if (strcmp(f, "armour") == 0) {
-                return pm_armour(pm);
-            }
-            if (strcmp(f, "weapon") == 0) {
-                return pm_weapon(pm);
-            }
-            if (strcmp(f, "experience") == 0) {
-                return (int32_t)pm_experience(pm);
-            }
-            if (strcmp(f, "gender") == 0) {
-                return pm_gender(pm);
-            }
-            die_at(script_id, idx, "mutate: member_field unknown field name");
+            return pm_field_read_at(pm_rec(pm_cur(lv->index)), f);
         }
         case LV_MONSTER_HP:
             return g_combat_ctx->mh[lv->index];
@@ -2596,69 +2619,13 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
             pa_set_inventory(lv->index, v);
             return;
         case LV_MEMBER_FIELD: {
-            pm_t pm = pm_cur(lv->index);
-            const char *f = lv->field;
-            if (strcmp(f, "level") == 0) {
-                pm_set_level(pm, (int)v);
-                return;
+            const pm_field *f = pm_field_lookup(lv->field);
+            if (!f) {
+                die_at(script_id, idx,
+                       "mutate: member_field unknown field name");
             }
-            if (strcmp(f, "hit_points") == 0) {
-                pm_set_hit_points(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "health") == 0) {
-                pm_set_health(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "magic") == 0) {
-                pm_set_magic(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "wisdom") == 0) {
-                pm_set_wisdom(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "weapon_skill") == 0) {
-                pm_set_weapon_skill(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "charisma") == 0) {
-                pm_set_charisma(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "class") == 0) {
-                pm_set_class_id(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "race") == 0) {
-                pm_set_race_id(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "dead") == 0) {
-                pm_set_dead(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "armour") == 0) {
-                pm_set_armour(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "weapon") == 0) {
-                pm_set_weapon(pm, (int)v);
-                return;
-            }
-            if (strcmp(f, "experience") == 0) {
-                if (v < 0) {
-                    die_at(script_id, idx,
-                           "mutate: member_field experience cannot be negative");
-                }
-                pm_set_experience(pm, (uint32_t)v);
-                return;
-            }
-            if (strcmp(f, "gender") == 0) {
-                pm_set_gender(pm, (unsigned char)v);
-                return;
-            }
-            die_at(script_id, idx, "mutate: member_field unknown field name");
+            pm_field_write_at(pm_rec(pm_cur(lv->index)), f, v, script_id, idx);
+            return;
         }
         case LV_MONSTER_HP:
             g_combat_ctx->mh[lv->index] = (int)v;
