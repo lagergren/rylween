@@ -442,11 +442,8 @@ static void confrontation() {
     clock_now(&c);
     mstr = res_enum("month", c.month);
 
-    /* Legacy "19%d" + (year - 1900) idiom preserved verbatim — the Y2K
-       cosmetic bug is documented at compat.h and out of scope for this
-       lift. */
-    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", pa_party_name(), mstr, c.day,
-             c.year - 1900);
+    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, %d\n", pa_party_name(), mstr, c.day,
+             c.year);
     fputs(str, fh);
     fclose(fh);
     cleanexit();
