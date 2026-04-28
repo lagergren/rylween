@@ -156,7 +156,7 @@ static int enter_tax_preamble(const char *twnname) {
         return 1;
     }
     int32_t tax = res_town_tax(state.twn);
-    int32_t amount = (state.p[state.cpl].gold * tax) / 100;
+    int32_t amount = (pa_gold() * tax) / 100;
     char pct_s[8], amount_s[16];
 
     snprintf(pct_s, sizeof pct_s, "%d", tax);
@@ -173,7 +173,7 @@ static int enter_tax_preamble(const char *twnname) {
     clw();
     tx0(res_text("towne.enter.thanks"));
     ryl_delay(2000);
-    state.p[state.cpl].gold -= amount;
+    pa_add_gold(-amount);
     return 1;
 }
 
