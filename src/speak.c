@@ -152,13 +152,13 @@ void speak(int32_t bld, int32_t tow) {
     npc_t talker = npc_at_slot(talk);
     int female = (npc_gender(talker) == res_enum_id("gender", "female"));
 
-    if (talker.p->visited[state.cpl]) {
+    if (npc_visited(talker, state.cpl)) {
         clw();
         tx("%s nods as\r\n", npc_name(talker));
         tx0(res_text(female ? "speak.recognize_she" : "speak.recognize_he"));
         ryl_delay(800);
     } else {
-        talker.p->visited[state.cpl] = 1;
+        npc_visited_set(talker, state.cpl, 1);
     }
 
     while (1) {
