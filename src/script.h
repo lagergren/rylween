@@ -92,7 +92,7 @@ struct node;
  *                                   script.c (engine_tbl). Currently:
  *                                   dungeon(2) encounter(2) update_map(0)
  *                                   clr_map_window(0) blitgfx(1)
- *                                   statusline(0) clw(0).
+ *                                   status_line(0) clw(0).
  *
  *   { play_script: '<id>' }       - invoke a nested script by dotted id
  *                                   (resolved via res_script). Caller
@@ -207,7 +207,7 @@ struct node;
  *       prompt_screen?: '<name>',   player. Optional `prompt_screen`
  *       lg: N,                      emits a screen text (parent-relative
  *       var: '<name>',              like `screen`) before the read.
- *       min: <expr>,                `lg` is the getstr buffer cap.
+ *       min: <expr>,                `lg` is the get_str buffer cap.
  *       max: <expr> } }             Result is clamped into [min, max]
  *                                   (non-numeric input clamps to min),
  *                                   then bound into rt_env under `var`.

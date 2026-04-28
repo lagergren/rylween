@@ -67,7 +67,7 @@ void dungeon(int32_t levels, const char *scenario) {
         /* Pick an alternative — encounter over. */
         while (1) {
             clw();
-            statusline();
+            status_line();
             char level_s[8];
             snprintf(level_s, sizeof level_s, "%d", (int)cl);
             tx_fmt("dungeon.loop.level_menu", (ryl_bind[]){
@@ -84,16 +84,16 @@ void dungeon(int32_t levels, const char *scenario) {
                 drop();
             }
             if (c == 'T') {
-                armoroff();
+                armor_off();
             }
             if (c == 'P') {
-                weaponoff();
+                weapon_off();
             }
             if (c == 'W') {
-                weaponr();
+                weapon_ready();
             }
             if (c == 'R') {
-                armorr();
+                armor_ready();
             }
             if (c == 'Q') {
                 quaff();
@@ -109,7 +109,7 @@ void dungeon(int32_t levels, const char *scenario) {
                 }
             }
             if (c == 'V') {
-                showparty();
+                show_party();
                 clw();
                 char max_s[8];
                 snprintf(max_s, sizeof max_s, "%d", res_party_member_max());

@@ -159,7 +159,7 @@ void ydarg(void) {
 }
 
 /* §23.J cmd-dispatch backer: (V)iew-party command. Lifts the
-   showparty + view_who prompt + key-wait loop + per-slot show
+   show_party + view_who prompt + key-wait loop + per-slot show
    into one C entry so the DSL switch in ydarg.cmd_dispatch
    doesn't have to express the ASCII gate (digit-in-range OR
    Q OR A) and the conditional show / for-each-show. The legacy
@@ -167,7 +167,7 @@ void ydarg(void) {
    was a valid party-member slot, show-all on 'A', no-op on 'Q'. */
 void ydarg_view_command(void) {
     char d;
-    showparty();
+    show_party();
     clw();
     tx_fmt("ydarg.nav.view_who", NULL);
     while (1) {
@@ -340,7 +340,7 @@ void ydarg_finalize(void) {
     }
 
     if (!(fh = fopen(path, "a+"))) {
-        cleanexit();
+        clean_exit();
     }
 
     struct wall_clock c;
@@ -351,5 +351,5 @@ void ydarg_finalize(void) {
              c.year);
     fputs(str, fh);
     fclose(fh);
-    cleanexit();
+    clean_exit();
 }

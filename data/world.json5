@@ -161,7 +161,7 @@
     ydarg: { $import: 'world/scripts/ydarg.json5' },
   },
 
-  // Per-tick upkeep. foodhandler() reads these every hour; callers
+  // Per-tick upkeep. food_handler() reads these every hour; callers
   // are in subs.c. Keep keys stable — C-side hard-codes the names.
   upkeep: {
     food_cost_leader_div: 4,   // food -= pl + lv[1] / N every food_tick_every hours
@@ -245,7 +245,7 @@
       food_max:       19,   // ryl_random(food_min, food_max) + pa_first_level()
     },
     fatigue: {
-      // Thresholds the foodhandler ladder compares hours_rested to.
+      // Thresholds the food_handler ladder compares hours_rested to.
       // Exhausted and weak are equality checks today; the < weak
       // branch is the open-ended "faint" tail.
       exhausted: -4,
@@ -253,11 +253,11 @@
     },
   },
 
-  // §23.D: createparty() literals — stat-roll range and the
+  // §23.D: create_party() literals — stat-roll range and the
   // fresh-party initial state. Read via res_int_path("driv.<key>").
   // The `start:` block reproduces the original
   // state.p[a].{x,y,gold,torches,food,time_left,hours_rested}
-  // assignment block at the end of createparty(); fixtures pin
+  // assignment block at the end of create_party(); fixtures pin
   // these values byte-for-byte. The `daily:` block holds the
   // per-day refresh budget driv.c::init applies to every party at
   // the first-of-day rollover (intentionally smaller than `start.
@@ -777,7 +777,7 @@
     // Player-party race (struct party.ra[]). Lowercase key is the
     // script-stable symbol; `name` is what the show() screen renders.
     // Slot ids are 1-indexed positional (object-key order); slot 0 is
-    // the "no race" sentinel. driv.c's createparty digit menu reads
+    // the "no race" sentinel. driv.c's create_party digit menu reads
     // 1..4 directly so the data file order doubles as the keystroke
     // mapping.
     race: {
@@ -799,7 +799,7 @@
     // res_enum_id at the snapshot / save / DSL boundary, so the
     // historical PC_FIGHTER=1 .. PC_RANGER=6 numbering is preserved by
     // keeping the data-file order matching.
-    // `min_stat:` (optional) is the createparty() class gate: if the
+    // `min_stat:` (optional) is the create_party() class gate: if the
     // rolled stat named here is below `value`, the prompt prints
     // `fail_text` and re-rolls. Classes without a min (thief, ranger)
     // omit the field. Matches the original driv.c switch on

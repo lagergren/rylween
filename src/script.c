@@ -660,7 +660,7 @@ static int32_t ie_wld_location_y(const int32_t *a) {
    loop byte-for-byte — every draw advances RNG, the first alive hit
    returns. Caller must guarantee at least one party member is alive
    (battle.c gates the cast block on pa_alive_count(); a wipe takes
-   the losegame() path before this is reached). */
+   the lose_game() path before this is reached). */
 static int32_t ie_pick_random_alive_player(const int32_t *a) {
     (void)a;
     int max = res_party_member_max();
@@ -1656,7 +1656,7 @@ static void eng_blitgfx(const int32_t *a) {
 }
 static void eng_statusline(const int32_t *a) {
     (void)a;
-    statusline();
+    status_line();
 }
 static void eng_clw(const int32_t *a) {
     (void)a;
@@ -1668,19 +1668,19 @@ static void eng_advance_hour(const int32_t *a) {
 }
 static void eng_weaponr(const int32_t *a) {
     (void)a;
-    weaponr();
+    weapon_ready();
 }
 static void eng_armorr(const int32_t *a) {
     (void)a;
-    armorr();
+    armor_ready();
 }
 static void eng_invlist(const int32_t *a) {
     (void)a;
-    invlist();
+    inv_list();
 }
 static void eng_showparty(const int32_t *a) {
     (void)a;
-    showparty();
+    show_party();
 }
 /* §17-F step 5: drop_option returns the slot the player chose (0 if
    declined). Exposing it as a void engine_call fires the UX — scripts
@@ -1768,11 +1768,11 @@ static void eng_help(const int32_t *a) {
 }
 static void eng_armoroff(const int32_t *a) {
     (void)a;
-    armoroff();
+    armor_off();
 }
 static void eng_weaponoff(const int32_t *a) {
     (void)a;
-    weaponoff();
+    weapon_off();
 }
 static void eng_drop(const int32_t *a) {
     (void)a;
@@ -1795,7 +1795,7 @@ static void eng_ydarg_teleport_exit(const int32_t *a) {
     ydarg_teleport_exit();
 }
 
-/* §23.J cmd-dispatch backer: V command. showparty + view_who
+/* §23.J cmd-dispatch backer: V command. show_party + view_who
    prompt + key-wait + conditional show / show-all. */
 static void eng_ydarg_view_command(const int32_t *a) {
     (void)a;
@@ -1886,13 +1886,13 @@ static const engine_entry engine_tbl[] = {
     {"update_map", 0, eng_update_map},
     {"clr_map_window", 0, eng_clr_map_window},
     {"blitgfx", 1, eng_blitgfx},
-    {"statusline", 0, eng_statusline},
+    {"status_line", 0, eng_statusline},
     {"clw", 0, eng_clw},
     {"advance_hour", 0, eng_advance_hour},
-    {"weaponr", 0, eng_weaponr},
-    {"armorr", 0, eng_armorr},
-    {"invlist", 0, eng_invlist},
-    {"showparty", 0, eng_showparty},
+    {"weapon_ready", 0, eng_weaponr},
+    {"armor_ready", 0, eng_armorr},
+    {"inv_list", 0, eng_invlist},
+    {"show_party", 0, eng_showparty},
     {"drop_option", 0, eng_drop_option},
     {"rumour", 0, eng_rumour},
     {"pm_add_hit_points", 2, eng_pm_add_hp},
@@ -1912,8 +1912,8 @@ static const engine_entry engine_tbl[] = {
     {"ydarg_pitfall_undisarmed_apply", 0, eng_ydarg_pitfall_undisarmed_apply},
     {"ydarg_teleport_exit", 0, eng_ydarg_teleport_exit},
     {"help", 0, eng_help},
-    {"armoroff", 0, eng_armoroff},
-    {"weaponoff", 0, eng_weaponoff},
+    {"armor_off", 0, eng_armoroff},
+    {"weapon_off", 0, eng_weaponoff},
     {"drop", 0, eng_drop},
     {"quaff", 0, eng_quaff},
     {"spell", 1, eng_spell},
@@ -3023,7 +3023,7 @@ static void do_mutate(const node *op, const char *script_id, size_t idx,
 /* §17-F step 3: { input_number: { prompt_screen?: '<name>', lg: N,
    var: '<name>', min: <expr>, max: <expr> } }. Optionally emits
    prompt_screen via tx_fmt (parent-relative, merged bindings), then
-   reads a line with getstr(lg), parses with strtol, clamps into
+   reads a line with get_str(lg), parses with strtol, clamps into
    [min, max], and binds the result into rt_env under `var`. Invalid
    (non-numeric / empty) input clamps to `min`. */
 static void do_input_number(const node *op, const char *script_id, size_t idx,
@@ -3073,7 +3073,7 @@ static void do_input_number(const node *op, const char *script_id, size_t idx,
     if (lg >= sizeof buf) {
         lg = (uint8_t)(sizeof buf - 1);
     }
-    getstr(lg, buf, sizeof buf);
+    get_str(lg, buf, sizeof buf);
     char *endp = NULL;
     long parsed = strtol(buf, &endp, 10);
     int32_t v;
@@ -3123,7 +3123,7 @@ static ops_result do_inv_add(const node *op, const char *script_id,
 }
 
 /* §20 L2: { input_string: { lg: N, accept: '<sym>'|[ '<sym>'... ],
-   match?: [...], miss?: [...] } }. Reads a getstr(lg)-bounded line,
+   match?: [...], miss?: [...] } }. Reads a get_str(lg)-bounded line,
    compares it case-insensitively against each `accept` entry, and
    plays the matching body. Used by the dungeon riddle/password
    encounters (Thun riddles, hobgoblin chief). lg caps at 64 to fit
@@ -3154,7 +3154,7 @@ static ops_result do_input_string(const node *op, const char *script_id,
         die_at(script_id, idx, "input_string: accept must be string or array");
     }
     char buf[64];
-    getstr((uint8_t)lg_n->u.iv, buf, sizeof buf);
+    get_str((uint8_t)lg_n->u.iv, buf, sizeof buf);
     int matched = 0;
     if (acc_n->kind == N_STR) {
         matched = (stricmp(buf, acc_n->u.sv) == 0);

@@ -8,7 +8,7 @@
    boot (io_tty for local play). Every call-site used to reach these via
    the ryl.h umbrella; splitting them out makes the dependency explicit. */
 
-void getstr(uint8_t, char *, size_t);
+void get_str(uint8_t, char *, size_t);
 uint32_t tx(const char *, ...);
 uint32_t tx0(const char *);
 
@@ -61,15 +61,15 @@ int ryl_menu(const char *screen_text_id, const ryl_menu_opt *opts);
    journal op (source is a literal string from the script). */
 void bind_expand(const char *src, const ryl_bind *bindings,
                  char *out, size_t out_sz, const char *ctx);
-void cleanexit(void);
+void clean_exit(void);
 __attribute__((noreturn)) void ryl_die(const char *msg);
 void cl(void);
 void c(uint8_t, uint8_t);
 void clw(void);
 void ryl_pause(void);
-uint8_t hotkey(void);
+uint8_t hot_key(void);
 char key(void);
 void render_at(const char *, uint8_t, uint8_t);
-void disptext(char *);
+void disp_text(char *);
 
 #endif

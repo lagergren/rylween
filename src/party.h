@@ -196,7 +196,7 @@ void pa_set_special(int which, int v);
    in [0, PARTY_SLOT_HARD_MAX). The current-party-only `pa_*` family
    above is the natural shape for the 95% of call sites that read /
    mutate the active party; this helper is the escape hatch for the
-   handful of cross-party loops (scorelist, driv.c::struggle-over
+   handful of cross-party loops (score_list, driv.c::struggle-over
    sweep, driv.c::owner-match) that have to walk every party slot.
    Out-of-range is a programmer error and exits(1) with a descriptive
    log line — callers don't have to NULL-check. */
@@ -220,7 +220,7 @@ void free_journal(struct party *p);
    previous buffers are freed first. Does NOT touch the journal —
    its lifecycle is separate (load clears + re-appends per save).
 
-   Call once before the first per-member write: at createparty after
+   Call once before the first per-member write: at create_party after
    num_parties++, at read_current_world before rcw_i32_arr(..., p->ws,
    ...), after position_locations / res_realize_npcs in the cold-
    start path if the party slot will be used. */

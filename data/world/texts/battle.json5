@@ -271,7 +271,7 @@
   party: {
     held:            ['PARTY IS HELD!'],
   },
-  // Post-fight level-up narration (expcheck). {name} = pm_name;
+  // Post-fight level-up narration (exp_check). {name} = pm_name;
   // {levels} = number of levels gained (typically 1, can be more
   // when crossing multiple thresholds).
   expgain: {

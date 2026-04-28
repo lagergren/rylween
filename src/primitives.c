@@ -299,7 +299,7 @@ static uint8_t carrier(void) {
     return io->carrier_ok() ? 1 : 0;
 }
 
-void cleanexit(void) {
+void clean_exit(void) {
     tx(ANSI_FG_BLACK ANSI_ESC "[ p" ANSI_FG_WHITE);
     if (io && io->shutdown) {
         io->shutdown();
@@ -313,15 +313,15 @@ void cleanexit(void) {
     exit(0);
 }
 
-/* getstr: read one line of input into the caller's buffer. lg is the
+/* get_str: read one line of input into the caller's buffer. lg is the
    max input length (excluding the null terminator), matching the old
    pointer-returning API. We cap the read at min(lg+1, out_sz) so a
    caller who under-sizes out[] still can't overflow. */
-void getstr(uint8_t lg, char *out, size_t out_sz) {
+void get_str(uint8_t lg, char *out, size_t out_sz) {
     size_t cap = (size_t)lg + 1;
 
     if (!carrier()) {
-        cleanexit();
+        clean_exit();
     }
     if (out_sz == 0) {
         return;
@@ -331,17 +331,17 @@ void getstr(uint8_t lg, char *out, size_t out_sz) {
     }
     io->getline(out, cap);
     if (out[0] == '#') {
-        cleanexit();
+        clean_exit();
     }
     if (!carrier()) {
-        cleanexit();
+        clean_exit();
     }
 }
 
-uint8_t hotkey(void) {
+uint8_t hot_key(void) {
     int32_t ch = io->getch();
     if (ch < 0) {
-        cleanexit();
+        clean_exit();
     }
     return (toupper(ch) == 'Y') ? 1 : 0;
 }
@@ -350,7 +350,7 @@ char key(void) {
     int32_t ch;
 
     if (!carrier()) {
-        cleanexit();
+        clean_exit();
     }
     c(0, 0);
     tx(ANSI_FG_BLACK);
@@ -359,13 +359,13 @@ char key(void) {
     tx(ANSI_FG_WHITE);
 
     if (ch < 0) {
-        cleanexit();
+        clean_exit();
     }
     if (ch == '#') {
-        cleanexit();
+        clean_exit();
     }
     if (!carrier()) {
-        cleanexit();
+        clean_exit();
     }
 
     /* Local sysop backdoors — preserved from the Amiga original. */
@@ -373,7 +373,7 @@ char key(void) {
         switch (ch) {
             case '/':
                 pa_add_time_left(50);
-                statusline();
+                status_line();
                 break;
             case '(':
                 pa_set_inventory(12, 104);
@@ -389,7 +389,7 @@ char key(void) {
                 break;
             case '+':
                 pa_add_gold(1000);
-                statusline();
+                status_line();
                 break;
         }
     }
@@ -407,7 +407,7 @@ void ryl_pause(void) {
     while (1) {
         ch = io->getch();
         if (ch < 0) {
-            cleanexit();
+            clean_exit();
         }
         if (ch == 13 || ch == 10) {
             break;
@@ -417,7 +417,7 @@ void ryl_pause(void) {
     c(49, 6);
 }
 
-void disptext(char *namn) {
+void disp_text(char *namn) {
     /* Home the cursor before dumping the .ans. .ans files use relative
        cursor moves (ESC[<n>C) and rely on starting at (1,1); their
        internal ESC[2J doesn't home the cursor on Mac Terminal /

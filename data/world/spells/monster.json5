@@ -157,7 +157,7 @@
   // The legacy `if (pa_pl()) pa_add_pl(-1)` guard is dropped to
   // match the frost/fire spell bodies above, which call pa_add_pl
   // unguarded. The outer for_each_monster loop is gated by
-  // pa_alive_count() > 0 (else losegame() takes over), so the
+  // pa_alive_count() > 0 (else lose_game() takes over), so the
   // guard never triggers in practice.
   melee: {
     do: [

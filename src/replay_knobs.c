@@ -34,7 +34,7 @@ int32_t rk_starting_gold(int32_t defv) {
 }
 
 /* Stat-roll bounds override. Unlike rk_starting_gold this is NOT
-   one-shot — createparty calls ryl_random(min, max) multiple times
+   one-shot — create_party calls ryl_random(min, max) multiple times
    per character (4 stats × N members + re-rolls), so the env stays
    set across calls. Validation: 1..127 (the legacy stat ceiling
    leaves headroom for level-up bumps). Out-of-range / malformed

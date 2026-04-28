@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/* Combat entry (encounter) and the per-win XP distribution (expcheck). */
+/* Combat entry (encounter) and the per-win XP distribution (exp_check). */
 
 void encounter(int32_t, int32_t);
 

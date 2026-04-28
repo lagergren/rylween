@@ -116,7 +116,7 @@
     { engine_call: 'blitgfx', args: [{ pic: 'church' }] },
     { loop: [
       { engine_call: 'clw' },
-      { engine_call: 'statusline' },
+      { engine_call: 'status_line' },
       { emit: 'intro' },
       { menu_branch: {
           prompt: 'menu',
@@ -156,7 +156,7 @@
                                   // cost = lv * (wi - ma) * 2. The original's
                                   // "if (!cost) cost = lv*2" fallback is
                                   // unreachable when wi > ma and lv >= 1
-                                  // (always the case past createparty).
+                                  // (always the case past create_party).
                                   { let: 'cost', value: {
                                       mul: [
                                         { member: { var: 'who' }, field: 'level' },
@@ -380,7 +380,7 @@
           { engine_call: 'blitgfx', args: [{ pic: 'smith' }] },
           { loop: [
             { engine_call: 'clw' },
-            { engine_call: 'statusline' },
+            { engine_call: 'status_line' },
             { emit: 'intro' },
             { if: {
                 cond: { chance: 9 },
@@ -583,7 +583,7 @@
                         { key: 'S', then: [
                             { engine_call: 'clw' },
                             { emit: 'sell_prompt' },
-                            { engine_call: 'invlist' },
+                            { engine_call: 'inv_list' },
                             { menu_branch: {
                                 key_var: 'sell_key',
                                 options: [
@@ -1323,11 +1323,11 @@
   // Main menu loop: L leaves, S sells a single inventory slot,
   // B enters the inner buy loop.
   //
-  // Sell (S): invlist + single keypress A..P picks a slot. Slots
+  // Sell (S): inv_list + single keypress A..P picks a slot. Slots
   // holding items `oc < 32 || oc == 47` (weapons/armor and the
   // donkey) are rejected as wrong_kind. Otherwise offer
   // `obcost(oc)/2`; on Y, add gold, zero the slot, redraw
-  // statusline.
+  // status_line.
   //
   // Buy (B): inner loop re-shows buy_menu each iteration. A..F
   // map to item ids 31..36; G remaps to 47 (donkey); H or any
@@ -1386,7 +1386,7 @@
                   // --- (S)ell one slot
                   { key: 'S', then: [
                     { engine_call: 'clw' },
-                    { engine_call: 'invlist' },
+                    { engine_call: 'inv_list' },
                     { menu_branch: {
                         key_var: 'sell_key',
                         options: [
@@ -1422,7 +1422,7 @@
                                                       op: 'add', value: { var: 'price' } } },
                                           { mutate: { target: { inventory: { var: 'slot' } },
                                                       op: 'set', value: 0 } },
-                                          { engine_call: 'statusline' },
+                                          { engine_call: 'status_line' },
                                         ] },
                                       ],
                                   } },
@@ -1437,7 +1437,7 @@
                   { key: 'B', then: [
                     { loop: [
                       { engine_call: 'clw' },
-                      { engine_call: 'statusline' },
+                      { engine_call: 'status_line' },
                       { let: 'food_price',
                         value: { add: [{ member: 1, field: 'level' }, 1] } },
                       { let: 'potion_price',

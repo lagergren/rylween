@@ -124,7 +124,7 @@
   },
 
   // case 19, flag[19]==0 — husband's depressed pitch, Tammy abduction.
-  // Caller pre-clws. Original sequenced journalf between tx0(cave) and
+  // Caller pre-clws. Original sequenced journal_add between tx0(cave) and
   // ryl_pause; moving journal after the screen is observably identical.
   husband: {
     first_visit: [
@@ -298,7 +298,7 @@
     trade: [
       { screen: 'hear' },
       { screen: 'trade' },
-      { engine_call: 'invlist' },
+      { engine_call: 'inv_list' },
       { input_item: {
           slot_var: 'slot',
           item_var: 'item_id',

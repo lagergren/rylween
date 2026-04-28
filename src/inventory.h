@@ -11,7 +11,7 @@
    change.
 
    All helpers operate on the current party (state.cpl). Non-cpl
-   callers (only driv.c createparty's init) use memset on
+   callers (only driv.c create_party's init) use memset on
    state.p[a].inventory directly; the helpers aren't generic by
    design — state.cpl is the overwhelmingly common case and
    threading a party index through every read site dilutes the

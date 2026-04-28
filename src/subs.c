@@ -20,8 +20,8 @@
 static int32_t color(char);
 static char *glyph(char);
 
-/* "Who? (1-N)" — six callsites in subs.c (weaponoff/armoroff/
-   weaponr/armorr/quaff/spell). Resolves the party-member cap and
+/* "Who? (1-N)" — six callsites in subs.c (weapon_off/armor_off/
+   weapon_ready/armor_ready/quaff/spell). Resolves the party-member cap and
    emits subs.who_prompt with a {party_max} binding. */
 static void tx_who_prompt(void) {
     char max_s[8];
@@ -30,13 +30,13 @@ static void tx_who_prompt(void) {
            (ryl_bind[]){{"party_max", max_s}, {0}});
 }
 
-void timehandler() {
+void time_handler() {
     advance_hour();
 }
 
 /* Sleep-deprivation hp drain: -1 hp per member with hp > 1 (so the
    penalty bruises the party rather than killing anyone outright).
-   Three foodhandler arms (-4, -8, < -8 hours_rested) all trigger
+   Three food_handler arms (-4, -8, < -8 hours_rested) all trigger
    the same drain, with different surrounding text + pacing. */
 static void sleep_deprivation_drain(void) {
     for_each_party_member(i) {
@@ -47,7 +47,7 @@ static void sleep_deprivation_drain(void) {
     }
 }
 
-void foodhandler() {
+void food_handler() {
     // Regenerate mana //
     int32_t regen_pct = res_int_path("upkeep.mana_regen_chance");
     for_each_party_member(i) {
@@ -81,13 +81,13 @@ void foodhandler() {
             if (pm_hit_points(pm) < 1 && !pm_dead(pm)) {
                 pm_set_hit_points(pm, 0);
                 clw();
-                tx_fmt("subs.foodhandler.starved",
+                tx_fmt("subs.food_handler.starved",
                        (ryl_bind[]){{"name", pm_name(pm)}, {0}});
                 ryl_delay(1000);
                 clw();
                 pm_set_dead(pm, 1);
                 if (pa_alive_count() == 0) {
-                    losegame();
+                    lose_game();
                 }
             }
         }
@@ -97,18 +97,18 @@ void foodhandler() {
     pa_add_hours_rested(-1);
     if (pa_hours_rested() == 0) {
         clw();
-        tx0(res_text("subs.foodhandler.tired"));
+        tx0(res_text("subs.food_handler.tired"));
         return;
     }
     if (pa_hours_rested() == -4) {
         clw();
-        tx0(res_text("subs.foodhandler.exhausted"));
+        tx0(res_text("subs.food_handler.exhausted"));
         sleep_deprivation_drain();
         return;
     }
     if (pa_hours_rested() == -8) {
         clw();
-        tx0(res_text("subs.foodhandler.weak"));
+        tx0(res_text("subs.food_handler.weak"));
         sleep_deprivation_drain();
         ryl_pause();
         clw();
@@ -207,13 +207,13 @@ void random_wilderness() {
     update_map();
 }
 
-void losegame() {
+void lose_game() {
     clr_map_window();
     blitgfx(deathpic);
     clw();
-    tx0(res_text("subs.losegame.flavor"));
+    tx0(res_text("subs.lose_game.flavor"));
     ryl_pause();
-    cleanexit();
+    clean_exit();
 }
 
 /* Render the 5x5 map window centred on the party tile. Each cell is
@@ -260,7 +260,7 @@ static char *glyph(char t) {
     return (char *)res_glyph(t);
 }
 
-void weaponoff() {
+void weapon_off() {
     char c;
     int32_t x;
 
@@ -269,10 +269,10 @@ void weaponoff() {
     c = key();
     if (pm_digit_in_range(c)) {
         pm_t pm = pm_from_digit(c);
-        LOG_D("input", "weaponoff: digit=%c -> slot=%d", c, pm.m);
+        LOG_D("input", "weapon_off: digit=%c -> slot=%d", c, pm.m);
         if (!pm_has_weapon(pm)) {
             clw();
-            tx_fmt("subs.weaponoff.no_weapon",
+            tx_fmt("subs.weapon_off.no_weapon",
                    (ryl_bind[]){{"pronoun", pronoun(c - '1', 1)}, {0}});
             ryl_delay(800);
             clw();
@@ -298,7 +298,7 @@ void weaponoff() {
     }
     clw();
 }
-void armoroff() {
+void armor_off() {
     char c;
     int32_t x;
 
@@ -307,10 +307,10 @@ void armoroff() {
     c = key();
     if (pm_digit_in_range(c)) {
         pm_t pm = pm_from_digit(c);
-        LOG_D("input", "armoroff: digit=%c -> slot=%d", c, pm.m);
+        LOG_D("input", "armor_off: digit=%c -> slot=%d", c, pm.m);
         if (!pm_has_armor(pm)) {
             clw();
-            tx_fmt("subs.armoroff.no_armor",
+            tx_fmt("subs.armor_off.no_armor",
                    (ryl_bind[]){{"pronoun", pronoun(c - '1', 1)}, {0}});
             ryl_delay(800);
             clw();
@@ -336,9 +336,9 @@ void armoroff() {
     }
     clw();
 }
-void weaponr() {
+void weapon_ready() {
     clw();
-    invlist();
+    inv_list();
     char d = (char)toupper(key());
     int slot = inv_slot_from_letter(d);
     if (!slot) {
@@ -348,7 +348,7 @@ void weaponr() {
     int32_t oc = pa_inventory(slot);
     if (!item_is_weapon(oc)) {
         clw();
-        tx0(res_text("subs.weaponr.invalid"));
+        tx0(res_text("subs.weapon_ready.invalid"));
         ryl_delay(600);
         clw();
         return;
@@ -371,14 +371,14 @@ void weaponr() {
     pm_set_weapon(pm, pa_inventory(slot));
     pa_set_inventory(slot, temp);
     clw();
-    tx0(res_text("subs.weaponr.changed"));
+    tx0(res_text("subs.weapon_ready.changed"));
     ryl_delay(600);
     clw();
     return;
 }
-void armorr() {
+void armor_ready() {
     clw();
-    invlist();
+    inv_list();
     char d = (char)toupper(key());
     int slot = inv_slot_from_letter(d);
     if (!slot) {
@@ -388,7 +388,7 @@ void armorr() {
     int32_t oc = pa_inventory(slot);
     if (!item_is_armor(oc)) {
         clw();
-        tx0(res_text("subs.armorr.invalid"));
+        tx0(res_text("subs.armor_ready.invalid"));
         ryl_delay(600);
         clw();
         return;
@@ -411,7 +411,7 @@ void armorr() {
     pm_set_armor(pm, pa_inventory(slot));
     pa_set_inventory(slot, temp);
     clw();
-    tx0(res_text("subs.armorr.changed"));
+    tx0(res_text("subs.armor_ready.changed"));
     ryl_delay(600);
     clw();
     return;
@@ -421,7 +421,7 @@ uint8_t drop() {
     int32_t y;
 
     clw();
-    invlist();
+    inv_list();
     d = key();
     d = toupper(d);
     if (inv_letter_in_range(d)) {
@@ -500,7 +500,7 @@ void quaff() {
 
     clw();
     tx0(res_text("subs.quaff.prompt"));
-    invlist();
+    inv_list();
     while (1) {
         d = key();
         d = toupper(d);
@@ -645,7 +645,7 @@ void spell(int32_t place) {
                     spell_node, binds, NULL);
 }
 
-void scorelist() {
+void score_list() {
     FILE *fh;
     char str[144];
     uint8_t i, j, xx, o, n, q;
@@ -670,7 +670,7 @@ void scorelist() {
     uint8_t (*item)[6] = calloc(slots, sizeof *item);
     uint8_t *pnr = calloc(slots, sizeof *pnr);
     if (!pts || !lvl || !kills || !pname || !lname || !cls || !item || !pnr) {
-        LOG_E("subs", "scorelist: calloc(%zu slots) failed", slots);
+        LOG_E("subs", "score_list: calloc(%zu slots) failed", slots);
         free(pts);
         free(lvl);
         free(kills);

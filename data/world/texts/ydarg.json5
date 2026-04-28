@@ -148,7 +148,7 @@
     },
   },
 
-  // --- navigation (statusline / compass / direction chooser) -----
+  // --- navigation (status_line / compass / direction chooser) -----
 
   nav: {
     // §23.J nav-render lift — coords/level lines were two `tx(...)`

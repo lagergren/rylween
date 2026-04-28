@@ -21,7 +21,7 @@
     // at the left margin (tx0 only emits the column prefix once, see
     // primitives.c::tx0). The "ADVENTURERS OF RYLWEEN" banner above the
     // owner line comes from data/ansi/screen.ans (rendered in green at
-    // row 1 by disptext); we don't re-emit it from menu data.
+    // row 1 by disp_text); we don't re-emit it from menu data.
     owner:     ["{name}'s copy.", ''],
     new_party: ['N. Create New Party'],
     continue:  ['C. Continue Saved Game'],
@@ -62,7 +62,7 @@
              ''],
   },
 
-  // <MORE> prompt after disptext() screens (title.ans, score.txt,
+  // <MORE> prompt after disp_text() screens (title.ans, score.txt,
   // vscore.txt, rylween.doc, heroes.txt). Five call sites in driv.c —
   // each was tx("\r\n") + tx("[37m<MORE>\r\n"), now one tx0.
   more: ['', '[37m<MORE>'],
@@ -96,7 +96,7 @@
               ''],
   },
 
-  // 'N' fresh-player branch: manual reminder before createparty().
+  // 'N' fresh-player branch: manual reminder before create_party().
   create_new: {
     manual_reminder: ['Please read the manual',
                       'before starting play.',
@@ -130,7 +130,7 @@
     deleted:         ['Your party has been', 'deleted. Please play', 'again.', ''],
   },
 
-  // createparty() flow: header, max-player gate, prompts, stat-min
+  // create_party() flow: header, max-player gate, prompts, stat-min
   // errors. Lines with %d (character number) or %s (member name) stay
   // inline and the block splits around them. gender_q / race_q fold
   // their per-char {name} inline via tx_fmt (§16.3).
@@ -162,7 +162,7 @@
     saving:    ['Saving...'],
   },
 
-  // showparty() item-flag one-liners. The torches/rations/gold counts at
+  // show_party() item-flag one-liners. The torches/rations/gold counts at
   // the top keep their %-format tx()s inline.
   party: {
     has_shield:    ['You have the Shield.'],

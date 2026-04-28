@@ -309,7 +309,7 @@ static void reply_chitchat(int32_t subj, const char *job_sym) {
    conditions; bodies inline pre_clw + role-keyed bindings + play_
    script of the existing speak.<x>.<y> body). Dispatch script not
    present == role has no scriptable stages yet; fall through to the
-   inline blocks below for menu / invlist branches the DSL can't
+   inline blocks below for menu / inv_list branches the DSL can't
    express today (silver-key map purchase, Thun gem altar offer,
    Jazzy ogre item-trade, fighter-intro location-split intro).
    Flag advancement is the script's job (`set_flag` op); C only reads
@@ -350,9 +350,9 @@ static void npc_mission_hint(int32_t npc) {
             clw();
             tx("%s lives\r\n", npc_name(priest));
             tx("%s.\r\n\r\n", loc);
-            journalf("%s, %s's friend lives %s",
-                     npc_name(priest),
-                     npc_name(npc_at_slot(npc)), loc);
+            journal_add("%s, %s's friend lives %s",
+                        npc_name(priest),
+                        npc_name(npc_at_slot(npc)), loc);
             ryl_pause();
             clw();
             pa_flag_set("fighter.priest_book", "priest_told");
@@ -400,7 +400,7 @@ static void npc_mission_hint(int32_t npc) {
                            });
                 }
                 pa_flag_set("silver_key", "map_bought");
-                journalf("The Pit of the Silver Key is at %dx%d", wld_location_x(8), wld_location_y(8));
+                journal_add("The Pit of the Silver Key is at %dx%d", wld_location_x(8), wld_location_y(8));
                 ryl_pause();
                 clw();
             } else {
@@ -440,7 +440,7 @@ static void npc_mission_hint(int32_t npc) {
                                {0},
                            });
                 }
-                journalf("The Temple of Thun is at %dx%d", wld_location_x(2), wld_location_y(2));
+                journal_add("The Temple of Thun is at %dx%d", wld_location_x(2), wld_location_y(2));
                 pa_flag_set("bracelets.thun", "map_bought");
                 ryl_pause();
                 clw();

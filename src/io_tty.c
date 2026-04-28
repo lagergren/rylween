@@ -174,10 +174,10 @@ void io_init_tty(void) {
     struct termios raw;
 
     setvbuf(stdout, NULL, _IONBF, 0);
-    /* getstr() uses fgets() while key()/hotkey()/ryl_pause() use raw read().
+    /* get_str() uses fgets() while key()/hot_key()/ryl_pause() use raw read().
        Without this, fgets buffers everything past the requested line and
        subsequent raw reads see EOF on piped input — replays die at the
-       first hotkey after a getstr. */
+       first hot_key after a get_str. */
     setvbuf(stdin, NULL, _IONBF, 0);
 
     if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &saved_termios) == 0) {

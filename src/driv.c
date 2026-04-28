@@ -17,7 +17,7 @@
 #include "towne.h"
 #include "wld.h"
 
-static void createparty(void);
+static void create_party(void);
 static void position_locations(void);
 static int read_current_world(void);
 static void the_game(void);
@@ -77,15 +77,15 @@ static void the_game() {
             io_winch_pending = 0;
             cl();
             res_ansi_path("screen", path, sizeof path);
-            disptext(path);
+            disp_text(path);
             update_map();
             clw();
         }
 
         assert(party_current_slot() >= 1 && party_current_slot() <= party_count());
-        timehandler();
-        foodhandler();
-        statusline();
+        time_handler();
+        food_handler();
+        status_line();
 
         if (pa_time_left() == 0) {
             clw();
@@ -109,8 +109,8 @@ static void the_game() {
             clw();
             tx0(res_text("driv.quit.farewell"));
             ryl_delay(1000);
-            scorelist();
-            cleanexit();
+            score_list();
+            clean_exit();
         }
 
         cc = key();
@@ -136,27 +136,27 @@ static void the_game() {
                 tx0(res_text("driv.save.done"));
                 break;
             case 'W':
-                weaponr();
+                weapon_ready();
                 break;
             case 'R':
-                armorr();
+                armor_ready();
                 break;
             case '!':
                 cl();
                 res_ansi_path("screen", path, sizeof path);
-                disptext(path);
+                disp_text(path);
                 update_map();
                 clw();
                 break;
             case 'J':
                 cl();
                 c(0, 0);
-                read_journal();
+                show_journal();
                 cl();
                 c(49, 6);
                 clw();
                 res_ansi_path("screen", path, sizeof path);
-                disptext(path);
+                disp_text(path);
                 update_map();
                 clw();
                 break;
@@ -167,7 +167,7 @@ static void the_game() {
                 hunt();
                 break;
             case 'V':
-                showparty();
+                show_party();
                 clw();
                 tx_fmt("driv.view.who", NULL);
                 while (1) {
@@ -189,10 +189,10 @@ static void the_game() {
                 clw();
                 break;
             case 'T':
-                armoroff();
+                armor_off();
                 break;
             case 'P':
-                weaponoff();
+                weapon_off();
                 break;
             case 'E':
                 enter();
@@ -220,8 +220,8 @@ static void the_game() {
                     clw();
                     break;
                 }
-                scorelist();
-                cleanexit();
+                score_list();
+                clean_exit();
         }
     }
 }
@@ -242,7 +242,7 @@ uint8_t drop_option() {
     }
 }
 
-void statusline() {
+void status_line() {
     /* Redo status line */
 
     char str[256];
@@ -330,7 +330,7 @@ void init() {
         clw();
         tx0(res_text("driv.init.no_map"));
         ryl_pause();
-        cleanexit();
+        clean_exit();
     }
     int32_t map_rows = res_int_path("map.rows");
     for (i = 1; i <= map_rows; i++) {
@@ -353,7 +353,7 @@ void init() {
 
     cl();
     res_ansi_path("title", path, sizeof path);
-    disptext(path);
+    disp_text(path);
     tx0(res_text("driv.more"));
     key();
 
@@ -380,7 +380,7 @@ void init() {
 
     cl();
     res_ansi_path("screen", path, sizeof path);
-    disptext(path);
+    disp_text(path);
 
     while (!abort) {
         clw();
@@ -407,7 +407,7 @@ void init() {
                 tx0(res_text("driv.struggle.conclusion"));
                 ryl_pause();
                 clw();
-                cleanexit();
+                clean_exit();
             }
         }
         if (!x) {
@@ -437,14 +437,14 @@ void init() {
             case 'S':
                 cl();
                 res_data_path("score.txt", path, sizeof path);
-                disptext(path);
+                disp_text(path);
                 tx0(res_text("driv.more"));
                 key();
                 cl();
                 c(49, 6);
                 clw();
                 res_ansi_path("screen", path, sizeof path);
-                disptext(path);
+                disp_text(path);
                 clw();
                 tx0(res_text("driv.scores.verbose_q"));
                 d = key();
@@ -452,14 +452,14 @@ void init() {
                 if (d == 'Y') {
                     cl();
                     res_data_path("vscore.txt", path, sizeof path);
-                    disptext(path);
+                    disp_text(path);
                     tx0(res_text("driv.more"));
                     key();
                     cl();
                     c(49, 6);
                     clw();
                     res_ansi_path("screen", path, sizeof path);
-                    disptext(path);
+                    disp_text(path);
                 }
                 break;
 
@@ -469,27 +469,27 @@ void init() {
                 ryl_pause();
                 cl();
                 res_data_path("rylween.doc", path, sizeof path);
-                disptext(path);
+                disp_text(path);
                 tx0(res_text("driv.more"));
                 key();
                 cl();
                 c(49, 6);
                 clw();
                 res_ansi_path("screen", path, sizeof path);
-                disptext(path);
+                disp_text(path);
                 break;
 
             case 'H':
                 cl();
                 res_data_path("heroes.txt", path, sizeof path);
-                disptext(path);
+                disp_text(path);
                 tx0(res_text("driv.more"));
                 key();
                 cl();
                 c(49, 6);
                 clw();
                 res_ansi_path("screen", path, sizeof path);
-                disptext(path);
+                disp_text(path);
                 break;
 
             case 'N':
@@ -498,9 +498,9 @@ void init() {
                     tx0(res_text("driv.create_new.manual_reminder"));
                     ryl_pause();
                     clw();
-                    createparty();
+                    create_party();
                 } else {
-                    cleanexit();
+                    clean_exit();
                 }
                 break;
             case 'C':
@@ -533,7 +533,7 @@ void init() {
                                    {0},
                                });
                         ryl_pause();
-                        cleanexit();
+                        clean_exit();
                     }
 
                     // Append name to file
@@ -558,11 +558,11 @@ void init() {
                     clw();
                     tx0(res_text("driv.menu.no_game"));
                     ryl_delay(1500);
-                    cleanexit();
+                    clean_exit();
                 }
                 break;
             case 'X':
-                cleanexit();
+                clean_exit();
                 break;
             case 'T':
                 if (x) {
@@ -613,7 +613,7 @@ void init() {
                         clw();
                         tx0(res_text("driv.terminate.deleted"));
                         ryl_pause();
-                        cleanexit();
+                        clean_exit();
                     }
                 }
                 break;
@@ -1371,7 +1371,7 @@ char *pronoun(uint8_t nr, uint8_t xx) {
     return (char *)res_pronoun(gender, xx);
 }
 
-static void createparty() {
+static void create_party() {
     int32_t a, g, passed;
     char str[80];
 
@@ -1382,7 +1382,7 @@ static void createparty() {
     if (party_count() >= res_party_slot_max() - 1) {
         tx0(res_text("driv.create.full"));
         ryl_pause();
-        cleanexit();
+        clean_exit();
     }
 
     party_count_inc();
@@ -1401,7 +1401,7 @@ static void createparty() {
         tx0(res_text("driv.create.name_q"));
         tx(": ");
 
-        getstr(18, p->party_name, sizeof p->party_name);
+        get_str(18, p->party_name, sizeof p->party_name);
         if (!p->party_name[0]) {
             party_count_dec();
             party_set_current_slot(0);
@@ -1431,13 +1431,13 @@ static void createparty() {
         tx("Wisdom       : %2d\r\n", p->members[g].wisdom);
         tx("Charisma     : %2d\r\n\r\n", p->members[g].charisma);
         tx0(res_text("driv.create.reroll"));
-        if (!hotkey()) {
+        if (!hot_key()) {
             while (1) {
                 clw();
                 tx("Give Character %d a name!\r\n", g + 1);
                 tx(": ");
                 str[0] = 0;
-                getstr(12, p->members[g].name, sizeof p->members[g].name);
+                get_str(12, p->members[g].name, sizeof p->members[g].name);
                 if (!p->members[g].name[0]) {
                     party_count_dec();
                     party_set_current_slot(0);
@@ -1458,7 +1458,7 @@ static void createparty() {
             str[0] = 0;
             while (str[0] < '1' || str[0] > '2') {
                 tx(": ");
-                getstr(2, str, sizeof str);
+                get_str(2, str, sizeof str);
             }
             p->members[g].gender = str[0] - 48;
 
@@ -1472,7 +1472,7 @@ static void createparty() {
             str[0] = 0;
             while (str[0] < '1' || str[0] > '4') {
                 tx(": ");
-                getstr(2, str, sizeof str);
+                get_str(2, str, sizeof str);
             }
             /* §24bis phase 3 race axis: storage is slug pointer interned
                in res's keys[] table; convert digit→int→slug. */
@@ -1487,7 +1487,7 @@ static void createparty() {
             str[0] = 0;
             while (str[0] < '1' || str[0] > '6') {
                 tx(": ");
-                getstr(2, str, sizeof str);
+                get_str(2, str, sizeof str);
             }
             /* §24bis phase 3 class axis: storage is slug pointer; convert
                digit→int→slug and recover int again for the legacy int
@@ -1555,7 +1555,7 @@ static void createparty() {
     ryl_delay(1000);
 }
 
-void showparty() {
+void show_party() {
     clw();
     tx("%u torches.\r\n", pa_torches());
     tx("%d rations.\r\n", pa_food());
@@ -1578,12 +1578,12 @@ void showparty() {
 
     ryl_pause();
     clw();
-    invlist();
+    inv_list();
     tx("\r\n");
     ryl_pause();
 }
 
-void invlist() {
+void inv_list() {
     /* 8 rows × 2 columns of letter-labeled slots (A..P). The column
        pairing is UI-bound to INVENTORY_SLOT_MAX == 16; raising the
        cap would need a UI redesign, not just a larger iteration. */

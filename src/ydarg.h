@@ -34,7 +34,7 @@ void ydarg_clear_room_at_cur(void);
 void ydarg_state_init(void);
 void ydarg_try_move(int32_t c);
 
-/* §23.J cmd-dispatch backer: (V)iew-party command. showparty +
+/* §23.J cmd-dispatch backer: (V)iew-party command. show_party +
    view_who prompt + key-wait loop + conditional show/show-all.
    Bundled because the digit-or-Q-or-A key gate has no clean DSL
    idiom and the inner key wait is a tight three-condition loop. */
@@ -73,7 +73,7 @@ void ydarg_pitfall_undisarmed_apply(void);
                                  save(). Bundled because the silverkey
                                  bump must persist before the engine
                                  ever shows the title screen again.
-     ydarg_finalize            — heroes.txt append + cleanexit. Does
+     ydarg_finalize            — heroes.txt append + clean_exit. Does
                                  not return; always the last op. */
 void ydarg_run_seq(void);
 void ydarg_record_completion(void);

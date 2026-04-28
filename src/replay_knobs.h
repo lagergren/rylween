@@ -30,10 +30,10 @@ void rk_apply_dead_slots(int a);
 void rk_apply_pos(int a);
 void rk_apply_ydarg_grants(int a);
 
-/* Stat-roll override (createparty). RYL_STAT_ROLL_MIN /
+/* Stat-roll override (create_party). RYL_STAT_ROLL_MIN /
    RYL_STAT_ROLL_MAX let `make sample-save` (or any test/demo
    harness) push the per-stat ryl_random(min, max) range above
-   the world.json5 default. NOT one-shot — createparty calls
+   the world.json5 default. NOT one-shot — create_party calls
    ryl_random multiple times per character (and may re-roll on
    user request), so the env stays set for the whole flow.
    Falls back to defv on missing / malformed value. */
@@ -55,7 +55,7 @@ int rk_ydarg_easy_rooms(void);
    come from world.json5 items.weapons.<slug> via res_item_id;
    unknown slugs leave wp untouched. `rk_apply_party_hp_full` reads
    RYL_FORCE_PARTY_HP_FULL=1 and heals every alive member's hp up
-   to h (matching the natural mid-game state expcheck would have
+   to h (matching the natural mid-game state exp_check would have
    left them in had they fought their way to lv 28 organically;
    rk_apply_party_lv intentionally leaves hp at the lv-1 roll so
    pre-existing fixtures' snapshots stay byte-identical). */

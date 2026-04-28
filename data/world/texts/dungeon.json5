@@ -187,7 +187,7 @@
 
   // ----- Thun riddles -----
   // Shared pieces used by all three: the "Answer: " prompt is a
-  // verbatim string (no trailing CRLF — getstr reads on the same
+  // verbatim string (no trailing CRLF — get_str reads on the same
   // line); pass / fail screens are identical text across riddles.
   thun_riddle: {
     prompt: 'Answer: ',

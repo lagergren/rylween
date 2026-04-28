@@ -8,20 +8,20 @@
    per-turn chance of a random encounter, the end-of-game paths, and
    terrain colour/glyph lookups that the renderer uses. */
 
-void timehandler(void);
-void foodhandler(void);
+void time_handler(void);
+void food_handler(void);
 void random_wilderness(void);
 void update_map(void);
-void weaponr(void);
-void armorr(void);
+void weapon_ready(void);
+void armor_ready(void);
 uint8_t drop(void);
 void camp(void);
 void spell(int32_t);
 void quaff(void);
-void losegame(void);
-void scorelist(void);
+void lose_game(void);
+void score_list(void);
 void hunt(void);
-void weaponoff(void);
-void armoroff(void);
+void weapon_off(void);
+void armor_off(void);
 
 #endif

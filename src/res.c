@@ -195,7 +195,7 @@ static int32_t party_member_max = PARTY_MEMBER_MAX;
    via limits.party_slot_max. The three party-slot-indexed buffers
    (state.p[], struct party.attack_today[], struct person.visited[])
    are heap-allocated off this value at world-load / party-realize
-   time, and subs.c::scorelist heap-allocates its per-party tables
+   time, and subs.c::score_list heap-allocates its per-party tables
    the same way; every party.c / state.h / snapshot.c bounds check
    resolves through res_party_slot_max(). After 2026-04-28 #12 the
    fold_limits clamp is just `>= 2`; the data layer is the single
@@ -706,7 +706,7 @@ static const char *pc_class_key_by_id(int cl_id) {
     return NULL;
 }
 
-/* createparty() class gate. Reads enums.pc_class.<slug>.min_stat and
+/* create_party() class gate. Reads enums.pc_class.<slug>.min_stat and
    compares the named stat against `value`. Classes without a min_stat
    record (thief, ranger) pass unconditionally. On failure, *fail_text
    is set to the text id from the record (e.g. "driv.create.ws_low")

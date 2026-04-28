@@ -60,7 +60,7 @@ static void enter_ready_prompt(void) {
         tx0(res_text("common.yes"));
         tx0(res_text("common.no"));
         if (toupper(key()) == 'Y') {
-            weaponr();
+            weapon_ready();
         }
     }
 
@@ -78,7 +78,7 @@ static void enter_ready_prompt(void) {
         tx0(res_text("common.yes"));
         tx0(res_text("common.no"));
         if (toupper(key()) == 'Y') {
-            armorr();
+            armor_ready();
         }
     }
 }
@@ -164,7 +164,7 @@ void enter() {
     while (1) {
         blitgfx(citypic);
         clw();
-        statusline();
+        status_line();
         /* Settlement class lives on each town record (`class: 'city'`
            vs the 'village' default in data/world.json5); res_town_is_city
            returns 1 for cities, 0 for villages. */

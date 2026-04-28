@@ -24,7 +24,7 @@ void check_terrain(char old, char new) {
                                       });
 }
 
-void read_journal() {
+void show_journal() {
     size_t n = pa_journal_n();
     if (n == 0) {
         return;
@@ -49,7 +49,7 @@ void read_journal() {
 /* vsnprintf'd wrapper over party_journal_add. Accepts call-site formats
    that carry a trailing \n (the file-backed predecessor required it);
    that byte is stripped before the line reaches storage. */
-void journalf(const char *fmt, ...) {
+void journal_add(const char *fmt, ...) {
     char line[144];
     va_list ap;
     va_start(ap, fmt);

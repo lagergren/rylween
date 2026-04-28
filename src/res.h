@@ -57,7 +57,7 @@ void res_load_world(const char *path);
    res_load_world() is safe. Idempotent; safe on an empty module.
 
    Registered via atexit() at the end of res_load_world; also called
-   explicitly from cleanexit() so exits that bypass atexit (unlikely,
+   explicitly from clean_exit() so exits that bypass atexit (unlikely,
    but `_exit` / abort()) still drop the legacy tables. */
 void res_shutdown(void);
 
@@ -185,7 +185,7 @@ int32_t res_xp_threshold(int level);
    callers treat zero as "no change", which is the natural no-op. */
 int32_t res_class_levelup(const char *cls, const char *stat);
 
-/* createparty() class gate (§23.D). Returns 1 if the class allows the
+/* create_party() class gate (§23.D). Returns 1 if the class allows the
    character with these rolled stats; returns 0 with `*fail_text`
    pointing at the text id of the rejection message ("Wisdom must be
    > 50.") otherwise. Classes without a `min_stat` record pass
@@ -487,7 +487,7 @@ int res_party_member_max(void);
 
 /* Highest party-slot id usable for state.p[] / struct party.attack_today /
    struct person.visited. All three are heap-allocated off this value at
-   world-load / party-realize time, as are subs.c::scorelist's per-party
+   world-load / party-realize time, as are subs.c::score_list's per-party
    tables. Defaults to PARTY_SLOT_HARD_MAX (26), overrideable via
    limits.party_slot_max in world.json5 with a `>= 2` lower bound only —
    the data knob is unbounded above after 2026-04-28 #12's final
@@ -524,11 +524,11 @@ int res_random_location_max(void);
 
 /* On-disk path helpers (§20 T3 / T4). Caller-supplied buffer pattern,
    mirroring ryl_state_path in src/compat.c — avoids a const-cast at
-   the disptext() / fopen() boundary. Centralise the previously
+   the disp_text() / fopen() boundary. Centralise the previously
    hardcoded data/ansi/<leaf>.ans and data/map.dat strings so a future
    asset-root rename is one edit, not eight. res_data_path takes a
    filename relative to the data/ root (e.g. "score.txt",
-   "heroes.txt") for the static-asset disptext / fopen sites that
+   "heroes.txt") for the static-asset disp_text / fopen sites that
    don't fit the ansi or map shape. */
 void res_ansi_path(const char *leaf, char *out, size_t out_sz);
 void res_map_path(char *out, size_t out_sz);

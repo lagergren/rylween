@@ -11,7 +11,7 @@
 #include "subs.h"
 #include "towne.h"
 
-static void expcheck(void);
+static void exp_check(void);
 
 /*
 ** Never find and never fool
@@ -170,7 +170,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             if (c == 'U') {
                 clw();
                 tx0(res_text("battle.prompt.use_what"));
-                invlist();
+                inv_list();
                 d = key();
                 d = toupper(d);
                 oc = 0;
@@ -490,7 +490,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         pm_add_experience(pm, (uint32_t)exp_gain);
                     }
                 }
-                expcheck();
+                exp_check();
                 clr_map_window();
                 clw();
                 return;
@@ -505,7 +505,7 @@ void encounter(int32_t foe, int32_t mandatory) {
             g = 0;
             for_each_monster(x, noc) {
                 if (pa_alive_count() == 0) {
-                    losegame();
+                    lose_game();
                 }
                 if (!deadc[x] && !held) {
                     if (!antimagic && sp &&
@@ -615,9 +615,9 @@ void encounter(int32_t foe, int32_t mandatory) {
                 ryl_delay(1000);
             } else {
                 if (pa_alive_count() == 0) {
-                    losegame();
+                    lose_game();
                 }
-                statusline();
+                status_line();
                 tx0(res_text("battle.encounter.still_face"));
                 x = 0;
                 for_each_monster(i, noc) {
@@ -660,7 +660,7 @@ void encounter(int32_t foe, int32_t mandatory) {
 }
 /****************************************************************************/
 
-void expcheck() {
+void exp_check() {
     int32_t add[5] = {0};
 
     for_each_party_member(i) {

@@ -184,7 +184,7 @@ struct party {
     int32_t time_left;
 
     /* Fatigue countdown, party-wide. Reset to 14 by sleeping at the inn
-       and by a full camp cycle; decremented each hour by timehandler.
+       and by a full camp cycle; decremented each hour by time_handler.
        At 0 the party "begins to feel tired"; the negative ladder (-4,
        -8, <-8) drives progressively worse exhaustion messages and
        per-member hit-points damage. "pigg" was the original Swedish
@@ -617,7 +617,7 @@ static inline void party_set_current_slot(int slot) {
 }
 
 /* Total active parties in the realm (state.num_parties). Plain
-   getter / mutator pair — the count is incremented on createparty,
+   getter / mutator pair — the count is incremented on create_party,
    decremented on terminate / login-failure paths. */
 static inline int party_count(void) {
     return state.num_parties;
