@@ -671,6 +671,32 @@ static int32_t ie_pick_random_alive_player(const int32_t *a) {
     }
 }
 
+/* §23.J ydarg DSL lift — read-only state probes for the per-floor
+   driver scripts. xl / yl / lvl / map_size / room_at_cur are the
+   five fields the case dispatcher and navigation block care about;
+   the script reads them via `engine_int` to guard moves, render
+   the level/coords status line, and gate the case-50 stair behavior. */
+static int32_t ie_ydarg_get_xl(const int32_t *a) {
+    (void)a;
+    return ydarg_get_xl();
+}
+static int32_t ie_ydarg_get_yl(const int32_t *a) {
+    (void)a;
+    return ydarg_get_yl();
+}
+static int32_t ie_ydarg_get_lvl(const int32_t *a) {
+    (void)a;
+    return ydarg_get_lvl();
+}
+static int32_t ie_ydarg_get_map_size(const int32_t *a) {
+    (void)a;
+    return ydarg_get_map_size();
+}
+static int32_t ie_ydarg_get_room_at_cur(const int32_t *a) {
+    (void)a;
+    return ydarg_get_room_at_cur();
+}
+
 /* §23.B: pick the lowest-index alive monster slot, or -1 if every
    slot in the encounter is dead. Single-target frost wand / drums of
    death use this — the legacy idiom is the same `for (i = 0, who = -1;
@@ -711,6 +737,11 @@ static const int_engine_entry int_engine_tbl[] = {
     {"wld_location_y", 1, ie_wld_location_y, {"world_locations"}},
     {"pick_random_alive_player", 0, ie_pick_random_alive_player, {0}},
     {"pick_first_alive_monster", 0, ie_pick_first_alive_monster, {0}},
+    {"ydarg_get_xl", 0, ie_ydarg_get_xl, {0}},
+    {"ydarg_get_yl", 0, ie_ydarg_get_yl, {0}},
+    {"ydarg_get_lvl", 0, ie_ydarg_get_lvl, {0}},
+    {"ydarg_get_map_size", 0, ie_ydarg_get_map_size, {0}},
+    {"ydarg_get_room_at_cur", 0, ie_ydarg_get_room_at_cur, {0}},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`
@@ -1678,6 +1709,25 @@ static void eng_ydarg_finalize(const int32_t *a) {
     ydarg_finalize();
 }
 
+/* §23.J ydarg DSL lift — state mutators. ydarg_set_xl / ydarg_set_yl
+   / ydarg_set_lvl take an int (used by stairs to reset to (1,1) and
+   bump the floor, plus the L-leave path that decrements yl);
+   ydarg_clear_room_at_cur is the once-per-room-entry "I've been here"
+   write that case 1/2/3 perform before running their body. */
+static void eng_ydarg_set_xl(const int32_t *a) {
+    ydarg_set_xl((int)a[0]);
+}
+static void eng_ydarg_set_yl(const int32_t *a) {
+    ydarg_set_yl((int)a[0]);
+}
+static void eng_ydarg_set_lvl(const int32_t *a) {
+    ydarg_set_lvl((int)a[0]);
+}
+static void eng_ydarg_clear_room_at_cur(const int32_t *a) {
+    (void)a;
+    ydarg_clear_room_at_cur();
+}
+
 /* §23.B: pa_set_inventory(slot, item_id). Magic-item effect bodies
    call this to consume the triggering slot (`pa_set_inventory(slot,
    0)`). Most items consume up-front (first op); gem_of_resurrection
@@ -1740,6 +1790,10 @@ static const engine_entry engine_tbl[] = {
     {"ydarg_run_seq", 0, eng_ydarg_run_seq},
     {"ydarg_record_completion", 0, eng_ydarg_record_completion},
     {"ydarg_finalize", 0, eng_ydarg_finalize},
+    {"ydarg_set_xl", 1, eng_ydarg_set_xl},
+    {"ydarg_set_yl", 1, eng_ydarg_set_yl},
+    {"ydarg_set_lvl", 1, eng_ydarg_set_lvl},
+    {"ydarg_clear_room_at_cur", 0, eng_ydarg_clear_room_at_cur},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps
