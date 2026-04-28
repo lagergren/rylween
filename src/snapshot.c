@@ -112,7 +112,7 @@ static void snapshot_write(void) {
     fprintf(f, "hour_of_day=%d\n", session_hour());
     fprintf(f, "banished=%d\n", session_banished());
     fprintf(f, "last_played_day=%d\n", session_last_played_day());
-    if (party_current_slot() >= 1 && party_current_slot() < PARTY_SLOT_HARD_MAX) {
+    if (party_current_slot() >= 1 && party_current_slot() < res_party_slot_max()) {
         emit_party(f, party_current_slot());
     }
     emit_map(f);

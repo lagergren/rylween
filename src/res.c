@@ -194,13 +194,12 @@ static int32_t party_member_max = PARTY_MEMBER_MAX;
 /* Party-slot cap. Default matches PARTY_SLOT_HARD_MAX; overrideable
    via limits.party_slot_max. The three party-slot-indexed buffers
    (state.p[], struct party.attack_today[], struct person.visited[])
-   are all heap-allocated off this value at world-load time, so the
-   data layer is the single source of truth. PARTY_SLOT_HARD_MAX is
-   still the upper bound today (see fold_limits) — relaxing it
-   requires lifting the remaining PARTY_SLOT_HARD_MAX-shaped locals
-   in subs.c::scorelist + the bounds asserts in party.c / state.h /
-   snapshot.c. A smaller-than-default value lowers the "all parties
-   created" gate in driv.c::create_party without rebuilding. */
+   are heap-allocated off this value at world-load / party-realize
+   time, and subs.c::scorelist heap-allocates its per-party tables
+   the same way; every party.c / state.h / snapshot.c bounds check
+   resolves through res_party_slot_max(). After 2026-04-28 #12 the
+   fold_limits clamp is just `>= 2`; the data layer is the single
+   source of truth. */
 static int32_t party_slot_max = PARTY_SLOT_HARD_MAX;
 
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
@@ -2337,9 +2336,9 @@ static void fold_limits(const node *limits_node, const char *path) {
             res_die(path, psm->line,
                     "limits.party_slot_max: expected integer");
         }
-        if (psm->u.iv < 2 || psm->u.iv > PARTY_SLOT_HARD_MAX) {
+        if (psm->u.iv < 2) {
             res_die(path, psm->line,
-                    "limits.party_slot_max: must be in 2..26");
+                    "limits.party_slot_max: must be >= 2");
         }
         party_slot_max = psm->u.iv;
     }

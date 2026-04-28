@@ -482,14 +482,13 @@ int res_party_member_max(void);
 
 /* Highest party-slot id usable for state.p[] / struct party.attack_today /
    struct person.visited. All three are heap-allocated off this value at
-   world-load / party-realize time. Defaults to PARTY_SLOT_HARD_MAX,
-   overrideable via limits.party_slot_max in world.json5 — currently
-   clamped at PARTY_SLOT_HARD_MAX as a defensive ceiling (relaxing it
-   requires lifting the remaining PARTY_SLOT_HARD_MAX-shaped locals in
-   subs.c::scorelist + bounds asserts in party.c / state.h / snapshot.c).
-   Slot 0 is reserved (1-indexed party table); valid party ids are
-   1..res_party_slot_max()-1. driv.c::create_party gates new-party
-   creation against this. */
+   world-load / party-realize time, as are subs.c::scorelist's per-party
+   tables. Defaults to PARTY_SLOT_HARD_MAX (26), overrideable via
+   limits.party_slot_max in world.json5 with a `>= 2` lower bound only —
+   the data knob is unbounded above after 2026-04-28 #12's final
+   cap-flip. Slot 0 is reserved (1-indexed party table); valid party
+   ids are 1..res_party_slot_max()-1. driv.c::create_party gates
+   new-party creation against this. */
 int res_party_slot_max(void);
 
 /* Storage capacity of state.map[][]. `state.map` is heap-allocated to

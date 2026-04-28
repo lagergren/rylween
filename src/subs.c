@@ -647,14 +647,39 @@ void scorelist() {
     FILE *fh;
     char str[144];
     uint8_t i, j, xx, o, n, q;
-    uint32_t pts[PARTY_SLOT_HARD_MAX], lvl[PARTY_SLOT_HARD_MAX], temp_ulong,
-        kills[PARTY_SLOT_HARD_MAX];
-    char pname[PARTY_SLOT_HARD_MAX][30], lname[PARTY_SLOT_HARD_MAX][30],
-        temp_string[30];
-    uint8_t cls[PARTY_SLOT_HARD_MAX][5], item[PARTY_SLOT_HARD_MAX][6],
-        pnr[PARTY_SLOT_HARD_MAX], temp_ubyte[PARTY_SLOT_HARD_MAX];
+    uint32_t temp_ulong;
+    char temp_string[30];
+    /* Swap buffer for items[1..5] (length 6) and cls[0..mmax-1] (length
+       <= res_party_member_max()) — stays on the stack since the upper
+       bound is small and independent of res_party_slot_max(). */
+    uint8_t temp_ubyte[32];
 
+    /* Per-party tables — sized to res_party_slot_max() so the
+       function works for any data-driven party-slot cap. Single
+       allocation block + single free at function exit. */
     int mmax = res_party_member_max();
+    size_t slots = (size_t)res_party_slot_max();
+    uint32_t *pts = calloc(slots, sizeof *pts);
+    uint32_t *lvl = calloc(slots, sizeof *lvl);
+    uint32_t *kills = calloc(slots, sizeof *kills);
+    char (*pname)[30] = calloc(slots, sizeof *pname);
+    char (*lname)[30] = calloc(slots, sizeof *lname);
+    uint8_t (*cls)[5] = calloc(slots, sizeof *cls);
+    uint8_t (*item)[6] = calloc(slots, sizeof *item);
+    uint8_t *pnr = calloc(slots, sizeof *pnr);
+    if (!pts || !lvl || !kills || !pname || !lname || !cls || !item || !pnr) {
+        LOG_E("subs", "scorelist: calloc(%zu slots) failed", slots);
+        free(pts);
+        free(lvl);
+        free(kills);
+        free(pname);
+        free(lname);
+        free(cls);
+        free(item);
+        free(pnr);
+        return;
+    }
+
     for (i = 1; i < party_count() + 1; i++) {
         const struct party *p = party_at(i);
         uint32_t exp_sum = 0;
@@ -732,7 +757,7 @@ void scorelist() {
     }
 
     if (!(fh = fopen("data/vscore.txt", "w"))) {
-        return;
+        goto cleanup;
     }
 
     snprintf(str, sizeof str, "%c\n", 12);
@@ -809,7 +834,7 @@ void scorelist() {
     fclose(fh);
 
     if (!(fh = fopen("data/score.txt", "w"))) {
-        return;
+        goto cleanup;
     }
 
     snprintf(str, sizeof str, "%c\n", 12);
@@ -826,4 +851,14 @@ void scorelist() {
     }
     fputs("\n", fh);
     fclose(fh);
+
+cleanup:
+    free(pts);
+    free(lvl);
+    free(kills);
+    free(pname);
+    free(lname);
+    free(cls);
+    free(item);
+    free(pnr);
 }

@@ -65,17 +65,18 @@ int res_party_slot_max(void);
    in-memory comparisons should use this constant directly. */
 #define WILDERNESS_TOWN (-1)
 
-/* Static-ceiling caps for the persistent NPC and party slot tables.
+/* Default ceilings for the persistent NPC and party slot tables.
    The runtime-active counts come from the data layer
    (`res_npc_slot_max()` / `res_party_slot_max()`); state.npc[],
    state.p[], struct party.attack_today[], and struct person.visited[]
    are all heap-allocated off those at world-load / party-realize time.
-   These constants are just the defensive upper bounds the data layer
-   clamps against — bumping them requires matching changes in the
-   data layer and (for PARTY_SLOT_HARD_MAX) lifting the remaining
-   PARTY_SLOT_HARD_MAX-shaped locals in subs.c::scorelist + bounds
-   asserts in party.c / state.h / snapshot.c. Slot 0 of the party
-   table is reserved (1-indexed); valid party ids are
+   NPC_SLOT_HARD_MAX is still a defensive upper bound that
+   `npc_slot_max()` rejects worlds against; PARTY_SLOT_HARD_MAX is
+   just the default value used when world.json5 omits
+   `limits.party_slot_max` (after the §12.3 final cap-flip in 2026-04-28
+   #12, the data knob accepts any value >= 2 since every party-slot-
+   indexed buffer + bounds check is heap- / runtime-bound). Slot 0
+   of the party table is reserved (1-indexed); valid party ids are
    1..res_party_slot_max()-1; driv.c::create_party refuses past
    `res_party_slot_max() - 1` with "all parties created". */
 #define NPC_SLOT_HARD_MAX   41
@@ -249,13 +250,13 @@ struct ryl_state {
     char *map;
     /* Party runtime table — heap-allocated to res_party_slot_max()
        entries by res_load_world() so the size matches the data
-       layer's cap. PARTY_SLOT_HARD_MAX is the static ceiling
-       res_party_slot_max() is currently asserted against; the
-       in-memory table is right-sized at world load. NULL until
-       res_load_world() runs; res_shutdown() frees it. All readers /
-       writers go through party_at(slot) (party.h). Slot 0 is the
-       reserved 1-indexed sentinel; valid party ids are
-       1..res_party_slot_max()-1. */
+       layer's cap. After 2026-04-28 #12's final cap-flip the data
+       knob is unbounded above 2 (PARTY_SLOT_HARD_MAX is just the
+       default); the in-memory table is right-sized at world load.
+       NULL until res_load_world() runs; res_shutdown() frees it.
+       All readers / writers go through party_at(slot) (party.h).
+       Slot 0 is the reserved 1-indexed sentinel; valid party ids
+       are 1..res_party_slot_max()-1. */
     struct party *p;
     /* NPC runtime table — heap-allocated to res_npc_slot_max()
        entries by res_load_world() (post-§25.B step 4 axis flip)
@@ -314,7 +315,7 @@ static inline pm_t pm_of(struct party *p, int m) {
     return r;
 }
 static inline pm_t pm_cur(int m) {
-    assert(state.cpl >= 1 && state.cpl < PARTY_SLOT_HARD_MAX);
+    assert(state.cpl >= 1 && state.cpl < res_party_slot_max());
     return pm_of(&state.p[state.cpl], m);
 }
 

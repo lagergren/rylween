@@ -373,9 +373,9 @@ void pa_set_special(int which, int v) {
 }
 
 struct party *party_at(int idx) {
-    if (idx < 0 || idx >= PARTY_SLOT_HARD_MAX) {
+    if (idx < 0 || idx >= res_party_slot_max()) {
         LOG_E("party", "party_at(%d) out of range [0, %d)", idx,
-              PARTY_SLOT_HARD_MAX);
+              res_party_slot_max());
         exit(1);
     }
     return &state.p[idx];
