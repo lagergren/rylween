@@ -1,176 +1,127 @@
-# Continuation prompt — paste this into a fresh session
+Continuation prompt (start of session 2026-04-28 #12)
 
-Seven new commits on top of `c9f8d10` (the prior session's HEAD —
-the state-abstraction ride-along + plan-refresh continuation
-prompt). HEAD is now the continuation-prompt commit; the prior
-six commits are the state-abstraction sweep closure + plan-file
-tidy. 39 fixtures green on `make check` + `make testasan` at
-every commit; commits pushed to `origin/lagergren/port1` at
-session close.
+Branch lagergren/port1, HEAD 6ba194c, pushed to origin. 44 replay
+fixtures green on make check + make testasan; format clean.
+Working tree clean. Session #11 closed ten commits
+(467e4c6..6ba194c):
 
-## What landed this session
+  - 467e4c6 §12.3: state.p[26] triple cap-flip — PARTY_SLOT_HARD_MAX
+    + new res_party_slot_max() runtime accessor (world.json5
+    limits.party_slot_max knob, clamped). Replaces raw `26` literals
+    across struct person.visited / struct party.attack_today /
+    pm_cur assert / driv.c create_party gate / driv.c save+load
+    attack_today width arg / subs.c::scorelist seven local arrays.
+  - d374c8d §12.3: map[42][82] cap-flip — MAP_ROWS_HARD_MAX /
+    MAP_COLS_HARD_MAX defines in state.h; wld.c WLD_ROWS / WLD_COLS
+    sourced from them; replay_knobs.c bounds check uses them too.
+  - 93548c4 fixture: ydarg-arrow-keys covers ydarg.c ESC[A/B/C/D
+    translation. Mirrors ydarg-confrontation but pipes ESC[C/B/etc
+    instead of `66662222`. .expect / .expect_snapshot byte-identical
+    to the digit fixture. 43 → 44 fixtures.
+  - c758874 ydarg agent 1/4: silverkey gate → MG_SPECIAL_EQ
+    triggers. New mission-trigger guard kind combining tile-at-pos
+    with pa_special() equality. The two early-return arms at the
+    top of ydarg() are gone; trigger table now dispatches to
+    ydarg.ruin / ydarg.no_key / ydarg() based on silverkey value.
+  - fa7681d ydarg agent 2/4: intro narration → ydarg.intro DSL
+    script.
+  - f061616 ydarg agent 3/4: confrontation() → ydarg.confrontation
+    DSL script + 3 new engine_call backers (ydarg_run_seq /
+    ydarg_record_completion / ydarg_finalize) + new {narrate:}
+    DSL op wrapping tx_narrate.
+  - 914b8c1 ydarg agent 4/4: case 1 (monster room) →
+    ydarg.room_monster script. src/ydarg.c 456 → 423 lines.
+  - 3af207b §12.3: heap-allocate state.p[] off res_party_slot_max().
+    Drops the BSS-static `struct party p[PARTY_SLOT_HARD_MAX]` from
+    struct ryl_state. Mirrors state.npc[] heap-alloc pattern.
+  - eb999d1 §12.3: heap-allocate state.map[][] off
+    MAP_ROWS_HARD_MAX/MAP_COLS_HARD_MAX. char (*map)[MAP_COLS_HARD_MAX]
+    heap-allocated to MAP_ROWS_HARD_MAX rows. Outer dim only — row
+    width stays compile-time so `sizeof state.map[y]` still resolves
+    to one row.
+  - 6ba194c plan: 2026-04-28 #11 snapshot refresh in
+    port-plan-incomplete.md.
 
-**State-abstraction sweep effectively closed.** Adds the
-`party_at(int idx)` by-index handle in party.c / party.h and
-lifts every cross-party `state.p[]` callsite outside the
-abstraction-home files through it. Five commits:
+Static caps remaining after #11: only the per-party byte arrays —
+struct party.attack_today[PARTY_SLOT_HARD_MAX] and struct
+person.visited[PARTY_SLOT_HARD_MAX]. Outer state.p[] / state.map[][] /
+state.npc[] / towns[] are all heap-backed.
 
-  - **`8d3abbd`** — `party_at(int idx)` helper added (party.c
-    body + party.h declaration; ~10 lines incl. bounds-check)
-    and `subs.c::scorelist`'s 11 cross-party reads collapsed
-    via `const struct party *p = party_at(i)` bound at the top
-    of the per-party loop body. State.p[] hits in subs.c: 11 →
-    0. The shape (struct party * return) was preferred over
-    by-field by-index helpers (pa_kills_at(i) / etc.) because
-    scorelist pulls 11 different fields per party — adding 11
-    helpers for one call site is heavier than reading struct
-    fields after a single party_at call.
-  - **`4419128`** — driv.c: 50+ state.p[] sites lifted across
-    six call patterns. createparty's per-field setup
-    parameterized by `a = state.num_parties` lifts via `struct
-    party *p = party_at(a)` bound once after `a` is set, with
-    all 45 inline `state.p[a].FIELD` reads/writes becoming
-    `p->FIELD`. The_game's initial-time-left loop, the
-    owner-name match in read_current_world, the silverkey-sweep
-    menu loop, and the per-party loops in
-    write_current_world / read_current_world all swap to
-    party_at. Terminate's free + memmove + clear-tail block
-    also lifts; the memmove keeps its `sizeof(struct party)`
-    spelling for clarity (sizeof doesn't evaluate the operand,
-    so `sizeof *party_at(0)` would also work but is less
-    readable).
-  - **`026317d`** — replay_knobs.c: 11 sites across the six
-    `rk_apply_*` helpers (rk_apply_party_lv / rk_apply_pos /
-    rk_apply_ydarg_grants / rk_apply_party_wp /
-    rk_apply_party_hp_full / rk_apply_dead_slots) all bind
-    `struct party *p = party_at(a)` once at the top of the
-    helper. rk_apply_dead_slots binds as `party` instead of
-    `p` because it already has a `const char *p = env`
-    env-string walker.
-  - **`0dd1580`** — primitives.c: 5 sysop backdoor writes
-    (Marcus Lagergren-gated debug shortcuts in the input
-    handler) lift via existing pa_* helpers — pa_add_time_left,
-    pa_set_inventory, pa_add_gold. No party_at needed since
-    these are current-party. Adds party.h include
-    (primitives.c already pulls driv.h, so the layering is
-    already loose).
-  - **`92bc418`** — plan refresh: top-of-queue → 2026-04-28 #4,
-    state-abstraction bullet flipped from 'work in flight' to
-    'effectively closed', recommended-next pivots to §24bis.
-  - **`618b600`** — plan-file tidy: relocate the §25 body from
-    `port-plan-incomplete.md` to `port-plan-complete.md`
-    alongside the per-step closures (the parent body had been
-    stranded in -incomplete.md since §25.B step 4 closed §25
-    end-to-end on 2026-04-27 #13). Replace the body with a
-    CLOSED-stub matching the §22 / §24 pattern. Update the
-    '§25.B step closures' opening blurb to reflect the parent
-    body now sitting alongside it. Drop the move-out-queue's
-    §22 / §25 bullets — every §-numbered body is now in the
-    right file.
+Pick one of these for #12. Listed in priority order from
+port-plan-incomplete.md "Recommended next session":
 
-After this session the only remaining `state.p[]` code-side
-hits are inside party.c (the abstraction home) and inventory.c
-(the inventory abstraction layer's 5 sites in inv_find_empty /
-inv_find_item / inv_find_in_range / inv_count_in_range / inv_add
-where direct access is the intended shape). The headline
-state-abstraction work is done. Plan files are tidy: every
-closed §-numbered body lives in `port-plan-complete.md`;
-`port-plan-incomplete.md` carries only stubs + the active /
-deferred / reference / vision sections + session-journal
-entries (which are evergreen migration notes referenced from
-continuation prompts).
+1. §12.3 follow-up — flip the inner per-record byte arrays.
+   struct party.attack_today + struct person.visited heap-allocate
+   off res_party_slot_max() per record. Touches party_realize /
+   res's NPC realize + driv.c save/load width args (currently
+   PARTY_SLOT_HARD_MAX, would become res_party_slot_max()). Save
+   format byte-identical at default cap; only changes if a world
+   ever raises the cap. Unlocks limits.party_slot_max > 26 — the
+   last static cap blocking dynamic sizing.
 
-## What to do next
+2. Ydarg DSL lift continuation (2-3 sessions remaining). Cases 2
+   (pitfall), 3 (treasure), 50 (stairs) + the per-floor while(1)
+   navigation driver + the character-command dispatch
+   (T/P/L/W/R/Q/Z/V during ydarg movement). The agent's report
+   flagged the blocker: function-local state (xl, yl, lvl,
+   room[][]) needs hoisting to module-level OR threaded through
+   new DSL state primitives like ydarg_consume_room_at /
+   ydarg_set_lvl before any of those cases can move cleanly. Pick
+   this up by deciding the hoist shape first, then case 2 / 3 / 50
+   fall in sequence.
 
-Read `port-plan-incomplete.md` from the top — the "Top of queue
-(status snapshot, 2026-04-28 #4)" section is the source of
-truth. With the state-abstraction sweep effectively closed,
-the next-up shifts to §24bis:
+3. §20.14 S10 — map dimensions to data. With state.map[][]
+   heap-allocated, the natural follow-up: replace MAP_ROWS_HARD_MAX
+   / MAP_COLS_HARD_MAX with `world.json5 map.rows_max` /
+   `map.cols_max` reads, sized at calloc time. Loosens the 42/82
+   to a per-realm knob.
 
-1. **§24bis — `id: <int>` → slug-keyed state**. Now fully
-   unblocked. ~4-6 session block touching every C file. The
-   per-field pa_* / pm_* / inv_* / res_* abstractions are in
-   place, party_at covers the cross-party access §24bis would
-   have needed, and the §25.B axis flips already moved every
-   numeric-id consumer to its slot equivalent. Best entry
-   point is probably the save format (realm.dat / npc.dat
-   migrate to JSON5 keyed by slug — save-format license was
-   user-granted 2026-04-22) or the world.json5 `id: <int>`
-   fields themselves; the §24bis body has the sequencing.
-2. **driv.c::terminate visited-grid shift bug** (mechanical
-   residual). Likely fixture-unreachable; one-line fix + maybe
-   a fixture.
-3. **towne.c::enter `state.twn == 2` city/village fork**
-   (mechanical residual). Folds into §24bis when that touches
-   towne.c.
-4. **§12.3** dynamic sizing from world.json5 — remaining
-   static caps `state.p[26]`, `map[42][82]`, party-inventory
-   `[17]`, `attack_today[26]`. The party_at helper lands a
-   piece of §12.3's groundwork (callers don't reach into
-   state.p[] directly, so a future heap-allocated state.p
-   only touches party.c).
-5. **§12.1** Dockerfile + GitHub CI. ~1 session.
-6. **Ydarg-as-mission** (§12.4 residual). Blocked on DSL
-   evaluator learning mission triggers + item-flag paths.
+4. §20.14 S11 — formula DSL with binding maps (deferred at S11 in
+   §20.14, last touched 2026-04-25). res_formula_int extension to
+   accept a binding map (or res_eval_expr_with(name, bindings, n)).
+   Required before lifting battle.c reward / encounter formulas to
+   data; pattern then extends to dungeon.c chest-gold, hunt fdplus,
+   subs.c starve damage, etc.
 
-State at HEAD (lagergren/port1, pushed to
-origin/lagergren/port1): clean working tree, 39 fixtures
-green.
+5. Smaller polish items (any-time, no sequencing constraint):
+   - subs.c data-side temp-damage: `temp_low_damage: 5` and
+     `temp_very_low_damage: 5` in data/world.json5 are intentionally
+     captured as data but identical (matches plan §20.5's "possible
+     bug" note from a year ago — confirmed in #11). Whether the
+     very-low arm should hit harder is a balance/design question;
+     would rebless wilderness-camp snapshot.
+   - Optional: extend `class:` to unclassified terrain entries
+     ('s' / 'f' / 'd' / 't' / 'g') if a callsite ever needs them.
+     Currently none does.
 
-## Recommended next session
+Memory worth re-reading (auto-loaded into context):
+  - feedback_state_abstraction.md — pa_*/pm_*/inv_*/res_* helpers,
+    not raw state.p[...]. Critical for #1.
+  - feedback_background_agents.md — for any background work,
+    /tmp + patch, never worktree isolation. The #11 ydarg agent
+    used this pattern correctly (4 commits + a clean patch).
+  - feedback_clangd_real_vs_stale.md — verify clangd via cc
+    -Werror=... before deflecting to "stale cache". #11 saw stale
+    pm_lv / pm_hp / pm_cl warnings throughout that were post-#8
+    rename leftovers.
+  - project_per_member_shape.md — struct party_member AoS shape;
+    full-word fields; offsetof dispatch.
 
-**Pick §24bis.** The state-abstraction sweep made it cheaper:
-party_at + the per-field abstractions mean §24bis's "every
-state accessor changes shape" cost is now mostly contained to
-party.c + the JSON5 schema. Audit:
+Reading order in repo:
+  - port-plan.md TOC — section index, status column.
+  - port-plan-incomplete.md "Top of queue (status snapshot,
+    2026-04-28 #11)" + "Recommended next session".
+  - port-plan-complete.md — bodies for the #10 closures (§-anchor
+    cross-references still resolve). #11 commit-message bodies
+    will move here on next session-end sweep.
 
-  grep -nlE 'id: *[0-9]+' data/world.json5 data/world/**/*.json5
-  grep -n 'res_(monster|item|town|npc|spell)_id' src/*.c | head
-  grep -nE '"id":' data/world/**/*.json5 | head
+Per-session bar: make check + make testasan + make format all
+green at every commit. Per AGENTS.md: never push without explicit
+user approval; no Co-Authored-By lines; inline single-newline file
+endings; fix root causes, not symptoms; don't add speculative
+changes.
 
-If §24bis feels too big for one session, the mechanical
-residuals (driv.c::terminate visited-grid, towne.c twn==2)
-are each <1 hour and fold naturally under §24bis when that
-touches their files.
-
-## Pattern (closed): state-abstraction sweep — full closure
-
-Held end-to-end across two sessions:
-
-  ┌─────────────────┬────────────┬───────────┬─────────────────────────────┐
-  │      File       │ Hits before│ Hits after│           Helper            │
-  ├─────────────────┼────────────┼───────────┼─────────────────────────────┤
-  │ towne.c         │      2     │     0     │ pa_gold/pa_add_gold         │
-  │ missions.c      │      3     │     0     │ pa_x/pa_y/pa_name           │
-  │ speak.c         │      2     │     0     │ npc_visited[_set]           │
-  │ res.c           │      1     │     0     │ pa_flag                     │
-  │ subs.c          │     11     │     0     │ party_at (NEW)              │
-  │ driv.c          │     50+    │     0     │ party_at (NEW)              │
-  │ replay_knobs.c  │     11     │     0     │ party_at (NEW)              │
-  │ primitives.c    │      5     │     0     │ pa_add_time_left/etc.       │
-  └─────────────────┴────────────┴───────────┴─────────────────────────────┘
-
-Reason: ~85 state.p[] callsites across 8 files migrated; the
-helpers now cover every cross-party + current-party access
-shape outside the abstraction-home files. Remaining state.p[]
-access lives only in party.c (the abstraction home) and
-inventory.c (the inventory abstraction). Doesn't apply to the
-remaining queued work — §24bis is a different axis (numeric
-id → slug), §12.3 is heap-allocation cap-driven sizing, both
-benefit from the encapsulation but neither IS state-abstraction
-work.
-
-## Bar per session + memory notes
-
-`make check` + `make testasan` green at every commit. Push only
-on explicit user approval. Memory notes worth re-reading:
-`feedback_state_abstraction.md` (now updated to reflect
-closure — the rule for new code is "use pa_* / party_at,
-never state.p[…] outside party.c"),
-`feedback_preexisting_bug_fixes.md` (driv.c terminate
-visited-grid shift bug applies),
-`feedback_replay_knobs_centralized.md`,
-`feedback_script_text_wiring.md`. Cap-driven heap-allocation
-principle from §25.B still applies for §12.3's remaining
-targets (`state.p[26]` etc.) — and party_at's design now
-contains the callsite-side cost of that future migration.
+Begin by reading port-plan-incomplete.md "Top of queue" and
+"Recommended next session", then ask which item to take, or pick
+#1 (inner per-record byte arrays heap-allocate) as the default
+since it closes §12.3 entirely.
