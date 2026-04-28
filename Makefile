@@ -31,7 +31,7 @@ OBJ     := $(SRC:.c=.o)
 BIN       := rylween
 BIN_ASAN  := rylween-asan
 
-.PHONY: all build test check replay check-world asan testasan format run clean help
+.PHONY: all build test check replay check-world asan testasan format run sample-save clean help
 
 all: $(BIN)
 build: $(BIN)
@@ -85,6 +85,30 @@ format:
 run: $(BIN)
 	./$(BIN) $(ARGS)
 
+# Generate a fresh save under tmp-sample-save/ with a pre-rolled
+# 4-member party (Aragorn=Fighter/Human, Gandalf=Mage/Elf,
+# Mira=Priest/Halfling, Legolas=Ranger/Elf). Writes to a tmp dir
+# (NOT $HOME) so an existing real save is never clobbered. Pinned RNG
+# seed keeps the rolled stats stable across runs; if the seed ever
+# stops passing the class-gate min-stat checks for fighter (ws>=50),
+# mage (wi>=50), or priest (wi>=50), bump RYL_FAKE_SEED until all
+# four members pass on first roll.
+SAMPLE_SAVE_DIR := tmp-sample-save
+sample-save: $(BIN)
+	@rm -rf $(SAMPLE_SAVE_DIR)
+	@mkdir -p $(SAMPLE_SAVE_DIR)
+	@HOME=$(PWD)/$(SAMPLE_SAVE_DIR) RYL_FAKE_EPOCH=1700000000 \
+	    RYL_FAKE_SEED=1 RYL_NO_DELAY=1 \
+	    ./$(BIN) Sample < tools/sample-save.in > /dev/null
+	@echo 'Sample save generated:'
+	@echo '  $(SAMPLE_SAVE_DIR)/.rylween/current-world.json5'
+	@echo ''
+	@echo 'To play with this party, either:'
+	@echo '  (a) HOME=$(PWD)/$(SAMPLE_SAVE_DIR) ./$(BIN) Sample'
+	@echo '      — runs from the fixture, leaving your real $$HOME/.rylween alone.'
+	@echo '  (b) cp -r $(SAMPLE_SAVE_DIR)/.rylween "$$HOME/.rylween"'
+	@echo '      then ./$(BIN) Sample  — installs the save (overwrites $$HOME/.rylween).'
+
 clean:
 	rm -f $(OBJ) $(OBJ:.o=.d) $(BIN) $(BIN_ASAN)
 
@@ -99,4 +123,5 @@ help:
 	@echo '  make testasan     — ASan gate: replay fixtures under $(BIN_ASAN), fail on ASan/LSan markers'
 	@echo '  make format       — clang-format dry-run over src/'
 	@echo '  make run ARGS="Player Name" — build + run'
+	@echo '  make sample-save  — drop a fresh 4-member party into $$HOME/.rylween/'
 	@echo '  make clean        — remove build artifacts'

@@ -847,11 +847,12 @@ static void write_current_world() {
         fputs(",\n", f);
 
         /* Per-member objects. Replaces the parallel-arrays shape so
-           each member's full record (name, race, class, gender, stats,
-           equipment, exp, dead) is one self-contained block — easier
-           to read by hand and harder to misalign on edit. Field order
-           matches snapshot.c::emit_party's `member[%d]` line so the
-           two formats stay consistent. */
+           each member's full record is one self-contained block —
+           easier to read by hand and harder to misalign on edit.
+           Field names spell out the legacy abbreviations (`ws` →
+           `weapon_skill`, `lv` → `level`, etc.) so a fresh reader
+           doesn't have to decode the in-memory struct's compact
+           field names. dead is emitted as a JSON5 bool. */
         fputs("      members: [\n", f);
         for (int m = 0; m < mlen; m++) {
             const char *cl_s = p->cl[m] ? p->cl[m] : "";
@@ -881,11 +882,13 @@ static void write_current_world() {
             } else {
                 fprintf(f, "%d", cl_int);
             }
-            fprintf(f, ", lv: %d, dead: %d", p->lv[m], p->dead[m]);
-            fprintf(f, ", h: %d, hp: %d", p->h[m], p->hp[m]);
-            fprintf(f, ", ws: %d, wi: %d, ma: %d, ch: %d",
+            fprintf(f, ", level: %d, dead: %s",
+                    p->lv[m], p->dead[m] ? "true" : "false");
+            fprintf(f, ", health: %d, hit_points: %d",
+                    p->h[m], p->hp[m]);
+            fprintf(f, ", weapon_skill: %d, wisdom: %d, magic: %d, charisma: %d",
                     p->ws[m], p->wi[m], p->ma[m], p->ch[m]);
-            fprintf(f, ", ar: %d, wp: %d, exp: %u },\n",
+            fprintf(f, ", armour: %d, weapon: %d, experience: %u },\n",
                     p->ar[m], p->wp[m], p->exp[m]);
         }
         fputs("      ],\n", f);
@@ -1227,17 +1230,27 @@ static int read_current_world() {
                         const char *s = res_enum_sym("race", ra_int);
                         p->ra[m] = (s && s[0]) ? s : NULL;
                     }
-                    p->lv[m] = rcw_int(mn, "lv", p->lv[m]);
-                    p->dead[m] = rcw_int(mn, "dead", p->dead[m]);
-                    p->h[m] = rcw_int(mn, "h", p->h[m]);
-                    p->hp[m] = rcw_int(mn, "hp", p->hp[m]);
-                    p->ws[m] = rcw_int(mn, "ws", p->ws[m]);
-                    p->wi[m] = rcw_int(mn, "wi", p->wi[m]);
-                    p->ma[m] = rcw_int(mn, "ma", p->ma[m]);
-                    p->ch[m] = rcw_int(mn, "ch", p->ch[m]);
-                    p->ar[m] = rcw_int(mn, "ar", p->ar[m]);
-                    p->wp[m] = rcw_int(mn, "wp", p->wp[m]);
-                    p->exp[m] = (uint32_t)rcw_int(mn, "exp", (int32_t)p->exp[m]);
+                    p->lv[m] = rcw_int(mn, "level", p->lv[m]);
+                    /* dead emitted as JSON5 bool by the writer; accept
+                       N_BOOL primarily and N_INT (0/1) as a fallback
+                       for hand-edited or legacy saves. */
+                    {
+                        const node *dn = obj_get(mn, "dead");
+                        if (dn && dn->kind == N_BOOL) {
+                            p->dead[m] = dn->u.bv ? 1 : 0;
+                        } else if (dn && dn->kind == N_INT) {
+                            p->dead[m] = dn->u.iv ? 1 : 0;
+                        }
+                    }
+                    p->h[m] = rcw_int(mn, "health", p->h[m]);
+                    p->hp[m] = rcw_int(mn, "hit_points", p->hp[m]);
+                    p->ws[m] = rcw_int(mn, "weapon_skill", p->ws[m]);
+                    p->wi[m] = rcw_int(mn, "wisdom", p->wi[m]);
+                    p->ma[m] = rcw_int(mn, "magic", p->ma[m]);
+                    p->ch[m] = rcw_int(mn, "charisma", p->ch[m]);
+                    p->ar[m] = rcw_int(mn, "armour", p->ar[m]);
+                    p->wp[m] = rcw_int(mn, "weapon", p->wp[m]);
+                    p->exp[m] = (uint32_t)rcw_int(mn, "experience", (int32_t)p->exp[m]);
                 }
             }
 

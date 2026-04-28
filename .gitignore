@@ -19,6 +19,9 @@ data/score.txt
 data/vscore.txt
 data/current-world.json5
 
+# `make sample-save` output (regenerated; not checked in).
+tmp-sample-save/
+
 # Editor / local tool state
 .claude/
 .idea/
