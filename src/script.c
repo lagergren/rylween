@@ -420,45 +420,45 @@ static int32_t expr_member_field(const node *op, const char *script_id,
     const char *field = f_n->u.sv;
     pm_t pm = pm_cur((int)m);
     if (strcmp(field, "level") == 0) {
-        return pm_lv(pm);
+        return pm_level(pm);
     }
     if (strcmp(field, "hit_points") == 0) {
-        return pm_hp(pm);
+        return pm_hit_points(pm);
     }
     if (strcmp(field, "health") == 0) {
-        return pm_h(pm);
+        return pm_health(pm);
     }
     if (strcmp(field, "magic") == 0) {
-        return pm_ma(pm);
+        return pm_magic(pm);
     }
     if (strcmp(field, "wisdom") == 0) {
-        return pm_wi(pm);
+        return pm_wisdom(pm);
     }
     if (strcmp(field, "weapon_skill") == 0) {
-        return pm_ws(pm);
+        return pm_weapon_skill(pm);
     }
     if (strcmp(field, "charisma") == 0) {
-        return pm_ch(pm);
+        return pm_charisma(pm);
     }
     if (strcmp(field, "class") == 0) {
-        return pm_cl(pm);
+        return pm_class_id(pm);
     }
     if (strcmp(field, "race") == 0) {
-        return pm_ra(pm);
+        return pm_race_id(pm);
     }
     if (strcmp(field, "experience") == 0) {
         /* uint32 → int32 cast: experience values stay well below 2^31
            in legacy save files (the experience cap is much lower). */
-        return (int32_t)pm_exp(pm);
+        return (int32_t)pm_experience(pm);
     }
     if (strcmp(field, "dead") == 0) {
         return pm_dead(pm);
     }
     if (strcmp(field, "armour") == 0) {
-        return pm_ar(pm);
+        return pm_armour(pm);
     }
     if (strcmp(field, "weapon") == 0) {
-        return pm_wp(pm);
+        return pm_weapon(pm);
     }
     if (strcmp(field, "gender") == 0) {
         return pm_gender(pm);
@@ -1485,12 +1485,12 @@ static void eng_rumour(const int32_t *a) {
     (void)a;
     rumour();
 }
-/* §20 L2: per-member HP delta — pm_add_hp(pm_cur(member), delta).
+/* §20 L2: per-member HP delta — pm_add_hit_points(pm_cur(member), delta).
    Used by the chest-trap damage in dungeon.gold_chest (case 8)
    inside a for_member loop. Negative deltas damage; pair with
-   pm_hp_floor to clamp from below. */
+   pm_hit_points_floor to clamp from below. */
 static void eng_pm_add_hp(const int32_t *a) {
-    pm_add_hp(pm_cur((int)a[0]), (int)a[1]);
+    pm_add_hit_points(pm_cur((int)a[0]), (int)a[1]);
 }
 /* §23.A: add `delta` to the active party's `pl` (alive-member count
    of the current sub-party). Wraps through pa_add_pl for u8-cast
@@ -1500,11 +1500,11 @@ static void eng_pm_add_hp(const int32_t *a) {
 static void eng_pa_add_pl(const int32_t *a) {
     pa_add_pl((int)a[0]);
 }
-/* §20 L2: clamp HP from below — pm_hp_floor(pm_cur(member), floor).
-   Used right after pm_add_hp so the trap can't reduce a member to
+/* §20 L2: clamp HP from below — pm_hit_points_floor(pm_cur(member), floor).
+   Used right after pm_add_hit_points so the trap can't reduce a member to
    a negative HP. */
 static void eng_pm_hp_floor(const int32_t *a) {
-    pm_hp_floor(pm_cur((int)a[0]), (int)a[1]);
+    pm_hit_points_floor(pm_cur((int)a[0]), (int)a[1]);
 }
 
 /* §23.B: pm_full_heal(pm_cur(member)) — hp = h. Used by Staff of
@@ -1593,8 +1593,8 @@ static const engine_entry engine_tbl[] = {
     {"showparty", 0, eng_showparty},
     {"drop_option", 0, eng_drop_option},
     {"rumour", 0, eng_rumour},
-    {"pm_add_hp", 2, eng_pm_add_hp},
-    {"pm_hp_floor", 2, eng_pm_hp_floor},
+    {"pm_add_hit_points", 2, eng_pm_add_hp},
+    {"pm_hit_points_floor", 2, eng_pm_hp_floor},
     {"pa_teleport_step", 2, eng_pa_teleport_step},
     {"pa_add_pl", 1, eng_pa_add_pl},
     {"pm_full_heal", 1, eng_pm_full_heal},
@@ -2475,43 +2475,43 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
             pm_t pm = pm_cur(lv->index);
             const char *f = lv->field;
             if (strcmp(f, "level") == 0) {
-                return pm_lv(pm);
+                return pm_level(pm);
             }
             if (strcmp(f, "hit_points") == 0) {
-                return pm_hp(pm);
+                return pm_hit_points(pm);
             }
             if (strcmp(f, "health") == 0) {
-                return pm_h(pm);
+                return pm_health(pm);
             }
             if (strcmp(f, "magic") == 0) {
-                return pm_ma(pm);
+                return pm_magic(pm);
             }
             if (strcmp(f, "wisdom") == 0) {
-                return pm_wi(pm);
+                return pm_wisdom(pm);
             }
             if (strcmp(f, "weapon_skill") == 0) {
-                return pm_ws(pm);
+                return pm_weapon_skill(pm);
             }
             if (strcmp(f, "charisma") == 0) {
-                return pm_ch(pm);
+                return pm_charisma(pm);
             }
             if (strcmp(f, "class") == 0) {
-                return pm_cl(pm);
+                return pm_class_id(pm);
             }
             if (strcmp(f, "race") == 0) {
-                return pm_ra(pm);
+                return pm_race_id(pm);
             }
             if (strcmp(f, "dead") == 0) {
                 return pm_dead(pm);
             }
             if (strcmp(f, "armour") == 0) {
-                return pm_ar(pm);
+                return pm_armour(pm);
             }
             if (strcmp(f, "weapon") == 0) {
-                return pm_wp(pm);
+                return pm_weapon(pm);
             }
             if (strcmp(f, "experience") == 0) {
-                return (int32_t)pm_exp(pm);
+                return (int32_t)pm_experience(pm);
             }
             if (strcmp(f, "gender") == 0) {
                 return pm_gender(pm);
@@ -2599,39 +2599,39 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
             pm_t pm = pm_cur(lv->index);
             const char *f = lv->field;
             if (strcmp(f, "level") == 0) {
-                pm_set_lv(pm, (int)v);
+                pm_set_level(pm, (int)v);
                 return;
             }
             if (strcmp(f, "hit_points") == 0) {
-                pm_set_hp(pm, (int)v);
+                pm_set_hit_points(pm, (int)v);
                 return;
             }
             if (strcmp(f, "health") == 0) {
-                pm_set_h(pm, (int)v);
+                pm_set_health(pm, (int)v);
                 return;
             }
             if (strcmp(f, "magic") == 0) {
-                pm_set_ma(pm, (int)v);
+                pm_set_magic(pm, (int)v);
                 return;
             }
             if (strcmp(f, "wisdom") == 0) {
-                pm_set_wi(pm, (int)v);
+                pm_set_wisdom(pm, (int)v);
                 return;
             }
             if (strcmp(f, "weapon_skill") == 0) {
-                pm_set_ws(pm, (int)v);
+                pm_set_weapon_skill(pm, (int)v);
                 return;
             }
             if (strcmp(f, "charisma") == 0) {
-                pm_set_ch(pm, (int)v);
+                pm_set_charisma(pm, (int)v);
                 return;
             }
             if (strcmp(f, "class") == 0) {
-                pm_set_cl(pm, (int)v);
+                pm_set_class_id(pm, (int)v);
                 return;
             }
             if (strcmp(f, "race") == 0) {
-                pm_set_ra(pm, (int)v);
+                pm_set_race_id(pm, (int)v);
                 return;
             }
             if (strcmp(f, "dead") == 0) {
@@ -2639,11 +2639,11 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                 return;
             }
             if (strcmp(f, "armour") == 0) {
-                pm_set_ar(pm, (int)v);
+                pm_set_armour(pm, (int)v);
                 return;
             }
             if (strcmp(f, "weapon") == 0) {
-                pm_set_wp(pm, (int)v);
+                pm_set_weapon(pm, (int)v);
                 return;
             }
             if (strcmp(f, "experience") == 0) {
@@ -2651,7 +2651,7 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                     die_at(script_id, idx,
                            "mutate: member_field experience cannot be negative");
                 }
-                pm_set_exp(pm, (uint32_t)v);
+                pm_set_experience(pm, (uint32_t)v);
                 return;
             }
             if (strcmp(f, "gender") == 0) {

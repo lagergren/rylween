@@ -2704,7 +2704,7 @@ static void fold_enum_records(enum_rec *r, const node *obj, const char *path) {
         r->n_values = (size_t)max_id + 1;
     } else {
         /* 1-indexed positional. Slot 0 stays the unset sentinel so
-           pm_cl(NULL slot) → res_enum_id → 0 still maps to "no class". */
+           pm_class_id(NULL slot) → res_enum_id → 0 still maps to "no class". */
         r->n_values = obj->u.obj.n + 1;
     }
     r->keys = calloc(r->n_values, sizeof *r->keys);

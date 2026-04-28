@@ -214,9 +214,9 @@ void apply_potion(int item_id, pm_t pm) {
         tx("%s inside...\r\n\r\n", pronoun(pm.m, 2));
         ryl_pause();
         clw();
-        pm_add_hp(pm, it->effect_amount + pm_lv(pm));
-        if (pm_hp(pm) > pm_h(pm)) {
-            pm_set_hp(pm, pm_h(pm));
+        pm_add_hit_points(pm, it->effect_amount + pm_level(pm));
+        if (pm_hit_points(pm) > pm_health(pm)) {
+            pm_set_hit_points(pm, pm_health(pm));
         }
         return;
     }
@@ -226,8 +226,8 @@ void apply_potion(int item_id, pm_t pm) {
         tx("begins to work.\r\n\r\n");
         ryl_pause();
         clw();
-        pm_add_hp(pm, -(it->effect_amount + pm_lv(pm)));
-        pm_hp_floor(pm, 1);
+        pm_add_hit_points(pm, -(it->effect_amount + pm_level(pm)));
+        pm_hit_points_floor(pm, 1);
         return;
     }
     if (!strcmp(it->effect_kind, "restore_mana")) {

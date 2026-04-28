@@ -122,7 +122,7 @@ void ydarg() {
                         tx("%s tries to\r\n", pm_name(pm_cur(i)));
                         tx("disarm it...\r\n\r\n");
                         ryl_delay(1500);
-                        if (ryl_chance(pm_wi(pm_cur(i)))) {
+                        if (ryl_chance(pm_wisdom(pm_cur(i)))) {
                             tx0(res_text("ydarg.room.trap.disarm_succeed"));
                             ryl_delay(1000);
                             j = 1;
@@ -150,7 +150,7 @@ void ydarg() {
                         if (pa_is_alive(i)) {
                             pm_t pm = pm_cur(i);
                             if (dmg_div > 0) {
-                                pm_add_hp(pm, -pm_hp(pm) / dmg_div);
+                                pm_add_hit_points(pm, -pm_hit_points(pm) / dmg_div);
                             }
                         }
                     }

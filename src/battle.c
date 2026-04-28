@@ -69,7 +69,7 @@ void encounter(int32_t foe, int32_t mandatory) {
        state matches the unforced path. */
     noc = rk_force_encounter_noc(noc);
     int32_t foe_max = res_combat_int("encounter_foe_count_max");
-    int32_t party_avg = pa_lv_avg();
+    int32_t party_avg = pa_level_avg();
     res_binding hp_bindings[] = {
         {"h1_base", h1},
         {"h2_base", h2},
@@ -262,7 +262,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         continue;
                     }
                     tx("%d. %-13s(%3d/%3d)\r\n", slot, s->name,
-                       s->base_cost + pm_lv(caster), pm_ma(caster));
+                       s->base_cost + pm_level(caster), pm_magic(caster));
                 }
                 tx0(res_text("battle.spell.abort"));
                 while (1) {
@@ -286,12 +286,12 @@ void encounter(int32_t foe, int32_t mandatory) {
                     s = res_spell("mage", d - 48);
                 }
                 if (s) {
-                    if (pm_ma(caster) < (s->base_cost + pm_lv(caster))) {
+                    if (pm_magic(caster) < (s->base_cost + pm_level(caster))) {
                         clw();
                         tx0(res_text("battle.spell.not_enough_magic"));
                         ryl_delay(1000);
                     } else {
-                        pm_add_ma(caster, -(s->base_cost + pm_lv(caster)));
+                        pm_add_magic(caster, -(s->base_cost + pm_level(caster)));
                         /* §22 Lane A: every mage spell carries a do:
                            body — res_spell_node always resolves. */
                         const void *spell_node = res_spell_node("mage", d - 48);
@@ -335,10 +335,10 @@ void encounter(int32_t foe, int32_t mandatory) {
             /****************************************************************************/
             if (c == 'D') {
                 pm_t pmg = pm_cur(g);
-                if (pm_hp(pmg) + pm_lv(pmg) > pm_h(pmg)) {
-                    pm_set_hp(pmg, pm_h(pmg));
+                if (pm_hit_points(pmg) + pm_level(pmg) > pm_health(pmg)) {
+                    pm_set_hit_points(pmg, pm_health(pmg));
                 } else {
-                    pm_add_hp(pmg, pm_lv(pmg));
+                    pm_add_hit_points(pmg, pm_level(pmg));
                 }
                 clw();
                 if (defend < res_combat_int("defend.rest_threshold")) {
@@ -378,7 +378,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                     }
                 }
                 who = d - 'A';
-                x = pm_ws(pm_cur(g));
+                x = pm_weapon_skill(pm_cur(g));
                 if (playerconfused) {
                     int32_t cdiv = res_combat_int("attack.confusion_div");
                     if (cdiv > 0) {
@@ -387,11 +387,11 @@ void encounter(int32_t foe, int32_t mandatory) {
                 }
                 if (ryl_chance(x + res_combat_int("attack.hit_bonus"))) {
                     /* HIT */
-                    dp = obdamage(pm_wp(pm_cur(g)));
+                    dp = obdamage(pm_weapon(pm_cur(g)));
                     dp += ryl_random(0, res_combat_int("attack.damage_spread_max"));
                     int32_t hpd = res_combat_int("hp_defense_div");
                     if (hpd > 0) {
-                        dp += pm_hp(pm_cur(g)) / hpd;
+                        dp += pm_hit_points(pm_cur(g)) / hpd;
                     }
                     clw();
                     char dp_buf[16];
@@ -487,7 +487,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 for_each_party_member(i) {
                     pm_t pm = pm_cur(i);
                     if (!pm_dead(pm)) {
-                        pm_add_exp(pm, (uint32_t)exp_gain);
+                        pm_add_experience(pm, (uint32_t)exp_gain);
                     }
                 }
                 expcheck();
@@ -665,8 +665,8 @@ void expcheck() {
 
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
-        int32_t l = pm_lv(pm);
-        uint32_t e = pm_exp(pm);
+        int32_t l = pm_level(pm);
+        uint32_t e = pm_experience(pm);
         for (int n = l + 1; n <= 28; n++) {
             int32_t need = res_xp_threshold(n);
             if (need <= 0 || e < (uint32_t)need) {
@@ -702,14 +702,14 @@ void expcheck() {
             tx_fmt("battle.expgain.gains", gain_binds);
             tx0(res_text("battle.expgain.exp_levels"));
             ryl_delay(600);
-            pm_add_lv(pm, add[i]);
-            int cl_id = pm_cl(pm);
+            pm_add_level(pm, add[i]);
+            int cl_id = pm_class_id(pm);
             const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
-            pm_add_ws(pm, res_class_levelup(cls, "weapon_skill"));
-            pm_add_h(pm, res_class_levelup(cls, "health"));
-            pm_add_wi(pm, res_class_levelup(cls, "wisdom"));
-            pm_add_ch(pm, res_class_levelup(cls, "charisma"));
-            pm_hp_floor(pm, (pm_h(pm) * 2) / 3);
+            pm_add_weapon_skill(pm, res_class_levelup(cls, "weapon_skill"));
+            pm_add_health(pm, res_class_levelup(cls, "health"));
+            pm_add_wisdom(pm, res_class_levelup(cls, "wisdom"));
+            pm_add_charisma(pm, res_class_levelup(cls, "charisma"));
+            pm_hit_points_floor(pm, (pm_health(pm) * 2) / 3);
         }
     }
 }

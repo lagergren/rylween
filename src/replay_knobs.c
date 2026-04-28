@@ -100,17 +100,17 @@ void rk_apply_party_lv(int a) {
     struct party *p = party_at(a);
     for_each_party_member(i) {
         pm_t pm = pm_of(p, i);
-        int cl_id = pm_cl(pm);
+        int cl_id = pm_class_id(pm);
         const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
         for (long n = 1; n < lv_target; n++) {
-            pm_add_ws(pm, res_class_levelup(cls, "weapon_skill"));
-            pm_add_h(pm, res_class_levelup(cls, "health"));
-            pm_add_wi(pm, res_class_levelup(cls, "wisdom"));
-            pm_add_ch(pm, res_class_levelup(cls, "charisma"));
+            pm_add_weapon_skill(pm, res_class_levelup(cls, "weapon_skill"));
+            pm_add_health(pm, res_class_levelup(cls, "health"));
+            pm_add_wisdom(pm, res_class_levelup(cls, "wisdom"));
+            pm_add_charisma(pm, res_class_levelup(cls, "charisma"));
         }
-        pm_set_lv(pm, (int)lv_target);
+        pm_set_level(pm, (int)lv_target);
         if (pm_is_spellcaster(pm)) {
-            pm_set_ma(pm, pm_wi(pm));
+            pm_set_magic(pm, pm_wisdom(pm));
         }
     }
     unsetenv("RYL_FORCE_PARTY_LV");
@@ -203,7 +203,7 @@ void rk_apply_party_wp(int a) {
     }
     struct party *p = party_at(a);
     for_each_party_member(i) {
-        pm_set_wp(pm_of(p, i), (int)id);
+        pm_set_weapon(pm_of(p, i), (int)id);
     }
 }
 
@@ -227,7 +227,7 @@ void rk_apply_party_hp_full(int a) {
         if (pm_dead(pm)) {
             continue;
         }
-        pm_set_hp(pm, pm_h(pm));
+        pm_set_hit_points(pm, pm_health(pm));
     }
 }
 
@@ -251,7 +251,7 @@ void rk_apply_dead_slots(int a) {
         if (end != p && slot >= 1 && slot <= res_party_member_max()) {
             pm_t pm = pm_of(party, (int)(slot - 1));
             pm_set_dead(pm, 1);
-            pm_set_hp(pm, 0);
+            pm_set_hit_points(pm, 0);
         }
         p = (*end == ',') ? end + 1 : end;
         if (p == end && *p == 0) {

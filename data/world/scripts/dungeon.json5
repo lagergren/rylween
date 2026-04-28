@@ -411,11 +411,11 @@
                 { emit: 'gold_chest.trap_boulder_b' },
               ] } },
               { for_member: { var: 'member', then: [
-                { engine_call: 'pm_add_hp',
+                { engine_call: 'pm_add_hit_points',
                   args: [{ var: 'member' },
                          { mul: [-4,
                                  { member: { var: 'member' }, field: 'level' }] }] },
-                { engine_call: 'pm_hp_floor', args: [{ var: 'member' }, 1] },
+                { engine_call: 'pm_hit_points_floor', args: [{ var: 'member' }, 1] },
               ] } },
               { wait_input: true },
             ],

@@ -157,7 +157,7 @@ int pa_first_level(void) {
     return state.p[state.cpl].lv[0];
 }
 
-int32_t pa_lv_avg(void) {
+int32_t pa_level_avg(void) {
     int32_t sum = 0;
     for_each_party_member(m) {
         sum += state.p[state.cpl].lv[m];

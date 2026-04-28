@@ -123,8 +123,8 @@
                             { emit: 'no_gear_5' },
                             { pause: 1500 },
                             { for_member: { var: 'member', then: [
-                              { engine_call: 'pm_add_hp',  args: [{ var: 'member' }, { sub: [0, { var: 'temp_low_dmg' }] }] },
-                              { engine_call: 'pm_hp_floor', args: [{ var: 'member' }, 1] },
+                              { engine_call: 'pm_add_hit_points',  args: [{ var: 'member' }, { sub: [0, { var: 'temp_low_dmg' }] }] },
+                              { engine_call: 'pm_hit_points_floor', args: [{ var: 'member' }, 1] },
                             ] } },
                           ],
                       } },
@@ -144,8 +144,8 @@
                             { emit: 'no_gear_10' },
                             { pause: 1500 },
                             { for_member: { var: 'member', then: [
-                              { engine_call: 'pm_add_hp',  args: [{ var: 'member' }, { sub: [0, { var: 'temp_very_low_dmg' }] }] },
-                              { engine_call: 'pm_hp_floor', args: [{ var: 'member' }, 1] },
+                              { engine_call: 'pm_add_hit_points',  args: [{ var: 'member' }, { sub: [0, { var: 'temp_very_low_dmg' }] }] },
+                              { engine_call: 'pm_hit_points_floor', args: [{ var: 'member' }, 1] },
                             ] } },
                           ],
                       } },

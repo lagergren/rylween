@@ -12,7 +12,7 @@
  * sliced into per-module headers in a later commit. The existing
  * `struct party` SoA layout is preserved (save-format compatibility);
  * pm_t is a cheap by-value view so new code reads
- * `pm_lv(pm)` instead of `state.p[state.cpl].lv[m]`.
+ * `pm_level(pm)` instead of `state.p[state.cpl].lv[m]`.
  */
 
 /* Inventory slot count — the UI maps letters A..P to slots 1..16, so
@@ -161,7 +161,7 @@ struct party {
                         table (stable across program lifetime). NULL for
                         unset slots. §24bis phase 3 class axis: storage is
                         slug; int form is recovered via res_enum_id at the
-                        pm_cl / snapshot / save boundary. */
+                        pm_class_id / snapshot / save boundary. */
     const char **ra; /* Race — same shape as cl. */
     int32_t *lv;     /* Level  */
 
@@ -256,7 +256,7 @@ static inline int is_hour_in_range(int lo, int hi) {
    res_enum_id("pc_class", slug). */
 
 /* View handle over a single party member. Cheap by-value. Field access
-   goes through pm_* accessors so call sites read `pm_lv(pm)` instead of
+   goes through pm_* accessors so call sites read `pm_level(pm)` instead of
    `state.p[state.cpl].lv[m]`. The `struct party` SoA layout is per-
    member heap-allocated off res_party_member_max() (§19.3); pm_t is
    purely a readability wrapper. New code should prefer pm_*; legacy
@@ -327,25 +327,25 @@ static inline int inv_letter_in_range(char c) {
 /* Forward declarations (implemented in res.c). Same pattern as
    res_npc_role / res_npc_name above — keeps state.h from pulling res.h.
    res_enum_id is paired with res_enum_sym for the slug ↔ int round-trip
-   used by pm_ra (§24bis phase 3 race axis): storage is slug, int form
+   used by pm_race_id (§24bis phase 3 race axis): storage is slug, int form
    recovered at the boundary so legacy callers keep their int API. */
 const char *res_enum_sym(const char *id, int index);
 int res_enum_id(const char *id, const char *value);
 
-static inline int pm_cl(pm_t pm) {
+static inline int pm_class_id(pm_t pm) {
     const char *s = pm.party->cl[pm.m];
     return s ? res_enum_id("pc_class", s) : 0;
 }
-static inline int pm_lv(pm_t pm) {
+static inline int pm_level(pm_t pm) {
     return pm.party->lv[pm.m];
 }
-static inline int pm_ma(pm_t pm) {
+static inline int pm_magic(pm_t pm) {
     return pm.party->ma[pm.m];
 }
-static inline int pm_hp(pm_t pm) {
+static inline int pm_hit_points(pm_t pm) {
     return pm.party->hp[pm.m];
 }
-static inline int pm_h(pm_t pm) {
+static inline int pm_health(pm_t pm) {
     return pm.party->h[pm.m];
 }
 static inline int pm_dead(pm_t pm) {
@@ -354,20 +354,20 @@ static inline int pm_dead(pm_t pm) {
 static inline char *pm_name(pm_t pm) {
     return pm.party->name[pm.m];
 }
-static inline int pm_ws(pm_t pm) {
+static inline int pm_weapon_skill(pm_t pm) {
     return pm.party->ws[pm.m];
 }
-static inline int pm_wi(pm_t pm) {
+static inline int pm_wisdom(pm_t pm) {
     return pm.party->wi[pm.m];
 }
-static inline int pm_ch(pm_t pm) {
+static inline int pm_charisma(pm_t pm) {
     return pm.party->ch[pm.m];
 }
-static inline int pm_ra(pm_t pm) {
+static inline int pm_race_id(pm_t pm) {
     const char *s = pm.party->ra[pm.m];
     return s ? res_enum_id("race", s) : 0;
 }
-static inline uint32_t pm_exp(pm_t pm) {
+static inline uint32_t pm_experience(pm_t pm) {
     return pm.party->exp[pm.m];
 }
 static inline unsigned char pm_gender(pm_t pm) {
@@ -375,10 +375,10 @@ static inline unsigned char pm_gender(pm_t pm) {
 }
 
 static inline int pm_is_class(pm_t pm, int cls) {
-    return pm_cl(pm) == cls;
+    return pm_class_id(pm) == cls;
 }
 
-/* §24bis phase 1 — slug-form siblings to pm_cl / pm_ra. Returns the
+/* §24bis phase 1 — slug-form siblings to pm_class_id / pm_race_id. Returns the
    lowercase enum key ("fighter" / "thief" / ... for class; "human" /
    "dwarf" / ... for race) so call sites can compare against script-
    stable symbols rather than the PC_FIGHTER / 1..6 magic numbers.
@@ -441,67 +441,67 @@ static inline int pm_is_spellcaster(pm_t pm) {
    state.p[...]?[i] = ... and ...[i] += ... sites with these so the
    member index stays inside a typed handle rather than a loose
    1..4 integer sloshing through the code. */
-static inline void pm_set_hp(pm_t pm, int v) {
+static inline void pm_set_hit_points(pm_t pm, int v) {
     pm.party->hp[pm.m] = v;
 }
-static inline void pm_add_hp(pm_t pm, int d) {
+static inline void pm_add_hit_points(pm_t pm, int d) {
     pm.party->hp[pm.m] += d;
 }
-static inline void pm_set_h(pm_t pm, int v) {
+static inline void pm_set_health(pm_t pm, int v) {
     pm.party->h[pm.m] = v;
 }
-static inline void pm_add_h(pm_t pm, int d) {
+static inline void pm_add_health(pm_t pm, int d) {
     pm.party->h[pm.m] += d;
 }
-static inline void pm_add_ws(pm_t pm, int d) {
+static inline void pm_add_weapon_skill(pm_t pm, int d) {
     pm.party->ws[pm.m] += d;
 }
-static inline void pm_add_wi(pm_t pm, int d) {
+static inline void pm_add_wisdom(pm_t pm, int d) {
     pm.party->wi[pm.m] += d;
 }
-static inline void pm_add_ch_clamp0(pm_t pm, int d) {
+static inline void pm_add_charisma_clamp0(pm_t pm, int d) {
     pm.party->ch[pm.m] += d;
     if (pm.party->ch[pm.m] < 0) {
         pm.party->ch[pm.m] = 0;
     }
 }
-static inline void pm_add_ch(pm_t pm, int d) {
+static inline void pm_add_charisma(pm_t pm, int d) {
     pm.party->ch[pm.m] += d;
 }
-static inline void pm_add_lv(pm_t pm, int d) {
+static inline void pm_add_level(pm_t pm, int d) {
     pm.party->lv[pm.m] += d;
 }
-static inline void pm_set_lv(pm_t pm, int v) {
+static inline void pm_set_level(pm_t pm, int v) {
     pm.party->lv[pm.m] = v;
 }
-static inline void pm_add_exp(pm_t pm, uint32_t d) {
+static inline void pm_add_experience(pm_t pm, uint32_t d) {
     pm.party->exp[pm.m] += d;
 }
-static inline void pm_set_exp(pm_t pm, uint32_t v) {
+static inline void pm_set_experience(pm_t pm, uint32_t v) {
     pm.party->exp[pm.m] = v;
 }
-static inline void pm_set_ws(pm_t pm, int v) {
+static inline void pm_set_weapon_skill(pm_t pm, int v) {
     pm.party->ws[pm.m] = v;
 }
-static inline void pm_set_wi(pm_t pm, int v) {
+static inline void pm_set_wisdom(pm_t pm, int v) {
     pm.party->wi[pm.m] = v;
 }
-static inline void pm_set_ch(pm_t pm, int v) {
+static inline void pm_set_charisma(pm_t pm, int v) {
     pm.party->ch[pm.m] = v;
 }
-static inline void pm_set_ma(pm_t pm, int v) {
+static inline void pm_set_magic(pm_t pm, int v) {
     pm.party->ma[pm.m] = v;
 }
-static inline void pm_add_ma(pm_t pm, int d) {
+static inline void pm_add_magic(pm_t pm, int d) {
     pm.party->ma[pm.m] += d;
 }
-static inline void pm_set_cl(pm_t pm, int v) {
+static inline void pm_set_class_id(pm_t pm, int v) {
     /* §24bis phase 3 class axis: storage is slug pointer interned in
-       res's keys[] table. Mirrors pm_set_ra. */
+       res's keys[] table. Mirrors pm_set_race_id. */
     const char *s = res_enum_sym("pc_class", v);
     pm.party->cl[pm.m] = (s && s[0]) ? s : NULL;
 }
-static inline void pm_set_ra(pm_t pm, int v) {
+static inline void pm_set_race_id(pm_t pm, int v) {
     /* §24bis phase 3 race axis: storage is slug pointer interned in
        res's keys[] table. res_enum_sym returns "" for out-of-range
        indices; we map that to NULL so the unset sentinel matches the
@@ -515,27 +515,27 @@ static inline void pm_set_gender(pm_t pm, unsigned char v) {
 static inline void pm_set_dead(pm_t pm, int v) {
     pm.party->dead[pm.m] = v;
 }
-static inline int pm_wp(pm_t pm) {
+static inline int pm_weapon(pm_t pm) {
     return pm.party->wp[pm.m];
 }
-static inline void pm_set_wp(pm_t pm, int v) {
+static inline void pm_set_weapon(pm_t pm, int v) {
     pm.party->wp[pm.m] = v;
 }
-static inline int pm_ar(pm_t pm) {
+static inline int pm_armour(pm_t pm) {
     return pm.party->ar[pm.m];
 }
-static inline void pm_set_ar(pm_t pm, int v) {
+static inline void pm_set_armour(pm_t pm, int v) {
     pm.party->ar[pm.m] = v;
 }
 /* Equipped-slot predicates. wp/ar of 0 means no weapon / no armour
    equipped — the inventory item-id 0 sentinel doubles as "empty".
-   Replaces the bare `pm_wp(pm) != 0` peppered through battle / spell
+   Replaces the bare `pm_weapon(pm) != 0` peppered through battle / spell
    gating. */
 static inline int pm_has_weapon(pm_t pm) {
-    return pm_wp(pm) != 0;
+    return pm_weapon(pm) != 0;
 }
 static inline int pm_has_armour(pm_t pm) {
-    return pm_ar(pm) != 0;
+    return pm_armour(pm) != 0;
 }
 
 /* Heal to full: hp = h. No-op if dead. */
@@ -548,7 +548,7 @@ static inline void pm_full_heal(pm_t pm) {
 /* Clamp HP up to `floor` (leaves hp alone if already above). Used
    after level-up to ensure the post-gain h bump rescues partial-hp
    members to at least 2/3 h. */
-static inline void pm_hp_floor(pm_t pm, int floor) {
+static inline void pm_hit_points_floor(pm_t pm, int floor) {
     if (pm.party->hp[pm.m] < floor) {
         pm.party->hp[pm.m] = floor;
     }

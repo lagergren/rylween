@@ -280,10 +280,10 @@ void statusline() {
     c(3, 21);
     tx("[32m%s    ", stline);
     snprintf(stline, sizeof stline, "H1: [33m%3d/%3d   [32mH2: [33m%3d/%3d   [32mH3: [33m%3d/%3d   [32mH4: [33m%3d/%3d[37m",
-             pm_hp(pm_cur(0)), pm_h(pm_cur(0)),
-             pm_hp(pm_cur(1)), pm_h(pm_cur(1)),
-             pm_hp(pm_cur(2)), pm_h(pm_cur(2)),
-             pm_hp(pm_cur(3)), pm_h(pm_cur(3)));
+             pm_hit_points(pm_cur(0)), pm_health(pm_cur(0)),
+             pm_hit_points(pm_cur(1)), pm_health(pm_cur(1)),
+             pm_hit_points(pm_cur(2)), pm_health(pm_cur(2)),
+             pm_hit_points(pm_cur(3)), pm_health(pm_cur(3)));
     c(13, 22);
     tx("%s\r\n", stline);
     c(49, 6);
@@ -1199,7 +1199,7 @@ static int read_current_world() {
                of self-contained per-member records). Walk it slot-by-
                slot. Class / race fields are slug-canonicalized (the
                int form is recovered via res_enum_id at any boundary
-               that still wants ints — pm_cl, snapshot, etc.). */
+               that still wants ints — pm_class_id, snapshot, etc.). */
             const node *members = obj_get(pnode, "members");
             if (members && members->kind == N_ARR) {
                 size_t take = members->u.arr.n < (size_t)mlen
@@ -1479,9 +1479,9 @@ static void createparty() {
     memset(p->flag, 0, sizeof p->flag);
     for_each_party_member(i) {
         pm_t pm = pm_of(p, i);
-        pm_set_lv(pm, 1);
-        pm_set_ar(pm, 0);
-        pm_set_exp(pm, 0);
+        pm_set_level(pm, 1);
+        pm_set_armour(pm, 0);
+        pm_set_experience(pm, 0);
         pm_set_dead(pm, 0);
     }
     rk_apply_party_lv(a);
@@ -1549,27 +1549,27 @@ void show(int32_t nr) {
 
     clw();
     tx("Name      : %s\r\n", pm_name(pm));
-    tx("Race      : %s\r\n", res_enum("race", pm_ra(pm)));
-    tx("Class     : %s\r\n", res_enum("pc_class", pm_cl(pm)));
+    tx("Race      : %s\r\n", res_enum("race", pm_race_id(pm)));
+    tx("Class     : %s\r\n", res_enum("pc_class", pm_class_id(pm)));
     tx("\r\n");
-    tx("Skill     : %d\r\n", pm_ws(pm));
-    tx("Hp/H      : %d/%d\r\n", pm_hp(pm), pm_h(pm));
-    tx("Wisdom    : %d\r\n", pm_wi(pm));
-    tx("Charisma  : %d\r\n", pm_ch(pm));
-    tx("Magic     : %d\r\n", pm_ma(pm));
+    tx("Skill     : %d\r\n", pm_weapon_skill(pm));
+    tx("Hp/H      : %d/%d\r\n", pm_hit_points(pm), pm_health(pm));
+    tx("Wisdom    : %d\r\n", pm_wisdom(pm));
+    tx("Charisma  : %d\r\n", pm_charisma(pm));
+    tx("Magic     : %d\r\n", pm_magic(pm));
     tx("\r\n");
     ryl_pause();
     clw();
-    tx("Level     : %d\r\n", pm_lv(pm));
-    tx("Weapon    : %s\r\n", object(pm_wp(pm)));
-    tx("Armour    : %s\r\n\r\n", object(pm_ar(pm)));
+    tx("Level     : %d\r\n", pm_level(pm));
+    tx("Weapon    : %s\r\n", object(pm_weapon(pm)));
+    tx("Armour    : %s\r\n\r\n", object(pm_armour(pm)));
     if (pm_dead(pm)) {
         strcpy(str, "Dead.");
     } else {
         strcpy(str, "Alive.");
     }
     tx("Status    : %s\r\n\r\n", str);
-    tx("Exp       : %u\r\n\r\n", pm_exp(pm));
+    tx("Exp       : %u\r\n\r\n", pm_experience(pm));
     ryl_pause();
 }
 

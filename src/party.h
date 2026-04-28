@@ -80,12 +80,12 @@ int32_t pa_gold(void);
    to. */
 int pa_first_level(void);
 
-/* Mean party-member level (sum of pm_lv across all slots, divided
+/* Mean party-member level (sum of pm_level across all slots, divided
    by res_party_member_max()). Used by content-scaling consumers
    that want to track every member's level rather than just the
    first member's — encounter HP scaling reads it via the
    "party_avg" formula binding. */
-int32_t pa_lv_avg(void);
+int32_t pa_level_avg(void);
 
 /* Party mission / quest flags (data/world.json5 `flags:` subtree).
    All three helpers operate on state.p[state.cpl].flag[slot] where

@@ -115,7 +115,7 @@ static void enter_ready_prompt(void) {
     y = 0;
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
-        if (!pm_dead(pm) && !pm_wp(pm)) {
+        if (!pm_dead(pm) && !pm_weapon(pm)) {
             y = 1;
         }
     }
@@ -133,7 +133,7 @@ static void enter_ready_prompt(void) {
     y = 0;
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
-        if (!pm_dead(pm) && !pm_ar(pm)) {
+        if (!pm_dead(pm) && !pm_armour(pm)) {
             y = 1;
         }
     }

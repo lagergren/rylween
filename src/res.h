@@ -16,7 +16,7 @@ typedef struct {
        means "not a consumable / no effect". Recognised kinds:
        "heal" / "poison" / "restore_mana"; new kinds are a one-line
        branch in apply_potion. amount is the per-kind base; heal/
-       poison add pm_lv at apply time, restore_mana ignores. */
+       poison add pm_level at apply time, restore_mana ignores. */
     const char *effect_kind;
     int32_t effect_amount;
 } ryl_item;

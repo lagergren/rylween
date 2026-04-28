@@ -41,8 +41,8 @@ void timehandler() {
 static void sleep_deprivation_drain(void) {
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
-        if (pm_hp(pm) > 1) {
-            pm_add_hp(pm, -1);
+        if (pm_hit_points(pm) > 1) {
+            pm_add_hit_points(pm, -1);
         }
     }
 }
@@ -53,8 +53,8 @@ void foodhandler() {
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
         if ((pm_is_mage(pm) || pm_is_priest(pm)) &&
-            pm_ma(pm) < pm_wi(pm) && ryl_chance(regen_pct)) {
-            pm_add_ma(pm, 1);
+            pm_magic(pm) < pm_wisdom(pm) && ryl_chance(regen_pct)) {
+            pm_add_magic(pm, 1);
         }
     }
 
@@ -76,10 +76,10 @@ void foodhandler() {
         for_each_party_member(i) {
             pm_t pm = pm_cur(i);
             if (!pm_dead(pm)) {
-                pm_add_hp(pm, -damage);
+                pm_add_hit_points(pm, -damage);
             }
-            if (pm_hp(pm) < 1 && !pm_dead(pm)) {
-                pm_set_hp(pm, 0);
+            if (pm_hit_points(pm) < 1 && !pm_dead(pm)) {
+                pm_set_hit_points(pm, 0);
                 clw();
                 tx_fmt("subs.foodhandler.starved",
                        (ryl_bind[]){{"name", pm_name(pm)}, {0}});
@@ -288,10 +288,10 @@ void weaponoff() {
         } else {
             clw();
             tx_fmt("subs.equipment.removed",
-                   (ryl_bind[]){{"object", object(pm_wp(pm))}, {0}});
+                   (ryl_bind[]){{"object", object(pm_weapon(pm))}, {0}});
             ryl_delay(800);
-            pa_set_inventory(x, pm_wp(pm));
-            pm_set_wp(pm, 0);
+            pa_set_inventory(x, pm_weapon(pm));
+            pm_set_weapon(pm, 0);
             clw();
             return;
         }
@@ -326,10 +326,10 @@ void armouroff() {
         } else {
             clw();
             tx_fmt("subs.equipment.removed",
-                   (ryl_bind[]){{"object", object(pm_ar(pm))}, {0}});
+                   (ryl_bind[]){{"object", object(pm_armour(pm))}, {0}});
             ryl_delay(800);
-            pa_set_inventory(x, pm_ar(pm));
-            pm_set_ar(pm, 0);
+            pa_set_inventory(x, pm_armour(pm));
+            pm_set_armour(pm, 0);
             clw();
             return;
         }
@@ -367,8 +367,8 @@ void weaponr() {
         tx0(res_text("subs.dead"));
         return;
     }
-    int32_t temp = pm_wp(pm);
-    pm_set_wp(pm, pa_inventory(slot));
+    int32_t temp = pm_weapon(pm);
+    pm_set_weapon(pm, pa_inventory(slot));
     pa_set_inventory(slot, temp);
     clw();
     tx0(res_text("subs.weaponr.changed"));
@@ -407,8 +407,8 @@ void armourr() {
         tx0(res_text("subs.dead"));
         return;
     }
-    int32_t temp = pm_ar(pm);
-    pm_set_ar(pm, pa_inventory(slot));
+    int32_t temp = pm_armour(pm);
+    pm_set_armour(pm, pa_inventory(slot));
     pa_set_inventory(slot, temp);
     clw();
     tx0(res_text("subs.armourr.changed"));
@@ -607,7 +607,7 @@ void spell(int32_t place) {
             continue;
         }
         tx("%d. %-12s(%3d/%3d)\r\n", slot, s->name,
-           s->base_cost + pm_lv(caster), pm_ma(caster));
+           s->base_cost + pm_level(caster), pm_magic(caster));
     }
     tx("8. Abort\r\n");
 
