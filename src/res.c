@@ -146,6 +146,7 @@ typedef struct {
     int32_t x, y;
     int32_t tax;
     int32_t has_church;
+    int32_t is_city; /* class: 'city' (true) or 'village'/absent (false) */
 } ryl_town;
 static ryl_town *towns;
 static size_t towns_cap;
@@ -1083,6 +1084,13 @@ int32_t res_town_has_church(int twn) {
         return 0;
     }
     return towns[twn].has_church;
+}
+
+int32_t res_town_is_city(int twn) {
+    if (twn < 0 || twn >= (int)n_towns || !towns[twn].name) {
+        return 0;
+    }
+    return towns[twn].is_city;
 }
 
 int res_building_hours(const char *name, int *opens_at, int *closes_at) {
@@ -2102,6 +2110,9 @@ static void fold_towns(const node *towns_node, const char *path) {
         towns[i].tax = (tax && tax->kind == N_INT) ? tax->u.iv : 0;
         const node *ch = obj_get(rec, "has_church");
         towns[i].has_church = (ch && ch->kind == N_BOOL && ch->u.bv) ? 1 : 0;
+        const node *cls = obj_get(rec, "class");
+        towns[i].is_city =
+            (cls && cls->kind == N_STR && strcmp(cls->u.sv, "city") == 0) ? 1 : 0;
     }
 }
 

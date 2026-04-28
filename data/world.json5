@@ -465,10 +465,10 @@
   // `interact.c:162-172` coord chain, `towne.c` twnname chain, and
   // `speak.c` "in %s" chains all resolve through this table.
   towns: [
-    { name: 'Thord', x: 12, y: 11, tax:  7, has_church: true  },
-    { name: 'Ollk',  x: 48, y: 12, tax: 10, has_church: false },
-    { name: 'Wilor', x: 43, y: 20, tax:  9, has_church: true  },
-    { name: 'Murn',  x: 55, y: 29, tax:  8, has_church: false },
+    { name: 'Thord', x: 12, y: 11, tax:  7, has_church: true,  class: 'village' },
+    { name: 'Ollk',  x: 48, y: 12, tax: 10, has_church: false, class: 'village' },
+    { name: 'Wilor', x: 43, y: 20, tax:  9, has_church: true,  class: 'city'    },
+    { name: 'Murn',  x: 55, y: 29, tax:  8, has_church: false, class: 'village' },
   ],
 
   // Per-building opening hours (§17-F). Keyed by a short building id

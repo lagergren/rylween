@@ -339,6 +339,11 @@ int32_t res_town_tax(int twn);
    gate. Default false: omitted records have no church. */
 int32_t res_town_has_church(int twn);
 
+/* 1 if the town record sets `class: 'city'`, else 0 (the default —
+   omitted or `class: 'village'`). Drives the towne.c::enter
+   "town/village" wording fork. */
+int32_t res_town_is_city(int twn);
+
 /* Number of declared towns (slots 0..res_town_count()-1). The npc-
    placement bin draw uses bins 0..n_towns where bin 0 corresponds to
    the wilderness; the result-mapping shifts that to towns slot

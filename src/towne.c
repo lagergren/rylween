@@ -227,12 +227,10 @@ void enter() {
         blitgfx(citypic);
         clw();
         statusline();
-        /* Wilor (towns[2] post-§25.B step 3b axis flip) is the only
-           town tagged "city"; the other three render as villages.
-           This is a hardcoded data dependency the §17.A.4 / §24bis
-           pass would lift to per-town data, but the constant suffices
-           as long as the towns table tops out at four entries. */
-        tx_fmt(state.twn == 2 ? "towne.enter.city" : "towne.enter.village",
+        /* Settlement class lives on each town record (`class: 'city'`
+           vs the 'village' default in data/world.json5); res_town_is_city
+           returns 1 for cities, 0 for villages. */
+        tx_fmt(res_town_is_city(state.twn) ? "towne.enter.city" : "towne.enter.village",
                (ryl_bind[]){{"twn", twnname}, {0}});
         tx0(res_text("towne.enter.divider"));
         tx0(res_text("towne.enter.menu_core"));
