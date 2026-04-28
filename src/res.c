@@ -1028,11 +1028,12 @@ const ryl_spell *res_spell(const char *class_name, int slot) {
     if (slot < 1 || slot > RES_MAX_SPELL_SLOT) {
         return NULL;
     }
-    int cid = pm_class_id(class_name);
+    /* §24bis phase 3 cleanup: slug compare drops the pm_class_id /
+       PC_* int round-trip. class_name is the lowercase enum key. */
     const ryl_spell *tab;
-    if (cid == PC_PRIEST) {
+    if (class_name && strcmp(class_name, "priest") == 0) {
         tab = priest_spells;
-    } else if (cid == PC_MAGE) {
+    } else if (class_name && strcmp(class_name, "mage") == 0) {
         tab = mage_spells;
     } else {
         return NULL;
@@ -1711,7 +1712,10 @@ static void fold_wieldable_by(node *rec, const char *path) {
             if (!el || el->kind != N_STR) {
                 res_die(path, val->line, "wieldable_by: element must be string");
             }
-            int cid = pm_class_id(el->u.sv);
+            /* §24bis phase 3 cleanup: lookup the slug in the
+               pc_class enum directly; no need for the pm_class_id
+               name→PC_* mapper. */
+            int cid = res_enum_id("pc_class", el->u.sv);
             if (cid < 0) {
                 res_die(path, el->line, "wieldable_by: unknown class");
             }
@@ -1956,11 +1960,11 @@ static void fold_spells(const node *classes_node, const node *spells_node, const
         if (!list || list->kind != N_ARR) {
             continue;
         }
-        int cid = pm_class_id(cname);
+        /* §24bis phase 3 cleanup: slug compare. */
         ryl_spell *tab = NULL;
-        if (cid == PC_PRIEST) {
+        if (strcmp(cname, "priest") == 0) {
             tab = priest_spells;
-        } else if (cid == PC_MAGE) {
+        } else if (strcmp(cname, "mage") == 0) {
             tab = mage_spells;
         } else {
             continue;
@@ -3207,11 +3211,11 @@ static void reset_spells_from_tree(const node *classes_node, const node *spells_
         if (!list || list->kind != N_ARR) {
             continue;
         }
-        int cid = pm_class_id(cname);
+        /* §24bis phase 3 cleanup: slug compare. */
         ryl_spell *tab;
-        if (cid == PC_PRIEST) {
+        if (strcmp(cname, "priest") == 0) {
             tab = priest_spells;
-        } else if (cid == PC_MAGE) {
+        } else if (strcmp(cname, "mage") == 0) {
             tab = mage_spells;
         } else {
             continue;

@@ -248,15 +248,12 @@ static inline int is_hour_in_range(int lo, int hi) {
     return h >= lo || h <= hi;
 }
 
-/* Party member class IDs (party.cl[]). Note this is distinct from the
-   `struct person`.job numbering used for NPCs — different enum, same names
-   for some entries. Driv.c:904-906 is the authoritative menu. */
-#define PC_FIGHTER 1
-#define PC_THIEF   2
-#define PC_MAGE    3
-#define PC_PRIEST  4
-#define PC_BARD    5
-#define PC_RANGER  6
+/* §24bis phase 3 cleanup: PC_FIGHTER..PC_RANGER int constants retired.
+   struct party.cl[] now stores the slug pointer (e.g. "fighter") into
+   res's enum keys[] table; class predicates compare by slug via
+   pm_class_is_sym / pa_class_is_sym. The legacy int slot id (1..6) is
+   still recoverable at the snapshot / save / DSL boundary via
+   res_enum_id("pc_class", slug). */
 
 /* View handle over a single party member. Cheap by-value. Field access
    goes through pm_* accessors so call sites read `pm_lv(pm)` instead of
@@ -409,23 +406,26 @@ static inline int pm_race_is_sym(pm_t pm, const char *sym) {
     const char *s = pm_race_sym(pm);
     return s && sym && strcmp(s, sym) == 0;
 }
+/* Class predicates by slug. §24bis phase 3 cleanup: storage is the
+   slug pointer, so these compare directly to the script-stable enum
+   key without going through PC_* magic numbers. */
 static inline int pm_is_fighter(pm_t pm) {
-    return pm_is_class(pm, PC_FIGHTER);
+    return pm_class_is_sym(pm, "fighter");
 }
 static inline int pm_is_thief(pm_t pm) {
-    return pm_is_class(pm, PC_THIEF);
+    return pm_class_is_sym(pm, "thief");
 }
 static inline int pm_is_mage(pm_t pm) {
-    return pm_is_class(pm, PC_MAGE);
+    return pm_class_is_sym(pm, "mage");
 }
 static inline int pm_is_priest(pm_t pm) {
-    return pm_is_class(pm, PC_PRIEST);
+    return pm_class_is_sym(pm, "priest");
 }
 static inline int pm_is_bard(pm_t pm) {
-    return pm_is_class(pm, PC_BARD);
+    return pm_class_is_sym(pm, "bard");
 }
 static inline int pm_is_ranger(pm_t pm) {
-    return pm_is_class(pm, PC_RANGER);
+    return pm_class_is_sym(pm, "ranger");
 }
 /* Mage + priest — the two classes with a spell list / mana pool. Used
    by the mana-restoration potion and the level-up mana-regen branch,
@@ -657,9 +657,9 @@ static inline void party_set_gold(int32_t v) {
     party_current()->gold = v;
 }
 
-/* Class name (e.g. "priest") -> PC_* id, or -1 if unknown. Used by the
-   resource loader to map JSON class strings to the runtime enum. */
-int pm_class_id(const char *name);
+/* §24bis phase 3 cleanup: pm_class_id retired. Class name → int id is
+   now `res_enum_id("pc_class", name)`; the same lookup that any other
+   enum slug-to-int conversion uses. */
 
 /* ---- NPC handle ---------------------------------------------------
    View over a single state.npc[] record, mirroring pm_t for party

@@ -10,31 +10,6 @@
 #include <time.h>
 #include <unistd.h>
 
-int pm_class_id(const char *name) {
-    if (!name) {
-        return -1;
-    }
-    if (strcmp(name, "fighter") == 0) {
-        return PC_FIGHTER;
-    }
-    if (strcmp(name, "thief") == 0) {
-        return PC_THIEF;
-    }
-    if (strcmp(name, "mage") == 0 || strcmp(name, "wizard") == 0) {
-        return PC_MAGE;
-    }
-    if (strcmp(name, "priest") == 0) {
-        return PC_PRIEST;
-    }
-    if (strcmp(name, "bard") == 0) {
-        return PC_BARD;
-    }
-    if (strcmp(name, "ranger") == 0) {
-        return PC_RANGER;
-    }
-    return -1;
-}
-
 void ryl_delay(unsigned ms) {
     static int resolved = 0;
     static int suppressed = 0;
