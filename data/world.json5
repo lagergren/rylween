@@ -630,16 +630,16 @@
     },
   },
 
-  // NPCs — one entry per slot, keyed by display name (the same
-  // strings served by enums.name; slot count comes from that enum
-  // via res_npc_slot_max, not a hard 40). `id` pins the numeric slot
-  // index used by state.npc[]; ids must form a contiguous
-  // 0..count-1 range (post-§25.B step 4). `job` is mandatory. An
-  // entry with `towne` declared is FIXED (apply the declared
-  // job/towne/building/x/y verbatim); an entry without `towne` is
-  // RANDOM (realizer rolls towne / building / wilderness x,y at
-  // cold start). The realizer walks this object in declaration
-  // order.
+  // NPCs — one entry per slot, keyed by symbolic id. The state.npc[]
+  // slot is assigned positionally by declaration order: garth=0,
+  // nrim_to=1, ..., ufarsin=38. Slot count comes from this object's
+  // entry count (capped by NPC_SLOT_HARD_MAX), not a hard 40. `job`
+  // is mandatory. An entry with `towne` declared is FIXED (apply the
+  // declared job/towne/building/x/y verbatim); an entry without
+  // `towne` is RANDOM (realizer rolls towne / building / wilderness
+  // x,y at cold start). The realizer walks this object in
+  // declaration order — reordering entries reorders slots and shifts
+  // the random-placement RNG stream, so don't reorder casually.
   //
   // Two §15.3 oddities preserved as-is for byte-parity review:
   //   - Bargirls only in Thord (slot 0) and Wilor (slot 2); Ollk
@@ -650,30 +650,30 @@
   //     write_current_world iterates slots 0..res_npc_slot_max()-1
   //     and save() / npc.dat mirror the same range.
   npcs: {
-    garth:    { id:  0, name: 'Garth',    job: 'merchant', towne: 'Thord', building: 'inn' },
-    nrim_to:  { id:  1, name: "Nrim'to",  job: 'ranger'   },
-    areth:    { id:  2, name: 'Areth',    job: 'fighter'  },
-    nevaak:   { id:  3, name: 'Nevaak',   job: 'wizard'   },
-    gorm:     { id:  4, name: 'Gorm',     job: 'priest'   },
-    bernak:   { id:  5, name: 'Bernak',   job: 'thief'    },
-    matias:   { id:  6, name: 'Matias',   job: 'peasant'  },
-    tybalt:   { id:  7, name: 'Tybalt',   job: 'bard'     },
-    romeo:    { id:  8, name: 'Romeo',    job: 'drifter'  },
-    werra:    { id:  9, name: 'Werra',    job: 'half_orc' },
-    arenjun:  { id: 10, name: 'Arenjun',  job: 'half_elf' },
-    oskar:    { id: 11, name: 'Oskar',    job: 'smith'    },
-    harry:    { id: 12, name: 'Harry',    job: 'merchant' },
-    marraga:  { id: 13, name: 'Marraga',  job: 'ranger'   },
-    broth:    { id: 14, name: 'Broth',    job: 'fighter'  },
-    ebond:    { id: 15, name: 'Ebond',    job: 'wizard'   },
-    bolph:    { id: 16, name: 'Bolph',    job: 'priest'   },
-    gotharp:  { id: 17, name: 'Gotharp',  job: 'thief'    },
-    ron:      { id: 18, name: 'Ron',      job: 'peasant'  },
-    kaal:     { id: 19, name: 'Kaal',     job: 'bard'     },
-    daniel:   { id: 20, name: 'Daniel',   job: 'drifter'  },
-    leander:  { id: 21, name: 'Leander',  job: 'half_orc' },
-    ithienn:  { id: 22, name: 'Ithienn',  job: 'half_elf' },
-    azaaza:   { id: 23, name: 'Azaaza',   job: 'smith'    },
+    garth:    { name: 'Garth',    job: 'merchant', towne: 'Thord', building: 'inn' },
+    nrim_to:  { name: "Nrim'to",  job: 'ranger'   },
+    areth:    { name: 'Areth',    job: 'fighter'  },
+    nevaak:   { name: 'Nevaak',   job: 'wizard'   },
+    gorm:     { name: 'Gorm',     job: 'priest'   },
+    bernak:   { name: 'Bernak',   job: 'thief'    },
+    matias:   { name: 'Matias',   job: 'peasant'  },
+    tybalt:   { name: 'Tybalt',   job: 'bard'     },
+    romeo:    { name: 'Romeo',    job: 'drifter'  },
+    werra:    { name: 'Werra',    job: 'half_orc' },
+    arenjun:  { name: 'Arenjun',  job: 'half_elf' },
+    oskar:    { name: 'Oskar',    job: 'smith'    },
+    harry:    { name: 'Harry',    job: 'merchant' },
+    marraga:  { name: 'Marraga',  job: 'ranger'   },
+    broth:    { name: 'Broth',    job: 'fighter'  },
+    ebond:    { name: 'Ebond',    job: 'wizard'   },
+    bolph:    { name: 'Bolph',    job: 'priest'   },
+    gotharp:  { name: 'Gotharp',  job: 'thief'    },
+    ron:      { name: 'Ron',      job: 'peasant'  },
+    kaal:     { name: 'Kaal',     job: 'bard'     },
+    daniel:   { name: 'Daniel',   job: 'drifter'  },
+    leander:  { name: 'Leander',  job: 'half_orc' },
+    ithienn:  { name: 'Ithienn',  job: 'half_elf' },
+    azaaza:   { name: 'Azaaza',   job: 'smith'    },
     // Innkeepers: job 14, in the inn (building = 'inn'). The legacy
     // person.c:95-121 had these at building = 'tavern', which is
     // backwards — Hassan is the innkeeper of Thord's INN (towne.c:1265
@@ -682,15 +682,15 @@
     // write-only field today (grep confirms no reader), so the
     // correction is behavior-neutral but makes the save file say what
     // it should.
-    hassan:   { id: 24, name: 'Hassan',   job: 'innkeeper',    towne: 'Thord', building: 'inn' },
-    luqas:    { id: 25, name: 'Luqas',    job: 'innkeeper',    towne: 'Ollk',  building: 'inn' },
-    darth:    { id: 26, name: 'Darth',    job: 'innkeeper',    towne: 'Wilor', building: 'inn' },
-    yog:      { id: 27, name: 'Yog',      job: 'innkeeper',    towne: 'Murn',  building: 'inn' },
-    niklas:   { id: 28, name: 'Niklas',   job: 'tavernkeeper', towne: 'Thord', building: 'tavern' },
-    tokawa:   { id: 29, name: 'Tokawa',   job: 'tavernkeeper', towne: 'Ollk',  building: 'tavern' },
-    miyaki:   { id: 30, name: 'Miyaki',   job: 'tavernkeeper', towne: 'Wilor', building: 'tavern' },
-    dargoth:  { id: 31, name: 'Dargoth',  job: 'tavernkeeper', towne: 'Murn',  building: 'tavern' },
-    marcus:   { id: 32, name: 'Marcus',   job: 'hermit',       towne: 'wilderness', x: 48, y: 7 },
+    hassan:   { name: 'Hassan',   job: 'innkeeper',    towne: 'Thord', building: 'inn' },
+    luqas:    { name: 'Luqas',    job: 'innkeeper',    towne: 'Ollk',  building: 'inn' },
+    darth:    { name: 'Darth',    job: 'innkeeper',    towne: 'Wilor', building: 'inn' },
+    yog:      { name: 'Yog',      job: 'innkeeper',    towne: 'Murn',  building: 'inn' },
+    niklas:   { name: 'Niklas',   job: 'tavernkeeper', towne: 'Thord', building: 'tavern' },
+    tokawa:   { name: 'Tokawa',   job: 'tavernkeeper', towne: 'Ollk',  building: 'tavern' },
+    miyaki:   { name: 'Miyaki',   job: 'tavernkeeper', towne: 'Wilor', building: 'tavern' },
+    dargoth:  { name: 'Dargoth',  job: 'tavernkeeper', towne: 'Murn',  building: 'tavern' },
+    marcus:   { name: 'Marcus',   job: 'hermit',       towne: 'wilderness', x: 48, y: 7 },
 
     // Bargirls: job 13, in the tavern. Legacy person.c:163 had these
     // at building = 'inn' — another latent write-only bug: towne.c:1189
@@ -702,12 +702,12 @@
     // the res_pronoun lookup and the well_f / health_f chitchat
     // branches in speak.c. All other NPC records omit `gender` and
     // fall through the rn_enum default of 1 (male).
-    deanna:   { id: 33, name: 'Deanna',   job: 'bargirl',      towne: 'Thord', building: 'tavern', gender: 'female' },
-    jeanne:   { id: 34, name: 'Jeanne',   job: 'bargirl',      towne: 'Wilor', building: 'tavern', gender: 'female' },
-    alex:     { id: 35, name: 'Alex',     job: 'merchant',     towne: 'wilderness' },
-    galdon:   { id: 36, name: 'Galdon',   job: 'merchant',     towne: 'wilderness' },
-    kosch:    { id: 37, name: 'Kosch',    job: 'merchant',     towne: 'wilderness' },
-    ufarsin:  { id: 38, name: 'Ufarsin',  job: 'merchant',     towne: 'wilderness' },
+    deanna:   { name: 'Deanna',   job: 'bargirl',      towne: 'Thord', building: 'tavern', gender: 'female' },
+    jeanne:   { name: 'Jeanne',   job: 'bargirl',      towne: 'Wilor', building: 'tavern', gender: 'female' },
+    alex:     { name: 'Alex',     job: 'merchant',     towne: 'wilderness' },
+    galdon:   { name: 'Galdon',   job: 'merchant',     towne: 'wilderness' },
+    kosch:    { name: 'Kosch',    job: 'merchant',     towne: 'wilderness' },
+    ufarsin:  { name: 'Ufarsin',  job: 'merchant',     towne: 'wilderness' },
   },
 
   // Role -> NPC binding. The C side (rumour dispatch, speak cases,

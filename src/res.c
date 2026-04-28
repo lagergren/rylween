@@ -1184,11 +1184,11 @@ static int32_t rn_int(const node *obj, const char *key, int32_t dflt) {
     return (n && n->kind == N_INT) ? n->u.iv : dflt;
 }
 
-/* Count of NPC records declared in the npcs subtree (slots
-   0..count-1, post-§25.B step 4). Cached on first call after world
-   load — the writer iterates every slot on save, so the linear scan
-   would otherwise repeat per call. The cache is invalidated by
-   res_shutdown when world_tree is freed. */
+/* Count of NPC records declared in the npcs subtree. Slots are
+   assigned positionally by declaration order (entry 0 → slot 0, etc).
+   Cached on first call after world load — the writer iterates every
+   slot on save, so the linear scan would otherwise repeat per call.
+   The cache is invalidated by res_shutdown when world_tree is freed. */
 static int npc_slot_max_cache = -1;
 
 static void npc_slot_max_invalidate(void) {
@@ -1206,33 +1206,18 @@ static int npc_slot_max(void) {
     if (!npcs || npcs->kind != N_OBJ) {
         return 0;
     }
-    int max_id = -1;
     int count = 0;
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
         const node *rec = npcs->u.obj.items[i].val;
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
-        const node *id_n = obj_get(rec, "id");
-        if (id_n && id_n->kind == N_INT) {
-            count++;
-            if ((int)id_n->u.iv > max_id) {
-                max_id = (int)id_n->u.iv;
-            }
-        }
-    }
-    /* Ids must form 0..count-1 contiguous (post-§25.B step 4). */
-    if (count > 0 && max_id != count - 1) {
-        LOG_E("realm",
-              "world.json5 npcs ids must be 0..count-1 contiguous "
-              "(max=%d, count=%d)",
-              max_id, count);
-        exit(1);
+        count++;
     }
     if (count > NPC_SLOT_HARD_MAX) {
         LOG_E("realm",
               "world.json5 npcs count=%d exceeds NPC_SLOT_HARD_MAX (%d); "
-              "bump state.h or trim ids",
+              "bump state.h or trim entries",
               count, NPC_SLOT_HARD_MAX);
         exit(1);
     }
@@ -1244,10 +1229,11 @@ int res_npc_slot_max(void) {
     return npc_slot_max();
 }
 
-/* Symbolic NPC key (e.g. "gorm", "harry") -> state.npc[] slot. Walks
-   the npcs subtree directly and reads the entry's `id:` field. Fatal
-   on miss so a C-side typo or a rename of the NPC in world.json5
-   doesn't silently degrade to slot 0 (the wilderness sentinel).
+/* Symbolic NPC key (e.g. "gorm", "harry") -> state.npc[] slot. Slots
+   are assigned positionally by the declaration order of the npcs
+   subtree (entry 0 → slot 0, ...). Fatal on miss so a C-side typo or
+   a rename of the NPC in world.json5 doesn't silently degrade to slot
+   0 (the wilderness sentinel).
 
    Prefer res_npc_role at mission / rumour / quest call sites so the
    specific character's symbol doesn't leak into C; use res_npc_slot
@@ -1263,24 +1249,27 @@ int32_t res_npc_slot(const char *sym) {
         LOG_E("res", "res_npc_slot: npcs subtree missing");
         exit(1);
     }
-    const node *rec = obj_get(npcs, sym);
-    if (!rec || rec->kind != N_OBJ) {
-        LOG_E("res", "res_npc_slot: unknown NPC '%s'", sym);
-        exit(1);
+    int slot = 0;
+    for (size_t i = 0; i < npcs->u.obj.n; i++) {
+        const node *rec = npcs->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        if (!strcmp(npcs->u.obj.items[i].key, sym)) {
+            return (int32_t)slot;
+        }
+        slot++;
     }
-    const node *id_n = obj_get(rec, "id");
-    if (!id_n || id_n->kind != N_INT) {
-        LOG_E("res", "res_npc_slot: '%s' missing 'id'", sym);
-        exit(1);
-    }
-    return (int32_t)id_n->u.iv;
+    LOG_E("res", "res_npc_slot: unknown NPC '%s'", sym);
+    exit(1);
 }
 
 /* Slot-keyed walk over the npcs subtree. Returns the matching record,
    or NULL when no entry claims the slot. Both res_npc_sym and
    res_npc_name are thin shells around this. Slot 0 is a valid NPC
-   slot (post-§25.B step 4); negative slots are the only invalid
-   range. */
+   slot; negative slots and slots past the entry count are the
+   invalid ranges. Slots are positional — entry i in declaration
+   order claims slot i. */
 static const node *npc_record_for_slot(int32_t slot) {
     if (!world_tree || slot < 0) {
         return NULL;
@@ -1289,15 +1278,16 @@ static const node *npc_record_for_slot(int32_t slot) {
     if (!npcs || npcs->kind != N_OBJ) {
         return NULL;
     }
+    int idx = 0;
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
         const node *rec = npcs->u.obj.items[i].val;
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
-        const node *id_n = obj_get(rec, "id");
-        if (id_n && id_n->kind == N_INT && id_n->u.iv == slot) {
+        if (idx == slot) {
             return rec;
         }
+        idx++;
     }
     return NULL;
 }
@@ -1305,7 +1295,7 @@ static const node *npc_record_for_slot(int32_t slot) {
 /* Inverse of res_npc_slot: state.npc[] slot id -> the npcs-subtree key
    (lowercase symbol) for that entry. Returns NULL when no record claims
    the slot — used by the persistent-save writer, which iterates slots
-   0..N-1 regardless. */
+   0..N-1 regardless. Slots are positional in declaration order. */
 const char *res_npc_sym(int32_t slot) {
     if (!world_tree || slot < 0) {
         return NULL;
@@ -1314,15 +1304,16 @@ const char *res_npc_sym(int32_t slot) {
     if (!npcs || npcs->kind != N_OBJ) {
         return NULL;
     }
+    int idx = 0;
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
         const node *rec = npcs->u.obj.items[i].val;
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
-        const node *id_n = obj_get(rec, "id");
-        if (id_n && id_n->kind == N_INT && id_n->u.iv == slot) {
+        if (idx == slot) {
             return npcs->u.obj.items[i].key;
         }
+        idx++;
     }
     return NULL;
 }
@@ -1559,19 +1550,22 @@ void res_realize_npcs(void) {
     int slot_count = npc_slot_max();
     int N = 0;
     int fixed_count = 0;
-    for (size_t i = 0; i < npcs->u.obj.n; i++) {
-        const node *rec = npcs->u.obj.items[i].val;
-        if (!rec || rec->kind != N_OBJ) {
-            continue;
-        }
-        int slot = rn_int(rec, "id", -1);
-        if (slot < 0 || slot >= slot_count) {
-            continue;
-        }
-        if (!obj_get(rec, "towne")) {
-            N++;
-        } else {
-            fixed_count++;
+    {
+        int slot = 0;
+        for (size_t i = 0; i < npcs->u.obj.n; i++) {
+            const node *rec = npcs->u.obj.items[i].val;
+            if (!rec || rec->kind != N_OBJ) {
+                continue;
+            }
+            if (slot >= slot_count) {
+                break;
+            }
+            if (!obj_get(rec, "towne")) {
+                N++;
+            } else {
+                fixed_count++;
+            }
+            slot++;
         }
     }
     int cap = (N + T - 1) / T + npc_slack;
@@ -1584,14 +1578,14 @@ void res_realize_npcs(void) {
        0 even when fewer towns than the cap are declared. */
     int counts[TOWN_SLOT_HARD_MAX] = {0};
 
+    int slot = 0;
     for (size_t i = 0; i < npcs->u.obj.n; i++) {
         const node *rec = npcs->u.obj.items[i].val;
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
-        int slot = rn_int(rec, "id", -1);
-        if (slot < 0 || slot >= slot_count) {
-            continue;
+        if (slot >= slot_count) {
+            break;
         }
         struct person *n = &state.npc[slot];
         n->nr = slot;
@@ -1697,6 +1691,7 @@ void res_realize_npcs(void) {
                   n->towne == WILDERNESS_TOWN ? "Wilderness"
                                               : towns[n->towne].name);
         }
+        slot++;
     }
     tx("%c", 12);
 
