@@ -28,7 +28,7 @@ void dungeon(int32_t levels, const char *scenario) {
 
     blitgfx(insidecavepic);
 
-    state.banished = 0;
+    session_set_banished(0);
 
     for (i = 1; i < levels + 1; i++) {
         lvl[i] = ryl_random(1, 9);
@@ -100,7 +100,7 @@ void dungeon(int32_t levels, const char *scenario) {
             }
             if (c == 'Z') {
                 spell(1); /* 0 means over ground */
-                if (state.banished) {
+                if (session_banished()) {
                     for (i = 1; i < levels; i++) {
                         if (lvl[i] >= 3 && lvl[i] <= 5) {
                             lvl[i] = 0;

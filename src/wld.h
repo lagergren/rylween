@@ -61,6 +61,14 @@ int32_t wld_location_x(int slot);
 int32_t wld_location_y(int slot);
 void wld_location_set(int slot, int32_t x, int32_t y);
 
+/* Direct array handles for save/load loops only. The size is
+   WLD_LOCATION_SLOT_MAX (zero-init at startup). Game-code reads /
+   writes go through wld_location_x / wld_location_y / wld_location_set;
+   these pointers are only for the driv.c serializer to hand to
+   wcw_i32_arr / rcw_i32_arr. */
+int32_t *wld_locations_dx(void);
+int32_t *wld_locations_dy(void);
+
 /* Records the tile the party just stepped off — read by subs.c's
    random_wilderness terrain-transition check (`check_terrain(
    wld_last_terrain(), wld_tile_at(...))`). state.last_terrain is a

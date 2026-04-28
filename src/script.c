@@ -710,10 +710,10 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
         return pa_pl();
     }
     if (obj_get(n, "twn")) {
-        return state.twn;
+        return session_current_town();
     }
     if (obj_get(n, "hour_of_day")) {
-        return state.hour_of_day;
+        return session_hour();
     }
     if (obj_get(n, "hours_rested")) {
         return pa_hours_rested();
@@ -1067,7 +1067,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
        needed but symmetry-friendly so {state_banished} works inside an
        if-cond. */
     if (obj_get(n, "state_banished")) {
-        return state.banished;
+        return session_banished();
     }
 
     die_at(script_id, idx, "expr: unknown expression form");
@@ -1669,7 +1669,7 @@ static void do_speak(const node *op, const char *script_id, size_t idx,
     }
     int32_t tow = tow_n
         ? eval_expr(tow_n, script_id, idx, bindings, env)
-        : state.twn;
+        : session_current_town();
     speak(bld, tow);
 }
 
@@ -2464,7 +2464,7 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
         case LV_HOURS_RESTED:
             return pa_hours_rested();
         case LV_HOUR_OF_DAY:
-            return state.hour_of_day;
+            return session_hour();
         case LV_TIME_LEFT:
             return pa_time_left();
         case LV_FLAG:
@@ -2550,7 +2550,7 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
             return *p;
         }
         case LV_STATE_BANISHED:
-            return state.banished;
+            return session_banished();
     }
     die_at(script_id, idx, "mutate: corrupt lvalue tag");
 }
@@ -2584,7 +2584,7 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                 die_at(script_id, idx,
                        "mutate: hour_of_day must be 1..24");
             }
-            state.hour_of_day = v;
+            session_set_hour(v);
             return;
         case LV_TIME_LEFT:
             pa_set_time_left(v);
@@ -2695,7 +2695,7 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
             return;
         }
         case LV_STATE_BANISHED:
-            state.banished = v;
+            session_set_banished(v);
             return;
     }
     die_at(script_id, idx, "mutate: corrupt lvalue tag");

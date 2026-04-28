@@ -148,7 +148,7 @@ void random_wilderness() {
         return;
     }
 
-    if (!(pa_time_left() % 101) && !stricmp(state.global_name, "Karl Skagerberg")) {
+    if (!(pa_time_left() % 101) && !stricmp(session_player_name(), "Karl Skagerberg")) {
         encounter(res_monster_id("skagerberg_killer"), 1);
     }
 

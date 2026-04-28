@@ -24,7 +24,7 @@ static void the_game() {
     char path[64];
 
     clw();
-    state.hour_of_day = 5;
+    session_set_hour(5);
     pa_set_hours_rested(14);
 
     tx0(res_text("title.header"));
@@ -372,7 +372,7 @@ void init() {
        current-world.json5 so the next boot finds it. */
     if (!read_current_world()) {
         party_set_count(0);
-        state.last_played_day = 0;
+        session_set_last_played_day(0);
         position_locations();
         res_realize_npcs();
         write_current_world();
@@ -385,7 +385,7 @@ void init() {
     key();
 
     getclk(kl);
-    if (kl[3] != state.last_played_day) {
+    if (kl[3] != session_last_played_day()) {
         cl();
         tx0(res_text("driv.init.first_day"));
 
@@ -401,11 +401,11 @@ void init() {
             ryl_delay(40);
         }
         getclk(kl);
-        state.day_at_game_start = kl[3];
+        session_set_day_at_game_start(kl[3]);
         save();
     }
     getclk(kl);
-    state.day_at_game_start = kl[3];
+    session_set_day_at_game_start(kl[3]);
 
     cl();
     res_ansi_path("screen", path, sizeof path);
@@ -416,12 +416,12 @@ void init() {
 
         tx_fmt("driv.menu.owner",
                (ryl_bind[]){
-                   {"name", state.global_name},
+                   {"name", session_player_name()},
                    {0},
                });
 
         for (i = 1, x = 0; i < party_count() + 1; i++) {
-            if (!stricmp(state.global_name, party_at(i)->player)) {
+            if (!stricmp(session_player_name(), party_at(i)->player)) {
                 x = i;
             }
         }
@@ -546,7 +546,7 @@ void init() {
                         if (str[0] == 0) {
                             break;
                         }
-                        if (!stricmp(str, state.global_name)) {
+                        if (!stricmp(str, session_player_name())) {
                             i++;
                         }
                     }
@@ -569,7 +569,7 @@ void init() {
 
                     ryl_state_path("entry.dat", path, sizeof path);
                     fh = fopen(path, "ab");
-                    strcpy(str, state.global_name);
+                    strcpy(str, session_player_name());
                     fwrite((char *)str, sizeof(str), 1, fh);
                     fclose(fh);
 
@@ -854,7 +854,7 @@ static void write_current_world() {
     fputs("{\n", f);
 
     fputs("  realm: {\n", f);
-    fprintf(f, "    last_played_day: %d,\n", state.last_played_day);
+    fprintf(f, "    last_played_day: %d,\n", session_last_played_day());
     /* Recorded so the reader can reject saves whose member-array
        widths disagree with the current limits.party_member_max
        (§19.3.2). Strict-match policy — we're still porting and
@@ -865,10 +865,10 @@ static void write_current_world() {
 
     fputs("  locations: {\n", f);
     fputs("    dx: ", f);
-    wcw_i32_arr(f, state.dx, WLD_LOCATION_SLOT_MAX);
+    wcw_i32_arr(f, wld_locations_dx(), WLD_LOCATION_SLOT_MAX);
     fputs(",\n", f);
     fputs("    dy: ", f);
-    wcw_i32_arr(f, state.dy, WLD_LOCATION_SLOT_MAX);
+    wcw_i32_arr(f, wld_locations_dy(), WLD_LOCATION_SLOT_MAX);
     fputs(",\n", f);
     fputs("  },\n\n", f);
 
@@ -1236,7 +1236,7 @@ static int read_current_world() {
 
     const node *realm = obj_get(root, "realm");
     if (realm && realm->kind == N_OBJ) {
-        state.last_played_day = rcw_int(realm, "last_played_day", state.last_played_day);
+        session_set_last_played_day(rcw_int(realm, "last_played_day", session_last_played_day()));
         /* Strict member-array width check. A save whose recorded
            party_member_max disagrees with the current world's
            limits.party_member_max has per-member arrays of the
@@ -1260,8 +1260,8 @@ static int read_current_world() {
 
     const node *loc = obj_get(root, "locations");
     if (loc && loc->kind == N_OBJ) {
-        rcw_i32_arr(obj_get(loc, "dx"), state.dx, WLD_LOCATION_SLOT_MAX);
-        rcw_i32_arr(obj_get(loc, "dy"), state.dy, WLD_LOCATION_SLOT_MAX);
+        rcw_i32_arr(obj_get(loc, "dx"), wld_locations_dx(), WLD_LOCATION_SLOT_MAX);
+        rcw_i32_arr(obj_get(loc, "dy"), wld_locations_dy(), WLD_LOCATION_SLOT_MAX);
     }
 
     const node *npcs = obj_get(root, "npcs");
@@ -1404,7 +1404,7 @@ static int read_current_world() {
     /* Match load()'s behavior: set the current-party slot by matching
        the logged-in player name against each party's `player` field. */
     for (int i = 1; i <= party_count(); i++) {
-        if (!stricmp(state.global_name, party_at(i)->player)) {
+        if (!stricmp(session_player_name(), party_at(i)->player)) {
             party_set_current_slot(i);
         }
     }
@@ -1417,7 +1417,7 @@ void save() {
     char kl[8];
 
     getclk(kl);
-    state.last_played_day = kl[3];
+    session_set_last_played_day(kl[3]);
 
     write_current_world();
 }
@@ -1595,7 +1595,7 @@ static void createparty() {
     rk_apply_ydarg_grants(a);
     rk_apply_party_wp(a);
     rk_apply_party_hp_full(a);
-    strcpy(p->player, state.global_name);
+    strcpy(p->player, session_player_name());
     clw();
     tx0(res_text("driv.create.saving"));
     save();

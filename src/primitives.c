@@ -369,7 +369,7 @@ char key(void) {
     }
 
     /* Local sysop backdoors — preserved from the Amiga original. */
-    if (!stricmp(state.global_name, "Marcus Lagergren")) {
+    if (!stricmp(session_player_name(), "Marcus Lagergren")) {
         switch (ch) {
             case '/':
                 pa_add_time_left(50);

@@ -72,6 +72,14 @@ void wld_location_set(int slot, int32_t x, int32_t y) {
     state.dy[slot] = y;
 }
 
+int32_t *wld_locations_dx(void) {
+    return state.dx;
+}
+
+int32_t *wld_locations_dy(void) {
+    return state.dy;
+}
+
 char wld_last_terrain(void) {
     return state.last_terrain;
 }

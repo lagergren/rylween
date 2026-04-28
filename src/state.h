@@ -544,6 +544,65 @@ static inline void party_count_dec(void) {
 static inline struct party *party_current(void) {
     return &state.p[state.cpl];
 }
+
+/* ------------ Session-level scalars ----------------------------------
+   Top-level fields of struct ryl_state that aren't tied to a party,
+   NPC, or map abstraction module. The getters/setters here are pure
+   field aliases — the abstraction's value is encapsulation: when the
+   storage shape changes (§12.3 dynamic sizing, §24bis slug-keyed
+   state, save-format rework) only state.h moves. */
+
+/* Logged-in player display name (state.global_name). Set once by
+   main() from argv; every other site is a read. */
+static inline const char *session_player_name(void) {
+    return state.global_name;
+}
+
+/* Wall-clock day cursors. last_played_day records the day the realm
+   was last advanced; day_at_game_start is captured per-boot for status
+   / score displays. */
+static inline int32_t session_last_played_day(void) {
+    return state.last_played_day;
+}
+static inline void session_set_last_played_day(int32_t d) {
+    state.last_played_day = d;
+}
+static inline int32_t session_day_at_game_start(void) {
+    return state.day_at_game_start;
+}
+static inline void session_set_day_at_game_start(int32_t d) {
+    state.day_at_game_start = d;
+}
+
+/* Banished flag (state.banished). Set by the priest banish ritual via
+   the DSL mutator; read by dungeon.c to gate dungeon entry; cleared on
+   dungeon entry. */
+static inline int32_t session_banished(void) {
+    return state.banished;
+}
+static inline void session_set_banished(int32_t v) {
+    state.banished = v;
+}
+
+/* Hour of day (state.hour_of_day, 1..24). The plain getter/setter
+   pair lets the DSL eval/set the field directly; advance_hour() is
+   the only correct ++ path. */
+static inline int32_t session_hour(void) {
+    return state.hour_of_day;
+}
+static inline void session_set_hour(int32_t h) {
+    state.hour_of_day = h;
+}
+
+/* Current town (state.twn). Owned by towne.c (writes on enter/leave);
+   the getter is for cross-module reads (script.c DSL bindings,
+   snapshot writer). */
+static inline int32_t session_current_town(void) {
+    return state.twn;
+}
+static inline void session_set_current_town(int32_t t) {
+    state.twn = t;
+}
 static inline int32_t party_gold(void) {
     return party_current()->gold;
 }

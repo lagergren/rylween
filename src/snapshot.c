@@ -100,10 +100,10 @@ static void snapshot_write(void) {
     }
     fputs("# rylween state snapshot v1\n", f);
     fprintf(f, "cpl=%d\n", party_current_slot());
-    fprintf(f, "twn=%d\n", state.twn);
-    fprintf(f, "hour_of_day=%d\n", state.hour_of_day);
-    fprintf(f, "banished=%d\n", state.banished);
-    fprintf(f, "last_played_day=%d\n", state.last_played_day);
+    fprintf(f, "twn=%d\n", session_current_town());
+    fprintf(f, "hour_of_day=%d\n", session_hour());
+    fprintf(f, "banished=%d\n", session_banished());
+    fprintf(f, "last_played_day=%d\n", session_last_played_day());
     if (party_current_slot() >= 1 && party_current_slot() < PARTY_SLOT_HARD_MAX) {
         emit_party(f, party_current_slot());
     }
