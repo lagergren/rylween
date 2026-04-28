@@ -56,16 +56,16 @@ static void emit_party(FILE *f, int idx) {
     fputc('\n', f);
 
     for_each_party_member(m) {
-        /* §24bis phase 3 class+race axes: storage is slug pointer;
-           translate back to int at the snapshot boundary so fixtures
-           stay byte-identical. NULL slug → 0 (the calloc-zero unset
-           sentinel). */
-        int cl_int = p->cl[m] ? res_enum_id("pc_class", p->cl[m]) : 0;
-        int ra_int = p->ra[m] ? res_enum_id("race", p->ra[m]) : 0;
+        /* §24bis phase 3 cleanup: class+race emit as slugs (e.g.
+           cl=fighter ra=human) directly from the slug-pointer storage.
+           Empty string for the unset sentinel matches the calloc-zero
+           initial state. */
+        const char *cl_s = p->cl[m] ? p->cl[m] : "";
+        const char *ra_s = p->ra[m] ? p->ra[m] : "";
         fprintf(f,
-                "member[%d] name=%s gender=%u cl=%d ra=%d lv=%d dead=%d "
+                "member[%d] name=%s gender=%u cl=%s ra=%s lv=%d dead=%d "
                 "h=%d hp=%d ws=%d wi=%d ma=%d ch=%d ar=%d wp=%d exp=%u\n",
-                m, p->name[m], p->gender[m], cl_int, ra_int, p->lv[m],
+                m, p->name[m], p->gender[m], cl_s, ra_s, p->lv[m],
                 p->dead[m], p->h[m], p->hp[m], p->ws[m], p->wi[m], p->ma[m],
                 p->ch[m], p->ar[m], p->wp[m], p->exp[m]);
     }
