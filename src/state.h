@@ -233,9 +233,11 @@ struct ryl_state {
     int32_t day_at_game_start;
     char global_name[30];
 
-    /* Location tables (set at init, read thereafter). */
-    int32_t dx[15];
-    int32_t dy[15];
+    /* Location tables (set at init, read thereafter). Heap-allocated
+       to res_location_slot_max() entries by res_load_world; freed in
+       res_shutdown. NULL until then; wld.c is the sole consumer. */
+    int32_t *dx;
+    int32_t *dy;
 
     /* Persistent game data (flushed to realm.dat / npc.dat). */
     /* World-map runtime grid — flat 1D buffer of res_map_rows_max() ×

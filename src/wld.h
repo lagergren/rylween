@@ -54,33 +54,33 @@ int wld_is_passable(int x, int y);
    range y is a no-op. */
 void wld_load_row(int y, FILE *fh);
 
-/* Random-location placements (state.dx[]/dy[]). WLD_LOCATION_SLOT_MAX
-   slots, written by driv.c::position_locations on cold-start and read
-   by mission triggers / speak bindings to identify "the dungeon a
-   quest sends the party to". Slot indices are scenario-specific (see
-   missions.c usage); helpers do an internal 0..MAX-1 bounds check and
-   treat out-of-range slots as the (0,0) wilderness sentinel.
+/* Random-location placements (state.dx[]/dy[]). Heap-allocated to
+   res_location_slot_max() entries by res_load_world; written by
+   driv.c::position_locations on cold-start and read by mission
+   triggers / speak bindings to identify "the dungeon a quest sends
+   the party to". Slot indices are scenario-specific (see missions.c
+   usage); helpers do an internal 0..res_location_slot_max()-1 bounds
+   check and treat out-of-range slots as the (0,0) wilderness
+   sentinel.
 
-   WLD_LOCATION_SLOT_MAX is the array size (zero-init + save/load
-   bound). WLD_RANDOM_LOCATION_MAX is the upper bound (inclusive) of
-   the slots that get randomized at cold-start — slots 1..MAX get a
-   random (x,y) inside `map.location_bounds`; slot 0 stays the (0,0)
-   wilderness sentinel and slots above the random max stay at (0,0)
-   too (reserved for static / unused placements). */
-enum {
-    WLD_LOCATION_SLOT_MAX = 15,
-    WLD_RANDOM_LOCATION_MAX = 9,
-};
+   The data layer is the source of truth — `limits.location_slot_max`
+   (default 15) sizes the table, `limits.random_location_max` (default
+   9) is the inclusive upper bound of the slots that get randomized at
+   cold-start. Slots 1..random_location_max get a random (x, y) inside
+   `map.location_bounds`; slot 0 stays the (0,0) wilderness sentinel
+   and slots above the random max stay at (0,0) too (reserved for
+   static / unused placements). The `res_location_slot_max()` /
+   `res_random_location_max()` accessors live in res.h. */
 
 int32_t wld_location_x(int slot);
 int32_t wld_location_y(int slot);
 void wld_location_set(int slot, int32_t x, int32_t y);
 
 /* Direct array handles for save/load loops only. The size is
-   WLD_LOCATION_SLOT_MAX (zero-init at startup). Game-code reads /
-   writes go through wld_location_x / wld_location_y / wld_location_set;
-   these pointers are only for the driv.c serializer to hand to
-   wcw_i32_arr / rcw_i32_arr. */
+   res_location_slot_max() (zero-init at world-load). Game-code reads
+   / writes go through wld_location_x / wld_location_y /
+   wld_location_set; these pointers are only for the driv.c
+   serializer to hand to wcw_i32_arr / rcw_i32_arr. */
 int32_t *wld_locations_dx(void);
 int32_t *wld_locations_dy(void);
 

@@ -87,7 +87,7 @@ void wld_load_row(int y, FILE *fh) {
 }
 
 static int location_in_range(int slot) {
-    return slot >= 0 && slot < WLD_LOCATION_SLOT_MAX;
+    return slot >= 0 && slot < res_location_slot_max();
 }
 
 int32_t wld_location_x(int slot) {

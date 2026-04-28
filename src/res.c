@@ -1452,6 +1452,22 @@ int res_map_cols_max(void) {
     return (int)map_cols_max;
 }
 
+/* Random-location slot caps. wld.h's WLD_LOCATION_SLOT_MAX (15) and
+   WLD_RANDOM_LOCATION_MAX (9) are the defaults; world.json5 can
+   override via `limits.location_slot_max` / `limits.random_location_max`.
+   state.dx / state.dy are heap-allocated off location_slot_max at
+   world-load. */
+static int32_t location_slot_max = 15;
+static int32_t random_location_max = 9;
+
+int res_location_slot_max(void) {
+    return (int)location_slot_max;
+}
+
+int res_random_location_max(void) {
+    return (int)random_location_max;
+}
+
 int res_party_member_max(void) {
     /* Test-harness override: RYL_PARTY_MEMBER_MAX is read once and
        cached so res_party_member_max() stays cheap. Lets a §19.3.4
@@ -2342,6 +2358,37 @@ static void fold_limits(const node *limits_node, const char *path) {
         }
         party_slot_max = psm->u.iv;
     }
+    const node *lsm = obj_get(limits_node, "location_slot_max");
+    if (lsm) {
+        if (lsm->kind != N_INT) {
+            res_die(path, lsm->line,
+                    "limits.location_slot_max: expected integer");
+        }
+        if (lsm->u.iv < 1) {
+            res_die(path, lsm->line,
+                    "limits.location_slot_max: must be >= 1");
+        }
+        location_slot_max = lsm->u.iv;
+    }
+    const node *rlm = obj_get(limits_node, "random_location_max");
+    if (rlm) {
+        if (rlm->kind != N_INT) {
+            res_die(path, rlm->line,
+                    "limits.random_location_max: expected integer");
+        }
+        if (rlm->u.iv < 0) {
+            res_die(path, rlm->line,
+                    "limits.random_location_max: must be >= 0");
+        }
+        random_location_max = rlm->u.iv;
+    }
+    /* random_location_max addresses slots 1..random_location_max; that
+       must fit inside location_slot_max (slots 0..location_slot_max-1).
+       Catch the misconfiguration at fold time. */
+    if (random_location_max >= location_slot_max) {
+        res_die(path, limits_node->line,
+                "limits.random_location_max must be < location_slot_max");
+    }
 }
 
 static void reset_limits(void) {
@@ -2351,6 +2398,8 @@ static void reset_limits(void) {
     party_slot_max = PARTY_SLOT_HARD_MAX;
     map_rows_max = MAP_ROWS_HARD_MAX;
     map_cols_max = MAP_COLS_HARD_MAX;
+    location_slot_max = 15;
+    random_location_max = 9;
 }
 
 /* -------- map dims (storage capacity) --------
@@ -2995,6 +3044,24 @@ void res_load_world(const char *path) {
         exit(1);
     }
 
+    /* Random-location placement tables. state.dx[] / state.dy[] are
+       sized to res_location_slot_max() (default 15). Slot 0 is the
+       (0,0) wilderness sentinel; slots 1..res_random_location_max()
+       receive random (x, y) draws in driv.c::position_locations;
+       higher slots stay (0,0) for static placements. Calloc gives
+       the zero default for free. */
+    free(state.dx);
+    state.dx = NULL;
+    free(state.dy);
+    state.dy = NULL;
+    size_t loc_n = (size_t)res_location_slot_max();
+    state.dx = calloc(loc_n, sizeof *state.dx);
+    state.dy = calloc(loc_n, sizeof *state.dy);
+    if (!state.dx || !state.dy) {
+        LOG_E("realm", "out of memory allocating state.dx/dy[%zu]", loc_n);
+        exit(1);
+    }
+
     /* Register the teardown the first time a world is loaded. Guarded
        so reload paths (res_shutdown followed by another res_load_world)
        don't stack LIFO copies on the atexit chain. */
@@ -3558,6 +3625,10 @@ void res_shutdown(void) {
     state.p = NULL;
     free(state.map);
     state.map = NULL;
+    free(state.dx);
+    state.dx = NULL;
+    free(state.dy);
+    state.dy = NULL;
     node_free(world_tree);
     world_tree = NULL;
     color_default = ANSI_FG_CYAN;

@@ -505,6 +505,18 @@ int res_party_slot_max(void);
 int res_map_rows_max(void);
 int res_map_cols_max(void);
 
+/* Random-location slot caps. state.dx[] / state.dy[] are heap-
+   allocated to `res_location_slot_max()` entries at world-load time;
+   `res_random_location_max()` is the inclusive upper bound of the
+   slots driv.c::position_locations rolls a random (x, y) into (slots
+   1..random_location_max — slot 0 is the (0,0) wilderness sentinel,
+   slots above random_location_max stay at (0,0) reserved for static
+   placements). Defaults: 15 slots, random ceiling 9. Overrideable
+   via `limits.location_slot_max` / `limits.random_location_max` in
+   world.json5. random_location_max must be < location_slot_max. */
+int res_location_slot_max(void);
+int res_random_location_max(void);
+
 /* On-disk path helpers (§20 T3 / T4). Caller-supplied buffer pattern,
    mirroring ryl_state_path in src/compat.c — avoids a const-cast at
    the disptext() / fopen() boundary. Centralise the previously
