@@ -222,7 +222,7 @@ void speak(int32_t bld, int32_t tow) {
             d = toupper(d);
             if (d == 'P') {
                 tx("\r\n");
-                if (npc_job(talker) == res_enum_id("job", "bard")) {
+                if (npc_job_is_sym(talker, "bard")) {
                     tx_fmt("speak.people.j8",
                            (ryl_bind[]){
                                {"fighter_name",
@@ -253,7 +253,7 @@ void speak(int32_t bld, int32_t tow) {
             }
             if (d == 'L') {
                 tx("\r\n");
-                if (npc_job(talker) == res_enum_id("job", "bargirl")) {
+                if (npc_job_is_sym(talker, "bargirl")) {
                     /* §20 L7: bargirl interactive flow lifts to
                        data/world/scripts/lodge.json5 (lodge.bargirl).
                        Wrapper resolves the leader-level fee and hands
