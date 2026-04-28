@@ -1,91 +1,99 @@
 # Continuation prompt — paste this into a fresh session
 
-Five commits on top of `dfbaf08` (the prior session's HEAD —
-the §17.A.4 slice D continuation-prompt commit). HEAD is now
-the plan-refresh commit. 39 fixtures green on `make check` +
-`make testasan` at every commit. Local commits only — not
-pushed.
+Five new commits on top of `c9f8d10` (the prior session's HEAD —
+the state-abstraction ride-along + plan-refresh continuation
+prompt). HEAD is now `92bc418` (plan refresh, 2026-04-28 #4).
+39 fixtures green on `make check` + `make testasan` at every
+commit. Local commits only — not pushed.
 
 ## What landed this session
 
-**State-abstraction ride-along sweep — four files lifted off
-raw `state.p[state.cpl].FIELD` / `talker.p->visited[…]` access**
-through the `pa_*` / `npc_visited` helpers that were already in
-use elsewhere. No new abstraction added in this batch — every
-call site swaps a struct-field read/write for the existing
-helper one-liner. By file (one commit each):
+**State-abstraction sweep effectively closed.** Adds the
+`party_at(int idx)` by-index handle in party.c / party.h and
+lifts every cross-party `state.p[]` callsite outside the
+abstraction-home files through it. Five commits:
 
-  - **`towne.c` (`75fd006`)** — 2 hits in `enter_tax_preamble`
-    (gold read for the percentage calc + decrement on payment)
-    → `pa_gold()` / `pa_add_gold(-amount)`. `state.p[cpl]` count
-    in towne.c: 2 → 0.
-  - **`missions.c` (`7cd5c2f`)** — 3 hits: `guard_matches` reads
-    x/y for the MG_POS / MG_DUNGEON_IDX / MG_TERRAIN matching →
-    `pa_x()` / `pa_y()`; `resolve_bindings` reads `name[b->arg]`
-    for the MB_PLAYER_NAME binding → `pa_name(b->arg)`. The
-    single MB_PLAYER_NAME callsite passes `arg=2` so pa_name's
-    NULL-on-out-of-range guard never trips. Code-side count: 3
-    → 0 (the remaining 3 grep matches in missions.c are inside
-    descriptive comments at lines 40 / 56 / 127).
-  - **`speak.c` (`e179647`)** — 2 hits in `speak()` (recognition
-    arm read + first-meeting write on `talker.p->visited[
-    state.cpl]`) → `npc_visited(talker, state.cpl)` /
-    `npc_visited_set(talker, state.cpl, 1)`. Both helpers were
-    already in use in driv.c — this extends them to the second
-    consumer. Note: clangd flagged `ryl.h` as no-longer-used
-    after the lift, but I left it in — `ryl.h` is the
-    kitchen-sink include used as a transitive carrier for
-    ctype.h / stdio.h / compat.h / state.h across the whole
-    codebase; cleaning it up file-by-file is its own queue and
-    would break compile in ~all migrated files without parallel
-    explicit-include additions.
-  - **`res.c` (`4ec26b1`)** — 1 hit in
-    `res_dungeon_encounter_recurring`'s `until_flag` arm →
-    `pa_flag(slot)`. The `(unsigned char)` cast on `want` is
-    dropped since pa_flag returns int and want is already
-    int32_t. Adds party.h include (no cycle: party.h pulls
-    state.h, res.h does not pull party.h).
+  - **`8d3abbd`** — `party_at(int idx)` helper added (party.c
+    body + party.h declaration; ~10 lines incl. bounds-check)
+    and `subs.c::scorelist`'s 11 cross-party reads collapsed
+    via `const struct party *p = party_at(i)` bound at the top
+    of the per-party loop body. State.p[] hits in subs.c: 11 →
+    0. The shape (struct party * return) was preferred over
+    by-field by-index helpers (pa_kills_at(i) / etc.) because
+    scorelist pulls 11 different fields per party — adding 11
+    helpers for one call site is heavier than reading struct
+    fields after a single party_at call.
+  - **`4419128`** — driv.c: 50+ state.p[] sites lifted across
+    six call patterns. createparty's per-field setup
+    parameterized by `a = state.num_parties` lifts via `struct
+    party *p = party_at(a)` bound once after `a` is set, with
+    all 45 inline `state.p[a].FIELD` reads/writes becoming
+    `p->FIELD`. The_game's initial-time-left loop, the
+    owner-name match in read_current_world, the silverkey-sweep
+    menu loop, and the per-party loops in
+    write_current_world / read_current_world all swap to
+    party_at. Terminate's free + memmove + clear-tail block
+    also lifts; the memmove keeps its `sizeof(struct party)`
+    spelling for clarity (sizeof doesn't evaluate the operand,
+    so `sizeof *party_at(0)` would also work but is less
+    readable).
+  - **`026317d`** — replay_knobs.c: 11 sites across the six
+    `rk_apply_*` helpers (rk_apply_party_lv / rk_apply_pos /
+    rk_apply_ydarg_grants / rk_apply_party_wp /
+    rk_apply_party_hp_full / rk_apply_dead_slots) all bind
+    `struct party *p = party_at(a)` once at the top of the
+    helper. rk_apply_dead_slots binds as `party` instead of
+    `p` because it already has a `const char *p = env`
+    env-string walker.
+  - **`0dd1580`** — primitives.c: 5 sysop backdoor writes
+    (Marcus Lagergren-gated debug shortcuts in the input
+    handler) lift via existing pa_* helpers — pa_add_time_left,
+    pa_set_inventory, pa_add_gold. No party_at needed since
+    these are current-party. Adds party.h include
+    (primitives.c already pulls driv.h, so the layering is
+    already loose).
+  - **`92bc418`** — plan refresh: top-of-queue → 2026-04-28 #4,
+    state-abstraction bullet flipped from 'work in flight' to
+    'effectively closed', recommended-next pivots to §24bis.
 
-39 fixtures byte-identical on `make check` + `make testasan` at
-every commit; no `.expect_snapshot` rebless required.
+After this session the only remaining `state.p[]` code-side
+hits are inside party.c (the abstraction home) and inventory.c
+(the inventory abstraction layer's 5 sites in inv_find_empty /
+inv_find_item / inv_find_in_range / inv_count_in_range / inv_add
+where direct access is the intended shape). The headline
+state-abstraction work is done.
 
 ## What to do next
 
 Read `port-plan-incomplete.md` from the top — the "Top of queue
-(status snapshot, 2026-04-28 #3)" section is the source of
-truth. The state-abstraction sweep took down the cheapest tier
-this session (every site was a one-line helper swap with the
-helper already existing). The remaining state-abstraction work
-all needs a new abstraction first:
+(status snapshot, 2026-04-28 #4)" section is the source of
+truth. With the state-abstraction sweep effectively closed,
+the next-up shifts to §24bis:
 
-1. **`pa_at(int party_idx)` by-index helper + subs.c::scorelist
-   migration**. The single state-abstraction target left
-   outside the documented abstraction-home files (party.c /
-   primitives.c / inventory.c / replay_knobs.c). 11 cross-party
-   reads in `scorelist()` (subs.c lines 658-672 — `state.p[i].{
-   exp[j],lv[j],kills,party_name,name[0],fireshield,bracelets,
-   mastercrown,silverkey,jazzyfoot,cl[j]}`). Shape: introduce a
-   by-index party handle (`struct party *party_at(int i)` in
-   party.c, distinct from the current-party-only `pa_*` family)
-   and lift the 11 reads through it. Same helper unblocks the
-   driv.c newparty/migration block (cross-party reads at
-   driv.c:400 / 424 / 429 / 432) and is the prerequisite §24bis
-   would otherwise have to invent. ~1-2 sessions including the
-   driv.c follow-up.
-2. **§24bis — `id: <int>` → slug-keyed state**. Now unblocked.
-   ~4-6 session block touching every C file. Best to do `pa_at`
-   first.
-3. **driv.c::terminate visited-grid shift bug** (mechanical
-   residual surfaced 2026-04-27 #11; likely fixture-unreachable;
-   one-line fix + maybe a fixture).
-4. **towne.c::enter `state.twn == 2` city/village fork**
-   (mechanical residual surfaced 2026-04-27 #12; folds into
-   §24bis when that touches towne.c).
-5. **§12.3** dynamic sizing from world.json5 — remaining static
-   caps `state.p[26]`, `map[42][82]`, party-inventory `[17]`,
-   `attack_today[26]`.
-6. **§12.1** Dockerfile + GitHub CI. ~1 session.
-7. **Ydarg-as-mission** (§12.4 residual). Blocked on DSL
+1. **§24bis — `id: <int>` → slug-keyed state**. Now fully
+   unblocked. ~4-6 session block touching every C file. The
+   per-field pa_* / pm_* / inv_* / res_* abstractions are in
+   place, party_at covers the cross-party access §24bis would
+   have needed, and the §25.B axis flips already moved every
+   numeric-id consumer to its slot equivalent. Best entry
+   point is probably the save format (realm.dat / npc.dat
+   migrate to JSON5 keyed by slug — save-format license was
+   user-granted 2026-04-22) or the world.json5 `id: <int>`
+   fields themselves; the §24bis body has the sequencing.
+2. **driv.c::terminate visited-grid shift bug** (mechanical
+   residual). Likely fixture-unreachable; one-line fix + maybe
+   a fixture.
+3. **towne.c::enter `state.twn == 2` city/village fork**
+   (mechanical residual). Folds into §24bis when that touches
+   towne.c.
+4. **§12.3** dynamic sizing from world.json5 — remaining
+   static caps `state.p[26]`, `map[42][82]`, party-inventory
+   `[17]`, `attack_today[26]`. The party_at helper lands a
+   piece of §12.3's groundwork (callers don't reach into
+   state.p[] directly, so a future heap-allocated state.p
+   only touches party.c).
+5. **§12.1** Dockerfile + GitHub CI. ~1 session.
+6. **Ydarg-as-mission** (§12.4 residual). Blocked on DSL
    evaluator learning mission triggers + item-flag paths.
 
 State at HEAD (lagergren/port1, not pushed): clean working
@@ -93,53 +101,58 @@ tree, 39 fixtures green.
 
 ## Recommended next session
 
-**Pick `pa_at` + scorelist migration.** It's the natural
-next step — every other state-abstraction target outside the
-abstraction-home files needs this helper, §24bis would have to
-invent it anyway, and scorelist is a bounded, single-file
-migration with easy verification (the file it writes is
-fixture-unused, so there's no replay risk). Audit:
+**Pick §24bis.** The state-abstraction sweep made it cheaper:
+party_at + the per-field abstractions mean §24bis's "every
+state accessor changes shape" cost is now mostly contained to
+party.c + the JSON5 schema. Audit:
 
-  grep -nE '^[^/*]*state\.p\[' src/subs.c
-  grep -nE '^[^/*]*state\.p\[' src/driv.c
-  grep -n 'state\.p\[i\]' src/*.c
+  grep -nlE 'id: *[0-9]+' data/world.json5 data/world/**/*.json5
+  grep -n 'res_(monster|item|town|npc|spell)_id' src/*.c | head
+  grep -nE '"id":' data/world/**/*.json5 | head
 
-After landing the helper + scorelist lift, sweep driv.c's
-cross-party reads — same shape, different file. Both gates
-green per commit.
+If §24bis feels too big for one session, the mechanical
+residuals (driv.c::terminate visited-grid, towne.c twn==2)
+are each <1 hour and fold naturally under §24bis when that
+touches their files.
 
-## Pattern (closed): state.p[cpl] sweep — cheap tier exhausted
+## Pattern (closed): state-abstraction sweep — full closure
 
-Held end-to-end across all four files this session:
+Held end-to-end across two sessions:
 
-  ┌────────────┬────────────┬───────────┬────────────────────────┐
-  │    File    │ Hits before│ Hits after│        Helper          │
-  ├────────────┼────────────┼───────────┼────────────────────────┤
-  │ towne.c    │      2     │     0     │ pa_gold/pa_add_gold    │
-  ├────────────┼────────────┼───────────┼────────────────────────┤
-  │ missions.c │      3     │     0     │ pa_x/pa_y/pa_name      │
-  ├────────────┼────────────┼───────────┼────────────────────────┤
-  │ speak.c    │      2     │     0     │ npc_visited[_set]      │
-  ├────────────┼────────────┼───────────┼────────────────────────┤
-  │ res.c      │      1     │     0     │ pa_flag                │
-  └────────────┴────────────┴───────────┴────────────────────────┘
+  ┌─────────────────┬────────────┬───────────┬─────────────────────────────┐
+  │      File       │ Hits before│ Hits after│           Helper            │
+  ├─────────────────┼────────────┼───────────┼─────────────────────────────┤
+  │ towne.c         │      2     │     0     │ pa_gold/pa_add_gold         │
+  │ missions.c      │      3     │     0     │ pa_x/pa_y/pa_name           │
+  │ speak.c         │      2     │     0     │ npc_visited[_set]           │
+  │ res.c           │      1     │     0     │ pa_flag                     │
+  │ subs.c          │     11     │     0     │ party_at (NEW)              │
+  │ driv.c          │     50+    │     0     │ party_at (NEW)              │
+  │ replay_knobs.c  │     11     │     0     │ party_at (NEW)              │
+  │ primitives.c    │      5     │     0     │ pa_add_time_left/etc.       │
+  └─────────────────┴────────────┴───────────┴─────────────────────────────┘
 
-Reason: the cheap tier of the State-abstraction sweep was every
-file where the existing `pa_*` / `npc_visited` helpers already
-covered the field being read. Doesn't apply to remaining work —
-scorelist and driv.c migration block both need a new by-index
-helper first.
+Reason: ~85 state.p[] callsites across 8 files migrated; the
+helpers now cover every cross-party + current-party access
+shape outside the abstraction-home files. Remaining state.p[]
+access lives only in party.c (the abstraction home) and
+inventory.c (the inventory abstraction). Doesn't apply to the
+remaining queued work — §24bis is a different axis (numeric
+id → slug), §12.3 is heap-allocation cap-driven sizing, both
+benefit from the encapsulation but neither IS state-abstraction
+work.
 
 ## Bar per session + memory notes
 
 `make check` + `make testasan` green at every commit. Push only
 on explicit user approval. Memory notes worth re-reading:
-`feedback_state_abstraction.md` (the next-up topic; the in-line
-recommendation to add `pa_at` is now load-bearing for both
-scorelist and driv.c cross-party reads),
+`feedback_state_abstraction.md` (now updated to reflect
+closure — the rule for new code is "use pa_* / party_at,
+never state.p[…] outside party.c"),
 `feedback_preexisting_bug_fixes.md` (driv.c terminate
 visited-grid shift bug applies),
 `feedback_replay_knobs_centralized.md`,
 `feedback_script_text_wiring.md`. Cap-driven heap-allocation
 principle from §25.B still applies for §12.3's remaining
-targets (`state.p[26]` etc.).
+targets (`state.p[26]` etc.) — and party_at's design now
+contains the callsite-side cost of that future migration.
