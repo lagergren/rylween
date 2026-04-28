@@ -225,7 +225,14 @@ struct ryl_state {
     int32_t dy[15];
 
     /* Persistent game data (flushed to realm.dat / npc.dat). */
-    char map[MAP_ROWS_HARD_MAX][MAP_COLS_HARD_MAX];
+    /* World-map runtime grid — heap-allocated to MAP_ROWS_HARD_MAX
+       rows × MAP_COLS_HARD_MAX cols at world-load time. The row
+       dimension is the only knob today; the inner row width stays
+       compile-time so wld.c's `sizeof state.map[y]` still resolves to
+       a single row. NULL until res_load_world() runs; res_shutdown()
+       frees it. All readers / writers go through wld.h
+       (wld_tile_at / wld_set_tile_at / wld_load_row). */
+    char (*map)[MAP_COLS_HARD_MAX];
     /* Party runtime table — heap-allocated to res_party_slot_max()
        entries by res_load_world() so the size matches the data
        layer's cap. PARTY_SLOT_HARD_MAX is the static ceiling

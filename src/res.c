@@ -2888,6 +2888,22 @@ void res_load_world(const char *path) {
         }
     }
 
+    /* Right-size the world-map grid to MAP_ROWS_HARD_MAX rows of
+       MAP_COLS_HARD_MAX columns each, zeroed. Outer dimension only —
+       the row width stays compile-time so wld.c's `sizeof
+       state.map[y]` resolves to one row (MAP_COLS_HARD_MAX bytes).
+       Same idempotent free-then-alloc pattern as state.npc / state.p.
+       §20.14 S10 will move the dimensions to data; until then this
+       just removes the BSS-static cap. */
+    free(state.map);
+    state.map = NULL;
+    state.map = calloc(MAP_ROWS_HARD_MAX, sizeof *state.map);
+    if (!state.map) {
+        LOG_E("realm", "out of memory allocating state.map[%d][%d]",
+              MAP_ROWS_HARD_MAX, MAP_COLS_HARD_MAX);
+        exit(1);
+    }
+
     /* Register the teardown the first time a world is loaded. Guarded
        so reload paths (res_shutdown followed by another res_load_world)
        don't stack LIFO copies on the atexit chain. */
@@ -3439,6 +3455,8 @@ void res_shutdown(void) {
     state.npc = NULL;
     free(state.p);
     state.p = NULL;
+    free(state.map);
+    state.map = NULL;
     node_free(world_tree);
     world_tree = NULL;
     color_default = ANSI_FG_CYAN;
