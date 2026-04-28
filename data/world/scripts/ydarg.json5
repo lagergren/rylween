@@ -76,6 +76,92 @@
     { engine_call: 'clw' },
   ],
 
+  // §23.J case-50 (stairs) lift. The legacy body is one outer
+  // mage-loop wrapping three keypress arms (T/G/L) + an inner
+  // give-digit menu. Lifted shape:
+  //   1. clw + intro narration + 1500ms delay + clw + mage_offer
+  //      + wait_input.
+  //   2. Outer loop: clw + emit menu, then a silent inner loop
+  //      that menu_branches over T/G/L (no prompt) until the user
+  //      hits one. choice is the ASCII of the matched key.
+  //      - L: clw + leave + 1000ms + decrement yl + break outer.
+  //      - T: invoke ydarg_teleport_exit (vortex/outside/redraw +
+  //        sets exit_requested) + break outer; the C while(1)
+  //        sees exit_requested and returns out of ydarg().
+  //      - G: clw + give_menu + silent inner loop over digits 1..5
+  //        (key_var binds the digit's ASCII), then call
+  //        ydarg_stairs_try_give(d-48). On success: clw + grateful
+  //        + pause + clw + (xl,yl)=(1,1) + lvl++; if lvl==5 invoke
+  //        ydarg.confrontation script. Then break the outer loop.
+  //        On reject the helper has already emitted the rejection
+  //        message + delayed; the outer loop iterates and re-prints
+  //        the menu.
+  //
+  // exit_requested is the side-channel for the (T)eleport return —
+  // a DSL break only exits the script's own loop, not the C
+  // while(1), so the helper sets a flag and the C driver tests it
+  // post-script. Apart from that single edge, the script keeps the
+  // identical ordering (and thus the identical CSI / delay / RNG
+  // bytes) as the legacy case-50 body.
+  case_stairs: [
+    { engine_call: 'clw' },
+    { emit: 'ydarg.room.stairs.intro' },
+    { pause: 1500 },
+    { engine_call: 'clw' },
+    { emit: 'ydarg.room.stairs.mage_offer' },
+    { wait_input: true },
+    { loop: [
+      { engine_call: 'clw' },
+      { emit: 'ydarg.room.stairs.menu' },
+      { let: 'choice', value: 0 },
+      { loop: [
+        { menu_branch: {
+          key_var: 'choice',
+          options: [
+            { keys: ['T', 'G', 'L'], then: [{ break: true }] },
+          ],
+        } },
+      ] },
+      { if: { cond: { eq: [{ var: 'choice' }, 'L'] }, then: [
+        { engine_call: 'clw' },
+        { emit: 'ydarg.room.stairs.leave' },
+        { pause: 1000 },
+        { engine_call: 'ydarg_set_yl', args: [{ sub: [{ engine_int: 'ydarg_get_yl' }, 1] }] },
+        { break: true },
+      ] } },
+      { if: { cond: { eq: [{ var: 'choice' }, 'T'] }, then: [
+        { engine_call: 'ydarg_teleport_exit' },
+        { break: true },
+      ] } },
+      // choice == 'G' (the menu_branch only matches T/G/L; if neither
+      // L nor T fired we know it's G).
+      { engine_call: 'clw' },
+      { emit: 'ydarg.room.stairs.give_menu' },
+      { let: 'd', value: 0 },
+      { loop: [
+        { menu_branch: {
+          key_var: 'd',
+          options: [
+            { key_range: ['1', '5'], then: [{ break: true }] },
+          ],
+        } },
+      ] },
+      { if: { cond: { engine_int: 'ydarg_stairs_try_give', args: [{ sub: [{ var: 'd' }, 48] }] }, then: [
+        { engine_call: 'clw' },
+        { emit: 'ydarg.room.stairs.mage_grateful' },
+        { wait_input: true },
+        { engine_call: 'clw' },
+        { engine_call: 'ydarg_set_xl', args: [1] },
+        { engine_call: 'ydarg_set_yl', args: [1] },
+        { engine_call: 'ydarg_set_lvl', args: [{ add: [{ engine_int: 'ydarg_get_lvl' }, 1] }] },
+        { if: { cond: { eq: [{ engine_int: 'ydarg_get_lvl' }, 5] }, then: [
+          { play_script: 'ydarg.confrontation' },
+        ] } },
+        { break: true },
+      ] } },
+    ] },
+  ],
+
   // §23.J case-3 (treasure) lift. Dispatcher shape:
   //   1. Clear the room slot.
   //   2. Roll the item id off ydarg.drop_tables.room via the

@@ -27,6 +27,12 @@ struct ydarg_state {
     int32_t lvl;
     int32_t map_size;
     int32_t room[8][8];
+    /* §23.J: set by ydarg.case_stairs's (T)eleport path before the
+       script returns; the C while(1) driver tests this flag after
+       each play_script and break/returns out of ydarg() so the
+       teleport behaves like the legacy `return` did. Cleared on
+       every ydarg() entry by ydarg_state_init. */
+    int32_t exit_requested;
 };
 
 static struct ydarg_state g_ydarg;
@@ -43,6 +49,7 @@ static void ydarg_state_init(void) {
     g_ydarg.lvl = 1;
     g_ydarg.xl = 1;
     g_ydarg.yl = 1;
+    g_ydarg.exit_requested = 0;
     int room_type_max = res_int_path("ydarg.room.type_max");
     int easy_rooms = rk_ydarg_easy_rooms();
     for (int i = 1; i <= g_ydarg.map_size; i++) {
@@ -89,7 +96,7 @@ void ydarg_clear_room_at_cur(void) {
 }
 
 void ydarg() {
-    int32_t n, s, e, w, i, j;
+    int32_t n, s, e, w;
     char c, d;
 
     /* silverkey == 0 (no_key) and silverkey == 2 (ruin) are now
@@ -142,78 +149,9 @@ void ydarg() {
                 break;
 
             case 50:
-                clw();
-                tx0(res_text("ydarg.room.stairs.intro"));
-                ryl_delay(1500);
-                clw();
-                tx0(res_text("ydarg.room.stairs.mage_offer"));
-                ryl_pause();
-                while (1) {
-                    clw();
-                    tx0(res_text("ydarg.room.stairs.menu"));
-                    while (1) {
-                        d = key();
-                        d = toupper(d);
-                        if (d == 'T' || d == 'G' || d == 'L') {
-                            break;
-                        }
-                    }
-                    if (d == 'L') {
-                        clw();
-                        tx0(res_text("ydarg.room.stairs.leave"));
-                        ryl_delay(1000);
-                        g_ydarg.yl--;
-                        break;
-                    }
-                    if (d == 'T') {
-                        clw();
-                        tx0(res_text("ydarg.room.stairs.teleport_vortex"));
-                        ryl_delay(3000);
-                        tx0(res_text("ydarg.room.stairs.teleport_outside"));
-                        ryl_delay(3000);
-                        clr_map_window();
-                        update_map();
-                        clw();
-                        return;
-                    }
-                    clw();
-                    tx0(res_text("ydarg.room.stairs.give_menu"));
-                    while (1) {
-                        d = key();
-                        if (d >= '1' && d <= '5') {
-                            break;
-                        }
-                    }
-                    j = 0;
-                    const char *sp_tag = NULL;
-                    const char *reject = NULL;
-                    if (res_ydarg_stairs_item(d - 48, &sp_tag, &reject)) {
-                        int ps = inv_special_id_for_tag(sp_tag);
-                        if (ps == PS_NONE || !pa_special(ps)) {
-                            clw();
-                            char tid[64];
-                            snprintf(tid, sizeof tid,
-                                     "ydarg.room.stairs.%s", reject);
-                            tx0(res_text(tid));
-                            ryl_delay(1500);
-                        } else {
-                            pa_set_special(ps, 0);
-                            j = 1;
-                        }
-                    }
-                    if (j) {
-                        clw();
-                        tx0(res_text("ydarg.room.stairs.mage_grateful"));
-                        ryl_pause();
-                        clw();
-                        g_ydarg.xl = 1;
-                        g_ydarg.yl = 1;
-                        g_ydarg.lvl++;
-                        if (g_ydarg.lvl == 5) {
-                            play_script("ydarg.confrontation", NULL);
-                        }
-                        break;
-                    }
+                play_script("ydarg.case_stairs", NULL);
+                if (g_ydarg.exit_requested) {
+                    return;
                 }
                 break;
         }
@@ -344,6 +282,55 @@ void ydarg() {
             clw();
         }
     }
+}
+
+/* §23.J case-50 backer: handle the (G)ive-item attempt. Looks up
+   `digit` (1..5; '5' is the explicit "Nothing" / out-of-range pass-
+   through that also happens to fail the data lookup) in
+   ydarg.stairs.items[], resolves the matched special tag to a PS_*,
+   gates on pa_special, and either clears the special (returns 1 ⇒
+   mage opens the trapdoor) or clw + emits the reject message + delays
+   1500ms (returns 0 ⇒ mage menu loops). The reject_msg id is split
+   per item (no_have_sing for singular, no_have_plur for the plural-
+   pronoun BRACELETS). Mirrors the case-50 inner block verbatim. */
+int32_t ydarg_stairs_try_give(int32_t digit) {
+    const char *sp_tag = NULL;
+    const char *reject = NULL;
+    if (!res_ydarg_stairs_item((int)digit, &sp_tag, &reject)) {
+        return 0;
+    }
+    int ps = inv_special_id_for_tag(sp_tag);
+    if (ps == PS_NONE || !pa_special(ps)) {
+        clw();
+        char tid[64];
+        snprintf(tid, sizeof tid, "ydarg.room.stairs.%s", reject);
+        tx0(res_text(tid));
+        ryl_delay(1500);
+        return 0;
+    }
+    pa_set_special(ps, 0);
+    return 1;
+}
+
+/* §23.J case-50 backer: (T)eleport-out exit. Emits the vortex /
+   outside narration, redraws the wilderness map under the legacy
+   blank-blit, and sets exit_requested so the outer C while(1) falls
+   through to ydarg()'s final return. Bundled because the teleport
+   has no caller-visible state apart from "ydarg() must exit now". */
+void ydarg_teleport_exit(void) {
+    clw();
+    tx0(res_text("ydarg.room.stairs.teleport_vortex"));
+    ryl_delay(3000);
+    tx0(res_text("ydarg.room.stairs.teleport_outside"));
+    ryl_delay(3000);
+    clr_map_window();
+    update_map();
+    clw();
+    g_ydarg.exit_requested = 1;
+}
+
+int32_t ydarg_get_exit_requested(void) {
+    return g_ydarg.exit_requested;
 }
 
 /* §23.J case-3 backer: roll the treasure-room item id. The drop

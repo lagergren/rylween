@@ -700,6 +700,13 @@ static int32_t ie_ydarg_treasure_roll(const int32_t *a) {
     (void)a;
     return ydarg_treasure_roll();
 }
+static int32_t ie_ydarg_stairs_try_give(const int32_t *a) {
+    return ydarg_stairs_try_give(a[0]);
+}
+static int32_t ie_ydarg_get_exit_requested(const int32_t *a) {
+    (void)a;
+    return ydarg_get_exit_requested();
+}
 
 /* §23.B: pick the lowest-index alive monster slot, or -1 if every
    slot in the encounter is dead. Single-target frost wand / drums of
@@ -747,6 +754,8 @@ static const int_engine_entry int_engine_tbl[] = {
     {"ydarg_get_map_size", 0, ie_ydarg_get_map_size, {0}},
     {"ydarg_get_room_at_cur", 0, ie_ydarg_get_room_at_cur, {0}},
     {"ydarg_treasure_roll", 0, ie_ydarg_treasure_roll, {0}},
+    {"ydarg_stairs_try_give", 1, ie_ydarg_stairs_try_give, {0}},
+    {"ydarg_get_exit_requested", 0, ie_ydarg_get_exit_requested, {0}},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`
@@ -1714,6 +1723,15 @@ static void eng_ydarg_finalize(const int32_t *a) {
     ydarg_finalize();
 }
 
+/* §23.J case-50 backer: (T)eleport exit. Emits vortex / outside
+   narration, redraws the wilderness map, sets exit_requested. The
+   C while(1) reads ydarg_get_exit_requested after each play_script
+   and falls out of the loop. */
+static void eng_ydarg_teleport_exit(const int32_t *a) {
+    (void)a;
+    ydarg_teleport_exit();
+}
+
 /* §23.J case-2 backer: pitfall undisarmed damage. The dispatcher
    (find-thief + disarm result branch) lives in ydarg.case_pitfall;
    the damage-application internals — random pick from the trap_types
@@ -1810,6 +1828,7 @@ static const engine_entry engine_tbl[] = {
     {"ydarg_set_lvl", 1, eng_ydarg_set_lvl},
     {"ydarg_clear_room_at_cur", 0, eng_ydarg_clear_room_at_cur},
     {"ydarg_pitfall_undisarmed_apply", 0, eng_ydarg_pitfall_undisarmed_apply},
+    {"ydarg_teleport_exit", 0, eng_ydarg_teleport_exit},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps

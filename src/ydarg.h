@@ -24,6 +24,17 @@ void ydarg_set_yl(int32_t v);
 void ydarg_set_lvl(int32_t v);
 void ydarg_clear_room_at_cur(void);
 
+/* §23.J case-50 backers. ydarg_stairs_try_give resolves a digit
+   1..5 against ydarg.stairs.items[] and consumes the matched
+   special on success (returns 1) or emits the reject message
+   (returns 0). ydarg_teleport_exit emits the (T)eleport vortex /
+   outside narration, redraws the wilderness map, and flags the
+   ydarg() driver to break out. ydarg_get_exit_requested is the
+   per-iteration probe the C while(1) reads after each play_script. */
+int32_t ydarg_stairs_try_give(int32_t digit);
+void ydarg_teleport_exit(void);
+int32_t ydarg_get_exit_requested(void);
+
 /* §23.J case-3 backer: roll a treasure-room item id off the
    ydarg.drop_tables.room subtree. RNG-identity sensitive — the
    gate draw always advances the stream. Returns the rolled item
