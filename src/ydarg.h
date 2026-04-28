@@ -24,6 +24,13 @@ void ydarg_set_yl(int32_t v);
 void ydarg_set_lvl(int32_t v);
 void ydarg_clear_room_at_cur(void);
 
+/* §23.J case-3 backer: roll a treasure-room item id off the
+   ydarg.drop_tables.room subtree. RNG-identity sensitive — the
+   gate draw always advances the stream. Returns the rolled item
+   id (positive); used by ydarg.case_treasure as an engine_int
+   `let` source for the find / inv_add ops. */
+int32_t ydarg_treasure_roll(void);
+
 /* §23.J case-2 backer: pitfall undisarmed damage. Picks one of
    ydarg.pitfall.trap_types at random, tx0()s its narration, ryl_
    pause()s, and applies pm_hit_points / damage_div to every alive

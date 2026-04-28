@@ -89,7 +89,7 @@ void ydarg_clear_room_at_cur(void) {
 }
 
 void ydarg() {
-    int32_t n, s, e, w, i, j, x, oc;
+    int32_t n, s, e, w, i, j;
     char c, d;
 
     /* silverkey == 0 (no_key) and silverkey == 2 (ruin) are now
@@ -138,40 +138,7 @@ void ydarg() {
                 break;
 
             case 3:
-                g_ydarg.room[g_ydarg.xl][g_ydarg.yl] = 0;
-                x = ryl_random(0, res_int_path("ydarg.drop_tables.room.gate_max"));
-                if (x) {
-                    char rng_key[64];
-                    int32_t rng_lo, rng_hi;
-                    x = ryl_random(0, res_int_path("ydarg.drop_tables.room.kind_max"));
-                    snprintf(rng_key, sizeof rng_key, "ydarg.drop_tables.room.kind_%d.lo", x);
-                    rng_lo = res_int_path(rng_key);
-                    snprintf(rng_key, sizeof rng_key, "ydarg.drop_tables.room.kind_%d.hi", x);
-                    rng_hi = res_int_path(rng_key);
-                    oc = ryl_random(rng_lo, rng_hi);
-                } else {
-                    oc = ryl_random(res_int_path("ydarg.drop_tables.room.magic.lo"),
-                                    res_int_path("ydarg.drop_tables.room.magic.hi"));
-                }
-                tx_fmt("ydarg.room.treasure.find",
-                       (ryl_bind[]){
-                           {"object", object(oc)},
-                           {0},
-                       });
-                tx0(res_text("ydarg.room.treasure.menu"));
-                c = key();
-                c = toupper(c);
-                if (c == 'T') {
-                    x = inv_add(oc) != 0;
-                    if (!x) {
-                        clw();
-                        tx0(res_text("ydarg.room.treasure.full"));
-                        ryl_delay(800);
-                    } else {
-                        tx0(res_text("ydarg.room.treasure.taken"));
-                        ryl_delay(800);
-                    }
-                }
+                play_script("ydarg.case_treasure", NULL);
                 break;
 
             case 50:
@@ -377,6 +344,31 @@ void ydarg() {
             clw();
         }
     }
+}
+
+/* §23.J case-3 backer: roll the treasure-room item id. The drop
+   table is a two-step pick (gate_max -> 0 picks magic, else gate
+   the kind 0..kind_max -> kind.lo..kind.hi range), all bounded by
+   data/world.json5 ydarg.drop_tables.room.*. The RNG identity is
+   load-bearing — the gate_max draw advances the stream regardless
+   of the branch taken — so the ordering inside this helper must
+   stay verbatim. Returns the rolled item id; the DSL case_treasure
+   script feeds it into engine_bind 'object' for the find narration
+   and inv_add for the take/leave dispatcher. */
+int32_t ydarg_treasure_roll(void) {
+    int32_t x = ryl_random(0, res_int_path("ydarg.drop_tables.room.gate_max"));
+    if (x) {
+        char rng_key[64];
+        int32_t rng_lo, rng_hi;
+        x = ryl_random(0, res_int_path("ydarg.drop_tables.room.kind_max"));
+        snprintf(rng_key, sizeof rng_key, "ydarg.drop_tables.room.kind_%d.lo", x);
+        rng_lo = res_int_path(rng_key);
+        snprintf(rng_key, sizeof rng_key, "ydarg.drop_tables.room.kind_%d.hi", x);
+        rng_hi = res_int_path(rng_key);
+        return ryl_random(rng_lo, rng_hi);
+    }
+    return ryl_random(res_int_path("ydarg.drop_tables.room.magic.lo"),
+                      res_int_path("ydarg.drop_tables.room.magic.hi"));
 }
 
 /* §23.J case-2 backer: undisarmed-pitfall damage application. The

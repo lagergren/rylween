@@ -696,6 +696,10 @@ static int32_t ie_ydarg_get_room_at_cur(const int32_t *a) {
     (void)a;
     return ydarg_get_room_at_cur();
 }
+static int32_t ie_ydarg_treasure_roll(const int32_t *a) {
+    (void)a;
+    return ydarg_treasure_roll();
+}
 
 /* §23.B: pick the lowest-index alive monster slot, or -1 if every
    slot in the encounter is dead. Single-target frost wand / drums of
@@ -742,6 +746,7 @@ static const int_engine_entry int_engine_tbl[] = {
     {"ydarg_get_lvl", 0, ie_ydarg_get_lvl, {0}},
     {"ydarg_get_map_size", 0, ie_ydarg_get_map_size, {0}},
     {"ydarg_get_room_at_cur", 0, ie_ydarg_get_room_at_cur, {0}},
+    {"ydarg_treasure_roll", 0, ie_ydarg_treasure_roll, {0}},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`

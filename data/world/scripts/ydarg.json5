@@ -76,6 +76,45 @@
     { engine_call: 'clw' },
   ],
 
+  // §23.J case-3 (treasure) lift. Dispatcher shape:
+  //   1. Clear the room slot.
+  //   2. Roll the item id off ydarg.drop_tables.room via the
+  //      ydarg_treasure_roll backer (the two-step gate / kind /
+  //      lo/hi RNG draw stays in C because the gate_max draw is
+  //      RNG-identity sensitive and the per-branch ordering is
+  //      verbatim-preserving).
+  //   3. Bind {object} via engine_bind 'object', emit the find
+  //      narration. Use menu_branch (tx_fmt + key, no clw / pause)
+  //      to dispatch the (T)ake / (L)eave choice — anything other
+  //      than T falls through silently. On (T)ake: invoke the
+  //      inv_add op, emitting taken on success or clw + full +
+  //      delay 800 on a full inventory.
+  case_treasure: [
+    { engine_call: 'ydarg_clear_room_at_cur' },
+    { let: 'item_id', value: { engine_int: 'ydarg_treasure_roll' } },
+    { engine_bind: { fn: 'object', args: [{ var: 'item_id' }], var: 'object' } },
+    { emit: 'ydarg.room.treasure.find' },
+    { menu_branch: {
+      prompt: 'ydarg.room.treasure.menu',
+      options: [
+        { key: 'T', then: [
+          { inv_add: {
+            item: { var: 'item_id' },
+            added: [
+              { emit: 'ydarg.room.treasure.taken' },
+              { pause: 800 },
+            ],
+            full: [
+              { engine_call: 'clw' },
+              { emit: 'ydarg.room.treasure.full' },
+              { pause: 800 },
+            ],
+          } },
+        ] },
+      ],
+    } },
+  ],
+
   // §23.J case-2 (pitfall) lift. Dispatcher shape:
   //   1. Clear the room slot ("I've been here").
   //   2. Pick a random victim 0..3 (legacy hardcoded — independent
