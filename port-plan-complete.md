@@ -5644,3 +5644,85 @@ name since it's the wilderness-step entry point and the
 contract is unchanged. `MA_C_FN` is the action kind; the
 field carrying the function pointer is just `fn` (the
 `mission_c_fn` typedef name spells out the action shape).
+
+
+### §12.3 cap-flip queue end-to-end closure (2026-04-28 #11..#13a)
+
+**§12.3 (dynamic sizing from `world.json5 limits:`) closes
+end-to-end across three sessions.** The original spec (full body
+preserved in `port-plan-incomplete.md` §12.3 as a historical
+reference) called for: a `limits:` subtree carrying named caps,
+heap-allocation off those caps, and an audit of every static
+`[N]` size in `struct party` / `struct ryl_state`. After 2026-04-28
+#13a every party-slot-indexed buffer is heap-allocated off
+`res_party_slot_max()`; the map grid is heap-sized to
+`res_map_rows_max()` × `res_map_cols_max()`; and the `fold_limits`
+clamp on `limits.party_slot_max` is `>= 2` only — the data layer
+is the single source of truth.
+
+**Cap-flip ladder** (#11 outer arrays → #12 inner arrays →
+#13a unbounded data knob):
+
+  - `467e4c6` (#11) — state.p[26] triple cap-flip:
+    PARTY_SLOT_HARD_MAX + new `res_party_slot_max()` runtime
+    accessor (world.json5 `limits.party_slot_max` knob, originally
+    clamped to PARTY_SLOT_HARD_MAX). Replaces raw 26 literals
+    across struct person.visited / struct party.attack_today /
+    `pm_cur` assert / driv.c `create_party` gate / driv.c save
+    + load attack_today width / subs.c::scorelist seven local
+    arrays.
+  - `d374c8d` (#11) — map[42][82] cap-flip:
+    MAP_ROWS_HARD_MAX / MAP_COLS_HARD_MAX defines in state.h;
+    wld.c WLD_ROWS / WLD_COLS sourced from them.
+  - `3af207b` (#11) — heap-allocate state.p[] off
+    `res_party_slot_max()`. Drops the BSS-static
+    `struct party p[PARTY_SLOT_HARD_MAX]`; mirrors state.npc[]
+    pattern.
+  - `eb999d1` (#11) — heap-allocate state.map[][]. Outer dim
+    only; row width still type-level until #13a.
+  - `16e0ee3` (#12) — inner per-record byte arrays. struct
+    party.attack_today + struct person.visited flip from
+    `[PARTY_SLOT_HARD_MAX]` to `unsigned char *` heap pointers.
+    attack_today via party_realize / party_release_members /
+    party_clear_heap_pointers; visited via per-NPC alloc loop
+    inside res_load_world + symmetric free loop at the head of
+    res_shutdown.
+  - `376f6bf` (#13a) — §20.14 S10: map dims to data. state.map
+    flips from `char (*map)[MAP_COLS_HARD_MAX]` to a flat
+    `char *map` 1D buffer of `res_map_rows_max()` ×
+    `res_map_cols_max()` bytes. New `fold_map_dims` reads
+    `map.rows_max` / `map.cols_max` from world.json5; wld.c is
+    the sole consumer that knows the stride. MAP_*_HARD_MAX
+    remain as defensive ceilings.
+  - `bfd2265` (#13a) — final cap-flip:
+    `limits.party_slot_max` unbounded above. fold_limits clamp
+    drops to `>= 2`. subs.c::scorelist seven on-stack arrays
+    heap-alloc to `res_party_slot_max()` slots with cleanup-label
+    pattern; party.c::party_at, snapshot.c, state.h `pm_cur`
+    cpl assert all flip to `res_party_slot_max()`.
+
+**Static caps remaining**: `NPC_SLOT_HARD_MAX` (state.h) is still
+a defensive ceiling inside `npc_slot_max()` because the
+random-NPC placement RNG identity depends on the bin count —
+relaxing it would shift the stream and rebless every fixture.
+PARTY_SLOT_HARD_MAX remains as the *default* value when
+world.json5 omits the knob, but no longer functions as a
+ceiling.
+
+**Gates**: 44 fixtures byte-identical on `make check` +
+`make testasan` at every commit; format clean throughout. World
+validation `tools/check_world.sh` clean. `make sample-save`
+emits the expected per-party shape.
+
+### §20.14 S10 / S11 closure (#11..#13a)
+
+S10 (map dimensions to data) closed in `376f6bf` (#13a) — body
+above under "§12.3 cap-flip queue end-to-end closure". S11
+(formula DSL with binding maps) closed earlier in §22 / §20.14
+sweep — `res_formula_int_n(name, bindings, n)` (res.h:220) is the
+multi-binding evaluator, battle.c calls it for all four
+encounter / reward formulas (`encounter_h1_scaled`,
+`encounter_h2_scaled`, `reward_xp_per_survivor`,
+`reward_gold_party`), and the formula bodies use multi-`{var:N}`
+arg lists.
+

@@ -2,9 +2,16 @@
 
 This file collects every section of `port-plan.md` that is in-progress, planned, or pure reference / vision material. Completed lifts live in `port-plan-complete.md`; the cross-section index lives in the master `port-plan.md`. Section numbers and `§N` cross-references are preserved verbatim — sections appear in their original §-order regardless of which file they live in.
 
-## Top of queue (status snapshot, 2026-04-28 #12)
+## Top of queue (status snapshot, 2026-04-28 #13a)
 
-A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the 2026-04-28 #11 snapshot (state.p / state.map / state.npc / towns all heap-backed; ydarg DSL lift commits 1-4 of ~6). **This session closed §12.3 end-to-end on the storage side**: the inner per-record byte arrays (`struct party.attack_today` and `struct person.visited`) flip from compile-time `[PARTY_SLOT_HARD_MAX]` to heap pointers sized to `res_party_slot_max()` at allocation time. Plus a small clangd unused-includes follow-up sweep (compat.c, primitives.c). Two commits (`16e0ee3..a70feab`):
+A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the 2026-04-28 #12 snapshot (every party-slot-indexed buffer heap-allocated). **Foreground in this session closed §20.14 S10 (map dims to data) and §12.3's final >26 unlock**; ydarg DSL-lift continuation is running in a background agent (patch lands at session-end as commit #4 if it finishes). Two foreground commits (`376f6bf..bfd2265`):
+
+  - **`376f6bf` — §20.14 S10 map dims to data — `map.rows_max` / `map.cols_max`**. state.map flips from `char (*map)[MAP_COLS_HARD_MAX]` to a flat `char *map` 1D buffer of res_map_rows_max() × res_map_cols_max() bytes; tile (x, y) lives at offset `y * cols + x` and wld.c is the sole consumer that knows the stride. New `fold_map_dims(map_node, path)` validates `map.rows_max` / `map.cols_max` against MAP_*_HARD_MAX and stashes them in static caches; `res_map_rows_max()` / `res_map_cols_max()` are the public accessors. wld_rows / wld_cols / in_bounds / wld_tile_at / wld_set_tile_at / wld_is_passable / wld_load_row all source dims from those accessors. The lone direct-access site in fold_npcs's random NPC placer (`state.map[n->y][n->x]`) flips to `wld_tile_at(n->x, n->y)`. replay_knobs.c's RYL_FORCE_POS bounds check stops referencing MAP_*_HARD_MAX directly (now `wld_cols()` / `wld_rows()`). MAP_ROWS_HARD_MAX / MAP_COLS_HARD_MAX (state.h) remain as defensive ceilings the data layer clamps against. 44 fixtures byte-identical at default 42×82.
+  - **`bfd2265` — §12.3 final cap-flip: limits.party_slot_max unbounded above**. fold_limits's clamp drops from `psm->u.iv > PARTY_SLOT_HARD_MAX → res_die` to `>= 2` only — every party-slot-indexed buffer + bounds check resolves through `res_party_slot_max()`. subs.c::scorelist's seven on-stack arrays (pts/lvl/kills/pname/lname/cls/item/pnr) heap-allocate to `res_party_slot_max()` slots in a single block at function entry; a `cleanup:` label + four-line free block runs at every exit (the two early `return`s inside the score-file fopens become `goto cleanup`). `temp_ubyte` stays on the stack as a fixed `uint8_t[32]` swap buffer (real usage bounded by max(6, mmax)). party.c::party_at, snapshot.c party-slot guard, and state.h:317 `pm_cur` cpl assert all flip to `res_party_slot_max()`. PARTY_SLOT_HARD_MAX is now just the default value; doc-blocks updated. NPC_SLOT_HARD_MAX is untouched — it stays a defensive ceiling because random-NPC placement RNG identity depends on the bin count.
+
+§20.14 S11 (formula DSL with binding maps) is already closed — `res_formula_int_n(name, bindings, n)` (res.h:220) is the multi-binding evaluator, battle.c calls it for all four reward/encounter formulas, and the formulas themselves use multi-`{var:'name'}` bodies (encounter_h1_scaled / encounter_h2_scaled / reward_xp_per_survivor / reward_gold_party). The S11 entry under "Recommended next session" in #12's snapshot was stale — pruned below.
+
+Earlier session #12 detail (kept for context): two commits (`16e0ee3..a70feab`):
 
   - **`16e0ee3` — §12.3 inner per-record byte arrays heap-alloc off res_party_slot_max()**. struct party.attack_today and struct person.visited flip from inline `[PARTY_SLOT_HARD_MAX]` arrays to `unsigned char *` pointers. attack_today is allocated by party_realize (alongside members[]); freed by party_release_members; NULL'd by party_clear_heap_pointers on the duplicated tail slot post-memmove. visited is allocated by a per-NPC loop inside res_load_world right after `state.npc = calloc(...)`; freed by a symmetric loop at the head of res_shutdown (before npc_slot_max_invalidate so for_each_npc still resolves). npc_visited / npc_visited_set asserts stop using `sizeof n.p->visited` (was 1, becomes 8 after the pointer flip) — bound against `res_party_slot_max()` now. driv.c's two save/load width args flip from PARTY_SLOT_HARD_MAX to res_party_slot_max(). 44 fixtures byte-identical at the default cap (26 == PARTY_SLOT_HARD_MAX); save format only changes if a future world raises `limits.party_slot_max` past it. Static caps remaining: locals in subs.c::scorelist + bounds asserts in party.c::party_at / state.h:303 (state.cpl) / snapshot.c — those would all need lifting before fold_limits could safely accept `limits.party_slot_max > PARTY_SLOT_HARD_MAX`.
   - **`a70feab` — clangd unused-includes follow-up — compat.c, primitives.c**. Same pattern as 7671ea5 / 83814b7. compat.c drops `ryl.h` (only depends on compat.h + runtime_cfg.h's `rcfg_get`; pulls `<assert.h>` directly to replace the lost transit). primitives.c drops `ryl.h` and adds `compat.h` directly so `ryl_random` / `stricmp` aren't pulled through the (now-gone) ryl.h chain. 44 fixtures byte-identical on `make check` + `make testasan`; format clean.
@@ -40,7 +47,7 @@ Earlier session #7 detail (kept for context): **closed §24bis phase 3 end-to-en
 
 ### Guiding principle (re-affirmed 2026-04-27 #12)
 
-**Adding a town / NPC / item / etc. should be a pure `data/world.json5` edit.** The cap-driven heap-allocation pattern that step 3a (`state.npc`) and step 3b (`towns`) follow is the working shape: name the static cap in `state.h`, heap-allocate off the world.json5 record count at `res_load_world` time, free in `res_shutdown`. §12.3 (dynamic sizing from `world.json5 limits:`) is the umbrella section; new work that touches a still-static array should ride along under that principle rather than baking in a new fixed cap. **§12.3 cap-flip queue closed on the storage side after 2026-04-28 #12**: every party-slot-indexed buffer (state.p[], state.map[][], state.npc[], struct party.attack_today, struct person.visited) is now heap-allocated off the data layer's `res_*_max()` at world-load / party-realize time. Remaining PARTY_SLOT_HARD_MAX ties: locals in `subs.c::scorelist` + bounds asserts in `party.c::party_at` / `state.h:303` (state.cpl) / `snapshot.c` — those still cap at the compile-time #define and would all need lifting before `fold_limits` could safely accept `limits.party_slot_max > PARTY_SLOT_HARD_MAX`.
+**Adding a town / NPC / item / etc. should be a pure `data/world.json5` edit.** The cap-driven heap-allocation pattern that step 3a (`state.npc`) and step 3b (`towns`) follow is the working shape: name the static cap in `state.h`, heap-allocate off the world.json5 record count at `res_load_world` time, free in `res_shutdown`. §12.3 (dynamic sizing from `world.json5 limits:`) is the umbrella section; new work that touches a still-static array should ride along under that principle rather than baking in a new fixed cap. **§12.3 fully closed after 2026-04-28 #13a**: every party-slot-indexed buffer (state.p[], state.npc[], struct party.attack_today, struct person.visited) and the per-function on-stack tables in subs.c::scorelist are heap-allocated off `res_party_slot_max()` at world-load / party-realize time; map dims (state.map) are heap-sized to `res_map_rows_max()` × `res_map_cols_max()`; bounds checks in party.c / state.h / snapshot.c all resolve through the runtime accessors. The `fold_limits` clamp on `limits.party_slot_max` is `>= 2` only — `PARTY_SLOT_HARD_MAX` is now just the default value, no longer a ceiling. NPC_SLOT_HARD_MAX still functions as a defensive ceiling inside `npc_slot_max()` because the random-NPC placement RNG identity depends on the bin count.
 
 ### Active — work is in flight or fully unblocked
 
@@ -60,7 +67,7 @@ Earlier session #7 detail (kept for context): **closed §24bis phase 3 end-to-en
 ### Deferred — work is queued but explicitly post-something
 
 - **§24bis — `id: <int>` → slug-keyed state**. **Fully closed.** Phase 1 (b08978d): slug accessors + `*_is_sym` predicates. Phase 2 (f21f7af): speak.c npc_job lifts. **Phase 3 closed in 2026-04-28 #7** (`385270a..224fd89`, eight commits): storage flipped from `int32_t` → `const char *` slug-pointer for `struct party.cl` / `struct party.ra` / `struct person.job`; PC_* defines + `pm_class_id` mapper retired; `id:` dropped from `enums.race` / `.pc_class` / `.job` / `.world_locations` (`fold_enum_records` accepts id-less keyed-record entries via 1-indexed positional ordering); snapshot reblessed (`cl=fighter ra=human`); save format reshaped to per-member objects with full-word field names. **Phase 3 follow-up closed in 2026-04-28 #9** (`aa3efd6`): `emit_indexed` extended to splice slug bindings via `%s` (was int-only), `do_engine_bind`'s `'s'` sig position lifted to accept `{var:'name'}` runtime references, new `res_enum_name_by_sym` str_engine helper, four C-side wrappers (`speak.c::reply_chitchat`, the speak.c (P)/(M)/(L) Q-prompt arms, `towne.c::hut`) flipped from `npc_job(t)` int binding to `npc_job_sym(t)` slug binding, 96 keys in `data/world/texts/speak.json5` renamed from positional `j1..j16` to slug-spliced `j<slug>` (`jmerchant` / `jranger` / ... / `jbargirl` / `jhermit`) across six sections (chit.reply.{well,weather,health} + people + magic + lodge), DSL scripts updated to match, new `towne-thord-tavern-speak-people` fixture gates the slug-spliced path. Body in `port-plan-complete.md` "§24bis phase 3 closure" section.
-- **§12.3 — dynamic sizing from world.json5 (`limits` subtree)**. Cap-driven heap-backed flex arrays for `struct party` / `struct ryl_state`. §12.3 has the sequence; §12.2 leak audit (Commit C) already done. **Storage side closed in 2026-04-28 #12** (`16e0ee3`, builds on #11's outer-array heap-alloc). Every party-slot-indexed buffer — state.p[], state.map[][], state.npc[], struct party.attack_today, struct person.visited — is now heap-allocated off `res_*_max()` at world-load / party-realize time. Save format byte-identical at the default cap; only changes if a future world raises `limits.party_slot_max`. **Remaining loose ends before `limits.party_slot_max > PARTY_SLOT_HARD_MAX` could safely land**: subs.c::scorelist seven local arrays still sized to PARTY_SLOT_HARD_MAX; `party_at` bounds check; `state.cpl < PARTY_SLOT_HARD_MAX` assert in state.h:303; snapshot.c bounds check; the fold_limits clamp itself. None of these were lifted in #12 because they're load-bearing for the on-stack scorelist locals — relaxing the clamp first would crash scorelist if a world authored a real >26 cap.
+- **§12.3 — dynamic sizing from world.json5 (`limits` subtree)**. **Closed end-to-end in 2026-04-28 #11..#13a** (commits `467e4c6..bfd2265`, plus `376f6bf` for the §20.14 S10 map-dims piece). Body in `port-plan-complete.md` "§12.3 cap-flip queue end-to-end closure". Every party-slot-indexed buffer is heap-allocated off `res_party_slot_max()`; map grid is heap-sized to `res_map_rows_max()` × `res_map_cols_max()`; the `fold_limits` clamp is `>= 2` only. PARTY_SLOT_HARD_MAX is now the default value, no longer a ceiling. NPC_SLOT_HARD_MAX retained as a defensive ceiling because random-NPC placement RNG identity depends on the bin count.
 - **§12.1 — Dockerfile + GitHub CI**. **Closed in 2026-04-28 #6** (`d35f663..405f398`, four commits). Multi-stage Dockerfile (`debian:stable-slim` builder → tester → slim runtime) installs LLVM 22 from `apt.llvm.org` so the tester stage's `make test` + `make testasan` + `make format` all run against the same major as macOS brew. `.github/workflows/ci.yml` mirrors with `linux` (gcc+clang matrix, runs all three gates), `format` (clang-format dry-run), `macos` (build + replay + ASan as scorecard — Apple-clang ships without LSan, so Linux is the authoritative leak gate). Two parallel landings were needed to ship: (a) `bb453c7` adds `-D_DEFAULT_SOURCE` to `CPPFLAGS` so glibc's strict-ISO C99 mode exposes the POSIX surface (`strdup`, `usleep`/`useconds_t`, `sigaction`/`SIGWINCH`, …) the codebase uses everywhere — Apple-libc exposes those unconditionally, which masked the gap until Linux compiled; (b) `d35f663` runs `clang-format -i` across 12 files (114+/103-) and flips `.clang-format`'s `ReflowComments: Never` to `ReflowComments: false` (a documented alias accepted by every clang-format major back to 18). Format gate had been silently broken pre-§12.1; recorded in `.git-blame-ignore-revs`.
 - **Ydarg as a regular mission** (§12.4 residual). **Moderate-path closed in 2026-04-28 #10** (`776b02c`). **Full DSL lift in flight (commits 1-4 of ~6 landed in #11)**: `c758874` added `MG_SPECIAL_EQ` guard kind + split silverkey gate into trigger entries; `fa7681d` lifted intro narration into `ydarg.intro` script; `f061616` lifted `confrontation()` into `ydarg.confrontation` script (with new `narrate` DSL op + 3 engine_call backers); `914b8c1` lifted case 1 (monster room). src/ydarg.c 456 → 423 (−33). **Remaining**: cases 2 (pitfall), 3 (treasure), 50 (stairs), the navigation status block, the character-command dispatch (T/P/L/W/R/Q/Z/V), and the per-floor `while(1)` driver. These share function-local state (`xl`, `yl`, `lvl`, `room[][]`) that needs hoisting to module-level + new DSL state primitives before they can move (e.g. `ydarg_consume_room_at`, `ydarg_set_lvl`). Body in `port-plan-complete.md` "Ydarg-as-mission moderate-path closure (2026-04-28 #10)" and the #11 lift writeup once captured.
 - **ydarg inscription Y2K cosmetic** — closed in 2026-04-28 #6 (`ff6195b`). `"19%d" + (c.year - 1900)` → `"%d", c.year` (clock_year() returns the full 4-digit year per compat.h). No fixture rebless needed: the `ydarg-confrontation` fixture's env sidecar explicitly notes "the heroes-file write is left for a follow-up", and grep confirms no fixture exercises this code path.
@@ -719,61 +726,18 @@ run the fixture set under `$(BIN_ASAN)` and fail on
 
 ### 12.3 Dynamic sizing from world.json5
 
-Currently `struct party` has `name[5][30]`, `hp[5]`, …
-`inventory[17]`, `attack_today[26]`; `struct ryl_state` has
-`p[26]` and `npc[41]`; `map[42][82]`. These are all legacy
-1-indexed "max+1" allocations. The user wants:
-
-- `limits` subtree in `world.json5` carrying
-  `{ party_members_min, party_members_max, inventory_slots,
-     npcs, parties, map_w, map_h, … }`.
-- The runtime allocates on boot from those values (requires
-  splitting `struct party` / `struct ryl_state` into heap-
-  backed flex arrays or pointer fields).
-- Audit every `[5]` / `[17]` / `[26]` / `[41]` / `[82]` / `[42]`
-  at the call sites and replace with `<limit>` lookups or
-  per-instance caps carried in the context.
-
-**Save-file license (user-granted, 2026-04-22).** The legacy raw
-`fwrite(&struct_party, sizeof, 1, fh)` layout in `save()`/`load()`
-may be retired. Target: replace `realm.dat` and `npc.dat` with
-JSON5 written under `$HOME/.rylween/`. When encoding a list, the
-record carries its length explicitly (`"parties": [...]`), so
-dynamic caps come for free. Not required to be human-readable —
-we can swap in a binary encoding later if the write path becomes
-a bottleneck, but no need to preserve binary compatibility with
-existing saves.
-
-Files in scope:
-- `realm.dat` → `realm.json5` (party table + session cursors).
-- `npc.dat` → `npc.json5` (state.npc[]).
-- `data/map.dat` (42×82 terrain bytes, read-only authored
-  content) can fold into `world.json5` as a dedicated shard —
-  same $import mechanism the loader already supports. Keep
-  `.dat` as a fallback only if the diff churn is too big.
-- `entry.dat` (high-score entry text) stays plain text.
-- `data/journal` stays plain text (see §12.4, where the journal
-  code itself moves owners).
-
-**1-indexing note.** Many call sites iterate
-`for (m = 1; m <= 4; m++)` and assume slot 0 is unused. Flipping
-to 0-indexed is a separate, bigger cut. For a first pass, keep
-1-indexing and only make the *cap* dynamic — arrays become
-`[max+1]` sized.
-
-Sequence the work as:
-
-1. Add the `limits` subtree + fold into a `ryl_limits` struct
-   owned by the res module (read-only after load).
-2. Audit the hardcoded-size call sites, annotate each with
-   the `limits.*` source. No runtime change yet; just the
-   catalog.
-3. Cut over the easy ones (inventory, party_members) to
-   dynamic caps; keep the 1-indexed layout.
-4. Replace `realm.dat` / `npc.dat` with JSON5 writers/readers.
-   Since we have the loader infrastructure already, reuse it
-   for reads; write via a straightforward emit pass.
-5. Fold `data/map.dat` into `world.json5` (as a shard).
+**Closed end-to-end in 2026-04-28 #11..#13a.** The original spec
+called for a `limits:` subtree carrying named caps,
+heap-allocation off those caps, and an audit of every static
+`[N]` size in `struct party` / `struct ryl_state`. After 2026-04-28
+#13a every party-slot-indexed buffer is heap-allocated off
+`res_party_slot_max()`; the map grid is heap-sized to
+`res_map_rows_max()` × `res_map_cols_max()`; and the `fold_limits`
+clamp on `limits.party_slot_max` is `>= 2` only — the data
+layer is the single source of truth. Body (commit ladder
+`467e4c6..bfd2265` + the §20.14 S10 map-dims piece `376f6bf`)
+in `port-plan-complete.md` "§12.3 cap-flip queue end-to-end
+closure".
 
 ### 12.4 Residual cleanup queued across sessions
 
@@ -1413,19 +1377,22 @@ Recurrent literals worth a single-source-of-truth helper:
 - S9. **speak.c jazzy_ogre_trader flow** → speak.jazzy_ogre.*
   script with reward op.
 - S10. **Map dimensions / passable tile class** → world.json5
-  map subtree, replacing driv.c:341-365 magic 41/74/34 + tile
-  blacklist.
+  map subtree. **DONE 2026-04-28 #13a** (commit `376f6bf`).
+  state.map flips from `char (*map)[MAP_COLS_HARD_MAX]` to a
+  flat `char *map` 1D buffer of `res_map_rows_max()` ×
+  `res_map_cols_max()` bytes; new `map.rows_max` / `map.cols_max`
+  knobs in world.json5; wld.c is the sole consumer that knows
+  the stride. Body in `port-plan-complete.md` "§12.3 cap-flip
+  queue end-to-end closure".
 - S11. **Lift battle reward + encounter formulas into `formulas:`
-  subtree** (follow-up to S5). The eleven `reward_*` / `encounter_*`
-  flat constants S5 added are individual knobs; the surrounding
-  multiplication structure still lives in battle.c. Lift the full
-  expressions into named formulas (`xp_award`, `gold_award`,
-  `encounter_h1_scaled`, `encounter_h2_scaled`). Requires extending
-  `res_formula_int` (currently single-var `$y`) to accept a binding
-  map, or exposing eval.c's `env_set_local` via a new
-  `res_eval_expr_with(name, bindings, n)`. Pattern extends to
-  dungeon.c chest-gold, hunt fdplus, subs.c starve damage, etc.
-  Depends on S5.
+  subtree** (follow-up to S5). **DONE earlier in §22 / §20.14
+  sweep** — `res_formula_int_n(name, bindings, n)` (res.h:220) is
+  the multi-binding evaluator; battle.c calls it for all four
+  reward / encounter formulas (`encounter_h1_scaled`,
+  `encounter_h2_scaled`, `reward_xp_per_survivor`,
+  `reward_gold_party`); formula bodies use multi-`{var:N}`
+  arg lists. Body in `port-plan-complete.md` "§20.14 S10 / S11
+  closure".
 
 **LARGE (multi-session epic):**
 
