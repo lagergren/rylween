@@ -1,10 +1,12 @@
 # Continuation prompt — paste this into a fresh session
 
-Five new commits on top of `c9f8d10` (the prior session's HEAD —
+Seven new commits on top of `c9f8d10` (the prior session's HEAD —
 the state-abstraction ride-along + plan-refresh continuation
-prompt). HEAD is now `92bc418` (plan refresh, 2026-04-28 #4).
-39 fixtures green on `make check` + `make testasan` at every
-commit. Local commits only — not pushed.
+prompt). HEAD is now the continuation-prompt commit; the prior
+six commits are the state-abstraction sweep closure + plan-file
+tidy. 39 fixtures green on `make check` + `make testasan` at
+every commit; commits pushed to `origin/lagergren/port1` at
+session close.
 
 ## What landed this session
 
@@ -55,13 +57,28 @@ abstraction-home files through it. Five commits:
   - **`92bc418`** — plan refresh: top-of-queue → 2026-04-28 #4,
     state-abstraction bullet flipped from 'work in flight' to
     'effectively closed', recommended-next pivots to §24bis.
+  - **`618b600`** — plan-file tidy: relocate the §25 body from
+    `port-plan-incomplete.md` to `port-plan-complete.md`
+    alongside the per-step closures (the parent body had been
+    stranded in -incomplete.md since §25.B step 4 closed §25
+    end-to-end on 2026-04-27 #13). Replace the body with a
+    CLOSED-stub matching the §22 / §24 pattern. Update the
+    '§25.B step closures' opening blurb to reflect the parent
+    body now sitting alongside it. Drop the move-out-queue's
+    §22 / §25 bullets — every §-numbered body is now in the
+    right file.
 
 After this session the only remaining `state.p[]` code-side
 hits are inside party.c (the abstraction home) and inventory.c
 (the inventory abstraction layer's 5 sites in inv_find_empty /
 inv_find_item / inv_find_in_range / inv_count_in_range / inv_add
 where direct access is the intended shape). The headline
-state-abstraction work is done.
+state-abstraction work is done. Plan files are tidy: every
+closed §-numbered body lives in `port-plan-complete.md`;
+`port-plan-incomplete.md` carries only stubs + the active /
+deferred / reference / vision sections + session-journal
+entries (which are evergreen migration notes referenced from
+continuation prompts).
 
 ## What to do next
 
