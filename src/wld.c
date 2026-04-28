@@ -87,3 +87,40 @@ char wld_last_terrain(void) {
 void wld_set_last_terrain(char tile) {
     state.last_terrain = tile;
 }
+
+dir_t wld_dir_from_key(int ch) {
+    switch (ch) {
+        case '8':
+            return DIR_NORTH;
+        case '2':
+            return DIR_SOUTH;
+        case '6':
+            return DIR_EAST;
+        case '4':
+            return DIR_WEST;
+        default:
+            return DIR_NONE;
+    }
+}
+
+int wld_dir_dx(dir_t d) {
+    switch (d) {
+        case DIR_EAST:
+            return 1;
+        case DIR_WEST:
+            return -1;
+        default:
+            return 0;
+    }
+}
+
+int wld_dir_dy(dir_t d) {
+    switch (d) {
+        case DIR_SOUTH:
+            return 1;
+        case DIR_NORTH:
+            return -1;
+        default:
+            return 0;
+    }
+}

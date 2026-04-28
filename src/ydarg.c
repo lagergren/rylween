@@ -10,6 +10,7 @@
 #include "res.h"
 #include "subs.h"
 #include "towne.h"
+#include "wld.h"
 #include "ydarg.h"
 
 static void confrontation(void);
@@ -317,33 +318,38 @@ void ydarg() {
 
         c = key();
         c = toupper(c);
-        if (c == '8' && n) {
-            clw();
-            tx0(res_text("ydarg.nav.go_north"));
-            ryl_delay(300);
-            clw();
-            yl--;
-        }
-        if (c == '2' && s) {
-            clw();
-            tx0(res_text("ydarg.nav.go_south"));
-            ryl_delay(300);
-            clw();
-            yl++;
-        }
-        if (c == '6' && e) {
-            clw();
-            tx0(res_text("ydarg.nav.go_east"));
-            ryl_delay(300);
-            clw();
-            xl++;
-        }
-        if (c == '4' && w) {
-            clw();
-            tx0(res_text("ydarg.nav.go_west"));
-            ryl_delay(300);
-            clw();
-            xl--;
+        dir_t move = wld_dir_from_key(c);
+        if (move != DIR_NONE) {
+            int can_go = 0;
+            const char *go_text = NULL;
+            switch (move) {
+                case DIR_NORTH:
+                    can_go = n;
+                    go_text = "ydarg.nav.go_north";
+                    break;
+                case DIR_SOUTH:
+                    can_go = s;
+                    go_text = "ydarg.nav.go_south";
+                    break;
+                case DIR_EAST:
+                    can_go = e;
+                    go_text = "ydarg.nav.go_east";
+                    break;
+                case DIR_WEST:
+                    can_go = w;
+                    go_text = "ydarg.nav.go_west";
+                    break;
+                default:
+                    break;
+            }
+            if (can_go) {
+                clw();
+                tx0(res_text(go_text));
+                ryl_delay(300);
+                clw();
+                xl += wld_dir_dx(move);
+                yl += wld_dir_dy(move);
+            }
         }
         if (c == '?') {
             help();

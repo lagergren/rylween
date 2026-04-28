@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,11 +34,51 @@ static void tty_write(const char *buf, size_t n) {
     }
 }
 
+/* Read one byte with a short timeout. Returns 1 on success, 0 on
+   timeout/EOF/error. Used to peek the tail of a CSI escape sequence
+   without blocking forever when the user pressed ESC alone. */
+static int peek_byte_timed(int timeout_ms, unsigned char *out) {
+    struct pollfd pfd;
+    pfd.fd = STDIN_FILENO;
+    pfd.events = POLLIN;
+    int r;
+    do {
+        r = poll(&pfd, 1, timeout_ms);
+    } while (r < 0 && errno == EINTR);
+    if (r <= 0) {
+        return 0;
+    }
+    ssize_t rr = read(STDIN_FILENO, out, 1);
+    return (rr == 1) ? 1 : 0;
+}
+
 static int32_t tty_getch(void) {
     unsigned char ch;
     while (1) {
         ssize_t r = read(STDIN_FILENO, &ch, 1);
         if (r == 1) {
+            /* Translate ANSI arrow keys (ESC [ A/B/C/D) into the
+               numpad digits the game already understands as movement.
+               Piped replays use the digit literals directly, so the
+               escape-sequence path never fires there. */
+            if (ch == 27) {
+                unsigned char b1, b2;
+                if (peek_byte_timed(50, &b1) && b1 == '[' &&
+                    peek_byte_timed(50, &b2)) {
+                    switch (b2) {
+                        case 'A':
+                            return '8';
+                        case 'B':
+                            return '2';
+                        case 'C':
+                            return '6';
+                        case 'D':
+                            return '4';
+                        default:
+                            break;
+                    }
+                }
+            }
             return ch;
         }
         if (r == 0) {

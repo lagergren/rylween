@@ -77,4 +77,21 @@ int32_t *wld_locations_dy(void);
 char wld_last_terrain(void);
 void wld_set_last_terrain(char tile);
 
+/* Cardinal directions on the world grid. Single source of truth for
+   "what direction did the player ask to move": both the driv.c main
+   loop and the script.c priest-teleport binding parse the same numpad
+   keys ('8'/'4'/'6'/'2' = N/W/E/S, the legacy keymap io_tty.c also
+   maps arrow keys onto). DIR_NONE means "not a movement key". */
+typedef enum {
+    DIR_NONE = 0,
+    DIR_NORTH,
+    DIR_SOUTH,
+    DIR_EAST,
+    DIR_WEST,
+} dir_t;
+
+dir_t wld_dir_from_key(int ch);
+int wld_dir_dx(dir_t d);
+int wld_dir_dy(dir_t d);
+
 #endif

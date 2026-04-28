@@ -1604,34 +1604,18 @@ static void eng_pa_set_inventory(const int32_t *a) {
    formula. Each step gates on the next-tile NOT being a 'm' (mountain)
    so chains of mountains halt the teleport mid-flight. */
 static void eng_pa_teleport_step(const int32_t *a) {
-    int dir = (int)a[0];
+    dir_t d = wld_dir_from_key((int)a[0]);
     int distance = (int)a[1] - '0';
-    if (distance < 1) {
+    if (d == DIR_NONE || distance < 1) {
         return;
     }
+    int dx = wld_dir_dx(d);
+    int dy = wld_dir_dy(d);
     int steps = distance * 2;
-    for (int i = 1; i < steps + 1; i++) {
-        switch (dir) {
-            case '2':
-                if (wld_tile_at(pa_x(), pa_y() + 1) != 'm') {
-                    pa_add_y(1);
-                }
-                break;
-            case '4':
-                if (wld_tile_at(pa_x() - 1, pa_y()) != 'm') {
-                    pa_add_x(-1);
-                }
-                break;
-            case '6':
-                if (wld_tile_at(pa_x() + 1, pa_y()) != 'm') {
-                    pa_add_x(1);
-                }
-                break;
-            case '8':
-                if (wld_tile_at(pa_x(), pa_y() - 1) != 'm') {
-                    pa_add_y(-1);
-                }
-                break;
+    for (int i = 0; i < steps; i++) {
+        if (wld_tile_at(pa_x() + dx, pa_y() + dy) != 'm') {
+            pa_set_x(pa_x() + dx);
+            pa_set_y(pa_y() + dy);
         }
     }
 }
