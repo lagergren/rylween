@@ -3,9 +3,12 @@
 
 #include <stdint.h>
 
-/* Mission dispatcher — polled on every turn, fires the appropriate
-   mission-specific scene when its trigger conditions are met. */
+/* Mission dispatcher — wilderness step-poll path + E-key path, both
+   feeding the same mission_triggers[] table. mission_control fires
+   step-poll triggers (MW_STEP); mission_try_at_enter fires the
+   towne.c::enter (E-key) triggers (MW_ENTER_KEY). */
 
 uint8_t mission_control(void);
+uint8_t mission_try_at_enter(void);
 
 #endif

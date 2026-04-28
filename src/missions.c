@@ -9,12 +9,14 @@
 #include "script.h"
 #include "state.h"
 #include "wld.h"
+#include "ydarg.h"
 #include "subs.h"
 
 #include <ctype.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 /* §17 / A.4 slice A: map-trigger dispatcher. The historical mission_
    control() was 16 ad-hoc `if (flag[N]==V && <guard>) { tx(...); ... }`
@@ -33,7 +35,28 @@ enum mission_guard_kind {
     MG_DUNGEON_IDX, /* x == state.dx[a] && y == state.dy[a]            */
     MG_TERRAIN,     /* wld_tile_at(x, y) == (char)a                    */
     MG_CHANCE,      /* ryl_chance(a) — rolled after the flag guard     */
+    MG_TILE_AT_POS, /* (x, y) == res_int_path(`<pos_path>.x|.y`) AND
+                       res_terrain_class(wld_tile_at(x,y)) == tile_class */
 };
+
+/* Where the trigger fires from. Step-poll runs from random_wilderness
+   on every wilderness move; enter-key runs from towne.c::enter (E
+   key) on a settlement tile. New triggers default to MW_STEP. */
+enum mission_where {
+    MW_STEP = 0,
+    MW_ENTER_KEY,
+};
+
+/* What the trigger does once flag + guard match. MA_SCRIPT plays a
+   DSL script (existing path); MA_C_FN calls a C function with no
+   bindings (used for legacy C scenes that haven't been lifted to
+   the DSL — Ydarg's castle gate is the first). */
+enum mission_action_kind {
+    MA_SCRIPT = 0,
+    MA_C_FN,
+};
+
+typedef void (*mission_c_fn)(void);
 
 enum mission_bind_kind {
     MB_NPC_NAME = 1, /* res_npc_name(res_npc_role(b->npc_role))      */
@@ -57,11 +80,19 @@ enum mission_post_op {
 };
 
 typedef struct {
-    const char *flag_tag;   /* world.json5 flags: key (e.g. "silver_key") */
-    const char *when_state; /* values[] name in that flag's shard        */
+    const char *flag_tag;   /* world.json5 flags: key. NULL = no flag gate. */
+    const char *when_state; /* values[] name in that flag's shard           */
+    enum mission_where where;
     enum mission_guard_kind kind;
     int32_t a, b;
-    const char *script;
+    const char *tile_class; /* MG_TILE_AT_POS only: terrain class to match */
+    const char *pos_path;   /* MG_TILE_AT_POS only: dotted path to a {x,y}
+                               subtree under the world tree. Resolved via
+                               res_int_path("<pos_path>.x|.y") at guard
+                               time so the position lives in data, not C. */
+    enum mission_action_kind action;
+    const char *script; /* MA_SCRIPT only */
+    mission_c_fn fn;    /* MA_C_FN only   */
     uint8_t returns_on_skip;
     enum mission_post_op post;
     const mission_binding *binds;
@@ -141,6 +172,16 @@ static const mission_trigger mission_triggers[] = {
 
     /* Block 16: Hobgoblin cave (pit) at dx[9],dy[9]. */
     {.flag_tag = "silver_key", .when_state = "cave_located", .kind = MG_DUNGEON_IDX, .a = 9, .script = "missions.hobgoblin_cave", .returns_on_skip = 1},
+
+    /* Castle Ydarg gate (E-key, not step-poll). The trigger fires
+       from towne.c::enter when the party stands on the castle tile
+       at the data-declared (ydarg.entry.x, ydarg.entry.y) position.
+       Action is a C function; the body still lives in ydarg.c
+       (multi-floor navigation + per-room dispatch). Inventory gating
+       (jazzyfoot / mastercrown / silverkey / bracelets) happens
+       inside ydarg() itself — not yet expressible as a trigger
+       predicate. */
+    {.where = MW_ENTER_KEY, .kind = MG_TILE_AT_POS, .tile_class = "castle", .pos_path = "ydarg.entry", .action = MA_C_FN, .fn = ydarg},
 };
 
 static int guard_matches(const mission_trigger *t) {
@@ -155,6 +196,18 @@ static int guard_matches(const mission_trigger *t) {
             return wld_tile_at(x, y) == (char)t->a;
         case MG_CHANCE:
             return ryl_chance((int)t->a);
+        case MG_TILE_AT_POS: {
+            char path[64];
+            snprintf(path, sizeof path, "%s.x", t->pos_path);
+            int32_t want_x = res_int_path(path);
+            snprintf(path, sizeof path, "%s.y", t->pos_path);
+            int32_t want_y = res_int_path(path);
+            if (x != want_x || y != want_y) {
+                return 0;
+            }
+            const char *cls = res_terrain_class(wld_tile_at(x, y));
+            return cls && t->tile_class && strcmp(cls, t->tile_class) == 0;
+        }
     }
     return 0;
 }
@@ -197,11 +250,15 @@ static void apply_post(enum mission_post_op op) {
 
 /* Returns 1 when a trigger fired and asked the caller to short-circuit
    (returns_on_skip), 0 when a trigger fired fall-through, -1 when no
-   trigger matched. */
-static int dispatch_triggers(void) {
+   trigger matched. Filters on `where` so step-poll callers don't fire
+   E-key triggers and vice versa. */
+static int dispatch_triggers(enum mission_where where) {
     for (size_t i = 0; i < sizeof mission_triggers / sizeof *mission_triggers; i++) {
         const mission_trigger *t = &mission_triggers[i];
-        if (!pa_flag_is(t->flag_tag, t->when_state)) {
+        if (t->where != where) {
+            continue;
+        }
+        if (t->flag_tag && !pa_flag_is(t->flag_tag, t->when_state)) {
             continue;
         }
         if (!guard_matches(t)) {
@@ -214,7 +271,11 @@ static int dispatch_triggers(void) {
             resolve_bindings(t, binds, scratch);
             pass = binds;
         }
-        play_script(t->script, pass);
+        if (t->action == MA_C_FN) {
+            t->fn();
+        } else {
+            play_script(t->script, pass);
+        }
         apply_post(t->post);
         return t->returns_on_skip ? 1 : 0;
     }
@@ -225,7 +286,7 @@ uint8_t mission_control() {
     int32_t gems;
     char c;
 
-    int handled = dispatch_triggers();
+    int handled = dispatch_triggers(MW_STEP);
     if (handled == 1) {
         return 1;
     }
@@ -275,4 +336,9 @@ uint8_t mission_control() {
     }
 
     return 0;
+}
+
+uint8_t mission_try_at_enter(void) {
+    int handled = dispatch_triggers(MW_ENTER_KEY);
+    return handled >= 0 ? 1 : 0;
 }

@@ -3,6 +3,7 @@
 #include "driv.h"
 #include "gfx.h"
 #include "inventory.h"
+#include "missions.h"
 #include "party.h"
 #include "primitives.h"
 #include "runtime_cfg.h"
@@ -10,7 +11,6 @@
 #include "subs.h"
 #include "towne.h"
 #include "wld.h"
-#include "ydarg.h"
 
 static void church(void);
 static void hut(void);
@@ -188,12 +188,15 @@ void enter() {
 
     state.twn = WILDERNESS_TOWN;
 
-    if (wld_tile_is_hut(tile)) {
-        hut();
+    /* Pluggable settlement triggers from the mission table (E-key
+       phase). Castle Ydarg is the first user; new entries register
+       a MW_ENTER_KEY mission_trigger with MG_TILE_AT_POS guard. */
+    if (mission_try_at_enter()) {
         return;
     }
-    if (wld_tile_is_castle(tile) && pa_x() == 14 && pa_y() == 30) {
-        ydarg();
+
+    if (wld_tile_is_hut(tile)) {
+        hut();
         return;
     }
 

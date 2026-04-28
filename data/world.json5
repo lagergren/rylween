@@ -502,6 +502,13 @@
   // declared `room[8][8]` so size <= 7 is the safe ceiling without
   // touching the source.
   ydarg: {
+    // Wilderness coordinates of the castle Ydarg gate tile. The
+    // towne.c E-key flow consults this position (after confirming
+    // the underlying tile carries the 'castle' class, see terrain
+    // above) to dispatch into ydarg(). Read at trigger time via
+    // res_int_path("ydarg.entry.x") / res_int_path("ydarg.entry.y").
+    entry: { x: 14, y: 30 },
+
     map: { size: 5 },
 
     // Treasure-room (case 3) drop table. Original RNG draw order:
