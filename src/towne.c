@@ -6,7 +6,6 @@
 #include "missions.h"
 #include "party.h"
 #include "primitives.h"
-#include "runtime_cfg.h"
 #include "script.h"
 #include "subs.h"
 #include "towne.h"
@@ -19,79 +18,15 @@ static void merchant(void);
 static void smith(void);
 static void tavern(void);
 
-/* Rumour IDs that need C-side parameter binding before display. The
-   remaining ids in 0..32 are fully static and dispatched via the
-   default branch (tx0 on `towne.rumour.r<pick>`). Names track the
-   in-rumour NPC reference, not the text topic. */
-enum {
-    RUMOUR_GARTH_BANDITS = 12, /* {name1}  — Garth quest hook       */
-    RUMOUR_NRIMTO_HUNT = 13,   /* {name2}  — Nrim'to hunter rumour  */
-    RUMOUR_BROTH_CROWN = 25,   /* {name15}, {loc15} — Master Crown  */
-    RUMOUR_HARRY_TEMPLE = 27,  /* {name13}, {loc13} — Temple of Thun */
-};
-
+/* The rumour id roll, the four bound arms (r12 / r13 / r25 / r27),
+   and the default static-text branch all live in
+   data/world/scripts/towne.json5's `rumour` script; engine_int
+   `rumour_roll` handles the ryl_random + RYL_REPLAY_RUMOUR override.
+   The trailing tx("\r\n") here matches the legacy separator that
+   smith's beer-accept and tavern's (R)umours flow expected after
+   each call. */
 void rumour() {
-    char loc[40];
-    int32_t pick = ryl_random(0, 32);
-
-    /* Replay-mode override. Setting RYL_REPLAY_RUMOUR=<N> in a fixture
-       pins the rumour id so `towne-thord-tavern-rumour-r12` reliably
-       exercises the Garth-bandits branch, etc. Production never sets
-       this env var. Clamped to 0..32 — out-of-range falls through to
-       the random roll. */
-    const char *force = rcfg_get("RYL_REPLAY_RUMOUR");
-    if (force && *force) {
-        char *end;
-        long v = strtol(force, &end, 10);
-        if (end != force && v >= 0 && v <= 32) {
-            pick = (int32_t)v;
-        }
-    }
-
-    /* Most rumours are static paragraphs; a handful fold in an NPC name
-       and a town-or-coord loc via tx_fmt. */
-    switch (pick) {
-        case RUMOUR_GARTH_BANDITS:
-            tx_fmt("towne.rumour.r12",
-                   (ryl_bind[]){{"name1",
-                                 res_npc_name(res_npc_role("bandits_quest_giver"))},
-                                {0}});
-            break;
-        case RUMOUR_NRIMTO_HUNT:
-            tx_fmt("towne.rumour.r13",
-                   (ryl_bind[]){{"name2",
-                                 res_npc_name(res_npc_role("rangers_quest_giver"))},
-                                {0}});
-            break;
-        case RUMOUR_BROTH_CROWN: {
-            npc_t seer = npc_for_role("crown_seer");
-            npc_loc_str(seer, loc, sizeof loc);
-            tx_fmt("towne.rumour.r25",
-                   (ryl_bind[]){
-                       {"name15", npc_name(seer)},
-                       {"loc15", loc},
-                       {0},
-                   });
-            break;
-        }
-        case RUMOUR_HARRY_TEMPLE: {
-            npc_t seer = npc_for_role("temple_of_thun_seer");
-            npc_loc_str(seer, loc, sizeof loc);
-            tx_fmt("towne.rumour.r27",
-                   (ryl_bind[]){
-                       {"name13", npc_name(seer)},
-                       {"loc13", loc},
-                       {0},
-                   });
-            break;
-        }
-        default: {
-            char id[32];
-            snprintf(id, sizeof id, "towne.rumour.r%d", pick);
-            tx0(res_text(id));
-            break;
-        }
-    }
+    play_script("towne.rumour", NULL);
     tx("\r\n");
 }
 int32_t obdamage(int32_t nr) {
