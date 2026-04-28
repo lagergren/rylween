@@ -1,0 +1,67 @@
+# Reproducible build + replay gate for non-mac contributors. See
+# port-plan §12.1. macOS apple-clang ASan ships without LeakSanitizer,
+# so the Ubuntu leg is the authoritative leak gate; macOS is a
+# scorecard.
+
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              build-essential clang clang-format
+
+      - name: build
+        run: make build
+
+      - name: replay + world-check
+        run: make test
+
+      - name: ASan gate (LSan-authoritative on Linux)
+        run: make testasan
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-format
+
+      - name: format dry-run
+        run: make format
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build
+        run: make build
+
+      - name: replay + world-check
+        run: make test
+
+      # Apple-clang ASan has no LSan; this leg is a scorecard, not the
+      # authoritative gate. The Linux leg covers leaks.
+      - name: ASan gate (scorecard — no LSan on apple-clang)
+        run: make testasan
