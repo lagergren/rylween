@@ -690,7 +690,7 @@
     tokawa:   { name: 'Tokawa',   job: 'tavernkeeper', towne: 'Ollk',  building: 'tavern' },
     miyaki:   { name: 'Miyaki',   job: 'tavernkeeper', towne: 'Wilor', building: 'tavern' },
     dargoth:  { name: 'Dargoth',  job: 'tavernkeeper', towne: 'Murn',  building: 'tavern' },
-    marcus:   { name: 'Marcus',   job: 'hermit',       towne: 'wilderness', x: 48, y: 7 },
+    marcus:   { name: 'Marcus',   job: 'hermit',       towne: 'Wilderness', x: 48, y: 7 },
 
     // Bargirls: job 13, in the tavern. Legacy person.c:163 had these
     // at building = 'inn' — another latent write-only bug: towne.c:1189
@@ -704,10 +704,10 @@
     // fall through the rn_enum default of 1 (male).
     deanna:   { name: 'Deanna',   job: 'bargirl',      towne: 'Thord', building: 'tavern', gender: 'female' },
     jeanne:   { name: 'Jeanne',   job: 'bargirl',      towne: 'Wilor', building: 'tavern', gender: 'female' },
-    alex:     { name: 'Alex',     job: 'merchant',     towne: 'wilderness' },
-    galdon:   { name: 'Galdon',   job: 'merchant',     towne: 'wilderness' },
-    kosch:    { name: 'Kosch',    job: 'merchant',     towne: 'wilderness' },
-    ufarsin:  { name: 'Ufarsin',  job: 'merchant',     towne: 'wilderness' },
+    alex:     { name: 'Alex',     job: 'merchant',     towne: 'Wilderness' },
+    galdon:   { name: 'Galdon',   job: 'merchant',     towne: 'Wilderness' },
+    kosch:    { name: 'Kosch',    job: 'merchant',     towne: 'Wilderness' },
+    ufarsin:  { name: 'Ufarsin',  job: 'merchant',     towne: 'Wilderness' },
   },
 
   // Role -> NPC binding. The C side (rumour dispatch, speak cases,

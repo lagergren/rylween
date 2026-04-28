@@ -248,49 +248,82 @@ Four commits on `lagergren/port1` (`7671ea5..83814b7`); bodies in `port-plan-com
 
 ### Recommended next session
 
-**Session #13's full queue (#1..#5) all closed in #13b** (six commits `855c138..e7cbd71` plus the four #13 commits applied earlier). `struct ryl_state` is now zero static caps; `subs.c::spell` priest-list bound is data-driven; `subs.c::rumour()` is a 3-line DSL trampoline; §20 L2 confirmed already-closed (with two latent bug fixes); the `temp_low_damage` doc clarification settles the "possible bug" tracking item.
+**Session #13b closed every named §-anchor**; the queue now reflects a fresh, post-§13b survey of every src/ .c file looking for content-as-code (any data table, dispatch list, hardcoded UI string, magic threshold, or scenario layout that an author would want to edit without recompiling).
 
-The queue below is now organized by what should still be extracted from C → JSON5 to make the engine more generic. After session #13b's broad survey of every src/ .c file, the actual residual "this is content masquerading as code" items are:
+The catalog below is ordered by leverage — Tier 0 is the single biggest "why is this in C" item; Tiers A/B are session-sized; Tiers C/D are smaller polish; Tier E is structural; Tier F is deferred-by-design.
 
-#### Tier A — UI layer still hardcoded (highest leverage)
+#### Tier 0 — the biggest content-in-C item
 
-  - **A1. Terminal layout / screen positions (`c(x, y)` calls)**. The most pervasive. driv.c hardcodes statusline anchors (`c(3, 21)`, `c(13, 22)`, `c(49, 6)` after every blit, `c(0, 0)` for cursor reset); gfx.c::blitgfx anchors at `(49, 6)` after every render and clr_map_window has a hardcoded 8×9 erase grid (`c(8, 6)..c(8, 14)`); primitives.c::c() itself takes runtime args, but the call sites are content. Lift target: `data/world.json5 screen:` subtree with named regions (`screen.text_window: { x: 49, y: 6, w: 32, h: 15 }`, `screen.statusline_top: { x: 3, y: 21 }`, `screen.statusline_bottom: { x: 13, y: 22 }`, `screen.map_window: { x: 8, y: 6, w: 16, h: 9 }`, …) + a small `screen_*` accessor family in res.h. Bundle a clr_map_window DSL refactor that takes the region as a binding. Multi-callsite sweep across driv.c (12+ sites) + gfx.c (~10 sites). Session-sized.
+  - **0.1. `missions.c::mission_triggers[]` → `data/world/missions.json5`**. The 16-entry static C struct array (lines 118-198 of missions.c) is **pure scenario data masquerading as code**. Every field is a value an author would want to set without recompiling: `flag_tag`, `when_state`, guard kind (`MG_POS` / `MG_DUNGEON_IDX` / `MG_CHANCE` / `MG_TERRAIN` / `MG_SPECIAL_EQ` / `MG_TILE_AT_POS`), guard args (positions, dungeon-loc-slot indices, terrain chars, special-flag values, %-chances), the script id to invoke, the bindings (NPC role refs / dx[N] dy[N] stringification / player-member name lookup), and the post-action enum. Today adding a new mission requires editing C, recompiling, and re-running gates. After this lift, it's a `data/world/missions.json5` edit. Lift target: a `missions: [...]` array shard with one record per trigger; `fold_missions` builds the same `mission_trigger` table at world-load. The dispatch loop (`dispatch_triggers` / `guard_matches` / `apply_post`) stays in C because it's pure engine. **Largest single content-extraction win remaining.** Multi-session: design the schema (1 session), fold loader + walk all 16 entries through it (1-2 sessions), retire the static array.
 
-  - **A2. Statusline content (TIME / status-bucket labels + H1..H4 template)**. driv.c::statusline emits `"TIME: DAWN"` / `"MIDDAY"` / `"TWILIGHT"` / `"MIDNIGHT"` based on hour ranges hardcoded in the function; status-bucket labels (`HUNGRY` / `STARVING` / `OK`) sit on inline `pa_food()` thresholds; the H1..H4 grid is one big snprintf. The four TIME labels are pure content (already could be `data/world/texts/driv.statusline.time.<bucket>`); the hour-range buckets themselves could move to `world.json5 status.time_buckets: [{lo: 6, hi: 11, text_id: 'driv.time.dawn'}, ...]`. Status labels follow the same shape. The H1..H4 template benefits less from lifting (it's tightly coupled to the 80-col game window per §17 convention) but the TIME / status emits are clear wins.
+#### Tier A — UI layer still hardcoded
 
-  - **A3. View command body** (driv.c::the_game's `case 'V'`). "Who? (1-N) / All" prompt + per-member `show()`, plus the help-screen render at line 1582. Small bodies, currently inline. Same shape as the §17 lifts — text records are already sharded; just need to wrap the dispatch in `play_script("driv.view", ...)`.
+  - **A1. Terminal layout / `c(x, y)` positions**. driv.c hardcodes statusline anchors (`c(3, 21)`, `c(13, 22)`, `c(49, 6)` after every blit, `c(0, 0)`); gfx.c::blitgfx anchors at `(49, 6)`; clr_map_window has hardcoded 8×9 erase grid (`c(8, 6)..c(8, 14)`). Lift target: `data/world.json5 screen:` subtree with named regions (`screen.text_window: { x: 49, y: 6, w: 32, h: 15 }`, `screen.statusline_top: { x: 3, y: 21 }`, `screen.statusline_bottom: { x: 13, y: 22 }`, `screen.map_window: { x: 8, y: 6, w: 16, h: 9 }`) + small `screen_*` accessor family in res.h. Multi-callsite sweep: ~12 sites in driv.c + ~10 in gfx.c. Session-sized.
 
-#### Tier B — bare-int dispatch in combat / inventory
+  - **A2. Statusline content** (TIME / status-bucket labels + H1..H4 template). driv.c::statusline emits `"TIME: DAWN"` / `"MIDDAY"` / `"TWILIGHT"` / `"MIDNIGHT"` based on hour ranges hardcoded in the function (lines 255-266); status-bucket labels (`HUNGRY` / `STARVING` / `OK`) sit on inline `pa_food()` thresholds (lines 267-275). Lift to `data/world/texts/driv.statusline.time.<bucket>` text records + a `world.json5 status.time_buckets: [{lo, hi, text_id}, ...]` table. Status labels same shape. The H1..H4 grid template (line 286) stays inline per §17 convention.
 
-  - **B1. battle.c magic-item case labels** (per `project_hardcoded_indices_doc.md` P4). The combat dispatcher still has a `switch (item_id)` over magic-item ints. Should migrate to slug-keyed dispatch via `res_enum("magic_item", ...)` plus a `magic_items.<slug>:` script tree, mirroring how dungeon.c migrated. Touches battle.c only; new shard `data/world/scripts/magic_items.json5`.
+  - **A3. View / show / showparty UI strings**. `driv.c::show()` (lines 1555-1583) is 25 lines of hardcoded `tx("Name      : %s\r\n", ...)` / `tx("Race      : ...")` / `tx("Hp/H      : %d/%d\r\n", ...)` etc. — pure content. Same for `driv.c::showparty()` (`tx("%u torches.\r\n", ...)` / `tx("%d rations.\r\n", ...)` / `tx("%d gold.\r\n\r\n", ...)`). Both should DSL-ify into `driv.show` / `driv.show_party` scripts with for-each-member loops and text records for the labels. Closes the §17 stragglers.
 
-  - **B2. Equipment-swap UI flows** (subs.c::weaponoff / armouroff / weaponr / armourr). Four near-identical bodies (~40 LOC each) doing: digit-prompt → check has-equipment → check inventory-room → swap → emit. Already use res_text + tx_fmt for the emit; the cascade structure is in C. Lift to a shared `subs.equipment.swap` DSL script with bindings (`{slot, side: 'on'|'off', kind: 'weapon'|'armour'}`); collapses ~160 LOC of subs.c body. Compresses the file substantially after the existing #5 priest-list lift.
+  - **A4. createparty stat-roll UI** (driv.c::createparty lines 1374-1383 + 1388 + 1410-1413 + 1422-1426 + 1437-1441). Hardcoded `"Stats for char: %d"`, `"Weapon Skill : %2d"`, `"Health       : %2d"`, `"Wisdom       : %2d"`, `"Charisma     : %2d"`, `"Give Character %d a name!"`, plus `'1'..'4'` race menu bound and `'1'..'6'` class menu bound (should derive from `res_enum_count("race")` / `res_enum_count("pc_class")` so adding a race / class doesn't require a C edit). Session-sized; bundles with A3.
 
-  - **B3. NPC slot-id → slug-key migration** (the §24bis phase-3 follow-up that didn't quite land). Today `data/world.json5 npcs:` entries still carry an explicit `id: <int>` (`"garth": { id: 0, ... }`, `"nrim_to": { id: 1, ... }`, …) even though every other axis (race / pc_class / job / world_locations) dropped its id field in §24bis phase 3. The blockers are real: `state.npc[]` is a 0-indexed packed array; `for_each_npc` walks slots; `struct person.visited[]` is per-NPC indexed by party slot; `driv.c::write_current_world` emits each party's `visited_npcs: [...]` as a positional byte array (load reconstructs by index); `res_realize_npcs`'s random town-bin draw walks NPCs in slot order so RNG identity depends on slot ordering. To finish the migration: (1) reshape the per-party `visited_npcs` save format from positional `[byte, byte, ...]` to slug-keyed `{garth: 0, nrim_to: 0, ...}` (or fold the visited byte onto the per-NPC record in the realm dump); (2) drop explicit `id:` from npcs subtree, have `fold_npcs` assign positional slots by JSON5 declaration order (same shape `fold_enum_records` took); (3) verify random-placement RNG identity stays the same — if JSON5 declaration order already matches the int-order today, no rebless. Multi-step but bounded; closes the last int-keyed axis in the data layer.
+#### Tier B — bare-int dispatch + small-arm if-cascades
 
-#### Tier C — engine state still partly in C
+  - **B1. ~~battle.c magic-item case labels~~** — **closed**. Survey verified §23.B already routes every magic-item Use-Item invocation through `play_spell_body("magic_items.<slug>", ...)` via `res_magic_item_effect_node()` (battle.c:194-241). The `project_hardcoded_indices_doc.md` P4 entry was stale. Strike from queue.
 
-  - **C1. `foodhandler` fatigue ladder** (subs.c). Mostly data-driven (`upkeep.starve_damage`, `balance.fatigue.exhausted/weak`, etc.), but the ladder dispatcher itself (the if-cascade on `pa_hours_rested() == 0` / `== -4` / `== -8` / `< -8` with bespoke text emits per arm) lives in C. Could lift to a `subs.foodhandler.fatigue` DSL script that walks an `fatigue_levels: [{threshold, text_id, drain?}, ...]` table. Less obvious win — the four arms are stable — but consolidates the ladder shape.
+  - **B2. Equipment-swap UI flows** (subs.c::weaponoff / armouroff / weaponr / armourr). Four near-identical bodies (~40 LOC each): digit-prompt → check has-equipment → check inventory-room → swap → emit. Lift to a shared `subs.equipment.swap` DSL script with bindings (`{slot, side: 'on'|'off', kind: 'weapon'|'armour'}`); collapses ~160 LOC of subs.c body.
 
-  - **C2. `random_wilderness` Karl-Skagerberg easter egg** (subs.c). `if (!(pa_time_left() % 101) && !stricmp(session_player_name(), "Karl Skagerberg")) { encounter(skagerberg_killer); }` — hardcoded player-name compare + period. Could move to `world.json5 secrets:` subtree (e.g. `[{trigger: 'time_left % 101 == 0', condition: 'player_name == "Karl Skagerberg"', action: 'encounter:skagerberg_killer'}]`) with a small `secrets_check` engine_call. Niche but cleanly captured.
+  - **B3. NPC slot-id → slug-key migration**. **In flight via background agent in #14a** (Tier C-style migration of the last int-keyed axis in the data layer). When the agent's patch lands, the explicit `id:` field on each `data/world.json5 npcs:` entry is gone — `fold_npcs` assigns positional slots by JSON5 declaration order. Save format `visited_npcs` reshape from positional `[byte, byte, ...]` to slug-keyed `{garth: 0, nrim_to: 0, ...}` (legacy form still accepted via stricmp / N_ARR fallback for backward compat).
 
-  - **C3. Save-file emit shape** (driv.c::write_current_world / read_current_world). The world.json5 emit is hand-coded `fputs("    party_member_max: %d", ...)` style. The DSL has a snapshot.c that emits a structured dump for fixtures; the realm save could in principle share the same plumbing. ~500 LOC total in driv.c that could shrink. Bigger lift; not session-sized.
+  - **B4. speak.c chitchat C-key 3-way switch** (lines 201-220). `x = ryl_random(0, 2)` → 3-arm switch over well/weather/health text records, with female/male variants. Pure dispatch + emit; could collapse to a `speak.chitchat_subject` DSL script that does the random pick + emit. ~30 LOC saved.
+
+  - **B5. speak.c "%s nods as" / "%s tells you:" prose** (lines 161, 191). Two inline `tx()` callsites with name bindings. Should be `speak.recognize_pre` / `speak.tells_you_pre` text records. Trivial; bundles with B4.
+
+#### Tier C — engine state with hardcoded shape
+
+  - **C1. battle.c::expcheck level-up dispatcher** (lines 663-715). Several content-in-C items in one function:
+      - `int32_t add[5]` — static cap on per-member level-gain count; should be `res_party_member_max() + 1`.
+      - `for (int n = l + 1; n <= 28; n++)` — max level cap `28` should be `res_int_path("class.max_level")` or similar.
+      - Hardcoded `pc_class_key[]` int → slug map; should be a single `res_enum_sym("pc_class", cl_id)` call (the storage is already slug-pointer; this map is the legacy boundary).
+      - `pm_hit_points_floor(pm, (pm_health(pm) * 2) / 3)` — the `(h * 2) / 3` formula should be a named formula `level_up.hp_floor` so balance authors can tune the floor without a C edit.
+
+  - **C2. battle.c encounter pic count**. Line 41: `blitgfx(encounterpic + ryl_random(0, 4))` — `4` is `encounter_pic_count - 1`. Lift to `world.json5 balance.combat.encounter_pic_count`. Trivial.
+
+  - **C3. `foodhandler` fatigue ladder** (subs.c). Mostly data-driven; the ladder dispatcher (`if (pa_hours_rested() == 0)` / `== -4` / `== -8` / `< -8`) lives in C. Could lift to a `subs.foodhandler.fatigue` DSL script + `fatigue_levels: [{threshold, text_id, drain?}, ...]` table.
+
+  - **C4. `random_wilderness` Karl-Skagerberg easter egg** (subs.c lines 151-153). Hardcoded `pa_time_left() % 101` + `!stricmp(session_player_name(), "Karl Skagerberg")` + spawn `skagerberg_killer`. Lift to `world.json5 secrets:` subtree with a `secrets_check` engine_call.
+
+  - **C5. Save-file emit shape** (driv.c::write_current_world / read_current_world). Hand-coded fputs serializer; could share `snapshot.c` plumbing. ~500 LOC could shrink. Bigger lift; multi-session.
 
 #### Tier D — structural cap-flips (storage shape)
 
-  - **D1. `struct party.flag[40]` cap-flip**. Last hardcoded byte-array on struct party. Sized to 40 mission-flag slots; `world.json5 limits.party_flag_max` could drive it. Would need careful save-format coordination since flags are persisted by slot id. Same shape as §12.3 cap-flips.
+  - **D1. `struct party.flag[40]` cap-flip**. Last hardcoded byte-array on struct party. `world.json5 limits.party_flag_max` could drive it. Save-format coordination needed (flags persisted by slot id).
 
-  - **D2. NPC_SLOT_HARD_MAX cap-flip** (RNG-identity gated). Lifting the static 41 to data requires re-rolling random NPC placement RNG identity (different bin counts shift the stream); every fixture using random NPC arrangement would need a rebless. Defer until > 41 NPCs has real demand.
+  - **D2. NPC_SLOT_HARD_MAX cap-flip** (RNG-identity gated; defer until > 41 NPCs has real demand).
 
-  - **D3. TOWN_SLOT_HARD_MAX cap-flip** (RNG-identity gated). `int counts[TOWN_SLOT_HARD_MAX]` in res_realize_npcs is a small heap-alloc lift, but bumping the cap shifts the random NPC town-bin draw. Defer.
+  - **D3. TOWN_SLOT_HARD_MAX cap-flip** (RNG-identity gated; defer).
 
-#### Tier E — script-side audit (the DSL has now grown enough to reward refactoring)
+#### Tier E — script-side audit
 
-  - **E1. data/world/scripts/*.json5 repeat-pattern collapse**. Recurring snippets (e.g. "ask_target → cost-check → mutate → emit-result" cascades, "if member-stat < N → emit-fail; else → consume + apply") might benefit from new shared DSL ops. Low-pressure cleanup; do when an author trips over the duplication.
+  - **E1. data/world/scripts/*.json5 repeat-pattern collapse**. Recurring snippets (ask_target → cost-check → mutate → emit cascades; if member-stat < N gates) might benefit from new shared DSL ops. Low-pressure cleanup; do when an author trips over duplication.
 
-  - **E2. dungeon.c residual scripting refinements**. The 28 scripts in dungeon.json5 (live since 2026-04-25) aren't audited for code-as-data opportunities (inline RNG ranges that could become formulas, duplicated emit patterns). Worth a survey.
+  - **E2. dungeon.json5 residual scripting refinements**. The 28 scripts (live since 2026-04-25) aren't audited for code-as-data opportunities (inline RNG ranges → formulas, duplicated emit patterns).
 
-**Pick order suggestion**: Tier A (highest leverage; UI layer is the most "this should be authored") → Tier B (bare-int dispatch is the next biggest engine-vs-content boundary) → Tier C/D as opportunity surfaces.
+#### Tier F — pure engine (will stay in C)
+
+For reference: these are NOT extraction candidates — they're the actual game engine. Listed so the boundary stays clear:
+  - `script.c` (3766 LOC) — DSL evaluator. Ops, expression evaluator, env, bindings, the `play_script` / `play_spell_body` / `play_formula_int` entry points. Pure engine.
+  - `res.c` (3657 LOC) — world-tree loader, fold functions, every `res_*` data accessor. The plumbing layer that backs the data extractions; itself stays in C.
+  - `compat.c` / `io_tty.c` / `json5.c` / `log.c` / `runtime_cfg.c` / `primitives.c` / `replay_knobs.c` / `snapshot.c` — infrastructure (RNG, terminal I/O, JSON5 parser, logging, env config, low-level rendering primitives, fixture-replay scaffolding).
+  - `wld.c` — map index abstraction (the `state.map[y * cols + x]` consumer). Engine boundary; data is the world.json5 map subtree + map.dat.
+  - `inventory.c` / `party.c` — pa_*/pm_*/inv_* accessor families. Pure abstraction.
+  - `missions.c` dispatch loop, guard evaluator, bindings resolver, post-action applier — engine. **Only the `mission_triggers[]` array (lines 118-198) is content** — see Tier 0.1.
+  - `battle.c` combat-loop control flow (action ordering, hit/miss math, monster AI dispatch, damage math, win/lose detection) — engine. Magic-item dispatch + reward formulas + scaling formulas are already DSL/data.
+  - `dungeon.c` (182 LOC) — pure dispatcher; `play_script("dungeon.<sym>", ...)` against `enums.dungeon_encounter[lvl[cl]]`. Engine boundary; encounter bodies are in DSL.
+  - `subs.c` random_wilderness dispatch (mission-control filter → cave roll → encounter roll), foodhandler tick mechanics, encounter() invocation — engine. Per-arm content (cave dispatch, random encounter monster pick, fatigue text) is already mostly DSL.
+  - `towne.c` enter() town-tile dispatcher — engine. Building bodies (hut / inn / merchant / smith / tavern / church / rumour) are all DSL trampolines.
+  - `ydarg.c` (354 LOC after #13's lift) — `ydarg()` is a one-line `play_script("ydarg.main", NULL)` trampoline; the rest of the file is the `g_ydarg` state struct + 11 thin engine_call backers. Boundary is engine.
+
+**Pick order**: Tier 0 (mission_triggers — biggest single win) → Tier A (UI layer, highest call-site count) → Tier B/C as opportunity surfaces.
 
 Per-session bar: `make check` + `make testasan` both green at every commit; format gate (`make format`) now also runs in CI on push + PR. Push only on explicit user approval (per AGENTS.md).
 
