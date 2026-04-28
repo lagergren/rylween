@@ -1,14 +1,18 @@
-#include "io.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "compat.h"
+#include "driv.h"
 #include "interact.h"
 #include "inventory.h"
+#include "io.h"
 #include "json5.h"
 #include "log.h"
 #include "party.h"
+#include "primitives.h"
 #include "replay_knobs.h"
 #include "res.h"
-#include "ryl.h"
-#include "driv.h"
-#include "primitives.h"
 #include "subs.h"
 #include "towne.h"
 #include "wld.h"
@@ -843,7 +847,7 @@ static void write_current_world() {
         fprintf(f, "      time_left: %d,\n", p->time_left);
         fprintf(f, "      hours_rested: %d,\n", p->hours_rested);
         fputs("      inventory: ", f);
-        wcw_i32_arr(f, p->inventory, 17);
+        wcw_i32_arr(f, p->inventory, INVENTORY_SLOT_MAX + 1);
         fputs(",\n", f);
 
         /* Per-member objects. Replaces the parallel-arrays shape so
@@ -1193,7 +1197,7 @@ static int read_current_world() {
             p->time_left = rcw_int(pnode, "time_left", p->time_left);
             p->hours_rested = rcw_int(pnode, "hours_rested", 14);
 
-            rcw_i32_arr(obj_get(pnode, "inventory"), p->inventory, 17);
+            rcw_i32_arr(obj_get(pnode, "inventory"), p->inventory, INVENTORY_SLOT_MAX + 1);
 
             /* Per-member objects (writer emits a `members: [...]` array
                of self-contained per-member records). Walk it slot-by-
