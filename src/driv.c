@@ -17,7 +17,26 @@ static void createparty(void);
 static void position_locations(void);
 static int read_current_world(void);
 static void the_game(void);
+static void try_move(dir_t d);
 static void write_current_world(void);
+
+static void try_move(dir_t d) {
+    if (pa_time_left() == 0) {
+        clw();
+        tx0(res_text("driv.move.no_moves"));
+        return;
+    }
+    int nx = pa_x() + wld_dir_dx(d);
+    int ny = pa_y() + wld_dir_dy(d);
+    if (wld_is_passable(nx, ny)) {
+        wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
+        pa_set_x(nx);
+        pa_set_y(ny);
+        update_map();
+        random_wilderness();
+        pa_add_time_left(-1);
+    }
+}
 
 static void the_game() {
     char cc, d;
@@ -93,66 +112,16 @@ static void the_game() {
         cc = key();
         cc = toupper(cc);
 
+        dir_t move = wld_dir_from_key(cc);
+        if (move != DIR_NONE) {
+            try_move(move);
+            continue;
+        }
+
         switch (cc) {
             case ' ':
                 clw();
                 tx0(res_text("driv.move.pass"));
-                break;
-            case '8':
-                if (pa_time_left() == 0) {
-                    clw();
-                    tx0(res_text("driv.move.no_moves"));
-                    break;
-                }
-                if (wld_is_passable(pa_x(), pa_y() - 1)) {
-                    wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
-                    pa_add_y(-1);
-                    update_map();
-                    random_wilderness();
-                    pa_add_time_left(-1);
-                }
-                break;
-            case '4':
-                if (pa_time_left() == 0) {
-                    clw();
-                    tx0(res_text("driv.move.no_moves"));
-                    break;
-                }
-                if (wld_is_passable(pa_x() - 1, pa_y())) {
-                    wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
-                    pa_add_x(-1);
-                    update_map();
-                    random_wilderness();
-                    pa_add_time_left(-1);
-                }
-                break;
-            case '2':
-                if (pa_time_left() == 0) {
-                    clw();
-                    tx0(res_text("driv.move.no_moves"));
-                    break;
-                }
-                if (wld_is_passable(pa_x(), pa_y() + 1)) {
-                    wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
-                    pa_add_y(1);
-                    update_map();
-                    random_wilderness();
-                    pa_add_time_left(-1);
-                }
-                break;
-            case '6':
-                if (pa_time_left() == 0) {
-                    clw();
-                    tx0(res_text("driv.move.no_moves"));
-                    break;
-                }
-                if (wld_is_passable(pa_x() + 1, pa_y())) {
-                    wld_set_last_terrain(wld_tile_at(pa_x(), pa_y()));
-                    pa_add_x(1);
-                    update_map();
-                    random_wilderness();
-                    pa_add_time_left(-1);
-                }
                 break;
 
             case 'S':
@@ -709,17 +678,6 @@ static void wcw_i32_arr(FILE *f, const int32_t *a, int n) {
     fputc(']', f);
 }
 
-static void wcw_u32_arr(FILE *f, const uint32_t *a, int n) {
-    fputc('[', f);
-    for (int i = 0; i < n; i++) {
-        if (i > 0) {
-            fputs(", ", f);
-        }
-        fprintf(f, "%u", a[i]);
-    }
-    fputc(']', f);
-}
-
 static void wcw_byte_arr(FILE *f, const unsigned char *a, int n) {
     fputc('[', f);
     for (int i = 0; i < n; i++) {
@@ -768,56 +726,6 @@ static void wcw_party_flags(FILE *f, const struct party *p) {
         wcw_str(f, vname);
     }
     fputs(first ? "}" : " }", f);
-}
-
-/* Enum array via res_enum: each int slot emitted as the symbolic value,
-   with null for slot-0 (1-based enum sentinel). Fall back to the raw
-   int if the lookup returns ""; keeps the file round-trippable even if
-   world.json5 is missing an entry. */
-static void wcw_enum_arr(FILE *f, const char *enum_id, const int *vals, int n) {
-    fputc('[', f);
-    for (int i = 0; i < n; i++) {
-        if (i > 0) {
-            fputs(", ", f);
-        }
-        if (vals[i] == 0) {
-            fputs("null", f);
-            continue;
-        }
-        const char *s = res_enum(enum_id, vals[i]);
-        if (s && s[0]) {
-            fputc('"', f);
-            fputs(s, f);
-            fputc('"', f);
-        } else {
-            fprintf(f, "%d", vals[i]);
-        }
-    }
-    fputc(']', f);
-}
-
-/* Byte-valued enum array (for gender[], which is unsigned char[5]). */
-static void wcw_enum_barr(FILE *f, const char *enum_id, const unsigned char *vals, int n) {
-    fputc('[', f);
-    for (int i = 0; i < n; i++) {
-        if (i > 0) {
-            fputs(", ", f);
-        }
-        int v = vals[i];
-        if (v == 0) {
-            fputs("null", f);
-            continue;
-        }
-        const char *s = res_enum(enum_id, v);
-        if (s && s[0]) {
-            fputc('"', f);
-            fputs(s, f);
-            fputc('"', f);
-        } else {
-            fprintf(f, "%d", v);
-        }
-    }
-    fputc(']', f);
 }
 
 /* §15 step 1: serialize persistent state (realm header + NPCs + parties)
@@ -911,25 +819,6 @@ static void write_current_world() {
     int mlen = res_party_member_max();
     for (int i = 1; i <= party_count(); i++) {
         const struct party *p = party_at(i);
-        /* wcw_enum_arr wants plain int[], so materialize cl/ra into
-           a stack buffer at member-array length. VLAs aren't in c99
-           strict, so cap via alloca-style malloc. Small enough to
-           keep on the stack via variable-length array on most
-           targets; use heap for portability. */
-        int *cl_int = malloc((size_t)mlen * sizeof *cl_int);
-        int *ra_int = malloc((size_t)mlen * sizeof *ra_int);
-        if (!cl_int || !ra_int) {
-            LOG_E("driv", "write_current_world: malloc failed");
-            exit(1);
-        }
-        for (int m = 0; m < mlen; m++) {
-            /* §24bis phase 3 class+race axes: storage is slug pointer;
-               convert to int so wcw_enum_arr's int-array contract still
-               holds. NULL slug → 0 (matches the calloc-zero unset
-               sentinel). */
-            cl_int[m] = p->cl[m] ? res_enum_id("pc_class", p->cl[m]) : 0;
-            ra_int[m] = p->ra[m] ? res_enum_id("race", p->ra[m]) : 0;
-        }
         fputs("    {\n", f);
         fputs("      player: ", f);
         wcw_str(f, p->player);
@@ -937,14 +826,6 @@ static void write_current_world() {
         fputs("      party_name: ", f);
         wcw_str(f, p->party_name);
         fputs(",\n", f);
-        fputs("      name: [", f);
-        for (int m = 0; m < mlen; m++) {
-            if (m > 0) {
-                fputs(", ", f);
-            }
-            wcw_str(f, p->name[m]);
-        }
-        fputs("],\n", f);
         fputs("      flags: ", f);
         wcw_party_flags(f, p);
         fputs(",\n", f);
@@ -964,48 +845,51 @@ static void write_current_world() {
         fputs("      inventory: ", f);
         wcw_i32_arr(f, p->inventory, 17);
         fputs(",\n", f);
-        fputs("      ws: ", f);
-        wcw_i32_arr(f, p->ws, mlen);
-        fputs(",\n", f);
-        fputs("      h: ", f);
-        wcw_i32_arr(f, p->h, mlen);
-        fputs(",\n", f);
-        fputs("      hp: ", f);
-        wcw_i32_arr(f, p->hp, mlen);
-        fputs(",\n", f);
-        fputs("      wi: ", f);
-        wcw_i32_arr(f, p->wi, mlen);
-        fputs(",\n", f);
-        fputs("      ma: ", f);
-        wcw_i32_arr(f, p->ma, mlen);
-        fputs(",\n", f);
-        fputs("      ch: ", f);
-        wcw_i32_arr(f, p->ch, mlen);
-        fputs(",\n", f);
-        fputs("      cl: ", f);
-        wcw_enum_arr(f, "pc_class", cl_int, mlen);
-        fputs(",\n", f);
-        fputs("      ra: ", f);
-        wcw_enum_arr(f, "race", ra_int, mlen);
-        fputs(",\n", f);
-        fputs("      lv: ", f);
-        wcw_i32_arr(f, p->lv, mlen);
-        fputs(",\n", f);
-        fputs("      ar: ", f);
-        wcw_i32_arr(f, p->ar, mlen);
-        fputs(",\n", f);
-        fputs("      wp: ", f);
-        wcw_i32_arr(f, p->wp, mlen);
-        fputs(",\n", f);
-        fputs("      exp: ", f);
-        wcw_u32_arr(f, p->exp, mlen);
-        fputs(",\n", f);
-        fputs("      dead: ", f);
-        wcw_i32_arr(f, p->dead, mlen);
-        fputs(",\n", f);
-        fputs("      gender: ", f);
-        wcw_enum_barr(f, "gender", p->gender, mlen);
-        fputs(",\n", f);
+
+        /* Per-member objects. Replaces the parallel-arrays shape so
+           each member's full record (name, race, class, gender, stats,
+           equipment, exp, dead) is one self-contained block — easier
+           to read by hand and harder to misalign on edit. Field order
+           matches snapshot.c::emit_party's `member[%d]` line so the
+           two formats stay consistent. */
+        fputs("      members: [\n", f);
+        for (int m = 0; m < mlen; m++) {
+            const char *cl_s = p->cl[m] ? p->cl[m] : "";
+            const char *ra_s = p->ra[m] ? p->ra[m] : "";
+            int cl_int = cl_s[0] ? res_enum_id("pc_class", cl_s) : 0;
+            int ra_int = ra_s[0] ? res_enum_id("race", ra_s) : 0;
+            const char *cl_disp = res_enum("pc_class", cl_int);
+            const char *ra_disp = res_enum("race", ra_int);
+            const char *gender_disp = res_enum("gender", p->gender[m]);
+            fputs("        { name: ", f);
+            wcw_str(f, p->name[m]);
+            fputs(", gender: ", f);
+            if (gender_disp && gender_disp[0]) {
+                wcw_str(f, gender_disp);
+            } else {
+                fprintf(f, "%u", p->gender[m]);
+            }
+            fputs(", race: ", f);
+            if (ra_disp && ra_disp[0]) {
+                wcw_str(f, ra_disp);
+            } else {
+                fprintf(f, "%d", ra_int);
+            }
+            fputs(", class: ", f);
+            if (cl_disp && cl_disp[0]) {
+                wcw_str(f, cl_disp);
+            } else {
+                fprintf(f, "%d", cl_int);
+            }
+            fprintf(f, ", lv: %d, dead: %d", p->lv[m], p->dead[m]);
+            fprintf(f, ", h: %d, hp: %d", p->h[m], p->hp[m]);
+            fprintf(f, ", ws: %d, wi: %d, ma: %d, ch: %d",
+                    p->ws[m], p->wi[m], p->ma[m], p->ch[m]);
+            fprintf(f, ", ar: %d, wp: %d, exp: %u },\n",
+                    p->ar[m], p->wp[m], p->exp[m]);
+        }
+        fputs("      ],\n", f);
+
         fputs("      attack_today: ", f);
         wcw_byte_arr(f, p->attack_today, 26);
         fputs(",\n", f);
@@ -1029,8 +913,6 @@ static void write_current_world() {
         }
         fputs("],\n", f);
         fputs("    },\n", f);
-        free(cl_int);
-        free(ra_int);
     }
     fputs("  ],\n", f);
 
@@ -1077,19 +959,6 @@ static void rcw_i32_arr(const node *arr, int32_t *out, int out_n) {
         const node *it = arr->u.arr.items[i];
         if (it && it->kind == N_INT) {
             out[i] = it->u.iv;
-        }
-    }
-}
-
-static void rcw_u32_arr(const node *arr, uint32_t *out, int out_n) {
-    if (!arr || arr->kind != N_ARR) {
-        return;
-    }
-    size_t n = arr->u.arr.n < (size_t)out_n ? arr->u.arr.n : (size_t)out_n;
-    for (size_t i = 0; i < n; i++) {
-        const node *it = arr->u.arr.items[i];
-        if (it && it->kind == N_INT) {
-            out[i] = (uint32_t)it->u.iv;
         }
     }
 }
@@ -1154,51 +1023,6 @@ static void rcw_byte_arr(const node *arr, unsigned char *out, int out_n) {
         const node *it = arr->u.arr.items[i];
         if (it && it->kind == N_INT) {
             out[i] = (unsigned char)it->u.iv;
-        }
-    }
-}
-
-/* Enum-int32 array: each element is a symbolic string (resolved via
-   res_enum_id) or a raw int. N_NULL leaves the out slot untouched —
-   writer emits null for 0-valued slots (1-based enum sentinel). */
-static void rcw_enum_arr(const node *arr, const char *enum_id, int32_t *out, int out_n) {
-    if (!arr || arr->kind != N_ARR) {
-        return;
-    }
-    size_t n = arr->u.arr.n < (size_t)out_n ? arr->u.arr.n : (size_t)out_n;
-    for (size_t i = 0; i < n; i++) {
-        const node *it = arr->u.arr.items[i];
-        if (!it) {
-            continue;
-        }
-        if (it->kind == N_INT) {
-            out[i] = it->u.iv;
-        } else if (it->kind == N_STR) {
-            int id = res_enum_id(enum_id, it->u.sv);
-            if (id >= 0) {
-                out[i] = id;
-            }
-        }
-    }
-}
-
-static void rcw_enum_barr(const node *arr, const char *enum_id, unsigned char *out, int out_n) {
-    if (!arr || arr->kind != N_ARR) {
-        return;
-    }
-    size_t n = arr->u.arr.n < (size_t)out_n ? arr->u.arr.n : (size_t)out_n;
-    for (size_t i = 0; i < n; i++) {
-        const node *it = arr->u.arr.items[i];
-        if (!it) {
-            continue;
-        }
-        if (it->kind == N_INT) {
-            out[i] = (unsigned char)it->u.iv;
-        } else if (it->kind == N_STR) {
-            int id = res_enum_id(enum_id, it->u.sv);
-            if (id >= 0) {
-                out[i] = (unsigned char)id;
-            }
         }
     }
 }
@@ -1367,52 +1191,56 @@ static int read_current_world() {
             p->hours_rested = rcw_int(pnode, "hours_rested", 14);
 
             rcw_i32_arr(obj_get(pnode, "inventory"), p->inventory, 17);
-            rcw_i32_arr(obj_get(pnode, "ws"), p->ws, (int)mlen);
-            rcw_i32_arr(obj_get(pnode, "h"), p->h, (int)mlen);
-            rcw_i32_arr(obj_get(pnode, "hp"), p->hp, (int)mlen);
-            rcw_i32_arr(obj_get(pnode, "wi"), p->wi, (int)mlen);
-            rcw_i32_arr(obj_get(pnode, "ma"), p->ma, (int)mlen);
-            rcw_i32_arr(obj_get(pnode, "ch"), p->ch, (int)mlen);
-            /* §24bis phase 3 class+race axes: parse into a temp int
-               array, then canonicalize each slot to res's interned
-               keys[] pointer so storage is the stable slug. 0 → NULL
-               (unset sentinel). */
-            {
-                int *cl_int_in = malloc((size_t)mlen * sizeof *cl_int_in);
-                int *ra_int_in = malloc((size_t)mlen * sizeof *ra_int_in);
-                if (!cl_int_in || !ra_int_in) {
-                    LOG_E("driv", "read_current_world: malloc failed");
-                    exit(1);
-                }
-                for (size_t m = 0; m < mlen; m++) {
-                    cl_int_in[m] = 0;
-                    ra_int_in[m] = 0;
-                }
-                rcw_enum_arr(obj_get(pnode, "cl"), "pc_class", cl_int_in, (int)mlen);
-                rcw_enum_arr(obj_get(pnode, "ra"), "race", ra_int_in, (int)mlen);
-                for (size_t m = 0; m < mlen; m++) {
-                    if (cl_int_in[m] <= 0) {
+
+            /* Per-member objects (writer emits a `members: [...]` array
+               of self-contained per-member records). Walk it slot-by-
+               slot. Class / race fields are slug-canonicalized (the
+               int form is recovered via res_enum_id at any boundary
+               that still wants ints — pm_cl, snapshot, etc.). */
+            const node *members = obj_get(pnode, "members");
+            if (members && members->kind == N_ARR) {
+                size_t take = members->u.arr.n < (size_t)mlen
+                                  ? members->u.arr.n
+                                  : (size_t)mlen;
+                for (size_t m = 0; m < take; m++) {
+                    const node *mn = members->u.arr.items[m];
+                    if (!mn || mn->kind != N_OBJ) {
+                        continue;
+                    }
+                    const node *name_n = obj_get(mn, "name");
+                    if (name_n && name_n->kind == N_STR) {
+                        strncpy(p->name[m], name_n->u.sv, sizeof p->name[m] - 1);
+                        p->name[m][sizeof p->name[m] - 1] = '\0';
+                    }
+                    p->gender[m] = (unsigned char)rcw_enum(mn, "gender", "gender", p->gender[m]);
+                    int cl_int = rcw_enum(mn, "class", "pc_class", 0);
+                    int ra_int = rcw_enum(mn, "race", "race", 0);
+                    if (cl_int <= 0) {
                         p->cl[m] = NULL;
                     } else {
-                        const char *s = res_enum_sym("pc_class", cl_int_in[m]);
+                        const char *s = res_enum_sym("pc_class", cl_int);
                         p->cl[m] = (s && s[0]) ? s : NULL;
                     }
-                    if (ra_int_in[m] <= 0) {
+                    if (ra_int <= 0) {
                         p->ra[m] = NULL;
                     } else {
-                        const char *s = res_enum_sym("race", ra_int_in[m]);
+                        const char *s = res_enum_sym("race", ra_int);
                         p->ra[m] = (s && s[0]) ? s : NULL;
                     }
+                    p->lv[m] = rcw_int(mn, "lv", p->lv[m]);
+                    p->dead[m] = rcw_int(mn, "dead", p->dead[m]);
+                    p->h[m] = rcw_int(mn, "h", p->h[m]);
+                    p->hp[m] = rcw_int(mn, "hp", p->hp[m]);
+                    p->ws[m] = rcw_int(mn, "ws", p->ws[m]);
+                    p->wi[m] = rcw_int(mn, "wi", p->wi[m]);
+                    p->ma[m] = rcw_int(mn, "ma", p->ma[m]);
+                    p->ch[m] = rcw_int(mn, "ch", p->ch[m]);
+                    p->ar[m] = rcw_int(mn, "ar", p->ar[m]);
+                    p->wp[m] = rcw_int(mn, "wp", p->wp[m]);
+                    p->exp[m] = (uint32_t)rcw_int(mn, "exp", (int32_t)p->exp[m]);
                 }
-                free(cl_int_in);
-                free(ra_int_in);
             }
-            rcw_i32_arr(obj_get(pnode, "lv"), p->lv, (int)mlen);
-            rcw_i32_arr(obj_get(pnode, "ar"), p->ar, (int)mlen);
-            rcw_i32_arr(obj_get(pnode, "wp"), p->wp, (int)mlen);
-            rcw_u32_arr(obj_get(pnode, "exp"), p->exp, (int)mlen);
-            rcw_i32_arr(obj_get(pnode, "dead"), p->dead, (int)mlen);
-            rcw_enum_barr(obj_get(pnode, "gender"), "gender", p->gender, (int)mlen);
+
             rcw_byte_arr(obj_get(pnode, "attack_today"), p->attack_today, 26);
             p->waiting_mail = (unsigned char)rcw_int(pnode, "waiting_mail", p->waiting_mail);
             p->attacked = (unsigned char)rcw_int(pnode, "attacked", p->attacked);
