@@ -1,152 +1,147 @@
-Continuation prompt (start of session 2026-04-28 #14)
+Continuation prompt (start of session 2026-04-28 #15)
 
-Branch lagergren/port1, HEAD e7cbd71 (plus an unpushed plan + this
-next.md commit landing at session-end). 44 replay fixtures green
-on make check + make testasan; format clean. Working tree clean.
+Branch lagergren/port1, HEAD <pending push>, pushed to origin
+post-#14b. 44 replay fixtures green on make check + make
+testasan; format clean. Working tree clean.
 
-Session #13 was massive (twenty commits cumulative,
-`376f6bf..e7cbd71`). #13 closed §12.3 fully + §20.14 S10/S11 +
-ydarg DSL lift end-to-end + time_left data lift; #13b closed
-every item from #13's recommended-next-session queue (#1..#5):
+Sessions #13b + #14a + #14b together pushed 18 commits
+(855c138..<HEAD>). #13b (855c138..e2e33bc, 8 commits) closed
+every named §-anchor from the prior queue. #14a (8f9fb9c..
+38eb871, 8 commits) tackled bug fixes + the §24bis NPC
+follow-up + Wilderness rename + a deeper plan refresh. #14b
+(7eb1c9e..<HEAD>, 2 commits + plan/next.md) finished the
+cosmetic-rename sweep:
 
-  - 855c138 WLD_LOCATION_SLOT_MAX / RANDOM_LOCATION_MAX cap-flip.
-    state.dx[] / state.dy[] flip from inline `int32_t [15]` to
-    heap pointers off res_location_slot_max(). New
-    `limits.location_slot_max` (default 15) +
-    `limits.random_location_max` (default 9) knobs in world.json5.
-    The wld.h enum constants retired entirely. Smoke-tested with
-    location_slot_max=20 / random_location_max=12. **No struct
-    ryl_state field is sized to a compile-time constant after
-    this commit.**
+  - 7eb1c9e armour → armor (American spelling) sweep —
+    background agent. 113 occurrences flipped across src/
+    (12 files) + data/ (11 files including
+    `data/world/items/armour.json5` → `armor.json5`) +
+    tools/replay/ (43 fixture pairs reblessed once via
+    `tools/replay.sh --all --bless`). Save-format reader at
+    driv.c:1275-1276 accepts both `armor` (canonical) and
+    legacy `armour` keys via dual-`rcw_int` fallback.
 
-  - fdb3d42 subs.c::spell: priest-spell list bound from data. New
-    res_class_spell_max(class_name) walks the priest_spells /
-    mage_spells tables; the loop bound + abort-key follow it.
+  - 1ffba39 19 functions → snake_case + American spelling
+    (Tier R2). Mechanical sweep via word-boundary sed (BSD
+    `[[:<:]]` / `[[:>:]]`). Renames:
+      showparty   → show_party
+      weaponoff   → weapon_off
+      armoroff    → armor_off
+      weaponr     → weapon_ready
+      armorr      → armor_ready
+      read_journal → show_journal (semantic rename)
+      journalf    → journal_add
+      expcheck    → exp_check
+      createparty → create_party
+      invlist     → inv_list
+      losegame    → lose_game
+      scorelist   → score_list
+      timehandler → time_handler
+      foodhandler → food_handler
+      cleanexit   → clean_exit
+      statusline  → status_line
+      disptext    → disp_text
+      getstr      → get_str
+      hotkey      → hot_key
+    35 files touched (231 lines flipped). Touches definitions
+    + every callsite + script.c engine_call dispatch table +
+    every `engine_call: '<name>'` reference in
+    data/world/scripts/spells/items. Single clang-format
+    realignment auto-applied in speak.c.
 
-  - 21c9821..c7454ef rumour: 33-case switch → DSL (background
-    agent, 2 commits). New `rumour_roll` engine_int (preserves
-    RYL_REPLAY_RUMOUR semantics + the same RNG draw). New
-    towne.rumour script with emit_indexed default arm + 4 bound
-    arms reusing existing npc_name_at_role / npc_loc_at_role
-    helpers. **rumour() is a 3-line trampoline** down from 64
-    lines. The agent dropped runtime_cfg.h from towne.c too.
+Status snapshot — every closed §-anchor and the open frontier:
 
-  - fdcae1d temp_low_damage / temp_very_low_damage doc
-    clarification. Settles port-plan §20.5's "possible bug"
-    tracking — it's authored-equal-by-design.
+  - §12.3 cap-flip queue: fully closed.
+  - §20.14 S10 (map dims) / S11 (formula DSL): closed.
+  - §12.4 ydarg residual: closed (one-line trampoline).
+  - §20 L2 dungeon: confirmed closed + 2 latent bugs fixed.
+  - §24bis phase-3 NPC follow-up: closed (b6b8191).
+  - ryl.h unused-includes sweep: complete.
+  - Tier R naming conventions: closed (R1 armour→armor +
+    R2 function snake_case).
 
-  - e7cbd71 §20 L2 closure (background agent's findings). The
-    L2 lift was already finished by `fc599b3` on 2026-04-25 — 29
-    cases all in DSL, src/dungeon.c is 182 LOC of pure dispatch.
-    Survey at /tmp/dungeon-l2-survey.md (kept outside the repo).
-    **Two latent bugs caught and fixed inline**:
-    (a) `enums.dungeon_encounter[1]` was 'object' but the script
-        is `find_object` → dispatcher would have died on slot 1
-        (unreachable in fixtures because seed 42 rolls slot 2).
-    (b) The script's `emit: 'find_object.found'` etc. had leading
-        dots that bypassed the <script_id>.<name> two-step,
-        rendering as blank screens. Stripped the redundant
-        prefix.
+Open frontier (port-plan-incomplete.md "Recommended next
+session" Tier 0 / A / B / C / D / E):
 
-Status after #13 + #13b — every named §-anchor in the prior
-queue is now closed:
+  - Tier 0 (biggest single win): missions.c::mission_triggers[]
+    16-entry static C struct → world/missions.json5. Pure
+    scenario data masquerading as code.
 
-§12.3 cap-flip queue: **fully closed**. Every party-slot-indexed
-buffer + map grid + state.dx/dy is heap-allocated off res_*_max();
-fold_limits clamps to `>= 2` only. PARTY_SLOT_HARD_MAX,
-MAP_*_HARD_MAX are defaults / defensive ceilings, not active caps.
+  - Tier A: hardcoded UI layer. A1 terminal positions
+    `c(x, y)` → screen: subtree, A2 statusline content
+    (TIME / HUNGRY-STARVING-OK), A3 view/show / show_party,
+    A4 create_party UI strings + race/class menu bounds.
 
-§20.14: S10 done, S11 done.
+  - Tier B: dispatch / cascades. B2 equipment-swap UI flows
+    (subs.c), B4 speak chitchat 3-way switch, B5 speak prose
+    strings, B6 towne keystroke dispatch (user-flagged), B7
+    driv main-loop keystroke dispatch (15+ arms), B8 battle
+    combat-key dispatch, B9 primitives sysop backdoor.
 
-§12.4 ydarg residual: **fully closed**. ydarg() is a one-line
-trampoline.
+  - Tier C: engine state with hardcoded shape. C1 exp_check
+    sub-items (4: add[5] cap, max-level 28, pc_class_key map,
+    hp_floor formula), C2 encounter pic count, C3 food_handler
+    fatigue ladder, C4 Karl-Skagerberg easter egg, C5
+    save-file emit shape.
 
-§20 L2 dungeon-encounter lift: **fully closed** (was already
-done; this session confirmed + fixed two latent bugs).
+  - Tier D: structural cap-flips. D1 struct party.flag[40], D2
+    NPC_SLOT_HARD_MAX (deferred — RNG-identity gated), D3
+    TOWN_SLOT_HARD_MAX (deferred).
 
-ryl.h sweep: complete. Files including ryl.h all genuinely use
-pic constants (battle / dungeon / subs / towne) or define
-_version_string (ryl.c).
+  - Tier E: script-side audit. E1 repeat-pattern collapse, E2
+    dungeon.json5 refinements.
 
-`feedback_battle_data_extraction.md` queue: fully closed.
-
-The recommended-next-session queue is now genuinely greenfield.
-Pick from the deeper backlog or new user-driven asks:
-
-1. **Magic terminal positions (`c(x, y)` in driv.c / gfx.c)**.
-   Per `feedback_battle_data_extraction.md` — `c(49, 6)`,
-   `c(13, 22)`, `clr_map_window`'s 8×9 grid, etc. are layout
-   constants tied to ANSI art. Could lift to `data/world.json5`
-   `screen:` subtree. Multi-callsite sweep across driv.c +
-   gfx.c + primitives.c. Session-sized.
-
-2. **`struct party.flag[40]` cap-flip**. Last hardcoded
-   byte-array on struct party. Sized to 40 mission-flag slots;
-   `world.json5 limits.party_flag_max` could drive it. Would
-   need careful save-format coordination since flags are
-   persisted by slot id.
-
-3. **NPC_SLOT_HARD_MAX cap-flip** (gated on RNG identity).
-   Lifting the static 41 to data requires re-rolling random NPC
-   placement RNG identity (different bin counts shift the
-   stream); every fixture using random NPC arrangement would
-   need a rebless. Defer until > 41 NPCs has a real demand.
-
-4. **TOWN_SLOT_HARD_MAX cap-flip** (also RNG-identity gated).
-   `int counts[TOWN_SLOT_HARD_MAX]` in res_realize_npcs is a
-   small heap-alloc lift, but bumping the cap shifts the random
-   NPC town-bin draw. Defer.
-
-5. **L2 — dungeon.c residual scripting refinements**. The 28
-   scripts in dungeon.json5 have been live since 2026-04-25 but
-   aren't audited for code-as-data opportunities (inline RNG
-   ranges that could become formulas, duplicated emit patterns
-   that could collapse to shared sub-scripts). Worth a survey
-   if a fresh extraction agenda surfaces.
-
-6. **Survey data/world/scripts/*.json5 for repeat-pattern
-   collapse**. Now that ydarg + dungeon + speak + towne are all
-   DSL-resident, recurring snippets (e.g. "ask_target →
-   cost-check → mutate → emit-result" cascades) might benefit
-   from new shared DSL ops. Low-pressure cleanup.
+Save game compatibility note: the user's ~/.rylween/ was
+overwritten with the fresh sample-save in #14a (backed up to
+~/.rylween.bak.<timestamp>). Aragorn (Fighter/Human, 65 hp),
+Gandalf (Mage/Elf, 85 hp), Mira (Priest/Halfling, 72 hp),
+Legolas (Ranger/Elf, 73 hp). Stats heroic (65-85 range). Save
+format now accepts both `armor` and legacy `armour` keys via
+dual-`rcw_int` fallback.
 
 Memory worth re-reading (auto-loaded into context):
-  - feedback_state_abstraction.md — pa_*/pm_*/inv_*/res_* helpers,
-    never raw state.p[...]. Critical for any new C touching parties.
-  - feedback_background_agents.md — for background agents in this
-    repo, /tmp + patch, NEVER worktree isolation. Sessions #11
-    (4 commits), #13 (8 commits ydarg), #13b (2 + 1 commits
-    rumour + L2) all used this pattern; all applied cleanly via
-    git am.
-  - feedback_clangd_real_vs_stale.md — verify clangd via cc
-    -fsyntax-only -Werror=... before deflecting. #13b saw clangd
-    hallucinate references to functions that didn't exist in the
-    file (the agent's WIP /tmp checkout was leaking diagnostics
-    into the workspace's view).
-  - feedback_battle_data_extraction.md — catalog CLOSED after
-    #13 (last item was time_left = 175). Keep the memory as
-    historical reference; new extractions will need a fresh
-    catalog.
+  - feedback_state_abstraction.md — pa_*/pm_*/inv_*/res_*
+    helpers, never raw state.p[...]. Critical for any new C
+    touching parties.
+  - feedback_background_agents.md — for background agents in
+    this repo, /tmp + patch, NEVER worktree isolation. Sessions
+    #11 / #13 / #13a / #13b / #14a / #14b all used this
+    pattern; all applied cleanly via git am.
+  - feedback_clangd_real_vs_stale.md — verify clangd via
+    `cc -fsyntax-only -Werror=...` before deflecting. #14b
+    saw extensive clangd hallucination from agent /tmp
+    checkouts leaking diagnostics into the workspace's view.
+  - feedback_battle_data_extraction.md — CLOSED catalog
+    (historical reference).
 
 Reading order in repo:
   - port-plan.md TOC.
   - port-plan-incomplete.md "Top of queue (status snapshot,
-    2026-04-28 #13b)" + "Recommended next session".
-  - port-plan-complete.md — bodies for §12.3 + §20.14 + Ydarg
-    full DSL closures (tail of file).
+    2026-04-28 #13b)" + "Recommended next session" (the
+    six-tier engine→data inventory + closed Tier R).
+  - port-plan-complete.md — bodies for all closed §-anchors.
 
 Per-session bar: make check + make testasan + make format all
-green at every commit. Per AGENTS.md: never push without explicit
-user approval; no Co-Authored-By lines; inline single-newline
-file endings; fix root causes, not symptoms; don't add
-speculative changes.
+green at every commit. Per AGENTS.md: never push without
+explicit user approval; no Co-Authored-By lines; inline
+single-newline file endings; fix root causes, not symptoms;
+don't add speculative changes.
 
-Begin by reading port-plan-incomplete.md "Top of queue" and
-"Recommended next session", then ask which item to take. The
-queue is greenfield — every item is its own scoped session, no
-in-flight work blocks anything. **Default pick: #1 (Magic
-terminal positions to data)** — concrete sweep, session-sized,
-removes the last bucket of obvious "this should be in data" hits
-in the C code. **#2 (party.flag[40] cap-flip)** is the
-alternative if you want another structural cap-flip in the
-§12.3 family.
+Begin: pick from the post-#14b queue.
+
+  **Default pick: Tier 0 (mission_triggers → missions.json5)**
+  — the biggest single content-in-C item remaining. Multi-
+  session; start with the schema design + fold loader.
+
+  **Alternative: B6 (towne keystroke dispatch → data)** —
+  small session-sized lift the user specifically flagged in
+  #14a.
+
+  **Alternative: A1 (terminal positions → screen: subtree)**
+  — pervasive but mechanical; ~12 sites in driv.c + ~10 in
+  gfx.c.
+
+  **Alternative: B7 (driv main-loop keystroke dispatch → data)**
+  — largest single-function content extraction outside Tier 0;
+  unlocks data-driven world authoring of the player's primary
+  input loop.
