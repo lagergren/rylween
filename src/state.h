@@ -76,6 +76,19 @@ int res_party_member_max(void);
 #define NPC_SLOT_HARD_MAX   41
 #define PARTY_SLOT_HARD_MAX 26
 
+/* World-map static dimensions. `state.map[MAP_ROWS_HARD_MAX][MAP_COLS_HARD_MAX]`
+   is sized to fit the legacy data/map.dat layout (40 used rows in an
+   indexable slot 1..40 of a [42] array; row 0 + row 41 unused; each row
+   up to 81 byte-cells + newline). The runtime active row count comes
+   from `world.json5 map.rows` via `res_int_path("map.rows")`; these
+   defines are the upper bounds the static table can hold. wld_rows() /
+   wld_cols() (wld.h) return the same constants — single source of truth
+   here. §20.14 S10 will eventually move the 42 / 82 to data and heap-
+   allocate, at which point the wld_rows / wld_cols return path becomes
+   the data lookup. */
+#define MAP_ROWS_HARD_MAX 42
+#define MAP_COLS_HARD_MAX 82
+
 /* Compile-time cap on the towns[] table in res.c. The runtime-active
    count comes from `res_town_count()`; this is just the static array
    bound. Capacity = slot 0 (null wilderness sentinel pre-§25.B step
@@ -212,7 +225,7 @@ struct ryl_state {
     int32_t dy[15];
 
     /* Persistent game data (flushed to realm.dat / npc.dat). */
-    char map[42][82];
+    char map[MAP_ROWS_HARD_MAX][MAP_COLS_HARD_MAX];
     struct party p[PARTY_SLOT_HARD_MAX];
     /* NPC runtime table — heap-allocated to res_npc_slot_max()
        entries by res_load_world() (post-§25.B step 4 axis flip)

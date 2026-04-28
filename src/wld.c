@@ -5,13 +5,12 @@
 
 #include <string.h>
 
-/* Map-array dimensions match struct ryl_state.map[42][82] in
-   state.h. Hardcoded here because state.h does not export macros
-   today; §20.14 S10 makes these data-driven, at which point both
-   reads route through the same world.json5 lookup. */
+/* Map-array dimensions match struct ryl_state.map[MAP_ROWS_HARD_MAX]
+   [MAP_COLS_HARD_MAX] in state.h. §20.14 S10 makes these data-driven,
+   at which point both reads route through the same world.json5 lookup. */
 enum {
-    WLD_ROWS = 42,
-    WLD_COLS = 82,
+    WLD_ROWS = MAP_ROWS_HARD_MAX,
+    WLD_COLS = MAP_COLS_HARD_MAX,
 };
 
 static int in_bounds(int x, int y) {

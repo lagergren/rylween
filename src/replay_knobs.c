@@ -138,7 +138,8 @@ void rk_apply_pos(int a) {
     const char *yp = end + 1;
     long y = strtol(yp, &end, 10);
     unsetenv("RYL_FORCE_POS");
-    if (end == yp || x < 0 || x >= 82 || y < 0 || y >= 42) {
+    if (end == yp || x < 0 || x >= MAP_COLS_HARD_MAX || y < 0 ||
+        y >= MAP_ROWS_HARD_MAX) {
         return;
     }
     struct party *p = party_at(a);
