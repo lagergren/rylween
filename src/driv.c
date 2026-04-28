@@ -397,7 +397,7 @@ void init() {
 
         for (i = 1; i < state.num_parties + 1; i++) {
             tx(".");
-            state.p[i].time_left = 175;
+            party_at(i)->time_left = 175;
             ryl_delay(40);
         }
         getclk(kl);
@@ -421,15 +421,16 @@ void init() {
                });
 
         for (i = 1, x = 0; i < state.num_parties + 1; i++) {
-            if (!stricmp(state.global_name, state.p[i].player)) {
+            if (!stricmp(state.global_name, party_at(i)->player)) {
                 x = i;
             }
         }
         for (i = 1; i < state.num_parties + 1; i++) {
-            if (state.p[i].silverkey == 2) {
+            const struct party *p = party_at(i);
+            if (p->silverkey == 2) {
                 tx_fmt("driv.struggle.over",
                        (ryl_bind[]){
-                           {"party_name", state.p[i].party_name},
+                           {"party_name", p->party_name},
                            {0},
                        });
                 tx0(res_text("driv.struggle.conclusion"));
@@ -614,8 +615,8 @@ void init() {
                            buffers on the slot that's about to be shifted
                            over. The memmove below would otherwise leak
                            them and duplicate the pointer in two slots. */
-                        free_journal(&state.p[x]);
-                        party_release_members(&state.p[x]);
+                        free_journal(party_at(x));
+                        party_release_members(party_at(x));
                         state.num_parties--;
                         for_each_npc(i) {
                             npc_t n = npc_at_slot(i);
@@ -624,14 +625,14 @@ void init() {
                             }
                         }
                         if ((int)x <= state.num_parties) {
-                            memmove(&state.p[x], &state.p[x + 1],
-                                    (size_t)(state.num_parties + 1 - x) * sizeof state.p[0]);
+                            memmove(party_at(x), party_at(x + 1),
+                                    (size_t)(state.num_parties + 1 - x) * sizeof(struct party));
                             /* memmove duplicated the old tail's heap
                                pointers (journal + every per-member buf);
                                NULL them on the tail so save doesn't
                                double-emit and a future realize into the
                                slot starts clean. */
-                            party_clear_heap_pointers(&state.p[state.num_parties + 1]);
+                            party_clear_heap_pointers(party_at(state.num_parties + 1));
                         }
                         ryl_delay(1000);
 
@@ -913,7 +914,7 @@ static void write_current_world() {
        one value to compare against. */
     int mlen = res_party_member_max();
     for (int i = 1; i <= state.num_parties; i++) {
-        const struct party *p = &state.p[i];
+        const struct party *p = party_at(i);
         /* wcw_enum_arr wants plain int[], so materialize cl/ra into
            a stack buffer at member-array length. VLAs aren't in c99
            strict, so cap via alloca-style malloc. Small enough to
@@ -1309,7 +1310,7 @@ static int read_current_world() {
             if (i > 25) {
                 break;
             }
-            struct party *p = &state.p[i];
+            struct party *p = party_at(i);
 
             /* Allocate per-member heap buffers before any
                rcw_i32_arr(..., p->ws, 5) writes below. Idempotent;
@@ -1403,7 +1404,7 @@ static int read_current_world() {
     /* Match load()'s behavior: set state.cpl by matching the logged-in
        player name against each party's `player` field. */
     for (int i = 1; i <= state.num_parties; i++) {
-        if (!stricmp(state.global_name, state.p[i].player)) {
+        if (!stricmp(state.global_name, party_at(i)->player)) {
             state.cpl = i;
         }
     }
@@ -1448,18 +1449,20 @@ static void createparty() {
     a = state.num_parties;
     state.cpl = a;
 
-    /* Allocate per-member heap buffers before the first state.p[a].<f>[g]
+    struct party *p = party_at(a);
+
+    /* Allocate per-member heap buffers before the first p-><f>[g]
        write below. state.p[] is a static BSS global so the pointers
        start NULL; without this the ws/h/hp/... writes would segfault
        (§19.3). Safe to call twice — party_realize is idempotent. */
-    party_realize(&state.p[a]);
+    party_realize(p);
 
     while (1) {
         tx0(res_text("driv.create.name_q"));
         tx(": ");
 
-        getstr(18, state.p[a].party_name, sizeof state.p[a].party_name);
-        if (!state.p[a].party_name[0]) {
+        getstr(18, p->party_name, sizeof p->party_name);
+        if (!p->party_name[0]) {
             state.num_parties--;
             state.cpl = 0;
             return;
@@ -1478,15 +1481,15 @@ static void createparty() {
            the C side stores them 0-based but the UX still calls them
            1..N to match the existing "Who? (1-N)" prompts. */
         tx("Stats for char: %d\r\n\r\n", g + 1);
-        state.p[a].ws[g] = ryl_random(sr_lo, sr_hi);
-        state.p[a].wi[g] = ryl_random(sr_lo, sr_hi);
-        state.p[a].h[g] = ryl_random(sr_lo, sr_hi);
-        state.p[a].hp[g] = state.p[a].h[g];
-        state.p[a].ch[g] = ryl_random(sr_lo, sr_hi);
-        tx("Weapon Skill : %2d\r\n", state.p[a].ws[g]);
-        tx("Health       : %2d\r\n", state.p[a].h[g]);
-        tx("Wisdom       : %2d\r\n", state.p[a].wi[g]);
-        tx("Charisma     : %2d\r\n\r\n", state.p[a].ch[g]);
+        p->ws[g] = ryl_random(sr_lo, sr_hi);
+        p->wi[g] = ryl_random(sr_lo, sr_hi);
+        p->h[g] = ryl_random(sr_lo, sr_hi);
+        p->hp[g] = p->h[g];
+        p->ch[g] = ryl_random(sr_lo, sr_hi);
+        tx("Weapon Skill : %2d\r\n", p->ws[g]);
+        tx("Health       : %2d\r\n", p->h[g]);
+        tx("Wisdom       : %2d\r\n", p->wi[g]);
+        tx("Charisma     : %2d\r\n\r\n", p->ch[g]);
         tx0(res_text("driv.create.reroll"));
         if (!hotkey()) {
             while (1) {
@@ -1494,8 +1497,8 @@ static void createparty() {
                 tx("Give Character %d a name!\r\n", g + 1);
                 tx(": ");
                 str[0] = 0;
-                getstr(12, state.p[a].name[g], sizeof state.p[a].name[g]);
-                if (!state.p[a].name[g][0]) {
+                getstr(12, p->name[g], sizeof p->name[g]);
+                if (!p->name[g][0]) {
                     state.num_parties--;
                     state.cpl = 0;
                     return;
@@ -1503,12 +1506,12 @@ static void createparty() {
                     break;
                 }
             }
-            state.p[a].name[g][0] = toupper(state.p[a].name[g][0]);
+            p->name[g][0] = toupper(p->name[g][0]);
 
             clw();
             tx_fmt("driv.create.gender_q",
                    (ryl_bind[]){
-                       {"name", state.p[a].name[g]},
+                       {"name", p->name[g]},
                        {0},
                    });
             tx0(res_text("driv.create.gender_opts"));
@@ -1517,12 +1520,12 @@ static void createparty() {
                 tx(": ");
                 getstr(2, str, sizeof str);
             }
-            state.p[a].gender[g] = str[0] - 48;
+            p->gender[g] = str[0] - 48;
 
             clw();
             tx_fmt("driv.create.race_q",
                    (ryl_bind[]){
-                       {"name", state.p[a].name[g]},
+                       {"name", p->name[g]},
                        {0},
                    });
             tx0(res_text("driv.create.race_opts"));
@@ -1531,7 +1534,7 @@ static void createparty() {
                 tx(": ");
                 getstr(2, str, sizeof str);
             }
-            state.p[a].ra[g] = str[0] - 48;
+            p->ra[g] = str[0] - 48;
 
             clw();
             tx0(res_text("driv.create.class_menu"));
@@ -1540,13 +1543,13 @@ static void createparty() {
                 tx(": ");
                 getstr(2, str, sizeof str);
             }
-            state.p[a].cl[g] = str[0] - 48;
+            p->cl[g] = str[0] - 48;
             clw();
             const char *fail_text = NULL;
-            passed = res_class_min_stat_check(state.p[a].cl[g],
-                                              state.p[a].ws[g],
-                                              state.p[a].wi[g],
-                                              state.p[a].ch[g],
+            passed = res_class_min_stat_check(p->cl[g],
+                                              p->ws[g],
+                                              p->wi[g],
+                                              p->ch[g],
                                               &fail_text);
             if (!passed && fail_text) {
                 tx0(res_text(fail_text));
@@ -1554,33 +1557,33 @@ static void createparty() {
             }
             if (passed) {
                 passed = 0;
-                if (pm_is_spellcaster(pm_of(&state.p[a], g))) {
-                    state.p[a].ma[g] = state.p[a].wi[g];
+                if (pm_is_spellcaster(pm_of(p, g))) {
+                    p->ma[g] = p->wi[g];
                 } else {
-                    state.p[a].ma[g] = 0;
+                    p->ma[g] = 0;
                 }
                 show(g);
                 g++;
             }
         }
     }
-    state.p[a].x = res_int_path("driv.start.x");
-    state.p[a].y = res_int_path("driv.start.y");
-    state.p[a].gold = rk_starting_gold(res_int_path("driv.start.gold"));
-    state.p[a].torches = res_int_path("driv.start.torches");
-    state.p[a].food = res_int_path("driv.start.food");
-    state.p[a].time_left = res_int_path("driv.start.time_left");
-    state.p[a].hours_rested = res_int_path("driv.start.hours_rested");
-    state.p[a].pl = (unsigned char)res_party_member_max();
-    state.p[a].fireshield = 0;
-    state.p[a].bracelets = 0;
-    state.p[a].mastercrown = 0;
-    state.p[a].jazzyfoot = 0;
-    state.p[a].silverkey = 0;
-    memset(state.p[a].inventory, 0, sizeof state.p[a].inventory);
-    memset(state.p[a].flag, 0, sizeof state.p[a].flag);
+    p->x = res_int_path("driv.start.x");
+    p->y = res_int_path("driv.start.y");
+    p->gold = rk_starting_gold(res_int_path("driv.start.gold"));
+    p->torches = res_int_path("driv.start.torches");
+    p->food = res_int_path("driv.start.food");
+    p->time_left = res_int_path("driv.start.time_left");
+    p->hours_rested = res_int_path("driv.start.hours_rested");
+    p->pl = (unsigned char)res_party_member_max();
+    p->fireshield = 0;
+    p->bracelets = 0;
+    p->mastercrown = 0;
+    p->jazzyfoot = 0;
+    p->silverkey = 0;
+    memset(p->inventory, 0, sizeof p->inventory);
+    memset(p->flag, 0, sizeof p->flag);
     for_each_party_member(i) {
-        pm_t pm = pm_of(&state.p[a], i);
+        pm_t pm = pm_of(p, i);
         pm_set_lv(pm, 1);
         pm_set_ar(pm, 0);
         pm_set_exp(pm, 0);
@@ -1592,7 +1595,7 @@ static void createparty() {
     rk_apply_ydarg_grants(a);
     rk_apply_party_wp(a);
     rk_apply_party_hp_full(a);
-    strcpy(state.p[a].player, state.global_name);
+    strcpy(p->player, state.global_name);
     clw();
     tx0(res_text("driv.create.saving"));
     save();
