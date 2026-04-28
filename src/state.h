@@ -70,7 +70,7 @@ int res_party_member_max(void);
    refuses #26 with "all parties created"). Bumping these requires
    matching changes in the data layer; the NPC bound is also asserted
    against `res_npc_slot_max()` once the world has loaded. */
-#define NPC_SLOT_HARD_MAX 41
+#define NPC_SLOT_HARD_MAX   41
 #define PARTY_SLOT_HARD_MAX 26
 
 /* Compile-time cap on the towns[] table in res.c. The runtime-active

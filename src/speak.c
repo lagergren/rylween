@@ -233,9 +233,9 @@ void speak(int32_t bld, int32_t tow) {
                     char job[16];
                     snprintf(job, sizeof job, "%d", npc_job(talker));
                     play_script("speak.people", (ryl_bind[]){
-                        {"job", job},
-                        {0},
-                    });
+                                                    {"job", job},
+                                                    {0},
+                                                });
                 }
                 tx("\r\n");
                 ryl_pause();
@@ -245,9 +245,9 @@ void speak(int32_t bld, int32_t tow) {
                 char job[16];
                 snprintf(job, sizeof job, "%d", npc_job(talker));
                 play_script("speak.magic", (ryl_bind[]){
-                    {"job", job},
-                    {0},
-                });
+                                               {"job", job},
+                                               {0},
+                                           });
                 tx("\r\n");
                 ryl_pause();
             }
@@ -263,9 +263,9 @@ void speak(int32_t bld, int32_t tow) {
                     char price[16];
                     snprintf(price, sizeof price, "%d", 50 * pa_first_level());
                     play_script("lodge.bargirl", (ryl_bind[]){
-                        {"price", price},
-                        {0},
-                    });
+                                                     {"price", price},
+                                                     {0},
+                                                 });
                 } else {
                     /* §20.20 #2: per-job static text now goes through
                        lodge.nonbargirl, whose single emit_indexed op
@@ -273,9 +273,9 @@ void speak(int32_t bld, int32_t tow) {
                     char job[16];
                     snprintf(job, sizeof job, "%d", npc_job(talker));
                     play_script("lodge.nonbargirl", (ryl_bind[]){
-                        {"job", job},
-                        {0},
-                    });
+                                                        {"job", job},
+                                                        {0},
+                                                    });
                 }
                 tx("\r\n");
                 ryl_pause();
@@ -294,10 +294,10 @@ static void reply_chitchat(int32_t subj, int32_t jb) {
     snprintf(subj_s, sizeof subj_s, "%d", subj);
     snprintf(job, sizeof job, "%d", jb);
     play_script("speak.chit_reply", (ryl_bind[]){
-        {"subj", subj_s},
-        {"job",  job},
-        {0},
-    });
+                                        {"subj", subj_s},
+                                        {"job", job},
+                                        {0},
+                                    });
 }
 /* §22.F: per-NPC mission state-machine step. Looks up the role bound
    to this slot via res_role_for_slot, then plays the matching

@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "compat.h" /* stricmp */
+#include "compat.h"    /* stricmp */
 #include "inventory.h" /* PS_* */
 #include "log.h"
 #include "res.h"
@@ -323,11 +323,16 @@ const char *pa_journal_line(size_t i) {
 static unsigned char *pa_special_ptr(int which) {
     struct party *p = &state.p[state.cpl];
     switch (which) {
-        case PS_FIRESHIELD:  return &p->fireshield;
-        case PS_BRACELETS:   return &p->bracelets;
-        case PS_MASTERCROWN: return &p->mastercrown;
-        case PS_JAZZYFOOT:   return &p->jazzyfoot;
-        case PS_SILVERKEY:   return &p->silverkey;
+        case PS_FIRESHIELD:
+            return &p->fireshield;
+        case PS_BRACELETS:
+            return &p->bracelets;
+        case PS_MASTERCROWN:
+            return &p->mastercrown;
+        case PS_JAZZYFOOT:
+            return &p->jazzyfoot;
+        case PS_SILVERKEY:
+            return &p->silverkey;
         default:
             LOG_E("party",
                   "pa_special: unknown which=%d (PS_NONE..PS_LAST)",

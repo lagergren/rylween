@@ -468,31 +468,31 @@ uint8_t drop() {
 void camp() {
     char ap[16], hg[16], fpm[16], rh[16], hrr[16];
     char tmx[16], tll[16], tlh[16], tvll[16], tld[16], tvld[16];
-    snprintf(ap,   sizeof ap,   "%d", res_int_path("balance.rest.ambush_chance"));
-    snprintf(hg,   sizeof hg,   "%d", res_int_path("balance.rest.health_gain"));
-    snprintf(fpm,  sizeof fpm,  "%d", res_int_path("balance.rest.food_cost_per_member"));
-    snprintf(rh,   sizeof rh,   "%d", res_int_path("balance.rest.hours_advanced"));
-    snprintf(hrr,  sizeof hrr,  "%d", res_int_path("balance.rest.hours_rested_reset"));
-    snprintf(tmx,  sizeof tmx,  "%d", res_int_path("balance.rest.temperature_max"));
-    snprintf(tll,  sizeof tll,  "%d", res_int_path("balance.rest.temp_low_lo"));
-    snprintf(tlh,  sizeof tlh,  "%d", res_int_path("balance.rest.temp_low_hi"));
+    snprintf(ap, sizeof ap, "%d", res_int_path("balance.rest.ambush_chance"));
+    snprintf(hg, sizeof hg, "%d", res_int_path("balance.rest.health_gain"));
+    snprintf(fpm, sizeof fpm, "%d", res_int_path("balance.rest.food_cost_per_member"));
+    snprintf(rh, sizeof rh, "%d", res_int_path("balance.rest.hours_advanced"));
+    snprintf(hrr, sizeof hrr, "%d", res_int_path("balance.rest.hours_rested_reset"));
+    snprintf(tmx, sizeof tmx, "%d", res_int_path("balance.rest.temperature_max"));
+    snprintf(tll, sizeof tll, "%d", res_int_path("balance.rest.temp_low_lo"));
+    snprintf(tlh, sizeof tlh, "%d", res_int_path("balance.rest.temp_low_hi"));
     snprintf(tvll, sizeof tvll, "%d", res_int_path("balance.rest.temp_very_low_lo"));
-    snprintf(tld,  sizeof tld,  "%d", res_int_path("balance.rest.temp_low_damage"));
+    snprintf(tld, sizeof tld, "%d", res_int_path("balance.rest.temp_low_damage"));
     snprintf(tvld, sizeof tvld, "%d", res_int_path("balance.rest.temp_very_low_damage"));
     play_script("rest", (ryl_bind[]){
-        {"ambush_pct",         ap},
-        {"health_gain",        hg},
-        {"food_per_member",    fpm},
-        {"rest_hours",         rh},
-        {"hours_rested_reset", hrr},
-        {"temp_max",           tmx},
-        {"temp_low_lo",        tll},
-        {"temp_low_hi",        tlh},
-        {"temp_very_low_lo",   tvll},
-        {"temp_low_dmg",       tld},
-        {"temp_very_low_dmg",  tvld},
-        {0},
-    });
+                            {"ambush_pct", ap},
+                            {"health_gain", hg},
+                            {"food_per_member", fpm},
+                            {"rest_hours", rh},
+                            {"hours_rested_reset", hrr},
+                            {"temp_max", tmx},
+                            {"temp_low_lo", tll},
+                            {"temp_low_hi", tlh},
+                            {"temp_very_low_lo", tvll},
+                            {"temp_low_dmg", tld},
+                            {"temp_very_low_dmg", tvld},
+                            {0},
+                        });
 }
 void quaff() {
     int32_t oc;
@@ -556,12 +556,12 @@ void hunt() {
     snprintf(fmn, sizeof fmn, "%d", res_int_path("balance.hunt.food_min"));
     snprintf(fmx, sizeof fmx, "%d", res_int_path("balance.hunt.food_max"));
     play_script("hunt", (ryl_bind[]){
-        {"time_cost", tc},
-        {"success_pct", sc},
-        {"food_min", fmn},
-        {"food_max", fmx},
-        {0},
-    });
+                            {"time_cost", tc},
+                            {"success_pct", sc},
+                            {"food_min", fmn},
+                            {"food_max", fmx},
+                            {0},
+                        });
 }
 void spell(int32_t place) {
     char c;

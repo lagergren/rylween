@@ -232,28 +232,28 @@ void play_script(const char *script_id, const ryl_bind *bindings);
    lvalues. NULL on out-of-combat callers (priest spells via subs.c) —
    any monster_* / battle_flag access in that ctx dies loudly. */
 struct script_combat_ctx {
-    int noc;          /* live monster count (1..noc are valid indices) */
-    int *mh;          /* mh[0] unused; mh[1..noc] = current HP */
-    int *deadc;       /* deadc[0] unused; deadc[1..noc] = 0 alive / 1 dead */
-    const char *fn;   /* monster display name for caster.name-style binds */
-    int *confused;    /* per-encounter flags — NULL if the spell can't set */
+    int noc;        /* live monster count (1..noc are valid indices) */
+    int *mh;        /* mh[0] unused; mh[1..noc] = current HP */
+    int *deadc;     /* deadc[0] unused; deadc[1..noc] = 0 alive / 1 dead */
+    const char *fn; /* monster display name for caster.name-style binds */
+    int *confused;  /* per-encounter flags — NULL if the spell can't set */
     int *held;
     int *antimagic;
-    int *ws;          /* monster work-skill (mage.confusion halves it) */
-    int *player_held; /* §23.A: monster.hold sets this — battle.c's */
-                      /* outer loop emits "PARTY IS HELD!" and skips */
-                      /* the next player-input round. Distinct from */
-                      /* `held` (player→monster hold above). */
+    int *ws;              /* monster work-skill (mage.confusion halves it) */
+    int *player_held;     /* §23.A: monster.hold sets this — battle.c's */
+                          /* outer loop emits "PARTY IS HELD!" and skips */
+                          /* the next player-input round. Distinct from */
+                          /* `held` (player→monster hold above). */
     int *player_confused; /* §23.A: monster.confuse sets this; the */
-                      /* upcoming player attack roll halves ws. */
-    int *action_retry; /* §23.B: gem_of_resurrection's not-dead branch */
-                      /* sets this to abort the body and bump battle.c */
-                      /* back to the action menu (legacy `goto combat`). */
-                      /* NULL on callers that don't expose a retry path. */
-    int h2;           /* per-encounter monster max-HP scalar (reward + */
-                      /* monster-spell scaling). Pushed into rt_env as */
-                      /* `h2` on play_spell_body entry so combat bodies */
-                      /* read it via { var: 'h2' } without a C local. */
+                          /* upcoming player attack roll halves ws. */
+    int *action_retry;    /* §23.B: gem_of_resurrection's not-dead branch */
+                          /* sets this to abort the body and bump battle.c */
+                          /* back to the action menu (legacy `goto combat`). */
+                          /* NULL on callers that don't expose a retry path. */
+    int h2;               /* per-encounter monster max-HP scalar (reward + */
+                          /* monster-spell scaling). Pushed into rt_env as */
+                          /* `h2` on play_spell_body entry so combat bodies */
+                          /* read it via { var: 'h2' } without a C local. */
 };
 
 /* §22 Lane A: evaluate a `formulas.<name>` body as an int expression

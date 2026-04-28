@@ -42,10 +42,10 @@
 
 typedef struct {
     char *id;
-    char **keys;     /* keys[idx] = lowercase symbol; NULL for the legacy
+    char **keys;   /* keys[idx] = lowercase symbol; NULL for the legacy
                         positional-array shape and for sparse gaps in the
                         keyed-record shape. */
-    char **values;   /* values[idx] = display string. For positional arrays
+    char **values; /* values[idx] = display string. For positional arrays
                         this is the only string the entry has; for keyed
                         records this comes from the entry's `name:` field. */
     size_t n_values;
@@ -709,7 +709,7 @@ int res_class_min_stat_check(int cl_id, int ws, int wi, int ch,
         return 1;
     }
     const node *name_n = obj_get(ms, "name");
-    const node *val_n  = obj_get(ms, "value");
+    const node *val_n = obj_get(ms, "value");
     if (!name_n || name_n->kind != N_STR || !val_n || val_n->kind != N_INT) {
         return 1;
     }

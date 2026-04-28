@@ -114,9 +114,9 @@ void dungeon(int32_t levels, const char *scenario) {
                 char max_s[8];
                 snprintf(max_s, sizeof max_s, "%d", res_party_member_max());
                 tx_fmt("dungeon.loop.who_prompt", (ryl_bind[]){
-                                                     {"max", max_s},
-                                                     {0},
-                                                 });
+                                                      {"max", max_s},
+                                                      {0},
+                                                  });
                 while (1) {
                     d = key();
                     if (pm_digit_in_range(d) || toupper(d) == 'Q' || toupper(d) == 'A') {

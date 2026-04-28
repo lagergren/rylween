@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "driv.h"       /* pronoun */
+#include "driv.h" /* pronoun */
 #include "log.h"
 #include "primitives.h" /* tx, clw, ryl_pause */
 #include "res.h"

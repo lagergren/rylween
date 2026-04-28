@@ -89,7 +89,13 @@ void rk_apply_party_lv(int a) {
         return;
     }
     static const char *const pc_class_key[] = {
-        "", "fighter", "thief", "mage", "priest", "bard", "ranger",
+        "",
+        "fighter",
+        "thief",
+        "mage",
+        "priest",
+        "bard",
+        "ranger",
     };
     struct party *p = party_at(a);
     for_each_party_member(i) {
@@ -155,11 +161,11 @@ void rk_apply_ydarg_grants(int a) {
     }
     unsetenv("RYL_FORCE_YDARG_GRANTS");
     struct party *p = party_at(a);
-    p->fireshield  = 1;
+    p->fireshield = 1;
     p->mastercrown = 1;
-    p->jazzyfoot   = 1;
-    p->bracelets   = 1;
-    p->silverkey   = 1;
+    p->jazzyfoot = 1;
+    p->bracelets = 1;
+    p->silverkey = 1;
 }
 
 int rk_ydarg_easy_rooms(void) {

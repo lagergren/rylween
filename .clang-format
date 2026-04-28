@@ -22,5 +22,5 @@ KeepEmptyLinesAtTheStartOfBlocks: false
 MaxEmptyLinesToKeep: 1
 PointerAlignment: Right
 SortIncludes: false
-ReflowComments: Never
+ReflowComments: false
 SpacesBeforeTrailingComments: 2

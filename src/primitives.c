@@ -454,4 +454,3 @@ void render_at(const char *path, uint8_t x, uint8_t y) {
     io->write(ANSI_RESET, 4);
     fclose(fh);
 }
-

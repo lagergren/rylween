@@ -629,23 +629,23 @@ static int32_t ie_pick_first_alive_monster(const int32_t *a) {
 }
 
 static const int_engine_entry int_engine_tbl[] = {
-    {"pa_is_alive",          1, ie_pa_is_alive,          {0}},
-    {"pa_is_dead",           1, ie_pa_is_dead,           {0}},
-    {"pa_is_spellcaster",    1, ie_pa_is_spellcaster,    {0}},
-    {"pa_is_class",          2, ie_pa_is_class,          {NULL, "pc_class"}},
-    {"pa_first_alive",       0, ie_pa_first_alive,       {0}},
-    {"pa_alive_count",       0, ie_pa_alive_count,       {0}},
-    {"pa_first_level",       0, ie_pa_first_level,       {0}},
-    {"pa_count_class",       1, ie_pa_count_class,       {"pc_class"}},
+    {"pa_is_alive", 1, ie_pa_is_alive, {0}},
+    {"pa_is_dead", 1, ie_pa_is_dead, {0}},
+    {"pa_is_spellcaster", 1, ie_pa_is_spellcaster, {0}},
+    {"pa_is_class", 2, ie_pa_is_class, {NULL, "pc_class"}},
+    {"pa_first_alive", 0, ie_pa_first_alive, {0}},
+    {"pa_alive_count", 0, ie_pa_alive_count, {0}},
+    {"pa_first_level", 0, ie_pa_first_level, {0}},
+    {"pa_count_class", 1, ie_pa_count_class, {"pc_class"}},
     {"pa_count_alive_class", 1, ie_pa_count_alive_class, {"pc_class"}},
-    {"inv_find_empty",       0, ie_inv_find_empty,       {0}},
-    {"inv_find_item",        1, ie_inv_find_item,        {"item"}},
-    {"inv_find_in_range",    2, ie_inv_find_in_range,    {"item", "item"}},
-    {"inv_count_in_range",   2, ie_inv_count_in_range,   {"item", "item"}},
-    {"pa_party_member_max",  0, ie_pa_party_member_max,  {0}},
-    {"inv_slot_max",         0, ie_inv_slot_max,         {0}},
-    {"wld_location_x",       1, ie_wld_location_x,       {"world_locations"}},
-    {"wld_location_y",       1, ie_wld_location_y,       {"world_locations"}},
+    {"inv_find_empty", 0, ie_inv_find_empty, {0}},
+    {"inv_find_item", 1, ie_inv_find_item, {"item"}},
+    {"inv_find_in_range", 2, ie_inv_find_in_range, {"item", "item"}},
+    {"inv_count_in_range", 2, ie_inv_count_in_range, {"item", "item"}},
+    {"pa_party_member_max", 0, ie_pa_party_member_max, {0}},
+    {"inv_slot_max", 0, ie_inv_slot_max, {0}},
+    {"wld_location_x", 1, ie_wld_location_x, {"world_locations"}},
+    {"wld_location_y", 1, ie_wld_location_y, {"world_locations"}},
     {"pick_random_alive_player", 0, ie_pick_random_alive_player, {0}},
     {"pick_first_alive_monster", 0, ie_pick_first_alive_monster, {0}},
 };
@@ -1668,8 +1668,8 @@ static void do_speak(const node *op, const char *script_id, size_t idx,
         die_at(script_id, idx, "speak: building must be int or string");
     }
     int32_t tow = tow_n
-        ? eval_expr(tow_n, script_id, idx, bindings, env)
-        : session_current_town();
+                      ? eval_expr(tow_n, script_id, idx, bindings, env)
+                      : session_current_town();
     speak(bld, tow);
 }
 
@@ -3176,7 +3176,8 @@ static ops_result do_for_monster(const node *op, const char *script_id,
    break/continue propagate. `kind` selects the predicate:
      ALIVE_MONSTER → !g_combat_ctx->deadc[i] (caller validates ctx)
      ALIVE_PLAYER  → pa_is_alive(i)          (no ctx required) */
-typedef enum { ALIVE_MONSTER, ALIVE_PLAYER } alive_kind;
+typedef enum { ALIVE_MONSTER,
+               ALIVE_PLAYER } alive_kind;
 
 static int alive_at(alive_kind kind, int32_t i) {
     if (kind == ALIVE_MONSTER) {
