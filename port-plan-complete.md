@@ -4521,3 +4521,48 @@ related. The dispatcher in `battle.c` now contains only the
 cast-vs-melee gate (`chance(15 + sp/2) && !antimagic`), the
 two `play_spell_body` callsites, and the for_each_monster
 loop — no inline combat narration or numbers.
+
+### §17.A.4 slice C — dungeon.c (2026-04-28)
+
+Like slice A and slice B, the §17.1 plan table sized this slice
+much larger than reality: 917 LOC in the table, 175 LOC at HEAD.
+Earlier §17 / §22 work had migrated all per-event encounter
+narration (cases 1..36) into `data/world/scripts/dungeon.json5`
+(629 lines) + `data/world/texts/dungeon.json5` (543 lines), so
+slice C only needed to lift the dispatcher-loop UI in
+`dungeon.c::dungeon` — the post-event utility menu's twelve
+inline `tx()` calls covering the level-status header, the
+(D)escend / (A)scend prompt, the (V)iew "Who?" prompt, the
+out-of-torches block, the max-depth block, the enter-level
+notice, and the leave-cavern block.
+
+**Bundling shape.** The twelve `tx()` calls collapse to six
+text records under a new `loop:` namespace in
+`data/world/texts/dungeon.json5`, separate from the per-event
+records on the file's top level so the slice's residuals don't
+mix with encounter narration:
+
+  - `level_menu` bundles the 3 consecutive `tx()` calls (status
+    line + `(D) Descend` + `(A) Ascend`) into one `tx_fmt`'d
+    record taking a `{level}` binding.
+  - `enter_level` / `who_prompt` are `tx_fmt`'d one-liners with
+    `{level}` / `{max}` bindings.
+  - `no_torches` / `at_max_depth` / `leave_cavern` are
+    `tx0(res_text(...))` static records.
+
+**Byte-identity proof.** `emit_with_col_jump` (the core of
+`tx` / `tx0` / `tx_fmt`) emits one CSI-right prefix per
+`\n`-terminated line in the input string — not one per call.
+Both the 3-`tx()` form and the bundled `tx_fmt` form for
+`level_menu` produce the same 5 CSI prefixes (each original
+call already terminated with `\r\n`). The §17.4 / §16.8
+"CSI-right-prefix consolidation shifts bytes by N × 5" caveat
+applies only to `tx("foo")` runs without trailing `\r\n` — not
+this case. 39 fixtures byte-identical including
+`wilderness-cave-descent` (45445 bytes, exercises levels
+1→2→1 + leave cavern); no `.expect_snapshot` rebless required.
+
+**Slice D (subs.c) is the last open slice in §17.A.4.** The
+§17.1 table sized it at 1310 LOC with the §14.4 scorelist
+overlap as the rebless interaction; subs.c at HEAD is the next
+audit target.
