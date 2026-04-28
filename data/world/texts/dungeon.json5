@@ -2,6 +2,14 @@
 // data/world/scripts/dungeon.json5; resolve_text_id resolves
 // `dungeon.<name>` from each script via the script-id → parent
 // fallback. Array entries get CRLF appended per fold_texts.
+//
+// §17.A.4 slice C: the `loop:` block holds the dispatcher-loop UI
+// text — the post-event utility menu in dungeon.c::dungeon. Each
+// trip through the inner while loop emits the level-status menu
+// (level_menu), and the (D)escend / (A)scend / (V)iew / out-of-
+// torches / max-depth / leave-cavern branches each have their own
+// entry. Distinct from the per-event encounter narration above
+// (nothing_a / fire_shield / tammys_prison / etc.).
 {
   // case 6 — empty level (variant a).
   nothing_a: [
@@ -538,6 +546,42 @@
       'With trembling hands',
       'you pick it up!!!',
       '',
+    ],
+  },
+
+  // §17.A.4 slice C: dispatcher-loop UI text. level_menu bundles
+  // the status line + (D)/(A) prompt because the original C arm
+  // emits them as three consecutive tx() calls without an
+  // intervening clw or pause — same byte stream. enter_level /
+  // who_prompt take {level} / {max} bindings via tx_fmt.
+  loop: {
+    level_menu: [
+      'You are on level {level}.',
+      '',
+      '(D) Descend',
+      '(A) Ascend',
+      '',
+    ],
+    enter_level: [
+      'You enter level {level}.',
+    ],
+    at_max_depth: [
+      'The cave doesn\'t',
+      'go deeper.',
+    ],
+    no_torches: [
+      'You have used your last',
+      'torch. You can\'t go',
+      'any further.',
+      '',
+    ],
+    leave_cavern: [
+      'You leave the',
+      'hideous cavern!',
+      '',
+    ],
+    who_prompt: [
+      'Who? (1-{max}/Q/A)',
     ],
   },
 }

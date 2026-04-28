@@ -68,9 +68,12 @@ void dungeon(int32_t levels, const char *scenario) {
         while (1) {
             clw();
             statusline();
-            tx("You are on level %d.\r\n\r\n", cl);
-            tx("(D) Descend\r\n");
-            tx("(A) Ascend\r\n\r\n");
+            char level_s[8];
+            snprintf(level_s, sizeof level_s, "%d", (int)cl);
+            tx_fmt("dungeon.loop.level_menu", (ryl_bind[]){
+                                                  {"level", level_s},
+                                                  {0},
+                                              });
             c = key();
             c = toupper(c);
 
@@ -108,7 +111,12 @@ void dungeon(int32_t levels, const char *scenario) {
             if (c == 'V') {
                 showparty();
                 clw();
-                tx("Who? (1-%d/Q/A)\r\n", res_party_member_max());
+                char max_s[8];
+                snprintf(max_s, sizeof max_s, "%d", res_party_member_max());
+                tx_fmt("dungeon.loop.who_prompt", (ryl_bind[]){
+                                                     {"max", max_s},
+                                                     {0},
+                                                 });
                 while (1) {
                     d = key();
                     if (pm_digit_in_range(d) || toupper(d) == 'Q' || toupper(d) == 'A') {
@@ -131,9 +139,7 @@ void dungeon(int32_t levels, const char *scenario) {
             if (c == 'D') {
                 if (!pa_torches()) {
                     clw();
-                    tx("You have used your last\r\n");
-                    tx("torch. You can't go\r\n");
-                    tx("any further.\r\n\r\n");
+                    tx0(res_text("dungeon.loop.no_torches"));
                     ryl_pause();
                     clw();
                 } else {
@@ -142,12 +148,14 @@ void dungeon(int32_t levels, const char *scenario) {
                     }
                     if (cl == levels) {
                         clw();
-                        tx("The cave doesn't\r\n");
-                        tx("go deeper.\r\n");
+                        tx0(res_text("dungeon.loop.at_max_depth"));
                         ryl_delay(1000);
                     } else {
                         clw();
-                        tx("You enter level %d.\r\n", cl + 1);
+                        char next_s[8];
+                        snprintf(next_s, sizeof next_s, "%d", (int)(cl + 1));
+                        tx_fmt("dungeon.loop.enter_level",
+                               (ryl_bind[]){{"level", next_s}, {0}});
                         ryl_delay(600);
                         cl++;
                         break;
@@ -158,8 +166,7 @@ void dungeon(int32_t levels, const char *scenario) {
             if (c == 'A') {
                 if (cl == 1) {
                     clw();
-                    tx("You leave the\r\n");
-                    tx("hideous cavern!\r\n\r\n");
+                    tx0(res_text("dungeon.loop.leave_cavern"));
                     ryl_pause();
                     clr_map_window();
                     update_map();
