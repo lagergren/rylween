@@ -2387,6 +2387,20 @@ static void fold_map_dims(const node *map_node, const char *path) {
         }
         map_cols_max = cm->u.iv;
     }
+    /* Capacity must hold the active-row count populated from
+       data/map.dat (`map.rows`). driv.c::init reads into rows
+       1..map.rows inclusive (slot 0 is the north-edge sentinel,
+       intentionally left zero), so the calloc needs at least
+       `map.rows + 1` row slots; one more is conventional for the
+       south-edge sentinel (the default 42 vs 40 layout has both).
+       Catch undersizing at fold time so a bad world.json5 fails
+       loud rather than silently scribbling past the buffer. */
+    const node *rows_active = obj_get(map_node, "rows");
+    if (rows_active && rows_active->kind == N_INT &&
+        rows_active->u.iv >= map_rows_max) {
+        res_die(path, rows_active->line,
+                "map.rows >= map.rows_max — capacity must exceed active count");
+    }
 }
 
 /* -------- enums subtree --------

@@ -1,7 +1,9 @@
-#include "ryl.h"
 #include "ansi.h"
 #include "gfx.h"
 #include "primitives.h"
+
+#include <stdint.h>
+#include <stdio.h>
 
 void blitgfx(uint8_t pic) {
     char path[64];
