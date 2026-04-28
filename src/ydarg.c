@@ -14,8 +14,6 @@
 #include "wld.h"
 #include "ydarg.h"
 
-static void confrontation(void);
-
 void ydarg() {
     int32_t room[8][8];
     int32_t xl, yl, lvl, n, s, e, w, i, j, x, oc;
@@ -235,7 +233,7 @@ void ydarg() {
                         yl = 1;
                         lvl++;
                         if (lvl == 5) {
-                            confrontation();
+                            play_script("ydarg.confrontation", NULL);
                         }
                         break;
                     }
@@ -371,31 +369,34 @@ void ydarg() {
     }
 }
 
-static void confrontation() {
+/* DSL engine_call backer: walk ydarg.confrontation_sequence (a string-
+   array of monster slugs) and fire encounter(monster, mandatory=1) for
+   each. The legacy C confrontation() body had this as an inline
+   res_str_arr_at + encounter loop between act-1 and act-2 narration;
+   the script invokes it via { engine_call: 'ydarg_run_seq' }. */
+void ydarg_run_seq(void) {
+    int n_seq = res_str_arr_count("ydarg.confrontation_sequence");
+    for (int k = 0; k < n_seq; k++) {
+        encounter(res_monster_id(res_str_arr_at("ydarg.confrontation_sequence", k)), 1);
+    }
+}
+
+/* DSL engine_call backer: silverkey -> 2 + save. Runs between act-3
+   and act-4 narration so the title-screen "you have defeated Baron
+   Ydarg" gate persists even if the engine is killed before
+   ydarg_finalize. Bundled because the two operations always pair. */
+void ydarg_record_completion(void) {
+    pa_set_special(PS_SILVERKEY, 2);
+    save();
+}
+
+/* DSL engine_call backer: end-of-confrontation epilogue. Appends a
+   Hall-of-Heroes line to heroes.txt under data/ and cleanexits the
+   engine. Does not return. */
+void ydarg_finalize(void) {
     FILE *fh;
     char str[80];
     char path[512];
-    const char *mstr;
-
-    ryl_bind binds[] = {
-        {"p1_name", pm_name(pm_cur(0))},
-        {0},
-    };
-    tx_narrate("ydarg.narration.conf_act1", binds);
-    clw();
-    {
-        int n_seq = res_str_arr_count("ydarg.confrontation_sequence");
-        for (int k = 0; k < n_seq; k++) {
-            encounter(res_monster_id(res_str_arr_at("ydarg.confrontation_sequence", k)), 1);
-        }
-    }
-    tx_narrate("ydarg.narration.conf_act2", binds);
-    encounter(res_monster_id("baron_ydarg"), 1);
-    tx_narrate("ydarg.narration.conf_act3", binds);
-    pa_set_special(PS_SILVERKEY, 2);
-    save();
-    tx_narrate("ydarg.narration.conf_act4", binds);
-    clw();
 
     res_data_path("heroes.txt", path, sizeof path);
     if (!(fh = fopen(path, "r"))) {
@@ -412,12 +413,12 @@ static void confrontation() {
     }
 
     if (!(fh = fopen(path, "a+"))) {
-        return;
+        cleanexit();
     }
 
     struct wall_clock c;
     clock_now(&c);
-    mstr = res_enum("month", c.month);
+    const char *mstr = res_enum("month", c.month);
 
     snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, %d\n", pa_party_name(), mstr, c.day,
              c.year);

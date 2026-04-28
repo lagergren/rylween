@@ -19,6 +19,7 @@
 #include "subs.h"
 #include "towne.h"
 #include "wld.h"
+#include "ydarg.h"
 
 #include <ctype.h>
 #include <stddef.h>
@@ -1416,6 +1417,25 @@ static void do_emit(const node *op, const char *script_id, size_t idx,
                                    script_id, idx));
 }
 
+/* { narrate: '<path>' } — walk the string-array at world-tree path
+   `path` and emit each entry as a paused screen (clw + tx_fmt +
+   ryl_pause). Same shape as the C-side tx_narrate primitive used by
+   ydarg.c::confrontation; lets multi-screen narrative chains live as
+   a single DSL op instead of a series of `screen` entries that
+   re-list every text id. Bindings flow through to tx_fmt. */
+static void do_narrate(const node *op, const char *script_id, size_t idx,
+                       const ryl_bind *bindings, const rt_env *env) {
+    const node *path_n = obj_get(op, "narrate");
+    if (!path_n || path_n->kind != N_STR) {
+        die_at(script_id, idx, "narrate: value must be string");
+    }
+    ryl_bind merged[RT_ENV_CAP + 32];
+    const ryl_bind *eff = merge_bindings(bindings, env, merged,
+                                         sizeof merged / sizeof *merged,
+                                         script_id, idx);
+    tx_narrate(path_n->u.sv, eff);
+}
+
 /* §20.20 #2: { emit_indexed: { fmt: 'speak.lodge.j{}', value: <expr> } }
    — emit a text id constructed by substituting a value into a format.
    Mirrors the C-side txi("speak.lodge.j%d", job) shape so flows whose
@@ -1640,6 +1660,24 @@ static void eng_pm_set_dead(const int32_t *a) {
     pm_set_dead(pm_cur((int)a[0]), (int)a[1]);
 }
 
+/* §23.K: confrontation lift backers — three thin wrappers around the
+   ydarg-specific endgame side effects. ydarg_run_seq walks the data-
+   declared monster slug array; ydarg_record_completion bundles the
+   silverkey bump + save; ydarg_finalize writes heroes.txt and
+   cleanexits. See src/ydarg.c for the bodies. */
+static void eng_ydarg_run_seq(const int32_t *a) {
+    (void)a;
+    ydarg_run_seq();
+}
+static void eng_ydarg_record_completion(const int32_t *a) {
+    (void)a;
+    ydarg_record_completion();
+}
+static void eng_ydarg_finalize(const int32_t *a) {
+    (void)a;
+    ydarg_finalize();
+}
+
 /* §23.B: pa_set_inventory(slot, item_id). Magic-item effect bodies
    call this to consume the triggering slot (`pa_set_inventory(slot,
    0)`). Most items consume up-front (first op); gem_of_resurrection
@@ -1699,6 +1737,9 @@ static const engine_entry engine_tbl[] = {
     {"pm_full_heal", 1, eng_pm_full_heal},
     {"pm_set_dead", 2, eng_pm_set_dead},
     {"pa_set_inventory", 2, eng_pa_set_inventory},
+    {"ydarg_run_seq", 0, eng_ydarg_run_seq},
+    {"ydarg_record_completion", 0, eng_ydarg_record_completion},
+    {"ydarg_finalize", 0, eng_ydarg_finalize},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps
@@ -3391,6 +3432,8 @@ static ops_result dispatch_op(const node *op, const char *script_id, size_t idx,
         do_pause(op, script_id, idx);
     } else if (obj_get(op, "emit")) {
         do_emit(op, script_id, idx, parent, bindings, env);
+    } else if (obj_get(op, "narrate")) {
+        do_narrate(op, script_id, idx, bindings, env);
     } else if (obj_get(op, "emit_indexed")) {
         do_emit_indexed(op, script_id, idx, parent, bindings, env);
     } else if (obj_get(op, "wait_input")) {

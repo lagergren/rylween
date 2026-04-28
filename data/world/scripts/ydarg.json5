@@ -60,4 +60,28 @@
     { pause: 2000 },
     { engine_call: 'clw' },
   ],
+
+  // §23.K: roof-deck confrontation. Lifts the legacy C confrontation()
+  // function. Four narration acts bracket two encounter blocks (the
+  // 4-monster sequence then Baron Ydarg himself), with the silverkey
+  // bump + save persisted between act-3 and act-4 so a kill-after-save
+  // crash still records the win. Final op is ydarg_finalize which
+  // appends to heroes.txt and cleanexits — the script has no path back
+  // to the caller.
+  //
+  // {p1_name} is the first party member's display name, bound up
+  // front via engine_bind so the narration acts can reference it.
+  confrontation: [
+    { engine_bind: { fn: 'pa_name', args: [0], var: 'p1_name' } },
+    { narrate: 'ydarg.narration.conf_act1' },
+    { engine_call: 'clw' },
+    { engine_call: 'ydarg_run_seq' },
+    { narrate: 'ydarg.narration.conf_act2' },
+    { encounter: { foe: 'baron_ydarg', mandatory: true } },
+    { narrate: 'ydarg.narration.conf_act3' },
+    { engine_call: 'ydarg_record_completion' },
+    { narrate: 'ydarg.narration.conf_act4' },
+    { engine_call: 'clw' },
+    { engine_call: 'ydarg_finalize' },
+  ],
 }
