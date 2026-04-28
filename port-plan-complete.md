@@ -5101,6 +5101,292 @@ Eight commits on `lagergren/port1` (`385270a..224fd89`), grouped:
 
 39 fixtures byte-identical on `make check` + `make testasan` at
 every commit; format gate green throughout. The DSL
-`emit_indexed jN` text-shard rebless is the single follow-up loose
-end (last vestige of int-position keying) — see Active section in
-`port-plan-incomplete.md`.
+`emit_indexed jN` text-shard rebless was the single follow-up loose
+end after this snapshot — closed in 2026-04-28 #9, body in the
+"§24bis phase 3 follow-up closure (2026-04-28 #9)" section below.
+
+## §24bis phase 3 follow-up closure (2026-04-28 #9)
+
+Body for the last loose end §24bis phase 3 left open: the DSL
+`emit_indexed jN` text-shard rebless. After phase 3 (above) the
+`speak.json5` text shard was the only remaining int-position-keyed
+data in the codebase — the C-side bindings in `speak.c`
+(`reply_chitchat`, the (P)/(M)/(L) Q-prompt arms) and `towne.c`
+(`hut`'s `npc_job` binding) snprintf'd the int form (`npc_job(t)`
+→ `"5"`) into a `job` binding the DSL consumed via
+`{ emit_indexed: { fmt: 'speak.people.j{}', value: { var: 'job' } } }`
+to produce `speak.people.j1` / `.j2` / etc. With slug storage
+everywhere else (phase 3), reordering or extending the npc-job
+enum would have silently shifted every reply by one. This snapshot
+lifts the `emit_indexed` value axis to slug.
+
+Single commit on `lagergren/port1` (`aa3efd6`):
+
+**DSL extension (1 helper + 1 op extended + 1 sig position lifted):**
+
+- `do_emit_indexed` (`src/script.c`) gains a string-spliced path. New
+  helper `emit_indexed_string_lookup(val_n, bindings, env)` checks
+  whether `value` is a `{var:'name'}` reference resolving to either an
+  rt_env `RT_STR` binding (engine_bind result) or a non-numeric
+  `ryl_bind` value (caller pass-in that doesn't `strtol`-parse cleanly
+  to the end). On hit the splice runs through `%.*s%s%s` (the literal
+  `value` string) instead of the legacy `%.*s%d%s` (the int form). On
+  miss the int path is unchanged, so existing int callers stay
+  byte-identical. Either path stays strict — `die_at` on missing text
+  record. Numeric resolution explicitly stays on `%d` so an integer
+  slug-aliased binding (e.g. an item id tag whose slug-form happens
+  to be all-digits) routes to the int form.
+
+- `do_engine_bind`'s `'s'` sig position now also accepts
+  `{var:'name'}` runtime references in addition to the existing
+  `N_STR` author-time literals. Resolution uses the same
+  `emit_indexed_string_lookup` helper so the typing rules are
+  consistent: rt_env RT_STR or non-numeric ryl_bind is a string-bound
+  slot; rt_env RT_INT or numeric ryl_bind dies with the existing
+  literal-required diagnostic. Lets engine_bind callers route slug
+  bindings through the same arg slot the `'job'` author-time constant
+  uses — preserves the registry's typed-arg surface while extending
+  what `'s'` accepts.
+
+- New str_engine entry `res_enum_name_by_sym` (`src/res.c` +
+  `src/res.h`): two-line wrapper composing `res_enum_id(id, sym)` +
+  `res_enum(id, slot)` to recover the display name straight from a
+  slug-form binding. Registered in `script.c::str_engine_tbl` with
+  sig `'ss'` so DSL callers can write
+  `engine_bind: { fn: 'res_enum_name_by_sym', args: ['job', { var:
+  'npc_job_sym' }], var: 'job' }` — pulls the visible "Merchant" /
+  "Ranger" label without round-tripping through int. Pairs with the
+  hut-script update below.
+
+**C-side wrappers (4 callsites flipped):**
+
+- `speak.c::reply_chitchat` signature flipped from `(int32_t subj,
+  int32_t jb)` to `(int32_t subj, const char *job_sym)`. Caller
+  `speak.c::speak` switches from `reply_chitchat(x, npc_job(talker))`
+  to `reply_chitchat(x, npc_job_sym(talker))`. The body's int-form
+  snprintf scratch buffer drops; the `job_sym` arg passes straight
+  into the `play_script("speak.chit_reply", { ... })` ryl_bind list.
+
+- The (P)/(M)/(L) Q-prompt arms in `speak.c::speak` drop their `char
+  job[16]; snprintf(...)` int-form scratch buffers and pass
+  `npc_job_sym(talker)` direct under binding name `job_sym`. Three
+  callsites (P → `play_script("speak.people")`, M → `play_script
+  ("speak.magic")`, L (non-bargirl) → `play_script
+  ("lodge.nonbargirl")`).
+
+- The bard special-case in the (P) arm (`if (npc_job_is_sym(talker,
+  "bard")) tx_fmt("speak.people.j8", ...)`) updates the literal text
+  id to the renamed key: `tx_fmt("speak.people.jbard", ...)`.
+
+- `towne.c::hut` switches the play_script binding from `npc_job` (int
+  form) to `npc_job_sym` (slug form), name `npc_job_sym`. The DSL
+  hut script in `towne.json5` updates its engine_bind from
+  `{ fn: 'res_enum', args: ['job', { var: 'npc_job' }] }` to
+  `{ fn: 'res_enum_name_by_sym', args: ['job', { var:
+  'npc_job_sym' }] }` to match.
+
+**DSL scripts (3 files):**
+
+- `data/world/scripts/speak.json5`: people / magic / chit_reply.
+  {well,weather,health} all flip their `value:` from `{var:'job'}` to
+  `{var:'job_sym'}`. fmt strings stay unchanged
+  (`'speak.people.j{}'`, `'speak.magic.j{}'`,
+  `'speak.chit.reply.well.j{}'`, etc.) — the value-side slug
+  substitution lands at the `{}` hole.
+
+- `data/world/scripts/lodge.json5`: `nonbargirl`'s emit_indexed flips
+  to `{var:'job_sym'}`; `bargirl`'s three text refs
+  `speak.lodge.j13.{offer,broke,spent}` rename to
+  `speak.lodge.jbargirl.{offer,broke,spent}` (the j13 → jbargirl
+  rename below applies to both the static-emit references here AND
+  the renamed text-shard keys).
+
+- `data/world/scripts/towne.json5`: hut script's job-display engine_
+  bind switches to `res_enum_name_by_sym` per the C-side change above.
+
+**Text shard rebless (96 keys, six sections):**
+
+- `data/world/texts/speak.json5` reblessed via a Python word-boundary
+  rewrite. Pattern: `(?<![a-zA-Z0-9_])j<N>(?=\s*:)` (only matches
+  keys; doesn't clobber `subj`, `subj_s`, etc.) replaced
+  high-N → low-N to be safe. Job slug map (npc-job enum, 1-indexed
+  positional in `data/world.json5`):
+
+  - `j1`  → `jmerchant`     - `j9`  → `jdrifter`
+  - `j2`  → `jranger`       - `j10` → `jhalf_orc`
+  - `j3`  → `jfighter`      - `j11` → `jhalf_elf`
+  - `j4`  → `jwizard`       - `j12` → `jsmith`
+  - `j5`  → `jpriest`       - `j13` → `jbargirl`
+  - `j6`  → `jthief`        - `j14` → `jinnkeeper`
+  - `j7`  → `jpeasant`      - `j15` → `jtavernkeeper`
+  - `j8`  → `jbard`         - `j16` → `jhermit`
+
+  Sections renamed (16 keys × 6 sections = 96 total):
+
+  - `chit.reply.well.j1..j16`     → `j<slug>`
+  - `chit.reply.weather.j1..j16`  → `j<slug>`
+  - `chit.reply.health.j1..j16`   → `j<slug>`
+  - `people.j1..j16`              → `j<slug>` (j8 sub-object stays —
+                                    `jbard` keeps its `{fighter_name}`
+                                    placeholder structure)
+  - `magic.j1..j16`               → `j<slug>`
+  - `lodge.j1..j16`               → `j<slug>` (j13 sub-object renames
+                                    to `jbargirl` keeping the
+                                    `{offer,broke,spent}` children)
+
+  Continuation note's "16 keys × 5 sections = 80 keys" math was
+  off — the actual count is six sections × 16 = 96 because
+  chit.reply has three subject sub-axes (well/weather/health), not
+  one. All key renames mechanical; no value churn.
+
+**Coverage gate:**
+
+- 40 existing fixtures stayed byte-identical after the rebless
+  commit. The bargirl L7 fixtures (`towne-thord-tavern-bargirl-lodge`,
+  `towne-thord-tavern-bargirl-lodge-broke`) directly cover the
+  `jbargirl` path (only directly-emitted slug-key in any prior
+  fixture).
+
+- New fixture `towne-thord-tavern-speak-people` (`tools/replay/`)
+  exercises the speak.people Q→P arm against a merchant NPC. Setup
+  mirrors `towne-thord-tavern-speak`'s prefix
+  (`C22ETSA\n\n` — continue from title, walk south to Thord, enter,
+  tavern, speak, NPC A; seed 42 picks merchant for the speak target
+  slot) but instead of `B` (back) the input does `QP\n` (question →
+  people → ryl_pause one keypress) then `BLLXY\n` (back, leave
+  tavern, leave town, quit, confirm). The `.expect` captures the
+  merchant-keyed text body ("- Well, I don't know that many
+  people.") inline — proves end-to-end that the new emit_indexed
+  string path resolves to `speak.people.jmerchant` and emits its
+  text. Fixture count goes from 40 → 41.
+
+  Coverage gap remains on speak.magic and speak.chit_reply (no
+  fixture exercises Q→M or in-conversation C→chitchat) — analogous
+  fixtures along the same template would close it cheaply; queued
+  as polish in the "Recommended next session" of
+  `port-plan-incomplete.md`.
+
+41 fixtures byte-identical on `make check` + `make testasan`
+post-aa3efd6; format gate green throughout. With this closure the
+last vestige of int-position keying in any data shard is gone; the
+only int caller of `npc_job(t)` left is the snapshot/save format
+boundary, where the int form is the canonical wire shape.
+
+## §12.3 inventory cap-flip closure (2026-04-28 #9)
+
+Body for the §12.3 inventory cap-flip — smallest standalone of the
+remaining static-cap flips in `port-plan-incomplete.md`'s §12.3
+queue. The `INVENTORY_SLOT_MAX` constant (state.h) and the
+`res_inventory_slot_max()` runtime accessor (res.c) were already
+plumbed through every consumer except two raw `17` literals in
+`driv.c`'s save writer + load reader (the array-width arg to
+`wcw_i32_arr` / `rcw_i32_arr` for `p->inventory`). With those
+flipped, the `limits.inventory_slot_max` knob in `world.json5` now
+genuinely covers all inventory consumers.
+
+Single commit on `lagergren/port1` (`7671ea5`):
+
+- `driv.c::write_current_world` save writer: `wcw_i32_arr(f,
+  p->inventory, 17)` → `wcw_i32_arr(f, p->inventory,
+  INVENTORY_SLOT_MAX + 1)` (the +1 covers the slot-0-reserved
+  sentinel + 16 user slots; this is the same width the struct
+  declares as `int32_t inventory[INVENTORY_SLOT_MAX + 1]` in
+  `state.h`).
+
+- `driv.c::read_current_world` load reader: same flip, with
+  `obj_get(pnode, "inventory")` as the source node.
+
+Plus a clangd `[unused-includes]` cleanup riding the same commit
+(real, not stale — driv.c uses no ryl.h-declared identifier
+directly): drops `#include "ryl.h"` and pulls the actually-used
+headers explicitly. Added: `<ctype.h>` (toupper), `<stdio.h>` (FILE
+/ fprintf / fputs / etc.), `<stdlib.h>` (exit), `compat.h`
+(ryl_random / ryl_delay / ryl_state_path / stricmp / str_append /
+clock_day). The pattern carries to four more files (inventory.c,
+party.c, speak.c, res.c) in `83814b7` — see the clangd cleanup
+section below. The five .c files that genuinely use ryl.h
+identifiers (battle.c / dungeon.c / subs.c / towne.c / ydarg.c —
+all reach for the pic constants `tavernpic` / `cavepic` / etc.;
+ryl.c itself defines `_version_string`) keep their ryl.h include
+unchanged.
+
+Other §12.3 cap-flips (`state.p[26]`, `map[42][82]`,
+`attack_today[26]`) are coupled to the snapshot/save format and
+stay queued — see "Recommended next session" in
+`port-plan-incomplete.md` for the sequencing.
+
+41 fixtures byte-identical on `make check` + `make testasan` post
+this commit; format gate green.
+
+## Wilderness arrow-key fixture closure (2026-04-28 #9)
+
+Body for the optional arrow-key fixture follow-up flagged in
+session #8's continuation prompt. The arrow-key support in
+`io_tty.c::tty_getch` (commit `c4715d9`) added an additive
+`ESC[A/B/C/D` translation path on top of the legacy numpad-digit
+bytes — `peek_byte_timed` consumes the CSI tail with a 50ms poll
+timeout so a bare ESC keystroke doesn't strand `tty_getch`. No
+fixture exercised the new path because the existing replay
+fixtures all pipe digits directly. This snapshot adds the gate.
+
+Single commit on `lagergren/port1` (`be52f0e`):
+
+- `tools/replay/wilderness-arrow-keys.{in,env,expect,expect_snapshot}`.
+  Mirrors `wilderness-terrain-narration`'s setup verbatim — same
+  `RYL_FAKE_EPOCH=1700000000`, `RYL_FAKE_SEED=42`, `RYL_NO_DELAY=1`,
+  same prefix bytes (`\nN\nReplay\n` + four create-member blocks +
+  `C` continue from title + `22` wilderness south-south + 8
+  movement bytes + `XY\n` quit-confirm) — but pipes ANSI arrow-key
+  sequences (`\x1b[A` / `\x1b[B` / `\x1b[C` / `\x1b[D`) instead of
+  the literal `28286226` numpad digits for the eight movement
+  bytes. The sister fixture is the digit-bytes path; this one is
+  the ESC-bytes path.
+
+- The `.expect` and `.expect_snapshot` files come out byte-identical
+  to `wilderness-terrain-narration`'s — proven via `cmp -s`. Same
+  size (36341 bytes), same snapshot. Strongest possible coverage:
+  the translation produces the same downstream digit at the
+  `key()` boundary, so any future drift in either path
+  (peek_byte_timed timing, `wld_dir_from_key` digit map, the
+  legacy numpad path) surfaces immediately.
+
+Fixture count goes from 39 → 40 with this commit (then 40 → 41
+with the speak-people fixture in `aa3efd6` above).
+
+## clangd unused-includes follow-up sweep closure (2026-04-28 #9)
+
+Body for the clangd `[unused-includes]` follow-up sweep flagged in
+the user's session-mid feedback. The pattern in `7671ea5` (drop
+`ryl.h` umbrella from a file that uses no ryl.h identifier
+directly; pull what's actually needed) carries to four more files.
+
+Single commit on `lagergren/port1` (`83814b7`):
+
+- `inventory.c`: drops `#include "ryl.h" /* state */` outright —
+  state.h is reachable transitively via `inventory.h` → `state.h`
+  (the file's own `#include "inventory.h"` is the entry point).
+
+- `party.c`: drops `#include "ryl.h" /* state */` outright —
+  state.h is reachable via `party.h` → `state.h`.
+
+- `speak.c`: drops `#include "ryl.h"` and pulls explicit
+  `<ctype.h>` (toupper), `<stdio.h>` (snprintf), `<string.h>`
+  (strlen), `compat.h` (the ryl_* helpers).
+
+- `res.c`: drops both `#include "ryl.h"` (no ryl.h identifier
+  used; state.h reachable via party.h) and `#include "towne.h"`
+  (none of `enter` / `rumour` / `object` / `obdamage` referenced
+  in res.c). Adds `compat.h` (ryl_random / ryl_delay).
+
+The five .c files that genuinely use ryl.h identifiers stay
+unchanged: `battle.c` / `dungeon.c` / `subs.c` / `towne.c` /
+`ydarg.c` all reach for the pic constants (`tavernpic`,
+`smithpic`, `churchpic`, `cavepic`, `deathpic`, `hutpic`,
+`ydargpic`, `citypic`, `wonbattlepic`, `tentpic`, `notentpic`,
+`encounterpic`, `insidecavepic`); `ryl.c` itself defines
+`_version_string`.
+
+clangd diagnostics cleared on the four flagged files; build /
+replay (41 fixtures) / asan / format gates all stay green. The
+verify-then-fix expectation is recorded in
+`feedback_clangd_real_vs_stale.md` (auto-memory).
