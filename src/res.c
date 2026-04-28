@@ -26,6 +26,7 @@
 #include "res.h"
 #include "json5.h"
 #include "log.h"
+#include "party.h"
 #include "primitives.h"
 #include "runtime_cfg.h"
 #include "ryl.h"
@@ -998,7 +999,7 @@ int res_dungeon_encounter_recurring(const char *symbol) {
         if (slot < 0 || want < 0) {
             return 1;
         }
-        return state.p[state.cpl].flag[slot] != (unsigned char)want;
+        return pa_flag(slot) != want;
     }
     return 0;
 }
