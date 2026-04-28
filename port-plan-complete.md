@@ -4948,3 +4948,159 @@ fixtures green on Linux ASan + LSan with no markers; format dry-run
 clean; `clang-format --version` inside the image reports `22.1.2`.
 macOS host gates also green post the parallel format sweep +
 `-D_DEFAULT_SOURCE` commits.
+
+## §24bis phase 3 closure (2026-04-28 #7)
+
+Body for §24bis phase 3 (the "drop the int from struct party /
+state.npc storage" multi-session refactor flagged in the original
+§24bis plan). Stub remains in `port-plan-incomplete.md` under the
+deferred §24bis line so the master TOC's anchor still resolves; the
+single follow-up loose end (DSL `emit_indexed jN` text-shard rebless)
+lives under Active there.
+
+Eight commits on `lagergren/port1` (`385270a..224fd89`), grouped:
+
+**Storage flips (3 commits, one per axis):**
+
+- `385270a` **state-abstraction: §24bis phase 3 race axis —
+  slug-pointer storage**. `struct party.ra` flips from `int32_t *`
+  to `const char **`. Each `ra[m]` is either NULL (calloc-zero unset
+  sentinel) or a stable interned pointer into res's enum
+  `keys[]` table — no allocation owned by struct party. Boundary
+  translations: `pm_ra(pm)` returns int via
+  `res_enum_id("race", slug)` so script.c expr_member dispatch
+  keeps its int contract; `pm_set_ra(pm, int)` translates back via
+  `res_enum_sym`; `pa_race_sym` becomes a passthrough (no
+  `res_enum_sym` round-trip). driv.c save: existing `wcw_enum_arr`
+  (int-array contract preserved) — materialize-loop converts
+  `p->ra[m]` → `ra_int[m]` via `res_enum_id`. driv.c load:
+  `rcw_enum_arr` parses into a temp int array, canonicalize loop
+  sets `p->ra[m] = res_enum_sym("race", id)`. `forward decls of
+  `res_enum_sym` + `res_enum_id` in `state.h` move up so `pm_ra`
+  inline can resolve them. Chained NULL assignments in
+  `party_release_members` / `party_clear_heap_pointers` split
+  (`p->ra` is `const char **` — different type than `p->cl` /
+  `p->lv` / `p->ar` / `p->wp`).
+
+- `d51640d` **state-abstraction: §24bis phase 3 class axis —
+  slug-pointer storage**. Mirrors race exactly: `struct party.cl`
+  flips `int32_t *` → `const char **`; `pm_cl` / `pm_set_cl` / save
+  materialize / load canonicalize / chained-NULL split all parallel
+  the race shape. Plus one cleanup: `pa_is_spellcaster` flips from
+  `c == PC_MAGE || c == PC_PRIEST` to direct slug compare
+  (`strcmp(s, "mage") == 0 || strcmp(s, "priest") == 0`).
+  `subs.c::scorelist`'s `cls[][]` materialize uses `res_enum_id`
+  to keep the existing 1..6 sort table contract.
+
+- `9653373` **state-abstraction: §24bis phase 3 job axis —
+  slug-pointer storage**. `struct person.job` flips from `int32_t`
+  to `const char *` (single field, not array). Mirrors race/class
+  shape: `npc_job` translates slug → int via `res_enum_id`;
+  `npc_job_sym` becomes passthrough; driv.c save uses
+  `wcw_enum(f, "job", res_enum_id("job", n->job))`; driv.c load
+  canonicalizes via `res_enum_sym`; `res.c::res_realize_npcs`
+  parses via `rn_enum` then canonicalizes the same way. The legacy
+  number-to-job comment block (1..16: Merchant..Hermit) collapses
+  into a single line on the new field.
+
+**Cleanup (1 commit):**
+
+- `13f523c` **state-abstraction: §24bis phase 3 cleanup — drop
+  `PC_*` + `pm_class_id`**. With class storage = slug pointer,
+  `PC_FIGHTER..PC_RANGER` int constants and the `pm_class_id`
+  name-to-PC_* mapper are redundant. Sites:
+  - `state.h`: `PC_FIGHTER..PC_RANGER` `#define`s replaced with a
+    pointer comment; `pm_is_fighter` / `_thief` / `_mage` /
+    `_priest` / `_bard` / `_ranger` flip from `pm_is_class(pm,
+    PC_*)` to `pm_class_is_sym(pm, "<sym>")`; `pm_class_id`
+    forward decl removed.
+  - `compat.c`: `pm_class_id` implementation removed (the only
+    user of `PC_*` outside `state.h`).
+  - `res.c`: three spell-load sites (`res_spell`,
+    `fold_class_spells_into_tab`, `fold_class_spells_for_meta`)
+    flip from `int cid = pm_class_id(cname); if (cid ==
+    PC_PRIEST) ...` to direct `strcmp(cname, "priest")`. Same
+    shape; one less indirection layer. `res.c::fold_wieldable_by`
+    uses `res_enum_id("pc_class", el->u.sv)` instead of
+    `pm_class_id`. The bitmask shift still works because the
+    `pc_class` enum's int slot ids match the historical `PC_*`
+    values (1..6) — preserved by the data file's object-key
+    ordering.
+
+**Data shape (1 commit):**
+
+- `1b13883` **data + res: drop `id:` from keyed-record enums
+  (race/class/job/locations)**. `fold_enum_records` in `res.c`
+  grows an id-optional path: when no entry carries `id:`, slot
+  ids are derived from data-file object-key order with slot 0
+  reserved as the unset sentinel (1-indexed positional). Mixing
+  the two shapes within one enum is rejected so the data is
+  unambiguous. `id:` dropped from four enums whose data-file
+  order already matches the historical 1..N numbering, so int
+  values stay byte-identical:
+    - `enums.race`            (1..4: human, dwarf, elf, halfling)
+    - `enums.pc_class`        (1..6: fighter, thief, mage,
+                               priest, bard, ranger)
+    - `enums.job`             (1..16: merchant..hermit)
+    - `enums.world_locations` (1..9: hermit_dungeon..
+                               hobgoblin_cave)
+  `id:` kept on the npcs subtree (those are 0-indexed and use
+  sparse layout — garth=0; `res_realize_npcs` is a separate
+  loader from `fold_enum_records`).
+
+**Snapshot rebless (1 commit):**
+
+- `a00e9d5` **snapshot + fixtures: emit class/race as slugs
+  (rebless)**. `snapshot.c::emit_party` switches from
+  `cl=%d ra=%d` (translated via `res_enum_id` at the boundary)
+  to `cl=%s ra=%s` (slug passthrough). 39 fixtures reblessed
+  once via `tools/replay.sh --all --bless` — diff is exactly
+  the expected substitution per fixture (e.g., `cl=2 ra=1` →
+  `cl=thief ra=human`); no other content shifted. 153 line
+  changes total. Save format on disk
+  (`current-world.json5`) still emits the display name
+  (`'Human'` / `'Fighter'`) via `wcw_enum` for the per-member
+  fields — re-blessed in the next commit's reshape.
+
+**Save format reshape (1 commit):**
+
+- `87651d4` **save format: per-member objects (collapse parallel
+  arrays)**. The old per-party block had ~14 parallel per-member
+  arrays (`name`, `ws`, `h`, `hp`, `wi`, `ma`, `ch`, `cl`, `ra`,
+  `lv`, `ar`, `wp`, `exp`, `dead`, `gender`) that the reader
+  walked in lockstep and the writer kept aligned by manual field
+  order — silent corruption was waiting to happen on hand edits.
+  New shape collapses those into a single `members: [{ ... }, ...]`
+  array of self-contained per-member objects. Field order matches
+  `snapshot.c::emit_party`'s `member[%d]` line so the on-disk save
+  and the snapshot fixture format read identically — same axes in
+  the same order. Six writer/reader helpers retired as dead code
+  post-refactor: `wcw_u32_arr`, `wcw_enum_arr`, `wcw_enum_barr`,
+  `rcw_u32_arr`, `rcw_enum_arr`, `rcw_enum_barr`. Save-file
+  backwards compatibility was explicitly not a goal — old saves
+  load empty per-member; per the user's go-ahead this is fine
+  since snapshot fixtures don't go through this path.
+
+**Tooling (1 commit):**
+
+- `224fd89` **save format + tooling: spell out field names, add
+  sample-save target**. Field-name expansion: `ws` →
+  `weapon_skill`, `lv` → `level`, `wp` → `weapon`, `ar` →
+  `armour`, `ma` → `magic`, `wi` → `wisdom`, `ch` → `charisma`,
+  `h` → `health`, `hp` → `hit_points`, `exp` → `experience`. `dead`
+  switches from `0`/`1` to JSON5 booleans `true`/`false`; reader
+  accepts either bool or int (the int fallback is for hand-edited
+  saves that scribbled a 0/1 in). `make sample-save` Makefile
+  target generates a fresh save with a pre-rolled 4-member party
+  (Aragorn=Fighter/Human, Gandalf=Mage/Elf, Mira=Priest/Halfling,
+  Legolas=Ranger/Elf) into `tmp-sample-save/` (gitignored, NOT
+  `$HOME/.rylween/`) so play-testing post-changes doesn't require
+  manual party rolling. `RYL_FAKE_SEED=1` lands all four members'
+  rolls past the class-gate min-stat checks (fighter ws>=50, mage
+  wi>=50, priest wi>=50) on the first try.
+
+39 fixtures byte-identical on `make check` + `make testasan` at
+every commit; format gate green throughout. The DSL
+`emit_indexed jN` text-shard rebless is the single follow-up loose
+end (last vestige of int-position keying) — see Active section in
+`port-plan-incomplete.md`.
