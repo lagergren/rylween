@@ -113,8 +113,9 @@ the next-up shifts to §24bis:
 6. **Ydarg-as-mission** (§12.4 residual). Blocked on DSL
    evaluator learning mission triggers + item-flag paths.
 
-State at HEAD (lagergren/port1, not pushed): clean working
-tree, 39 fixtures green.
+State at HEAD (lagergren/port1, pushed to
+origin/lagergren/port1): clean working tree, 39 fixtures
+green.
 
 ## Recommended next session
 
