@@ -112,6 +112,57 @@ static int enter_tax_preamble(const char *twnname) {
     return 1;
 }
 
+/* Town-menu keystroke dispatcher. Walks the data/world.json5
+   `town_keys` table in declared order; the first entry whose key
+   matches (table holds the upper-case form, caller pre-uppercases)
+   and whose optional `cond` is satisfied wins. `cond` is currently
+   limited to the per-town `has_church` bool — extending it means
+   adding a branch here. Returns 1 when the leave_town arm fired
+   (caller should drop out of the menu loop), 0 otherwise (no match
+   or a re-entrant action that returns control to the menu). */
+static int town_dispatch_key(char c, int has_church) {
+    int n = res_town_keys_count();
+    for (int i = 0; i < n; i++) {
+        char ekey;
+        const char *cond = NULL;
+        const char *action = NULL;
+        if (!res_town_key_at(i, &ekey, &cond, &action)) {
+            continue;
+        }
+        if (c != ekey) {
+            continue;
+        }
+        if (cond) {
+            if (strcmp(cond, "has_church") == 0) {
+                if (!has_church) {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+        }
+        if (strcmp(action, "enter_church") == 0) {
+            church();
+        } else if (strcmp(action, "enter_smith") == 0) {
+            smith();
+        } else if (strcmp(action, "enter_inn") == 0) {
+            inn();
+        } else if (strcmp(action, "enter_merchant") == 0) {
+            merchant();
+        } else if (strcmp(action, "enter_tavern") == 0) {
+            tavern();
+        } else if (strcmp(action, "leave_town") == 0) {
+            enter_ready_prompt();
+            clw();
+            clr_map_window();
+            update_map();
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 void enter() {
     const char tile = wld_tile_at(pa_x(), pa_y());
 
@@ -178,21 +229,7 @@ void enter() {
         tx0(res_text("towne.enter.prompt"));
 
         char c = (char)toupper(key());
-        if (c == 'C' && has_church) {
-            church();
-        } else if (c == 'S') {
-            smith();
-        } else if (c == 'I') {
-            inn();
-        } else if (c == 'M') {
-            merchant();
-        } else if (c == 'T') {
-            tavern();
-        } else if (c == 'L') {
-            enter_ready_prompt();
-            clw();
-            clr_map_window();
-            update_map();
+        if (town_dispatch_key(c, has_church)) {
             return;
         }
     }

@@ -394,6 +394,16 @@ int res_town_count(void);
    by the towne.c C wrappers that hand bindings to play_script. */
 int res_building_hours(const char *name, int *opens_at, int *closes_at);
 
+/* Town-menu keystroke dispatch table (data/world.json5 town_keys:).
+   Walked top-to-bottom by towne.c::enter() — first entry whose key
+   matches (case-insensitive — table holds the upper-case form) and
+   whose `cond` (if any) is true wins, then control flows to the
+   action's C handler. Returns 0 / leaves out parameters untouched
+   for an out-of-range idx. `cond` and `action` point into table-
+   owned storage and stay valid until res_shutdown. */
+int res_town_keys_count(void);
+int res_town_key_at(int idx, char *key, const char **cond, const char **action);
+
 /* §15 step 3: realize NPC placements from data/world.json5 npcs:.
    Populates state.npc[0..slot_max-1]. Each spec entry is either
    FIXED (towne declared — apply job/towne/building/x/y verbatim) or

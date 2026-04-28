@@ -515,6 +515,24 @@
     merchant: { opens_at: 6, closes_at: 18 },
   },
 
+  // Town-menu keystroke dispatch. Each entry is one row of the
+  // towne.c::enter() menu loop: when the user presses `key` (matched
+  // case-insensitive), the named `action` runs. Optional `cond`
+  // names a town-record bool that must be true for the entry to
+  // fire; today only the (C)hurch arm is gated, on `has_church`.
+  // Order matches the historical if/else cascade — the dispatcher
+  // walks the table top-to-bottom so the first matching entry wins.
+  // Actions are recognized by towne.c (small enum); adding a new
+  // arm requires both a new entry here and a wired action there.
+  town_keys: [
+    { key: 'C', cond: 'has_church', action: 'enter_church'   },
+    { key: 'S',                     action: 'enter_smith'    },
+    { key: 'I',                     action: 'enter_inn'      },
+    { key: 'M',                     action: 'enter_merchant' },
+    { key: 'T',                     action: 'enter_tavern'   },
+    { key: 'L',                     action: 'leave_town'     },
+  ],
+
   // Castle Ydarg per-floor map dimensions. Each of the four floors
   // is a `size x size` grid (1-indexed; slot 0 is the unused C-array
   // padding). ydarg.c reads this once per ydarg() entry to seed the

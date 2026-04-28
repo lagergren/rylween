@@ -33,6 +33,7 @@
 #include "script.h"
 #include "wld.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -166,6 +167,20 @@ typedef struct {
 } ryl_building;
 static ryl_building *buildings_tab;
 static size_t n_buildings;
+
+/* Town-menu keystroke dispatch (data/world.json5 town_keys:). Each
+   entry maps a single uppercase key to an action slug consumed by
+   towne.c's enter() menu loop. `cond` is an optional town-record
+   bool name — today only "has_church" is recognized; an empty
+   string means unconditional. Owned strings are heap-allocated by
+   fold_town_keys / freed by reset_town_keys. */
+typedef struct {
+    char key;
+    char *cond;
+    char *action;
+} ryl_town_key;
+static ryl_town_key *town_keys_tab;
+static size_t n_town_keys;
 
 /* Cold-start realization knobs (port-plan §15.4). npc_slack is the
    `slack` term added to ceil(N/T) when computing the per-bin cap for
@@ -1176,6 +1191,27 @@ int res_building_hours(const char *name, int *opens_at, int *closes_at) {
         }
     }
     return 0;
+}
+
+int res_town_keys_count(void) {
+    return (int)n_town_keys;
+}
+
+int res_town_key_at(int idx, char *key, const char **cond, const char **action) {
+    if (idx < 0 || (size_t)idx >= n_town_keys) {
+        return 0;
+    }
+    const ryl_town_key *e = &town_keys_tab[idx];
+    if (key) {
+        *key = e->key;
+    }
+    if (cond) {
+        *cond = e->cond;
+    }
+    if (action) {
+        *action = e->action;
+    }
+    return 1;
 }
 
 /* Read an optional int field with a default. */
@@ -2322,6 +2358,64 @@ static void reset_buildings(void) {
     n_buildings = 0;
 }
 
+/* -------- town_keys subtree --------
+   Array of {key, cond?, action} records driving the towne.c::enter
+   menu-loop dispatch. Order is preserved (towne.c walks top-to-bottom
+   and stops at the first matching key + cond). `key` is a single
+   character (upper- or lowercase in the source — folded to upper here
+   so the runtime compare is a single toupper). `cond` is optional. */
+static void fold_town_keys(const node *town_keys_node, const char *path) {
+    if (!town_keys_node) {
+        return;
+    }
+    if (town_keys_node->kind != N_ARR) {
+        res_die(path, town_keys_node->line, "town_keys: expected array");
+    }
+    size_t n = town_keys_node->u.arr.n;
+    if (n == 0) {
+        return;
+    }
+    town_keys_tab = calloc(n, sizeof *town_keys_tab);
+    if (!town_keys_tab) {
+        res_die(path, town_keys_node->line, "oom");
+    }
+    for (size_t i = 0; i < n; i++) {
+        const node *rec = town_keys_node->u.arr.items[i];
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : town_keys_node->line,
+                    "town_keys: entry must be object");
+        }
+        const node *key_n = obj_get(rec, "key");
+        const node *action_n = obj_get(rec, "action");
+        const node *cond_n = obj_get(rec, "cond");
+        if (!key_n || key_n->kind != N_STR || !key_n->u.sv ||
+            key_n->u.sv[0] == '\0' || key_n->u.sv[1] != '\0') {
+            res_die(path, rec->line,
+                    "town_keys: key must be a single-character string");
+        }
+        if (!action_n || action_n->kind != N_STR) {
+            res_die(path, rec->line, "town_keys: action string required");
+        }
+        if (cond_n && cond_n->kind != N_STR) {
+            res_die(path, rec->line, "town_keys: cond must be a string");
+        }
+        town_keys_tab[i].key = (char)toupper((unsigned char)key_n->u.sv[0]);
+        town_keys_tab[i].action = strdup(action_n->u.sv);
+        town_keys_tab[i].cond = cond_n ? strdup(cond_n->u.sv) : NULL;
+    }
+    n_town_keys = n;
+}
+
+static void reset_town_keys(void) {
+    for (size_t i = 0; i < n_town_keys; i++) {
+        free(town_keys_tab[i].cond);
+        free(town_keys_tab[i].action);
+    }
+    free(town_keys_tab);
+    town_keys_tab = NULL;
+    n_town_keys = 0;
+}
+
 /* -------- limits subtree --------
    Scalar tuning knobs for cold-start realization. Missing keys keep
    their static defaults (set above); a present key overrides. */
@@ -2982,6 +3076,7 @@ void res_load_world(const char *path) {
     fold_pronoun(obj_get(root, "pronoun"), path);
     fold_towns(obj_get(root, "towns"), path);
     fold_buildings(obj_get(root, "buildings"), path);
+    fold_town_keys(obj_get(root, "town_keys"), path);
     fold_limits(obj_get(root, "limits"), path);
     fold_map_dims(obj_get(root, "map"), path);
     fold_enums(obj_get(root, "enums"), path);
@@ -3627,6 +3722,7 @@ void res_shutdown(void) {
     reset_texts();
     reset_towns();
     reset_buildings();
+    reset_town_keys();
     /* Free per-NPC visited[] BEFORE invalidating npc_slot_max_cache —
        for_each_npc reads the cached count, and the cache invalidation
        below clears it. world_tree is still alive at this point so any
