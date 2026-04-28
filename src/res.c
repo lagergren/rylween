@@ -24,14 +24,13 @@
  */
 
 #include "res.h"
+#include "compat.h"
 #include "json5.h"
 #include "log.h"
 #include "party.h"
 #include "primitives.h"
 #include "runtime_cfg.h"
-#include "ryl.h"
 #include "script.h"
-#include "towne.h"
 
 #include <stdio.h>
 #include <stdlib.h>

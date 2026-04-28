@@ -1,8 +1,12 @@
-#include "ryl.h"
-#include "res.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "compat.h"
 #include "interact.h"
 #include "party.h"
 #include "primitives.h"
+#include "res.h"
 #include "script.h"
 #include "speak.h"
 #include "towne.h"

@@ -8,7 +8,6 @@
 #include "log.h"
 #include "primitives.h" /* tx, clw, ryl_pause */
 #include "res.h"
-#include "ryl.h" /* state */
 
 int inv_find_empty(void) {
     int smax = res_inventory_slot_max();

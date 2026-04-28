@@ -8,7 +8,6 @@
 #include "inventory.h" /* PS_* */
 #include "log.h"
 #include "res.h"
-#include "ryl.h" /* state */
 
 static int in_range(int m) {
     return m >= 0 && m < res_party_member_max();
