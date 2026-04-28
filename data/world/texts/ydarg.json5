@@ -72,6 +72,15 @@
   room: {
     monster: ['You are spotted by', 'monsters!'],
     trap: {
+      // §23.J case-2 lift — the legacy two `tx(...)` calls per
+      // line collapse into single text-array records. Bytes are
+      // identical because emit_with_col_jump emits one CSI right-
+      // jump prefix per CRLF-terminated line either way.
+      springs:         ['{victim} springs a',
+                        'trap!!!'],
+      tries_disarm:    ['{thief} tries to',
+                        'disarm it...',
+                        ''],
       disarm_succeed:  ['AND SUCCEEDS!'],
       disarm_fail:     ['BUT FAILS!'],
       arrows:          ['Arrows speed through',

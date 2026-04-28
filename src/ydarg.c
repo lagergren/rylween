@@ -134,50 +134,7 @@ void ydarg() {
                 break;
 
             case 2: /* Pitfall */
-                g_ydarg.room[g_ydarg.xl][g_ydarg.yl] = 0;
-                tx("%s springs a\r\n", pm_name(pm_cur(ryl_random(0, 3))));
-                tx("trap!!!\r\n");
-                ryl_delay(1500);
-                clw();
-                j = 0;
-                for_each_party_member(i) {
-                    if (pm_is_thief(pm_cur(i))) {
-                        tx("%s tries to\r\n", pm_name(pm_cur(i)));
-                        tx("disarm it...\r\n\r\n");
-                        ryl_delay(1500);
-                        if (ryl_chance(pm_wisdom(pm_cur(i)))) {
-                            tx0(res_text("ydarg.room.trap.disarm_succeed"));
-                            ryl_delay(1000);
-                            j = 1;
-                        } else {
-                            tx0(res_text("ydarg.room.trap.disarm_fail"));
-                            ryl_delay(1000);
-                            j = 0;
-                        }
-                        break;
-                    }
-                }
-                if (!j) {
-                    int n_traps = res_str_arr_count("ydarg.pitfall.trap_types");
-                    if (n_traps > 0) {
-                        const char *trap_id = res_str_arr_at(
-                            "ydarg.pitfall.trap_types",
-                            ryl_random(0, n_traps - 1));
-                        if (trap_id) {
-                            tx0(res_text(trap_id));
-                        }
-                    }
-                    ryl_pause();
-                    int32_t dmg_div = res_int_path("ydarg.pitfall.damage_div");
-                    for_each_party_member(i) {
-                        if (pa_is_alive(i)) {
-                            pm_t pm = pm_cur(i);
-                            if (dmg_div > 0) {
-                                pm_add_hit_points(pm, -pm_hit_points(pm) / dmg_div);
-                            }
-                        }
-                    }
-                }
+                play_script("ydarg.case_pitfall", NULL);
                 break;
 
             case 3:
@@ -418,6 +375,39 @@ void ydarg() {
                 }
             }
             clw();
+        }
+    }
+}
+
+/* §23.J case-2 backer: undisarmed-pitfall damage application. The
+   case body picks a random trap_type slug from
+   ydarg.pitfall.trap_types, emits its narration, ryl_pauses, then
+   walks the alive party slots and shaves pm_hit_points / damage_div
+   off every alive member. The whole transaction stays in C because
+   the trap-type pick + narration emit + per-member damage divider
+   read are all data-driven internals — wrapping each in a separate
+   DSL op would buy nothing and the slug-array index → text-id step
+   has no DSL op. The case-2 dispatcher (find-thief, disarm-result
+   branch, gate this damage path) lives in ydarg.case_pitfall. */
+void ydarg_pitfall_undisarmed_apply(void) {
+    int n_traps = res_str_arr_count("ydarg.pitfall.trap_types");
+    if (n_traps > 0) {
+        const char *trap_id = res_str_arr_at(
+            "ydarg.pitfall.trap_types",
+            ryl_random(0, n_traps - 1));
+        if (trap_id) {
+            tx0(res_text(trap_id));
+        }
+    }
+    ryl_pause();
+    int32_t dmg_div = res_int_path("ydarg.pitfall.damage_div");
+    int max = res_party_member_max();
+    for (int i = 0; i < max; i++) {
+        if (pa_is_alive(i)) {
+            pm_t pm = pm_cur(i);
+            if (dmg_div > 0) {
+                pm_add_hit_points(pm, -pm_hit_points(pm) / dmg_div);
+            }
         }
     }
 }

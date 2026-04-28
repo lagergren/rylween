@@ -1709,6 +1709,16 @@ static void eng_ydarg_finalize(const int32_t *a) {
     ydarg_finalize();
 }
 
+/* §23.J case-2 backer: pitfall undisarmed damage. The dispatcher
+   (find-thief + disarm result branch) lives in ydarg.case_pitfall;
+   the damage-application internals — random pick from the trap_types
+   array, emit, pause, per-alive-member HP shave — stay in C because
+   the slug-array index step has no clean DSL idiom. */
+static void eng_ydarg_pitfall_undisarmed_apply(const int32_t *a) {
+    (void)a;
+    ydarg_pitfall_undisarmed_apply();
+}
+
 /* §23.J ydarg DSL lift — state mutators. ydarg_set_xl / ydarg_set_yl
    / ydarg_set_lvl take an int (used by stairs to reset to (1,1) and
    bump the floor, plus the L-leave path that decrements yl);
@@ -1794,6 +1804,7 @@ static const engine_entry engine_tbl[] = {
     {"ydarg_set_yl", 1, eng_ydarg_set_yl},
     {"ydarg_set_lvl", 1, eng_ydarg_set_lvl},
     {"ydarg_clear_room_at_cur", 0, eng_ydarg_clear_room_at_cur},
+    {"ydarg_pitfall_undisarmed_apply", 0, eng_ydarg_pitfall_undisarmed_apply},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps

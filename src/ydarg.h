@@ -24,6 +24,13 @@ void ydarg_set_yl(int32_t v);
 void ydarg_set_lvl(int32_t v);
 void ydarg_clear_room_at_cur(void);
 
+/* §23.J case-2 backer: pitfall undisarmed damage. Picks one of
+   ydarg.pitfall.trap_types at random, tx0()s its narration, ryl_
+   pause()s, and applies pm_hit_points / damage_div to every alive
+   member. Invoked from the ydarg.case_pitfall DSL when no thief
+   disarmed the trap. */
+void ydarg_pitfall_undisarmed_apply(void);
+
 /* DSL engine_call backers for the ydarg.confrontation script:
      ydarg_run_seq             — walk ydarg.confrontation_sequence and
                                  fire encounter(monster, mandatory=1)

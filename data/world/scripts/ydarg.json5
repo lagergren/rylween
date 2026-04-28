@@ -76,6 +76,52 @@
     { engine_call: 'clw' },
   ],
 
+  // §23.J case-2 (pitfall) lift. Dispatcher shape:
+  //   1. Clear the room slot ("I've been here").
+  //   2. Pick a random victim 0..3 (legacy hardcoded — independent
+  //      of party_member_max), bind their name, emit "{victim}
+  //      springs a / trap!!!", delay 1500ms, clw.
+  //   3. Walk every party slot (alive or dead — legacy quirk
+  //      preserved); on the first thief, emit "tries to disarm",
+  //      pause, ryl_chance(thief.wisdom): on success emit
+  //      AND SUCCEEDS! and set disarmed=1, on failure emit
+  //      BUT FAILS! Either way break out of the search.
+  //   4. If disarmed==0 (no thief OR thief failed), invoke the
+  //      ydarg_pitfall_undisarmed_apply backer which picks a random
+  //      trap_type from ydarg.pitfall.trap_types, emits its body,
+  //      ryl_pauses, and shaves pm_hit_points / damage_div off
+  //      every alive member.
+  case_pitfall: [
+    { engine_call: 'ydarg_clear_room_at_cur' },
+    { engine_bind: { fn: 'pa_name', args: [{ random: [0, 3] }], var: 'victim' } },
+    { emit: 'ydarg.room.trap.springs' },
+    { pause: 1500 },
+    { engine_call: 'clw' },
+    { let: 'disarmed', value: 0 },
+    { for_member: { var: 'm', then: [
+      { if: { cond: { engine_int: 'pa_is_class', args: [{ var: 'm' }, 'thief'] }, then: [
+        { engine_bind: { fn: 'pa_name', args: [{ var: 'm' }], var: 'thief' } },
+        { emit: 'ydarg.room.trap.tries_disarm' },
+        { pause: 1500 },
+        { if: { cond: { chance: { member: { var: 'm' }, field: 'wisdom' } },
+          then: [
+            { emit: 'ydarg.room.trap.disarm_succeed' },
+            { pause: 1000 },
+            { let: 'disarmed', value: 1 },
+          ],
+          else: [
+            { emit: 'ydarg.room.trap.disarm_fail' },
+            { pause: 1000 },
+          ],
+        } },
+        { break: true },
+      ] } },
+    ] } },
+    { if: { cond: { eq: [{ var: 'disarmed' }, 0] }, then: [
+      { engine_call: 'ydarg_pitfall_undisarmed_apply' },
+    ] } },
+  ],
+
   // §23.K: roof-deck confrontation. Lifts the legacy C confrontation()
   // function. Four narration acts bracket two encounter blocks (the
   // 4-monster sequence then Baron Ydarg himself), with the silverkey
