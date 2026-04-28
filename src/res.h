@@ -90,6 +90,12 @@ const char *res_enum_name(const char *id, int index);
    symbol→index inverse). */
 const char *res_enum_sym(const char *id, int index);
 
+/* Display name keyed by enum symbol (compose of res_enum_id + res_enum).
+   "" if either step misses. Lets DSL engine_bind callers go straight
+   from a slug-form binding (npc_job_sym, etc.) to the visible label
+   without round-tripping through the int slot id. */
+const char *res_enum_name_by_sym(const char *id, const char *sym);
+
 /* Enum inverse: index where the symbol or display string matches `value`.
    On keyed-record enums the lowercase key (the script-stable symbol)
    matches first; on legacy positional-array enums and when callers still

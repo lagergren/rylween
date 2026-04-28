@@ -330,28 +330,31 @@
   // §20.20 #2 follow-up: per-job dispatchers for the speak() Q→P /
   // Q→M / chitchat-reply arms. Each is a one-line wrapper around
   // emit_indexed — the C wrapper computes nothing, just passes the
-  // npc_job() (and for chitchat the subject 0/1/2) as bindings.
+  // npc_job_sym() (and for chitchat the subject 0/1/2) as bindings.
   // See lodge.nonbargirl above for the matching pattern; the txi()
   // helper in src/speak.c goes away once these three callsites are
-  // routed through play_script().
+  // routed through play_script(). The slug-spliced text keys
+  // (jmerchant, jranger, ...) replace the legacy positional j1..j16
+  // shape so reordering the npc-job enum cannot silently shift
+  // every reply.
   people: [
-    { emit_indexed: { fmt: 'speak.people.j{}', value: { var: 'job' } } },
+    { emit_indexed: { fmt: 'speak.people.j{}', value: { var: 'job_sym' } } },
   ],
   magic: [
-    { emit_indexed: { fmt: 'speak.magic.j{}', value: { var: 'job' } } },
+    { emit_indexed: { fmt: 'speak.magic.j{}', value: { var: 'job_sym' } } },
   ],
   // Chitchat reply has two axes (subject, job). Subject is a small
   // closed set (well/weather/health) ryl_random'd by the C caller;
   // dispatch on it here so the fmt for emit_indexed can name the
-  // subject literally and keep the speak.chit.reply.<subj>.j<n>
+  // subject literally and keep the speak.chit.reply.<subj>.j<slug>
   // text keys readable. Adding a 4th subject = one more arm.
   chit_reply: [
     { switch: {
         expr: { var: 'subj' },
         cases: [
-          { match: 0, then: [{ emit_indexed: { fmt: 'speak.chit.reply.well.j{}',    value: { var: 'job' } } }] },
-          { match: 1, then: [{ emit_indexed: { fmt: 'speak.chit.reply.weather.j{}', value: { var: 'job' } } }] },
-          { match: 2, then: [{ emit_indexed: { fmt: 'speak.chit.reply.health.j{}',  value: { var: 'job' } } }] },
+          { match: 0, then: [{ emit_indexed: { fmt: 'speak.chit.reply.well.j{}',    value: { var: 'job_sym' } } }] },
+          { match: 1, then: [{ emit_indexed: { fmt: 'speak.chit.reply.weather.j{}', value: { var: 'job_sym' } } }] },
+          { match: 2, then: [{ emit_indexed: { fmt: 'speak.chit.reply.health.j{}',  value: { var: 'job_sym' } } }] },
         ],
     } },
   ],

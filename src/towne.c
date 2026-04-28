@@ -264,8 +264,9 @@ void enter() {
    + blitgfx + entry text + fixed 600ms hold). The interactive
    greeter/menu loop is `towne.hut` in data/world/scripts/towne.json5;
    play_script receives `who` (which NPC occupies the square) and
-   `npc_job` (its job id) as int bindings — the DSL resolves the
-   display strings via engine_bind res_enum on each iteration. */
+   `npc_job_sym` (its job slug) as bindings — the DSL resolves the
+   display strings via engine_bind res_enum_name_by_sym on each
+   iteration. */
 static void hut() {
     /* -1 sentinel: post-§25.B step 4 NPC axis flip, slot 0 is a
        real NPC (Garth), so the legacy `who = 0` / `if (!who)`
@@ -287,12 +288,11 @@ static void hut() {
     tx0(res_text("towne.hut.enter"));
     ryl_delay(600);
 
-    char who_s[8], job_s[8];
+    char who_s[8];
     snprintf(who_s, sizeof who_s, "%d", who);
-    snprintf(job_s, sizeof job_s, "%d", npc_job(npc_at_slot(who)));
     play_script("towne.hut", (ryl_bind[]){
                                  {"who", who_s},
-                                 {"npc_job", job_s},
+                                 {"npc_job_sym", npc_job_sym(npc_at_slot(who))},
                                  {0},
                              });
 }

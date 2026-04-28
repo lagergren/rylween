@@ -12,14 +12,16 @@
 //      valid as text; expr_var fails on RT_STR.
 {
   // hut() — §17-F smoke test. Caller pre-resolves which NPC occupies
-  // the party's map square (`who`, 1..39) and that NPC's job id
-  // (`npc_job`). We pull the NPC name + job name via res_enum each
-  // iteration, emit the greeter screen, offer a (T)alk / (L)eave menu.
+  // the party's map square (`who`, 1..39) and that NPC's job slug
+  // (`npc_job_sym`, e.g. `merchant` / `ranger`). We pull the NPC name
+  // (via res_enum on the int slot) and the job display name (via
+  // res_enum_name_by_sym on the slug) each iteration, emit the
+  // greeter screen, offer a (T)alk / (L)eave menu.
   hut: [
     { loop: [
       { engine_call: 'clw' },
-      { engine_bind: { fn: 'res_enum', args: ['job', { var: 'npc_job' }], var: 'job' } },
-      { engine_bind: { fn: 'res_enum', args: ['name',    { var: 'who' }],     var: 'name' } },
+      { engine_bind: { fn: 'res_enum_name_by_sym', args: ['job', { var: 'npc_job_sym' }], var: 'job' } },
+      { engine_bind: { fn: 'res_enum', args: ['name', { var: 'who' }], var: 'name' } },
       { emit: 'greeter' },
       { menu_branch: {
           prompt: 'menu',

@@ -9,7 +9,7 @@
 #include "wld.h"
 
 static void npc_mission_hint(int32_t);
-static void reply_chitchat(int32_t, int32_t);
+static void reply_chitchat(int32_t, const char *);
 
 /* Random coords:
 **
@@ -210,7 +210,7 @@ void speak(int32_t bld, int32_t tow) {
             }
             ryl_delay(1000);
             tx("\r\n");
-            reply_chitchat(x, npc_job(talker));
+            reply_chitchat(x, npc_job_sym(talker));
             tx("\r\n");
             ryl_pause();
         }
@@ -223,31 +223,29 @@ void speak(int32_t bld, int32_t tow) {
             if (d == 'P') {
                 tx("\r\n");
                 if (npc_job_is_sym(talker, "bard")) {
-                    tx_fmt("speak.people.j8",
+                    tx_fmt("speak.people.jbard",
                            (ryl_bind[]){
                                {"fighter_name",
                                 npc_name(npc_for_role("fighter_intro"))},
                                {0},
                            });
                 } else {
-                    char job[16];
-                    snprintf(job, sizeof job, "%d", npc_job(talker));
-                    play_script("speak.people", (ryl_bind[]){
-                                                    {"job", job},
-                                                    {0},
-                                                });
+                    play_script("speak.people",
+                                (ryl_bind[]){
+                                    {"job_sym", npc_job_sym(talker)},
+                                    {0},
+                                });
                 }
                 tx("\r\n");
                 ryl_pause();
             }
             if (d == 'M') {
                 tx("\r\n");
-                char job[16];
-                snprintf(job, sizeof job, "%d", npc_job(talker));
-                play_script("speak.magic", (ryl_bind[]){
-                                               {"job", job},
-                                               {0},
-                                           });
+                play_script("speak.magic",
+                            (ryl_bind[]){
+                                {"job_sym", npc_job_sym(talker)},
+                                {0},
+                            });
                 tx("\r\n");
                 ryl_pause();
             }
@@ -269,13 +267,16 @@ void speak(int32_t bld, int32_t tow) {
                 } else {
                     /* §20.20 #2: per-job static text now goes through
                        lodge.nonbargirl, whose single emit_indexed op
-                       replaces the txi("speak.lodge.j%d", ...) callsite. */
-                    char job[16];
-                    snprintf(job, sizeof job, "%d", npc_job(talker));
-                    play_script("lodge.nonbargirl", (ryl_bind[]){
-                                                        {"job", job},
-                                                        {0},
-                                                    });
+                       replaces the txi("speak.lodge.j%d", ...) callsite.
+                       Slug binding (npc_job_sym) feeds emit_indexed's
+                       string path so the text key is speak.lodge.j<slug>
+                       (jmerchant, jranger, ...) — a positional `j<n>`
+                       shape would silently rot under enum reordering. */
+                    play_script("lodge.nonbargirl",
+                                (ryl_bind[]){
+                                    {"job_sym", npc_job_sym(talker)},
+                                    {0},
+                                });
                 }
                 tx("\r\n");
                 ryl_pause();
@@ -284,18 +285,17 @@ void speak(int32_t bld, int32_t tow) {
     }
 }
 
-static void reply_chitchat(int32_t subj, int32_t jb) {
-    /* Caller picks subj via ryl_random(0, 2) and jb is the NPC job
-       (1..16), so both axes are always in range here. The script
-       speak.chit_reply switches on subj to pick the literal
-       well/weather/health segment of the text id, then emit_indexed
-       fans out on jb. */
-    char subj_s[8], job[16];
+static void reply_chitchat(int32_t subj, const char *job_sym) {
+    /* Caller picks subj via ryl_random(0, 2) and job_sym is the NPC's
+       job slug (`merchant`, `ranger`, ...). The script speak.chit_reply
+       switches on subj to pick the literal well/weather/health segment
+       of the text id, then emit_indexed fans out on job_sym via its
+       string-spliced path. */
+    char subj_s[8];
     snprintf(subj_s, sizeof subj_s, "%d", subj);
-    snprintf(job, sizeof job, "%d", jb);
     play_script("speak.chit_reply", (ryl_bind[]){
                                         {"subj", subj_s},
-                                        {"job", job},
+                                        {"job_sym", job_sym},
                                         {0},
                                     });
 }

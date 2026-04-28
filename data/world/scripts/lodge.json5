@@ -8,13 +8,15 @@
 // runs the binding's string through strtol).
 //
 // §20.20 #2: the non-bargirl lodge arm now lives in `nonbargirl`
-// — a one-op script that emits speak.lodge.j<job> via the new
+// — a one-op script that emits speak.lodge.j<slug> via the new
 // emit_indexed op, replacing the C-side txi("speak.lodge.j%d", ...)
-// callsite.
+// callsite. Slug binding (`job_sym`) feeds emit_indexed's string
+// path so the text key is speak.lodge.jmerchant / .jranger /
+// .jhermit / ... — stable under enum reordering.
 {
   bargirl: [
     { engine_call: 'clw' },
-    { emit: 'speak.lodge.j13.offer' },
+    { emit: 'speak.lodge.jbargirl.offer' },
     { emit: 'common.yes' },
     { emit: 'common.no' },
     { menu_branch: {
@@ -24,13 +26,13 @@
                 cond: { lt: [{ gold: 0 }, { var: 'price' }] },
                 then: [
                   { engine_call: 'clw' },
-                  { emit: 'speak.lodge.j13.broke' },
+                  { emit: 'speak.lodge.jbargirl.broke' },
                   { pause: 2000 },
                 ],
                 else: [
                   { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'price' } } },
                   { engine_call: 'clw' },
-                  { emit: 'speak.lodge.j13.spent' },
+                  { emit: 'speak.lodge.jbargirl.spent' },
                   { for_member: { var: 'member', then: [
                     { if: {
                         cond: { gt: [{ member: { var: 'member' }, field: 'hit_points' }, 1] },
@@ -50,6 +52,6 @@
     } },
   ],
   nonbargirl: [
-    { emit_indexed: { fmt: 'speak.lodge.j{}', value: { var: 'job' } } },
+    { emit_indexed: { fmt: 'speak.lodge.j{}', value: { var: 'job_sym' } } },
   ],
 }

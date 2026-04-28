@@ -1417,17 +1417,56 @@ static void do_emit(const node *op, const char *script_id, size_t idx,
 }
 
 /* §20.20 #2: { emit_indexed: { fmt: 'speak.lodge.j{}', value: <expr> } }
-   — emit a text id constructed by substituting an int into a format.
+   — emit a text id constructed by substituting a value into a format.
    Mirrors the C-side txi("speak.lodge.j%d", job) shape so flows whose
    text id is selected by job / class / item id collapse to a single
    op rather than a switch over every value.
 
-   `fmt` must contain exactly one `{}` placeholder. The placeholder
-   is replaced with the decimal value of `value` (any expr), and the
-   result is run through resolve_text_id like a plain `emit`. Strict
-   variant — die_at if the resolved id has no text record, since a
-   mistyped fmt or out-of-range value silently producing an empty
-   line is the failure mode this op is meant to prevent. */
+   `fmt` must contain exactly one `{}` placeholder. `value` evaluates
+   either as an int (spliced via %d — the original §20.20 shape) or
+   as a string slug (spliced via %s) when it is a `{var: 'name'}` ref
+   that resolves to a string-bound value. The slug path lets text-key
+   shards be keyed by enum symbol (e.g. speak.people.jmerchant)
+   instead of positional int (j1) — readable in isolation and stable
+   under enum reordering. Strict variant either way — die_at if the
+   resolved id has no text record, since a mistyped fmt or out-of-
+   range value silently producing an empty line is the failure mode
+   this op is meant to prevent. */
+static const char *
+emit_indexed_string_lookup(const node *val_n, const ryl_bind *bindings,
+                           const rt_env *env) {
+    if (!val_n || val_n->kind != N_OBJ) {
+        return NULL;
+    }
+    const node *var_n = obj_get(val_n, "var");
+    if (!var_n || var_n->kind != N_STR) {
+        return NULL;
+    }
+    const char *vname = var_n->u.sv;
+    if (env) {
+        for (size_t i = env->n; i > 0; i--) {
+            const rt_bind *b = &env->items[i - 1];
+            if (strcmp(b->name, vname) == 0) {
+                return (b->kind == RT_STR) ? b->sv : NULL;
+            }
+        }
+    }
+    for (const ryl_bind *b = bindings; b && b->name; b++) {
+        if (strcmp(b->name, vname) == 0) {
+            if (!b->value) {
+                return NULL;
+            }
+            char *endp = NULL;
+            (void)strtol(b->value, &endp, 10);
+            if (endp && *endp == 0 && endp != b->value) {
+                return NULL; /* numeric — keep the %d path */
+            }
+            return b->value;
+        }
+    }
+    return NULL;
+}
+
 static void do_emit_indexed(const node *op, const char *script_id, size_t idx,
                             const char *parent, const ryl_bind *bindings,
                             const rt_env *env) {
@@ -1449,10 +1488,18 @@ static void do_emit_indexed(const node *op, const char *script_id, size_t idx,
         die_at(script_id, idx,
                "emit_indexed: fmt must contain exactly one '{}' placeholder");
     }
-    int32_t v = eval_expr(val_n, script_id, idx, bindings, env);
     char name[256];
-    int n = snprintf(name, sizeof name, "%.*s%d%s",
+    int n;
+    int32_t v = 0;
+    const char *str_val = emit_indexed_string_lookup(val_n, bindings, env);
+    if (str_val) {
+        n = snprintf(name, sizeof name, "%.*s%s%s",
+                     (int)(hole - fmt), fmt, str_val, hole + 2);
+    } else {
+        v = eval_expr(val_n, script_id, idx, bindings, env);
+        n = snprintf(name, sizeof name, "%.*s%d%s",
                      (int)(hole - fmt), fmt, (int)v, hole + 2);
+    }
     if (n < 0 || n >= (int)sizeof name) {
         die_at(script_id, idx, "emit_indexed: formatted name too long");
     }
@@ -1461,9 +1508,15 @@ static void do_emit_indexed(const node *op, const char *script_id, size_t idx,
                     script_id, idx, "emit_indexed");
     if (!res_text_exists(text_id)) {
         char buf[384];
-        snprintf(buf, sizeof buf,
-                 "emit_indexed: unknown text id '%s' (fmt='%s', value=%d)",
-                 text_id, fmt, (int)v);
+        if (str_val) {
+            snprintf(buf, sizeof buf,
+                     "emit_indexed: unknown text id '%s' (fmt='%s', value='%s')",
+                     text_id, fmt, str_val);
+        } else {
+            snprintf(buf, sizeof buf,
+                     "emit_indexed: unknown text id '%s' (fmt='%s', value=%d)",
+                     text_id, fmt, (int)v);
+        }
         die_at(script_id, idx, buf);
     }
     ryl_bind merged[RT_ENV_CAP + 32];
@@ -1870,6 +1923,14 @@ static void sb_res_enum(const int32_t *ints, const char **strs, char *out,
                         size_t out_sz) {
     snprintf(out, out_sz, "%s", res_enum(strs[0], (int)ints[0]));
 }
+/* Display name keyed by enum symbol — paired with the slug-form
+   bindings that replace the legacy int-id bindings (npc_job_sym vs.
+   npc_job, etc.). args[0]: enum id literal; args[1]: slug binding. */
+static void sb_res_enum_name_by_sym(const int32_t *ints, const char **strs,
+                                    char *out, size_t out_sz) {
+    (void)ints;
+    snprintf(out, out_sz, "%s", res_enum_name_by_sym(strs[0], strs[1]));
+}
 /* Display name of the first NPC whose `job:` matches the symbol and
    whose `towne:` matches the int — replaces the retired
    res_enum('innkeepers'|'tavernkeepers', twn) DSL pattern. */
@@ -1924,6 +1985,7 @@ static const str_engine_entry str_engine_tbl[] = {
     {"pronoun", "is", sb_pronoun},
     {"res_town_name", "i", sb_res_town_name},
     {"res_enum", "si", sb_res_enum},
+    {"res_enum_name_by_sym", "ss", sb_res_enum_name_by_sym},
     {"npc_in_town", "si", sb_npc_in_town},
     {"res_npc_role", "s", sb_res_npc_role},
     {"pa_name", "i", sb_pa_name},
@@ -2015,14 +2077,29 @@ static void do_engine_bind(const node *op, const char *script_id, size_t idx,
         if (e->sig[i] == 'i') {
             ints[ni++] = eval_expr(a, script_id, idx, bindings, env);
         } else if (e->sig[i] == 's') {
-            if (!a || a->kind != N_STR) {
-                char buf[128];
-                snprintf(buf, sizeof buf,
-                         "engine_bind: '%s' arg %zu must be string literal",
-                         e->name, i);
-                die_at(script_id, idx, buf);
+            /* 's' accepts either an N_STR author-time literal (e.g. the
+               'job' enum-id constant) or a `{var:'name'}` runtime
+               lookup that resolves to a string-bound binding (rt_env
+               RT_STR or a non-numeric ryl_bind value). The lookup
+               flavour pairs with the slug-form bindings introduced
+               alongside emit_indexed's string path so engine_bind
+               callers can route either constants or slugs through
+               the same arg slot. */
+            if (a && a->kind == N_STR) {
+                strs[ns++] = a->u.sv;
+            } else {
+                const char *sv =
+                    emit_indexed_string_lookup(a, bindings, env);
+                if (!sv) {
+                    char buf[160];
+                    snprintf(buf, sizeof buf,
+                             "engine_bind: '%s' arg %zu must be string "
+                             "literal or string-bound {var:'name'}",
+                             e->name, i);
+                    die_at(script_id, idx, buf);
+                }
+                strs[ns++] = sv;
             }
-            strs[ns++] = a->u.sv;
         } else {
             die_at(script_id, idx, "engine_bind: corrupt registry sig");
         }

@@ -269,6 +269,14 @@ const char *res_enum_name(const char *id, int index) {
     return res_enum(id, index);
 }
 
+const char *res_enum_name_by_sym(const char *id, const char *sym) {
+    int slot = res_enum_id(id, sym);
+    if (slot < 0) {
+        return "";
+    }
+    return res_enum(id, slot);
+}
+
 const char *res_enum_sym(const char *id, int index) {
     for (size_t i = 0; i < n_enums; i++) {
         if (strcmp(enums[i].id, id) != 0) {
