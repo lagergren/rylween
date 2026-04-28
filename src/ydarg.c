@@ -96,7 +96,7 @@ void ydarg_clear_room_at_cur(void) {
 }
 
 void ydarg() {
-    char c, d;
+    char c;
 
     /* silverkey == 0 (no_key) and silverkey == 2 (ruin) are now
        handled by the MG_SPECIAL_EQ triggers in missions.c —
@@ -192,53 +192,45 @@ void ydarg() {
                 g_ydarg.yl += wld_dir_dy(move);
             }
         }
-        if (c == '?') {
-            help();
-        }
-        if (c == 'T') {
-            armouroff();
-        }
-        if (c == 'P') {
-            weaponoff();
-        }
-        if (c == 'L') {
-            drop();
-        }
-        if (c == 'W') {
-            weaponr();
-        }
-        if (c == 'R') {
-            armourr();
-        }
-        if (c == 'Q') {
-            quaff();
-        }
-        if (c == 'Z') {
-            spell(0); /* 0 means over ground */
-        }
-        if (c == 'V') {
-            showparty();
-            clw();
-            tx_fmt("ydarg.nav.view_who", NULL);
-            while (1) {
-                d = key();
-                if (pm_digit_in_range(d) || toupper(d) == 'Q' || toupper(d) == 'A') {
-                    break;
-                }
-            }
-            if (pm_digit_in_range(d)) {
-                int slot = d - '1';
-                LOG_D("input", "ydarg show: digit=%c -> slot=%d", d, slot);
-                show(slot);
-            }
-            if (toupper(d) == 'A') {
-                for_each_party_member(i) {
-                    show(i);
-                }
-            }
-            clw();
+        char c_buf[8];
+        snprintf(c_buf, sizeof c_buf, "%d", (int)(unsigned char)c);
+        play_script("ydarg.cmd_dispatch",
+                    (ryl_bind[]){
+                        {"c", c_buf},
+                        {0},
+                    });
+    }
+}
+
+/* §23.J cmd-dispatch backer: (V)iew-party command. Lifts the
+   showparty + view_who prompt + key-wait loop + per-slot show
+   into one C entry so the DSL switch in ydarg.cmd_dispatch
+   doesn't have to express the ASCII gate (digit-in-range OR
+   Q OR A) and the conditional show / for-each-show. The legacy
+   semantics are preserved verbatim: show only when the digit
+   was a valid party-member slot, show-all on 'A', no-op on 'Q'. */
+void ydarg_view_command(void) {
+    char d;
+    showparty();
+    clw();
+    tx_fmt("ydarg.nav.view_who", NULL);
+    while (1) {
+        d = key();
+        if (pm_digit_in_range(d) || toupper(d) == 'Q' || toupper(d) == 'A') {
+            break;
         }
     }
+    if (pm_digit_in_range(d)) {
+        int slot = d - '1';
+        LOG_D("input", "ydarg show: digit=%c -> slot=%d", d, slot);
+        show(slot);
+    }
+    if (toupper(d) == 'A') {
+        for_each_party_member(i) {
+            show(i);
+        }
+    }
+    clw();
 }
 
 /* §23.J case-50 backer: handle the (G)ive-item attempt. Looks up

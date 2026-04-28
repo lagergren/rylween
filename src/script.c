@@ -1723,6 +1723,36 @@ static void eng_ydarg_finalize(const int32_t *a) {
     ydarg_finalize();
 }
 
+/* §23.J cmd-dispatch backers — ydarg's character-command keys
+   (T/P/L/W/R/Q/Z/?) call out to the matching subs.c / driv.c /
+   inventory.c entry points. Each is a thin engine_call wrapper
+   so the DSL switch in ydarg.cmd_dispatch can dispatch by key
+   without a per-key C `if` cascade. spell() takes a place arg
+   (0 = over ground) — DSL passes it as args:[0]. */
+static void eng_help(const int32_t *a) {
+    (void)a;
+    help();
+}
+static void eng_armouroff(const int32_t *a) {
+    (void)a;
+    armouroff();
+}
+static void eng_weaponoff(const int32_t *a) {
+    (void)a;
+    weaponoff();
+}
+static void eng_drop(const int32_t *a) {
+    (void)a;
+    (void)drop();
+}
+static void eng_quaff(const int32_t *a) {
+    (void)a;
+    quaff();
+}
+static void eng_spell(const int32_t *a) {
+    spell((int32_t)a[0]);
+}
+
 /* §23.J case-50 backer: (T)eleport exit. Emits vortex / outside
    narration, redraws the wilderness map, sets exit_requested. The
    C while(1) reads ydarg_get_exit_requested after each play_script
@@ -1730,6 +1760,13 @@ static void eng_ydarg_finalize(const int32_t *a) {
 static void eng_ydarg_teleport_exit(const int32_t *a) {
     (void)a;
     ydarg_teleport_exit();
+}
+
+/* §23.J cmd-dispatch backer: V command. showparty + view_who
+   prompt + key-wait + conditional show / show-all. */
+static void eng_ydarg_view_command(const int32_t *a) {
+    (void)a;
+    ydarg_view_command();
 }
 
 /* §23.J case-2 backer: pitfall undisarmed damage. The dispatcher
@@ -1829,6 +1866,13 @@ static const engine_entry engine_tbl[] = {
     {"ydarg_clear_room_at_cur", 0, eng_ydarg_clear_room_at_cur},
     {"ydarg_pitfall_undisarmed_apply", 0, eng_ydarg_pitfall_undisarmed_apply},
     {"ydarg_teleport_exit", 0, eng_ydarg_teleport_exit},
+    {"help", 0, eng_help},
+    {"armouroff", 0, eng_armouroff},
+    {"weaponoff", 0, eng_weaponoff},
+    {"drop", 0, eng_drop},
+    {"quaff", 0, eng_quaff},
+    {"spell", 1, eng_spell},
+    {"ydarg_view_command", 0, eng_ydarg_view_command},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps

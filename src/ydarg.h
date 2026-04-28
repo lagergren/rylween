@@ -24,6 +24,12 @@ void ydarg_set_yl(int32_t v);
 void ydarg_set_lvl(int32_t v);
 void ydarg_clear_room_at_cur(void);
 
+/* §23.J cmd-dispatch backer: (V)iew-party command. showparty +
+   view_who prompt + key-wait loop + conditional show/show-all.
+   Bundled because the digit-or-Q-or-A key gate has no clean DSL
+   idiom and the inner key wait is a tight three-condition loop. */
+void ydarg_view_command(void);
+
 /* §23.J case-50 backers. ydarg_stairs_try_give resolves a digit
    1..5 against ydarg.stairs.items[] and consumes the matched
    special on success (returns 1) or emits the reject message

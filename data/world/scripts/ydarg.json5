@@ -76,6 +76,33 @@
     { engine_call: 'clw' },
   ],
 
+  // §23.J cmd-dispatch lift — character commands run after the
+  // direction-key move attempt in the per-floor while(1) driver.
+  // Each command is a single engine_call to its existing C entry
+  // point (help / armouroff / weaponoff / drop / weaponr / armourr
+  // / quaff / spell). The (V)iew-party command is its own backer
+  // (ydarg_view_command) because its inner key-wait loop has no
+  // clean DSL idiom — digit-in-range OR Q OR A predicates plus a
+  // conditional show / show-all branch over the matched key.
+  //
+  // The script receives the uppercased key as binding `c` (ASCII
+  // code via ryl_bind value→atoi). Unmatched keys fall through
+  // the switch silently — that's the legacy semantics where every
+  // non-direction non-command keypress is a no-op pass.
+  cmd_dispatch: [
+    { switch: { expr: { var: 'c' }, cases: [
+      { match: '?', then: [{ engine_call: 'help' }] },
+      { match: 'T', then: [{ engine_call: 'armouroff' }] },
+      { match: 'P', then: [{ engine_call: 'weaponoff' }] },
+      { match: 'L', then: [{ engine_call: 'drop' }] },
+      { match: 'W', then: [{ engine_call: 'weaponr' }] },
+      { match: 'R', then: [{ engine_call: 'armourr' }] },
+      { match: 'Q', then: [{ engine_call: 'quaff' }] },
+      { match: 'Z', then: [{ engine_call: 'spell', args: [0] }] },
+      { match: 'V', then: [{ engine_call: 'ydarg_view_command' }] },
+    ] } },
+  ],
+
   // §23.J nav-render lift — runs after the room-case dispatcher
   // each iteration. clw + statusline + the three coords/level/floor
   // lines + the compass (north or no_north top, east_west /
