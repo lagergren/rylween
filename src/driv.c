@@ -1361,8 +1361,8 @@ static void createparty() {
 
     g = 0;
 
-    int sr_lo = res_int_path("driv.stat_roll.min");
-    int sr_hi = res_int_path("driv.stat_roll.max");
+    int sr_lo = rk_stat_roll_min(res_int_path("driv.stat_roll.min"));
+    int sr_hi = rk_stat_roll_max(res_int_path("driv.stat_roll.max"));
     while (g < res_party_member_max()) {
         clw();
         /* Display the slot 1-based for the player ("Stats for char: 1");

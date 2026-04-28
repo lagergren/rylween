@@ -30,6 +30,16 @@ void rk_apply_dead_slots(int a);
 void rk_apply_pos(int a);
 void rk_apply_ydarg_grants(int a);
 
+/* Stat-roll override (createparty). RYL_STAT_ROLL_MIN /
+   RYL_STAT_ROLL_MAX let `make sample-save` (or any test/demo
+   harness) push the per-stat ryl_random(min, max) range above
+   the world.json5 default. NOT one-shot — createparty calls
+   ryl_random multiple times per character (and may re-roll on
+   user request), so the env stays set for the whole flow.
+   Falls back to defv on missing / malformed value. */
+int32_t rk_stat_roll_min(int32_t defv);
+int32_t rk_stat_roll_max(int32_t defv);
+
 /* §23.J knob — when set, ydarg() room init fills every non-stairs
    slot with case 4 (no-op room) instead of ryl_random(1, type_max).
    Without this the confrontation fixture's keystroke stream is at

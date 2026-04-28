@@ -99,6 +99,7 @@ sample-save: $(BIN)
 	@mkdir -p $(SAMPLE_SAVE_DIR)
 	@HOME=$(PWD)/$(SAMPLE_SAVE_DIR) RYL_FAKE_EPOCH=1700000000 \
 	    RYL_FAKE_SEED=1 RYL_NO_DELAY=1 \
+	    RYL_STAT_ROLL_MIN=65 RYL_STAT_ROLL_MAX=85 \
 	    ./$(BIN) Sample < tools/sample-save.in > /dev/null
 	@echo 'Sample save generated:'
 	@echo '  $(SAMPLE_SAVE_DIR)/.rylween/current-world.json5'

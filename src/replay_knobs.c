@@ -33,6 +33,33 @@ int32_t rk_starting_gold(int32_t defv) {
     return (int32_t)v;
 }
 
+/* Stat-roll bounds override. Unlike rk_starting_gold this is NOT
+   one-shot — createparty calls ryl_random(min, max) multiple times
+   per character (4 stats × N members + re-rolls), so the env stays
+   set across calls. Validation: 1..127 (the legacy stat ceiling
+   leaves headroom for level-up bumps). Out-of-range / malformed
+   values fall back to defv. */
+static int32_t parse_stat_bound(const char *name, int32_t defv) {
+    const char *env = getenv(name);
+    if (!env || !*env) {
+        return defv;
+    }
+    char *end;
+    long v = strtol(env, &end, 10);
+    if (end == env || v < 1 || v > 127) {
+        return defv;
+    }
+    return (int32_t)v;
+}
+
+int32_t rk_stat_roll_min(int32_t defv) {
+    return parse_stat_bound("RYL_STAT_ROLL_MIN", defv);
+}
+
+int32_t rk_stat_roll_max(int32_t defv) {
+    return parse_stat_bound("RYL_STAT_ROLL_MAX", defv);
+}
+
 const char *rk_force_encounter(void) {
     /* Returns a pointer to a static buffer holding the monster id
        string for the next encounter, or NULL if the knob is unset.
