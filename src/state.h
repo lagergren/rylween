@@ -226,7 +226,16 @@ struct ryl_state {
 
     /* Persistent game data (flushed to realm.dat / npc.dat). */
     char map[MAP_ROWS_HARD_MAX][MAP_COLS_HARD_MAX];
-    struct party p[PARTY_SLOT_HARD_MAX];
+    /* Party runtime table — heap-allocated to res_party_slot_max()
+       entries by res_load_world() so the size matches the data
+       layer's cap. PARTY_SLOT_HARD_MAX is the static ceiling
+       res_party_slot_max() is currently asserted against; the
+       in-memory table is right-sized at world load. NULL until
+       res_load_world() runs; res_shutdown() frees it. All readers /
+       writers go through party_at(slot) (party.h). Slot 0 is the
+       reserved 1-indexed sentinel; valid party ids are
+       1..res_party_slot_max()-1. */
+    struct party *p;
     /* NPC runtime table — heap-allocated to res_npc_slot_max()
        entries by res_load_world() (post-§25.B step 4 axis flip)
        so the size matches the data layer's slot count.

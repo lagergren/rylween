@@ -2871,6 +2871,23 @@ void res_load_world(const char *path) {
         }
     }
 
+    /* Right-size the persistent party table to res_party_slot_max()
+       entries, zeroed. Slot 0 is the 1-indexed sentinel (unused);
+       valid party ids are 1..res_party_slot_max()-1. Same idempotent
+       free-then-alloc pattern as state.npc. The static cap
+       PARTY_SLOT_HARD_MAX bounds res_party_slot_max() at world-load
+       time (fold_limits) so this calloc never sees a wild value. */
+    free(state.p);
+    state.p = NULL;
+    size_t party_n = (size_t)res_party_slot_max();
+    if (party_n > 0) {
+        state.p = calloc(party_n, sizeof(struct party));
+        if (!state.p) {
+            LOG_E("realm", "out of memory allocating state.p[%zu]", party_n);
+            exit(1);
+        }
+    }
+
     /* Register the teardown the first time a world is loaded. Guarded
        so reload paths (res_shutdown followed by another res_load_world)
        don't stack LIFO copies on the atexit chain. */
@@ -3420,6 +3437,8 @@ void res_shutdown(void) {
     npc_slot_max_invalidate();
     free(state.npc);
     state.npc = NULL;
+    free(state.p);
+    state.p = NULL;
     node_free(world_tree);
     world_tree = NULL;
     color_default = ANSI_FG_CYAN;
