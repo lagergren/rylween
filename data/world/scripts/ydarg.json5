@@ -76,6 +76,50 @@
     { engine_call: 'clw' },
   ],
 
+  // §23.J ydarg.main — top-level dispatcher. Owns the entire body
+  // of ydarg() post-§23.J: intro narration + state init +
+  // ryl_pause + per-floor while(1) loop. Each iteration:
+  //   1. clw + dispatch on the current room kind (1 = monster,
+  //      2 = pitfall, 3 = treasure, 50 = stairs). Case 50's
+  //      teleport-out path sets exit_requested via the helper
+  //      backer; the loop reads ydarg_get_exit_requested after the
+  //      switch and breaks out.
+  //   2. Render the nav block (statusline / coords / level /
+  //      compass) via ydarg.nav_render.
+  //   3. Read one uppercased key into 'c'; run ydarg_try_move(c)
+  //      which is a no-op for non-direction keys; finally
+  //      play_script ydarg.cmd_dispatch with c bound for the
+  //      character-command keys (T/P/L/W/R/Q/Z/V/?).
+  //
+  // The C trampoline `ydarg()` is just `play_script("ydarg.main")`
+  // — every line of the legacy dispatcher / per-floor body now
+  // lives in DSL or as one of the file-scope backers that touch
+  // the module-level g_ydarg state.
+  main: [
+    { play_script: 'ydarg.intro' },
+    { engine_call: 'ydarg_state_init' },
+    { wait_input: true },
+    { loop: [
+      { engine_call: 'clw' },
+      { switch: { expr: { engine_int: 'ydarg_get_room_at_cur' }, cases: [
+        { match: 1, then: [
+          { engine_call: 'ydarg_clear_room_at_cur' },
+          { play_script: 'ydarg.room_monster' },
+        ] },
+        { match: 2, then: [{ play_script: 'ydarg.case_pitfall' }] },
+        { match: 3, then: [{ play_script: 'ydarg.case_treasure' }] },
+        { match: 50, then: [
+          { play_script: 'ydarg.case_stairs' },
+          { if: { cond: { engine_int: 'ydarg_get_exit_requested' }, then: [{ break: true }] } },
+        ] },
+      ] } },
+      { play_script: 'ydarg.nav_render' },
+      { let: 'c', value: { engine_int: 'key_upper' } },
+      { engine_call: 'ydarg_try_move', args: [{ var: 'c' }] },
+      { play_script: 'ydarg.cmd_dispatch' },
+    ] },
+  ],
+
   // §23.J cmd-dispatch lift — character commands run after the
   // direction-key move attempt in the per-floor while(1) driver.
   // Each command is a single engine_call to its existing C entry

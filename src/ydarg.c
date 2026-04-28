@@ -43,8 +43,9 @@ static struct ydarg_state g_ydarg;
    to remove the per-slot RNG draw from a confrontation fixture's
    keystroke stream. The map[size][size] = 50 stair slot is fixed
    verbatim. xl/yl/lvl reset to (1, 1, 1); map_size is cached so
-   the navigation block doesn't re-read the world tree. */
-static void ydarg_state_init(void) {
+   the navigation block doesn't re-read the world tree. Exposed as
+   an engine_call so ydarg.main can run it from the DSL side. */
+void ydarg_state_init(void) {
     g_ydarg.map_size = res_int_path("ydarg.map.size");
     g_ydarg.lvl = 1;
     g_ydarg.xl = 1;
@@ -95,111 +96,65 @@ void ydarg_clear_room_at_cur(void) {
     g_ydarg.room[g_ydarg.xl][g_ydarg.yl] = 0;
 }
 
-void ydarg() {
-    char c;
-
-    /* silverkey == 0 (no_key) and silverkey == 2 (ruin) are now
-       handled by the MG_SPECIAL_EQ triggers in missions.c —
-       ydarg() only runs for silverkey == 1 (legitimate entry).
-       The approach / Jaara / key_accepted / enter / door_slams
-       narration is the ydarg.intro DSL play_script. */
-    play_script("ydarg.intro", NULL);
-
-    /*
-		Bracelets of Thun
-		Fire Shield
-		Jazzy Foot
-		Crown
-
-		Monster, F{lla, Hitta Vapen, Hitta f|rem}l, Trappa upp
-		4 levels. level 1 - Bracelets, Level 2 = fire shield, level 3 = foot
-		level 4 = crown.
-
-    XX XX XX XX XX
-
-    XX XX XX XX XX
-
-    XX XX XX XX XX
-
-    XX XX XX XX XX
-
-    XX XX XX XX XX
-
-	*/
-
-    ydarg_state_init();
-    ryl_pause();
-
-    while (1) {
-        clw();
-
-        switch (g_ydarg.room[g_ydarg.xl][g_ydarg.yl]) {
-            case 1: /* Monster */
-                g_ydarg.room[g_ydarg.xl][g_ydarg.yl] = 0;
-                play_script("ydarg.room_monster", NULL);
-                break;
-
-            case 2: /* Pitfall */
-                play_script("ydarg.case_pitfall", NULL);
-                break;
-
-            case 3:
-                play_script("ydarg.case_treasure", NULL);
-                break;
-
-            case 50:
-                play_script("ydarg.case_stairs", NULL);
-                if (g_ydarg.exit_requested) {
-                    return;
-                }
-                break;
-        }
-
-        play_script("ydarg.nav_render", NULL);
-
-        c = key();
-        c = toupper(c);
-        dir_t move = wld_dir_from_key(c);
-        if (move != DIR_NONE) {
-            int can_go = 0;
-            const char *go_text = NULL;
-            switch (move) {
-                case DIR_NORTH:
-                    can_go = (g_ydarg.yl > 1);
-                    go_text = "ydarg.nav.go_north";
-                    break;
-                case DIR_SOUTH:
-                    can_go = (g_ydarg.yl < g_ydarg.map_size);
-                    go_text = "ydarg.nav.go_south";
-                    break;
-                case DIR_EAST:
-                    can_go = (g_ydarg.xl < g_ydarg.map_size);
-                    go_text = "ydarg.nav.go_east";
-                    break;
-                case DIR_WEST:
-                    can_go = (g_ydarg.xl > 1);
-                    go_text = "ydarg.nav.go_west";
-                    break;
-                default:
-                    break;
-            }
-            if (can_go) {
-                clw();
-                tx0(res_text(go_text));
-                ryl_delay(300);
-                clw();
-                g_ydarg.xl += wld_dir_dx(move);
-                g_ydarg.yl += wld_dir_dy(move);
-            }
-        }
-        char c_buf[8];
-        snprintf(c_buf, sizeof c_buf, "%d", (int)(unsigned char)c);
-        play_script("ydarg.cmd_dispatch",
-                    (ryl_bind[]){
-                        {"c", c_buf},
-                        {0},
-                    });
+/* §23.J cmd-dispatch backer: directional move attempt. The
+   uppercased keycode `c` is mapped to a dir_t via wld_dir_from_key;
+   non-direction keys are a no-op. For direction keys, gate on the
+   current xl/yl staying inside [1..map_size] and either emit the
+   matching ydarg.nav.go_<dir> narration + 300ms delay + clw +
+   xl/yl update, or do nothing (the destination is sealed off).
+   Mirrors the legacy if-cascade that the cmd_dispatch script
+   replaced — only the single C entry is left. */
+void ydarg_try_move(int32_t c) {
+    dir_t move = wld_dir_from_key((char)c);
+    if (move == DIR_NONE) {
+        return;
     }
+    int can_go = 0;
+    const char *go_text = NULL;
+    switch (move) {
+        case DIR_NORTH:
+            can_go = (g_ydarg.yl > 1);
+            go_text = "ydarg.nav.go_north";
+            break;
+        case DIR_SOUTH:
+            can_go = (g_ydarg.yl < g_ydarg.map_size);
+            go_text = "ydarg.nav.go_south";
+            break;
+        case DIR_EAST:
+            can_go = (g_ydarg.xl < g_ydarg.map_size);
+            go_text = "ydarg.nav.go_east";
+            break;
+        case DIR_WEST:
+            can_go = (g_ydarg.xl > 1);
+            go_text = "ydarg.nav.go_west";
+            break;
+        default:
+            break;
+    }
+    if (can_go) {
+        clw();
+        tx0(res_text(go_text));
+        ryl_delay(300);
+        clw();
+        g_ydarg.xl += wld_dir_dx(move);
+        g_ydarg.yl += wld_dir_dy(move);
+    }
+}
+
+/* §23.J: ydarg() is now a thin trampoline into ydarg.main, which
+   owns the entire intro / state_init / per-floor while(1) /
+   case-dispatch / nav-render / move-and-cmd-dispatch flow as DSL
+   ops. silverkey == 0 (no_key) and silverkey == 2 (ruin) are still
+   filtered upstream by the MG_SPECIAL_EQ triggers in missions.c so
+   only legitimate-entry (silverkey == 1) lands here. The C side
+   keeps the file-scope module state (g_ydarg) and the four backers
+   that touch it (ydarg_state_init, ydarg_try_move, ydarg_view_command,
+   ydarg_pitfall_undisarmed_apply) plus the three confrontation
+   epilogue helpers (ydarg_run_seq, ydarg_record_completion,
+   ydarg_finalize) and the §23.J case-50 backers (ydarg_stairs_try_give,
+   ydarg_teleport_exit). */
+void ydarg(void) {
+    play_script("ydarg.main", NULL);
 }
 
 /* §23.J cmd-dispatch backer: (V)iew-party command. Lifts the

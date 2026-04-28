@@ -708,6 +708,16 @@ static int32_t ie_ydarg_get_exit_requested(const int32_t *a) {
     return ydarg_get_exit_requested();
 }
 
+/* §23.J ydarg.main main-loop primitive: read one keystroke and
+   return its uppercased ASCII as int. Cleanly separates the C-side
+   key() blocker from the DSL switch / cmd_dispatch dispatch.
+   Generic enough to be reused by any future DSL flow that needs
+   a single non-menu key wait. */
+static int32_t ie_key_upper(const int32_t *a) {
+    (void)a;
+    return (int32_t)(unsigned char)toupper((unsigned char)key());
+}
+
 /* §23.B: pick the lowest-index alive monster slot, or -1 if every
    slot in the encounter is dead. Single-target frost wand / drums of
    death use this — the legacy idiom is the same `for (i = 0, who = -1;
@@ -756,6 +766,7 @@ static const int_engine_entry int_engine_tbl[] = {
     {"ydarg_treasure_roll", 0, ie_ydarg_treasure_roll, {0}},
     {"ydarg_stairs_try_give", 1, ie_ydarg_stairs_try_give, {0}},
     {"ydarg_get_exit_requested", 0, ie_ydarg_get_exit_requested, {0}},
+    {"key_upper", 0, ie_key_upper, {0}},
 };
 
 /* Forward declaration: used by eval_expr to handle `engine_int`
@@ -1769,6 +1780,18 @@ static void eng_ydarg_view_command(const int32_t *a) {
     ydarg_view_command();
 }
 
+/* §23.J ydarg.main backers — state_init seeds the per-floor grid
+   (called once at top of ydarg.main); try_move runs one
+   directional-move attempt (called every iteration of the main
+   loop with the read keystroke). */
+static void eng_ydarg_state_init(const int32_t *a) {
+    (void)a;
+    ydarg_state_init();
+}
+static void eng_ydarg_try_move(const int32_t *a) {
+    ydarg_try_move(a[0]);
+}
+
 /* §23.J case-2 backer: pitfall undisarmed damage. The dispatcher
    (find-thief + disarm result branch) lives in ydarg.case_pitfall;
    the damage-application internals — random pick from the trap_types
@@ -1873,6 +1896,8 @@ static const engine_entry engine_tbl[] = {
     {"quaff", 0, eng_quaff},
     {"spell", 1, eng_spell},
     {"ydarg_view_command", 0, eng_ydarg_view_command},
+    {"ydarg_state_init", 0, eng_ydarg_state_init},
+    {"ydarg_try_move", 1, eng_ydarg_try_move},
 };
 
 /* §20 L2: { dungeon: { levels: <expr>, scenario?: '<sym>' } }. Wraps

@@ -24,6 +24,16 @@ void ydarg_set_yl(int32_t v);
 void ydarg_set_lvl(int32_t v);
 void ydarg_clear_room_at_cur(void);
 
+/* §23.J ydarg.main backers. ydarg_state_init seeds g_ydarg with
+   a fresh map_size + per-floor grid + (xl, yl, lvl) = (1, 1, 1)
+   on every entry. ydarg_try_move runs one directional-move attempt
+   for the uppercased keycode `c` — non-direction keys are a no-op,
+   direction keys gate on the (xl, yl) staying inside [1..map_size]
+   and either emit the matching go_<dir> narration + 300ms delay +
+   xl/yl update or do nothing. */
+void ydarg_state_init(void);
+void ydarg_try_move(int32_t c);
+
 /* §23.J cmd-dispatch backer: (V)iew-party command. showparty +
    view_who prompt + key-wait loop + conditional show/show-all.
    Bundled because the digit-or-Q-or-A key gate has no clean DSL
