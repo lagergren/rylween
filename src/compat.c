@@ -1,7 +1,7 @@
 #include "compat.h"
-#include "ryl.h"
 #include "runtime_cfg.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,8 +1,8 @@
 /* Thin wrappers over io->... Every terminal-touching primitive lives here. */
 
 #include "io.h"
-#include "ryl.h"
 #include "ansi.h"
+#include "compat.h"
 #include "driv.h"
 #include "log.h"
 #include "party.h"
