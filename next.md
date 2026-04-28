@@ -1,53 +1,35 @@
-Continuation prompt (start of session 2026-04-28 #15)
+Continuation prompt (start of session 2026-04-29 #16)
 
 Branch lagergren/port1, HEAD <pending push>, pushed to origin
-post-#14b. 44 replay fixtures green on make check + make
+post-#15. 44 replay fixtures green on make check + make
 testasan; format clean. Working tree clean.
 
-Sessions #13b + #14a + #14b together pushed 18 commits
-(855c138..<HEAD>). #13b (855c138..e2e33bc, 8 commits) closed
-every named §-anchor from the prior queue. #14a (8f9fb9c..
-38eb871, 8 commits) tackled bug fixes + the §24bis NPC
-follow-up + Wilderness rename + a deeper plan refresh. #14b
-(7eb1c9e..<HEAD>, 2 commits + plan/next.md) finished the
-cosmetic-rename sweep:
+Session #15 added two commits (44500bd..29e4c70) via two
+parallel background agents (/tmp clones + patch handoff per
+feedback_background_agents.md):
 
-  - 7eb1c9e armour → armor (American spelling) sweep —
-    background agent. 113 occurrences flipped across src/
-    (12 files) + data/ (11 files including
-    `data/world/items/armour.json5` → `armor.json5`) +
-    tools/replay/ (43 fixture pairs reblessed once via
-    `tools/replay.sh --all --bless`). Save-format reader at
-    driv.c:1275-1276 accepts both `armor` (canonical) and
-    legacy `armour` keys via dual-`rcw_int` fallback.
+  - 44500bd B6: towne.c::enter keystroke dispatcher →
+    world.json5 town_keys[]. 6-arm if/else cascade
+    (C/S/I/M/T/L) lifted to a {key, cond?, action} array.
+    New res_town_keys_count / res_town_key_at accessors;
+    new town_dispatch_key(c, has_church) shim walks the
+    table and calls the existing church/smith/inn/merchant/
+    tavern wrappers (which still own hour-advance + script
+    bindings). The 'L' arm folds into a 'leave_town' action.
 
-  - 1ffba39 19 functions → snake_case + American spelling
-    (Tier R2). Mechanical sweep via word-boundary sed (BSD
-    `[[:<:]]` / `[[:>:]]`). Renames:
-      showparty   → show_party
-      weaponoff   → weapon_off
-      armoroff    → armor_off
-      weaponr     → weapon_ready
-      armorr      → armor_ready
-      read_journal → show_journal (semantic rename)
-      journalf    → journal_add
-      expcheck    → exp_check
-      createparty → create_party
-      invlist     → inv_list
-      losegame    → lose_game
-      scorelist   → score_list
-      timehandler → time_handler
-      foodhandler → food_handler
-      cleanexit   → clean_exit
-      statusline  → status_line
-      disptext    → disp_text
-      getstr      → get_str
-      hotkey      → hot_key
-    35 files touched (231 lines flipped). Touches definitions
-    + every callsite + script.c engine_call dispatch table +
-    every `engine_call: '<name>'` reference in
-    data/world/scripts/spells/items. Single clang-format
-    realignment auto-applied in speak.c.
+  - 29e4c70 B9+C4: sysop backdoors → world.json5 secrets:.
+    Marcus Lagergren key dispatch (primitives.c) and
+    Karl-Skagerberg every-101-steps spawn (subs.c) both
+    lifted to a slug-keyed `secrets:` subtree (marcus.keys[]
+    + karl.step_trigger). Magic item ids 104/108/109/110
+    flipped to slug tags (drums_of_death /
+    gem_of_resurrection / kaels_axe / holy_handgrenade)
+    resolved via res_item_id; cadence (101) and encounter
+    monster slug (skagerberg_killer) are now data. New
+    secret_action enum + struct in res.h with
+    res_secrets_check_key / res_secrets_step_trigger
+    accessors. Runtime tree walks (no fold-time
+    pre-resolution — cold-path dispatch).
 
 Status snapshot — every closed §-anchor and the open frontier:
 
@@ -59,6 +41,8 @@ Status snapshot — every closed §-anchor and the open frontier:
   - ryl.h unused-includes sweep: complete.
   - Tier R naming conventions: closed (R1 armour→armor +
     R2 function snake_case).
+  - Tier B6 (towne keystrokes): closed in #15.
+  - Tier B9 + Tier C4 (sysop secrets): closed in #15.
 
 Open frontier (port-plan-incomplete.md "Recommended next
 session" Tier 0 / A / B / C / D / E):
@@ -74,15 +58,14 @@ session" Tier 0 / A / B / C / D / E):
 
   - Tier B: dispatch / cascades. B2 equipment-swap UI flows
     (subs.c), B4 speak chitchat 3-way switch, B5 speak prose
-    strings, B6 towne keystroke dispatch (user-flagged), B7
-    driv main-loop keystroke dispatch (15+ arms), B8 battle
-    combat-key dispatch, B9 primitives sysop backdoor.
+    strings, B7 driv main-loop keystroke dispatch (15+ arms),
+    B8 battle combat-key dispatch (multi-context — needs
+    scoping decisions before lift).
 
   - Tier C: engine state with hardcoded shape. C1 exp_check
     sub-items (4: add[5] cap, max-level 28, pc_class_key map,
     hp_floor formula), C2 encounter pic count, C3 food_handler
-    fatigue ladder, C4 Karl-Skagerberg easter egg, C5
-    save-file emit shape.
+    fatigue ladder, C5 save-file emit shape.
 
   - Tier D: structural cap-flips. D1 struct party.flag[40], D2
     NPC_SLOT_HARD_MAX (deferred — RNG-identity gated), D3
@@ -91,34 +74,33 @@ session" Tier 0 / A / B / C / D / E):
   - Tier E: script-side audit. E1 repeat-pattern collapse, E2
     dungeon.json5 refinements.
 
-Save game compatibility note: the user's ~/.rylween/ was
-overwritten with the fresh sample-save in #14a (backed up to
-~/.rylween.bak.<timestamp>). Aragorn (Fighter/Human, 65 hp),
-Gandalf (Mage/Elf, 85 hp), Mira (Priest/Halfling, 72 hp),
-Legolas (Ranger/Elf, 73 hp). Stats heroic (65-85 range). Save
-format now accepts both `armor` and legacy `armour` keys via
-dual-`rcw_int` fallback.
+Save game compatibility note: ~/.rylween/ holds the heroic
+sample party from #14a (Aragorn / Gandalf / Mira / Legolas;
+65-85 hp). Save format accepts both `armor` and legacy
+`armour` keys. The new `secrets:` subtree is engine-only at
+fold time — no save-format change.
 
 Memory worth re-reading (auto-loaded into context):
   - feedback_state_abstraction.md — pa_*/pm_*/inv_*/res_*
     helpers, never raw state.p[...]. Critical for any new C
     touching parties.
   - feedback_background_agents.md — for background agents in
-    this repo, /tmp + patch, NEVER worktree isolation. Sessions
-    #11 / #13 / #13a / #13b / #14a / #14b all used this
-    pattern; all applied cleanly via git am.
+    this repo, /tmp + patch, NEVER worktree isolation.
+    Sessions #11 / #13 / #13a / #13b / #14a / #14b / #15 all
+    used this pattern; all applied cleanly via git am.
   - feedback_clangd_real_vs_stale.md — verify clangd via
-    `cc -fsyntax-only -Werror=...` before deflecting. #14b
-    saw extensive clangd hallucination from agent /tmp
-    checkouts leaking diagnostics into the workspace's view.
+    `cc -fsyntax-only -Werror=...` before deflecting. #15
+    saw a fresh leak (old-name diagnostics from /tmp clones
+    bleeding into the workspace's view) — confirmed stale,
+    nothing acted on.
   - feedback_battle_data_extraction.md — CLOSED catalog
     (historical reference).
 
 Reading order in repo:
   - port-plan.md TOC.
-  - port-plan-incomplete.md "Top of queue (status snapshot,
-    2026-04-28 #13b)" + "Recommended next session" (the
-    six-tier engine→data inventory + closed Tier R).
+  - port-plan-incomplete.md "Top of queue" + "Closed since
+    the previous snapshot (2026-04-29 #15)" + "Recommended
+    next session" (Tier 0 / A / B / C / D / E).
   - port-plan-complete.md — bodies for all closed §-anchors.
 
 Per-session bar: make check + make testasan + make format all
@@ -127,21 +109,24 @@ explicit user approval; no Co-Authored-By lines; inline
 single-newline file endings; fix root causes, not symptoms;
 don't add speculative changes.
 
-Begin: pick from the post-#14b queue.
+Begin: pick from the post-#15 queue.
 
   **Default pick: Tier 0 (mission_triggers → missions.json5)**
   — the biggest single content-in-C item remaining. Multi-
   session; start with the schema design + fold loader.
 
-  **Alternative: B6 (towne keystroke dispatch → data)** —
-  small session-sized lift the user specifically flagged in
-  #14a.
+  **Alternative: B7 (driv main-loop keystroke dispatch → data)**
+  — largest single-function content extraction outside Tier 0;
+  unlocks data-driven world authoring of the player's primary
+  input loop. The B6 lift in #15 is the template (table-walk
+  + small dispatch shim); B7 is ~15 keys vs B6's 6.
 
   **Alternative: A1 (terminal positions → screen: subtree)**
   — pervasive but mechanical; ~12 sites in driv.c + ~10 in
   gfx.c.
 
-  **Alternative: B7 (driv main-loop keystroke dispatch → data)**
-  — largest single-function content extraction outside Tier 0;
-  unlocks data-driven world authoring of the player's primary
-  input loop.
+  **Alternative: B8 (battle combat-key dispatch)** — first
+  needs a scoping decision: battle.c has multiple distinct
+  dispatch contexts (F/R prompts, U/D/A/B/C menus, A/B/D
+  combat actions) in different states. Each could lift
+  independently or share a context-aware table.

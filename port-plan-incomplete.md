@@ -96,6 +96,13 @@ Earlier session #7 detail (kept for context): **closed §24bis phase 3 end-to-en
 
 (All section bodies are now in their correct file. §17 / §22 / §23 / §24 / §25 bodies all relocated to `port-plan-complete.md`; only stubs remain in this file so the master TOC's §-anchors still resolve. The session-journal entries from 2026-04-26 / 2026-04-27 lower in this file are evergreen migration notes that can stay — they're referenced from continuation prompts and contain shape decisions that don't have a natural §-anchor.)
 
+### Closed since the previous snapshot (2026-04-29 #15)
+
+Two commits on `lagergren/port1` (`44500bd..29e4c70`); two parallel background agents (per `feedback_background_agents.md` — `/tmp` clones + patch handoff, no worktree isolation). 44 fixtures byte-identical on `make check` + `make testasan`; format clean.
+
+- **B6 closed: towne keystroke dispatch → `town_keys[]` data** (`44500bd`, background agent). 6-arm cascade in `towne.c::enter` lifted to a `{key, cond?, action}` array under `data/world.json5 town_keys:`. New `res_town_keys_count` / `res_town_key_at` accessors fold/expose the table; new `town_dispatch_key(c, has_church)` shim walks it and calls the existing church/smith/inn/merchant/tavern wrappers (the cond predicate `has_church` is the only one today). Returns 1 only for the `leave_town` action so the menu loop breaks.
+- **B9 + C4 closed: sysop secrets → `secrets:` data** (`29e4c70`, background agent). Marcus Lagergren key dispatch (primitives.c:372) and Karl-Skagerberg every-101-steps spawn (subs.c:151) both lifted to `data/world.json5 secrets:` (slug-keyed object: `marcus.keys[]` + `karl.step_trigger`). Magic item ids `104`/`108`/`109`/`110` flipped to slug tags (`drums_of_death` / `gem_of_resurrection` / `kaels_axe` / `holy_handgrenade`) resolved via `res_item_id`; the every-N-steps cadence (`101`) and the encounter monster slug (`skagerberg_killer`) are now data, not C constants. New `secret_action` enum + struct in res.h with `res_secrets_check_key` / `res_secrets_step_trigger` accessors; runtime tree walks (no fold-time pre-resolution — chosen for the cold-path nature of the dispatch).
+
 ### Closed since the previous snapshot (2026-04-28 #13)
 
 Six commits on `lagergren/port1` (`855c138..e7cbd71`); summaries in the Top-of-queue snapshot above:
@@ -278,24 +285,13 @@ The catalog below is ordered by leverage — Tier 0 is the single biggest "why i
 
   - **B5. speak.c "%s nods as" / "%s tells you:" prose** (lines 161, 191). Two inline `tx()` callsites with name bindings. Should be `speak.recognize_pre` / `speak.tells_you_pre` text records. Trivial; bundles with B4.
 
-  - **B6. towne.c::enter keystroke dispatcher → data**. The 6-arm `if (c == 'C' && has_church) church(); else if (c == 'S') smith(); ...` cascade in towne.c:181-197 is pure keystroke→action data. Lift to a `town_keys: [...]` table in `world.json5` matching the `mission_triggers[]` shape:
-    ```
-    town_keys: [
-      { key: 'C', cond: 'has_church', action: 'play_script', script: 'towne.church' },
-      { key: 'S', action: 'play_script', script: 'towne.smith' },
-      { key: 'I', action: 'play_script', script: 'towne.inn' },
-      { key: 'M', action: 'play_script', script: 'towne.merchant' },
-      { key: 'T', action: 'play_script', script: 'towne.tavern' },
-      { key: 'L', action: 'leave_town' },  // engine-only action
-    ]
-    ```
-    The dispatcher loop walks the array; the `cond` string maps to engine predicates (just `has_church` today; future conds can be enum-extended). Authors add a fifth shop type (`forge`, `library`, `guild`) by appending to the table + writing the script + adding a menu_smith-style text record. Mirrors the §12.4 ydarg-as-mission lift's data-driven shape. **Note**: ydarg.c's character-command dispatch (T/P/L/W/R/Q/Z/V) was lifted to `ydarg.cmd_dispatch` DSL in #13; the `menu_branch` op already exists and could power towne_keys without new infrastructure.
+  - **B6. ~~towne.c::enter keystroke dispatcher → data~~** — **closed 2026-04-29 #15** (`44500bd`, background agent). 6-arm cascade lifted to `town_keys: [...]` array in `data/world.json5` (entries: `{key, cond?, action}`); new `res_town_keys_count` / `res_town_key_at` accessors and a `town_dispatch_key(c, has_church)` shim in towne.c walk the table and call the existing church/smith/inn/merchant/tavern wrappers (which still own hour-advance + bindings). The `L` arm folds into a `leave_town` action. 44 fixtures byte-identical.
 
   - **B7. driv.c::the_game main-loop keystroke dispatcher → data**. The 15+ arm `case 'S'/'W'/'R'/'J'/'H'/'V'/'T'/'P'/'E'/'L'/'C'/'Z'/'Q'/'X'/'!'/'?'/...` switch in driv.c::the_game (lines 131-220) is the **primary input loop** for all wilderness movement + party commands. Pure keystroke→action data — every arm calls a single function (`show_party()`, `show_journal()`, `weapon_off()`, etc.) or invokes a small inline cascade (movement keys 8/4/6/2 → try_move dispatch). Lift to a `wilderness_keys: [...]` table same shape as B6, with engine-only actions for movement (`{key: '8', action: 'try_move', dir: 'north'}`). After this lift the entire main-loop body shrinks to a `key() → table-walk → dispatch` 3-line pattern. Largest single-function content extraction outside Tier 0.
 
   - **B8. battle.c combat-action key dispatch → data**. Combat actions are scattered hardcoded `if (c == 'A') ... if (c == 'D') ... if (c == 'B') ... if (c == 'C') ...` checks (battle.c:116-639). Lift to a `combat_keys: [...]` table; engine-only actions cover `attack` / `defend` / `cast_spell` / `battle_cry` / `use_item` / `flee` / `run_for_it`. Smaller scope than B7 (~6 keys); could DSL-ify with new combat-context engine_calls.
 
-  - **B9. primitives.c sysop backdoor → data**. The "Marcus Lagergren" hardcoded player-name check at primitives.c:372 + the `/`/`(`/`)`/`&` keystroke dispatch are the same shape as the Karl Skagerberg easter egg (Tier C4). Lift to `world.json5 secrets:` subtree as cheats / debug actions keyed by player-name + key. Bundle with C4 — same `secrets_check` engine_call.
+  - **B9. ~~primitives.c sysop backdoor → data~~** — **closed 2026-04-29 #15** (`29e4c70`, bundled with C4, background agent). Marcus Lagergren key dispatch (`/`/`(`/`)`/`&`/`*`/`+`) lifted to `secrets.marcus.keys[]` in `data/world.json5`; magic item ids `104`/`108`/`109`/`110` flipped to slug tags (`drums_of_death` / `gem_of_resurrection` / `kaels_axe` / `holy_handgrenade`) resolved through `res_item_id`. New `secret_action` enum + struct + `res_secrets_check_key` accessor in res.h/.c; primitives.c's `key()` switch becomes a single accessor call + small enum dispatch.
 
 #### Tier C — engine state with hardcoded shape
 
@@ -309,7 +305,7 @@ The catalog below is ordered by leverage — Tier 0 is the single biggest "why i
 
   - **C3. `food_handler` fatigue ladder** (subs.c). Mostly data-driven; the ladder dispatcher (`if (pa_hours_rested() == 0)` / `== -4` / `== -8` / `< -8`) lives in C. Could lift to a `subs.food_handler.fatigue` DSL script + `fatigue_levels: [{threshold, text_id, drain?}, ...]` table.
 
-  - **C4. `random_wilderness` Karl-Skagerberg easter egg** (subs.c lines 151-153). Hardcoded `pa_time_left() % 101` + `!stricmp(session_player_name(), "Karl Skagerberg")` + spawn `skagerberg_killer`. Lift to `world.json5 secrets:` subtree with a `secrets_check` engine_call.
+  - **C4. ~~`random_wilderness` Karl-Skagerberg easter egg~~** — **closed 2026-04-29 #15** (`29e4c70`, bundled with B9, background agent). Lifted to `secrets.karl.step_trigger` in `data/world.json5` (cadence `every_n_steps: 101`, monster slug `skagerberg_killer`); subs.c's hardcoded `pa_time_left() % 101 + stricmp("Karl Skagerberg")` block becomes a single `res_secrets_step_trigger` lookup + enum dispatch.
 
   - **C5. Save-file emit shape** (driv.c::write_current_world / read_current_world). Hand-coded fputs serializer; could share `snapshot.c` plumbing. ~500 LOC could shrink. Bigger lift; multi-session.
 
