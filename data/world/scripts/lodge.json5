@@ -33,9 +33,9 @@
                   { emit: 'speak.lodge.j13.spent' },
                   { for_member: { var: 'member', then: [
                     { if: {
-                        cond: { gt: [{ member: { var: 'member' }, field: 'hp' }, 1] },
+                        cond: { gt: [{ member: { var: 'member' }, field: 'hit_points' }, 1] },
                         then: [
-                          { mutate: { target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
+                          { mutate: { target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
                                       op: 'sub', value: 1 } },
                         ],
                     } },

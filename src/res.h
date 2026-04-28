@@ -174,9 +174,9 @@ int32_t res_xp_threshold(int level);
 
 /* Per-class level-up delta applied on each gained level. `cls` is a
    lowercased class name ("fighter", "thief", ...) matching the
-   classes.<cls> shard key; `stat` is one of "ws" / "h" / "wi" / "ch".
-   Returns 0 for unknown class or stat — callers treat zero as "no
-   change", which is the natural no-op. */
+   classes.<cls> shard key; `stat` is one of "weapon_skill" / "health"
+   / "wisdom" / "charisma". Returns 0 for unknown class or stat —
+   callers treat zero as "no change", which is the natural no-op. */
 int32_t res_class_levelup(const char *cls, const char *stat);
 
 /* createparty() class gate (§23.D). Returns 1 if the class allows the

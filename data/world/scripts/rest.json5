@@ -182,9 +182,9 @@
                       ] },
                       then: [
                         { mutate: {
-                            target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
+                            target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
                             op: 'add', value: { var: 'health_gain' },
-                            clamp: { max: { member: { var: 'member' }, field: 'h' } },
+                            clamp: { max: { member: { var: 'member' }, field: 'health'} },
                         } },
                       ],
                   } },
@@ -210,7 +210,7 @@
                             { let: 'victim', value: { random: [0, 3] } },
                             { engine_bind: { fn: 'pa_name', args: [{ var: 'victim' }], var: 'victim_name' } },
                             { emit: 'surprise_kill' },
-                            { mutate: { target: { member_field: { idx: { var: 'victim' }, field: 'hp' } },
+                            { mutate: { target: { member_field: { idx: { var: 'victim' }, field: 'hit_points' } },
                                         op: 'set', value: 0 } },
                             { mutate: { target: { member_field: { idx: { var: 'victim' }, field: 'dead' } },
                                         op: 'set', value: 1 } },

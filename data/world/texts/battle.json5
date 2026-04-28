@@ -214,7 +214,7 @@
     // Reward header + per-survivor line + and-gold tail. `and_gold`
     // carries a trailing empty for the legacy `\r\n\r\n` blank line.
     each_survivor:   ['Each survivor gets'],
-    exp_pts:         ['{exp} experience pts'],
+    exp_pts:         ['{experience} experience pts'],
     and_gold:        ['and {gold} gold pieces.', ''],
     // Post-fight loot drop. {object_name} = object(i) (already in the
     // legacy form with no leading article, hence the lifted `You find

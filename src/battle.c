@@ -440,7 +440,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 res_binding reward_bindings[] = {
                     {"noc", noc},
                     {"h2", h2},
-                    {"ws", ws},
+                    {"weapon_skill", ws},
                     {"sp", sp},
                 };
                 size_t reward_n = sizeof reward_bindings / sizeof reward_bindings[0];
@@ -452,7 +452,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                 snprintf(exp_buf, sizeof exp_buf, "%d", exp_gain);
                 snprintf(gold_buf, sizeof gold_buf, "%d", gold_gain);
                 ryl_bind reward_binds[] = {
-                    {"exp", exp_buf},
+                    {"experience", exp_buf},
                     {"gold", gold_buf},
                     {0},
                 };
@@ -705,10 +705,10 @@ void expcheck() {
             pm_add_lv(pm, add[i]);
             int cl_id = pm_cl(pm);
             const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
-            pm_add_ws(pm, res_class_levelup(cls, "ws"));
-            pm_add_h(pm, res_class_levelup(cls, "h"));
-            pm_add_wi(pm, res_class_levelup(cls, "wi"));
-            pm_add_ch(pm, res_class_levelup(cls, "ch"));
+            pm_add_ws(pm, res_class_levelup(cls, "weapon_skill"));
+            pm_add_h(pm, res_class_levelup(cls, "health"));
+            pm_add_wi(pm, res_class_levelup(cls, "wisdom"));
+            pm_add_ch(pm, res_class_levelup(cls, "charisma"));
             pm_hp_floor(pm, (pm_h(pm) * 2) / 3);
         }
     }

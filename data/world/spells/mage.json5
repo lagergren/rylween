@@ -13,7 +13,7 @@
     do: [
       { ask_target: 'monster_alive', var: 'target_idx' },
       { let: 'dmg', value: { mul: [
-        { member: { var: 'caster_idx' }, field: 'lv' },
+        { member: { var: 'caster_idx' }, field: 'level' },
         { random: [2, 8] },
       ]}},
       { engine_call: 'clw' },
@@ -48,7 +48,7 @@
                        var: 'caster' }},
       { for_monster: { var: 'i', then: [
         { let: 'dmg', value: { mul: [
-          { member: { var: 'caster_idx' }, field: 'lv' },
+          { member: { var: 'caster_idx' }, field: 'level' },
           { random: [1, 4] },
         ]}},
         { if: { cond: { eq: [{ monster_dead: { var: 'i' } }, 0] },
@@ -86,7 +86,7 @@
       { emit: 'battle.spell.utters_word' },
       { emit: 'battle.spell.mirror' },
       { pause: 2000 },
-      { mutate: { target: { battle_flag: 'ws' }, op: 'div', value: 2 }},
+      { mutate: { target: { battle_flag: 'weapon_skill' }, op: 'div', value: 2 }},
       { mutate: { target: { battle_flag: 'confused' }, op: 'set', value: 1 }},
     ],
   },

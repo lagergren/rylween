@@ -714,11 +714,11 @@ int res_class_min_stat_check(int cl_id, int ws, int wi, int ch,
         return 1;
     }
     int got;
-    if (strcmp(name_n->u.sv, "ws") == 0) {
+    if (strcmp(name_n->u.sv, "weapon_skill") == 0) {
         got = ws;
-    } else if (strcmp(name_n->u.sv, "wi") == 0) {
+    } else if (strcmp(name_n->u.sv, "wisdom") == 0) {
         got = wi;
-    } else if (strcmp(name_n->u.sv, "ch") == 0) {
+    } else if (strcmp(name_n->u.sv, "charisma") == 0) {
         got = ch;
     } else {
         return 1;

@@ -419,45 +419,45 @@ static int32_t expr_member_field(const node *op, const char *script_id,
     }
     const char *field = f_n->u.sv;
     pm_t pm = pm_cur((int)m);
-    if (strcmp(field, "lv") == 0) {
+    if (strcmp(field, "level") == 0) {
         return pm_lv(pm);
     }
-    if (strcmp(field, "hp") == 0) {
+    if (strcmp(field, "hit_points") == 0) {
         return pm_hp(pm);
     }
-    if (strcmp(field, "h") == 0) {
+    if (strcmp(field, "health") == 0) {
         return pm_h(pm);
     }
-    if (strcmp(field, "ma") == 0) {
+    if (strcmp(field, "magic") == 0) {
         return pm_ma(pm);
     }
-    if (strcmp(field, "wi") == 0) {
+    if (strcmp(field, "wisdom") == 0) {
         return pm_wi(pm);
     }
-    if (strcmp(field, "ws") == 0) {
+    if (strcmp(field, "weapon_skill") == 0) {
         return pm_ws(pm);
     }
-    if (strcmp(field, "ch") == 0) {
+    if (strcmp(field, "charisma") == 0) {
         return pm_ch(pm);
     }
-    if (strcmp(field, "cl") == 0) {
+    if (strcmp(field, "class") == 0) {
         return pm_cl(pm);
     }
-    if (strcmp(field, "ra") == 0) {
+    if (strcmp(field, "race") == 0) {
         return pm_ra(pm);
     }
-    if (strcmp(field, "exp") == 0) {
-        /* uint32 → int32 cast: exp values stay well below 2^31 in
-           legacy save files (the experience cap is much lower). */
+    if (strcmp(field, "experience") == 0) {
+        /* uint32 → int32 cast: experience values stay well below 2^31
+           in legacy save files (the experience cap is much lower). */
         return (int32_t)pm_exp(pm);
     }
     if (strcmp(field, "dead") == 0) {
         return pm_dead(pm);
     }
-    if (strcmp(field, "ar") == 0) {
+    if (strcmp(field, "armour") == 0) {
         return pm_ar(pm);
     }
-    if (strcmp(field, "wp") == 0) {
+    if (strcmp(field, "weapon") == 0) {
         return pm_wp(pm);
     }
     if (strcmp(field, "gender") == 0) {
@@ -1042,7 +1042,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
             p = g_combat_ctx->held;
         } else if (strcmp(bf_n->u.sv, "antimagic") == 0) {
             p = g_combat_ctx->antimagic;
-        } else if (strcmp(bf_n->u.sv, "ws") == 0) {
+        } else if (strcmp(bf_n->u.sv, "weapon_skill") == 0) {
             p = g_combat_ctx->ws;
         } else if (strcmp(bf_n->u.sv, "player_held") == 0) {
             p = g_combat_ctx->player_held;
@@ -1053,7 +1053,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
         } else {
             die_at(script_id, idx,
                    "expr battle_flag: unknown name (use confused/held/"
-                   "antimagic/ws/player_held/player_confused/action_retry)");
+                   "antimagic/weapon_skill/player_held/player_confused/action_retry)");
         }
         if (!p) {
             die_at(script_id, idx,
@@ -2474,43 +2474,43 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
         case LV_MEMBER_FIELD: {
             pm_t pm = pm_cur(lv->index);
             const char *f = lv->field;
-            if (strcmp(f, "lv") == 0) {
+            if (strcmp(f, "level") == 0) {
                 return pm_lv(pm);
             }
-            if (strcmp(f, "hp") == 0) {
+            if (strcmp(f, "hit_points") == 0) {
                 return pm_hp(pm);
             }
-            if (strcmp(f, "h") == 0) {
+            if (strcmp(f, "health") == 0) {
                 return pm_h(pm);
             }
-            if (strcmp(f, "ma") == 0) {
+            if (strcmp(f, "magic") == 0) {
                 return pm_ma(pm);
             }
-            if (strcmp(f, "wi") == 0) {
+            if (strcmp(f, "wisdom") == 0) {
                 return pm_wi(pm);
             }
-            if (strcmp(f, "ws") == 0) {
+            if (strcmp(f, "weapon_skill") == 0) {
                 return pm_ws(pm);
             }
-            if (strcmp(f, "ch") == 0) {
+            if (strcmp(f, "charisma") == 0) {
                 return pm_ch(pm);
             }
-            if (strcmp(f, "cl") == 0) {
+            if (strcmp(f, "class") == 0) {
                 return pm_cl(pm);
             }
-            if (strcmp(f, "ra") == 0) {
+            if (strcmp(f, "race") == 0) {
                 return pm_ra(pm);
             }
             if (strcmp(f, "dead") == 0) {
                 return pm_dead(pm);
             }
-            if (strcmp(f, "ar") == 0) {
+            if (strcmp(f, "armour") == 0) {
                 return pm_ar(pm);
             }
-            if (strcmp(f, "wp") == 0) {
+            if (strcmp(f, "weapon") == 0) {
                 return pm_wp(pm);
             }
-            if (strcmp(f, "exp") == 0) {
+            if (strcmp(f, "experience") == 0) {
                 return (int32_t)pm_exp(pm);
             }
             if (strcmp(f, "gender") == 0) {
@@ -2531,7 +2531,7 @@ static int32_t read_lv(const mutate_lv *lv, const char *script_id,
                 p = g_combat_ctx->held;
             } else if (strcmp(f, "antimagic") == 0) {
                 p = g_combat_ctx->antimagic;
-            } else if (strcmp(f, "ws") == 0) {
+            } else if (strcmp(f, "weapon_skill") == 0) {
                 p = g_combat_ctx->ws;
             } else if (strcmp(f, "player_held") == 0) {
                 p = g_combat_ctx->player_held;
@@ -2598,39 +2598,39 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
         case LV_MEMBER_FIELD: {
             pm_t pm = pm_cur(lv->index);
             const char *f = lv->field;
-            if (strcmp(f, "lv") == 0) {
+            if (strcmp(f, "level") == 0) {
                 pm_set_lv(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "hp") == 0) {
+            if (strcmp(f, "hit_points") == 0) {
                 pm_set_hp(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "h") == 0) {
+            if (strcmp(f, "health") == 0) {
                 pm_set_h(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "ma") == 0) {
+            if (strcmp(f, "magic") == 0) {
                 pm_set_ma(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "wi") == 0) {
+            if (strcmp(f, "wisdom") == 0) {
                 pm_set_wi(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "ws") == 0) {
+            if (strcmp(f, "weapon_skill") == 0) {
                 pm_set_ws(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "ch") == 0) {
+            if (strcmp(f, "charisma") == 0) {
                 pm_set_ch(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "cl") == 0) {
+            if (strcmp(f, "class") == 0) {
                 pm_set_cl(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "ra") == 0) {
+            if (strcmp(f, "race") == 0) {
                 pm_set_ra(pm, (int)v);
                 return;
             }
@@ -2638,18 +2638,18 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                 pm_set_dead(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "ar") == 0) {
+            if (strcmp(f, "armour") == 0) {
                 pm_set_ar(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "wp") == 0) {
+            if (strcmp(f, "weapon") == 0) {
                 pm_set_wp(pm, (int)v);
                 return;
             }
-            if (strcmp(f, "exp") == 0) {
+            if (strcmp(f, "experience") == 0) {
                 if (v < 0) {
                     die_at(script_id, idx,
-                           "mutate: member_field exp cannot be negative");
+                           "mutate: member_field experience cannot be negative");
                 }
                 pm_set_exp(pm, (uint32_t)v);
                 return;
@@ -2675,7 +2675,7 @@ static void write_lv(const mutate_lv *lv, int32_t v, const char *script_id,
                 p = g_combat_ctx->held;
             } else if (strcmp(f, "antimagic") == 0) {
                 p = g_combat_ctx->antimagic;
-            } else if (strcmp(f, "ws") == 0) {
+            } else if (strcmp(f, "weapon_skill") == 0) {
                 p = g_combat_ctx->ws;
             } else if (strcmp(f, "player_held") == 0) {
                 p = g_combat_ctx->player_held;

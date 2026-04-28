@@ -83,8 +83,8 @@
                           else: [
                             { if: {
                                 cond: { eq: [
-                                  { member: { var: 'who' }, field: 'ma' },
-                                  { member: { var: 'who' }, field: 'wi' },
+                                  { member: { var: 'who' }, field: 'magic' },
+                                  { member: { var: 'who' }, field: 'wisdom' },
                                 ] },
                                 then: [
                                   { engine_call: 'clw' },
@@ -99,11 +99,11 @@
                                   // (always the case past createparty).
                                   { let: 'cost', value: {
                                       mul: [
-                                        { member: { var: 'who' }, field: 'lv' },
+                                        { member: { var: 'who' }, field: 'level' },
                                         { mul: [
                                           { sub: [
-                                            { member: { var: 'who' }, field: 'wi' },
-                                            { member: { var: 'who' }, field: 'ma' },
+                                            { member: { var: 'who' }, field: 'wisdom' },
+                                            { member: { var: 'who' }, field: 'magic' },
                                           ] },
                                           2,
                                         ] },
@@ -123,9 +123,9 @@
                                               ],
                                               else: [
                                                 { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
-                                                { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'ma' } },
+                                                { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'magic' } },
                                                             op: 'set',
-                                                            value: { member: { var: 'who' }, field: 'wi' } } },
+                                                            value: { member: { var: 'who' }, field: 'wisdom' } } },
                                                 { engine_call: 'clw' },
                                                 { emit: 'restored' },
                                                 { pause: 1000 },
@@ -160,7 +160,7 @@
                           ],
                           else: [
                             { engine_call: 'clw' },
-                            { let: 'cost', value: { mul: [650, { member: { var: 'who' }, field: 'lv' }] } },
+                            { let: 'cost', value: { mul: [650, { member: { var: 'who' }, field: 'level' }] } },
                             { emit: 'cost2' },
                             { menu_branch: {
                                 prompt: 'pn_menu',
@@ -175,7 +175,7 @@
                                         ],
                                         else: [
                                           { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'cost' } } },
-                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hp' } }, op: 'set', value: 1 } },
+                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hit_points' } }, op: 'set', value: 1 } },
                                           { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'dead' } }, op: 'set', value: 0 } },
                                           { mutate: { target: { pl: 0 }, op: 'add', value: 1 } },
                                           { engine_call: 'clw' },
@@ -213,8 +213,8 @@
                       } },
                       { if: {
                           cond: { eq: [
-                            { member: { var: 'who' }, field: 'hp' },
-                            { member: { var: 'who' }, field: 'h' },
+                            { member: { var: 'who' }, field: 'hit_points' },
+                            { member: { var: 'who' }, field: 'health' },
                           ] },
                           then: [
                             { engine_call: 'clw' },
@@ -225,8 +225,8 @@
                           else: [
                             { let: 'cost', value: { mul: [
                                 { sub: [
-                                  { member: { var: 'who' }, field: 'h' },
-                                  { member: { var: 'who' }, field: 'hp' },
+                                  { member: { var: 'who' }, field: 'health' },
+                                  { member: { var: 'who' }, field: 'hit_points' },
                                 ] },
                                 7,
                             ] } },
@@ -252,9 +252,9 @@
                                           { engine_bind: { fn: 'pronoun', args: [{ var: 'who' }, 'object'], var: 'pro_obj' } },
                                           { emit: 'healed' },
                                           { pause: 1000 },
-                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hp' } },
+                                          { mutate: { target: { member_field: { idx: { var: 'who' }, field: 'hit_points' } },
                                                       op: 'set',
-                                                      value: { member: { var: 'who' }, field: 'h' } } },
+                                                      value: { member: { var: 'who' }, field: 'health' } } },
                                         ],
                                     } },
                                   ] },
@@ -672,12 +672,12 @@
           { let: 'priest_bonus', value: 0 },
           { for_member: { var: 'member', then: [
             { if: {
-                cond: { eq: [{ member: { var: 'member' }, field: 'cl' },
+                cond: { eq: [{ member: { var: 'member' }, field: 'class' },
                               { enum: ['pc_class', 'priest'] }] }, // not engine_int — bare expr in eq:
                 then: [
                   { let: 'priest_bonus', value: { add: [
                     { var: 'priest_bonus' },
-                    { div: [{ member: { var: 'member' }, field: 'ch' }, 10] },
+                    { div: [{ member: { var: 'member' }, field: 'charisma' }, 10] },
                   ] } },
                 ],
             } },
@@ -830,17 +830,17 @@
                                   { if: { cond: { eq: [{ var: 'is_boast' }, 1] },
                                           then: [{ let: 'score', value: { add: [{ var: 'score' }, 100] } }] } },
                                   { if: { cond: { eq: [
-                                            { member: { var: 'member_idx' }, field: 'cl' },
+                                            { member: { var: 'member_idx' }, field: 'class' },
                                             5,
                                           ] },
                                           then: [{ let: 'score', value: { add: [{ var: 'score' }, 100] } }] } },
                                   { if: { cond: { gt: [
-                                            { member: { var: 'member_idx' }, field: 'ch' },
+                                            { member: { var: 'member_idx' }, field: 'charisma' },
                                             90,
                                           ] },
                                           then: [{ let: 'score', value: { add: [{ var: 'score' }, 50] } }] } },
                                   { if: { cond: { gt: [
-                                            { member: { var: 'member_idx' }, field: 'ch' },
+                                            { member: { var: 'member_idx' }, field: 'charisma' },
                                             70,
                                           ] },
                                           then: [{ let: 'score', value: { add: [{ var: 'score' }, 50] } }] } },
@@ -857,14 +857,14 @@
                                         { if: {
                                             cond: { gt: [
                                               { random: [0, 99] },
-                                              { member: { var: 'member_idx' }, field: 'ch' },
+                                              { member: { var: 'member_idx' }, field: 'charisma' },
                                             ] },
                                             then: [
                                               { engine_call: 'clw' },
                                               { emit: 'liar_kicked' },
                                               { pause: 2000 },
                                               { emit: 'thrown_out' },
-                                              { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
+                                              { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
                                                           op: 'sub', value: 10,
                                                           clamp: { min: 0 } } },
                                               { engine_call: 'clr_map_window' },
@@ -879,7 +879,7 @@
                                           then: [
                                             { emit: 'st_superb' },
                                             { wait_input: true },
-                                            { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
+                                            { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
                                                         op: 'add', value: 3 } },
                                           ] } },
                                   { if: { cond: { and: [
@@ -889,7 +889,7 @@
                                           then: [
                                             { emit: 'st_vgood' },
                                             { wait_input: true },
-                                            { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
+                                            { mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
                                                         op: 'add', value: 1 } },
                                           ] } },
                                   { if: { cond: { and: [
@@ -908,10 +908,10 @@
                                             { emit: 'st_bored' },
                                             { wait_input: true },
                                             { if: { cond: { gt: [
-                                                      { member: { var: 'member_idx' }, field: 'ch' },
+                                                      { member: { var: 'member_idx' }, field: 'charisma' },
                                                       0,
                                                     ] },
-                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
+                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
                                                                        op: 'sub', value: 1 } }] } },
                                           ] } },
                                   { if: { cond: { lt: [{ var: 'score' }, 101] },
@@ -919,10 +919,10 @@
                                             { emit: 'st_asleep' },
                                             { wait_input: true },
                                             { if: { cond: { gte: [
-                                                      { member: { var: 'member_idx' }, field: 'ch' },
+                                                      { member: { var: 'member_idx' }, field: 'charisma' },
                                                       3,
                                                     ] },
-                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'ch' } },
+                                                    then: [{ mutate: { target: { member_field: { idx: { var: 'member_idx' }, field: 'charisma' } },
                                                                        op: 'sub', value: 3 } }] } },
                                           ] } },
                                 ],
@@ -1008,10 +1008,10 @@
                                   { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'price' } } },
                                   { for_member: { var: 'member', then: [
                                     { mutate: {
-                                        target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
                                         op: 'add',
                                         value: { add: [{ div: [{ var: 'price' }, 2] }, 1] },
-                                        clamp: { max: { member: { var: 'member' }, field: 'h' } },
+                                        clamp: { max: { member: { var: 'member' }, field: 'health' } },
                                     } },
                                   ] } },
                                 ],
@@ -1054,8 +1054,8 @@
     { loop: [
       // Shared cost for supper and lodging: 15 * lv[1] * lv[1].
       { let: 'cost', value: { mul: [
-        { mul: [15, { member: 1, field: 'lv' }] },
-        { member: 1, field: 'lv' },
+        { mul: [15, { member: 1, field: 'level' }] },
+        { member: 1, field: 'level' },
       ] } },
 
       // --- Supper
@@ -1085,9 +1085,9 @@
                           cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
                           then: [
                             { mutate: {
-                                target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
+                                target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
                                 op: 'add', value: 6,
-                                clamp: { max: { member: { var: 'member' }, field: 'h' } },
+                                clamp: { max: { member: { var: 'member' }, field: 'health' } },
                             } },
                           ],
                       } },
@@ -1146,10 +1146,10 @@
                                   cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
                                   then: [
                                     { mutate: {
-                                        target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
                                         op: 'add',
                                         value: { add: [{ div: [{ var: 'price' }, 2] }, 1] },
-                                        clamp: { max: { member: { var: 'member' }, field: 'h' } },
+                                        clamp: { max: { member: { var: 'member' }, field: 'health' } },
                                     } },
                                   ],
                               } },
@@ -1205,10 +1205,10 @@
                                   cond: { not: { engine_int: 'pa_is_dead', args: [{ var: 'member' }] } },
                                   then: [
                                     { mutate: {
-                                        target: { member_field: { idx: { var: 'member' }, field: 'hp' } },
+                                        target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
                                         op: 'add',
-                                        value: { div: [{ member: { var: 'member' }, field: 'h' }, 4] },
-                                        clamp: { max: { member: { var: 'member' }, field: 'h' } },
+                                        value: { div: [{ member: { var: 'member' }, field: 'health' }, 4] },
+                                        clamp: { max: { member: { var: 'member' }, field: 'health' } },
                                     } },
                                   ],
                               } },
@@ -1379,11 +1379,11 @@
                       { engine_call: 'clw' },
                       { engine_call: 'statusline' },
                       { let: 'food_price',
-                        value: { add: [{ member: 1, field: 'lv' }, 1] } },
+                        value: { add: [{ member: 1, field: 'level' }, 1] } },
                       { let: 'potion_price',
                         value: { add: [
                           { obcost: 36 },
-                          { mul: [{ member: 1, field: 'lv' }, 3] },
+                          { mul: [{ member: 1, field: 'level' }, 3] },
                         ] } },
                       { emit: 'buy_menu' },
                       { menu_branch: {
@@ -1409,7 +1409,7 @@
                                   then: [
                                     { let: 'price', value: { add: [
                                       { var: 'price' },
-                                      { mul: [{ member: 1, field: 'lv' }, 3] },
+                                      { mul: [{ member: 1, field: 'level' }, 3] },
                                     ] } },
                                   ],
                               } },

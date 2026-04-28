@@ -15,19 +15,19 @@
     do: [
       { engine_call: 'clw' },
       { if: { cond: { gte: [
-          { member: { var: 'caster_idx' }, field: 'ma' },
-          { add: [8, { member: { var: 'caster_idx' }, field: 'lv' }] },
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [8, { member: { var: 'caster_idx' }, field: 'level' }] },
         ]},
         then: [
           { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
-                                                field: 'ma' } },
+                                                field: 'magic' } },
                       op: 'sub',
                       value: { add: [8, { member: { var: 'caster_idx' },
-                                                    field: 'lv' }] } }},
+                                                    field: 'level' }] } }},
           { ask_target: 'party_member', var: 'target_idx' },
           { let: 'x', value: { add: [
             { random: [10, 19] },
-            { mul: [{ member: { var: 'caster_idx' }, field: 'lv' }, 2] },
+            { mul: [{ member: { var: 'caster_idx' }, field: 'level' }, 2] },
           ]}},
           { if: { cond: { eq: [
               { member: { var: 'target_idx' }, field: 'dead' }, 1
@@ -40,11 +40,11 @@
             ],
             else: [
               { mutate: { target: { member_field: { idx: { var: 'target_idx' },
-                                                    field: 'hp' } },
+                                                    field: 'hit_points' } },
                           op: 'add',
                           value: { var: 'x' },
                           clamp: { max: { member: { var: 'target_idx' },
-                                                    field: 'h' } } }},
+                                                    field: 'health' } } }},
               { engine_call: 'clw' },
               { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                                var: 'caster' }},
@@ -74,20 +74,20 @@
     do: [
       { engine_call: 'clw' },
       { if: { cond: { gte: [
-          { member: { var: 'caster_idx' }, field: 'ma' },
-          { add: [20, { member: { var: 'caster_idx' }, field: 'lv' }] },
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [20, { member: { var: 'caster_idx' }, field: 'level' }] },
         ]},
         then: [
           { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
-                                                field: 'ma' } },
+                                                field: 'magic' } },
                       op: 'sub',
                       value: { add: [20, { member: { var: 'caster_idx' },
-                                                     field: 'lv' }] } }},
+                                                     field: 'level' }] } }},
           { ask_target: 'party_member', var: 'target_idx' },
           { mutate: { target: { member_field: { idx: { var: 'target_idx' },
-                                                field: 'hp' } },
+                                                field: 'hit_points' } },
                       op: 'set',
-                      value: { member: { var: 'target_idx' }, field: 'h' } }},
+                      value: { member: { var: 'target_idx' }, field: 'health' } }},
           { engine_call: 'clw' },
           { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                            var: 'caster' }},
@@ -118,8 +118,8 @@
     do: [
       { engine_call: 'clw' },
       { if: { cond: { gte: [
-          { member: { var: 'caster_idx' }, field: 'ma' },
-          { add: [90, { member: { var: 'caster_idx' }, field: 'lv' }] },
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [90, { member: { var: 'caster_idx' }, field: 'level' }] },
         ]},
         then: [
           { ask_target: 'party_member', var: 'target_idx' },
@@ -129,15 +129,15 @@
               { member: { var: 'target_idx' }, field: 'dead' }, 1 ]},
             then: [
               { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
-                                                    field: 'ma' } },
+                                                    field: 'magic' } },
                           op: 'sub',
                           value: { add: [90, { member: { var: 'caster_idx' },
-                                                         field: 'lv' }] } }},
+                                                         field: 'level' }] } }},
               { mutate: { target: { member_field: { idx: { var: 'target_idx' },
                                                     field: 'dead' } },
                           op: 'set', value: 0 }},
               { mutate: { target: { member_field: { idx: { var: 'target_idx' },
-                                                    field: 'hp' } },
+                                                    field: 'hit_points' } },
                           op: 'set', value: 1 }},
               { engine_call: 'clw' },
               { engine_bind: { fn: 'pronoun',
@@ -177,17 +177,17 @@
     do: [
       { engine_call: 'clw' },
       { if: { cond: { gte: [
-          { member: { var: 'caster_idx' }, field: 'ma' },
-          { add: [85, { member: { var: 'caster_idx' }, field: 'lv' }] },
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [85, { member: { var: 'caster_idx' }, field: 'level' }] },
         ]},
         then: [
           { if: { cond: { eq: [{ var: 'place' }, 1] },
             then: [
               { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
-                                                    field: 'ma' } },
+                                                    field: 'magic' } },
                           op: 'sub',
                           value: { add: [85, { member: { var: 'caster_idx' },
-                                                         field: 'lv' }] } }},
+                                                         field: 'level' }] } }},
               { engine_call: 'clw' },
               { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                                var: 'caster' }},
@@ -239,17 +239,17 @@
     do: [
       { engine_call: 'clw' },
       { if: { cond: { gte: [
-          { member: { var: 'caster_idx' }, field: 'ma' },
-          { add: [40, { member: { var: 'caster_idx' }, field: 'lv' }] },
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [40, { member: { var: 'caster_idx' }, field: 'level' }] },
         ]},
         then: [
           { if: { cond: { eq: [{ var: 'place' }, 1] },
             then: [
               { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
-                                                    field: 'ma' } },
+                                                    field: 'magic' } },
                           op: 'sub',
                           value: { add: [40, { member: { var: 'caster_idx' },
-                                                         field: 'lv' }] } }},
+                                                         field: 'level' }] } }},
               { if: { cond: { chance: 59 },
                 then: [
                   { engine_call: 'clw' },
@@ -332,15 +332,15 @@
     slot: 6, base_cost: 35, name: 'Teleport',
     do: [
       { if: { cond: { gte: [
-          { member: { var: 'caster_idx' }, field: 'ma' },
-          { add: [35, { member: { var: 'caster_idx' }, field: 'lv' }] },
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [35, { member: { var: 'caster_idx' }, field: 'level' }] },
         ]},
         then: [
           { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
-                                                field: 'ma' } },
+                                                field: 'magic' } },
                       op: 'sub',
                       value: { add: [35, { member: { var: 'caster_idx' },
-                                                     field: 'lv' }] } }},
+                                                     field: 'level' }] } }},
           { engine_call: 'clw' },
           { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                            var: 'caster' }},
@@ -409,15 +409,15 @@
         ],
         else: [
           { if: { cond: { gte: [
-              { member: { var: 'caster_idx' }, field: 'ma' },
-              { add: [55, { member: { var: 'caster_idx' }, field: 'lv' }] },
+              { member: { var: 'caster_idx' }, field: 'magic' },
+              { add: [55, { member: { var: 'caster_idx' }, field: 'level' }] },
             ]},
             then: [
               { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
-                                                    field: 'ma' } },
+                                                    field: 'magic' } },
                           op: 'sub',
                           value: { add: [55, { member: { var: 'caster_idx' },
-                                                         field: 'lv' }] } }},
+                                                         field: 'level' }] } }},
               { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
                                var: 'caster' }},
               { emit: 'spell.priest.earthquake.utters' },

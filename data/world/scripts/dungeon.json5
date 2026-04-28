@@ -414,7 +414,7 @@
                 { engine_call: 'pm_add_hp',
                   args: [{ var: 'member' },
                          { mul: [-4,
-                                 { member: { var: 'member' }, field: 'lv' }] }] },
+                                 { member: { var: 'member' }, field: 'level' }] }] },
                 { engine_call: 'pm_hp_floor', args: [{ var: 'member' }, 1] },
               ] } },
               { wait_input: true },
@@ -424,7 +424,7 @@
           { let: 'gold_amount', value: {
             add: [
               { add: [{ random: [0, 99] }, 320] },
-              { div: [{ member: 1, field: 'exp' }, 500] },
+              { div: [{ member: 1, field: 'experience' }, 500] },
             ],
           } },
           { emit: 'gold_chest.contained' },

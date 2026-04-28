@@ -103,10 +103,10 @@ void rk_apply_party_lv(int a) {
         int cl_id = pm_cl(pm);
         const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
         for (long n = 1; n < lv_target; n++) {
-            pm_add_ws(pm, res_class_levelup(cls, "ws"));
-            pm_add_h(pm, res_class_levelup(cls, "h"));
-            pm_add_wi(pm, res_class_levelup(cls, "wi"));
-            pm_add_ch(pm, res_class_levelup(cls, "ch"));
+            pm_add_ws(pm, res_class_levelup(cls, "weapon_skill"));
+            pm_add_h(pm, res_class_levelup(cls, "health"));
+            pm_add_wi(pm, res_class_levelup(cls, "wisdom"));
+            pm_add_ch(pm, res_class_levelup(cls, "charisma"));
         }
         pm_set_lv(pm, (int)lv_target);
         if (pm_is_spellcaster(pm)) {

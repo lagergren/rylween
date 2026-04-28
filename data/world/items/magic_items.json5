@@ -31,7 +31,7 @@
       { if: { cond: { gte: [{ var: 'target' }, 0] }, then: [
           { let: 'dmg', value: { add: [
               { random: [5, 11] },
-              { member: { var: 'caster_idx' }, field: 'lv' },
+              { member: { var: 'caster_idx' }, field: 'level' },
           ]}},
           { emit: 'battle.item.frost_wand.chills' },
           { emit: 'battle.item.frost_wand.damage_pts' },
@@ -65,7 +65,7 @@
                        var: 'caster' }},
       { for_monster: { var: 'i', then: [
           { let: 'dmg', value: { mul: [
-              { member: { var: 'caster_idx' }, field: 'lv' },
+              { member: { var: 'caster_idx' }, field: 'level' },
               { random: [3, 8] },
           ]}},
           { if: { cond: { eq: [{ monster_dead: { var: 'i' } }, 0] },
@@ -103,7 +103,7 @@
       { emit: 'battle.item.sparks_bump' },
       { wait_input: true },
       { engine_call: 'clw' },
-      { mutate: { target: { battle_flag: 'ws' }, op: 'div', value: 2 }},
+      { mutate: { target: { battle_flag: 'weapon_skill' }, op: 'div', value: 2 }},
     ],
   },
   // §23.B Group A: gem_of_blindness. Same shape as 102 — narration
@@ -119,7 +119,7 @@
       { emit: 'battle.item.light_blind' },
       { wait_input: true },
       { engine_call: 'clw' },
-      { mutate: { target: { battle_flag: 'ws' }, op: 'set', value: 5 }},
+      { mutate: { target: { battle_flag: 'weapon_skill' }, op: 'set', value: 5 }},
     ],
   },
   // §23.B Group B: drums_of_death. Single-target instakill on the
@@ -193,16 +193,16 @@
       { engine_call: 'clw' },
       { for_member: { var: 'm', then: [
           { mutate: { target: { member_field: { idx: { var: 'm' },
-                                                field: 'ws' } },
+                                                field: 'weapon_skill' } },
                       op: 'add', value: 3 }},
           { mutate: { target: { member_field: { idx: { var: 'm' },
-                                                field: 'h' } },
+                                                field: 'health' } },
                       op: 'add', value: 3 }},
           { mutate: { target: { member_field: { idx: { var: 'm' },
-                                                field: 'ch' } },
+                                                field: 'charisma' } },
                       op: 'add', value: 3 }},
           { mutate: { target: { member_field: { idx: { var: 'm' },
-                                                field: 'wi' } },
+                                                field: 'wisdom' } },
                       op: 'add', value: 3 }},
       ]}},
     ],
@@ -260,7 +260,7 @@
                         args: [{ var: 'target' }, 0] },
                       { mutate: { target: { member_field: {
                                               idx: { var: 'target' },
-                                              field: 'hp' } },
+                                              field: 'hit_points' } },
                                   op: 'set', value: 1 }},
                       { engine_call: 'pa_set_inventory',
                         args: [{ var: 'inv_slot' }, 0] },

@@ -156,9 +156,9 @@
                 '1. Fighter 2. Thief',
                 '3. Mage    4. Priest',
                 '5. Bard    6. Ranger'],
-    ws_low:    ['Weap. skill must be > 50.'],
-    wi_low:    ['Wisdom must be > 50.'],
-    ch_low:    ['Charisma must be > 50.'],
+    weapon_skill_low: ['Weap. skill must be > 50.'],
+    wisdom_low:       ['Wisdom must be > 50.'],
+    charisma_low:     ['Charisma must be > 50.'],
     saving:    ['Saving...'],
   },
 
