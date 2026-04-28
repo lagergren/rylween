@@ -5726,3 +5726,85 @@ encounter / reward formulas (`encounter_h1_scaled`,
 `reward_gold_party`), and the formula bodies use multi-`{var:N}`
 arg lists.
 
+
+### Ydarg full DSL lift end-to-end closure (2026-04-28 #11..#13)
+
+**§12.4 residual "Ydarg as a regular mission" closes
+end-to-end** across two background-agent runs (#11 and #13).
+Combined with the moderate-path landing (#10's `776b02c`) the
+full sequence is twelve commits over three sessions:
+
+  - `776b02c` (#10) — moderate path: Ydarg lifts into the
+    mission-trigger framework as `mission_triggers[]` entry 17
+    (`{.where = MW_ENTER_KEY, .kind = MG_TILE_AT_POS,
+    .tile_class = "castle", .pos_path = "ydarg.entry",
+    .action = MA_C_FN, .fn = ydarg}`). The bespoke "if (player
+    at 14,30 on castle tile) { ydarg(); return; }" block leaves
+    `towne.c::enter()` and lands in the mission table.
+  - `c758874..914b8c1` (#11, agent commits 1-4) — silverkey
+    gate split into `MG_SPECIAL_EQ` trigger arms; intro narration
+    → `ydarg.intro` script; `confrontation()` → `ydarg.confrontation`
+    + 3 engine_call backers + new `narrate` DSL op; case 1
+    (monster room) → `ydarg.room_monster` script. ydarg.c
+    456 → 423 lines (-33).
+  - `c3ea341..db43423` (#13, agent commits 1-8) — full lift:
+    1. Hoist `xl/yl/lvl/room[][]` to module-level `struct
+       ydarg_state g_ydarg`. Shape A — file-scope statics +
+       narrow engine_call/engine_int wrappers; matches the
+       existing `ydarg_run_seq` / `ydarg_record_completion` /
+       `ydarg_finalize` pattern. Threading state through DSL
+       `with:` bindings would have round-tripped every mutation
+       back through C.
+    2. Register state accessors as engine_int / engine_call ops.
+    3. Case 2 (pitfall) → `ydarg.case_pitfall` script +
+       `ydarg_pitfall_undisarmed_apply` backer.
+    4. Case 3 (treasure) → `ydarg.case_treasure` +
+       `ydarg_treasure_roll` engine_int.
+    5. Case 50 (stairs) → `ydarg.case_stairs` +
+       `ydarg_stairs_try_give` / `ydarg_teleport_exit` +
+       exit_requested side-channel.
+    6. Nav-render block → `ydarg.nav_render` script (clw +
+       statusline + coords + level + floor + compass).
+    7. Character-command dispatch → `ydarg.cmd_dispatch` +
+       6 new engine_calls (help / armouroff / weaponoff / drop
+       / quaff / spell) + `ydarg_view_command` backer.
+    8. Per-floor `while(1)` → `ydarg.main` script. **`ydarg()`
+       is now a one-line trampoline** `play_script("ydarg.main",
+       NULL)`.
+  - `72d8cc8` (#13, foreground) — clangd unused-includes sweep
+    post-lift. Drops `ryl.h` (zero pic-constant references —
+    the legacy `blitgfx(ydargpic)` etc. moved into engine_call
+    backers that route through other headers) + `towne.h`
+    (zero `enter` / `rumour` / `object` / `obdamage` callsites —
+    `object()` moved into a treasure-script engine_call). Pulls
+    `compat.h` and `<ctype.h>` directly.
+
+**Final ydarg.c shape**: 354 lines (down from 456 originally).
+The C side is the `struct ydarg_state` definition, accessors,
+and ~11 thin engine_call backers exposed to DSL. Everything
+else — the navigation loop, the per-floor room dispatcher, the
+cases, the character-command keymap — lives in
+`data/world/scripts/ydarg.json5`.
+
+**Stayed in C as backers (with rationale)**:
+  - Trap-types slug-array RNG pick + per-alive damage divider
+    (no clean DSL idiom for slug-array→text-id).
+  - Treasure two-step gate→kind→lo/hi RNG pick (RNG identity
+    sensitive — moving it would shift the stream).
+  - Stairs item-tag → PS_* lookup + reject message rendering.
+  - Teleport vortex/outside/blank-blit (low-level rendering).
+  - V-command digit/Q/A key gate (key-loop primitive).
+
+**Pre-existing legacy bug preserved** (per the
+`feedback_preexisting_bug_fixes.md` convention): the legacy
+`tx("You are at %dx%d.\r\n\r\n", xl, yl, lvl)` passes a stray
+third arg silently dropped by printf. The lift's `coords` text
+has only `{xl}` and `{yl}` placeholders, preserving the
+silent-drop verbatim.
+
+**Gates**: 44 fixtures byte-identical on `make check` +
+`make testasan` at every commit; `make format` clean throughout.
+No fixture rebless — the
+`ydarg-confrontation` / `ydarg-arrow-keys` / `ydarg-no-key`
+fixtures all stayed at 184872 / 184872 / 36179 bytes
+respectively.

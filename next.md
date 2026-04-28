@@ -1,134 +1,152 @@
-Continuation prompt (start of session 2026-04-28 #13)
+Continuation prompt (start of session 2026-04-28 #14)
 
-Branch lagergren/port1, HEAD a70feab (plus an unpushed plan + this
-next.md commit landing at session-end). 44 replay fixtures green on
-make check + make testasan; format clean. Working tree clean.
-Session #12 closed two commits (16e0ee3..a70feab):
+Branch lagergren/port1, HEAD 72d8cc8 (plus an unpushed plan +
+this next.md commit landing at session-end). 44 replay fixtures
+green on make check + make testasan; format clean. Working tree
+clean.
 
-  - 16e0ee3 §12.3: heap-allocate inner per-record byte arrays off
-    res_party_slot_max(). struct party.attack_today and struct
-    person.visited flip from `[PARTY_SLOT_HARD_MAX]` inline arrays
-    to `unsigned char *` heap pointers. attack_today via
-    party_realize / party_release_members / party_clear_heap_pointers
-    (sized to res_party_slot_max()). visited via per-NPC alloc loop
-    inside res_load_world right after `state.npc = calloc(...)`,
-    and a symmetric free loop at the head of res_shutdown (runs
-    before npc_slot_max_invalidate so for_each_npc still resolves).
-    npc_visited / npc_visited_set asserts swap from
-    `sizeof n.p->visited` (was 1, became 8 after the pointer flip)
-    to `res_party_slot_max()`. driv.c's two save/load width args
-    (PARTY_SLOT_HARD_MAX → res_party_slot_max()). 44 fixtures
-    byte-identical at the default cap (26 == PARTY_SLOT_HARD_MAX);
-    save format only changes if a future world raises
-    limits.party_slot_max past it. Closes §12.3 cap-flip queue on
-    the storage side.
-  - a70feab clangd unused-includes follow-up — compat.c, primitives.c.
-    Same shape as 7671ea5 / 83814b7 from earlier sessions. compat.c
-    drops `ryl.h` (only depends on compat.h + runtime_cfg.h's
-    rcfg_get); pulls `<assert.h>` directly to replace what the now-
-    gone ryl.h chain transited. primitives.c drops `ryl.h` and pulls
-    `compat.h` directly so ryl_random / stricmp resolve. ryl.h now
-    keeps only its real users: battle.c / dungeon.c / subs.c /
-    towne.c / ydarg.c (each reaches for the pic constants) plus
-    ryl.c (defines _version_string).
+Session #13 was massive — fourteen commits closed five major
+work items end-to-end (`376f6bf..72d8cc8`):
 
-Static-cap landscape after #12: every party-slot-indexed BUFFER is
-heap-allocated off res_party_slot_max(). What still ties the data
-knob to the compile-time PARTY_SLOT_HARD_MAX is the on-stack
-locals + bounds checks: subs.c::scorelist seven local arrays
-(pts/lvl/kills/pname/lname/cls/item/pnr/temp_ubyte all sized to
-PARTY_SLOT_HARD_MAX); party.c::party_at's range check;
-state.h:303 `assert(state.cpl < PARTY_SLOT_HARD_MAX)`; snapshot.c's
-party-slot guard; and the fold_limits clamp itself
-(`psm->u.iv > PARTY_SLOT_HARD_MAX → res_die`). Until those flip,
-limits.party_slot_max can't go above 26 in practice.
+  - 376f6bf §20.14 S10: map dims to data — map.rows_max /
+    map.cols_max in world.json5. state.map flips from
+    `char (*map)[MAP_COLS_HARD_MAX]` to flat `char *map` 1D
+    buffer of res_map_rows_max() × res_map_cols_max() bytes.
+    wld.c is the sole consumer that knows the stride.
+  - bfd2265 §12.3 final cap-flip: limits.party_slot_max
+    unbounded above. fold_limits clamp drops to `>= 2` only.
+    subs.c::scorelist heap-alloc with cleanup-label pattern;
+    party_at / snapshot.c / state.h:317 cpl assert all flip to
+    res_party_slot_max(). Smoke-tested with party_slot_max=30
+    — boots cleanly, fixtures byte-identical.
+  - 1ea80b2 plan move-out: §12.3 + §20.14 S10/S11 closure
+    section appended to port-plan-complete.md.
+  - d9b9c6b fold_map_dims defensive validation
+    (`map.rows >= map.rows_max` -> res_die) + clangd cleanup
+    (drops unused ryl.h from gfx.c, interact.c).
+  - 5778669 driv.c: lift `time_left = 175` daily-rollover
+    budget to data via new driv.daily.time_left knob (sibling
+    of existing driv.start.time_left: 200). Last item from
+    feedback_battle_data_extraction.md queue.
+  - c3ea341..db43423 Ydarg full DSL lift — eight commits via
+    background agent. Hoists xl/yl/lvl/room[][] to module-
+    level `struct ydarg_state g_ydarg`; lifts cases 2/3/50,
+    nav-render, cmd_dispatch (T/P/L/W/R/Q/Z/V), and the per-
+    floor while(1) driver into DSL scripts. **`ydarg()` is
+    now a one-line trampoline** `play_script("ydarg.main",
+    NULL)`. src/ydarg.c 423 → 354 lines.
+  - 72d8cc8 ydarg.c clangd unused-includes sweep post-lift.
+    Drops ryl.h + towne.h (zero pic-constant + zero
+    enter/rumour/object/obdamage callsites after the lift);
+    pulls compat.h + <ctype.h> directly. ryl.h now retains
+    only its real users: battle.c / dungeon.c / subs.c /
+    towne.c (each reaches for the pic constants) plus ryl.c
+    itself (defines _version_string).
 
-Pick one of these for #13. Listed in priority order from
-port-plan-incomplete.md "Recommended next session":
+Status after #13:
 
-1. Ydarg DSL lift continuation (2-3 sessions remaining). Cases 2
-   (pitfall), 3 (treasure), 50 (stairs) + the per-floor while(1)
-   navigation driver + the character-command dispatch
-   (T/P/L/W/R/Q/Z/V during ydarg movement). The #11 agent's report
-   flagged the blocker: function-local state (xl, yl, lvl,
-   room[][]) needs hoisting to module-level OR threaded through
-   new DSL state primitives like ydarg_consume_room_at /
-   ydarg_set_lvl before any of those cases can move cleanly. Pick
-   this up by deciding the hoist shape first, then cases 2 / 3 / 50
-   fall in sequence. Last open piece from §12.4 ydarg residual.
+§12.3 cap-flip queue: **fully closed**. Every party-slot-
+indexed buffer is heap-allocated off res_party_slot_max();
+state.map sized off res_map_*_max(); fold_limits clamps to
+`>= 2` only. PARTY_SLOT_HARD_MAX is now just the default
+value, not a ceiling. NPC_SLOT_HARD_MAX still functions as a
+defensive ceiling because random-NPC RNG identity depends on
+the bin count.
 
-2. §20.14 S10 — map dimensions to data. With state.map[][]
-   heap-allocated (since #11), the natural follow-up: replace
-   MAP_ROWS_HARD_MAX / MAP_COLS_HARD_MAX with world.json5 map.rows_max
-   / map.cols_max reads, sized at calloc time. Type-shape catch:
-   state.map's current type is `char (*map)[MAP_COLS_HARD_MAX]` —
-   the inner row width is type-level, so making cols dynamic
-   requires either (a) flat 1D buffer with manual stride threaded
-   through every wld.c access site, or (b) flexible-array-member
-   trick. All current map accesses already go through wld.c
-   helpers, so the change is localized — wld_tile_at, wld_set_tile_at,
-   wld_load_row are the only sites needing the stride argument.
+§20.14: S10 done, S11 done. The remaining S* entries are
+small (S6-S9) or already done (S5).
 
-3. §12.3 final cap-flip — limits.party_slot_max > 26 unlock
-   (post-#12 follow-up). To make the data knob actually accept >26,
-   lift the remaining PARTY_SLOT_HARD_MAX-shaped sites:
-   subs.c::scorelist's seven on-stack arrays (pts/lvl/kills + the
-   four [N][30] / [N][5] / [N][6] strings + pnr + temp_ubyte) →
-   heap-allocate off res_party_slot_max(); the bounds checks in
-   party.c::party_at and snapshot.c → flip to res_party_slot_max();
-   state.h:303 cpl assert → same; fold_limits clamp → drop the
-   upper-bound res_die. Niche unlock — no fixture exercises >26
-   today — but it closes the conceptual loop.
+§12.4 ydarg residual: **fully closed**. `ydarg()` is a
+trampoline; all gameplay logic in DSL.
 
-4. §20.14 S11 — formula DSL with binding maps (deferred at S11 in
-   §20.14, last touched 2026-04-25). res_formula_int extension to
-   accept a binding map (or res_eval_expr_with(name, bindings, n)).
-   Required before lifting battle.c reward / encounter formulas
-   to data; pattern then extends to dungeon.c chest-gold, hunt
-   fdplus, subs.c starve damage, etc.
+ryl.h sweep: complete. Files that include ryl.h all
+genuinely use pic constants (battle.c, dungeon.c, subs.c,
+towne.c) or define _version_string (ryl.c).
 
-5. Smaller polish items (any-time, no sequencing constraint):
-   - subs.c data-side temp-damage: `temp_low_damage: 5` and
-     `temp_very_low_damage: 5` in data/world.json5 are intentionally
-     captured as data but identical (matches plan §20.5's "possible
-     bug" note from a year ago). Whether the very-low arm should
-     hit harder is a balance/design question; would rebless
+Pick one for #14. The queue is greenfield — no in-flight
+work blocks anything below:
+
+1. **WLD_LOCATION_SLOT_MAX = 15 / WLD_RANDOM_LOCATION_MAX = 9
+   cap-flip** (small; same shape as §12.3). Heap-allocate
+   state.dx[] / state.dy[] off a new
+   limits.location_slot_max knob (default 15), and source
+   WLD_RANDOM_LOCATION_MAX (driv.c position_locations loop
+   bound) from limits.random_location_max (default 9). Five
+   callsites in driv.c + two in wld.c. Niche unlock today —
+   no in-flight feature blocks on it — but closes the last
+   of the static caps in struct ryl_state.
+
+2. **L2 — dungeon.c level-event switch** (port-plan §20
+   LARGE entry; multi-session epic). dungeon.c:117-803 is
+   the ~700-LOC switch (lvl[cl]) over 0..38 dispatching per-
+   encounter logic. Already partially data-driven:
+   res_enum("dungeon_encounter", ...) and play_script
+   ("dungeon.<sym>", ...) are wired (commit 1962bd9). The
+   remaining inline arms are per-encounter parameters (gold
+   ranges, monster spawns, riddle text, item drops). Worth
+   surveying which arms still have inline logic vs already
+   in DSL — that survey is the first session's deliverable.
+
+3. **subs.c::rumour() table → data**. ryl_random(0, 32)
+   then a 33-case switch over rumour ids, each emitting
+   bespoke text + var bindings (NPC names / locations).
+   Texts are already sharded; lifting to a single DSL
+   `rumour.dispatch` script + a `rumours: [{id, text,
+   bindings}, ...]` data table compresses the C body. The
+   numbered rumour-id enum already exists in towne.c
+   (RUMOUR_HARRY_TEMPLE = 27 etc.).
+
+4. **subs.c::spell priest-spell list rendering** (low
+   priority). Two column-aligned tx() lines emit the spell
+   list as a fixed grid; lift to a `spell.priest.list`
+   script that walks res_class_spells("priest"). Wait until
+   a generalisation surfaces.
+
+5. **Smaller polish items (any-time, no sequencing):**
+   - balance.rest.temp_low_damage: 5 vs temp_very_low_damage:
+     5 — port-plan §20.5's "possible bug" note; balance/
+     design question. Whether the very-low arm should hit
+     harder is a user judgement call; would rebless
      wilderness-camp snapshot.
-   - Extend `class:` to unclassified terrain entries ('s' / 'f' /
-     'd' / 't' / 'g') if a callsite ever needs them. Currently none
-     does.
+   - Extend `class:` to unclassified terrain entries
+     ('s' / 'f' / 'd' / 't' / 'g') if a callsite ever needs
+     them. Currently none does.
 
 Memory worth re-reading (auto-loaded into context):
-  - feedback_state_abstraction.md — pa_*/pm_*/inv_*/res_* helpers,
-    not raw state.p[...]. Critical for any new C touching parties.
-  - feedback_background_agents.md — for background agents in this
-    repo, /tmp + patch, NEVER worktree isolation. The #11 ydarg
-    agent used this pattern correctly (4 commits + clean patch).
+  - feedback_state_abstraction.md — pa_*/pm_*/inv_*/res_*
+    helpers, never raw state.p[...]. Critical for any new C
+    touching parties.
+  - feedback_background_agents.md — for background agents in
+    this repo, /tmp + patch, NEVER worktree isolation.
+    Sessions #11 (4 commits) and #13 (8 commits) both used
+    this pattern for ydarg lifts; both applied cleanly via
+    git am.
   - feedback_clangd_real_vs_stale.md — verify clangd via cc
-    -Werror=... before deflecting. #12 saw the same stale pm_lv
-    / pm_hp / pm_cl warnings (post-#8 rename leftovers); the
-    compat.c / primitives.c [unused-includes] hits, by contrast,
-    were real and got swept (a70feab).
-  - project_per_member_shape.md — struct party_member AoS shape;
-    full-word fields; offsetof dispatch.
+    -Werror=... before deflecting. #13 saw clangd hallucinate
+    `ydarg_state_init` / `ydarg_try_move` references that
+    didn't exist in the file — verified with cc syntax-only,
+    were stale cache.
+  - feedback_battle_data_extraction.md — catalog of code-as-
+    data extraction targets. After #13 every catalog item is
+    closed (last one was time_left = 175).
 
 Reading order in repo:
-  - port-plan.md TOC — section index, status column.
+  - port-plan.md TOC.
   - port-plan-incomplete.md "Top of queue (status snapshot,
-    2026-04-28 #12)" + "Recommended next session".
-  - port-plan-complete.md — bodies for the #10 closures
-    (§-anchor cross-references still resolve). #11 + #12 commit-
-    message bodies move here on next session-end sweep.
+    2026-04-28 #13)" + "Recommended next session".
+  - port-plan-complete.md — bodies for the §12.3 + §20.14 +
+    Ydarg full DSL closures (all in the tail of the file).
 
-Per-session bar: make check + make testasan + make format all
-green at every commit. Per AGENTS.md: never push without explicit
-user approval; no Co-Authored-By lines; inline single-newline file
-endings; fix root causes, not symptoms; don't add speculative
-changes.
+Per-session bar: make check + make testasan + make format
+all green at every commit. Per AGENTS.md: never push without
+explicit user approval; no Co-Authored-By lines; inline
+single-newline file endings; fix root causes, not symptoms;
+don't add speculative changes.
 
 Begin by reading port-plan-incomplete.md "Top of queue" and
-"Recommended next session", then ask which item to take, or pick
-#1 (Ydarg DSL lift continuation) as the default since it's the
-last open piece of §12.4 and the #11 agent left a clear hand-off
-in its report. If #1 is too design-heavy for the session length,
-fall through to #2 (map dims to data — concrete and localized).
+"Recommended next session", then ask which item to take.
+Default pick: **#1 (WLD_LOCATION_SLOT_MAX cap-flip)** — small
+session-sized task that completes the §12.3 pattern across
+the last static cap in struct ryl_state. **#2 (L2 dungeon
+extraction)** is the higher-impact alternative if the user
+wants to start a multi-session epic.
