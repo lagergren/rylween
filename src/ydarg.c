@@ -8,6 +8,7 @@
 #include "primitives.h"
 #include "replay_knobs.h"
 #include "res.h"
+#include "script.h"
 #include "subs.h"
 #include "towne.h"
 #include "wld.h"
@@ -23,25 +24,10 @@ void ydarg() {
 
     /* silverkey == 0 (no_key) and silverkey == 2 (ruin) are now
        handled by the MG_SPECIAL_EQ triggers in missions.c —
-       ydarg() only runs for silverkey == 1 (legitimate entry). */
-    clr_map_window();
-    blitgfx(ydargpic);
-    clw();
-    tx0(res_text("ydarg.approach"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.jaara_form"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.jaara_speech"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.key_accepted"));
-    ryl_pause();
-    clw();
-    tx0(res_text("ydarg.enter"));
-    ryl_pause();
-    clw();
+       ydarg() only runs for silverkey == 1 (legitimate entry).
+       The approach / Jaara / key_accepted / enter / door_slams
+       narration is the ydarg.intro DSL play_script. */
+    play_script("ydarg.intro", NULL);
 
     /*
 		Bracelets of Thun
@@ -65,9 +51,6 @@ void ydarg() {
 
 	*/
 
-    tx0(res_text("ydarg.door_slams"));
-    ryl_delay(2000);
-    clw();
     lvl = 1;
     xl = 1;
     yl = 1;

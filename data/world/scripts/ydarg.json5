@@ -40,4 +40,24 @@
     { engine_call: 'clr_map_window' },
     { engine_call: 'update_map' },
   ],
+
+  // silverkey == 1 (legitimate entry) intro: clr_map_window +
+  // blitgfx + the four narration screens (approach / jaara_form /
+  // jaara_speech / key_accepted / enter) followed by the door-slams
+  // screen which delays 2000ms before falling through to the per-
+  // floor walk-through. ydarg() invokes this as `play_script("ydarg.intro")`
+  // before the room-init + while-loop dispatcher.
+  intro: [
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [14] },
+    { engine_call: 'clw' },
+    { screen: 'approach' },
+    { screen: 'jaara_form' },
+    { screen: 'jaara_speech' },
+    { screen: 'key_accepted' },
+    { screen: 'enter' },
+    { emit: 'door_slams' },
+    { pause: 2000 },
+    { engine_call: 'clw' },
+  ],
 }
