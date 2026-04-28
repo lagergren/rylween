@@ -13,7 +13,7 @@
 #include <syslog.h>
 #include <unistd.h>
 
-#include "compat.h" /* getclk, ryl_state_path */
+#include "compat.h" /* clock_now, ryl_state_path */
 #include "runtime_cfg.h"
 
 #ifndef MSG_NOSIGNAL
@@ -516,7 +516,7 @@ static unsigned resolve_mask(void) {
 
 static void emit_audit(const char *body) {
     /* Same format as the pre-§24 ryl_log() so existing
-       data/rylween.log readers stay byte-compatible. getclk() honors
+       data/rylween.log readers stay byte-compatible. clock_now() honors
        RYL_FAKE_EPOCH; the audit file is reproducible under replay. */
     static const char *months[13] = {
         "",
@@ -533,9 +533,9 @@ static void emit_audit(const char *body) {
         "Nov",
         "Dec",
     };
-    char kl[8];
-    getclk(kl);
-    int m = kl[2];
+    struct wall_clock c;
+    clock_now(&c);
+    int m = c.month;
     if (m < 1 || m > 12) {
         m = 0;
     }
@@ -545,8 +545,8 @@ static void emit_audit(const char *body) {
     if (!fh) {
         return;
     }
-    fprintf(fh, "%s %2d %2d:%02d %s\n", months[m], (int)kl[3], (int)kl[4],
-            (int)kl[5], body);
+    fprintf(fh, "%s %2d %2d:%02d %s\n", months[m], c.day, c.hour, c.minute,
+            body);
     fclose(fh);
 }
 

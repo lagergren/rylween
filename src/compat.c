@@ -134,22 +134,46 @@ int ryl_chance(int pct) {
     return ryl_random(1, 100) <= pct;
 }
 
-void getclk(char *kl) {
+void clock_now(struct wall_clock *out) {
+    *out = (struct wall_clock){0};
     time_t now = ryl_time(NULL);
     struct tm *tm = localtime(&now);
-
-    memset(kl, 0, 8);
     if (!tm) {
         return;
     }
+    out->year = tm->tm_year + 1900;
+    out->month = tm->tm_mon + 1;
+    out->day = tm->tm_mday;
+    out->hour = tm->tm_hour;
+    out->minute = tm->tm_min;
+    out->second = tm->tm_sec;
+    out->weekday = tm->tm_wday;
+}
 
-    kl[1] = (char)(tm->tm_year - 80);
-    kl[2] = (char)(tm->tm_mon + 1);
-    kl[3] = (char)tm->tm_mday;
-    kl[4] = (char)tm->tm_hour;
-    kl[5] = (char)tm->tm_min;
-    kl[6] = (char)tm->tm_wday;
-    kl[7] = (char)tm->tm_sec;
+int clock_year(void) {
+    struct wall_clock c;
+    clock_now(&c);
+    return c.year;
+}
+int clock_month(void) {
+    struct wall_clock c;
+    clock_now(&c);
+    return c.month;
+}
+int clock_day(void) {
+    struct wall_clock c;
+    clock_now(&c);
+    return c.day;
+}
+int clock_hour(void) {
+    struct wall_clock c;
+    clock_now(&c);
+    return c.hour;
+}
+int clock_minute(void) {
+    struct wall_clock c;
+    clock_now(&c);
+    return c.minute;
 }
 
 void str_append(char *dst, size_t dst_sz, const char *src) {

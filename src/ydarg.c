@@ -397,7 +397,6 @@ void ydarg() {
 static void confrontation() {
     FILE *fh;
     char str[80];
-    char kl[8];
     char path[512];
     const char *mstr;
 
@@ -439,11 +438,15 @@ static void confrontation() {
         return;
     }
 
-    getclk(kl);
-    mstr = res_enum("month", kl[2]);
+    struct wall_clock c;
+    clock_now(&c);
+    mstr = res_enum("month", c.month);
 
-    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", pa_party_name(), mstr, kl[3],
-             kl[1] + 80);
+    /* Legacy "19%d" + (year - 1900) idiom preserved verbatim — the Y2K
+       cosmetic bug is documented at compat.h and out of scope for this
+       lift. */
+    snprintf(str, sizeof str, "  %s defeated baron Ydarg %s %d, 19%d\n", pa_party_name(), mstr, c.day,
+             c.year - 1900);
     fputs(str, fh);
     fclose(fh);
     cleanexit();

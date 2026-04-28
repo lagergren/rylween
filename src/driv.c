@@ -345,7 +345,7 @@ static void position_locations() {
 }
 
 void init() {
-    char str[90], kl[8], path[512], d, ch;
+    char str[90], path[512], d, ch;
     FILE *fh;
     uint8_t abort = 0, x = 0, i, j = 0;
 
@@ -384,8 +384,7 @@ void init() {
     tx0(res_text("driv.more"));
     key();
 
-    getclk(kl);
-    if (kl[3] != session_last_played_day()) {
+    if (clock_day() != session_last_played_day()) {
         cl();
         tx0(res_text("driv.init.first_day"));
 
@@ -400,12 +399,10 @@ void init() {
             party_at(i)->time_left = 175;
             ryl_delay(40);
         }
-        getclk(kl);
-        session_set_day_at_game_start(kl[3]);
+        session_set_day_at_game_start(clock_day());
         save();
     }
-    getclk(kl);
-    session_set_day_at_game_start(kl[3]);
+    session_set_day_at_game_start(clock_day());
 
     cl();
     res_ansi_path("screen", path, sizeof path);
@@ -1414,11 +1411,7 @@ static int read_current_world() {
 }
 
 void save() {
-    char kl[8];
-
-    getclk(kl);
-    session_set_last_played_day(kl[3]);
-
+    session_set_last_played_day(clock_day());
     write_current_world();
 }
 

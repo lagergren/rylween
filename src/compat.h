@@ -11,15 +11,30 @@
    (50 ticks/sec, i.e. 20 ms per tick); migrate Delay(N) -> ryl_delay(N*20). */
 void ryl_delay(unsigned ms);
 
-/* Amiga getclk() populated an 8-byte array. Index contract (audited):
-     kl[1] = year - 1980   (preserves "19%d" + kl[1]+80 idiom; Y2K cosmetic)
-     kl[2] = month 1..12
-     kl[3] = day of month 1..31
-     kl[4] = hour 0..23
-     kl[5] = minute 0..59
-     kl[7] = second 0..59
-   Other slots are zero-filled. */
-void getclk(char *kl);
+/* Wall-clock helpers. Replace the legacy Amiga getclk() + kl[N] array
+   contract with named fields. clock_now() takes one localtime() snapshot
+   into the struct so multi-field reads see consistent values; the
+   single-field shorthands (clock_day, etc.) call localtime each time
+   and are intended for sites that read just one field.
+
+   Honors RYL_FAKE_EPOCH (set in fixture .env files) for deterministic
+   replay. clock_year() returns the full 4-digit year (e.g. 2026); the
+   legacy kl[1] year-1980 encoding is gone. */
+struct wall_clock {
+    int year;    /* full 4-digit (e.g. 2026) */
+    int month;   /* 1..12 */
+    int day;     /* 1..31 */
+    int hour;    /* 0..23 */
+    int minute;  /* 0..59 */
+    int second;  /* 0..59 */
+    int weekday; /* 0..6, Sunday=0 */
+};
+void clock_now(struct wall_clock *out);
+int clock_year(void);
+int clock_month(void);
+int clock_day(void);
+int clock_hour(void);
+int clock_minute(void);
 
 /* The old porting.h aliased stricmp -> strcmp, which broke case-insensitive
    menu handling. Route to strcasecmp instead. */
