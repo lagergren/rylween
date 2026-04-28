@@ -10,16 +10,35 @@
 #   docker build --target tester -t rylween-test .   # build through the gate stage only
 #   docker run --rm -it rylween "Player Name"        # play
 
+# Pinned LLVM major. Bump when a new stable cuts; keep in lock-step
+# with the GitHub workflow so the Linux gate, the Linux format leg,
+# and macOS brew (which tracks current stable) all run the same major.
+ARG LLVM_VERSION=22
+
 # ---------------------------------------------------------------------
 # Stage 1: builder — compile both the stock and ASan binaries.
 # ---------------------------------------------------------------------
+# debian:stable's apt only ships clang-19; pull current LLVM from the
+# upstream apt repo instead so the image runs the same major as macOS
+# brew. `llvm.sh` is the official one-shot installer.
 FROM debian:stable-slim AS builder
+
+ARG LLVM_VERSION
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        clang \
+        ca-certificates \
+        gnupg \
+        lsb-release \
         make \
+        wget \
+    && wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh \
+    && chmod +x /tmp/llvm.sh \
+    && /tmp/llvm.sh ${LLVM_VERSION} \
+    && rm /tmp/llvm.sh \
+    && ln -sf /usr/bin/clang-${LLVM_VERSION} /usr/local/bin/clang \
+    && ln -sf /usr/bin/clang++-${LLVM_VERSION} /usr/local/bin/clang++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
@@ -33,18 +52,28 @@ RUN make clean && make build && make asan
 # ---------------------------------------------------------------------
 # Stage 2: tester — run the gates so `docker build` fails on regression.
 # ---------------------------------------------------------------------
-# Same base as builder so the toolchain that produced the ASan binary
-# is available for libasan / libubsan symbol resolution if a fixture
-# trips a sanitiser. clang-format pulled in for the format dry-run.
+# Same base + same LLVM as builder so libasan / libubsan symbols
+# resolve, plus clang-format ${LLVM_VERSION} for the format dry-run.
 FROM debian:stable-slim AS tester
+
+ARG LLVM_VERSION
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bash \
-        clang-format \
-        gcc \
+        ca-certificates \
+        gnupg \
+        lsb-release \
         libc6-dev \
         make \
+        wget \
+    && wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh \
+    && chmod +x /tmp/llvm.sh \
+    && /tmp/llvm.sh ${LLVM_VERSION} \
+    && apt-get install -y --no-install-recommends clang-format-${LLVM_VERSION} \
+    && rm /tmp/llvm.sh \
+    && ln -sf /usr/bin/clang-${LLVM_VERSION} /usr/local/bin/clang \
+    && ln -sf /usr/bin/clang-format-${LLVM_VERSION} /usr/local/bin/clang-format \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src

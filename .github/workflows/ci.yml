@@ -2,6 +2,9 @@
 # port-plan §12.1. macOS apple-clang ASan ships without LeakSanitizer,
 # so the Ubuntu leg is the authoritative leak gate; macOS is a
 # scorecard.
+#
+# LLVM_VERSION is pinned to the same major as the Dockerfile and as
+# macOS brew's current default — bump in lock-step.
 
 name: ci
 
@@ -9,6 +12,9 @@ on:
   push:
     branches: ['**']
   pull_request:
+
+env:
+  LLVM_VERSION: '22'
 
 jobs:
   linux:
@@ -26,7 +32,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-              build-essential clang clang-format
+              build-essential ca-certificates gnupg lsb-release wget
+          # Latest LLVM from upstream apt repo (apt's clang is older).
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          sudo bash /tmp/llvm.sh ${{ env.LLVM_VERSION }}
+          sudo ln -sf /usr/bin/clang-${{ env.LLVM_VERSION }} /usr/local/bin/clang
+          if [ "${{ matrix.cc }}" = "clang" ]; then
+              echo "CC=/usr/local/bin/clang" >> "$GITHUB_ENV"
+          fi
 
       - name: build
         run: make build
@@ -45,7 +58,12 @@ jobs:
       - name: install clang-format
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-format
+          sudo apt-get install -y --no-install-recommends \
+              ca-certificates gnupg lsb-release wget
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          sudo bash /tmp/llvm.sh ${{ env.LLVM_VERSION }}
+          sudo apt-get install -y --no-install-recommends clang-format-${{ env.LLVM_VERSION }}
+          sudo ln -sf /usr/bin/clang-format-${{ env.LLVM_VERSION }} /usr/local/bin/clang-format
 
       - name: format dry-run
         run: make format
