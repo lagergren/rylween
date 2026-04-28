@@ -906,14 +906,27 @@ static void write_current_world() {
         fprintf(f, "      waiting_mail: %u,\n", p->waiting_mail);
         fprintf(f, "      attacked: %u,\n", p->attacked);
         fprintf(f, "      kills: %u,\n", p->kills);
-        fputs("      visited_npcs: [", f);
-        for (int j = 0; j < res_npc_slot_max(); j++) {
-            if (j > 0) {
-                fputs(", ", f);
+        /* visited_npcs: slug-keyed object so the save survives an NPC
+           reorder or rename in data/world.json5 without re-keying every
+           party's per-NPC visited grid. The reader (read_current_world)
+           still accepts the legacy positional-array form for one
+           release; see the N_OBJ / N_ARR branch there. */
+        fputs("      visited_npcs: { ", f);
+        {
+            int first = 1;
+            for (int j = 0; j < res_npc_slot_max(); j++) {
+                const char *key = res_npc_sym(j);
+                if (!key) {
+                    continue;
+                }
+                if (!first) {
+                    fputs(", ", f);
+                }
+                fprintf(f, "%s: %u", key, (unsigned)npc_visited(npc_at_slot(j), i));
+                first = 0;
             }
-            fprintf(f, "%u", (unsigned)npc_visited(npc_at_slot(j), i));
         }
-        fputs("],\n", f);
+        fputs(" },\n", f);
         fputs("      journal: [", f);
         for (size_t j = 0; j < p->journal_n; j++) {
             if (j > 0) {
@@ -1269,7 +1282,39 @@ static int read_current_world() {
             p->kills = (uint32_t)rcw_int(pnode, "kills", p->kills);
 
             const node *vn = obj_get(pnode, "visited_npcs");
-            if (vn && vn->kind == N_ARR) {
+            if (vn && vn->kind == N_OBJ) {
+                /* New (slug-keyed) form: { garth: 0, hassan: 1, ... }.
+                   Resolve each key via res_npc_sym scan; a sym that
+                   matches no current slot means an NPC was removed
+                   from world.json5 since the save was written, so warn
+                   and skip rather than fatal-fail (res_npc_slot would
+                   exit(1) on miss). */
+                for (size_t j = 0; j < vn->u.obj.n; j++) {
+                    const char *key = vn->u.obj.items[j].key;
+                    const node *it = vn->u.obj.items[j].val;
+                    if (!key || !it || it->kind != N_INT) {
+                        continue;
+                    }
+                    int slot = -1;
+                    for (int s = 0; s < res_npc_slot_max(); s++) {
+                        const char *sym = res_npc_sym(s);
+                        if (sym && !strcmp(sym, key)) {
+                            slot = s;
+                            break;
+                        }
+                    }
+                    if (slot < 0) {
+                        LOG_W("driv", "load: visited_npcs: unknown NPC '%s' "
+                                      "(removed from world?); skipping",
+                              key);
+                        continue;
+                    }
+                    npc_visited_set(npc_at_slot(slot), i, (unsigned char)it->u.iv);
+                }
+            } else if (vn && vn->kind == N_ARR) {
+                /* Legacy positional form: [b0, b1, b2, ...]. Accepted
+                   for one release so saves predating the slug-keyed
+                   reshape still load. */
                 size_t cap = (size_t)res_npc_slot_max();
                 size_t nvn = vn->u.arr.n < cap ? vn->u.arr.n : cap;
                 for (size_t j = 0; j < nvn; j++) {
