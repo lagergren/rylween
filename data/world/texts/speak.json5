@@ -130,7 +130,7 @@
     jbard:       ['- Rumour has it that a', 'fighter called', '{fighter_name}', 'has a mission for you.'],
     jdrifter:       ["- Don't know anyone."],
     jhalf_orc:      ['- ME ALONE AND STRONG!'],
-    jhalf_elf:      ['- There are many huts', 'in the wilderness.'],
+    jhalf_elf:      ['- There are many huts', 'in the Wilderness.'],
     jsmith:      ["- Sorry, can't help ya."],
     jbargirl:      ['- Well...'],
     jinnkeeper:      ['- Want to meet interesting', 'travellers? Try the', 'inn or the tavern.'],
@@ -168,11 +168,11 @@
     jpriest:  ['- I hire a room at', 'the inn to meditate!'],
     jthief:  ['- I sleep in the shadows.'],
     jpeasant:  ['- I sleep in my own', 'room at my farm.'],
-    jbard:  ['- Imagine the beauty', 'and danger to camp in', 'the wilderness these days.'],
+    jbard:  ['- Imagine the beauty', 'and danger to camp in', 'the Wilderness these days.'],
     jdrifter:  ["- Look, why don't you", 'just _GO AWAY_???'],
     jhalf_orc: ['- ME NEVER GET TIRED!'],
     jhalf_elf: ['- I rent a room at the inn!'],
-    jsmith: ['- Well, sleeping at the', 'inn is often nicer than', 'in the wilderness.'],
+    jsmith: ['- Well, sleeping at the', 'inn is often nicer than', 'in the Wilderness.'],
 
     // jbargirl: whore. Price is 50 * lv[1] — {price} in the middle of the offer.
     jbargirl: {

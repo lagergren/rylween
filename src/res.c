@@ -1374,12 +1374,13 @@ const char *res_npc_in_town(int32_t twn, const char *job_sym) {
         if (res_enum_id("job", job_n->u.sv) != target_job) {
             continue;
         }
-        /* `twn_n` is the world.json5 string ('Thord' / 'wilderness' /
-           …); 'wilderness' is matched as a literal (post-§25.B step
-           3b/C4 it is no longer an enums.towne entry), real town
-           names route through res_enum_id which shares the
-           enums.towne ↔ towns[] index space. */
-        if (strcmp(twn_n->u.sv, "wilderness") == 0) {
+        /* `twn_n` is the world.json5 string ('Thord' / 'Wilderness' /
+           …); the wilderness sentinel is matched as a literal
+           (post-§25.B step 3b/C4 it is no longer an enums.towne
+           entry); real town names route through res_enum_id which
+           shares the enums.towne ↔ towns[] index space. stricmp
+           accepts both 'Wilderness' (canonical) and legacy lowercase. */
+        if (stricmp(twn_n->u.sv, "Wilderness") == 0) {
             if (twn != WILDERNESS_TOWN) {
                 continue;
             }
@@ -1611,14 +1612,16 @@ void res_realize_npcs(void) {
         const node *towne_node = obj_get(rec, "towne");
         if (towne_node) {
             /* FIXED: declared slot. Apply job/towne/building/x/y verbatim.
-               'wilderness' is recognized as a literal string and bridges
-               to the runtime sentinel WILDERNESS_TOWN — it is no longer
-               an enums.towne entry (dropped in §25.B step 3b/C4); real
-               town strings share the enums.towne ↔ towns[] index space
-               directly so the lookup returns the runtime slot id with
-               no offset. */
+               'Wilderness' (canonical, capital W) is recognized as a
+               literal string and bridges to the runtime sentinel
+               WILDERNESS_TOWN — it is no longer an enums.towne entry
+               (dropped in §25.B step 3b/C4); real town strings share
+               the enums.towne ↔ towns[] index space directly so the
+               lookup returns the runtime slot id with no offset.
+               stricmp accepts both the canonical form and legacy
+               lowercase 'wilderness'. */
             if (towne_node->kind == N_STR &&
-                strcmp(towne_node->u.sv, "wilderness") == 0) {
+                stricmp(towne_node->u.sv, "Wilderness") == 0) {
                 n->towne = WILDERNESS_TOWN;
             } else {
                 n->towne = rn_enum(rec, "towne", "towne", WILDERNESS_TOWN);
@@ -1691,7 +1694,7 @@ void res_realize_npcs(void) {
                                                             : npcs->u.obj.items[i].key;
             LOG_I("realm", "  realized random NPC '%s' -> slot %d in %s",
                   who, slot,
-                  n->towne == WILDERNESS_TOWN ? "wilderness"
+                  n->towne == WILDERNESS_TOWN ? "Wilderness"
                                               : towns[n->towne].name);
         }
     }

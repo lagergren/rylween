@@ -799,12 +799,14 @@ static void write_current_world() {
         wcw_enum(f, "job", n->job ? res_enum_id("job", n->job) : 0);
         fputs(", towne: ", f);
         /* WILDERNESS_TOWN serializes as the literal string
-           "wilderness" — independent of any enum entry, since §25.B
+           "Wilderness" — independent of any enum entry, since §25.B
            step 3b/C4 dropped the dedicated enums.towne slot. Real
            towns serialize as their enums.towne string, which now
-           lines up entry-for-entry with the towns[] array. */
+           lines up entry-for-entry with the towns[] array. The
+           reader accepts both "Wilderness" and the legacy lowercase
+           "wilderness" via stricmp for backward compatibility. */
         if (n->towne == WILDERNESS_TOWN) {
-            fputs("\"wilderness\"", f);
+            fputs("\"Wilderness\"", f);
         } else {
             wcw_enum(f, "towne", n->towne);
         }
@@ -1123,15 +1125,16 @@ static int read_current_world() {
                     n->job = (s && s[0]) ? s : NULL;
                 }
             }
-            /* Save format encodes wilderness as the literal string
-               "wilderness" (no longer an enums.towne entry post-
-               §25.B step 3b/C4); recognize it before falling
-               through to the enum lookup so the runtime sentinel
-               survives the round trip. Real towns share the
-               enums.towne ↔ towns[] index space directly now. */
+            /* Save format encodes the wilderness sentinel as the
+               literal string "Wilderness" (no longer an enums.towne
+               entry post-§25.B step 3b/C4); the reader accepts both
+               the new "Wilderness" form and legacy lowercase
+               "wilderness" via stricmp for backward compatibility.
+               Real towns share the enums.towne ↔ towns[] index
+               space directly now. */
             const node *twne_n = obj_get(rec, "towne");
             if (twne_n && twne_n->kind == N_STR &&
-                strcmp(twne_n->u.sv, "wilderness") == 0) {
+                stricmp(twne_n->u.sv, "Wilderness") == 0) {
                 n->towne = WILDERNESS_TOWN;
             } else {
                 n->towne = rcw_enum(rec, "towne", "towne", n->towne);
