@@ -1,152 +1,152 @@
 Continuation prompt (start of session 2026-04-28 #14)
 
-Branch lagergren/port1, HEAD 72d8cc8 (plus an unpushed plan +
-this next.md commit landing at session-end). 44 replay fixtures
-green on make check + make testasan; format clean. Working tree
-clean.
+Branch lagergren/port1, HEAD e7cbd71 (plus an unpushed plan + this
+next.md commit landing at session-end). 44 replay fixtures green
+on make check + make testasan; format clean. Working tree clean.
 
-Session #13 was massive — fourteen commits closed five major
-work items end-to-end (`376f6bf..72d8cc8`):
+Session #13 was massive (twenty commits cumulative,
+`376f6bf..e7cbd71`). #13 closed §12.3 fully + §20.14 S10/S11 +
+ydarg DSL lift end-to-end + time_left data lift; #13b closed
+every item from #13's recommended-next-session queue (#1..#5):
 
-  - 376f6bf §20.14 S10: map dims to data — map.rows_max /
-    map.cols_max in world.json5. state.map flips from
-    `char (*map)[MAP_COLS_HARD_MAX]` to flat `char *map` 1D
-    buffer of res_map_rows_max() × res_map_cols_max() bytes.
-    wld.c is the sole consumer that knows the stride.
-  - bfd2265 §12.3 final cap-flip: limits.party_slot_max
-    unbounded above. fold_limits clamp drops to `>= 2` only.
-    subs.c::scorelist heap-alloc with cleanup-label pattern;
-    party_at / snapshot.c / state.h:317 cpl assert all flip to
-    res_party_slot_max(). Smoke-tested with party_slot_max=30
-    — boots cleanly, fixtures byte-identical.
-  - 1ea80b2 plan move-out: §12.3 + §20.14 S10/S11 closure
-    section appended to port-plan-complete.md.
-  - d9b9c6b fold_map_dims defensive validation
-    (`map.rows >= map.rows_max` -> res_die) + clangd cleanup
-    (drops unused ryl.h from gfx.c, interact.c).
-  - 5778669 driv.c: lift `time_left = 175` daily-rollover
-    budget to data via new driv.daily.time_left knob (sibling
-    of existing driv.start.time_left: 200). Last item from
-    feedback_battle_data_extraction.md queue.
-  - c3ea341..db43423 Ydarg full DSL lift — eight commits via
-    background agent. Hoists xl/yl/lvl/room[][] to module-
-    level `struct ydarg_state g_ydarg`; lifts cases 2/3/50,
-    nav-render, cmd_dispatch (T/P/L/W/R/Q/Z/V), and the per-
-    floor while(1) driver into DSL scripts. **`ydarg()` is
-    now a one-line trampoline** `play_script("ydarg.main",
-    NULL)`. src/ydarg.c 423 → 354 lines.
-  - 72d8cc8 ydarg.c clangd unused-includes sweep post-lift.
-    Drops ryl.h + towne.h (zero pic-constant + zero
-    enter/rumour/object/obdamage callsites after the lift);
-    pulls compat.h + <ctype.h> directly. ryl.h now retains
-    only its real users: battle.c / dungeon.c / subs.c /
-    towne.c (each reaches for the pic constants) plus ryl.c
-    itself (defines _version_string).
+  - 855c138 WLD_LOCATION_SLOT_MAX / RANDOM_LOCATION_MAX cap-flip.
+    state.dx[] / state.dy[] flip from inline `int32_t [15]` to
+    heap pointers off res_location_slot_max(). New
+    `limits.location_slot_max` (default 15) +
+    `limits.random_location_max` (default 9) knobs in world.json5.
+    The wld.h enum constants retired entirely. Smoke-tested with
+    location_slot_max=20 / random_location_max=12. **No struct
+    ryl_state field is sized to a compile-time constant after
+    this commit.**
 
-Status after #13:
+  - fdb3d42 subs.c::spell: priest-spell list bound from data. New
+    res_class_spell_max(class_name) walks the priest_spells /
+    mage_spells tables; the loop bound + abort-key follow it.
 
-§12.3 cap-flip queue: **fully closed**. Every party-slot-
-indexed buffer is heap-allocated off res_party_slot_max();
-state.map sized off res_map_*_max(); fold_limits clamps to
-`>= 2` only. PARTY_SLOT_HARD_MAX is now just the default
-value, not a ceiling. NPC_SLOT_HARD_MAX still functions as a
-defensive ceiling because random-NPC RNG identity depends on
-the bin count.
+  - 21c9821..c7454ef rumour: 33-case switch → DSL (background
+    agent, 2 commits). New `rumour_roll` engine_int (preserves
+    RYL_REPLAY_RUMOUR semantics + the same RNG draw). New
+    towne.rumour script with emit_indexed default arm + 4 bound
+    arms reusing existing npc_name_at_role / npc_loc_at_role
+    helpers. **rumour() is a 3-line trampoline** down from 64
+    lines. The agent dropped runtime_cfg.h from towne.c too.
 
-§20.14: S10 done, S11 done. The remaining S* entries are
-small (S6-S9) or already done (S5).
+  - fdcae1d temp_low_damage / temp_very_low_damage doc
+    clarification. Settles port-plan §20.5's "possible bug"
+    tracking — it's authored-equal-by-design.
 
-§12.4 ydarg residual: **fully closed**. `ydarg()` is a
-trampoline; all gameplay logic in DSL.
+  - e7cbd71 §20 L2 closure (background agent's findings). The
+    L2 lift was already finished by `fc599b3` on 2026-04-25 — 29
+    cases all in DSL, src/dungeon.c is 182 LOC of pure dispatch.
+    Survey at /tmp/dungeon-l2-survey.md (kept outside the repo).
+    **Two latent bugs caught and fixed inline**:
+    (a) `enums.dungeon_encounter[1]` was 'object' but the script
+        is `find_object` → dispatcher would have died on slot 1
+        (unreachable in fixtures because seed 42 rolls slot 2).
+    (b) The script's `emit: 'find_object.found'` etc. had leading
+        dots that bypassed the <script_id>.<name> two-step,
+        rendering as blank screens. Stripped the redundant
+        prefix.
 
-ryl.h sweep: complete. Files that include ryl.h all
-genuinely use pic constants (battle.c, dungeon.c, subs.c,
-towne.c) or define _version_string (ryl.c).
+Status after #13 + #13b — every named §-anchor in the prior
+queue is now closed:
 
-Pick one for #14. The queue is greenfield — no in-flight
-work blocks anything below:
+§12.3 cap-flip queue: **fully closed**. Every party-slot-indexed
+buffer + map grid + state.dx/dy is heap-allocated off res_*_max();
+fold_limits clamps to `>= 2` only. PARTY_SLOT_HARD_MAX,
+MAP_*_HARD_MAX are defaults / defensive ceilings, not active caps.
 
-1. **WLD_LOCATION_SLOT_MAX = 15 / WLD_RANDOM_LOCATION_MAX = 9
-   cap-flip** (small; same shape as §12.3). Heap-allocate
-   state.dx[] / state.dy[] off a new
-   limits.location_slot_max knob (default 15), and source
-   WLD_RANDOM_LOCATION_MAX (driv.c position_locations loop
-   bound) from limits.random_location_max (default 9). Five
-   callsites in driv.c + two in wld.c. Niche unlock today —
-   no in-flight feature blocks on it — but closes the last
-   of the static caps in struct ryl_state.
+§20.14: S10 done, S11 done.
 
-2. **L2 — dungeon.c level-event switch** (port-plan §20
-   LARGE entry; multi-session epic). dungeon.c:117-803 is
-   the ~700-LOC switch (lvl[cl]) over 0..38 dispatching per-
-   encounter logic. Already partially data-driven:
-   res_enum("dungeon_encounter", ...) and play_script
-   ("dungeon.<sym>", ...) are wired (commit 1962bd9). The
-   remaining inline arms are per-encounter parameters (gold
-   ranges, monster spawns, riddle text, item drops). Worth
-   surveying which arms still have inline logic vs already
-   in DSL — that survey is the first session's deliverable.
+§12.4 ydarg residual: **fully closed**. ydarg() is a one-line
+trampoline.
 
-3. **subs.c::rumour() table → data**. ryl_random(0, 32)
-   then a 33-case switch over rumour ids, each emitting
-   bespoke text + var bindings (NPC names / locations).
-   Texts are already sharded; lifting to a single DSL
-   `rumour.dispatch` script + a `rumours: [{id, text,
-   bindings}, ...]` data table compresses the C body. The
-   numbered rumour-id enum already exists in towne.c
-   (RUMOUR_HARRY_TEMPLE = 27 etc.).
+§20 L2 dungeon-encounter lift: **fully closed** (was already
+done; this session confirmed + fixed two latent bugs).
 
-4. **subs.c::spell priest-spell list rendering** (low
-   priority). Two column-aligned tx() lines emit the spell
-   list as a fixed grid; lift to a `spell.priest.list`
-   script that walks res_class_spells("priest"). Wait until
-   a generalisation surfaces.
+ryl.h sweep: complete. Files including ryl.h all genuinely use
+pic constants (battle / dungeon / subs / towne) or define
+_version_string (ryl.c).
 
-5. **Smaller polish items (any-time, no sequencing):**
-   - balance.rest.temp_low_damage: 5 vs temp_very_low_damage:
-     5 — port-plan §20.5's "possible bug" note; balance/
-     design question. Whether the very-low arm should hit
-     harder is a user judgement call; would rebless
-     wilderness-camp snapshot.
-   - Extend `class:` to unclassified terrain entries
-     ('s' / 'f' / 'd' / 't' / 'g') if a callsite ever needs
-     them. Currently none does.
+`feedback_battle_data_extraction.md` queue: fully closed.
+
+The recommended-next-session queue is now genuinely greenfield.
+Pick from the deeper backlog or new user-driven asks:
+
+1. **Magic terminal positions (`c(x, y)` in driv.c / gfx.c)**.
+   Per `feedback_battle_data_extraction.md` — `c(49, 6)`,
+   `c(13, 22)`, `clr_map_window`'s 8×9 grid, etc. are layout
+   constants tied to ANSI art. Could lift to `data/world.json5`
+   `screen:` subtree. Multi-callsite sweep across driv.c +
+   gfx.c + primitives.c. Session-sized.
+
+2. **`struct party.flag[40]` cap-flip**. Last hardcoded
+   byte-array on struct party. Sized to 40 mission-flag slots;
+   `world.json5 limits.party_flag_max` could drive it. Would
+   need careful save-format coordination since flags are
+   persisted by slot id.
+
+3. **NPC_SLOT_HARD_MAX cap-flip** (gated on RNG identity).
+   Lifting the static 41 to data requires re-rolling random NPC
+   placement RNG identity (different bin counts shift the
+   stream); every fixture using random NPC arrangement would
+   need a rebless. Defer until > 41 NPCs has a real demand.
+
+4. **TOWN_SLOT_HARD_MAX cap-flip** (also RNG-identity gated).
+   `int counts[TOWN_SLOT_HARD_MAX]` in res_realize_npcs is a
+   small heap-alloc lift, but bumping the cap shifts the random
+   NPC town-bin draw. Defer.
+
+5. **L2 — dungeon.c residual scripting refinements**. The 28
+   scripts in dungeon.json5 have been live since 2026-04-25 but
+   aren't audited for code-as-data opportunities (inline RNG
+   ranges that could become formulas, duplicated emit patterns
+   that could collapse to shared sub-scripts). Worth a survey
+   if a fresh extraction agenda surfaces.
+
+6. **Survey data/world/scripts/*.json5 for repeat-pattern
+   collapse**. Now that ydarg + dungeon + speak + towne are all
+   DSL-resident, recurring snippets (e.g. "ask_target →
+   cost-check → mutate → emit-result" cascades) might benefit
+   from new shared DSL ops. Low-pressure cleanup.
 
 Memory worth re-reading (auto-loaded into context):
-  - feedback_state_abstraction.md — pa_*/pm_*/inv_*/res_*
-    helpers, never raw state.p[...]. Critical for any new C
-    touching parties.
-  - feedback_background_agents.md — for background agents in
-    this repo, /tmp + patch, NEVER worktree isolation.
-    Sessions #11 (4 commits) and #13 (8 commits) both used
-    this pattern for ydarg lifts; both applied cleanly via
+  - feedback_state_abstraction.md — pa_*/pm_*/inv_*/res_* helpers,
+    never raw state.p[...]. Critical for any new C touching parties.
+  - feedback_background_agents.md — for background agents in this
+    repo, /tmp + patch, NEVER worktree isolation. Sessions #11
+    (4 commits), #13 (8 commits ydarg), #13b (2 + 1 commits
+    rumour + L2) all used this pattern; all applied cleanly via
     git am.
   - feedback_clangd_real_vs_stale.md — verify clangd via cc
-    -Werror=... before deflecting. #13 saw clangd hallucinate
-    `ydarg_state_init` / `ydarg_try_move` references that
-    didn't exist in the file — verified with cc syntax-only,
-    were stale cache.
-  - feedback_battle_data_extraction.md — catalog of code-as-
-    data extraction targets. After #13 every catalog item is
-    closed (last one was time_left = 175).
+    -fsyntax-only -Werror=... before deflecting. #13b saw clangd
+    hallucinate references to functions that didn't exist in the
+    file (the agent's WIP /tmp checkout was leaking diagnostics
+    into the workspace's view).
+  - feedback_battle_data_extraction.md — catalog CLOSED after
+    #13 (last item was time_left = 175). Keep the memory as
+    historical reference; new extractions will need a fresh
+    catalog.
 
 Reading order in repo:
   - port-plan.md TOC.
   - port-plan-incomplete.md "Top of queue (status snapshot,
-    2026-04-28 #13)" + "Recommended next session".
-  - port-plan-complete.md — bodies for the §12.3 + §20.14 +
-    Ydarg full DSL closures (all in the tail of the file).
+    2026-04-28 #13b)" + "Recommended next session".
+  - port-plan-complete.md — bodies for §12.3 + §20.14 + Ydarg
+    full DSL closures (tail of file).
 
-Per-session bar: make check + make testasan + make format
-all green at every commit. Per AGENTS.md: never push without
-explicit user approval; no Co-Authored-By lines; inline
-single-newline file endings; fix root causes, not symptoms;
-don't add speculative changes.
+Per-session bar: make check + make testasan + make format all
+green at every commit. Per AGENTS.md: never push without explicit
+user approval; no Co-Authored-By lines; inline single-newline
+file endings; fix root causes, not symptoms; don't add
+speculative changes.
 
 Begin by reading port-plan-incomplete.md "Top of queue" and
-"Recommended next session", then ask which item to take.
-Default pick: **#1 (WLD_LOCATION_SLOT_MAX cap-flip)** — small
-session-sized task that completes the §12.3 pattern across
-the last static cap in struct ryl_state. **#2 (L2 dungeon
-extraction)** is the higher-impact alternative if the user
-wants to start a multi-session epic.
+"Recommended next session", then ask which item to take. The
+queue is greenfield — every item is its own scoped session, no
+in-flight work blocks anything. **Default pick: #1 (Magic
+terminal positions to data)** — concrete sweep, session-sized,
+removes the last bucket of obvious "this should be in data" hits
+in the C code. **#2 (party.flag[40] cap-flip)** is the
+alternative if you want another structural cap-flip in the
+§12.3 family.
