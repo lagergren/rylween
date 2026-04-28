@@ -2660,6 +2660,20 @@ static void fold_enum_array(enum_rec *r, const node *arr, const char *path) {
    the visible label doesn't change script identity. Unfilled slots stay
    empty so the array indexing semantics match the legacy positional shape. */
 static void fold_enum_records(enum_rec *r, const node *obj, const char *path) {
+    /* §24bis phase 3 cleanup: `id:` is optional. Two shapes are
+       accepted, distinguished by whether any entry carries an
+       explicit id field:
+
+       - Explicit ids: every entry must declare `id: <int>`. Slots
+         are spaced as in the data; gaps stay empty (legacy npcs-
+         like sparse layout, though npcs itself isn't an enum).
+
+       - Implicit ids: no entry carries `id:`. Entries land at slots
+         1..N in object-key order, with slot 0 reserved as the
+         "unset" sentinel. Mixing the two shapes within one enum is
+         rejected — pick one or the other so the data is unambiguous. */
+    int has_explicit = 0;
+    int has_implicit = 0;
     int32_t max_id = 0;
     for (size_t j = 0; j < obj->u.obj.n; j++) {
         const node *rec = obj->u.obj.items[j].val;
@@ -2667,17 +2681,32 @@ static void fold_enum_records(enum_rec *r, const node *obj, const char *path) {
             res_die(path, rec->line, "enums: keyed entry must be object");
         }
         const node *id_n = obj_get(rec, "id");
-        if (!id_n || id_n->kind != N_INT) {
-            res_die(path, rec->line, "enums: keyed entry missing 'id'");
-        }
-        if (id_n->u.iv < 0) {
-            res_die(path, id_n->line, "enums: keyed entry id must be >= 0");
-        }
-        if (id_n->u.iv > max_id) {
-            max_id = id_n->u.iv;
+        if (id_n) {
+            if (id_n->kind != N_INT) {
+                res_die(path, id_n->line, "enums: id must be int");
+            }
+            if (id_n->u.iv < 0) {
+                res_die(path, id_n->line, "enums: id must be >= 0");
+            }
+            has_explicit = 1;
+            if (id_n->u.iv > max_id) {
+                max_id = id_n->u.iv;
+            }
+        } else {
+            has_implicit = 1;
         }
     }
-    r->n_values = (size_t)max_id + 1;
+    if (has_explicit && has_implicit) {
+        res_die(path, obj->line,
+                "enums: mix of id-bearing and id-less entries — pick one shape");
+    }
+    if (has_explicit) {
+        r->n_values = (size_t)max_id + 1;
+    } else {
+        /* 1-indexed positional. Slot 0 stays the unset sentinel so
+           pm_cl(NULL slot) → res_enum_id → 0 still maps to "no class". */
+        r->n_values = obj->u.obj.n + 1;
+    }
     r->keys = calloc(r->n_values, sizeof *r->keys);
     r->values = calloc(r->n_values, sizeof *r->values);
     if (!r->keys || !r->values) {
@@ -2694,9 +2723,10 @@ static void fold_enum_records(enum_rec *r, const node *obj, const char *path) {
         if (!name_n || name_n->kind != N_STR) {
             res_die(path, rec->line, "enums: keyed entry missing 'name'");
         }
-        size_t idx = (size_t)id_n->u.iv;
+        size_t idx = has_explicit ? (size_t)id_n->u.iv : j + 1;
         if (r->keys[idx]) {
-            res_die(path, id_n->line, "enums: duplicate id in keyed enum");
+            res_die(path, id_n ? id_n->line : rec->line,
+                    "enums: duplicate slot in keyed enum");
         }
         r->keys[idx] = strdup(key);
         free(r->values[idx]);

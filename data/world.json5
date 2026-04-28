@@ -718,22 +718,22 @@
     // and saved into current-world.json5. Hyphenated display names
     // ('Half-Orc' / 'Half-Elf') become snake-cased symbols.
     job: {
-      merchant:     { id:  1, name: 'Merchant'     },
-      ranger:       { id:  2, name: 'Ranger'       },
-      fighter:      { id:  3, name: 'Fighter'      },
-      wizard:       { id:  4, name: 'Wizard'       },
-      priest:       { id:  5, name: 'Priest'       },
-      thief:        { id:  6, name: 'Thief'        },
-      peasant:      { id:  7, name: 'Peasant'      },
-      bard:         { id:  8, name: 'Bard'         },
-      drifter:      { id:  9, name: 'Drifter'      },
-      half_orc:     { id: 10, name: 'Half-Orc'     },
-      half_elf:     { id: 11, name: 'Half-Elf'     },
-      smith:        { id: 12, name: 'Smith'        },
-      bargirl:      { id: 13, name: 'Bargirl'      },
-      innkeeper:    { id: 14, name: 'Innkeeper'    },
-      tavernkeeper: { id: 15, name: 'Tavernkeeper' },
-      hermit:       { id: 16, name: 'Hermit'       },
+      merchant:     { name: 'Merchant'     },
+      ranger:       { name: 'Ranger'       },
+      fighter:      { name: 'Fighter'      },
+      wizard:       { name: 'Wizard'       },
+      priest:       { name: 'Priest'       },
+      thief:        { name: 'Thief'        },
+      peasant:      { name: 'Peasant'      },
+      bard:         { name: 'Bard'         },
+      drifter:      { name: 'Drifter'      },
+      half_orc:     { name: 'Half-Orc'     },
+      half_elf:     { name: 'Half-Elf'     },
+      smith:        { name: 'Smith'        },
+      bargirl:      { name: 'Bargirl'      },
+      innkeeper:    { name: 'Innkeeper'    },
+      tavernkeeper: { name: 'Tavernkeeper' },
+      hermit:       { name: 'Hermit'       },
     },
     // (`name` / `innkeepers` / `tavernkeepers` enums retired — the
     // DSL town-greeter binds resolve via npc_in_town(job_sym, twn)
@@ -742,37 +742,43 @@
 
     // Player-party race (struct party.ra[]). Lowercase key is the
     // script-stable symbol; `name` is what the show() screen renders.
-    // Slot ids match driv.c's original hardcoded order; slot 0 is the
-    // "no race" sentinel and stays implicit.
+    // Slot ids are 1-indexed positional (object-key order); slot 0 is
+    // the "no race" sentinel. driv.c's createparty digit menu reads
+    // 1..4 directly so the data file order doubles as the keystroke
+    // mapping.
     race: {
-      human:    { id: 1, name: 'Human'    },
-      dwarf:    { id: 2, name: 'Dwarf'    },
-      elf:      { id: 3, name: 'Elf'      },
-      halfling: { id: 4, name: 'Halfling' },
+      human:    { name: 'Human'    },
+      dwarf:    { name: 'Dwarf'    },
+      elf:      { name: 'Elf'      },
+      halfling: { name: 'Halfling' },
     },
 
-    // Player-party class (struct party.cl[], PC_* ids). The lowercase key
-    // is the script-stable symbol; `name` is the show()-screen display
-    // string. `levelup` deltas are applied by battle.c on each level
-    // gained (hp clamped up to (2/3)*h post-gain; stat keys mirror the
-    // party fields). Caster classes also carry their `spells:` list and
-    // a `casts_in:` annotation for the future menu-gating pass. Slot ids
-    // match state.h PC_FIGHTER..PC_RANGER (1..6); slot 0 is the
-    // "no class" sentinel and stays implicit.
+    // Player-party class (struct party.cl[]). The lowercase key is the
+    // script-stable symbol; `name` is the show()-screen display string.
+    // `levelup` deltas are applied by battle.c on each level gained
+    // (hp clamped up to (2/3)*h post-gain; stat keys mirror the party
+    // fields). Caster classes also carry their `spells:` list and a
+    // `casts_in:` annotation for the future menu-gating pass.
+    // Slot ids are 1-indexed positional (object-key order); slot 0 is
+    // the "no class" sentinel. Storage in struct party.cl[] is the
+    // slug pointer post-§24bis phase 3; the int form is recovered via
+    // res_enum_id at the snapshot / save / DSL boundary, so the
+    // historical PC_FIGHTER=1 .. PC_RANGER=6 numbering is preserved by
+    // keeping the data-file order matching.
     // `min_stat:` (optional) is the createparty() class gate: if the
     // rolled stat named here is below `value`, the prompt prints
     // `fail_text` and re-rolls. Classes without a min (thief, ranger)
-    // omit the field. Matches the original driv.c switch on state.p[].cl
-    // case 1..6 byte-for-byte.
+    // omit the field. Matches the original driv.c switch on
+    // state.p[].cl case 1..6 byte-for-byte.
     pc_class: {
       fighter: {
-        id: 1, name: 'Fighter',
+        name: 'Fighter',
         min_stat: { name: 'ws', value: 50, fail_text: 'driv.create.ws_low' },
         levelup: { ws: 3, h: 8, wi: 1, ch: 1 },
       },
-      thief: { id: 2, name: 'Thief', levelup: { ws: 1, h: 5, wi: 1, ch: 2 } },
+      thief: { name: 'Thief', levelup: { ws: 1, h: 5, wi: 1, ch: 2 } },
       mage: {
-        id: 3, name: 'Mage',
+        name: 'Mage',
         min_stat: { name: 'wi', value: 50, fail_text: 'driv.create.wi_low' },
         spells: [
           'mage.frost', 'mage.fire', 'mage.confusion',
@@ -782,7 +788,7 @@
         levelup: { ws: 1, h: 4, wi: 7, ch: 2 },
       },
       priest: {
-        id: 4, name: 'Priest',
+        name: 'Priest',
         min_stat: { name: 'wi', value: 50, fail_text: 'driv.create.wi_low' },
         spells: [
           'priest.heal', 'priest.restoration', 'priest.rebirth',
@@ -793,11 +799,11 @@
         levelup: { ws: 1, h: 5, wi: 8, ch: 3 },
       },
       bard: {
-        id: 5, name: 'Bard',
+        name: 'Bard',
         min_stat: { name: 'ch', value: 50, fail_text: 'driv.create.ch_low' },
         levelup: { ws: 2, h: 7, wi: 2, ch: 6 },
       },
-      ranger: { id: 6, name: 'Ranger', levelup: { ws: 2, h: 8, wi: 3, ch: 3 } },
+      ranger: { name: 'Ranger', levelup: { ws: 2, h: 8, wi: 3, ch: 3 } },
     },
 
     // Player-party member gender (struct party.gender[]). Not displayed
@@ -879,15 +885,15 @@
     // `wld_location_x` / `wld_location_y` accept these symbols
     // directly via the §20.20 arg_enums shortcut.
     world_locations: {
-      hermit_dungeon:       { id: 1, name: 'Hermit dungeon'        },
-      thun_temple:          { id: 2, name: 'Temple of Thun'        },
-      kobold_village:       { id: 3, name: 'Kobold village'        },
-      borin_camp:           { id: 4, name: 'Borin camp'            },
-      nolrim_crypt:         { id: 5, name: "Nolrim's crypt"        },
-      master_crown_dungeon: { id: 6, name: 'Master Crown dungeon'  },
-      beast_cave:           { id: 7, name: 'Beast Cave'            },
-      silver_key_pit:       { id: 8, name: 'Pit of the Silver Key' },
-      hobgoblin_cave:       { id: 9, name: 'Hobgoblin cave'        },
+      hermit_dungeon:       { name: 'Hermit dungeon'        },
+      thun_temple:          { name: 'Temple of Thun'        },
+      kobold_village:       { name: 'Kobold village'        },
+      borin_camp:           { name: 'Borin camp'            },
+      nolrim_crypt:         { name: "Nolrim's crypt"        },
+      master_crown_dungeon: { name: 'Master Crown dungeon'  },
+      beast_cave:           { name: 'Beast Cave'            },
+      silver_key_pit:       { name: 'Pit of the Silver Key' },
+      hobgoblin_cave:       { name: 'Hobgoblin cave'        },
     },
   },
 }
