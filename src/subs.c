@@ -601,7 +601,8 @@ void spell(int32_t place) {
         return;
     }
 
-    for (int slot = 1; slot <= 7; slot++) {
+    int spell_max = res_class_spell_max("priest");
+    for (int slot = 1; slot <= spell_max; slot++) {
         s = res_spell("priest", slot);
         if (!s) {
             continue;
@@ -609,16 +610,17 @@ void spell(int32_t place) {
         tx("%d. %-12s(%3d/%3d)\r\n", slot, s->name,
            s->base_cost + pm_level(caster), pm_magic(caster));
     }
-    tx("8. Abort\r\n");
+    int abort_key = spell_max + 1;
+    tx("%d. Abort\r\n", abort_key);
 
     while (1) {
         c = key();
-        if (c >= '1' && c <= '8') {
+        if (c >= '1' && c <= ('0' + abort_key)) {
             break;
         }
     }
 
-    if (c == '8') {
+    if (c == '0' + abort_key) {
         clw();
         return;
     }

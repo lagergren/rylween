@@ -1061,6 +1061,28 @@ const ryl_spell *res_spell(const char *class_name, int slot) {
     return tab[slot].name ? &tab[slot] : NULL;
 }
 
+int res_class_spell_max(const char *class_name) {
+    /* Highest occupied slot id for the class's spell table, or 0 if
+       no spells. Walks the same table res_spell indexes; subs.c::spell
+       uses this to source its UI loop bound from data instead of the
+       compile-time RES_MAX_SPELL_SLOT. */
+    const ryl_spell *tab;
+    if (class_name && strcmp(class_name, "priest") == 0) {
+        tab = priest_spells;
+    } else if (class_name && strcmp(class_name, "mage") == 0) {
+        tab = mage_spells;
+    } else {
+        return 0;
+    }
+    int max_slot = 0;
+    for (int slot = 1; slot <= RES_MAX_SPELL_SLOT; slot++) {
+        if (tab[slot].name) {
+            max_slot = slot;
+        }
+    }
+    return max_slot;
+}
+
 const char *res_glyph(char terrain) {
     unsigned char g = (unsigned char)terrain;
     return glyph_tab[g] ? glyph_tab[g] : "  ";

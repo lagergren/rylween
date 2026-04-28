@@ -264,6 +264,11 @@ int res_dungeon_encounter_recurring(const char *symbol);
 /* Spell for a given class ("priest" or "mage") and slot (1..7). NULL if missing. */
 const ryl_spell *res_spell(const char *class_name, int slot);
 
+/* Highest occupied slot in the class's spell table, or 0 if none.
+   subs.c::spell uses this to source its UI list-loop upper bound
+   from data instead of the compile-time RES_MAX_SPELL_SLOT. */
+int res_class_spell_max(const char *class_name);
+
 /* DSL spell lookup. Returns the `do` body node of
    `spells."<class>.<name>"` whose slot matches, for the spell referenced
    at `classes.<class>.spells[slot-1]` in the world tree. NULL if the
