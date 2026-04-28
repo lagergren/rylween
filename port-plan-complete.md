@@ -4058,13 +4058,121 @@ conflicts.
 **Bar per session.** Same as §22 / §23: `make check` +
 `make testasan` green at every commit.
 
-## §25.B step closures (in flight; substeps move here as they land)
+## 25. 1-indexed → 0-indexed cleanup (closed end-to-end 2026-04-27 #13)
+
+Body relocated from `port-plan-incomplete.md` in 2026-04-28 #4
+alongside the state-abstraction sweep closure tidy-up. §25.A
+iterator-abstraction prep work + §25.B four-axis flip
+(monster / party-member / town / NPC) all landed; per-step
+closures live under "§25.B step closures" below. The parent
+§25 body is preserved verbatim here as reference material for
+the 1-indexed → 0-indexed migration approach (the same shape
+applies if the engine ever picks up a fifth axis).
+
+**Problem.** A lot of the codebase carries the original 1-based
+index discipline through verbatim:
+
+  - Party members: `for (i = 1; i <= res_party_member_max(); i++)`,
+    `pa_inventory(slot)` taking `1..INVENTORY_SLOT_MAX`.
+  - Monsters: `for (x = 1; x < noc + 1; x++)`, `mh[1..noc]`,
+    `deadc[1..noc]` (slot 0 unused).
+  - NPCs: `state.npc[slot]` with `slot ∈ 1..npc_slot_max()`,
+    slot 0 unused.
+  - Towns: `towns[1..n_towns]`; `towns[0]` is the JSON `null`
+    sentinel left zeroed (the §24.A0 setup-logging off-by-one
+    landed precisely because of this convention).
+  - Map / dungeon coordinates use 1-indexed rows in some
+    interfaces, 0-indexed in others — driv.c::position_locations
+    and wld_tile_at(x,y) don't agree on which is which.
+  - DSL ops: `for_member`, `for_monster`, `for_each_alive_*`
+    iterate 1..max with `member_idx` / `monster_idx` /
+    `target_idx` bound to 1..N. The DSL inherited the C
+    convention; the JSON5 bodies all do `{ var: 'target_idx' }`
+    expecting 1-based indexing.
+
+**Why it bites.** Three failure modes:
+
+  1. Off-by-one when a new caller picks the wrong convention
+     (the §24.A0 `towns[n->towne - 1]` mistake).
+  2. `slot 0` reserved bytes — every fixed-size array carries a
+     one-element waste, which costs nothing at scale but
+     sometimes hides bugs (zero-init looks like "valid empty
+     slot 0").
+  3. Range-loop noise — `for (i = 1; i <= max; i++)` is the
+     uglier C99 cousin of `for (i = 0; i < max; i++)`. Any
+     half-step migration leaves some loops one-based and some
+     zero-based, multiplying the cognitive load.
+
+**Why it's hard.** The DSL JSON5 shards reference the 1-based
+indices directly:
+
+  - `{ member: { var: 'target_idx' }, field: 'hp' }` with
+    `target_idx` ∈ 1..4. Lifting to 0-based means rewriting
+    every `do:` body that indexes a member or monster, AND every
+    fixture's `.expect_snapshot` (snapshots embed slot indices).
+    Existing fixtures: ~12 lane-A spell fixtures + monster-magic
+    + everything in `data/world/scripts/`.
+  - Some C engine-bind functions (`pa_name`, `pa_is_alive`,
+    `pm_cur`) take 1-based slot args. Lifting them flips every
+    caller too.
+
+**Proposed shape.** Two-step migration, neither attempted before
+§22-§24 lift work concludes:
+
+  1. **§25.A — abstract the indices behind iterators / accessor
+     helpers.** Stop writing `for (i = 1; i <= max; i++)`
+     anywhere; introduce `for_each_party_member(pm)` /
+     `for_each_alive_monster(idx, deadc, noc)` macros (or
+     proper iterator structs) and let the body see `idx` 1-
+     based. Doesn't change semantics — just centralizes the
+     loop convention so a future flip is one helper away. ~1
+     session per major axis (party / monster / npc / town); 4
+     sessions total.
+
+  2. **§25.B — flip to 0-indexed.** Start with the leafmost
+     callers (e.g. one fixture's worth at a time). Each step:
+     change the C engine-bind to accept 0-based, change the
+     JSON5 bodies to compute / pass 0-based, re-bless the
+     fixture. The `RYL_FAKE_SEED` order has to stay identical,
+     so any draw-loop that did `random(1, 4)` becomes
+     `random(0, 3)` — the value space is the same, the
+     semantic-of-the-number changes. Lots of small commits, each
+     bracketed by one re-bless. Estimated 8-12 sessions
+     depending on how aggressive we are about flipping engine
+     APIs vs leaving compat shims.
+
+**When to do it.** **Low priority, late.** Don't start until:
+
+  - §22 / §23 lift is complete (no in-flight DSL ops migrating
+    around the 1-indexed convention).
+  - §24 logging is wired (§25 will surface noisy bless waves —
+    `LOG_A` is the right place to record the 1-vs-0 flip
+    boundaries for an audit trail).
+  - Any future-directions multi-party work (see
+    `plans/future-directions.md`) hasn't started — it'll add new
+    callers and we don't want to flip them mid-design.
+
+**Scope discipline.** The temptation will be to convert one or
+two loops in passing every time someone touches a file. **Do
+not.** A half-converted codebase is strictly worse than the
+fully-1-indexed one. §25.B lands as a single coherent wave or
+not at all; ~1 day of focused work, not a long-tail nibble.
+
+**Estimated total.** ~12-16 sessions over a few weeks once
+started. The visible win is small (cleaner loops, slightly
+fewer off-by-one surprises) but it permanently eliminates a
+class of bugs the §24.A0 commit just demonstrated.
+
+**Bar per session.** Same as elsewhere: `make check` +
+`make testasan` green at every commit.
+
+## §25.B step closures (closed end-to-end 2026-04-27 #13)
 
 §25.B's overall goal — flip the codebase from 1-indexed to
-0-indexed across monster, party-member, town, and NPC axes — is
-documented in §25 of `port-plan-incomplete.md`. The substeps below
-are individually closed and shipped; the parent §25 section stays
-in `-incomplete.md` until the remaining axes (town + NPC) finish.
+0-indexed across monster, party-member, town, and NPC axes —
+landed across four axis-flip substeps plus the §25.A
+iterator-abstraction prep work. The parent §25 body sits
+above this section; per-step closures follow.
 
 ### §25.B step 1 — monster-slot axis (2026-04-27 #10, `684b7e5`)
 
