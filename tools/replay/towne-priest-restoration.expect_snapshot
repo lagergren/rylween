@@ -19,10 +19,10 @@ kills=0
 specials=0,0,0,0,0
 flags=
 inventory=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-member[0] name=A gender=1 cl=priest ra=human lv=1 dead=0 h=36 hp=36 ws=60 wi=67 ma=47 ch=21 ar=0 wp=0 exp=0
-member[1] name=B gender=1 cl=thief ra=human lv=1 dead=0 h=62 hp=62 ws=43 wi=63 ma=0 ch=66 ar=0 wp=0 exp=0
-member[2] name=C gender=1 cl=thief ra=human lv=1 dead=0 h=38 hp=38 ws=39 wi=31 ma=0 ch=19 ar=0 wp=0 exp=0
-member[3] name=D gender=1 cl=thief ra=human lv=1 dead=0 h=69 hp=69 ws=16 wi=57 ma=0 ch=58 ar=0 wp=0 exp=0
+member[0] name=A gender=1 class=priest race=human level=1 dead=0 health=36 hit_points=36 weapon_skill=60 wisdom=67 magic=47 charisma=21 armour=0 weapon=0 experience=0
+member[1] name=B gender=1 class=thief race=human level=1 dead=0 health=62 hit_points=62 weapon_skill=43 wisdom=63 magic=0 charisma=66 armour=0 weapon=0 experience=0
+member[2] name=C gender=1 class=thief race=human level=1 dead=0 health=38 hit_points=38 weapon_skill=39 wisdom=31 magic=0 charisma=19 armour=0 weapon=0 experience=0
+member[3] name=D gender=1 class=thief race=human level=1 dead=0 health=69 hit_points=69 weapon_skill=16 wisdom=57 magic=0 charisma=58 armour=0 weapon=0 experience=0
 map[00]=31000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 map[01]=6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d776d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d0a000000
 map[02]=6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d776d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d0a000000

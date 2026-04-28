@@ -57,17 +57,19 @@ static void emit_party(FILE *f, int idx) {
 
     for_each_party_member(m) {
         /* §24bis phase 3 cleanup: class+race emit as slugs (e.g.
-           cl=fighter ra=human) directly from the slug-pointer storage.
-           Empty string for the unset sentinel matches the calloc-zero
-           initial state. */
-        const char *cl_s = p->cl[m] ? p->cl[m] : "";
-        const char *ra_s = p->ra[m] ? p->ra[m] : "";
+           class=fighter race=human) directly from the slug-pointer
+           storage. Empty string for the unset sentinel matches the
+           calloc-zero initial state. */
+        const struct party_member *r = &p->members[m];
+        const char *cl_s = r->class_slug ? r->class_slug : "";
+        const char *ra_s = r->race_slug ? r->race_slug : "";
         fprintf(f,
-                "member[%d] name=%s gender=%u cl=%s ra=%s lv=%d dead=%d "
-                "h=%d hp=%d ws=%d wi=%d ma=%d ch=%d ar=%d wp=%d exp=%u\n",
-                m, p->name[m], p->gender[m], cl_s, ra_s, p->lv[m],
-                p->dead[m], p->h[m], p->hp[m], p->ws[m], p->wi[m], p->ma[m],
-                p->ch[m], p->ar[m], p->wp[m], p->exp[m]);
+                "member[%d] name=%s gender=%u class=%s race=%s level=%d "
+                "dead=%d health=%d hit_points=%d weapon_skill=%d wisdom=%d "
+                "magic=%d charisma=%d armour=%d weapon=%d experience=%u\n",
+                m, r->name, r->gender, cl_s, ra_s, r->level,
+                r->dead, r->health, r->hit_points, r->weapon_skill, r->wisdom,
+                r->magic, r->charisma, r->armour, r->weapon, r->experience);
     }
     /* Journal lines as one-field-per-line so entries stay self-contained
        (commas and quotes are legal in journal prose; a delimited single

@@ -237,7 +237,7 @@ void apply_potion(int item_id, pm_t pm) {
             tx("spell points return.\r\n\r\n");
             ryl_pause();
             clw();
-            pm.party->ma[pm.m] = pm.party->wi[pm.m];
+            pm_set_magic(pm, pm_wisdom(pm));
         } else {
             tx("The potion has no special\r\n");
             tx("effect on this character.\r\n\r\n");

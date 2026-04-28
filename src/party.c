@@ -15,11 +15,11 @@ static int in_range(int m) {
 }
 
 int pa_is_alive(int m) {
-    return in_range(m) && !state.p[state.cpl].dead[m];
+    return in_range(m) && !state.p[state.cpl].members[m].dead;
 }
 
 int pa_is_dead(int m) {
-    return in_range(m) && state.p[state.cpl].dead[m];
+    return in_range(m) && state.p[state.cpl].members[m].dead;
 }
 
 int pa_is_class(int m, int cl) {
@@ -28,7 +28,7 @@ int pa_is_class(int m, int cl) {
     }
     /* §24bis phase 3: class storage is slug pointer; recover int via
        res_enum_id for the legacy int-form predicate. */
-    const char *s = state.p[state.cpl].cl[m];
+    const char *s = state.p[state.cpl].members[m].class_slug;
     return s && res_enum_id("pc_class", s) == cl;
 }
 
@@ -41,7 +41,7 @@ const char *pa_class_sym(int m) {
     if (!in_range(m)) {
         return "";
     }
-    const char *s = state.p[state.cpl].cl[m];
+    const char *s = state.p[state.cpl].members[m].class_slug;
     return s ? s : "";
 }
 
@@ -50,7 +50,7 @@ const char *pa_race_sym(int m) {
         return "";
     }
     /* §24bis phase 3: race storage is the slug pointer; passthrough. */
-    const char *s = state.p[state.cpl].ra[m];
+    const char *s = state.p[state.cpl].members[m].race_slug;
     return s ? s : "";
 }
 
@@ -70,13 +70,13 @@ int pa_is_spellcaster(int m) {
     }
     /* §24bis phase 3: class storage is slug pointer; direct slug
        compare drops the PC_MAGE / PC_PRIEST int constants. */
-    const char *s = state.p[state.cpl].cl[m];
+    const char *s = state.p[state.cpl].members[m].class_slug;
     return s && (strcmp(s, "mage") == 0 || strcmp(s, "priest") == 0);
 }
 
 int pa_first_alive(void) {
     for_each_party_member(i) {
-        if (!state.p[state.cpl].dead[i]) {
+        if (!state.p[state.cpl].members[i].dead) {
             return i;
         }
     }
@@ -92,7 +92,7 @@ int pa_count_class(int cl) {
     }
     int count = 0;
     for_each_party_member(i) {
-        const char *s = state.p[state.cpl].cl[i];
+        const char *s = state.p[state.cpl].members[i].class_slug;
         if (s && strcmp(s, want) == 0) {
             count++;
         }
@@ -107,8 +107,8 @@ int pa_count_alive_class(int cl) {
     }
     int count = 0;
     for_each_party_member(i) {
-        const char *s = state.p[state.cpl].cl[i];
-        if (s && strcmp(s, want) == 0 && !state.p[state.cpl].dead[i]) {
+        const char *s = state.p[state.cpl].members[i].class_slug;
+        if (s && strcmp(s, want) == 0 && !state.p[state.cpl].members[i].dead) {
             count++;
         }
     }
@@ -118,7 +118,7 @@ int pa_count_alive_class(int cl) {
 int pa_alive_count(void) {
     int count = 0;
     for_each_party_member(i) {
-        if (!state.p[state.cpl].dead[i]) {
+        if (!state.p[state.cpl].members[i].dead) {
             count++;
         }
     }
@@ -154,13 +154,13 @@ int32_t pa_gold(void) {
 }
 
 int pa_first_level(void) {
-    return state.p[state.cpl].lv[0];
+    return state.p[state.cpl].members[0].level;
 }
 
 int32_t pa_level_avg(void) {
     int32_t sum = 0;
     for_each_party_member(m) {
-        sum += state.p[state.cpl].lv[m];
+        sum += state.p[state.cpl].members[m].level;
     }
     return sum / res_party_member_max();
 }
@@ -321,7 +321,7 @@ const char *pa_name(int m) {
     if (m < 0 || m >= res_party_member_max()) {
         return NULL;
     }
-    return state.p[state.cpl].name[m];
+    return state.p[state.cpl].members[m].name;
 }
 
 const char *pa_party_name(void) {
@@ -422,21 +422,6 @@ void free_journal(struct party *p) {
     p->journal_cap = 0;
 }
 
-/* Grow a single zeroed heap buffer of `bytes` bytes, or die.
-   Private to this file since every member-array alloc is "size =
-   res_party_member_max() * sizeof T, memset 0" — the helper keeps
-   the realize path readable instead of 14 repeated malloc / memset /
-   null-check blocks. */
-static void *alloc_zero(size_t bytes) {
-    void *p = malloc(bytes);
-    if (!p) {
-        LOG_E("party", "party_realize: malloc(%zu) failed", bytes);
-        exit(1);
-    }
-    memset(p, 0, bytes);
-    return p;
-}
-
 void party_realize(struct party *p) {
     if (!p) {
         return;
@@ -449,64 +434,26 @@ void party_realize(struct party *p) {
     party_release_members(p);
 
     size_t slots = (size_t)res_party_member_max();
-    p->name = alloc_zero(slots * sizeof *p->name);
-    p->ws = alloc_zero(slots * sizeof *p->ws);
-    p->h = alloc_zero(slots * sizeof *p->h);
-    p->hp = alloc_zero(slots * sizeof *p->hp);
-    p->wi = alloc_zero(slots * sizeof *p->wi);
-    p->ma = alloc_zero(slots * sizeof *p->ma);
-    p->ch = alloc_zero(slots * sizeof *p->ch);
-    p->cl = alloc_zero(slots * sizeof *p->cl);
-    p->ra = alloc_zero(slots * sizeof *p->ra);
-    p->lv = alloc_zero(slots * sizeof *p->lv);
-    p->ar = alloc_zero(slots * sizeof *p->ar);
-    p->wp = alloc_zero(slots * sizeof *p->wp);
-    p->exp = alloc_zero(slots * sizeof *p->exp);
-    p->dead = alloc_zero(slots * sizeof *p->dead);
-    p->gender = alloc_zero(slots * sizeof *p->gender);
+    p->members = calloc(slots, sizeof *p->members);
+    if (!p->members) {
+        LOG_E("party", "party_realize: calloc(%zu) failed", slots);
+        exit(1);
+    }
 }
 
 void party_release_members(struct party *p) {
     if (!p) {
         return;
     }
-    free(p->name);
-    free(p->ws);
-    free(p->h);
-    free(p->hp);
-    free(p->wi);
-    free(p->ma);
-    free(p->ch);
-    free(p->cl);
-    free(p->ra);
-    free(p->lv);
-    free(p->ar);
-    free(p->wp);
-    free(p->exp);
-    free(p->dead);
-    free(p->gender);
-    p->name = NULL;
-    p->ws = p->h = p->hp = p->wi = p->ma = p->ch = NULL;
-    p->lv = p->ar = p->wp = NULL;
-    p->cl = NULL; /* const char ** — separate to keep types coherent */
-    p->ra = NULL; /* const char ** — separate to keep types coherent */
-    p->exp = NULL;
-    p->dead = NULL;
-    p->gender = NULL;
+    free(p->members);
+    p->members = NULL;
 }
 
 void party_clear_heap_pointers(struct party *p) {
     if (!p) {
         return;
     }
-    p->name = NULL;
-    p->ws = p->h = p->hp = p->wi = p->ma = p->ch = NULL;
-    p->lv = p->ar = p->wp = NULL;
-    p->cl = NULL; /* const char ** — separate to keep types coherent */
-    p->ra = NULL; /* const char ** — separate to keep types coherent */
-    p->exp = NULL;
-    p->dead = NULL;
-    p->gender = NULL;
+    p->members = NULL;
     p->journal = NULL;
     p->journal_n = 0;
     p->journal_cap = 0;

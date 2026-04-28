@@ -12,7 +12,7 @@
  * sliced into per-module headers in a later commit. The existing
  * `struct party` SoA layout is preserved (save-format compatibility);
  * pm_t is a cheap by-value view so new code reads
- * `pm_level(pm)` instead of `state.p[state.cpl].lv[m]`.
+ * `pm_level(pm)` instead of `state.p[state.cpl].members[m].level`.
  */
 
 /* Inventory slot count — the UI maps letters A..P to slots 1..16, so
@@ -108,20 +108,37 @@ struct person {
                                   npcs records; defaults to 1 (male). */
 };
 
+/* One adventurer in a party. Storage shape for the per-member stats
+   that used to live as 14 parallel heap arrays on struct party. The
+   slug-pointer fields (class, race) point into res's enum keys[]
+   table — stable across program lifetime, NULL for unset slots. */
+struct party_member {
+    char name[30];
+    int32_t weapon_skill;
+    int32_t health;
+    int32_t hit_points;
+    int32_t wisdom;
+    int32_t magic;
+    int32_t charisma;
+    const char *class_slug; /* §24bis phase 3 slug; res_enum_id recovers int */
+    const char *race_slug;  /* §24bis phase 3 slug; res_enum_id recovers int */
+    int32_t level;
+    int32_t armour;
+    int32_t weapon;
+    uint32_t experience;
+    int32_t dead;
+    unsigned char gender; /* 1=male, 2=female */
+};
+
 struct party {
     char player[30];
     char party_name[30];
 
-    /* Per-member arrays below (name, ws, h, ..., gender). All are
-       heap-allocated to size res_party_member_max() at party-realize /
-       load time; members live at slots 0..res_party_member_max() - 1.
-       party_realize / party_release in party.c own the lifecycle.
-
-       `name` stays as an array-of-arrays view so `p->name[m]` is
-       still a `char[30]` (every getstr/strncpy/sizeof call site
-       keeps working); other fields are plain int32_t * / uint32_t *
-       / unsigned char *. */
-    char (*name)[30];
+    /* Per-member records (size res_party_member_max(), 0-indexed). Heap-
+       allocated by party_realize at create / load time; freed by
+       party_release_members. Single allocation replaces the 14 parallel
+       per-field heap arrays the SoA layout used pre-§24bis phase 4. */
+    struct party_member *members;
 
     unsigned char flag[40];
 
@@ -143,34 +160,13 @@ struct party {
        and by a full camp cycle; decremented each hour by timehandler.
        At 0 the party "begins to feel tired"; the negative ladder (-4,
        -8, <-8) drives progressively worse exhaustion messages and
-       per-member hp damage. "pigg" was the original Swedish
+       per-member hit-points damage. "pigg" was the original Swedish
        (lively/untired); this reads as "hours the party remains
        rested". */
     int32_t hours_rested;
 
     int32_t inventory[INVENTORY_SLOT_MAX + 1];
 
-    int32_t *ws; /* Weapon Skill */
-    int32_t *h;  /* Health       */
-    int32_t *hp; /* HitPts       */
-    int32_t *wi; /* Wisdom       */
-    int32_t *ma; /* Magic        */
-    int32_t *ch; /* Charisma     */
-
-    const char **cl; /* Class — slug pointer interned in res's enum keys[]
-                        table (stable across program lifetime). NULL for
-                        unset slots. §24bis phase 3 class axis: storage is
-                        slug; int form is recovered via res_enum_id at the
-                        pm_class_id / snapshot / save boundary. */
-    const char **ra; /* Race — same shape as cl. */
-    int32_t *lv;     /* Level  */
-
-    int32_t *ar; /* Ready Armour */
-    int32_t *wp; /* Ready Weapon */
-    uint32_t *exp;
-
-    int32_t *dead;                  /* Dead | Alive */
-    unsigned char *gender;          /* 1=male, 2=female */
     unsigned char attack_today[26]; /* parties attacked today */
                                     /* turns to zero every time the attacked
                                      party logs on */
@@ -257,7 +253,7 @@ static inline int is_hour_in_range(int lo, int hi) {
 
 /* View handle over a single party member. Cheap by-value. Field access
    goes through pm_* accessors so call sites read `pm_level(pm)` instead of
-   `state.p[state.cpl].lv[m]`. The `struct party` SoA layout is per-
+   `state.p[state.cpl].members[m].level`. The `struct party` SoA layout is per-
    member heap-allocated off res_party_member_max() (§19.3); pm_t is
    purely a readability wrapper. New code should prefer pm_*; legacy
    sites stay as-is until a deliberate migration phase. */
@@ -332,46 +328,49 @@ static inline int inv_letter_in_range(char c) {
 const char *res_enum_sym(const char *id, int index);
 int res_enum_id(const char *id, const char *value);
 
+static inline struct party_member *pm_rec(pm_t pm) {
+    return &pm.party->members[pm.m];
+}
 static inline int pm_class_id(pm_t pm) {
-    const char *s = pm.party->cl[pm.m];
+    const char *s = pm_rec(pm)->class_slug;
     return s ? res_enum_id("pc_class", s) : 0;
 }
 static inline int pm_level(pm_t pm) {
-    return pm.party->lv[pm.m];
+    return pm_rec(pm)->level;
 }
 static inline int pm_magic(pm_t pm) {
-    return pm.party->ma[pm.m];
+    return pm_rec(pm)->magic;
 }
 static inline int pm_hit_points(pm_t pm) {
-    return pm.party->hp[pm.m];
+    return pm_rec(pm)->hit_points;
 }
 static inline int pm_health(pm_t pm) {
-    return pm.party->h[pm.m];
+    return pm_rec(pm)->health;
 }
 static inline int pm_dead(pm_t pm) {
-    return pm.party->dead[pm.m];
+    return pm_rec(pm)->dead;
 }
 static inline char *pm_name(pm_t pm) {
-    return pm.party->name[pm.m];
+    return pm_rec(pm)->name;
 }
 static inline int pm_weapon_skill(pm_t pm) {
-    return pm.party->ws[pm.m];
+    return pm_rec(pm)->weapon_skill;
 }
 static inline int pm_wisdom(pm_t pm) {
-    return pm.party->wi[pm.m];
+    return pm_rec(pm)->wisdom;
 }
 static inline int pm_charisma(pm_t pm) {
-    return pm.party->ch[pm.m];
+    return pm_rec(pm)->charisma;
 }
 static inline int pm_race_id(pm_t pm) {
-    const char *s = pm.party->ra[pm.m];
+    const char *s = pm_rec(pm)->race_slug;
     return s ? res_enum_id("race", s) : 0;
 }
 static inline uint32_t pm_experience(pm_t pm) {
-    return pm.party->exp[pm.m];
+    return pm_rec(pm)->experience;
 }
 static inline unsigned char pm_gender(pm_t pm) {
-    return pm.party->gender[pm.m];
+    return pm_rec(pm)->gender;
 }
 
 static inline int pm_is_class(pm_t pm, int cls) {
@@ -388,14 +387,14 @@ static inline const char *pm_class_sym(pm_t pm) {
     /* §24bis phase 3: class storage is the slug pointer; passthrough.
        Empty string for unset slots so caller string compares can't
        match by accident. */
-    const char *s = pm.party->cl[pm.m];
+    const char *s = pm.party->members[pm.m].class_slug;
     return s ? s : "";
 }
 static inline const char *pm_race_sym(pm_t pm) {
     /* §24bis phase 3: race storage is the slug pointer; passthrough.
        Empty string for unset slots so caller string compares can't
        match by accident. */
-    const char *s = pm.party->ra[pm.m];
+    const char *s = pm.party->members[pm.m].race_slug;
     return s ? s : "";
 }
 static inline int pm_class_is_sym(pm_t pm, const char *sym) {
@@ -442,64 +441,65 @@ static inline int pm_is_spellcaster(pm_t pm) {
    member index stays inside a typed handle rather than a loose
    1..4 integer sloshing through the code. */
 static inline void pm_set_hit_points(pm_t pm, int v) {
-    pm.party->hp[pm.m] = v;
+    pm_rec(pm)->hit_points = v;
 }
 static inline void pm_add_hit_points(pm_t pm, int d) {
-    pm.party->hp[pm.m] += d;
+    pm_rec(pm)->hit_points += d;
 }
 static inline void pm_set_health(pm_t pm, int v) {
-    pm.party->h[pm.m] = v;
+    pm_rec(pm)->health = v;
 }
 static inline void pm_add_health(pm_t pm, int d) {
-    pm.party->h[pm.m] += d;
+    pm_rec(pm)->health += d;
 }
 static inline void pm_add_weapon_skill(pm_t pm, int d) {
-    pm.party->ws[pm.m] += d;
+    pm_rec(pm)->weapon_skill += d;
 }
 static inline void pm_add_wisdom(pm_t pm, int d) {
-    pm.party->wi[pm.m] += d;
+    pm_rec(pm)->wisdom += d;
 }
 static inline void pm_add_charisma_clamp0(pm_t pm, int d) {
-    pm.party->ch[pm.m] += d;
-    if (pm.party->ch[pm.m] < 0) {
-        pm.party->ch[pm.m] = 0;
+    struct party_member *r = pm_rec(pm);
+    r->charisma += d;
+    if (r->charisma < 0) {
+        r->charisma = 0;
     }
 }
 static inline void pm_add_charisma(pm_t pm, int d) {
-    pm.party->ch[pm.m] += d;
+    pm_rec(pm)->charisma += d;
 }
 static inline void pm_add_level(pm_t pm, int d) {
-    pm.party->lv[pm.m] += d;
+    pm_rec(pm)->level += d;
 }
 static inline void pm_set_level(pm_t pm, int v) {
-    pm.party->lv[pm.m] = v;
+    pm_rec(pm)->level = v;
 }
 static inline void pm_add_experience(pm_t pm, uint32_t d) {
-    pm.party->exp[pm.m] += d;
+    pm_rec(pm)->experience += d;
 }
 static inline void pm_set_experience(pm_t pm, uint32_t v) {
-    pm.party->exp[pm.m] = v;
+    pm_rec(pm)->experience = v;
 }
 static inline void pm_set_weapon_skill(pm_t pm, int v) {
-    pm.party->ws[pm.m] = v;
+    pm_rec(pm)->weapon_skill = v;
 }
 static inline void pm_set_wisdom(pm_t pm, int v) {
-    pm.party->wi[pm.m] = v;
+    pm_rec(pm)->wisdom = v;
 }
 static inline void pm_set_charisma(pm_t pm, int v) {
-    pm.party->ch[pm.m] = v;
+    pm_rec(pm)->charisma = v;
 }
 static inline void pm_set_magic(pm_t pm, int v) {
-    pm.party->ma[pm.m] = v;
+    pm_rec(pm)->magic = v;
 }
 static inline void pm_add_magic(pm_t pm, int d) {
-    pm.party->ma[pm.m] += d;
+    pm_rec(pm)->magic += d;
 }
 static inline void pm_set_class_id(pm_t pm, int v) {
     /* §24bis phase 3 class axis: storage is slug pointer interned in
        res's keys[] table. Mirrors pm_set_race_id. */
     const char *s = res_enum_sym("pc_class", v);
-    pm.party->cl[pm.m] = (s && s[0]) ? s : NULL;
+    pm_rec(pm)->class_slug = (s && s[0]) ? s : NULL;
 }
 static inline void pm_set_race_id(pm_t pm, int v) {
     /* §24bis phase 3 race axis: storage is slug pointer interned in
@@ -507,25 +507,25 @@ static inline void pm_set_race_id(pm_t pm, int v) {
        indices; we map that to NULL so the unset sentinel matches the
        allocator's calloc-zero fresh-slot state. */
     const char *s = res_enum_sym("race", v);
-    pm.party->ra[pm.m] = (s && s[0]) ? s : NULL;
+    pm_rec(pm)->race_slug = (s && s[0]) ? s : NULL;
 }
 static inline void pm_set_gender(pm_t pm, unsigned char v) {
-    pm.party->gender[pm.m] = v;
+    pm_rec(pm)->gender = v;
 }
 static inline void pm_set_dead(pm_t pm, int v) {
-    pm.party->dead[pm.m] = v;
+    pm_rec(pm)->dead = v;
 }
 static inline int pm_weapon(pm_t pm) {
-    return pm.party->wp[pm.m];
+    return pm_rec(pm)->weapon;
 }
 static inline void pm_set_weapon(pm_t pm, int v) {
-    pm.party->wp[pm.m] = v;
+    pm_rec(pm)->weapon = v;
 }
 static inline int pm_armour(pm_t pm) {
-    return pm.party->ar[pm.m];
+    return pm_rec(pm)->armour;
 }
 static inline void pm_set_armour(pm_t pm, int v) {
-    pm.party->ar[pm.m] = v;
+    pm_rec(pm)->armour = v;
 }
 /* Equipped-slot predicates. wp/ar of 0 means no weapon / no armour
    equipped — the inventory item-id 0 sentinel doubles as "empty".
@@ -538,19 +538,21 @@ static inline int pm_has_armour(pm_t pm) {
     return pm_armour(pm) != 0;
 }
 
-/* Heal to full: hp = h. No-op if dead. */
+/* Heal to full: hit_points = health. No-op if dead. */
 static inline void pm_full_heal(pm_t pm) {
     if (!pm_dead(pm)) {
-        pm.party->hp[pm.m] = pm.party->h[pm.m];
+        struct party_member *r = pm_rec(pm);
+        r->hit_points = r->health;
     }
 }
 
-/* Clamp HP up to `floor` (leaves hp alone if already above). Used
-   after level-up to ensure the post-gain h bump rescues partial-hp
-   members to at least 2/3 h. */
+/* Clamp hit_points up to `floor` (leaves it alone if already above).
+   Used after level-up to ensure the post-gain health bump rescues
+   partial-hit-points members to at least 2/3 health. */
 static inline void pm_hit_points_floor(pm_t pm, int floor) {
-    if (pm.party->hp[pm.m] < floor) {
-        pm.party->hp[pm.m] = floor;
+    struct party_member *r = pm_rec(pm);
+    if (r->hit_points < floor) {
+        r->hit_points = floor;
     }
 }
 

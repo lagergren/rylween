@@ -657,14 +657,14 @@ void scorelist() {
         uint32_t exp_sum = 0;
         uint32_t lv_sum = 0;
         for (j = 0; j < mmax; j++) {
-            exp_sum += p->exp[j];
-            lv_sum += (uint32_t)p->lv[j];
+            exp_sum += p->members[j].experience;
+            lv_sum += (uint32_t)p->members[j].level;
         }
         pts[i] = exp_sum / (uint32_t)mmax;
         lvl[i] = lv_sum / (uint32_t)mmax;
         kills[i] = p->kills;
         strcpy(pname[i], p->party_name);
-        strcpy(lname[i], p->name[0]);
+        strcpy(lname[i], p->members[0].name);
         item[i][1] = p->fireshield;
         item[i][2] = p->bracelets;
         item[i][3] = p->mastercrown;
@@ -674,7 +674,7 @@ void scorelist() {
             /* §24bis phase 3 class axis: storage is slug pointer;
                recover the legacy int id for the cls[][] sort table.
                NULL → 0 (matches the unset sentinel). */
-            cls[i][j] = (uint8_t)(p->cl[j] ? res_enum_id("pc_class", p->cl[j]) : 0);
+            cls[i][j] = (uint8_t)(p->members[j].class_slug ? res_enum_id("pc_class", p->members[j].class_slug) : 0);
         }
         pnr[i] = i;
     }

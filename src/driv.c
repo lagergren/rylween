@@ -855,20 +855,20 @@ static void write_current_world() {
            field names. dead is emitted as a JSON5 bool. */
         fputs("      members: [\n", f);
         for (int m = 0; m < mlen; m++) {
-            const char *cl_s = p->cl[m] ? p->cl[m] : "";
-            const char *ra_s = p->ra[m] ? p->ra[m] : "";
+            const char *cl_s = p->members[m].class_slug ? p->members[m].class_slug : "";
+            const char *ra_s = p->members[m].race_slug ? p->members[m].race_slug : "";
             int cl_int = cl_s[0] ? res_enum_id("pc_class", cl_s) : 0;
             int ra_int = ra_s[0] ? res_enum_id("race", ra_s) : 0;
             const char *cl_disp = res_enum("pc_class", cl_int);
             const char *ra_disp = res_enum("race", ra_int);
-            const char *gender_disp = res_enum("gender", p->gender[m]);
+            const char *gender_disp = res_enum("gender", p->members[m].gender);
             fputs("        { name: ", f);
-            wcw_str(f, p->name[m]);
+            wcw_str(f, p->members[m].name);
             fputs(", gender: ", f);
             if (gender_disp && gender_disp[0]) {
                 wcw_str(f, gender_disp);
             } else {
-                fprintf(f, "%u", p->gender[m]);
+                fprintf(f, "%u", p->members[m].gender);
             }
             fputs(", race: ", f);
             if (ra_disp && ra_disp[0]) {
@@ -883,13 +883,13 @@ static void write_current_world() {
                 fprintf(f, "%d", cl_int);
             }
             fprintf(f, ", level: %d, dead: %s",
-                    p->lv[m], p->dead[m] ? "true" : "false");
+                    p->members[m].level, p->members[m].dead ? "true" : "false");
             fprintf(f, ", health: %d, hit_points: %d",
-                    p->h[m], p->hp[m]);
+                    p->members[m].health, p->members[m].hit_points);
             fprintf(f, ", weapon_skill: %d, wisdom: %d, magic: %d, charisma: %d",
-                    p->ws[m], p->wi[m], p->ma[m], p->ch[m]);
+                    p->members[m].weapon_skill, p->members[m].wisdom, p->members[m].magic, p->members[m].charisma);
             fprintf(f, ", armour: %d, weapon: %d, experience: %u },\n",
-                    p->ar[m], p->wp[m], p->exp[m]);
+                    p->members[m].armour, p->members[m].weapon, p->members[m].experience);
         }
         fputs("      ],\n", f);
 
@@ -1172,8 +1172,8 @@ static int read_current_world() {
                 for (size_t m = 0; m < nn; m++) {
                     const node *nm = names->u.arr.items[m];
                     if (nm && nm->kind == N_STR) {
-                        strncpy(p->name[m], nm->u.sv, sizeof p->name[m] - 1);
-                        p->name[m][sizeof p->name[m] - 1] = '\0';
+                        strncpy(p->members[m].name, nm->u.sv, sizeof p->members[m].name - 1);
+                        p->members[m].name[sizeof p->members[m].name - 1] = '\0';
                     }
                 }
             }
@@ -1212,45 +1212,45 @@ static int read_current_world() {
                     }
                     const node *name_n = obj_get(mn, "name");
                     if (name_n && name_n->kind == N_STR) {
-                        strncpy(p->name[m], name_n->u.sv, sizeof p->name[m] - 1);
-                        p->name[m][sizeof p->name[m] - 1] = '\0';
+                        strncpy(p->members[m].name, name_n->u.sv, sizeof p->members[m].name - 1);
+                        p->members[m].name[sizeof p->members[m].name - 1] = '\0';
                     }
-                    p->gender[m] = (unsigned char)rcw_enum(mn, "gender", "gender", p->gender[m]);
+                    p->members[m].gender = (unsigned char)rcw_enum(mn, "gender", "gender", p->members[m].gender);
                     int cl_int = rcw_enum(mn, "class", "pc_class", 0);
                     int ra_int = rcw_enum(mn, "race", "race", 0);
                     if (cl_int <= 0) {
-                        p->cl[m] = NULL;
+                        p->members[m].class_slug = NULL;
                     } else {
                         const char *s = res_enum_sym("pc_class", cl_int);
-                        p->cl[m] = (s && s[0]) ? s : NULL;
+                        p->members[m].class_slug = (s && s[0]) ? s : NULL;
                     }
                     if (ra_int <= 0) {
-                        p->ra[m] = NULL;
+                        p->members[m].race_slug = NULL;
                     } else {
                         const char *s = res_enum_sym("race", ra_int);
-                        p->ra[m] = (s && s[0]) ? s : NULL;
+                        p->members[m].race_slug = (s && s[0]) ? s : NULL;
                     }
-                    p->lv[m] = rcw_int(mn, "level", p->lv[m]);
+                    p->members[m].level = rcw_int(mn, "level", p->members[m].level);
                     /* dead emitted as JSON5 bool by the writer; accept
                        N_BOOL primarily and N_INT (0/1) as a fallback
                        for hand-edited or legacy saves. */
                     {
                         const node *dn = obj_get(mn, "dead");
                         if (dn && dn->kind == N_BOOL) {
-                            p->dead[m] = dn->u.bv ? 1 : 0;
+                            p->members[m].dead = dn->u.bv ? 1 : 0;
                         } else if (dn && dn->kind == N_INT) {
-                            p->dead[m] = dn->u.iv ? 1 : 0;
+                            p->members[m].dead = dn->u.iv ? 1 : 0;
                         }
                     }
-                    p->h[m] = rcw_int(mn, "health", p->h[m]);
-                    p->hp[m] = rcw_int(mn, "hit_points", p->hp[m]);
-                    p->ws[m] = rcw_int(mn, "weapon_skill", p->ws[m]);
-                    p->wi[m] = rcw_int(mn, "wisdom", p->wi[m]);
-                    p->ma[m] = rcw_int(mn, "magic", p->ma[m]);
-                    p->ch[m] = rcw_int(mn, "charisma", p->ch[m]);
-                    p->ar[m] = rcw_int(mn, "armour", p->ar[m]);
-                    p->wp[m] = rcw_int(mn, "weapon", p->wp[m]);
-                    p->exp[m] = (uint32_t)rcw_int(mn, "experience", (int32_t)p->exp[m]);
+                    p->members[m].health = rcw_int(mn, "health", p->members[m].health);
+                    p->members[m].hit_points = rcw_int(mn, "hit_points", p->members[m].hit_points);
+                    p->members[m].weapon_skill = rcw_int(mn, "weapon_skill", p->members[m].weapon_skill);
+                    p->members[m].wisdom = rcw_int(mn, "wisdom", p->members[m].wisdom);
+                    p->members[m].magic = rcw_int(mn, "magic", p->members[m].magic);
+                    p->members[m].charisma = rcw_int(mn, "charisma", p->members[m].charisma);
+                    p->members[m].armour = rcw_int(mn, "armour", p->members[m].armour);
+                    p->members[m].weapon = rcw_int(mn, "weapon", p->members[m].weapon);
+                    p->members[m].experience = (uint32_t)rcw_int(mn, "experience", (int32_t)p->members[m].experience);
                 }
             }
 
@@ -1363,15 +1363,15 @@ static void createparty() {
            the C side stores them 0-based but the UX still calls them
            1..N to match the existing "Who? (1-N)" prompts. */
         tx("Stats for char: %d\r\n\r\n", g + 1);
-        p->ws[g] = ryl_random(sr_lo, sr_hi);
-        p->wi[g] = ryl_random(sr_lo, sr_hi);
-        p->h[g] = ryl_random(sr_lo, sr_hi);
-        p->hp[g] = p->h[g];
-        p->ch[g] = ryl_random(sr_lo, sr_hi);
-        tx("Weapon Skill : %2d\r\n", p->ws[g]);
-        tx("Health       : %2d\r\n", p->h[g]);
-        tx("Wisdom       : %2d\r\n", p->wi[g]);
-        tx("Charisma     : %2d\r\n\r\n", p->ch[g]);
+        p->members[g].weapon_skill = ryl_random(sr_lo, sr_hi);
+        p->members[g].wisdom = ryl_random(sr_lo, sr_hi);
+        p->members[g].health = ryl_random(sr_lo, sr_hi);
+        p->members[g].hit_points = p->members[g].health;
+        p->members[g].charisma = ryl_random(sr_lo, sr_hi);
+        tx("Weapon Skill : %2d\r\n", p->members[g].weapon_skill);
+        tx("Health       : %2d\r\n", p->members[g].health);
+        tx("Wisdom       : %2d\r\n", p->members[g].wisdom);
+        tx("Charisma     : %2d\r\n\r\n", p->members[g].charisma);
         tx0(res_text("driv.create.reroll"));
         if (!hotkey()) {
             while (1) {
@@ -1379,8 +1379,8 @@ static void createparty() {
                 tx("Give Character %d a name!\r\n", g + 1);
                 tx(": ");
                 str[0] = 0;
-                getstr(12, p->name[g], sizeof p->name[g]);
-                if (!p->name[g][0]) {
+                getstr(12, p->members[g].name, sizeof p->members[g].name);
+                if (!p->members[g].name[0]) {
                     party_count_dec();
                     party_set_current_slot(0);
                     return;
@@ -1388,12 +1388,12 @@ static void createparty() {
                     break;
                 }
             }
-            p->name[g][0] = toupper(p->name[g][0]);
+            p->members[g].name[0] = toupper(p->members[g].name[0]);
 
             clw();
             tx_fmt("driv.create.gender_q",
                    (ryl_bind[]){
-                       {"name", p->name[g]},
+                       {"name", p->members[g].name},
                        {0},
                    });
             tx0(res_text("driv.create.gender_opts"));
@@ -1402,12 +1402,12 @@ static void createparty() {
                 tx(": ");
                 getstr(2, str, sizeof str);
             }
-            p->gender[g] = str[0] - 48;
+            p->members[g].gender = str[0] - 48;
 
             clw();
             tx_fmt("driv.create.race_q",
                    (ryl_bind[]){
-                       {"name", p->name[g]},
+                       {"name", p->members[g].name},
                        {0},
                    });
             tx0(res_text("driv.create.race_opts"));
@@ -1421,7 +1421,7 @@ static void createparty() {
             {
                 int ra_id = str[0] - 48;
                 const char *s = res_enum_sym("race", ra_id);
-                p->ra[g] = (s && s[0]) ? s : NULL;
+                p->members[g].race_slug = (s && s[0]) ? s : NULL;
             }
 
             clw();
@@ -1437,14 +1437,14 @@ static void createparty() {
             int cl_id = str[0] - 48;
             {
                 const char *s = res_enum_sym("pc_class", cl_id);
-                p->cl[g] = (s && s[0]) ? s : NULL;
+                p->members[g].class_slug = (s && s[0]) ? s : NULL;
             }
             clw();
             const char *fail_text = NULL;
             passed = res_class_min_stat_check(cl_id,
-                                              p->ws[g],
-                                              p->wi[g],
-                                              p->ch[g],
+                                              p->members[g].weapon_skill,
+                                              p->members[g].wisdom,
+                                              p->members[g].charisma,
                                               &fail_text);
             if (!passed && fail_text) {
                 tx0(res_text(fail_text));
@@ -1453,9 +1453,9 @@ static void createparty() {
             if (passed) {
                 passed = 0;
                 if (pm_is_spellcaster(pm_of(p, g))) {
-                    p->ma[g] = p->wi[g];
+                    p->members[g].magic = p->members[g].wisdom;
                 } else {
-                    p->ma[g] = 0;
+                    p->members[g].magic = 0;
                 }
                 show(g);
                 g++;

@@ -72,7 +72,7 @@ void pa_add_y(int32_t delta);
    pa_gold so a future S2 sweep can retire party_gold cleanly. */
 int32_t pa_gold(void);
 
-/* First member's level (state.p[state.cpl].lv[0]). Used as the
+/* First member's level (state.p[state.cpl].members[0].level). Used as the
    party's "headline" level for content-scaling decisions (encounter
    tier, dungeon depth, special-encounter chance). The 70+ raw
    `lv[0]` reads in dungeon.c / battle.c / driv.c are queued for an

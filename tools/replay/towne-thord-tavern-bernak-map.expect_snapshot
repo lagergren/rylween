@@ -19,10 +19,10 @@ kills=0
 specials=0,0,0,0,0
 flags=silver_key=map_bought
 inventory=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-member[0] name=A gender=1 cl=thief ra=human lv=1 dead=0 h=15 hp=15 ws=61 wi=43 ma=0 ch=19 ar=0 wp=0 exp=0
-member[1] name=B gender=1 cl=thief ra=human lv=1 dead=0 h=21 hp=21 ws=63 wi=33 ma=0 ch=39 ar=0 wp=0 exp=0
-member[2] name=C gender=1 cl=thief ra=human lv=1 dead=0 h=36 hp=36 ws=18 wi=50 ma=0 ch=40 ar=0 wp=0 exp=0
-member[3] name=D gender=1 cl=thief ra=human lv=1 dead=0 h=30 hp=30 ws=56 wi=46 ma=0 ch=62 ar=0 wp=0 exp=0
+member[0] name=A gender=1 class=thief race=human level=1 dead=0 health=15 hit_points=15 weapon_skill=61 wisdom=43 magic=0 charisma=19 armour=0 weapon=0 experience=0
+member[1] name=B gender=1 class=thief race=human level=1 dead=0 health=21 hit_points=21 weapon_skill=63 wisdom=33 magic=0 charisma=39 armour=0 weapon=0 experience=0
+member[2] name=C gender=1 class=thief race=human level=1 dead=0 health=36 hit_points=36 weapon_skill=18 wisdom=50 magic=0 charisma=40 armour=0 weapon=0 experience=0
+member[3] name=D gender=1 class=thief race=human level=1 dead=0 health=30 hit_points=30 weapon_skill=56 wisdom=46 magic=0 charisma=62 armour=0 weapon=0 experience=0
 journal_n=1
 journal[0]=The Pit of the Silver Key is at 8x8
 map[00]=31000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
