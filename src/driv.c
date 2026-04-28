@@ -600,12 +600,9 @@ void init() {
                     if (d == 'Y') {
                         /* Shift state.p[] down so party x drops out, then
                            let write_current_world() emit the new realm.
-                           The visited[] inner-loop preserves the legacy
-                           .dat path's quirk verbatim — iterator j cycles
-                           but the target column never advances past x,
-                           so only visited[x] is actually overwritten.
-                           No fixture covers this branch; the process
-                           cleanexit()s before it matters anyway. */
+                           The visited[] grid on every NPC is indexed by
+                           party slot, so removing party x means compact
+                           visited[x..count-1] = visited[x+1..count]. */
                         clw();
                         tx0(res_text("driv.terminate.editing_realm"));
                         /* Free both the journal and the per-member heap
@@ -617,8 +614,8 @@ void init() {
                         party_count_dec();
                         for_each_npc(i) {
                             npc_t n = npc_at_slot(i);
-                            for (j = 1; j < party_count(); j++) {
-                                npc_visited_set(n, x, npc_visited(n, x + 1));
+                            for (j = x; j < party_count(); j++) {
+                                npc_visited_set(n, j, npc_visited(n, j + 1));
                             }
                         }
                         if ((int)x <= party_count()) {
