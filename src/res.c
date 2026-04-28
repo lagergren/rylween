@@ -192,11 +192,15 @@ static int32_t inventory_slot_max = INVENTORY_SLOT_MAX;
 static int32_t party_member_max = PARTY_MEMBER_MAX;
 
 /* Party-slot cap. Default matches PARTY_SLOT_HARD_MAX; overrideable
-   via limits.party_slot_max, clamped to the compile-time array
-   bound (state.p / attack_today / visited are static arrays sized
-   to PARTY_SLOT_HARD_MAX). A smaller-than-default value lowers the
-   "all parties created" gate in driv.c::create_party without
-   rebuilding. */
+   via limits.party_slot_max. The three party-slot-indexed buffers
+   (state.p[], struct party.attack_today[], struct person.visited[])
+   are all heap-allocated off this value at world-load time, so the
+   data layer is the single source of truth. PARTY_SLOT_HARD_MAX is
+   still the upper bound today (see fold_limits) — relaxing it
+   requires lifting the remaining PARTY_SLOT_HARD_MAX-shaped locals
+   in subs.c::scorelist + the bounds asserts in party.c / state.h /
+   snapshot.c. A smaller-than-default value lowers the "all parties
+   created" gate in driv.c::create_party without rebuilding. */
 static int32_t party_slot_max = PARTY_SLOT_HARD_MAX;
 
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
@@ -1643,8 +1647,11 @@ void res_realize_npcs(void) {
     /* Zero every NPC's visited[] grid — fresh realm means no party
        has met anyone yet. The caller (driv.c init()) follows up with
        write_current_world() to persist the realized state. */
-    for_each_npc(i) {
-        memset(state.npc[i].visited, 0, sizeof state.npc[i].visited);
+    {
+        size_t visited_n = (size_t)res_party_slot_max();
+        for_each_npc(i) {
+            memset(state.npc[i].visited, 0, visited_n);
+        }
     }
     LOG_I("realm", "campaign realized");
 }
@@ -2869,6 +2876,20 @@ void res_load_world(const char *path) {
             LOG_E("realm", "out of memory allocating state.npc[%zu]", npc_n);
             exit(1);
         }
+        /* Per-NPC visited[] grids: one byte per party slot. Calloc'd so
+           the default state is "not yet visited" for every party slot.
+           Sized off res_party_slot_max() (already finalized by
+           fold_limits above). Freed by res_shutdown's symmetric loop
+           before the bulk free(state.npc). */
+        size_t visited_n = (size_t)res_party_slot_max();
+        for (size_t i = 0; i < npc_n; i++) {
+            state.npc[i].visited = calloc(visited_n, sizeof *state.npc[i].visited);
+            if (!state.npc[i].visited) {
+                LOG_E("realm", "out of memory allocating npc[%zu].visited[%zu]",
+                      i, visited_n);
+                exit(1);
+            }
+        }
     }
 
     /* Right-size the persistent party table to res_party_slot_max()
@@ -3449,6 +3470,16 @@ void res_shutdown(void) {
     reset_texts();
     reset_towns();
     reset_buildings();
+    /* Free per-NPC visited[] BEFORE invalidating npc_slot_max_cache —
+       for_each_npc reads the cached count, and the cache invalidation
+       below clears it. world_tree is still alive at this point so any
+       cache miss would re-walk it correctly anyway. */
+    if (state.npc) {
+        for_each_npc(i) {
+            free(state.npc[i].visited);
+            state.npc[i].visited = NULL;
+        }
+    }
     reset_limits();
     npc_slot_max_invalidate();
     free(state.npc);

@@ -438,6 +438,17 @@ void party_realize(struct party *p) {
         LOG_E("party", "party_realize: calloc(%zu) failed", slots);
         exit(1);
     }
+
+    /* attack_today is per-party-slot, sized to res_party_slot_max() so
+       the array can index any other party in the realm. Calloc'd so a
+       freshly-created party starts with "haven't attacked anyone today". */
+    size_t at_slots = (size_t)res_party_slot_max();
+    p->attack_today = calloc(at_slots, sizeof *p->attack_today);
+    if (!p->attack_today) {
+        LOG_E("party", "party_realize: calloc attack_today(%zu) failed",
+              at_slots);
+        exit(1);
+    }
 }
 
 void party_release_members(struct party *p) {
@@ -446,6 +457,8 @@ void party_release_members(struct party *p) {
     }
     free(p->members);
     p->members = NULL;
+    free(p->attack_today);
+    p->attack_today = NULL;
 }
 
 void party_clear_heap_pointers(struct party *p) {
@@ -453,6 +466,7 @@ void party_clear_heap_pointers(struct party *p) {
         return;
     }
     p->members = NULL;
+    p->attack_today = NULL;
     p->journal = NULL;
     p->journal_n = 0;
     p->journal_cap = 0;

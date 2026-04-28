@@ -49,6 +49,12 @@ _Static_assert(INVENTORY_SLOT_MAX <= 26,
    state.h — would be circular). Implemented in res.c. */
 int res_party_member_max(void);
 
+/* Forward decl: party-slot cap (drives the per-party / per-NPC byte
+   arrays that index by party slot — struct party.attack_today and
+   struct person.visited are heap-allocated to this size). Implemented
+   in res.c. */
+int res_party_slot_max(void);
+
 /* Sentinel value for `struct person.towne` (NPC placed in the
    wilderness) and `state.twn` (player not standing in any town).
    Distinct from any valid towns[] slot id — towns are 0-indexed
@@ -59,20 +65,19 @@ int res_party_member_max(void);
    in-memory comparisons should use this constant directly. */
 #define WILDERNESS_TOWN (-1)
 
-/* Static caps for the persistent NPC and party slot tables on
-   `struct ryl_state`. The runtime-active counts come from the data
-   layer (`res_npc_slot_max()` / `res_party_slot_max()`) and from
-   `state.num_parties` — these constants are just the upper bounds
-   the static table can hold so indexing `state.npc[slot]` /
-   `state.p[i]` stays in-bounds for any valid slot id. NPC capacity =
-   up to NPC_SLOT_HARD_MAX records (slots 0..NPC_SLOT_HARD_MAX-1,
-   post-§25.B step 4 axis flip); party capacity = slot 0 (unused) +
-   25 parties (driv.c::create_party refuses past
-   `res_party_slot_max() - 1` with "all parties created"). Bumping
-   these requires matching changes in the data layer; the NPC bound
-   is also asserted against `res_npc_slot_max()` once the world has
-   loaded. world.json5 `limits.party_slot_max` lowers the party gate
-   without rebuilding (clamped to PARTY_SLOT_HARD_MAX). */
+/* Static-ceiling caps for the persistent NPC and party slot tables.
+   The runtime-active counts come from the data layer
+   (`res_npc_slot_max()` / `res_party_slot_max()`); state.npc[],
+   state.p[], struct party.attack_today[], and struct person.visited[]
+   are all heap-allocated off those at world-load / party-realize time.
+   These constants are just the defensive upper bounds the data layer
+   clamps against — bumping them requires matching changes in the
+   data layer and (for PARTY_SLOT_HARD_MAX) lifting the remaining
+   PARTY_SLOT_HARD_MAX-shaped locals in subs.c::scorelist + bounds
+   asserts in party.c / state.h / snapshot.c. Slot 0 of the party
+   table is reserved (1-indexed); valid party ids are
+   1..res_party_slot_max()-1; driv.c::create_party refuses past
+   `res_party_slot_max() - 1` with "all parties created". */
 #define NPC_SLOT_HARD_MAX   41
 #define PARTY_SLOT_HARD_MAX 26
 
@@ -109,15 +114,19 @@ struct person {
         13 Bargirl   /14 Innkeeper /15 Tavernkeeper /16 Hermit       */
     const char *job;
 
-    int32_t nr;                                 /* Reference number 1-40*/
-    int32_t towne;                              /* WILDERNESS_TOWN=wilderness, else town slot id*/
-    int32_t building;                           /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
-    int32_t x;                                  /* What X coord.*/
-    int32_t y;                                  /* What Y coord. Not valid for townes.*/
-                                                /* The wilderness X&Y coord automagically become*/
-                                                /* HH (hut), if they are set for a character*/
-    unsigned char visited[PARTY_SLOT_HARD_MAX]; /* Start at 0. Visited before???*/
-    unsigned char gender;                       /* 1=male, 2=female. Drives res_pronoun
+    int32_t nr;       /* Reference number 1-40*/
+    int32_t towne;    /* WILDERNESS_TOWN=wilderness, else town slot id*/
+    int32_t building; /* What building? 1=inn, 2=tavern. Not valid for wilderness*/
+    int32_t x;        /* What X coord.*/
+    int32_t y;        /* What Y coord. Not valid for townes.*/
+                      /* The wilderness X&Y coord automagically become*/
+                      /* HH (hut), if they are set for a character*/
+    /* Per-party "have we met?" flags, indexed by party slot. Heap-
+       allocated to res_party_slot_max() bytes per NPC at world-load
+       time (alongside state.npc[]); freed in res_shutdown. Calloc'd
+       so the default state is "not yet visited" for every party. */
+    unsigned char *visited;
+    unsigned char gender; /* 1=male, 2=female. Drives res_pronoun
                                   when the NPC is referred to in prose
                                   and splits gender-flavoured chitchat
                                   in speak.c. Authored in world.json5
@@ -183,11 +192,13 @@ struct party {
 
     int32_t inventory[INVENTORY_SLOT_MAX + 1];
 
-    unsigned char attack_today[PARTY_SLOT_HARD_MAX]; /* parties attacked today */
-                                                     /* turns to zero every time the
-                                                        attacked party logs on */
-    unsigned char waiting_mail;                      /* For the guild */
-    unsigned char attacked;                          /* Attack bulletin to display upon login */
+    /* "Parties attacked today", indexed by other-party slot. Heap-
+       allocated to res_party_slot_max() bytes per party at
+       party_realize time; freed by party_release_members. Turns to
+       zero every time the attacked party logs on. */
+    unsigned char *attack_today;
+    unsigned char waiting_mail; /* For the guild */
+    unsigned char attacked;     /* Attack bulletin to display upon login */
 
     uint32_t kills;
 
@@ -775,17 +786,18 @@ static inline const char *npc_name(npc_t n) {
     return res_npc_name(n.slot);
 }
 
-/* Per-NPC visited flag indexed by party slot. Sized to fit
-   PARTY_SLOT_HARD_MAX (struct person.visited is the same width,
-   matching the party-slot static cap). */
+/* Per-NPC visited flag indexed by party slot. The visited[] buffer is
+   heap-allocated by res_load_world to res_party_slot_max() bytes per
+   NPC; the bound below catches stale slot ids before they index into
+   the buffer. */
 static inline unsigned char npc_visited(npc_t n, int party_slot) {
-    assert(party_slot >= 0 &&
-           (size_t)party_slot < sizeof n.p->visited / sizeof n.p->visited[0]);
+    assert(n.p->visited && party_slot >= 0 &&
+           party_slot < res_party_slot_max());
     return n.p->visited[party_slot];
 }
 static inline void npc_visited_set(npc_t n, int party_slot, unsigned char v) {
-    assert(party_slot >= 0 &&
-           (size_t)party_slot < sizeof n.p->visited / sizeof n.p->visited[0]);
+    assert(n.p->visited && party_slot >= 0 &&
+           party_slot < res_party_slot_max());
     n.p->visited[party_slot] = v;
 }
 static inline int npc_is_at(npc_t n, int x, int y) {

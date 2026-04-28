@@ -226,17 +226,19 @@ void free_journal(struct party *p);
    start path if the party slot will be used. */
 void party_realize(struct party *p);
 
-/* Free every per-member buffer allocated by party_realize. Does NOT
-   free the journal — use free_journal for that. Call from terminate
-   before the memmove that shifts state.p[] entries down (otherwise
-   the deleted slot's buffers leak). */
+/* Free every per-party heap buffer allocated by party_realize
+   (members[] + attack_today[]). Does NOT free the journal — use
+   free_journal for that. Call from terminate before the memmove
+   that shifts state.p[] entries down (otherwise the deleted slot's
+   buffers leak). */
 void party_release_members(struct party *p);
 
 /* NULL out every heap-owned pointer on struct party (members +
-   journal) without freeing. Use after a memmove that shifts struct
-   party entries down in state.p[] — the tail slot's pointers still
-   alias the entries above it, so clearing them prevents save-time
-   double-emit and lets a future realize into that slot start clean. */
+   attack_today + journal) without freeing. Use after a memmove that
+   shifts struct party entries down in state.p[] — the tail slot's
+   pointers still alias the entries above it, so clearing them
+   prevents save-time double-emit and lets a future realize into
+   that slot start clean. */
 void party_clear_heap_pointers(struct party *p);
 
 #endif
