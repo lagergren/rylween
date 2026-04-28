@@ -5,6 +5,7 @@
 #include "ansi.h"
 #include "driv.h"
 #include "log.h"
+#include "party.h"
 #include "primitives.h"
 #include "res.h"
 
@@ -371,23 +372,23 @@ char key(void) {
     if (!stricmp(state.global_name, "Marcus Lagergren")) {
         switch (ch) {
             case '/':
-                state.p[state.cpl].time_left += 50;
+                pa_add_time_left(50);
                 statusline();
                 break;
             case '(':
-                state.p[state.cpl].inventory[12] = 104;
+                pa_set_inventory(12, 104);
                 break;
             case ')':
-                state.p[state.cpl].inventory[11] = 108;
+                pa_set_inventory(11, 108);
                 break;
             case '&':
-                state.p[state.cpl].inventory[10] = 109;
+                pa_set_inventory(10, 109);
                 break;
             case '*':
-                state.p[state.cpl].inventory[9] = 110;
+                pa_set_inventory(9, 110);
                 break;
             case '+':
-                state.p[state.cpl].gold += 1000;
+                pa_add_gold(1000);
                 statusline();
                 break;
         }
