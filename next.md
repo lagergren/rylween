@@ -1,84 +1,189 @@
 # Continuation prompt — paste this into a fresh session
 
-Eight commits pushed on `lagergren/port1`. HEAD `606c9ae`. 39 fixtures green on `make check` + `make testasan` at every commit.
+Two commits on top of `4984144` (the prior session's HEAD).
+HEAD is now the plan-refresh commit. 39 fixtures green on
+`make check` + `make testasan` at every commit.
 
 ## What landed this session
 
-Three closures on top of `ba0c3d1`:
+**§17.A.4 slice D — subs.c text extraction.** The §17.1 plan
+table sized subs.c at 1310 LOC; HEAD was 811 LOC because earlier
+§20 / §22 work had already migrated the camp / rest / hunt
+bodies (all `play_script` wrappers into `rest.json5` /
+`hunt.json5`) and the priest spell-cast handoff
+(`play_spell_body`). Forty inline `tx(...)` calls collapse to
+seventeen text records under `subs.*`; three records are shared
+across multiple callsites — `subs.who_prompt` (six "Who? (1-N)"
+sites), `subs.dead` (four early-outs), `subs.no_room` (two
+no-slot returns). One small static helper `tx_who_prompt(void)`
+(7 lines) folds the six "Who?" callsites; records that take a
+substitution use `{name}` / `{object}` / `{pronoun}` bindings.
+The column-aligned priest spell-list rows at `subs.c::spell`
+(line 608 per-slot row + line 611 static "8. Abort" trailer)
+stay inline per the §20 L6 / slice B convention.
 
-**§17.A.4 slice A — `b44732e..f4f7bb4`** (Block 5 / Thun gem-altar text-extraction). Slice landed much smaller than the §17.3 plan implied — 15 of the 16 historical mission-control trigger blocks had already migrated during §16.5/§22 work; only the gem-altar's `inv_count_in_range(39, 41) >= 5` guard kept it inline. Five `tx("...")` runs lifted into `missions.thun_temple.{temple_arrival, altar_inscription, gem_prompt, no_gems, altar_opens}`; bundled `gem_prompt` absorbed the previous `common.yes` call + the `(L)eave` line. Block 5 is fixture-unreachable. No rebless.
+The §17.4 `scorelist` caveat ("don't fold the §14.4 sort rewrite
+into this slice") **did not apply**: `scorelist()` writes
+`data/vscore.txt` / `data/score.txt` via `fopen` + `fputs`, not
+via `tx` / `tx0` / `tx_fmt` — there's no terminal text to lift.
+The §14.4 sort-of-indices rewrite stays in its own queue.
 
-**§17.A.4 slice B — `a32cdc7`** (interact.c, closed empty). The §17.1-table 428 LOC had become 69 LOC by the time slice B was picked up. The two remaining `tx(...)` calls in `read_journal()` are dynamic-format bullet line + literal blank separator, both match the column-aligned/pass-through inline convention from the §20 L6 closure. No source changes; closure shape mirrors §17.A.5.
+**§17.A.4 closes end-to-end.** Slices A + B + C + D all landed;
+slice E (DSL `menu_branch` + `engine_call` ops) is closed
+without doing it — slices A-D didn't surface the ≥3 near-
+identical C blocks the §17.2 recommendation gated DSL widening
+on. **§17 closes end-to-end with it** — body relocated from
+`port-plan-incomplete.md` to `port-plan-complete.md` (alongside
+the four slice-closure bodies); `port-plan.md` TOC row flipped
+to `complete`.
 
-**§23.A follow-up — `4468739..fcc1dc8`** (monster-melee fallback arm lifted to DSL — closes §23.A end-to-end). The plan's "two helpers needed" claim was stale: `for_each_alive_player`, `pick_random_alive_player`, `monster_hp` / `battle_flag` / `member_field` / `chance` / `obdamage` all shipped during §23.A's spell-DSL work; only a `{ combat_int: '<path>' }` expression op was missing (17-line addition mirroring `obdamage` shape). The melee body lifted to `monster_spells.melee.do` (sibling of the spells: array). Two pre-existing C-level quirks dropped per project policy: the `damage_div > 0` div-by-zero protect (constant is 6 and won't change) and the `pa_pl()` death-decrement guard (outer loop already gates on `pa_alive_count() > 0`); both unreachable in practice. RNG identity preserved exactly. **§23.A closed end-to-end** — both numbers (combat.monster_attack subtree, 2026-04-27 #8) and structure (this commit) now in data.
+**Audit.** Greps for every lifted literal across
+`tools/replay/*.expect_snapshot` returned zero hits, so the
+slice is bytes-only safe; no `.expect_snapshot` rebless required.
+39 fixtures byte-identical on both gates, including
+`wilderness-cave-descent` (45445 bytes — slice C's fixture) and
+`wilderness-camp` / `wilderness-hunt` (the rest / hunt fixtures
+whose subs.c wrappers `play_script` into `rest.json5` /
+`hunt.json5`). subs.c size 811 → 821 LOC (the small bump comes
+from `tx_fmt` binding-list formatting; partially offset by the
+`tx_who_prompt` helper).
 
-**§17.A.4 slice C — `6f63350..606c9ae`** (dungeon.c dispatcher-loop UI). Pattern continues: §17.1 sized at 917 LOC, HEAD was 175 LOC. Twelve dispatcher-loop `tx()` calls collapse to six text records under a new `dungeon.loop.*` namespace (`level_menu` / `enter_level` / `who_prompt` are `tx_fmt`'d with `{level}` / `{max}` bindings; `no_torches` / `at_max_depth` / `leave_cavern` are static `tx0(res_text)`). `wilderness-cave-descent` (the fixture that exercises the dispatcher loop) stays at 45445 bytes — `emit_with_col_jump` emits one CSI prefix per `\n`-line, so the bundled `level_menu` produces the same 5 prefixes as the original 3 `tx()` calls.
-
-Eight commits in chronological order:
+Two commits on this branch:
 
 ```
-b44732e §17.A.4 slice A: lift Block 5 (Thun gem-altar) text out of missions.c
-f4f7bb4 plan: §17.A.4 slice A closed; top-of-queue → 2026-04-27 #14
-a32cdc7 plan: §17.A.4 slice B closed empty; top-of-queue → 2026-04-27 #15
-4468739 script: add { combat_int: '<path>' } expression op
-b99de4e §23.A follow-up: lift monster-melee fallback arm to DSL do: body
-fcc1dc8 plan: §23.A closed end-to-end; top-of-queue → 2026-04-27 #16
-6f63350 §17.A.4 slice C: lift dispatcher-loop UI text out of dungeon.c
-606c9ae plan: §17.A.4 slice C closed; top-of-queue → 2026-04-28
+c0de648 §17.A.4 slice D: lift subs.c text out of subs.c
+13038ec plan: §17.A.4 slice D closed; §17 closed end-to-end; top-of-queue → 2026-04-28 #2
 ```
 
 ## What to do next
 
-Read `port-plan-incomplete.md` from the top — the "Top of queue (status snapshot, 2026-04-28)" section is the single source of truth. **§17.A.4 slice D (subs.c)** is the last open slice; **§23.A is closed end-to-end**; §25.B closed end-to-end in the prior session.
+Read `port-plan-incomplete.md` from the top — the **"Top of
+queue (status snapshot, 2026-04-28 #2)"** section is the single
+source of truth. With §17.A.4 / §17 / §23.A / §25.B all closed
+end-to-end, the next-up items are no longer the headline
+text-extraction queue; the recommended-next-session block now
+points at:
 
-State at HEAD (`lagergren/port1`, pushed): clean working tree, 39 fixtures green on both gates.
+  1. **State-abstraction sweep** (§25.A.1 #6 footer; tracker:
+     `feedback_state_abstraction.md`). 17 modules touch `state.*`
+     directly today. Natural homes are `state.h` / `party.c` /
+     `res.c` / `snapshot.c`. Migration debt is small and
+     scattered — inventory.c (~5 sites), missions.c
+     (`MB_PLAYER_NAME`), subs.c::scorelist (cross-party access —
+     needs a `pa_at(int party_idx)` by-index helper first),
+     speak.c (`state.npc` walks), towne.c (2 raw
+     `state.p[cpl]`). Ride-along strategy; no speculative
+     refactors. ~3-5 sessions.
+  2. **§24bis** — `id: <int>` → slug-keyed state. Now unblocked
+     post-§25.B; bundled to avoid double-touching every state
+     accessor. ~4-6 session block touching every C file.
+  3. **§12.3** — dynamic sizing from `world.json5` `limits:`
+     subtree. Cap-driven heap-backed flex arrays for `struct
+     party` / `struct ryl_state`. Save-format license already
+     granted; remaining static caps are `state.p[26]`,
+     `map[42][82]`, party-inventory `[17]`,
+     `attack_today[26]`.
+  4. **§12.1** — Dockerfile + GitHub CI. Reproducible build for
+     non-mac contributors. ~1 session.
+  5. **Ydarg-as-mission** (§12.4 residual). End-game boss into
+     a regular mission record. Blocked on the DSL evaluator
+     learning mission triggers + item-flag paths.
 
-### Recommended next session: §17.A.4 slice D — subs.c
+State at HEAD (`lagergren/port1`, **not pushed yet — local
+commits only**): clean working tree, 39 fixtures green on both
+gates.
 
-The §17.1 plan-table sized subs.c at 1310 LOC with the §14.4 scorelist overlap as the rebless interaction. Audit subs.c at HEAD before estimating — the slice A/B/C pattern strongly suggests the file is much smaller now and most prose has already migrated. Run:
+### Recommended next session: pick a state-abstraction ride-along
+
+The state-abstraction sweep is the cheapest next move because
+every callsite has a small blast radius and lands as a single
+helper-name swap. The natural starting point is the file with
+the highest density of raw `state.p[i].FIELD` access that *also*
+already has a `pm_*` / `pa_*` / `inv_*` / `res_*` analogue
+defined — i.e. the migration is purely "rename the access
+pattern, not invent a new one". Audit candidates:
 
 ```sh
-wc -l src/subs.c
-grep -c "^\s*tx(" src/subs.c       # remaining inline tx() calls
-grep -rln "subs\." data/world/texts/ data/world/scripts/   # existing extraction
+grep -nE 'state\.p\[' src/inventory.c src/missions.c src/speak.c src/towne.c src/subs.c | head -40
+grep -nE 'state\.npc\[' src/speak.c src/missions.c src/driv.c | head -20
 ```
 
-Sequence:
-1. Audit subs.c at HEAD; identify which blocks already migrated and which still inline `tx(...)`.
-2. Audit fixture reach per block (`grep -rln '<prose>' tools/replay/`). Title-flow fixtures touch parts of subs.c.
-3. Lift each remaining run, byte-for-byte. Watch for the `emit_with_col_jump` line-prefix counting (one CSI per `\n`-terminated line) — bundling `tx()` calls that all end in `\r\n` preserves byte-identity, but bundling unterminated calls shifts bytes.
-4. **§14.4 scorelist overlap.** Per §17.4: "subs.c's scorelist (§14.4) uses a ~3100-byte stack sort with 30-byte `strcpy` swaps. §14 has its own decomposition plan (sort an index array). Don't fold that rewrite into a text-extraction slice — the rebless signals are too different." So if scorelist text shows up as a residual, lift the text but leave the sort rewrite for a separate §14.4 pass. If the decision is to do them together, sequence so only one fixture rebless is needed.
-5. Run `make check` + `make testasan` after each block; bar is green at every commit.
-6. Plan refresh: append slice D closure body to `port-plan-complete.md` "§17.A.4 slice closures" section; bump top-of-queue snapshot to 2026-04-28 #2 (or the day's first snapshot of next session); narrow Active block — slice D's closure also closes the §17.A.4 parent (slices A + B + C + D all done), so move §17 itself to "complete" in the master TOC and out of `-incomplete.md`.
+Pick the file with the most "`state.p[cpl].FIELD` where a
+`pa_field()` / `pm_field()` already exists" hits, lift those
+sites to the helpers, and close the file. Then move on. No
+speculative refactors and no mass-rewrites — one file per
+commit, both gates green.
 
-### After slice D, in roughly increasing cost order
+The one place that needs a *new* helper before it can migrate
+is `subs.c::scorelist` (cross-party access reads
+`state.p[i].{exp,lv,kills,cl,name}` via 0-indexed mmax-bound
+loops; needs `pa_at(int party_idx)` to return a party-handle the
+existing `pa_*` accessors take). That's a one-helper add in
+`party.c` + `state.h` plus a callsite migration in `subs.c`.
+Do this *before* picking up §24bis — without `pa_at` the
+slug-keyed state migration in §24bis would have to invent the
+same helper anyway.
 
-- **State-abstraction sweep** — 17 modules touch `state.*` directly. Ride along when next touching one of these files; no speculative refactors. ~3-5 sessions.
-- **§24bis** — `id: <int>` → slug-keyed state, now unblocked. ~4-6 session block touching every C file.
-- Later: §12.3 (dynamic sizing — remaining caps `state.p[26]`, `map[42][82]`, party-inventory `[17]`, `attack_today[26]`), §12.1 (Dockerfile + CI), Ydarg-as-mission.
+### Other ride-along opportunities
 
-### Mechanical residuals tracked in -incomplete.md (do when convenient)
+Each of these can be closed in <1 session if the appetite is
+there:
 
-- `driv.c::terminate` visited-grid shift bug (line ~619): inner `for (j = 1; j < num_parties; j++)` body never references `j`; just rewrites `visited[x] = visited[x+1]` `num_parties-1` times. Likely fixture-unreachable; needs audit + one-line fix + a fixture if reachable.
-- `towne.c::enter` `state.twn == 2` city/village fork: hardcoded to Wilor (`towns[2]` post-§25.B step 3b). Out of scope for slice D; queues under §24bis.
+- **`driv.c::terminate` visited-grid shift bug** (line ~619).
+  Inner `for (j = 1; j < num_parties; j++)` body never
+  references `j`; just rewrites `visited[x] = visited[x+1]`
+  `num_parties-1` times (idempotent). Likely the intended
+  logic is `for (j = x; j < state.num_parties; j++) {
+  npc_visited_set(n, j, npc_visited(n, j + 1)); }` —
+  compact the visited grid down by one slot when party `x` is
+  removed. Likely fixture-unreachable today (no fixture
+  exercises terminate-realm-then-keep-playing); needs an audit
+  pass + a one-line fix + a fixture if reachable.
+- **`towne.c::enter` `state.twn == 2` fork**. City/village
+  text-id pick is hardcoded to `state.twn == 2` (Wilor post-
+  §25.B step 3b). Each town record should carry its own
+  settlement-class string-id (or a `class: 'city' | 'village'`
+  enum) and the C lookup vanishes. Queues under §24bis
+  naturally — fold this in when §24bis touches towne.c.
 
-### Move-out queue
+### Move-out queue (plan-files tidy pass)
 
-§22 and §25 bodies still live in `-incomplete.md` despite both being closed end-to-end. Whenever the plan files get a tidy pass next, those sections drop into `port-plan-complete.md` (§22 already has its own closure block; §25 already has its step-closures block). Slice D's closure also closes §17 and triggers another move-out (the §17 body itself is in `-incomplete.md`).
+§22 and §25 bodies still live in `port-plan-incomplete.md`'s
+"Closed but body still in this file (move-out queue)" block
+even though both closed end-to-end weeks ago (§22 has its own
+closure block in `-complete.md`; §25 has its step-closures
+block). Whenever the plan files get a tidy pass next, those
+sections drop into `port-plan-complete.md`. §17's body went
+out cleanly with the slice D closure in this session, so the
+move-out queue is one item shorter than before.
 
-## Pattern: stale §17.1 estimates
+## Pattern (closed): stale §17.1 estimates
 
-Every slice in the §17.A.4 queue has been substantially smaller than the §17.1 table claimed:
+Every slice in §17.A.4 was substantially smaller than the
+§17.1 table claimed:
 
-| Slice | §17.1 LOC | LOC at HEAD | Result |
-|-------|----------:|------------:|--------|
-| A (missions.c) | 583 | 292 (15/16 blocks already migrated) | 1 inline block lifted (Block 5) |
-| B (interact.c) | 428 | 69 (drop/swap/HP/rest already migrated; journal moved in from driv.c; check_terrain became a wrapper) | closed empty |
-| C (dungeon.c) | 917 | 175 (all per-event encounter narration already migrated) | dispatcher-loop UI lifted |
-| D (subs.c) | 1310 | TBD — audit at HEAD before sizing | TBD |
+| Slice          | §17.1 LOC | LOC at HEAD                                                                  | Result                                |
+|----------------|----------:|-----------------------------------------------------------------------------:|---------------------------------------|
+| A (missions.c) |       583 | 292 (15/16 blocks already migrated)                                          | 1 inline block lifted (Block 5)       |
+| B (interact.c) |       428 | 69 (drop/swap/HP/rest already migrated; journal moved in; check_terrain wrap)| closed empty                          |
+| C (dungeon.c)  |       917 | 175 (all per-event encounter narration already migrated)                     | dispatcher-loop UI lifted             |
+| D (subs.c)     |      1310 | 811 (camp/rest/hunt/priest already migrated)                                 | dispatcher narration lifted, 40→17 ids|
 
-The pattern holds because §17.A.4 was scoped before §22 / §23 / §16 closed, and those parent passes carried most of the prose into data along the way. Don't trust the §17.1 sizing on slice D either — start with the audit.
+Pattern held end-to-end. The reason: §17.A.4 was scoped before
+§16 / §22 / §23 closed, and those parent passes carried most of
+the prose into data along the way. Doesn't apply to any of the
+remaining queued work — state-abstraction sweep / §24bis / §12.3
+were all sized after their gating dependencies closed.
 
 ## Bar per session + memory notes
 
-`make check` + `make testasan` green at every commit. Push only on explicit user approval. Memory notes worth re-reading first: `feedback_state_abstraction.md`, `feedback_preexisting_bug_fixes.md`, `feedback_replay_knobs_centralized.md`, `feedback_script_text_wiring.md`. The cap-driven heap-allocation guiding principle from §25.B (named static cap in `state.h`, heap-alloc off the world.json5 record count at `res_load_world` time, free in `res_shutdown`) still applies for any new work touching a still-static array.
+`make check` + `make testasan` green at every commit. Push only
+on explicit user approval. Memory notes worth re-reading first:
+`feedback_state_abstraction.md` (next-up sweep is the topic),
+`feedback_preexisting_bug_fixes.md`, `feedback_replay_knobs_centralized.md`,
+`feedback_script_text_wiring.md`. The cap-driven heap-allocation
+guiding principle from §25.B (named static cap in `state.h`,
+heap-alloc off the world.json5 record count at `res_load_world`
+time, free in `res_shutdown`) still applies for any new work
+touching a still-static array — `state.p[26]` etc. are §12.3's
+remaining targets.
