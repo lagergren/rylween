@@ -2,6 +2,7 @@
 #define WLD_H__
 
 #include <stdint.h>
+#include <stdio.h>
 
 /* World-map helpers. Centralise the state.map[y][x] reads that are
    currently scattered across driv.c (wilderness movement, position
@@ -10,17 +11,33 @@
    §20.14 S10 lifts those into world.json5 — when that lands, the
    wld_* layer is the one place those constants need to update. */
 
+/* Map dimensions. Today fixed at 42×82 by data/map.dat layout; future
+   §20.14 S10 work makes them data-driven. wld_rows() / wld_cols() are
+   the consumer-facing names used by snapshot emit / save loops; the
+   in_bounds check in this module agrees with the same bounds. */
+int wld_rows(void);
+int wld_cols(void);
+
 /* Tile byte at (x, y) in the loaded world map, or 0 for any
    coordinate outside the bounds. The tile-class meaning matches
    data/world.json5 terrain: keys (e.g. 's' plainland, '0' towne,
    'm' mountain). */
 char wld_tile_at(int x, int y);
 
+/* Tile write paired with wld_tile_at. Out-of-bounds coordinates are a
+   no-op so callers don't have to bounds-check before stamping. */
+void wld_set_tile_at(int x, int y, char c);
+
 /* 1 if the party may step onto (x, y), 0 otherwise. The legacy
    passable check is "not 'm' (mountain) and not 'w' (water)";
    out-of-bounds coords return 0 (treat the off-map void as a
    wall). */
 int wld_is_passable(int x, int y);
+
+/* Read one row of map terrain from `fh` via fgets into row `y` (0-based,
+   < wld_rows()). Encapsulates the cold-start map.dat loader; out-of-
+   range y is a no-op. */
+void wld_load_row(int y, FILE *fh);
 
 /* Random-location placements (state.dx[]/dy[]). WLD_LOCATION_SLOT_MAX
    slots, written by driv.c::position_locations on cold-start and read
@@ -46,9 +63,10 @@ void wld_location_set(int slot, int32_t x, int32_t y);
 
 /* Records the tile the party just stepped off — read by subs.c's
    random_wilderness terrain-transition check (`check_terrain(
-   state.last_terrain, state.map[y][x])`). state.last_terrain is a
+   wld_last_terrain(), wld_tile_at(...))`). state.last_terrain is a
    single global, treated as wld bookkeeping rather than party
    state. */
+char wld_last_terrain(void);
 void wld_set_last_terrain(char tile);
 
 #endif

@@ -43,7 +43,7 @@ static void the_game() {
     for_each_npc(i) {
         npc_t n = npc_at_slot(i);
         if (npc_in_wilderness(n)) {
-            state.map[npc_y(n)][npc_x(n)] = '1';
+            wld_set_tile_at(npc_x(n), npc_y(n), '1');
         }
     }
 
@@ -361,7 +361,7 @@ void init() {
     }
     int32_t map_rows = res_int_path("map.rows");
     for (i = 1; i <= map_rows; i++) {
-        fgets((char *)state.map[i], sizeof(state.map[i]), fh);
+        wld_load_row(i, fh);
     }
     fclose(fh);
 

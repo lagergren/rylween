@@ -15,11 +15,26 @@ static int in_bounds(int x, int y) {
     return x >= 0 && x < WLD_COLS && y >= 0 && y < WLD_ROWS;
 }
 
+int wld_rows(void) {
+    return WLD_ROWS;
+}
+
+int wld_cols(void) {
+    return WLD_COLS;
+}
+
 char wld_tile_at(int x, int y) {
     if (!in_bounds(x, y)) {
         return 0;
     }
     return state.map[y][x];
+}
+
+void wld_set_tile_at(int x, int y, char c) {
+    if (!in_bounds(x, y)) {
+        return;
+    }
+    state.map[y][x] = c;
 }
 
 int wld_is_passable(int x, int y) {
@@ -28,6 +43,13 @@ int wld_is_passable(int x, int y) {
     }
     char c = state.map[y][x];
     return c != 'm' && c != 'w';
+}
+
+void wld_load_row(int y, FILE *fh) {
+    if (y < 0 || y >= WLD_ROWS) {
+        return;
+    }
+    fgets((char *)state.map[y], sizeof state.map[y], fh);
 }
 
 static int location_in_range(int slot) {
@@ -48,6 +70,10 @@ void wld_location_set(int slot, int32_t x, int32_t y) {
     }
     state.dx[slot] = x;
     state.dy[slot] = y;
+}
+
+char wld_last_terrain(void) {
+    return state.last_terrain;
 }
 
 void wld_set_last_terrain(char tile) {

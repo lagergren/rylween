@@ -31,7 +31,7 @@
 enum mission_guard_kind {
     MG_POS,         /* x == a && y == b                                */
     MG_DUNGEON_IDX, /* x == state.dx[a] && y == state.dy[a]            */
-    MG_TERRAIN,     /* state.map[y][x] == (char)a                      */
+    MG_TERRAIN,     /* wld_tile_at(x, y) == (char)a                    */
     MG_CHANCE,      /* ryl_chance(a) — rolled after the flag guard     */
 };
 
@@ -152,7 +152,7 @@ static int guard_matches(const mission_trigger *t) {
         case MG_DUNGEON_IDX:
             return x == wld_location_x(t->a) && y == wld_location_y(t->a);
         case MG_TERRAIN:
-            return state.map[y][x] == (char)t->a;
+            return wld_tile_at(x, y) == (char)t->a;
         case MG_CHANCE:
             return ryl_chance((int)t->a);
     }

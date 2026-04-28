@@ -9,6 +9,7 @@
 #include "res.h"
 #include "runtime_cfg.h"
 #include "state.h"
+#include "wld.h"
 
 static char snapshot_path[512];
 
@@ -74,15 +75,15 @@ static void emit_party(FILE *f, int idx) {
     }
 }
 
-/* Emit the overworld map as 42 fixed-width hex rows so a byte-for-byte
+/* Emit the overworld map as fixed-width hex rows so a byte-for-byte
    diff localises any terrain change to a single y. The array holds raw
-   terrain glyphs plus stray \n / \0 from fgets() in driv.c; hex avoids
-   surprises from non-printable bytes. */
+   terrain glyphs plus stray \n / \0 from the wld_load_row() reads in
+   driv.c; hex avoids surprises from non-printable bytes. */
 static void emit_map(FILE *f) {
-    for (size_t y = 0; y < sizeof state.map / sizeof *state.map; y++) {
-        fprintf(f, "map[%02zu]=", y);
-        for (size_t x = 0; x < sizeof state.map[y]; x++) {
-            fprintf(f, "%02x", (unsigned char)state.map[y][x]);
+    for (int y = 0; y < wld_rows(); y++) {
+        fprintf(f, "map[%02d]=", y);
+        for (int x = 0; x < wld_cols(); x++) {
+            fprintf(f, "%02x", (unsigned char)wld_tile_at(x, y));
         }
         fputc('\n', f);
     }

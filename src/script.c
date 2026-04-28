@@ -1551,22 +1551,22 @@ static void eng_pa_teleport_step(const int32_t *a) {
     for (int i = 1; i < steps + 1; i++) {
         switch (dir) {
             case '2':
-                if (state.map[pa_y() + 1][pa_x()] != 'm') {
+                if (wld_tile_at(pa_x(), pa_y() + 1) != 'm') {
                     pa_add_y(1);
                 }
                 break;
             case '4':
-                if (state.map[pa_y()][pa_x() - 1] != 'm') {
+                if (wld_tile_at(pa_x() - 1, pa_y()) != 'm') {
                     pa_add_x(-1);
                 }
                 break;
             case '6':
-                if (state.map[pa_y()][pa_x() + 1] != 'm') {
+                if (wld_tile_at(pa_x() + 1, pa_y()) != 'm') {
                     pa_add_x(1);
                 }
                 break;
             case '8':
-                if (state.map[pa_y() - 1][pa_x()] != 'm') {
+                if (wld_tile_at(pa_x(), pa_y() - 1) != 'm') {
                     pa_add_y(-1);
                 }
                 break;

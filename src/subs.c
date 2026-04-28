@@ -15,6 +15,7 @@
 #include "script.h"
 #include "subs.h"
 #include "towne.h"
+#include "wld.h"
 
 static int32_t color(char);
 static char *glyph(char);
@@ -155,7 +156,7 @@ void random_wilderness() {
     int32_t quiet_hi = cave_lo + res_int_path("wilderness.quiet_chance");
     if (r >= cave_lo && r < quiet_hi) {
         // Nothing special, see if terrain has changed and display nice message //
-        check_terrain(state.last_terrain, state.map[pa_y()][pa_x()]);
+        check_terrain(wld_last_terrain(), wld_tile_at(pa_x(), pa_y()));
         return;
     }
     if (r < cave_lo) {
@@ -234,7 +235,7 @@ void update_map() {
         size_t off = 0;
         c(9, 6 + (dy + 2) * 2);
         for (int dx = -2; dx <= 2; dx++) {
-            char t = state.map[py + dy][px + dx];
+            char t = wld_tile_at(px + dx, py + dy);
             int32_t fg = color(t);
             char *gly = glyph(t);
             if (dy == 0 && dx == 0) {
