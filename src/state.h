@@ -83,23 +83,15 @@ int res_party_member_max(void);
 #define TOWN_SLOT_HARD_MAX 5
 
 struct person {
-    int32_t job; /* 1 Merchant */
-                 /* 2 Ranger   */
-                 /* 3 Fighter  */
-                 /* 4 Wizard   */
-                 /* 5 Priest   */
-                 /* 6 Thief    */
-                 /* 7 Peasant  */
-                 /* 8 Bard     */
-                 /* 9 Drifter  */
-                 /* 10Half-Orc */
-                 /* 11Half-Elf */
-                 /* 12Smith    */
-
-    /* 13Bargirl (special)*/
-    /* 14Innkeeper (special)*/
-    /* 15Tavernkeeper (special)*/
-    /* 16Hermit*/
+    /* §24bis phase 3 job axis: slug pointer interned in res's enum
+       keys[] table (stable across program lifetime). NULL for unset.
+       Legacy values it represents (now derived via res_enum_id at the
+       npc_job / save boundary):
+         1 Merchant  / 2 Ranger    / 3 Fighter   / 4 Wizard
+         5 Priest    / 6 Thief     / 7 Peasant   / 8 Bard
+         9 Drifter   /10 Half-Orc  /11 Half-Elf  /12 Smith
+        13 Bargirl   /14 Innkeeper /15 Tavernkeeper /16 Hermit       */
+    const char *job;
 
     int32_t nr;                /* Reference number 1-40*/
     int32_t towne;             /* WILDERNESS_TOWN=wilderness, else town slot id*/
@@ -731,7 +723,10 @@ static inline int32_t npc_y(npc_t n) {
     return n.p->y;
 }
 static inline int32_t npc_job(npc_t n) {
-    return n.p->job;
+    /* §24bis phase 3 job axis: storage is slug pointer; recover the
+       legacy int form via res_enum_id for callers that still want
+       the int slot id. NULL slug → 0 (unset sentinel). */
+    return n.p->job ? res_enum_id("job", n.p->job) : 0;
 }
 static inline unsigned char npc_gender(npc_t n) {
     return n.p->gender;
@@ -765,9 +760,10 @@ static inline int npc_is_at(npc_t n, int x, int y) {
 
 /* §24bis phase 1 — slug-form sibling to npc_job. Returns the lowercase
    `job` enum key (e.g. "merchant", "innkeeper") so dispatch code can
-   compare against script-stable symbols rather than the int slot. */
+   compare against script-stable symbols rather than the int slot.
+   §24bis phase 3: storage is the slug pointer; passthrough. */
 static inline const char *npc_job_sym(npc_t n) {
-    return res_enum_sym("job", npc_job(n));
+    return n.p->job ? n.p->job : "";
 }
 static inline int npc_job_is_sym(npc_t n, const char *sym) {
     const char *s = npc_job_sym(n);

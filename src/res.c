@@ -1510,7 +1510,18 @@ void res_realize_npcs(void) {
         }
         struct person *n = &state.npc[slot];
         n->nr = slot;
-        n->job = rn_enum(rec, "job", "job", 0);
+        /* §24bis phase 3 job axis: storage is slug pointer; rn_enum
+           returns the int slot, canonicalize via res_enum_sym to the
+           stable keys[] pointer. 0 → NULL (unset sentinel). */
+        {
+            int parsed = rn_enum(rec, "job", "job", 0);
+            if (parsed <= 0) {
+                n->job = NULL;
+            } else {
+                const char *s = res_enum_sym("job", parsed);
+                n->job = (s && s[0]) ? s : NULL;
+            }
+        }
         n->gender = (unsigned char)rn_enum(rec, "gender", "gender", 1);
 
         const node *towne_node = obj_get(rec, "towne");

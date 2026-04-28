@@ -881,7 +881,9 @@ static void write_current_world() {
         fprintf(f, ": { id: %d, name: ", i);
         wcw_str(f, display);
         fputs(", job: ", f);
-        wcw_enum(f, "job", n->job);
+        /* §24bis phase 3 job axis: storage is slug pointer; recover
+           int for the legacy int-form wcw_enum API. */
+        wcw_enum(f, "job", n->job ? res_enum_id("job", n->job) : 0);
         fputs(", towne: ", f);
         /* WILDERNESS_TOWN serializes as the literal string
            "wilderness" — independent of any enum entry, since §25.B
@@ -1275,7 +1277,20 @@ static int read_current_world() {
             }
             struct person *n = npc_record_at(slot);
             n->nr = slot;
-            n->job = rcw_enum(rec, "job", "job", n->job);
+            /* §24bis phase 3 job axis: rcw_enum returns int (default
+               recovered from the slug-storage int form via
+               res_enum_id); canonicalize back to a stable slug pointer
+               in res's keys[] table. 0 → NULL (unset sentinel). */
+            {
+                int dflt = n->job ? res_enum_id("job", n->job) : 0;
+                int parsed = rcw_enum(rec, "job", "job", dflt);
+                if (parsed <= 0) {
+                    n->job = NULL;
+                } else {
+                    const char *s = res_enum_sym("job", parsed);
+                    n->job = (s && s[0]) ? s : NULL;
+                }
+            }
             /* Save format encodes wilderness as the literal string
                "wilderness" (no longer an enums.towne entry post-
                §25.B step 3b/C4); recognize it before falling
