@@ -40,6 +40,64 @@
     ] },
   ],
 
+  // rumour() — picks one of 33 rumour lines (r0..r32) and emits it.
+  // The roll is `engine_int rumour_roll`, which wraps ryl_random(0, 32)
+  // with the RYL_REPLAY_RUMOUR=<N> override so fixtures
+  // (towne-thord-tavern-rumour-r{12,13,25,27}) can pin the arm. Four
+  // ids fold an NPC name (and optionally a "in <town>" / "at NxN" loc
+  // string) into the body via tx_fmt bindings; the remaining 29 are
+  // static text records, dispatched as the default arm via
+  // emit_indexed.
+  //
+  // Role -> NPC mapping lives in world.json5's npc_roles: subtree;
+  // npc_name_at_role / npc_loc_at_role resolve through that table so
+  // a rename in npcs: doesn't ripple into this script. The trailing
+  // `tx("\r\n")` separator the legacy emitted after each branch lives
+  // in the C trampoline (towne.c::rumour) — DSL flows that splice
+  // rumour into a screen (smith beer-accept, tavern (R)umours) keep
+  // calling `engine_call: 'rumour'`, which carries the separator.
+  rumour: [
+    { let: 'pick', value: { engine_int: 'rumour_roll' } },
+    { switch: {
+        expr: { var: 'pick' },
+        cases: [
+          { match: 12, then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['bandits_quest_giver'],
+                             var: 'name1' } },
+            { emit: 'r12' },
+          ] },
+          { match: 13, then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['rangers_quest_giver'],
+                             var: 'name2' } },
+            { emit: 'r13' },
+          ] },
+          { match: 25, then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['crown_seer'],
+                             var: 'name15' } },
+            { engine_bind: { fn: 'npc_loc_at_role',
+                             args: ['crown_seer'],
+                             var: 'loc15' } },
+            { emit: 'r25' },
+          ] },
+          { match: 27, then: [
+            { engine_bind: { fn: 'npc_name_at_role',
+                             args: ['temple_of_thun_seer'],
+                             var: 'name13' } },
+            { engine_bind: { fn: 'npc_loc_at_role',
+                             args: ['temple_of_thun_seer'],
+                             var: 'loc13' } },
+            { emit: 'r27' },
+          ] },
+          { default: true, then: [
+            { emit_indexed: { fmt: 'r{}', value: { var: 'pick' } } },
+          ] },
+        ],
+    } },
+  ],
+
   // church() — service menu inside a town. C wrapper is a pure
   // play_script call; this script owns clr_map_window + blitgfx
   // (churchpic=4), the main H/R/E/L loop, and the sub-menu "Who?

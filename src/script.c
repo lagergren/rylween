@@ -14,6 +14,7 @@
 #include "primitives.h"
 #include "log.h"
 #include "res.h"
+#include "runtime_cfg.h"
 #include "speak.h"
 #include "state.h"
 #include "subs.h"
@@ -738,6 +739,26 @@ static int32_t ie_pick_first_alive_monster(const int32_t *a) {
     return -1;
 }
 
+/* towne.rumour DSL lift: roll the rumour id (0..32) for the dispatch
+   script. RYL_REPLAY_RUMOUR=<N> pins the result so the
+   towne-thord-tavern-rumour-r{12,13,25,27} fixtures reach the four
+   bound arms reliably; production never sets the var. The override is
+   a sticky read (not one-shot) — every roll honors it, matching the
+   legacy rcfg_get behavior in the C-side rumour() this replaces. */
+static int32_t ie_rumour_roll(const int32_t *a) {
+    (void)a;
+    int32_t pick = ryl_random(0, 32);
+    const char *force = rcfg_get("RYL_REPLAY_RUMOUR");
+    if (force && *force) {
+        char *end;
+        long v = strtol(force, &end, 10);
+        if (end != force && v >= 0 && v <= 32) {
+            pick = (int32_t)v;
+        }
+    }
+    return pick;
+}
+
 static const int_engine_entry int_engine_tbl[] = {
     {"pa_is_alive", 1, ie_pa_is_alive, {0}},
     {"pa_is_dead", 1, ie_pa_is_dead, {0}},
@@ -758,6 +779,7 @@ static const int_engine_entry int_engine_tbl[] = {
     {"wld_location_y", 1, ie_wld_location_y, {"world_locations"}},
     {"pick_random_alive_player", 0, ie_pick_random_alive_player, {0}},
     {"pick_first_alive_monster", 0, ie_pick_first_alive_monster, {0}},
+    {"rumour_roll", 0, ie_rumour_roll, {0}},
     {"ydarg_get_xl", 0, ie_ydarg_get_xl, {0}},
     {"ydarg_get_yl", 0, ie_ydarg_get_yl, {0}},
     {"ydarg_get_lvl", 0, ie_ydarg_get_lvl, {0}},
