@@ -229,6 +229,12 @@
       temp_low_lo:           6,    // [lo, hi) "low temperature" band
       temp_low_hi:          10,
       temp_very_low_lo:     10,    // [lo, ...) "very low temperature" band
+      // Cold-band damage. Engine reads both knobs independently; today
+      // both are 5 by author choice (no escalation between bands).
+      // Port-plan §20.5 flagged the equality as "possible bug" — it
+      // is not a code defect, it's a balance/design call left to the
+      // author. Set temp_very_low_damage > temp_low_damage to make
+      // the very-cold band hit harder.
       temp_low_damage:       5,    // hp -= N when no warm gear in [lo, hi)
       temp_very_low_damage:  5,    // hp -= N when no warm gear at very low
     },
