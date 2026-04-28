@@ -99,13 +99,13 @@ static void snapshot_write(void) {
         return;
     }
     fputs("# rylween state snapshot v1\n", f);
-    fprintf(f, "cpl=%d\n", state.cpl);
+    fprintf(f, "cpl=%d\n", party_current_slot());
     fprintf(f, "twn=%d\n", state.twn);
     fprintf(f, "hour_of_day=%d\n", state.hour_of_day);
     fprintf(f, "banished=%d\n", state.banished);
     fprintf(f, "last_played_day=%d\n", state.last_played_day);
-    if (state.cpl >= 1 && state.cpl < PARTY_SLOT_HARD_MAX) {
-        emit_party(f, state.cpl);
+    if (party_current_slot() >= 1 && party_current_slot() < PARTY_SLOT_HARD_MAX) {
+        emit_party(f, party_current_slot());
     }
     emit_map(f);
     fclose(f);

@@ -722,7 +722,7 @@ static int32_t eval_expr(const node *n, const char *script_id, size_t idx,
         return pa_time_left();
     }
     if (obj_get(n, "cpl")) {
-        return state.cpl;
+        return party_current_slot();
     }
 
     const node *v;

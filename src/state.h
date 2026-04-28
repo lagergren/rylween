@@ -510,6 +510,33 @@ static inline void pm_hp_floor(pm_t pm, int floor) {
     }
 }
 
+/* Current-party slot index (state.cpl). Reads / writes go through the
+   helper so future state-shape changes (slug-keyed party identity,
+   dynamic sizing) only touch state.h. The slot is 1-based today
+   matching the legacy state.p[] 1-indexed layout. */
+static inline int party_current_slot(void) {
+    return state.cpl;
+}
+static inline void party_set_current_slot(int slot) {
+    state.cpl = slot;
+}
+
+/* Total active parties in the realm (state.num_parties). Plain
+   getter / mutator pair — the count is incremented on createparty,
+   decremented on terminate / login-failure paths. */
+static inline int party_count(void) {
+    return state.num_parties;
+}
+static inline void party_set_count(int n) {
+    state.num_parties = n;
+}
+static inline void party_count_inc(void) {
+    state.num_parties++;
+}
+static inline void party_count_dec(void) {
+    state.num_parties--;
+}
+
 /* Active-party accessor. Every write site that reads
    `state.p[state.cpl]` should prefer party_current(): the name
    carries the invariant (current-player-party) that the raw

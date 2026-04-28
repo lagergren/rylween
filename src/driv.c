@@ -59,7 +59,7 @@ static void the_game() {
             clw();
         }
 
-        assert(state.cpl >= 1 && state.cpl <= state.num_parties);
+        assert(party_current_slot() >= 1 && party_current_slot() <= party_count());
         timehandler();
         foodhandler();
         statusline();
@@ -371,7 +371,7 @@ void init() {
        rolled locations, realized NPCs) and write the first
        current-world.json5 so the next boot finds it. */
     if (!read_current_world()) {
-        state.num_parties = 0;
+        party_set_count(0);
         state.last_played_day = 0;
         position_locations();
         res_realize_npcs();
@@ -395,7 +395,7 @@ void init() {
         fh = fopen(path, "wb");
         fclose(fh);
 
-        for (i = 1; i < state.num_parties + 1; i++) {
+        for (i = 1; i < party_count() + 1; i++) {
             tx(".");
             party_at(i)->time_left = 175;
             ryl_delay(40);
@@ -420,12 +420,12 @@ void init() {
                    {0},
                });
 
-        for (i = 1, x = 0; i < state.num_parties + 1; i++) {
+        for (i = 1, x = 0; i < party_count() + 1; i++) {
             if (!stricmp(state.global_name, party_at(i)->player)) {
                 x = i;
             }
         }
-        for (i = 1; i < state.num_parties + 1; i++) {
+        for (i = 1; i < party_count() + 1; i++) {
             const struct party *p = party_at(i);
             if (p->silverkey == 2) {
                 tx_fmt("driv.struggle.over",
@@ -617,22 +617,22 @@ void init() {
                            them and duplicate the pointer in two slots. */
                         free_journal(party_at(x));
                         party_release_members(party_at(x));
-                        state.num_parties--;
+                        party_count_dec();
                         for_each_npc(i) {
                             npc_t n = npc_at_slot(i);
-                            for (j = 1; j < state.num_parties; j++) {
+                            for (j = 1; j < party_count(); j++) {
                                 npc_visited_set(n, x, npc_visited(n, x + 1));
                             }
                         }
-                        if ((int)x <= state.num_parties) {
+                        if ((int)x <= party_count()) {
                             memmove(party_at(x), party_at(x + 1),
-                                    (size_t)(state.num_parties + 1 - x) * sizeof(struct party));
+                                    (size_t)(party_count() + 1 - x) * sizeof(struct party));
                             /* memmove duplicated the old tail's heap
                                pointers (journal + every per-member buf);
                                NULL them on the tail so save doesn't
                                double-emit and a future realize into the
                                slot starts clean. */
-                            party_clear_heap_pointers(party_at(state.num_parties + 1));
+                            party_clear_heap_pointers(party_at(party_count() + 1));
                         }
                         ryl_delay(1000);
 
@@ -913,7 +913,7 @@ static void write_current_world() {
        writer emits a consistent width everywhere and the loader has
        one value to compare against. */
     int mlen = res_party_member_max();
-    for (int i = 1; i <= state.num_parties; i++) {
+    for (int i = 1; i <= party_count(); i++) {
         const struct party *p = party_at(i);
         /* wcw_enum_arr wants plain int[], so materialize cl/ra into
            a stack buffer at member-array length. VLAs aren't in c99
@@ -1300,7 +1300,7 @@ static int read_current_world() {
 
     const node *parties = obj_get(root, "parties");
     if (parties && parties->kind == N_ARR) {
-        state.num_parties = (int32_t)parties->u.arr.n;
+        party_set_count((int32_t)parties->u.arr.n);
         for (size_t pi = 0; pi < parties->u.arr.n; pi++) {
             const node *pnode = parties->u.arr.items[pi];
             if (!pnode || pnode->kind != N_OBJ) {
@@ -1401,11 +1401,11 @@ static int read_current_world() {
         }
     }
 
-    /* Match load()'s behavior: set state.cpl by matching the logged-in
-       player name against each party's `player` field. */
-    for (int i = 1; i <= state.num_parties; i++) {
+    /* Match load()'s behavior: set the current-party slot by matching
+       the logged-in player name against each party's `player` field. */
+    for (int i = 1; i <= party_count(); i++) {
         if (!stricmp(state.global_name, party_at(i)->player)) {
-            state.cpl = i;
+            party_set_current_slot(i);
         }
     }
 
@@ -1439,15 +1439,15 @@ static void createparty() {
 
     tx0(res_text("driv.create.header"));
 
-    if (state.num_parties >= PARTY_SLOT_HARD_MAX - 1) {
+    if (party_count() >= PARTY_SLOT_HARD_MAX - 1) {
         tx0(res_text("driv.create.full"));
         ryl_pause();
         cleanexit();
     }
 
-    state.num_parties++;
-    a = state.num_parties;
-    state.cpl = a;
+    party_count_inc();
+    a = party_count();
+    party_set_current_slot(a);
 
     struct party *p = party_at(a);
 
@@ -1463,8 +1463,8 @@ static void createparty() {
 
         getstr(18, p->party_name, sizeof p->party_name);
         if (!p->party_name[0]) {
-            state.num_parties--;
-            state.cpl = 0;
+            party_count_dec();
+            party_set_current_slot(0);
             return;
         } else {
             break;
@@ -1499,8 +1499,8 @@ static void createparty() {
                 str[0] = 0;
                 getstr(12, p->name[g], sizeof p->name[g]);
                 if (!p->name[g][0]) {
-                    state.num_parties--;
-                    state.cpl = 0;
+                    party_count_dec();
+                    party_set_current_slot(0);
                     return;
                 } else {
                     break;

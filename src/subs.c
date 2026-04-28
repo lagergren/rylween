@@ -652,7 +652,7 @@ void scorelist() {
     uint8_t cls[26][5], item[26][6], pnr[26], temp_ubyte[26];
 
     int mmax = res_party_member_max();
-    for (i = 1; i < state.num_parties + 1; i++) {
+    for (i = 1; i < party_count() + 1; i++) {
         const struct party *p = party_at(i);
         uint32_t exp_sum = 0;
         uint32_t lv_sum = 0;
@@ -678,8 +678,8 @@ void scorelist() {
 
     // SORT!
 
-    n = state.num_parties - 1;
-    o = state.num_parties - 1;
+    n = party_count() - 1;
+    o = party_count() - 1;
 
     for (i = 1; i < n + 1; i++) {
         for (j = 1; j < o + 1; j++) {
@@ -736,7 +736,7 @@ void scorelist() {
     fputs(" +============================================================================+\n\n",
           fh);
 
-    for (i = 1; i < state.num_parties + 1; i++) {
+    for (i = 1; i < party_count() + 1; i++) {
         snprintf(str, sizeof str, "%2d. %-30s\n", i, pname[i]);
         fputs(str, fh);
         fputs(" +----------------------------------------------------------------------------+\n",
@@ -814,7 +814,7 @@ void scorelist() {
           fh);
     fputs("         #     Party Name                    Experience       Level\n\n", fh);
 
-    for (i = 1; i < state.num_parties + 1; i++) {
+    for (i = 1; i < party_count() + 1; i++) {
         snprintf(str, sizeof str, "        %2d.    %-30s  %6d          %3d\n", i, pname[i], pts[i], lvl[i]);
         fputs(str, fh);
     }

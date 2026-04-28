@@ -22,7 +22,7 @@ static void expcheck(void);
 
 void encounter(int32_t foe, int32_t mandatory) {
     assert(foe >= 1);
-    assert(state.cpl >= 1 && state.cpl <= state.num_parties);
+    assert(party_current_slot() >= 1 && party_current_slot() <= party_count());
     char fn[80], str[80], c, d;
     int32_t n1 = 0, n2 = 0; /* Min & Max nr */
     int32_t h1 = 0, h2 = 0; /* Min & Max hp */
