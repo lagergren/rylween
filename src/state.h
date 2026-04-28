@@ -165,12 +165,12 @@ struct party {
     int32_t *ma; /* Magic        */
     int32_t *ch; /* Charisma     */
 
-    int32_t *cl;     /* Class  */
-    const char **ra; /* Race — slug pointer interned in res's enum keys[]
+    const char **cl; /* Class — slug pointer interned in res's enum keys[]
                         table (stable across program lifetime). NULL for
-                        unset slots. §24bis phase 3 race axis: storage is
+                        unset slots. §24bis phase 3 class axis: storage is
                         slug; int form is recovered via res_enum_id at the
-                        pm_ra / snapshot / save boundary. */
+                        pm_cl / snapshot / save boundary. */
+    const char **ra; /* Race — same shape as cl. */
     int32_t *lv;     /* Level  */
 
     int32_t *ar; /* Ready Armour */
@@ -344,7 +344,8 @@ const char *res_enum_sym(const char *id, int index);
 int res_enum_id(const char *id, const char *value);
 
 static inline int pm_cl(pm_t pm) {
-    return pm.party->cl[pm.m];
+    const char *s = pm.party->cl[pm.m];
+    return s ? res_enum_id("pc_class", s) : 0;
 }
 static inline int pm_lv(pm_t pm) {
     return pm.party->lv[pm.m];
@@ -395,7 +396,11 @@ static inline int pm_is_class(pm_t pm, int cls) {
    Storage is unchanged; the helpers just translate at the boundary.
    Empty string for the no-class / no-race sentinel slot 0. */
 static inline const char *pm_class_sym(pm_t pm) {
-    return res_enum_sym("pc_class", pm_cl(pm));
+    /* §24bis phase 3: class storage is the slug pointer; passthrough.
+       Empty string for unset slots so caller string compares can't
+       match by accident. */
+    const char *s = pm.party->cl[pm.m];
+    return s ? s : "";
 }
 static inline const char *pm_race_sym(pm_t pm) {
     /* §24bis phase 3: race storage is the slug pointer; passthrough.
@@ -499,7 +504,10 @@ static inline void pm_add_ma(pm_t pm, int d) {
     pm.party->ma[pm.m] += d;
 }
 static inline void pm_set_cl(pm_t pm, int v) {
-    pm.party->cl[pm.m] = v;
+    /* §24bis phase 3 class axis: storage is slug pointer interned in
+       res's keys[] table. Mirrors pm_set_ra. */
+    const char *s = res_enum_sym("pc_class", v);
+    pm.party->cl[pm.m] = (s && s[0]) ? s : NULL;
 }
 static inline void pm_set_ra(pm_t pm, int v) {
     /* §24bis phase 3 race axis: storage is slug pointer interned in

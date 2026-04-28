@@ -23,18 +23,26 @@ int pa_is_dead(int m) {
 }
 
 int pa_is_class(int m, int cl) {
-    return in_range(m) && state.p[state.cpl].cl[m] == cl;
+    if (!in_range(m)) {
+        return 0;
+    }
+    /* §24bis phase 3: class storage is slug pointer; recover int via
+       res_enum_id for the legacy int-form predicate. */
+    const char *s = state.p[state.cpl].cl[m];
+    return s && res_enum_id("pc_class", s) == cl;
 }
 
 /* §24bis phase 1 — slug-form siblings to pa_is_class. The current-party
    variants of pm_class_sym / pm_race_sym; bound-check m and return ""
    for out-of-range slots so caller string compares can't match by
-   accident. */
+   accident. §24bis phase 3: class/race storage is now slug pointer;
+   passthrough. */
 const char *pa_class_sym(int m) {
     if (!in_range(m)) {
         return "";
     }
-    return res_enum_sym("pc_class", state.p[state.cpl].cl[m]);
+    const char *s = state.p[state.cpl].cl[m];
+    return s ? s : "";
 }
 
 const char *pa_race_sym(int m) {
@@ -60,8 +68,10 @@ int pa_is_spellcaster(int m) {
     if (!in_range(m)) {
         return 0;
     }
-    int c = state.p[state.cpl].cl[m];
-    return c == PC_MAGE || c == PC_PRIEST;
+    /* §24bis phase 3: class storage is slug pointer; direct slug
+       compare drops the PC_MAGE / PC_PRIEST int constants. */
+    const char *s = state.p[state.cpl].cl[m];
+    return s && (strcmp(s, "mage") == 0 || strcmp(s, "priest") == 0);
 }
 
 int pa_first_alive(void) {
@@ -74,9 +84,16 @@ int pa_first_alive(void) {
 }
 
 int pa_count_class(int cl) {
+    /* §24bis phase 3: class storage is slug pointer; cache the slug for
+       the target int once, then compare-by-pointer/strcmp per slot. */
+    const char *want = res_enum_sym("pc_class", cl);
+    if (!want || !want[0]) {
+        return 0;
+    }
     int count = 0;
     for_each_party_member(i) {
-        if (state.p[state.cpl].cl[i] == cl) {
+        const char *s = state.p[state.cpl].cl[i];
+        if (s && strcmp(s, want) == 0) {
             count++;
         }
     }
@@ -84,9 +101,14 @@ int pa_count_class(int cl) {
 }
 
 int pa_count_alive_class(int cl) {
+    const char *want = res_enum_sym("pc_class", cl);
+    if (!want || !want[0]) {
+        return 0;
+    }
     int count = 0;
     for_each_party_member(i) {
-        if (state.p[state.cpl].cl[i] == cl && !state.p[state.cpl].dead[i]) {
+        const char *s = state.p[state.cpl].cl[i];
+        if (s && strcmp(s, want) == 0 && !state.p[state.cpl].dead[i]) {
             count++;
         }
     }
@@ -465,7 +487,8 @@ void party_release_members(struct party *p) {
     free(p->gender);
     p->name = NULL;
     p->ws = p->h = p->hp = p->wi = p->ma = p->ch = NULL;
-    p->cl = p->lv = p->ar = p->wp = NULL;
+    p->lv = p->ar = p->wp = NULL;
+    p->cl = NULL; /* const char ** — separate to keep types coherent */
     p->ra = NULL; /* const char ** — separate to keep types coherent */
     p->exp = NULL;
     p->dead = NULL;
@@ -478,7 +501,8 @@ void party_clear_heap_pointers(struct party *p) {
     }
     p->name = NULL;
     p->ws = p->h = p->hp = p->wi = p->ma = p->ch = NULL;
-    p->cl = p->lv = p->ar = p->wp = NULL;
+    p->lv = p->ar = p->wp = NULL;
+    p->cl = NULL; /* const char ** — separate to keep types coherent */
     p->ra = NULL; /* const char ** — separate to keep types coherent */
     p->exp = NULL;
     p->dead = NULL;

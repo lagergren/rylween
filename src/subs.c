@@ -671,7 +671,10 @@ void scorelist() {
         item[i][4] = p->silverkey;
         item[i][5] = p->jazzyfoot;
         for (j = 0; j < mmax; j++) {
-            cls[i][j] = p->cl[j];
+            /* §24bis phase 3 class axis: storage is slug pointer;
+               recover the legacy int id for the cls[][] sort table.
+               NULL → 0 (matches the unset sentinel). */
+            cls[i][j] = (uint8_t)(p->cl[j] ? res_enum_id("pc_class", p->cl[j]) : 0);
         }
         pnr[i] = i;
     }

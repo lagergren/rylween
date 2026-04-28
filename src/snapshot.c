@@ -56,14 +56,16 @@ static void emit_party(FILE *f, int idx) {
     fputc('\n', f);
 
     for_each_party_member(m) {
-        /* §24bis phase 3 race axis: storage is slug pointer; translate
-           back to int at the snapshot boundary so fixtures stay byte-
-           identical. NULL slug → 0 (the calloc-zero unset sentinel). */
+        /* §24bis phase 3 class+race axes: storage is slug pointer;
+           translate back to int at the snapshot boundary so fixtures
+           stay byte-identical. NULL slug → 0 (the calloc-zero unset
+           sentinel). */
+        int cl_int = p->cl[m] ? res_enum_id("pc_class", p->cl[m]) : 0;
         int ra_int = p->ra[m] ? res_enum_id("race", p->ra[m]) : 0;
         fprintf(f,
                 "member[%d] name=%s gender=%u cl=%d ra=%d lv=%d dead=%d "
                 "h=%d hp=%d ws=%d wi=%d ma=%d ch=%d ar=%d wp=%d exp=%u\n",
-                m, p->name[m], p->gender[m], p->cl[m], ra_int, p->lv[m],
+                m, p->name[m], p->gender[m], cl_int, ra_int, p->lv[m],
                 p->dead[m], p->h[m], p->hp[m], p->ws[m], p->wi[m], p->ma[m],
                 p->ch[m], p->ar[m], p->wp[m], p->exp[m]);
     }

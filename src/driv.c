@@ -921,10 +921,11 @@ static void write_current_world() {
             exit(1);
         }
         for (int m = 0; m < mlen; m++) {
-            cl_int[m] = p->cl[m];
-            /* §24bis phase 3 race axis: storage is slug pointer; convert
-               to int so wcw_enum_arr's int-array contract still holds.
-               NULL slug → 0 (matches the calloc-zero unset sentinel). */
+            /* §24bis phase 3 class+race axes: storage is slug pointer;
+               convert to int so wcw_enum_arr's int-array contract still
+               holds. NULL slug → 0 (matches the calloc-zero unset
+               sentinel). */
+            cl_int[m] = p->cl[m] ? res_enum_id("pc_class", p->cl[m]) : 0;
             ra_int[m] = p->ra[m] ? res_enum_id("race", p->ra[m]) : 0;
         }
         fputs("    {\n", f);
@@ -1357,29 +1358,39 @@ static int read_current_world() {
             rcw_i32_arr(obj_get(pnode, "wi"), p->wi, (int)mlen);
             rcw_i32_arr(obj_get(pnode, "ma"), p->ma, (int)mlen);
             rcw_i32_arr(obj_get(pnode, "ch"), p->ch, (int)mlen);
-            rcw_enum_arr(obj_get(pnode, "cl"), "pc_class", p->cl, (int)mlen);
-            /* §24bis phase 3 race axis: parse into a temp int array, then
-               canonicalize each slot to res's interned keys[] pointer
-               so storage is the stable slug. 0 → NULL (unset sentinel). */
+            /* §24bis phase 3 class+race axes: parse into a temp int
+               array, then canonicalize each slot to res's interned
+               keys[] pointer so storage is the stable slug. 0 → NULL
+               (unset sentinel). */
             {
-                int *ra_int = malloc((size_t)mlen * sizeof *ra_int);
-                if (!ra_int) {
+                int *cl_int_in = malloc((size_t)mlen * sizeof *cl_int_in);
+                int *ra_int_in = malloc((size_t)mlen * sizeof *ra_int_in);
+                if (!cl_int_in || !ra_int_in) {
                     LOG_E("driv", "read_current_world: malloc failed");
                     exit(1);
                 }
                 for (size_t m = 0; m < mlen; m++) {
-                    ra_int[m] = 0;
+                    cl_int_in[m] = 0;
+                    ra_int_in[m] = 0;
                 }
-                rcw_enum_arr(obj_get(pnode, "ra"), "race", ra_int, (int)mlen);
+                rcw_enum_arr(obj_get(pnode, "cl"), "pc_class", cl_int_in, (int)mlen);
+                rcw_enum_arr(obj_get(pnode, "ra"), "race", ra_int_in, (int)mlen);
                 for (size_t m = 0; m < mlen; m++) {
-                    if (ra_int[m] <= 0) {
+                    if (cl_int_in[m] <= 0) {
+                        p->cl[m] = NULL;
+                    } else {
+                        const char *s = res_enum_sym("pc_class", cl_int_in[m]);
+                        p->cl[m] = (s && s[0]) ? s : NULL;
+                    }
+                    if (ra_int_in[m] <= 0) {
                         p->ra[m] = NULL;
                     } else {
-                        const char *s = res_enum_sym("race", ra_int[m]);
+                        const char *s = res_enum_sym("race", ra_int_in[m]);
                         p->ra[m] = (s && s[0]) ? s : NULL;
                     }
                 }
-                free(ra_int);
+                free(cl_int_in);
+                free(ra_int_in);
             }
             rcw_i32_arr(obj_get(pnode, "lv"), p->lv, (int)mlen);
             rcw_i32_arr(obj_get(pnode, "ar"), p->ar, (int)mlen);
@@ -1564,10 +1575,17 @@ static void createparty() {
                 tx(": ");
                 getstr(2, str, sizeof str);
             }
-            p->cl[g] = str[0] - 48;
+            /* §24bis phase 3 class axis: storage is slug pointer; convert
+               digit→int→slug and recover int again for the legacy int
+               API of res_class_min_stat_check. */
+            int cl_id = str[0] - 48;
+            {
+                const char *s = res_enum_sym("pc_class", cl_id);
+                p->cl[g] = (s && s[0]) ? s : NULL;
+            }
             clw();
             const char *fail_text = NULL;
-            passed = res_class_min_stat_check(p->cl[g],
+            passed = res_class_min_stat_check(cl_id,
                                               p->ws[g],
                                               p->wi[g],
                                               p->ch[g],
