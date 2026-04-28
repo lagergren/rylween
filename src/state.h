@@ -569,6 +569,17 @@ static inline npc_t npc_for_role(const char *role) {
     return npc_at_slot(res_npc_role(role));
 }
 
+/* Direct struct-person handle for save/load paths that walk every NPC
+   and need to read or write struct fields directly. Equivalent to
+   npc_at_slot(slot).p but reads cleanly at sites that don't need the
+   slot field. Mirrors party_at: the cross-NPC escape hatch for the
+   handful of save/load loops; per-field reads inside game code go
+   through npc_x / npc_y / npc_visited / etc. */
+static inline struct person *npc_record_at(int slot) {
+    assert(slot >= 0);
+    return &state.npc[slot];
+}
+
 static inline int32_t npc_towne(npc_t n) {
     return n.p->towne;
 }

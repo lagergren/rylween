@@ -874,7 +874,7 @@ static void write_current_world() {
 
     fputs("  npcs: {\n", f);
     for_each_npc(i) {
-        const struct person *n = &state.npc[i];
+        const struct person *n = npc_record_at(i);
         const char *sym = res_npc_sym(i);
         const char *display = res_npc_name(i);
         if (!sym) {
@@ -1017,7 +1017,7 @@ static void write_current_world() {
             if (j > 0) {
                 fputs(", ", f);
             }
-            fprintf(f, "%u", (unsigned)state.npc[j].visited[i]);
+            fprintf(f, "%u", (unsigned)npc_visited(npc_at_slot(j), i));
         }
         fputs("],\n", f);
         fputs("      journal: [", f);
@@ -1275,7 +1275,7 @@ static int read_current_world() {
             if (slot < 0 || slot >= res_npc_slot_max()) {
                 continue;
             }
-            struct person *n = &state.npc[slot];
+            struct person *n = npc_record_at(slot);
             n->nr = slot;
             n->job = rcw_enum(rec, "job", "job", n->job);
             /* Save format encodes wilderness as the literal string
@@ -1380,7 +1380,7 @@ static int read_current_world() {
                 for (size_t j = 0; j < nvn; j++) {
                     const node *it = vn->u.arr.items[j];
                     if (it && it->kind == N_INT) {
-                        state.npc[j].visited[i] = (unsigned char)it->u.iv;
+                        npc_visited_set(npc_at_slot(j), i, (unsigned char)it->u.iv);
                     }
                 }
             }
