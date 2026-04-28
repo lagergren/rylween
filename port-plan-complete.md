@@ -5390,3 +5390,257 @@ clangd diagnostics cleared on the four flagged files; build /
 replay (41 fixtures) / asan / format gates all stay green. The
 verify-then-fix expectation is recorded in
 `feedback_clangd_real_vs_stale.md` (auto-memory).
+
+## speak.* coverage polish closure (2026-04-28 #10)
+
+Body for `729edd5` — two new replay fixtures that close the
+coverage gap on `src/speak.c::speak`'s Q→M and C arms. The §24bis
+phase 3 follow-up in #9 (`aa3efd6`) reblessed 96 text keys across
+six sections of `data/world/texts/speak.json5` from positional
+`j1..j16` to slug-spliced `j<slug>` (jmerchant / jranger / ... /
+jbargirl / jhermit), but only one of the four slug-splice
+dispatchers had a dedicated fixture: `towne-thord-tavern-speak-
+people` (the Q→P arm hitting `play_script("speak.people",
+{job_sym})` → `speak.people.jmerchant` under seed 42). The Q→M
+arm (`play_script("speak.magic", {job_sym})`) and the in-
+conversation C arm (`reply_chitchat()` → `play_script(
+"speak.chit_reply", {subj, job_sym})`) had no byte-identity gate.
+
+Both fixtures mirror the people fixture verbatim: same env
+(RYL_FAKE_EPOCH=1700000000, RYL_FAKE_SEED=42, RYL_NO_DELAY=1),
+same C22ETSA prefix walking south to Thord and entering the
+tavern speak menu against NPC A (a merchant under seed 42), same
+BLLXY trailer to exit clean. They differ only in the active-
+keystroke segment:
+
+- `towne-thord-tavern-speak-magic`: `QM` instead of `QP`,
+  exercising the Q-prompt's M arm in `speak.c::speak` line ~248.
+  Resolves to `speak.magic.jmerchant`.
+
+- `towne-thord-tavern-speak-chit-reply`: `C` instead of `Q...`,
+  hitting the in-conversation chitchat path at `speak.c:201-220`.
+  Under seed 42 the `ryl_random(0, 2)` inside that arm picks
+  subj=2 (health), so the body resolves to
+  `speak.chit.reply.health.jmerchant` (the male variant — the
+  ternary at the prompt branch picks `speak.chit.health_m` for
+  this NPC's gender). Coverage bonus: the fixture exercises the
+  male/female ternary at the prompt + the third switch arm of
+  the chit_reply script in one shot.
+
+Background-agent process: per `feedback_background_agents.md`
+(auto-memory), the work was off-loaded to a `general-purpose`
+agent that cloned the repo to `/tmp/speak-coverage/`, generated
+the fixtures via `tools/replay.sh ... --bless`, ran
+`make check` + `make testasan` + `make format` (all green),
+and emitted `/tmp/speak-coverage.patch` for the user to apply
+via `git am`. No worktree isolation; the user's saved feedback
+explicitly forbids it for this repo's port work. Patch applied
+cleanly; fixture count 41 → 43.
+
+## Tile-class abstraction closure (2026-04-28 #10)
+
+Body for `fe6ad45` — `wld_tile_is_<class>(char)` predicates that
+source from a new optional `class:` field on each terrain record
+in `data/world.json5`. Replaces every literal-tile-char
+comparison in the codebase with a name-keyed lookup; the magic
+chars `'0'`/`'1'`/`'2'`/`'m'`/`'w'` no longer appear in C source
+outside `wld.c`'s loader bookkeeping.
+
+**Data**: `data/world.json5 terrain.<c>` records gain an optional
+`class:` field. Mappings: `'0'` = town, `'1'` = hut, `'2'` =
+castle, `'m'` = mountain, `'w'` = water; the open-terrain tiles
+(`'s'` plains / `'f'` forest / `'d'` desert / `'t'` swamp /
+`'g'` grass) are left unclassified — no consumer needs them
+today, and the predicates return 0 for tiles without a class.
+
+**Loader**: `res.c::fold_terrain` extends to read the new field
+into a `class_tab[256]` parallel to `glyph_tab` / `color_tab` /
+`color_tab_set`. Strings are `strdup`'d and freed by
+`reset_terrain_from_tree` at `res_shutdown` time. New accessor
+`res_terrain_class(char)` returns the class string or NULL.
+
+**Wld helpers** (in `wld.c` / `wld.h`):
+- `wld_tile_is_hut` / `_is_town` / `_is_castle` — single-class
+  predicates routed through `res_terrain_class` + `strcmp`.
+- `wld_tile_is_settlement` — union of the three above. Used by
+  `towne.c::enter` to filter "is this an enterable tile?".
+- `wld_tile_is_mountain` / `_is_water` — single-class
+  predicates for impassable terrain.
+- `wld_tile_is_impassable` — union of mountain + water.
+- `wld_is_passable(int x, int y)` — folds through
+  `wld_tile_is_impassable(state.map[y][x])` for symmetry. Same
+  contract as before (out-of-bounds → 0).
+
+**Migrations** — the four magic-char comparison sites:
+
+- `towne.c::enter`. The `tile != '0' && tile != '1' && tile != '2'`
+  triple becomes `!wld_tile_is_settlement(tile)`. The `tile == '1'`
+  hut dispatch becomes `wld_tile_is_hut(tile)`. The `tile == '2'`
+  castle gate becomes `wld_tile_is_castle(tile)` (then leaves
+  this file entirely in the next commit when the trigger moves
+  to the mission table).
+
+- `res.c::position_locations` NPC-obstruction probe. The
+  `tile != '0' && tile != '1' && tile != '2' && tile != 'm' &&
+  tile != 'w'` chain becomes `!wld_tile_is_settlement(tile) &&
+  !wld_tile_is_impassable(tile)` — the natural read of "is this
+  a regular open terrain tile?" without the literal char list.
+
+- `script.c::eng_pa_teleport_step` priest-teleport mountain
+  block. The `wld_tile_at(...) != 'm'` becomes
+  `!wld_tile_is_mountain(wld_tile_at(...))`. The priest teleport
+  intentionally only blocks on mountains (water is fine); the
+  asymmetry with `wld_is_passable` (which blocks both) is
+  preserved verbatim — semantics unchanged, just the predicate
+  name.
+
+- `wld.c::wld_is_passable` itself — internal use of the new
+  `wld_tile_is_impassable` so the public contract reads as
+  `!is_impassable` rather than the literal char list.
+
+**Future-proofing**: adding a fourth settlement type (or a new
+impassable terrain class) is now a pure data edit (`class:` on
+the new tile record) plus a new `wld_tile_is_<name>` helper if a
+single-class predicate is needed; the union helpers
+(`_is_settlement` / `_is_impassable`) extend with one OR term.
+
+No fixture rebless — the migration is pure abstraction. 43
+fixtures byte-identical on `make check` + `make testasan`;
+format clean.
+
+## Ydarg-as-mission moderate-path closure (2026-04-28 #10)
+
+Body for `776b02c` — the (14, 30, castle-tile) → `ydarg()`
+trigger leaves `towne.c::enter()` and lands as the seventeenth
+entry in `mission_triggers[]`. The §12.4 residual flagged in the
+2026-04-28 #6 deferred entry called this "NOT cheaply
+unblockable" because of three structural gaps: (1) `mission_
+control()` polls on every wilderness step but Ydarg is E-key
+initiated; (2) `mission_trigger.script` is DSL-only via
+`play_script(t->script, ...)` and `ydarg.c` is 456 lines of C
+that can't be cleanly DSL'd; (3) DSL has no `pa_special` /
+has-item predicate so the inventory gate ("jazzyfoot /
+mastercrown / silverkey / bracelets") can't be a trigger
+condition. This closure addresses (1) and (2); (3) stays
+inside `ydarg()` for the moderate path. The full DSL lift is
+3+ sessions and remains queued.
+
+**`mission_trigger` struct extensions** (`src/missions.c`):
+
+- `enum mission_where { MW_STEP = 0, MW_ENTER_KEY }`. Splits
+  the dispatcher into step-poll (existing `mission_control`,
+  fires from `random_wilderness` on every wilderness move) vs
+  E-key (new `mission_try_at_enter`, fires from `towne.c::
+  enter` on a settlement tile). All 16 historical entries
+  default to `MW_STEP` (zero-init). The Ydarg trigger is
+  `MW_ENTER_KEY`.
+
+- `enum mission_action_kind { MA_SCRIPT = 0, MA_C_FN }`. The
+  existing `script` field stays; a new `mission_c_fn fn` field
+  (`typedef void (*mission_c_fn)(void)`) carries the C
+  function pointer for `MA_C_FN` actions. `dispatch_triggers`
+  switches on `t->action`: `MA_SCRIPT` calls `play_script(t->
+  script, pass)` as before; `MA_C_FN` calls `t->fn()` with no
+  bindings (Ydarg doesn't need any — it reads state directly).
+  All 16 historical entries default to `MA_SCRIPT` (zero-init).
+
+- `enum mission_guard_kind` gains `MG_TILE_AT_POS`. The guard
+  evaluates: position match against a data-driven `{x, y}`
+  AND tile-class match against a class string. Per-trigger
+  fields: `tile_class` (`"castle"` for Ydarg) and `pos_path`
+  (`"ydarg.entry"` for Ydarg, dotted path under the world tree
+  resolved via `res_int_path("<pos_path>.x")` /
+  `res_int_path("<pos_path>.y")` at guard-evaluation time so
+  the position lives in data, not C source).
+
+- `flag_tag` is now optional (NULL = always-pass). Ydarg has
+  no state-machine flag at the trigger level; the inventory
+  gate is inside `ydarg()` itself. The dispatch loop's
+  `pa_flag_is(t->flag_tag, t->when_state)` call gates on
+  `t->flag_tag` non-NULL.
+
+**Trigger record** (the seventeenth entry in
+`mission_triggers[]`):
+
+```c
+{
+  .where = MW_ENTER_KEY,
+  .kind = MG_TILE_AT_POS,
+  .tile_class = "castle",
+  .pos_path = "ydarg.entry",
+  .action = MA_C_FN,
+  .fn = ydarg,
+}
+```
+
+**Data** (`data/world.json5`): `ydarg.entry: { x: 14, y: 30 }`
+under the existing `ydarg:` subtree (sibling of `map: { size:
+5 }`, the existing drop tables, and the confrontation
+sequence). The castle-tile identification is handled by the
+terrain `class:` field added in `fe6ad45`
+(`'2': { glyph: 'CC', color: 'white', class: 'castle' }`).
+Both the position and the tile class are pure data; bumping the
+castle gate to a different coordinate or marking a second
+castle tile is now a `data/world.json5` edit.
+
+**Dispatcher split** (`src/missions.{h,c}`):
+
+- `dispatch_triggers(enum mission_where where)` filters the
+  loop to entries with matching `where`; non-matching entries
+  are skipped before the flag/guard check.
+
+- `mission_control()` calls `dispatch_triggers(MW_STEP)`
+  (unchanged externally — `random_wilderness` still calls it
+  the same way).
+
+- `mission_try_at_enter()` (new public entry point) calls
+  `dispatch_triggers(MW_ENTER_KEY)` and returns 1 if any
+  trigger fired, 0 otherwise.
+
+**Towne integration** (`src/towne.c::enter`):
+
+```c
+state.twn = WILDERNESS_TOWN;
+
+/* Pluggable settlement triggers (E-key phase). */
+if (mission_try_at_enter()) {
+    return;
+}
+
+if (wld_tile_is_hut(tile)) { hut(); return; }
+
+state.twn = res_town_at(pa_x(), pa_y());
+/* ... existing town flow ... */
+```
+
+The `if (tile == '2' && pa_x() == 14 && pa_y() == 30) {
+ydarg(); return; }` block leaves `towne.c` entirely. The
+`#include "ydarg.h"` line goes with it; `#include "missions.h"`
+takes its place.
+
+**What's still inside `ydarg()`**: the inventory gate at the
+top of the function (jazzyfoot / mastercrown / silverkey /
+bracelets), multi-floor navigation, per-room dispatch
+(`room_type_max`-driven roll), the give-item flow on the
+50-tile mage, and the final-confrontation sequence. None of
+these have DSL primitives today; the full lift is 3+ sessions
+(deferred). The structural property "Ydarg is in the mission
+table" is now true regardless.
+
+**Gates**: 43 fixtures byte-identical on `make check` +
+`make testasan` (the `ydarg-confrontation` and `ydarg-no-key`
+fixtures still exercise `ydarg()` end-to-end through the new
+dispatch path; both stayed at 184872 / 36179 bytes
+respectively). Format clean — `clang-format -i` reformatted
+two of the new struct-member comments to match the
+file-local style.
+
+**Naming notes**: `where` was chosen over `phase` /
+`dispatch` for terseness; the field describes *where the
+trigger fires from* rather than *when in the loop*.
+`mission_try_at_enter` is named after the caller (E-key path)
+rather than the result; `mission_control` keeps its existing
+name since it's the wilderness-step entry point and the
+contract is unchanged. `MA_C_FN` is the action kind; the
+field carrying the function pointer is just `fn` (the
+`mission_c_fn` typedef name spells out the action shape).
