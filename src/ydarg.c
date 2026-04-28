@@ -14,10 +14,82 @@
 #include "wld.h"
 #include "ydarg.h"
 
-void ydarg() {
+/* §23.J ydarg DSL lift — function-local state hoisted to module
+   scope so the per-case scripts can read/write it via engine_call
+   backers. The `while(1)` driver inside ydarg() still mutates
+   `g_ydarg.xl/yl/lvl/room[][]` directly today; the lifts below
+   funnel each access through these helpers so scripts that touch
+   the same fields land on the identical bytes. The whole struct is
+   re-seeded on every ydarg() entry — no save-game persistence. */
+struct ydarg_state {
+    int32_t xl;
+    int32_t yl;
+    int32_t lvl;
+    int32_t map_size;
     int32_t room[8][8];
-    int32_t xl, yl, lvl, n, s, e, w, i, j, x, oc;
-    int32_t map_size = res_int_path("ydarg.map.size");
+};
+
+static struct ydarg_state g_ydarg;
+
+/* §23.J: seed the per-floor grid. Fills slots 1..map_size with
+   ryl_random(1, room_type_max) — except when the easy_rooms test
+   knob is on, in which case every non-stairs slot is 4 (no-op room)
+   to remove the per-slot RNG draw from a confrontation fixture's
+   keystroke stream. The map[size][size] = 50 stair slot is fixed
+   verbatim. xl/yl/lvl reset to (1, 1, 1); map_size is cached so
+   the navigation block doesn't re-read the world tree. */
+static void ydarg_state_init(void) {
+    g_ydarg.map_size = res_int_path("ydarg.map.size");
+    g_ydarg.lvl = 1;
+    g_ydarg.xl = 1;
+    g_ydarg.yl = 1;
+    int room_type_max = res_int_path("ydarg.room.type_max");
+    int easy_rooms = rk_ydarg_easy_rooms();
+    for (int i = 1; i <= g_ydarg.map_size; i++) {
+        for (int j = 1; j <= g_ydarg.map_size; j++) {
+            g_ydarg.room[i][j] = easy_rooms ? 4 : ryl_random(1, room_type_max);
+        }
+    }
+    g_ydarg.room[g_ydarg.map_size][g_ydarg.map_size] = 50;
+}
+
+/* §23.J state accessors — narrow helpers exposed to the DSL via
+   the engine_int / engine_call dispatch tables. Callers in scripts
+   read xl/yl/lvl/room_at_cur/map_size as engine_int args; mutators
+   live as engine_calls (set_xl, set_yl, set_lvl, clear_room_at_cur,
+   reset_pos). The room grid is only ever consumed at the cur (xl,
+   yl) cell; exposing a generic [x][y] reader/writer would invite
+   the script to walk the grid which the legacy code never did. */
+int32_t ydarg_get_xl(void) {
+    return g_ydarg.xl;
+}
+int32_t ydarg_get_yl(void) {
+    return g_ydarg.yl;
+}
+int32_t ydarg_get_lvl(void) {
+    return g_ydarg.lvl;
+}
+int32_t ydarg_get_map_size(void) {
+    return g_ydarg.map_size;
+}
+int32_t ydarg_get_room_at_cur(void) {
+    return g_ydarg.room[g_ydarg.xl][g_ydarg.yl];
+}
+void ydarg_set_xl(int32_t v) {
+    g_ydarg.xl = v;
+}
+void ydarg_set_yl(int32_t v) {
+    g_ydarg.yl = v;
+}
+void ydarg_set_lvl(int32_t v) {
+    g_ydarg.lvl = v;
+}
+void ydarg_clear_room_at_cur(void) {
+    g_ydarg.room[g_ydarg.xl][g_ydarg.yl] = 0;
+}
+
+void ydarg() {
+    int32_t n, s, e, w, i, j, x, oc;
     char c, d;
 
     /* silverkey == 0 (no_key) and silverkey == 2 (ruin) are now
@@ -49,34 +121,20 @@ void ydarg() {
 
 	*/
 
-    lvl = 1;
-    xl = 1;
-    yl = 1;
-    int room_type_max = res_int_path("ydarg.room.type_max");
-    int easy_rooms = rk_ydarg_easy_rooms();
-    for (i = 1; i <= map_size; i++) {
-        for (j = 1; j <= map_size; j++) {
-            /* Easy-rooms knob fills with case 4 (no-op) so the
-               keystroke stream of a confrontation fixture isn't at
-               the mercy of the per-slot RNG draw. Production builds
-               never see this branch. */
-            room[i][j] = easy_rooms ? 4 : ryl_random(1, room_type_max);
-        }
-    }
-    room[map_size][map_size] = 50;
+    ydarg_state_init();
     ryl_pause();
 
     while (1) {
         clw();
 
-        switch (room[xl][yl]) {
+        switch (g_ydarg.room[g_ydarg.xl][g_ydarg.yl]) {
             case 1: /* Monster */
-                room[xl][yl] = 0;
+                g_ydarg.room[g_ydarg.xl][g_ydarg.yl] = 0;
                 play_script("ydarg.room_monster", NULL);
                 break;
 
             case 2: /* Pitfall */
-                room[xl][yl] = 0;
+                g_ydarg.room[g_ydarg.xl][g_ydarg.yl] = 0;
                 tx("%s springs a\r\n", pm_name(pm_cur(ryl_random(0, 3))));
                 tx("trap!!!\r\n");
                 ryl_delay(1500);
@@ -123,7 +181,7 @@ void ydarg() {
                 break;
 
             case 3:
-                room[xl][yl] = 0;
+                g_ydarg.room[g_ydarg.xl][g_ydarg.yl] = 0;
                 x = ryl_random(0, res_int_path("ydarg.drop_tables.room.gate_max"));
                 if (x) {
                     char rng_key[64];
@@ -180,7 +238,7 @@ void ydarg() {
                         clw();
                         tx0(res_text("ydarg.room.stairs.leave"));
                         ryl_delay(1000);
-                        yl--;
+                        g_ydarg.yl--;
                         break;
                     }
                     if (d == 'T') {
@@ -224,10 +282,10 @@ void ydarg() {
                         tx0(res_text("ydarg.room.stairs.mage_grateful"));
                         ryl_pause();
                         clw();
-                        xl = 1;
-                        yl = 1;
-                        lvl++;
-                        if (lvl == 5) {
+                        g_ydarg.xl = 1;
+                        g_ydarg.yl = 1;
+                        g_ydarg.lvl++;
+                        if (g_ydarg.lvl == 5) {
                             play_script("ydarg.confrontation", NULL);
                         }
                         break;
@@ -238,27 +296,27 @@ void ydarg() {
 
         clw();
         statusline();
-        tx("You are at %dx%d.\r\n\r\n", xl, yl, lvl);
-        tx("You are on level %d.\r\n", lvl);
+        tx("You are at %dx%d.\r\n\r\n", g_ydarg.xl, g_ydarg.yl, g_ydarg.lvl);
+        tx("You are on level %d.\r\n", g_ydarg.lvl);
         {
             char floor_id[32];
-            snprintf(floor_id, sizeof floor_id, "ydarg.nav.floor_%d", lvl);
+            snprintf(floor_id, sizeof floor_id, "ydarg.nav.floor_%d", g_ydarg.lvl);
             tx0(res_text(floor_id));
         }
         n = 0;
         s = 0;
         e = 0;
         w = 0;
-        if (yl > 1) {
+        if (g_ydarg.yl > 1) {
             n = 1;
         }
-        if (xl > 1) {
+        if (g_ydarg.xl > 1) {
             w = 1;
         }
-        if (xl < map_size) {
+        if (g_ydarg.xl < g_ydarg.map_size) {
             e = 1;
         }
-        if (yl < map_size) {
+        if (g_ydarg.yl < g_ydarg.map_size) {
             s = 1;
         }
         if (n) {
@@ -311,8 +369,8 @@ void ydarg() {
                 tx0(res_text(go_text));
                 ryl_delay(300);
                 clw();
-                xl += wld_dir_dx(move);
-                yl += wld_dir_dy(move);
+                g_ydarg.xl += wld_dir_dx(move);
+                g_ydarg.yl += wld_dir_dy(move);
             }
         }
         if (c == '?') {
