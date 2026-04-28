@@ -284,8 +284,8 @@
     sell_prompt: ['Sell what?',
                   ''],
     not_w_or_a:  ['Not weapon or armour.'],
-    // {pr} = offered gold
-    offer: ['Ok! Give ya {pr}!',
+    // {price} = offered gold
+    offer: ['Ok! Give ya {price}!',
             ''],
     bargain_opt: ['(B)argain'],
     no_thanks: ['No thanks.'],
@@ -469,8 +469,8 @@
     bye:    ['Well, bye then...'],
     wrong_kind: ["- I don't deal in that",
                  '  kind of stuff!'],
-    // {pr} = offered gold (obcost(oc)/2)
-    sell_offer: ['- Ok. Give ya {pr}!',
+    // {price} = offered gold (obcost(oc)/2)
+    sell_offer: ['- Ok. Give ya {price}!',
                  ''],
     sold: ['Sold!'],
     // {food_price} = snprintf('%2d', lv[1]+1);
@@ -504,8 +504,8 @@
                'carrying your food',
                'and equipment.'],
     },
-    // {pr} = per-unit price, used for torch/food "how many" path
-    each: ['{pr} gold each, sir.'],
+    // {price} = per-unit price, used for torch/food "how many" path
+    each: ['{price} gold each, sir.'],
     how_many: 'How many? ',
     too_many_torches: ['You can carry no',
                        'more than 80',
@@ -516,8 +516,8 @@
     too_expensive: ['Too expensive!'],
     cant_carry: ['You cannot carry more.'],
     deal: ['Deal!'],
-    // {pr} = price
-    price: ['Price: {pr}',
+    // {price} = price
+    price: ['Price: {price}',
             ''],
     pn_menu: ['(P)ay',
               '(N)one'],
