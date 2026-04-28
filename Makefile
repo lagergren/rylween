@@ -6,7 +6,13 @@ CFLAGS    ?= -std=c99 -O0 -g -Wall -Wextra -Werror=format-security -Isrc
 # §19.2.2 "HP 68/64" phantom. -MMD skips system headers; -MP adds
 # phony targets so a deleted header doesn't break the rebuild.
 DEPFLAGS  := -MMD -MP
-CPPFLAGS  :=
+# `-std=c99` puts glibc into strict ISO C mode, which hides POSIX
+# extensions the codebase uses everywhere (`strdup`, `usleep`,
+# `sigaction`, `getline`, …). `_DEFAULT_SOURCE` is glibc's "give me
+# the historical BSD/SVID surface" knob; Apple-libc ignores it (those
+# symbols are always exposed there), which is why the gap stayed
+# masked until the §12.1 Linux build.
+CPPFLAGS  := -D_DEFAULT_SOURCE
 LDFLAGS   :=
 
 # ASan: set ASAN_FLAGS (tuned per §12.2 Commit C) when building the
@@ -42,7 +48,7 @@ $(BIN): $(OBJ)
 # ASan binary: separate target so .o files don't clash with the stock
 # build. Compiled straight from sources (no shared intermediate .o).
 $(BIN_ASAN): $(SRC)
-	$(CC) $(CFLAGS) $(ASAN_FLAGS) $(LDFLAGS) $(SRC) -o $@
+	$(CC) $(CFLAGS) $(ASAN_FLAGS) $(CPPFLAGS) $(LDFLAGS) $(SRC) -o $@
 
 # Include generated header-dep files; `-` silences the first-run miss.
 -include $(OBJ:.o=.d)
