@@ -1666,7 +1666,7 @@ static void eng_pa_teleport_step(const int32_t *a) {
     int dy = wld_dir_dy(d);
     int steps = distance * 2;
     for (int i = 0; i < steps; i++) {
-        if (wld_tile_at(pa_x() + dx, pa_y() + dy) != 'm') {
+        if (!wld_tile_is_mountain(wld_tile_at(pa_x() + dx, pa_y() + dy))) {
             pa_set_x(pa_x() + dx);
             pa_set_y(pa_y() + dy);
         }

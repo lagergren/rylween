@@ -180,7 +180,7 @@ static int enter_tax_preamble(const char *twnname) {
 void enter() {
     const char tile = wld_tile_at(pa_x(), pa_y());
 
-    if (tile != '0' && tile != '1' && tile != '2') {
+    if (!wld_tile_is_settlement(tile)) {
         clw();
         tx0(res_text("towne.enter.nothing"));
         return;
@@ -188,11 +188,11 @@ void enter() {
 
     state.twn = WILDERNESS_TOWN;
 
-    if (tile == '1') {
+    if (wld_tile_is_hut(tile)) {
         hut();
         return;
     }
-    if (tile == '2' && pa_x() == 14 && pa_y() == 30) {
+    if (wld_tile_is_castle(tile) && pa_x() == 14 && pa_y() == 30) {
         ydarg();
         return;
     }

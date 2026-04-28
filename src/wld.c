@@ -1,6 +1,9 @@
 #include "wld.h"
 
+#include "res.h"
 #include "state.h"
+
+#include <string.h>
 
 /* Map-array dimensions match struct ryl_state.map[42][82] in
    state.h. Hardcoded here because state.h does not export macros
@@ -37,12 +40,44 @@ void wld_set_tile_at(int x, int y, char c) {
     state.map[y][x] = c;
 }
 
+static int tile_class_is(char c, const char *want) {
+    const char *cls = res_terrain_class(c);
+    return cls && strcmp(cls, want) == 0;
+}
+
+int wld_tile_is_hut(char c) {
+    return tile_class_is(c, "hut");
+}
+
+int wld_tile_is_town(char c) {
+    return tile_class_is(c, "town");
+}
+
+int wld_tile_is_castle(char c) {
+    return tile_class_is(c, "castle");
+}
+
+int wld_tile_is_settlement(char c) {
+    return wld_tile_is_hut(c) || wld_tile_is_town(c) || wld_tile_is_castle(c);
+}
+
+int wld_tile_is_mountain(char c) {
+    return tile_class_is(c, "mountain");
+}
+
+int wld_tile_is_water(char c) {
+    return tile_class_is(c, "water");
+}
+
+int wld_tile_is_impassable(char c) {
+    return wld_tile_is_mountain(c) || wld_tile_is_water(c);
+}
+
 int wld_is_passable(int x, int y) {
     if (!in_bounds(x, y)) {
         return 0;
     }
-    char c = state.map[y][x];
-    return c != 'm' && c != 'w';
+    return !wld_tile_is_impassable(state.map[y][x]);
 }
 
 void wld_load_row(int y, FILE *fh) {

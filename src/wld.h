@@ -28,10 +28,23 @@ char wld_tile_at(int x, int y);
    no-op so callers don't have to bounds-check before stamping. */
 void wld_set_tile_at(int x, int y, char c);
 
-/* 1 if the party may step onto (x, y), 0 otherwise. The legacy
-   passable check is "not 'm' (mountain) and not 'w' (water)";
-   out-of-bounds coords return 0 (treat the off-map void as a
-   wall). */
+/* Tile-class predicates. Sourced from data/world.json5 `terrain.<c>.class`
+   via res_terrain_class. Settlements ('town' / 'hut' / 'castle') are
+   the tiles the towne.c E-key flow dispatches on; impassable tiles
+   ('mountain' / 'water') block movement (wld_is_passable inverts the
+   union). Tiles without a `class:` field return 0 from every
+   predicate — they're plain open terrain. */
+int wld_tile_is_hut(char c);
+int wld_tile_is_town(char c);
+int wld_tile_is_castle(char c);
+int wld_tile_is_settlement(char c);
+int wld_tile_is_mountain(char c);
+int wld_tile_is_water(char c);
+int wld_tile_is_impassable(char c);
+
+/* 1 if the party may step onto (x, y), 0 otherwise. Equivalent to
+   `!wld_tile_is_impassable(wld_tile_at(x, y))`. Out-of-bounds coords
+   return 0 (treat the off-map void as a wall). */
 int wld_is_passable(int x, int y);
 
 /* Read one row of map terrain from `fh` via fgets into row `y` (0-based,

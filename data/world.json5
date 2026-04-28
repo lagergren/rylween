@@ -433,18 +433,24 @@
   // exactly which map character gets which rendered form. `glyph` is
   // the two-char cell the renderer writes to the terminal; `color` is
   // the ANSI foreground name (black/red/green/yellow/blue/magenta/
-  // cyan/white). Unknown map bytes render as "  " in cyan.
+  // cyan/white). Unknown map bytes render as "  " in cyan. `class` is
+  // an optional tag the engine routes through wld_tile_is_<class>:
+  // 'mountain'/'water' classes mark impassable tiles (wld_is_passable
+  // returns false); 'town'/'hut'/'castle' classes mark "enterable"
+  // tiles the towne.c E-key flow dispatches on; tiles without a class
+  // are open terrain. Adding a fourth settlement type is a pure data
+  // edit + a new wld_tile_is_<name> helper.
   terrain: {
-    'm': { glyph: '/\\', color: 'white' },
-    'w': { glyph: '~~', color: 'blue' },
-    's': { glyph: '..', color: 'yellow' },
-    '0': { glyph: 'TT', color: 'white' },
-    '1': { glyph: 'HH', color: 'white' },
-    'f': { glyph: '^^', color: 'white' },
-    'd': { glyph: '::', color: 'red' },
-    't': { glyph: '%%', color: 'magenta' },
-    'g': { glyph: 'gg', color: 'green' },
-    '2': { glyph: 'CC', color: 'white' },
+    'm': { glyph: '/\\', color: 'white',   class: 'mountain' },
+    'w': { glyph: '~~', color: 'blue',     class: 'water'    },
+    's': { glyph: '..', color: 'yellow'                      },
+    '0': { glyph: 'TT', color: 'white',    class: 'town'     },
+    '1': { glyph: 'HH', color: 'white',    class: 'hut'      },
+    'f': { glyph: '^^', color: 'white'                       },
+    'd': { glyph: '::', color: 'red'                         },
+    't': { glyph: '%%', color: 'magenta'                     },
+    'g': { glyph: 'gg', color: 'green'                       },
+    '2': { glyph: 'CC', color: 'white',    class: 'castle'   },
   },
 
   // Pronouns. res_pronoun(gender, xx) reads these with xx = 1 (subject),

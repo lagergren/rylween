@@ -31,6 +31,7 @@
 #include "primitives.h"
 #include "runtime_cfg.h"
 #include "script.h"
+#include "wld.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,6 +95,7 @@ enum {
 };
 
 static char *glyph_tab[256];
+static char *class_tab[256];
 static int32_t color_tab[256];
 static int color_tab_set[256];
 static int32_t color_default = ANSI_FG_CYAN;
@@ -1058,6 +1060,11 @@ int32_t res_color(char terrain) {
     return color_tab_set[g] ? color_tab[g] : color_default;
 }
 
+const char *res_terrain_class(char terrain) {
+    unsigned char g = (unsigned char)terrain;
+    return class_tab[g];
+}
+
 const char *res_pronoun(int gender, int xx) {
     if (gender < 1 || gender > 2 || xx < 1 || xx > 3) {
         return "";
@@ -1601,7 +1608,7 @@ void res_realize_npcs(void) {
                         }
                     }
                     char tile = state.map[n->y][n->x];
-                    if (tile != '0' && tile != '1' && tile != '2' && tile != 'm' && tile != 'w') {
+                    if (!wld_tile_is_settlement(tile) && !wld_tile_is_impassable(tile)) {
                         ut++;
                     }
                     if (ut > 1) {
@@ -2054,6 +2061,14 @@ static void fold_terrain(const node *terrain_node, const char *path) {
             }
             color_tab[g] = code;
             color_tab_set[g] = 1;
+        }
+        const node *class_n = obj_get(rec, "class");
+        if (class_n) {
+            if (class_n->kind != N_STR) {
+                res_die(path, class_n->line, "terrain: class must be string");
+            }
+            free(class_tab[g]);
+            class_tab[g] = strdup(class_n->u.sv);
         }
     }
 }
@@ -3302,6 +3317,8 @@ static void reset_terrain_from_tree(const node *terrain_node) {
         unsigned char g = (unsigned char)key[0];
         free(glyph_tab[g]);
         glyph_tab[g] = NULL;
+        free(class_tab[g]);
+        class_tab[g] = NULL;
         color_tab[g] = 0;
         color_tab_set[g] = 0;
     }

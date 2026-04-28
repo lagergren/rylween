@@ -328,6 +328,13 @@ const char *res_glyph(char terrain);
    if the byte has no color binding in the world file. */
 int32_t res_color(char terrain);
 
+/* Terrain byte -> class string ('mountain' / 'water' / 'town' / 'hut'
+   / 'castle' / ...). NULL for tiles without a `class:` field in the
+   world file. Pointer is owned by res; valid until res_shutdown.
+   Game code should usually go through wld_tile_is_<class>() rather
+   than calling this directly. */
+const char *res_terrain_class(char terrain);
+
 /* Pronoun for gender (1=male, 2=female) and xx (1=subject, 2=object,
    3=possessive). "" if missing. Never NULL. */
 const char *res_pronoun(int gender, int xx);
