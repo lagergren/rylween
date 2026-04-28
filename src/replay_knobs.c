@@ -91,8 +91,9 @@ void rk_apply_party_lv(int a) {
     static const char *const pc_class_key[] = {
         "", "fighter", "thief", "mage", "priest", "bard", "ranger",
     };
+    struct party *p = party_at(a);
     for_each_party_member(i) {
-        pm_t pm = pm_of(&state.p[a], i);
+        pm_t pm = pm_of(p, i);
         int cl_id = pm_cl(pm);
         const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
         for (long n = 1; n < lv_target; n++) {
@@ -134,8 +135,9 @@ void rk_apply_pos(int a) {
     if (end == yp || x < 0 || x >= 82 || y < 0 || y >= 42) {
         return;
     }
-    state.p[a].x = (int32_t)x;
-    state.p[a].y = (int32_t)y;
+    struct party *p = party_at(a);
+    p->x = (int32_t)x;
+    p->y = (int32_t)y;
 }
 
 void rk_apply_ydarg_grants(int a) {
@@ -152,11 +154,12 @@ void rk_apply_ydarg_grants(int a) {
         return;
     }
     unsetenv("RYL_FORCE_YDARG_GRANTS");
-    state.p[a].fireshield  = 1;
-    state.p[a].mastercrown = 1;
-    state.p[a].jazzyfoot   = 1;
-    state.p[a].bracelets   = 1;
-    state.p[a].silverkey   = 1;
+    struct party *p = party_at(a);
+    p->fireshield  = 1;
+    p->mastercrown = 1;
+    p->jazzyfoot   = 1;
+    p->bracelets   = 1;
+    p->silverkey   = 1;
 }
 
 int rk_ydarg_easy_rooms(void) {
@@ -192,8 +195,9 @@ void rk_apply_party_wp(int a) {
     if (id < 0) {
         return;
     }
+    struct party *p = party_at(a);
     for_each_party_member(i) {
-        pm_set_wp(pm_of(&state.p[a], i), (int)id);
+        pm_set_wp(pm_of(p, i), (int)id);
     }
 }
 
@@ -211,8 +215,9 @@ void rk_apply_party_hp_full(int a) {
         return;
     }
     unsetenv("RYL_FORCE_PARTY_HP_FULL");
+    struct party *p = party_at(a);
     for_each_party_member(i) {
-        pm_t pm = pm_of(&state.p[a], i);
+        pm_t pm = pm_of(p, i);
         if (pm_dead(pm)) {
             continue;
         }
@@ -232,12 +237,13 @@ void rk_apply_dead_slots(int a) {
     if (!env || !*env) {
         return;
     }
+    struct party *party = party_at(a);
     const char *p = env;
     while (*p) {
         char *end;
         long slot = strtol(p, &end, 10);
         if (end != p && slot >= 1 && slot <= res_party_member_max()) {
-            pm_t pm = pm_of(&state.p[a], (int)(slot - 1));
+            pm_t pm = pm_of(party, (int)(slot - 1));
             pm_set_dead(pm, 1);
             pm_set_hp(pm, 0);
         }
