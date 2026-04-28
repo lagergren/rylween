@@ -182,6 +182,16 @@ const char *pa_journal_line(size_t i);
 int pa_special(int which);
 void pa_set_special(int which, int v);
 
+/* By-index party handle. Returns &state.p[idx]; asserts the index is
+   in [0, PARTY_SLOT_HARD_MAX). The current-party-only `pa_*` family
+   above is the natural shape for the 95% of call sites that read /
+   mutate the active party; this helper is the escape hatch for the
+   handful of cross-party loops (scorelist, driv.c::struggle-over
+   sweep, driv.c::owner-match) that have to walk every party slot.
+   Out-of-range is a programmer error and exits(1) with a descriptive
+   log line — callers don't have to NULL-check. */
+struct party *party_at(int idx);
+
 /* Append `line` to p->journal, skipping if a case-insensitive duplicate is
    already present (behaviour parity with the file-backed `stricmp` dedup
    it replaces). The caller's buffer is copied; ownership moves into the

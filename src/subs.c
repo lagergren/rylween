@@ -652,24 +652,25 @@ void scorelist() {
 
     int mmax = res_party_member_max();
     for (i = 1; i < state.num_parties + 1; i++) {
+        const struct party *p = party_at(i);
         uint32_t exp_sum = 0;
         uint32_t lv_sum = 0;
         for (j = 0; j < mmax; j++) {
-            exp_sum += state.p[i].exp[j];
-            lv_sum += (uint32_t)state.p[i].lv[j];
+            exp_sum += p->exp[j];
+            lv_sum += (uint32_t)p->lv[j];
         }
         pts[i] = exp_sum / (uint32_t)mmax;
         lvl[i] = lv_sum / (uint32_t)mmax;
-        kills[i] = state.p[i].kills;
-        strcpy(pname[i], state.p[i].party_name);
-        strcpy(lname[i], state.p[i].name[0]);
-        item[i][1] = state.p[i].fireshield;
-        item[i][2] = state.p[i].bracelets;
-        item[i][3] = state.p[i].mastercrown;
-        item[i][4] = state.p[i].silverkey;
-        item[i][5] = state.p[i].jazzyfoot;
+        kills[i] = p->kills;
+        strcpy(pname[i], p->party_name);
+        strcpy(lname[i], p->name[0]);
+        item[i][1] = p->fireshield;
+        item[i][2] = p->bracelets;
+        item[i][3] = p->mastercrown;
+        item[i][4] = p->silverkey;
+        item[i][5] = p->jazzyfoot;
         for (j = 0; j < mmax; j++) {
-            cls[i][j] = state.p[i].cl[j];
+            cls[i][j] = p->cl[j];
         }
         pnr[i] = i;
     }

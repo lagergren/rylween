@@ -316,6 +316,15 @@ void pa_set_special(int which, int v) {
     *pa_special_ptr(which) = (unsigned char)v;
 }
 
+struct party *party_at(int idx) {
+    if (idx < 0 || idx >= PARTY_SLOT_HARD_MAX) {
+        LOG_E("party", "party_at(%d) out of range [0, %d)", idx,
+              PARTY_SLOT_HARD_MAX);
+        exit(1);
+    }
+    return &state.p[idx];
+}
+
 void party_journal_add(struct party *p, const char *line) {
     if (!p || !line || !line[0]) {
         return;
