@@ -29,7 +29,7 @@ Section numbers are preserved across the split — every `§N` cross-reference i
 |  9 | End-state vision: a data-driven engine                                       | reference   | port-plan-incomplete.md    |
 | 10 | Why not port to Kotlin (or Rust, or …)?                                      | complete    | port-plan-complete.md      |
 | 11 | Rough diff budget for Phase 0-5                                              | complete    | port-plan-complete.md      |
-| 12 | Follow-ups queued for after Phase 6d module splits                           | in-progress | port-plan-incomplete.md    |
+| 12 | Follow-ups queued for after Phase 6d module splits (§12.1 + §12.4 closed; §12.2/§12.3 open) | partial     | port-plan-incomplete.md    |
 | 13 | Leak inventory (Commit A of §12.2)                                           | complete    | port-plan-complete.md      |
 | 14 | State hygiene audit (follow-up to §13)                                       | complete    | port-plan-complete.md      |
 | 15 | Realm persistence: current-world.json5 (concrete §12.3 design)               | complete    | port-plan-complete.md      |

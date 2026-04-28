@@ -2,9 +2,9 @@
 
 This file collects every section of `port-plan.md` that is in-progress, planned, or pure reference / vision material. Completed lifts live in `port-plan-complete.md`; the cross-section index lives in the master `port-plan.md`. Section numbers and `§N` cross-references are preserved verbatim — sections appear in their original §-order regardless of which file they live in.
 
-## Top of queue (status snapshot, 2026-04-28 #5)
+## Top of queue (status snapshot, 2026-04-28 #6)
 
-A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the 2026-04-28 #4 snapshot (state.p[] sweep closed via `party_at`), plus this session's **full-state abstraction sweep** extending the same pattern to every other top-level `struct ryl_state` field: state.npc[] (driv.c save/load via `npc_record_at` + `npc_visited`/`npc_visited_set`), state.map[][] (driv.c / subs.c / snapshot.c / script.c / missions.c via `wld_set_tile_at`/`wld_load_row`/`wld_last_terrain`/`wld_rows`/`wld_cols`), state.cpl + state.num_parties (every consumer outside party.c via `party_current_slot`/`party_set_current_slot`/`party_count`/`party_count_inc`/`party_count_dec`/`party_set_count`), state.global_name / state.last_played_day / state.day_at_game_start / state.banished / state.hour_of_day / state.twn (every consumer outside the home modules via `session_player_name`/`session_*_day`/`session_banished`/`session_hour`/`session_current_town`), state.dx/state.dy (driv.c save/load via `wld_locations_dx`/`wld_locations_dy`). Plus the §24bis phase 1 slug-form accessors (`res_enum_sym`, `pm_class_sym`/`pm_race_sym`, `pa_class_sym`/`pa_race_sym`, `npc_job_sym` + `*_is_sym` predicates), the two phase-2 lifts in speak.c (npc_job string compares), and three follow-ups: replaced `getclk()`/`kl[N]` with `clock_now()` + `struct wall_clock` + `clock_day`/`clock_month`/`clock_year`/`clock_hour`/`clock_minute`; fixed the driv.c::terminate visited-grid shift bug; lifted towne.c's `state.twn == 2` city/village fork to `res_town_is_city` driven by a per-town `class:` field. 39 fixtures byte-identical on `make check` + `make testasan` at every commit. **State-abstraction sweep is now total**: only abstraction-home files (party.c, inventory.c, ryl.c, towne.c for state.twn writes, wld.c for state.dx/dy/map/last_terrain, log.c for the legacy timestamp lookup) retain any direct `state.X` access by design.
+A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the 2026-04-28 #5 snapshot (state-abstraction sweep total + §24bis phases 1/2 + clock_* / terminate fix / towne class lift). This session **closed §12.1 (Dockerfile + GitHub CI)** end-to-end (multi-stage Dockerfile + GitHub Actions workflow with `linux`/`format`/`macos` jobs, all pinned to LLVM 22 from `apt.llvm.org` so the format gate runs the same major across Docker / Ubuntu / macOS brew), shipping two parallel cleanup commits as prerequisites: `bb453c7` adds `-D_DEFAULT_SOURCE` to `CPPFLAGS` so glibc's strict-ISO C99 mode exposes the POSIX surface (`strdup`, `usleep`, `sigaction`, `SIGWINCH`, …) the codebase uses everywhere (Apple-libc exposes those unconditionally, masking the gap until Linux compiled), and `d35f663` runs `clang-format -i` across 12 source files since the format gate had been silently broken pre-§12.1. Also closed: **ydarg inscription Y2K cosmetic** (`ff6195b`) — `"19%d" + (year-1900)` → `"%d", c.year`; no fixture rebless required (the heroes-file write isn't exercised by any fixture). Investigated **Ydarg-as-mission** and confirmed it's NOT quickly unblockable — three structural gaps remain (mission_control polls on movement vs. ydarg is E-key initiated; mission_trigger.script is DSL-only vs. ydarg.c is 200+ lines of C; DSL has no `pa_special` predicate). 39 fixtures byte-identical on `make check` + `make testasan` at every commit. After this snapshot, the active queue is small and explicitly post-everything.
 
 ### Guiding principle (re-affirmed 2026-04-27 #12)
 
@@ -29,9 +29,9 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 - **§24bis — `id: <int>` → slug-keyed state**. **Phase 1 closed (b08978d)**: slug accessors `res_enum_sym` / `pm_class_sym` / `pm_race_sym` / `pa_class_sym` / `pa_race_sym` / `npc_job_sym` + `*_is_sym` predicates land alongside the existing int-form getters; storage unchanged. **Phase 2 partially closed (f21f7af)**: speak.c's two `npc_job(t) == res_enum_id("job", "<sym>")` sites lifted to `npc_job_is_sym(t, "<sym>")`. The plan's "driv.c, battle.c, subs.c are full of these" estimate was stale — those files had moved to data-driven dispatch via §22 / §23 sweeps. Remaining int-class compares (13 PC_* references) live in compat.c (name→id mapper), party.c::pa_is_spellcaster, and res.c (loader / spell-book lookup) — the int form is appropriate for translator/loader code. Phase 3 (drop the int from struct party / state.npc storage) remains a coordinated multi-session refactor under the same plan.
 - **§12.3 — dynamic sizing from world.json5 (`limits` subtree)**. Cap-driven heap-backed flex arrays for `struct party` / `struct ryl_state`. §12.3 has the sequence; §12.2 leak audit (Commit C) already done. Safe-but-large; gated only on appetite. Save-format license (user-granted 2026-04-22) lets `realm.dat` / `npc.dat` migrate to JSON5. With state-abstraction sweep total, the callsite-side cost of this migration is contained.
-- **§12.1 — Dockerfile + GitHub CI**. Reproducible build for non-mac contributors. No code changes blocking it; ~1 session.
-- **Ydarg as a regular mission** (§12.4 residual). Move end-game boss from bespoke `ydarg()` / `confrontation()` into a regular mission with trigger + item-flag conditions. Blocked on the DSL evaluator learning mission triggers + item-flag paths.
-- **ydarg inscription Y2K cosmetic**. The "19%d" + (year-1900) format produces "19126" for 2026. Documented at compat.h + ydarg.c::confrontation; safe to fix to "%d" + clock_year() but requires a fixture rebless on ydarg-confrontation.
+- **§12.1 — Dockerfile + GitHub CI**. **Closed in 2026-04-28 #6** (`d35f663..405f398`, four commits). Multi-stage Dockerfile (`debian:stable-slim` builder → tester → slim runtime) installs LLVM 22 from `apt.llvm.org` so the tester stage's `make test` + `make testasan` + `make format` all run against the same major as macOS brew. `.github/workflows/ci.yml` mirrors with `linux` (gcc+clang matrix, runs all three gates), `format` (clang-format dry-run), `macos` (build + replay + ASan as scorecard — Apple-clang ships without LSan, so Linux is the authoritative leak gate). Two parallel landings were needed to ship: (a) `bb453c7` adds `-D_DEFAULT_SOURCE` to `CPPFLAGS` so glibc's strict-ISO C99 mode exposes the POSIX surface (`strdup`, `usleep`/`useconds_t`, `sigaction`/`SIGWINCH`, …) the codebase uses everywhere — Apple-libc exposes those unconditionally, which masked the gap until Linux compiled; (b) `d35f663` runs `clang-format -i` across 12 files (114+/103-) and flips `.clang-format`'s `ReflowComments: Never` to `ReflowComments: false` (a documented alias accepted by every clang-format major back to 18). Format gate had been silently broken pre-§12.1; recorded in `.git-blame-ignore-revs`.
+- **Ydarg as a regular mission** (§12.4 residual). Investigated 2026-04-28 #6 — **NOT cheaply unblockable**. Three structural gaps: (1) `mission_control()` polls on every wilderness step, but Ydarg is currently `enter()`-key initiated — converting requires either a behavior change (auto-trigger on step) or a parallel E-key mission registry. (2) `mission_trigger.script` is DSL-only via `play_script(t->script, ...)`; ydarg.c is 200+ lines of C with multi-floor navigation, rooms, item-give flow — needs either a C-callback extension to the framework or a multi-session DSL lift. (3) DSL has no `pa_special` / has-item predicate, so "gated on jazzyfoot/mastercrown/silverkey/bracelets" can't be expressed as a trigger condition today. Path forward: ~1 session to extend mission framework with a C-fn callback + new compound (tile + position) guard kind, then move the trigger record. The full DSL lift is 3+ sessions.
+- **ydarg inscription Y2K cosmetic** — closed in 2026-04-28 #6 (`ff6195b`). `"19%d" + (c.year - 1900)` → `"%d", c.year` (clock_year() returns the full 4-digit year per compat.h). No fixture rebless needed: the `ydarg-confrontation` fixture's env sidecar explicitly notes "the heroes-file write is left for a follow-up", and grep confirms no fixture exercises this code path.
 
 ### Documented & deferred — won't land unless requirements change
 
@@ -128,13 +128,14 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 ### Recommended next session
 
-**State-abstraction sweep total** in 2026-04-28 #5: every top-level `struct ryl_state` field is now accessed exclusively through helpers from outside its abstraction-home file. Mechanical residuals (driv.c::terminate visited-grid shift, towne.c twn==2 city fork, getclk/kl[N]) all closed. **§24bis phase 1** (slug-form sym accessors) closed; **phase 2** verified ~complete (only 13 PC_* references remain, all in translator/loader code where the int form is correct). With the headline state-abstraction + DSL extraction work done, the queue is now small and explicitly post-everything:
+**§12.1 (Dockerfile + GitHub CI) closed end-to-end** in 2026-04-28 #6, alongside the **ydarg Y2K cosmetic** mechanical residual (`ff6195b`). State-abstraction sweep + §24bis phases 1/2 stand from 2026-04-28 #5. Investigated **Ydarg-as-mission** in this session and documented why it's NOT cheaply unblockable: three structural gaps require either a multi-session DSL lift or a single-session mission-framework extension (see "Deferred" entry above). With §12.1 done and Ydarg-as-mission scoped, the queue is now down to two structural multi-session items plus the Ydarg follow-up:
 
-  - **§12.1 — Dockerfile + GitHub CI**. Reproducible build for non-mac contributors. ~1 session, no code changes blocking it. The clearest next concrete item.
-  - **§24bis phase 3 — drop the int from struct party / state.npc storage**. Coordinated multi-session refactor: change struct cl/ra/job from int to interned-symbol handles, update save format, update every loader / mutator. Now genuinely unblocked but still 2-3 sessions because save-format JSON5 emit + read paths flip together.
-  - **§12.3 — dynamic sizing from world.json5 (`limits` subtree)**. Remaining static caps `state.p[26]`, `map[42][82]`, party-inventory `[17]`, `attack_today[26]`. Save-format license already granted. Multi-session.
-  - **ydarg inscription Y2K cosmetic** (mechanical residual). "%d" + `clock_year()` instead of "19%d" + `(year-1900)`; requires ydarg-confrontation fixture rebless.
-  - **Ydarg as a regular mission** (§12.4 residual). Still blocked on the DSL evaluator learning mission triggers + item-flag paths.
+  - **§24bis phase 3 — drop the int from struct party / state.npc storage**. Coordinated multi-session refactor: change struct cl/ra/job from int to interned-symbol handles, update save format, update every loader / mutator. Now genuinely unblocked but still 2-3 sessions because save-format JSON5 emit + read paths flip together. **Likely the highest-leverage next pick** — every other open item benefits from the slug-keyed storage.
+  - **§12.3 — dynamic sizing from world.json5 (`limits` subtree)**. Remaining static caps `state.p[26]`, `map[42][82]`, party-inventory `[17]`, `attack_today[26]`. Save-format license already granted (2026-04-22). Multi-session; sequencing-wise reasonable to land before §24bis phase 3 since both flip the save format and doing them together avoids a double rebless of the format-version gate.
+  - **Ydarg-as-mission — single-session shape**. Add a `mission_action_kind` enum (MA_SCRIPT / MA_C_FN) to mission_trigger so play_script can be replaced with a function pointer; add a compound MG_TILE_AT_POS guard kind (combines MG_TERRAIN + MG_POS); move the (14,30, tile '2') trigger out of `towne.c::enter()` into the mission table with `fn = ydarg`. Sidesteps the DSL-lift + pa_special-predicate work the original blocker called out — gets the structural "Ydarg in the mission table" property without rewriting ydarg.c. (The full DSL lift remains 3+ sessions; this is the moderate path.)
+  - **§24bis phase 3 alternative: smaller scope first.** If a full storage flip feels too coordinated, the same plan supports doing it per-axis (cl first, then ra, then job) — phase 1's `*_sym` accessors already isolate the read paths.
+
+Per-session bar: `make check` + `make testasan` both green at every commit; format gate (`make format`) now also runs in CI on push + PR. Push only on explicit user approval (per AGENTS.md).
 
 ## 1. What the code actually is
 
@@ -578,38 +579,21 @@ The `json5.[ch]` / `state.h` / per-module-header series (commits
 `baf768f`, `c2bf863`, `168ff9c`) landed three structural cuts. Open
 work after that:
 
-### 12.1 Dockerfile + GitHub CI
+### 12.1 Dockerfile + GitHub CI — **closed 2026-04-28 #6**
 
-**Goal.** Contributors without a native toolchain (or with a
-non-macOS platform) should be able to build, run `tools/replay.sh
---all`, and run `tools/check_world.sh` in a single `docker build`
-invocation.
-
-**Dockerfile shape** (multi-stage):
-
-- Stage 1 (`builder`): `debian:stable-slim` + `build-essential`
-  + `make`. `COPY .` then `make clean && make`.
-- Stage 2 (`tester`): same base, copy the rylween binary +
-  `tools/` + `data/`, run `tools/replay.sh --all` and
-  `tools/check_world.sh` as `RUN` steps so image build fails on
-  regression.
-- Stage 3 (`runtime`): slim image with binary + data for
-  `docker run -it rylween`.
-
-**CI shape** (`.github/workflows/ci.yml`):
-
-- Trigger: push + PR.
-- Matrix: `ubuntu-latest` (gcc + clang), optionally
-  `macos-latest`. `ubuntu-24.04` gives clang-format 17 to
-  verify `.clang-format` cleanliness.
-- Steps, all as `make` targets so the gate stays in one place:
-  `make test` (build + `tools/replay.sh --all` +
-  `tools/check_world.sh`), `make testasan` (ASan-built replay
-  fixtures, fails on AddressSanitizer / LeakSanitizer markers)
-  on `ubuntu-latest` where LSan ships enabled — macOS
-  Apple-clang ASan is missing LSan, so the Ubuntu leg is the
-  authoritative leak gate; macOS ASan stays a scorecard.
-  `make format` for clang-format dry-run.
+Body relocated to `port-plan-complete.md` "§12.1 closure" section
+(commits `d35f663..405f398`). Briefly: multi-stage Dockerfile
+(`debian:stable-slim` builder → tester → slim runtime), LLVM 22
+pulled from `apt.llvm.org` so all three platforms (Linux Docker,
+GitHub-CI Linux, macOS brew) run the same clang-format major,
+`.github/workflows/ci.yml` with `linux` (gcc+clang matrix, full gate)
++ `format` (clang-format dry-run) + `macos` (scorecard — Apple-clang
+ships without LSan) jobs. Two parallel landings shipped: `bb453c7`
+adds `-D_DEFAULT_SOURCE` to `CPPFLAGS` so glibc's strict-ISO C99 mode
+exposes the POSIX surface (`strdup`, `usleep`, `sigaction`, …) the
+codebase uses everywhere; `d35f663` runs `clang-format -i` across 12
+files (114+/103-) since the format gate had been silently broken
+pre-§12.1.
 
 ### 12.2 Global-state teardown + allocation audit
 
@@ -3592,3 +3576,134 @@ Continuation prompt for next session.
 
   Bar per session: `make check` + `make testasan` both green at
   every commit. Push only on explicit user approval (per AGENTS.md).
+
+## Session 2026-04-28 #6 closure + continuation prompt
+
+Six commits on `lagergren/port1` (`d35f663..ff6195b`). 39 fixtures
+byte-identical on `make check` + `make testasan` at every commit; no
+`.expect_snapshot` rebless required. **§12.1 (Dockerfile + GitHub
+CI) closes end-to-end** — body relocated to `port-plan-complete.md`
+"§12.1 closure" section.
+
+What landed (in commit order):
+
+  - `d35f663` **style: clang-format -i sweep + `.clang-format`
+    compat for clang-format 19**. The format-gate at HEAD was
+    silently broken pre-§12.1 — `make format` had been wired up
+    but never run, and column-alignment violations had crept in
+    across 11 source files. `.clang-format` flips `ReflowComments:
+    Never` (the new enum form, accepted only by clang-format 22+)
+    back to `ReflowComments: false` (a documented alias for `Never`
+    in clang-format 22+; the bool form every clang-format major
+    back to 18 accepts). Bulk `clang-format -i src/*.c src/*.h`:
+    12 files, 114+/103- whitespace-only. Mirrors historical 33ffc52
+    in shape; recorded in `.git-blame-ignore-revs` (`405f398`).
+
+  - `bb453c7` **build: `-D_DEFAULT_SOURCE` so the Linux glibc build
+    sees POSIX extensions**. `-std=c99` on glibc hides `strdup`,
+    `usleep`/`useconds_t`, `sigaction`/`SIGWINCH`, etc. Apple-libc
+    exposes them unconditionally, masking the gap. Added to
+    `CPPFLAGS`; `$(BIN_ASAN)` recipe also gained `$(CPPFLAGS)`;
+    `io_tty.c` got an explicit `#include <signal.h>` for what was
+    previously a transitive include via `<termios.h>` that doesn't
+    survive the strict-mode toggle.
+
+  - `6d391c7` **ci: §12.1 Dockerfile + GitHub Actions workflow**.
+    Multi-stage `builder` → `tester` → `runtime` Dockerfile;
+    `tester` runs `make test` + `make testasan` + `make format` as
+    separate `RUN` steps. `.dockerignore` covers build artefacts +
+    runtime data. `.github/workflows/ci.yml` has `linux` (ubuntu-
+    latest, gcc+clang matrix, full gate — authoritative leak gate
+    via LSan), `format` (clang-format dry-run), `macos` (build +
+    replay + ASan as scorecard).
+
+  - `8397247` **ci: pin LLVM 22 from upstream apt repo (matches
+    macOS brew)**. Initial commit defaulted to debian:stable's apt
+    clang-format-19 — three minors behind brew's clang-format 22.
+    Both Dockerfile + workflow now install LLVM 22 via `llvm.sh`
+    from `apt.llvm.org`. `LLVM_VERSION` is a build-arg / workflow
+    env var; bump in lock-step with brew's current stable.
+
+  - `405f398` **chore: record d35f663 in `.git-blame-ignore-revs`**.
+
+  - `ff6195b` **ydarg: fix Y2K cosmetic in heroes-file inscription**.
+    `"19%d" + (c.year - 1900)` → `"%d", c.year` (clock_year()
+    returns the full 4-digit year per compat.h). Originally
+    documented as "needs ydarg-confrontation fixture rebless," but
+    the rebless is unnecessary: the fixture's env sidecar
+    explicitly notes the heroes-file write is left for a follow-up,
+    and grep confirms no fixture exercises this code path.
+
+State at end of session. **§12.1 closed end-to-end** (§12 status
+flips from "in-progress" to "partial" in the master TOC since
+§12.2/§12.3 remain). **Ydarg Y2K cosmetic closed**. **Ydarg-as-
+mission investigated** and confirmed NOT cheaply unblockable —
+three structural gaps documented in the queue list above. The
+moderate-path scope (mission framework + C-fn callback + compound
+guard kind) is sketched as a single-session item in "Recommended
+next session"; the full DSL lift remains 3+ sessions.
+
+Continuation prompt for next session.
+
+  Six new commits on `lagergren/port1` (`d35f663..ff6195b`),
+  pushed to origin. HEAD is the Y2K cosmetic fix (`ff6195b`); the
+  prior five commits close §12.1 (Dockerfile + GitHub Actions)
+  end-to-end with two parallel cleanup commits required to ship
+  (clang-format -i sweep + `-D_DEFAULT_SOURCE` for Linux glibc).
+  39 fixtures byte-identical on `make check` + `make testasan` at
+  every commit; the new format gate (`make format`) is also green
+  on Linux clang-format 22 inside the tester image.
+
+  State at end of session. §12.1 (Dockerfile + GitHub CI) closes
+  end-to-end; §12 status in the master TOC flips to "partial"
+  (§12.1 + §12.4 closed; §12.2 + §12.3 still open). Ydarg Y2K
+  cosmetic closed (`ff6195b`). Investigated Ydarg-as-mission and
+  confirmed it's NOT cheaply unblockable — three structural gaps
+  scoped (see "Deferred" / "Recommended next session" in
+  `port-plan-incomplete.md`). State-abstraction sweep (total in
+  2026-04-28 #5) + §24bis phases 1/2 stand. Mechanical residuals
+  queue empty.
+
+  Recommended next session.
+
+    - **§24bis phase 3 — drop the int from struct party /
+      state.npc storage**. The highest-leverage open item. 2-3
+      sessions because save-format JSON5 emit + read paths flip
+      together. Phase 1's `pm_class_sym` / `pa_class_sym` /
+      `npc_job_sym` slug accessors already isolate the read paths,
+      so the cutover is contained. Per-axis incremental landing
+      (cl first, then ra, then job) is supported by phase 1.
+
+    - **§12.3 — dynamic sizing from world.json5 (`limits`
+      subtree)**. Reasonable to land before §24bis phase 3 since
+      both flip the save format and doing them together avoids a
+      double rebless of the format-version gate. Remaining static
+      caps `state.p[26]`, `map[42][82]`, party-inventory `[17]`,
+      `attack_today[26]`.
+
+    - **Ydarg-as-mission — moderate-path single-session shape**.
+      Add `mission_action_kind` enum (MA_SCRIPT / MA_C_FN) to
+      `mission_trigger`; add a compound MG_TILE_AT_POS guard kind;
+      move the (14,30, tile '2') trigger from `towne.c::enter()`
+      into the mission table with `fn = ydarg`. Sidesteps the DSL
+      lift + pa_special predicate work the original blocker called
+      out. The full DSL lift of ydarg.c (200+ LOC of multi-floor
+      navigation) remains 3+ sessions.
+
+  Reading order in repo. `port-plan-incomplete.md` "Top of queue
+  (status snapshot, 2026-04-28 #6)" + the trailing "Session
+  2026-04-28 #6 closure" section have the full per-commit detail.
+  `port-plan-complete.md` "§12.1 closure (2026-04-28 #6)" has the
+  full Dockerfile / CI shape for reference.
+
+  Memory notes worth re-reading: `feedback_state_abstraction.md`
+  (total closure + §24bis phase 1 helpers; the rule for new code is
+  pa_*/pm_*/inv_*/res_*/npc_*/session_*/wld_*, plus *_sym variants
+  for class/race/job comparisons); `feedback_preexisting_bug_fixes.md`;
+  `feedback_replay_knobs_centralized.md`;
+  `feedback_script_text_wiring.md`. The cap-driven heap-allocation
+  principle from §25.B still applies for §12.3's remaining targets.
+
+  Bar per session. `make check` + `make testasan` + `make format`
+  all green at every commit (the format gate is now wired into
+  CI). Push only on explicit user approval (per AGENTS.md).

@@ -4866,3 +4866,85 @@ is closed without doing it.
   even under Option B — a `chance` script op would need the same
   deterministic-seed plumbing A.2 fought through and it's not worth
   the churn for three call sites.
+
+## §12.1 closure (2026-04-28 #6)
+
+Body for §12.1 (Dockerfile + GitHub CI). Stub remains in
+`port-plan-incomplete.md` so the master TOC's §12 anchor still
+resolves alongside the still-open §12.2 / §12.3 / §12.4 residuals.
+
+Four commits on `lagergren/port1` (`d35f663..405f398`):
+
+- `d35f663` **style: clang-format -i sweep + `.clang-format` compat
+  for clang-format 19**. The format-gate at HEAD was silently broken
+  — `make format` had been wired into the Makefile in §12.1
+  anticipation but never actually run, and column-alignment
+  violations had crept in across 11 source files (struct comment
+  columns, switch case bodies, designated-initializer rows). Both
+  Debian-stable's clang-format 19 and brew's clang-format 22 flagged
+  them. Two pieces shipped together: `.clang-format` flips
+  `ReflowComments: Never` (the new enum form, accepted only by
+  clang-format 22+) back to `ReflowComments: false` — `false` is a
+  documented alias for `Never` in clang-format 22+ and the bool form
+  every clang-format major back to 18 accepts; bulk `clang-format -i
+  src/*.c src/*.h` sweep against the patched config. 12 files,
+  114+/103- whitespace-only lines. Mirrors the historical 33ffc52
+  reformat in shape; recorded in `.git-blame-ignore-revs` (`405f398`).
+
+- `bb453c7` **build: `-D_DEFAULT_SOURCE` so the Linux glibc build
+  sees POSIX extensions**. The Makefile's `-std=c99` puts glibc into
+  strict ISO C mode, which hides `strdup`, `usleep` / `useconds_t`,
+  `sigaction` / `struct sigaction` / `sigemptyset`, `SIGWINCH`, and
+  the rest of the historical BSD/SVID surface that the codebase uses
+  everywhere. Apple-libc exposes those unconditionally, which is why
+  the gap stayed masked until the §12.1 Docker build on
+  debian:stable-slim hit the wall. `_DEFAULT_SOURCE` is glibc's
+  "give me back the historical surface" knob (previous spelling:
+  `_BSD_SOURCE` / `_SVID_SOURCE`); it's a no-op on Apple-libc, so
+  macOS stays byte-identical. Added to `CPPFLAGS` once rather than
+  per-file feature-test macros — almost every TU needs at least one
+  of these symbols. The `$(BIN_ASAN)` recipe's compile line gained
+  `$(CPPFLAGS)` too so the ASan binary inherits the same feature
+  surface. `io_tty.c` also gained an explicit `#include <signal.h>`
+  — it was relying on a transitive include via `<termios.h>` for
+  `sig_atomic_t` / `SIGWINCH` that doesn't survive the strict-mode
+  toggle on glibc.
+
+- `6d391c7` **ci: §12.1 Dockerfile + GitHub Actions workflow**.
+  Multi-stage Dockerfile: `builder` (debian:stable-slim +
+  build-essential + clang) runs `make clean && make build && make
+  asan`; `tester` (same base + clang-format + make) runs `make
+  test`, `make testasan`, `make format` as separate `RUN` steps so a
+  failing gate is obvious in the build log; `runtime` (slim image
+  with the stock binary + game data) for `docker run -it rylween
+  "Player Name"`. `--target tester` available for CI legs that want
+  only the gate. `.dockerignore` excludes build artefacts,
+  runtime-generated data files, editor state, and `.git`.
+  `.github/workflows/ci.yml` triggers on push + PR with three jobs:
+  `linux` (ubuntu-latest, gcc+clang matrix, runs build + replay +
+  ASan/LSan — **authoritative leak gate**), `format` (clang-format
+  dry-run), `macos` (macos-latest, build + replay + ASan as
+  scorecard since Apple-clang has no LSan).
+
+- `8397247` **ci: pin LLVM 22 from upstream apt repo (matches macOS
+  brew)**. Initial §12.1 commit defaulted to debian:stable's apt
+  clang, which ships clang-format-19 — three minors behind the
+  clang-format 22 that brew installs on macOS. Format-gate drift
+  between platforms was the exact thing the gate was meant to
+  prevent. Both the Dockerfile and the GitHub workflow now install
+  LLVM 22 from `apt.llvm.org` via the upstream `llvm.sh` one-shot
+  installer. `LLVM_VERSION` is a build-arg / workflow env var so a
+  single number controls every leg; bump in lock-step with whatever
+  brew's current stable is.
+
+- `405f398` **chore: record d35f663 in `.git-blame-ignore-revs`**.
+  Skip the §12.1 format-sweep commit when running `git blame -w
+  --ignore-revs-file .git-blame-ignore-revs`, mirroring the
+  historical 33ffc52 entry.
+
+Verified end-to-end via `podman build -t rylween .` (full
+multi-stage build) and `make testasan` inside the tester image: 39
+fixtures green on Linux ASan + LSan with no markers; format dry-run
+clean; `clang-format --version` inside the image reports `22.1.2`.
+macOS host gates also green post the parallel format sweep +
+`-D_DEFAULT_SOURCE` commits.
