@@ -76,6 +76,39 @@
     { engine_call: 'clw' },
   ],
 
+  // §23.J nav-render lift — runs after the room-case dispatcher
+  // each iteration. clw + statusline + the three coords/level/floor
+  // lines + the compass (north or no_north top, east_west /
+  // east-only / west-only mid, south bottom). Bindings xl/yl/lvl
+  // come from engine_int reads of the module-level state. The
+  // legacy `tx("You are at %dx%d.\r\n\r\n", xl, yl, lvl)` had a
+  // stray third arg silently dropped by printf — the lift produces
+  // identical bytes via the two-line text `coords` array (no lvl
+  // placeholder) so the original silent-drop behavior is preserved.
+  // Compass-line texts are one or two lines apiece so each emit
+  // produces the same per-line CSI right-jump count as the legacy
+  // tx0(res_text(...)) calls did.
+  nav_render: [
+    { engine_call: 'clw' },
+    { engine_call: 'statusline' },
+    { let: 'xl', value: { engine_int: 'ydarg_get_xl' } },
+    { let: 'yl', value: { engine_int: 'ydarg_get_yl' } },
+    { let: 'lvl', value: { engine_int: 'ydarg_get_lvl' } },
+    { let: 'map_size', value: { engine_int: 'ydarg_get_map_size' } },
+    { emit: 'ydarg.nav.coords' },
+    { emit: 'ydarg.nav.level' },
+    { emit_indexed: { fmt: 'ydarg.nav.floor_{}', value: { var: 'lvl' } } },
+    { let: 'n', value: { gt: [{ var: 'yl' }, 1] } },
+    { let: 'w', value: { gt: [{ var: 'xl' }, 1] } },
+    { let: 'e', value: { lt: [{ var: 'xl' }, { var: 'map_size' }] } },
+    { let: 's', value: { lt: [{ var: 'yl' }, { var: 'map_size' }] } },
+    { if: { cond: { var: 'n' }, then: [{ emit: 'ydarg.nav.north' }], else: [{ emit: 'ydarg.nav.no_north' }] } },
+    { if: { cond: { and: [{ var: 'e' }, { var: 'w' }] }, then: [{ emit: 'ydarg.nav.east_west' }] } },
+    { if: { cond: { and: [{ var: 'e' }, { eq: [{ var: 'w' }, 0] }] }, then: [{ emit: 'ydarg.nav.east' }] } },
+    { if: { cond: { and: [{ eq: [{ var: 'e' }, 0] }, { var: 'w' }] }, then: [{ emit: 'ydarg.nav.west' }] } },
+    { if: { cond: { var: 's' }, then: [{ emit: 'ydarg.nav.south' }] } },
+  ],
+
   // §23.J case-50 (stairs) lift. The legacy body is one outer
   // mage-loop wrapping three keypress arms (T/G/L) + an inner
   // give-digit menu. Lifted shape:

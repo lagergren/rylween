@@ -96,7 +96,6 @@ void ydarg_clear_room_at_cur(void) {
 }
 
 void ydarg() {
-    int32_t n, s, e, w;
     char c, d;
 
     /* silverkey == 0 (no_key) and silverkey == 2 (ruin) are now
@@ -156,49 +155,7 @@ void ydarg() {
                 break;
         }
 
-        clw();
-        statusline();
-        tx("You are at %dx%d.\r\n\r\n", g_ydarg.xl, g_ydarg.yl, g_ydarg.lvl);
-        tx("You are on level %d.\r\n", g_ydarg.lvl);
-        {
-            char floor_id[32];
-            snprintf(floor_id, sizeof floor_id, "ydarg.nav.floor_%d", g_ydarg.lvl);
-            tx0(res_text(floor_id));
-        }
-        n = 0;
-        s = 0;
-        e = 0;
-        w = 0;
-        if (g_ydarg.yl > 1) {
-            n = 1;
-        }
-        if (g_ydarg.xl > 1) {
-            w = 1;
-        }
-        if (g_ydarg.xl < g_ydarg.map_size) {
-            e = 1;
-        }
-        if (g_ydarg.yl < g_ydarg.map_size) {
-            s = 1;
-        }
-        if (n) {
-            tx0(res_text("ydarg.nav.north"));
-        } else {
-            tx0(res_text("ydarg.nav.no_north"));
-        }
-
-        if (e && w) {
-            tx0(res_text("ydarg.nav.east_west"));
-        }
-        if (e && !w) {
-            tx0(res_text("ydarg.nav.east"));
-        }
-        if (!e && w) {
-            tx0(res_text("ydarg.nav.west"));
-        }
-        if (s) {
-            tx0(res_text("ydarg.nav.south"));
-        }
+        play_script("ydarg.nav_render", NULL);
 
         c = key();
         c = toupper(c);
@@ -208,19 +165,19 @@ void ydarg() {
             const char *go_text = NULL;
             switch (move) {
                 case DIR_NORTH:
-                    can_go = n;
+                    can_go = (g_ydarg.yl > 1);
                     go_text = "ydarg.nav.go_north";
                     break;
                 case DIR_SOUTH:
-                    can_go = s;
+                    can_go = (g_ydarg.yl < g_ydarg.map_size);
                     go_text = "ydarg.nav.go_south";
                     break;
                 case DIR_EAST:
-                    can_go = e;
+                    can_go = (g_ydarg.xl < g_ydarg.map_size);
                     go_text = "ydarg.nav.go_east";
                     break;
                 case DIR_WEST:
-                    can_go = w;
+                    can_go = (g_ydarg.xl > 1);
                     go_text = "ydarg.nav.go_west";
                     break;
                 default:

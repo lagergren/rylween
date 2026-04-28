@@ -151,6 +151,12 @@
   // --- navigation (statusline / compass / direction chooser) -----
 
   nav: {
+    // §23.J nav-render lift — coords/level lines were two `tx(...)`
+    // calls (with one stray third arg in the legacy "You are at" call,
+    // which was silently dropped). Two-line / one-line shapes match
+    // the byte sequence emit_with_col_jump produced before.
+    coords:    ['You are at {xl}x{yl}.', ''],
+    level:     ['You are on level {lvl}.'],
     floor_1:   ['(Ground Level)', ''],
     floor_2:   ['(First Floor)',  ''],
     floor_3:   ['(Base of Tower)', ''],
