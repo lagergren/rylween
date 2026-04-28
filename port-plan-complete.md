@@ -4566,3 +4566,195 @@ this case. 39 fixtures byte-identical including
 §17.1 table sized it at 1310 LOC with the §14.4 scorelist
 overlap as the rebless interaction; subs.c at HEAD is the next
 audit target.
+
+### §17.A.4 slice D — subs.c (2026-04-28)
+
+The pattern from slices A / B / C continued: the §17.1 plan
+table sized `subs.c` at 1310 LOC; the file at HEAD was 811 LOC
+because earlier §17 / §20 / §22 work had already migrated the
+big-ticket flows out of subs.c — the camp / rest body is a
+play_script wrapper into `data/world/scripts/rest.json5`
+(§20 L7), the hunt body is the same shape into
+`data/world/scripts/hunt.json5`, the cave-found prompt and the
+faint / losegame screens already lived in
+`data/world/texts/cave.json5` / `data/world/texts/subs.json5`,
+and the priest spell list at the bottom of `subs.c::spell` calls
+`play_spell_body` for each chosen spell. Only the dispatcher
+narration in `foodhandler` (tired / exhausted / weak / starved
+arms), the equipment-swap menus (`weaponoff` / `armouroff` /
+`weaponr` / `armourr`), `drop`, `quaff`, and the priest-spell
+prompt scaffolding remained inline.
+
+**Bundling shape.** Forty inline `tx(...)` calls collapse to
+seventeen new text records under the existing `subs.*` namespace
+(the file already had `subs.faint` / `subs.losegame.flavor`).
+Three records are shared across multiple callsites — `subs.who_prompt`
+(six callsites; `tx_fmt` with `{party_max}` binding), `subs.dead`
+(four callsites), `subs.no_room` (two callsites). Records that
+take a name / object / pronoun substitution are `tx_fmt`'d with
+`{name}` / `{object}` / `{pronoun}` bindings —
+`subs.foodhandler.starved`, `subs.equipment.removed`,
+`subs.weaponoff.no_weapon`, `subs.armouroff.no_armour`,
+`subs.drop.you_drop`. Bundling adjacent `tx()` runs into single
+multi-line records (`['line1', 'line2']`) preserves byte-identity
+because `emit_with_col_jump` emits one CSI-right prefix per
+`\n`-terminated line in the buffer, regardless of whether those
+lines arrived in one tx0() call or N tx() calls. Records that
+end in a literal blank line (e.g. `tx("Quaff what?\r\n\r\n")`)
+become `['Quaff what?', '']` so `fold_texts.join_lines_crlf`
+appends the trailing `\r\n` that produces the bonus blank-line
+prefix.
+
+**One small helper added.** `subs.c` gained a 7-line static
+`tx_who_prompt(void)` that snprintf's the party-member cap and
+calls `tx_fmt("subs.who_prompt", ...)`; this collapses the six
+"Who? (1-N)" callsites in the file. Local to subs.c — same
+helper shape would apply to script.c::ask_target's identical
+prompt but the script.c callsite stays as-is per project policy
+(no speculative refactor of unrelated callers).
+
+**What stays inline.** The priest spell list at
+`subs.c::spell` (lines 608 + 611) keeps its column-aligned
+table convention: line 608 is the per-slot row
+`tx("%d. %-12s(%3d/%3d)\r\n", slot, s->name, s->base_cost +
+pm_lv(caster), pm_ma(caster))` with three numeric and one string
+substitution, and line 611 is the static `tx("8. Abort\r\n")`
+trailer that pairs with it. Same convention as the §20 L6
+battle.c "five `tx()` remain inline as pure pass-through `%s\r\n`
+or column-aligned table rows" closure and the §17.A.4 slice B
+interact.c read_journal residuals. Bundling the trailer into the
+loop body would mix presentation with control flow for no
+observable benefit.
+
+**§14.4 scorelist (no overlap).** The §17.4 caveat warned that
+"subs.c's scorelist (§14.4) uses a ~3100-byte stack sort with
+30-byte strcpy swaps … don't fold that rewrite into a text-
+extraction slice — the rebless signals are too different." It
+turned out the warning didn't apply: `scorelist` writes to
+`data/vscore.txt` and `data/score.txt` via `fopen` + `fputs`,
+not via `tx`/`tx0`/`tx_fmt`. There's no terminal text to lift
+because `scorelist` doesn't render to the terminal at all. The
+class-name `Fighter` / `Thief` / `Mage` / `Priest` / `Bard` /
+`Ranger` strings inside the sort body are file-output content
+and would be a separate enums.classes lift (queues under §24bis
+or §12.3 alongside the rest of the class-id / kind-id work).
+The §14.4 sort-of-indices rewrite is unrelated and stays in
+its own queue.
+
+**Audit.** None of the 39 fixtures touched any of the lifted
+literals (greps for "Weapon changed", "Armour changed", "Not a
+valid weapon", "Not a valid armour", "No room!", "Quaff what",
+"Gulp!", "Wrong class", "Mage spells are", "8. Abort", "You
+drop the", "Nothing to drop", "Aborted", "leave some of your",
+"starved", "exhausted", "feel weak", "feel tired", "Dead." in
+`tools/replay/*.expect_snapshot` returned zero hits across the
+board). The slice was bytes-only safe and no `.expect_snapshot`
+rebless was required.
+
+**Bar:** 39 fixtures green on `make check` + `make testasan`,
+byte-identical including `wilderness-cave-descent` (45445 bytes,
+the dungeon-loop fixture that exercises the slice C lift just
+above) and `wilderness-camp` / `wilderness-hunt` (the rest /
+hunt fixtures whose play_script wrappers live in `subs.c`).
+`subs.c` size 811 LOC → 821 LOC (the small growth comes from
+the `tx_fmt` binding-list formatting, partially offset by the
+`tx_who_prompt` helper).
+
+**Closes §17 end-to-end.** Slices A + B + C + D have all
+landed; §17.A.5 (driv.c / ydarg.c residuals) closed empty
+during the original §17 sweep; §17 slice E (DSL `menu_branch`
++ `engine_call` ops) is unnecessary — slices A-D didn't surface
+the ≥3 near-identical C blocks the §17.2 recommendation gated
+the DSL growth on. The §17 body now moves into this file (see
+"§17. A.4 slice: mission-control + support modules" below);
+`port-plan.md` updated to mark §17 complete.
+
+## §17. A.4 slice: mission-control + support modules
+
+**Status:** complete — closed end-to-end on 2026-04-28 with the
+slice D (subs.c) lift. Each slice's closure body lives above in
+"§17.A.4 slice closures"; this section is the original A.4
+plan and the design-time discussion of Option A vs Option B,
+preserved for cross-references.
+
+### 17.1 Scope
+
+| File        | LOC  | Shape | Fixture-reach |
+|---|---|---|---|
+| missions.c  | 583  | Map-position triggers: (E)nter / (L)eave dungeon prompts at fixed (x,y) coords, flag-guarded. Calls `dungeon(N,M)` + `update_map()` on enter. 11 trigger blocks. | Audit first. |
+| dungeon.c   | 917  | Dungeon-level exploration UI: room descriptions, loot, stairs, NPC cameos. | Likely some. Biggest fixture-rebless risk. |
+| interact.c  | 428  | Party-level menus: drop / swap item flows, HP viewing, rest prompts. | Likely some. |
+| subs.c      | 1310 | Character-creation helpers, scorelist, misc utilities. Overlaps with §14.4's scorelist decomposition plan. | Title-flow fixtures touch parts. |
+
+### 17.2 Infrastructure deltas
+
+§16.4's `play_script` op list (`screen` / `journal` / `set_flag` /
+`reward`) does not cover missions.c's shape — it's menu-driven
+(E)nter/(L)eave prompts followed by a C-level `dungeon(N,M)` handoff
+that has no script-level analogue. Two paths:
+
+**Option A — C-level refactor only.** Keep control flow in C. Use
+`ryl_menu` for the keypress and inline the `dungeon(N,M)` call; use
+`tx_fmt` / `tx0(res_text(...))` for screen text. Mechanical text
+extraction, no new script ops. Recommended starting point.
+
+**Option B — extend the DSL.** Add:
+ - `menu_branch` op — wraps `ryl_menu` plus per-option sub-scripts.
+   Each option has a `then: [...]` nested op-list (re-enters
+   `play_script` recursively) or a `pass` terminal.
+ - `engine_call` op — invokes a registered C function by symbol with
+   literal-int args (e.g. `{ engine_call: 'dungeon', args: [12, 8] }`).
+   Registry is a tiny table in `script.c`; keeps the DSL from
+   stringifying every C entry point.
+
+**Recommendation: start with Option A.** Only pursue Option B if A.4
+slices A-D surface ≥3 near-identical C blocks that would justify the
+new ops. Don't add them speculatively — §16.8's "interpreter must not
+grow into a general scripting language" applies.
+
+**Outcome (2026-04-28).** Option A all the way. Slices A / B / C / D
+all landed mechanically; the §17.2 recommendation's "≥3 near-identical
+C blocks" trigger never fired, so slice E (the conditional DSL widening)
+is closed without doing it.
+
+### 17.3 Slicing
+
+- **A.4 slice A — missions.c.** 11 map-trigger blocks. Option-A style
+  (ryl_menu + inline `dungeon(N,M)` + text records). Fixture audit
+  first; most blocks are flag-guarded on mid-game quest state so
+  fixture-unreachable, but verify before migrating.
+- **A.4 slice B — interact.c.** Same shape, smaller footprint.
+- **A.4 slice C — dungeon.c.** Biggest slice (917 lines, likely
+  fixture-reachable). Expect a rebless; budget the CSI-right-prefix
+  delta arithmetic per §16.8.
+- **A.4 slice D — subs.c.** Overlaps with §14.4's scorelist
+  decomposition. Ship the two together or sequence them so only one
+  fixture rebless is needed.
+- **A.4 slice E (conditional) — `menu_branch` + `engine_call` ops.**
+  Only if slices A-D accumulated enough repetition to justify the
+  DSL growth. Otherwise close without doing it.
+
+### 17.4 Things to watch
+
+- **Fixture reachability is per-block, not per-file.** Within
+  missions.c each of the 11 trigger blocks has its own (x, y, flag[N]
+  == K) gate — audit each individually. Within dungeon.c, certain
+  rooms are fixture-hit and others aren't. Before migrating a block,
+  know whether it's on a replay path.
+- **CSI-right-prefix consolidation shifts bytes by N × 5 per site.**
+  Same arithmetic as the §16.3 slices. Decompose the delta in the
+  commit for each reblessed fixture so future debugging doesn't have
+  to recompute.
+- **subs.c's scorelist** (§14.4) uses a ~3100-byte stack sort with
+  30-byte `strcpy` swaps. §14 has its own decomposition plan (sort
+  an index array). Don't fold that rewrite into a text-extraction
+  slice — the rebless signals are too different.
+- **Cross-slice rebless interference.** If a fixture's byte stream
+  touches both missions.c and dungeon.c text, prefer reblessing
+  after the LAST slice on that path rather than letting the fixture
+  drift slice-by-slice. Makes bisecting a regression easier.
+- **missions.c's `ryl_chance()` guards** (e.g. the 9% scruffy-merchant
+  appearance) are runtime-random imperative logic. Leave them in C
+  even under Option B — a `chance` script op would need the same
+  deterministic-seed plumbing A.2 fought through and it's not worth
+  the churn for three call sites.

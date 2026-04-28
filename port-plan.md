@@ -34,7 +34,7 @@ Section numbers are preserved across the split — every `§N` cross-reference i
 | 14 | State hygiene audit (follow-up to §13)                                       | complete    | port-plan-complete.md      |
 | 15 | Realm persistence: current-world.json5 (concrete §12.3 design)               | complete    | port-plan-complete.md      |
 | 16 | Dialogue + mission DSL (follow-up to A.2 speak.c)                            | complete    | port-plan-complete.md      |
-| 17 | A.4 slice: mission-control + support modules                                 | in-progress | port-plan-incomplete.md    |
+| 17 | A.4 slice: mission-control + support modules                                 | complete    | port-plan-complete.md      |
 | 18 | ANSI art EAW / narrow-cell rendering — pending                               | planned     | port-plan-incomplete.md    |
 | 19 | Post-§17 follow-ups surfaced during the hardcoded-indices sweep              | complete    | port-plan-complete.md      |
 | 20 | Code-as-data extraction queue (audit 2026-04-25)                             | in-progress | port-plan-incomplete.md    |

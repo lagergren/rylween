@@ -2,9 +2,9 @@
 
 This file collects every section of `port-plan.md` that is in-progress, planned, or pure reference / vision material. Completed lifts live in `port-plan-complete.md`; the cross-section index lives in the master `port-plan.md`. Section numbers and `§N` cross-references are preserved verbatim — sections appear in their original §-order regardless of which file they live in.
 
-## Top of queue (status snapshot, 2026-04-28)
+## Top of queue (status snapshot, 2026-04-28 #2)
 
-A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the 2026-04-27 #16 snapshot (§23.A closed end-to-end), plus the §17.A.4 slice C closure (dungeon.c dispatcher-loop UI lifted into `dungeon.loop.*` — twelve inline `tx()` calls collapse to six text records; the §17.1 plan-table 917 LOC vs. 175 LOC at HEAD continues the pattern of stale slice estimates) in 2026-04-28.
+A pointer-only triage of every open item below. The bodies still describe each task in detail — this list is just for "what should we pick up next?". Builds on the 2026-04-28 snapshot (§17.A.4 slice C closed), plus the §17.A.4 slice D closure (subs.c — forty inline `tx()` calls collapse to seventeen text records under `subs.*`; one tiny `tx_who_prompt` helper folds the six "Who? (1-N)" callsites; column-aligned priest spell-list rows + their static "8. Abort" trailer stay inline per the §20 L6 / slice B convention; §17.1 plan-table 1310 LOC vs. 811 LOC at HEAD continues the stale-estimate pattern) in 2026-04-28 #2. **§17.A.4 closes end-to-end** (slices A + B + C + D all landed, slice E unnecessary), and **§17 closes end-to-end** with it — body moves to `port-plan-complete.md`.
 
 ### Guiding principle (re-affirmed 2026-04-27 #12)
 
@@ -12,8 +12,8 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 ### Active — work is in flight or fully unblocked
 
-- **§17.A.4 slice D — text extraction in subs.c** (§17). Pending since 2026-04-23. Slice A (missions.c) closed in 2026-04-27 #14 — only Block 5 (Thun gem-altar) remained as inline `tx("...")` and that lifted bytes-only into `missions.thun_temple.*`. Slice B (interact.c) closed empty in 2026-04-27 #15 — the file had slimmed from the §17.1-table 428 LOC to 69 lines. Slice C (dungeon.c) closed in 2026-04-28 — the §17.1-table 917 LOC was 175 lines at HEAD; twelve dispatcher-loop `tx()` calls lifted to six records under a new `dungeon.loop.*` namespace; `wilderness-cave-descent` byte-identical (no rebless). Slice D (subs.c, §17.1-table 1310 lines; overlaps §14.4 scorelist — sequence carefully so only one fixture rebless is needed) is the last open slice; expect the same stale-estimate pattern (audit at HEAD before sizing the work). Slice E (DSL `menu_branch` + `engine_call` ops) is conditional — only if D shows enough repetition. (Note: the `menu_branch` and `engine_call` ops referenced as "conditional" in §17.2 already exist in `data/world/scripts/missions.json5`; slice E in the original plan was to add them. The conditional decision now is whether ANY further DSL widening — e.g. an inventory-count guard — is needed to absorb residuals like the inline Block 5 control flow that slice A left in C.)
-- **State-abstraction sweep** (§25.A.1 #6 footer; tracker: `feedback_state_abstraction.md`). Untouched callsites still reach into raw `state.p[state.cpl].FIELD` outside §25.A's blast radius. Current `state.p[cpl]` counts (post-§25.B step 2): driv.c=0, ydarg.c=0, subs.c=0, inventory.c=6, primitives.c=6 (abstraction home — fine), towne.c=2 (one lifted via `pa_first_level()` in §25.B step 2), missions.c=6. Cross-party `state.p[i].FIELD` access in subs.c::scorelist now routes through `mmax`-bound 0-indexed loops (no longer hardcoded `1..4`) but still reads `state.p[i].{exp,lv,kills,cl,name}` directly — a `pa_at(i)` style by-index helper is the next step. Per the broader survey: 17 .c files touch `state.*` directly today (battle/driv/dungeon/interact/inventory/missions/party/primitives/replay_knobs/res/ryl/script/snapshot/speak/subs/towne/wld); only party.c / state.h / res.c are the natural homes. Strategy: ride along when next touching one of these files; no speculative refactors. Each callsite's blast radius is small.
+- **State-abstraction sweep** (§25.A.1 #6 footer; tracker: `feedback_state_abstraction.md`). Untouched callsites still reach into raw `state.p[state.cpl].FIELD` outside §25.A's blast radius. Current `state.p[cpl]` counts (post-§25.B step 2): driv.c=0, ydarg.c=0, subs.c=0, inventory.c=6, primitives.c=6 (abstraction home — fine), towne.c=2 (one lifted via `pa_first_level()` in §25.B step 2), missions.c=6. Cross-party `state.p[i].FIELD` access in subs.c::scorelist still reads `state.p[i].{exp,lv,kills,cl,name}` directly — a `pa_at(i)` style by-index helper is the next step. Per the broader survey: 17 .c files touch `state.*` directly today (battle/driv/dungeon/interact/inventory/missions/party/primitives/replay_knobs/res/ryl/script/snapshot/speak/subs/towne/wld); only party.c / state.h / res.c are the natural homes. Strategy: ride along when next touching one of these files; no speculative refactors. Each callsite's blast radius is small.
+<!-- §17.A.4 slice D closed in 2026-04-28 #2; §17 closed end-to-end and body moved to `port-plan-complete.md`. See "Closed since the previous snapshot (2026-04-28)" below. -->
 <!-- §23.A structure-extraction follow-up closed in 2026-04-27 #16 — see "Closed since the previous snapshot (2026-04-27 #15)" below. -->
 
 ### Mechanical residuals (small, ready when convenient)
@@ -41,6 +41,12 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 - **§22 — DSL unification**. Closed end-to-end per §22.14 (2026-04-26): all three lane-A stragglers (§22.5 #8a banish, §22.F speak_missions, §22.G docs/dsl.md) shipped, plus pre-§22 stragglers (Phase 5c driv.c/ydarg.c residuals, §20 TINY T3/T4 path literals, §22.10 dungeon_encounter slots). Body should move to `port-plan-complete.md` like §23 / §24 already did; leave a stub for the master TOC.
 - **§25 — 1-indexed → 0-indexed cleanup**. Closed end-to-end per §25.B step 4 (2026-04-27 #13): all four axis flips landed (monster, party-member, town, NPC) plus the §25.A iterator-abstraction prep work. Per-step closure bodies live under "§25.B step closures" in `port-plan-complete.md`; the parent §25 body in this file is now reference material for the migration approach and can move alongside §22.
+
+(§17 body itself was relocated to `port-plan-complete.md` in 2026-04-28 #2 alongside the slice D closure.)
+
+### Closed since the previous snapshot (2026-04-28)
+
+- **§17.A.4 slice D — subs.c text extraction**. The §17.1 plan table sized subs.c at 1310 LOC; the file at HEAD was 811 LOC because earlier §20 / §22 work had migrated the camp / rest body (`play_script` into `data/world/scripts/rest.json5`), the hunt body (same shape into `hunt.json5`), and the priest spell-cast handoff (`play_spell_body`) — leaving only the dispatcher narration in `foodhandler` (tired / exhausted / weak / starved arms), the equipment-swap menus (`weaponoff` / `armouroff` / `weaponr` / `armourr`), `drop`, `quaff`, and the priest-spell prompt scaffolding. Forty inline `tx()` calls collapse to seventeen text records under `subs.*` (three shared across multiple callsites — `who_prompt` ×6, `dead` ×4, `no_room` ×2). One small static helper `tx_who_prompt(void)` (7 lines) folds the six "Who? (1-N)" callsites. The column-aligned priest spell-list rows in `subs.c::spell` (lines 608 + 611) stay inline per the §20 L6 / slice B convention along with their static "8. Abort" trailer. The §17.4 `scorelist` caveat didn't apply: `scorelist()` writes `data/vscore.txt` / `data/score.txt` via `fopen` + `fputs` rather than terminal text, so there's nothing to lift in this slice and the §14.4 sort-of-indices rewrite stays in its own queue (the `Fighter`/`Thief`/etc. class names are queue-able under §24bis or §12.3 alongside the rest of the class-id work). 39 fixtures byte-identical on both gates, no `.expect_snapshot` rebless required (greps for the lifted literals across `tools/replay/*.expect_snapshot` returned zero hits across the board). Body in `port-plan-complete.md` "§17.A.4 slice closures" section. **§17.A.4 closes end-to-end** (slices A + B + C + D landed; slice E unnecessary — slices A-D didn't surface the ≥3 near-identical C blocks that §17.2's recommendation gated DSL widening on); **§17 closes end-to-end** with it, body relocated to `port-plan-complete.md` (full §17.1 / §17.2 / §17.3 / §17.4 text preserved verbatim alongside the slice closures).
 
 ### Closed since the previous snapshot (2026-04-27 #16)
 
@@ -98,9 +104,8 @@ A pointer-only triage of every open item below. The bodies still describe each t
 
 ### Recommended next session
 
-**§17.A.4 slice C closed** in 2026-04-28 (twelve inline `tx()` calls lifted into `dungeon.loop.*`; byte-identical, no rebless). **§23.A closed end-to-end** in 2026-04-27 #16. **§17.A.4 slice A closed** in 2026-04-27 #14, **slice B closed empty** in 2026-04-27 #15. **§25.B closed end-to-end** in 2026-04-27 #13. Pick from the remaining open items in increasing cost order:
+**§17.A.4 slice D closed** in 2026-04-28 #2 (forty inline `tx()` calls lifted into `subs.*`; one tiny `tx_who_prompt` helper folds the six "Who? (1-N)" callsites; column-aligned spell-list rows + static "8. Abort" trailer stay inline; byte-identical, no rebless). **§17.A.4 + §17 closed end-to-end** with it (slice E unnecessary); **§17 body relocated** to `port-plan-complete.md`. **§23.A closed end-to-end** in 2026-04-27 #16. **§25.B closed end-to-end** in 2026-04-27 #13. Pick from the remaining open items in increasing cost order:
 
-  - **§17.A.4 slice D — subs.c text extraction** (last open §17.A.4 slice; §17.1 table sized at 1310 LOC but expect the same stale-estimate pattern as A/B/C). Overlaps §14.4 scorelist — the scorelist fixture (`title-create-party-5-exit` and others) re-blesses are sensitive, so audit subs.c at HEAD before estimating; if scorelist is the bulk of the residuals, sequence the §14.4 sort-of-indices rewrite alongside so only one fixture rebless is needed. ~1 session if the slice is mostly already migrated like the others; up to 2 if scorelist needs the rewrite folded in.
   - **State-abstraction sweep**: 17 modules currently reach into `state.*` directly. The natural homes are state.h / party.c / res.c / snapshot.c (formatter); migration debt is in inventory.c (~5), primitives.c (~7 — actually fine, it IS a state-abstraction layer), missions.c (MB_PLAYER_NAME), subs.c::scorelist (cross-party access — needs a `pa_at(int party_idx)` by-index helper first), speak.c (state.npc walks), towne.c (2 raw `state.p[cpl]`). Ride along; no speculative refactors. ~3-5 sessions.
   - **§24bis** — `id: <int>` → slug-keyed state, now unblocked. ~4-6 session block touching every C file.
   - Later: §12.3 (dynamic sizing from world.json5 — the remaining static caps `state.p[26]`, `map[42][82]`, party-inventory `[17]`, `attack_today[26]`), §12.1 (Dockerfile + CI), Ydarg-as-mission.
@@ -735,90 +740,6 @@ open:
   English. Keep the scope tight: one header, pure textual
   substitution, no behavior change. Gate byte-identical on
   replay.
-
-## 17. A.4 slice: mission-control + support modules
-
-**Status:** pending — raised 2026-04-23 during the §16.5 mission-state-
-machine session. Remaining Phase-6-class text-extraction targets after
-A.2 (speak.c, done), A.3 (towne.c, done), A.5 (driv.c / ydarg.c
-residuals — closed empty; slices A/B/C of §16.3 caught everything).
-
-### 17.1 Scope
-
-| File        | LOC  | Shape | Fixture-reach |
-|---|---|---|---|
-| missions.c  | 583  | Map-position triggers: (E)nter / (L)eave dungeon prompts at fixed (x,y) coords, flag-guarded. Calls `dungeon(N,M)` + `update_map()` on enter. 11 trigger blocks. | Audit first. |
-| dungeon.c   | 917  | Dungeon-level exploration UI: room descriptions, loot, stairs, NPC cameos. | Likely some. Biggest fixture-rebless risk. |
-| interact.c  | 428  | Party-level menus: drop / swap item flows, HP viewing, rest prompts. | Likely some. |
-| subs.c      | 1310 | Character-creation helpers, scorelist, misc utilities. Overlaps with §14.4's scorelist decomposition plan. | Title-flow fixtures touch parts. |
-
-### 17.2 Infrastructure deltas
-
-§16.4's `play_script` op list (`screen` / `journal` / `set_flag` /
-`reward`) does not cover missions.c's shape — it's menu-driven
-(E)nter/(L)eave prompts followed by a C-level `dungeon(N,M)` handoff
-that has no script-level analogue. Two paths:
-
-**Option A — C-level refactor only.** Keep control flow in C. Use
-`ryl_menu` for the keypress and inline the `dungeon(N,M)` call; use
-`tx_fmt` / `tx0(res_text(...))` for screen text. Mechanical text
-extraction, no new script ops. Recommended starting point.
-
-**Option B — extend the DSL.** Add:
- - `menu_branch` op — wraps `ryl_menu` plus per-option sub-scripts.
-   Each option has a `then: [...]` nested op-list (re-enters
-   `play_script` recursively) or a `pass` terminal.
- - `engine_call` op — invokes a registered C function by symbol with
-   literal-int args (e.g. `{ engine_call: 'dungeon', args: [12, 8] }`).
-   Registry is a tiny table in `script.c`; keeps the DSL from
-   stringifying every C entry point.
-
-**Recommendation: start with Option A.** Only pursue Option B if A.4
-slices A-D surface ≥3 near-identical C blocks that would justify the
-new ops. Don't add them speculatively — §16.8's "interpreter must not
-grow into a general scripting language" applies.
-
-### 17.3 Slicing
-
-- **A.4 slice A — missions.c.** 11 map-trigger blocks. Option-A style
-  (ryl_menu + inline `dungeon(N,M)` + text records). Fixture audit
-  first; most blocks are flag-guarded on mid-game quest state so
-  fixture-unreachable, but verify before migrating.
-- **A.4 slice B — interact.c.** Same shape, smaller footprint.
-- **A.4 slice C — dungeon.c.** Biggest slice (917 lines, likely
-  fixture-reachable). Expect a rebless; budget the CSI-right-prefix
-  delta arithmetic per §16.8.
-- **A.4 slice D — subs.c.** Overlaps with §14.4's scorelist
-  decomposition. Ship the two together or sequence them so only one
-  fixture rebless is needed.
-- **A.4 slice E (conditional) — `menu_branch` + `engine_call` ops.**
-  Only if slices A-D accumulated enough repetition to justify the
-  DSL growth. Otherwise close without doing it.
-
-### 17.4 Things to watch
-
-- **Fixture reachability is per-block, not per-file.** Within
-  missions.c each of the 11 trigger blocks has its own (x, y, flag[N]
-  == K) gate — audit each individually. Within dungeon.c, certain
-  rooms are fixture-hit and others aren't. Before migrating a block,
-  know whether it's on a replay path.
-- **CSI-right-prefix consolidation shifts bytes by N × 5 per site.**
-  Same arithmetic as the §16.3 slices. Decompose the delta in the
-  commit for each reblessed fixture so future debugging doesn't have
-  to recompute.
-- **subs.c's scorelist** (§14.4) uses a ~3100-byte stack sort with
-  30-byte `strcpy` swaps. §14 has its own decomposition plan (sort
-  an index array). Don't fold that rewrite into a text-extraction
-  slice — the rebless signals are too different.
-- **Cross-slice rebless interference.** If a fixture's byte stream
-  touches both missions.c and dungeon.c text, prefer reblessing
-  after the LAST slice on that path rather than letting the fixture
-  drift slice-by-slice. Makes bisecting a regression easier.
-- **missions.c's `ryl_chance()` guards** (e.g. the 9% scruffy-merchant
-  appearance) are runtime-random imperative logic. Leave them in C
-  even under Option B — a `chance` script op would need the same
-  deterministic-seed plumbing A.2 fought through and it's not worth
-  the churn for three call sites.
 
 ## 18. ANSI art EAW / narrow-cell rendering — pending
 
