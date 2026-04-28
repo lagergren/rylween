@@ -41,7 +41,9 @@ const char *pa_race_sym(int m) {
     if (!in_range(m)) {
         return "";
     }
-    return res_enum_sym("race", state.p[state.cpl].ra[m]);
+    /* §24bis phase 3: race storage is the slug pointer; passthrough. */
+    const char *s = state.p[state.cpl].ra[m];
+    return s ? s : "";
 }
 
 int pa_class_is_sym(int m, const char *sym) {
@@ -463,7 +465,8 @@ void party_release_members(struct party *p) {
     free(p->gender);
     p->name = NULL;
     p->ws = p->h = p->hp = p->wi = p->ma = p->ch = NULL;
-    p->cl = p->ra = p->lv = p->ar = p->wp = NULL;
+    p->cl = p->lv = p->ar = p->wp = NULL;
+    p->ra = NULL; /* const char ** — separate to keep types coherent */
     p->exp = NULL;
     p->dead = NULL;
     p->gender = NULL;
@@ -475,7 +478,8 @@ void party_clear_heap_pointers(struct party *p) {
     }
     p->name = NULL;
     p->ws = p->h = p->hp = p->wi = p->ma = p->ch = NULL;
-    p->cl = p->ra = p->lv = p->ar = p->wp = NULL;
+    p->cl = p->lv = p->ar = p->wp = NULL;
+    p->ra = NULL; /* const char ** — separate to keep types coherent */
     p->exp = NULL;
     p->dead = NULL;
     p->gender = NULL;

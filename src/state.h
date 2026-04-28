@@ -165,9 +165,13 @@ struct party {
     int32_t *ma; /* Magic        */
     int32_t *ch; /* Charisma     */
 
-    int32_t *cl; /* Class  */
-    int32_t *ra; /* Race   */
-    int32_t *lv; /* Level  */
+    int32_t *cl;     /* Class  */
+    const char **ra; /* Race — slug pointer interned in res's enum keys[]
+                        table (stable across program lifetime). NULL for
+                        unset slots. §24bis phase 3 race axis: storage is
+                        slug; int form is recovered via res_enum_id at the
+                        pm_ra / snapshot / save boundary. */
+    int32_t *lv;     /* Level  */
 
     int32_t *ar; /* Ready Armour */
     int32_t *wp; /* Ready Weapon */
@@ -331,6 +335,14 @@ static inline int inv_letter_in_range(char c) {
     return inv_slot_from_letter(c) != 0;
 }
 
+/* Forward declarations (implemented in res.c). Same pattern as
+   res_npc_role / res_npc_name above — keeps state.h from pulling res.h.
+   res_enum_id is paired with res_enum_sym for the slug ↔ int round-trip
+   used by pm_ra (§24bis phase 3 race axis): storage is slug, int form
+   recovered at the boundary so legacy callers keep their int API. */
+const char *res_enum_sym(const char *id, int index);
+int res_enum_id(const char *id, const char *value);
+
 static inline int pm_cl(pm_t pm) {
     return pm.party->cl[pm.m];
 }
@@ -362,7 +374,8 @@ static inline int pm_ch(pm_t pm) {
     return pm.party->ch[pm.m];
 }
 static inline int pm_ra(pm_t pm) {
-    return pm.party->ra[pm.m];
+    const char *s = pm.party->ra[pm.m];
+    return s ? res_enum_id("race", s) : 0;
 }
 static inline uint32_t pm_exp(pm_t pm) {
     return pm.party->exp[pm.m];
@@ -375,10 +388,6 @@ static inline int pm_is_class(pm_t pm, int cls) {
     return pm_cl(pm) == cls;
 }
 
-/* Forward declaration (implemented in res.c). Same pattern as
-   res_npc_role / res_npc_name above — keeps state.h from pulling res.h. */
-const char *res_enum_sym(const char *id, int index);
-
 /* §24bis phase 1 — slug-form siblings to pm_cl / pm_ra. Returns the
    lowercase enum key ("fighter" / "thief" / ... for class; "human" /
    "dwarf" / ... for race) so call sites can compare against script-
@@ -389,7 +398,11 @@ static inline const char *pm_class_sym(pm_t pm) {
     return res_enum_sym("pc_class", pm_cl(pm));
 }
 static inline const char *pm_race_sym(pm_t pm) {
-    return res_enum_sym("race", pm_ra(pm));
+    /* §24bis phase 3: race storage is the slug pointer; passthrough.
+       Empty string for unset slots so caller string compares can't
+       match by accident. */
+    const char *s = pm.party->ra[pm.m];
+    return s ? s : "";
 }
 static inline int pm_class_is_sym(pm_t pm, const char *sym) {
     const char *s = pm_class_sym(pm);
@@ -489,7 +502,12 @@ static inline void pm_set_cl(pm_t pm, int v) {
     pm.party->cl[pm.m] = v;
 }
 static inline void pm_set_ra(pm_t pm, int v) {
-    pm.party->ra[pm.m] = v;
+    /* §24bis phase 3 race axis: storage is slug pointer interned in
+       res's keys[] table. res_enum_sym returns "" for out-of-range
+       indices; we map that to NULL so the unset sentinel matches the
+       allocator's calloc-zero fresh-slot state. */
+    const char *s = res_enum_sym("race", v);
+    pm.party->ra[pm.m] = (s && s[0]) ? s : NULL;
 }
 static inline void pm_set_gender(pm_t pm, unsigned char v) {
     pm.party->gender[pm.m] = v;

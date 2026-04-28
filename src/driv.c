@@ -922,7 +922,10 @@ static void write_current_world() {
         }
         for (int m = 0; m < mlen; m++) {
             cl_int[m] = p->cl[m];
-            ra_int[m] = p->ra[m];
+            /* §24bis phase 3 race axis: storage is slug pointer; convert
+               to int so wcw_enum_arr's int-array contract still holds.
+               NULL slug → 0 (matches the calloc-zero unset sentinel). */
+            ra_int[m] = p->ra[m] ? res_enum_id("race", p->ra[m]) : 0;
         }
         fputs("    {\n", f);
         fputs("      player: ", f);
@@ -1355,7 +1358,29 @@ static int read_current_world() {
             rcw_i32_arr(obj_get(pnode, "ma"), p->ma, (int)mlen);
             rcw_i32_arr(obj_get(pnode, "ch"), p->ch, (int)mlen);
             rcw_enum_arr(obj_get(pnode, "cl"), "pc_class", p->cl, (int)mlen);
-            rcw_enum_arr(obj_get(pnode, "ra"), "race", p->ra, (int)mlen);
+            /* §24bis phase 3 race axis: parse into a temp int array, then
+               canonicalize each slot to res's interned keys[] pointer
+               so storage is the stable slug. 0 → NULL (unset sentinel). */
+            {
+                int *ra_int = malloc((size_t)mlen * sizeof *ra_int);
+                if (!ra_int) {
+                    LOG_E("driv", "read_current_world: malloc failed");
+                    exit(1);
+                }
+                for (size_t m = 0; m < mlen; m++) {
+                    ra_int[m] = 0;
+                }
+                rcw_enum_arr(obj_get(pnode, "ra"), "race", ra_int, (int)mlen);
+                for (size_t m = 0; m < mlen; m++) {
+                    if (ra_int[m] <= 0) {
+                        p->ra[m] = NULL;
+                    } else {
+                        const char *s = res_enum_sym("race", ra_int[m]);
+                        p->ra[m] = (s && s[0]) ? s : NULL;
+                    }
+                }
+                free(ra_int);
+            }
             rcw_i32_arr(obj_get(pnode, "lv"), p->lv, (int)mlen);
             rcw_i32_arr(obj_get(pnode, "ar"), p->ar, (int)mlen);
             rcw_i32_arr(obj_get(pnode, "wp"), p->wp, (int)mlen);
@@ -1524,7 +1549,13 @@ static void createparty() {
                 tx(": ");
                 getstr(2, str, sizeof str);
             }
-            p->ra[g] = str[0] - 48;
+            /* §24bis phase 3 race axis: storage is slug pointer interned
+               in res's keys[] table; convert digit→int→slug. */
+            {
+                int ra_id = str[0] - 48;
+                const char *s = res_enum_sym("race", ra_id);
+                p->ra[g] = (s && s[0]) ? s : NULL;
+            }
 
             clw();
             tx0(res_text("driv.create.class_menu"));
