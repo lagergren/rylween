@@ -144,8 +144,8 @@ static const mission_trigger mission_triggers[] = {
 };
 
 static int guard_matches(const mission_trigger *t) {
-    int32_t x = state.p[state.cpl].x;
-    int32_t y = state.p[state.cpl].y;
+    int32_t x = pa_x();
+    int32_t y = pa_y();
     switch (t->kind) {
         case MG_POS:
             return x == t->a && y == t->b;
@@ -170,7 +170,7 @@ static void resolve_bindings(const mission_trigger *t, ryl_bind *out,
                 out[i].value = res_npc_name(res_npc_role(b->npc_role));
                 break;
             case MB_PLAYER_NAME:
-                out[i].value = state.p[state.cpl].name[b->arg];
+                out[i].value = pa_name(b->arg);
                 break;
             case MB_DX_STR:
                 snprintf(zone, BIND_ZONE_SIZE, "%d", wld_location_x(b->arg));
