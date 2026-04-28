@@ -5,38 +5,37 @@
 
 #include <string.h>
 
-/* Map-array dimensions match struct ryl_state.map[MAP_ROWS_HARD_MAX]
-   [MAP_COLS_HARD_MAX] in state.h. §20.14 S10 makes these data-driven,
-   at which point both reads route through the same world.json5 lookup. */
-enum {
-    WLD_ROWS = MAP_ROWS_HARD_MAX,
-    WLD_COLS = MAP_COLS_HARD_MAX,
-};
+/* Map-array dimensions are sourced from world.json5 (§20.14 S10) via
+   res_map_rows_max() / res_map_cols_max(); state.map is a flat 1D
+   buffer of rows × cols bytes (tile (x, y) at offset y * cols + x).
+   MAP_ROWS_HARD_MAX / MAP_COLS_HARD_MAX (state.h) are the defensive
+   ceilings the data-layer clamps against. */
 
 static int in_bounds(int x, int y) {
-    return x >= 0 && x < WLD_COLS && y >= 0 && y < WLD_ROWS;
+    return x >= 0 && x < res_map_cols_max() && y >= 0 &&
+           y < res_map_rows_max();
 }
 
 int wld_rows(void) {
-    return WLD_ROWS;
+    return res_map_rows_max();
 }
 
 int wld_cols(void) {
-    return WLD_COLS;
+    return res_map_cols_max();
 }
 
 char wld_tile_at(int x, int y) {
     if (!in_bounds(x, y)) {
         return 0;
     }
-    return state.map[y][x];
+    return state.map[y * res_map_cols_max() + x];
 }
 
 void wld_set_tile_at(int x, int y, char c) {
     if (!in_bounds(x, y)) {
         return;
     }
-    state.map[y][x] = c;
+    state.map[y * res_map_cols_max() + x] = c;
 }
 
 static int tile_class_is(char c, const char *want) {
@@ -76,14 +75,15 @@ int wld_is_passable(int x, int y) {
     if (!in_bounds(x, y)) {
         return 0;
     }
-    return !wld_tile_is_impassable(state.map[y][x]);
+    return !wld_tile_is_impassable(state.map[y * res_map_cols_max() + x]);
 }
 
 void wld_load_row(int y, FILE *fh) {
-    if (y < 0 || y >= WLD_ROWS) {
+    if (y < 0 || y >= res_map_rows_max()) {
         return;
     }
-    fgets((char *)state.map[y], sizeof state.map[y], fh);
+    int cols = res_map_cols_max();
+    fgets(&state.map[y * cols], cols, fh);
 }
 
 static int location_in_range(int slot) {

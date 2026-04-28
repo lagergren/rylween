@@ -6,6 +6,7 @@
 #include "party.h"
 #include "res.h"
 #include "state.h"
+#include "wld.h"
 
 /* Owns every one-shot, replay-only env knob the engine reads.
    Each helper validates, consumes (unsetenv) so subsequent moves
@@ -138,8 +139,7 @@ void rk_apply_pos(int a) {
     const char *yp = end + 1;
     long y = strtol(yp, &end, 10);
     unsetenv("RYL_FORCE_POS");
-    if (end == yp || x < 0 || x >= MAP_COLS_HARD_MAX || y < 0 ||
-        y >= MAP_ROWS_HARD_MAX) {
+    if (end == yp || x < 0 || x >= wld_cols() || y < 0 || y >= wld_rows()) {
         return;
     }
     struct party *p = party_at(a);

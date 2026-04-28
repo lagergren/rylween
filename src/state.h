@@ -81,16 +81,17 @@ int res_party_slot_max(void);
 #define NPC_SLOT_HARD_MAX   41
 #define PARTY_SLOT_HARD_MAX 26
 
-/* World-map static dimensions. `state.map[MAP_ROWS_HARD_MAX][MAP_COLS_HARD_MAX]`
-   is sized to fit the legacy data/map.dat layout (40 used rows in an
-   indexable slot 1..40 of a [42] array; row 0 + row 41 unused; each row
-   up to 81 byte-cells + newline). The runtime active row count comes
-   from `world.json5 map.rows` via `res_int_path("map.rows")`; these
-   defines are the upper bounds the static table can hold. wld_rows() /
-   wld_cols() (wld.h) return the same constants — single source of truth
-   here. §20.14 S10 will eventually move the 42 / 82 to data and heap-
-   allocate, at which point the wld_rows / wld_cols return path becomes
-   the data lookup. */
+/* World-map static-ceiling dimensions. The runtime capacity comes
+   from `world.json5 map.rows_max` / `map.cols_max` via
+   res_map_rows_max() / res_map_cols_max() (res.h), and state.map is
+   a flat 1D heap buffer of rows × cols bytes — these defines are
+   only the defensive upper bounds fold_map_dims clamps the data
+   knobs against. Defaults (42 × 82) match the legacy data/map.dat
+   layout (40 used rows in slots 1..40 of a [42] array; row 0 +
+   row 41 unused; each row up to 81 byte-cells + newline). The
+   runtime active row count populated from data/map.dat is
+   `res_int_path("map.rows")`, independent of the capacity.
+   wld_rows() / wld_cols() (wld.h) are the consumer-facing names. */
 #define MAP_ROWS_HARD_MAX 42
 #define MAP_COLS_HARD_MAX 82
 
@@ -236,14 +237,16 @@ struct ryl_state {
     int32_t dy[15];
 
     /* Persistent game data (flushed to realm.dat / npc.dat). */
-    /* World-map runtime grid — heap-allocated to MAP_ROWS_HARD_MAX
-       rows × MAP_COLS_HARD_MAX cols at world-load time. The row
-       dimension is the only knob today; the inner row width stays
-       compile-time so wld.c's `sizeof state.map[y]` still resolves to
-       a single row. NULL until res_load_world() runs; res_shutdown()
+    /* World-map runtime grid — flat 1D buffer of res_map_rows_max() ×
+       res_map_cols_max() bytes, heap-allocated at world-load time.
+       Tile (x, y) lives at `state.map[y * res_map_cols_max() + x]`;
+       wld.c is the only consumer that should compute that offset
+       directly. NULL until res_load_world() runs; res_shutdown()
        frees it. All readers / writers go through wld.h
-       (wld_tile_at / wld_set_tile_at / wld_load_row). */
-    char (*map)[MAP_COLS_HARD_MAX];
+       (wld_tile_at / wld_set_tile_at / wld_load_row). MAP_ROWS_HARD_MAX
+       / MAP_COLS_HARD_MAX are defensive ceilings the data layer
+       clamps against; the runtime active dims come from the data. */
+    char *map;
     /* Party runtime table — heap-allocated to res_party_slot_max()
        entries by res_load_world() so the size matches the data
        layer's cap. PARTY_SLOT_HARD_MAX is the static ceiling

@@ -183,13 +183,21 @@
   // §20 S10: world-map dimensions and placement rules. `rows` is how
   // many lines driv.c::init reads from data/map.dat into state.map[]
   // (slots 1..rows; row 0 stays zero so res-driven walls aren't
-  // overwritten). `location_bounds` are the inclusive-min,
-  // exclusive-max (x,y) box that position_locations rejects ouside
-  // of when picking a random dungeon-cave coord. `dungeon_avoid`
-  // lists every tile char position_locations re-rolls on so
-  // dungeons land on plain/forest/foothill/desert/swamp.
+  // overwritten). `rows_max` / `cols_max` are the storage capacity
+  // (state.map is heap-allocated to rows_max × cols_max bytes at
+  // world-load); both are bounded by MAP_ROWS_HARD_MAX /
+  // MAP_COLS_HARD_MAX in state.h. The legacy data/map.dat layout
+  // assumes 42 × 82 (40 used rows in slots 1..40 of a [42] array;
+  // each row up to 81 cells + newline). `location_bounds` are the
+  // inclusive-min, exclusive-max (x,y) box that position_locations
+  // rejects ouside of when picking a random dungeon-cave coord.
+  // `dungeon_avoid` lists every tile char position_locations
+  // re-rolls on so dungeons land on plain/forest/foothill/desert/
+  // swamp.
   map: {
     rows: 40,
+    rows_max: 42,
+    cols_max: 82,
     location_bounds: {
       x_min: 5, x_max: 74,
       y_min: 5, y_max: 34,

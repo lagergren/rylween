@@ -492,6 +492,20 @@ int res_party_member_max(void);
    creation against this. */
 int res_party_slot_max(void);
 
+/* Storage capacity of state.map[][]. `state.map` is heap-allocated to
+   res_map_rows_max() × res_map_cols_max() bytes at world-load time;
+   wld.c access goes through `state.map[y * cols + x]`. Defaults
+   match MAP_ROWS_HARD_MAX / MAP_COLS_HARD_MAX (42 × 82, the
+   data/map.dat layout) when world.json5 omits the keys; overrideable
+   via `map.rows_max` / `map.cols_max` in world.json5 — bounded by
+   MAP_ROWS_HARD_MAX / MAP_COLS_HARD_MAX (defensive ceilings; bumping
+   them requires no other changes since the calloc is already
+   capacity-driven). The active row count actually populated by
+   data/map.dat at boot is `res_int_path("map.rows")`, independent of
+   the capacity. */
+int res_map_rows_max(void);
+int res_map_cols_max(void);
+
 /* On-disk path helpers (§20 T3 / T4). Caller-supplied buffer pattern,
    mirroring ryl_state_path in src/compat.c — avoids a const-cast at
    the disptext() / fopen() boundary. Centralise the previously

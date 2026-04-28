@@ -4,17 +4,19 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/* World-map helpers. Centralise the state.map[y][x] reads that are
-   currently scattered across driv.c (wilderness movement, position
-   prep) and subs.c (cave / encounter dispatch). The data dimensions
-   (42 rows × 82 cols) are pinned by data/map.dat at load time;
-   §20.14 S10 lifts those into world.json5 — when that lands, the
-   wld_* layer is the one place those constants need to update. */
+/* World-map helpers. Centralise the state.map indexing so that
+   driv.c (wilderness movement, position prep), subs.c (cave /
+   encounter dispatch), and the random-NPC placer never compute the
+   row × col offset directly. state.map is a flat 1D heap buffer of
+   res_map_rows_max() × res_map_cols_max() bytes (§20.14 S10) —
+   wld.c is the one consumer that knows the stride. */
 
-/* Map dimensions. Today fixed at 42×82 by data/map.dat layout; future
-   §20.14 S10 work makes them data-driven. wld_rows() / wld_cols() are
-   the consumer-facing names used by snapshot emit / save loops; the
-   in_bounds check in this module agrees with the same bounds. */
+/* Map dimensions. Sourced from world.json5 `map.rows_max` /
+   `map.cols_max` via res_map_rows_max() / res_map_cols_max() (res.h);
+   default 42 × 82 to match the legacy data/map.dat layout. The
+   in_bounds check in wld.c agrees with the same bounds; consumers
+   that just need to iterate (snapshot emit, save loops) call these
+   directly. */
 int wld_rows(void);
 int wld_cols(void);
 

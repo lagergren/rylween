@@ -1437,6 +1437,22 @@ int res_party_slot_max(void) {
     return (int)party_slot_max;
 }
 
+/* Map capacity dims. fold_limits validates the world's `map.rows_max`
+   / `map.cols_max` against MAP_*_HARD_MAX and stashes them here so
+   wld.c access (per-tile, hot path) doesn't re-walk the world tree
+   on every read. NULL world tree falls back to MAP_*_HARD_MAX so
+   res-free smoke tests still work. Reset by reset_limits. */
+static int32_t map_rows_max = MAP_ROWS_HARD_MAX;
+static int32_t map_cols_max = MAP_COLS_HARD_MAX;
+
+int res_map_rows_max(void) {
+    return (int)map_rows_max;
+}
+
+int res_map_cols_max(void) {
+    return (int)map_cols_max;
+}
+
 int res_party_member_max(void) {
     /* Test-harness override: RYL_PARTY_MEMBER_MAX is read once and
        cached so res_party_member_max() stays cheap. Lets a §19.3.4
@@ -1623,7 +1639,7 @@ void res_realize_npcs(void) {
                             ut++;
                         }
                     }
-                    char tile = state.map[n->y][n->x];
+                    char tile = wld_tile_at(n->x, n->y);
                     if (!wld_tile_is_settlement(tile) && !wld_tile_is_impassable(tile)) {
                         ut++;
                     }
@@ -2334,6 +2350,44 @@ static void reset_limits(void) {
     inventory_slot_max = INVENTORY_SLOT_MAX;
     party_member_max = PARTY_MEMBER_MAX;
     party_slot_max = PARTY_SLOT_HARD_MAX;
+    map_rows_max = MAP_ROWS_HARD_MAX;
+    map_cols_max = MAP_COLS_HARD_MAX;
+}
+
+/* -------- map dims (storage capacity) --------
+   `map.rows_max` / `map.cols_max` size state.map[][]'s heap allocation.
+   The active row count populated from data/map.dat is `map.rows`,
+   read lazily via res_int_path. Both caps default to MAP_*_HARD_MAX
+   if the world omits the keys. */
+static void fold_map_dims(const node *map_node, const char *path) {
+    if (!map_node) {
+        return;
+    }
+    if (map_node->kind != N_OBJ) {
+        res_die(path, map_node->line, "map: expected object");
+    }
+    const node *rm = obj_get(map_node, "rows_max");
+    if (rm) {
+        if (rm->kind != N_INT) {
+            res_die(path, rm->line, "map.rows_max: expected integer");
+        }
+        if (rm->u.iv < 1 || rm->u.iv > MAP_ROWS_HARD_MAX) {
+            res_die(path, rm->line,
+                    "map.rows_max: must be in 1..MAP_ROWS_HARD_MAX");
+        }
+        map_rows_max = rm->u.iv;
+    }
+    const node *cm = obj_get(map_node, "cols_max");
+    if (cm) {
+        if (cm->kind != N_INT) {
+            res_die(path, cm->line, "map.cols_max: expected integer");
+        }
+        if (cm->u.iv < 1 || cm->u.iv > MAP_COLS_HARD_MAX) {
+            res_die(path, cm->line,
+                    "map.cols_max: must be in 1..MAP_COLS_HARD_MAX");
+        }
+        map_cols_max = cm->u.iv;
+    }
 }
 
 /* -------- enums subtree --------
@@ -2847,6 +2901,7 @@ void res_load_world(const char *path) {
     fold_towns(obj_get(root, "towns"), path);
     fold_buildings(obj_get(root, "buildings"), path);
     fold_limits(obj_get(root, "limits"), path);
+    fold_map_dims(obj_get(root, "map"), path);
     fold_enums(obj_get(root, "enums"), path);
     fold_dungeons(obj_get(root, "dungeons"), path);
     /* fold_scripts uses res_monster_id / res_item_id / etc., all of
@@ -2909,19 +2964,21 @@ void res_load_world(const char *path) {
         }
     }
 
-    /* Right-size the world-map grid to MAP_ROWS_HARD_MAX rows of
-       MAP_COLS_HARD_MAX columns each, zeroed. Outer dimension only —
-       the row width stays compile-time so wld.c's `sizeof
-       state.map[y]` resolves to one row (MAP_COLS_HARD_MAX bytes).
-       Same idempotent free-then-alloc pattern as state.npc / state.p.
-       §20.14 S10 will move the dimensions to data; until then this
-       just removes the BSS-static cap. */
+    /* Right-size the world-map grid to res_map_rows_max() rows ×
+       res_map_cols_max() columns, flat 1D so the inner row width can
+       be a runtime knob. Tile (x, y) lives at offset
+       y * res_map_cols_max() + x; wld.c access goes through
+       wld_tile_at / wld_set_tile_at. fold_map_dims has already
+       validated both against MAP_*_HARD_MAX. Same idempotent
+       free-then-alloc pattern as state.npc / state.p. */
     free(state.map);
     state.map = NULL;
-    state.map = calloc(MAP_ROWS_HARD_MAX, sizeof *state.map);
+    size_t map_rows = (size_t)res_map_rows_max();
+    size_t map_cols = (size_t)res_map_cols_max();
+    state.map = calloc(map_rows * map_cols, sizeof *state.map);
     if (!state.map) {
-        LOG_E("realm", "out of memory allocating state.map[%d][%d]",
-              MAP_ROWS_HARD_MAX, MAP_COLS_HARD_MAX);
+        LOG_E("realm", "out of memory allocating state.map[%zu][%zu]",
+              map_rows, map_cols);
         exit(1);
     }
 
