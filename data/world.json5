@@ -648,6 +648,44 @@
     },
   },
 
+  // Sysop backdoors — name-keyed dispatch preserved from the Amiga
+  // original. Each entry is keyed by an arbitrary author-stable slug
+  // (the `name:` field is what the runtime matches against the
+  // current player party's global name via `session_player_name()`).
+  // `keys:` is a one-press dispatch table fired from primitives.c::
+  // key(); the action field selects the handler:
+  //   - add_time_left   { amount, refresh_status }
+  //   - add_gold        { amount, refresh_status }
+  //   - set_inventory   { slot, item: '<slug>' }   item resolves via
+  //                     res_item_id at lookup time.
+  // `step_trigger:` (optional) is a periodic check evaluated every
+  // wilderness move from random_wilderness(). Today the only action
+  // is `spawn_encounter` (spawns one encounter against the named
+  // monster slug, resolved via res_monster_id). `every_n_steps`
+  // gates the check on `pa_time_left() % N == 0` so a player whose
+  // global name matches gets the encounter once every N moves.
+  secrets: {
+    marcus: {
+      name: 'Marcus Lagergren',
+      keys: [
+        { key: '/', action: 'add_time_left', amount: 50, refresh_status: true },
+        { key: '(', action: 'set_inventory', slot: 12, item: 'drums_of_death' },
+        { key: ')', action: 'set_inventory', slot: 11, item: 'gem_of_resurrection' },
+        { key: '&', action: 'set_inventory', slot: 10, item: 'kaels_axe' },
+        { key: '*', action: 'set_inventory', slot:  9, item: 'holy_handgrenade' },
+        { key: '+', action: 'add_gold', amount: 1000, refresh_status: true },
+      ],
+    },
+    karl: {
+      name: 'Karl Skagerberg',
+      step_trigger: {
+        every_n_steps: 101,
+        action: 'spawn_encounter',
+        monster: 'skagerberg_killer',
+      },
+    },
+  },
+
   // NPCs — one entry per slot, keyed by symbolic id. The state.npc[]
   // slot is assigned positionally by declaration order: garth=0,
   // nrim_to=1, ..., ufarsin=38. Slot count comes from this object's

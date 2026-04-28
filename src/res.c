@@ -631,6 +631,142 @@ int res_ydarg_stairs_item(int digit, const char **out_special,
     return 0;
 }
 
+/* `secrets:` subtree — sysop backdoors. Two entry shapes share the
+   tree: `keys: [...]` (Marcus Lagergren-style key dispatch) and
+   `step_trigger: { ... }` (Karl Skagerberg-style periodic trigger).
+   Both find their entry by walking secrets.* and matching the
+   `name:` field against the live player name (case-insensitive). Item
+   and monster slugs are resolved here (not at fold time) so the data
+   file stays canonical and the C dispatch shim never sees a raw id. */
+static const node *secrets_entry_for(const char *player_name) {
+    if (!world_tree || !player_name) {
+        return NULL;
+    }
+    const node *secrets = obj_get(world_tree, "secrets");
+    if (!secrets || secrets->kind != N_OBJ) {
+        return NULL;
+    }
+    for (size_t i = 0; i < secrets->u.obj.n; i++) {
+        const node *rec = secrets->u.obj.items[i].val;
+        if (!rec || rec->kind != N_OBJ) {
+            continue;
+        }
+        const node *name_n = obj_get(rec, "name");
+        if (!name_n || name_n->kind != N_STR) {
+            continue;
+        }
+        if (strcasecmp(name_n->u.sv, player_name) == 0) {
+            return rec;
+        }
+    }
+    return NULL;
+}
+
+static void secrets_fill_action(const node *row, secret_action *out,
+                                const char *path_hint) {
+    const node *act_n = obj_get(row, "action");
+    if (!act_n || act_n->kind != N_STR) {
+        res_die("secrets", row->line, "action: string required");
+    }
+    const char *act = act_n->u.sv;
+    if (strcmp(act, "add_time_left") == 0 || strcmp(act, "add_gold") == 0) {
+        out->kind = (strcmp(act, "add_time_left") == 0)
+                        ? SECRET_ADD_TIME_LEFT
+                        : SECRET_ADD_GOLD;
+        const node *amt = obj_get(row, "amount");
+        if (!amt || amt->kind != N_INT) {
+            res_die("secrets", row->line, "amount: integer required");
+        }
+        out->amount = (int32_t)amt->u.iv;
+        const node *rs = obj_get(row, "refresh_status");
+        out->refresh_status = (rs && rs->kind == N_BOOL && rs->u.bv) ? 1 : 0;
+    } else if (strcmp(act, "set_inventory") == 0) {
+        out->kind = SECRET_SET_INVENTORY;
+        const node *slot = obj_get(row, "slot");
+        if (!slot || slot->kind != N_INT) {
+            res_die("secrets", row->line, "slot: integer required");
+        }
+        out->slot = (int32_t)slot->u.iv;
+        const node *item = obj_get(row, "item");
+        if (!item || item->kind != N_STR) {
+            res_die("secrets", row->line, "item: slug required");
+        }
+        int32_t id = res_item_id(item->u.sv);
+        if (id < 0) {
+            res_die("secrets", item->line, "item: unknown slug");
+        }
+        out->item_id = id;
+    } else if (strcmp(act, "spawn_encounter") == 0) {
+        out->kind = SECRET_SPAWN_ENCOUNTER;
+        const node *m = obj_get(row, "monster");
+        if (!m || m->kind != N_STR) {
+            res_die("secrets", row->line, "monster: slug required");
+        }
+        int32_t id = res_monster_id(m->u.sv);
+        if (id < 1) {
+            res_die("secrets", m->line, "monster: unknown slug");
+        }
+        out->monster_id = id;
+    } else {
+        res_die(path_hint ? path_hint : "secrets", row->line,
+                "action: unknown kind");
+    }
+}
+
+int res_secrets_check_key(const char *player_name, char ch, secret_action *out) {
+    if (!out) {
+        return 0;
+    }
+    const node *rec = secrets_entry_for(player_name);
+    if (!rec) {
+        return 0;
+    }
+    const node *keys = obj_get(rec, "keys");
+    if (!keys || keys->kind != N_ARR) {
+        return 0;
+    }
+    for (size_t i = 0; i < keys->u.arr.n; i++) {
+        const node *row = keys->u.arr.items[i];
+        if (!row || row->kind != N_OBJ) {
+            continue;
+        }
+        const node *k = obj_get(row, "key");
+        if (!k || k->kind != N_STR || k->u.sv[0] == '\0' || k->u.sv[0] != ch) {
+            continue;
+        }
+        memset(out, 0, sizeof *out);
+        secrets_fill_action(row, out, "secrets.keys");
+        return 1;
+    }
+    return 0;
+}
+
+int res_secrets_step_trigger(const char *player_name, int step_count,
+                             secret_action *out) {
+    if (!out) {
+        return 0;
+    }
+    const node *rec = secrets_entry_for(player_name);
+    if (!rec) {
+        return 0;
+    }
+    const node *trig = obj_get(rec, "step_trigger");
+    if (!trig || trig->kind != N_OBJ) {
+        return 0;
+    }
+    const node *every = obj_get(trig, "every_n_steps");
+    if (!every || every->kind != N_INT || every->u.iv <= 0) {
+        res_die("secrets.step_trigger", trig->line,
+                "every_n_steps: positive integer required");
+    }
+    if (step_count % (int)every->u.iv != 0) {
+        return 0;
+    }
+    memset(out, 0, sizeof *out);
+    secrets_fill_action(trig, out, "secrets.step_trigger");
+    return 1;
+}
+
 int32_t res_combat_int(const char *dotted_path) {
     char buf[192];
     int n = snprintf(buf, sizeof buf, "combat.%s", dotted_path ? dotted_path : "");

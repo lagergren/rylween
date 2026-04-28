@@ -532,6 +532,44 @@ int res_map_cols_max(void);
 int res_location_slot_max(void);
 int res_random_location_max(void);
 
+/* Sysop backdoors (`secrets:` subtree of world.json5). Author-stable
+   slugs are matched against the current global player name via
+   `session_player_name()`; on a hit the engine yields a small action
+   record the C dispatch shim acts on. Item / monster slugs in the
+   data file are resolved through res_item_id / res_monster_id at
+   lookup time so the C side never sees a raw item id. */
+enum secret_action_kind {
+    SECRET_NONE = 0,
+    SECRET_ADD_TIME_LEFT,   /* amount; refresh_status */
+    SECRET_ADD_GOLD,        /* amount; refresh_status */
+    SECRET_SET_INVENTORY,   /* slot; item_id (resolved) */
+    SECRET_SPAWN_ENCOUNTER, /* monster_id (resolved) */
+};
+
+typedef struct {
+    enum secret_action_kind kind;
+    int32_t amount;         /* add_time_left / add_gold */
+    int32_t slot;           /* set_inventory */
+    int32_t item_id;        /* set_inventory (resolved via res_item_id) */
+    int32_t monster_id;     /* spawn_encounter (resolved via res_monster_id) */
+    uint8_t refresh_status; /* add_time_left / add_gold */
+} secret_action;
+
+/* On a key press from primitives.c::key(): if any secrets[] entry's
+   `name:` matches `player_name` AND that entry has a `keys[]` row whose
+   `key:` matches `ch`, fill `*out` and return 1. Returns 0 (out
+   untouched) when no secret matches. Fatal if a matched row's
+   item/action slug is unknown. */
+int res_secrets_check_key(const char *player_name, char ch, secret_action *out);
+
+/* Periodic step trigger from random_wilderness(): if any secrets[]
+   entry's `name:` matches `player_name` AND `step_count % every_n_
+   steps == 0`, fill `*out` and return 1. Returns 0 otherwise. The
+   per-step modulo gate is in data; the C side just hands its
+   pa_time_left() in. */
+int res_secrets_step_trigger(const char *player_name, int step_count,
+                             secret_action *out);
+
 /* On-disk path helpers (§20 T3 / T4). Caller-supplied buffer pattern,
    mirroring ryl_state_path in src/compat.c — avoids a const-cast at
    the disp_text() / fopen() boundary. Centralise the previously

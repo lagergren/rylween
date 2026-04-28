@@ -368,29 +368,27 @@ char key(void) {
         clean_exit();
     }
 
-    /* Local sysop backdoors — preserved from the Amiga original. */
-    if (!stricmp(session_player_name(), "Marcus Lagergren")) {
-        switch (ch) {
-            case '/':
-                pa_add_time_left(50);
-                status_line();
+    /* Local sysop backdoors — name-keyed dispatch lifted to
+       data/world.json5 secrets:. The engine resolves the entry by
+       global player name and yields a small action record; the
+       switch below is one branch per supported action kind. */
+    secret_action act;
+    if (res_secrets_check_key(session_player_name(), (char)ch, &act)) {
+        switch (act.kind) {
+            case SECRET_ADD_TIME_LEFT:
+                pa_add_time_left(act.amount);
                 break;
-            case '(':
-                pa_set_inventory(12, 104);
+            case SECRET_ADD_GOLD:
+                pa_add_gold(act.amount);
                 break;
-            case ')':
-                pa_set_inventory(11, 108);
+            case SECRET_SET_INVENTORY:
+                pa_set_inventory(act.slot, act.item_id);
                 break;
-            case '&':
-                pa_set_inventory(10, 109);
+            default:
                 break;
-            case '*':
-                pa_set_inventory(9, 110);
-                break;
-            case '+':
-                pa_add_gold(1000);
-                status_line();
-                break;
+        }
+        if (act.refresh_status) {
+            status_line();
         }
     }
     return (char)ch;

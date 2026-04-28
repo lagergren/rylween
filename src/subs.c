@@ -148,8 +148,13 @@ void random_wilderness() {
         return;
     }
 
-    if (!(pa_time_left() % 101) && !stricmp(session_player_name(), "Karl Skagerberg")) {
-        encounter(res_monster_id("skagerberg_killer"), 1);
+    /* Sysop backdoor — name-keyed periodic encounter lifted to
+       data/world.json5 secrets:. The cadence and monster slug are
+       both data; the engine returns the resolved monster id. */
+    secret_action act;
+    if (res_secrets_step_trigger(session_player_name(), pa_time_left(), &act) &&
+        act.kind == SECRET_SPAWN_ENCOUNTER) {
+        encounter(act.monster_id, 1);
     }
 
     int32_t cave_lo = res_int_path("wilderness.cave_chance");
