@@ -72,12 +72,7 @@ void ydarg() {
         switch (room[xl][yl]) {
             case 1: /* Monster */
                 room[xl][yl] = 0;
-                tx0(res_text("ydarg.room.monster"));
-                ryl_delay(1500);
-                encounter(res_monster_tier_pick("deep"), 0);
-                clr_map_window();
-                blitgfx(ydargpic);
-                clw();
+                play_script("ydarg.room_monster", NULL);
                 break;
 
             case 2: /* Pitfall */

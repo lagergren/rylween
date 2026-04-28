@@ -61,6 +61,21 @@
     { engine_call: 'clw' },
   ],
 
+  // §23.H: per-room (case 1) monster encounter. ydarg() owns the
+  // room[xl][yl] = 0 write before invoking the script (the room grid
+  // is C-side state, not yet hoisted). The body is exactly the legacy
+  // case-1 chain: announce the encounter, ryl_delay 1500, run a deep-
+  // tier encounter (non-mandatory — fleeing is allowed), redraw the
+  // castle backdrop.
+  room_monster: [
+    { emit: 'ydarg.room.monster' },
+    { pause: 1500 },
+    { encounter: { tier: 'deep' } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [14] },
+    { engine_call: 'clw' },
+  ],
+
   // §23.K: roof-deck confrontation. Lifts the legacy C confrontation()
   // function. Four narration acts bracket two encounter blocks (the
   // 4-monster sequence then Baron Ydarg himself), with the silverkey
