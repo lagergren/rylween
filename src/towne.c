@@ -17,6 +17,7 @@ static void inn(void);
 static void merchant(void);
 static void smith(void);
 static void tavern(void);
+static void town_leave(void);
 
 /* The rumour id roll, the four bound arms (r12 / r13 / r25 / r27),
    and the default static-text branch all live in
@@ -112,14 +113,44 @@ static int enter_tax_preamble(const char *twnname) {
     return 1;
 }
 
+/* leave_town wrapper — folds the post-menu cleanup (ready prompt
+   + clear map/text) into a void(void) shape so it fits the dispatch
+   table. The "menu ends" signal is carried by the table entry's
+   ends_menu flag, not the function's return. */
+static void town_leave(void) {
+    enter_ready_prompt();
+    clw();
+    clr_map_window();
+    update_map();
+}
+
+/* Action-name → handler table for the town menu. Names match the
+   `action` slugs in data/world.json5 town_keys[]. `ends_menu` is
+   set on the one arm whose handler completes the menu (leave_town);
+   every other arm re-enters the menu loop. Adding a new arm
+   requires both a new entry here and a new world.json5 row. */
+typedef void (*towne_action_fn)(void);
+static const struct {
+    const char *name;
+    towne_action_fn fn;
+    int ends_menu;
+} town_actions[] = {
+    {"enter_church", church, 0},
+    {"enter_smith", smith, 0},
+    {"enter_inn", inn, 0},
+    {"enter_merchant", merchant, 0},
+    {"enter_tavern", tavern, 0},
+    {"leave_town", town_leave, 1},
+};
+
 /* Town-menu keystroke dispatcher. Walks the data/world.json5
    `town_keys` table in declared order; the first entry whose key
    matches (table holds the upper-case form, caller pre-uppercases)
-   and whose optional `cond` is satisfied wins. `cond` is currently
-   limited to the per-town `has_church` bool — extending it means
-   adding a branch here. Returns 1 when the leave_town arm fired
-   (caller should drop out of the menu loop), 0 otherwise (no match
-   or a re-entrant action that returns control to the menu). */
+   and whose optional `cond` is satisfied wins, then the named action
+   is resolved through town_actions[]. `cond` is currently limited
+   to the per-town `has_church` bool — extending it means adding a
+   branch here. Returns the action's ends_menu flag (1 stops the
+   caller's menu loop, 0 stays inside it). */
 static int town_dispatch_key(char c, int has_church) {
     int n = res_town_keys_count();
     for (int i = 0; i < n; i++) {
@@ -141,22 +172,11 @@ static int town_dispatch_key(char c, int has_church) {
                 continue;
             }
         }
-        if (strcmp(action, "enter_church") == 0) {
-            church();
-        } else if (strcmp(action, "enter_smith") == 0) {
-            smith();
-        } else if (strcmp(action, "enter_inn") == 0) {
-            inn();
-        } else if (strcmp(action, "enter_merchant") == 0) {
-            merchant();
-        } else if (strcmp(action, "enter_tavern") == 0) {
-            tavern();
-        } else if (strcmp(action, "leave_town") == 0) {
-            enter_ready_prompt();
-            clw();
-            clr_map_window();
-            update_map();
-            return 1;
+        for (size_t j = 0; j < sizeof town_actions / sizeof town_actions[0]; j++) {
+            if (strcmp(town_actions[j].name, action) == 0) {
+                town_actions[j].fn();
+                return town_actions[j].ends_menu;
+            }
         }
         return 0;
     }
