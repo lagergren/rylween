@@ -18,7 +18,9 @@
 #include "wld.h"
 
 static void create_party(void);
+static void driv_cast_spell(void);
 static int driv_dispatch_key(char c);
+static void driv_drop(void);
 static void driv_journal(void);
 static void driv_pass(void);
 static void driv_quit_confirm(void);
@@ -125,10 +127,50 @@ static void driv_quit_confirm(void) {
     clean_exit();
 }
 
+/* drop() returns uint8_t; cast_spell carries a literal arg. Both
+   wrap to a void(void) signature so the dispatch table is
+   homogeneous. */
+static void driv_drop(void) {
+    drop();
+}
+
+static void driv_cast_spell(void) {
+    spell(0);
+}
+
+/* Action-name → handler table, walked once per matching wilderness
+   keystroke. Names match the `action` slugs in data/world.json5
+   wilderness_keys[]. Adding a new arm requires both a new entry
+   here and a new world.json5 row. */
+typedef void (*driv_action_fn)(void);
+static const struct {
+    const char *name;
+    driv_action_fn fn;
+} driv_actions[] = {
+    {"pass", driv_pass},
+    {"save", driv_save},
+    {"weapon_ready", weapon_ready},
+    {"armor_ready", armor_ready},
+    {"redraw", driv_redraw},
+    {"journal", driv_journal},
+    {"help", help},
+    {"hunt", hunt},
+    {"view_party", driv_view_party},
+    {"armor_off", armor_off},
+    {"weapon_off", weapon_off},
+    {"enter", enter},
+    {"drop", driv_drop},
+    {"camp", camp},
+    {"cast_spell", driv_cast_spell},
+    {"quaff", quaff},
+    {"quit_confirm", driv_quit_confirm},
+};
+
 /* Wilderness main-loop keystroke dispatch. Walks the
    data/world.json5 `wilderness_keys` table top-to-bottom; the first
    entry whose key matches (caller pre-uppercases) and whose optional
-   `cond` is satisfied wins. No conds are recognized today — entries
+   `cond` is satisfied wins, then the named action is resolved
+   through driv_actions[]. No conds are recognized today — entries
    carrying one are skipped (matches town_dispatch_key's
    future-proofing semantics). Returns 1 when an entry dispatched,
    0 when no entry matched (caller drops the keystroke silently,
@@ -142,46 +184,14 @@ static int driv_dispatch_key(char c) {
         if (!res_wilderness_key_at(i, &ekey, &cond, &action)) {
             continue;
         }
-        if (c != ekey) {
+        if (c != ekey || cond) {
             continue;
         }
-        if (cond) {
-            continue;
-        }
-        if (strcmp(action, "pass") == 0) {
-            driv_pass();
-        } else if (strcmp(action, "save") == 0) {
-            driv_save();
-        } else if (strcmp(action, "weapon_ready") == 0) {
-            weapon_ready();
-        } else if (strcmp(action, "armor_ready") == 0) {
-            armor_ready();
-        } else if (strcmp(action, "redraw") == 0) {
-            driv_redraw();
-        } else if (strcmp(action, "journal") == 0) {
-            driv_journal();
-        } else if (strcmp(action, "help") == 0) {
-            help();
-        } else if (strcmp(action, "hunt") == 0) {
-            hunt();
-        } else if (strcmp(action, "view_party") == 0) {
-            driv_view_party();
-        } else if (strcmp(action, "armor_off") == 0) {
-            armor_off();
-        } else if (strcmp(action, "weapon_off") == 0) {
-            weapon_off();
-        } else if (strcmp(action, "enter") == 0) {
-            enter();
-        } else if (strcmp(action, "drop") == 0) {
-            drop();
-        } else if (strcmp(action, "camp") == 0) {
-            camp();
-        } else if (strcmp(action, "cast_spell") == 0) {
-            spell(0);
-        } else if (strcmp(action, "quaff") == 0) {
-            quaff();
-        } else if (strcmp(action, "quit_confirm") == 0) {
-            driv_quit_confirm();
+        for (size_t j = 0; j < sizeof driv_actions / sizeof driv_actions[0]; j++) {
+            if (strcmp(driv_actions[j].name, action) == 0) {
+                driv_actions[j].fn();
+                break;
+            }
         }
         return 1;
     }
