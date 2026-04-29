@@ -27,6 +27,7 @@
 #include "compat.h"
 #include "json5.h"
 #include "log.h"
+#include "missions.h"
 #include "party.h"
 #include "primitives.h"
 #include "runtime_cfg.h"
@@ -192,6 +193,13 @@ typedef struct {
 } ryl_wilderness_key;
 static ryl_wilderness_key *wilderness_keys_tab;
 static size_t n_wilderness_keys;
+
+/* Mission trigger table (data/world/missions.json5). Populated by
+   fold_missions / freed by reset_missions. The runtime layout
+   (`mission_trigger`) lives in missions.h so missions.c::dispatch_
+   triggers can walk the same struct the loader produces. */
+static mission_trigger *missions_tab;
+static size_t n_missions;
 
 /* Cold-start realization knobs (port-plan §15.4). npc_slack is the
    `slack` term added to ceil(N/T) when computing the per-bin cap for
@@ -2639,6 +2647,311 @@ static void reset_wilderness_keys(void) {
     n_wilderness_keys = 0;
 }
 
+/* -------- missions subtree --------
+   Mission trigger table (data/world/missions.json5). Each entry
+   becomes one `mission_trigger` row consumed by missions.c. The
+   schema is documented in the JSON5 shard header; this loader maps
+   author-friendly slugs (e.g. `kind: 'pos'`) to the C enum values
+   in missions.h, resolves the `c_fn:` slug via mission_resolve_c_fn
+   so unknown slugs hard-fail at fold time, and strdup's every owned
+   string so reset_missions can free symmetrically.
+
+   Only the table allocation is done here; guard evaluation uses the
+   live `pos_path`/`tile_class`/`special_tag` strings against
+   res_int_path / res_terrain_class / inv_special_id_for_tag at
+   trigger time, matching the historical static-array shape. */
+static enum mission_guard_kind parse_guard_kind(const char *s,
+                                                int line) {
+    if (strcmp(s, "pos") == 0) {
+        return MG_POS;
+    }
+    if (strcmp(s, "dungeon_idx") == 0) {
+        return MG_DUNGEON_IDX;
+    }
+    if (strcmp(s, "terrain") == 0) {
+        return MG_TERRAIN;
+    }
+    if (strcmp(s, "chance") == 0) {
+        return MG_CHANCE;
+    }
+    if (strcmp(s, "tile_at_pos") == 0) {
+        return MG_TILE_AT_POS;
+    }
+    if (strcmp(s, "special_eq") == 0) {
+        return MG_SPECIAL_EQ;
+    }
+    res_die("missions", line, "kind: unknown slug");
+    return MG_POS; /* unreachable */
+}
+
+static enum mission_where parse_where(const char *s, int line) {
+    if (strcmp(s, "step") == 0) {
+        return MW_STEP;
+    }
+    if (strcmp(s, "enter_key") == 0) {
+        return MW_ENTER_KEY;
+    }
+    res_die("missions", line, "where: unknown slug");
+    return MW_STEP; /* unreachable */
+}
+
+static enum mission_action_kind parse_action_kind(const char *s,
+                                                  int line) {
+    if (strcmp(s, "script") == 0) {
+        return MA_SCRIPT;
+    }
+    if (strcmp(s, "c_fn") == 0) {
+        return MA_C_FN;
+    }
+    res_die("missions", line, "action: unknown slug");
+    return MA_SCRIPT; /* unreachable */
+}
+
+static enum mission_post_op parse_post_op(const char *s, int line) {
+    if (strcmp(s, "none") == 0) {
+        return POST_NONE;
+    }
+    if (strcmp(s, "set_jazzyfoot") == 0) {
+        return POST_SET_JAZZYFOOT;
+    }
+    res_die("missions", line, "post: unknown slug");
+    return POST_NONE; /* unreachable */
+}
+
+static enum mission_bind_kind parse_bind_kind(const char *s, int line) {
+    if (strcmp(s, "npc_name") == 0) {
+        return MB_NPC_NAME;
+    }
+    if (strcmp(s, "player_name") == 0) {
+        return MB_PLAYER_NAME;
+    }
+    if (strcmp(s, "dx_str") == 0) {
+        return MB_DX_STR;
+    }
+    if (strcmp(s, "dy_str") == 0) {
+        return MB_DY_STR;
+    }
+    res_die("missions", line, "binds.kind: unknown slug");
+    return MB_NPC_NAME; /* unreachable */
+}
+
+static char *strdup_or_die(const char *s, const char *path, int line) {
+    char *out = strdup(s);
+    if (!out) {
+        res_die(path, line, "oom");
+    }
+    return out;
+}
+
+static void fold_mission_binds(const node *binds_node, mission_trigger *t,
+                               const char *path) {
+    if (!binds_node) {
+        return;
+    }
+    if (binds_node->kind != N_ARR) {
+        res_die(path, binds_node->line, "missions.binds: expected array");
+    }
+    size_t n = binds_node->u.arr.n;
+    if (n == 0) {
+        return;
+    }
+    t->binds = calloc(n, sizeof *t->binds);
+    if (!t->binds) {
+        res_die(path, binds_node->line, "oom");
+    }
+    for (size_t i = 0; i < n; i++) {
+        const node *rec = binds_node->u.arr.items[i];
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : binds_node->line,
+                    "missions.binds: entry must be object");
+        }
+        const node *name_n = obj_get(rec, "name");
+        const node *kind_n = obj_get(rec, "kind");
+        const node *arg_n = obj_get(rec, "arg");
+        const node *role_n = obj_get(rec, "npc_role");
+        if (!name_n || name_n->kind != N_STR) {
+            res_die(path, rec->line, "missions.binds.name: string required");
+        }
+        if (!kind_n || kind_n->kind != N_STR) {
+            res_die(path, rec->line, "missions.binds.kind: string required");
+        }
+        t->binds[i].name = strdup_or_die(name_n->u.sv, path, rec->line);
+        t->binds[i].kind = parse_bind_kind(kind_n->u.sv, rec->line);
+        t->binds[i].arg = (arg_n && arg_n->kind == N_INT)
+                              ? (int32_t)arg_n->u.iv
+                              : 0;
+        t->binds[i].npc_role = (role_n && role_n->kind == N_STR)
+                                   ? strdup_or_die(role_n->u.sv, path,
+                                                   rec->line)
+                                   : NULL;
+        if (t->binds[i].kind == MB_NPC_NAME && !t->binds[i].npc_role) {
+            res_die(path, rec->line,
+                    "missions.binds: npc_name requires npc_role");
+        }
+    }
+    t->nbinds = n;
+}
+
+static void fold_missions(const node *missions_node, const char *path) {
+    if (!missions_node) {
+        return;
+    }
+    if (missions_node->kind != N_ARR) {
+        res_die(path, missions_node->line, "missions: expected array");
+    }
+    size_t n = missions_node->u.arr.n;
+    if (n == 0) {
+        return;
+    }
+    missions_tab = calloc(n, sizeof *missions_tab);
+    if (!missions_tab) {
+        res_die(path, missions_node->line, "oom");
+    }
+    for (size_t i = 0; i < n; i++) {
+        const node *rec = missions_node->u.arr.items[i];
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : missions_node->line,
+                    "missions: entry must be object");
+        }
+        mission_trigger *t = &missions_tab[i];
+
+        const node *flag_n = obj_get(rec, "flag_tag");
+        const node *when_n = obj_get(rec, "when_state");
+        if (flag_n) {
+            if (flag_n->kind != N_STR) {
+                res_die(path, rec->line, "missions.flag_tag: string required");
+            }
+            if (!when_n || when_n->kind != N_STR) {
+                res_die(path, rec->line,
+                        "missions.when_state: required when flag_tag is set");
+            }
+            t->flag_tag = strdup_or_die(flag_n->u.sv, path, rec->line);
+            t->when_state = strdup_or_die(when_n->u.sv, path, rec->line);
+        }
+
+        const node *where_n = obj_get(rec, "where");
+        t->where = (where_n && where_n->kind == N_STR)
+                       ? parse_where(where_n->u.sv, rec->line)
+                       : MW_STEP;
+
+        const node *kind_n = obj_get(rec, "kind");
+        if (!kind_n || kind_n->kind != N_STR) {
+            res_die(path, rec->line, "missions.kind: string required");
+        }
+        t->kind = parse_guard_kind(kind_n->u.sv, rec->line);
+
+        const node *a_n = obj_get(rec, "a");
+        const node *b_n = obj_get(rec, "b");
+        t->a = (a_n && a_n->kind == N_INT) ? (int32_t)a_n->u.iv : 0;
+        t->b = (b_n && b_n->kind == N_INT) ? (int32_t)b_n->u.iv : 0;
+
+        const node *cls_n = obj_get(rec, "tile_class");
+        const node *pos_n = obj_get(rec, "pos_path");
+        const node *spec_n = obj_get(rec, "special_tag");
+        if (cls_n) {
+            if (cls_n->kind != N_STR) {
+                res_die(path, rec->line,
+                        "missions.tile_class: string required");
+            }
+            t->tile_class = strdup_or_die(cls_n->u.sv, path, rec->line);
+        }
+        if (pos_n) {
+            if (pos_n->kind != N_STR) {
+                res_die(path, rec->line,
+                        "missions.pos_path: string required");
+            }
+            t->pos_path = strdup_or_die(pos_n->u.sv, path, rec->line);
+        }
+        if (spec_n) {
+            if (spec_n->kind != N_STR) {
+                res_die(path, rec->line,
+                        "missions.special_tag: string required");
+            }
+            t->special_tag = strdup_or_die(spec_n->u.sv, path, rec->line);
+        }
+        if (t->kind == MG_TILE_AT_POS || t->kind == MG_SPECIAL_EQ) {
+            if (!t->tile_class || !t->pos_path) {
+                res_die(path, rec->line,
+                        "missions: tile_at_pos/special_eq require "
+                        "tile_class + pos_path");
+            }
+        }
+        if (t->kind == MG_SPECIAL_EQ && !t->special_tag) {
+            res_die(path, rec->line,
+                    "missions: special_eq requires special_tag");
+        }
+
+        const node *act_n = obj_get(rec, "action");
+        t->action = (act_n && act_n->kind == N_STR)
+                        ? parse_action_kind(act_n->u.sv, rec->line)
+                        : MA_SCRIPT;
+
+        if (t->action == MA_SCRIPT) {
+            const node *script_n = obj_get(rec, "script");
+            if (!script_n || script_n->kind != N_STR) {
+                res_die(path, rec->line,
+                        "missions.script: required for action='script'");
+            }
+            t->script = strdup_or_die(script_n->u.sv, path, rec->line);
+        } else {
+            const node *cfn_n = obj_get(rec, "c_fn");
+            if (!cfn_n || cfn_n->kind != N_STR) {
+                res_die(path, rec->line,
+                        "missions.c_fn: required for action='c_fn'");
+            }
+            t->c_fn = strdup_or_die(cfn_n->u.sv, path, rec->line);
+            t->fn = mission_resolve_c_fn(t->c_fn);
+            if (!t->fn) {
+                res_die(path, cfn_n->line, "missions.c_fn: unknown slug");
+            }
+        }
+
+        const node *ros_n = obj_get(rec, "returns_on_skip");
+        t->returns_on_skip =
+            (ros_n && ros_n->kind == N_BOOL && ros_n->u.bv) ? 1 : 0;
+
+        const node *post_n = obj_get(rec, "post");
+        t->post = (post_n && post_n->kind == N_STR)
+                      ? parse_post_op(post_n->u.sv, rec->line)
+                      : POST_NONE;
+
+        fold_mission_binds(obj_get(rec, "binds"), t, path);
+    }
+    n_missions = n;
+}
+
+static void reset_missions(void) {
+    for (size_t i = 0; i < n_missions; i++) {
+        mission_trigger *t = &missions_tab[i];
+        free(t->flag_tag);
+        free(t->when_state);
+        free(t->tile_class);
+        free(t->pos_path);
+        free(t->special_tag);
+        free(t->script);
+        free(t->c_fn);
+        for (size_t j = 0; j < t->nbinds; j++) {
+            free(t->binds[j].name);
+            free(t->binds[j].npc_role);
+        }
+        free(t->binds);
+    }
+    free(missions_tab);
+    missions_tab = NULL;
+    n_missions = 0;
+}
+
+int res_missions_count(void) {
+    return (int)n_missions;
+}
+
+const struct mission_trigger *res_mission_at(int idx) {
+    if (idx < 0 || (size_t)idx >= n_missions) {
+        return NULL;
+    }
+    return &missions_tab[idx];
+}
+
 /* -------- limits subtree --------
    Scalar tuning knobs for cold-start realization. Missing keys keep
    their static defaults (set above); a present key overrides. */
@@ -3301,6 +3614,7 @@ void res_load_world(const char *path) {
     fold_buildings(obj_get(root, "buildings"), path);
     fold_town_keys(obj_get(root, "town_keys"), path);
     fold_wilderness_keys(obj_get(root, "wilderness_keys"), path);
+    fold_missions(obj_get(root, "missions"), path);
     fold_limits(obj_get(root, "limits"), path);
     fold_map_dims(obj_get(root, "map"), path);
     fold_enums(obj_get(root, "enums"), path);
@@ -3948,6 +4262,7 @@ void res_shutdown(void) {
     reset_buildings();
     reset_town_keys();
     reset_wilderness_keys();
+    reset_missions();
     /* Free per-NPC visited[] BEFORE invalidating npc_slot_max_cache —
        for_each_npc reads the cached count, and the cache invalidation
        below clears it. world_tree is still alive at this point so any

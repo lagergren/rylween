@@ -562,6 +562,14 @@
     { key: 'X', action: 'quit_confirm' },
   ],
 
+  // Mission triggers — order-sensitive table walked by missions.c::
+  // dispatch_triggers. Wilderness step-poll entries (`where: 'step'`,
+  // the default) come from random_wilderness; the trailing
+  // `where: 'enter_key'` entries fire from towne.c::enter on the
+  // castle gate. See data/world/missions.json5 for the schema +
+  // entry-by-entry comments.
+  missions: { $import: 'world/missions.json5' },
+
   // Castle Ydarg per-floor map dimensions. Each of the four floors
   // is a `size x size` grid (1-indexed; slot 0 is the unused C-array
   // padding). ydarg.c reads this once per ydarg() entry to seed the

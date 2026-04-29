@@ -18,184 +18,56 @@
 #include <stdio.h>
 #include <string.h>
 
-/* §17 / A.4 slice A: map-trigger dispatcher. The historical mission_
-   control() was 16 ad-hoc `if (flag[N]==V && <guard>) { tx(...); ... }`
-   blocks. They decompose into a small number of guard shapes plus a
-   linear / menu_branch script body; this dispatcher keeps the guard
-   evaluation in C (where arithmetic and `state.dx[i]`/`state.dy[i]`
-   lookups live) and hands the UI off to play_script.
+/* §17 / A.4 slice A + Tier 0.1 lift: map-trigger dispatcher. The
+   historical mission_control() was 16 ad-hoc `if (flag[N]==V &&
+   <guard>) { tx(...); ... }` blocks. They decompose into a small
+   number of guard shapes plus a linear / menu_branch script body;
+   this dispatcher keeps the guard evaluation in C (where arithmetic
+   and `state.dx[i]`/`state.dy[i]` lookups live) and hands the UI off
+   to play_script.
+
+   The trigger table itself lives in data/world/missions.json5 — see
+   res.c::fold_missions for the loader. Adding a new mission is a
+   data edit, not a C change.
 
    One block still isn't expressible in the DSL: the gem-altar at
    flag[13]==1, which branches on a runtime inventory count (>=5 gems
    of ids 39..41). It lives inline below as the one residual block
    pending a DSL widening. */
 
-enum mission_guard_kind {
-    MG_POS,         /* x == a && y == b                                */
-    MG_DUNGEON_IDX, /* x == state.dx[a] && y == state.dy[a]            */
-    MG_TERRAIN,     /* wld_tile_at(x, y) == (char)a                    */
-    MG_CHANCE,      /* ryl_chance(a) — rolled after the flag guard     */
-    MG_TILE_AT_POS, /* (x, y) == res_int_path(`<pos_path>.x|.y`) AND
-                       res_terrain_class(wld_tile_at(x,y)) == tile_class */
-    MG_SPECIAL_EQ,  /* MG_TILE_AT_POS + pa_special(special_tag) == a.
-                       Resolves the slug to PS_* via inv_special_id_for_tag
-                       so castle-entry triggers can split on silverkey
-                       state in data instead of the C body. */
-};
-
-/* Where the trigger fires from. Step-poll runs from random_wilderness
-   on every wilderness move; enter-key runs from towne.c::enter (E
-   key) on a settlement tile. New triggers default to MW_STEP. */
-enum mission_where {
-    MW_STEP = 0,
-    MW_ENTER_KEY,
-};
-
-/* What the trigger does once flag + guard match. MA_SCRIPT plays a
-   DSL script (existing path); MA_C_FN calls a C function with no
-   bindings (used for legacy C scenes that haven't been lifted to
-   the DSL — Ydarg's castle gate is the first). */
-enum mission_action_kind {
-    MA_SCRIPT = 0,
-    MA_C_FN,
-};
-
-typedef void (*mission_c_fn)(void);
-
-enum mission_bind_kind {
-    MB_NPC_NAME = 1, /* res_npc_name(res_npc_role(b->npc_role))      */
-    MB_PLAYER_NAME,  /* state.p[cpl].name[b->arg] (party-slot name)  */
-    MB_DX_STR,       /* state.dx[b->arg] stringified                 */
-    MB_DY_STR,       /* state.dy[b->arg] stringified                 */
-};
-
-typedef struct {
-    const char *name; /* placeholder ident in the script */
-    enum mission_bind_kind kind;
-    int32_t arg;          /* dungeon index / player-member slot */
-    const char *npc_role; /* set for MB_NPC_NAME; resolved via
-                                res_npc_role so C doesn't name
-                                specific characters */
-} mission_binding;
-
-enum mission_post_op {
-    POST_NONE = 0,
-    POST_SET_JAZZYFOOT, /* Jazzy-foot pickup sets state.p[cpl].jazzyfoot = 1 */
-};
-
-typedef struct {
-    const char *flag_tag;   /* world.json5 flags: key. NULL = no flag gate. */
-    const char *when_state; /* values[] name in that flag's shard           */
-    enum mission_where where;
-    enum mission_guard_kind kind;
-    int32_t a, b;
-    const char *tile_class;  /* MG_TILE_AT_POS / MG_SPECIAL_EQ: terrain class to match */
-    const char *pos_path;    /* MG_TILE_AT_POS / MG_SPECIAL_EQ: dotted path to a
-                               {x,y} subtree under the world tree. Resolved
-                               via res_int_path("<pos_path>.x|.y") at guard
-                               time so the position lives in data, not C. */
-    const char *special_tag; /* MG_SPECIAL_EQ: special-tag slug ("silverkey"
-                                 etc.) — resolved to PS_* via
-                                 inv_special_id_for_tag. Compared against
-                                 `a` field. */
-    enum mission_action_kind action;
-    const char *script; /* MA_SCRIPT only */
-    mission_c_fn fn;    /* MA_C_FN only   */
-    uint8_t returns_on_skip;
-    enum mission_post_op post;
-    const mission_binding *binds;
-    size_t nbinds;
-} mission_trigger;
-
 #define MAX_BINDINGS   4
 #define BIND_ZONE_SIZE 48
 
-/* Triggers are tried in the historical order; first one whose flag /
-   guard passes fires. `returns_on_skip` reproduces the original's
-   `return 1` after blocks whose L-menu unambiguously ended the
-   mission-control turn (blocks 9, 11, 12, 14, 16) — the other blocks
-   fell through to the random-event roll in random_wilderness(). */
-static const mission_trigger mission_triggers[] = {
-    /* Block 1: Erethor temple at (6,20). */
-    {.flag_tag = "erethor.lute", .when_state = "rumour_told", .kind = MG_POS, .a = 6, .b = 20, .script = "missions.erethor_entry"},
+/* C-function dispatch for `action: 'c_fn'` triggers. Each entry maps
+   a slug authored in data/world/missions.json5 to a C entry point
+   the dispatcher calls in lieu of play_script. The list is short by
+   design — every entry is a deferred DSL lift; the long-term
+   trajectory is to drain this table to zero. fold_missions calls
+   mission_resolve_c_fn() at world-load and stores the resolved
+   function pointer on the trigger record, so the runtime path stays
+   a single indirect call. */
+typedef struct {
+    const char *slug;
+    mission_c_fn fn;
+} mission_c_fn_entry;
 
-    /* Block 2: Husband cave at (42,23). Binds `name19` to the
-       peasant-husband NPC's display name. */
-    {.flag_tag = "peasant_wife", .when_state = "accepted", .kind = MG_POS, .a = 42, .b = 23, .script = "missions.husband_cave", .binds = (const mission_binding[]){{.name = "name19", .kind = MB_NPC_NAME, .npc_role = "peasant_husband"}}, .nbinds = 1},
-
-    /* Block 3: Bandit cargo. 9% chance gate. */
-    {.flag_tag = "garth.bandits", .when_state = "accepted", .kind = MG_CHANCE, .a = 9, .script = "missions.bandits"},
-
-    /* Block 4: Troll tooth. 9% chance gate. */
-    {.flag_tag = "hermit.troll_tooth", .when_state = "accepted", .kind = MG_CHANCE, .a = 9, .script = "missions.troll_tooth"},
-
-    /* Block 4b: Hermit-quest dungeon at dx[1],dy[1]. */
-    {.flag_tag = "hermit.troll_tooth", .when_state = "delivered", .kind = MG_DUNGEON_IDX, .a = 1, .script = "missions.hermit_dungeon"},
-
-    /* Block 6: Kobold village at dx[3],dy[3]. */
-    {.flag_tag = "mastercrown", .when_state = "task1_assigned", .kind = MG_DUNGEON_IDX, .a = 3, .script = "missions.kobold_village"},
-
-    /* Block 7: Skullweed on terrain 't'. */
-    {.flag_tag = "mastercrown", .when_state = "task2_assigned", .kind = MG_TERRAIN, .a = 't', .script = "missions.skullweed"},
-
-    /* Block 8: Borin first visit at dx[4],dy[4]. Binds {dx5}/{dy5}
-       for the crypt-location screen + journal. */
-    {.flag_tag = "mastercrown", .when_state = "task3_assigned", .kind = MG_DUNGEON_IDX, .a = 4, .script = "missions.borin_meet", .binds = (const mission_binding[]){
-                                                                                                                                     {.name = "dx5", .kind = MB_DX_STR, .arg = 5},
-                                                                                                                                     {.name = "dy5", .kind = MB_DY_STR, .arg = 5},
-                                                                                                                                 },
-     .nbinds = 2},
-
-    /* Block 9: Nolrim crypt at dx[5],dy[5]. */
-    {.flag_tag = "mastercrown", .when_state = "borin_met", .kind = MG_DUNGEON_IDX, .a = 5, .script = "missions.nolrim_crypt", .returns_on_skip = 1},
-
-    /* Block 10: Borin gift at dx[4],dy[4]. */
-    {.flag_tag = "mastercrown", .when_state = "dagger_taken", .kind = MG_DUNGEON_IDX, .a = 4, .script = "missions.borin_gift"},
-
-    /* Block 11: Master crown dungeon at dx[6],dy[6]. */
-    {.flag_tag = "mastercrown", .when_state = "crown_told", .kind = MG_DUNGEON_IDX, .a = 6, .script = "missions.master_crown", .returns_on_skip = 1},
-
-    /* Block 12: Ogre cave at dx[7],dy[7]. Binds {p2_name} (player
-       member 2's name, used in the note-found screen). */
-    {.flag_tag = "jazzy_ogre", .when_state = "accepted", .kind = MG_DUNGEON_IDX, .a = 7, .script = "missions.ogre_cave", .returns_on_skip = 1, .binds = (const mission_binding[]){
-                                                                                                                                                   {.name = "p2_name", .kind = MB_PLAYER_NAME, .arg = 2},
-                                                                                                                                               },
-     .nbinds = 1},
-
-    /* Block 13: Foot of Jazzy altar on terrain 'f'. Post-action
-       sets state.p[cpl].jazzyfoot = 1 — not yet a DSL primitive,
-       applied in C after the script returns. */
-    {.flag_tag = "jazzy_ogre", .when_state = "ogres_cleared", .kind = MG_TERRAIN, .a = 'f', .script = "missions.jazzy_foot", .post = POST_SET_JAZZYFOOT},
-
-    /* Block 14: Silver key dungeon at dx[8],dy[8]. */
-    {.flag_tag = "silver_key", .when_state = "map_bought", .kind = MG_DUNGEON_IDX, .a = 8, .script = "missions.silver_key", .returns_on_skip = 1},
-
-    /* Block 15: Hobgoblin caravan. 9% chance + binds {dx9}/{dy9}
-       for the interrogate screen + journal. */
-    {.flag_tag = "silver_key", .when_state = "smith_confessed", .kind = MG_CHANCE, .a = 9, .script = "missions.hobgoblin_caravan", .binds = (const mission_binding[]){
-                                                                                                                                       {.name = "dx9", .kind = MB_DX_STR, .arg = 9},
-                                                                                                                                       {.name = "dy9", .kind = MB_DY_STR, .arg = 9},
-                                                                                                                                   },
-     .nbinds = 2},
-
-    /* Block 16: Hobgoblin cave (pit) at dx[9],dy[9]. */
-    {.flag_tag = "silver_key", .when_state = "cave_located", .kind = MG_DUNGEON_IDX, .a = 9, .script = "missions.hobgoblin_cave", .returns_on_skip = 1},
-
-    /* Castle Ydarg gate (E-key, not step-poll). The trigger fires
-       from towne.c::enter when the party stands on the castle tile
-       at the data-declared (ydarg.entry.x, ydarg.entry.y) position.
-       Three arms gated by silverkey state via MG_SPECIAL_EQ:
-         - silverkey == 2 (castle is rubble): play ydarg.ruin
-         - silverkey == 0 (no key yet)      : play ydarg.no_key
-         - silverkey == 1 (legitimate entry): C fn ydarg() — multi-
-           floor navigation + per-room dispatch + confrontation are
-           still in C, gated by the position+terrain match (no
-           special filter so it fires for any non-{0,2} value, which
-           today is just 1). */
-    {.where = MW_ENTER_KEY, .kind = MG_SPECIAL_EQ, .tile_class = "castle", .pos_path = "ydarg.entry", .special_tag = "silverkey", .a = 2, .action = MA_SCRIPT, .script = "ydarg.ruin"},
-    {.where = MW_ENTER_KEY, .kind = MG_SPECIAL_EQ, .tile_class = "castle", .pos_path = "ydarg.entry", .special_tag = "silverkey", .a = 0, .action = MA_SCRIPT, .script = "ydarg.no_key"},
-    {.where = MW_ENTER_KEY, .kind = MG_TILE_AT_POS, .tile_class = "castle", .pos_path = "ydarg.entry", .action = MA_C_FN, .fn = ydarg},
+static const mission_c_fn_entry mission_c_fn_table[] = {
+    {"ydarg", ydarg},
 };
+
+mission_c_fn mission_resolve_c_fn(const char *slug) {
+    if (!slug) {
+        return NULL;
+    }
+    for (size_t i = 0;
+         i < sizeof mission_c_fn_table / sizeof *mission_c_fn_table;
+         i++) {
+        if (strcmp(mission_c_fn_table[i].slug, slug) == 0) {
+            return mission_c_fn_table[i].fn;
+        }
+    }
+    return NULL;
+}
 
 static int guard_matches(const mission_trigger *t) {
     int32_t x = pa_x();
@@ -282,9 +154,10 @@ static void apply_post(enum mission_post_op op) {
    trigger matched. Filters on `where` so step-poll callers don't fire
    E-key triggers and vice versa. */
 static int dispatch_triggers(enum mission_where where) {
-    for (size_t i = 0; i < sizeof mission_triggers / sizeof *mission_triggers; i++) {
-        const mission_trigger *t = &mission_triggers[i];
-        if (t->where != where) {
+    int n = res_missions_count();
+    for (int i = 0; i < n; i++) {
+        const mission_trigger *t = res_mission_at(i);
+        if (!t || t->where != where) {
             continue;
         }
         if (t->flag_tag && !pa_flag_is(t->flag_tag, t->when_state)) {

@@ -415,6 +415,17 @@ int res_town_key_at(int idx, char *key, const char **cond, const char **action);
 int res_wilderness_keys_count(void);
 int res_wilderness_key_at(int idx, char *key, const char **cond, const char **action);
 
+/* Mission trigger table (data/world/missions.json5). Walked top-to-
+   bottom by missions.c::dispatch_triggers — first entry whose
+   `where` filter, optional flag/state gate, and guard predicate all
+   match runs its action. Returned pointers stay valid until
+   res_shutdown; the `mission_trigger` struct shape lives in
+   missions.h alongside the dispatcher. res_mission_at returns NULL
+   for an out-of-range idx. */
+int res_missions_count(void);
+struct mission_trigger; /* forward decl — missions.h owns the layout */
+const struct mission_trigger *res_mission_at(int idx);
+
 /* §15 step 3: realize NPC placements from data/world.json5 npcs:.
    Populates state.npc[0..slot_max-1]. Each spec entry is either
    FIXED (towne declared — apply job/towne/building/x/y verbatim) or
