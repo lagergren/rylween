@@ -83,6 +83,12 @@ const char *res_flag_id_for_slot(int32_t slot);
 const char *res_enum(const char *id, int index);
 const char *res_enum_name(const char *id, int index);
 
+/* Number of entries in the named enum (positional-array length, OR
+   keyed-record count). 0 for unknown enum id. Used by UI menu bounds
+   that should grow with the enum (e.g. driv.c::create_party's race /
+   class digit-prompt cap). */
+int res_enum_count(const char *id);
+
 /* §24bis phase 1: keyed-enum symbol (lowercase key) at index. Returns
    "" for unknown enum-id or out-of-range index. For positional-array
    enums (no per-entry symbol) falls back to the display string so

@@ -184,6 +184,23 @@
     wisdom_low:       ['Wisdom must be > 50.'],
     charisma_low:     ['Charisma must be > 50.'],
     saving:    ['Saving...'],
+
+    // Per-character stat-roll page: "Stats for char: <n>" header +
+    // four stat rows with %2d-formatted values. Trailing empty array
+    // entries restore the original tx() chain's blank-line breaks
+    // between header and stats, and after Charisma before the reroll
+    // prompt. Lifted from driv.c::create_party in #18.
+    stats_page:       ['Stats for char: {char_num}',
+                       '',
+                       'Weapon Skill : {weapon_skill}',
+                       'Health       : {health}',
+                       'Wisdom       : {wisdom}',
+                       'Charisma     : {charisma}',
+                       ''],
+
+    // Per-character name prompt, mid-loop in create_party. {char_num}
+    // is the 1-based slot id the player is filling.
+    name_prompt:      ['Give Character {char_num} a name!'],
   },
 
   // show_party(): top-of-page resource counts (torches/rations/gold)

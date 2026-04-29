@@ -324,6 +324,18 @@ const char *res_enum_name(const char *id, int index) {
     return res_enum(id, index);
 }
 
+int res_enum_count(const char *id) {
+    if (!id) {
+        return 0;
+    }
+    for (size_t i = 0; i < n_enums; i++) {
+        if (strcmp(enums[i].id, id) == 0) {
+            return (int)enums[i].n_values;
+        }
+    }
+    return 0;
+}
+
 const char *res_enum_name_by_sym(const char *id, const char *sym) {
     int slot = res_enum_id(id, sym);
     if (slot < 0) {

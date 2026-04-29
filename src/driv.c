@@ -1446,26 +1446,45 @@ static void create_party(void) {
 
     int sr_lo = rk_stat_roll_min(res_int_path("driv.stat_roll.min"));
     int sr_hi = rk_stat_roll_max(res_int_path("driv.stat_roll.max"));
+    /* Race / class menu bounds derive from the enum size so adding a
+       fourth race or seventh class is a pure data edit. The '0' base
+       gives the ASCII upper bound for the 1..N digit menu. */
+    char race_max = (char)('0' + res_enum_count("race"));
+    char class_max = (char)('0' + res_enum_count("pc_class"));
     while (g < res_party_member_max()) {
+        char char_num[8], ws_s[8], h_s[8], wi_s[8], ch_s[8];
+        snprintf(char_num, sizeof char_num, "%d", g + 1);
         clw();
-        /* Display the slot 1-based for the player ("Stats for char: 1");
-           the C side stores them 0-based but the UX still calls them
-           1..N to match the existing "Who? (1-N)" prompts. */
-        tx("Stats for char: %d\r\n\r\n", g + 1);
         p->members[g].weapon_skill = ryl_random(sr_lo, sr_hi);
         p->members[g].wisdom = ryl_random(sr_lo, sr_hi);
         p->members[g].health = ryl_random(sr_lo, sr_hi);
         p->members[g].hit_points = p->members[g].health;
         p->members[g].charisma = ryl_random(sr_lo, sr_hi);
-        tx("Weapon Skill : %2d\r\n", p->members[g].weapon_skill);
-        tx("Health       : %2d\r\n", p->members[g].health);
-        tx("Wisdom       : %2d\r\n", p->members[g].wisdom);
-        tx("Charisma     : %2d\r\n\r\n", p->members[g].charisma);
+        snprintf(ws_s, sizeof ws_s, "%2d", p->members[g].weapon_skill);
+        snprintf(h_s, sizeof h_s, "%2d", p->members[g].health);
+        snprintf(wi_s, sizeof wi_s, "%2d", p->members[g].wisdom);
+        snprintf(ch_s, sizeof ch_s, "%2d", p->members[g].charisma);
+        /* Display the slot 1-based for the player ("Stats for char: 1");
+           the C side stores them 0-based but the UX still calls them
+           1..N to match the existing "Who? (1-N)" prompts. */
+        tx_fmt("driv.create.stats_page",
+               (ryl_bind[]){
+                   {"char_num", char_num},
+                   {"weapon_skill", ws_s},
+                   {"health", h_s},
+                   {"wisdom", wi_s},
+                   {"charisma", ch_s},
+                   {0},
+               });
         tx0(res_text("driv.create.reroll"));
         if (!hot_key()) {
             while (1) {
                 clw();
-                tx("Give Character %d a name!\r\n", g + 1);
+                tx_fmt("driv.create.name_prompt",
+                       (ryl_bind[]){
+                           {"char_num", char_num},
+                           {0},
+                       });
                 tx(": ");
                 str[0] = 0;
                 get_str(12, p->members[g].name, sizeof p->members[g].name);
@@ -1501,7 +1520,7 @@ static void create_party(void) {
                    });
             tx0(res_text("driv.create.race_opts"));
             str[0] = 0;
-            while (str[0] < '1' || str[0] > '4') {
+            while (str[0] < '1' || str[0] > race_max) {
                 tx(": ");
                 get_str(2, str, sizeof str);
             }
@@ -1516,7 +1535,7 @@ static void create_party(void) {
             clw();
             tx0(res_text("driv.create.class_menu"));
             str[0] = 0;
-            while (str[0] < '1' || str[0] > '6') {
+            while (str[0] < '1' || str[0] > class_max) {
                 tx(": ");
                 get_str(2, str, sizeof str);
             }
