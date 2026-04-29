@@ -26,6 +26,7 @@ static void driv_pass(void);
 static void driv_quit_confirm(void);
 static void driv_redraw(void);
 static void driv_save(void);
+static void driv_show_data_more(const char *file);
 static void driv_view_party(void);
 static void position_locations(void);
 static int read_current_world(void);
@@ -136,6 +137,24 @@ static void driv_drop(void) {
 
 static void driv_cast_spell(void) {
     spell(0);
+}
+
+/* Init-menu pattern: clear screen, dump a data/<file> through
+   disp_text, "press any key" prompt, then restore the title-screen
+   background and park the cursor at the text window. Called from
+   init()'s S/D/H arms (and the verbose-S follow-up). */
+static void driv_show_data_more(const char *file) {
+    char path[64];
+    cl();
+    res_data_path(file, path, sizeof path);
+    disp_text(path);
+    tx0(res_text("driv.more"));
+    key();
+    cl();
+    screen_goto(SCR_TEXT_WINDOW);
+    clw();
+    res_ansi_path("screen", path, sizeof path);
+    disp_text(path);
 }
 
 /* Action-name → handler table, walked once per matching wilderness
@@ -491,31 +510,13 @@ void init() {
 
         switch (toupper(ch)) {
             case 'S':
-                cl();
-                res_data_path("score.txt", path, sizeof path);
-                disp_text(path);
-                tx0(res_text("driv.more"));
-                key();
-                cl();
-                screen_goto(SCR_TEXT_WINDOW);
-                clw();
-                res_ansi_path("screen", path, sizeof path);
-                disp_text(path);
+                driv_show_data_more("score.txt");
                 clw();
                 tx0(res_text("driv.scores.verbose_q"));
                 d = key();
                 d = toupper(d);
                 if (d == 'Y') {
-                    cl();
-                    res_data_path("vscore.txt", path, sizeof path);
-                    disp_text(path);
-                    tx0(res_text("driv.more"));
-                    key();
-                    cl();
-                    screen_goto(SCR_TEXT_WINDOW);
-                    clw();
-                    res_ansi_path("screen", path, sizeof path);
-                    disp_text(path);
+                    driv_show_data_more("vscore.txt");
                 }
                 break;
 
@@ -523,29 +524,11 @@ void init() {
                 clw();
                 tx0(res_text("driv.docs.capture"));
                 ryl_pause();
-                cl();
-                res_data_path("rylween.doc", path, sizeof path);
-                disp_text(path);
-                tx0(res_text("driv.more"));
-                key();
-                cl();
-                screen_goto(SCR_TEXT_WINDOW);
-                clw();
-                res_ansi_path("screen", path, sizeof path);
-                disp_text(path);
+                driv_show_data_more("rylween.doc");
                 break;
 
             case 'H':
-                cl();
-                res_data_path("heroes.txt", path, sizeof path);
-                disp_text(path);
-                tx0(res_text("driv.more"));
-                key();
-                cl();
-                screen_goto(SCR_TEXT_WINDOW);
-                clw();
-                res_ansi_path("screen", path, sizeof path);
-                disp_text(path);
+                driv_show_data_more("heroes.txt");
                 break;
 
             case 'N':
