@@ -523,8 +523,65 @@ static void pm_field_write_at(struct party_member *r, const pm_field *f,
     }
 }
 
+/* Resolve a `field:` arg to a `const char *` field-name string. Accepts
+   either an N_STR literal (the historical shape) or an N_OBJ
+   `{var: 'name'}` reference whose binding resolves to a non-numeric
+   string (RT_STR or ryl_bind). Lets one DSL script body cover multiple
+   pm_field rows with a single `kind` binding from the call site (e.g.
+   subs.equipment.unequip with kind='weapon' or 'armor'). Dies on shape
+   mismatch or unresolved binding. */
+static const char *resolve_field_name(const node *f_n, const char *who,
+                                      const char *script_id, size_t idx,
+                                      const ryl_bind *bindings,
+                                      const rt_env *env) {
+    if (!f_n) {
+        char buf[96];
+        snprintf(buf, sizeof buf, "%s: field missing", who);
+        die_at(script_id, idx, buf);
+    }
+    if (f_n->kind == N_STR) {
+        return f_n->u.sv;
+    }
+    if (f_n->kind == N_OBJ) {
+        const node *var_n = obj_get(f_n, "var");
+        if (var_n && var_n->kind == N_STR) {
+            const char *vname = var_n->u.sv;
+            if (env) {
+                for (size_t i = env->n; i > 0; i--) {
+                    const rt_bind *b = &env->items[i - 1];
+                    if (strcmp(b->name, vname) == 0) {
+                        if (b->kind == RT_STR) {
+                            return b->sv;
+                        }
+                        break;
+                    }
+                }
+            }
+            for (const ryl_bind *b = bindings; b && b->name; b++) {
+                if (strcmp(b->name, vname) == 0) {
+                    if (!b->value) {
+                        break;
+                    }
+                    return b->value;
+                }
+            }
+            char buf[128];
+            snprintf(buf, sizeof buf,
+                     "%s: field var '%s' not bound to a string", who, vname);
+            die_at(script_id, idx, buf);
+        }
+    }
+    char buf[96];
+    snprintf(buf, sizeof buf,
+             "%s: field must be string or {var: 'name'}", who);
+    die_at(script_id, idx, buf);
+    return NULL;
+}
+
 /* `{member: <expr>, field: '<name>'}` — resolve a party-member field
-   read. Member idx is 0..N-1; field names live in pm_field_table. */
+   read. Member idx is 0..N-1; field names live in pm_field_table.
+   `field:` accepts either an N_STR literal or a `{var: 'name'}` binding
+   reference (resolved via resolve_field_name). */
 static int32_t expr_member_field(const node *op, const char *script_id,
                                  size_t idx, const ryl_bind *bindings,
                                  const rt_env *env) {
@@ -533,14 +590,13 @@ static int32_t expr_member_field(const node *op, const char *script_id,
     if (!m_n) {
         die_at(script_id, idx, "expr member: missing idx expression");
     }
-    if (!f_n || f_n->kind != N_STR) {
-        die_at(script_id, idx, "expr member: field must be string");
-    }
+    const char *fname = resolve_field_name(f_n, "expr member", script_id, idx,
+                                           bindings, env);
     int32_t m = eval_expr(m_n, script_id, idx, bindings, env);
     if (m < 0 || m >= res_party_member_max()) {
         die_at(script_id, idx, "expr member: idx out of range");
     }
-    const pm_field *f = pm_field_lookup(f_n->u.sv);
+    const pm_field *f = pm_field_lookup(fname);
     if (!f) {
         die_at(script_id, idx, "expr member: unknown field name");
     }
@@ -2763,16 +2819,14 @@ static mutate_lv resolve_lv(const node *tgt, const char *script_id, size_t idx,
         if (!i_n) {
             die_at(script_id, idx, "mutate: member_field missing idx");
         }
-        if (!f_n || f_n->kind != N_STR) {
-            die_at(script_id, idx,
-                   "mutate: member_field field must be string");
-        }
+        const char *fname = resolve_field_name(f_n, "mutate member_field",
+                                               script_id, idx, bindings, env);
         int32_t m = eval_expr(i_n, script_id, idx, bindings, env);
         if (m < 0 || m >= res_party_member_max()) {
             die_at(script_id, idx,
                    "mutate: member_field idx out of range");
         }
-        return (mutate_lv){LV_MEMBER_FIELD, m, f_n->u.sv};
+        return (mutate_lv){LV_MEMBER_FIELD, m, fname};
     }
     /* §22 Lane A combat-ctx targets: { monster_hp: <expr> },
        { monster_dead: <expr> }, { battle_flag: '<name>' },
