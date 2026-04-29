@@ -18,6 +18,13 @@
 #include "wld.h"
 
 static void create_party(void);
+static int driv_dispatch_key(char c);
+static void driv_journal(void);
+static void driv_pass(void);
+static void driv_quit_confirm(void);
+static void driv_redraw(void);
+static void driv_save(void);
+static void driv_view_party(void);
 static void position_locations(void);
 static int read_current_world(void);
 static void the_game(void);
@@ -42,8 +49,147 @@ static void try_move(dir_t d) {
     }
 }
 
+static void driv_pass(void) {
+    clw();
+    tx0(res_text("driv.move.pass"));
+}
+
+static void driv_save(void) {
+    clw();
+    tx0(res_text("driv.save.saving"));
+    save();
+    ryl_delay(400);
+    tx0(res_text("driv.save.done"));
+}
+
+static void driv_redraw(void) {
+    char path[64];
+    cl();
+    res_ansi_path("screen", path, sizeof path);
+    disp_text(path);
+    update_map();
+    clw();
+}
+
+static void driv_journal(void) {
+    char path[64];
+    cl();
+    c(0, 0);
+    show_journal();
+    cl();
+    c(49, 6);
+    clw();
+    res_ansi_path("screen", path, sizeof path);
+    disp_text(path);
+    update_map();
+    clw();
+}
+
+static void driv_view_party(void) {
+    char d;
+    show_party();
+    clw();
+    tx_fmt("driv.view.who", NULL);
+    while (1) {
+        d = key();
+        if (pm_digit_in_range(d) || toupper(d) == 'Q' || toupper(d) == 'A') {
+            break;
+        }
+    }
+    if (pm_digit_in_range(d)) {
+        int slot = d - '1';
+        LOG_D("input", "driv show: digit=%c -> slot=%d", d, slot);
+        show(slot);
+    }
+    if (toupper(d) == 'A') {
+        for_each_party_member(i) {
+            show(i);
+        }
+    }
+    clw();
+}
+
+static void driv_quit_confirm(void) {
+    char d;
+    clw();
+    tx0(res_text("driv.quit.confirm"));
+    tx0(res_text("common.yes"));
+    tx0(res_text("common.no"));
+    d = key();
+    d = toupper(d);
+    if (d != 'Y') {
+        clw();
+        return;
+    }
+    score_list();
+    clean_exit();
+}
+
+/* Wilderness main-loop keystroke dispatch. Walks the
+   data/world.json5 `wilderness_keys` table top-to-bottom; the first
+   entry whose key matches (caller pre-uppercases) and whose optional
+   `cond` is satisfied wins. No conds are recognized today — entries
+   carrying one are skipped (matches town_dispatch_key's
+   future-proofing semantics). Returns 1 when an entry dispatched,
+   0 when no entry matched (caller drops the keystroke silently,
+   matching the historical switch's default fall-through). */
+static int driv_dispatch_key(char c) {
+    int n = res_wilderness_keys_count();
+    for (int i = 0; i < n; i++) {
+        char ekey;
+        const char *cond = NULL;
+        const char *action = NULL;
+        if (!res_wilderness_key_at(i, &ekey, &cond, &action)) {
+            continue;
+        }
+        if (c != ekey) {
+            continue;
+        }
+        if (cond) {
+            continue;
+        }
+        if (strcmp(action, "pass") == 0) {
+            driv_pass();
+        } else if (strcmp(action, "save") == 0) {
+            driv_save();
+        } else if (strcmp(action, "weapon_ready") == 0) {
+            weapon_ready();
+        } else if (strcmp(action, "armor_ready") == 0) {
+            armor_ready();
+        } else if (strcmp(action, "redraw") == 0) {
+            driv_redraw();
+        } else if (strcmp(action, "journal") == 0) {
+            driv_journal();
+        } else if (strcmp(action, "help") == 0) {
+            help();
+        } else if (strcmp(action, "hunt") == 0) {
+            hunt();
+        } else if (strcmp(action, "view_party") == 0) {
+            driv_view_party();
+        } else if (strcmp(action, "armor_off") == 0) {
+            armor_off();
+        } else if (strcmp(action, "weapon_off") == 0) {
+            weapon_off();
+        } else if (strcmp(action, "enter") == 0) {
+            enter();
+        } else if (strcmp(action, "drop") == 0) {
+            drop();
+        } else if (strcmp(action, "camp") == 0) {
+            camp();
+        } else if (strcmp(action, "cast_spell") == 0) {
+            spell(0);
+        } else if (strcmp(action, "quaff") == 0) {
+            quaff();
+        } else if (strcmp(action, "quit_confirm") == 0) {
+            driv_quit_confirm();
+        }
+        return 1;
+    }
+    return 0;
+}
+
 static void the_game() {
-    char cc, d;
+    char cc;
     char path[64];
 
     clw();
@@ -122,107 +268,7 @@ static void the_game() {
             continue;
         }
 
-        switch (cc) {
-            case ' ':
-                clw();
-                tx0(res_text("driv.move.pass"));
-                break;
-
-            case 'S':
-                clw();
-                tx0(res_text("driv.save.saving"));
-                save();
-                ryl_delay(400);
-                tx0(res_text("driv.save.done"));
-                break;
-            case 'W':
-                weapon_ready();
-                break;
-            case 'R':
-                armor_ready();
-                break;
-            case '!':
-                cl();
-                res_ansi_path("screen", path, sizeof path);
-                disp_text(path);
-                update_map();
-                clw();
-                break;
-            case 'J':
-                cl();
-                c(0, 0);
-                show_journal();
-                cl();
-                c(49, 6);
-                clw();
-                res_ansi_path("screen", path, sizeof path);
-                disp_text(path);
-                update_map();
-                clw();
-                break;
-            case '?':
-                help();
-                break;
-            case 'H':
-                hunt();
-                break;
-            case 'V':
-                show_party();
-                clw();
-                tx_fmt("driv.view.who", NULL);
-                while (1) {
-                    d = key();
-                    if (pm_digit_in_range(d) || toupper(d) == 'Q' || toupper(d) == 'A') {
-                        break;
-                    }
-                }
-                if (pm_digit_in_range(d)) {
-                    int slot = d - '1';
-                    LOG_D("input", "driv show: digit=%c -> slot=%d", d, slot);
-                    show(slot);
-                }
-                if (toupper(d) == 'A') {
-                    for_each_party_member(i) {
-                        show(i);
-                    }
-                }
-                clw();
-                break;
-            case 'T':
-                armor_off();
-                break;
-            case 'P':
-                weapon_off();
-                break;
-            case 'E':
-                enter();
-                break;
-            case 'L':
-                drop();
-                break;
-            case 'C':
-                camp();
-                break;
-            case 'Z':
-                spell(0);
-                break;
-            case 'Q':
-                quaff();
-                break;
-            case 'X':
-                clw();
-                tx0(res_text("driv.quit.confirm"));
-                tx0(res_text("common.yes"));
-                tx0(res_text("common.no"));
-                d = key();
-                d = toupper(d);
-                if (d != 'Y') {
-                    clw();
-                    break;
-                }
-                score_list();
-                clean_exit();
-        }
+        driv_dispatch_key(cc);
     }
 }
 

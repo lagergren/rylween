@@ -182,6 +182,17 @@ typedef struct {
 static ryl_town_key *town_keys_tab;
 static size_t n_town_keys;
 
+/* Wilderness main-loop keystroke dispatch (data/world.json5
+   wilderness_keys:). Same shape and ownership as town_keys; folded
+   by fold_wilderness_keys and freed by reset_wilderness_keys. */
+typedef struct {
+    char key;
+    char *cond;
+    char *action;
+} ryl_wilderness_key;
+static ryl_wilderness_key *wilderness_keys_tab;
+static size_t n_wilderness_keys;
+
 /* Cold-start realization knobs (port-plan §15.4). npc_slack is the
    `slack` term added to ceil(N/T) when computing the per-bin cap for
    the capacity-capped NPC draw in res_realize_npcs(). Default matches
@@ -1338,6 +1349,27 @@ int res_town_key_at(int idx, char *key, const char **cond, const char **action) 
         return 0;
     }
     const ryl_town_key *e = &town_keys_tab[idx];
+    if (key) {
+        *key = e->key;
+    }
+    if (cond) {
+        *cond = e->cond;
+    }
+    if (action) {
+        *action = e->action;
+    }
+    return 1;
+}
+
+int res_wilderness_keys_count(void) {
+    return (int)n_wilderness_keys;
+}
+
+int res_wilderness_key_at(int idx, char *key, const char **cond, const char **action) {
+    if (idx < 0 || (size_t)idx >= n_wilderness_keys) {
+        return 0;
+    }
+    const ryl_wilderness_key *e = &wilderness_keys_tab[idx];
     if (key) {
         *key = e->key;
     }
@@ -2552,6 +2584,61 @@ static void reset_town_keys(void) {
     n_town_keys = 0;
 }
 
+/* -------- wilderness_keys subtree --------
+   Identical shape to town_keys; drives driv.c::the_game's main-loop
+   keystroke dispatch on every non-movement keypress. */
+static void fold_wilderness_keys(const node *wk_node, const char *path) {
+    if (!wk_node) {
+        return;
+    }
+    if (wk_node->kind != N_ARR) {
+        res_die(path, wk_node->line, "wilderness_keys: expected array");
+    }
+    size_t n = wk_node->u.arr.n;
+    if (n == 0) {
+        return;
+    }
+    wilderness_keys_tab = calloc(n, sizeof *wilderness_keys_tab);
+    if (!wilderness_keys_tab) {
+        res_die(path, wk_node->line, "oom");
+    }
+    for (size_t i = 0; i < n; i++) {
+        const node *rec = wk_node->u.arr.items[i];
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : wk_node->line,
+                    "wilderness_keys: entry must be object");
+        }
+        const node *key_n = obj_get(rec, "key");
+        const node *action_n = obj_get(rec, "action");
+        const node *cond_n = obj_get(rec, "cond");
+        if (!key_n || key_n->kind != N_STR || !key_n->u.sv ||
+            key_n->u.sv[0] == '\0' || key_n->u.sv[1] != '\0') {
+            res_die(path, rec->line,
+                    "wilderness_keys: key must be a single-character string");
+        }
+        if (!action_n || action_n->kind != N_STR) {
+            res_die(path, rec->line, "wilderness_keys: action string required");
+        }
+        if (cond_n && cond_n->kind != N_STR) {
+            res_die(path, rec->line, "wilderness_keys: cond must be a string");
+        }
+        wilderness_keys_tab[i].key = (char)toupper((unsigned char)key_n->u.sv[0]);
+        wilderness_keys_tab[i].action = strdup(action_n->u.sv);
+        wilderness_keys_tab[i].cond = cond_n ? strdup(cond_n->u.sv) : NULL;
+    }
+    n_wilderness_keys = n;
+}
+
+static void reset_wilderness_keys(void) {
+    for (size_t i = 0; i < n_wilderness_keys; i++) {
+        free(wilderness_keys_tab[i].cond);
+        free(wilderness_keys_tab[i].action);
+    }
+    free(wilderness_keys_tab);
+    wilderness_keys_tab = NULL;
+    n_wilderness_keys = 0;
+}
+
 /* -------- limits subtree --------
    Scalar tuning knobs for cold-start realization. Missing keys keep
    their static defaults (set above); a present key overrides. */
@@ -3213,6 +3300,7 @@ void res_load_world(const char *path) {
     fold_towns(obj_get(root, "towns"), path);
     fold_buildings(obj_get(root, "buildings"), path);
     fold_town_keys(obj_get(root, "town_keys"), path);
+    fold_wilderness_keys(obj_get(root, "wilderness_keys"), path);
     fold_limits(obj_get(root, "limits"), path);
     fold_map_dims(obj_get(root, "map"), path);
     fold_enums(obj_get(root, "enums"), path);
@@ -3859,6 +3947,7 @@ void res_shutdown(void) {
     reset_towns();
     reset_buildings();
     reset_town_keys();
+    reset_wilderness_keys();
     /* Free per-NPC visited[] BEFORE invalidating npc_slot_max_cache —
        for_each_npc reads the cached count, and the cache invalidation
        below clears it. world_tree is still alive at this point so any

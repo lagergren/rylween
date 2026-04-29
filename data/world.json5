@@ -533,6 +533,35 @@
     { key: 'L',                     action: 'leave_town'     },
   ],
 
+  // Wilderness main-loop keystroke dispatch (driv.c::the_game). Same
+  // {key, cond?, action} shape as town_keys; walked top-to-bottom on
+  // each non-movement keypress (movement keys 8/4/6/2 + diagonals
+  // route through wld_dir_from_key before the table is consulted).
+  // `action` slugs are recognized by driv.c::driv_dispatch_key —
+  // adding a new arm requires both a new entry here and a wired
+  // action there. The `quit_confirm` arm is the only entry that can
+  // exit the process (after a Y/N prompt); every other arm returns
+  // to the main loop.
+  wilderness_keys: [
+    { key: ' ', action: 'pass'         },
+    { key: 'S', action: 'save'         },
+    { key: 'W', action: 'weapon_ready' },
+    { key: 'R', action: 'armor_ready'  },
+    { key: '!', action: 'redraw'       },
+    { key: 'J', action: 'journal'      },
+    { key: '?', action: 'help'         },
+    { key: 'H', action: 'hunt'         },
+    { key: 'V', action: 'view_party'   },
+    { key: 'T', action: 'armor_off'    },
+    { key: 'P', action: 'weapon_off'   },
+    { key: 'E', action: 'enter'        },
+    { key: 'L', action: 'drop'         },
+    { key: 'C', action: 'camp'         },
+    { key: 'Z', action: 'cast_spell'   },
+    { key: 'Q', action: 'quaff'        },
+    { key: 'X', action: 'quit_confirm' },
+  ],
+
   // Castle Ydarg per-floor map dimensions. Each of the four floors
   // is a `size x size` grid (1-indexed; slot 0 is the unused C-array
   // padding). ydarg.c reads this once per ydarg() entry to seed the
