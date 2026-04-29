@@ -246,11 +246,28 @@
       food_max:       19,   // ryl_random(food_min, food_max) + pa_first_level()
     },
     fatigue: {
-      // Thresholds the food_handler ladder compares hours_rested to.
-      // Exhausted and weak are equality checks today; the < weak
-      // branch is the open-ended "faint" tail.
-      exhausted: -4,
-      weak:      -8,
+      // The food_handler ladder. Walked top-to-bottom against the
+      // post-decrement `hours_rested`; the first matching row fires
+      // exactly one arm (clw + tx + optional drain + optional pause).
+      // No match (e.g. hours_rested == -1) = silent fall-through.
+      //
+      // Per-row knobs:
+      //   threshold   : compared with hours_rested.
+      //   match       : 'eq' (default) or 'lt' (open-ended below).
+      //   text_id     : res_text id emitted via tx0(). Required.
+      //   drain       : true → -1 hp on every alive member with hp>1.
+      //   pause_after : true → ryl_pause + clw after text+drain.
+      //
+      // Adding / re-tiering a fatigue level is a pure data edit.
+      levels: [
+        { threshold:  0, text_id: 'subs.food_handler.tired' },
+        { threshold: -4, text_id: 'subs.food_handler.exhausted',
+          drain: true },
+        { threshold: -8, text_id: 'subs.food_handler.weak',
+          drain: true, pause_after: true },
+        { threshold: -8, match: 'lt', text_id: 'subs.faint',
+          drain: true },
+      ],
     },
     // Level-up tunables. battle.c::exp_check loops `for (n = level+1;
     // n <= max_level; n++)` against xp_thresholds[]; the hard cap

@@ -210,6 +210,21 @@ typedef struct {
 static ryl_combat_key *combat_keys_tab;
 static size_t n_combat_keys;
 
+/* food_handler fatigue ladder (data/world.json5 balance.fatigue.levels).
+   Walked top-to-bottom by subs.c::food_handler after the per-tick
+   pa_add_hours_rested(-1); first matching row fires its arm and the
+   walk stops. Owned text_id is heap-allocated by fold_fatigue_levels /
+   freed by reset_fatigue_levels. */
+typedef struct {
+    int32_t threshold;
+    ryl_fatigue_match match;
+    char *text_id;
+    uint8_t drain;
+    uint8_t pause_after;
+} fatigue_level_rec;
+static fatigue_level_rec *fatigue_levels_tab;
+static size_t n_fatigue_levels;
+
 /* Mission trigger table (data/world/missions.json5). Populated by
    fold_missions / freed by reset_missions. The runtime layout
    (`mission_trigger`) lives in missions.h so missions.c::dispatch_
@@ -1444,6 +1459,25 @@ int res_combat_key_at(int idx, char *key, const char **cond, const char **action
     }
     if (action) {
         *action = e->action;
+    }
+    return 1;
+}
+
+int res_fatigue_levels_count(void) {
+    return (int)n_fatigue_levels;
+}
+
+int res_fatigue_level_at(int idx, ryl_fatigue_level *out) {
+    if (idx < 0 || (size_t)idx >= n_fatigue_levels) {
+        return 0;
+    }
+    const fatigue_level_rec *e = &fatigue_levels_tab[idx];
+    if (out) {
+        out->threshold = e->threshold;
+        out->match = e->match;
+        out->text_id = e->text_id;
+        out->drain = e->drain;
+        out->pause_after = e->pause_after;
     }
     return 1;
 }
@@ -2763,6 +2797,81 @@ static void reset_combat_keys(void) {
     n_combat_keys = 0;
 }
 
+/* -------- balance.fatigue.levels --------
+   subs.c::food_handler dispatch table. Each row is
+   `{threshold, match?, text_id, drain?, pause_after?}`; threshold +
+   text_id are required, the rest default to 0/false / 'eq'. Strict
+   schema — unknown match slugs hard-fail at fold time. */
+static void fold_fatigue_levels(const node *fl_node, const char *path) {
+    if (!fl_node) {
+        return;
+    }
+    if (fl_node->kind != N_ARR) {
+        res_die(path, fl_node->line,
+                "balance.fatigue.levels: expected array");
+    }
+    size_t n = fl_node->u.arr.n;
+    if (n == 0) {
+        return;
+    }
+    fatigue_levels_tab = calloc(n, sizeof *fatigue_levels_tab);
+    if (!fatigue_levels_tab) {
+        res_die(path, fl_node->line, "oom");
+    }
+    for (size_t i = 0; i < n; i++) {
+        const node *rec = fl_node->u.arr.items[i];
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : fl_node->line,
+                    "balance.fatigue.levels: entry must be object");
+        }
+        const node *thr_n = obj_get(rec, "threshold");
+        const node *txt_n = obj_get(rec, "text_id");
+        const node *match_n = obj_get(rec, "match");
+        const node *drain_n = obj_get(rec, "drain");
+        const node *pause_n = obj_get(rec, "pause_after");
+        if (!thr_n || thr_n->kind != N_INT) {
+            res_die(path, rec->line,
+                    "balance.fatigue.levels: threshold (int) required");
+        }
+        if (!txt_n || txt_n->kind != N_STR) {
+            res_die(path, rec->line,
+                    "balance.fatigue.levels: text_id (string) required");
+        }
+        ryl_fatigue_match m = FATIGUE_MATCH_EQ;
+        if (match_n) {
+            if (match_n->kind != N_STR) {
+                res_die(path, rec->line,
+                        "balance.fatigue.levels: match must be string");
+            }
+            if (strcmp(match_n->u.sv, "eq") == 0) {
+                m = FATIGUE_MATCH_EQ;
+            } else if (strcmp(match_n->u.sv, "lt") == 0) {
+                m = FATIGUE_MATCH_LT;
+            } else {
+                res_die(path, rec->line,
+                        "balance.fatigue.levels: match must be 'eq' or 'lt'");
+            }
+        }
+        fatigue_levels_tab[i].threshold = (int32_t)thr_n->u.iv;
+        fatigue_levels_tab[i].match = m;
+        fatigue_levels_tab[i].text_id = strdup(txt_n->u.sv);
+        fatigue_levels_tab[i].drain =
+            (drain_n && drain_n->kind == N_BOOL) ? (uint8_t)drain_n->u.bv : 0;
+        fatigue_levels_tab[i].pause_after =
+            (pause_n && pause_n->kind == N_BOOL) ? (uint8_t)pause_n->u.bv : 0;
+    }
+    n_fatigue_levels = n;
+}
+
+static void reset_fatigue_levels(void) {
+    for (size_t i = 0; i < n_fatigue_levels; i++) {
+        free(fatigue_levels_tab[i].text_id);
+    }
+    free(fatigue_levels_tab);
+    fatigue_levels_tab = NULL;
+    n_fatigue_levels = 0;
+}
+
 /* -------- missions subtree --------
    Mission trigger table (data/world/missions.json5). Each entry
    becomes one `mission_trigger` row consumed by missions.c. The
@@ -3874,6 +3983,12 @@ void res_load_world(const char *path) {
     fold_town_keys(obj_get(root, "town_keys"), path);
     fold_wilderness_keys(obj_get(root, "wilderness_keys"), path);
     fold_combat_keys(obj_get(root, "combat_keys"), path);
+    {
+        const node *balance_n = obj_get(root, "balance");
+        const node *fatigue_n = balance_n ? obj_get(balance_n, "fatigue") : NULL;
+        const node *levels_n = fatigue_n ? obj_get(fatigue_n, "levels") : NULL;
+        fold_fatigue_levels(levels_n, path);
+    }
     fold_missions(obj_get(root, "missions"), path);
     fold_screen(obj_get(root, "screen"), path);
     fold_limits(obj_get(root, "limits"), path);
@@ -4524,6 +4639,7 @@ void res_shutdown(void) {
     reset_town_keys();
     reset_wilderness_keys();
     reset_combat_keys();
+    reset_fatigue_levels();
     reset_missions();
     reset_screen();
     /* Free per-NPC visited[] BEFORE invalidating npc_slot_max_cache —

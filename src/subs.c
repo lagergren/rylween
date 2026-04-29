@@ -35,14 +35,44 @@ void time_handler(void) {
 
 /* Sleep-deprivation hp drain: -1 hp per member with hp > 1 (so the
    penalty bruises the party rather than killing anyone outright).
-   Three food_handler arms (-4, -8, < -8 hours_rested) all trigger
-   the same drain, with different surrounding text + pacing. */
+   Triggered by any food_handler fatigue level whose `drain: true` is
+   set in data/world.json5 balance.fatigue.levels. */
 static void sleep_deprivation_drain(void) {
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
         if (pm_hit_points(pm) > 1) {
             pm_add_hit_points(pm, -1);
         }
+    }
+}
+
+/* Walk the data-driven fatigue ladder. First matching row fires its
+   arm (clw + tx + optional drain + optional pause); no match leaves
+   the party untouched. Authoritative mapping lives in data/world.json5
+   balance.fatigue.levels — adding/retiering levels is data-only. */
+static void run_fatigue_ladder(void) {
+    int32_t hr = pa_hours_rested();
+    int n = res_fatigue_levels_count();
+    for (int i = 0; i < n; i++) {
+        ryl_fatigue_level lv;
+        if (!res_fatigue_level_at(i, &lv)) {
+            continue;
+        }
+        int hit = (lv.match == FATIGUE_MATCH_LT) ? (hr < lv.threshold)
+                                                 : (hr == lv.threshold);
+        if (!hit) {
+            continue;
+        }
+        clw();
+        tx0(res_text(lv.text_id));
+        if (lv.drain) {
+            sleep_deprivation_drain();
+        }
+        if (lv.pause_after) {
+            ryl_pause();
+            clw();
+        }
+        return;
     }
 }
 
@@ -94,30 +124,7 @@ void food_handler(void) {
 
     // Time routine //
     pa_add_hours_rested(-1);
-    if (pa_hours_rested() == 0) {
-        clw();
-        tx0(res_text("subs.food_handler.tired"));
-        return;
-    }
-    if (pa_hours_rested() == -4) {
-        clw();
-        tx0(res_text("subs.food_handler.exhausted"));
-        sleep_deprivation_drain();
-        return;
-    }
-    if (pa_hours_rested() == -8) {
-        clw();
-        tx0(res_text("subs.food_handler.weak"));
-        sleep_deprivation_drain();
-        ryl_pause();
-        clw();
-        return;
-    }
-    if (pa_hours_rested() < -8) {
-        clw();
-        tx0(res_text("subs.faint"));
-        sleep_deprivation_drain();
-    }
+    run_fatigue_ladder();
 }
 void random_wilderness(void) {
     char c;

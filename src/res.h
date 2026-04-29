@@ -463,6 +463,27 @@ typedef enum {
 void res_screen_xy(screen_region r, int *x, int *y);
 void res_screen_wh(screen_region r, int *w, int *h);
 
+/* food_handler fatigue ladder (data/world.json5 balance.fatigue.levels).
+   subs.c::food_handler walks the table after each pa_add_hours_rested(-1)
+   and fires the first matching row. `match` selects equality vs the
+   open-ended "below" form; `drain` triggers a -1 hp tick on every
+   alive member with hp>1; `pause_after` runs ryl_pause + clw after
+   the text+drain. text_id resolves via res_text. Adding or re-tiering
+   a fatigue level is a pure world.json5 edit. */
+typedef enum {
+    FATIGUE_MATCH_EQ = 0,
+    FATIGUE_MATCH_LT,
+} ryl_fatigue_match;
+typedef struct {
+    int32_t threshold;
+    ryl_fatigue_match match;
+    const char *text_id;
+    uint8_t drain;
+    uint8_t pause_after;
+} ryl_fatigue_level;
+int res_fatigue_levels_count(void);
+int res_fatigue_level_at(int idx, ryl_fatigue_level *out);
+
 /* Statusline TIME label lookup (data/world.json5 status.time_buckets).
    Walks the table top-to-bottom; each entry has [lo, hi] hour bounds
    (lo > hi wraps midnight, mirroring is_hour_in_range) and a label text
