@@ -186,14 +186,52 @@
     saving:    ['Saving...'],
   },
 
-  // show_party() item-flag one-liners. The torches/rations/gold counts at
-  // the top keep their %-format tx()s inline.
+  // show_party(): top-of-page resource counts (torches/rations/gold)
+  // followed by the five special-item flag lines (only emitted if the
+  // party owns the corresponding item). counts is one block emitted as
+  // a single tx_fmt with three int-snprintf bindings; the trailing
+  // empty array entry restores the gold line's \r\n\r\n paragraph break.
   party: {
+    counts:        ['{torches} torches.',
+                    '{rations} rations.',
+                    '{gold} gold.',
+                    ''],
     has_shield:    ['You have the Shield.'],
     has_bracelets: ['You have the Bracelets.'],
     has_crown:     ['You have the Crown.'],
     has_foot:      ['You have the Foot.'],
     has_key:       ['You have the Key.'],
+  },
+
+  // show(nr): per-character info pages, one tx_fmt per page (was a
+  // chain of 8 tx() calls with hardcoded labels in C). Each page ends
+  // on a `ryl_pause + clw` boundary. Bindings are int-snprintf'd in
+  // driv.c (skill/hp/health/wisdom/charisma/magic/level/exp) plus
+  // string-bound name/race/class/weapon/armor/status. The trailing
+  // empty array entry on each page mirrors the original tx("\r\n")
+  // paragraph breaks (Class→Skill, Magic→pause; Armor→Status,
+  // Status→Exp, Exp→pause).
+  show: {
+    first_page:    ['Name      : {name}',
+                    'Race      : {race}',
+                    'Class     : {class}',
+                    '',
+                    'Skill     : {skill}',
+                    'Hp/H      : {hp}/{health}',
+                    'Wisdom    : {wisdom}',
+                    'Charisma  : {charisma}',
+                    'Magic     : {magic}',
+                    ''],
+    second_page:   ['Level     : {level}',
+                    'Weapon    : {weapon}',
+                    'Armor     : {armor}',
+                    '',
+                    'Status    : {status}',
+                    '',
+                    'Exp       : {exp}',
+                    ''],
+    status_dead:   'Dead.',
+    status_alive:  'Alive.',
   },
 
   // help() — three ryl_pause-separated pages of keybindings.

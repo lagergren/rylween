@@ -1587,10 +1587,20 @@ static void create_party(void) {
 }
 
 void show_party(void) {
+    char torches[16], rations[16], gold[16];
+
+    snprintf(torches, sizeof torches, "%u", pa_torches());
+    snprintf(rations, sizeof rations, "%d", pa_food());
+    snprintf(gold, sizeof gold, "%d", pa_gold());
+
     clw();
-    tx("%u torches.\r\n", pa_torches());
-    tx("%d rations.\r\n", pa_food());
-    tx("%d gold.\r\n\r\n", pa_gold());
+    tx_fmt("driv.party.counts",
+           (ryl_bind[]){
+               {"torches", torches},
+               {"rations", rations},
+               {"gold", gold},
+               {0},
+           });
     if (pa_special(PS_FIRESHIELD)) {
         tx0(res_text("driv.party.has_shield"));
     }
@@ -1633,32 +1643,45 @@ void inv_list(void) {
 }
 
 void show(int32_t nr) {
-    char str[10];
     pm_t pm = pm_cur(nr);
+    char skill[16], hp[16], health[16], wisdom[16], charisma[16], magic[16];
+    char level[16], experience[16];
+
+    snprintf(skill, sizeof skill, "%d", pm_weapon_skill(pm));
+    snprintf(hp, sizeof hp, "%d", pm_hit_points(pm));
+    snprintf(health, sizeof health, "%d", pm_health(pm));
+    snprintf(wisdom, sizeof wisdom, "%d", pm_wisdom(pm));
+    snprintf(charisma, sizeof charisma, "%d", pm_charisma(pm));
+    snprintf(magic, sizeof magic, "%d", pm_magic(pm));
+    snprintf(level, sizeof level, "%d", pm_level(pm));
+    snprintf(experience, sizeof experience, "%u", pm_experience(pm));
 
     clw();
-    tx("Name      : %s\r\n", pm_name(pm));
-    tx("Race      : %s\r\n", res_enum("race", pm_race_id(pm)));
-    tx("Class     : %s\r\n", res_enum("pc_class", pm_class_id(pm)));
-    tx("\r\n");
-    tx("Skill     : %d\r\n", pm_weapon_skill(pm));
-    tx("Hp/H      : %d/%d\r\n", pm_hit_points(pm), pm_health(pm));
-    tx("Wisdom    : %d\r\n", pm_wisdom(pm));
-    tx("Charisma  : %d\r\n", pm_charisma(pm));
-    tx("Magic     : %d\r\n", pm_magic(pm));
-    tx("\r\n");
+    tx_fmt("driv.show.first_page",
+           (ryl_bind[]){
+               {"name", pm_name(pm)},
+               {"race", res_enum("race", pm_race_id(pm))},
+               {"class", res_enum("pc_class", pm_class_id(pm))},
+               {"skill", skill},
+               {"hp", hp},
+               {"health", health},
+               {"wisdom", wisdom},
+               {"charisma", charisma},
+               {"magic", magic},
+               {0},
+           });
     ryl_pause();
     clw();
-    tx("Level     : %d\r\n", pm_level(pm));
-    tx("Weapon    : %s\r\n", object(pm_weapon(pm)));
-    tx("Armor     : %s\r\n\r\n", object(pm_armor(pm)));
-    if (pm_dead(pm)) {
-        strcpy(str, "Dead.");
-    } else {
-        strcpy(str, "Alive.");
-    }
-    tx("Status    : %s\r\n\r\n", str);
-    tx("Exp       : %u\r\n\r\n", pm_experience(pm));
+    tx_fmt("driv.show.second_page",
+           (ryl_bind[]){
+               {"level", level},
+               {"weapon", object(pm_weapon(pm))},
+               {"armor", object(pm_armor(pm))},
+               {"status", res_text(pm_dead(pm) ? "driv.show.status_dead"
+                                               : "driv.show.status_alive")},
+               {"exp", experience},
+               {0},
+           });
     ryl_pause();
 }
 
