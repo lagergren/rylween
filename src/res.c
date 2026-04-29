@@ -4536,6 +4536,18 @@ void res_shutdown(void) {
             state.npc[i].visited = NULL;
         }
     }
+    /* Walk every realized party slot and free heap-owned per-party
+       data (members[], attack_today[], journal[]) before releasing
+       the state.p backing array. Without this every fixture leaks
+       the player party's allocations on exit; only the Linux LSan
+       leg of CI catches it (apple-clang ASan ships without LSan). */
+    if (state.p) {
+        int p_slots = res_party_slot_max();
+        for (int i = 0; i < p_slots; i++) {
+            party_release_members(&state.p[i]);
+            free_journal(&state.p[i]);
+        }
+    }
     reset_limits();
     npc_slot_max_invalidate();
     free(state.npc);

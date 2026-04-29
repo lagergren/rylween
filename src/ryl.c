@@ -54,5 +54,6 @@ int main(int argc, char **argv) {
     }
 
     init();
+    res_shutdown();
     return 0;
 }
