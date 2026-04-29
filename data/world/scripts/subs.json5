@@ -1,0 +1,166 @@
+// Tier B2 lift: subs.c equipment-swap UI flows. Two scripts share
+// the dispatcher body across weapon vs armor via a `kind` binding:
+//
+//   equipment.unequip — drops weapon_off / armor_off into one body.
+//     Bindings (set by the src/subs.c trampoline):
+//       kind:    'weapon' | 'armor'  — pm_field name and emit_indexed
+//                                      suffix. Must match a row in
+//                                      script.c's pm_field_table.
+//   equipment.equip   — drops weapon_ready / armor_ready into one body.
+//     Bindings:
+//       kind:    'weapon' | 'armor'  — see above.
+//       kind_id: '1' (weapon) | '2' (armor) — int form for the
+//                item_is_equip_kind engine_int dispatch (DSL `eq` is
+//                int-only, so the kind dispatch routes through this
+//                int alias).
+//
+// `{party_max}` placeholders in subs.who_prompt resolve via
+// primitives.c's bind_expand auto-binding (no caller binding needed).
+// Member indices follow the §25.B 0-based convention; digit_range
+// `lo: 1` binds 0-based slots ('1' -> 0).
+{
+  // --- weapon_off / armor_off -------------------------------------
+  // C reference: src/subs.c::weapon_off / armor_off (~38 lines each).
+  // Three exit branches: invalid digit -> single clw and return; no
+  // equipment in slot -> pronoun-prefixed "no <kind>" + 800ms; full
+  // inventory -> "No room!" + 600ms; success -> object name + 800ms
+  // + move equipped item to first empty inventory slot.
+  equipment: {
+    unequip: [
+      { engine_call: 'clw' },
+      { emit: 'subs.who_prompt' },
+      { menu_branch: {
+          options: [
+            { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } },
+              index_var: 'who',
+              then: [
+                { if: {
+                    cond: { eq: [{ member: { var: 'who' }, field: { var: 'kind' } }, 0] },
+                    then: [
+                      { engine_call: 'clw' },
+                      { engine_bind: { fn: 'pronoun',
+                                       args: [{ var: 'who' }, 'subject'],
+                                       var: 'pronoun' } },
+                      { emit_indexed: { fmt: 'subs.equipment.no_{}',
+                                        value: { var: 'kind' } } },
+                      { pause: 800 },
+                    ],
+                    else: [
+                      { let: 'x', value: { engine_int: 'inv_find_empty' } },
+                      { if: {
+                          cond: { eq: [{ var: 'x' }, 0] },
+                          then: [
+                            { engine_call: 'clw' },
+                            { emit: 'subs.no_room' },
+                            { pause: 600 },
+                          ],
+                          else: [
+                            { engine_call: 'clw' },
+                            { engine_bind: { fn: 'object',
+                                             args: [{ member: { var: 'who' },
+                                                      field: { var: 'kind' } }],
+                                             var: 'object' } },
+                            { emit: 'subs.equipment.removed' },
+                            { pause: 800 },
+                            { engine_call: 'pa_set_inventory',
+                              args: [{ var: 'x' },
+                                     { member: { var: 'who' },
+                                       field: { var: 'kind' } }] },
+                            { mutate: { target: { member_field: { idx: { var: 'who' },
+                                                                  field: { var: 'kind' } } },
+                                        op: 'set', value: 0 } },
+                          ],
+                      } },
+                    ],
+                } },
+              ],
+            },
+          ],
+          // Out-of-range digit / non-digit: fall through to the
+          // trailing clw. Matches the C-side `clw();` fall-through
+          // when pm_digit_in_range fails.
+          default: [],
+      } },
+      { engine_call: 'clw' },
+    ],
+
+    // --- weapon_ready / armor_ready ---------------------------------
+    // C reference: src/subs.c::weapon_ready / armor_ready (~40 lines
+    // each). Two-stage prompt: pick an inventory slot by letter,
+    // validate kind, then pick a member by digit, swap.
+    //
+    // Exit branches: invalid letter -> single clw and return; wrong
+    // kind -> "Not a valid <kind>." + 600ms; out-of-range digit ->
+    // single clw and return; dead member -> "Dead." (no pause; matches
+    // the C-side bare `tx0` + `return`); success -> swap + "<Kind>
+    // changed." + 600ms.
+    equip: [
+      { engine_call: 'clw' },
+      { engine_call: 'inv_list' },
+      { let: 'slot', value: { engine_int: 'inv_slot_from_letter',
+                              args: [{ engine_int: 'key_upper' }] } },
+      { if: {
+          cond: { eq: [{ var: 'slot' }, 0] },
+          then: [
+            { engine_call: 'clw' },
+          ],
+          else: [
+            { let: 'oc', value: { inventory: { var: 'slot' } } },
+            { if: {
+                cond: { not: { engine_int: 'item_is_equip_kind',
+                               args: [{ var: 'oc' }, { var: 'kind_id' }] } },
+                then: [
+                  { engine_call: 'clw' },
+                  { emit_indexed: { fmt: 'subs.equipment.invalid_{}',
+                                    value: { var: 'kind' } } },
+                  { pause: 600 },
+                  { engine_call: 'clw' },
+                ],
+                else: [
+                  { engine_call: 'clw' },
+                  { emit: 'subs.who_prompt' },
+                  { menu_branch: {
+                      options: [
+                        { digit_range: { lo: 1, hi: { engine_int: 'pa_party_member_max' } },
+                          index_var: 'who',
+                          then: [
+                            { if: {
+                                cond: { engine_int: 'pa_is_dead',
+                                        args: [{ var: 'who' }] },
+                                then: [
+                                  { engine_call: 'clw' },
+                                  { emit: 'subs.dead' },
+                                ],
+                                else: [
+                                  // Swap: temp = pm.<kind>; pm.<kind> = inv[slot]; inv[slot] = temp.
+                                  { let: 'temp', value: { member: { var: 'who' },
+                                                          field: { var: 'kind' } } },
+                                  { mutate: { target: { member_field: { idx: { var: 'who' },
+                                                                        field: { var: 'kind' } } },
+                                              op: 'set',
+                                              value: { inventory: { var: 'slot' } } } },
+                                  { engine_call: 'pa_set_inventory',
+                                    args: [{ var: 'slot' }, { var: 'temp' }] },
+                                  { engine_call: 'clw' },
+                                  { emit_indexed: { fmt: 'subs.equipment.changed_{}',
+                                                    value: { var: 'kind' } } },
+                                  { pause: 600 },
+                                  { engine_call: 'clw' },
+                                ],
+                            } },
+                          ],
+                        },
+                      ],
+                      // Out-of-range digit / non-digit: clw-and-return,
+                      // matching the C-side `b < '1' || b > '4'` arm.
+                      default: [
+                        { engine_call: 'clw' },
+                      ],
+                  } },
+                ],
+            } },
+          ],
+      } },
+    ],
+  },
+}

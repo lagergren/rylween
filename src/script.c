@@ -743,6 +743,23 @@ static int32_t ie_item_is_weapon(const int32_t *a) {
 static int32_t ie_item_is_armor(const int32_t *a) {
     return item_is_armor((int)a[0]);
 }
+/* Kind-dispatched variant: kind_id 1 = weapon, 2 = armor. The
+   subs.equipment.equip DSL routes through this so a single script
+   body covers both ready flows — the kind binding from the C
+   trampoline (kind_id) selects which item_is_<kind> predicate runs.
+   Out-of-range kind_id returns 0 (matches the C-side fall-through). */
+static int32_t ie_item_is_equip_kind(const int32_t *a) {
+    int id = (int)a[0];
+    int kind_id = (int)a[1];
+    switch (kind_id) {
+        case 1:
+            return item_is_weapon(id);
+        case 2:
+            return item_is_armor(id);
+        default:
+            return 0;
+    }
+}
 
 /* §23.A: monster nasty-magic frost target pick. Mirrors the legacy
    `while (1) { who = ryl_random(0, max-1); if (pa_is_alive(who)) break; }`
@@ -865,6 +882,7 @@ static const int_engine_entry int_engine_tbl[] = {
     {"inv_slot_from_letter", 1, ie_inv_slot_from_letter, {0}},
     {"item_is_weapon", 1, ie_item_is_weapon, {"item"}},
     {"item_is_armor", 1, ie_item_is_armor, {"item"}},
+    {"item_is_equip_kind", 2, ie_item_is_equip_kind, {"item", 0}},
     {"pa_party_member_max", 0, ie_pa_party_member_max, {0}},
     {"inv_slot_max", 0, ie_inv_slot_max, {0}},
     {"wld_location_x", 1, ie_wld_location_x, {"world_locations"}},

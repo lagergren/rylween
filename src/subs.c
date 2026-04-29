@@ -264,161 +264,28 @@ static char *glyph(char t) {
     return (char *)res_glyph(t);
 }
 
+/* Tier B2 lift: weapon_off / armor_off / weapon_ready / armor_ready
+   are now one-line trampolines into data/world/scripts/subs.json5's
+   equipment.unequip / equipment.equip scripts. The kind binding picks
+   the pm_field row (via the resolve_field_name DSL extension) and the
+   text-record suffix (via emit_indexed). kind_id paired with kind for
+   the int-only `eq` dispatch in equipment.equip's item_is_equip_kind
+   guard. */
 void weapon_off(void) {
-    char c;
-    int32_t x;
-
-    clw();
-    tx_who_prompt();
-    c = key();
-    if (pm_digit_in_range(c)) {
-        pm_t pm = pm_from_digit(c);
-        LOG_D("input", "weapon_off: digit=%c -> slot=%d", c, pm.m);
-        if (!pm_has_weapon(pm)) {
-            clw();
-            tx_fmt("subs.weapon_off.no_weapon",
-                   (ryl_bind[]){{"pronoun", pronoun(c - '1', 1)}, {0}});
-            ryl_delay(800);
-            clw();
-            return;
-        }
-        x = inv_find_empty();
-        if (!x) {
-            clw();
-            tx0(res_text("subs.no_room"));
-            ryl_delay(600);
-            clw();
-            return;
-        } else {
-            clw();
-            tx_fmt("subs.equipment.removed",
-                   (ryl_bind[]){{"object", object(pm_weapon(pm))}, {0}});
-            ryl_delay(800);
-            pa_set_inventory(x, pm_weapon(pm));
-            pm_set_weapon(pm, 0);
-            clw();
-            return;
-        }
-    }
-    clw();
+    play_script("subs.equipment.unequip",
+                (ryl_bind[]){{"kind", "weapon"}, {0}});
 }
 void armor_off(void) {
-    char c;
-    int32_t x;
-
-    clw();
-    tx_who_prompt();
-    c = key();
-    if (pm_digit_in_range(c)) {
-        pm_t pm = pm_from_digit(c);
-        LOG_D("input", "armor_off: digit=%c -> slot=%d", c, pm.m);
-        if (!pm_has_armor(pm)) {
-            clw();
-            tx_fmt("subs.armor_off.no_armor",
-                   (ryl_bind[]){{"pronoun", pronoun(c - '1', 1)}, {0}});
-            ryl_delay(800);
-            clw();
-            return;
-        }
-        x = inv_find_empty();
-        if (!x) {
-            clw();
-            tx0(res_text("subs.no_room"));
-            ryl_delay(600);
-            clw();
-            return;
-        } else {
-            clw();
-            tx_fmt("subs.equipment.removed",
-                   (ryl_bind[]){{"object", object(pm_armor(pm))}, {0}});
-            ryl_delay(800);
-            pa_set_inventory(x, pm_armor(pm));
-            pm_set_armor(pm, 0);
-            clw();
-            return;
-        }
-    }
-    clw();
+    play_script("subs.equipment.unequip",
+                (ryl_bind[]){{"kind", "armor"}, {0}});
 }
 void weapon_ready(void) {
-    clw();
-    inv_list();
-    char d = (char)toupper(key());
-    int slot = inv_slot_from_letter(d);
-    if (!slot) {
-        clw();
-        return;
-    }
-    int32_t oc = pa_inventory(slot);
-    if (!item_is_weapon(oc)) {
-        clw();
-        tx0(res_text("subs.weapon_ready.invalid"));
-        ryl_delay(600);
-        clw();
-        return;
-    }
-
-    clw();
-    tx_who_prompt();
-    char b = key();
-    if (b < '1' || b > '4') {
-        clw();
-        return;
-    }
-    pm_t pm = pm_from_digit(b);
-    if (pm_dead(pm)) {
-        clw();
-        tx0(res_text("subs.dead"));
-        return;
-    }
-    int32_t temp = pm_weapon(pm);
-    pm_set_weapon(pm, pa_inventory(slot));
-    pa_set_inventory(slot, temp);
-    clw();
-    tx0(res_text("subs.weapon_ready.changed"));
-    ryl_delay(600);
-    clw();
-    return;
+    play_script("subs.equipment.equip",
+                (ryl_bind[]){{"kind", "weapon"}, {"kind_id", "1"}, {0}});
 }
 void armor_ready(void) {
-    clw();
-    inv_list();
-    char d = (char)toupper(key());
-    int slot = inv_slot_from_letter(d);
-    if (!slot) {
-        clw();
-        return;
-    }
-    int32_t oc = pa_inventory(slot);
-    if (!item_is_armor(oc)) {
-        clw();
-        tx0(res_text("subs.armor_ready.invalid"));
-        ryl_delay(600);
-        clw();
-        return;
-    }
-
-    clw();
-    tx_who_prompt();
-    char b = key();
-    if (b < '1' || b > '4') {
-        clw();
-        return;
-    }
-    pm_t pm = pm_from_digit(b);
-    if (pm_dead(pm)) {
-        clw();
-        tx0(res_text("subs.dead"));
-        return;
-    }
-    int32_t temp = pm_armor(pm);
-    pm_set_armor(pm, pa_inventory(slot));
-    pa_set_inventory(slot, temp);
-    clw();
-    tx0(res_text("subs.armor_ready.changed"));
-    ryl_delay(600);
-    clw();
-    return;
+    play_script("subs.equipment.equip",
+                (ryl_bind[]){{"kind", "armor"}, {"kind_id", "2"}, {0}});
 }
 uint8_t drop(void) {
     char d;

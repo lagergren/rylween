@@ -33,24 +33,18 @@
     starved:   ['{name} starved', 'to death!!!'],
   },
 
-  weapon_off: {
-    no_weapon: ['{pronoun} has no weapon!'],
-  },
-  armor_off: {
-    no_armor: ['{pronoun} has no armor!'],
-  },
-  // Shared across weapon_off/armor_off: "<object name> removed."
+  // Tier B2 lift: weapon/armor variants live under a single
+  // `equipment.*` namespace, addressed by emit_indexed with the
+  // `kind` binding (`subs.equipment.no_{kind}` / `invalid_{kind}` /
+  // `changed_{kind}`). The shared "<obj> removed." line stays as-is.
   equipment: {
-    removed:   ['{object} removed.'],
-  },
-
-  weapon_ready: {
-    invalid:   ['Not a valid weapon.'],
-    changed:   ['Weapon changed.'],
-  },
-  armor_ready: {
-    invalid:   ['Not a valid armor.'],
-    changed:   ['Armor changed.'],
+    no_weapon:      ['{pronoun} has no weapon!'],
+    no_armor:       ['{pronoun} has no armor!'],
+    removed:        ['{object} removed.'],
+    invalid_weapon: ['Not a valid weapon.'],
+    invalid_armor:  ['Not a valid armor.'],
+    changed_weapon: ['Weapon changed.'],
+    changed_armor:  ['Armor changed.'],
   },
 
   drop: {
