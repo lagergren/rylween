@@ -421,6 +421,20 @@ int res_town_key_at(int idx, char *key, const char **cond, const char **action);
 int res_wilderness_keys_count(void);
 int res_wilderness_key_at(int idx, char *key, const char **cond, const char **action);
 
+/* Combat per-member action-menu keystroke dispatch
+   (data/world.json5 combat_keys:). Same {key, cond?, action} shape
+   as town_keys / wilderness_keys; battle.c's inner input loop
+   walks it on each alive member's turn to decide which keypresses
+   exit the prompt. `cond` is diagnostic at the keypress level —
+   today only the (C)ast Spell arm carries `is_mage`, and the body
+   gates itself on pm_is_mage to preserve the legacy non-mage 'C'
+   fall-through (input loop exits, no body fires). Returns 0 /
+   leaves out parameters untouched for an out-of-range idx. `cond`
+   and `action` point into table-owned storage and stay valid until
+   res_shutdown. */
+int res_combat_keys_count(void);
+int res_combat_key_at(int idx, char *key, const char **cond, const char **action);
+
 /* Mission trigger table (data/world/missions.json5). Walked top-to-
    bottom by missions.c::dispatch_triggers — first entry whose
    `where` filter, optional flag/state gate, and guard predicate all

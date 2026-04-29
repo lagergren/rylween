@@ -163,10 +163,31 @@ void encounter(int32_t foe, int32_t mandatory) {
             if (pm_is_mage(pm_cur(g))) {
                 tx0(res_text("battle.prompt.cast_spell"));
             }
+            /* Per-turn action-menu input loop. The accept set comes
+               from data/world.json5 combat_keys[] — adding a new menu
+               key is a data edit + a wired action body in the if-
+               cascade below. Keypress acceptance is cond-blind so the
+               legacy non-mage 'C' fall-through survives: the input
+               loop exits on any data-listed key, and the action body
+               (e.g. the c == 'C' arm at the cast-spell branch) gates
+               itself on the corresponding predicate. The body
+               cascade itself stays in C — a function-pointer table
+               would need to ferry every battle-loop local (g, defend,
+               ws, mh[], deadc[], ...) through a context struct. */
+            const int n_keys = res_combat_keys_count();
             while (1) {
                 c = key();
                 c = toupper(c);
-                if (c == 'U' || c == 'D' || c == 'A' || c == 'B' || c == 'C') {
+                int matched = 0;
+                for (int ki = 0; ki < n_keys; ki++) {
+                    char ekey;
+                    if (res_combat_key_at(ki, &ekey, NULL, NULL) &&
+                        c == ekey) {
+                        matched = 1;
+                        break;
+                    }
+                }
+                if (matched) {
                     break;
                 }
             }

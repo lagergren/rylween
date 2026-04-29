@@ -194,6 +194,22 @@ typedef struct {
 static ryl_wilderness_key *wilderness_keys_tab;
 static size_t n_wilderness_keys;
 
+/* Combat per-turn action-menu keystroke dispatch (data/world.json5
+   combat_keys:). Same {key, cond?, action} shape as town_keys; the
+   battle.c inner input loop walks it to validate which keypresses
+   exit the prompt. `cond` is diagnostic at the keypress level —
+   battle.c keeps the historical fall-through where a non-mage 'C'
+   still breaks the input loop (the action body itself gates on
+   pm_is_mage). Owned strings are heap-allocated by fold_combat_keys
+   / freed by reset_combat_keys. */
+typedef struct {
+    char key;
+    char *cond;
+    char *action;
+} ryl_combat_key;
+static ryl_combat_key *combat_keys_tab;
+static size_t n_combat_keys;
+
 /* Mission trigger table (data/world/missions.json5). Populated by
    fold_missions / freed by reset_missions. The runtime layout
    (`mission_trigger`) lives in missions.h so missions.c::dispatch_
@@ -1399,6 +1415,27 @@ int res_wilderness_key_at(int idx, char *key, const char **cond, const char **ac
         return 0;
     }
     const ryl_wilderness_key *e = &wilderness_keys_tab[idx];
+    if (key) {
+        *key = e->key;
+    }
+    if (cond) {
+        *cond = e->cond;
+    }
+    if (action) {
+        *action = e->action;
+    }
+    return 1;
+}
+
+int res_combat_keys_count(void) {
+    return (int)n_combat_keys;
+}
+
+int res_combat_key_at(int idx, char *key, const char **cond, const char **action) {
+    if (idx < 0 || (size_t)idx >= n_combat_keys) {
+        return 0;
+    }
+    const ryl_combat_key *e = &combat_keys_tab[idx];
     if (key) {
         *key = e->key;
     }
@@ -2668,6 +2705,64 @@ static void reset_wilderness_keys(void) {
     n_wilderness_keys = 0;
 }
 
+/* -------- combat_keys subtree --------
+   Identical shape to town_keys / wilderness_keys; drives battle.c's
+   per-member action-menu keypress loop. The action body itself
+   stays in battle.c (giant context struct prevents lifting to a
+   function-pointer table); the data-driven part is the validate-
+   and-accept on the inner key() loop. */
+static void fold_combat_keys(const node *ck_node, const char *path) {
+    if (!ck_node) {
+        return;
+    }
+    if (ck_node->kind != N_ARR) {
+        res_die(path, ck_node->line, "combat_keys: expected array");
+    }
+    size_t n = ck_node->u.arr.n;
+    if (n == 0) {
+        return;
+    }
+    combat_keys_tab = calloc(n, sizeof *combat_keys_tab);
+    if (!combat_keys_tab) {
+        res_die(path, ck_node->line, "oom");
+    }
+    for (size_t i = 0; i < n; i++) {
+        const node *rec = ck_node->u.arr.items[i];
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : ck_node->line,
+                    "combat_keys: entry must be object");
+        }
+        const node *key_n = obj_get(rec, "key");
+        const node *action_n = obj_get(rec, "action");
+        const node *cond_n = obj_get(rec, "cond");
+        if (!key_n || key_n->kind != N_STR || !key_n->u.sv ||
+            key_n->u.sv[0] == '\0' || key_n->u.sv[1] != '\0') {
+            res_die(path, rec->line,
+                    "combat_keys: key must be a single-character string");
+        }
+        if (!action_n || action_n->kind != N_STR) {
+            res_die(path, rec->line, "combat_keys: action string required");
+        }
+        if (cond_n && cond_n->kind != N_STR) {
+            res_die(path, rec->line, "combat_keys: cond must be a string");
+        }
+        combat_keys_tab[i].key = (char)toupper((unsigned char)key_n->u.sv[0]);
+        combat_keys_tab[i].action = strdup(action_n->u.sv);
+        combat_keys_tab[i].cond = cond_n ? strdup(cond_n->u.sv) : NULL;
+    }
+    n_combat_keys = n;
+}
+
+static void reset_combat_keys(void) {
+    for (size_t i = 0; i < n_combat_keys; i++) {
+        free(combat_keys_tab[i].cond);
+        free(combat_keys_tab[i].action);
+    }
+    free(combat_keys_tab);
+    combat_keys_tab = NULL;
+    n_combat_keys = 0;
+}
+
 /* -------- missions subtree --------
    Mission trigger table (data/world/missions.json5). Each entry
    becomes one `mission_trigger` row consumed by missions.c. The
@@ -3778,6 +3873,7 @@ void res_load_world(const char *path) {
     fold_buildings(obj_get(root, "buildings"), path);
     fold_town_keys(obj_get(root, "town_keys"), path);
     fold_wilderness_keys(obj_get(root, "wilderness_keys"), path);
+    fold_combat_keys(obj_get(root, "combat_keys"), path);
     fold_missions(obj_get(root, "missions"), path);
     fold_screen(obj_get(root, "screen"), path);
     fold_limits(obj_get(root, "limits"), path);
@@ -4427,6 +4523,7 @@ void res_shutdown(void) {
     reset_buildings();
     reset_town_keys();
     reset_wilderness_keys();
+    reset_combat_keys();
     reset_missions();
     reset_screen();
     /* Free per-NPC visited[] BEFORE invalidating npc_slot_max_cache —

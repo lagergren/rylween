@@ -554,6 +554,24 @@
     { key: 'L',                     action: 'leave_town'     },
   ],
 
+  // Combat per-member action menu. Walked by battle.c's inner
+  // keypress loop on every alive-and-unheld member's turn — when the
+  // keypress matches an entry's `key`, the loop breaks and the
+  // existing if-cascade dispatches the action body. `cond` is
+  // diagnostic-only at the keypress level (the C 'cast_spell' arm
+  // gates its own body on pm_is_mage, mirroring the legacy `if (c ==
+  // 'C' && pm_is_mage(...))` quirk — a non-mage pressing C still
+  // exits the input loop, but the body never fires). Order matches
+  // the legacy menu arms; growing this table only adds keys to the
+  // accept set, the action body itself still lives in battle.c.
+  combat_keys: [
+    { key: 'U',                action: 'use_item'    },
+    { key: 'D',                action: 'defend'      },
+    { key: 'A',                action: 'attack'      },
+    { key: 'B',                action: 'battle_cry'  },
+    { key: 'C', cond: 'is_mage', action: 'cast_spell' },
+  ],
+
   // Wilderness main-loop keystroke dispatch (driv.c::the_game). Same
   // {key, cond?, action} shape as town_keys; walked top-to-bottom on
   // each non-movement keypress (movement keys 8/4/6/2 + diagonals
