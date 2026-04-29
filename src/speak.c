@@ -13,7 +13,6 @@
 #include "wld.h"
 
 static void npc_mission_hint(int32_t);
-static void reply_chitchat(int32_t, const char *);
 
 /* Random coords:
 **
@@ -103,9 +102,10 @@ static void reply_chitchat(int32_t, const char *);
 */
 
 void speak(int32_t bld, int32_t tow) {
-    int32_t talk, j, x, reference[40];
+    int32_t talk, j, reference[40];
     char c, d;
     int32_t rumours = 0;
+    int found;
 
     clw();
     /* WILDERNESS_TOWN selects the at-location single-NPC path used
@@ -115,17 +115,17 @@ void speak(int32_t bld, int32_t tow) {
        which collided with the now-valid towns[0] slot. */
     if (tow != WILDERNESS_TOWN) {
         j = 1;
-        x = 0;
+        found = 0;
         for_each_npc(i) {
             npc_t n = npc_at_slot(i);
             if (npc_building(n) == bld && npc_towne(n) == tow) {
                 tx("%c. %-8s (%s)\r\n", j + 64, npc_name(n), res_enum("job", npc_job(n)));
                 reference[j] = npc_nr(n);
                 j++;
-                x = 1;
+                found = 1;
             }
         }
-        if (!x) {
+        if (!found) {
             clw();
             tx0(res_text("speak.no_npc"));
             ryl_delay(1000);
@@ -158,7 +158,11 @@ void speak(int32_t bld, int32_t tow) {
 
     if (npc_visited(talker, party_current_slot())) {
         clw();
-        tx("%s nods as\r\n", npc_name(talker));
+        tx_fmt("speak.recognize_pre",
+               (ryl_bind[]){
+                   {"npc_name", npc_name(talker)},
+                   {0},
+               });
         tx0(res_text(female ? "speak.recognize_she" : "speak.recognize_he"));
         ryl_delay(800);
     } else {
@@ -188,7 +192,11 @@ void speak(int32_t bld, int32_t tow) {
         if (c == 'R') {
             clw();
             if (!rumours) {
-                tx("%s tells you:\r\n\r\n", npc_name(talker));
+                tx_fmt("speak.tells_you_pre",
+                       (ryl_bind[]){
+                           {"npc_name", npc_name(talker)},
+                           {0},
+                       });
                 rumour();
                 ryl_pause();
                 rumours = 1;
@@ -199,24 +207,14 @@ void speak(int32_t bld, int32_t tow) {
         }
 
         if (c == 'C') {
-            x = ryl_random(0, 2);
-            clw();
-            switch (x) {
-                case 0:
-                    tx0(res_text(female ? "speak.chit.well_f" : "speak.chit.well_m"));
-                    break;
-                case 1:
-                    tx0(res_text("speak.chit.weather"));
-                    break;
-                case 2:
-                    tx0(res_text(female ? "speak.chit.health_f" : "speak.chit.health_m"));
-                    break;
-            }
-            ryl_delay(1000);
-            tx("\r\n");
-            reply_chitchat(x, npc_job_sym(talker));
-            tx("\r\n");
-            ryl_pause();
+            char female_s[2];
+            snprintf(female_s, sizeof female_s, "%d", female);
+            play_script("speak.chitchat",
+                        (ryl_bind[]){
+                            {"female", female_s},
+                            {"job_sym", npc_job_sym(talker)},
+                            {0},
+                        });
         }
 
         if (c == 'Q') {
@@ -289,20 +287,6 @@ void speak(int32_t bld, int32_t tow) {
     }
 }
 
-static void reply_chitchat(int32_t subj, const char *job_sym) {
-    /* Caller picks subj via ryl_random(0, 2) and job_sym is the NPC's
-       job slug (`merchant`, `ranger`, ...). The script speak.chit_reply
-       switches on subj to pick the literal well/weather/health segment
-       of the text id, then emit_indexed fans out on job_sym via its
-       string-spliced path. */
-    char subj_s[8];
-    snprintf(subj_s, sizeof subj_s, "%d", subj);
-    play_script("speak.chit_reply", (ryl_bind[]){
-                                        {"subj", subj_s},
-                                        {"job_sym", job_sym},
-                                        {0},
-                                    });
-}
 /* §22.F: per-NPC mission state-machine step. Looks up the role bound
    to this slot via res_role_for_slot, then plays the matching
    `speak_missions.<role>` dispatch script (an if-chain over flag

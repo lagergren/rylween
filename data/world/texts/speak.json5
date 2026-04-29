@@ -19,10 +19,16 @@
   // Empty-building guard: no NPC at the current (bld,twn).
   no_npc: ['Noone is here!'],
 
-  // Recognition nod, split around the "%s nods as\r\n" line that stays
-  // inline in speak.c so res_enum("name", talk) can fill the NPC name.
+  // Recognition nod. The "<npc_name> nods as" lead is now its own
+  // text record (was an inline tx() in speak.c pre-#18); recognize_he
+  // / recognize_she follow as the gendered second line.
+  recognize_pre: ['{npc_name} nods as'],
   recognize_he:  ['he recognizes you.'],
   recognize_she: ['she recognizes you.'],
+
+  // "R" branch lead — was an inline tx("%s tells you:\r\n\r\n", ...)
+  // in speak.c pre-#18; trailing empty string gives the second \r\n.
+  tells_you_pre: ['{npc_name} tells you:', ''],
 
   // Main chat header + four-option menu. {npc_name} folds in the
   // current interlocutor via tx_fmt (§16.3).
@@ -45,6 +51,10 @@
   // "C" branch prompts (ryl_random picks one of 3). Jobs 13 (whore)
   // vs. the rest use the f/m variants of well/health.
   chit: {
+    // Single \r\n separator between subject prompt and reply, and
+    // again between reply and ryl_pause; was two inline tx("\r\n")
+    // in speak.c pre-#18.
+    added_blank: [''],
     well_f:    ['- You look well today,', '  miss...'],
     well_m:    ['- You look well today,', '  Sir...'],
     weather:   ["- Nice weather we're", '  having...'],

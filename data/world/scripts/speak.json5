@@ -327,6 +327,42 @@
     ],
   },
 
+  // §B4: speak.c::speak C-key chitchat 3-way switch lifted to DSL.
+  // Caller passes { female, job_sym }. `subj` is rolled here (was
+  // ryl_random(0, 2) in C); the gendered well/health arms branch on
+  // the female binding via if/else; the reply hands off to chit_reply
+  // which already knows how to fan out on (subj, job_sym) via
+  // emit_indexed. The two `speak.chit.added_blank` emits replace the
+  // inline tx("\r\n") pair the C body used between prompt → reply →
+  // pause. emits use fully-qualified text ids because resolve_text_id
+  // treats any '.'-containing name as absolute (so a relative `chit.X`
+  // can't fall back to `speak.chit.X`).
+  chitchat: [
+    { let: 'subj', value: { random: [0, 2] } },
+    { engine_call: 'clw' },
+    { switch: {
+        expr: { var: 'subj' },
+        cases: [
+          { match: 0, then: [
+            { if: { cond: { var: 'female' },
+                    then: [{ emit: 'speak.chit.well_f' }],
+                    else: [{ emit: 'speak.chit.well_m' }] } },
+          ] },
+          { match: 1, then: [{ emit: 'speak.chit.weather' }] },
+          { match: 2, then: [
+            { if: { cond: { var: 'female' },
+                    then: [{ emit: 'speak.chit.health_f' }],
+                    else: [{ emit: 'speak.chit.health_m' }] } },
+          ] },
+        ],
+    } },
+    { pause: 1000 },
+    { emit: 'speak.chit.added_blank' },
+    { play_script: 'speak.chit_reply' },
+    { emit: 'speak.chit.added_blank' },
+    { wait_input: true },
+  ],
+
   // §20.20 #2 follow-up: per-job dispatchers for the speak() Q→P /
   // Q→M / chitchat-reply arms. Each is a one-line wrapper around
   // emit_indexed — the C wrapper computes nothing, just passes the
