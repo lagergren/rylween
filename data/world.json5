@@ -340,6 +340,12 @@
     // a flat constant — it's a clamp, not a formula.
     encounter_foe_count_max:       8,
 
+    // Number of encounter banner pics (encounterpic .. encounterpic+N-1)
+    // available to blitgfx at the start of every encounter. battle.c
+    // draws ryl_random(0, N-1) so the visible count grows with the
+    // pic table without a recompile.
+    encounter_pic_count:           5,
+
     drop_tables: {
       default: {
         drop_chance:     5,     // pct; outer roll to drop anything at all

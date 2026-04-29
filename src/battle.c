@@ -44,7 +44,7 @@ void encounter(int32_t foe, int32_t mandatory) {
     clw();
     tx0(res_text("battle.encounter.banner"));
     clr_map_window();
-    blitgfx(encounterpic + ryl_random(0, 4));
+    blitgfx(encounterpic + ryl_random(0, res_combat_int("encounter_pic_count") - 1));
     ryl_delay(400);
     sp = 0;
     im = 0;
