@@ -25,14 +25,25 @@
    future limits: knob overrides. */
 #define INVENTORY_SLOT_MAX 16
 
+/* Compile-time assertion macro that works in plain C99 (no
+   _Static_assert / no <assert.h> static_assert dependency). The
+   trick: declare a typedef whose array length goes negative when
+   `cond` is false, which is a hard compile error. The expanded name
+   includes the source line so two assertions in the same TU don't
+   collide on the typedef name. */
+#define RYL_CONCAT2(a, b) a##b
+#define RYL_CONCAT(a, b)  RYL_CONCAT2(a, b)
+#define RYL_STATIC_ASSERT(cond, tag)                  \
+    typedef char RYL_CONCAT(ryl_static_assert_##tag_, \
+                            __LINE__)[(cond) ? 1 : -1]
+
 /* The UI maps inventory letters to slots (A=1..P=16). The mapping
    relies on the slot count fitting into the 26-letter alphabet; if
    a future limits: knob ever pushes this past 26, the letter-decode
    helpers below need a different keying strategy (chord, two
    letters, etc.). Force a build break before the data drift gets
    loose. */
-_Static_assert(INVENTORY_SLOT_MAX <= 26,
-               "inventory letter decode runs off the end of the alphabet");
+RYL_STATIC_ASSERT(INVENTORY_SLOT_MAX <= 26, inventory_letter_decode);
 
 /* Party-member slot default. The per-member arrays on struct party
    are heap-allocated off res_party_member_max() at party-realize /

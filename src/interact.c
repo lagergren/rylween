@@ -24,7 +24,7 @@ void check_terrain(char old, char new) {
                                       });
 }
 
-void show_journal() {
+void show_journal(void) {
     size_t n = pa_journal_n();
     if (n == 0) {
         return;

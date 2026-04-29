@@ -19,7 +19,7 @@ void blitgfx(uint8_t pic) {
     screen_goto(SCR_TEXT_WINDOW);
 }
 
-void clr_map_window() {
+void clr_map_window(void) {
     int w, h;
     res_screen_wh(SCR_MAP_WINDOW, &w, &h);
     char blank[64];

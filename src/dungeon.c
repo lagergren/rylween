@@ -129,8 +129,8 @@ void dungeon(int32_t levels, const char *scenario) {
                     show(slot);
                 }
                 if (toupper(d) == 'A') {
-                    for_each_party_member(i) {
-                        show(i);
+                    for_each_party_member(s) {
+                        show(s);
                     }
                 }
                 clw();

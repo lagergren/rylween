@@ -1,5 +1,13 @@
 CC        ?= cc
-CFLAGS    ?= -std=c99 -O0 -g -Wall -Wextra -Werror=format-security -Isrc
+# Strict flag set (verified zero-warning across every TU as of the
+# §A2 cleanup). -Wshadow / -Wstrict-prototypes / -Wmissing-prototypes
+# / -Wpointer-arith / -Wundef / -Wcast-align / -Wnull-dereference all
+# catch real bugs in this codebase's idioms; keeping them in the
+# default build prevents regression.
+CFLAGS    ?= -std=c99 -O0 -g -Wall -Wextra -Werror=format-security \
+             -Wshadow -Wstrict-prototypes -Wmissing-prototypes \
+             -Wpointer-arith -Wundef -Wcast-align -Wnull-dereference \
+             -Isrc
 # Emit per-object .d files so header edits (e.g. state.h) trigger
 # rebuilds of every dependent TU. Without this an edit to state.h
 # only rebuilt the .c file whose own source changed — see the

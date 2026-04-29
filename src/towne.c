@@ -25,7 +25,7 @@ static void tavern(void);
    The trailing tx("\r\n") here matches the legacy separator that
    smith's beer-accept and tavern's (R)umours flow expected after
    each call. */
-void rumour() {
+void rumour(void) {
     play_script("towne.rumour", NULL);
     tx("\r\n");
 }
@@ -163,7 +163,7 @@ static int town_dispatch_key(char c, int has_church) {
     return 0;
 }
 
-void enter() {
+void enter(void) {
     const char tile = wld_tile_at(pa_x(), pa_y());
 
     if (!wld_tile_is_settlement(tile)) {
@@ -242,7 +242,7 @@ void enter() {
    `npc_job_sym` (its job slug) as bindings — the DSL resolves the
    display strings via engine_bind res_enum_name_by_sym on each
    iteration. */
-static void hut() {
+static void hut(void) {
     /* -1 sentinel: post-§25.B step 4 NPC axis flip, slot 0 is a
        real NPC (Garth), so the legacy `who = 0` / `if (!who)`
        "not found" idiom collides with a valid slot. */
@@ -275,7 +275,7 @@ static void hut() {
 /* §17-F migration: C wrapper is a pass-through; the H/R/E/L loop,
    cost arithmetic, and all state mutations live in towne.church in
    data/world/scripts/towne.json5. */
-static void church() {
+static void church(void) {
     play_script("towne.church", NULL);
 }
 /* §17-F migration: C wrapper advances the in-game clock and
@@ -294,7 +294,7 @@ static void church() {
    1..16. The DSL rewrites both routes through inv_find_empty
    (1..16). Not covered by replay fixtures today, so no
    byte-identical regression path. */
-static void smith() {
+static void smith(void) {
     advance_hour();
 
     int open_lo = 0;
@@ -326,7 +326,7 @@ static void smith() {
    case 17 (item id 111, Jazzyfoot) was never reachable. The DSL
    uses `random(0, 16) + 1` so all 17 items can appear. Rare path,
    no replay fixture. */
-static void tavern() {
+static void tavern(void) {
     advance_hour();
 
     int open_lo = 0;
@@ -350,7 +350,7 @@ static void tavern() {
    → drink → lodging loop, the inner chitchat sub-menu, and the
    room-pay flow (which uses the new hour_of_day / hours_rested
    mutate targets). */
-static void inn() {
+static void inn(void) {
     advance_hour();
     play_script("towne.inn", NULL);
 }
@@ -362,7 +362,7 @@ static void inn() {
    loop, and the buy-item inner loop (including the torch / food
    multi-buy caps and the single-purchase P/N path). Pattern
    matches the smith / tavern wrappers. */
-static void merchant() {
+static void merchant(void) {
     advance_hour();
 
     int open_lo = 0;

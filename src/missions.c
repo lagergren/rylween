@@ -184,7 +184,7 @@ static int dispatch_triggers(enum mission_where where) {
     return -1;
 }
 
-uint8_t mission_control() {
+uint8_t mission_control(void) {
     int32_t gems;
     char c;
 

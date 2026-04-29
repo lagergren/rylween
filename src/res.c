@@ -630,12 +630,12 @@ int res_ydarg_stairs_item(int digit, const char **out_special,
     if (!stairs || stairs->kind != N_OBJ) {
         return 0;
     }
-    const node *items = obj_get(stairs, "items");
-    if (!items || items->kind != N_ARR) {
+    const node *items_node = obj_get(stairs, "items");
+    if (!items_node || items_node->kind != N_ARR) {
         return 0;
     }
-    for (size_t i = 0; i < items->u.arr.n; i++) {
-        const node *rec = items->u.arr.items[i];
+    for (size_t i = 0; i < items_node->u.arr.n; i++) {
+        const node *rec = items_node->u.arr.items[i];
         if (!rec || rec->kind != N_OBJ) {
             continue;
         }
@@ -3438,10 +3438,10 @@ static void fold_scripts_walk(const node *n, const char *path,
         }
         const node *rew = obj_get(n, "reward");
         if (rew && rew->kind == N_OBJ) {
-            const node *items = obj_get(rew, "items");
-            if (items && items->kind == N_ARR) {
-                for (size_t i = 0; i < items->u.arr.n; i++) {
-                    const node *e = items->u.arr.items[i];
+            const node *items_node = obj_get(rew, "items");
+            if (items_node && items_node->kind == N_ARR) {
+                for (size_t i = 0; i < items_node->u.arr.n; i++) {
+                    const node *e = items_node->u.arr.items[i];
                     if (e && e->kind == N_STR &&
                         res_item_id(e->u.sv) < 0) {
                         LOG_E("res",
@@ -4053,12 +4053,12 @@ const void *res_magic_item_effect_node(int oc, const char **slug_out) {
     if (!root) {
         return NULL;
     }
-    const node *items = obj_get(root, "magic_items");
-    if (!items || items->kind != N_OBJ) {
+    const node *magic_items_node = obj_get(root, "magic_items");
+    if (!magic_items_node || magic_items_node->kind != N_OBJ) {
         return NULL;
     }
-    for (size_t i = 0; i < items->u.obj.n; i++) {
-        const node_kv *kv = &items->u.obj.items[i];
+    for (size_t i = 0; i < magic_items_node->u.obj.n; i++) {
+        const node_kv *kv = &magic_items_node->u.obj.items[i];
         const node *entry = kv->val;
         if (!entry || entry->kind != N_OBJ) {
             continue;

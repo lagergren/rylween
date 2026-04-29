@@ -23,13 +23,20 @@ static void exp_check(void);
 void encounter(int32_t foe, int32_t mandatory) {
     assert(foe >= 1);
     assert(party_current_slot() >= 1 && party_current_slot() <= party_count());
+    /* Per-encounter combatant cap comes from
+       data/world.json5 combat.encounter_foe_count_max — read once
+       up front so mh[] / deadc[] can size to the actual cap rather
+       than carry the historical static 15. */
+    const int32_t foe_max = res_combat_int("encounter_foe_count_max");
+    assert(foe_max >= 1);
     char fn[80], str[80], c, d;
     int32_t n1 = 0, n2 = 0; /* Min & Max nr */
     int32_t h1 = 0, h2 = 0; /* Min & Max hp */
     int32_t sp;             /* Fire frost hold */
     int32_t im;             /* Immune to magic? */
     int32_t ws = 0;         /* WS */
-    int32_t x, i, mh[15], deadc[15], who, dp, g, noc, mhtemp;
+    int32_t x, loot_id, who, dp, g, noc, mhtemp;
+    int32_t mh[foe_max], deadc[foe_max];
     int32_t oc;
     uint8_t defend = 0;
 
@@ -68,7 +75,6 @@ void encounter(int32_t foe, int32_t mandatory) {
        count after the natural roll above so the post-encounter RNG
        state matches the unforced path. */
     noc = rk_force_encounter_noc(noc);
-    int32_t foe_max = res_combat_int("encounter_foe_count_max");
     int32_t party_avg = pa_level_avg();
     res_binding hp_bindings[] = {
         {"h1_base", h1},
@@ -462,25 +468,25 @@ void encounter(int32_t foe, int32_t mandatory) {
                 ryl_delay(1000);
                 pa_add_kills((uint32_t)noc);
                 x = inv_find_empty();
-                i = 0;
+                loot_id = 0;
                 if (x) {
                     if (ryl_chance(res_combat_int("drop_tables.default.drop_chance"))) {
                         if (ryl_chance(res_combat_int("drop_tables.default.treasure_chance"))) {
-                            i = ryl_random(res_combat_int("drop_tables.default.treasure_lo"),
-                                           res_combat_int("drop_tables.default.treasure_hi"));
+                            loot_id = ryl_random(res_combat_int("drop_tables.default.treasure_lo"),
+                                                 res_combat_int("drop_tables.default.treasure_hi"));
                         } else {
-                            i = ryl_random(res_combat_int("drop_tables.default.magic_lo"),
-                                           res_combat_int("drop_tables.default.magic_hi"));
+                            loot_id = ryl_random(res_combat_int("drop_tables.default.magic_lo"),
+                                                 res_combat_int("drop_tables.default.magic_hi"));
                         }
                         clw();
                         ryl_bind loot_binds[] = {
-                            {"object_name", object(i)},
+                            {"object_name", object(loot_id)},
                             {0},
                         };
                         tx0(res_text("battle.victory.you_find_a"));
                         tx_fmt("battle.victory.found_obj", loot_binds);
                         ryl_delay(1500);
-                        pa_set_inventory(x, i);
+                        pa_set_inventory(x, loot_id);
                     }
                 }
                 party_add_gold(gold_gain);
@@ -503,11 +509,11 @@ void encounter(int32_t foe, int32_t mandatory) {
             playerconfused = 0;
             /* MONSTERS GET NASTY */
             g = 0;
-            for_each_monster(x, noc) {
+            for_each_monster(m, noc) {
                 if (pa_alive_count() == 0) {
                     lose_game();
                 }
-                if (!deadc[x] && !held) {
+                if (!deadc[m] && !held) {
                     if (!antimagic && sp &&
                         ryl_chance(15 + sp / 2)) /* MOSTERS PRACTICE NASTY MAGIC */
                     {
@@ -534,7 +540,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                             if (spell_body) {
                                 char caster_buf[8];
                                 snprintf(caster_buf, sizeof caster_buf,
-                                         "%d", x);
+                                         "%d", m);
                                 ryl_bind binds[] = {
                                     {"caster_idx", caster_buf},
                                     {"monster_name", fn},
@@ -575,7 +581,7 @@ void encounter(int32_t foe, int32_t mandatory) {
                         if (melee_body) {
                             char attacker_buf[8];
                             snprintf(attacker_buf, sizeof attacker_buf,
-                                     "%d", x);
+                                     "%d", m);
                             ryl_bind melee_binds[] = {
                                 {"attacker_idx", attacker_buf},
                                 {"monster_name", fn},
@@ -660,7 +666,7 @@ void encounter(int32_t foe, int32_t mandatory) {
 }
 /****************************************************************************/
 
-void exp_check() {
+void exp_check(void) {
     int32_t add[5] = {0};
 
     for_each_party_member(i) {

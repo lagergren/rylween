@@ -30,7 +30,7 @@ static void tx_who_prompt(void) {
            (ryl_bind[]){{"party_max", max_s}, {0}});
 }
 
-void time_handler() {
+void time_handler(void) {
     advance_hour();
 }
 
@@ -47,7 +47,7 @@ static void sleep_deprivation_drain(void) {
     }
 }
 
-void food_handler() {
+void food_handler(void) {
     // Regenerate mana //
     int32_t regen_pct = res_int_path("upkeep.mana_regen_chance");
     for_each_party_member(i) {
@@ -120,7 +120,7 @@ void food_handler() {
         sleep_deprivation_drain();
     }
 }
-void random_wilderness() {
+void random_wilderness(void) {
     char c;
     int32_t r;
     uint8_t rflag = 0;
@@ -212,7 +212,7 @@ void random_wilderness() {
     update_map();
 }
 
-void lose_game() {
+void lose_game(void) {
     clr_map_window();
     blitgfx(deathpic);
     clw();
@@ -231,7 +231,7 @@ void lose_game() {
    tx()/tx0() prefix every invocation with a cursor-right escape from
    c() (see primitives.c), so driving the render cell-by-cell would
    bloat the output with redundant escapes. */
-void update_map() {
+void update_map(void) {
     const int32_t px = pa_x();
     const int32_t py = pa_y();
 
@@ -265,7 +265,7 @@ static char *glyph(char t) {
     return (char *)res_glyph(t);
 }
 
-void weapon_off() {
+void weapon_off(void) {
     char c;
     int32_t x;
 
@@ -303,7 +303,7 @@ void weapon_off() {
     }
     clw();
 }
-void armor_off() {
+void armor_off(void) {
     char c;
     int32_t x;
 
@@ -341,7 +341,7 @@ void armor_off() {
     }
     clw();
 }
-void weapon_ready() {
+void weapon_ready(void) {
     clw();
     inv_list();
     char d = (char)toupper(key());
@@ -381,7 +381,7 @@ void weapon_ready() {
     clw();
     return;
 }
-void armor_ready() {
+void armor_ready(void) {
     clw();
     inv_list();
     char d = (char)toupper(key());
@@ -421,7 +421,7 @@ void armor_ready() {
     clw();
     return;
 }
-uint8_t drop() {
+uint8_t drop(void) {
     char d;
     int32_t y;
 
@@ -470,7 +470,7 @@ uint8_t drop() {
    (Y/N) guard prompt with its inner who-loop, the temperature roll
    + damage pass, the time/food/heal sweep, and the ambush vs
    well-rested split (including the random surprise-kill arm). */
-void camp() {
+void camp(void) {
     char ap[16], hg[16], fpm[16], rh[16], hrr[16];
     char tmx[16], tll[16], tlh[16], tvll[16], tld[16], tvld[16];
     snprintf(ap, sizeof ap, "%d", res_int_path("balance.rest.ambush_chance"));
@@ -499,7 +499,7 @@ void camp() {
                             {0},
                         });
 }
-void quaff() {
+void quaff(void) {
     int32_t oc;
     char c, d;
 
@@ -554,7 +554,7 @@ void quaff() {
    them to play_script as int bindings; the script owns the who-loop,
    the ranger gate, the time-left gate, and the trap success / failure
    narration in data/world/scripts/hunt.json5. */
-void hunt() {
+void hunt(void) {
     char tc[16], sc[16], fmn[16], fmx[16];
     snprintf(tc, sizeof tc, "%d", res_int_path("balance.hunt.time_cost"));
     snprintf(sc, sizeof sc, "%d", res_int_path("balance.hunt.success_chance"));
@@ -650,7 +650,7 @@ void spell(int32_t place) {
                     spell_node, binds, NULL);
 }
 
-void score_list() {
+void score_list(void) {
     FILE *fh;
     char str[144];
     uint8_t i, j, xx, o, n, q;

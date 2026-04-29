@@ -452,21 +452,35 @@ static const pm_field *pm_field_lookup(const char *name) {
     return NULL;
 }
 
+/* offsetof-based field access. Reads/writes go through memcpy so
+   the helper is alignment-correct on every target the project ships
+   to (the cast `*(int32_t *)base` reading from a char* trips
+   -Wcast-align even when alignment is implicit in the offsetof
+   value). The compiler lowers a fixed-size memcpy to the same load
+   /store sequence as the cast, so no runtime cost. */
 static int32_t pm_field_read_at(struct party_member *r, const pm_field *f) {
     char *base = (char *)r + f->offset;
     switch (f->kind) {
-        case PMF_INT32:
-            return *(int32_t *)base;
-        case PMF_UINT32:
-            return (int32_t)*(uint32_t *)base;
+        case PMF_INT32: {
+            int32_t v;
+            memcpy(&v, base, sizeof v);
+            return v;
+        }
+        case PMF_UINT32: {
+            uint32_t v;
+            memcpy(&v, base, sizeof v);
+            return (int32_t)v;
+        }
         case PMF_UCHAR:
             return (int32_t)*(unsigned char *)base;
         case PMF_CLASS: {
-            const char *s = *(const char **)base;
+            const char *s;
+            memcpy(&s, base, sizeof s);
             return s ? res_enum_id("pc_class", s) : 0;
         }
         case PMF_RACE: {
-            const char *s = *(const char **)base;
+            const char *s;
+            memcpy(&s, base, sizeof s);
             return s ? res_enum_id("race", s) : 0;
         }
     }
@@ -478,9 +492,9 @@ static void pm_field_write_at(struct party_member *r, const pm_field *f,
     char *base = (char *)r + f->offset;
     switch (f->kind) {
         case PMF_INT32:
-            *(int32_t *)base = v;
+            memcpy(base, &v, sizeof v);
             return;
-        case PMF_UINT32:
+        case PMF_UINT32: {
             if (v < 0) {
                 char err[96];
                 snprintf(err, sizeof err,
@@ -488,19 +502,23 @@ static void pm_field_write_at(struct party_member *r, const pm_field *f,
                          f->name);
                 die_at(script_id, idx, err);
             }
-            *(uint32_t *)base = (uint32_t)v;
+            uint32_t u = (uint32_t)v;
+            memcpy(base, &u, sizeof u);
             return;
+        }
         case PMF_UCHAR:
             *(unsigned char *)base = (unsigned char)v;
             return;
         case PMF_CLASS: {
             const char *s = res_enum_sym("pc_class", (int)v);
-            *(const char **)base = (s && s[0]) ? s : NULL;
+            const char *out = (s && s[0]) ? s : NULL;
+            memcpy(base, &out, sizeof out);
             return;
         }
         case PMF_RACE: {
             const char *s = res_enum_sym("race", (int)v);
-            *(const char **)base = (s && s[0]) ? s : NULL;
+            const char *out = (s && s[0]) ? s : NULL;
+            memcpy(base, &out, sizeof out);
             return;
         }
     }

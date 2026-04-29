@@ -217,7 +217,7 @@ static int driv_dispatch_key(char c) {
     return 0;
 }
 
-static void the_game() {
+static void the_game(void) {
     char cc;
     char path[64];
 
@@ -301,7 +301,7 @@ static void the_game() {
     }
 }
 
-uint8_t drop_option() {
+uint8_t drop_option(void) {
     char c;
 
     clw();
@@ -317,7 +317,7 @@ uint8_t drop_option() {
     }
 }
 
-void status_line() {
+void status_line(void) {
     /* Redo status line */
 
     char str[256];
@@ -367,7 +367,7 @@ void status_line() {
     tx("%s\r\n", stline);
     screen_goto(SCR_TEXT_WINDOW);
 }
-static void position_locations() {
+static void position_locations(void) {
     for (int i = 0; i < res_location_slot_max(); i++) {
         wld_location_set(i, 0, 0);
     }
@@ -392,7 +392,7 @@ static void position_locations() {
     }
 }
 
-void init() {
+void init(void) {
     char str[90], path[512], d, ch;
     FILE *fh;
     uint8_t abort = 0, x = 0, i, j = 0;
@@ -625,8 +625,8 @@ void init() {
                         free_journal(party_at(x));
                         party_release_members(party_at(x));
                         party_count_dec();
-                        for_each_npc(i) {
-                            npc_t n = npc_at_slot(i);
+                        for_each_npc(s) {
+                            npc_t n = npc_at_slot(s);
                             for (j = x; j < party_count(); j++) {
                                 npc_visited_set(n, j, npc_visited(n, j + 1));
                             }
@@ -788,7 +788,7 @@ static void wcw_party_flags(FILE *f, const struct party *p) {
    symbolic strings; NPC records are keyed by symbolic id per §15.3.
    The nr field is dropped from NPC records (redundant with the slot
    key). Step 2's reader is the inverse. */
-static void write_current_world() {
+static void write_current_world(void) {
     char path[512];
     FILE *f;
 
@@ -1108,7 +1108,7 @@ static void rcw_str(const node *obj, const char *key, char *out, int out_sz) {
    parties[{..., visited_npcs:[res_npc_slot_max()]}]. Per §15.5, the
    visited bits live per-party; this loop rebuilds
    state.npc[j].visited[i]. */
-static int read_current_world() {
+static int read_current_world(void) {
     char path[512];
     FILE *probe;
     ryl_state_path("current-world.json5", path, sizeof path);
@@ -1396,7 +1396,7 @@ static int read_current_world() {
     return 1;
 }
 
-void save() {
+void save(void) {
     session_set_last_played_day(clock_day());
     write_current_world();
 }
@@ -1410,7 +1410,7 @@ char *pronoun(uint8_t nr, uint8_t xx) {
     return (char *)res_pronoun(gender, xx);
 }
 
-static void create_party() {
+static void create_party(void) {
     int32_t a, g, passed;
     char str[80];
 
@@ -1594,7 +1594,7 @@ static void create_party() {
     ryl_delay(1000);
 }
 
-void show_party() {
+void show_party(void) {
     clw();
     tx("%u torches.\r\n", pa_torches());
     tx("%d rations.\r\n", pa_food());
@@ -1622,7 +1622,7 @@ void show_party() {
     ryl_pause();
 }
 
-void inv_list() {
+void inv_list(void) {
     /* 8 rows × 2 columns of letter-labeled slots (A..P). The column
        pairing is UI-bound to INVENTORY_SLOT_MAX == 16; raising the
        cap would need a UI redesign, not just a larger iteration. */
@@ -1670,7 +1670,7 @@ void show(int32_t nr) {
     ryl_pause();
 }
 
-void help() {
+void help(void) {
     clw();
     /* C E H J L  P Q R S T  V W X Z ! ? SPC */
     tx0(res_text("driv.help.p1"));
