@@ -7,7 +7,6 @@
 #include "compat.h"
 #include "driv.h"
 #include "dungeon.h"
-#include "gfx.h"
 #include "inventory.h"
 #include "json5.h"
 #include "party.h"

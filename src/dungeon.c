@@ -2,7 +2,6 @@
 #include "res.h"
 #include "driv.h"
 #include "dungeon.h"
-#include "gfx.h"
 #include "log.h"
 #include "party.h"
 #include "primitives.h"

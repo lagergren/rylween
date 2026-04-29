@@ -2,7 +2,6 @@
 #include "res.h"
 #include "battle.h"
 #include "driv.h"
-#include "gfx.h"
 #include "inventory.h"
 #include "party.h"
 #include "primitives.h"

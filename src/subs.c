@@ -4,7 +4,6 @@
 #include "battle.h"
 #include "driv.h"
 #include "dungeon.h"
-#include "gfx.h"
 #include "interact.h"
 #include "inventory.h"
 #include "log.h"

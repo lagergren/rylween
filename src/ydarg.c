@@ -1,7 +1,6 @@
 #include "battle.h"
 #include "compat.h"
 #include "driv.h"
-#include "gfx.h"
 #include "inventory.h"
 #include "log.h"
 #include "party.h"

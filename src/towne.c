@@ -1,7 +1,6 @@
 #include "ryl.h"
 #include "res.h"
 #include "driv.h"
-#include "gfx.h"
 #include "inventory.h"
 #include "missions.h"
 #include "party.h"

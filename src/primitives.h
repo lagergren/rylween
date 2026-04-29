@@ -76,4 +76,10 @@ char key(void);
 void render_at(const char *, uint8_t, uint8_t);
 void disp_text(char *);
 
+/* Map-window helpers (formerly src/gfx.c). clr_map_window erases
+   the data/world.json5 screen.map_window rectangle; blitgfx blits
+   the data/tiles/<pic>.ans tile into it. */
+void blitgfx(uint8_t);
+void clr_map_window(void);
+
 #endif

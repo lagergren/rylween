@@ -1,7 +1,6 @@
 #include "res.h"
 #include "compat.h"
 #include "dungeon.h"
-#include "gfx.h"
 #include "inventory.h"
 #include "missions.h"
 #include "party.h"
