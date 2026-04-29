@@ -252,6 +252,13 @@
       exhausted: -4,
       weak:      -8,
     },
+    // Level-up tunables. battle.c::exp_check loops `for (n = level+1;
+    // n <= max_level; n++)` against xp_thresholds[]; the hard cap
+    // matches the highest authored xp_thresholds entry. Bump both
+    // simultaneously to grow the level ceiling.
+    level_up: {
+      max_level: 28,
+    },
   },
 
   // §23.D: create_party() literals — stat-roll range and the
@@ -438,6 +445,13 @@
         { div: [{ var: 'weapon_skill' }, 4] },
       ]},
     ]},
+
+    // Level-up hit-points floor (battle.c::exp_check). After every
+    // gained level a member's hit_points are floor'd to (health*2)/3
+    // so a long combat doesn't leave a leveled-up character at the
+    // pre-level hp. Binding: $health (pm_health post-class-levelup
+    // delta).
+    level_up_hp_floor: { div: [{ mul: [{ var: 'health' }, 2] }, 3] },
   },
 
   // Spells (§3.4). Nested by class so each shard owns its own file.

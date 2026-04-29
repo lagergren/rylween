@@ -666,13 +666,23 @@ void encounter(int32_t foe, int32_t mandatory) {
 /****************************************************************************/
 
 void exp_check(void) {
-    int32_t add[5] = {0};
+    /* Per-member level-deltas. VLA sized off res_party_member_max so
+       experimental N != 4 parties don't outrun the buffer; +1 keeps
+       the slot indexing 0..N-1 safe even when the cap is 0. */
+    const int pm_max = res_party_member_max();
+    int32_t add[pm_max + 1];
+    memset(add, 0, sizeof add);
+
+    /* Hard ceiling on levels — matches the highest authored
+       xp_thresholds entry. Lifted to balance.level_up.max_level so
+       a longer thresholds table only needs the data edit. */
+    const int32_t max_level = res_int_path("balance.level_up.max_level");
 
     for_each_party_member(i) {
         pm_t pm = pm_cur(i);
         int32_t l = pm_level(pm);
         uint32_t e = pm_experience(pm);
-        for (int n = l + 1; n <= 28; n++) {
+        for (int n = l + 1; n <= max_level; n++) {
             int32_t need = res_xp_threshold(n);
             if (need <= 0 || e < (uint32_t)need) {
                 break;
@@ -681,18 +691,10 @@ void exp_check(void) {
         }
     }
 
-    /* PC_* ids are 1..6; the lowercased names here must match the
-       classes.<cls> shard keys in world.json5. Missing data returns
-       0 deltas (no-op). */
-    static const char *const pc_class_key[] = {
-        "",
-        "fighter",
-        "thief",
-        "mage",
-        "priest",
-        "bard",
-        "ranger",
-    };
+    /* §24bis phase 3: pm_class_sym already returns the lowercase
+       enum key ("fighter" / "thief" / ...) — the same string the
+       classes.<cls> shard keys carry. Missing-class members surface
+       "" and res_class_levelup returns 0 (no-op). */
     for_each_party_member(i) {
         if (add[i]) {
             pm_t pm = pm_cur(i);
@@ -708,13 +710,18 @@ void exp_check(void) {
             tx0(res_text("battle.expgain.exp_levels"));
             ryl_delay(600);
             pm_add_level(pm, add[i]);
-            int cl_id = pm_class_id(pm);
-            const char *cls = (cl_id >= 1 && cl_id <= 6) ? pc_class_key[cl_id] : "";
+            const char *cls = pm_class_sym(pm);
             pm_add_weapon_skill(pm, res_class_levelup(cls, "weapon_skill"));
             pm_add_health(pm, res_class_levelup(cls, "health"));
             pm_add_wisdom(pm, res_class_levelup(cls, "wisdom"));
             pm_add_charisma(pm, res_class_levelup(cls, "charisma"));
-            pm_hit_points_floor(pm, (pm_health(pm) * 2) / 3);
+            res_binding hp_binds[] = {
+                {"health", pm_health(pm)},
+            };
+            size_t hp_n = sizeof hp_binds / sizeof hp_binds[0];
+            pm_hit_points_floor(pm,
+                                res_formula_int_n("level_up_hp_floor",
+                                                  hp_binds, hp_n));
         }
     }
 }
