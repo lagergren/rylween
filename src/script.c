@@ -727,6 +727,22 @@ static int32_t ie_wld_location_x(const int32_t *a) {
 static int32_t ie_wld_location_y(const int32_t *a) {
     return wld_location_y((int)a[0]);
 }
+/* Inventory letter ('A'..'P') → 1-indexed slot, or 0 if out of range.
+   Pairs with `engine_int 'key_upper'` to power inv-list prompts in
+   the subs.equipment.equip DSL (and the parallel battle drink/quaff
+   slot picker if a future lift wants it). */
+static int32_t ie_inv_slot_from_letter(const int32_t *a) {
+    return inv_slot_from_letter((char)a[0]);
+}
+/* item_is_weapon / item_is_armor: predicate engine_ints used by
+   subs.equipment.equip DSL to validate the picked inventory slot
+   carries an item of the requested kind before the swap. */
+static int32_t ie_item_is_weapon(const int32_t *a) {
+    return item_is_weapon((int)a[0]);
+}
+static int32_t ie_item_is_armor(const int32_t *a) {
+    return item_is_armor((int)a[0]);
+}
 
 /* §23.A: monster nasty-magic frost target pick. Mirrors the legacy
    `while (1) { who = ryl_random(0, max-1); if (pa_is_alive(who)) break; }`
@@ -846,6 +862,9 @@ static const int_engine_entry int_engine_tbl[] = {
     {"inv_find_item", 1, ie_inv_find_item, {"item"}},
     {"inv_find_in_range", 2, ie_inv_find_in_range, {"item", "item"}},
     {"inv_count_in_range", 2, ie_inv_count_in_range, {"item", "item"}},
+    {"inv_slot_from_letter", 1, ie_inv_slot_from_letter, {0}},
+    {"item_is_weapon", 1, ie_item_is_weapon, {"item"}},
+    {"item_is_armor", 1, ie_item_is_armor, {"item"}},
     {"pa_party_member_max", 0, ie_pa_party_member_max, {0}},
     {"inv_slot_max", 0, ie_inv_slot_max, {0}},
     {"wld_location_x", 1, ie_wld_location_x, {"world_locations"}},
