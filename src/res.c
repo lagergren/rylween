@@ -201,6 +201,15 @@ static size_t n_wilderness_keys;
 static mission_trigger *missions_tab;
 static size_t n_missions;
 
+/* Named screen regions (data/world.json5 screen:). Indexed by the
+   screen_region enum; missing regions stay zero-initialized so a
+   bad call returns (0, 0) without crashing. width/height are 0
+   for point-only regions (top_left, statusline_*). */
+typedef struct {
+    int x, y, w, h;
+} ryl_screen_region;
+static ryl_screen_region screen_regions[SCR_REGION_COUNT];
+
 /* Cold-start realization knobs (port-plan §15.4). npc_slack is the
    `slack` term added to ceil(N/T) when computing the per-bin cap for
    the capacity-capped NPC draw in res_realize_npcs(). Default matches
@@ -2952,6 +2961,109 @@ const struct mission_trigger *res_mission_at(int idx) {
     return &missions_tab[idx];
 }
 
+/* -------- screen subtree --------
+   Named cursor positions / erase dims for the four fixed regions.
+   Each entry is `{x, y, w?, h?}`; w/h omitted for the point-only
+   regions. Folder skips unknown region names — adding a new entry
+   in JSON5 without bumping screen_region in res.h is a silent
+   no-op (the data won't be readable). */
+static screen_region parse_screen_region(const char *s) {
+    if (strcmp(s, "text_window") == 0) {
+        return SCR_TEXT_WINDOW;
+    }
+    if (strcmp(s, "top_left") == 0) {
+        return SCR_TOP_LEFT;
+    }
+    if (strcmp(s, "statusline_top") == 0) {
+        return SCR_STATUSLINE_TOP;
+    }
+    if (strcmp(s, "statusline_bottom") == 0) {
+        return SCR_STATUSLINE_BOTTOM;
+    }
+    if (strcmp(s, "map_window") == 0) {
+        return SCR_MAP_WINDOW;
+    }
+    return SCR_REGION_COUNT; /* sentinel */
+}
+
+static void fold_screen(const node *screen_node, const char *path) {
+    if (!screen_node) {
+        return;
+    }
+    if (screen_node->kind != N_OBJ) {
+        res_die(path, screen_node->line, "screen: expected object");
+    }
+    for (size_t i = 0; i < screen_node->u.obj.n; i++) {
+        const char *name = screen_node->u.obj.items[i].key;
+        const node *rec = screen_node->u.obj.items[i].val;
+        screen_region r = parse_screen_region(name);
+        if (r >= SCR_REGION_COUNT) {
+            res_die(path, rec ? rec->line : screen_node->line,
+                    "screen: unknown region name");
+        }
+        if (!rec || rec->kind != N_OBJ) {
+            res_die(path, rec ? rec->line : screen_node->line,
+                    "screen: entry must be object");
+        }
+        const node *xn = obj_get(rec, "x");
+        const node *yn = obj_get(rec, "y");
+        const node *wn = obj_get(rec, "w");
+        const node *hn = obj_get(rec, "h");
+        if (!xn || xn->kind != N_INT || !yn || yn->kind != N_INT) {
+            res_die(path, rec->line, "screen: x/y int required");
+        }
+        screen_regions[r].x = (int)xn->u.iv;
+        screen_regions[r].y = (int)yn->u.iv;
+        screen_regions[r].w = (wn && wn->kind == N_INT) ? (int)wn->u.iv : 0;
+        screen_regions[r].h = (hn && hn->kind == N_INT) ? (int)hn->u.iv : 0;
+    }
+}
+
+static void reset_screen(void) {
+    for (int i = 0; i < SCR_REGION_COUNT; i++) {
+        screen_regions[i].x = 0;
+        screen_regions[i].y = 0;
+        screen_regions[i].w = 0;
+        screen_regions[i].h = 0;
+    }
+}
+
+void res_screen_xy(screen_region r, int *x, int *y) {
+    if (r >= SCR_REGION_COUNT) {
+        if (x) {
+            *x = 0;
+        }
+        if (y) {
+            *y = 0;
+        }
+        return;
+    }
+    if (x) {
+        *x = screen_regions[r].x;
+    }
+    if (y) {
+        *y = screen_regions[r].y;
+    }
+}
+
+void res_screen_wh(screen_region r, int *w, int *h) {
+    if (r >= SCR_REGION_COUNT) {
+        if (w) {
+            *w = 0;
+        }
+        if (h) {
+            *h = 0;
+        }
+        return;
+    }
+    if (w) {
+        *w = screen_regions[r].w;
+    }
+    if (h) {
+        *h = screen_regions[r].h;
+    }
+}
+
 /* -------- limits subtree --------
    Scalar tuning knobs for cold-start realization. Missing keys keep
    their static defaults (set above); a present key overrides. */
@@ -3615,6 +3727,7 @@ void res_load_world(const char *path) {
     fold_town_keys(obj_get(root, "town_keys"), path);
     fold_wilderness_keys(obj_get(root, "wilderness_keys"), path);
     fold_missions(obj_get(root, "missions"), path);
+    fold_screen(obj_get(root, "screen"), path);
     fold_limits(obj_get(root, "limits"), path);
     fold_map_dims(obj_get(root, "map"), path);
     fold_enums(obj_get(root, "enums"), path);
@@ -4263,6 +4376,7 @@ void res_shutdown(void) {
     reset_town_keys();
     reset_wilderness_keys();
     reset_missions();
+    reset_screen();
     /* Free per-NPC visited[] BEFORE invalidating npc_slot_max_cache —
        for_each_npc reads the cached count, and the cache invalidation
        below clears it. world_tree is still alive at this point so any

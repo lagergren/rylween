@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "res.h"
+
 /* Terminal primitives — thin wrappers over the io_ops vtable selected at
    boot (io_tty for local play). Every call-site used to reach these via
    the ryl.h umbrella; splitting them out makes the dependency explicit. */
@@ -65,6 +67,8 @@ void clean_exit(void);
 __attribute__((noreturn)) void ryl_die(const char *msg);
 void cl(void);
 void c(uint8_t, uint8_t);
+void screen_goto(screen_region r);
+void screen_goto_map_row(int row);
 void clw(void);
 void ryl_pause(void);
 uint8_t hot_key(void);

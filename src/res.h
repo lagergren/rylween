@@ -426,6 +426,23 @@ int res_missions_count(void);
 struct mission_trigger; /* forward decl — missions.h owns the layout */
 const struct mission_trigger *res_mission_at(int idx);
 
+/* Named screen regions (data/world.json5 screen:). Each region
+   carries (x, y) cursor anchor; map_window and text_window also
+   carry (w, h) erase dims. Adding a region: new enum value + new
+   data record + a wired call site (typically primitives.c:
+   screen_goto). Out-of-range region values fall back to (0, 0) and
+   width/height 0 — the caller misbehaves rather than crashing. */
+typedef enum {
+    SCR_TEXT_WINDOW = 0,
+    SCR_TOP_LEFT,
+    SCR_STATUSLINE_TOP,
+    SCR_STATUSLINE_BOTTOM,
+    SCR_MAP_WINDOW,
+    SCR_REGION_COUNT,
+} screen_region;
+void res_screen_xy(screen_region r, int *x, int *y);
+void res_screen_wh(screen_region r, int *w, int *h);
+
 /* §15 step 3: realize NPC placements from data/world.json5 npcs:.
    Populates state.npc[0..slot_max-1]. Each spec entry is either
    FIXED (towne declared — apply job/towne/building/x/y verbatim) or

@@ -41,6 +41,23 @@ void c(uint8_t x, uint8_t y) {
     io->write(pos, (size_t)n);
 }
 
+/* Move the cursor to a named region's anchor, looking up (x, y) from
+   data/world.json5 screen:. Wraps c() so the call sites read as
+   intent ("park at the text window") rather than literal coords. */
+void screen_goto(screen_region r) {
+    int x, y;
+    res_screen_xy(r, &x, &y);
+    c((uint8_t)x, (uint8_t)y);
+}
+
+/* Move to row `row` (0-indexed) of map_window's anchor x. Used by
+   gfx.c::clr_map_window's per-row erase loop. */
+void screen_goto_map_row(int row) {
+    int x, y;
+    res_screen_xy(SCR_MAP_WINDOW, &x, &y);
+    c((uint8_t)x, (uint8_t)(y + row));
+}
+
 /* Write `s` to the terminal, prefixing each line with a CR + cursor-
    right jump (\r ESC[<global_x>C) so multi-line content stays inside
    the right text window regardless of where the cursor was when this
@@ -288,11 +305,11 @@ int ryl_menu(const char *screen_text_id, const ryl_menu_opt *opts) {
 void clw(void) {
     int32_t i;
 
-    c(49, 6);
+    screen_goto(SCR_TEXT_WINDOW);
     for (i = 1; i < 12; i++) {
         tx("                          \r\n");
     }
-    c(49, 6);
+    screen_goto(SCR_TEXT_WINDOW);
 }
 
 static uint8_t carrier(void) {
@@ -352,10 +369,10 @@ char key(void) {
     if (!carrier()) {
         clean_exit();
     }
-    c(0, 0);
+    screen_goto(SCR_TOP_LEFT);
     tx(ANSI_FG_BLACK);
     ch = io->getch();
-    c(49, 6);
+    screen_goto(SCR_TEXT_WINDOW);
     tx(ANSI_FG_WHITE);
 
     if (ch < 0) {
@@ -400,7 +417,7 @@ void ryl_pause(void) {
     int n = res_pause_verb_count();
     const char *verb = (n > 0) ? res_pause_verb(ryl_random(0, n - 1)) : NULL;
     tx("(%s RETURN key)\r\n", verb ? verb : "Press");
-    c(0, 0);
+    screen_goto(SCR_TOP_LEFT);
     tx(ANSI_FG_BLACK);
     while (1) {
         ch = io->getch();
@@ -412,7 +429,7 @@ void ryl_pause(void) {
         }
     }
     tx(ANSI_FG_WHITE);
-    c(49, 6);
+    screen_goto(SCR_TEXT_WINDOW);
 }
 
 void disp_text(char *namn) {

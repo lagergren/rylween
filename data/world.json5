@@ -570,6 +570,28 @@
   // entry-by-entry comments.
   missions: { $import: 'world/missions.json5' },
 
+  // Named cursor positions / window dimensions for the four fixed
+  // screen regions the engine writes to. Lifted from inline c(x, y)
+  // calls in driv.c / primitives.c / gfx.c — adding a new region
+  // requires both a new entry here and a new screen_region enum
+  // value in src/res.h.
+  //   - text_window:       right-hand text pane; clw() erases
+  //                        h rows of w spaces starting at (x, y).
+  //   - top_left:          (0, 0) cursor park; key()/ryl_pause()
+  //                        hide the cursor here under FG_BLACK.
+  //   - statusline_top:    upper status row in driv.c::status_line.
+  //   - statusline_bottom: lower status row in driv.c::status_line.
+  //   - map_window:        left-hand map pane; clr_map_window erases
+  //                        h rows of w spaces; blitgfx renders the
+  //                        tile .ans at (x, y).
+  screen: {
+    text_window:       { x: 49, y:  6, w: 26, h: 11 },
+    top_left:          { x:  0, y:  0 },
+    statusline_top:    { x:  3, y: 21 },
+    statusline_bottom: { x: 13, y: 22 },
+    map_window:        { x:  8, y:  6, w: 16, h:  9 },
+  },
+
   // Castle Ydarg per-floor map dimensions. Each of the four floors
   // is a `size x size` grid (1-indexed; slot 0 is the unused C-array
   // padding). ydarg.c reads this once per ydarg() entry to seed the

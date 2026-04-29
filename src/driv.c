@@ -76,10 +76,10 @@ static void driv_redraw(void) {
 static void driv_journal(void) {
     char path[64];
     cl();
-    c(0, 0);
+    screen_goto(SCR_TOP_LEFT);
     show_journal();
     cl();
-    c(49, 6);
+    screen_goto(SCR_TEXT_WINDOW);
     clw();
     res_ansi_path("screen", path, sizeof path);
     disp_text(path);
@@ -337,16 +337,16 @@ void status_line() {
     str_append(stline, sizeof stline, str);
     snprintf(str, sizeof str, "AU: [33m%6d[32m", pa_gold());
     str_append(stline, sizeof stline, str);
-    c(3, 21);
+    screen_goto(SCR_STATUSLINE_TOP);
     tx("[32m%s    ", stline);
     snprintf(stline, sizeof stline, "H1: [33m%3d/%3d   [32mH2: [33m%3d/%3d   [32mH3: [33m%3d/%3d   [32mH4: [33m%3d/%3d[37m",
              pm_hit_points(pm_cur(0)), pm_health(pm_cur(0)),
              pm_hit_points(pm_cur(1)), pm_health(pm_cur(1)),
              pm_hit_points(pm_cur(2)), pm_health(pm_cur(2)),
              pm_hit_points(pm_cur(3)), pm_health(pm_cur(3)));
-    c(13, 22);
+    screen_goto(SCR_STATUSLINE_BOTTOM);
     tx("%s\r\n", stline);
-    c(49, 6);
+    screen_goto(SCR_TEXT_WINDOW);
 }
 static void position_locations() {
     for (int i = 0; i < res_location_slot_max(); i++) {
@@ -382,7 +382,7 @@ void init() {
 
     res_map_path(path, sizeof path);
     if (!(fh = fopen(path, "rb"))) {
-        c(49, 6);
+        screen_goto(SCR_TEXT_WINDOW);
         clw();
         tx0(res_text("driv.init.no_map"));
         ryl_pause();
@@ -497,7 +497,7 @@ void init() {
                 tx0(res_text("driv.more"));
                 key();
                 cl();
-                c(49, 6);
+                screen_goto(SCR_TEXT_WINDOW);
                 clw();
                 res_ansi_path("screen", path, sizeof path);
                 disp_text(path);
@@ -512,7 +512,7 @@ void init() {
                     tx0(res_text("driv.more"));
                     key();
                     cl();
-                    c(49, 6);
+                    screen_goto(SCR_TEXT_WINDOW);
                     clw();
                     res_ansi_path("screen", path, sizeof path);
                     disp_text(path);
@@ -529,7 +529,7 @@ void init() {
                 tx0(res_text("driv.more"));
                 key();
                 cl();
-                c(49, 6);
+                screen_goto(SCR_TEXT_WINDOW);
                 clw();
                 res_ansi_path("screen", path, sizeof path);
                 disp_text(path);
@@ -542,7 +542,7 @@ void init() {
                 tx0(res_text("driv.more"));
                 key();
                 cl();
-                c(49, 6);
+                screen_goto(SCR_TEXT_WINDOW);
                 clw();
                 res_ansi_path("screen", path, sizeof path);
                 disp_text(path);
