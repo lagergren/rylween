@@ -734,7 +734,8 @@ static void wcw_byte_arr(FILE *f, const unsigned char *a, int n) {
 static void wcw_party_flags(FILE *f, const struct party *p) {
     fputs("{", f);
     int first = 1;
-    for (size_t slot = 0; slot < sizeof p->flag; slot++) {
+    size_t flag_n = (size_t)res_party_flag_max();
+    for (size_t slot = 0; slot < flag_n; slot++) {
         unsigned v = p->flag[slot];
         if (!v) {
             continue;
@@ -1230,7 +1231,7 @@ static int read_current_world(void) {
                 }
             }
 
-            rcw_party_flags(pnode, p->flag, sizeof p->flag);
+            rcw_party_flags(pnode, p->flag, (size_t)res_party_flag_max());
             p->fireshield = (unsigned char)rcw_int(pnode, "fireshield", p->fireshield);
             p->bracelets = (unsigned char)rcw_int(pnode, "bracelets", p->bracelets);
             p->mastercrown = (unsigned char)rcw_int(pnode, "mastercrown", p->mastercrown);
@@ -1584,7 +1585,7 @@ static void create_party(void) {
     p->jazzyfoot = 0;
     p->silverkey = 0;
     memset(p->inventory, 0, sizeof p->inventory);
-    memset(p->flag, 0, sizeof p->flag);
+    memset(p->flag, 0, (size_t)res_party_flag_max());
     for_each_party_member(i) {
         pm_t pm = pm_of(p, i);
         pm_set_level(pm, 1);

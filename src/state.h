@@ -66,6 +66,11 @@ int res_party_member_max(void);
    in res.c. */
 int res_party_slot_max(void);
 
+/* Forward decl: per-party flag-byte cap (drives struct party.flag's
+   heap allocation). Default PARTY_FLAG_HARD_MAX; world.json5
+   `limits.party_flag_max` overrides. Implemented in res.c. */
+int res_party_flag_max(void);
+
 /* Sentinel value for `struct person.towne` (NPC placed in the
    wilderness) and `state.twn` (player not standing in any town).
    Distinct from any valid towns[] slot id — towns are 0-indexed
@@ -92,6 +97,17 @@ int res_party_slot_max(void);
    `res_party_slot_max() - 1` with "all parties created". */
 #define NPC_SLOT_HARD_MAX   41
 #define PARTY_SLOT_HARD_MAX 26
+
+/* Per-party flag-byte array static cap. The runtime-active count
+   comes from `res_party_flag_max()`; struct party.flag is heap-
+   allocated to that size at party_realize time. PARTY_FLAG_HARD_MAX
+   is the defensive ceiling that fold_flags refuses to allocate
+   beyond — every flag declared in data/world.json5 flags: must fit
+   below it. The default also matches the legacy storage shape;
+   bumping requires no save-format change since the on-disk emit is
+   `{ tag: "value", ... }` keyed (driv.c::wcw_party_flags) rather
+   than positional. */
+#define PARTY_FLAG_HARD_MAX 40
 
 /* World-map static-ceiling dimensions. The runtime capacity comes
    from `world.json5 map.rows_max` / `map.cols_max` via
@@ -178,7 +194,14 @@ struct party {
        per-field heap arrays the SoA layout used pre-§24bis phase 4. */
     struct party_member *members;
 
-    unsigned char flag[40];
+    /* Per-quest mission-flag byte array. Heap-allocated by party_realize
+       to res_party_flag_max() bytes; freed by party_release_members.
+       Slot ids come from data/world.json5 flags: (every tag declares a
+       fixed slot). The legacy on-disk shape was a positional `flag:
+       [...]` array; today's save shape is a tag-keyed `flags: { tag:
+       "value", ... }` (driv.c::wcw_party_flags) so cap-bumps don't
+       affect old saves. */
+    unsigned char *flag;
 
     unsigned char fireshield;
     unsigned char bracelets;

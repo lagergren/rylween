@@ -593,6 +593,17 @@ int res_party_member_max(void);
    new-party creation against this. */
 int res_party_slot_max(void);
 
+/* Per-party flag-byte cap. `struct party.flag` is heap-allocated to
+   res_party_flag_max() bytes by party_realize; pa_flag_count() and
+   the save/load + snapshot iteration bounds resolve through this.
+   Defaults to PARTY_FLAG_HARD_MAX (40); overrideable via
+   limits.party_flag_max with a `>= 1` lower bound and the
+   PARTY_FLAG_HARD_MAX defensive ceiling. fold_flags also rejects any
+   data/world.json5 flag whose slot doesn't fit. The on-disk save
+   shape (`flags: { tag: "value", ... }`) is tag-keyed so bumping the
+   cap does not require a save-format migration. */
+int res_party_flag_max(void);
+
 /* Storage capacity of state.map[][]. `state.map` is heap-allocated to
    res_map_rows_max() × res_map_cols_max() bytes at world-load time;
    wld.c access goes through `state.map[y * cols + x]`. Defaults

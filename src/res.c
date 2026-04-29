@@ -276,6 +276,12 @@ static int32_t party_member_max = PARTY_MEMBER_MAX;
    source of truth. */
 static int32_t party_slot_max = PARTY_SLOT_HARD_MAX;
 
+/* Per-party mission-flag byte-array cap. Drives struct party.flag's
+   heap allocation in party_realize. Default matches PARTY_FLAG_HARD_
+   MAX; overrideable via limits.party_flag_max with PARTY_FLAG_HARD_
+   MAX as the defensive upper bound. */
+static int32_t party_flag_max = PARTY_FLAG_HARD_MAX;
+
 /* Flags table (docs/dsl.md §3.1). Symbolic name -> {slot, scope, values}.
    Populated from data/world.json5 flags subtree; empty until world loads. */
 typedef struct {
@@ -1754,6 +1760,10 @@ int res_party_slot_max(void) {
     return (int)party_slot_max;
 }
 
+int res_party_flag_max(void) {
+    return (int)party_flag_max;
+}
+
 /* Map capacity dims. fold_limits validates the world's `map.rows_max`
    / `map.cols_max` against MAP_*_HARD_MAX and stashes them here so
    wld.c access (per-tile, hot path) doesn't re-walk the world tree
@@ -2029,6 +2039,10 @@ static void fold_flags(const node *flags_node, const char *path) {
         const node *slot_n = obj_get(rec, "slot");
         if (!slot_n || slot_n->kind != N_INT) {
             res_die(path, rec->line, "flags: missing 'slot'");
+        }
+        if (slot_n->u.iv < 0 || slot_n->u.iv >= PARTY_FLAG_HARD_MAX) {
+            res_die(path, slot_n->line,
+                    "flags: slot out of range [0, PARTY_FLAG_HARD_MAX)");
         }
         const node *scope_n = obj_get(rec, "scope");
         int32_t scope = 0;
@@ -3376,6 +3390,18 @@ static void fold_limits(const node *limits_node, const char *path) {
         }
         party_slot_max = psm->u.iv;
     }
+    const node *pfm = obj_get(limits_node, "party_flag_max");
+    if (pfm) {
+        if (pfm->kind != N_INT) {
+            res_die(path, pfm->line,
+                    "limits.party_flag_max: expected integer");
+        }
+        if (pfm->u.iv < 1 || pfm->u.iv > PARTY_FLAG_HARD_MAX) {
+            res_die(path, pfm->line,
+                    "limits.party_flag_max: must be in 1..PARTY_FLAG_HARD_MAX");
+        }
+        party_flag_max = pfm->u.iv;
+    }
     const node *lsm = obj_get(limits_node, "location_slot_max");
     if (lsm) {
         if (lsm->kind != N_INT) {
@@ -3407,6 +3433,20 @@ static void fold_limits(const node *limits_node, const char *path) {
         res_die(path, limits_node->line,
                 "limits.random_location_max must be < location_slot_max");
     }
+    /* Cross-check every party-scope flag's slot fits in party_flag_max.
+       fold_flags already validates against PARTY_FLAG_HARD_MAX; the
+       runtime cap may be tighter, in which case a flag declared past
+       it would silently overflow on first read. fold_limits runs after
+       fold_flags so flags_tab is already populated here. */
+    for (size_t i = 0; i < n_flags_tab; i++) {
+        if (flags_tab[i].scope != 0) {
+            continue;
+        }
+        if (flags_tab[i].slot >= party_flag_max) {
+            res_die(path, limits_node->line,
+                    "limits.party_flag_max too small for declared flag slots");
+        }
+    }
 }
 
 static void reset_limits(void) {
@@ -3414,6 +3454,7 @@ static void reset_limits(void) {
     inventory_slot_max = INVENTORY_SLOT_MAX;
     party_member_max = PARTY_MEMBER_MAX;
     party_slot_max = PARTY_SLOT_HARD_MAX;
+    party_flag_max = PARTY_FLAG_HARD_MAX;
     map_rows_max = MAP_ROWS_HARD_MAX;
     map_cols_max = MAP_COLS_HARD_MAX;
     location_slot_max = 15;

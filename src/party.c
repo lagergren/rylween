@@ -172,7 +172,7 @@ static int pa_flag_slot(const char *tag) {
               tag);
         exit(1);
     }
-    if (slot >= (int32_t)sizeof state.p[state.cpl].flag) {
+    if (slot >= res_party_flag_max()) {
         LOG_E("party", "pa_flag: tag '%s' slot %d out of range", tag, slot);
         exit(1);
     }
@@ -204,8 +204,7 @@ void pa_flag_set(const char *tag, const char *state_name) {
 }
 
 int pa_flag_count(void) {
-    return (int)(sizeof state.p[state.cpl].flag /
-                 sizeof state.p[state.cpl].flag[0]);
+    return res_party_flag_max();
 }
 
 static void pa_check_flag_slot(const char *who, int slot) {
@@ -449,6 +448,16 @@ void party_realize(struct party *p) {
               at_slots);
         exit(1);
     }
+
+    /* flag[] is per-party, sized to res_party_flag_max() so every slot
+       in data/world.json5 flags: has a byte. Calloc'd so the default
+       state for every quest is its 'none' / 'no' value. */
+    size_t fl_slots = (size_t)res_party_flag_max();
+    p->flag = calloc(fl_slots, sizeof *p->flag);
+    if (!p->flag) {
+        LOG_E("party", "party_realize: calloc flag(%zu) failed", fl_slots);
+        exit(1);
+    }
 }
 
 void party_release_members(struct party *p) {
@@ -459,6 +468,8 @@ void party_release_members(struct party *p) {
     p->members = NULL;
     free(p->attack_today);
     p->attack_today = NULL;
+    free(p->flag);
+    p->flag = NULL;
 }
 
 void party_clear_heap_pointers(struct party *p) {
@@ -467,6 +478,7 @@ void party_clear_heap_pointers(struct party *p) {
     }
     p->members = NULL;
     p->attack_today = NULL;
+    p->flag = NULL;
     p->journal = NULL;
     p->journal_n = 0;
     p->journal_cap = 0;

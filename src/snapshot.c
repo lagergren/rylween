@@ -35,7 +35,8 @@ static void emit_party(FILE *f, int idx) {
        walk slots 0..N, look up each slot's tag. */
     fputs("flags=", f);
     int first = 1;
-    for (size_t slot = 0; slot < sizeof p->flag; slot++) {
+    size_t flag_n = (size_t)res_party_flag_max();
+    for (size_t slot = 0; slot < flag_n; slot++) {
         unsigned v = p->flag[slot];
         if (!v) {
             continue;
