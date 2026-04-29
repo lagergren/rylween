@@ -73,6 +73,30 @@
     first_day: 'First Game of the Day... Updating... Please Wait...',
   },
 
+  // status_line(): TIME / status-bucket labels (one of four time buckets
+  // selected via world.json5 status.time_buckets, plus three pa_food()-
+  // bucketed status labels). Plain-string form (no array) so each label
+  // is emitted verbatim — they're concatenated with the X/Y/FD/MV/AU
+  // fields built inline in driv.c, and the trailing whitespace inside
+  // each label maintains the column alignment of the next field. ANSI
+  // colors stay embedded; the per-bucket color (yellow [33m for OK /
+  // time / FD/MV/AU values, magenta [35m for HUNGRY, red [31m for
+  // STARVING) is part of the label and a closing [32m (green) reset
+  // appears where the next field doesn't open with its own [32m.
+  statusline: {
+    time: {
+      dawn:     'TIME: [33mDAWN[32m      ',
+      midday:   'TIME: [33mMIDDAY[32m    ',
+      twilight: 'TIME: [33mTWILIGHT[32m  ',
+      midnight: 'TIME: [33mMIDNIGHT[32m  ',
+    },
+    status: {
+      hungry:   'ST: [35mHUNGRY  ',
+      starving: 'ST: [31mSTARVING[32m ',
+      ok:       'ST: [33mOK    ',
+    },
+  },
+
   // Baron Ydarg already defeated: game-over banner. {party_name} is the
   // name of the victorious party, folded in via tx_fmt (§16.3).
   struggle: {

@@ -3064,6 +3064,46 @@ void res_screen_wh(screen_region r, int *w, int *h) {
     }
 }
 
+/* Walk world_tree.status.time_buckets, returning the `label` of the
+   first entry whose [lo, hi] range contains `hour`. lo > hi wraps
+   around midnight (mirrors is_hour_in_range). Cold path — called
+   once per status_line redraw — so a runtime tree walk is fine; no
+   fold-time table needed. Returns "" on miss / malformed table. */
+const char *res_status_time_label(int hour) {
+    if (!world_tree) {
+        return "";
+    }
+    const node *status = obj_get(world_tree, "status");
+    if (!status || status->kind != N_OBJ) {
+        return "";
+    }
+    const node *buckets = obj_get(status, "time_buckets");
+    if (!buckets || buckets->kind != N_ARR) {
+        return "";
+    }
+    for (size_t i = 0; i < buckets->u.arr.n; i++) {
+        const node *row = buckets->u.arr.items[i];
+        if (!row || row->kind != N_OBJ) {
+            continue;
+        }
+        const node *lo_n = obj_get(row, "lo");
+        const node *hi_n = obj_get(row, "hi");
+        const node *label_n = obj_get(row, "label");
+        if (!lo_n || lo_n->kind != N_INT || !hi_n || hi_n->kind != N_INT ||
+            !label_n || label_n->kind != N_STR) {
+            continue;
+        }
+        int lo = (int)lo_n->u.iv;
+        int hi = (int)hi_n->u.iv;
+        int match = (lo <= hi) ? (hour >= lo && hour <= hi)
+                               : (hour >= lo || hour <= hi);
+        if (match) {
+            return label_n->u.sv;
+        }
+    }
+    return "";
+}
+
 /* -------- limits subtree --------
    Scalar tuning knobs for cold-start realization. Missing keys keep
    their static defaults (set above); a present key overrides. */

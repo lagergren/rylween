@@ -326,27 +326,19 @@ void status_line(void) {
     if (pa_food() < 0) {
         pa_set_food(0);
     }
-    stline[0] = 0;
-    if (is_hour_in_range(6, 11)) {
-        snprintf(stline, sizeof stline, "TIME: [33mDAWN[32m      ");
-    }
-    if (is_hour_in_range(12, 17)) {
-        snprintf(stline, sizeof stline, "TIME: [33mMIDDAY[32m    ");
-    }
-    if (is_hour_in_range(18, 23)) {
-        snprintf(stline, sizeof stline, "TIME: [33mTWILIGHT[32m  ");
-    }
-    if (is_hour_in_range(24, 5)) {
-        snprintf(stline, sizeof stline, "TIME: [33mMIDNIGHT[32m  ");
-    }
+    snprintf(stline, sizeof stline, "%s",
+             res_text(res_status_time_label(session_hour())));
     if (pa_food() < pa_pl() * 3 && pa_food()) {
-        str_append(stline, sizeof stline, "ST: [35mHUNGRY  ");
+        str_append(stline, sizeof stline,
+                   res_text("driv.statusline.status.hungry"));
     }
     if (!pa_food()) {
-        str_append(stline, sizeof stline, "ST: [31mSTARVING[32m ");
+        str_append(stline, sizeof stline,
+                   res_text("driv.statusline.status.starving"));
     }
     if (pa_food() && pa_food() >= pa_pl() * 3) {
-        str_append(stline, sizeof stline, "ST: [33mOK    ");
+        str_append(stline, sizeof stline,
+                   res_text("driv.statusline.status.ok"));
     }
     snprintf(str, sizeof str, "[32m X: [33m%2d   [32mY: [33m%2d[32m     ", pa_x(), pa_y());
     str_append(stline, sizeof stline, str);

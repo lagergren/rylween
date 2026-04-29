@@ -593,6 +593,21 @@
     map_window:        { x:  8, y:  6, w: 16, h:  9 },
   },
 
+  // Statusline content driving driv.c::status_line. Hour labels are
+  // bucketed into [lo, hi] inclusive ranges (lo > hi wraps midnight,
+  // matching is_hour_in_range); res_status_time_label walks the table
+  // top-to-bottom and returns the first bucket whose range contains
+  // the current hour. Adding a fifth bucket = one entry here + one
+  // text record under driv.statusline.time.
+  status: {
+    time_buckets: [
+      { lo:  6, hi: 11, label: 'driv.statusline.time.dawn'     },
+      { lo: 12, hi: 17, label: 'driv.statusline.time.midday'   },
+      { lo: 18, hi: 23, label: 'driv.statusline.time.twilight' },
+      { lo: 24, hi:  5, label: 'driv.statusline.time.midnight' },
+    ],
+  },
+
   // Castle Ydarg per-floor map dimensions. Each of the four floors
   // is a `size x size` grid (1-indexed; slot 0 is the unused C-array
   // padding). ydarg.c reads this once per ydarg() entry to seed the

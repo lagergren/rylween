@@ -443,6 +443,13 @@ typedef enum {
 void res_screen_xy(screen_region r, int *x, int *y);
 void res_screen_wh(screen_region r, int *w, int *h);
 
+/* Statusline TIME label lookup (data/world.json5 status.time_buckets).
+   Walks the table top-to-bottom; each entry has [lo, hi] hour bounds
+   (lo > hi wraps midnight, mirroring is_hour_in_range) and a label text
+   id resolvable via res_text. Returns the label of the first matching
+   bucket, or "" if no bucket covers `hour`. */
+const char *res_status_time_label(int hour);
+
 /* §15 step 3: realize NPC placements from data/world.json5 npcs:.
    Populates state.npc[0..slot_max-1]. Each spec entry is either
    FIXED (towne declared — apply job/towne/building/x/y verbatim) or
