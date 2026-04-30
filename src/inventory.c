@@ -203,6 +203,12 @@ void party_award_special(int which) {
    it into texts (one text-id per kind would let new kinds be data-
    only). Each kind owns its own ryl_pause + clw beats so the caller
    sees a single "use this potion on this member" entry point. */
+// TODO(dsl-port): lift the per-kind narration below into texts. Target
+//   shape in full.dsl.kts: each potion's `effect { say(...); ... }` body
+//   already names the text ids (subs.apply_potion.heal / .poison /
+//   .restore_mana / .no_effect). When that lands, replace the strcmp
+//   ladder with a tx0(res_text(it->effect_text)) lookup driven by a new
+//   `effect_text` field on ryl_item.
 void apply_potion(int item_id, pm_t pm) {
     const ryl_item *it = res_item(item_id);
     if (!it || !it->effect_kind) {

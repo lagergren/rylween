@@ -1978,6 +1978,11 @@ void res_realize_npcs(void) {
                 while (1) {
                     n->x = ryl_random(8, 57);
                     n->y = ryl_random(8, 27);
+                    // TODO(dsl-port): x=48 is reserved for marcus the hermit
+                    //   (npcs.marcus { fixed = true; x = 48; y = 7 } in
+                    //   full.dsl.kts / world.json5). Replace the hardcoded
+                    //   cell-skip with a "fixed-NPC reserved tiles" lookup
+                    //   once npc placement reads that table directly.
                     if (n->x == 48) {
                         n->x++;
                     }

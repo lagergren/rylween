@@ -309,6 +309,10 @@ uint8_t drop(void) {
             tx_fmt("subs.drop.you_drop",
                    (ryl_bind[]){{"object", object(pa_inventory(slot))}, {0}});
             ryl_delay(1000);
+            // TODO(dsl-port): item id 47 is the donkey slug; replace
+            //   the magic constant with res_item_id("donkey") once the
+            //   slug-key lookup lands. Cap formula already data-driven
+            //   via res_formula_int("donkey_food_cap", ...).
             if (pa_inventory(slot) == 47) {
                 y = inv_count_in_range(47, 47) - 1;
                 int32_t cap = res_formula_int("donkey_food_cap", "y", y);
@@ -690,6 +694,13 @@ void score_list(void) {
                 xx = 1;
             }
         }
+        // TODO(dsl-port / C5): the special-items table is already declared
+        //   in full.dsl.kts under items.specials { fireshield / bracelets /
+        //   mastercrown / silverkey / jazzyfoot } with display names and
+        //   slot indices. When the C5 save-shape lift lands, drive this
+        //   block by iterating res_special_table() and reading the display
+        //   name + slot from data; remove the hardcoded names and the
+        //   item[i][1..5] indexing.
         if (item[i][1]) {
             fputs("  Fire Shield\n", fh);
         }
