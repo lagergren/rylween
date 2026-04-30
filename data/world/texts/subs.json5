@@ -1,0 +1,67 @@
+// subs.c text records: food_handler / equipment swap / drop / quaff /
+// town-priest spell prompt narration, plus the original faint /
+// lose_game screens. The cave-discovery prompt that subs.c uses lives
+// in data/world/texts/cave.json5 so the text ids retain their
+// historical top-level prefix.
+//
+// §17.A.4 slice D lifted the dispatcher narration in food_handler/
+// weapon_off/armor_off/weapon_ready/armor_ready/drop/quaff/spell. The
+// column-aligned priest spell list at subs.c::spell stays inline per
+// the §20 L6 / §17.A.4 slice B convention (column-aligned table rows
+// + their static "8. Abort" trailer).
+{
+  faint: ['You faint from lack', 'of well needed sleep.'],
+  lose_game: {
+    flavor: ['Alas, your party of',
+             'adventurers have all',
+             'gone to meet their',
+             'maker...',
+             ''],
+  },
+
+  // Shared across every "Who? (1-N)" prompt in subs.c (six callsites).
+  who_prompt: ['Who? (1-{party_max})'],
+  // Shared across the four "Dead." early-outs (weapon_ready/armor_ready/quaff/spell).
+  dead:       ['Dead.'],
+  // Shared across both "No room!" early-outs (weapon_off/armor_off).
+  no_room:    ['No room!'],
+
+  food_handler: {
+    tired:     ['You begin to feel tired'],
+    exhausted: ['You are exhausted!!!'],
+    weak:      ['You begin to feel weak', 'from lack of sleep.', ''],
+    starved:   ['{name} starved', 'to death!!!'],
+  },
+
+  // Tier B2 lift: weapon/armor variants live under a single
+  // `equipment.*` namespace, addressed by emit_indexed with the
+  // `kind` binding (`subs.equipment.no_{kind}` / `invalid_{kind}` /
+  // `changed_{kind}`). The shared "<obj> removed." line stays as-is.
+  equipment: {
+    no_weapon:      ['{pronoun} has no weapon!'],
+    no_armor:       ['{pronoun} has no armor!'],
+    removed:        ['{object} removed.'],
+    invalid_weapon: ['Not a valid weapon.'],
+    invalid_armor:  ['Not a valid armor.'],
+    changed_weapon: ['Weapon changed.'],
+    changed_armor:  ['Armor changed.'],
+  },
+
+  drop: {
+    you_drop:        ['You drop the', '{object}.'],
+    donkey_food_cap: ['You are forced to', 'leave some of your', 'food behind...'],
+    nothing:         ['Nothing to drop.'],
+    aborted:         ['Aborted.'],
+  },
+
+  quaff: {
+    prompt:  ['Quaff what?', ''],
+    invalid: ['Not valid.'],
+    gulp:    ['Gulp!', ''],
+  },
+
+  spell: {
+    mage_combat_only: ['Sorry. Mage spells are', 'combat-only.'],
+    wrong_class:      ['Wrong class.'],
+  },
+}

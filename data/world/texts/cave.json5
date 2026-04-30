@@ -1,0 +1,9 @@
+// Cave-discovery prompt / not-enough-moves message. Authored by subs.c
+// but kept under the `cave.*` prefix to preserve historical text ids.
+{
+  found_prompt: ['You find a cave!', '', '(E)nter', '(L)eave'],
+  no_moves:     ["You don't have enough",
+                 'moves left to explore',
+                 'the cave...',
+                 ''],
+}

@@ -1,0 +1,629 @@
+// §20 L2: dungeon level-event scripts. dungeon.c's main while-loop
+// dispatches by lvl[cl] — the integer encounter id stored in lvl[].
+// Every encounter is a `play_script("dungeon.<symbol>")` call; the
+// symbol matches the world.json5 enums.dungeon_encounter table.
+// (The legacy C switch was retired in §20 L2 step 7; dungeon.c is
+// now a 180-line dispatch loop.)
+//
+// Texts paired here live under data/world/texts/dungeon.json5; the
+// resolve_text_id "<script_id>.<name>" → "<parent>.<name>" two-step
+// (project_text_resolution.md) means scripts can reference text
+// names directly.
+//
+// Byte-identity convention: the C side calls clw() at the top of
+// every main-loop iteration before dispatch. Cases that had an extra
+// clw() in the body need an explicit { engine_call: 'clw' } here so
+// the output stream stays exactly equivalent.
+{
+  // case 6: "You find nothing special on this level."
+  // C side still does `lvl[cl] = 0` after play_script returns; the
+  // script owns only the visible side effects. No clw in the original
+  // body (the loop's leading clw is enough), so none here either.
+  nothing_a: [
+    { emit: 'nothing_a' },
+    { wait_input: true },
+  ],
+
+  // case 7: "This level is empty."
+  nothing_b: [
+    { emit: 'nothing_b' },
+    { wait_input: true },
+  ],
+
+  // case 26: Spectrum-Message wall plaque (Reebar's Tomb, level 12).
+  // Original body opens with an explicit clw(); preserve it so the
+  // byte stream is unchanged.
+  spectrum_message: [
+    { engine_call: 'clw' },
+    { emit: 'spectrum_message' },
+    { wait_input: true },
+  ],
+
+  // case 21: Fire Shield pedestal (Hermit's troll-tooth quest).
+  // Original closes with a second clw() before awarding. The
+  // reward op recognises 'fireshield' as a special and routes to
+  // party_award_special instead of inv_add (no output for specials).
+  fire_shield: [
+    { engine_call: 'clw' },
+    { emit: 'fire_shield' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { reward: { items: ['fireshield'] } },
+    { set_flag: 'hermit.troll_tooth', value: 'fire_shield_acquired' },
+  ],
+
+  // case 25: Bracelets of Thun chamber (Temple of Thun, bottom).
+  // Same shape as fire_shield: text → pause → clw → award special →
+  // record flag.
+  bracelets: [
+    { engine_call: 'clw' },
+    { emit: 'bracelets' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { reward: { items: ['bracelets'] } },
+    { set_flag: 'bracelets.thun', value: 'bracelets_taken' },
+  ],
+
+  // case 28: Nolrim's tomb dagger (Reebar dungeon, level 20). Plain
+  // text + flag set; no reward (the dagger isn't an inventory item,
+  // only the flag tracks it).
+  nolrim_tomb: [
+    { engine_call: 'clw' },
+    { emit: 'nolrim_tomb' },
+    { wait_input: true },
+    { set_flag: 'mastercrown', value: 'dagger_taken' },
+  ],
+
+  // ----- random cave events (recurring) -----
+  // case 3 / 4: weak-tier encounter. The original switch had two
+  // identical arms so the random fill `ryl_random(1,9)` would weight
+  // weak encounters 2/9 vs deep 1/9. The bias is preserved by
+  // keeping both symbols (same script, two enum slots).
+  encounter_weak_a: [
+    { encounter: { tier: 'weak' } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+  encounter_weak_b: [
+    { encounter: { tier: 'weak' } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+  // case 5: deep-tier encounter (rare, harder monsters).
+  encounter_deep: [
+    { encounter: { tier: 'deep' } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+
+  // case 2: random gold pile (40..339gp). No clw in the original
+  // body; the outer loop's leading clw covers it.
+  gold: [
+    { let: 'amount', value: { random: [40, 339] } },
+    { emit: 'gold' },
+    { mutate: { target: { gold: 0 }, op: 'add', value: { var: 'amount' } } },
+    { wait_input: true },
+  ],
+
+  // case 9: random torch find (2..4 torches). Has explicit clw in
+  // the original body.
+  torches: [
+    { engine_call: 'clw' },
+    { let: 'n', value: { random: [2, 4] } },
+    { emit: 'torches' },
+    { mutate: { target: { torches: 0 }, op: 'add', value: { var: 'n' } } },
+    { wait_input: true },
+  ],
+
+  // ----- quest encounters (combat) -----
+  // case 20: Guardian of the Fire Shield (level 19 of fire_shield_cave).
+  // Trailing wait_input fires AFTER the redraw — preserved verbatim
+  // because the original body has its own ryl_pause at end.
+  fire_shield_guardian: [
+    { engine_call: 'clw' },
+    { emit: 'fire_shield_guardian' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { encounter: { foe: 'guardian', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { wait_input: true },
+  ],
+
+  // case 29: Master Crown — taking it wakes the long-dead warrior
+  // who was guarding it. Two screens of text, then the encounter,
+  // then award + flag.
+  master_crown: [
+    { engine_call: 'clw' },
+    { emit: 'master_crown.intro' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'master_crown.warrior_alive' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { encounter: { foe: 'long_dead_warrior', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { set_flag: 'mastercrown', value: 'crown_taken' },
+    { reward: { items: ['mastercrown'] } },
+  ],
+
+  // case 31: Hobgoblin patrol (recurring; placed at six levels of
+  // hobgoblin_stronghold). 39% chance of dropping the password note.
+  hobgoblin_patrol: [
+    { engine_call: 'clw' },
+    { emit: 'hobgoblin_patrol.attack' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { encounter: { foe: 'hobgoblin', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { if: { cond: { chance: 39 }, then: [
+      { engine_call: 'clw' },
+      { emit: 'hobgoblin_patrol.password' },
+      { wait_input: true },
+      { engine_call: 'clw' },
+    ] } },
+  ],
+
+  // case 32: Royal guard 1 (skeletons). Note: no clw between the
+  // wait_input and the encounter — the original body matches.
+  royal_guard1: [
+    { engine_call: 'clw' },
+    { emit: 'royal_guard1' },
+    { wait_input: true },
+    { encounter: { foe: 'hobgoblin_skeleton', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+
+  // case 33: Royal guard 2 (zombies / undead hobgoblins).
+  royal_guard2: [
+    { engine_call: 'clw' },
+    { emit: 'royal_guard2' },
+    { wait_input: true },
+    { encounter: { foe: 'undead_hobgoblin', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+
+  // case 35: Orc nest. Three encounters: first orc patrol, then
+  // two more orc waves (back-to-back, no redraw between), then
+  // the slain message.
+  orc_nest: [
+    { engine_call: 'clw' },
+    { emit: 'orc_nest.guarding' },
+    { wait_input: true },
+    { encounter: { foe: 'orc', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'orc_nest.more' },
+    { wait_input: true },
+    { encounter: { foe: 'orc', mandatory: true } },
+    { encounter: { foe: 'orc', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'orc_nest.slain' },
+    { wait_input: true },
+  ],
+
+  // case 37: Erethor priests (recurring; placed at two levels of
+  // erethor_temple to ambush the player on the way to the lute).
+  erethor_priests: [
+    { engine_call: 'clw' },
+    { emit: 'erethor_priests' },
+    { wait_input: true },
+    { encounter: { foe: 'erethor_priest', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+  ],
+
+  // ----- Thun riddles (cases 22/23/24) -----
+  // Three near-identical mage-and-riddle screens. Each: intro
+  // (mage of <colour>), riddle text + "Answer: " prompt, then
+  // input_string compares to the accepted answer(s); on miss a
+  // monster appears. The match path emits the shared pass text;
+  // the miss text is shared too. The trailing redraw differs
+  // between riddle1 (clr_map_window + blitgfx) and riddle2/3 (just
+  // clw) — preserved verbatim from the legacy switch.
+  thun_riddle1: [
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle1.intro' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle1.riddle' },
+    { emit: 'thun_riddle.prompt' },
+    { input_string: { lg: 10, accept: 'water',
+      match: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.pass' },
+        { wait_input: true },
+      ],
+      miss: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.fail' },
+        { wait_input: true },
+        { encounter: { foe: 'norker', mandatory: true } },
+        { engine_call: 'clw' },
+        { engine_call: 'clr_map_window' },
+        { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+      ],
+    } },
+  ],
+
+  thun_riddle2: [
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle2.intro' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle2.riddle' },
+    { emit: 'thun_riddle.prompt' },
+    { input_string: { lg: 10, accept: ['night', 'darkness'],
+      match: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.pass' },
+        { wait_input: true },
+      ],
+      miss: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.fail' },
+        { wait_input: true },
+        { encounter: { foe: 'voodoo_lord', mandatory: true } },
+        { engine_call: 'clw' },
+      ],
+    } },
+  ],
+
+  thun_riddle3: [
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle3.intro' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'thun_riddle3.riddle' },
+    { emit: 'thun_riddle.prompt' },
+    { input_string: { lg: 10, accept: ['well', 'a well'],
+      match: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.pass' },
+        { wait_input: true },
+      ],
+      miss: [
+        { engine_call: 'clw' },
+        { emit: 'thun_riddle.fail' },
+        { wait_input: true },
+        { encounter: { foe: 'archdevil', mandatory: true } },
+        { engine_call: 'clw' },
+      ],
+    } },
+  ],
+
+  // case 1: Find an object — random kind selection (4-tier sub-roll)
+  // followed by a (T)ake / (L)eave menu. The legacy take-it path was
+  // simpler than the reward op's drop-option flow, so this uses the
+  // bespoke inv_add op (added/full bodies branch on the inv_add
+  // return) — full just shows "you can't carry more" without offering
+  // to swap items.
+  find_object: [
+    { let: 'roll', value: { random: [0, 4] } },
+    { if: {
+        cond: { gt: [{ var: 'roll' }, 0] },
+        then: [
+          // 4/5 chance: roll one of three sub-tables.
+          { let: 'tier', value: { random: [0, 2] } },
+          { if: { cond: { eq: [{ var: 'tier' }, 0] }, then: [
+            { let: 'item_id', value: { add: [{ random: [0, 13] }, 1] } },
+          ] } },
+          { if: { cond: { eq: [{ var: 'tier' }, 1] }, then: [
+            { let: 'item_id', value: { add: [{ random: [0, 6] }, 36] } },
+          ] } },
+          { if: { cond: { eq: [{ var: 'tier' }, 2] }, then: [
+            { let: 'item_id', value: { add: [{ random: [0, 7] }, 39] } },
+          ] } },
+        ],
+        else: [
+          // 1/5 chance: rare/special items 100..111.
+          { let: 'item_id', value: { add: [{ random: [0, 11] }, 100] } },
+        ],
+    } },
+    { engine_bind: { fn: 'object', args: [{ var: 'item_id' }], var: 'name' } },
+    { emit: 'found' },
+    { menu_branch: {
+      options: [
+        { key: 'T', then: [
+          { inv_add: { item: { var: 'item_id' },
+            added: [
+              { emit: 'ok' },
+              { pause: 800 },
+            ],
+            full: [
+              { engine_call: 'clw' },
+              { emit: 'cant_carry' },
+              { pause: 800 },
+            ],
+          } },
+        ] },
+      ],
+    } },
+  ],
+
+  // case 8: Treasure chest with a trap. Default 4-in-10 trap chance;
+  // a thief in the party halves it. The trap fires one of three
+  // narrations interleaved with timed delays, then damages every
+  // member by 4*lv (clamped to >= 1 hp). The chest's gold is
+  // 320..419 + first-member-exp/500.
+  gold_chest: [
+    { emit: 'gold_chest.found' },
+    { menu_branch: {
+      options: [
+        { key: 'O', then: [
+          // Trap chance: 4 in 10 by default, 2 in 10 if a thief
+          // checks the chest first.
+          { let: 'trap_chance', value: 4 },
+          { for_member: { var: 'member', then: [
+            { if: {
+              cond: { engine_int: 'pa_is_class',
+                      args: [{ var: 'member' }, 'thief'] },
+              then: [
+                { engine_call: 'clw' },
+                { engine_bind: { fn: 'pa_name',
+                                 args: [{ var: 'member' }],
+                                 var: 'thief_name' } },
+                { emit: 'gold_chest.thief_check' },
+                { pause: 1000 },
+                { let: 'trap_chance', value: 2 },
+                { break: true },
+              ],
+            } },
+          ] } },
+          { if: {
+            cond: { lt: [{ random: [0, 9] }, { var: 'trap_chance' }] },
+            then: [
+              { engine_call: 'clw' },
+              { emit: 'gold_chest.trap' },
+              { pause: 600 },
+              { let: 'kind', value: { random: [0, 2] } },
+              { if: { cond: { eq: [{ var: 'kind' }, 0] }, then: [
+                { emit: 'gold_chest.trap_gas_a' },
+                { pause: 1400 },
+                { emit: 'gold_chest.trap_gas_b' },
+                { pause: 600 },
+                { emit: 'gold_chest.trap_gas_c' },
+              ] } },
+              { if: { cond: { eq: [{ var: 'kind' }, 1] }, then: [
+                { emit: 'gold_chest.trap_pitfall_a' },
+                { pause: 1400 },
+                { emit: 'gold_chest.trap_pitfall_b' },
+              ] } },
+              { if: { cond: { eq: [{ var: 'kind' }, 2] }, then: [
+                { emit: 'gold_chest.trap_boulder_a' },
+                { pause: 1400 },
+                { emit: 'gold_chest.trap_boulder_b' },
+              ] } },
+              { for_member: { var: 'member', then: [
+                { engine_call: 'pm_add_hit_points',
+                  args: [{ var: 'member' },
+                         { mul: [-4,
+                                 { member: { var: 'member' }, field: 'level' }] }] },
+                { engine_call: 'pm_hit_points_floor', args: [{ var: 'member' }, 1] },
+              ] } },
+              { wait_input: true },
+            ],
+          } },
+          { engine_call: 'clw' },
+          { let: 'gold_amount', value: {
+            add: [
+              { add: [{ random: [0, 99] }, 320] },
+              { div: [{ member: 1, field: 'experience' }, 500] },
+            ],
+          } },
+          { emit: 'gold_chest.contained' },
+          { mutate: { target: { gold: 0 }, op: 'add',
+                      value: { var: 'gold_amount' } } },
+          { wait_input: true },
+        ] },
+      ],
+    } },
+  ],
+
+  // case 38: Chamber of the Lute — a long quest finale. Five text
+  // screens, then erethor + priest mob, more priests, the "behind
+  // you!" pivot using member-3's name + object pronoun, and finally
+  // erethor coming back to life one more time. Member-4 finds the
+  // lute. Mostly emit + wait_input + encounter; the only structural
+  // bit is the two engine_binds that drive the {m3_name},
+  // {m3_pronoun}, {m4_name} placeholders.
+  lute_chamber: [
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.altar' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.rush' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.draw' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.acolyte' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.bang' },
+    { wait_input: true },
+    { encounter: { foe: 'erethor', mandatory: true } },
+    { encounter: { foe: 'erethor_priest', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.more_priests' },
+    { wait_input: true },
+    { encounter: { foe: 'erethor_priest', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.last_priest' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { engine_bind: { fn: 'pa_name', args: [3], var: 'm3_name' } },
+    { engine_bind: { fn: 'pronoun', args: [3, 'object'], var: 'm3_pronoun' } },
+    { emit: 'lute_chamber.behind' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.scream' },
+    { wait_input: true },
+    { encounter: { foe: 'erethor', mandatory: true } },
+    { engine_call: 'clr_map_window' },
+    { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+    { engine_call: 'clw' },
+    { emit: 'lute_chamber.dead' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { engine_bind: { fn: 'pa_name', args: [4], var: 'm4_name' } },
+    { emit: 'lute_chamber.find_lute' },
+    { set_flag: 'erethor.lute', value: 'lute_taken' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+  ],
+
+  // case 27: Colour-square antechamber (recurring; placed at levels
+   // 13..19 of reebar_tomb). The plaque shows ANTECHAMBER #(cl-12);
+   // the player picks one of seven colours (1..7); the pass condition
+   // is cl + pick == 20 (i.e. level 13 → violet, level 19 → red);
+   // miss spawns a rainbow demon. Loop around the keypress so non-
+   // 1..7 input is silently re-prompted, matching the legacy
+   // `while (1) { c = key(); if (c>='1'&&c<='7') break; }`.
+  colour_riddle: [
+    { engine_call: 'clw' },
+    { let: 'antechamber', value: { sub: [{ var: 'class_id' }, 12] } },
+    { emit: 'colour_riddle.plaque' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'colour_riddle.squares' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'colour_riddle.menu' },
+    { loop: [
+      { menu_branch: {
+        key_var: 'pick',
+        options: [
+          { key_range: ['1', '7'], then: [
+            { if: {
+              cond: { eq: [{ add: [{ var: 'class_id' }, { var: 'pick' }] }, 20] },
+              then: [
+                { engine_call: 'clw' },
+                { emit: 'colour_riddle.tingle' },
+                { wait_input: true },
+              ],
+              else: [
+                { engine_call: 'clw' },
+                { emit: 'colour_riddle.demon_appears' },
+                { wait_input: true },
+                { encounter: { foe: 'rainbow_demon', mandatory: true } },
+                { engine_call: 'clr_map_window' },
+                { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+                { engine_call: 'clw' },
+              ],
+            } },
+            { break: true },
+          ] },
+        ],
+      } },
+    ] },
+  ],
+
+  // case 30: Silver Sanctum — empty room with a planted "Master
+   // Thief was here" note. The thief's name is randomized at cold
+   // start; res_npc_role('master_thief') gives the slot, res_enum
+   // 'name' resolves it to a human name. Two engine_binds chain
+   // (slot string → atoi → name lookup) into the {mt_name}
+   // placeholder used twice in the note text.
+  silver_sanctum: [
+    { engine_call: 'clw' },
+    { emit: 'silver_sanctum.disappointment' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'silver_sanctum.about_to_leave' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'silver_sanctum.find_paper' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { engine_bind: { fn: 'res_npc_role', args: ['master_thief'],
+                     var: 'mt_slot' } },
+    { engine_bind: { fn: 'res_enum', args: ['name', { var: 'mt_slot' }],
+                     var: 'mt_name' } },
+    { emit: 'silver_sanctum.note' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { set_flag: 'silver_key', value: 'note_found' },
+  ],
+
+  // case 36: Tammy's Prison — recurring until rescued. The room
+   // gates on flag peasant_wife being 'accepted' (player has been
+   // briefed by the husband). Before that flag flips, every visit
+   // shows just the cleared screen and the slot stays put. Once
+   // accepted, the rescue text fires and flag becomes 'rescued';
+   // the data-driven recurring entry's `until_flag: { tag, value }`
+   // matches that state so the dispatcher resets lvl[cl] on the
+   // SAME visit, retiring the room.
+  tammys_prison: [
+    { engine_call: 'clw' },
+    { if: {
+        cond: { eq: [{ flag:       'peasant_wife' },
+                     { flag_value: ['peasant_wife', 'accepted'] }] },
+        then: [
+          { emit: 'tammys_prison' },
+          { set_flag: 'peasant_wife', value: 'rescued' },
+          { wait_input: true },
+        ],
+    } },
+  ],
+
+  // case 34: Hobgoblin chief — password gate to a quest fight.
+  // Both match (correct password) and miss (guards rush in) branches
+  // converge to the trailing "you killed the chief / Silver Key
+  // hangs..." text + reward + flag.
+  hobgoblin_chief: [
+    { engine_call: 'clw' },
+    { emit: 'hobgoblin_chief.curtain' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { emit: 'hobgoblin_chief.password_prompt' },
+    { input_string: { lg: 15, accept: 'RISH EKKIN',
+      match: [
+        { engine_call: 'clw' },
+        { emit: 'hobgoblin_chief.step_inside' },
+        { wait_input: true },
+        { encounter: { foe: 'hobgoblin_chief', mandatory: true } },
+        { engine_call: 'clr_map_window' },
+        { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+        { engine_call: 'clw' },
+      ],
+      miss: [
+        { engine_call: 'clw' },
+        { emit: 'hobgoblin_chief.guards' },
+        { pause: 2000 },
+        { encounter: { foe: 'hobgoblin', mandatory: true } },
+        { encounter: { foe: 'hobgoblin_chief', mandatory: true } },
+        { engine_call: 'clr_map_window' },
+        { engine_call: 'blitgfx', args: [{ pic: 'insidecave' }] },
+        { engine_call: 'clw' },
+      ],
+    } },
+    { engine_call: 'clw' },
+    { emit: 'hobgoblin_chief.silver_key' },
+    { wait_input: true },
+    { engine_call: 'clw' },
+    { reward: { items: ['silverkey'] } },
+    { set_flag: 'silver_key', value: 'key_taken' },
+  ],
+}

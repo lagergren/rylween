@@ -1,0 +1,145 @@
+// §20 L1: dungeon scenario placement tables.
+//
+// dungeon(levels, scenario) in dungeon.c first fills lvl[1..levels]
+// with random encounter ids 1..9 (the generic-cave events), then
+// overlays scenario-specific writes when `scenario` is non-NULL.
+// Before §20 L1 those writes lived as a hand-authored switch in
+// dungeon.c:30-78; this file owns the placements so adding /
+// re-tuning a quest dungeon is a data edit. The scenario key is the
+// symbolic string the C/DSL caller passes — NULL means random cave
+// (no placements).
+//
+// Encounter id namespace (see enums.dungeon_encounter in world.json5
+// for the symbol → numeric-id mapping):
+//   1..9   generic cave events (object/gold/encounter/etc.)
+//          dispatched by dungeon.c's main loop. Not enumerated here
+//          because the random fill already covers them.
+//   10..28 hand-authored special encounters (Guardian, Fire Shield,
+//          Thun Riddles, etc.). dungeon.json5 scripts own the
+//          per-encounter narration / mutation; placements in this
+//          file pin which level each one occupies for a given
+//          scenario. The historical 10..19 reserved gap was
+//          collapsed in §22.10 — every entry below is symbolic so
+//          the collapse was a pure data shuffle.
+//
+// `encounter:` is a string symbol resolved via the dungeon_encounter
+// enum. fold_dungeons rejects typos at world-load.
+//
+// recurring: list of dungeon_encounter symbols whose lvl[cl] slot is
+// NOT cleared after the script fires — the player faces the event
+// again on every revisit. Default is reset-after-fire (matches the
+// `lvl[cl] = 0` lines in the legacy dungeon.c switch). Used by the
+// data-driven dispatcher: encounters with a registered script use
+// this list; unmigrated encounters still in the C switch own their
+// own per-case reset (or the cl >= 20 catchall).
+{
+  recurring: [
+    // Generic random-fill encounters: ryl_random(1,9) per dungeon
+    // level keeps re-rolling on revisit; the encounter symbols
+    // dispatch through dungeon.<sym> scripts but the lvl[cl] slot
+    // stays put.
+    'encounter_weak_a',
+    'encounter_weak_b',
+    'encounter_deep',
+    // case 26: re-reads the wall plaque on revisit.
+    'spectrum_message',
+    // case 27: each colour-square room re-prompts on revisit; the
+    // pass condition (cl + pick == 20) is per-level so the puzzle
+    // stays solvable after a wrong-answer fight.
+    'colour_riddle',
+    // case 31: every revisit triggers a fresh patrol fight.
+    'hobgoblin_patrol',
+    // case 37: priests keep attacking.
+    'erethor_priests',
+    // case 36: Tammy's prison fires every visit until the player
+    // has briefed with the peasant husband (flag flips to
+    // 'accepted') and then completes the rescue here (flag flips
+    // to 'rescued'). The conditional shape lets the dispatcher
+    // reset lvl[cl] on the rescue visit; before that the room
+    // stays armed.
+    { symbol: 'tammys_prison',
+      until_flag: { tag: 'peasant_wife', value: 'rescued' } },
+  ],
+
+  scenarios: {
+    // Mountain of the Fire Shield — Hermit's quest.
+    fire_shield_cave: {
+      placements: [
+        { level: 19, encounter: 'fire_shield_guardian' },
+        { level: 20, encounter: 'fire_shield' },
+      ],
+    },
+
+    // Temple of Thun — three riddles + bracelets.
+    thun_temple: {
+      placements: [
+        { level:  4, encounter: 'thun_riddle1' },
+        { level:  8, encounter: 'thun_riddle2' },
+        { level: 12, encounter: 'thun_riddle3' },
+        { level: 18, encounter: 'bracelets' },
+      ],
+    },
+
+    // Reebar's Tomb — colour riddles + spectrum + Nolrim's Tomb.
+    reebar_tomb: {
+      placements: [
+        { level: 12, encounter: 'spectrum_message' },
+        { level: 13, encounter: 'colour_riddle' },
+        { level: 14, encounter: 'colour_riddle' },
+        { level: 15, encounter: 'colour_riddle' },
+        { level: 16, encounter: 'colour_riddle' },
+        { level: 17, encounter: 'colour_riddle' },
+        { level: 18, encounter: 'colour_riddle' },
+        { level: 19, encounter: 'colour_riddle' },
+        { level: 20, encounter: 'nolrim_tomb' },
+      ],
+    },
+
+    // Master Crown dungeon.
+    master_crown_dungeon: {
+      placements: [
+        { level: 10, encounter: 'master_crown' },
+      ],
+    },
+
+    // The Silver Sanctum (silver-key proof).
+    silver_sanctum: {
+      placements: [
+        { level: 20, encounter: 'silver_sanctum' },
+      ],
+    },
+
+    // Hobgoblin stronghold — six patrols on the way in, then royal
+    // guards and the chief at the bottom.
+    hobgoblin_stronghold: {
+      placements: [
+        { level:  3, encounter: 'hobgoblin_patrol' },
+        { level:  6, encounter: 'hobgoblin_patrol' },
+        { level:  9, encounter: 'hobgoblin_patrol' },
+        { level: 14, encounter: 'hobgoblin_patrol' },
+        { level: 17, encounter: 'hobgoblin_patrol' },
+        { level: 19, encounter: 'hobgoblin_patrol' },
+        { level: 20, encounter: 'royal_guard1' },
+        { level: 21, encounter: 'royal_guard2' },
+        { level: 22, encounter: 'hobgoblin_chief' },
+      ],
+    },
+
+    // Ogre cave — Tammy's prison.
+    ogre_cave: {
+      placements: [
+        { level: 6, encounter: 'orc_nest' },
+        { level: 7, encounter: 'tammys_prison' },
+      ],
+    },
+
+    // Erethor temple — priests and the Chamber of the Lute.
+    erethor_temple: {
+      placements: [
+        { level:  3, encounter: 'erethor_priests' },
+        { level:  7, encounter: 'erethor_priests' },
+        { level: 12, encounter: 'lute_chamber' },
+      ],
+    },
+  },
+}

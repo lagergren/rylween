@@ -1,0 +1,531 @@
+// §17 / A.4 slice A: missions.c map-trigger text records. Each top
+// level entry corresponds to one trigger block in src/missions.c; the
+// keys inside resolve under `missions.<block>.<screen>` via the
+// parent-path derivation in script.c.
+//
+// Blocks follow the order they originally appeared in missions.c.
+// The shape is mostly `prompt` (one block of prose + menu lines) for
+// menu_branch entries and one-or-more `<step>` screens for linear
+// encounter / set_flag sequences.
+{
+  // Block 1: flag[8]==1 at (6,20). The Erethor temple entrance. One
+  // ryl_menu: (E)nter / (L)eave. E calls dungeon(12,8) + update_map.
+  // L falls through (no return 1). Fixture-unreachable.
+  erethor_entry: {
+    prompt: [
+      'Here is the temple of',
+      'the chaos lord Erethor.',
+      'A winding staircase',
+      'spirals down between',
+      'broken pillars.',
+      '',
+      '(E)nter',
+      '(L)eave',
+    ],
+  },
+
+  // Block 2: flag[19]==1 at (42,23). Cave entrance in the foothills;
+  // husband quest. Binds `name19` (res_enum("name", 19)). Fall-through
+  // on L (no return 1).
+  husband_cave: {
+    prompt: [
+      'There is a cave entrance',
+      'in the foothills to the',
+      'east. Is this the place',
+      '{name19} talked about?',
+      '',
+      '(E)nter',
+      '(L)eave',
+    ],
+  },
+
+  // Block 3: flag[1]==1 + ryl_chance(9). Merchant's bandit cargo.
+  // Linear encounter + set_flag. Fall-through.
+  bandits: {
+    approach: [
+      'You come across the',
+      'camp of the bandits.',
+      'One of them spots you',
+      'and they attack!',
+      '',
+    ],
+    cargo_found: [
+      'You find the cargo',
+      'the merchant wanted',
+      'you to bring him.',
+      '',
+    ],
+  },
+
+  // Block 4: flag[33]==1 + ryl_chance(9). Hermit troll-tooth errand.
+  // No player prompt before encounter — note the original does an
+  // encounter(3,1) before clw(), which means the troll attacks
+  // unannounced. Fall-through.
+  troll_tooth: {
+    after_troll: [
+      'You break off a troll',
+      'tooth to give the hermit.',
+      'After wiping the slime of',
+      'it, you put it in your',
+      'backpack.',
+      '',
+    ],
+  },
+
+  // Block 4b: flag[33]==3 at dx[1],dy[1]. Dungeon entrance for the
+  // hermit quest. No return on L — the original just falls through
+  // without the `return 1` idiom several later blocks use.
+  hermit_dungeon: {
+    prompt: [
+      'You have found a dungeon.',
+      'The entrance has been',
+      'cut out of some huge',
+      'animal\'s skull.',
+      '',
+      '(E)nter',
+      '(L)eave',
+    ],
+  },
+
+  // Block 5: flag[bracelets.thun]==map_bought at wld_location 2.
+  // Temple of Thun gem altar. The (Y)es/(L)eave key prompt followed
+  // by an inventory-count check (>=5 gems of ids 39..41) isn't yet
+  // expressible in the DSL; the C dispatcher in mission_control()
+  // keeps the control flow inline and only the text screens are
+  // lifted here. gem_prompt bundles the (Y)es/(L)eave menu inline,
+  // matching the menu-bundling convention used by the other
+  // prompt records (block 1, 4b, etc.).
+  thun_temple: {
+    temple_arrival: [
+      'You stand before the',
+      'ancient temple of Thun.',
+      'Around you are the ruins',
+      'of the once proud city',
+      'of Thun...',
+      '',
+    ],
+    altar_inscription: [
+      'You see an altar',
+      'with five sockets before',
+      'you. Each is roughly',
+      'gem-sized. An inscription',
+      'says: \'Insert the gems',
+      'and your path shall open\'',
+      '',
+    ],
+    gem_prompt: [
+      'Do you want to put',
+      'five gems in the sockets?',
+      '',
+      '(Y)es',
+      '(L)eave',
+    ],
+    no_gems: [
+      'You don\'t have five',
+      'different gems.',
+      '',
+    ],
+    altar_opens: [
+      'With a resounding \'CRUNG\'',
+      'the altar slides away',
+      'to reveal a dark pit.',
+      'You enter...',
+      '',
+    ],
+  },
+
+  // Block 6: flag[23]==1 at dx[3],dy[3]. Kobold village. Three
+  // encounters chained — (A)ttack branch only; (L)eave falls through
+  // (no return 1). The original had no `else` branch at all; an
+  // unrecognised key just leaves the menu silent.
+  kobold_village: {
+    prompt: [
+      'The kobold village lies',
+      'ahead. You can hear the',
+      'noise from some kind of',
+      'party even at a distance',
+      'of 200 yards.',
+      '',
+      '(A)ttack now',
+      '(L)eave',
+    ],
+    charge: [
+      'You run screaming into',
+      'a large celebration of',
+      'some sort. There are',
+      'about forty kobolds here.',
+      'At first, they are very',
+      'surprised, and you manage',
+      'to slay many, before they',
+      'attack...',
+      '',
+    ],
+    dead_piles: [
+      'Piles of dead kobolds are',
+      'lying all around. Still,',
+      'they keep coming!',
+      '',
+    ],
+    orcs_ambush: [
+      'You have annihilated most',
+      'of the village. You pause',
+      'to wipe the blood of your',
+      'weapons, when suddenly,',
+      'some ORCS rush out to',
+      'attack you from nowhere.',
+      '',
+    ],
+    pendant: [
+      'The entire village is',
+      'wiped out. You snatch',
+      'an ugly pendant from the',
+      'head of the kobold chief',
+      'to prove the bloody deed.',
+      '',
+    ],
+  },
+
+  // Block 7: flag[23]==3 on terrain 't'. Linear skullweed pickup.
+  skullweed: {
+    pickup: [
+      'On the ground before you',
+      'grows the skullweed plant.',
+      'You break off a few plants',
+      'and put in your backpack.',
+      '',
+    ],
+  },
+
+  // Block 8: flag[23]==5 at dx[4],dy[4]. First visit to Borin the
+  // dwarf elder. Six screens + one journal line binding {dx5}/{dy5}.
+  // Fall-through.
+  borin_meet: {
+    arrival: [
+      'You arrive at a village',
+      'which looks typically',
+      'dwarfish. As you approach',
+      'the village square, an',
+      'old dwarf who introduces',
+      'himself as Borin greets',
+      'you.',
+      '',
+    ],
+    stone_offer: [
+      'You explain why you are',
+      'here, and he frowns.',
+      '- Well, he says, you',
+      'actually COULD have a',
+      'stone of that type',
+      'if you do our tribe a',
+      'favour...',
+      '',
+    ],
+    lost_art: [
+      '- Years have passed, and',
+      'much of our knowledge',
+      'about the making of',
+      'arms is gone. We haven\'t',
+      'practised it, generation',
+      'after generation, and the',
+      'arms we produce nowadays',
+      'are not as unbeatable as',
+      'they once were...',
+      '',
+    ],
+    nolrim_dagger: [
+      '- When our king Nolrim',
+      'died, nine hundred years',
+      'ago we buried him with his',
+      'trusty dagger Reebar. If',
+      'we had this to study',
+      'we could once again become',
+      'the greatest smiths that',
+      'there are...',
+      '',
+    ],
+    quest_offer: [
+      '- If you go to Nolrim\'s',
+      'crypt, breach the traps my',
+      'ancestors set to protect',
+      'him against looters, and',
+      'return Reebar, I will not',
+      'only give you the stone,',
+      'but also lots of gold,and',
+      'some dwarven treasures.',
+      '',
+    ],
+    crypt_location: [
+      '- Nolrim\'s crypt is at',
+      '{dx5}x{dy5}. Be careful, and',
+      'fare the well.',
+      '',
+    ],
+  },
+
+  // Block 9: flag[23]==6 at dx[5],dy[5]. Nolrim crypt entrance.
+  // Menu E/L; L returns 1.
+  nolrim_crypt: {
+    prompt: [
+      'Before you is the crypt',
+      'of Nolrim. After levering',
+      'a stone slab away, a dark',
+      'forboding passage leads',
+      'down to unknown depths.',
+      '',
+      '(E)nter the Crypt',
+      '(L)eave',
+    ],
+  },
+
+  // Block 10: flag[23]==7 at dx[4],dy[4]. Borin accepts the dagger
+  // and gives 3578 gold + 3 gems (items 39, 40, 41). Linear; the
+  // reward op does the gold + first-empty-slot placement for all
+  // three items. Fall-through.
+  borin_gift: {
+    greet_and_follow: [
+      'Borin greets you. He',
+      'can hardly believe his',
+      'eyes when you show him',
+      'the dagger. He motions',
+      'to you to follow him,',
+      'and guides you to his',
+      'hut.',
+      '',
+    ],
+    rewards_presented: [
+      'Smiling, he offers you',
+      '3578 gold coins and 3',
+      'gems. You greedily accept',
+      'the gift. He also hands',
+      'you a purple dwarf stone.',
+      '',
+    ],
+  },
+
+  // Block 11: flag[23]==9 at dx[6],dy[6]. Master Crown dungeon.
+  // Menu E/L; L returns 1.
+  master_crown: {
+    prompt: [
+      'Before you is the dungeon',
+      'where the ancients hid the',
+      'Master Crown. Your long',
+      'trek has come to an end.',
+      '',
+      '(E)nter',
+      '(L)eave',
+    ],
+  },
+
+  // Block 12: flag[22]==1 at dx[7],dy[7]. Ogre cave. The E branch is
+  // a long nested sequence: enter cave, encounter(18,1) [ogres],
+  // encounter(19,1) [ogre lord], 5645 gold + Mithril Mail (item 25),
+  // note from Kastagir, leave. L: clw + return 1. Binds {p2_name}
+  // (state.p[cpl].name[2] — player-slot 2's name in the original).
+  //
+  // The reward for 5645 gold + item 25 consolidates a pre-existing
+  // bug from the original (an unconditional `break` after the for's
+  // first iteration meant the item only placed if inventory slot 1
+  // was free). Per the keep-pre-existing-bug-fixes direction, the
+  // reward op's first-empty-slot placement is the normalised
+  // behavior.
+  ogre_cave: {
+    prompt: [
+      'You find a the cave the',
+      'half-orc told you about.',
+      'As you get closer, you',
+      'become aware of a hideous',
+      'smell, emnating from the',
+      'cavern depths...',
+      '',
+      '(E)nter',
+      '(L)eave',
+    ],
+    enter_cave: [
+      'You enter the cave.',
+      'piles of treasure are',
+      'thrown all around.',
+      'You note with terror',
+      'that some OGRES sit',
+      'among the gold and',
+      'and jewels! They spot',
+      'you and run screaming',
+      'to attack!',
+      '',
+    ],
+    defeat_ogres: [
+      'You defeat the ogres and',
+      'start to search for the',
+      'fabled Foot of Jazzy.',
+      'Just as you begin to',
+      'wonder if the half-orc',
+      'lied to you, you hear a',
+      'sound and quickly turn',
+      'around. An OGRE LORD has',
+      'quietly entered the cave!',
+      '',
+    ],
+    defeat_ogre_lord: [
+      'You defeat the Ogre Lord.',
+      'You take all the gold',
+      'you find, 5645 gold coins!',
+      'You also find a Mithril',
+      'Mail some unfortunate',
+      'warrior has left here.',
+      '',
+    ],
+    no_trace: [
+      '...There is however no',
+      'trace of the Foot. Just',
+      'as you are about to give',
+      'up, {p2_name} finds a note!',
+      'It is written in shaky',
+      'hand with a strange',
+      'brown ink...',
+      '',
+    ],
+    kastagir_note: [
+      '\'THEY SHALL NOT HAVE THE',
+      'FOOT! I\'m dying and I\'ll',
+      'soon be dead, but I will',
+      'use my last strength to',
+      'teleport it away from',
+      'here to the eastern peaks,',
+      'Jazzy\'s regions.\'',
+      '         - Kastagir.',
+      '',
+    ],
+    leave_cave: [
+      'You leave the cave.',
+      '',
+    ],
+  },
+
+  // Block 13: flag[22]==2 on terrain 'f'. Foot-of-Jazzy altar.
+  // Two-encounter sequence with text between and after each. Sets
+  // flag[22]=3 and jazzyfoot=1; the jazzyfoot assignment isn't
+  // expressible in the DSL yet, so the trigger post-script applies
+  // it. Fall-through.
+  jazzy_foot: {
+    discovered: [
+      'Something about this whole',
+      'area is weird. The air',
+      'seems to be loaded with',
+      'electricity. Suddenly you',
+      'spot an object on the',
+      'ground. It is a delicate',
+      'ivory statue in the shape',
+      'of a human foot. THIS IS',
+      'THE FOOT OF JAZZY!',
+      '',
+    ],
+    minions_attack: [
+      'Just as you touch it,',
+      'the sky splits open and',
+      'at the wailing of hundreds',
+      'of tortured souls, Jazzy\'s',
+      'minions attack you, for',
+      'the heresy they find you',
+      'guilty of...',
+      '',
+    ],
+    quiet: [
+      'Quiet settles again, as',
+      'you destroy the foul',
+      'creatures, one by one.',
+      'You reach for the foot',
+      'again, when suddenly,',
+      'something EVEN MORE',
+      'horrible happens...',
+      '',
+    ],
+    jazzy_appears: [
+      'A twenty foot tall',
+      'being materializes',
+      'in front of you! You will',
+      'have to fight Jazzy,',
+      'himself!',
+      '',
+    ],
+    defeated: [
+      'Today, you have killed a',
+      'god. You watch silently as',
+      'the huge body starts to',
+      'melt. It fades away into',
+      'Nothingness. This time,',
+      'when you pick up the foot,',
+      'nothing happens.',
+      '',
+    ],
+  },
+
+  // Block 14: flag[6]==1 at dx[8],dy[8]. Silver Key dungeon.
+  // Menu E/L; L returns 1.
+  silver_key: {
+    prompt: [
+      'Here lies the dungeon',
+      'of the Silver Key.',
+      'It is merely a pit in the',
+      'ground. You _hope_ that',
+      'that despicable thief',
+      'didn\'t trick you.',
+      '',
+      '(E)nter dungeon',
+      '(L)eave',
+    ],
+  },
+
+  // Block 15: flag[6]==4 + ryl_chance(9). Hobgoblin caravan ambush,
+  // with journal entry binding {dx9}/{dy9}. Fall-through.
+  hobgoblin_caravan: {
+    approach: [
+      'Just before you is a',
+      'caravan of hobgoblins on',
+      'white, well-bred horses.',
+      '',
+    ],
+    attack_pitch: [
+      'It is unusual that these',
+      'foul creatures have such',
+      'beautiful animals. Hoping',
+      'that they can give you a',
+      'clue about the key, you',
+      'emit a loud battle cry',
+      'and attack!',
+      '',
+    ],
+    interrogate: [
+      'Before you kill the last',
+      'hobgoblin you ask him',
+      'about the key. The foul',
+      'creature blurts:',
+      '- Boss has it! In ze cave!',
+      'at home, yess, {dx9}x{dy9}...',
+      'pleeez sirs, don\'t kill',
+      'me...',
+      '',
+    ],
+    carotid: [
+      '(at this point you sever',
+      ' his carotid artery).',
+      '',
+    ],
+  },
+
+  // Block 16: flag[6]==5 at dx[9],dy[9]. Hobgoblin cave (pit).
+  // Menu E/L; L returns 1.
+  hobgoblin_cave: {
+    prompt: [
+      'This is a hobgoblin cave.',
+      'Smoke drifts out of a pit',
+      'in the ground. A staircase',
+      'spirals around the inside',
+      'of the pit. When you see',
+      'the impaled human skulls',
+      'decorating the entrance,',
+      'you feel uneasy.',
+      '',
+      '(E)nter pit',
+      '(L)eave',
+    ],
+  },
+}

@@ -1,0 +1,57 @@
+// L7 step 4: bargirl lodging branch. C wrapper in src/speak.c
+// resolves the per-leader-level fee (50 * pa_first_level()) and
+// hands it as the `price` int binding; the script owns the offer
+// screen, the (Y)es/(N)o split, the broke / spent outcomes, and
+// the per-member 1 hp deduction on `spent`. The binding doubles
+// as both the {price} placeholder in speak.lodge.j13.offer and
+// the int-valued threshold for the gold check (`{var:'price'}`
+// runs the binding's string through strtol).
+//
+// §20.20 #2: the non-bargirl lodge arm now lives in `nonbargirl`
+// — a one-op script that emits speak.lodge.j<slug> via the new
+// emit_indexed op, replacing the C-side txi("speak.lodge.j%d", ...)
+// callsite. Slug binding (`job_sym`) feeds emit_indexed's string
+// path so the text key is speak.lodge.jmerchant / .jranger /
+// .jhermit / ... — stable under enum reordering.
+{
+  bargirl: [
+    { engine_call: 'clw' },
+    { emit: 'speak.lodge.jbargirl.offer' },
+    { emit: 'common.yes' },
+    { emit: 'common.no' },
+    { menu_branch: {
+        options: [
+          { key: 'Y', then: [
+            { if: {
+                cond: { lt: [{ gold: 0 }, { var: 'price' }] },
+                then: [
+                  { engine_call: 'clw' },
+                  { emit: 'speak.lodge.jbargirl.broke' },
+                  { pause: 2000 },
+                ],
+                else: [
+                  { mutate: { target: { gold: 0 }, op: 'sub', value: { var: 'price' } } },
+                  { engine_call: 'clw' },
+                  { emit: 'speak.lodge.jbargirl.spent' },
+                  { for_member: { var: 'member', then: [
+                    { if: {
+                        cond: { gt: [{ member: { var: 'member' }, field: 'hit_points' }, 1] },
+                        then: [
+                          { mutate: { target: { member_field: { idx: { var: 'member' }, field: 'hit_points' } },
+                                      op: 'sub', value: 1 } },
+                        ],
+                    } },
+                  ] } },
+                ],
+            } },
+          ] },
+        ],
+        // (N)o or any other key: no-op, fall through. The wrapper
+        // emits the closing newline + ryl_pause.
+        default: [],
+    } },
+  ],
+  nonbargirl: [
+    { emit_indexed: { fmt: 'speak.lodge.j{}', value: { var: 'job_sym' } } },
+  ],
+}

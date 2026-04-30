@@ -1,0 +1,471 @@
+// Priest spells. Every entry carries a `do:` body; subs.c::spell()
+// hands it to play_spell_body (§22 Lane A retired the legacy SE_*
+// switch). caster_idx + place arrive as ryl_bind ints from the C
+// dispatch; ctx is NULL because priest casts run out of combat.
+{
+  // §22 Lane A: heal migrated from SE_HEAL. caster_idx + place arrive as
+  // ryl_bind ints from subs.c; ask_target party_member binds the picked
+  // target into target_idx. RNG identity preserved — ryl_random(10, 19)
+  // is the first factor of the add (drawn once before the lv*2 read),
+  // matching the legacy `ryl_random(10, 19) + (pm_lv(caster) * 2)`.
+  // Two early-exits — not-enough-mana and target-dead — sit as nested
+  // if/else cascades; the script DSL has no `return` op today.
+  heal: {
+    slot: 1, base_cost: 8, name: 'Healing',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [8, { member: { var: 'caster_idx' }, field: 'level' }] },
+        ]},
+        then: [
+          { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                field: 'magic' } },
+                      op: 'sub',
+                      value: { add: [8, { member: { var: 'caster_idx' },
+                                                    field: 'level' }] } }},
+          { ask_target: 'party_member', var: 'target_idx' },
+          { let: 'x', value: { add: [
+            { random: [10, 19] },
+            { mul: [{ member: { var: 'caster_idx' }, field: 'level' }, 2] },
+          ]}},
+          { if: { cond: { eq: [
+              { member: { var: 'target_idx' }, field: 'dead' }, 1
+            ]},
+            then: [
+              { engine_call: 'clw' },
+              { emit: 'spell.priest.heal.target_dead' },
+              { pause: 600 },
+              { engine_call: 'clw' },
+            ],
+            else: [
+              { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                    field: 'hit_points' } },
+                          op: 'add',
+                          value: { var: 'x' },
+                          clamp: { max: { member: { var: 'target_idx' },
+                                                    field: 'health' } } }},
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                               var: 'caster' }},
+              { engine_bind: { fn: 'pa_name', args: [{ var: 'target_idx' }],
+                               var: 'target' }},
+              { emit: 'spell.priest.heal.heals' },
+              { emit: 'spell.priest.heal.target' },
+              { emit: 'spell.priest.heal.points' },
+              { pause: 1500 },
+              { engine_call: 'clw' },
+            ],
+          }},
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
+  // §22 Lane A: restoration. Same shape as heal but skips the random
+  // roll and the dead-check — the legacy code unconditionally pegs
+  // target.hp to target.h regardless of whether the target is dead.
+  restoration: {
+    slot: 2, base_cost: 20, name: 'Restoration',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [20, { member: { var: 'caster_idx' }, field: 'level' }] },
+        ]},
+        then: [
+          { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                field: 'magic' } },
+                      op: 'sub',
+                      value: { add: [20, { member: { var: 'caster_idx' },
+                                                     field: 'level' }] } }},
+          { ask_target: 'party_member', var: 'target_idx' },
+          { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                field: 'hit_points' } },
+                      op: 'set',
+                      value: { member: { var: 'target_idx' }, field: 'health' } }},
+          { engine_call: 'clw' },
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                           var: 'caster' }},
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'target_idx' }],
+                           var: 'target' }},
+          { emit: 'spell.priest.restoration.heals' },
+          { emit: 'spell.priest.restoration.target' },
+          { emit: 'spell.priest.restoration.fully' },
+          { pause: 1500 },
+          { engine_call: 'clw' },
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
+  // §22 Lane A: rebirth. Two early-exit paths nest inside the mana
+  // gate: target-already-alive (no mana cost!) and the revival arm
+  // (deduct after the dead-check, set dead=0 + hp=1, narrate).
+  // Mana stays uncharged when the target is alive — preserved
+  // verbatim from the legacy SE_REBIRTH which sets pm_add_ma only
+  // inside the dead branch.
+  rebirth: {
+    slot: 3, base_cost: 90, name: 'Rebirth',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [90, { member: { var: 'caster_idx' }, field: 'level' }] },
+        ]},
+        then: [
+          { ask_target: 'party_member', var: 'target_idx' },
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'target_idx' }],
+                           var: 'target' }},
+          { if: { cond: { eq: [
+              { member: { var: 'target_idx' }, field: 'dead' }, 1 ]},
+            then: [
+              { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                    field: 'magic' } },
+                          op: 'sub',
+                          value: { add: [90, { member: { var: 'caster_idx' },
+                                                         field: 'level' }] } }},
+              { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                    field: 'dead' } },
+                          op: 'set', value: 0 }},
+              { mutate: { target: { member_field: { idx: { var: 'target_idx' },
+                                                    field: 'hit_points' } },
+                          op: 'set', value: 1 }},
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'pronoun',
+                               args: [{ var: 'target_idx' }, 'subject'],
+                               var: 'tgt_subj' }},
+              { engine_bind: { fn: 'pronoun',
+                               args: [{ var: 'target_idx' }, 'possessive'],
+                               var: 'tgt_poss' }},
+              { emit: 'spell.priest.rebirth.eyelids' },
+              { emit: 'spell.priest.rebirth.flicker' },
+              { emit: 'spell.priest.rebirth.opens_eyes' },
+              { pause: 1700 },
+              { engine_call: 'clw' },
+            ],
+            else: [
+              { emit: 'spell.priest.rebirth.alive' },
+              { emit: 'spell.priest.rebirth.healthy' },
+              { pause: 1500 },
+            ],
+          }},
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
+  // §22 Lane A: banish. Three exit shapes — not-enough-mana,
+  // not-in-dungeon (place != 1), and the successful banishing arm
+  // that ends with state.banished = 1 (mutate state_banished). The
+  // wait_input op replaces ryl_pause(); the place check stays
+  // gated on the int binding from subs.c.
+  banish: {
+    slot: 4, base_cost: 85, name: 'Banish Evil',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [85, { member: { var: 'caster_idx' }, field: 'level' }] },
+        ]},
+        then: [
+          { if: { cond: { eq: [{ var: 'place' }, 1] },
+            then: [
+              { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                    field: 'magic' } },
+                          op: 'sub',
+                          value: { add: [85, { member: { var: 'caster_idx' },
+                                                         field: 'level' }] } }},
+              { engine_call: 'clw' },
+              { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                               var: 'caster' }},
+              { engine_bind: { fn: 'pronoun',
+                               args: [{ var: 'caster_idx' }, 'subject'],
+                               var: 'csr_subj' }},
+              { engine_bind: { fn: 'pronoun',
+                               args: [{ var: 'caster_idx' }, 'possessive'],
+                               var: 'csr_poss' }},
+              { emit: 'spell.priest.banish.raises_hands' },
+              { emit: 'spell.priest.banish.divine_power' },
+              { emit: 'spell.priest.banish.between_palms' },
+              { emit: 'spell.priest.banish.suddenly_clasps' },
+              { emit: 'spell.priest.banish.over_head' },
+              { emit: 'spell.priest.banish.thunder' },
+              { wait_input: true },
+              { engine_call: 'clw' },
+              { mutate: { target: { state_banished: 1 },
+                          op: 'set', value: 1 }},
+            ],
+            else: [
+              { emit: 'spell.priest.banish.no_target1' },
+              { emit: 'spell.priest.banish.no_target2' },
+              { emit: 'spell.priest.banish.no_target3' },
+              { emit: 'spell.priest.banish.no_target4' },
+              { wait_input: true },
+              { engine_call: 'clw' },
+            ],
+          }},
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
+  // §22 Lane A: revelation. The dungeon-only / mana-pass / 59% chance
+  // of nothing-near branches stack as nested ifs; on success the
+  // category roll picks one of three id ranges via switch (1..14
+  // weapons, 36..42 ?, 100..111 magic items) and the result feeds
+  // a (T)ake/(L)eave menu_branch wrapping inv_add. RNG identity:
+  // ryl_chance(59) draws first; on success ryl_random(0, 2) draws
+  // the category, then exactly one inner ryl_random fires for the
+  // matched id range — same 1+1+1 sequence as the legacy.
+  revelation: {
+    slot: 5, base_cost: 40, name: 'Revelation',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [40, { member: { var: 'caster_idx' }, field: 'level' }] },
+        ]},
+        then: [
+          { if: { cond: { eq: [{ var: 'place' }, 1] },
+            then: [
+              { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                    field: 'magic' } },
+                          op: 'sub',
+                          value: { add: [40, { member: { var: 'caster_idx' },
+                                                         field: 'level' }] } }},
+              { if: { cond: { chance: 59 },
+                then: [
+                  { engine_call: 'clw' },
+                  { emit: 'spell.priest.revelation.nothing1' },
+                  { emit: 'spell.priest.revelation.nothing2' },
+                  { wait_input: true },
+                  { engine_call: 'clw' },
+                ],
+                else: [
+                  { engine_call: 'clw' },
+                  { emit: 'spell.priest.revelation.special1' },
+                  { emit: 'spell.priest.revelation.special2' },
+                  { pause: 1500 },
+                  { engine_call: 'clw' },
+                  { let: 'cat', value: { random: [0, 2] }},
+                  { switch: { expr: { var: 'cat' }, cases: [
+                    { match: 0, then: [
+                      { let: 'oc', value: { add: [{ random: [0, 13] }, 1] }},
+                    ]},
+                    { match: 1, then: [
+                      { let: 'oc', value: { add: [{ random: [0, 6] }, 36] }},
+                    ]},
+                    { match: 2, then: [
+                      { let: 'oc', value: { add: [{ random: [0, 11] }, 100] }},
+                    ]},
+                  ]}},
+                  { engine_bind: { fn: 'object', args: [{ var: 'oc' }],
+                                   var: 'oc_name' }},
+                  { emit: 'spell.priest.revelation.you_find' },
+                  { emit: 'spell.priest.revelation.object_dot' },
+                  { emit: 'spell.priest.revelation.take_prompt' },
+                  { emit: 'spell.priest.revelation.leave_prompt' },
+                  { menu_branch: { options: [
+                    { key: 'T', then: [
+                      { inv_add: {
+                          item: { var: 'oc' },
+                          added: [
+                            { emit: 'spell.priest.revelation.added_blank' },
+                            { emit: 'spell.priest.revelation.added_ok' },
+                            { pause: 800 },
+                          ],
+                          full: [
+                            { engine_call: 'clw' },
+                            { emit: 'spell.priest.revelation.cant_carry' },
+                            { pause: 800 },
+                          ],
+                      }},
+                    ]},
+                  ]}},
+                ],
+              }},
+            ],
+            else: [
+              { emit: 'spell.priest.revelation.dungeon_only1' },
+              { emit: 'spell.priest.revelation.dungeon_only2' },
+              { emit: 'spell.priest.revelation.dungeon_only3' },
+              { emit: 'spell.priest.revelation.dungeon_only4' },
+              { wait_input: true },
+              { engine_call: 'clw' },
+            ],
+          }},
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
+  // §22 Lane A: teleport. Two ryl_pause-gated narration blocks set up
+  // the ritual; advance_hour fires between them. The compass + how_far
+  // prompts use loop+menu_branch with key_var so the captured key
+  // ASCII codes feed pa_teleport_step (encapsulated movement loop —
+  // the legacy nested for/switch/map-bounds-check stays in C since
+  // it's a one-spell special). update_map paints the new tile.
+  // No leading clw — SE_TELEPORT skipped that uniquely; mana-fail
+  // still trails with clw.
+  teleport: {
+    slot: 6, base_cost: 35, name: 'Teleport',
+    do: [
+      { if: { cond: { gte: [
+          { member: { var: 'caster_idx' }, field: 'magic' },
+          { add: [35, { member: { var: 'caster_idx' }, field: 'level' }] },
+        ]},
+        then: [
+          { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                field: 'magic' } },
+                      op: 'sub',
+                      value: { add: [35, { member: { var: 'caster_idx' },
+                                                     field: 'level' }] } }},
+          { engine_call: 'clw' },
+          { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                           var: 'caster' }},
+          { engine_bind: { fn: 'pronoun',
+                           args: [{ var: 'caster_idx' }, 'subject'],
+                           var: 'csr_subj' }},
+          { emit: 'spell.priest.teleport.carefully' },
+          { emit: 'spell.priest.teleport.prepares' },
+          { emit: 'spell.priest.teleport.spends' },
+          { emit: 'spell.priest.teleport.chanting' },
+          { emit: 'spell.priest.teleport.candles' },
+          { engine_call: 'advance_hour' },
+          { wait_input: true },
+          { engine_call: 'clw' },
+          { emit: 'spell.priest.teleport.picks_slab' },
+          { emit: 'spell.priest.teleport.satchel' },
+          { emit: 'spell.priest.teleport.wants_you' },
+          { emit: 'spell.priest.teleport.to' },
+          { wait_input: true },
+          { engine_call: 'clw' },
+          { emit: 'spell.priest.teleport.compass' },
+          { loop: [
+            { menu_branch: { key_var: 'dir', options: [
+              { keys: ['2', '4', '6', '8'], then: [{ break: true }] },
+            ]}},
+          ]},
+          { engine_call: 'clw' },
+          { emit: 'spell.priest.teleport.how_far' },
+          { loop: [
+            { menu_branch: { key_var: 'distance', options: [
+              { key_range: ['1', '9'], then: [{ break: true }] },
+            ]}},
+          ]},
+          { engine_call: 'pa_teleport_step',
+            args: [{ var: 'dir' }, { var: 'distance' }] },
+          { emit: 'spell.priest.teleport.arrived' },
+          { engine_call: 'update_map' },
+          { pause: 1200 },
+          { engine_call: 'clw' },
+        ],
+        else: [
+          { emit: 'spell.not_enough_pts' },
+          { pause: 1000 },
+          { engine_call: 'clw' },
+        ],
+      }},
+    ],
+  },
+  // §22 Lane A: earthquake. The place check fires FIRST in this case
+  // — dungeon-already-here is the early-out (place == 1 is "in
+  // dungeon", and the spell would collapse the roof on the party).
+  // Mana check follows. Success: incantation + eruption + cave-pic +
+  // cave-found prompt; (E)nter consumes 10 time_left and dives into
+  // a 5..18-level dungeon (or "no moves" early-out at low time).
+  // (L)eave clears the cave pic and repaints the wilderness map.
+  earthquake: {
+    slot: 7, base_cost: 55, name: 'Earthquake',
+    do: [
+      { engine_call: 'clw' },
+      { if: { cond: { eq: [{ var: 'place' }, 1] },
+        then: [
+          { emit: 'spell.priest.earthquake.roof_cave1' },
+          { emit: 'spell.priest.earthquake.roof_cave2' },
+          { wait_input: true },
+          { engine_call: 'clw' },
+        ],
+        else: [
+          { if: { cond: { gte: [
+              { member: { var: 'caster_idx' }, field: 'magic' },
+              { add: [55, { member: { var: 'caster_idx' }, field: 'level' }] },
+            ]},
+            then: [
+              { mutate: { target: { member_field: { idx: { var: 'caster_idx' },
+                                                    field: 'magic' } },
+                          op: 'sub',
+                          value: { add: [55, { member: { var: 'caster_idx' },
+                                                         field: 'level' }] } }},
+              { engine_bind: { fn: 'pa_name', args: [{ var: 'caster_idx' }],
+                               var: 'caster' }},
+              { emit: 'spell.priest.earthquake.utters' },
+              { emit: 'spell.priest.earthquake.incantation' },
+              { pause: 2000 },
+              { emit: 'spell.priest.earthquake.eruption' },
+              { pause: 3000 },
+              { engine_call: 'clr_map_window' },
+              { engine_call: 'blitgfx', args: [{ pic: 'cave' }] },
+              { engine_call: 'clw' },
+              { emit: 'cave.found_prompt' },
+              { loop: [
+                { menu_branch: { options: [
+                  { key: 'L', then: [
+                    { engine_call: 'clw' },
+                    { engine_call: 'clr_map_window' },
+                    { engine_call: 'update_map' },
+                    { break: true },
+                  ]},
+                  { key: 'E', then: [
+                    { if: { cond: { gt: [{ time_left: 1 }, 10] },
+                      then: [
+                        { mutate: { target: { time_left: 1 },
+                                    op: 'sub', value: 10 }},
+                        { engine_call: 'clr_map_window' },
+                        { dungeon: { levels: { random: [5, 18] } }},
+                      ],
+                      else: [
+                        { engine_call: 'clw' },
+                        { emit: 'cave.no_moves' },
+                        { wait_input: true },
+                        { engine_call: 'clr_map_window' },
+                        { engine_call: 'clw' },
+                      ],
+                    }},
+                    { break: true },
+                  ]},
+                ]}},
+              ]},
+            ],
+            else: [
+              { emit: 'spell.not_enough_pts' },
+              { pause: 1000 },
+              { engine_call: 'clw' },
+            ],
+          }},
+        ],
+      }},
+    ],
+  },
+}

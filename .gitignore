@@ -1,0 +1,27 @@
+# Temporary files
+.DS_Store
+.vscode
+*~
+
+# Build artefacts
+*.o
+*.d
+rylween
+rylween-asan
+*.dSYM/
+
+# Runtime-generated state (regenerated on boot)
+data/entry.dat
+data/npc.dat
+data/realm.dat
+data/rylween.log
+data/score.txt
+data/vscore.txt
+data/current-world.json5
+
+# `make sample-save` output (regenerated; not checked in).
+tmp-sample-save/
+
+# Editor / local tool state
+.claude/
+.idea/

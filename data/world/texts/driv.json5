@@ -1,0 +1,279 @@
+// Main-loop, title-menu, party-creation, and help text authored by
+// src/driv.c. Lines with % format specifiers stay inline in the C
+// source — only pure static chains moved here. The <MORE> prompt is
+// encoded with a  for the CSI introducer so the JSON5 source
+// stays plain-ASCII.
+{
+  moves: {
+    out_of_moves: ['You are out of moves', 'for today.', ''],
+  },
+
+  menu: {
+    // Out-of-moves two-option prompt, shown after the banner above.
+    out_of_moves: ['(S)ave and Quit', '(Q)uit (no save)'],
+
+    // Title-menu choice rows. N/C/T are guarded by whether the current
+    // BBS user has an existing party in this realm; S/H/D/X are always
+    // shown together. {name} = the BBS handle of the player whose party
+    // list we're viewing (§16.3). Each visible line is its own record so
+    // every tx0/tx_fmt call gets a fresh ESC[<x>C cursor jump and lands
+    // inside the right text window — multi-line records render lines 2+
+    // at the left margin (tx0 only emits the column prefix once, see
+    // primitives.c::tx0). The "ADVENTURERS OF RYLWEEN" banner above the
+    // owner line comes from data/ansi/screen.ans (rendered in green at
+    // row 1 by disp_text); we don't re-emit it from menu data.
+    owner:     ["{name}'s copy.", ''],
+    new_party: ['N. Create New Party'],
+    continue:  ['C. Continue Saved Game'],
+    terminate: ['T. Terminate Party'],
+    common_s:  ['S. View Currect Scores'],
+    common_h:  ['H. View Hall of Fame'],
+    common_d:  ['D. View Documentation'],
+    common_x:  ['X. Exit', ''],
+    no_game:   ['No game available.'],
+  },
+
+  save: {
+    saving: ['Saving position...'],
+    done:   ['Done.'],
+  },
+
+  quit: {
+    farewell: ['Fare thee well.'],
+    confirm:  ['Do you really want', 'to quit?', ''],
+  },
+
+  move: {
+    pass:     ['Pass...'],
+    no_moves: ['No moves left!'],
+  },
+
+  view: {
+    who: ['Who? (1-{party_max}/Q/A)'],
+  },
+
+  drop: {
+    another: ['Do you want to drop', 'another object? (y/N)'],
+  },
+
+  journal: {
+    header: ['',
+             "============================= TRAVELLER'S JOURNAL ==============================",
+             ''],
+  },
+
+  // <MORE> prompt after disp_text() screens (title.ans, score.txt,
+  // vscore.txt, rylween.doc, heroes.txt). Five call sites in driv.c —
+  // each was tx("\r\n") + tx("[37m<MORE>\r\n"), now one tx0.
+  more: ['', '[37m<MORE>'],
+
+  // init(): cold-start error + first-game-of-the-day banner.
+  init: {
+    no_map:    ['Bloody \'ell! Unable to find map!!!'],
+    first_day: 'First Game of the Day... Updating... Please Wait...',
+  },
+
+  // status_line(): TIME / status-bucket labels (one of four time buckets
+  // selected via world.json5 status.time_buckets, plus three pa_food()-
+  // bucketed status labels). Plain-string form (no array) so each label
+  // is emitted verbatim — they're concatenated with the X/Y/FD/MV/AU
+  // fields built inline in driv.c, and the trailing whitespace inside
+  // each label maintains the column alignment of the next field. ANSI
+  // colors stay embedded; the per-bucket color (yellow [33m for OK /
+  // time / FD/MV/AU values, magenta [35m for HUNGRY, red [31m for
+  // STARVING) is part of the label and a closing [32m (green) reset
+  // appears where the next field doesn't open with its own [32m.
+  statusline: {
+    time: {
+      dawn:     'TIME: [33mDAWN[32m      ',
+      midday:   'TIME: [33mMIDDAY[32m    ',
+      twilight: 'TIME: [33mTWILIGHT[32m  ',
+      midnight: 'TIME: [33mMIDNIGHT[32m  ',
+    },
+    status: {
+      hungry:   'ST: [35mHUNGRY  ',
+      starving: 'ST: [31mSTARVING[32m ',
+      ok:       'ST: [33mOK    ',
+    },
+  },
+
+  // Baron Ydarg already defeated: game-over banner. {party_name} is the
+  // name of the victorious party, folded in via tx_fmt (§16.3).
+  struggle: {
+    over:       ['The struggle is over.',
+                 '[31m{party_name}[37m have'],
+    conclusion: ['defeated Baron Ydarg.',
+                 'Please ask the SysOp',
+                 'to reset Rylween',
+                 ''],
+  },
+
+  // 'S' score-view branch (verbose listing prompt) and 'D' documentation
+  // branch (capture-buffer reminder).
+  scores: {
+    verbose_q: ['Do you want to see the', 'verbose listing? (y/N)'],
+  },
+  docs: {
+    capture: ['You may want to',
+              'turn on your capture',
+              'buffer now...',
+              ''],
+  },
+
+  // 'N' fresh-player branch: manual reminder before create_party().
+  create_new: {
+    manual_reminder: ['Please read the manual',
+                      'before starting play.',
+                      'You will understand',
+                      '_very_ little of the',
+                      'game otherwise...',
+                      ''],
+  },
+
+  // 'C' continue branch: daily-entry gate. {turns} = remaining turns,
+  // filled in by tx_fmt at call time (§16.3).
+  entry: {
+    exhausted: ['Sorry! You can\'t enter',
+                'the realm again today.',
+                'You only have {turns} turns',
+                'per day to use your',
+                'moves on.',
+                ''],
+  },
+
+  // 'T' terminate branch: confirm prompt, per-step progress, final banner.
+  terminate: {
+    ugh:             ['Really? C\'mon now!',
+                      'It can\'t be that bad!',
+                      'Your attitude sucks,',
+                      'my friend!',
+                      ''],
+    confirm:         ['Kill Party? (y/N)'],
+    editing_realm:   'Editing Realm...',
+    editing_journal: 'Editing Journal...',
+    deleted:         ['Your party has been', 'deleted. Please play', 'again.', ''],
+  },
+
+  // create_party() flow: header, max-player gate, prompts, stat-min
+  // errors. Lines with %d (character number) or %s (member name) stay
+  // inline and the block splits around them. gender_q / race_q fold
+  // their per-char {name} inline via tx_fmt (§16.3).
+  create: {
+    header:    ['Party Creation', ''],
+    full:      ['Sorry. Maximum number of',
+                'players reached. Play',
+                'again later on.',
+                ''],
+    name_q:    ['What is the name of your', 'party?', ''],
+    reroll:    'Reroll (y/N) ',
+    gender_q:  ['What gender is',
+                '{name}?',
+                ''],
+    gender_opts: ['1. Male', '2. Female'],
+    race_q:    ['What race is',
+                '{name}?',
+                ''],
+    race_opts: ['1. Human  2. Dwarf', '3. Elf    4. Halfling'],
+    class_menu:['Pick a class for this',
+                'character...',
+                '',
+                '1. Fighter 2. Thief',
+                '3. Mage    4. Priest',
+                '5. Bard    6. Ranger'],
+    weapon_skill_low: ['Weap. skill must be > 50.'],
+    wisdom_low:       ['Wisdom must be > 50.'],
+    charisma_low:     ['Charisma must be > 50.'],
+    saving:    ['Saving...'],
+
+    // Per-character stat-roll page: "Stats for char: <n>" header +
+    // four stat rows with %2d-formatted values. Trailing empty array
+    // entries restore the original tx() chain's blank-line breaks
+    // between header and stats, and after Charisma before the reroll
+    // prompt. Lifted from driv.c::create_party in #18.
+    stats_page:       ['Stats for char: {char_num}',
+                       '',
+                       'Weapon Skill : {weapon_skill}',
+                       'Health       : {health}',
+                       'Wisdom       : {wisdom}',
+                       'Charisma     : {charisma}',
+                       ''],
+
+    // Per-character name prompt, mid-loop in create_party. {char_num}
+    // is the 1-based slot id the player is filling.
+    name_prompt:      ['Give Character {char_num} a name!'],
+  },
+
+  // show_party(): top-of-page resource counts (torches/rations/gold)
+  // followed by the five special-item flag lines (only emitted if the
+  // party owns the corresponding item). counts is one block emitted as
+  // a single tx_fmt with three int-snprintf bindings; the trailing
+  // empty array entry restores the gold line's \r\n\r\n paragraph break.
+  party: {
+    counts:        ['{torches} torches.',
+                    '{rations} rations.',
+                    '{gold} gold.',
+                    ''],
+    has_shield:    ['You have the Shield.'],
+    has_bracelets: ['You have the Bracelets.'],
+    has_crown:     ['You have the Crown.'],
+    has_foot:      ['You have the Foot.'],
+    has_key:       ['You have the Key.'],
+  },
+
+  // show(nr): per-character info pages, one tx_fmt per page (was a
+  // chain of 8 tx() calls with hardcoded labels in C). Each page ends
+  // on a `ryl_pause + clw` boundary. Bindings are int-snprintf'd in
+  // driv.c (skill/hp/health/wisdom/charisma/magic/level/exp) plus
+  // string-bound name/race/class/weapon/armor/status. The trailing
+  // empty array entry on each page mirrors the original tx("\r\n")
+  // paragraph breaks (Class→Skill, Magic→pause; Armor→Status,
+  // Status→Exp, Exp→pause).
+  show: {
+    first_page:    ['Name      : {name}',
+                    'Race      : {race}',
+                    'Class     : {class}',
+                    '',
+                    'Skill     : {skill}',
+                    'Hp/H      : {hp}/{health}',
+                    'Wisdom    : {wisdom}',
+                    'Charisma  : {charisma}',
+                    'Magic     : {magic}',
+                    ''],
+    second_page:   ['Level     : {level}',
+                    'Weapon    : {weapon}',
+                    'Armor     : {armor}',
+                    '',
+                    'Status    : {status}',
+                    '',
+                    'Exp       : {exp}',
+                    ''],
+    status_dead:   'Dead.',
+    status_alive:  'Alive.',
+  },
+
+  // help() — three ryl_pause-separated pages of keybindings.
+  help: {
+    p1: ['C = Camp',
+         'E = Enter',
+         'H = Hunt for Food',
+         'J = View Journal',
+         'L = Leave (Discard) Item',
+         'P = Put down weapon',
+         ''],
+    p2: ['Q = Quaff Potion',
+         'R = Ready Armor',
+         'S = Save Game',
+         'T = Take off armor',
+         'V = View Party',
+         'W = Wield Weapon',
+         ''],
+    p3: ['X = Quit Game (No Save)',
+         'Z = Cast Spell',
+         '! = Redraw Screen',
+         '? = View this help',
+         '    8     Move North,',
+         '  4-+-6   South, East &',
+         '    2     West',
+         ''],
+  },
+}
