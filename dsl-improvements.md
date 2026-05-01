@@ -109,14 +109,17 @@ Keep implementation and authoring separate:
   record, not writing a Kotlin class.
 - Game-specific reusable behavior needs its own authored-script layer. If the
   current Rylween game wants a reusable "traveller story" or "temple ritual"
-  helper, that belongs in game script authoring or a future game-script library,
-  not in the Kotlin DSL kernel. The kernel should provide only the generic
-  verbs those helpers need.
+  helper, that belongs in `src/game/kotlin/RylweenGameScripts.kt` or a future
+  game-script library, not in the Kotlin DSL kernel. The kernel should provide
+  only the generic verbs those helpers need.
 - The Kotlin DSL project is now a small Gradle build named `rylween`. Runtime
-  DSL/kernel code lives under `src/main/kotlin`: `rylween-dsl.kt` for the
-  authoring model, `rylween-dsl-validation.kt` for validation, and
-  `rylween-engine.kt` for the backend-neutral engine boundary. The
-  game-specific scratch source lives at
+  DSL/kernel code lives under `src/main/kotlin`: `RylweenDsl.kt` for the
+  authoring model, `RylweenGeneratedMetadata.kt` for generated handle/catalog
+  metadata, `RylweenDslValidation.kt` for validation, `RylweenEngine.kt` for the
+  backend-neutral engine boundary, `RylweenRuntime.kt` for reusable sessions,
+  and `RylweenStateSnapshot.kt` for save-shaped state emission. Reusable
+  current-game script helpers live under `src/game/kotlin`. The game-specific
+  scratch source lives at
   `src/scratch/kotlin/rylween-full-scratch.dsl.kts`.
   Validate it with:
 
@@ -157,7 +160,8 @@ content {
 
 Use this as the task board for turning the inventory below into reviewed DSL
 changes. A task is only done when the current C/JSON5 owner has been audited,
-the DSL shape is represented in `dsl-next.kts` or its successor, mutable data
+the DSL shape is represented in `src/scratch/kotlin/rylween-full-scratch.dsl.kts`
+or the smaller `dsl-next.kts` prototype lab where appropriate, mutable data
 has save-state coverage, native calls are named and typed, and at least one
 parity check or replay fixture is planned.
 
@@ -176,7 +180,7 @@ Current status:
 
 | Area | DSL/runtime capability | Full-game content in scratch | Not yet fully implemented |
 |------|------------------------|------------------------------|---------------------------|
-| Project/build | Gradle wrapper, Kotlin JVM build, tests, scratch validation, validation split | N/A | publishing/package layout; generated content compiler task |
+| Project/build | Gradle wrapper, Kotlin JVM build, tests, scratch validation, validation split, generated metadata file split, current-game script helper source set | N/A | publishing/package layout; generated content compiler task |
 | Runtime state/save | `stateFixture`, strict `runtimeState`, validation, deterministic text writer, runtime session wrapper for `RealmState` plus parties, first save-shaped town-service continuation stack | 3 state fixtures, including near-winning and winning runtime snapshot | reader/parser, filesystem save/load policy, multi-party real saves, full exact snapshot coverage from live engine |
 | Flags/milestones/win | typed flag states, milestone projection, generic win predicate | 13 current story/encounter flags, 6 milestone records | full transition graph validation, generated catalog from source data |
 | Items/equipment | generated item metadata, slotted inventory, separate equipment, item pools, pure Kotlin ready/off mutations, reusable equipment prompt commands, town-leave ready prompt session, terminal-style equipment adapters, first gear/resource side-effect helpers | 63 current item handles/records, potion metadata, first magic item example | all item-use scripts, derived combat values, full rest/camp/dungeon item effects, generated metadata pipeline |
@@ -195,8 +199,8 @@ move, say that explicitly.
 ### A. Foundation and authoring surface
 
 - [x] A0. Seed typed DSL direction. DSL delta: `rylween { content { ... } state { ... } }`, typed handles, typed flags, first party-state model. Native decision: JSON5 is reference only, not the target runtime format.
-- [ ] A1. Split the prototype into clear authoring sections. DSL delta: stable `content`, `state`, `texts`, `scripts`, and handle catalog sections. Native decision: content compiler owns handle generation. Current scratch status: partial; `src/main/kotlin/rylween-dsl.kt` now holds the DSL implementation, and `src/scratch/kotlin/rylween-full-scratch.dsl.kts` holds the game authoring area with declarative `flags`, `gameProgress`, `monsters`, `missions`, scripts, and `state` blocks.
-- [ ] A2. Define the generated handle catalogs. DSL delta: `Items.*`, `Flags.*`, `Npcs.*`, `Maps.*`, `Terrain.*`, `Texts.*`, `Scenes.*`, `NativeOps.*`. Native decision: C receives dense ids plus diagnostic slugs. Current scratch status: partial in `rylween-dsl.kt`; hand-sketched catalogs now cover the listed handle families plus visuals, layouts, screen regions, roles, spells, missions, key actions, dungeons, towns/buildings, locations, and encounter tiers, but these catalogs are treated as generated output rather than game-designer code.
+- [x] A1. Split the prototype into clear authoring sections. DSL delta: stable `content`, `state`, `texts`, `scripts`, and handle catalog sections. Native decision: content compiler owns handle generation. Current status: the Kotlin implementation is split into `RylweenDsl.kt`, `RylweenGeneratedMetadata.kt`, `RylweenDslValidation.kt`, `RylweenEngine.kt`, `RylweenRuntime.kt`, and `RylweenStateSnapshot.kt`; `src/game/kotlin/RylweenGameScripts.kt` holds reusable current-game script helpers; `src/scratch/kotlin/rylween-full-scratch.dsl.kts` holds the game authoring area.
+- [ ] A2. Define the generated handle catalogs. DSL delta: `Items.*`, `Flags.*`, `Npcs.*`, `Maps.*`, `Terrain.*`, `Texts.*`, `Scenes.*`. Native decision: C receives dense ids plus diagnostic slugs. Current scratch status: partial in `RylweenGeneratedMetadata.kt`; hand-sketched catalogs now cover the listed handle families plus visuals, layouts, screen regions, roles, spells, missions, key actions, dungeons, towns/buildings, locations, and encounter tiers, but these catalogs are still hand-maintained generated-output scaffolding. `NativeOps.*` is intentionally in `RylweenDsl.kt` because it belongs to the reusable engine/native boundary, not game-generated metadata.
 - [ ] A3. Define typed native-op declarations. DSL delta: `nativeOps { op(NativeOps.renderMap) { ... } }` or equivalent. Native decision: no raw string function names in authored scripts.
 - [ ] A4. Define validation error style. DSL delta: validation helpers report game concepts such as missing terrain, text binding, or illegal flag transition. Native decision: loader can reject compiled bundles defensively but author-facing validation happens before C.
 
@@ -205,22 +209,24 @@ move, say that explicitly.
 Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 
 - `src/scratch/kotlin/rylween-full-scratch.dsl.kts` is the successor scratch source copied from `dsl-next.kts`; `dsl-next.kts` remains the small language/prototype lab.
-- The Gradle project root is named `rylween` and uses the Gradle 9.5.0 wrapper with Kotlin JVM 2.3.21. `src/main/kotlin/rylween-dsl.kt` is the Kotlin implementation of the scratch DSL, `src/main/kotlin/rylween-dsl-validation.kt` contains validation, and `src/main/kotlin/rylween-engine.kt` contains the backend-neutral engine port. `src/scratch/kotlin/rylween-full-scratch.dsl.kts` is only the game-specific declaration source.
+- The Gradle project root is named `rylween` and uses the Gradle 9.5.0 wrapper with Kotlin JVM 2.3.21. `src/main/kotlin/RylweenDsl.kt` is the reusable DSL kernel, `src/main/kotlin/RylweenGeneratedMetadata.kt` is the hand-maintained generated-output placeholder, `src/main/kotlin/RylweenDslValidation.kt` contains validation, `src/main/kotlin/RylweenEngine.kt` contains the backend-neutral engine port, `src/main/kotlin/RylweenRuntime.kt` contains reusable sessions/interpreters, and `src/main/kotlin/RylweenStateSnapshot.kt` contains save-shaped state emission. `src/game/kotlin/RylweenGameScripts.kt` contains reusable current-game script helpers, and `src/scratch/kotlin/rylween-full-scratch.dsl.kts` is the game-specific declaration source.
 - Keep a hard boundary between DSL implementation and game authoring. Kotlin classes, builders, validators, and generated handles are implementation/compiler scaffolding; the game designer should add game-specific content through declaration blocks such as `flags { ... }`, `monsters { ... }`, `missions { ... }`, `gameProgress { ... }`, and `state { ... }`.
 - Adding a new monster, flag, mission, special milestone, text, or similar game-specific concept should not require writing a Kotlin class. The authoring source declares the concept in game terms; the content compiler can generate typed handles from those declarations.
 - Common Rylween engine/state concepts such as party state, member stats, inventory slots, positions, and validation helpers may remain normal Kotlin DSL implementation types because authors consume them rather than extend them.
 - Common gameplay systems such as battle rounds, fight/run menus, spell selection/casting, item use, reward application, and encounter orchestration should become reusable Kotlin DSL/runtime-library concepts. Game authors should declare the content those systems consume, plus explicit hooks or overrides when needed; they should not hand-write bespoke battle loops for normal monsters or spells. Those reusable Kotlin systems may call a narrow native surface for input, rendering, RNG, persistence, and low-level storage.
 - The runtime boundary is backend-neutral: `RylweenEnginePort` can be implemented by the current C engine bridge, a pure Kotlin JVM runtime, a server process, or a future native executable. The DSL/runtime layer should depend on the port contract, not on a hard-coded C implementation.
 - Layering rule for future passes:
-  1. `src/main/kotlin/rylween-dsl.kt` owns the generic authoring language, generated metadata scaffolding, immutable models, and AST builders. It must not contain current-world story text, tavern-specific scoring rules, NPC quest prose, or one-off Rylween plot branches.
-  2. `src/scratch/kotlin/rylween-full-scratch.dsl.kts` owns the current game's content and game-specific script bodies: towns, services, stories, rumours, missions, item effects, and branch text.
-  3. `src/main/kotlin/rylween-engine.kt` and `rylween-runtime.kt` own interpreters, resumable sessions, and backend-neutral ports. A C bridge, pure Kotlin runtime, server runtime, or native executable should all be able to implement the same narrow input/render/RNG/persistence boundary.
-  4. Tests may use small capability fixtures, but exact full-game parity tests should execute the compiled scratch game model once that harness exists. Unit fixtures are not a second source of game content truth.
+  1. `src/main/kotlin/RylweenDsl.kt` owns the generic authoring language, immutable models, and AST builders. It must not contain current-world story text, tavern-specific scoring rules, NPC quest prose, or one-off Rylween plot branches.
+  2. `src/main/kotlin/RylweenGeneratedMetadata.kt` owns generated-output scaffolding while the real content compiler does not exist. It may carry imported legacy ids and exact generated tables, but game authors should not edit or rely on numeric ids.
+  3. `src/game/kotlin/RylweenGameScripts.kt` owns reusable script helpers that are specific to this Rylween game, such as traveller storytelling. These helpers can keep the main scratch source readable, but they are still game content, not kernel/runtime machinery.
+  4. `src/scratch/kotlin/rylween-full-scratch.dsl.kts` owns the current game's content and inline script bodies: towns, services, stories, rumours, missions, item effects, and branch text.
+  5. `src/main/kotlin/RylweenEngine.kt` and `RylweenRuntime.kt` own interpreters, resumable sessions, and backend-neutral ports. A C bridge, pure Kotlin runtime, server runtime, or native executable should all be able to implement the same narrow input/render/RNG/persistence boundary.
+  6. Tests may use small capability fixtures, but exact full-game parity tests should execute the compiled scratch game model once that harness exists. Unit fixtures are not a second source of game content truth.
 - `Flags` aliases the existing `Story` flag catalog so scripts can keep the readable `Story.garth.bandits.accepted` form while A2 has a canonical `Flags.*` entry point.
 - `Items.none` is an author-facing alias for the current id-0 `blank` item. The prototype-only `garth_cargo` item was not carried forward because it is not present in the current item shards.
 - `Images.Scene.*` names the `blitgfx` map-window pictures semantically from `src/ryl.h` and `world.json5`'s `enums.pic` table, with comments preserving the legacy `data/tiles/NN.ans` filenames. Avoid `tile01`-style handles in authoring code.
 - `Images.Static.*` is reserved for full/static ANSI assets under `data/ansi`, separate from map-window scene pictures under `data/tiles`.
-- `NativeOps.*` is a typed catalog, but in `.kts` it must currently be represented as a class plus top-level value rather than a Kotlin `object`; script objects that call script-level helpers trigger a Kotlin script capture error.
+- `NativeOps.*` is a typed catalog in `RylweenDsl.kt`, but in `.kts` it must currently be represented as a class plus top-level value rather than a Kotlin `object`; script objects that call script-level helpers trigger a Kotlin script capture error.
 - DSL implementation code should be idiomatic Kotlin: prefer expression-bodied helpers, `buildList`, `apply(...).build()`, and collection operations over local scratch variables and imperative loops. Authored game blocks should stay readable as game notes.
 - B7 ownership decision: `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot`, and `silverkey` are persisted game-state milestones. Each current milestone also projects into the special-inventory view, but that is a property of the milestone, not a hard-coded rule that every win milestone is a special item.
 - `silverkey == 2` in the legacy C engine is not a Silver Key item state. It becomes a separate `Milestones.ydargVictory` completion marker so "has Silver Key" and "finished Castle Ydarg / won" are distinct states.
@@ -248,7 +254,7 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - The inn pass adds `choice.yesNo(...)` and `choice.takeOrLeave(...)` as reusable menu shapes, plus `forEachMember`, `healLivingMembers`, and clamped stat mutation for party-wide recovery effects.
 - The tavern pass adds reusable typed support for structured inline prompts (`structuredText { ... }`), class checks such as `member.isClass(PcClass.Bard)`, member charisma mutation, realm values such as `realm.partyMemberMax`, and hidden integer locals via `localInt(...)`. Use `localInt` for authored counters, prices, rolls, and temporary script values; keep raw `let("name", ...)` as an implementation/import escape hatch where a backend or generated script really needs a stable symbolic name.
 - The scruffy dealer is now expressed as `choice.randomItemOffer(ItemPools.tavernScruffySpecials) { ... }`. The item pool is semantic and ordered in generated metadata, matching the legacy scruffy pool without exposing numeric item ids in authoring. `RandomItemOfferSession` owns generated item name/price lookup from `ItemCatalog`, B/N purchase input, gold check, first-free inventory placement, prompt/drop overflow, and resumable continuation state. Current runtime tests pick a deterministic pool entry; true RNG selection should plug into the same session boundary.
-- Tavern traveller storytelling is current-game content, not DSL kernel functionality. Keep its exact text, scoring thresholds, Bard/charisma bonuses, liar penalty, `waitInput`, and charisma adjustments in the authored game script. If that shape becomes reusable across Rylween worlds, introduce a game-script-library mechanism or a parameterized generic contest helper; do not put one world's story body in `rylween-dsl.kt`.
+- Tavern traveller storytelling is current-game content, not DSL kernel functionality. Its exact text, scoring thresholds, Bard/charisma bonuses, liar penalty, `waitInput`, and charisma adjustments now live in `src/game/kotlin/RylweenGameScripts.kt` as `travellerStory()`, while the tavern script calls that helper inline. If that shape becomes reusable across Rylween worlds, introduce a game-script-library mechanism or a parameterized generic contest helper; do not put one world's story body in `RylweenDsl.kt`.
 - Random-item offers and normal shop inventory purchases reuse the same reward overflow policy vocabulary as mission rewards, and default to the reusable drop-something-and-place flow. Exact legacy "can't carry it" rejection remains an explicit opt-out for byte-parity fixtures.
 - Smith and merchant are modeled with `shopService(...)`: authoring declares the service image, local text, optional chance interlude, buy catalogs, resource buys, sell policy, and bargain policy; Kotlin/runtime owns the shop loop, menu dispatch, item-cost lookup, dynamic level-based prices, first-free-slot placement, and prompt/drop overflow.
 - The first runnable shop runtime is `ShopServiceInterpreter`, a pure Kotlin transaction interpreter over immutable `PartyState`. It executes semantic buy/sell requests from a `ShopServiceModel`, including generated item-cost lookup, level-based merchant food/potion prices, torch/food caps, first-free-slot placement, prompt/drop overflow, merchant sell policy, and smith haggle math. It stays independent of concrete terminal, C, server, or native UI implementations.
@@ -1143,7 +1149,7 @@ The Kotlin DSL compiler or loader should validate:
 ## Migration phases
 
 1. Keep current JSON5/C data as reference.
-2. Grow `dsl-next.kts` into a representative typed content/state source.
+2. Grow `src/scratch/kotlin/rylween-full-scratch.dsl.kts` into a representative typed content/state source while keeping `dsl-next.kts` as the small prototype lab.
 3. Define the native bundle structs and ids.
 4. Add C string interning and resource hash tables.
 5. Model maps, terrain, visual assets, screen regions, and render styles.

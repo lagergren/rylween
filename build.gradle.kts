@@ -13,6 +13,16 @@ kotlin {
     jvmToolchain(25)
 }
 
+val gameSourceSet = sourceSets.create("game") {
+    java.srcDir("src/game/kotlin")
+    compileClasspath += sourceSets.named("main").get().output
+    runtimeClasspath += output + compileClasspath
+}
+
+configurations.named(gameSourceSet.implementationConfigurationName) {
+    extendsFrom(configurations.implementation.get())
+}
+
 dependencies {
     testImplementation(kotlin("test"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -44,9 +54,11 @@ val validateScratch by tasks.registering(JavaExec::class) {
     description = "Compiles and executes the scratch Kotlin DSL source against the built DSL jar."
 
     dependsOn(tasks.jar)
+    dependsOn(tasks.named(gameSourceSet.classesTaskName))
     classpath = kotlinCompiler
     mainClass.set("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
-    val scratchClasspath = files(tasks.jar.flatMap { it.archiveFile }) + scratchRuntime
+    val gameKotlinClasses = layout.buildDirectory.dir("classes/kotlin/${gameSourceSet.name}")
+    val scratchClasspath = files(tasks.jar.flatMap { it.archiveFile }, gameKotlinClasses) + scratchRuntime
     args(
         "-no-stdlib",
         "-no-reflect",
