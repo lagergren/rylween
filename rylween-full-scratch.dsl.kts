@@ -374,6 +374,49 @@ val nextRylween = rylween {
         mark(Story.masterCrown.borinPaid)
     }
 
+    // 8. NPC dialogue: one-off text and rewards stay inline in the branch.
+    dialogue {
+        npc(Npcs.garth) {
+            whenState(Story.garth.bandits.none) {
+                say(
+                    "In fact, I have a mission",
+                    "for you. It will bring",
+                    "you much gold!",
+                    "",
+                )
+                say(
+                    "I was robbed by bandits",
+                    "just to the east of here.",
+                    "If you find these bandits,",
+                    "kill them, and return",
+                    "my cargo here, I'll pay",
+                    "you 2000 gold and a ruby",
+                    "my grandfather gave me.",
+                    "",
+                )
+                mark(Story.garth.bandits.accepted)
+            }
+
+            whenState(Story.garth.bandits.recovered) {
+                say(
+                    "The merchant is GRATEFUL!",
+                    "He pays you 2000 gold and",
+                    "hands you a red gem.",
+                    "",
+                )
+                reward {
+                    gold(2000)
+                    items(Items.redGem)
+                    promptDrop(
+                        cantCarry = "You can't carry the gem.",
+                        pickedUp = "You pick up the gem.",
+                    )
+                }
+                mark(Story.garth.bandits.closed)
+            }
+        }
+    }
+
     }
 
     // Authored start state fixture. It can stay compact and readable.
@@ -734,6 +777,15 @@ check(nextDsl.combat.standardBattle?.rewards == Rewards.standardBattle)
 check(nextDsl.monsters.size == 2)
 check(nextDsl.scenes.size == 5)
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
+check(nextDsl.dialogue.size == 1)
+check(nextDsl.dialogue.single().branches.size == 2)
+check(nextDsl.dialogue.single().branches.any { branch ->
+    branch.whenState == Story.garth.bandits.recovered &&
+            branch.ops.any { op ->
+                op is Op.GrantReward &&
+                        op.reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace
+            }
+})
 check(nextDsl.spells.size == 1)
 check(nextDsl.magicItems.size == 1)
 check(nextDsl.magicItems.single().consume == ItemConsumePolicy.BeforeUse)
