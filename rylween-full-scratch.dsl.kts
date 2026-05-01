@@ -20,6 +20,12 @@
 //      state.
 //   7. The six hard cases below remain the readability test: church heal, mage
 //      frost, fire wand, rumour, Ydarg main loop, bandits.
+//
+// Kotlin implementation code lives above section 06 and should be idiomatic
+// Kotlin. Game-specific content lives in section 06 and should read like game
+// declarations, not like Kotlin programming. The generated handle classes in
+// this scratch file are migration scaffolding; a real content compiler should
+// generate them from the author's declarations.
 
 @file:Suppress(
     "unused",
@@ -1089,7 +1095,29 @@ data class SwitchCase(val match: Int?, val body: List<Op>)
 data class SceneModel(val id: SceneId, val ops: List<Op>)
 data class SpellModel(val id: SpellId, val slot: Int, val baseCost: Int, val name: String, val ops: List<Op>)
 data class MagicItemModel(val id: ItemId, val ops: List<Op>)
-data class MissionModel(val id: MissionId, val trigger: Trigger, val requires: BoolAst?, val ops: List<Op>)
+
+data class FlagContentModel(
+    val ref: FlagRef,
+    val states: List<FlagState>,
+)
+
+data class MonsterModel(
+    val id: MonsterId,
+    val name: String,
+    val count: IntRange,
+    val hitPoints: IntRange,
+    val weaponSkill: Int,
+    val spellPower: Int,
+    val tier: EncounterTier?,
+    val immune: Boolean,
+)
+
+data class MissionModel(
+    val id: MissionId,
+    val trigger: Trigger,
+    val requires: BoolAst?,
+    val action: SceneId,
+)
 
 enum class LegacySpecialField { Fireshield, Bracelets, Mastercrown, Jazzyfoot, Silverkey }
 
@@ -1117,7 +1145,9 @@ data class GameProgressModel(
 
 data class GameModel(
     val flags: List<FlagRef>,
+    val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
+    val monsters: List<MonsterModel>,
     val scenes: List<SceneModel>,
     val spells: List<SpellModel>,
     val magicItems: List<MagicItemModel>,
@@ -1626,14 +1656,28 @@ class NativeInput(private val script: ScriptScope) {
 
 @RylNextDsl
 class GameBuilder {
+    private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
+    private val monsters = mutableListOf<MonsterModel>()
     private val scenes = mutableListOf<SceneModel>()
     private val spells = mutableListOf<SpellModel>()
     private val magicItems = mutableListOf<MagicItemModel>()
     private val missions = mutableListOf<MissionModel>()
 
+    fun flags(body: FlagContentBuilder.() -> Unit) {
+        authoredFlags += FlagContentBuilder().apply(body).build()
+    }
+
     fun gameProgress(body: GameProgressBuilder.() -> Unit) {
         progressModel = GameProgressBuilder().apply(body).build()
+    }
+
+    fun monsters(body: MonsterCatalogBuilder.() -> Unit) {
+        monsters += MonsterCatalogBuilder().apply(body).build()
+    }
+
+    fun missions(body: MissionCatalogBuilder.() -> Unit) {
+        missions += MissionCatalogBuilder().apply(body).build()
     }
 
     fun scene(id: SceneId, body: ScriptScope.() -> Unit) {
@@ -1648,18 +1692,115 @@ class GameBuilder {
         magicItems += MagicItemModel(id, recordScript(body))
     }
 
-    fun mission(id: MissionId, trigger: Trigger, requires: BoolExpr? = null, body: ScriptScope.() -> Unit) {
-        missions += MissionModel(id, trigger, requires?.ast, recordScript(body))
-    }
-
     fun build(): GameModel =
-        GameModel(declaredFlags.toList(), progressModel, scenes, spells, magicItems, missions)
+        GameModel(
+            flags = declaredFlags.toList(),
+            authoredFlags = authoredFlags.toList(),
+            progress = progressModel,
+            monsters = monsters.toList(),
+            scenes = scenes.toList(),
+            spells = spells.toList(),
+            magicItems = magicItems.toList(),
+            missions = missions.toList(),
+        )
 
     private fun recordScript(body: ScriptScope.() -> Unit): List<Op> {
         return buildList {
             ScriptScope(ScriptContext(), this).body()
         }
     }
+}
+
+@RylNextDsl
+class FlagContentBuilder {
+    private val flags = mutableListOf<FlagContentModel>()
+
+    fun story(flag: FlagRef, body: FlagContentEntryBuilder.() -> Unit = {}) {
+        require(flag.scope == FlagScope.Party) { "story flag ${flag.slug} must have party scope" }
+        flags += FlagContentEntryBuilder(flag).apply(body).build()
+    }
+
+    fun encounter(flag: FlagRef, body: FlagContentEntryBuilder.() -> Unit = {}) {
+        require(flag.scope == FlagScope.Encounter) { "encounter flag ${flag.slug} must have encounter scope" }
+        flags += FlagContentEntryBuilder(flag).apply(body).build()
+    }
+
+    fun build(): List<FlagContentModel> = flags.toList()
+}
+
+@RylNextDsl
+class FlagContentEntryBuilder(private val flag: FlagRef) {
+    private val explicitStates = mutableListOf<FlagState>()
+
+    fun states(vararg states: FlagState) {
+        explicitStates += states
+    }
+
+    fun build(): FlagContentModel =
+        FlagContentModel(flag, explicitStates.ifEmpty { flag.states })
+}
+
+@RylNextDsl
+class MonsterCatalogBuilder {
+    private val monsters = mutableListOf<MonsterModel>()
+
+    fun monster(id: MonsterId, body: MonsterBuilder.() -> Unit) {
+        monsters += MonsterBuilder(id).apply(body).build()
+    }
+
+    fun build(): List<MonsterModel> = monsters.toList()
+}
+
+@RylNextDsl
+class MonsterBuilder(private val id: MonsterId) {
+    var name: String = ""
+    var count: IntRange = 1..1
+    var hitPoints: IntRange = 1..1
+    var weaponSkill: Int = 0
+    var spellPower: Int = 0
+    var tier: EncounterTier? = null
+    var immune: Boolean = false
+
+    fun build(): MonsterModel =
+        MonsterModel(id, name, count, hitPoints, weaponSkill, spellPower, tier, immune)
+}
+
+@RylNextDsl
+class MissionCatalogBuilder {
+    private val missions = mutableListOf<MissionModel>()
+
+    fun mission(id: MissionId, body: MissionBuilder.() -> Unit) {
+        missions += MissionBuilder(id).apply(body).build()
+    }
+
+    fun build(): List<MissionModel> = missions.toList()
+}
+
+@RylNextDsl
+class MissionBuilder(private val id: MissionId) {
+    private var trigger: Trigger? = null
+    private var requires: BoolAst? = null
+    private var action: SceneId? = null
+
+    fun randomStep(percent: Int) {
+        trigger = Trigger.RandomStep(percent)
+    }
+
+    fun requires(state: FlagState) {
+        requires = state.ast
+    }
+
+    fun runs(scene: SceneId) {
+        action = scene
+    }
+
+    fun build(): MissionModel =
+        MissionModel(
+            id = id,
+            trigger = checkNotNull(trigger) { "mission ${id.slug} requires a trigger" },
+            requires = requires,
+            action = checkNotNull(action) { "mission ${id.slug} requires an action scene" },
+        )
 }
 
 @RylNextDsl
@@ -2087,7 +2228,6 @@ fun nativePathsIn(model: GameModel): Set<String> {
     model.magicItems.forEach { ops(it.ops) }
     model.missions.forEach {
         it.requires?.let(::bool)
-        ops(it.ops)
     }
     return paths
 }
@@ -2125,6 +2265,41 @@ fun validateGameProgress(progress: GameProgressModel) {
         }
         win.completedBy?.let {
             check(it in defined) { "win completion references unknown milestone ${it.slug}" }
+        }
+    }
+}
+
+fun validateAuthoredContent(content: GameModel) {
+    check(content.authoredFlags.map { it.ref.slug }.toSet().size == content.authoredFlags.size) {
+        "duplicate authored flag"
+    }
+    content.authoredFlags.forEach { flag ->
+        check(flag.states.all { it.flag == flag.ref }) {
+            "authored flag ${flag.ref.slug} includes a state from another flag"
+        }
+    }
+
+    check(content.monsters.map { it.id }.toSet().size == content.monsters.size) {
+        "duplicate authored monster"
+    }
+    content.monsters.forEach { monster ->
+        check(monster.name.isNotBlank()) { "monster ${monster.id.slug} requires a display name" }
+        check(monster.count.first > 0 && monster.count.last >= monster.count.first) {
+            "monster ${monster.id.slug} has invalid count range"
+        }
+        check(monster.hitPoints.first > 0 && monster.hitPoints.last >= monster.hitPoints.first) {
+            "monster ${monster.id.slug} has invalid hit point range"
+        }
+    }
+
+    check(content.missions.map { it.id }.toSet().size == content.missions.size) {
+        "duplicate authored mission"
+    }
+    content.scenes.map { it.id }.toSet().let { scenes ->
+        content.missions.forEach { mission ->
+            check(mission.action in scenes) {
+                "mission ${mission.id.slug} references missing action scene ${mission.action.slug}"
+            }
         }
     }
 }
@@ -2199,9 +2374,25 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
 
 val nextRylween = rylween {
     content {
-    // Content tables are still catalog-only in this first scratch pass. The
-    // next passes should fill in visuals, layouts, terrain, maps, items,
-    // monsters, spells, text declarations, menus, and mission tables here.
+    // Content tables are still skeletal in this first scratch pass. The next
+    // passes should fill in visuals, layouts, terrain, maps, items, spells,
+    // text declarations, menus, and the rest of the monster/mission tables here.
+
+    flags {
+        story(Story.garth.bandits)
+        story(Story.ranger.letter)
+        story(Story.fighter.priestBook)
+        story(Story.church.donationOnce)
+        story(Story.silverKey)
+        story(Story.erethor.lute)
+        story(Story.bracelets.thun)
+        story(Story.nymph.seeker)
+        story(Story.peasant.wife)
+        story(Story.jazzy.ogre)
+        story(Story.masterCrown)
+        story(Story.hermit.trollTooth)
+        encounter(Story.encounter.immune)
+    }
 
     gameProgress {
         milestone(Milestones.fireShield) {
@@ -2241,6 +2432,31 @@ val nextRylween = rylween {
         winningConfiguration {
             requiresAllMilestonesMarkedRequired()
             completedBy(Milestones.ydargVictory)
+        }
+    }
+
+    monsters {
+        monster(Monsters.bandit) {
+            name = "Bandit"
+            count = 2..6
+            hitPoints = 50..99
+            weaponSkill = 50
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.guardian) {
+            name = "Guardian"
+            count = 1..1
+            hitPoints = 250..350
+            weaponSkill = 80
+        }
+    }
+
+    missions {
+        mission(Missions.bandits) {
+            randomStep(percent = 9)
+            requires(Story.garth.bandits.accepted)
+            runs(Scenes.Missions.bandits)
         }
     }
 
@@ -2396,12 +2612,8 @@ val nextRylween = rylween {
         }
     }
 
-    // 6. Mission trigger: flag states are fluent typed markers, not strings.
-    mission(
-        Missions.bandits,
-        trigger = Trigger.RandomStep(percent = 9),
-        requires = Story.garth.bandits.accepted,
-    ) {
+    // 6. Mission action scene: flag states are fluent typed markers, not strings.
+    scene(Scenes.Missions.bandits) {
         native.screen.clearText()
         screen(T.MissionsText.Bandits.spotted)
         screen(T.MissionsText.Bandits.warned)
@@ -2505,9 +2717,11 @@ val nextRylween = rylween {
 val nextDsl = nextRylween.content
 
 check(nextDsl.flags.size == 13)
+check(nextDsl.authoredFlags.size == 13)
 check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
-check(nextDsl.scenes.size == 3)
+check(nextDsl.monsters.size == 2)
+check(nextDsl.scenes.size == 4)
 check(nextDsl.spells.size == 1)
 check(nextDsl.magicItems.size == 1)
 check(nextDsl.missions.size == 1)
@@ -2516,6 +2730,7 @@ check(nextRylween.states.single().parties.single().members.size == 2)
 check(specialInventoryItems(nextDsl, nextRylween.states.single().parties.single()).isEmpty())
 check(!isWinningConfiguration(nextDsl, nextRylween.states.single().parties.single()))
 validateFlagCatalog(nextDsl.flags)
+validateAuthoredContent(nextDsl)
 validateGameProgress(nextDsl.progress)
 validateStates(nextRylween.states, nextDsl)
 check((nativePathsIn(nextDsl) - NativeAllowlist.byPath.keys).isEmpty())
