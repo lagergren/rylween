@@ -36,6 +36,7 @@ sealed interface EngineTraceEvent {
     ) : EngineTraceEvent
     data class GrantReward(val reward: ScriptRewardModel) : EngineTraceEvent
     data class AchieveMilestone(val milestone: GameMilestoneId) : EngineTraceEvent
+    data class Speak(val building: BuildingId) : EngineTraceEvent
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : EngineTraceEvent
     data class Encounter(val monster: MonsterId, val mandatory: Boolean, val tier: EncounterTier?) : EngineTraceEvent
     data class Stop(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
@@ -93,6 +94,7 @@ class ScriptTraceRunner(
             is Op.Set -> ScriptControlSignal.Continue
             is Op.Add -> ScriptControlSignal.Continue
             is Op.Sub -> ScriptControlSignal.Continue
+            is Op.AddClamped -> ScriptControlSignal.Continue
             is Op.SetFlag -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
             }
@@ -115,8 +117,14 @@ class ScriptTraceRunner(
                 trace(EngineTraceEvent.AskInventorySlot(op.prompt, op.firstKey, op.slots, op.filter))
             }
             is Op.AskMonster -> ScriptControlSignal.Continue
+            is Op.ForEachMember -> ScriptControlSignal.StopScript.also {
+                trace(EngineTraceEvent.Stop("trace runner does not iterate party members", ScriptControlSignal.StopScript))
+            }
             is Op.ForEachMonster -> ScriptControlSignal.StopScript.also {
                 trace(EngineTraceEvent.Stop("trace runner does not iterate monsters", ScriptControlSignal.StopScript))
+            }
+            is Op.Speak -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.Speak(op.building))
             }
             is Op.RunScene -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
@@ -152,6 +160,7 @@ class ScriptTraceRunner(
             is IntAst.Random -> eval(ast.lo)
             is IntAst.MemberField -> 0
             is IntAst.MonsterField -> 0
+            is IntAst.RealmScalar -> 0
             is IntAst.PartyScalar -> 0
             is IntAst.NativeInt -> engine.readInt(EngineRequest(ast.path, ast.args))
         }

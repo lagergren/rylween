@@ -256,6 +256,16 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun traceEngineRecordsReusableConversationAction() {
+        val engine = TraceEnginePort()
+        val runner = ScriptTraceRunner(engine)
+
+        runner.run(listOf(Op.Speak(Buildings.tavern)))
+
+        assertEquals(EngineTraceEvent.Speak(Buildings.tavern), engine.events.single())
+    }
+
+    @Test
     fun validationRejectsBreakOutsideLoop() {
         val content = GameBuilder().apply {
             scene(sceneId("bad.break")) {

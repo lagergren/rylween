@@ -663,6 +663,9 @@ private fun List<Op>.containsConsumeActiveItem(): Boolean =
             is Op.If -> op.thenOps.containsConsumeActiveItem() || op.elseOps.containsConsumeActiveItem()
             is Op.Loop -> op.body.containsConsumeActiveItem()
             is Op.Switch -> op.cases.any { it.body.containsConsumeActiveItem() }
+            is Op.Menu -> op.options.any { it.body.containsConsumeActiveItem() } ||
+                    op.defaultOps.containsConsumeActiveItem()
+            is Op.ForEachMember -> op.body.containsConsumeActiveItem()
             is Op.ForEachMonster -> op.body.containsConsumeActiveItem()
             else -> false
         }
@@ -724,6 +727,7 @@ fun validateScriptRewards(
                         "breakLoop(${op.reason ?: ""}) must be inside loop { ... }"
                     }
                     is Op.Switch -> op.cases.forEach { visitOps(it.body, loopDepth) }
+                    is Op.ForEachMember -> visitOps(op.body, loopDepth)
                     is Op.ForEachMonster -> visitOps(op.body, loopDepth)
                     else -> Unit
                 }
