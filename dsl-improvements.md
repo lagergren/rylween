@@ -99,6 +99,98 @@ party(Parties.replay) {
 Avoid authoring surfaces that require understanding Kotlin mechanics before the
 game rule is visible.
 
+## Working migration checklist
+
+Use this as the task board for turning the inventory below into reviewed DSL
+changes. A task is only done when the current C/JSON5 owner has been audited,
+the DSL shape is represented in `dsl-next.kts` or its successor, mutable data
+has save-state coverage, native calls are named and typed, and at least one
+parity check or replay fixture is planned.
+
+The "DSL delta" text is the concrete thing to look for in the Kotlin diff.
+
+### A. Foundation and authoring surface
+
+- [x] A0. Seed typed DSL direction. DSL delta: `rylween { content { ... } state { ... } }`, typed handles, typed flags, first party-state model. Native decision: JSON5 is reference only, not the target runtime format.
+- [ ] A1. Split the prototype into clear authoring sections. DSL delta: stable `content`, `state`, `texts`, `scripts`, and handle catalog sections. Native decision: content compiler owns handle generation.
+- [ ] A2. Define the generated handle catalogs. DSL delta: `Items.*`, `Flags.*`, `Npcs.*`, `Maps.*`, `Terrain.*`, `Texts.*`, `Scenes.*`, `NativeOps.*`. Native decision: C receives dense ids plus diagnostic slugs.
+- [ ] A3. Define typed native-op declarations. DSL delta: `nativeOps { op(NativeOps.renderMap) { ... } }` or equivalent. Native decision: no raw string function names in authored scripts.
+- [ ] A4. Define validation error style. DSL delta: validation helpers report game concepts such as missing terrain, text binding, or illegal flag transition. Native decision: loader can reject compiled bundles defensively but author-facing validation happens before C.
+
+### B. Exact runtime state and savegames
+
+- [ ] B1. Realm/session state. DSL delta: `state { realm { day/hour/minute, rng, currentMode, currentMap } }`. Native decision: only active frame pointers and transient loop state remain native.
+- [ ] B2. Party identity and position. DSL delta: `party(Parties.main) { position = Wilderness.xy(...); facing = ... }`. Native decision: coordinate storage and bounds checks remain native.
+- [ ] B3. Party resources and counters. DSL delta: `resources { gold, food, fatigue, timeOfDay, upkeepDue }`. Native decision: primitive numeric mutation only.
+- [ ] B4. Party members. DSL delta: `member(1) { name; race; class; weaponSkill; charisma; wisdom; health; hitPoints; mana }`. Native decision: field storage and target selection only.
+- [ ] B5. Derived/depletable stat rules. DSL delta: validation for `hitPoints.max == health` and `mana.max == wisdom`, plus rules that modify max/current values. Native decision: no hidden C recalculation except typed helper ops.
+- [ ] B6. Inventory slots and equipment. DSL delta: `inventory { slot(1).item(...); equipped { weapon = ...; armor = ... } }`. Native decision: low-level insert/remove/first-free-slot helpers.
+- [ ] B7. Legacy special fields. DSL delta: explicit modeling of `silverkey`, `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot` as flags, capabilities, or items. Native decision: old positional fields are migration-only.
+- [ ] B8. Journal and visited records. DSL delta: `journal { entry(...) }` and `visited(Npcs...)`. Native decision: persistent string/id list storage.
+- [ ] B9. Savegame emission. DSL delta: exact fully expanded `state {}` output with no hidden defaults or helper loops. Native decision: filesystem write/read plus old-save importer.
+
+### C. World maps, terrain, visuals, and layout
+
+- [ ] C1. World metadata and limits. DSL delta: `meta { ... }` and `limits { ... }`. Native decision: allocation caps and defensive bounds checks.
+- [ ] C2. Map dimensions and storage. DSL delta: `worldMap(Maps.wilderness) { size = cells(...); storageCapacity = ... }`. Native decision: map array allocation and coordinate bounds.
+- [ ] C3. Map cells and layers. DSL delta: typed terrain rows/layers instead of raw `map.dat` bytes. Native decision: optional legacy map-byte loader during migration.
+- [ ] C4. Terrain semantics. DSL delta: `terrain(Terrain.forest) { movement; passability; tags; events }`. Native decision: fast predicate tables generated from terrain ids.
+- [ ] C5. Terrain visuals. DSL delta: terminal glyph/color and future bitmap tile styles live under terrain render styles. Native decision: renderer consumes a style id, not terrain game rules.
+- [ ] C6. Visual assets. DSL delta: `visuals { images { image(..., kind = Ansi|Bitmap) } palettes { ... } }`. Native decision: asset decoding and backend texture/glyph storage.
+- [ ] C7. Screen regions and layouts. DSL delta: `layouts { region(ScreenRegion.map/text/status, ...) }`. Native decision: cursor/viewport implementation only.
+- [ ] C8. Static screens and documents. DSL delta: title, help, manual, score display, and ANSI/static screens declared as assets/documents. Native decision: file/asset rendering backend.
+
+### D. Text, dialogue, NPCs, and story state
+
+- [ ] D1. Text records and local bindings. DSL delta: `texts { text(Texts.foo) { bind(LocalText.partyLeader, ...) } }`. Native decision: wrapping and final placeholder substitution.
+- [ ] D2. Pronouns and name bindings. DSL delta: typed binding names and pronoun cases instead of symbolic strings. Native decision: lookup by member/npc id.
+- [ ] D3. NPC definitions and roles. DSL delta: `npcs { npc(Npcs.garth) { ... } }` and `roles { role(NpcRoles.masterThief, ...) }`. Native decision: role lookup and placement storage.
+- [ ] D4. NPC placement and visited state. DSL delta: content placement plus mutable `state { npcs { at(...) } visited(...) }`. Native decision: runtime coordinates and visited bitsets.
+- [ ] D5. Flags and story progress. DSL delta: typed flag families with explicit states and setters. Native decision: dense flag storage and save serialization.
+- [ ] D6. Missions and triggers. DSL delta: `mission(...) { trigger { ... } action { ... } }`. Native decision: trigger polling and typed op dispatch.
+- [ ] D7. Dialogue and chitchat. DSL delta: `dialogue(Npcs.garth) { whenState(...) { say(...) } }`. Native decision: input selection and script runner.
+- [ ] D8. Rumours. DSL delta: typed rumour tables bound to towns/roles. Native decision: RNG selection only.
+
+### E. Towns, buildings, wilderness, and daily actions
+
+- [ ] E1. Towns and buildings. DSL delta: `towns { town(...) { buildings(...) } }` and `building(...) { enter { ... } }`. Native decision: current-location state and generic enter dispatcher.
+- [ ] E2. Keymaps and menus. DSL delta: typed `wildernessKeys`, `townKeys`, and `combatKeys` declarations. Native decision: keyboard input and dispatch execution.
+- [ ] E3. Shops and services. DSL delta: smith, merchant, inn, tavern, church, hut, and lodge as building scripts/tables. Native decision: menu input/render primitives, temporary pricing helpers if needed.
+- [ ] E4. Rest, camp, hunt, and lodge. DSL delta: action scripts with costs, risks, time passage, food/fatigue effects. Native decision: RNG and state mutation primitives.
+- [ ] E5. Upkeep and time. DSL delta: `upkeep { daily { ... } hourly { ... } }` with balance tables. Native decision: clock/tick scheduling and deterministic RNG.
+- [ ] E6. Wilderness events and transitions. DSL delta: terrain transition scripts and random wilderness event tables. Native decision: random draw and event dispatch runner.
+- [ ] E7. Character creation. DSL delta: start-state builder plus class/race/stat roll rules. Native decision: input, RNG, and state allocation.
+
+### F. Items, spells, combat, monsters, and rewards
+
+- [ ] F1. Item records. DSL delta: typed item definitions for mundane, equipment, potion, magic, and quest items. Native decision: id lookup and inventory storage.
+- [ ] F2. Item use effects. DSL delta: item scripts for potions and magic items. Native decision: consume/remove primitive and typed stat mutation helpers.
+- [ ] F3. Equipment rules. DSL delta: ready/remove actions and derived combat values in DSL. Native decision: equipment storage and target/member access.
+- [ ] F4. Spell records. DSL delta: mage, priest, and monster spell definitions with typed costs, targets, effects, and text. Native decision: spell picker and cost-payment primitive.
+- [ ] F5. Monster records and tiers. DSL delta: typed monsters, encounter tiers, behavior hooks, and rewards. Native decision: encounter instance allocation.
+- [ ] F6. Combat loop. DSL delta: typed combat actions, turn phases, flee/death/reward rules. Native decision: combat context storage, target UI, and typed op execution.
+- [ ] F7. Monster AI and attacks. DSL delta: monster behavior scripts for melee/spells/specials. Native decision: RNG and target choice helpers.
+- [ ] F8. Rewards and loot. DSL delta: reward DSL for gold, experience, items, flags, and journal updates. Native decision: first-free-slot helper and overflow prompt.
+- [ ] F9. Leveling and experience. DSL delta: class progression tables and level-up scripts. Native decision: applying member stat changes.
+
+### G. Dungeons, Ydarg, secrets, and bespoke systems
+
+- [ ] G1. Dungeon scenarios. DSL delta: `dungeon(...) { levels; rooms; events; encounters; exits }`. Native decision: dungeon instance storage and optional map generation primitive.
+- [ ] G2. Cave/location events. DSL delta: special caves, pits, sanctums, and location scripts move from C/JSON5 into typed scenes. Native decision: enter/exit dispatch only.
+- [ ] G3. Ydarg castle. DSL delta: model rooms, mutable room state, events, and rewards in DSL. Native decision: temporary native island until all state is represented.
+- [ ] G4. Secrets and sysop/debug actions. DSL delta: explicit optional debug/secret block with permission gates. Native decision: input matching and test-only gates.
+- [ ] G5. Score/vscore. DSL delta: decide whether scores are content/state or a native-only external feature. Native decision: file I/O and display backend.
+- [ ] G6. Replay/test knobs. DSL delta: test profiles and fixture states replace game-rule env knobs where possible. Native decision: test harness overrides only.
+
+### H. Engine replacement path
+
+- [ ] H1. Compiled content bundle. DSL delta: define generated bundle schema from Kotlin content. Native decision: C loads typed tables, not JSON nodes.
+- [ ] H2. Compiled state image. DSL delta: define generated state schema and exact save snapshot schema. Native decision: C stores mutable ids/arrays and can write exact DSL state.
+- [ ] H3. String interning and hash tables. DSL delta: every handle has slug plus dense id. Native decision: stable lookup tables for diagnostics, migration, and saves.
+- [ ] H4. Typed script/op VM. DSL delta: scripts compile to typed ops with checked operands. Native decision: VM executes ids and typed values only.
+- [ ] H5. Renderer boundary. DSL delta: scripts use `showBackdrop`, `renderMap`, `say`, `status`, not terminal cursor calls. Native decision: backend-specific terminal/image drawing.
+- [ ] H6. Remove JSON5 runtime dependency. DSL delta: all inventory rows are modeled and emitted from Kotlin. Native decision: JSON5 reader deleted or kept only as offline migration tool.
+
 ## Complete migration inventory
 
 This inventory is the tracking list for "everything in the game." Every current
