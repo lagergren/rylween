@@ -777,7 +777,14 @@ private class StatefulScriptServiceRunner(
 
     private fun runScene(op: Op.RunScene) {
         advanceTop()
-        val rumour = if (op.scene == Scenes.rumour) speakContent.firstStandardRumour(party) else null
+        val rumour = if (op.scene == Scenes.rumour) {
+            speakContent.selectStandardRumour(currentRuntime())?.also { selection ->
+                runtime = selection.runtime
+                party = runtime.activeParty
+            }?.rumour?.text
+        } else {
+            null
+        }
         if (rumour != null) {
             engine.trace(EngineTraceEvent.Screen(rumour))
         } else {
@@ -787,7 +794,11 @@ private class StatefulScriptServiceRunner(
 
     private fun runRandomItemOffer(op: Op.RandomItemOffer) {
         engine.trace(EngineTraceEvent.RandomItemOffer(op.offer))
-        val initial = randomItemOfferSession ?: RandomItemOfferSession.start(op.offer, party)
+        val initial = randomItemOfferSession ?: run {
+            val draw = runtime.drawRandom(0, op.offer.pool.items.lastIndex)
+            runtime = draw.runtime
+            RandomItemOfferSession.start(op.offer, party, selectedIndex = draw.value)
+        }
         val result = RandomItemOfferSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
         runtime = runtime.withActiveParty(party)
@@ -870,7 +881,11 @@ private class StatefulScriptServiceRunner(
             is IntAst.Lit -> ast.value
             is IntAst.Var -> locals[ast.name] ?: 0
             is IntAst.Binary -> evalBinary(eval(ast.left), ast.op, eval(ast.right))
-            is IntAst.Random -> eval(ast.lo)
+            is IntAst.Random -> {
+                val draw = runtime.drawRandom(eval(ast.lo), eval(ast.hi))
+                runtime = draw.runtime
+                draw.value
+            }
             is IntAst.MemberField -> memberField(eval(ast.member), ast.field)
             is IntAst.MonsterField -> 0
             is IntAst.RealmScalar -> realmScalar(ast.name)

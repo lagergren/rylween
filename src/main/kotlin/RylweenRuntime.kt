@@ -82,13 +82,14 @@ data class RuntimeSessionState(
             party: PartyState,
             hour: Int,
             currentTown: TownId?,
+            rngSeed: Long? = null,
         ): RuntimeSessionState =
             RuntimeSessionState(
                 realm = RealmState(
                     day = 0,
                     hour = hour,
                     minute = 0,
-                    rngSeed = null,
+                    rngSeed = rngSeed,
                     activeParty = party.id,
                     currentMap = Maps.wilderness,
                     currentMode = RuntimeMode.Town,
@@ -100,6 +101,47 @@ data class RuntimeSessionState(
                 parties = listOf(party),
             )
     }
+}
+
+data class RylweenRandomDraw(
+    val value: Int,
+    val nextSeed: Long,
+)
+
+data class RuntimeRandomDraw(
+    val value: Int,
+    val runtime: RuntimeSessionState,
+)
+
+interface RylweenRandomPort {
+    fun draw(seed: Long, lo: Int, hi: Int): RylweenRandomDraw
+}
+
+object LegacyRylweenRandom : RylweenRandomPort {
+    private const val Multiplier: Long = 0x2545F4914F6CDD1DL
+
+    override fun draw(seed: Long, lo: Int, hi: Int): RylweenRandomDraw {
+        require(lo <= hi) { "random range must be ascending: $lo..$hi" }
+        var state = seed.takeUnless { it == 0L } ?: 1L
+        state = state xor (state ushr 12)
+        state = state xor (state shl 25)
+        state = state xor (state ushr 27)
+        val mixed = state * Multiplier
+        val span = hi.toLong() - lo.toLong() + 1L
+        val offset = java.lang.Long.remainderUnsigned(mixed, span)
+        return RylweenRandomDraw((lo.toLong() + offset).toInt(), state)
+    }
+}
+
+fun RuntimeSessionState.drawRandom(
+    lo: Int,
+    hi: Int,
+    random: RylweenRandomPort = LegacyRylweenRandom,
+): RuntimeRandomDraw {
+    require(lo <= hi) { "random range must be ascending: $lo..$hi" }
+    val seed = realm.rngSeed ?: return RuntimeRandomDraw(lo, this)
+    val draw = random.draw(seed, lo, hi)
+    return RuntimeRandomDraw(draw.value, withRealm(realm.copy(rngSeed = draw.nextSeed)))
 }
 
 enum class TownServiceScriptBranch {
@@ -669,8 +711,11 @@ data class SpeakSession(
         }
 
     private fun chitchat(npc: CharacterModel): SpeakSession {
-        val subject = conversation.chitchat.subjects.firstOrNull() ?: ChitchatSubject.Well
+        val subjects = conversation.chitchat.subjects.ifEmpty { listOf(ChitchatSubject.Well) }
+        val draw = runtime.drawRandom(0, subjects.lastIndex)
+        val subject = subjects[draw.value]
         return copy(
+            runtime = draw.runtime,
             step = message(
                 listOf(chitchatPrompt(subject), chitchatReply(subject, npc)),
                 mainMenu(npc),
@@ -679,8 +724,10 @@ data class SpeakSession(
     }
 
     private fun rumour(npc: CharacterModel): SpeakSession {
-        val text = if (rumourTold) noRumourText() else content.firstStandardRumour(runtime.activeParty) ?: noRumourText()
+        val selection = if (rumourTold) null else content.selectStandardRumour(runtime)
+        val text = selection?.rumour?.text ?: noRumourText()
         return copy(
+            runtime = selection?.runtime ?: runtime,
             rumourTold = true,
             step = message(text, mainMenu(npc)),
         )
@@ -1106,6 +1153,7 @@ data class TownSession(
             scenes: List<SceneModel>,
             party: PartyState,
             currentHour: Int,
+            rngSeed: Long? = null,
             itemRecords: List<ItemRecordModel> = ItemCatalog.all,
         ): TownSession =
             start(
@@ -1116,6 +1164,7 @@ data class TownSession(
                     party = party,
                     hour = currentHour,
                     currentTown = town.id,
+                    rngSeed = rngSeed,
                 ),
                 itemRecords = itemRecords,
             )
@@ -1754,12 +1803,27 @@ fun SpeakRuntimeContent.firstMatchingDialogueBranch(npc: NpcId, party: PartyStat
     } ?: branches.firstOrNull { it.whenState == null }
 }
 
-fun SpeakRuntimeContent.firstStandardRumour(party: PartyState): TextBlock? =
+data class RumourSelection(
+    val rumour: RumourEntryModel,
+    val runtime: RuntimeSessionState,
+)
+
+fun SpeakRuntimeContent.standardRumours(party: PartyState): List<RumourEntryModel> =
     speak.textTables.rumourTables
         .firstOrNull { it.id == RumourTables.standardTown }
         ?.entries
-        ?.firstOrNull { entry -> entry.excludedBy.none(party::hasFlagState) }
-        ?.text
+        ?.filter { entry -> entry.excludedBy.none(party::hasFlagState) }
+        .orEmpty()
+
+fun SpeakRuntimeContent.firstStandardRumour(party: PartyState): TextBlock? =
+    standardRumours(party).firstOrNull()?.text
+
+fun SpeakRuntimeContent.selectStandardRumour(runtime: RuntimeSessionState): RumourSelection? {
+    val entries = standardRumours(runtime.activeParty)
+    if (entries.isEmpty()) return null
+    val draw = runtime.drawRandom(0, entries.lastIndex)
+    return RumourSelection(entries[draw.value], draw.runtime)
+}
 
 fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
     val visits = visitedNpcs.associateBy { it.npc } + (npc to NpcVisitState(npc, visited))

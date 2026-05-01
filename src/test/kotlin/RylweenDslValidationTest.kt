@@ -368,6 +368,17 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun legacyRylweenRandomMatchesNativeXorshift64StarSequence() {
+        val first = LegacyRylweenRandom.draw(seed = 1L, lo = 0, hi = 16)
+        val second = LegacyRylweenRandom.draw(seed = first.nextSeed, lo = 0, hi = 16)
+
+        assertEquals(4, first.value)
+        assertEquals(33554433L, first.nextSeed)
+        assertEquals(14, second.value)
+        assertEquals(1126174793148417L, second.nextSeed)
+    }
+
+    @Test
     fun randomItemOfferSessionPromptsDropSlotOnInventoryOverflow() {
         val fullParty = testParty(
             gold = 2000,
@@ -1314,6 +1325,29 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townTerminalAdapterUsesSeededRumourSelectionAndAdvancesRealmSeed() {
+        val terminal = FakeTerminalPort("T", "R", "", "L", "L")
+        val session = TownSessionTerminalAdapter(
+            terminal,
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = testSpeakContent()),
+        ).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.tavern),
+                townSystem = testTownSystem(Buildings.tavern),
+                scenes = listOf(testTavernSpeakRumourScene()),
+                party = testParty(),
+                currentHour = 12,
+                rngSeed = 1L,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(terminal.output.any { "Ydarg waits in the south." in it })
+        assertTrue(terminal.output.none { "A merchant needs bandits gone." in it })
+        assertEquals(33554433L, session.session.runtime.realm.rngSeed)
+    }
+
+    @Test
     fun townTerminalAdapterRunsTavernScruffyRandomItemOfferPurchase() {
         val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
         val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
@@ -1332,6 +1366,27 @@ class RylweenDslValidationTest {
         assertTrue(terminal.output.any { "  Magic Dagger" in it })
         assertTrue(terminal.output.any { "  low price of 1800" in it })
         assertTrue(terminal.output.any { "- Deal!!!" in it })
+    }
+
+    @Test
+    fun townTerminalAdapterUsesSeededScruffyItemSelectionAndAdvancesRealmSeed() {
+        val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.tavern),
+                townSystem = testTownSystem(Buildings.tavern),
+                scenes = listOf(testTavernRandomOfferScene()),
+                party = testParty(gold = 2000),
+                currentHour = 12,
+                rngSeed = 1L,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(100, session.session.party.resources.gold)
+        assertEquals(Items.greenGem, session.session.party.inventoryItem(1))
+        assertEquals(33554433L, session.session.runtime.realm.rngSeed)
+        assertTrue(terminal.output.any { "  Green Gem" in it })
     }
 
     @Test
@@ -1550,6 +1605,20 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledScratchTownRunsAuthoredTavernScruffyOfferWithSeededSelection() {
+        val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
+        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            compiledTownSession(party = testParty(gold = 2000), rngSeed = 126L),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(100, result.session.party.resources.gold)
+        assertEquals(Items.greenGem, result.session.party.inventoryItem(1))
+        assertEquals(141898022896021606L, result.session.runtime.realm.rngSeed)
+        assertTrue(terminal.output.any { "  Green Gem" in it })
+    }
+
+    @Test
     fun compiledScratchTownRunsAuthoredTavernDrinkOrder() {
         val terminal = FakeTerminalPort("T", "N", "O", "A", "L", "L")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
@@ -1586,6 +1655,24 @@ class RylweenDslValidationTest {
         assertEquals(7, result.session.party.members.single().charisma)
         assertTrue(terminal.output.any { "Most of the crowd" in it })
         assertTrue(terminal.output.any { "beg you to stop." in it })
+    }
+
+    @Test
+    fun compiledScratchTownRunsAuthoredTavernTravellerStoryWithSeededScore() {
+        val terminal = FakeTerminalPort("T", "T", "1", "T", "", "L", "L")
+        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            compiledTownSession(
+                party = testParty(
+                    members = listOf(testMember(name = "Borin", charisma = 10)),
+                ),
+                rngSeed = 4L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(9, result.session.party.members.single().charisma)
+        assertEquals(4504699139039237L, result.session.runtime.realm.rngSeed)
+        assertTrue(terminal.output.any { "The mob is bored." in it })
     }
 
     @Test
@@ -1731,6 +1818,7 @@ class RylweenDslValidationTest {
         party: PartyState,
         townId: TownId = Towns.thord.id,
         currentHour: Int = 12,
+        rngSeed: Long? = null,
     ): TownSession {
         val content = RylweenCompiledScratch.nextDsl
         return TownSession.start(
@@ -1739,6 +1827,7 @@ class RylweenDslValidationTest {
             scenes = content.scenes,
             party = party,
             currentHour = currentHour,
+            rngSeed = rngSeed,
         )
     }
 
