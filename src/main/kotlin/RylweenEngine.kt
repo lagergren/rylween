@@ -1713,6 +1713,15 @@ class WildernessSessionTerminalAdapter(
                     terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
                     session.continueNotice()
                 }
+                is WildernessSessionStep.QuitConfirm -> {
+                    writeMenu(step.prompt, listOf('Y', 'N'))
+                    when (val input = terminal.readKey(listOf('Y', 'N'))) {
+                        is TerminalInput.Value ->
+                            session.apply(WildernessSessionInput.QuitAnswer(input.value == 'Y'))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
                 is WildernessSessionStep.Town -> {
                     val result = TownSessionTerminalAdapter(terminal, renderer, serviceBridge).runUntilBlocked(step.session)
                     val updated = session.replaceTownSession(result.session)
@@ -1756,9 +1765,13 @@ class WildernessSessionTerminalAdapter(
             session.lastResult?.takeIf { it.status == WildernessSessionResultStatus.Blocked }?.let {
                 add("Blocked.")
             }
-            add("Commands: 8/2/4/6 move, E enter, X exit")
+            add("Commands: 8/2/4/6 move, E enter, X quit")
         }
         terminal.write(lines)
+    }
+
+    private fun writeMenu(block: TextBlock, keys: List<Char>) {
+        terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
     }
 
     private fun statusLine(session: WildernessSession, point: GridPoint?): String {

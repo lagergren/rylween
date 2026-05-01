@@ -7,6 +7,7 @@ sealed interface WildernessSessionInput {
     object Enter : WildernessSessionInput
     object Continue : WildernessSessionInput
     object Quit : WildernessSessionInput
+    data class QuitAnswer(val yes: Boolean) : WildernessSessionInput
 }
 
 enum class WildernessSessionResultStatus {
@@ -20,6 +21,8 @@ enum class WildernessSessionResultStatus {
     UnknownTown,
     LeftTown,
     NotInWilderness,
+    QuitRequested,
+    QuitCancelled,
     Finished,
 }
 
@@ -34,6 +37,7 @@ data class WildernessSessionResult(
 sealed interface WildernessSessionStep {
     object Explore : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
+    data class QuitConfirm(val prompt: TextBlock) : WildernessSessionStep
     data class Town(val session: TownSession) : WildernessSessionStep
     data class Finished(val runtime: RuntimeSessionState) : WildernessSessionStep
 }
@@ -135,7 +139,8 @@ data class WildernessSession(
             is WildernessSessionInput.Move -> move(input.direction)
             WildernessSessionInput.Enter -> enter()
             WildernessSessionInput.Continue -> continueNotice()
-            WildernessSessionInput.Quit -> finish()
+            WildernessSessionInput.Quit -> requestQuit()
+            is WildernessSessionInput.QuitAnswer -> answerQuit(input.yes)
         }
 
     fun continueNotice(): WildernessSession {
@@ -270,6 +275,24 @@ data class WildernessSession(
         )
     }
 
+    private fun requestQuit(): WildernessSession =
+        copy(
+            step = WildernessSessionStep.QuitConfirm(WildernessPromptText.quitConfirm()),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.QuitRequested),
+        )
+
+    private fun answerQuit(yes: Boolean): WildernessSession {
+        require(step is WildernessSessionStep.QuitConfirm) { "wilderness session is not confirming quit" }
+        return if (yes) {
+            finish()
+        } else {
+            copy(
+                step = WildernessSessionStep.Explore,
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.QuitCancelled),
+            )
+        }
+    }
+
     private fun finish(): WildernessSession {
         val nextRuntime = runtime.withRealm(
             runtime.realm.copy(
@@ -330,6 +353,9 @@ object WildernessPromptText {
 
     fun castlePending(): TextBlock =
         inlineText("Castle entry is not ported yet.")
+
+    fun quitConfirm(): TextBlock =
+        inlineText("Do you really want", "to quit?", "")
 }
 
 fun wildernessDirectionForKey(key: Char): WildernessDirection? =
