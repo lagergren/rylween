@@ -153,6 +153,41 @@ val nextRylween = rylween {
         }
     }
 
+    speak {
+        standardConversation {
+            npcSelection = ConversationNpcSelection.BuildingListOrWildernessLocation
+            visitPolicy = NpcVisitPolicy.PerPartyVisitedBit
+            branchSelection = DialogueBranchSelection.FirstMatchingStateThenDefault
+            missionHints = MissionHintPolicy.BeforeEachMenu
+
+            menu {
+                chitchat()
+                question {
+                    lodging()
+                    magic()
+                    people()
+                    nothing()
+                }
+                rumour()
+                bye()
+            }
+
+            chitchat {
+                subjects(
+                    ChitchatSubject.Well,
+                    ChitchatSubject.Weather,
+                    ChitchatSubject.Health,
+                )
+                replies = ChitchatReplyPolicy.BySubjectAndNpcJob
+            }
+
+            rumour {
+                usage = RumourUsagePolicy.OncePerConversationThenFallback
+                source = RumourSourcePolicy.StandardTownRumours
+            }
+        }
+    }
+
     monsters {
         monster(Monsters.bandit) {
             name = "Bandit"
@@ -774,6 +809,10 @@ check(nextDsl.combat.standardBattle?.actions?.size == 5)
 check(nextDsl.combat.standardBattle?.playerRound?.attack?.confusionDivisor == 3)
 check(nextDsl.combat.standardBattle?.monsterRound?.melee?.damageDivisor == 6)
 check(nextDsl.combat.standardBattle?.rewards == Rewards.standardBattle)
+check(nextDsl.speak.standardConversation?.menu?.actions?.map { it.key } == listOf('C', 'Q', 'R', 'B'))
+check(nextDsl.speak.standardConversation?.menu?.questions?.map { it.key } == listOf('L', 'M', 'P', 'N'))
+check(nextDsl.speak.standardConversation?.branchSelection == DialogueBranchSelection.FirstMatchingStateThenDefault)
+check(nextDsl.speak.standardConversation?.rumour?.usage == RumourUsagePolicy.OncePerConversationThenFallback)
 check(nextDsl.monsters.size == 2)
 check(nextDsl.scenes.size == 5)
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
