@@ -490,6 +490,95 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun dungeonDescentConsumesTorchOnlyAfterTransitionChecksPass() {
+        val descended = testParty(torches = 2).tryDungeonDescent(currentDepth = 1, maxDepth = 3)
+                as DungeonDescentResult.Descended
+        val noTorches = testParty(torches = 0).tryDungeonDescent(currentDepth = 1, maxDepth = 3)
+                as DungeonDescentResult.NoTorches
+        val atMaxDepth = testParty(torches = 2).tryDungeonDescent(currentDepth = 3, maxDepth = 3)
+                as DungeonDescentResult.AtMaxDepth
+
+        assertEquals(1, descended.party.resources.torches)
+        assertEquals(0, noTorches.party.resources.torches)
+        assertEquals(2, atMaxDepth.party.resources.torches)
+    }
+
+    @Test
+    fun shopSessionRunsMerchantBuyDropSellAndRejectFlows() {
+        val shop = testMerchantShop()
+        val party = testParty(
+            gold = 1000,
+            level = 2,
+            torches = 78,
+            food = 100,
+            inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope } +
+                    mapOf(1 to Items.blanket, 2 to Items.donkey, 3 to Items.sword),
+        )
+
+        var session = ShopServiceSession.start(shop, party).continueIntro()
+
+        session = session.chooseMain(ShopMainChoice.Buy)
+            .chooseBuyItem(Items.torch)
+            .enterQuantity(99)
+            .confirmPurchase(accept = true)
+        assertEquals(ShopTransactionStatus.Bought, session.lastTransaction?.status)
+        assertEquals(80, session.party.resources.torches)
+
+        session = session.chooseMain(ShopMainChoice.Buy)
+            .chooseBuyItem(Items.ration)
+            .enterQuantity(999)
+            .confirmPurchase(accept = true)
+        assertEquals(300, session.party.resources.food)
+        assertEquals(398, session.party.resources.gold)
+
+        session = session.chooseMain(ShopMainChoice.Buy)
+            .chooseBuyItem(Items.blanket)
+            .confirmPurchase(accept = true)
+        assertTrue(session.step is ShopServiceStep.DropSlot)
+
+        session = session.chooseDropSlot(2)
+        assertEquals(ShopTransactionStatus.Bought, session.lastTransaction?.status)
+        assertEquals(Items.blanket, session.party.inventoryItem(2))
+        assertEquals(150, session.party.resources.food)
+
+        session = session.chooseMain(ShopMainChoice.Sell).chooseSellSlot(2)
+        val quote = session.step as ShopServiceStep.ConfirmSale
+        assertEquals(ShopSellQuoteStatus.Quoted, quote.quote.status)
+        assertEquals(15, quote.quote.price)
+
+        session = session.confirmSale(accept = true)
+        assertEquals(ShopTransactionStatus.Sold, session.lastTransaction?.status)
+        assertEquals(null, session.party.inventoryItem(2))
+
+        session = session.chooseMain(ShopMainChoice.Sell).chooseSellSlot(3)
+        assertEquals(ShopSellQuoteStatus.ItemNotAcceptedHere, session.lastSellQuote?.status)
+    }
+
+    @Test
+    fun shopSessionQuotesSmithHaggleBeforeSale() {
+        val shop = testSmithShop()
+        var session = ShopServiceSession.start(
+            shop,
+            testParty(gold = 0, inventoryItems = mapOf(1 to Items.sword, 2 to Items.axe)),
+        ).continueIntro()
+
+        session = session.chooseMain(ShopMainChoice.Sell).chooseSellSlot(1, bargainRolls = listOf(91))
+
+        val quote = session.step as ShopServiceStep.ConfirmSale
+        assertEquals(ShopSellQuoteStatus.Quoted, quote.quote.status)
+        assertEquals(116, quote.quote.price)
+
+        session = session.confirmSale(accept = true)
+        assertEquals(ShopTransactionStatus.Sold, session.lastTransaction?.status)
+        assertEquals(116, session.party.resources.gold)
+        assertEquals(null, session.party.inventoryItem(1))
+
+        session = session.chooseMain(ShopMainChoice.Sell).chooseSellSlot(2, bargainRolls = listOf(75))
+        assertEquals(ShopSellQuoteStatus.Declined, session.lastSellQuote?.status)
+        assertEquals(116, session.party.resources.gold)
+    }
+
+    @Test
     fun shopInterpreterSellsAcceptedItemsAndRejectsWrongShopItems() {
         val shop = testMerchantShop()
         val party = testParty(
@@ -529,6 +618,29 @@ class RylweenDslValidationTest {
         assertEquals(Items.sword, equippedAxe.party.inventoryItem(2))
         assertEquals(Items.none, unequipped.party.members.single().weapon)
         assertEquals(Items.axe, unequipped.party.inventoryItem(1))
+    }
+
+    @Test
+    fun equipmentCommandsExposePromptShapeAndApplyActions() {
+        val party = testParty(
+            inventoryItems = mapOf(1 to Items.sword),
+        )
+        val readyPrompt = EquipmentCommand.ReadyWeapon.prompt()
+        val removePrompt = EquipmentCommand.RemoveWeapon.prompt()
+
+        val readied = party.applyEquipmentCommand(EquipmentCommand.ReadyWeapon, memberNumber = 1, inventorySlot = 1)
+                as EquipmentActionResult.Equipped
+        val removed = readied.party.applyEquipmentCommand(EquipmentCommand.RemoveWeapon, memberNumber = 1)
+                as EquipmentActionResult.Unequipped
+
+        assertEquals(EquipmentKind.Weapon, readyPrompt.kind)
+        assertEquals(MemberChoiceFilter.AliveOnly, readyPrompt.memberFilter)
+        assertEquals(InventorySlotChoiceFilter.NonEmpty, readyPrompt.inventoryFilter)
+        assertEquals(MemberChoiceFilter.Any, removePrompt.memberFilter)
+        assertEquals(null, removePrompt.inventoryFilter)
+        assertEquals(Items.sword, readied.party.members.single().weapon)
+        assertEquals(Items.none, removed.party.members.single().weapon)
+        assertEquals(Items.sword, removed.party.inventoryItem(1))
     }
 
     @Test
@@ -578,6 +690,28 @@ class RylweenDslValidationTest {
                 offer {
                     line("Offer: ", price)
                 }
+            }
+        }.build()
+
+    private fun testSmithShop(): ShopServiceModel =
+        ShopServiceBuilder(Buildings.smith).apply {
+            image = Images.Scene.smith
+            intro("Smith")
+            menu("(B)uy item", "(S)ell item", "(L)eave")
+            buy {
+                prompt("Buy what?")
+                catalog('B', "Weapons") {
+                    item('A', Items.sword)
+                }
+            }
+            sell {
+                prompt("Sell what?")
+                acceptsKinds(ItemKind.Weapon, ItemKind.Armor)
+                wrongKind("Wrong kind.")
+                offer {
+                    line("Offer: ", price)
+                }
+                smithHaggle()
             }
         }.build()
 
