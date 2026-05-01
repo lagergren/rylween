@@ -158,6 +158,35 @@ parity check or replay fixture is planned.
 
 The "DSL delta" text is the concrete thing to look for in the Kotlin diff.
 
+## Coverage Ledger
+
+Keep two separate counts while migrating:
+
+- DSL/runtime capability coverage: whether the language/runtime can express,
+  validate, execute, and save a subsystem.
+- Full-game content coverage: how much of the actual current Rylween game data
+  has been authored in the Kotlin scratch source.
+
+Current status:
+
+| Area | DSL/runtime capability | Full-game content in scratch | Not yet fully implemented |
+|------|------------------------|------------------------------|---------------------------|
+| Project/build | Gradle wrapper, Kotlin JVM build, tests, scratch validation, validation split | N/A | publishing/package layout; generated content compiler task |
+| Runtime state/save | `stateFixture`, strict `runtimeState`, validation, deterministic text writer | 3 state fixtures, including near-winning and winning runtime snapshot | reader/parser, filesystem save/load policy, multi-party real saves, full exact snapshot coverage from live engine |
+| Flags/milestones/win | typed flag states, milestone projection, generic win predicate | 13 current story/encounter flags, 6 milestone records | full transition graph validation, generated catalog from source data |
+| Items/equipment | generated item metadata, slotted inventory, separate equipment, item pools | 63 current item handles/records, potion metadata, first magic item example | all item-use scripts, all equipment actions, generated metadata pipeline |
+| Towns/services | town declarations, service availability, reusable town menu/service shape, exact service hours | 4 current towns, C/S/I/M/T/L menu, 5 building services | actual church/smith/inn/merchant/tavern/hut/lodge bodies still mostly native trampolines |
+| NPCs/roles/visits | character declarations, roles, fixed/random placement, visited bits | 39 current NPCs, 17 story roles, representative runtime placements | generated NPC catalog, full randomized placement runtime, all NPC-specific dialogue |
+| Speak/chitchat/rumours | standard conversation model, role/town text refs, anonymous rumours, exclusions | speak screens, chitchat/question tables, 33 town rumour entries | full speak mission scripts, final text binding/rendering runtime |
+| Combat/rewards | reusable standard battle shape, action list, tunables, reward bundle, traceable native boundary | standard battle tunables, 2 monster examples, battle loot/reward shape | full combat loop, all monsters, all spells/monster abilities, battle parity runner |
+| Missions/scenes/scripts | typed scenes/op AST, dialogue branches, rewards, native allowlist | bandits mission, Garth dialogue, Borin gift, rumour/church/Ydarg probes | broad script port from `data/world/scripts`, all mission triggers/actions |
+| World/map/terrain/visual/layout | typed handles exist for many concepts | mostly handles only | map cells, terrain semantics, visuals/assets, screen layout/static documents |
+| Dungeons/Ydarg/secrets/score | narrow native islands and handles | Ydarg probe only | dungeon scenarios, Ydarg room/state model, secrets/sysop actions, score/vscore |
+
+Rule for future checklist updates: every pass should say both what DSL/runtime
+capability moved and what real game content count moved. If either side did not
+move, say that explicitly.
+
 ### A. Foundation and authoring surface
 
 - [x] A0. Seed typed DSL direction. DSL delta: `rylween { content { ... } state { ... } }`, typed handles, typed flags, first party-state model. Native decision: JSON5 is reference only, not the target runtime format.
