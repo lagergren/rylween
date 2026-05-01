@@ -447,6 +447,13 @@ val gameSourceSet = sourceSets.create("game") {
     runtimeClasspath += output + compileClasspath
 }
 
+val appSourceSet = sourceSets.create("app") {
+    java.srcDir("src/app/kotlin")
+    java.srcDir(generatedScratchHarnessDir)
+    compileClasspath += sourceSets.named("main").get().output + gameSourceSet.output
+    runtimeClasspath += output + compileClasspath
+}
+
 sourceSets.named("test") {
     java.srcDir(generatedScratchHarnessDir)
     compileClasspath += gameSourceSet.output
@@ -454,6 +461,10 @@ sourceSets.named("test") {
 }
 
 configurations.named(gameSourceSet.implementationConfigurationName) {
+    extendsFrom(configurations.implementation.get())
+}
+
+configurations.named(appSourceSet.implementationConfigurationName) {
     extendsFrom(configurations.implementation.get())
 }
 
@@ -518,6 +529,21 @@ tasks.named("compileTestKotlin") {
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
 }
 
+tasks.named("compileAppKotlin") {
+    dependsOn(generateCompiledScratchHarness)
+    dependsOn(tasks.named(gameSourceSet.classesTaskName))
+}
+
+val runKotlinTown by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Boots the compiled scratch game in the pure Kotlin terminal town runner."
+
+    dependsOn(tasks.named(appSourceSet.classesTaskName))
+    classpath = appSourceSet.runtimeClasspath
+    mainClass.set("RylweenTerminalMainKt")
+    standardInput = System.`in`
+}
+
 val validateScratch by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Compiles and executes the scratch Kotlin DSL source against the built DSL jar."
@@ -541,4 +567,5 @@ val validateScratch by tasks.registering(JavaExec::class) {
 tasks.check {
     dependsOn(validateGeneratedMetadata)
     dependsOn(validateScratch)
+    dependsOn(tasks.named(appSourceSet.classesTaskName))
 }
