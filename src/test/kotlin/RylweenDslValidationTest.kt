@@ -1005,6 +1005,29 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townServiceBridgePersistsRealmMutationsInTownRuntime() {
+        val terminal = FakeTerminalPort("C", "L")
+        val serviceScene = SceneModel(
+            Scenes.Towne.church,
+            listOf(Op.Set(LValueAst.RealmScalar("hour"), IntAst.Lit(5))),
+        )
+
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(serviceScene),
+                party = testParty(gold = 10),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(5, session.session.realm.hour)
+        assertEquals(5, (session.session.step as TownSessionStep.Finished).runtime.realm.hour)
+    }
+
+    @Test
     fun townServiceBridgeReturnsWaitingOnInvalidServiceInput() {
         val terminal = FakeTerminalPort("C", "X")
         val serviceScene = SceneModel(
@@ -1073,6 +1096,37 @@ class RylweenDslValidationTest {
         assertTrue(resumed.status is TerminalRunStatus.Finished)
         assertEquals(5, resumed.session.party.resources.gold)
         assertEquals(8, resumed.session.party.members.single().hitPoints.current)
+    }
+
+    @Test
+    fun townServiceBridgeResumesContinuationWithRealmMutations() {
+        val serviceScene = SceneModel(
+            Scenes.Towne.church,
+            listOf(
+                Op.Set(LValueAst.RealmScalar("hour"), IntAst.Lit(6)),
+                Op.WaitInput("pause after hour change"),
+                Op.Set(LValueAst.RealmScalar("hour"), IntAst.Lit(7)),
+            ),
+        )
+        val start = TownSession.start(
+            town = testTown(Buildings.church),
+            townSystem = testTownSystem(Buildings.church),
+            scenes = listOf(serviceScene),
+            party = testParty(gold = 10),
+            currentHour = 12,
+        )
+
+        val blocked = TownSessionTerminalAdapter(FakeTerminalPort("C")).runUntilBlocked(start)
+        val blockedStep = blocked.session.step as TownSessionStep.NativeService
+
+        assertTrue(blocked.status is TerminalRunStatus.Waiting)
+        assertEquals(6, blocked.session.realm.hour)
+        assertEquals(6, blockedStep.continuation?.runtime?.realm?.hour)
+
+        val resumed = TownSessionTerminalAdapter(FakeTerminalPort("", "L")).runUntilBlocked(blocked.session)
+
+        assertTrue(resumed.status is TerminalRunStatus.Finished)
+        assertEquals(7, resumed.session.realm.hour)
     }
 
     @Test

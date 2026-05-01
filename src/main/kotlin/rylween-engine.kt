@@ -389,12 +389,15 @@ sealed interface TownServiceBridgeStatus {
 }
 
 data class TownServiceBridgeResult(
-    val party: PartyState,
+    val runtime: RuntimeSessionState,
     val status: TownServiceBridgeStatus,
     val events: List<EngineTraceEvent> = emptyList(),
     val continuation: TownServiceContinuation? = null,
     val rejection: TerminalInputRejection? = null,
-)
+) {
+    val party: PartyState get() = runtime.activeParty
+    val realm: RealmState get() = runtime.realm
+}
 
 interface TownServiceBridge {
     fun run(
@@ -416,7 +419,7 @@ class TraceTownServiceBridge(
         engine.trace(EngineTraceEvent.TownService(service, scene))
         ScriptTraceRunner(engine).run(scene.ops)
         return TownServiceBridgeResult(
-            party = continuation.party,
+            runtime = continuation.runtime,
             status = TownServiceBridgeStatus.Finished,
             events = engine.events.drop(eventStart),
         )
@@ -436,7 +439,7 @@ class StatefulTownServiceBridge(
         engine.trace(EngineTraceEvent.TownService(service, scene))
         val result = StatefulScriptServiceRunner(terminal, engine, scene.ops, continuation).run()
         return TownServiceBridgeResult(
-            party = result.party,
+            runtime = result.runtime,
             status = result.status,
             events = engine.events.drop(eventStart),
             continuation = result.continuation,
@@ -446,11 +449,13 @@ class StatefulTownServiceBridge(
 }
 
 private data class StatefulScriptResult(
-    val party: PartyState,
+    val runtime: RuntimeSessionState,
     val status: TownServiceBridgeStatus,
     val continuation: TownServiceContinuation? = null,
     val rejection: TerminalInputRejection? = null,
-)
+) {
+    val party: PartyState get() = runtime.activeParty
+}
 
 private class StatefulScriptServiceRunner(
     private val terminal: TerminalPort,
@@ -458,6 +463,7 @@ private class StatefulScriptServiceRunner(
     private val rootOps: List<Op>,
     continuation: TownServiceContinuation,
 ) {
+    private var runtime = continuation.runtime
     private var party = continuation.party
     private val locals = continuation.locals.toMutableMap()
     private val realmInts = continuation.realmScalars.toMutableMap()
@@ -468,9 +474,10 @@ private class StatefulScriptServiceRunner(
 
     fun run(): StatefulScriptResult {
         runUntilBlockedOrFinished()
-        val nextContinuation = if (waiting) continuation() else null
+        val nextRuntime = currentRuntime()
+        val nextContinuation = if (waiting) continuation(nextRuntime) else null
         return StatefulScriptResult(
-            party = party,
+            runtime = nextRuntime,
             status = if (waiting) TownServiceBridgeStatus.Waiting else TownServiceBridgeStatus.Finished,
             continuation = nextContinuation,
             rejection = rejection,
@@ -722,9 +729,12 @@ private class StatefulScriptServiceRunner(
         }
     }
 
-    private fun continuation(): TownServiceContinuation =
+    private fun currentRuntime(): RuntimeSessionState =
+        runtime.withActiveParty(party)
+
+    private fun continuation(runtime: RuntimeSessionState): TownServiceContinuation =
         TownServiceContinuation(
-            party = party,
+            runtime = runtime,
             locals = locals.toMap(),
             realmScalars = realmInts.toMap(),
             stack = stack.toList(),
@@ -770,7 +780,7 @@ private class StatefulScriptServiceRunner(
             is IntAst.Random -> eval(ast.lo)
             is IntAst.MemberField -> memberField(eval(ast.member), ast.field)
             is IntAst.MonsterField -> 0
-            is IntAst.RealmScalar -> realmInts[ast.name] ?: 0
+            is IntAst.RealmScalar -> realmScalar(ast.name)
             is IntAst.PartyScalar -> partyScalar(ast.name)
             is IntAst.NativeInt -> engine.readInt(EngineRequest(ast.path, ast.args))
         }
@@ -790,7 +800,7 @@ private class StatefulScriptServiceRunner(
         when (target) {
             is LValueAst.PartyScalar -> partyScalar(target.name)
             is LValueAst.MemberField -> memberField(eval(target.member), target.field)
-            is LValueAst.RealmScalar -> realmInts[target.name] ?: 0
+            is LValueAst.RealmScalar -> realmScalar(target.name)
             is LValueAst.MonsterField -> 0
         }
 
@@ -798,8 +808,31 @@ private class StatefulScriptServiceRunner(
         when (target) {
             is LValueAst.PartyScalar -> party = party.withPartyScalar(target.name, value)
             is LValueAst.MemberField -> party = party.withMemberField(eval(target.member), target.field, value)
-            is LValueAst.RealmScalar -> realmInts[target.name] = value
+            is LValueAst.RealmScalar -> setRealmScalar(target.name, value)
             is LValueAst.MonsterField -> Unit
+        }
+    }
+
+    private fun realmScalar(name: String): Int =
+        when (name) {
+            "day" -> runtime.realm.day
+            "hour" -> runtime.realm.hour
+            "minute" -> runtime.realm.minute
+            "last_played_day" -> runtime.realm.lastPlayedDay
+            "party_member_max" -> runtime.realm.partyMemberMax
+            "banished" -> if (runtime.realm.banished) 1 else 0
+            else -> realmInts[name] ?: 0
+        }
+
+    private fun setRealmScalar(name: String, value: Int) {
+        runtime = when (name) {
+            "day" -> runtime.withRealm(runtime.realm.copy(day = value))
+            "hour" -> runtime.withRealm(runtime.realm.copy(hour = value.positiveMod(24)))
+            "minute" -> runtime.withRealm(runtime.realm.copy(minute = value.positiveMod(60)))
+            "last_played_day" -> runtime.withRealm(runtime.realm.copy(lastPlayedDay = value))
+            "party_member_max" -> runtime.withRealm(runtime.realm.copy(partyMemberMax = value.coerceAtLeast(0)))
+            "banished" -> runtime.withRealm(runtime.realm.copy(banished = value != 0))
+            else -> runtime.also { realmInts[name] = value }
         }
     }
 
@@ -1138,12 +1171,12 @@ class TownSessionTerminalAdapter(
                     }
                 }
                 is TownSessionStep.NativeService -> {
-                    val continuation = step.continuation ?: TownServiceContinuation.start(session.party)
+                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
                     val result = serviceBridge.run(step.service, step.scene, continuation)
                     writeBridgeEvents(result.events)
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
-                            session.apply(TownSessionInput.FinishNativeService(result.party))
+                            session.apply(TownSessionInput.FinishNativeService(result.runtime))
                         TownServiceBridgeStatus.Waiting ->
                             return waiting(
                                 session.replaceNativeServiceContinuation(
@@ -1327,6 +1360,9 @@ private fun compare(left: Int, op: String, right: Int): Boolean =
         "gte" -> left >= right
         else -> false
     }
+
+private fun Int.positiveMod(divisor: Int): Int =
+    ((this % divisor) + divisor) % divisor
 
 private fun PartyState.withPartyScalar(name: String, value: Int): PartyState =
     when (name) {
