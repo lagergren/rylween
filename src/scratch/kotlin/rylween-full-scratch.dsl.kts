@@ -1572,7 +1572,7 @@ val nextRylween = rylween {
     scene(Scenes.Towne.tavern) {
         whenever((realm.hour lt 6) and (realm.hour gt 1)) {
             native.screen.clearText()
-            screen("Shop Closed.")
+            screen("Tavern Closed.")
             pause(1000)
             stop("tavern closed")
         }
