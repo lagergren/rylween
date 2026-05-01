@@ -366,6 +366,22 @@ data class TerminalTextContext(
     val offeredItemPrice: Int? = null,
 )
 
+data class TerminalInputRejection(
+    val input: String,
+    val expected: List<String>,
+)
+
+sealed interface TerminalRunStatus {
+    object Finished : TerminalRunStatus
+    data class Waiting(val rejection: TerminalInputRejection? = null) : TerminalRunStatus
+    object StepLimitReached : TerminalRunStatus
+}
+
+data class TerminalAdapterResult<S>(
+    val session: S,
+    val status: TerminalRunStatus,
+)
+
 class TerminalTextRenderer(
     private val references: Map<String, List<String>> = emptyMap(),
 ) {
@@ -404,112 +420,117 @@ class EquipmentPromptTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
 ) {
-    fun run(initial: EquipmentPromptSession): EquipmentPromptSession {
+    fun run(initial: EquipmentPromptSession): EquipmentPromptSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: EquipmentPromptSession): TerminalAdapterResult<EquipmentPromptSession> {
         var session = initial
         repeat(64) {
             session = when (val step = session.step) {
-                is EquipmentPromptStep.ChooseInventorySlot ->
-                    readInventorySlot(session.party, step.prompt, step.filter)
-                        ?.let { session.apply(EquipmentPromptInput.InventorySlot(it)) }
-                        ?: return session
-                is EquipmentPromptStep.ChooseMember ->
-                    readMember(session.party, step.prompt, step.filter)
-                        ?.let { session.apply(EquipmentPromptInput.Member(it)) }
-                        ?: return session
-                is EquipmentPromptStep.Finished -> return session
+                is EquipmentPromptStep.ChooseInventorySlot -> when (
+                    val input = readInventorySlot(session.party, step.prompt, step.filter)
+                ) {
+                    is TerminalInput.Value -> session.apply(EquipmentPromptInput.InventorySlot(input.value))
+                    is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                    TerminalInput.Unavailable -> return waiting(session)
+                }
+                is EquipmentPromptStep.ChooseMember -> when (
+                    val input = readMember(session.party, step.prompt, step.filter)
+                ) {
+                    is TerminalInput.Value -> session.apply(EquipmentPromptInput.Member(input.value))
+                    is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                    TerminalInput.Unavailable -> return waiting(session)
+                }
+                is EquipmentPromptStep.Finished -> return finished(session)
             }
         }
-        return session
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
     }
 
     private fun readInventorySlot(
         party: PartyState,
         prompt: TextBlock,
         filter: InventorySlotChoiceFilter,
-    ): Int? {
+    ): TerminalInput<Int> {
         val keys = party.inventoryKeys(filter)
         writeMenu(prompt, keys)
-        return readKey(keys)?.let { it - 'A' + 1 }
+        return terminal.readKey(keys).map { it - 'A' + 1 }
     }
 
     private fun readMember(
         party: PartyState,
         prompt: TextBlock,
         filter: MemberChoiceFilter,
-    ): Int? {
+    ): TerminalInput<Int> {
         val choices = party.memberChoices(filter)
         writeMenu(prompt, choices.map { it.digitToChar() })
-        return terminal.readLine()?.trim()?.toIntOrNull()?.takeIf { it in choices }
+        return terminal.readMemberNumber(choices)
     }
 
     private fun writeMenu(block: TextBlock, keys: List<Char>) {
         terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
     }
-
-    private fun readKey(allowed: List<Char>): Char? =
-        terminal.readLine()
-            ?.trim()
-            ?.firstOrNull()
-            ?.uppercaseChar()
-            ?.takeIf { it in allowed }
 }
 
 class TownLeaveEquipmentTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
 ) {
-    fun run(initial: TownLeaveEquipmentSession): TownLeaveEquipmentSession {
+    fun run(initial: TownLeaveEquipmentSession): TownLeaveEquipmentSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: TownLeaveEquipmentSession): TerminalAdapterResult<TownLeaveEquipmentSession> {
         var session = initial
         repeat(128) {
             session = when (val step = session.step) {
                 is TownLeaveEquipmentStep.ReadyQuestion -> {
                     writeMenu(step.prompt, listOf('Y', 'N'))
-                    session.apply(TownLeaveEquipmentInput.ReadyAnswer(readKey(listOf('Y', 'N')) == 'Y'))
+                    when (val input = terminal.readKey(listOf('Y', 'N'))) {
+                        is TerminalInput.Value ->
+                            session.apply(TownLeaveEquipmentInput.ReadyAnswer(input.value == 'Y'))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
                 }
-                is TownLeaveEquipmentStep.Equipment ->
-                    readEquipmentInput(step.session)
-                        ?.let { session.apply(TownLeaveEquipmentInput.Equipment(it)) }
-                        ?: return session
-                is TownLeaveEquipmentStep.Finished -> return session
+                is TownLeaveEquipmentStep.Equipment -> when (val input = readEquipmentInput(step.session)) {
+                    is TerminalInput.Value -> session.apply(TownLeaveEquipmentInput.Equipment(input.value))
+                    is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                    TerminalInput.Unavailable -> return waiting(session)
+                }
+                is TownLeaveEquipmentStep.Finished -> return finished(session)
             }
         }
-        return session
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
     }
 
-    private fun readEquipmentInput(session: EquipmentPromptSession): EquipmentPromptInput? =
+    private fun readEquipmentInput(session: EquipmentPromptSession): TerminalInput<EquipmentPromptInput> =
         when (val step = session.step) {
             is EquipmentPromptStep.ChooseInventorySlot -> {
                 val keys = session.party.inventoryKeys(step.filter)
                 writeMenu(step.prompt, keys)
-                readKey(keys)?.let { EquipmentPromptInput.InventorySlot(it - 'A' + 1) }
+                terminal.readKey(keys).map { EquipmentPromptInput.InventorySlot(it - 'A' + 1) }
             }
             is EquipmentPromptStep.ChooseMember -> {
                 val choices = session.party.memberChoices(step.filter)
                 writeMenu(step.prompt, choices.map { it.digitToChar() })
-                terminal.readLine()?.trim()?.toIntOrNull()?.takeIf { it in choices }?.let {
-                    EquipmentPromptInput.Member(it)
-                }
+                terminal.readMemberNumber(choices).map { EquipmentPromptInput.Member(it) }
             }
-            is EquipmentPromptStep.Finished -> null
+            is EquipmentPromptStep.Finished -> TerminalInput.Unavailable
         }
 
     private fun writeMenu(block: TextBlock, keys: List<Char>) {
         terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
     }
-
-    private fun readKey(allowed: List<Char>): Char? =
-        terminal.readLine()
-            ?.trim()
-            ?.firstOrNull()
-            ?.uppercaseChar()
-            ?.takeIf { it in allowed }
 }
 
 class ShopServiceTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
 ) {
-    fun run(initial: ShopServiceSession): ShopServiceSession {
+    fun run(initial: ShopServiceSession): ShopServiceSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: ShopServiceSession): TerminalAdapterResult<ShopServiceSession> {
         var session = initial
         repeat(256) {
             session = when (val step = session.step) {
@@ -524,47 +545,75 @@ class ShopServiceTerminalAdapter(
                         add('L')
                     }
                     writeMenu(step.text, keys)
-                    when (readKey(keys) ?: 'L') {
-                        'B' -> session.chooseMain(ShopMainChoice.Buy)
-                        'S' -> session.chooseMain(ShopMainChoice.Sell)
-                        else -> session.chooseMain(ShopMainChoice.Leave)
+                    when (val input = terminal.readKey(keys)) {
+                        is TerminalInput.Value -> when (input.value) {
+                            'B' -> session.chooseMain(ShopMainChoice.Buy)
+                            'S' -> session.chooseMain(ShopMainChoice.Sell)
+                            else -> session.chooseMain(ShopMainChoice.Leave)
+                        }
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
                     }
                 }
                 is ShopServiceStep.BuyItem -> {
                     val entries = step.catalogs.flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
                     val keys = entries.map { it.key }
                     terminal.write(renderer.lines(step.prompt) + entries.map { "(${it.key}) ${it.label ?: it.item.slug}" })
-                    val key = readKey(keys) ?: return session
+                    val key = when (val input = terminal.readKey(keys)) {
+                        is TerminalInput.Value -> input.value
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
                     val item = checkNotNull(entries.firstOrNull { it.key == key }) { "missing buy item for key $key" }.item
                     session.chooseBuyItem(item)
                 }
                 is ShopServiceStep.Quantity -> {
                     write(step.prompt)
-                    session.enterQuantity(readInt() ?: return session)
+                    when (val input = terminal.readInt()) {
+                        is TerminalInput.Value -> session.enterQuantity(input.value)
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
                 }
                 is ShopServiceStep.ConfirmPurchase -> {
                     writeMenu(step.prompt, listOf('P', 'N'))
-                    session.confirmPurchase(readKey(listOf('P', 'N')) == 'P')
+                    when (val input = terminal.readKey(listOf('P', 'N'))) {
+                        is TerminalInput.Value -> session.confirmPurchase(input.value == 'P')
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
                 }
                 is ShopServiceStep.DropSlot -> {
                     write(step.prompt)
-                    session.chooseDropSlot(readInventorySlot() ?: return session)
+                    when (val input = readInventorySlot()) {
+                        is TerminalInput.Value -> session.chooseDropSlot(input.value)
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
                 }
                 is ShopServiceStep.SellSlot -> {
                     write(step.prompt)
-                    session.chooseSellSlot(readInventorySlot() ?: return session)
+                    when (val input = readInventorySlot()) {
+                        is TerminalInput.Value -> session.chooseSellSlot(input.value)
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
                 }
                 is ShopServiceStep.ConfirmSale -> {
                     writeMenu(step.prompt, listOf('Y', 'N'), TerminalTextContext(shopPrice = step.quote.price))
-                    session.confirmSale(readKey(listOf('Y', 'N')) == 'Y')
+                    when (val input = terminal.readKey(listOf('Y', 'N'))) {
+                        is TerminalInput.Value -> session.confirmSale(input.value == 'Y')
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
                 }
                 is ShopServiceStep.Finished -> {
                     write(step.text)
-                    return session
+                    return finished(session)
                 }
             }
         }
-        return session
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
     }
 
     private fun write(block: TextBlock, context: TerminalTextContext = TerminalTextContext()) {
@@ -579,20 +628,59 @@ class ShopServiceTerminalAdapter(
         terminal.write(renderer.lines(block, context) + "Options: ${keys.joinToString("/")}")
     }
 
-    private fun readKey(allowed: List<Char>): Char? =
-        terminal.readLine()
-            ?.trim()
-            ?.firstOrNull()
-            ?.uppercaseChar()
-            ?.takeIf { it in allowed }
-
-    private fun readInt(): Int? =
-        terminal.readLine()?.trim()?.toIntOrNull()
-
-    private fun readInventorySlot(): Int? =
-        readKey((0 until InventorySaveSlotMax).map { 'A' + it })
-            ?.let { it - 'A' + 1 }
+    private fun readInventorySlot(): TerminalInput<Int> =
+        terminal.readKey((0 until InventorySaveSlotMax).map { 'A' + it })
+            .map { it - 'A' + 1 }
 }
+
+private sealed interface TerminalInput<out T> {
+    data class Value<T>(val value: T) : TerminalInput<T>
+    data class Rejected(val rejection: TerminalInputRejection) : TerminalInput<Nothing>
+    object Unavailable : TerminalInput<Nothing>
+}
+
+private fun <T, R> TerminalInput<T>.map(transform: (T) -> R): TerminalInput<R> =
+    when (this) {
+        is TerminalInput.Value -> TerminalInput.Value(transform(value))
+        is TerminalInput.Rejected -> this
+        TerminalInput.Unavailable -> TerminalInput.Unavailable
+    }
+
+private fun TerminalPort.readKey(allowed: List<Char>): TerminalInput<Char> {
+    val raw = readLine() ?: return TerminalInput.Unavailable
+    val key = raw.trim().firstOrNull()?.uppercaseChar()
+    return if (key != null && key in allowed) {
+        TerminalInput.Value(key)
+    } else {
+        TerminalInput.Rejected(TerminalInputRejection(raw, allowed.map { it.toString() }))
+    }
+}
+
+private fun TerminalPort.readInt(): TerminalInput<Int> {
+    val raw = readLine() ?: return TerminalInput.Unavailable
+    return raw.trim().toIntOrNull()
+        ?.let { TerminalInput.Value(it) }
+        ?: TerminalInput.Rejected(TerminalInputRejection(raw, listOf("integer")))
+}
+
+private fun TerminalPort.readMemberNumber(allowed: List<Int>): TerminalInput<Int> {
+    val raw = readLine() ?: return TerminalInput.Unavailable
+    val memberNumber = raw.trim().toIntOrNull()
+    return if (memberNumber != null && memberNumber in allowed) {
+        TerminalInput.Value(memberNumber)
+    } else {
+        TerminalInput.Rejected(TerminalInputRejection(raw, allowed.map { it.toString() }))
+    }
+}
+
+private fun <S> finished(session: S): TerminalAdapterResult<S> =
+    TerminalAdapterResult(session, TerminalRunStatus.Finished)
+
+private fun <S> waiting(
+    session: S,
+    rejection: TerminalInputRejection? = null,
+): TerminalAdapterResult<S> =
+    TerminalAdapterResult(session, TerminalRunStatus.Waiting(rejection))
 
 private fun renderEquipmentStep(engine: TraceEnginePort, step: EquipmentPromptStep) {
     when (step) {

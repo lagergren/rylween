@@ -831,6 +831,32 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun terminalAdaptersReturnUnfinishedSessionOnInvalidInput() {
+        val invalidShop = ShopServiceTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10)),
+        )
+        val missingShopInput = ShopServiceTerminalAdapter(FakeTerminalPort()).runUntilBlocked(
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10)),
+        )
+        val invalidTownLeave = TownLeaveEquipmentTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(
+            TownLeaveEquipmentSession.start(testParty(inventoryItems = mapOf(1 to Items.sword))),
+        )
+
+        assertTrue(invalidShop.session.step is ShopServiceStep.MainMenu)
+        assertEquals(
+            TerminalInputRejection("X", listOf("B", "S", "L")),
+            (invalidShop.status as TerminalRunStatus.Waiting).rejection,
+        )
+        assertTrue(missingShopInput.session.step is ShopServiceStep.MainMenu)
+        assertEquals(null, (missingShopInput.status as TerminalRunStatus.Waiting).rejection)
+        assertTrue(invalidTownLeave.session.step is TownLeaveEquipmentStep.ReadyQuestion)
+        assertEquals(
+            TerminalInputRejection("X", listOf("Y", "N")),
+            (invalidTownLeave.status as TerminalRunStatus.Waiting).rejection,
+        )
+    }
+
+    @Test
     fun validationRejectsBreakOutsideLoop() {
         val content = GameBuilder().apply {
             scene(sceneId("bad.break")) {
