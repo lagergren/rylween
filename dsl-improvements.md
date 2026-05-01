@@ -107,13 +107,15 @@ Keep implementation and authoring separate:
 - Game-specific content should be declared in plain domain blocks. Adding a
   monster, flag, mission, milestone, text, or scene should mean adding a content
   record, not writing a Kotlin class.
-- In the scratch source, `rylween-dsl.kt` is the Kotlin DSL implementation and
-  `rylween-full-scratch.dsl.kts` is the game-specific source. Validate them
-  with:
+- The Kotlin DSL project is now a small Gradle build named `rylween`. Runtime
+  DSL/kernel code lives under `src/main/kotlin`: `rylween-dsl.kt` for the
+  authoring model, `rylween-dsl-validation.kt` for validation, and
+  `rylween-engine.kt` for the backend-neutral engine boundary. The
+  game-specific scratch source remains `rylween-full-scratch.dsl.kts`.
+  Validate it with:
 
 ```sh
-kotlinc rylween-dsl.kt -d /tmp/rylween-dsl.jar
-kotlinc -classpath /tmp/rylween-dsl.jar -script rylween-full-scratch.dsl.kts
+./gradlew check
 ```
 
 Example authoring shape:
@@ -168,11 +170,12 @@ The "DSL delta" text is the concrete thing to look for in the Kotlin diff.
 Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 
 - `rylween-full-scratch.dsl.kts` is the successor scratch source copied from `dsl-next.kts`; `dsl-next.kts` remains the small language/prototype lab.
-- `rylween-dsl.kt` is the Kotlin implementation of the scratch DSL; `rylween-full-scratch.dsl.kts` is only the game-specific declaration source. Plain `kotlinc -script` cannot import another regular `.kts` directly, so validation compiles `rylween-dsl.kt` to a jar and runs the game script with that jar on the classpath.
+- The Gradle project root is named `rylween` and uses the Gradle 9.5.0 wrapper with Kotlin JVM 2.3.21. `src/main/kotlin/rylween-dsl.kt` is the Kotlin implementation of the scratch DSL, `src/main/kotlin/rylween-dsl-validation.kt` contains validation, and `src/main/kotlin/rylween-engine.kt` contains the backend-neutral engine port. `rylween-full-scratch.dsl.kts` is only the game-specific declaration source.
 - Keep a hard boundary between DSL implementation and game authoring. Kotlin classes, builders, validators, and generated handles are implementation/compiler scaffolding; the game designer should add game-specific content through declaration blocks such as `flags { ... }`, `monsters { ... }`, `missions { ... }`, `gameProgress { ... }`, and `state { ... }`.
 - Adding a new monster, flag, mission, special milestone, text, or similar game-specific concept should not require writing a Kotlin class. The authoring source declares the concept in game terms; the content compiler can generate typed handles from those declarations.
 - Common Rylween engine/state concepts such as party state, member stats, inventory slots, positions, and validation helpers may remain normal Kotlin DSL implementation types because authors consume them rather than extend them.
 - Common gameplay systems such as battle rounds, fight/run menus, spell selection/casting, item use, reward application, and encounter orchestration should become reusable Kotlin DSL/runtime-library concepts. Game authors should declare the content those systems consume, plus explicit hooks or overrides when needed; they should not hand-write bespoke battle loops for normal monsters or spells. Those reusable Kotlin systems may call a narrow native surface for input, rendering, RNG, persistence, and low-level storage.
+- The runtime boundary is backend-neutral: `RylweenEnginePort` can be implemented by the current C engine bridge, a pure Kotlin JVM runtime, a server process, or a future native executable. The DSL/runtime layer should depend on the port contract, not on a hard-coded C implementation.
 - `Flags` aliases the existing `Story` flag catalog so scripts can keep the readable `Story.garth.bandits.accepted` form while A2 has a canonical `Flags.*` entry point.
 - `Items.none` is an author-facing alias for the current id-0 `blank` item. The prototype-only `garth_cargo` item was not carried forward because it is not present in the current item shards.
 - `Images.Scene.*` names the `blitgfx` map-window pictures semantically from `src/ryl.h` and `world.json5`'s `enums.pic` table, with comments preserving the legacy `data/tiles/NN.ans` filenames. Avoid `tile01`-style handles in authoring code.
@@ -193,6 +196,7 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - Reusable speak text now has its own `speak { textTables { ... } }` shape for shared screens, chitchat prompt/reply tables, question reply tables, and town rumour rolls. This is intentionally separate from inline mission dialogue: table text is reusable system content, while one-off NPC quest branches can remain local structured blocks.
 - Reusable text tables use structured `lines { line(...) }` blocks when the content benefits from one line per source row, and `lines("...", "...")` as a compact equivalent for short exact legacy rows. The authoring surface should converge on line-oriented text blocks rather than mixed vararg-only screen APIs.
 - Character references in reusable text should point at semantic roles, not placeholder strings such as `{name15}` or `{loc15}`. The runtime resolves `character(Roles.crownSeer).name` and `.location` from the character currently bound to that role, so fixed and randomized NPC placement both produce correct dialogue/rumour text. Legacy rumour roll numbers live on generated `Rumours.*` metadata, not in authoring rows. Rumours can also declare story-state exclusions, such as hiding the bandit-merchant rumour once `Story.garth.bandits` is recovered or closed.
+- Town declarations should introduce their own authored ids, e.g. `town("ollk") { name = "Ollk"; ... }`. Generated `Towns.*` handles are compiler output used by other content, state, scripts, character placement, and text references; authors should not need to predeclare or manually maintain the handle catalog before declaring a town.
 - Legacy `main` C code confirms the original NPC layout: slots 1-24 are generated random people, slot 33 is Marcus the fixed Hermit at wilderness `48,7`, slots 34-35 are fixed tavern women, and slots 36-39 are Alex/Galdon/Kosch/Ufarsin as merchant wilderness records with implicit `0,0`. The DSL should not expose implicit wilderness-origin placement as an authoring concept; characters should be declared as `randomPlacement()`, `randomWilderness()`, or `fixed(Wilderness.xy(...))`.
 - Generated `Items.*` handles now carry legacy item ids from `data/world/items/*.json5` in Kotlin implementation metadata. Item-pool validation checks both the expected range length and the exact ordered ids of the referenced handles, so author-facing pools stay semantic while migration mistakes in numeric carryover fail validation.
 - Confirmed design decision: item ids should appear only in generated metadata, if they appear at all. The public author-facing `item("slug")` helper cannot attach a legacy id; generated catalog code uses the internal generated-handle path.
@@ -218,12 +222,13 @@ Open design questions:
 - [x] B6. Inventory slots and equipment. DSL delta: `inventory { slot(1).item(...) }` plus per-member `equipped { weapon = ...; armor = ... }`. Native decision: low-level insert/remove/first-free-slot helpers. Current scratch status: slotted inventory is separate from per-member equipment because current save coverage stores weapon/armor per member; runtime snapshots must list slots `0..16`.
 - [x] B7. Legacy special fields. DSL delta: `gameProgress { milestone(...) { showsAs(...); requiredToWin(); legacyPartyField(...) } winningConfiguration { ... } }` plus `party { milestones { achieved(...) } }`. Native decision: old positional fields are migration-only; native state should store dense milestone ids, derive special-inventory display from content metadata, and treat legacy `silverkey == 2` as a separate completion marker. Current scratch status: near-winning and winning fixtures exercise required milestones, `Milestones.ydargVictory`, special inventory projection, and generic win checking.
 - [x] B8. Journal and visited records. DSL delta: `journal { entry(...) }` and `visited(Npcs...)`. Native decision: persistent string/id list storage. Current scratch status: authored states can use compact `visited(...)` and text-id journal entries; runtime snapshots can list true/false NPC visit bits and literal journal lines.
-- [ ] B9. Savegame emission. DSL delta: exact fully expanded `state {}` output with no hidden defaults or helper loops. Native decision: filesystem write/read plus old-save importer. Current scratch status: `runtimeState(...)` and validation discipline exist, but no deterministic writer/loader has been built yet.
+- [ ] B9. Savegame emission. DSL delta: exact fully expanded `state {}` output with no hidden defaults or helper loops. Native decision: filesystem write/read for new snapshots; old-save import is not required unless explicitly requested. Current scratch status: `runtimeState(...)` and validation discipline exist, but no deterministic writer/loader has been built yet.
 
 B1-B9 first-pass notes:
 
 - `stateFixture(...)` is the authoring/test fixture form. It may stay compact and ergonomic.
 - `runtimeState(...)` is the future save snapshot subset. Validation currently requires explicit RNG seed, member count, full inventory slots `0..16`, attack-today records for every party in the state, and explicit visit bits for every NPC declared in that state.
+- Old-save reading is no longer part of the near-term DSL design. Legacy fields are still documented so current data can be mapped correctly, but the next save/load work should target exact new DSL snapshots first.
 - Current C save coverage audited for this pass: realm header (`last_played_day`, party-member max, current session fields from snapshots), locations, NPC placement, party identity, flags, special fields, `pl`, position, resources, inventory, member records/equipment, `attack_today`, `waiting_mail`, `attacked`, `kills`, `visited_npcs`, and `journal`.
 
 ### C. World maps, terrain, visuals, and layout
@@ -246,11 +251,11 @@ B1-B9 first-pass notes:
 - [ ] D5. Flags and story progress. DSL delta: typed flag families with explicit states and setters. Native decision: dense flag storage and save serialization.
 - [ ] D6. Missions and triggers. DSL delta: `mission(...) { trigger { ... } action { ... } }`. Native decision: trigger polling and typed op dispatch.
 - [ ] D7. Dialogue and chitchat. DSL delta: `speak { standardConversation { ... } textTables { ... } }` plus `dialogue { npc(Npcs.garth) { whenState(...) { say(...) } } }`. Native decision: NPC lookup/visited bits, input, rendering, RNG, and text formatting stay narrow services behind a reusable Kotlin/runtime conversation runner. Current scratch status: Garth's merchant offer and grateful reward are first-class inline dialogue branches with exact legacy text, reward, prompt/drop behavior, and flag transitions. The standard conversation shape now pins C/Q/R/B and L/M/P/N menu structure, first-matching dialogue branch dispatch, visited recognition, well/weather/health chitchat, once-per-conversation rumour fallback, and representative reusable speak screens/chitchat/question reply tables copied from `data/world/texts/speak.json5`.
-- [ ] D8. Rumours. DSL delta: typed rumour tables bound to semantic `Rumours.*`, role-based character text references, and optional `excludeWhen(...)` story-state filters. Native decision: RNG selection only plus filtering against typed party state; generated metadata maps old rolls to handles during migration. Current scratch status: `RumourTables.standardTown` exists under `speak { textTables { ... } }` with representative exact entries from `data/world/texts/towne.json5`; authoring uses `Rumours.crownSeer` and `character(Roles.crownSeer).name/location` rather than roll numbers or `{name15}` placeholders, and the bandit-merchant rumour is excluded after the cargo is recovered or the reward is closed.
+- [ ] D8. Rumours. DSL delta: rumour tables with anonymous inline entries by default, semantic `Rumours.*` only for externally referenced/gated entries, role-based character text references, town-location text references, and optional `excludeWhen(...)` story-state filters. Native decision: RNG selection only plus filtering against typed party state; legacy roll numbers belong to generated/import metadata, not authoring rows. Current scratch status: `RumourTables.standardTown` exists under `speak { textTables { ... } }` with exact entries from `data/world/texts/towne.json5`; authoring uses `character(Roles.crownSeer).name/location`, `town(Towns.murn).near(radius = 5)`, and anonymous `rumour { ... }` rows rather than roll numbers or `{name15}` placeholders, and the bandit-merchant rumour is excluded after the cargo is recovered or the reward is closed.
 
 ### E. Towns, buildings, wilderness, and daily actions
 
-- [ ] E1. Towns and buildings. DSL delta: `towns { town(...) { buildings(...) } }` and `building(...) { enter { ... } }`. Native decision: current-location state and generic enter dispatcher.
+- [ ] E1. Towns and buildings. DSL delta: `towns { town("ollk") { name; position; taxPercent; services { ... } } }` and future `building(...) { enter { ... } }`. Native decision: current-location state and generic enter dispatcher. Current scratch status: the four current towns are declared with exact names, coordinates, tax rates, settlement class, church availability, and service hours from `data/world.json5`; building enter scripts are still pending.
 - [ ] E2. Keymaps and menus. DSL delta: typed `wildernessKeys`, `townKeys`, and `combatKeys` declarations. Native decision: keyboard input and dispatch execution.
 - [ ] E3. Shops and services. DSL delta: smith, merchant, inn, tavern, church, hut, and lodge as building scripts/tables. Native decision: menu input/render primitives, temporary pricing helpers if needed.
 - [ ] E4. Rest, camp, hunt, and lodge. DSL delta: action scripts with costs, risks, time passage, food/fatigue effects. Native decision: RNG and state mutation primitives.
@@ -301,7 +306,7 @@ are allowed during migration but should have an explicit shrinking path.
 | Program boot | `ryl.c`, `runtime_cfg.c` | launch profile selecting content + state | argument parsing, process setup, runtime config, exit codes |
 | Resource loading | `res.c`, JSON5 imports | Kotlin content compiler + native bundle | bundle reader, validation runner, string interner/hash tables |
 | World metadata / limits | `world.json5 meta`, `limits` | `meta {}` / `limits {}` content | memory allocation bounds, defensive loader checks |
-| Save/load | `driv.c current-world.json5`, legacy `.dat` | exact `state {}` snapshots | filesystem I/O, old-save migration reader |
+| Save/load | `driv.c current-world.json5`, legacy `.dat` | exact `state {}` snapshots | filesystem I/O for new snapshots; legacy importer only if requested later |
 | Realm/session state | `struct ryl_state` | `state { realm { ... } }` | active-state pointer, transient runtime frame |
 | Parties | `party.c`, `driv.c` save/load | `party(...) { ... }` state | storage, bounds checks, state mutation primitives |
 | Party members | `struct party_member` | `member(...) { health/hitPoints/wisdom/mana/... }` | primitive field access in typed VM |
