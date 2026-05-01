@@ -931,6 +931,7 @@ class SceneRefs {
 }
 
 class TowneSceneRefs {
+    val church = sceneId("towne.church")
     val churchHeal = sceneId("towne.church.heal")
     val rumour = sceneId("towne.rumour")
     val smith = sceneId("towne.smith")
@@ -1407,6 +1408,7 @@ class NativeOpRefs {
     val screenClearText = nativeOp("screen.clear_text")
     val screenRedrawMap = nativeOp("screen.redraw_map")
     val inventoryAdd = nativeOp("inventory.add")
+    val townEnterService = nativeOp("town.enter_service")
     val ydargInit = nativeOp("ydarg.init")
     val ydargClearRoomAtCurrent = nativeOp("ydarg.clear_room_at_current")
     val ydargTryMove = nativeOp("ydarg.try_move")
@@ -1510,8 +1512,6 @@ enum class TownKind { Village, City }
 
 data class TownServiceModel(
     val building: BuildingId,
-    val opensAt: Int?,
-    val closesAt: Int?,
 )
 
 data class TownModel(
@@ -1521,6 +1521,28 @@ data class TownModel(
     val taxPercent: Int,
     val kind: TownKind,
     val services: List<TownServiceModel>,
+)
+
+data class TownMenuActionModel(
+    val key: Char,
+    val action: KeyActionId,
+    val building: BuildingId?,
+    val endsMenu: Boolean,
+)
+
+data class BuildingServiceModel(
+    val building: BuildingId,
+    val action: KeyActionId,
+    val scene: SceneId,
+    val opensAt: Int?,
+    val closesAt: Int?,
+    val nativeServices: List<EngineServiceUse>,
+)
+
+data class TownSystemModel(
+    val menu: List<TownMenuActionModel>,
+    val buildingServices: List<BuildingServiceModel>,
+    val nativeServices: List<EngineServiceUse>,
 )
 
 data class CharacterModel(
@@ -1589,6 +1611,8 @@ enum class EngineService {
     CombatContextStorage,
     InventoryStorage,
     NpcStateStorage,
+    TownStateStorage,
+    TimeState,
     PartyStateMutation,
     TextFormatting,
 }
@@ -1811,6 +1835,7 @@ data class GameModel(
     val combat: CombatSystemModel,
     val speak: SpeakSystemModel,
     val towns: List<TownModel>,
+    val townSystem: TownSystemModel?,
     val characters: List<CharacterModel>,
     val monsters: List<MonsterModel>,
     val scenes: List<SceneModel>,
@@ -2060,6 +2085,7 @@ class NativeAllowlistRefs {
     val screenClearText = effect(NativeOps.screenClearText, "text-window rendering primitive")
     val screenRedrawMap = effect(NativeOps.screenRedrawMap, "map rendering primitive")
     val inventoryAdd = effect(NativeOps.inventoryAdd, "legacy inventory slot mutation")
+    val townEnterService = effect(NativeOps.townEnterService, "town building-service trampoline")
     val ydargInit = effect(NativeOps.ydargInit, "legacy Ydarg dungeon state setup")
     val ydargClearRoomAtCurrent = effect(NativeOps.ydargClearRoomAtCurrent, "legacy Ydarg room state mutation")
     val ydargTryMove = effect(NativeOps.ydargTryMove, "legacy Ydarg movement and collision")
@@ -2081,6 +2107,7 @@ class NativeAllowlistRefs {
         screenClearText,
         screenRedrawMap,
         inventoryAdd,
+        townEnterService,
         ydargInit,
         ydargClearRoomAtCurrent,
         ydargTryMove,
@@ -2375,6 +2402,7 @@ class NativeScope(private val script: ScriptScope) {
     val screen = NativeScreen(script)
     val rumour = NativeRumour(script)
     val inventory = NativeInventory(script)
+    val town = NativeTown(script)
     val ydarg = NativeYdarg(script)
     val input = NativeInput(script)
 }
@@ -2391,6 +2419,11 @@ class NativeRumour(private val script: ScriptScope) {
 class NativeInventory(private val script: ScriptScope) {
     fun add(itemId: IntExpr) =
         script.record(Op.NativeCall(NativeAllowlist.inventoryAdd.path, listOf(render(itemId))))
+}
+
+class NativeTown(private val script: ScriptScope) {
+    fun enterService(building: BuildingId) =
+        script.record(Op.NativeCall(NativeAllowlist.townEnterService.path, listOf(render(building))))
 }
 
 class NativeYdarg(private val script: ScriptScope) {
@@ -2423,6 +2456,7 @@ class GameBuilder {
     private var combatModel = CombatSystemModel(null)
     private var speakModel = SpeakSystemModel(null)
     private val towns = mutableListOf<TownModel>()
+    private var townSystemModel: TownSystemModel? = null
     private val characters = mutableListOf<CharacterModel>()
     private val monsters = mutableListOf<MonsterModel>()
     private val scenes = mutableListOf<SceneModel>()
@@ -2453,6 +2487,10 @@ class GameBuilder {
 
     fun towns(body: TownCatalogBuilder.() -> Unit) {
         towns += TownCatalogBuilder().apply(body).build()
+    }
+
+    fun townSystem(body: TownSystemBuilder.() -> Unit) {
+        townSystemModel = TownSystemBuilder().apply(body).build()
     }
 
     fun characters(body: CharacterCatalogBuilder.() -> Unit) {
@@ -2492,6 +2530,7 @@ class GameBuilder {
             combat = combatModel,
             speak = speakModel,
             towns = towns.toList(),
+            townSystem = townSystemModel,
             characters = characters.toList(),
             monsters = monsters.toList(),
             scenes = scenes.toList(),
@@ -2572,31 +2611,162 @@ class TownBuilder(private val id: TownId) {
 class TownServicesBuilder {
     private val services = mutableListOf<TownServiceModel>()
 
-    fun merchant(open: IntRange? = 6..18) {
-        service(Buildings.merchant, open)
+    fun merchant() {
+        service(Buildings.merchant)
     }
 
-    fun inn(open: IntRange? = null) {
-        service(Buildings.inn, open)
+    fun inn() {
+        service(Buildings.inn)
     }
 
-    fun tavern(open: IntRange? = 6..1) {
-        service(Buildings.tavern, open)
+    fun tavern() {
+        service(Buildings.tavern)
     }
 
-    fun smith(open: IntRange? = 6..18) {
-        service(Buildings.smith, open)
+    fun smith() {
+        service(Buildings.smith)
     }
 
-    fun church(open: IntRange? = null) {
-        service(Buildings.church, open)
+    fun church() {
+        service(Buildings.church)
     }
 
-    fun service(building: BuildingId, open: IntRange? = null) {
-        services += TownServiceModel(building, open?.first, open?.last)
+    fun service(building: BuildingId) {
+        services += TownServiceModel(building)
     }
 
     fun build(): List<TownServiceModel> = services.toList()
+}
+
+@RylNextDsl
+class TownSystemBuilder {
+    private var menuModel = TownMenuBuilder().build()
+    private var buildingServiceModels = BuildingServiceCatalogBuilder().build()
+
+    fun menu(body: TownMenuBuilder.() -> Unit) {
+        menuModel = TownMenuBuilder().apply(body).build()
+    }
+
+    fun buildingServices(body: BuildingServiceCatalogBuilder.() -> Unit) {
+        buildingServiceModels = BuildingServiceCatalogBuilder().apply(body).build()
+    }
+
+    fun build(): TownSystemModel =
+        TownSystemModel(
+            menu = menuModel,
+            buildingServices = buildingServiceModels,
+            nativeServices = listOf(
+                EngineServiceUse(EngineService.KeyboardInput, "town menu command selection"),
+                EngineServiceUse(EngineService.Rendering, "town entry art, text panes, and status refresh"),
+                EngineServiceUse(EngineService.TownStateStorage, "current town lookup and available-service checks"),
+                EngineServiceUse(EngineService.TimeState, "service opening-hour checks"),
+                EngineServiceUse(EngineService.PartyStateMutation, "tax, service costs, lodging, healing, and time passage"),
+                EngineServiceUse(EngineService.InventoryStorage, "merchant, smith, and service inventory effects"),
+                EngineServiceUse(EngineService.NpcStateStorage, "building NPC lookup and town conversations"),
+                EngineServiceUse(EngineService.TextFormatting, "town, building, NPC, item, price, and tax bindings"),
+            ),
+        )
+}
+
+@RylNextDsl
+class TownMenuBuilder {
+    private val actions = mutableListOf<TownMenuActionModel>()
+
+    fun church(key: Char = 'C') {
+        service(key, Buildings.church, KeyActions.enterChurch)
+    }
+
+    fun smith(key: Char = 'S') {
+        service(key, Buildings.smith, KeyActions.enterSmith)
+    }
+
+    fun inn(key: Char = 'I') {
+        service(key, Buildings.inn, KeyActions.enterInn)
+    }
+
+    fun merchant(key: Char = 'M') {
+        service(key, Buildings.merchant, KeyActions.enterMerchant)
+    }
+
+    fun tavern(key: Char = 'T') {
+        service(key, Buildings.tavern, KeyActions.enterTavern)
+    }
+
+    fun leave(key: Char = 'L', action: KeyActionId = KeyActions.leaveTown) {
+        actions += TownMenuActionModel(key, action, building = null, endsMenu = true)
+    }
+
+    fun service(key: Char, building: BuildingId, action: KeyActionId) {
+        actions += TownMenuActionModel(key, action, building, endsMenu = false)
+    }
+
+    fun build(): List<TownMenuActionModel> = actions.toList()
+}
+
+@RylNextDsl
+class BuildingServiceCatalogBuilder {
+    private val services = mutableListOf<BuildingServiceModel>()
+
+    fun church(body: BuildingServiceBuilder.() -> Unit = {}) {
+        building(Buildings.church, KeyActions.enterChurch, Scenes.Towne.church, body)
+    }
+
+    fun smith(body: BuildingServiceBuilder.() -> Unit = {}) {
+        building(Buildings.smith, KeyActions.enterSmith, Scenes.Towne.smith, body)
+    }
+
+    fun inn(body: BuildingServiceBuilder.() -> Unit = {}) {
+        building(Buildings.inn, KeyActions.enterInn, Scenes.Towne.inn, body)
+    }
+
+    fun merchant(body: BuildingServiceBuilder.() -> Unit = {}) {
+        building(Buildings.merchant, KeyActions.enterMerchant, Scenes.Towne.merchant, body)
+    }
+
+    fun tavern(body: BuildingServiceBuilder.() -> Unit = {}) {
+        building(Buildings.tavern, KeyActions.enterTavern, Scenes.Towne.tavern, body)
+    }
+
+    fun building(
+        building: BuildingId,
+        action: KeyActionId,
+        scene: SceneId,
+        body: BuildingServiceBuilder.() -> Unit = {},
+    ) {
+        services += BuildingServiceBuilder(building, action, scene).apply(body).build()
+    }
+
+    fun build(): List<BuildingServiceModel> = services.toList()
+}
+
+@RylNextDsl
+class BuildingServiceBuilder(
+    private val building: BuildingId,
+    private val defaultAction: KeyActionId,
+    private val defaultScene: SceneId,
+) {
+    var action: KeyActionId = defaultAction
+    var scene: SceneId = defaultScene
+    var hours: IntRange? = null
+
+    fun alwaysOpen() {
+        hours = null
+    }
+
+    fun build(): BuildingServiceModel =
+        BuildingServiceModel(
+            building = building,
+            action = action,
+            scene = scene,
+            opensAt = hours?.first,
+            closesAt = hours?.last,
+            nativeServices = listOf(
+                EngineServiceUse(EngineService.Rendering, "${building.slug} service screens and map-window art"),
+                EngineServiceUse(EngineService.KeyboardInput, "${building.slug} service menu input"),
+                EngineServiceUse(EngineService.TimeState, "${building.slug} opening-hour checks"),
+                EngineServiceUse(EngineService.PartyStateMutation, "${building.slug} cost, time, and resource effects"),
+            ),
+        )
 }
 
 @RylNextDsl

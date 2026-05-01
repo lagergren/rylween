@@ -206,17 +206,88 @@ fun validateTowns(towns: List<TownModel>) {
             check(service.building in Buildings.all) {
                 "town ${town.id.slug} references unknown service ${service.building.slug}"
             }
-            val opensAt = service.opensAt
-            val closesAt = service.closesAt
-            if (opensAt != null || closesAt != null) {
-                check(opensAt != null && closesAt != null) {
-                    "town ${town.id.slug}.${service.building.slug} must declare both open and close hour"
-                }
-                check(opensAt in 0..23 && closesAt in 0..23) {
-                    "town ${town.id.slug}.${service.building.slug} hours must be in 0..23"
-                }
+        }
+    }
+}
+
+fun validateTownSystem(
+    townSystem: TownSystemModel?,
+    towns: List<TownModel>,
+    scenes: List<SceneModel>,
+) {
+    check(townSystem != null) { "content must declare a town system" }
+
+    val menu = townSystem.menu
+    check(menu.isNotEmpty()) { "town system needs a town entry menu" }
+    check(menu.map { it.key.uppercaseChar() }.toSet().size == menu.size) {
+        "town entry menu has duplicate keys"
+    }
+    check(menu.any { it.action == KeyActions.leaveTown && it.endsMenu }) {
+        "town entry menu needs a leave action that exits the menu"
+    }
+
+    val buildingServices = townSystem.buildingServices
+    check(buildingServices.isNotEmpty()) { "town system needs building services" }
+    check(buildingServices.map { it.building }.toSet().size == buildingServices.size) {
+        "town system has duplicate building services"
+    }
+
+    val buildingServiceIds = buildingServices.map { it.building }.toSet()
+    val knownScenes = scenes.map { it.id }.toSet()
+    val townServiceIds = towns.flatMap { town -> town.services.map { it.building } }.toSet()
+
+    townServiceIds.forEach { building ->
+        check(building in buildingServiceIds) {
+            "towns offer ${building.slug}, but town system has no building service for it"
+        }
+    }
+
+    menu.forEach { action ->
+        check(action.key.uppercaseChar() == action.key) {
+            "town entry menu key ${action.key} must be uppercase"
+        }
+        check(action.action.slug.isNotBlank()) { "town entry menu has blank action" }
+        action.building?.let { building ->
+            check(building in buildingServiceIds) {
+                "town entry menu action ${action.action.slug} references missing building service ${building.slug}"
+            }
+            check(!action.endsMenu) {
+                "town entry service action ${action.action.slug} must stay in the town menu"
             }
         }
+    }
+
+    buildingServices.forEach { service ->
+        check(service.building in Buildings.all && service.building != Buildings.none) {
+            "building service references unknown building ${service.building.slug}"
+        }
+        check(service.action.slug.isNotBlank()) {
+            "building service ${service.building.slug} has blank action"
+        }
+        check(service.scene in knownScenes) {
+            "building service ${service.building.slug} references missing scene ${service.scene.slug}"
+        }
+
+        val opensAt = service.opensAt
+        val closesAt = service.closesAt
+        if (opensAt != null || closesAt != null) {
+            check(opensAt != null && closesAt != null) {
+                "building service ${service.building.slug} must declare both open and close hour"
+            }
+            check(opensAt in 0..23 && closesAt in 0..23) {
+                "building service ${service.building.slug} hours must be in 0..23"
+            }
+        }
+
+        val services = service.nativeServices.map { it.service }
+        check(services.toSet().size == services.size) {
+            "building service ${service.building.slug} has duplicate native service"
+        }
+    }
+
+    val nativeServices = townSystem.nativeServices.map { it.service }
+    check(nativeServices.toSet().size == nativeServices.size) {
+        "town system has duplicate native service"
     }
 }
 
@@ -719,6 +790,7 @@ fun validateAuthoredContent(content: GameModel) {
     validateRewardBundles(content.rewards)
     validateCombatSystem(content.combat, content.rewards)
     validateTowns(content.towns)
+    validateTownSystem(content.townSystem, content.towns, content.scenes)
     validateCharacters(content.characters, content.towns)
     validateSpeakSystem(content.speak, content.characters, content.towns)
     validateMagicItemUses(content.magicItems)
