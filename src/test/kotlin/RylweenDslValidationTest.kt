@@ -1798,6 +1798,61 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun wildernessTurnStartAppliesTimeFoodAndManaUpkeepOnce() {
+        val session = compiledWildernessSession(
+            party = testParty(
+                food = 10,
+                timeLeft = 200,
+                restedHours = 14,
+                members = listOf(
+                    testMember(level = 4, pcClass = PcClass.Mage, wisdom = 10, mana = 8),
+                    testMember(name = "Second"),
+                ),
+            ),
+            hour = 23,
+        )
+        val result = WildernessSessionTerminalAdapter(FakeTerminalPort()).runUntilBlocked(session)
+        val party = result.session.party
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(0, result.session.runtime.realm.hour)
+        assertEquals(7, party.resources.food)
+        assertEquals(13, party.resources.restedHours)
+        assertEquals(9, party.members.first().mana.current)
+    }
+
+    @Test
+    fun wildernessTurnStartAppliesFatigueDrain() {
+        val terminal = FakeTerminalPort()
+        val session = compiledWildernessSession(
+            party = testParty(food = 10, timeLeft = 199, restedHours = -3),
+            hour = 12,
+        )
+        val result = WildernessSessionTerminalAdapter(terminal).runUntilBlocked(session)
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(9, result.session.party.members.first().hitPoints.current)
+        assertEquals(-4, result.session.party.resources.restedHours)
+        assertTrue(terminal.output.any { "You are exhausted!!!" in it })
+    }
+
+    @Test
+    fun wildernessOutOfMovesUsesSaveOrQuitPrompt() {
+        val terminal = FakeTerminalPort("Q")
+        val result = WildernessSessionTerminalAdapter(terminal).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 10, timeLeft = 0, restedHours = 14),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(WildernessSessionResultStatus.OutOfMovesQuitNoSave, result.session.lastResult?.status)
+        assertTrue(terminal.output.any { "You are out of moves" in it })
+        assertTrue(terminal.output.any { "Options: S/Q" in it })
+    }
+
+    @Test
     fun wildernessTerminalMovesIntoCompiledTownSession() {
         val content = RylweenCompiledScratch.nextDsl
         val state = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
@@ -1817,6 +1872,7 @@ class RylweenDslValidationTest {
         assertTrue(result.status is TerminalRunStatus.Finished)
         assertEquals(GridPoint(12, 11), (result.session.party.position as WorldPosition.Wilderness).point)
         assertEquals(198, result.session.party.resources.timeLeft)
+        assertEquals(98, result.session.party.resources.food)
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
         assertEquals(null, result.session.runtime.realm.currentTown)
         assertTrue(terminal.output.any { "Thord" in it })
@@ -2046,12 +2102,21 @@ class RylweenDslValidationTest {
         )
     }
 
-    private fun compiledWildernessSession(): WildernessSession {
+    private fun compiledWildernessSession(
+        party: PartyState? = null,
+        hour: Int? = null,
+        rngState: Long? = null,
+    ): WildernessSession {
         val content = RylweenCompiledScratch.nextDsl
-        val state = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
+        val baseState = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
+        val state = baseState.copy(
+            realm = hour?.let { baseState.realm.copy(hour = it) } ?: baseState.realm,
+            parties = party?.let { listOf(it.copy(id = baseState.realm.activeParty)) } ?: baseState.parties,
+        )
         return RylweenKotlinEngine(content).wildernessSession(
             state = state,
             worldMap = WorldMapGrid.legacyWilderness((1..12).map { mapRow() }),
+            rngState = rngState,
             realizeNpcs = false,
         )
     }
@@ -2719,6 +2784,7 @@ class RylweenDslValidationTest {
         torches: Int = 0,
         food: Int = 0,
         timeLeft: Int = 0,
+        restedHours: Int = 0,
         hitPoints: Int = 10,
         health: Int = 10,
         mana: Int = 0,
@@ -2748,7 +2814,13 @@ class RylweenDslValidationTest {
             name = "Test",
             position = Wilderness.xy(0, 0),
             facing = Facing.South,
-            resources = PartyResources(gold = gold, torches = torches, food = food, timeLeft = timeLeft, restedHours = 0),
+            resources = PartyResources(
+                gold = gold,
+                torches = torches,
+                food = food,
+                timeLeft = timeLeft,
+                restedHours = restedHours,
+            ),
             counters = PartyCounters(
                 memberCount = memberCount ?: members.count { !it.dead },
                 kills = 0,

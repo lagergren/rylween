@@ -5,12 +5,15 @@ enum class WildernessDirection { North, South, East, West }
 sealed interface WildernessSessionInput {
     data class Move(val direction: WildernessDirection) : WildernessSessionInput
     object Enter : WildernessSessionInput
+    object Pass : WildernessSessionInput
     object Continue : WildernessSessionInput
     object Quit : WildernessSessionInput
     data class QuitAnswer(val yes: Boolean) : WildernessSessionInput
+    data class OutOfMovesAnswer(val save: Boolean) : WildernessSessionInput
 }
 
 enum class WildernessSessionResultStatus {
+    Passed,
     Moved,
     Blocked,
     NoMoves,
@@ -23,6 +26,8 @@ enum class WildernessSessionResultStatus {
     NotInWilderness,
     QuitRequested,
     QuitCancelled,
+    OutOfMovesSaveAndQuit,
+    OutOfMovesQuitNoSave,
     Finished,
 }
 
@@ -35,12 +40,45 @@ data class WildernessSessionResult(
 )
 
 sealed interface WildernessSessionStep {
+    object TurnStart : WildernessSessionStep
     object Explore : WildernessSessionStep
+    data class Messages(val blocks: List<TextBlock>, val next: WildernessSessionStep) : WildernessSessionStep
+    data class OutOfMoves(val prompt: TextBlock) : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
     data class QuitConfirm(val prompt: TextBlock) : WildernessSessionStep
     data class Town(val session: TownSession) : WildernessSessionStep
     data class Finished(val runtime: RuntimeSessionState) : WildernessSessionStep
 }
+
+enum class WildernessFatigueMatch { Equal, LessThan }
+
+data class WildernessFatigueRule(
+    val threshold: Int,
+    val text: TextBlock,
+    val match: WildernessFatigueMatch = WildernessFatigueMatch.Equal,
+    val drain: Boolean = false,
+)
+
+data class WildernessUpkeepRules(
+    val foodCostLeaderDiv: Int = 4,
+    val foodTickEvery: Int = 5,
+    val starveDamage: Int = 2,
+    val manaRegenChance: Int = 50,
+    val fatigue: List<WildernessFatigueRule> = StandardRylweenFatigue,
+) {
+    init {
+        require(foodTickEvery >= 0) { "food tick interval must be non-negative" }
+        require(foodCostLeaderDiv >= 0) { "food leader divisor must be non-negative" }
+        require(starveDamage >= 0) { "starve damage must be non-negative" }
+        require(manaRegenChance in 0..100) { "mana regen chance must be 0..100" }
+    }
+}
+
+private data class WildernessUpkeepResult(
+    val runtime: RuntimeSessionState,
+    val messages: List<TextBlock>,
+    val allDead: Boolean,
+)
 
 data class WorldMapGrid(
     val id: WorldMapId,
@@ -129,7 +167,8 @@ data class WildernessSession(
     val townSystem: TownSystemModel,
     val scenes: List<SceneModel>,
     val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
-    val step: WildernessSessionStep = WildernessSessionStep.Explore,
+    val upkeepRules: WildernessUpkeepRules = WildernessUpkeepRules(),
+    val step: WildernessSessionStep = WildernessSessionStep.TurnStart,
     val lastResult: WildernessSessionResult? = null,
 ) {
     val party: PartyState get() = runtime.activeParty
@@ -138,14 +177,39 @@ data class WildernessSession(
         when (input) {
             is WildernessSessionInput.Move -> move(input.direction)
             WildernessSessionInput.Enter -> enter()
+            WildernessSessionInput.Pass -> pass()
             WildernessSessionInput.Continue -> continueNotice()
             WildernessSessionInput.Quit -> requestQuit()
             is WildernessSessionInput.QuitAnswer -> answerQuit(input.yes)
+            is WildernessSessionInput.OutOfMovesAnswer -> answerOutOfMoves(input.save)
         }
+
+    fun beginTurn(): WildernessSession {
+        require(step is WildernessSessionStep.TurnStart) { "wilderness session is not starting a turn" }
+        val upkeep = runtime.applyWildernessUpkeep(upkeepRules)
+        val next = when {
+            upkeep.allDead -> WildernessSessionStep.Finished(
+                upkeep.runtime.withRealm(upkeep.runtime.realm.copy(currentMode = RuntimeMode.GameOver)),
+            )
+            upkeep.runtime.activeParty.resources.timeLeft <= 0 ->
+                WildernessSessionStep.OutOfMoves(WildernessPromptText.outOfMoves())
+            else -> WildernessSessionStep.Explore
+        }
+        return copy(
+            runtime = upkeep.runtime,
+            step = if (upkeep.messages.isEmpty()) next else WildernessSessionStep.Messages(upkeep.messages, next),
+        )
+    }
 
     fun continueNotice(): WildernessSession {
         val current = step as? WildernessSessionStep.Notice
             ?: error("wilderness session is not showing a notice")
+        return copy(step = current.next)
+    }
+
+    fun continueMessages(): WildernessSession {
+        val current = step as? WildernessSessionStep.Messages
+            ?: error("wilderness session is not showing messages")
         return copy(step = current.next)
     }
 
@@ -161,13 +225,19 @@ data class WildernessSession(
             )
             copy(
                 runtime = nextRuntime,
-                step = WildernessSessionStep.Explore,
+                step = WildernessSessionStep.TurnStart,
                 lastResult = WildernessSessionResult(WildernessSessionResultStatus.LeftTown),
             )
         } else {
             copy(runtime = session.runtime, step = WildernessSessionStep.Town(session))
         }
     }
+
+    private fun pass(): WildernessSession =
+        notice(
+            WildernessPromptText.pass(),
+            WildernessSessionResult(WildernessSessionResultStatus.Passed),
+        )
 
     private fun move(direction: WildernessDirection): WildernessSession {
         val from = party.wildernessPoint()
@@ -210,7 +280,7 @@ data class WildernessSession(
             )
         return copy(
             runtime = nextRuntime,
-            step = WildernessSessionStep.Explore,
+            step = WildernessSessionStep.TurnStart,
             lastResult = WildernessSessionResult(
                 WildernessSessionResultStatus.Moved,
                 from = from,
@@ -287,13 +357,24 @@ data class WildernessSession(
             finish()
         } else {
             copy(
-                step = WildernessSessionStep.Explore,
+                step = WildernessSessionStep.TurnStart,
                 lastResult = WildernessSessionResult(WildernessSessionResultStatus.QuitCancelled),
             )
         }
     }
 
-    private fun finish(): WildernessSession {
+    private fun answerOutOfMoves(save: Boolean): WildernessSession {
+        require(step is WildernessSessionStep.OutOfMoves) { "wilderness session is not waiting for out-of-moves input" }
+        return finish(
+            if (save) {
+                WildernessSessionResultStatus.OutOfMovesSaveAndQuit
+            } else {
+                WildernessSessionResultStatus.OutOfMovesQuitNoSave
+            },
+        )
+    }
+
+    private fun finish(status: WildernessSessionResultStatus = WildernessSessionResultStatus.Finished): WildernessSession {
         val nextRuntime = runtime.withRealm(
             runtime.realm.copy(
                 currentMode = RuntimeMode.Wilderness,
@@ -304,12 +385,12 @@ data class WildernessSession(
         return copy(
             runtime = nextRuntime,
             step = WildernessSessionStep.Finished(nextRuntime),
-            lastResult = WildernessSessionResult(WildernessSessionResultStatus.Finished),
+            lastResult = WildernessSessionResult(status),
         )
     }
 
     private fun notice(text: TextBlock, result: WildernessSessionResult): WildernessSession =
-        copy(step = WildernessSessionStep.Notice(text), lastResult = result)
+        copy(step = WildernessSessionStep.Notice(text, WildernessSessionStep.TurnStart), lastResult = result)
 
     companion object {
         fun start(
@@ -336,8 +417,14 @@ data class WildernessSession(
 }
 
 object WildernessPromptText {
+    fun pass(): TextBlock =
+        inlineText("Time passes...")
+
     fun noMoves(): TextBlock =
         inlineText("No moves left.")
+
+    fun outOfMoves(): TextBlock =
+        inlineText("You are out of moves", "for today.", "", "(S)ave and Quit", "(Q)uit (no save)")
 
     fun notInWilderness(): TextBlock =
         inlineText("The active party is not in the wilderness.")
@@ -370,6 +457,122 @@ fun wildernessDirectionForKey(key: Char): WildernessDirection? =
 private fun PartyState.wildernessPoint(): GridPoint? =
     (position as? WorldPosition.Wilderness)?.point
 
+private fun RuntimeSessionState.applyWildernessUpkeep(rules: WildernessUpkeepRules): WildernessUpkeepResult {
+    val advancedHour = withRealm(realm.copy(hour = (realm.hour + 1).positiveMod(24)))
+    val manaResult = advancedHour.regenerateMana(rules)
+    val foodResult = manaResult.runtime.applyFoodAndFatigue(rules)
+    return foodResult.copy(messages = manaResult.messages + foodResult.messages)
+}
+
+private fun RuntimeSessionState.regenerateMana(rules: WildernessUpkeepRules): WildernessUpkeepResult {
+    var runtime = this
+    val members = activeParty.members.map { member ->
+        if (member.pcClass !in setOf(PcClass.Mage, PcClass.Priest) || member.mana.current >= member.wisdom) {
+            member
+        } else {
+            val draw = runtime.drawRandom(0, 99)
+            runtime = draw.runtime
+            if (draw.value < rules.manaRegenChance) {
+                member.copy(mana = member.mana.copy(current = (member.mana.current + 1).coerceAtMost(member.wisdom)))
+            } else {
+                member
+            }
+        }
+    }
+    return WildernessUpkeepResult(
+        runtime = runtime.withActiveParty(runtime.activeParty.copy(members = members)),
+        messages = emptyList(),
+        allDead = false,
+    )
+}
+
+private fun RuntimeSessionState.applyFoodAndFatigue(rules: WildernessUpkeepRules): WildernessUpkeepResult {
+    val party = activeParty
+    val foodAfterTick = if (rules.foodTickEvery > 0 && party.resources.timeLeft % rules.foodTickEvery == 0) {
+        (party.resources.food - party.foodTickCost(rules)).coerceAtLeast(0)
+    } else {
+        party.resources.food
+    }
+    val starvation = party.applyStarvation(foodAfterTick, rules.starveDamage)
+    val restedHours = party.resources.restedHours - 1
+    val fatigue = starvation.party.applyFatigue(restedHours, rules.fatigue)
+    val nextParty = fatigue.party.copy(
+        resources = fatigue.party.resources.copy(
+            food = foodAfterTick,
+            restedHours = restedHours,
+        ),
+    )
+    return WildernessUpkeepResult(
+        runtime = withActiveParty(nextParty),
+        messages = starvation.messages + fatigue.messages,
+        allDead = nextParty.members.isNotEmpty() && nextParty.members.all { it.dead },
+    )
+}
+
+private data class PartyUpkeepMutation(
+    val party: PartyState,
+    val messages: List<TextBlock>,
+)
+
+private fun PartyState.foodTickCost(rules: WildernessUpkeepRules): Int {
+    val leaderLevelCost = if (rules.foodCostLeaderDiv > 0) {
+        (members.firstOrNull()?.level ?: 0) / rules.foodCostLeaderDiv
+    } else {
+        0
+    }
+    return partySizeForFood() + leaderLevelCost
+}
+
+private fun PartyState.partySizeForFood(): Int =
+    counters.memberCount ?: members.size
+
+private fun PartyState.applyStarvation(foodAfterTick: Int, damage: Int): PartyUpkeepMutation {
+    if (foodAfterTick > 0 || damage == 0) return PartyUpkeepMutation(this, emptyList())
+    val messages = mutableListOf<TextBlock>()
+    val nextMembers = members.map { member ->
+        if (member.dead) {
+            member
+        } else {
+            val nextHp = member.hitPoints.current - damage
+            if (nextHp < 1) {
+                messages += inlineText("${member.name} starved", "to death!!!")
+                member.copy(hitPoints = member.hitPoints.copy(current = 0), dead = true)
+            } else {
+                member.copy(hitPoints = member.hitPoints.copy(current = nextHp))
+            }
+        }
+    }
+    return PartyUpkeepMutation(copy(members = nextMembers), messages)
+}
+
+private fun PartyState.applyFatigue(
+    restedHours: Int,
+    rules: List<WildernessFatigueRule>,
+): PartyUpkeepMutation {
+    val rule = rules.firstOrNull { it.matches(restedHours) }
+        ?: return PartyUpkeepMutation(this, emptyList())
+    val nextParty = if (rule.drain) {
+        copy(
+            members = members.map { member ->
+                if (member.hitPoints.current > 1) {
+                    member.copy(hitPoints = member.hitPoints.copy(current = member.hitPoints.current - 1))
+                } else {
+                    member
+                }
+            },
+        )
+    } else {
+        this
+    }
+    return PartyUpkeepMutation(nextParty, listOf(rule.text))
+}
+
+private fun WildernessFatigueRule.matches(restedHours: Int): Boolean =
+    when (match) {
+        WildernessFatigueMatch.Equal -> restedHours == threshold
+        WildernessFatigueMatch.LessThan -> restedHours < threshold
+    }
+
 private fun WildernessDirection.delta(): GridPoint =
     when (this) {
         WildernessDirection.North -> GridPoint(0, -1)
@@ -389,6 +592,9 @@ private fun WildernessDirection.facing(): Facing =
 private operator fun GridPoint.plus(other: GridPoint): GridPoint =
     GridPoint(x + other.x, y + other.y)
 
+private fun Int.positiveMod(divisor: Int): Int =
+    ((this % divisor) + divisor) % divisor
+
 private fun Char.isImpassableTerrain(): Boolean =
     this in ImpassableTerrainTiles
 
@@ -397,3 +603,27 @@ private val ImpassableTerrainTiles: Set<Char> =
         Terrain.mountain.legacyMapCode,
         Terrain.water.legacyMapCode,
     ).toSet()
+
+private val StandardRylweenFatigue: List<WildernessFatigueRule> =
+    listOf(
+        WildernessFatigueRule(
+            threshold = 0,
+            text = inlineText("You begin to feel tired"),
+        ),
+        WildernessFatigueRule(
+            threshold = -4,
+            text = inlineText("You are exhausted!!!"),
+            drain = true,
+        ),
+        WildernessFatigueRule(
+            threshold = -8,
+            text = inlineText("You begin to feel weak", "from lack of sleep.", ""),
+            drain = true,
+        ),
+        WildernessFatigueRule(
+            threshold = -8,
+            match = WildernessFatigueMatch.LessThan,
+            text = inlineText("You faint from lack", "of well needed sleep."),
+            drain = true,
+        ),
+    )
