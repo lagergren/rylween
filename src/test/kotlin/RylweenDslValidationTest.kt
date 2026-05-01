@@ -14,8 +14,8 @@ class RylweenDslValidationTest {
                 taxPercent = 8,
                 kind = TownKind.Village,
                 services = listOf(
-                    TownServiceModel(Buildings.inn, null, null),
-                    TownServiceModel(Buildings.tavern, 6, 1),
+                    TownServiceModel(Buildings.inn),
+                    TownServiceModel(Buildings.tavern),
                 ),
             ),
         )
@@ -44,7 +44,7 @@ class RylweenDslValidationTest {
                 position = xy(55, 29),
                 taxPercent = 8,
                 kind = TownKind.Village,
-                services = listOf(TownServiceModel(Buildings.inn, null, null)),
+                services = listOf(TownServiceModel(Buildings.inn)),
             ),
         )
 
@@ -62,6 +62,32 @@ class RylweenDslValidationTest {
         assertFailsWith<IllegalStateException> {
             validateCharacters(characters, towns)
         }
+    }
+
+    @Test
+    fun townSystemValidatesMenuAndBuildingServices() {
+        val towns = listOf(
+            TownModel(
+                id = Towns.murn.id,
+                name = "Murn",
+                position = xy(55, 29),
+                taxPercent = 8,
+                kind = TownKind.Village,
+                services = listOf(TownServiceModel(Buildings.inn)),
+            ),
+        )
+        val scene = SceneModel(Scenes.Towne.inn, emptyList())
+        val townSystem = TownSystemBuilder().apply {
+            menu {
+                inn()
+                leave()
+            }
+            buildingServices {
+                inn()
+            }
+        }.build()
+
+        validateTownSystem(townSystem, towns, listOf(scene))
     }
 
     @Test

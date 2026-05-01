@@ -738,6 +738,40 @@ val nextRylween = rylween {
         }
     }
 
+    townSystem {
+        menu {
+            church()
+            smith()
+            inn()
+            merchant()
+            tavern()
+            leave()
+        }
+
+        buildingServices {
+            church {
+                scene = Scenes.Towne.church
+                alwaysOpen()
+            }
+            smith {
+                scene = Scenes.Towne.smith
+                hours = 6..18
+            }
+            inn {
+                scene = Scenes.Towne.inn
+                alwaysOpen()
+            }
+            merchant {
+                scene = Scenes.Towne.merchant
+                hours = 6..18
+            }
+            tavern {
+                scene = Scenes.Towne.tavern
+                hours = 6..1
+            }
+        }
+    }
+
     characters {
         character(Npcs.garth, "Garth", NpcJobs.merchant) {
             fixed(Towns.thord.inn)
@@ -945,6 +979,26 @@ val nextRylween = rylween {
     }
 
     // Scripts: six hard-case readability probes.
+
+    scene(Scenes.Towne.church) {
+        native.town.enterService(Buildings.church)
+    }
+
+    scene(Scenes.Towne.smith) {
+        native.town.enterService(Buildings.smith)
+    }
+
+    scene(Scenes.Towne.inn) {
+        native.town.enterService(Buildings.inn)
+    }
+
+    scene(Scenes.Towne.merchant) {
+        native.town.enterService(Buildings.merchant)
+    }
+
+    scene(Scenes.Towne.tavern) {
+        native.town.enterService(Buildings.tavern)
+    }
 
     // 1. Church heal: typed member fields, typed flagless flow, no engine names.
     scene(Scenes.churchHeal) {
@@ -1561,6 +1615,12 @@ check(nextDsl.speak.textTables.rumourTables.single().entries.single {
 check(nextDsl.towns.size == 4)
 check(nextDsl.towns.single { it.id == Towns.murn.id }.position == xy(55, 29))
 check(nextDsl.towns.single { it.id == Towns.wilor.id }.kind == TownKind.City)
+check(nextDsl.townSystem?.menu?.map { it.key } == listOf('C', 'S', 'I', 'M', 'T', 'L'))
+check(nextDsl.townSystem?.menu?.single { it.key == 'C' }?.building == Buildings.church)
+check(nextDsl.townSystem?.menu?.single { it.action == KeyActions.leaveTown }?.endsMenu == true)
+check(nextDsl.townSystem?.buildingServices?.size == 5)
+check(nextDsl.townSystem?.buildingServices?.single { it.building == Buildings.merchant }?.opensAt == 6)
+check(nextDsl.townSystem?.buildingServices?.single { it.building == Buildings.tavern }?.closesAt == 1)
 check(nextDsl.characters.size == 39)
 check(nextDsl.characters.single { Roles.crownSeer in it.roles }.placement == CharacterPlacementModel.Randomized)
 check(nextDsl.characters.single { it.id == Npcs.marcus }.placement == CharacterPlacementModel.Fixed(Wilderness.xy(48, 7)))
@@ -1569,7 +1629,7 @@ check(listOf(Npcs.alex, Npcs.galdon, Npcs.kosch, Npcs.ufarsin).all { npc ->
 })
 check(nextDsl.characters.flatMap { it.roles }.toSet() == NpcRoles.all.toSet())
 check(nextDsl.monsters.size == 2)
-check(nextDsl.scenes.size == 5)
+check(nextDsl.scenes.size == 10)
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
 check(nextDsl.dialogue.size == 1)
 check(nextDsl.dialogue.single().branches.size == 2)
