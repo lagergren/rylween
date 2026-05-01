@@ -337,6 +337,44 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun randomItemOfferSessionBuysSelectedItemUsingGeneratedItemCost() {
+        val session = RandomItemOfferSession.start(testRandomItemOffer(), testParty(gold = 2000))
+        val bought = session
+            .apply(RandomItemOfferInput.Buy(accept = true))
+            .apply(RandomItemOfferInput.Continue)
+        val result = (bought.step as RandomItemOfferStep.Finished).result
+
+        assertEquals(RandomItemOfferStatus.Bought, result.status)
+        assertEquals(Items.magicDagger, result.item)
+        assertEquals(1800, result.price)
+        assertEquals(1, result.slot)
+        assertEquals(200, result.party.resources.gold)
+        assertEquals(Items.magicDagger, result.party.inventoryItem(1))
+    }
+
+    @Test
+    fun randomItemOfferSessionPromptsDropSlotOnInventoryOverflow() {
+        val fullParty = testParty(
+            gold = 2000,
+            inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope },
+        )
+        val dropPrompt = RandomItemOfferSession.start(testRandomItemOffer(), fullParty)
+            .apply(RandomItemOfferInput.Buy(accept = true))
+
+        assertTrue(dropPrompt.step is RandomItemOfferStep.DropSlot)
+
+        val bought = dropPrompt
+            .apply(RandomItemOfferInput.DropSlot(1))
+            .apply(RandomItemOfferInput.Continue)
+        val result = (bought.step as RandomItemOfferStep.Finished).result
+
+        assertEquals(RandomItemOfferStatus.Bought, result.status)
+        assertEquals(1, result.slot)
+        assertEquals(200, result.party.resources.gold)
+        assertEquals(Items.magicDagger, result.party.inventoryItem(1))
+    }
+
+    @Test
     fun shopServiceValidatesAndDefaultsInventoryPurchasesToPromptDrop() {
         val content = GameBuilder().apply {
             scene(sceneId("test.shop")) {
@@ -1261,6 +1299,55 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townTerminalAdapterRunsTavernScruffyRandomItemOfferPurchase() {
+        val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.tavern),
+                townSystem = testTownSystem(Buildings.tavern),
+                scenes = listOf(testTavernRandomOfferScene()),
+                party = testParty(gold = 2000),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(200, session.session.party.resources.gold)
+        assertEquals(Items.magicDagger, session.session.party.inventoryItem(1))
+        assertTrue(terminal.output.any { "  Magic Dagger" in it })
+        assertTrue(terminal.output.any { "  low price of 1800" in it })
+        assertTrue(terminal.output.any { "- Deal!!!" in it })
+    }
+
+    @Test
+    fun townServiceBridgeResumesRandomItemOfferDropWithoutReplayingChoice() {
+        val start = TownSession.start(
+            town = testTown(Buildings.tavern),
+            townSystem = testTownSystem(Buildings.tavern),
+            scenes = listOf(testTavernRandomOfferScene()),
+            party = testParty(
+                gold = 2000,
+                inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope },
+            ),
+            currentHour = 12,
+        )
+
+        val blocked = TownSessionTerminalAdapter(FakeTerminalPort("T", "B")).runUntilBlocked(start)
+        val blockedStep = blocked.session.step as TownSessionStep.NativeService
+
+        assertTrue(blocked.status is TerminalRunStatus.Waiting)
+        assertEquals(2000, blocked.session.party.resources.gold)
+        assertEquals(Items.rope, blocked.session.party.inventoryItem(1))
+        assertTrue(blockedStep.continuation?.randomItemOfferSession?.step is RandomItemOfferStep.DropSlot)
+
+        val resumed = TownSessionTerminalAdapter(FakeTerminalPort("A", "L", "L", "N")).runUntilBlocked(blocked.session)
+
+        assertTrue(resumed.status is TerminalRunStatus.Finished)
+        assertEquals(200, resumed.session.party.resources.gold)
+        assertEquals(Items.magicDagger, resumed.session.party.inventoryItem(1))
+    }
+
+    @Test
     fun townServiceBridgeReturnsWaitingOnInvalidServiceInput() {
         val terminal = FakeTerminalPort("C", "X")
         val serviceScene = SceneModel(
@@ -1496,6 +1583,22 @@ class RylweenDslValidationTest {
             }
         }.build()
 
+    private fun testRandomItemOffer(): RandomItemOfferModel =
+        RandomItemOfferBuilder(ItemPools.tavernScruffySpecials).apply {
+            offer {
+                line("- I will sell you this")
+                line("  ", itemName)
+                line("  for the ridiculously")
+                line("  low price of ", itemPrice)
+                line("  Aurum!")
+                line("")
+            }
+            broke("- You don't have that", "  much gold!")
+            full("- You can't carry it!")
+            deal("- Deal!!!")
+            declined("- Fine, I can live with", "  that.")
+        }.build()
+
     private fun testChurchScene(): SceneModel =
         GameBuilder().apply {
             scene(Scenes.Towne.church) {
@@ -1638,6 +1741,40 @@ class RylweenDslValidationTest {
                             native.screen.clearText()
                             native.screen.clearMapWindow()
                             breakLoop("leave church")
+                        }
+                    }
+                }
+            }
+        }.build().scenes.single()
+
+    private fun testTavernRandomOfferScene(): SceneModel =
+        GameBuilder().apply {
+            scene(Scenes.Towne.tavern) {
+                native.screen.clearMapWindow()
+                native.screen.showImage(Images.Scene.tavern)
+
+                choice.randomItemOffer(ItemPools.tavernScruffySpecials) {
+                    offer {
+                        line("- I will sell you this")
+                        line("  ", itemName)
+                        line("  for the ridiculously")
+                        line("  low price of ", itemPrice)
+                        line("  Aurum!")
+                        line("")
+                    }
+                    broke("- You don't have that", "  much gold!")
+                    full("- You can't carry it!")
+                    deal("- Deal!!!")
+                    declined("- Fine, I can live with", "  that.")
+                }
+
+                loop {
+                    native.screen.clearText()
+                    menu("(L)eave") {
+                        option('L') {
+                            native.screen.clearText()
+                            native.screen.clearMapWindow()
+                            breakLoop("leave tavern")
                         }
                     }
                 }
