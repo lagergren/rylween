@@ -367,7 +367,9 @@ private fun validateTextBlock(
                 }
             }
             TextPart.OfferedItemName,
-            TextPart.OfferedItemPrice -> Unit
+            TextPart.OfferedItemPrice,
+            TextPart.ShopPrice,
+            TextPart.ShopCarryCap -> Unit
         }
     }
 
@@ -741,6 +743,126 @@ fun validateScriptRewards(
         }
     }
 
+    fun validateShopPrice(price: ShopPriceModel, label: String) {
+        when (price) {
+            ShopPriceModel.ItemCost,
+            ShopPriceModel.HalfItemCost -> Unit
+            is ShopPriceModel.Fixed -> check(price.amount >= 0) { "$label fixed price is negative" }
+            is ShopPriceModel.LeaderLevelPlus -> check(price.addend >= 0) {
+                "$label leader-level addend is negative"
+            }
+            is ShopPriceModel.ItemCostPlusLeaderLevelTimes -> check(price.multiplier >= 0) {
+                "$label leader-level multiplier is negative"
+            }
+        }
+    }
+
+    fun validateShop(shop: ShopServiceModel) {
+        check(shop.building in Buildings.all) { "shop service references unknown building ${shop.building.slug}" }
+        validateTextBlock(shop.closed, "shop ${shop.building.slug} closed")
+        validateTextBlock(shop.intro, "shop ${shop.building.slug} intro")
+        validateTextBlock(shop.menu, "shop ${shop.building.slug} menu")
+        validateTextBlock(shop.goodbye, "shop ${shop.building.slug} goodbye")
+
+        shop.interlude?.let { interlude ->
+            checkPercent(interlude.chancePercent, "shop ${shop.building.slug} interlude chance")
+            check(interlude.acceptKey != interlude.declineKey) {
+                "shop ${shop.building.slug} interlude accept and decline keys must differ"
+            }
+            validateTextBlock(interlude.offer, "shop ${shop.building.slug} interlude offer")
+            check(interlude.accepted.isNotEmpty()) {
+                "shop ${shop.building.slug} interlude accepted branch is empty"
+            }
+            interlude.accepted.forEachIndexed { index, text ->
+                validateTextBlock(text, "shop ${shop.building.slug} interlude accepted $index")
+            }
+            validateTextBlock(interlude.declined, "shop ${shop.building.slug} interlude declined")
+        }
+
+        shop.buy?.let { buy ->
+            validateTextBlock(buy.prompt, "shop ${shop.building.slug} buy prompt")
+            validateTextBlock(buy.tooExpensive, "shop ${shop.building.slug} too-expensive")
+            validateTextBlock(buy.cantCarry, "shop ${shop.building.slug} cant-carry")
+            validateTextBlock(buy.deal, "shop ${shop.building.slug} deal")
+            buy.unitPrice?.let { validateTextBlock(it, "shop ${shop.building.slug} unit-price") }
+            buy.singlePrice?.let { validateTextBlock(it, "shop ${shop.building.slug} single-price") }
+            validateTextBlock(buy.payPrompt, "shop ${shop.building.slug} pay prompt")
+            check(buy.catalogs.isNotEmpty()) { "shop ${shop.building.slug} buy section has no catalogs" }
+            check(buy.catalogs.map { it.key }.toSet().size == buy.catalogs.size) {
+                "shop ${shop.building.slug} has duplicate buy catalog keys"
+            }
+            buy.catalogs.forEach { catalog ->
+                check(catalog.title.isNotBlank()) {
+                    "shop ${shop.building.slug} catalog ${catalog.key} has blank title"
+                }
+                catalog.intro?.let { validateTextBlock(it, "shop ${shop.building.slug} ${catalog.title} intro") }
+                check(catalog.pages.isNotEmpty()) {
+                    "shop ${shop.building.slug} catalog ${catalog.title} has no pages"
+                }
+                catalog.pages.forEachIndexed { pageIndex, page ->
+                    check(page.entries.isNotEmpty()) {
+                        "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex has no entries"
+                    }
+                    check(page.entries.map { it.key }.toSet().size == page.entries.size) {
+                        "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex has duplicate keys"
+                    }
+                    page.footer?.let {
+                        validateTextBlock(it, "shop ${shop.building.slug} ${catalog.title} page $pageIndex footer")
+                    }
+                    page.entries.forEach { entry ->
+                        val record = checkNotNull(itemRecordById[entry.item]) {
+                            "shop ${shop.building.slug} catalog ${catalog.title} references unknown item ${entry.item.slug}"
+                        }
+                        check(record.storage != ItemStorageKind.EmptySentinel) {
+                            "shop ${shop.building.slug} cannot sell the empty-slot sentinel"
+                        }
+                        entry.description?.let {
+                            validateTextBlock(it, "shop ${shop.building.slug} ${entry.item.slug} description")
+                        }
+                        validateShopPrice(entry.price, "shop ${shop.building.slug} ${entry.item.slug}")
+                        when (val purchase = entry.purchase) {
+                            ShopPurchaseModel.InventoryItem -> check(record.storage == ItemStorageKind.SlottedInventory) {
+                                "shop ${shop.building.slug} inventory item ${entry.item.slug} must be slotted"
+                            }
+                            is ShopPurchaseModel.Resource -> {
+                                validateTextBlock(
+                                    purchase.quantityPrompt,
+                                    "shop ${shop.building.slug} ${entry.item.slug} quantity prompt",
+                                )
+                                validateTextBlock(
+                                    purchase.tooMany,
+                                    "shop ${shop.building.slug} ${entry.item.slug} too-many",
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        shop.sell?.let { sell ->
+            validateTextBlock(sell.prompt, "shop ${shop.building.slug} sell prompt")
+            validateTextBlock(sell.wrongKind, "shop ${shop.building.slug} wrong-kind")
+            validateTextBlock(sell.offer, "shop ${shop.building.slug} sell offer")
+            sell.sold?.let { validateTextBlock(it, "shop ${shop.building.slug} sold") }
+            validateShopPrice(sell.price, "shop ${shop.building.slug} sell")
+            check(sell.acceptedKinds.isNotEmpty() || sell.acceptedItems.isNotEmpty()) {
+                "shop ${shop.building.slug} sell policy accepts nothing"
+            }
+            sell.acceptedItems.plus(sell.rejectedItems).forEach { item ->
+                check(item in itemRecordById) {
+                    "shop ${shop.building.slug} sell policy references unknown item ${item.slug}"
+                }
+            }
+            check(ItemKind.Empty !in sell.acceptedKinds) {
+                "shop ${shop.building.slug} sell policy cannot accept empty items"
+            }
+            check(ItemKind.Special !in sell.acceptedKinds) {
+                "shop ${shop.building.slug} sell policy cannot accept milestone-special items"
+            }
+        }
+    }
+
     fun visit(ops: List<Op>) {
         fun visitOps(items: List<Op>, loopDepth: Int) {
             items.forEach { op ->
@@ -762,6 +884,7 @@ fun validateScriptRewards(
                     }
                     is Op.GrantReward -> validateReward(op.reward)
                     is Op.RandomItemOffer -> validateRandomItemOffer(op.offer)
+                    is Op.ShopService -> validateShop(op.shop)
                     is Op.If -> {
                         visitOps(op.thenOps, loopDepth)
                         visitOps(op.elseOps, loopDepth)

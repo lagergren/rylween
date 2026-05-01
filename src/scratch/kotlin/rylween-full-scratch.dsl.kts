@@ -1147,7 +1147,97 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Towne.smith) {
-        native.town.enterService(Buildings.smith)
+        shopService(Buildings.smith) {
+            image = Images.Scene.smith
+            closed("Shop Closed.")
+            intro(
+                "Smith.",
+                "",
+                "The smith welcomes you",
+                "to his small shop.",
+                "",
+            )
+            menu("(B)uy", "(S)ell", "(L)eave")
+            goodbye("Well, bye then...")
+
+            interlude(chancePercent = 9) {
+                offer(
+                    "The smith offers you some",
+                    "beer, and the latest news",
+                    "from the realm.",
+                    "",
+                )
+                accepted("You accept the invitation.")
+                accepted("After a while the smith", "leaves to get more beer.")
+                accepted(
+                    "When he returns, you ask",
+                    "him for the latest news...",
+                    "",
+                )
+                declined(
+                    "The smith is disappointed.",
+                    "- Maybe another time,",
+                    "you tell him.",
+                    "- Yeah, he answers.",
+                    "",
+                )
+                runsRumourAfterAccept = true
+            }
+
+            buy {
+                prompt(
+                    "Armor or Weapon?",
+                    "",
+                    "(A)rmor",
+                    "(W)eapon",
+                    "(N)othing",
+                )
+                tooExpensive("Too expensive...")
+                cantCarry("You cannot carry more.")
+                deal("Deal!")
+
+                catalog('A', "Armor") {
+                    intro("We have...", "")
+                    item('1', Items.leather, label = "Leather")
+                    item('2', Items.chainMail, label = "Chain Mail")
+                    item('3', Items.plateMail, label = "Plate Mail")
+                    item('4', Items.ringMail, label = "Ring Mail")
+                    item('5', Items.elvinCloak, label = "Elvin Cloak")
+                    item('6', Items.mithrilMail, label = "Mithril Mail")
+                }
+
+                catalog('W', "Weapons") {
+                    intro("We have...", "")
+                    page("N. Next Page") {
+                        item('1', Items.sword, label = "Sword")
+                        item('2', Items.axe, label = "Axe")
+                        item('3', Items.bow, label = "Bow")
+                        item('4', Items.club, label = "Club")
+                        item('5', Items.halbard, label = "Halbard")
+                        item('6', Items.crossbow, label = "Crossbow")
+                    }
+                    page("P. Previous Page") {
+                        item('7', Items.longsword, label = "Longsword")
+                        item('8', Items.twoHandSword, label = "2h-Sword")
+                        item('9', Items.poleArm, label = "Pole Arm")
+                        item('A', Items.trident, label = "Trident")
+                        item('B', Items.magicDagger, label = "Mgk Dagger")
+                        item('C', Items.magicSword, label = "Mgk Sword")
+                    }
+                }
+            }
+
+            sell {
+                prompt("Sell what?", "")
+                acceptsKinds(ItemKind.Weapon, ItemKind.Armor)
+                wrongKind("Not weapon or armor.")
+                offer {
+                    line("Ok! Give ya ", price, "!")
+                    line("")
+                }
+                smithHaggle()
+            }
+        }
     }
 
     scene(Scenes.Towne.inn) {
@@ -1369,7 +1459,113 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Towne.merchant) {
-        native.town.enterService(Buildings.merchant)
+        shopService(Buildings.merchant) {
+            image = Images.Scene.merchant
+            closed("Shop Closed.")
+            intro(
+                "Merchant",
+                "",
+                "Can I help you? I",
+                "trade in the finest",
+                "items in the realm!",
+                "",
+            )
+            menu("(B)uy item", "(S)ell item", "(L)eave")
+            goodbye("Well, bye then...")
+
+            buy {
+                prompt("Buy what?", "")
+                tooExpensive("Too expensive!")
+                cantCarry("You cannot carry more.")
+                deal("Deal!")
+                unitPrice {
+                    line(price, " gold each, sir.")
+                }
+                singlePrice {
+                    line("Price: ", price)
+                    line("")
+                }
+                payPrompt("(P)ay", "(N)one")
+
+                catalog('B', "General goods") {
+                    resource(
+                        'A',
+                        Items.torch,
+                        resource = ShopResources.torches,
+                        cap = ShopQuantityCaps.torchLimit80,
+                        tooMany = inlineText("You can carry no", "more than 80", "torches..."),
+                        label = "Torch",
+                        zeroQuantityDeal = ShopZeroQuantityDeal.always,
+                    ) {
+                        lines("Ah, the finest torches", "in the realm.")
+                    }
+                    resource(
+                        'B',
+                        Items.ration,
+                        resource = ShopResources.food,
+                        cap = ShopQuantityCaps.foodByDonkeys,
+                        tooMany = shopText {
+                            line("You can carry no")
+                            line("more than ", cap, " units!")
+                        },
+                        label = "Food Ration",
+                        price = ShopPrices.leaderLevelPlus(1),
+                    ) {
+                        lines(
+                            "Better food is not",
+                            "availible anywhere else",
+                            "in the entire realm.",
+                        )
+                    }
+                    item('C', Items.blanket, label = "Blanket") {
+                        lines("Our blankets are very", "warm and soft.")
+                    }
+                    item('D', Items.tent, label = "Tent") {
+                        lines(
+                            "Noone manufactures",
+                            "better tents than",
+                            "we do!",
+                        )
+                    }
+                    item('E', Items.rope, label = "Rope") {
+                        lines("The finest hemp", "ropes in the realm.")
+                    }
+                    item(
+                        'F',
+                        Items.redPotion,
+                        label = "Healing Potion",
+                        price = ShopPrices.itemCostPlusLeaderLevelTimes(3),
+                    ) {
+                        lines(
+                            "The best healing",
+                            "potions availible",
+                            "for money!",
+                        )
+                    }
+                    item('G', Items.donkey, label = "Donkey") {
+                        lines(
+                            "Our stout donkeys",
+                            "are bred just for",
+                            "carrying your food",
+                            "and equipment.",
+                        )
+                    }
+                }
+            }
+
+            sell {
+                prompt("Sell what?", "")
+                accepts(Items.ration, Items.blanket, Items.tent, Items.rope)
+                acceptsKinds(ItemKind.Potion, ItemKind.Treasure, ItemKind.MagicItem)
+                rejects(Items.donkey)
+                wrongKind("- I don't deal in that", "  kind of stuff!")
+                offer {
+                    line("- Ok. Give ya ", price, "!")
+                    line("")
+                }
+                sold("Sold!")
+            }
+        }
     }
 
     scene(Scenes.Towne.tavern) {
@@ -1421,7 +1617,6 @@ val nextRylween = rylween {
                 }
                 broke("- You don't have that", "  much gold!")
                 full("- You can't carry it!")
-                promptDrop()
                 deal("- Deal!!!")
                 declined("- Fine, I can live with", "  that.")
             }
@@ -2344,9 +2539,40 @@ val churchScene = nextDsl.scenes.single { it.id == Scenes.Towne.church }
 val churchMenu = churchScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()
 check(churchMenu.options.map { it.key } == listOf('H', 'E', 'R', 'L'))
 check(churchScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
+val smithScene = nextDsl.scenes.single { it.id == Scenes.Towne.smith }
+check(smithScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
+val smithShop = smithScene.ops.filterIsInstance<Op.ShopService>().single().shop
+check(smithShop.building == Buildings.smith)
+check(smithShop.buy?.inventoryApplication?.overflow == RewardOverflowPolicy.PromptDropThenPlace)
+check(smithShop.buy?.catalogs?.single { it.key == 'A' }?.pages?.single()?.entries?.map { it.item } == listOf(
+    Items.leather,
+    Items.chainMail,
+    Items.plateMail,
+    Items.ringMail,
+    Items.elvinCloak,
+    Items.mithrilMail,
+))
+check(smithShop.sell?.acceptedKinds == setOf(ItemKind.Weapon, ItemKind.Armor))
+check(smithShop.sell?.bargain == ShopSellBargainPolicy.SmithHaggle)
 val innScene = nextDsl.scenes.single { it.id == Scenes.Towne.inn }
 check(innScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
 check(innScene.ops.filterIsInstance<Op.Loop>().single().body.any { it is Op.Menu })
+val merchantScene = nextDsl.scenes.single { it.id == Scenes.Towne.merchant }
+check(merchantScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
+val merchantShop = merchantScene.ops.filterIsInstance<Op.ShopService>().single().shop
+check(merchantShop.building == Buildings.merchant)
+check(merchantShop.buy?.inventoryApplication?.overflow == RewardOverflowPolicy.PromptDropThenPlace)
+check(merchantShop.buy?.catalogs?.single()?.pages?.single()?.entries?.map { it.item } == listOf(
+    Items.torch,
+    Items.ration,
+    Items.blanket,
+    Items.tent,
+    Items.rope,
+    Items.redPotion,
+    Items.donkey,
+))
+check(merchantShop.sell?.acceptedItems == setOf(Items.ration, Items.blanket, Items.tent, Items.rope))
+check(merchantShop.sell?.rejectedItems == setOf(Items.donkey))
 val tavernScene = nextDsl.scenes.single { it.id == Scenes.Towne.tavern }
 check(tavernScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
 check(ItemPools.tavernScruffySpecials.items == listOf(
