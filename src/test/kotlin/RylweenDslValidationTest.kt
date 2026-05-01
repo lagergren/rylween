@@ -1485,22 +1485,68 @@ class RylweenDslValidationTest {
     fun compiledScratchHarnessExposesNextRylweenToRuntimeTests() {
         val game = RylweenCompiledScratch.nextRylween
         val content = RylweenCompiledScratch.nextDsl
-        val town = content.towns.single { it.id == Towns.thord.id }
-        val townSystem = content.townSystem ?: error("compiled scratch town system missing")
-        val party = game.states.single { it.id == States.freshReplay }.parties.single()
 
         val result = TownSessionTerminalAdapter(FakeTerminalPort("C", "L", "L")).runUntilBlocked(
-            TownSession.start(
-                town = town,
-                townSystem = townSystem,
-                scenes = content.scenes,
-                party = party,
-                currentHour = 12,
-            ),
+            compiledTownSession(party = game.states.single { it.id == States.freshReplay }.parties.single()),
         )
 
         assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(town.id, result.session.realm.currentTown)
+        assertEquals(Towns.thord.id, result.session.realm.currentTown)
+        assertEquals(Scenes.Towne.church, content.scenes.single { it.id == Scenes.Towne.church }.id)
+    }
+
+    @Test
+    fun compiledScratchTownRunsAuthoredMerchantTorchPurchase() {
+        val terminal = FakeTerminalPort("M", "B", "A", "99", "P", "L", "L")
+        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            compiledTownSession(party = testParty(gold = 10, torches = 78)),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(80, result.session.party.resources.torches)
+        assertEquals(8, result.session.party.resources.gold)
+        assertTrue(terminal.output.any { "(A) Torch" in it })
+    }
+
+    @Test
+    fun compiledScratchTownRunsAuthoredSmithSale() {
+        val terminal = FakeTerminalPort("S", "S", "A", "Y", "L", "L")
+        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            compiledTownSession(party = testParty(inventoryItems = mapOf(1 to Items.sword))),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(null, result.session.party.inventoryItem(1))
+        assertEquals(80, result.session.party.resources.gold)
+        assertTrue(terminal.output.any { "Ok! Give ya 80!" in it })
+    }
+
+    @Test
+    fun compiledScratchTownRunsAuthoredTavernScruffyOffer() {
+        val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
+        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            compiledTownSession(party = testParty(gold = 2000)),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(200, result.session.party.resources.gold)
+        assertEquals(Items.magicDagger, result.session.party.inventoryItem(1))
+        assertTrue(terminal.output.any { "  Magic Dagger" in it })
+    }
+
+    private fun compiledTownSession(
+        party: PartyState,
+        townId: TownId = Towns.thord.id,
+        currentHour: Int = 12,
+    ): TownSession {
+        val content = RylweenCompiledScratch.nextDsl
+        return TownSession.start(
+            town = content.towns.single { it.id == townId },
+            townSystem = content.townSystem ?: error("compiled scratch town system missing"),
+            scenes = content.scenes,
+            party = party,
+            currentHour = currentHour,
+        )
     }
 
     private fun testTown(vararg services: BuildingId): TownModel =

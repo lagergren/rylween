@@ -1,10 +1,10 @@
 // RylweenGeneratedMetadata.kt -- generated content metadata for the Rylween DSL.
 //
-// This file is hand-maintained during migration, but it represents generated
-// output from game content. During migration, ./gradlew generateRylweenMetadata
-// copies the temporary source fixture in src/generator/metadata into
-// src/generated/kotlin. Do not put DSL kernel behavior or engine runtime code
-// here.
+// This file represents generated output from game content. During migration,
+// ./gradlew generateRylweenMetadata renders the checked-in output from the
+// template in src/generator/metadata plus generated slices such as
+// data/world/items/*.json5. Do not put DSL kernel behavior or engine runtime
+// code here.
 
 @file:Suppress(
     "unused",
