@@ -185,6 +185,7 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - First-pass B1-B9 runtime-state shape now distinguishes `stateFixture(...)` from strict `runtimeState(...)`. Fixtures can stay compact; runtime snapshots are validated as fuller save-shaped records with explicit realm runtime fields, member counts, full inventory slots, attack-today records, declared NPC visit bits, and literal journal lines where needed.
 - Equipment is modeled separately from slotted inventory in member `equipped { weapon; armor }` blocks. This mirrors current save coverage, where equipment is per member, while preserving the rule that milestone-projected special items are not slotted inventory.
 - Legacy special-field import mapping: `fireshield = 1`, `bracelets = 1`, `mastercrown = 1`, `jazzyfoot = 1`, and `silverkey = 1` map to their matching ownership milestones. Legacy `silverkey = 2` maps to `Milestones.ydargVictory`, not to an upgraded Silver Key item state.
+- First-pass combat-system shape is `combat { standardBattle { ... } }`. It names the reusable battle framework from the game author's point of view: opening flee rules, encounter banners, player actions, monster-round policy, reward formulas, and loot table. The implementation model also records the narrow native services the framework needs: keyboard input, rendering, RNG, combat context storage, inventory storage, party-state mutation, and text formatting.
 
 Open design questions:
 
@@ -246,11 +247,11 @@ B1-B9 first-pass notes:
 - [ ] F1. Item records. DSL delta: typed item definitions for mundane, equipment, potion, magic, and quest items. Native decision: id lookup and inventory storage.
 - [ ] F2. Item use effects. DSL delta: item scripts for potions and magic items. Native decision: consume/remove primitive and typed stat mutation helpers.
 - [ ] F3. Equipment rules. DSL delta: ready/remove actions and derived combat values in DSL. Native decision: equipment storage and target/member access.
-- [ ] F4. Spell records. DSL delta: mage, priest, and monster spell definitions with typed costs, targets, effects, and text. Native decision: spell picker and cost-payment primitive.
-- [ ] F5. Monster records and tiers. DSL delta: typed monsters, encounter tiers, behavior hooks, and rewards. Native decision: encounter instance allocation.
-- [ ] F6. Combat loop. DSL delta: typed combat actions, turn phases, flee/death/reward rules. Native decision: combat context storage, target UI, and typed op execution.
-- [ ] F7. Monster AI and attacks. DSL delta: monster behavior scripts for melee/spells/specials. Native decision: RNG and target choice helpers.
-- [ ] F8. Rewards and loot. DSL delta: reward DSL for gold, experience, items, flags, and journal updates. Native decision: first-free-slot helper and overflow prompt.
+- [ ] F4. Spell records. DSL delta: mage, priest, and monster spell definitions with typed costs, targets, effects, and text. Native decision: spell picker and cost-payment primitive. Current scratch status: one mage spell body exists; `standardBattle` now records that spell selection is part of the reusable battle framework, not per-encounter authoring.
+- [ ] F5. Monster records and tiers. DSL delta: typed monsters, encounter tiers, behavior hooks, and rewards. Native decision: encounter instance allocation. Current scratch status: skeletal monster records exist and `standardBattle` now points at the shared encounter-sizing/runtime service boundary.
+- [ ] F6. Combat loop. DSL delta: typed combat actions, turn phases, flee/death/reward rules. Native decision: combat context storage, target UI, and typed op execution. Current scratch status: first-pass `combat { standardBattle { opening; playerActions; monsterRound; rewards } }` declaration exists with validation, but the C runner has not been replaced.
+- [ ] F7. Monster AI and attacks. DSL delta: monster behavior scripts for melee/spells/specials. Native decision: RNG and target choice helpers. Current scratch status: `standardBattle.monsterRound` models spell chance and melee fallback; full monster ability records are still pending.
+- [ ] F8. Rewards and loot. DSL delta: reward DSL for gold, experience, items, flags, and journal updates. Native decision: first-free-slot helper and overflow prompt. Current scratch status: `standardBattle.rewards` names XP/gold formulas and the default loot table; generalized reward blocks are still pending.
 - [ ] F9. Leveling and experience. DSL delta: class progression tables and level-up scripts. Native decision: applying member stat changes.
 
 ### G. Dungeons, Ydarg, secrets, and bespoke systems

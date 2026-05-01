@@ -89,6 +89,47 @@ val nextRylween = rylween {
         }
     }
 
+    combat {
+        standardBattle {
+            opening {
+                fleeChancePercent = 95
+                desperateFleeChancePercent = 31
+                mandatoryRun = MandatoryRunRule.NoEscape
+                encounterBanners(
+                    Images.Backdrop.encounterBanner1,
+                    Images.Backdrop.encounterBanner2,
+                    Images.Backdrop.encounterBanner3,
+                    Images.Backdrop.encounterBanner4,
+                    Images.Backdrop.encounterBanner5,
+                )
+            }
+
+            playerActions {
+                attack()
+                defend()
+                useMagicItem()
+                battleCry()
+                castMageSpell()
+            }
+
+            monsterRound {
+                spellChance(basePercent = 15, spellPowerDivisor = 2)
+                meleeFallback = Scenes.Battle.monsterMelee
+            }
+
+            rewards {
+                experience = Formulas.rewardXpPerSurvivor
+                gold = Formulas.rewardGoldParty
+                lootTable(CombatLootTables.default) {
+                    dropChancePercent = 5
+                    treasureChancePercent = 59
+                    treasure = 36..46
+                    magic = 100..111
+                }
+            }
+        }
+    }
+
     monsters {
         monster(Monsters.bandit) {
             name = "Bandit"
@@ -626,6 +667,7 @@ check(nextDsl.flags.size == 13)
 check(nextDsl.authoredFlags.size == 13)
 check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
+check(nextDsl.combat.standardBattle?.actions?.size == 5)
 check(nextDsl.monsters.size == 2)
 check(nextDsl.scenes.size == 4)
 check(nextDsl.spells.size == 1)
