@@ -237,7 +237,7 @@ val Flags = Story
 
 data class TextId(val id: String)
 data class TextPattern(val pattern: String)
-class ItemId(val slug: String, val legacyId: Int? = null) {
+class ItemId private constructor(val slug: String, val legacyId: Int? = null) {
     override fun equals(other: Any?): Boolean =
         other is ItemId && slug == other.slug
 
@@ -245,11 +245,29 @@ class ItemId(val slug: String, val legacyId: Int? = null) {
 
     override fun toString(): String =
         "ItemId(slug=$slug, legacyId=$legacyId)"
+
+    companion object {
+        fun authored(slug: String): ItemId = ItemId(slug)
+
+        internal fun generated(slug: String, legacyId: Int): ItemId =
+            ItemId(slug, legacyId)
+    }
 }
 data class ItemPoolId(
     val slug: String,
     val items: List<ItemId> = emptyList(),
     val legacyItemIds: IntRange? = null,
+)
+enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
+enum class ItemStorageKind { EmptySentinel, SlottedInventory, SpecialMilestone }
+data class ItemRecordModel(
+    val id: ItemId,
+    val kind: ItemKind,
+    val displayName: String,
+    val cost: Int,
+    val storage: ItemStorageKind,
+    val weaponDamage: Int? = null,
+    val armorClass: Int? = null,
 )
 data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
@@ -282,7 +300,8 @@ data class RewardBundleId(val slug: String)
 
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
-fun item(slug: String, legacyId: Int? = null) = ItemId(slug, legacyId)
+fun item(slug: String) = ItemId.authored(slug)
+private fun generatedItem(slug: String, legacyId: Int) = ItemId.generated(slug, legacyId)
 fun itemPool(slug: String, items: List<ItemId> = emptyList(), legacyItemIds: IntRange? = null) =
     ItemPoolId(slug, items, legacyItemIds)
 fun monster(slug: String) = MonsterId(slug)
@@ -320,84 +339,215 @@ fun rewardBundle(slug: String) = RewardBundleId(slug)
 
 class ItemRefs {
     // Weapons.
-    val blank = item("blank", legacyId = 0)
+    val blank = generatedItem("blank", legacyId = 0)
     val none = blank
-    val sword = item("sword", legacyId = 1)
-    val axe = item("axe", legacyId = 2)
-    val bow = item("bow", legacyId = 3)
-    val club = item("club", legacyId = 4)
-    val dart = item("dart", legacyId = 5)
-    val sling = item("sling", legacyId = 6)
-    val longsword = item("longsword", legacyId = 7)
-    val trident = item("trident", legacyId = 8)
-    val halbard = item("halbard", legacyId = 9)
-    val poleArm = item("pole_arm", legacyId = 10)
-    val crossbow = item("crossbow", legacyId = 11)
-    val scythe = item("scythe", legacyId = 12)
-    val scimitar = item("scimitar", legacyId = 13)
-    val twoHandSword = item("two_hand_sword", legacyId = 14)
-    val magicDagger = item("magic_dagger", legacyId = 15)
-    val magicSword = item("magic_sword", legacyId = 16)
-    val magicAxe = item("magic_axe", legacyId = 17)
-    val dancingSword = item("dancing_sword", legacyId = 18)
-    val deathBlade = item("death_blade", legacyId = 19)
+    val sword = generatedItem("sword", legacyId = 1)
+    val axe = generatedItem("axe", legacyId = 2)
+    val bow = generatedItem("bow", legacyId = 3)
+    val club = generatedItem("club", legacyId = 4)
+    val dart = generatedItem("dart", legacyId = 5)
+    val sling = generatedItem("sling", legacyId = 6)
+    val longsword = generatedItem("longsword", legacyId = 7)
+    val trident = generatedItem("trident", legacyId = 8)
+    val halbard = generatedItem("halbard", legacyId = 9)
+    val poleArm = generatedItem("pole_arm", legacyId = 10)
+    val crossbow = generatedItem("crossbow", legacyId = 11)
+    val scythe = generatedItem("scythe", legacyId = 12)
+    val scimitar = generatedItem("scimitar", legacyId = 13)
+    val twoHandSword = generatedItem("two_hand_sword", legacyId = 14)
+    val magicDagger = generatedItem("magic_dagger", legacyId = 15)
+    val magicSword = generatedItem("magic_sword", legacyId = 16)
+    val magicAxe = generatedItem("magic_axe", legacyId = 17)
+    val dancingSword = generatedItem("dancing_sword", legacyId = 18)
+    val deathBlade = generatedItem("death_blade", legacyId = 19)
 
     // Armor.
-    val leather = item("leather", legacyId = 20)
-    val chainMail = item("chain_mail", legacyId = 21)
-    val plateMail = item("plate_mail", legacyId = 22)
-    val ringMail = item("ring_mail", legacyId = 23)
-    val elvinCloak = item("elvin_cloak", legacyId = 24)
-    val mithrilMail = item("mithril_mail", legacyId = 25)
-    val admtMail = item("admt_mail", legacyId = 26)
-    val protSphere = item("prot_sphere", legacyId = 27)
-    val cloakOfGods = item("cloak_of_gods", legacyId = 28)
+    val leather = generatedItem("leather", legacyId = 20)
+    val chainMail = generatedItem("chain_mail", legacyId = 21)
+    val plateMail = generatedItem("plate_mail", legacyId = 22)
+    val ringMail = generatedItem("ring_mail", legacyId = 23)
+    val elvinCloak = generatedItem("elvin_cloak", legacyId = 24)
+    val mithrilMail = generatedItem("mithril_mail", legacyId = 25)
+    val admtMail = generatedItem("admt_mail", legacyId = 26)
+    val protSphere = generatedItem("prot_sphere", legacyId = 27)
+    val cloakOfGods = generatedItem("cloak_of_gods", legacyId = 28)
 
     // Gear.
-    val torch = item("torch", legacyId = 31)
-    val ration = item("ration", legacyId = 32)
-    val blanket = item("blanket", legacyId = 33)
-    val tent = item("tent", legacyId = 34)
-    val rope = item("rope", legacyId = 35)
+    val torch = generatedItem("torch", legacyId = 31)
+    val ration = generatedItem("ration", legacyId = 32)
+    val blanket = generatedItem("blanket", legacyId = 33)
+    val tent = generatedItem("tent", legacyId = 34)
+    val rope = generatedItem("rope", legacyId = 35)
 
     // Potions.
-    val redPotion = item("red_potion", legacyId = 36)
-    val bluePotion = item("blue_potion", legacyId = 37)
-    val amberPotion = item("amber_potion", legacyId = 38)
+    val redPotion = generatedItem("red_potion", legacyId = 36)
+    val bluePotion = generatedItem("blue_potion", legacyId = 37)
+    val amberPotion = generatedItem("amber_potion", legacyId = 38)
 
     // Treasures.
-    val redGem = item("red_gem", legacyId = 39)
-    val blueGem = item("blue_gem", legacyId = 40)
-    val greenGem = item("green_gem", legacyId = 41)
-    val chalice = item("chalice", legacyId = 42)
-    val pendant = item("pendant", legacyId = 43)
-    val broche = item("broche", legacyId = 44)
-    val crystalBowl = item("crystal_bowl", legacyId = 45)
-    val necklace = item("necklace", legacyId = 46)
-    val donkey = item("donkey", legacyId = 47)
+    val redGem = generatedItem("red_gem", legacyId = 39)
+    val blueGem = generatedItem("blue_gem", legacyId = 40)
+    val greenGem = generatedItem("green_gem", legacyId = 41)
+    val chalice = generatedItem("chalice", legacyId = 42)
+    val pendant = generatedItem("pendant", legacyId = 43)
+    val broche = generatedItem("broche", legacyId = 44)
+    val crystalBowl = generatedItem("crystal_bowl", legacyId = 45)
+    val necklace = generatedItem("necklace", legacyId = 46)
+    val donkey = generatedItem("donkey", legacyId = 47)
 
     // Flag-backed special items project from milestones and do not occupy slots.
-    val fireshield = item("fireshield", legacyId = 48)
-    val bracelets = item("bracelets", legacyId = 49)
-    val mastercrown = item("mastercrown", legacyId = 50)
-    val jazzyfoot = item("jazzyfoot", legacyId = 51)
-    val silverkey = item("silverkey", legacyId = 52)
+    val fireshield = generatedItem("fireshield", legacyId = 48)
+    val bracelets = generatedItem("bracelets", legacyId = 49)
+    val mastercrown = generatedItem("mastercrown", legacyId = 50)
+    val jazzyfoot = generatedItem("jazzyfoot", legacyId = 51)
+    val silverkey = generatedItem("silverkey", legacyId = 52)
 
     // Magic items.
-    val frostWand = item("frost_wand", legacyId = 100)
-    val fireWand = item("fire_wand", legacyId = 101)
-    val gemOfConfusion = item("gem_of_confusion", legacyId = 102)
-    val gemOfBlindness = item("gem_of_blindness", legacyId = 103)
-    val drumsOfDeath = item("drums_of_death", legacyId = 104)
-    val staffOfHealing = item("staff_of_healing", legacyId = 105)
-    val blessingScroll = item("blessing_scroll", legacyId = 106)
-    val staffOfCuring = item("staff_of_curing", legacyId = 107)
-    val gemOfResurrection = item("gem_of_resurrection", legacyId = 108)
-    val kaelsAxe = item("kaels_axe", legacyId = 109)
-    val holyHandgrenade = item("holy_handgrenade", legacyId = 110)
-    val fluteOfMadness = item("flute_of_madness", legacyId = 111)
+    val frostWand = generatedItem("frost_wand", legacyId = 100)
+    val fireWand = generatedItem("fire_wand", legacyId = 101)
+    val gemOfConfusion = generatedItem("gem_of_confusion", legacyId = 102)
+    val gemOfBlindness = generatedItem("gem_of_blindness", legacyId = 103)
+    val drumsOfDeath = generatedItem("drums_of_death", legacyId = 104)
+    val staffOfHealing = generatedItem("staff_of_healing", legacyId = 105)
+    val blessingScroll = generatedItem("blessing_scroll", legacyId = 106)
+    val staffOfCuring = generatedItem("staff_of_curing", legacyId = 107)
+    val gemOfResurrection = generatedItem("gem_of_resurrection", legacyId = 108)
+    val kaelsAxe = generatedItem("kaels_axe", legacyId = 109)
+    val holyHandgrenade = generatedItem("holy_handgrenade", legacyId = 110)
+    val fluteOfMadness = generatedItem("flute_of_madness", legacyId = 111)
 }
 val Items = ItemRefs()
+
+private fun generatedItemRecord(
+    id: ItemId,
+    kind: ItemKind,
+    displayName: String,
+    cost: Int,
+    storage: ItemStorageKind = ItemStorageKind.SlottedInventory,
+    weaponDamage: Int? = null,
+    armorClass: Int? = null,
+): ItemRecordModel =
+    ItemRecordModel(id, kind, displayName, cost, storage, weaponDamage, armorClass)
+
+class GeneratedItemCatalog {
+    val all = listOf(
+        generatedItemRecord(
+            Items.blank,
+            ItemKind.Empty,
+            displayName = "-",
+            cost = 0,
+            storage = ItemStorageKind.EmptySentinel,
+            weaponDamage = 1,
+        ),
+
+        // Weapons.
+        generatedItemRecord(Items.sword, ItemKind.Weapon, "Sword", cost = 160, weaponDamage = 6),
+        generatedItemRecord(Items.axe, ItemKind.Weapon, "Axe", cost = 240, weaponDamage = 10),
+        generatedItemRecord(Items.bow, ItemKind.Weapon, "Bow", cost = 160, weaponDamage = 7),
+        generatedItemRecord(Items.club, ItemKind.Weapon, "Club", cost = 140, weaponDamage = 4),
+        generatedItemRecord(Items.dart, ItemKind.Weapon, "Dart", cost = 40, weaponDamage = 3),
+        generatedItemRecord(Items.sling, ItemKind.Weapon, "Sling", cost = 165, weaponDamage = 5),
+        generatedItemRecord(Items.longsword, ItemKind.Weapon, "Longsword", cost = 280, weaponDamage = 9),
+        generatedItemRecord(Items.trident, ItemKind.Weapon, "Trident", cost = 350, weaponDamage = 11),
+        generatedItemRecord(Items.halbard, ItemKind.Weapon, "Halbard", cost = 500, weaponDamage = 14),
+        generatedItemRecord(Items.poleArm, ItemKind.Weapon, "Pole arm", cost = 670, weaponDamage = 18),
+        generatedItemRecord(Items.crossbow, ItemKind.Weapon, "Crossbow", cost = 900, weaponDamage = 21),
+        generatedItemRecord(Items.scythe, ItemKind.Weapon, "Scythe", cost = 870, weaponDamage = 14),
+        generatedItemRecord(Items.scimitar, ItemKind.Weapon, "Scimitar", cost = 600, weaponDamage = 8),
+        generatedItemRecord(Items.twoHandSword, ItemKind.Weapon, "2H-Sword", cost = 1200, weaponDamage = 19),
+        generatedItemRecord(Items.magicDagger, ItemKind.Weapon, "Magic Dagger", cost = 1800, weaponDamage = 24),
+        generatedItemRecord(Items.magicSword, ItemKind.Weapon, "Magic Sword", cost = 3000, weaponDamage = 30),
+        generatedItemRecord(Items.magicAxe, ItemKind.Weapon, "Magic Axe", cost = 4000, weaponDamage = 38),
+        generatedItemRecord(Items.dancingSword, ItemKind.Weapon, "Dancing Sword", cost = 6000, weaponDamage = 50),
+        generatedItemRecord(Items.deathBlade, ItemKind.Weapon, "Death Blade", cost = 10000, weaponDamage = 68),
+
+        // Armor.
+        generatedItemRecord(Items.leather, ItemKind.Armor, "Leather", cost = 260, armorClass = 2),
+        generatedItemRecord(Items.chainMail, ItemKind.Armor, "Chain Mail", cost = 600, armorClass = 5),
+        generatedItemRecord(Items.plateMail, ItemKind.Armor, "Plate Mail", cost = 980, armorClass = 7),
+        generatedItemRecord(Items.ringMail, ItemKind.Armor, "Ring Mail", cost = 1950, armorClass = 9),
+        generatedItemRecord(Items.elvinCloak, ItemKind.Armor, "Elvin Cloak", cost = 3600, armorClass = 12),
+        generatedItemRecord(Items.mithrilMail, ItemKind.Armor, "Mithril Mail", cost = 5800, armorClass = 14),
+        generatedItemRecord(Items.admtMail, ItemKind.Armor, "Admt. Mail", cost = 9400, armorClass = 16),
+        generatedItemRecord(Items.protSphere, ItemKind.Armor, "Prot. Sphere", cost = 15000, armorClass = 20),
+        generatedItemRecord(Items.cloakOfGods, ItemKind.Armor, "Cloak of Gods", cost = 28000, armorClass = 30),
+
+        // Gear.
+        generatedItemRecord(Items.torch, ItemKind.Gear, "Torch", cost = 1),
+        generatedItemRecord(Items.ration, ItemKind.Gear, "Ration", cost = 2),
+        generatedItemRecord(Items.blanket, ItemKind.Gear, "Blanket", cost = 30),
+        generatedItemRecord(Items.tent, ItemKind.Gear, "Tent", cost = 80),
+        generatedItemRecord(Items.rope, ItemKind.Gear, "Rope", cost = 15),
+
+        // Potions.
+        generatedItemRecord(Items.redPotion, ItemKind.Potion, "Red Potion", cost = 30),
+        generatedItemRecord(Items.bluePotion, ItemKind.Potion, "Blue Potion", cost = 100),
+        generatedItemRecord(Items.amberPotion, ItemKind.Potion, "Amber Potion", cost = 500),
+
+        // Treasures.
+        generatedItemRecord(Items.redGem, ItemKind.Treasure, "Red Gem", cost = 1000),
+        generatedItemRecord(Items.blueGem, ItemKind.Treasure, "Blue Gem", cost = 1200),
+        generatedItemRecord(Items.greenGem, ItemKind.Treasure, "Green Gem", cost = 1900),
+        generatedItemRecord(Items.chalice, ItemKind.Treasure, "Chalice", cost = 2340),
+        generatedItemRecord(Items.pendant, ItemKind.Treasure, "Pendant", cost = 5000),
+        generatedItemRecord(Items.broche, ItemKind.Treasure, "Broche", cost = 1234),
+        generatedItemRecord(Items.crystalBowl, ItemKind.Treasure, "Crystal Bowl", cost = 4567),
+        generatedItemRecord(Items.necklace, ItemKind.Treasure, "Necklace", cost = 987),
+        generatedItemRecord(Items.donkey, ItemKind.Treasure, "Donkey", cost = 800),
+
+        // Milestone-backed special items.
+        generatedItemRecord(
+            Items.fireshield,
+            ItemKind.Special,
+            "Fire Shield",
+            cost = 0,
+            storage = ItemStorageKind.SpecialMilestone,
+        ),
+        generatedItemRecord(
+            Items.bracelets,
+            ItemKind.Special,
+            "Bracelets of Thun",
+            cost = 0,
+            storage = ItemStorageKind.SpecialMilestone,
+        ),
+        generatedItemRecord(
+            Items.mastercrown,
+            ItemKind.Special,
+            "Master Crown",
+            cost = 0,
+            storage = ItemStorageKind.SpecialMilestone,
+        ),
+        generatedItemRecord(
+            Items.jazzyfoot,
+            ItemKind.Special,
+            "Jazzyfoot",
+            cost = 0,
+            storage = ItemStorageKind.SpecialMilestone,
+        ),
+        generatedItemRecord(
+            Items.silverkey,
+            ItemKind.Special,
+            "Silver Key",
+            cost = 0,
+            storage = ItemStorageKind.SpecialMilestone,
+        ),
+
+        // Magic items.
+        generatedItemRecord(Items.frostWand, ItemKind.MagicItem, "Frost Wand", cost = 1000),
+        generatedItemRecord(Items.fireWand, ItemKind.MagicItem, "Fire Wand", cost = 3000),
+        generatedItemRecord(Items.gemOfConfusion, ItemKind.MagicItem, "Gem of Confusion", cost = 1560),
+        generatedItemRecord(Items.gemOfBlindness, ItemKind.MagicItem, "Gem of Blindness", cost = 4900),
+        generatedItemRecord(Items.drumsOfDeath, ItemKind.MagicItem, "Drums of Death", cost = 4500),
+        generatedItemRecord(Items.staffOfHealing, ItemKind.MagicItem, "Staff of Healing", cost = 670),
+        generatedItemRecord(Items.blessingScroll, ItemKind.MagicItem, "Blessing Scroll", cost = 2000),
+        generatedItemRecord(Items.staffOfCuring, ItemKind.MagicItem, "Staff of Curing", cost = 4343),
+        generatedItemRecord(Items.gemOfResurrection, ItemKind.MagicItem, "Gem of Resurrection", cost = 9000),
+        generatedItemRecord(Items.kaelsAxe, ItemKind.MagicItem, "Kael's Axe", cost = 14000),
+        generatedItemRecord(Items.holyHandgrenade, ItemKind.MagicItem, "Holy Handgrenade", cost = 5600),
+        generatedItemRecord(Items.fluteOfMadness, ItemKind.MagicItem, "Flute of Madness", cost = 9000),
+    )
+}
+val ItemCatalog = GeneratedItemCatalog()
 
 class ItemPoolRefs {
     // Legacy battle.c currently rolls ids 36..46 here: potions plus ordinary
@@ -1301,10 +1451,20 @@ data class LootTableModel(
     val magic: ItemPoolId,
 )
 
+enum class RewardItemPlacement { FirstFreeInventorySlot }
+enum class RewardOverflowPolicy { SkipIfInventoryFull, PromptDropThenPlace }
+enum class RewardSpecialItemPolicy { ProjectMilestoneState }
+data class RewardApplicationModel(
+    val regularItems: RewardItemPlacement,
+    val overflow: RewardOverflowPolicy,
+    val specialItems: RewardSpecialItemPolicy,
+)
+
 data class RewardBundleModel(
     val id: RewardBundleId,
     val experience: FormulaId,
     val gold: FormulaId,
+    val application: RewardApplicationModel,
     val loot: LootTableModel,
 )
 
@@ -2115,13 +2275,31 @@ class RewardCatalogBuilder {
 class RewardBundleBuilder(private val id: RewardBundleId) {
     var experience: FormulaId = Formulas.rewardXpPerSurvivor
     var gold: FormulaId = Formulas.rewardGoldParty
+    private var applicationModel = RewardApplicationBuilder().build()
     private var lootModel = LootTableBuilder(LootTables.standardBattle).build()
+
+    fun itemPlacement(body: RewardApplicationBuilder.() -> Unit) {
+        applicationModel = RewardApplicationBuilder(applicationModel).apply(body).build()
+    }
 
     fun lootTable(id: LootTableId, body: LootTableBuilder.() -> Unit) {
         lootModel = LootTableBuilder(id).apply(body).build()
     }
 
-    fun build(): RewardBundleModel = RewardBundleModel(id, experience, gold, lootModel)
+    fun build(): RewardBundleModel = RewardBundleModel(id, experience, gold, applicationModel, lootModel)
+}
+
+@RylNextDsl
+class RewardApplicationBuilder(initial: RewardApplicationModel? = null) {
+    var regularItems: RewardItemPlacement =
+        initial?.regularItems ?: RewardItemPlacement.FirstFreeInventorySlot
+    var overflow: RewardOverflowPolicy =
+        initial?.overflow ?: RewardOverflowPolicy.SkipIfInventoryFull
+    var specialItems: RewardSpecialItemPolicy =
+        initial?.specialItems ?: RewardSpecialItemPolicy.ProjectMilestoneState
+
+    fun build(): RewardApplicationModel =
+        RewardApplicationModel(regularItems, overflow, specialItems)
 }
 
 @RylNextDsl
@@ -2820,13 +2998,72 @@ fun validateFlagCatalog(flags: List<FlagRef>) {
         }
 }
 
-fun validateGameProgress(progress: GameProgressModel) {
+fun validateGeneratedItemCatalog(records: List<ItemRecordModel> = ItemCatalog.all) {
+    check(records.isNotEmpty()) { "generated item catalog is empty" }
+    check(records.map { it.id }.toSet().size == records.size) { "duplicate generated item handle" }
+
+    val legacyIds = records.map { record ->
+        checkNotNull(record.id.legacyId) {
+            "generated item ${record.id.slug} has no legacy id"
+        }
+    }
+    check(legacyIds.toSet().size == legacyIds.size) { "duplicate generated item legacy id" }
+
+    records.forEach { record ->
+        check(record.displayName.isNotBlank()) { "item ${record.id.slug} requires a display name" }
+        check(record.cost >= 0) { "item ${record.id.slug} has negative cost" }
+        when (record.kind) {
+            ItemKind.Empty -> {
+                check(record.storage == ItemStorageKind.EmptySentinel) {
+                    "empty item ${record.id.slug} must use empty-sentinel storage"
+                }
+            }
+            ItemKind.Weapon -> {
+                check(record.weaponDamage != null && record.weaponDamage > 0) {
+                    "weapon ${record.id.slug} requires positive damage"
+                }
+                check(record.armorClass == null) { "weapon ${record.id.slug} cannot carry armor class" }
+            }
+            ItemKind.Armor -> {
+                check(record.armorClass != null && record.armorClass > 0) {
+                    "armor ${record.id.slug} requires positive armor class"
+                }
+                check(record.weaponDamage == null) { "armor ${record.id.slug} cannot carry weapon damage" }
+            }
+            ItemKind.Special -> {
+                check(record.storage == ItemStorageKind.SpecialMilestone) {
+                    "special item ${record.id.slug} must project from milestone state"
+                }
+            }
+            ItemKind.Gear,
+            ItemKind.Potion,
+            ItemKind.Treasure,
+            ItemKind.MagicItem -> {
+                check(record.storage == ItemStorageKind.SlottedInventory) {
+                    "item ${record.id.slug} must use slotted-inventory storage"
+                }
+            }
+        }
+    }
+}
+
+fun validateGameProgress(
+    progress: GameProgressModel,
+    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+) {
     val ids = progress.milestones.map { it.id }
     check(ids.toSet().size == ids.size) { "duplicate game milestone" }
 
+    val itemRecordById = itemRecords.associateBy { it.id }
     val specialItems = progress.milestones.mapNotNull { it.specialInventoryItem }
     check(specialItems.toSet().size == specialItems.size) {
         "duplicate special inventory projection"
+    }
+    specialItems.forEach { item ->
+        val record = itemRecordById[item]
+        check(record?.storage == ItemStorageKind.SpecialMilestone) {
+            "special inventory projection ${item.slug} must be milestone-backed item metadata"
+        }
     }
 
     val defined = ids.toSet()
@@ -2840,14 +3077,24 @@ fun validateGameProgress(progress: GameProgressModel) {
     }
 }
 
-fun validateRewardBundles(rewards: List<RewardBundleModel>) {
+fun validateRewardBundles(
+    rewards: List<RewardBundleModel>,
+    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+) {
     check(rewards.map { it.id }.toSet().size == rewards.size) { "duplicate reward bundle" }
 
     rewards.forEach { reward ->
         checkPercent(reward.loot.dropChancePercent, "reward ${reward.id.slug} loot drop chance")
         checkPercent(reward.loot.treasureChancePercent, "reward ${reward.id.slug} loot treasure chance")
-        validateItemPool(reward.loot.treasure)
-        validateItemPool(reward.loot.magic)
+        validateItemPool(reward.loot.treasure, itemRecords)
+        validateItemPool(reward.loot.magic, itemRecords)
+
+        val itemRecordById = itemRecords.associateBy { it.id }
+        val rewardItems = reward.loot.treasure.items + reward.loot.magic.items
+        val hasSpecialItems = rewardItems.any { itemRecordById[it]?.storage == ItemStorageKind.SpecialMilestone }
+        check(!hasSpecialItems || reward.application.specialItems == RewardSpecialItemPolicy.ProjectMilestoneState) {
+            "reward ${reward.id.slug} special items must project through milestone state"
+        }
     }
 }
 
@@ -2912,9 +3159,19 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
     }
 }
 
-private fun validateItemPool(pool: ItemPoolId) {
+private fun validateItemPool(pool: ItemPoolId, itemRecords: List<ItemRecordModel>) {
     check(pool.items.isNotEmpty()) { "item pool ${pool.slug} has no items" }
     check(pool.items.toSet().size == pool.items.size) { "item pool ${pool.slug} has duplicate items" }
+
+    val itemRecordById = itemRecords.associateBy { it.id }
+    pool.items.forEach { item ->
+        val record = itemRecordById[item]
+        check(record != null) { "item pool ${pool.slug} references unknown item ${item.slug}" }
+        check(record.storage != ItemStorageKind.EmptySentinel) {
+            "item pool ${pool.slug} cannot include the empty-slot sentinel"
+        }
+    }
+
     pool.legacyItemIds?.let { ids ->
         check(ids.count() == pool.items.size) {
             "item pool ${pool.slug}: legacy id range $ids has ${ids.count()} ids, but ${pool.items.size} items"
@@ -2935,6 +3192,9 @@ private fun checkPercent(value: Int, label: String) {
 }
 
 fun validateAuthoredContent(content: GameModel) {
+    validateGeneratedItemCatalog()
+    validateGameProgress(content.progress)
+
     check(content.authoredFlags.map { it.ref.slug }.toSet().size == content.authoredFlags.size) {
         "duplicate authored flag"
     }
