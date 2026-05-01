@@ -266,6 +266,21 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun traceEngineRecordsReusableTorchConsumptionAction() {
+        val content = GameBuilder().apply {
+            scene(sceneId("test.consume_torch")) {
+                consumeTorch()
+            }
+        }.build()
+        val engine = TraceEnginePort()
+        val runner = ScriptTraceRunner(engine)
+
+        runner.run(content.scenes.single().ops)
+
+        assertEquals(EngineTraceEvent.ConsumeTorch, engine.events.single())
+    }
+
+    @Test
     fun randomItemOfferValidatesAndTracesAsReusableRuntimeAction() {
         val content = GameBuilder().apply {
             scene(sceneId("test.random_offer")) {
@@ -461,6 +476,17 @@ class RylweenDslValidationTest {
         assertEquals(true, tent.protectsLowTemperature)
         assertEquals(true, tent.protectsVeryLowTemperature)
         assertEquals(Images.Scene.noTent, reservedSlotTent.image)
+    }
+
+    @Test
+    fun consumeTorchDecrementsResourceOrReportsNoTorches() {
+        val lit = testParty(torches = 2).consumeTorch() as TorchActionResult.Consumed
+        val last = testParty(torches = 1).consumeTorch() as TorchActionResult.Consumed
+        val none = testParty(torches = 0).consumeTorch() as TorchActionResult.NoTorches
+
+        assertEquals(1, lit.party.resources.torches)
+        assertEquals(0, last.party.resources.torches)
+        assertEquals(0, none.party.resources.torches)
     }
 
     @Test

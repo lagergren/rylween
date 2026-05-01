@@ -1549,6 +1549,7 @@ sealed interface Op {
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
     object ConsumeActiveItem : Op
+    object ConsumeTorch : Op
     data class GrantReward(val reward: ScriptRewardModel) : Op
     data class RandomItemOffer(val offer: RandomItemOfferModel) : Op
     data class ShopService(val shop: ShopServiceModel) : Op
@@ -2616,6 +2617,8 @@ class ScriptScope(
     }
 
     fun consumeActiveItem() = record(Op.ConsumeActiveItem)
+
+    fun consumeTorch() = record(Op.ConsumeTorch)
 
     fun reward(body: ScriptRewardBuilder.() -> Unit) {
         record(Op.GrantReward(ScriptRewardBuilder().apply(body).build()))
@@ -4997,6 +5000,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.RunScene -> Unit
                 is Op.Encounter -> Unit
                 Op.ConsumeActiveItem -> Unit
+                Op.ConsumeTorch -> Unit
                 is Op.GrantReward -> op.reward.gold?.let(::int)
                 is Op.RandomItemOffer -> {
                     text(op.offer.offer)

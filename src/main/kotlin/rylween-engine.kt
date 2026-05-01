@@ -43,6 +43,7 @@ sealed interface EngineTraceEvent {
     data class Break(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class RandomItemOffer(val offer: RandomItemOfferModel) : EngineTraceEvent
     data class ShopService(val shop: ShopServiceModel) : EngineTraceEvent
+    object ConsumeTorch : EngineTraceEvent
 }
 
 class TraceEnginePort(
@@ -135,6 +136,9 @@ class ScriptTraceRunner(
                 trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
             }
             Op.ConsumeActiveItem -> ScriptControlSignal.Continue
+            Op.ConsumeTorch -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.ConsumeTorch)
+            }
             is Op.GrantReward -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.GrantReward(op.reward))
             }

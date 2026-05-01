@@ -22,6 +22,11 @@ sealed interface EquipmentActionResult {
     data class InventoryFull(val party: PartyState) : EquipmentActionResult
 }
 
+sealed interface TorchActionResult {
+    data class Consumed(val party: PartyState) : TorchActionResult
+    data class NoTorches(val party: PartyState) : TorchActionResult
+}
+
 enum class ShopTransactionStatus {
     Bought,
     Sold,
@@ -287,6 +292,13 @@ fun PartyState.unequipToInventory(
         .withInventoryItem(slot, equipped)
     return EquipmentActionResult.Unequipped(updated, memberNumber, slot)
 }
+
+fun PartyState.consumeTorch(): TorchActionResult =
+    if (resources.torches <= 0) {
+        TorchActionResult.NoTorches(this)
+    } else {
+        TorchActionResult.Consumed(copy(resources = resources.copy(torches = resources.torches - 1)))
+    }
 
 fun PartyState.inventoryItem(slot: Int): ItemId? =
     inventory.firstOrNull { it.slot == slot }?.item
