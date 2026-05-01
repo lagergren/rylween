@@ -373,6 +373,139 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun shopInterpreterBuysInventoryItemsWithPromptDropOverflow() {
+        val shop = testMerchantShop()
+        val fullParty = testParty(
+            gold = 100,
+            inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope } + (1 to Items.redPotion),
+        )
+        val interpreter = ShopServiceInterpreter()
+
+        val needsDrop = interpreter.buy(shop, fullParty, Items.blanket)
+        assertEquals(ShopTransactionStatus.NeedsDropSlot, needsDrop.status)
+
+        val bought = interpreter.buy(shop, fullParty, Items.blanket, dropSlot = 1)
+
+        assertEquals(ShopTransactionStatus.Bought, bought.status)
+        assertEquals(Items.blanket, bought.party.inventoryItem(1))
+        assertEquals(70, bought.party.resources.gold)
+    }
+
+    @Test
+    fun shopInterpreterBuysResourcesWithCapsAndDynamicPrices() {
+        val shop = testMerchantShop()
+        val noDonkeyParty = testParty(
+            gold = 1000,
+            level = 2,
+            food = 100,
+        )
+        val donkeyParty = testParty(
+            gold = 1000,
+            level = 2,
+            food = 100,
+            inventoryItems = mapOf(1 to Items.donkey),
+        )
+        val interpreter = ShopServiceInterpreter()
+
+        val boughtNoDonkeyFood = interpreter.buy(shop, noDonkeyParty, Items.ration, quantity = 999)
+        val boughtDonkeyFood = interpreter.buy(shop, donkeyParty, Items.ration, quantity = 999)
+        val boughtTorches = interpreter.buy(shop, testParty(gold = 10, torches = 78), Items.torch, quantity = 99)
+
+        assertEquals(150, testParty(inventoryItems = mapOf(0 to Items.donkey)).foodCapacityByDonkeys())
+        assertEquals(ShopTransactionStatus.Bought, boughtNoDonkeyFood.status)
+        assertEquals(50, boughtNoDonkeyFood.quantity)
+        assertEquals(150, boughtNoDonkeyFood.party.resources.food)
+        assertEquals(850, boughtNoDonkeyFood.party.resources.gold)
+        assertEquals(ShopTransactionStatus.Bought, boughtDonkeyFood.status)
+        assertEquals(200, boughtDonkeyFood.quantity)
+        assertEquals(300, boughtDonkeyFood.party.resources.food)
+        assertEquals(400, boughtDonkeyFood.party.resources.gold)
+        assertEquals(ShopTransactionStatus.Bought, boughtTorches.status)
+        assertEquals(2, boughtTorches.quantity)
+        assertEquals(80, boughtTorches.party.resources.torches)
+        assertEquals(8, boughtTorches.party.resources.gold)
+    }
+
+    @Test
+    fun droppingDonkeyForInventoryOverflowClampsFoodToRemainingCapacity() {
+        val shop = testMerchantShop()
+        val fullParty = testParty(
+            gold = 100,
+            food = 300,
+            inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope } + (1 to Items.donkey),
+        )
+        val interpreter = ShopServiceInterpreter()
+
+        val bought = interpreter.buy(shop, fullParty, Items.blanket, dropSlot = 1)
+
+        assertEquals(ShopTransactionStatus.Bought, bought.status)
+        assertEquals(Items.blanket, bought.party.inventoryItem(1))
+        assertEquals(150, bought.party.foodCapacityByDonkeys())
+        assertEquals(150, bought.party.resources.food)
+    }
+
+    @Test
+    fun campGearEffectReflectsTentAndBlanketProtection() {
+        val noGear = testParty().campGearEffect()
+        val blanket = testParty(inventoryItems = mapOf(1 to Items.blanket)).campGearEffect()
+        val tent = testParty(inventoryItems = mapOf(1 to Items.tent)).campGearEffect()
+        val reservedSlotTent = testParty(inventoryItems = mapOf(0 to Items.tent)).campGearEffect()
+
+        assertEquals(Images.Scene.noTent, noGear.image)
+        assertEquals(false, noGear.protectsLowTemperature)
+        assertEquals(false, noGear.protectsVeryLowTemperature)
+        assertEquals(Images.Scene.noTent, blanket.image)
+        assertEquals(true, blanket.protectsLowTemperature)
+        assertEquals(false, blanket.protectsVeryLowTemperature)
+        assertEquals(Images.Scene.tent, tent.image)
+        assertEquals(true, tent.protectsLowTemperature)
+        assertEquals(true, tent.protectsVeryLowTemperature)
+        assertEquals(Images.Scene.noTent, reservedSlotTent.image)
+    }
+
+    @Test
+    fun shopInterpreterSellsAcceptedItemsAndRejectsWrongShopItems() {
+        val shop = testMerchantShop()
+        val party = testParty(
+            gold = 10,
+            inventoryItems = mapOf(1 to Items.blanket, 2 to Items.sword),
+        )
+        val interpreter = ShopServiceInterpreter()
+
+        val sold = interpreter.sell(shop, party, slot = 1)
+        val rejected = interpreter.sell(shop, party, slot = 2)
+
+        assertEquals(ShopTransactionStatus.Sold, sold.status)
+        assertEquals(null, sold.party.inventoryItem(1))
+        assertEquals(25, sold.party.resources.gold)
+        assertEquals(ShopTransactionStatus.ItemNotAcceptedHere, rejected.status)
+    }
+
+    @Test
+    fun equipmentActionsSwapInventoryAndEquippedItems() {
+        val party = testParty(
+            inventoryItems = mapOf(1 to Items.sword, 2 to Items.axe),
+        )
+
+        val equippedSword = party.equipFromInventory(memberNumber = 1, slot = 1, kind = EquipmentKind.Weapon)
+                as EquipmentActionResult.Equipped
+        val equippedAxe = equippedSword.party.equipFromInventory(
+            memberNumber = 1,
+            slot = 2,
+            kind = EquipmentKind.Weapon,
+        ) as EquipmentActionResult.Equipped
+        val unequipped = equippedAxe.party.unequipToInventory(memberNumber = 1, kind = EquipmentKind.Weapon)
+                as EquipmentActionResult.Unequipped
+
+        assertEquals(Items.sword, equippedSword.party.members.single().weapon)
+        assertEquals(null, equippedSword.party.inventoryItem(1))
+        assertEquals(Items.axe, equippedAxe.party.members.single().weapon)
+        assertEquals(Items.sword, equippedAxe.party.inventoryItem(2))
+        assertEquals(Items.none, unequipped.party.members.single().weapon)
+        assertEquals(Items.axe, unequipped.party.inventoryItem(1))
+    }
+
+    @Test
     fun validationRejectsBreakOutsideLoop() {
         val content = GameBuilder().apply {
             scene(sceneId("bad.break")) {
@@ -384,4 +517,89 @@ class RylweenDslValidationTest {
             validateAuthoredContent(content)
         }
     }
+
+    private fun testMerchantShop(): ShopServiceModel =
+        ShopServiceBuilder(Buildings.merchant).apply {
+            image = Images.Scene.merchant
+            intro("Merchant")
+            menu("(B)uy item", "(S)ell item", "(L)eave")
+            buy {
+                prompt("Buy what?")
+                catalog('B', "Goods") {
+                    resource(
+                        'A',
+                        Items.torch,
+                        resource = ShopResources.torches,
+                        cap = ShopQuantityCaps.torchLimit80,
+                        tooMany = inlineText("Too many torches."),
+                        zeroQuantityDeal = ShopZeroQuantityDeal.always,
+                    )
+                    resource(
+                        'B',
+                        Items.ration,
+                        resource = ShopResources.food,
+                        cap = ShopQuantityCaps.foodByDonkeys,
+                        tooMany = inlineText("Too much food."),
+                        price = ShopPrices.leaderLevelPlus(1),
+                    )
+                    item('C', Items.blanket)
+                }
+            }
+            sell {
+                prompt("Sell what?")
+                accepts(Items.blanket)
+                wrongKind("Wrong kind.")
+                offer {
+                    line("Offer: ", price)
+                }
+            }
+        }.build()
+
+    private fun testParty(
+        gold: Int = 0,
+        level: Int = 1,
+        torches: Int = 0,
+        food: Int = 0,
+        inventoryItems: Map<Int, ItemId> = emptyMap(),
+    ): PartyState =
+        PartyState(
+            id = partyId("test"),
+            player = "Test",
+            name = "Test",
+            position = Wilderness.xy(0, 0),
+            facing = Facing.South,
+            resources = PartyResources(gold = gold, torches = torches, food = food, timeLeft = 0, restedHours = 0),
+            counters = PartyCounters(
+                memberCount = 1,
+                kills = 0,
+                waitingMail = false,
+                attacked = false,
+                attackedToday = emptyList(),
+            ),
+            flags = emptyList(),
+            milestones = emptyList(),
+            inventory = (0..InventorySaveSlotMax).map { slot ->
+                InventorySlotState(slot, inventoryItems[slot])
+            },
+            members = listOf(
+                PartyMemberState(
+                    name = "Tester",
+                    gender = Gender.Male,
+                    race = Race.Human,
+                    pcClass = PcClass.Fighter,
+                    level = level,
+                    health = 10,
+                    hitPoints = 10 of 10,
+                    weaponSkill = 10,
+                    wisdom = 10,
+                    mana = 0 manaOf 10,
+                    charisma = 10,
+                    equipment = EquipmentState(Items.none, Items.none),
+                    experience = 0,
+                    dead = false,
+                ),
+            ),
+            visitedNpcs = emptyList(),
+            journal = emptyList(),
+        )
 }
