@@ -46,6 +46,7 @@ sealed interface EngineTraceEvent {
     data class ShopSellQuote(val quote: ShopSellQuoteResult) : EngineTraceEvent
     data class ShopTransaction(val result: ShopTransactionResult) : EngineTraceEvent
     data class EquipmentAction(val result: EquipmentActionResult) : EngineTraceEvent
+    data class TownService(val service: BuildingServiceModel, val scene: SceneModel) : EngineTraceEvent
     object ConsumeTorch : EngineTraceEvent
 }
 
@@ -382,6 +383,44 @@ data class TerminalAdapterResult<S>(
     val status: TerminalRunStatus,
 )
 
+sealed interface TownServiceBridgeStatus {
+    object Finished : TownServiceBridgeStatus
+    object Waiting : TownServiceBridgeStatus
+}
+
+data class TownServiceBridgeResult(
+    val party: PartyState,
+    val status: TownServiceBridgeStatus,
+    val events: List<EngineTraceEvent> = emptyList(),
+)
+
+interface TownServiceBridge {
+    fun run(
+        service: BuildingServiceModel,
+        scene: SceneModel,
+        party: PartyState,
+    ): TownServiceBridgeResult
+}
+
+class TraceTownServiceBridge(
+    private val engine: TraceEnginePort = TraceEnginePort(),
+) : TownServiceBridge {
+    override fun run(
+        service: BuildingServiceModel,
+        scene: SceneModel,
+        party: PartyState,
+    ): TownServiceBridgeResult {
+        val eventStart = engine.events.size
+        engine.trace(EngineTraceEvent.TownService(service, scene))
+        ScriptTraceRunner(engine).run(scene.ops)
+        return TownServiceBridgeResult(
+            party = party,
+            status = TownServiceBridgeStatus.Finished,
+            events = engine.events.drop(eventStart),
+        )
+    }
+}
+
 class TerminalTextRenderer(
     private val references: Map<String, List<String>> = emptyMap(),
 ) {
@@ -636,6 +675,7 @@ class ShopServiceTerminalAdapter(
 class TownSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+    private val serviceBridge: TownServiceBridge = TraceTownServiceBridge(),
 ) {
     fun run(initial: TownSession): TownSession =
         runUntilBlocked(initial).session
@@ -680,8 +720,14 @@ class TownSessionTerminalAdapter(
                     }
                 }
                 is TownSessionStep.NativeService -> {
-                    terminal.write(listOf("Run scene: ${step.service.scene.slug}"))
-                    return waiting(session)
+                    val result = serviceBridge.run(step.service, step.scene, session.party)
+                    writeBridgeEvents(result.events)
+                    when (result.status) {
+                        TownServiceBridgeStatus.Finished ->
+                            session.apply(TownSessionInput.FinishNativeService(result.party))
+                        TownServiceBridgeStatus.Waiting ->
+                            return waiting(session)
+                    }
                 }
                 is TownSessionStep.Finished -> return finished(session)
             }
@@ -702,6 +748,42 @@ class TownSessionTerminalAdapter(
         } else {
             checkNotNull(building).slug.replaceFirstChar { it.uppercaseChar() }
         }
+
+    private fun writeBridgeEvents(events: List<EngineTraceEvent>) {
+        events.forEach { event ->
+            when (event) {
+                is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text))
+                is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
+                is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
+                is EngineTraceEvent.Menu -> terminal.write(
+                    renderer.lines(event.prompt) + "Options: ${event.keys.joinToString("/")}",
+                )
+                is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt))
+                is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt))
+                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
+                is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
+                is EngineTraceEvent.NativeString ->
+                    terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
+                is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
+                is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
+                is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
+                is EngineTraceEvent.TownService -> terminal.write(listOf("Service: ${event.service.building.slug}"))
+                is EngineTraceEvent.WaitInput,
+                is EngineTraceEvent.Pause,
+                is EngineTraceEvent.SetFlag,
+                is EngineTraceEvent.GrantReward,
+                is EngineTraceEvent.AchieveMilestone,
+                is EngineTraceEvent.Speak,
+                is EngineTraceEvent.Encounter,
+                is EngineTraceEvent.RandomItemOffer,
+                is EngineTraceEvent.ShopService,
+                is EngineTraceEvent.ShopSellQuote,
+                is EngineTraceEvent.ShopTransaction,
+                is EngineTraceEvent.EquipmentAction,
+                EngineTraceEvent.ConsumeTorch -> Unit
+            }
+        }
+    }
 }
 
 private sealed interface TerminalInput<out T> {
