@@ -1069,6 +1069,23 @@ class RylweenKotlinEngine(
     private val npcPlacementConfig: NpcPlacementRealizerConfig = NpcPlacementRealizerConfig(),
 ) {
     fun initialRuntime(
+        state: StateModel,
+        rngState: Long? = state.realm.rngState,
+        realizeNpcs: Boolean = true,
+    ): RuntimeSessionState {
+        val runtime = RuntimeSessionState(
+            realm = state.realm.copy(rngState = rngState),
+            parties = state.parties,
+            npcs = state.npcs,
+        )
+        return if (realizeNpcs) {
+            runtime.realizeNpcPlacements(content.characters, content.towns, npcPlacementConfig)
+        } else {
+            runtime
+        }
+    }
+
+    fun initialRuntime(
         party: PartyState,
         hour: Int,
         currentTown: TownId?,
@@ -1102,6 +1119,21 @@ class RylweenKotlinEngine(
             runtime = initialRuntime(party, hour, town, rngState, realizeNpcs),
             itemRecords = itemRecords,
         )
+
+    fun wildernessSession(
+        state: StateModel,
+        worldMap: WorldMapGrid,
+        rngState: Long? = state.realm.rngState,
+        realizeNpcs: Boolean = true,
+    ): WildernessSession {
+        val runtime = initialRuntime(state, rngState, realizeNpcs)
+        return WildernessSession.start(
+            content = content,
+            runtime = runtime,
+            worldMap = worldMap.withNpcHuts(runtime.npcs),
+            itemRecords = itemRecords,
+        )
+    }
 
     fun speakContent(): SpeakRuntimeContent =
         SpeakRuntimeContent(
@@ -1654,6 +1686,89 @@ class TownSessionTerminalAdapter(
                 EngineTraceEvent.ConsumeTorch -> Unit
             }
         }
+    }
+}
+
+class WildernessSessionTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+    private val serviceBridge: TownServiceBridge = StatefulTownServiceBridge(terminal),
+) {
+    fun run(initial: WildernessSession): WildernessSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: WildernessSession): TerminalAdapterResult<WildernessSession> {
+        var session = initial
+        repeat(512) {
+            session = when (val step = session.step) {
+                WildernessSessionStep.Explore -> {
+                    writeExplore(session)
+                    when (val input = terminal.readKey(WildernessCommandKeys)) {
+                        is TerminalInput.Value -> applyCommand(session, input.value)
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is WildernessSessionStep.Notice -> {
+                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
+                    session.continueNotice()
+                }
+                is WildernessSessionStep.Town -> {
+                    val result = TownSessionTerminalAdapter(terminal, renderer, serviceBridge).runUntilBlocked(step.session)
+                    val updated = session.replaceTownSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is WildernessSessionStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun applyCommand(session: WildernessSession, key: Char): WildernessSession =
+        when (key) {
+            'E' -> session.apply(WildernessSessionInput.Enter)
+            'X' -> session.apply(WildernessSessionInput.Quit)
+            else -> session.apply(
+                WildernessSessionInput.Move(
+                    checkNotNull(wildernessDirectionForKey(key)) { "unsupported wilderness command $key" },
+                ),
+            )
+        }
+
+    private fun writeExplore(session: WildernessSession) {
+        val point = (session.party.position as? WorldPosition.Wilderness)?.point
+        val lines = buildList {
+            add("")
+            add("Wilderness")
+            addAll(point?.let { session.worldMap.viewport(it) }.orEmpty())
+            add(statusLine(session, point))
+            point?.let { current ->
+                session.towns.firstOrNull { town -> town.position == current }?.let { town ->
+                    add("At: ${town.name}")
+                }
+            }
+            session.lastResult?.takeIf { it.status == WildernessSessionResultStatus.Blocked }?.let {
+                add("Blocked.")
+            }
+            add("Commands: 8/2/4/6 move, E enter, X exit")
+        }
+        terminal.write(lines)
+    }
+
+    private fun statusLine(session: WildernessSession, point: GridPoint?): String {
+        val terrain = point?.let { session.worldMap.tileAt(it) } ?: ' '
+        val position = point?.let { "${it.x}x${it.y}" } ?: "not in wilderness"
+        return "Position: $position  Moves: ${session.party.resources.timeLeft}  Tile: $terrain"
+    }
+
+    private companion object {
+        val WildernessCommandKeys = listOf('8', '2', '4', '6', 'E', 'X')
     }
 }
 

@@ -1,6 +1,7 @@
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RylweenDslValidationTest {
@@ -1777,6 +1778,51 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun legacyMapDatRowsUseWorldYCoordinates() {
+        val map = WorldMapGrid.legacyWilderness(
+            (1..11).map { y -> if (y == 11) mapRow(12 to '0') else mapRow() },
+        )
+
+        assertFalse(map.isTown(GridPoint(12, 10)))
+        assertTrue(map.isTown(GridPoint(12, 11)))
+        assertEquals('0', map.tileAt(GridPoint(12, 11)))
+    }
+
+    @Test
+    fun wildernessMapProjectsRealizedNpcHuts() {
+        val map = WorldMapGrid.legacyWilderness((1..12).map { mapRow() })
+        val withHut = map.withNpcHuts(listOf(NpcPlacement(Npcs.marcus, Wilderness.xy(12, 11))))
+
+        assertEquals('1', withHut.tileAt(GridPoint(12, 11)))
+        assertFalse(GridPoint(12, 11) in withHut.passableNpcPoints())
+    }
+
+    @Test
+    fun wildernessTerminalMovesIntoCompiledTownSession() {
+        val content = RylweenCompiledScratch.nextDsl
+        val state = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
+        val map = WorldMapGrid.legacyWilderness(
+            (1..11).map { y -> if (y == 11) mapRow(12 to '0') else mapRow() },
+        )
+        val engine = RylweenKotlinEngine(content)
+        val terminal = FakeTerminalPort("2", "2", "E", "L", "X")
+        val result = WildernessSessionTerminalAdapter(
+            terminal = terminal,
+            renderer = compiledTextRenderer(),
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
+        ).runUntilBlocked(
+            engine.wildernessSession(state, map, realizeNpcs = false),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(GridPoint(12, 11), (result.session.party.position as WorldPosition.Wilderness).point)
+        assertEquals(198, result.session.party.resources.timeLeft)
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertEquals(null, result.session.runtime.realm.currentTown)
+        assertTrue(terminal.output.any { "Thord" in it })
+    }
+
+    @Test
     fun speakSessionUsesRealizedRandomNpcTownPlacements() {
         val content = RylweenCompiledScratch.nextDsl
         val runtime = compiledRuntimeWithRealizedNpcs(rngState = 1L)
@@ -2625,11 +2671,19 @@ class RylweenDslValidationTest {
             dead = dead,
         )
 
+    private fun mapRow(vararg overrides: Pair<Int, Char>, width: Int = 20, fill: Char = 's'): String =
+        CharArray(width) { fill }
+            .apply {
+                overrides.forEach { (x, tile) -> this[x] = tile }
+            }
+            .concatToString()
+
     private fun testParty(
         gold: Int = 0,
         level: Int = 1,
         torches: Int = 0,
         food: Int = 0,
+        timeLeft: Int = 0,
         hitPoints: Int = 10,
         health: Int = 10,
         mana: Int = 0,
@@ -2659,7 +2713,7 @@ class RylweenDslValidationTest {
             name = "Test",
             position = Wilderness.xy(0, 0),
             facing = Facing.South,
-            resources = PartyResources(gold = gold, torches = torches, food = food, timeLeft = 0, restedHours = 0),
+            resources = PartyResources(gold = gold, torches = torches, food = food, timeLeft = timeLeft, restedHours = 0),
             counters = PartyCounters(
                 memberCount = memberCount ?: members.count { !it.dead },
                 kills = 0,
