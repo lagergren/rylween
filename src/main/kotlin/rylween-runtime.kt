@@ -31,7 +31,55 @@ sealed interface TownSessionInput {
     data class MenuKey(val key: Char) : TownSessionInput
     data class Shop(val input: ShopServiceInput) : TownSessionInput
     data class Equipment(val input: TownLeaveEquipmentInput) : TownSessionInput
-    data class FinishNativeService(val party: PartyState) : TownSessionInput
+    data class FinishNativeService(val runtime: RuntimeSessionState) : TownSessionInput
+}
+
+data class RuntimeSessionState(
+    val realm: RealmState,
+    val parties: List<PartyState>,
+) {
+    val activeParty: PartyState
+        get() = parties.firstOrNull { party -> party.id == realm.activeParty }
+            ?: error("active party ${realm.activeParty.slug} is missing from runtime state")
+
+    fun withRealm(realm: RealmState): RuntimeSessionState =
+        copy(realm = realm)
+
+    fun withActiveParty(party: PartyState): RuntimeSessionState {
+        val nextParties = if (parties.any { it.id == party.id }) {
+            parties.map { existing -> if (existing.id == party.id) party else existing }
+        } else {
+            parties + party
+        }
+        return copy(
+            realm = realm.copy(activeParty = party.id),
+            parties = nextParties,
+        )
+    }
+
+    companion object {
+        fun singleParty(
+            party: PartyState,
+            hour: Int,
+            currentTown: TownId?,
+        ): RuntimeSessionState =
+            RuntimeSessionState(
+                realm = RealmState(
+                    day = 0,
+                    hour = hour,
+                    minute = 0,
+                    rngSeed = null,
+                    activeParty = party.id,
+                    currentMap = Maps.wilderness,
+                    currentMode = RuntimeMode.Town,
+                    currentTown = currentTown,
+                    banished = false,
+                    lastPlayedDay = 0,
+                    partyMemberMax = 4,
+                ),
+                parties = listOf(party),
+            )
+    }
 }
 
 enum class TownServiceScriptBranch {
@@ -78,17 +126,23 @@ data class TownServiceScriptFrame(
 )
 
 data class TownServiceContinuation(
-    val party: PartyState,
+    val runtime: RuntimeSessionState,
     val locals: Map<String, Int> = emptyMap(),
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<TownServiceScriptFrame>,
 ) {
+    val party: PartyState get() = runtime.activeParty
+    val realm: RealmState get() = runtime.realm
+
     companion object {
-        fun start(party: PartyState): TownServiceContinuation =
+        fun start(runtime: RuntimeSessionState): TownServiceContinuation =
             TownServiceContinuation(
-                party = party,
+                runtime = runtime,
                 stack = listOf(TownServiceScriptFrame(TownServiceScriptBlockRef.Root, nextIndex = 0)),
             )
+
+        fun start(party: PartyState): TownServiceContinuation =
+            start(RuntimeSessionState.singleParty(party, hour = 0, currentTown = null))
     }
 }
 
@@ -364,27 +418,32 @@ sealed interface TownSessionStep {
         val session: TownLeaveEquipmentSession,
     ) : TownSessionStep
     data class Finished(
-        val party: PartyState,
-    ) : TownSessionStep
+        val runtime: RuntimeSessionState,
+    ) : TownSessionStep {
+        val party: PartyState get() = runtime.activeParty
+    }
 }
 
 data class TownSession(
     val town: TownModel,
     val townSystem: TownSystemModel,
-    val party: PartyState,
-    val currentHour: Int,
+    val runtime: RuntimeSessionState,
     val shopServices: Map<BuildingId, ShopServiceModel>,
     val serviceScenes: Map<SceneId, SceneModel>,
     val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
     val step: TownSessionStep = TownSessionStep.Menu(town, availableTownActions(town, townSystem)),
     val lastResult: TownSessionResult? = null,
 ) {
+    val realm: RealmState get() = runtime.realm
+    val party: PartyState get() = runtime.activeParty
+    val currentHour: Int get() = runtime.realm.hour
+
     fun apply(input: TownSessionInput): TownSession =
         when (input) {
             is TownSessionInput.MenuKey -> chooseMenu(input.key)
             is TownSessionInput.Shop -> applyShop(input.input)
             is TownSessionInput.Equipment -> applyEquipment(input.input)
-            is TownSessionInput.FinishNativeService -> finishNative(input.party)
+            is TownSessionInput.FinishNativeService -> finishNative(input.runtime)
         }
 
     fun continueNotice(): TownSession {
@@ -399,16 +458,17 @@ data class TownSession(
         return if (session.step is ShopServiceStep.Finished) {
             finishShop(session, current.service.building)
         } else {
-            copy(party = session.party, step = current.copy(session = session))
+            copy(runtime = runtime.withActiveParty(session.party), step = current.copy(session = session))
         }
     }
 
     fun replaceLeaveEquipmentSession(session: TownLeaveEquipmentSession): TownSession {
         require(step is TownSessionStep.LeaveEquipment) { "town session is not running leave equipment prompts" }
         return if (session.step is TownLeaveEquipmentStep.Finished) {
-            copy(party = session.party, step = TownSessionStep.Finished(session.party))
+            val nextRuntime = runtime.withActiveParty(session.party)
+            copy(runtime = nextRuntime, step = TownSessionStep.Finished(nextRuntime))
         } else {
-            copy(party = session.party, step = TownSessionStep.LeaveEquipment(session))
+            copy(runtime = runtime.withActiveParty(session.party), step = TownSessionStep.LeaveEquipment(session))
         }
     }
 
@@ -416,7 +476,7 @@ data class TownSession(
         val current = step as? TownSessionStep.NativeService
             ?: error("town session is not running a native service")
         return copy(
-            party = continuation.party,
+            runtime = continuation.runtime,
             step = current.copy(continuation = continuation),
         )
     }
@@ -427,7 +487,7 @@ data class TownSession(
         if (action.endsMenu) {
             val equipment = TownLeaveEquipmentSession.start(party, itemRecords)
             return if (equipment.step is TownLeaveEquipmentStep.Finished) {
-                copy(step = TownSessionStep.Finished(party))
+                copy(step = TownSessionStep.Finished(runtime))
             } else {
                 copy(step = TownSessionStep.LeaveEquipment(equipment), lastResult = null)
             }
@@ -484,22 +544,25 @@ data class TownSession(
         return replaceLeaveEquipmentSession(current.session.apply(input))
     }
 
-    private fun finishNative(nextParty: PartyState): TownSession {
+    private fun finishNative(nextRuntime: RuntimeSessionState): TownSession {
         val current = step as? TownSessionStep.NativeService
             ?: error("town session is not running a native service")
+        val nextParty = nextRuntime.activeParty
         return copy(
-            party = nextParty,
+            runtime = nextRuntime,
             step = menuStep(),
             lastResult = TownSessionResult(TownSessionResultStatus.NativeServiceFinished, nextParty, current.service.building),
         )
     }
 
     private fun finishShop(session: ShopServiceSession, building: BuildingId): TownSession =
-        copy(
-            party = session.party,
-            step = menuStep(),
-            lastResult = TownSessionResult(TownSessionResultStatus.ShopFinished, session.party, building),
-        )
+        runtime.withActiveParty(session.party).let { nextRuntime ->
+            copy(
+                runtime = nextRuntime,
+                step = menuStep(),
+                lastResult = TownSessionResult(TownSessionResultStatus.ShopFinished, session.party, building),
+            )
+        }
 
     private fun notice(text: TextBlock, result: TownSessionResult): TownSession =
         copy(step = TownSessionStep.Notice(text, menuStep()), lastResult = result)
@@ -512,17 +575,35 @@ data class TownSession(
             town: TownModel,
             townSystem: TownSystemModel,
             scenes: List<SceneModel>,
-            party: PartyState,
-            currentHour: Int,
+            runtime: RuntimeSessionState,
             itemRecords: List<ItemRecordModel> = ItemCatalog.all,
         ): TownSession =
             TownSession(
                 town = town,
                 townSystem = townSystem,
-                party = party,
-                currentHour = currentHour,
+                runtime = runtime,
                 shopServices = scenes.shopServicesByBuilding(),
                 serviceScenes = scenes.associateBy { scene -> scene.id },
+                itemRecords = itemRecords,
+            )
+
+        fun start(
+            town: TownModel,
+            townSystem: TownSystemModel,
+            scenes: List<SceneModel>,
+            party: PartyState,
+            currentHour: Int,
+            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+        ): TownSession =
+            start(
+                town = town,
+                townSystem = townSystem,
+                scenes = scenes,
+                runtime = RuntimeSessionState.singleParty(
+                    party = party,
+                    hour = currentHour,
+                    currentTown = town.id,
+                ),
                 itemRecords = itemRecords,
             )
     }
