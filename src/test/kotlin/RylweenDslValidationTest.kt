@@ -898,6 +898,35 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townTerminalAdapterRunsNativeServiceBridgeAndReturnsToMenu() {
+        val terminal = FakeTerminalPort("C", "L")
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(
+                    SceneModel(
+                        Scenes.Towne.church,
+                        listOf(
+                            Op.Screen(inlineText("Church body")),
+                            Op.NativeCall(NativeAllowlist.screenClearText.path, emptyList()),
+                        ),
+                    ),
+                ),
+                party = testParty(gold = 10),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(session.session.step is TownSessionStep.Finished)
+        assertTrue(terminal.output.any { "Service: church" in it })
+        assertTrue(terminal.output.any { "Church body" in it })
+        assertTrue(terminal.output.any { "Native: screen.clear_text" in it })
+        assertEquals(TownSessionResultStatus.NativeServiceFinished, session.session.lastResult?.status)
+    }
+
+    @Test
     fun townTerminalAdapterReturnsUnchangedSessionOnInvalidMenuInput() {
         val session = TownSession.start(
             town = testTown(Buildings.merchant),

@@ -299,6 +299,7 @@ sealed interface TownSessionStep {
     ) : TownSessionStep
     data class NativeService(
         val service: BuildingServiceModel,
+        val scene: SceneModel,
     ) : TownSessionStep
     data class LeaveEquipment(
         val session: TownLeaveEquipmentSession,
@@ -314,6 +315,7 @@ data class TownSession(
     val party: PartyState,
     val currentHour: Int,
     val shopServices: Map<BuildingId, ShopServiceModel>,
+    val serviceScenes: Map<SceneId, SceneModel>,
     val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
     val step: TownSessionStep = TownSessionStep.Menu(town, availableTownActions(town, townSystem)),
     val lastResult: TownSessionResult? = null,
@@ -376,6 +378,11 @@ data class TownSession(
                 TownPromptText.missingService(building),
                 TownSessionResult(TownSessionResultStatus.MissingService, party, building),
             )
+        val scene = serviceScenes[service.scene]
+            ?: return notice(
+                TownPromptText.missingService(building),
+                TownSessionResult(TownSessionResultStatus.MissingService, party, building),
+            )
         val shop = shopServices[building]
         if (!service.isOpenAt(currentHour)) {
             return notice(
@@ -391,7 +398,7 @@ data class TownSession(
             )
         } else {
             copy(
-                step = TownSessionStep.NativeService(service),
+                step = TownSessionStep.NativeService(service, scene),
                 lastResult = TownSessionResult(TownSessionResultStatus.EnteredNativeService, party, building),
             )
         }
@@ -447,6 +454,7 @@ data class TownSession(
                 party = party,
                 currentHour = currentHour,
                 shopServices = scenes.shopServicesByBuilding(),
+                serviceScenes = scenes.associateBy { scene -> scene.id },
                 itemRecords = itemRecords,
             )
     }
