@@ -14,6 +14,11 @@ sealed interface RandomItemOfferInput {
     object Continue : RandomItemOfferInput
 }
 
+sealed interface RewardGrantInput {
+    data class DropSlot(val slot: Int) : RewardGrantInput
+    object Continue : RewardGrantInput
+}
+
 sealed interface EquipmentPromptInput {
     data class InventorySlot(val slot: Int) : EquipmentPromptInput
     data class Member(val memberNumber: Int) : EquipmentPromptInput
@@ -147,6 +152,7 @@ data class TownServiceContinuation(
     val stack: List<TownServiceScriptFrame>,
     val speakSession: SpeakSession? = null,
     val randomItemOfferSession: RandomItemOfferSession? = null,
+    val rewardGrantSession: RewardGrantSession? = null,
 ) {
     val party: PartyState get() = runtime.activeParty
     val realm: RealmState get() = runtime.realm
@@ -263,11 +269,25 @@ enum class RandomItemOfferStatus {
     InvalidDropSlot,
 }
 
+enum class RewardGrantStatus {
+    Granted,
+    NeedsDropSlot,
+    InventoryFull,
+    InvalidDropSlot,
+}
+
 data class RandomItemOfferResult(
     val status: RandomItemOfferStatus,
     val party: PartyState,
     val item: ItemId,
     val price: Int,
+    val slot: Int? = null,
+)
+
+data class RewardGrantResult(
+    val status: RewardGrantStatus,
+    val party: PartyState,
+    val item: ItemId? = null,
     val slot: Int? = null,
 )
 
@@ -297,6 +317,23 @@ sealed interface RandomItemOfferStep {
     ) : RandomItemOfferStep
 
     data class Finished(val result: RandomItemOfferResult) : RandomItemOfferStep {
+        val party: PartyState get() = result.party
+    }
+}
+
+sealed interface RewardGrantStep {
+    data class DropSlot(
+        val prompt: TextBlock,
+        val item: ItemId,
+        val result: RewardGrantResult,
+    ) : RewardGrantStep
+
+    data class Message(
+        val text: TextBlock,
+        val result: RewardGrantResult,
+    ) : RewardGrantStep
+
+    data class Finished(val result: RewardGrantResult) : RewardGrantStep {
         val party: PartyState get() = result.party
     }
 }
@@ -423,6 +460,132 @@ data class RandomItemOfferSession(
                     declineKey = offer.declineKey,
                 ),
             )
+        }
+    }
+}
+
+data class RewardGrantSession(
+    val reward: ScriptRewardModel,
+    val party: PartyState,
+    val pendingItems: List<ItemId>,
+    val step: RewardGrantStep,
+    val lastResult: RewardGrantResult? = null,
+) {
+    fun apply(input: RewardGrantInput): RewardGrantSession =
+        when (val current = step) {
+            is RewardGrantStep.DropSlot -> {
+                val drop = (input as? RewardGrantInput.DropSlot)
+                    ?: error("reward grant is waiting for a drop slot")
+                place(party, current.item, drop.slot, pendingItems)
+            }
+            is RewardGrantStep.Message -> {
+                require(input is RewardGrantInput.Continue) { "reward grant is showing message text" }
+                continueWith(party, pendingItems)
+            }
+            is RewardGrantStep.Finished -> error("reward grant is already finished: $current")
+        }
+
+    private fun continueWith(nextParty: PartyState, items: List<ItemId>): RewardGrantSession {
+        val item = items.firstOrNull() ?: return finish(RewardGrantStatus.Granted, nextParty)
+        return place(nextParty, item, dropSlot = null, pendingItems = items)
+    }
+
+    private fun place(
+        nextParty: PartyState,
+        item: ItemId,
+        dropSlot: Int?,
+        pendingItems: List<ItemId>,
+    ): RewardGrantSession {
+        val remainingItems = pendingItems.drop(1)
+        return when (val placed = nextParty.placeInventoryItem(item, reward.application.overflow, dropSlot)) {
+            is InventoryPlacementResult.Placed -> {
+                val result = result(RewardGrantStatus.Granted, placed.party, item, placed.slot)
+                val pickedUp = reward.messages.pickedUp
+                if (dropSlot != null && pickedUp != null) {
+                    copy(
+                        party = placed.party,
+                        pendingItems = remainingItems,
+                        step = RewardGrantStep.Message(pickedUp, result),
+                        lastResult = result,
+                    )
+                } else {
+                    continueWith(placed.party, remainingItems)
+                }
+            }
+            is InventoryPlacementResult.NeedsDropSlot -> {
+                val result = result(RewardGrantStatus.NeedsDropSlot, placed.party, item)
+                copy(
+                    party = placed.party,
+                    pendingItems = pendingItems,
+                    step = RewardGrantStep.DropSlot(
+                        prompt = checkNotNull(reward.messages.cantCarry) {
+                            "drop-prompt reward requires cant-carry text"
+                        },
+                        item = item,
+                        result = result,
+                    ),
+                    lastResult = result,
+                )
+            }
+            is InventoryPlacementResult.Full -> {
+                val result = result(RewardGrantStatus.InventoryFull, placed.party, item)
+                continueWith(placed.party, remainingItems).copy(lastResult = result)
+            }
+            is InventoryPlacementResult.InvalidDropSlot -> {
+                val result = result(RewardGrantStatus.InvalidDropSlot, placed.party, item, placed.slot)
+                copy(
+                    party = placed.party,
+                    pendingItems = pendingItems,
+                    step = RewardGrantStep.DropSlot(
+                        prompt = checkNotNull(reward.messages.cantCarry),
+                        item = item,
+                        result = result,
+                    ),
+                    lastResult = result,
+                )
+            }
+        }
+    }
+
+    private fun finish(status: RewardGrantStatus, nextParty: PartyState): RewardGrantSession {
+        val result = result(status, nextParty)
+        return copy(
+            party = nextParty,
+            pendingItems = emptyList(),
+            step = RewardGrantStep.Finished(result),
+            lastResult = result,
+        )
+    }
+
+    private fun result(
+        status: RewardGrantStatus,
+        nextParty: PartyState,
+        item: ItemId? = null,
+        slot: Int? = null,
+    ): RewardGrantResult =
+        RewardGrantResult(status, nextParty, item, slot)
+
+    companion object {
+        fun start(
+            reward: ScriptRewardModel,
+            party: PartyState,
+            gold: Int = 0,
+            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+        ): RewardGrantSession {
+            val itemRecordById = itemRecords.associateBy { it.id }
+            reward.items.forEach { item ->
+                val record = checkNotNull(itemRecordById[item]) { "unknown reward item ${item.slug}" }
+                check(record.storage == ItemStorageKind.SlottedInventory) {
+                    "script reward item ${item.slug} is ${record.storage}; use achieve(...) for milestone-special items"
+                }
+            }
+            val session = RewardGrantSession(
+                reward = reward,
+                party = party.withGold(party.resources.gold + gold),
+                pendingItems = reward.items,
+                step = RewardGrantStep.Finished(RewardGrantResult(RewardGrantStatus.Granted, party)),
+            )
+            return session.continueWith(session.party, session.pendingItems)
         }
     }
 }
@@ -1582,8 +1745,17 @@ fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
     return copy(visitedNpcs = visits.values.sortedBy { it.npc.slug })
 }
 
+fun PartyState.withFlagState(flag: String, native: String): PartyState =
+    copy(
+        flags = (flags.filterNot { it.flag.slug == flag } + runtimeFlagState(flag, native))
+            .sortedWith(compareBy({ it.flag.slug }, { it.native })),
+    )
+
 fun PartyState.hasFlagState(state: FlagState): Boolean =
     flags.any { it.flag == state.flag && it.native == state.native }
+
+fun PartyState.withMilestone(milestone: GameMilestoneId): PartyState =
+    if (milestone in milestones) this else copy(milestones = (milestones + milestone).sortedBy { it.slug })
 
 fun TextBlock.withRandomItemOffer(itemName: String, itemPrice: Int): TextBlock =
     when (this) {

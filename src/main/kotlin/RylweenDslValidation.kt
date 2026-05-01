@@ -689,6 +689,9 @@ fun validateScriptRewards(
             check(record.storage != ItemStorageKind.EmptySentinel) {
                 "script reward cannot grant the empty-slot sentinel"
             }
+            check(record.storage == ItemStorageKind.SlottedInventory) {
+                "script reward ${item.slug} must be a slotted inventory item; use achieve(...) for milestone-special items"
+            }
         }
         if (reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
             check(reward.messages.cantCarry != null) { "drop-prompt reward requires cant-carry text" }
