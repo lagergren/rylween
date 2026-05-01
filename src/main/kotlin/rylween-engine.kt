@@ -718,7 +718,7 @@ private class StatefulScriptServiceRunner(
         when (signal) {
             ScriptControlSignal.Continue -> Unit
             ScriptControlSignal.BreakNearestLoop -> breakNearestLoop()
-            ScriptControlSignal.StopScript -> stack.clear()
+            ScriptControlSignal.StopScript -> stopCurrentBranch()
         }
     }
 
@@ -727,6 +727,19 @@ private class StatefulScriptServiceRunner(
             val frame = stack.removeLast()
             if (frame.loop) return
         }
+    }
+
+    private fun stopCurrentBranch() {
+        val loopIndex = stack.indexOfLast { frame -> frame.loop }
+        if (loopIndex < 0) {
+            stack.clear()
+            return
+        }
+        while (stack.lastIndex > loopIndex) {
+            stack.removeLast()
+        }
+        val loopFrame = stack[loopIndex]
+        stack[loopIndex] = loopFrame.copy(nextIndex = opsFor(loopFrame.block).size)
     }
 
     private fun currentRuntime(): RuntimeSessionState =

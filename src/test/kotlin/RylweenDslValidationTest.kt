@@ -1028,6 +1028,107 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townTerminalAdapterRunsAuthoredChurchHealingBranch() {
+        val session = TownSessionTerminalAdapter(FakeTerminalPort("C", "H", "1", "P", "L", "L")).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(testChurchScene()),
+                party = testParty(gold = 100, hitPoints = 2, health = 10),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(10, session.session.party.members.single().hitPoints.current)
+        assertEquals(44, session.session.party.resources.gold)
+    }
+
+    @Test
+    fun townTerminalAdapterRunsAuthoredChurchHealingBrokeBranch() {
+        val session = TownSessionTerminalAdapter(FakeTerminalPort("C", "H", "1", "P", "L", "L")).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(testChurchScene()),
+                party = testParty(gold = 10, hitPoints = 2, health = 10),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(2, session.session.party.members.single().hitPoints.current)
+        assertEquals(10, session.session.party.resources.gold)
+    }
+
+    @Test
+    fun townTerminalAdapterRunsAuthoredChurchEnergizeBranch() {
+        val session = TownSessionTerminalAdapter(FakeTerminalPort("C", "E", "1", "P", "L", "L")).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(testChurchScene()),
+                party = testParty(
+                    gold = 100,
+                    level = 2,
+                    pcClass = PcClass.Mage,
+                    mana = 3,
+                    wisdom = 10,
+                ),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(10, session.session.party.members.single().mana.current)
+        assertEquals(72, session.session.party.resources.gold)
+    }
+
+    @Test
+    fun townTerminalAdapterRunsAuthoredChurchRaiseBranch() {
+        val session = TownSessionTerminalAdapter(FakeTerminalPort("C", "R", "1", "P", "L", "L")).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(testChurchScene()),
+                party = testParty(
+                    gold = 1000,
+                    hitPoints = 0,
+                    health = 10,
+                    dead = true,
+                    memberCount = 0,
+                ),
+                currentHour = 12,
+            ),
+        )
+
+        val member = session.session.party.members.single()
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(false, member.dead)
+        assertEquals(1, member.hitPoints.current)
+        assertEquals(1, session.session.party.counters.memberCount)
+        assertEquals(350, session.session.party.resources.gold)
+    }
+
+    @Test
+    fun townTerminalAdapterKeepsAuthoredChurchLoopAfterStopBranch() {
+        val terminal = FakeTerminalPort("C", "H", "1", "L", "L")
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(testChurchScene()),
+                party = testParty(gold = 100, hitPoints = 10, health = 10),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(2, terminal.output.count { it == "Options: H/E/R/L" })
+        assertEquals(100, session.session.party.resources.gold)
+    }
+
+    @Test
     fun townServiceBridgeReturnsWaitingOnInvalidServiceInput() {
         val terminal = FakeTerminalPort("C", "X")
         val serviceScene = SceneModel(
@@ -1263,6 +1364,154 @@ class RylweenDslValidationTest {
             }
         }.build()
 
+    private fun testChurchScene(): SceneModel =
+        GameBuilder().apply {
+            scene(Scenes.Towne.church) {
+                native.screen.clearMapWindow()
+                native.screen.showImage(Images.Scene.church)
+
+                loop {
+                    native.screen.clearText()
+                    native.screen.statusLine()
+                    screen(T.Towne.Church.intro)
+
+                    menu(T.Towne.Church.menu) {
+                        option('H') {
+                            native.screen.clearText()
+                            val member = choice.member(T.Towne.Church.who)
+
+                            when_(member.dead) {
+                                screen("- GET THAT CORPSE", "OUTTA HERE!", "(You are thrown out).", "")
+                                pause(1200)
+                                breakLoop("corpse exits the church service")
+                            }
+
+                            when_(member.hp eq member.maxHp) {
+                                screen {
+                                    line(pronoun(member, PronounCase.Subject), " needs no healing.")
+                                }
+                                pause(1000)
+                                stop("already fully healed")
+                            }
+
+                            val price = localInt((member.maxHp - member.hp) * 7)
+                            native.screen.clearText()
+                            screen {
+                                line("- That'll be ", price)
+                                line("gold coins, please.")
+                                line("")
+                            }
+
+                            choice.payNoThanks(price,
+                                broke = {
+                                    screen("You don't have enough", "gold!")
+                                    pause(1000)
+                                },
+                                paid = {
+                                    native.screen.clearText()
+                                    member.hp set member.maxHp
+                                    screen {
+                                        line("The priestess heals")
+                                        line(pronoun(member, PronounCase.Object), " fully.")
+                                    }
+                                    pause(1000)
+                                },
+                            )
+                        }
+
+                        option('E') {
+                            native.screen.clearText()
+                            val member = choice.member(T.Towne.Church.who)
+
+                            when_(!member.spellcaster) {
+                                native.screen.clearText()
+                                screen("Not a spellcaster!")
+                                pause(1000)
+                                stop("not a spellcaster")
+                            }
+
+                            when_(member.mp eq member.wisdom) {
+                                native.screen.clearText()
+                                screen("That character needs", "no spell points", "to be restored.")
+                                pause(2000)
+                                stop("spell points already restored")
+                            }
+
+                            native.screen.clearText()
+                            val price = localInt(member.level * (member.wisdom - member.mp) * 2)
+                            screen {
+                                line("- That will be ", price)
+                                line("gold coins, please.")
+                                line("")
+                            }
+
+                            choice.payNoThanks(price,
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("You don't have the gold!")
+                                    pause(1000)
+                                },
+                                paid = {
+                                    member.mp set member.wisdom
+                                    native.screen.clearText()
+                                    screen("The priestess", "restores his energy.")
+                                    pause(1000)
+                                },
+                            )
+                        }
+
+                        option('R') {
+                            native.screen.clearText()
+                            val member = choice.member(T.Towne.Church.who)
+
+                            when_(!member.dead) {
+                                native.screen.clearText()
+                                screen {
+                                    line("- ", pronoun(member, PronounCase.Subject), " seems very alive")
+                                    line("at the moment.")
+                                }
+                                pause(1200)
+                                stop("already alive")
+                            }
+
+                            native.screen.clearText()
+                            val price = localInt(member.level * 650)
+                            screen {
+                                line("- That will be ", price)
+                                line("gold coins, please.")
+                                line("")
+                            }
+
+                            choice.payNoThanks(price,
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("You don't have the gold!")
+                                    pause(1000)
+                                },
+                                paid = {
+                                    member.hp set 1
+                                    member.dead set false
+                                    party.memberCount += 1
+                                    native.screen.clearText()
+                                    screen {
+                                        line("The priestess raises")
+                                        line(pronoun(member, PronounCase.Object), ".")
+                                    }
+                                    pause(1000)
+                                },
+                            )
+                        }
+
+                        option('L') {
+                            native.screen.clearText()
+                            native.screen.clearMapWindow()
+                            breakLoop("leave church")
+                        }
+                    }
+                }
+            }
+        }.build().scenes.single()
+
     private fun testParty(
         gold: Int = 0,
         level: Int = 1,
@@ -1270,6 +1519,11 @@ class RylweenDslValidationTest {
         food: Int = 0,
         hitPoints: Int = 10,
         health: Int = 10,
+        mana: Int = 0,
+        wisdom: Int = 10,
+        pcClass: PcClass = PcClass.Fighter,
+        dead: Boolean = false,
+        memberCount: Int = 1,
         equipment: EquipmentState = EquipmentState(Items.none, Items.none),
         inventoryItems: Map<Int, ItemId> = emptyMap(),
     ): PartyState =
@@ -1281,7 +1535,7 @@ class RylweenDslValidationTest {
             facing = Facing.South,
             resources = PartyResources(gold = gold, torches = torches, food = food, timeLeft = 0, restedHours = 0),
             counters = PartyCounters(
-                memberCount = 1,
+                memberCount = memberCount,
                 kills = 0,
                 waitingMail = false,
                 attacked = false,
@@ -1297,17 +1551,17 @@ class RylweenDslValidationTest {
                     name = "Tester",
                     gender = Gender.Male,
                     race = Race.Human,
-                    pcClass = PcClass.Fighter,
+                    pcClass = pcClass,
                     level = level,
                     health = health,
                     hitPoints = hitPoints of health,
                     weaponSkill = 10,
-                    wisdom = 10,
-                    mana = 0 manaOf 10,
+                    wisdom = wisdom,
+                    mana = mana manaOf wisdom,
                     charisma = 10,
                     equipment = equipment,
                     experience = 0,
-                    dead = false,
+                    dead = dead,
                 ),
             ),
             visitedNpcs = emptyList(),
