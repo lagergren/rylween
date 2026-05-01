@@ -1615,13 +1615,13 @@ class RylweenDslValidationTest {
                             native.screen.clearText()
                             val member = choice.member(T.Towne.Church.who)
 
-                            when_(member.dead) {
+                            whenever(member.dead) {
                                 screen("- GET THAT CORPSE", "OUTTA HERE!", "(You are thrown out).", "")
                                 pause(1200)
                                 breakLoop("corpse exits the church service")
                             }
 
-                            when_(member.hp eq member.maxHp) {
+                            whenever(member.hp eq member.maxHp) {
                                 screen {
                                     line(pronoun(member, PronounCase.Subject), " needs no healing.")
                                 }
@@ -1658,14 +1658,14 @@ class RylweenDslValidationTest {
                             native.screen.clearText()
                             val member = choice.member(T.Towne.Church.who)
 
-                            when_(!member.spellcaster) {
+                            whenever(!member.spellcaster) {
                                 native.screen.clearText()
                                 screen("Not a spellcaster!")
                                 pause(1000)
                                 stop("not a spellcaster")
                             }
 
-                            when_(member.mp eq member.wisdom) {
+                            whenever(member.mp eq member.wisdom) {
                                 native.screen.clearText()
                                 screen("That character needs", "no spell points", "to be restored.")
                                 pause(2000)
@@ -1699,7 +1699,7 @@ class RylweenDslValidationTest {
                             native.screen.clearText()
                             val member = choice.member(T.Towne.Church.who)
 
-                            when_(!member.dead) {
+                            whenever(!member.dead) {
                                 native.screen.clearText()
                                 screen {
                                     line("- ", pronoun(member, PronounCase.Subject), " seems very alive")
@@ -1801,7 +1801,7 @@ class RylweenDslValidationTest {
                     }
                     choice.yesNo("(Y)es", "(N)o",
                         yes = {
-                            when_(party.gold lt cost) {
+                            whenever(party.gold lt cost) {
                                 native.screen.clearText()
                                 screen {
                                     line("Sorry, supper is ", cost)
@@ -1929,7 +1929,7 @@ class RylweenDslValidationTest {
                             choice.takeOrLeave(
                                 inlineText("(T)ake it", "(L)eave"),
                                 take = {
-                                    when_(party.gold lt cost) {
+                                    whenever(party.gold lt cost) {
                                         native.screen.clearText()
                                         screen {
                                             lines(
