@@ -1550,6 +1550,61 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledScratchTownRunsAuthoredTavernDrinkOrder() {
+        val terminal = FakeTerminalPort("T", "N", "O", "A", "L", "L")
+        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            compiledTownSession(
+                party = testParty(
+                    gold = 10,
+                    members = listOf(
+                        testMember(name = "Alive", hitPoints = 1, health = 10),
+                        testMember(name = "Dead", hitPoints = 0, health = 10, dead = true),
+                    ),
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(8, result.session.party.resources.gold)
+        assertEquals(listOf(3, 2), result.session.party.members.map { it.hitPoints.current })
+        assertEquals(listOf(false, true), result.session.party.members.map { it.dead })
+        assertTrue(terminal.output.any { "AAH! (your health" in it })
+    }
+
+    @Test
+    fun compiledScratchTownRunsAuthoredTavernTravellerStory() {
+        val terminal = FakeTerminalPort("T", "N", "T", "1", "T", "", "L", "L")
+        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            compiledTownSession(
+                party = testParty(
+                    members = listOf(testMember(name = "Borin", charisma = 10)),
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(7, result.session.party.members.single().charisma)
+        assertTrue(terminal.output.any { "Most of the crowd" in it })
+        assertTrue(terminal.output.any { "beg you to stop." in it })
+    }
+
+    @Test
+    fun compiledScratchTownRunsAuthoredTavernRumourQuietLimit() {
+        val terminal = FakeTerminalPort("T", "N", "R", "", "R", "", "R", "", "R", "", "R", "", "L", "L")
+        val result = TownSessionTerminalAdapter(
+            terminal,
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
+        ).runUntilBlocked(
+            compiledTownSession(party = testParty()),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertTrue(terminal.output.any { "After listening a while" in it })
+        assertTrue(terminal.output.any { "The tavern has suddenly" in it })
+        assertTrue(terminal.output.any { "become very quiet." in it })
+    }
+
+    @Test
     fun compiledScratchGarthRewardBranchAppliesAuthoredRewardAndFlag() {
         val (service, scene) = garthRecoveredDialogueService()
         val result = StatefulTownServiceBridge(FakeTerminalPort()).run(
