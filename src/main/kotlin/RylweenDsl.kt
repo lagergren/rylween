@@ -132,7 +132,6 @@ class ItemId private constructor(val slug: String, val legacyId: Int? = null) {
 class ItemPoolId private constructor(
     val slug: String,
     val items: List<ItemId> = emptyList(),
-    val legacyItemIds: List<Int> = emptyList(),
 ) {
     override fun equals(other: Any?): Boolean =
         other is ItemPoolId && slug == other.slug
@@ -146,12 +145,8 @@ class ItemPoolId private constructor(
         fun authored(slug: String, items: List<ItemId> = emptyList()): ItemPoolId =
             ItemPoolId(slug, items)
 
-        internal fun generated(
-            slug: String,
-            items: List<ItemId>,
-            legacyItemIds: Iterable<Int>,
-        ): ItemPoolId =
-            ItemPoolId(slug, items, legacyItemIds.toList())
+        internal fun generated(slug: String, items: List<ItemId>): ItemPoolId =
+            ItemPoolId(slug, items)
     }
 }
 enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
@@ -205,8 +200,8 @@ fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId.authored(slug)
 internal fun generatedItem(slug: String, legacyId: Int) = ItemId.generated(slug, legacyId)
 fun itemPool(slug: String, items: List<ItemId> = emptyList()) = ItemPoolId.authored(slug, items)
-internal fun generatedItemPool(slug: String, items: List<ItemId>, legacyItemIds: Iterable<Int>) =
-    ItemPoolId.generated(slug, items, legacyItemIds)
+internal fun generatedItemPool(slug: String, items: List<ItemId>) =
+    ItemPoolId.generated(slug, items)
 fun monster(slug: String) = MonsterId(slug)
 fun encounterTier(slug: String) = EncounterTier(slug)
 fun worldMap(slug: String) = WorldMapId(slug)

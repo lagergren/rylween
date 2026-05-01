@@ -925,19 +925,6 @@ private fun validateItemPool(pool: ItemPoolId, itemRecords: List<ItemRecordModel
         }
     }
 
-    pool.legacyItemIds.takeIf { it.isNotEmpty() }?.let { ids ->
-        check(ids.size == pool.items.size) {
-            "item pool ${pool.slug}: legacy ids $ids has ${ids.size} ids, but ${pool.items.size} items"
-        }
-        val actualIds = pool.items.map { item ->
-            checkNotNull(item.legacyId) {
-                "item pool ${pool.slug}: item ${item.slug} has no legacy id"
-            }
-        }
-        check(ids == actualIds) {
-            "item pool ${pool.slug}: legacy ids $ids do not match catalog ids $actualIds"
-        }
-    }
 }
 
 private fun checkPercent(value: Int, label: String) {
