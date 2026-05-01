@@ -1481,6 +1481,28 @@ class RylweenDslValidationTest {
         }
     }
 
+    @Test
+    fun compiledScratchHarnessExposesNextRylweenToRuntimeTests() {
+        val game = RylweenCompiledScratch.nextRylween
+        val content = RylweenCompiledScratch.nextDsl
+        val town = content.towns.single { it.id == Towns.thord.id }
+        val townSystem = content.townSystem ?: error("compiled scratch town system missing")
+        val party = game.states.single { it.id == States.freshReplay }.parties.single()
+
+        val result = TownSessionTerminalAdapter(FakeTerminalPort("C", "L", "L")).runUntilBlocked(
+            TownSession.start(
+                town = town,
+                townSystem = townSystem,
+                scenes = content.scenes,
+                party = party,
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(town.id, result.session.realm.currentTown)
+    }
+
     private fun testTown(vararg services: BuildingId): TownModel =
         TownModel(
             id = Towns.murn.id,
