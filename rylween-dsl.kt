@@ -237,6 +237,11 @@ val Flags = Story
 
 data class TextId(val id: String)
 data class TextPattern(val pattern: String)
+sealed interface TextBlock {
+    data class Ref(val id: TextId) : TextBlock
+    data class Inline(val lines: List<String>) : TextBlock
+}
+fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(lines.toList())
 class ItemId private constructor(val slug: String, val legacyId: Int? = null) {
     override fun equals(other: Any?): Boolean =
         other is ItemId && slug == other.slug
@@ -268,7 +273,10 @@ data class ItemRecordModel(
     val storage: ItemStorageKind,
     val weaponDamage: Int? = null,
     val armorClass: Int? = null,
+    val potionEffect: PotionEffectModel? = null,
 )
+enum class PotionEffectKind { HealHitPoints, PoisonHitPoints, RestoreMana }
+data class PotionEffectModel(val kind: PotionEffectKind, val amount: Int? = null)
 data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
 data class WorldMapId(val slug: String)
@@ -426,8 +434,9 @@ private fun generatedItemRecord(
     storage: ItemStorageKind = ItemStorageKind.SlottedInventory,
     weaponDamage: Int? = null,
     armorClass: Int? = null,
+    potionEffect: PotionEffectModel? = null,
 ): ItemRecordModel =
-    ItemRecordModel(id, kind, displayName, cost, storage, weaponDamage, armorClass)
+    ItemRecordModel(id, kind, displayName, cost, storage, weaponDamage, armorClass, potionEffect)
 
 class GeneratedItemCatalog {
     val all = listOf(
@@ -480,9 +489,27 @@ class GeneratedItemCatalog {
         generatedItemRecord(Items.rope, ItemKind.Gear, "Rope", cost = 15),
 
         // Potions.
-        generatedItemRecord(Items.redPotion, ItemKind.Potion, "Red Potion", cost = 30),
-        generatedItemRecord(Items.bluePotion, ItemKind.Potion, "Blue Potion", cost = 100),
-        generatedItemRecord(Items.amberPotion, ItemKind.Potion, "Amber Potion", cost = 500),
+        generatedItemRecord(
+            Items.redPotion,
+            ItemKind.Potion,
+            "Red Potion",
+            cost = 30,
+            potionEffect = PotionEffectModel(PotionEffectKind.HealHitPoints, amount = 15),
+        ),
+        generatedItemRecord(
+            Items.bluePotion,
+            ItemKind.Potion,
+            "Blue Potion",
+            cost = 100,
+            potionEffect = PotionEffectModel(PotionEffectKind.PoisonHitPoints, amount = 15),
+        ),
+        generatedItemRecord(
+            Items.amberPotion,
+            ItemKind.Potion,
+            "Amber Potion",
+            cost = 500,
+            potionEffect = PotionEffectModel(PotionEffectKind.RestoreMana),
+        ),
 
         // Treasures.
         generatedItemRecord(Items.redGem, ItemKind.Treasure, "Red Gem", cost = 1000),
@@ -1298,7 +1325,7 @@ sealed interface LValueAst {
 }
 
 sealed interface Op {
-    data class Screen(val text: TextId) : Op
+    data class Screen(val text: TextBlock) : Op
     data class Emit(val text: TextId) : Op
     data class EmitIndexed(val pattern: TextPattern, val value: IntAst) : Op
     data class WaitInput(val reason: String? = null) : Op
@@ -1319,7 +1346,8 @@ sealed interface Op {
     data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
-    data class TakeItem(val item: ItemId) : Op
+    object ConsumeActiveItem : Op
+    data class GrantReward(val reward: ScriptRewardModel) : Op
     data class AchieveMilestone(val milestone: GameMilestoneId) : Op
     data class NativeCall(val path: String, val args: List<String>) : Op
 }
@@ -1328,7 +1356,12 @@ data class SwitchCase(val match: Int?, val body: List<Op>)
 
 data class SceneModel(val id: SceneId, val ops: List<Op>)
 data class SpellModel(val id: SpellId, val slot: Int, val baseCost: Int, val name: String, val ops: List<Op>)
-data class MagicItemModel(val id: ItemId, val ops: List<Op>)
+data class MagicItemModel(
+    val id: ItemId,
+    val contexts: Set<ItemUseContext>,
+    val consume: ItemConsumePolicy,
+    val ops: List<Op>,
+)
 
 data class FlagContentModel(
     val ref: FlagRef,
@@ -1460,6 +1493,18 @@ data class RewardApplicationModel(
     val specialItems: RewardSpecialItemPolicy,
 )
 
+data class RewardMessageModel(
+    val cantCarry: TextBlock? = null,
+    val pickedUp: TextBlock? = null,
+)
+
+data class ScriptRewardModel(
+    val gold: IntAst?,
+    val items: List<ItemId>,
+    val application: RewardApplicationModel,
+    val messages: RewardMessageModel,
+)
+
 data class RewardBundleModel(
     val id: RewardBundleId,
     val experience: FormulaId,
@@ -1467,6 +1512,9 @@ data class RewardBundleModel(
     val application: RewardApplicationModel,
     val loot: LootTableModel,
 )
+
+enum class ItemUseContext { Combat, Inventory }
+enum class ItemConsumePolicy { BeforeUse, ScriptControlled, NeverConsumes }
 
 data class StandardBattleModel(
     val opening: EncounterOpeningModel,
@@ -1872,7 +1920,8 @@ class ScriptScope(
         ops += op
     }
 
-    fun screen(id: TextId) = record(Op.Screen(id))
+    fun screen(id: TextId) = record(Op.Screen(TextBlock.Ref(id)))
+    fun screen(vararg lines: String) = record(Op.Screen(TextBlock.Inline(lines.toList())))
     fun emit(id: TextId) = record(Op.Emit(id))
     fun emitIndexed(pattern: TextPattern, value: IntExpr) = record(Op.EmitIndexed(pattern, value.ast))
     fun waitInput(reason: String? = null) = record(Op.WaitInput(reason))
@@ -1927,7 +1976,11 @@ class ScriptScope(
         record(Op.Encounter(monster, mandatory, tier))
     }
 
-    fun take(item: ItemId) = record(Op.TakeItem(item))
+    fun consumeActiveItem() = record(Op.ConsumeActiveItem)
+
+    fun reward(body: ScriptRewardBuilder.() -> Unit) {
+        record(Op.GrantReward(ScriptRewardBuilder().apply(body).build()))
+    }
 
     fun achieve(milestone: GameMilestoneId) {
         record(Op.AchieveMilestone(milestone))
@@ -1947,6 +2000,42 @@ class ScriptScope(
             ScriptScope(ctx, this).body()
         }
     }
+}
+
+@RylNextDsl
+class ScriptRewardBuilder {
+    private var goldAst: IntAst? = null
+    private val itemIds = mutableListOf<ItemId>()
+    private var applicationModel = RewardApplicationBuilder().build()
+    private var messagesModel = RewardMessageModel()
+
+    fun gold(amount: Int) {
+        goldAst = IntAst.Lit(amount)
+    }
+
+    fun gold(amount: IntExpr) {
+        goldAst = amount.ast
+    }
+
+    fun items(vararg items: ItemId) {
+        itemIds += items
+    }
+
+    fun placement(body: RewardApplicationBuilder.() -> Unit) {
+        applicationModel = RewardApplicationBuilder(applicationModel).apply(body).build()
+    }
+
+    fun promptDrop(cantCarry: TextBlock, pickedUp: TextBlock? = null) {
+        applicationModel = applicationModel.copy(overflow = RewardOverflowPolicy.PromptDropThenPlace)
+        messagesModel = RewardMessageModel(cantCarry, pickedUp)
+    }
+
+    fun promptDrop(cantCarry: TextId, pickedUp: TextId? = null) {
+        promptDrop(TextBlock.Ref(cantCarry), pickedUp?.let(TextBlock::Ref))
+    }
+
+    fun build(): ScriptRewardModel =
+        ScriptRewardModel(goldAst, itemIds.toList(), applicationModel, messagesModel)
 }
 
 class ElseBranch(private val finish: (List<Op>) -> Unit) {
@@ -2031,6 +2120,11 @@ class NativeInput(private val script: ScriptScope) {
     fun keyUpper(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.inputKeyUpper.path, emptyList()))
 }
 
+private fun recordScript(body: ScriptScope.() -> Unit): List<Op> =
+    buildList {
+        ScriptScope(ScriptContext(), this).body()
+    }
+
 @RylNextDsl
 class GameBuilder {
     private val authoredFlags = mutableListOf<FlagContentModel>()
@@ -2075,8 +2169,8 @@ class GameBuilder {
         spells += SpellModel(id, slot, baseCost, name, recordScript(body))
     }
 
-    fun magicItem(id: ItemId, body: ScriptScope.() -> Unit) {
-        magicItems += MagicItemModel(id, recordScript(body))
+    fun magicItem(id: ItemId, body: MagicItemUseBuilder.() -> Unit) {
+        magicItems += MagicItemUseBuilder(id).apply(body).build()
     }
 
     fun build(): GameModel =
@@ -2093,11 +2187,6 @@ class GameBuilder {
             missions = missions.toList(),
         )
 
-    private fun recordScript(body: ScriptScope.() -> Unit): List<Op> {
-        return buildList {
-            ScriptScope(ScriptContext(), this).body()
-        }
-    }
 }
 
 @RylNextDsl
@@ -2258,6 +2347,25 @@ class WinConditionBuilder {
 
         return WinConditionModel((explicitRequired + markedRequired).distinct(), completionMilestone)
     }
+}
+
+@RylNextDsl
+class MagicItemUseBuilder(private val id: ItemId) {
+    private val contexts = mutableSetOf(ItemUseContext.Combat)
+    var consume: ItemConsumePolicy = ItemConsumePolicy.BeforeUse
+    private var ops = emptyList<Op>()
+
+    fun usableIn(vararg contexts: ItemUseContext) {
+        this.contexts.clear()
+        this.contexts += contexts
+    }
+
+    fun effect(body: ScriptScope.() -> Unit) {
+        ops = recordScript(body)
+    }
+
+    fun build(): MagicItemModel =
+        MagicItemModel(id, contexts.toSet(), consume, ops)
 }
 
 @RylNextDsl
@@ -2965,7 +3073,8 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.ForEachMonster -> ops(op.body)
                 is Op.RunScene -> Unit
                 is Op.Encounter -> Unit
-                is Op.TakeItem -> Unit
+                Op.ConsumeActiveItem -> Unit
+                is Op.GrantReward -> op.reward.gold?.let(::int)
                 is Op.AchieveMilestone -> Unit
                 is Op.NativeCall -> paths += op.path
             }
@@ -3036,11 +3145,22 @@ fun validateGeneratedItemCatalog(records: List<ItemRecordModel> = ItemCatalog.al
                 }
             }
             ItemKind.Gear,
-            ItemKind.Potion,
             ItemKind.Treasure,
             ItemKind.MagicItem -> {
                 check(record.storage == ItemStorageKind.SlottedInventory) {
                     "item ${record.id.slug} must use slotted-inventory storage"
+                }
+                check(record.potionEffect == null) {
+                    "item ${record.id.slug} cannot carry a potion effect"
+                }
+            }
+            ItemKind.Potion -> {
+                check(record.storage == ItemStorageKind.SlottedInventory) {
+                    "potion ${record.id.slug} must use slotted-inventory storage"
+                }
+                check(record.potionEffect != null) { "potion ${record.id.slug} requires an effect" }
+                record.potionEffect.amount?.let { amount ->
+                    check(amount > 0) { "potion ${record.id.slug} effect amount must be positive" }
                 }
             }
         }
@@ -3159,6 +3279,107 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
     }
 }
 
+fun validateMagicItemUses(
+    magicItems: List<MagicItemModel>,
+    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+) {
+    check(magicItems.map { it.id }.toSet().size == magicItems.size) { "duplicate magic item use" }
+
+    val itemRecordById = itemRecords.associateBy { it.id }
+    magicItems.forEach { magicItem ->
+        val record = itemRecordById[magicItem.id]
+        check(record?.kind == ItemKind.MagicItem) {
+            "magic item use ${magicItem.id.slug} must reference a generated magic item"
+        }
+        check(magicItem.contexts.isNotEmpty()) { "magic item use ${magicItem.id.slug} has no contexts" }
+        check(magicItem.ops.isNotEmpty()) { "magic item use ${magicItem.id.slug} has no effect body" }
+
+        val consumesInBody = magicItem.ops.containsConsumeActiveItem()
+        when (magicItem.consume) {
+            ItemConsumePolicy.BeforeUse -> check(!consumesInBody) {
+                "magic item use ${magicItem.id.slug} consumes before use and should not consume in script"
+            }
+            ItemConsumePolicy.ScriptControlled -> check(consumesInBody) {
+                "magic item use ${magicItem.id.slug} is script-controlled but never consumes active item"
+            }
+            ItemConsumePolicy.NeverConsumes -> check(!consumesInBody) {
+                "magic item use ${magicItem.id.slug} is non-consuming but consumes active item in script"
+            }
+        }
+    }
+}
+
+private fun List<Op>.containsConsumeActiveItem(): Boolean =
+    any { op ->
+        when (op) {
+            Op.ConsumeActiveItem -> true
+            is Op.If -> op.thenOps.containsConsumeActiveItem() || op.elseOps.containsConsumeActiveItem()
+            is Op.Loop -> op.body.containsConsumeActiveItem()
+            is Op.Switch -> op.cases.any { it.body.containsConsumeActiveItem() }
+            is Op.ForEachMonster -> op.body.containsConsumeActiveItem()
+            else -> false
+        }
+    }
+
+fun validateScriptRewards(
+    content: GameModel,
+    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+) {
+    val itemRecordById = itemRecords.associateBy { it.id }
+
+    fun validateText(block: TextBlock, label: String) {
+        when (block) {
+            is TextBlock.Ref -> check(block.id.id.isNotBlank()) { "$label text id is blank" }
+            is TextBlock.Inline -> {
+                check(block.lines.isNotEmpty()) { "$label inline text has no lines" }
+                check(block.lines.any { it.isNotBlank() }) { "$label inline text is blank" }
+            }
+        }
+    }
+
+    fun validateReward(reward: ScriptRewardModel) {
+        check(reward.gold != null || reward.items.isNotEmpty()) { "script reward has no gold or items" }
+        reward.items.forEach { item ->
+            val record = itemRecordById[item]
+            check(record != null) { "script reward references unknown item ${item.slug}" }
+            check(record.storage != ItemStorageKind.EmptySentinel) {
+                "script reward cannot grant the empty-slot sentinel"
+            }
+        }
+        if (reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
+            check(reward.messages.cantCarry != null) { "drop-prompt reward requires cant-carry text" }
+        }
+        reward.messages.cantCarry?.let { validateText(it, "reward cant-carry") }
+        reward.messages.pickedUp?.let { validateText(it, "reward picked-up") }
+        if (reward.messages.pickedUp != null) {
+            check(reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
+                "picked-up reward text only applies to drop-prompt rewards"
+            }
+        }
+    }
+
+    fun visit(ops: List<Op>) {
+        ops.forEach { op ->
+            when (op) {
+                is Op.Screen -> validateText(op.text, "screen")
+                is Op.GrantReward -> validateReward(op.reward)
+                is Op.If -> {
+                    visit(op.thenOps)
+                    visit(op.elseOps)
+                }
+                is Op.Loop -> visit(op.body)
+                is Op.Switch -> op.cases.forEach { visit(it.body) }
+                is Op.ForEachMonster -> visit(op.body)
+                else -> Unit
+            }
+        }
+    }
+
+    content.scenes.forEach { visit(it.ops) }
+    content.spells.forEach { visit(it.ops) }
+    content.magicItems.forEach { visit(it.ops) }
+}
+
 private fun validateItemPool(pool: ItemPoolId, itemRecords: List<ItemRecordModel>) {
     check(pool.items.isNotEmpty()) { "item pool ${pool.slug} has no items" }
     check(pool.items.toSet().size == pool.items.size) { "item pool ${pool.slug} has duplicate items" }
@@ -3230,6 +3451,8 @@ fun validateAuthoredContent(content: GameModel) {
 
     validateRewardBundles(content.rewards)
     validateCombatSystem(content.combat, content.rewards)
+    validateMagicItemUses(content.magicItems)
+    validateScriptRewards(content)
 }
 
 fun specialInventoryItems(content: GameModel, party: PartyState): List<ItemId> =

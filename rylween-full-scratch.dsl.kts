@@ -238,29 +238,33 @@ val nextRylween = rylween {
         }
     }
 
-    // 3. Fire wand: body owns item consumption and preserves per-slot RNG.
+    // 3. Fire wand: item-use metadata owns consumption; the effect preserves per-slot RNG.
     magicItem(Items.fireWand) {
-        val caster = currentCaster
-        take(Items.fireWand)
-        native.screen.clearText()
-        bind("caster", partyName(caster))
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
 
-        forEachMonster(includeDead = true) { foe ->
-            val damage = let("dmg", caster.level * random(3..8))
+        effect {
+            val caster = currentCaster
+            native.screen.clearText()
+            bind("caster", partyName(caster))
 
-            when_(!foe.dead) {
-                bind("monster_name", monsterName(foe))
-                emit(T.Battle.FireWand.burns)
-                emit(T.Battle.FireWand.points)
-                pause(1000)
+            forEachMonster(includeDead = true) { foe ->
+                val damage = let("dmg", caster.level * random(3..8))
 
-                foe.hp -= damage
+                when_(!foe.dead) {
+                    bind("monster_name", monsterName(foe))
+                    emit(T.Battle.FireWand.burns)
+                    emit(T.Battle.FireWand.points)
+                    pause(1000)
 
-                when_(foe.hp lte 0) {
-                    foe.hp set 0
-                    emit(T.Battle.killed)
-                    pause(600)
-                    foe.dead set true
+                    foe.hp -= damage
+
+                    when_(foe.hp lte 0) {
+                        foe.hp set 0
+                        emit(T.Battle.killed)
+                        pause(600)
+                        foe.dead set true
+                    }
                 }
             }
         }
@@ -341,6 +345,35 @@ val nextRylween = rylween {
         screen(T.MissionsText.Bandits.recovered)
         mark(Story.garth.bandits.recovered)
     }
+
+    // 7. Script reward: semantic items, typed placement policy, no numeric ids.
+    scene(Scenes.Missions.borinGift) {
+        native.screen.clearText()
+        screen(
+            "Borin greets you. He",
+            "can hardly believe his",
+            "eyes when you show him",
+            "the dagger. He motions",
+            "to you to follow him,",
+            "and guides you to his",
+            "hut.",
+            "",
+        )
+        screen(
+            "Smiling, he offers you",
+            "3578 gold coins and 3",
+            "gems. You greedily accept",
+            "the gift. He also hands",
+            "you a purple dwarf stone.",
+            "",
+        )
+        reward {
+            gold(3578)
+            items(Items.redGem, Items.blueGem, Items.greenGem)
+        }
+        mark(Story.masterCrown.borinPaid)
+    }
+
     }
 
     // Authored start state fixture. It can stay compact and readable.
@@ -689,6 +722,7 @@ val nextDsl = nextRylween.content
 check(nextDsl.flags.size == 13)
 check(nextDsl.authoredFlags.size == 13)
 check(ItemCatalog.all.size == 63)
+check(ItemCatalog.all.single { it.id == Items.redPotion }.potionEffect?.amount == 15)
 check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
 check(nextDsl.rewards.size == 1)
@@ -698,9 +732,11 @@ check(nextDsl.combat.standardBattle?.playerRound?.attack?.confusionDivisor == 3)
 check(nextDsl.combat.standardBattle?.monsterRound?.melee?.damageDivisor == 6)
 check(nextDsl.combat.standardBattle?.rewards == Rewards.standardBattle)
 check(nextDsl.monsters.size == 2)
-check(nextDsl.scenes.size == 4)
+check(nextDsl.scenes.size == 5)
+check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
 check(nextDsl.spells.size == 1)
 check(nextDsl.magicItems.size == 1)
+check(nextDsl.magicItems.single().consume == ItemConsumePolicy.BeforeUse)
 check(nextDsl.missions.size == 1)
 check(nextRylween.states.size == 3)
 
