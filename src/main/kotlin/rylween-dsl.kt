@@ -2461,8 +2461,22 @@ fun render(arg: Any): String = when (arg) {
 
 class ScriptContext {
     private var nextVar = 0
+    private val opTargets = mutableListOf<MutableList<Op>>()
 
     fun fresh(prefix: String): String = "${prefix}_${nextVar++}"
+
+    fun record(fallback: MutableList<Op>, op: Op) {
+        (opTargets.lastOrNull() ?: fallback) += op
+    }
+
+    fun <T> recording(target: MutableList<Op>, body: () -> T): T {
+        opTargets += target
+        return try {
+            body()
+        } finally {
+            opTargets.removeAt(opTargets.lastIndex)
+        }
+    }
 }
 
 @DslMarker
@@ -2483,7 +2497,7 @@ class ScriptScope(
         get() = party.member(v("caster_idx"))
 
     fun record(op: Op) {
-        ops += op
+        ctx.record(ops, op)
     }
 
     fun fresh(prefix: String): String = ctx.fresh(prefix)
@@ -2642,9 +2656,7 @@ class ScriptScope(
     }
 
     private fun capture(body: ScriptScope.() -> Unit): List<Op> {
-        return buildList {
-            ScriptScope(ctx, this).body()
-        }
+        return recordScript(ctx, body)
     }
 }
 
@@ -3214,9 +3226,7 @@ class ElseBranch(
     private val finish: (List<Op>) -> Unit,
 ) {
     infix fun otherwise(body: ScriptScope.() -> Unit) {
-        finish(buildList {
-            ScriptScope(ctx, this).body()
-        })
+        finish(recordScript(ctx, body))
     }
 }
 
@@ -3225,15 +3235,11 @@ class SwitchBuilder(private val ctx: ScriptContext) {
     val cases = mutableListOf<SwitchCase>()
 
     fun case(value: Int, body: ScriptScope.() -> Unit) {
-        cases += SwitchCase(value, buildList {
-            ScriptScope(ctx, this).body()
-        })
+        cases += SwitchCase(value, recordScript(ctx, body))
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        cases += SwitchCase(null, buildList {
-            ScriptScope(ctx, this).body()
-        })
+        cases += SwitchCase(null, recordScript(ctx, body))
     }
 }
 
@@ -3407,7 +3413,9 @@ private fun recordScript(body: ScriptScope.() -> Unit): List<Op> =
 
 private fun recordScript(ctx: ScriptContext, body: ScriptScope.() -> Unit): List<Op> =
     buildList {
-        ScriptScope(ctx, this).body()
+        ctx.recording(this) {
+            ScriptScope(ctx, this).body()
+        }
     }
 
 @RylNextDsl
