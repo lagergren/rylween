@@ -53,7 +53,7 @@ val validateScratch by tasks.registering(JavaExec::class) {
         "-classpath",
         scratchClasspath.asPath,
         "-script",
-        layout.projectDirectory.file("rylween-full-scratch.dsl.kts").asFile.absolutePath,
+        layout.projectDirectory.file("src/scratch/kotlin/rylween-full-scratch.dsl.kts").asFile.absolutePath,
     )
 }
 

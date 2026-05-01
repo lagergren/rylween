@@ -235,6 +235,17 @@ class StoryFlags {
 val Story = StoryFlags()
 val Flags = Story
 
+private class RuntimeFlagRef(slug: String) : FlagRef(slug) {
+    fun value(native: String): FlagState = state(native)
+}
+
+fun runtimeFlagState(flag: String, native: String): FlagState =
+    declaredFlags
+        .firstOrNull { it.slug == flag }
+        ?.states
+        ?.firstOrNull { it.native == native }
+        ?: RuntimeFlagRef(flag).value(native)
+
 data class TextId(val id: String)
 data class TextPattern(val pattern: String)
 sealed interface TextPart {
@@ -1874,6 +1885,9 @@ sealed interface WorldPosition {
     data class Wilderness(val point: GridPoint) : WorldPosition
     data class Town(val town: TownId, val building: BuildingId) : WorldPosition
 }
+
+fun townPosition(town: TownId, building: BuildingId): WorldPosition =
+    WorldPosition.Town(town, building)
 
 object Wilderness {
     fun xy(x: Int, y: Int): WorldPosition = WorldPosition.Wilderness(GridPoint(x, y))
