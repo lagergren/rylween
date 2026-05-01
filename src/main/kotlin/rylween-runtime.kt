@@ -6,9 +6,18 @@ enum class EquipmentKind { Weapon, Armor }
 enum class EquipmentCommand { ReadyWeapon, ReadyArmor, RemoveWeapon, RemoveArmor }
 enum class ShopMainChoice { Buy, Sell, Leave }
 
+enum class SpeakMainChoice { Chitchat, Question, Rumour, Bye }
+
 sealed interface EquipmentPromptInput {
     data class InventorySlot(val slot: Int) : EquipmentPromptInput
     data class Member(val memberNumber: Int) : EquipmentPromptInput
+}
+
+sealed interface SpeakInput {
+    data class Npc(val npc: NpcId) : SpeakInput
+    data class Main(val choice: SpeakMainChoice) : SpeakInput
+    data class Question(val topic: QuestionTopic) : SpeakInput
+    object Continue : SpeakInput
 }
 
 sealed interface TownLeaveEquipmentInput {
@@ -130,6 +139,7 @@ data class TownServiceContinuation(
     val locals: Map<String, Int> = emptyMap(),
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<TownServiceScriptFrame>,
+    val speakSession: SpeakSession? = null,
 ) {
     val party: PartyState get() = runtime.activeParty
     val realm: RealmState get() = runtime.realm
@@ -235,6 +245,151 @@ data class CampGearEffect(
     val protectsLowTemperature: Boolean,
     val protectsVeryLowTemperature: Boolean,
 )
+
+data class SpeakRuntimeContent(
+    val speak: SpeakSystemModel = SpeakSystemModel(null),
+    val characters: List<CharacterModel> = emptyList(),
+)
+
+sealed interface SpeakStep {
+    data class ChooseNpc(val npcs: List<CharacterModel>) : SpeakStep
+    data class MainMenu(val npc: CharacterModel, val actions: List<ConversationMenuActionModel>) : SpeakStep
+    data class QuestionMenu(val npc: CharacterModel, val actions: List<QuestionMenuActionModel>) : SpeakStep
+    data class Message(val blocks: List<TextBlock>, val next: SpeakStep) : SpeakStep
+    data class Finished(val runtime: RuntimeSessionState) : SpeakStep {
+        val party: PartyState get() = runtime.activeParty
+    }
+}
+
+data class SpeakSession(
+    val content: SpeakRuntimeContent,
+    val runtime: RuntimeSessionState,
+    val building: BuildingId,
+    val step: SpeakStep,
+    val selectedNpc: CharacterModel? = null,
+    val rumourTold: Boolean = false,
+) {
+    private val conversation: StandardConversationModel
+        get() = requireNotNull(content.speak.standardConversation) {
+            "standard conversation system is not configured"
+        }
+
+    fun apply(input: SpeakInput): SpeakSession =
+        when (val current = step) {
+            is SpeakStep.ChooseNpc -> {
+                val npc = (input as? SpeakInput.Npc)
+                    ?: error("speak session is choosing an NPC")
+                val character = current.npcs.firstOrNull { it.id == npc.npc }
+                    ?: error("NPC ${npc.npc.slug} is not available for ${building.slug}")
+                val nextRuntime = runtime.withActiveParty(runtime.activeParty.withNpcVisit(character.id, visited = true))
+                copy(runtime = nextRuntime, selectedNpc = character, step = mainMenu(character))
+            }
+            is SpeakStep.MainMenu -> {
+                val choice = (input as? SpeakInput.Main)
+                    ?: error("speak session is at the main conversation menu")
+                when (choice.choice) {
+                    SpeakMainChoice.Chitchat -> chitchat(current.npc)
+                    SpeakMainChoice.Question -> copy(step = questionMenu(current.npc))
+                    SpeakMainChoice.Rumour -> rumour(current.npc)
+                    SpeakMainChoice.Bye -> copy(step = SpeakStep.Finished(runtime))
+                }
+            }
+            is SpeakStep.QuestionMenu -> {
+                val question = (input as? SpeakInput.Question)
+                    ?: error("speak session is at the question menu")
+                if (question.topic == QuestionTopic.Nothing) {
+                    copy(step = mainMenu(current.npc))
+                } else {
+                    copy(step = message(questionReply(question.topic, current.npc), mainMenu(current.npc)))
+                }
+            }
+            is SpeakStep.Message -> {
+                require(input is SpeakInput.Continue) { "speak session is showing message text" }
+                copy(step = current.next)
+            }
+            is SpeakStep.Finished -> error("speak session is already finished: $current")
+        }
+
+    private fun chitchat(npc: CharacterModel): SpeakSession {
+        val subject = conversation.chitchat.subjects.firstOrNull() ?: ChitchatSubject.Well
+        return copy(
+            step = message(
+                listOf(chitchatPrompt(subject), chitchatReply(subject, npc)),
+                mainMenu(npc),
+            ),
+        )
+    }
+
+    private fun rumour(npc: CharacterModel): SpeakSession {
+        val text = if (rumourTold) noRumourText() else content.firstStandardRumour(runtime.activeParty) ?: noRumourText()
+        return copy(
+            rumourTold = true,
+            step = message(text, mainMenu(npc)),
+        )
+    }
+
+    private fun mainMenu(npc: CharacterModel): SpeakStep.MainMenu =
+        SpeakStep.MainMenu(npc, conversation.menu.actions)
+
+    private fun questionMenu(npc: CharacterModel): SpeakStep.QuestionMenu =
+        SpeakStep.QuestionMenu(npc, conversation.menu.questions)
+
+    private fun message(text: TextBlock, next: SpeakStep): SpeakStep.Message =
+        message(listOf(text), next)
+
+    private fun message(blocks: List<TextBlock>, next: SpeakStep): SpeakStep.Message =
+        SpeakStep.Message(blocks, next)
+
+    private fun chitchatPrompt(subject: ChitchatSubject): TextBlock {
+        val leaderGender = runtime.activeParty.members.firstOrNull()?.gender
+        val variants = content.speak.textTables.chitchatPrompts.firstOrNull { it.subject == subject }?.variants.orEmpty()
+        return variants.firstOrNull { it.audience.matches(leaderGender) }?.text
+            ?: variants.firstOrNull()?.text
+            ?: inlineText("- Hello.")
+    }
+
+    private fun chitchatReply(subject: ChitchatSubject, npc: CharacterModel): TextBlock =
+        content.speak.textTables.chitchatReplies
+            .firstOrNull { it.subject == subject }
+            ?.replies
+            ?.firstOrNull { it.job == npc.job }
+            ?.text
+            ?: inlineText("- I have nothing to say.")
+
+    private fun questionReply(topic: QuestionTopic, npc: CharacterModel): TextBlock =
+        content.speak.textTables.questionReplies
+            .firstOrNull { it.topic == topic }
+            ?.replies
+            ?.firstOrNull { it.job == npc.job }
+            ?.text
+            ?: noRumourText()
+
+    private fun noRumourText(): TextBlock =
+        content.speak.textTables.screens.firstOrNull { it.id == T.Speak.noRumour }?.text
+            ?: inlineText("- Sorry. There's", "nothing new I can", "tell you.", "")
+
+    companion object {
+        fun start(
+            content: SpeakRuntimeContent,
+            runtime: RuntimeSessionState,
+            building: BuildingId,
+        ): SpeakSession {
+            val npcs = content.charactersFor(runtime, building)
+            val step = if (npcs.isEmpty()) {
+                SpeakStep.Message(
+                    blocks = listOf(
+                        content.speak.textTables.screens.firstOrNull { it.id == T.Speak.noNpc }?.text
+                            ?: inlineText("Noone is here!"),
+                    ),
+                    next = SpeakStep.Finished(runtime),
+                )
+            } else {
+                SpeakStep.ChooseNpc(npcs)
+            }
+            return SpeakSession(content, runtime, building, step)
+        }
+    }
+}
 
 data class EquipmentPromptModel(
     val command: EquipmentCommand,
@@ -1223,6 +1378,38 @@ fun PartyState.campGearEffect(): CampGearEffect {
         protectsVeryLowTemperature = hasTent,
     )
 }
+
+fun SpeakRuntimeContent.charactersFor(runtime: RuntimeSessionState, building: BuildingId): List<CharacterModel> {
+    val town = runtime.realm.currentTown ?: return emptyList()
+    return characters
+        .filter { character ->
+            val placement = character.placement
+            placement is CharacterPlacementModel.Fixed && placement.position == WorldPosition.Town(town, building)
+        }
+        .sortedBy { it.name }
+}
+
+fun SpeakRuntimeContent.firstStandardRumour(party: PartyState): TextBlock? =
+    speak.textTables.rumourTables
+        .firstOrNull { it.id == RumourTables.standardTown }
+        ?.entries
+        ?.firstOrNull { entry -> entry.excludedBy.none(party::hasFlagState) }
+        ?.text
+
+fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
+    val visits = visitedNpcs.associateBy { it.npc } + (npc to NpcVisitState(npc, visited))
+    return copy(visitedNpcs = visits.values.sortedBy { it.npc.slug })
+}
+
+fun PartyState.hasFlagState(state: FlagState): Boolean =
+    flags.any { it.flag == state.flag && it.native == state.native }
+
+private fun ChitchatPromptAudience.matches(gender: Gender?): Boolean =
+    when (this) {
+        ChitchatPromptAudience.Any -> true
+        ChitchatPromptAudience.Female -> gender == Gender.Female
+        ChitchatPromptAudience.Male -> gender == Gender.Male
+    }
 
 private fun PartyState.withGold(gold: Int): PartyState =
     copy(resources = resources.copy(gold = gold.coerceAtLeast(0)))

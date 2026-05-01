@@ -429,6 +429,7 @@ class TraceTownServiceBridge(
 class StatefulTownServiceBridge(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort = TraceEnginePort(),
+    private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
 ) : TownServiceBridge {
     override fun run(
         service: BuildingServiceModel,
@@ -437,7 +438,7 @@ class StatefulTownServiceBridge(
     ): TownServiceBridgeResult {
         val eventStart = engine.events.size
         engine.trace(EngineTraceEvent.TownService(service, scene))
-        val result = StatefulScriptServiceRunner(terminal, engine, scene.ops, continuation).run()
+        val result = StatefulScriptServiceRunner(terminal, engine, scene.ops, continuation, speakContent).run()
         return TownServiceBridgeResult(
             runtime = result.runtime,
             status = result.status,
@@ -462,12 +463,14 @@ private class StatefulScriptServiceRunner(
     private val engine: TraceEnginePort,
     private val rootOps: List<Op>,
     continuation: TownServiceContinuation,
+    private val speakContent: SpeakRuntimeContent,
 ) {
     private var runtime = continuation.runtime
     private var party = continuation.party
     private val locals = continuation.locals.toMutableMap()
     private val realmInts = continuation.realmScalars.toMutableMap()
     private val stack = continuation.stack.toMutableList()
+    private var speakSession = continuation.speakSession
     private var rejection: TerminalInputRejection? = null
     private var waiting = false
     private var opBudget = 4096
@@ -595,13 +598,9 @@ private class StatefulScriptServiceRunner(
                 }
             }
             is Op.ForEachMonster -> advanceTop()
-            is Op.Speak -> {
-                advanceTop()
-                engine.trace(EngineTraceEvent.Speak(op.building))
-            }
+            is Op.Speak -> runSpeak(op)
             is Op.RunScene -> {
-                advanceTop()
-                engine.trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
+                runScene(op)
             }
             is Op.Encounter -> {
                 advanceTop()
@@ -751,7 +750,40 @@ private class StatefulScriptServiceRunner(
             locals = locals.toMap(),
             realmScalars = realmInts.toMap(),
             stack = stack.toList(),
+            speakSession = speakSession,
         )
+
+    private fun runSpeak(op: Op.Speak) {
+        engine.trace(EngineTraceEvent.Speak(op.building))
+        val initial = speakSession ?: SpeakSession.start(speakContent, currentRuntime(), op.building)
+        val result = SpeakSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
+        runtime = result.session.runtime
+        party = runtime.activeParty
+        when (result.status) {
+            TerminalRunStatus.Finished -> {
+                speakSession = null
+                advanceTop()
+            }
+            TerminalRunStatus.StepLimitReached -> {
+                speakSession = null
+                stack.clear()
+            }
+            is TerminalRunStatus.Waiting -> {
+                speakSession = result.session
+                wait(result.status.rejection)
+            }
+        }
+    }
+
+    private fun runScene(op: Op.RunScene) {
+        advanceTop()
+        val rumour = if (op.scene == Scenes.rumour) speakContent.firstStandardRumour(party) else null
+        if (rumour != null) {
+            engine.trace(EngineTraceEvent.Screen(rumour))
+        } else {
+            engine.trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
+        }
+    }
 
     private fun opsFor(block: TownServiceScriptBlockRef): List<Op> {
         var ops = rootOps
@@ -916,6 +948,87 @@ class TerminalTextRenderer(
         when (ast) {
             is IntAst.Lit -> ast.value.toString()
             else -> "{int}"
+        }
+}
+
+private class SpeakSessionTraceRunner(
+    private val terminal: TerminalPort,
+    private val engine: TraceEnginePort,
+) {
+    fun runUntilBlocked(initial: SpeakSession): TerminalAdapterResult<SpeakSession> {
+        var session = initial
+        repeat(128) {
+            session = when (val step = session.step) {
+                is SpeakStep.ChooseNpc -> {
+                    val keys = step.npcs.indices.map { index -> '1' + index }
+                    traceMenu(npcPrompt(step.npcs), keys)
+                    when (val input = terminal.readKey(keys)) {
+                        is TerminalInput.Value -> {
+                            val npc = step.npcs[input.value - '1']
+                            session.apply(SpeakInput.Npc(npc.id))
+                        }
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is SpeakStep.MainMenu -> {
+                    val keys = step.actions.map { it.key }
+                    traceMenu(mainPrompt(step.npc), keys)
+                    when (val input = terminal.readKey(keys)) {
+                        is TerminalInput.Value -> {
+                            val action = checkNotNull(step.actions.firstOrNull { it.key == input.value })
+                            session.apply(SpeakInput.Main(action.topic.toMainChoice()))
+                        }
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is SpeakStep.QuestionMenu -> {
+                    val keys = step.actions.map { it.key }
+                    traceMenu(questionPrompt(), keys)
+                    when (val input = terminal.readKey(keys)) {
+                        is TerminalInput.Value -> {
+                            val action = checkNotNull(step.actions.firstOrNull { it.key == input.value })
+                            session.apply(SpeakInput.Question(action.topic))
+                        }
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is SpeakStep.Message -> {
+                    step.blocks.forEach { block -> engine.trace(EngineTraceEvent.Screen(block)) }
+                    session.apply(SpeakInput.Continue)
+                }
+                is SpeakStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun traceMenu(prompt: TextBlock, keys: List<Char>) {
+        engine.trace(EngineTraceEvent.Menu(prompt, keys))
+    }
+
+    private fun npcPrompt(npcs: List<CharacterModel>): TextBlock =
+        inlineText(
+            *(
+                listOf("Speak with whom?", "") +
+                    npcs.mapIndexed { index, npc -> "${index + 1}. ${npc.name}, ${npc.job.slug}" }
+                ).toTypedArray(),
+        )
+
+    private fun mainPrompt(npc: CharacterModel): TextBlock =
+        inlineText("Chatting with", "${npc.name}:", "", "(C)hitchat", "(Q)uestion", "(R)umors", "(B)ye")
+
+    private fun questionPrompt(): TextBlock =
+        inlineText("(L)odging", "(M)agic", "(P)eople", "(N)othing")
+
+    private fun ConversationTopic.toMainChoice(): SpeakMainChoice =
+        when (this) {
+            ConversationTopic.Chitchat -> SpeakMainChoice.Chitchat
+            ConversationTopic.Question -> SpeakMainChoice.Question
+            ConversationTopic.Rumour -> SpeakMainChoice.Rumour
+            ConversationTopic.Bye -> SpeakMainChoice.Bye
         }
 }
 
