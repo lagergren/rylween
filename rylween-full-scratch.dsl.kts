@@ -258,6 +258,7 @@ data class BuildingId(val slug: String)
 data class FormulaId(val slug: String)
 data class KeyActionId(val slug: String)
 data class DungeonId(val slug: String)
+data class GameMilestoneId(val slug: String)
 
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
@@ -287,6 +288,7 @@ fun building(slug: String) = BuildingId(slug)
 fun formula(slug: String) = FormulaId(slug)
 fun keyAction(slug: String) = KeyActionId(slug)
 fun dungeon(slug: String) = DungeonId(slug)
+fun milestone(slug: String) = GameMilestoneId(slug)
 
 // -----------------------------------------------------------------------------
 // Generated item handles from data/world/items/*.json5.
@@ -373,6 +375,26 @@ class ItemRefs {
     val fluteOfMadness = item("flute_of_madness")
 }
 val Items = ItemRefs()
+
+// -----------------------------------------------------------------------------
+// Generated game-state milestone handles.
+// -----------------------------------------------------------------------------
+//
+// These are persisted party state. Some milestones also project into the
+// special-inventory view, and some are required for a valid winning state.
+
+class GameMilestoneRefs {
+    val fireShield = milestone("fire_shield")
+    val braceletsOfThun = milestone("bracelets_of_thun")
+    val masterCrown = milestone("master_crown")
+    val footOfJazzy = milestone("foot_of_jazzy")
+    val silverKey = milestone("silver_key")
+
+    // Legacy C encoded "castle cleared / game won" as silverkey == 2. The DSL
+    // keeps that as a separate milestone from owning the Silver Key item.
+    val ydargVictory = milestone("ydarg_victory")
+}
+val Milestones = GameMilestoneRefs()
 
 // -----------------------------------------------------------------------------
 // Generated combat, map, visual, layout, text, scene, and native handles.
@@ -1058,6 +1080,7 @@ sealed interface Op {
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
     data class TakeItem(val item: ItemId) : Op
+    data class AchieveMilestone(val milestone: GameMilestoneId) : Op
     data class NativeCall(val path: String, val args: List<String>) : Op
 }
 
@@ -1067,8 +1090,34 @@ data class SceneModel(val id: SceneId, val ops: List<Op>)
 data class SpellModel(val id: SpellId, val slot: Int, val baseCost: Int, val name: String, val ops: List<Op>)
 data class MagicItemModel(val id: ItemId, val ops: List<Op>)
 data class MissionModel(val id: MissionId, val trigger: Trigger, val requires: BoolAst?, val ops: List<Op>)
+
+enum class LegacySpecialField { Fireshield, Bracelets, Mastercrown, Jazzyfoot, Silverkey }
+
+data class LegacySpecialMapping(
+    val field: LegacySpecialField,
+    val achievedValue: Int,
+)
+
+data class GameMilestoneModel(
+    val id: GameMilestoneId,
+    val specialInventoryItem: ItemId?,
+    val requiredToWin: Boolean,
+    val legacySpecial: LegacySpecialMapping?,
+)
+
+data class WinConditionModel(
+    val required: List<GameMilestoneId>,
+    val completedBy: GameMilestoneId?,
+)
+
+data class GameProgressModel(
+    val milestones: List<GameMilestoneModel>,
+    val win: WinConditionModel?,
+)
+
 data class GameModel(
     val flags: List<FlagRef>,
+    val progress: GameProgressModel,
     val scenes: List<SceneModel>,
     val spells: List<SpellModel>,
     val magicItems: List<MagicItemModel>,
@@ -1148,6 +1197,7 @@ data class PartyState(
     val position: WorldPosition,
     val resources: PartyResources,
     val flags: List<FlagState>,
+    val milestones: List<GameMilestoneId>,
     val inventory: List<InventorySlotState>,
     val members: List<PartyMemberState>,
     val visitedNpcs: List<NpcId>,
@@ -1382,6 +1432,7 @@ fun render(arg: Any): String = when (arg) {
     is FormulaId -> arg.slug
     is KeyActionId -> arg.slug
     is DungeonId -> arg.slug
+    is GameMilestoneId -> arg.slug
     else -> arg.toString()
 }
 
@@ -1471,6 +1522,10 @@ class ScriptScope(
 
     fun take(item: ItemId) = record(Op.TakeItem(item))
 
+    fun achieve(milestone: GameMilestoneId) {
+        record(Op.AchieveMilestone(milestone))
+    }
+
     fun pay(amount: IntExpr, broke: ScriptScope.() -> Unit, ok: ScriptScope.() -> Unit) {
         when_(party.gold lt amount) {
             broke()
@@ -1481,17 +1536,17 @@ class ScriptScope(
     }
 
     private fun capture(body: ScriptScope.() -> Unit): List<Op> {
-        val childOps = mutableListOf<Op>()
-        ScriptScope(ctx, childOps).body()
-        return childOps
+        return buildList {
+            ScriptScope(ctx, this).body()
+        }
     }
 }
 
 class ElseBranch(private val finish: (List<Op>) -> Unit) {
     infix fun otherwise(body: ScriptScope.() -> Unit) {
-        val ops = mutableListOf<Op>()
-        ScriptScope(ScriptContext(), ops).body()
-        finish(ops)
+        finish(buildList {
+            ScriptScope(ScriptContext(), this).body()
+        })
     }
 }
 
@@ -1500,15 +1555,15 @@ class SwitchBuilder(private val parent: ScriptScope) {
     val cases = mutableListOf<SwitchCase>()
 
     fun case(value: Int, body: ScriptScope.() -> Unit) {
-        val ops = mutableListOf<Op>()
-        ScriptScope(ScriptContext(), ops).body()
-        cases += SwitchCase(value, ops)
+        cases += SwitchCase(value, buildList {
+            ScriptScope(ScriptContext(), this).body()
+        })
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        val ops = mutableListOf<Op>()
-        ScriptScope(ScriptContext(), ops).body()
-        cases += SwitchCase(null, ops)
+        cases += SwitchCase(null, buildList {
+            ScriptScope(ScriptContext(), this).body()
+        })
     }
 }
 
@@ -1571,10 +1626,15 @@ class NativeInput(private val script: ScriptScope) {
 
 @RylNextDsl
 class GameBuilder {
+    private var progressModel = GameProgressModel(emptyList(), null)
     private val scenes = mutableListOf<SceneModel>()
     private val spells = mutableListOf<SpellModel>()
     private val magicItems = mutableListOf<MagicItemModel>()
     private val missions = mutableListOf<MissionModel>()
+
+    fun gameProgress(body: GameProgressBuilder.() -> Unit) {
+        progressModel = GameProgressBuilder().apply(body).build()
+    }
 
     fun scene(id: SceneId, body: ScriptScope.() -> Unit) {
         scenes += SceneModel(id, recordScript(body))
@@ -1592,20 +1652,86 @@ class GameBuilder {
         missions += MissionModel(id, trigger, requires?.ast, recordScript(body))
     }
 
-    fun build(): GameModel = GameModel(declaredFlags.toList(), scenes, spells, magicItems, missions)
+    fun build(): GameModel =
+        GameModel(declaredFlags.toList(), progressModel, scenes, spells, magicItems, missions)
 
     private fun recordScript(body: ScriptScope.() -> Unit): List<Op> {
-        val ops = mutableListOf<Op>()
-        ScriptScope(ScriptContext(), ops).body()
-        return ops
+        return buildList {
+            ScriptScope(ScriptContext(), this).body()
+        }
     }
 }
 
-fun rylweenNext(body: GameBuilder.() -> Unit): GameModel {
-    val builder = GameBuilder()
-    builder.body()
-    return builder.build()
+@RylNextDsl
+class GameProgressBuilder {
+    private val milestones = mutableListOf<GameMilestoneModel>()
+    private var winBuilder: WinConditionBuilder? = null
+
+    fun milestone(id: GameMilestoneId, body: GameMilestoneBuilder.() -> Unit) {
+        milestones += GameMilestoneBuilder(id).apply(body).build()
+    }
+
+    fun winningConfiguration(body: WinConditionBuilder.() -> Unit) {
+        winBuilder = WinConditionBuilder().apply(body)
+    }
+
+    fun build(): GameProgressModel =
+        GameProgressModel(milestones.toList(), winBuilder?.build(milestones))
 }
+
+@RylNextDsl
+class GameMilestoneBuilder(private val id: GameMilestoneId) {
+    private var specialInventoryItem: ItemId? = null
+    private var requiredToWin: Boolean = false
+    private var legacySpecial: LegacySpecialMapping? = null
+
+    fun showsAs(item: ItemId) {
+        specialInventoryItem = item
+    }
+
+    fun requiredToWin() {
+        requiredToWin = true
+    }
+
+    fun legacyPartyField(field: LegacySpecialField, achievedValue: Int = 1) {
+        legacySpecial = LegacySpecialMapping(field, achievedValue)
+    }
+
+    fun build(): GameMilestoneModel =
+        GameMilestoneModel(id, specialInventoryItem, requiredToWin, legacySpecial)
+}
+
+@RylNextDsl
+class WinConditionBuilder {
+    private var includeMarkedRequired = false
+    private val explicitRequired = mutableListOf<GameMilestoneId>()
+    private var completionMilestone: GameMilestoneId? = null
+
+    fun requiresAllMilestonesMarkedRequired() {
+        includeMarkedRequired = true
+    }
+
+    fun requires(vararg milestones: GameMilestoneId) {
+        explicitRequired += milestones
+    }
+
+    fun completedBy(milestone: GameMilestoneId) {
+        completionMilestone = milestone
+    }
+
+    fun build(defined: List<GameMilestoneModel>): WinConditionModel {
+        val markedRequired = if (includeMarkedRequired) {
+            defined.filter { it.requiredToWin }.map { it.id }
+        } else {
+            emptyList()
+        }
+
+        return WinConditionModel((explicitRequired + markedRequired).distinct(), completionMilestone)
+    }
+}
+
+fun rylweenNext(body: GameBuilder.() -> Unit): GameModel =
+    GameBuilder().apply(body).build()
 
 @RylNextDsl
 class RylweenBuilder {
@@ -1613,15 +1739,11 @@ class RylweenBuilder {
     private val states = mutableListOf<StateModel>()
 
     fun content(body: GameBuilder.() -> Unit) {
-        val builder = GameBuilder()
-        builder.body()
-        contentModel = builder.build()
+        contentModel = GameBuilder().apply(body).build()
     }
 
     fun state(id: StateId, body: StateBuilder.() -> Unit) {
-        val builder = StateBuilder(id)
-        builder.body()
-        states += builder.build()
+        states += StateBuilder(id).apply(body).build()
     }
 
     fun build(): RylweenModel =
@@ -1631,11 +1753,8 @@ class RylweenBuilder {
         )
 }
 
-fun rylween(body: RylweenBuilder.() -> Unit): RylweenModel {
-    val builder = RylweenBuilder()
-    builder.body()
-    return builder.build()
-}
+fun rylween(body: RylweenBuilder.() -> Unit): RylweenModel =
+    RylweenBuilder().apply(body).build()
 
 @RylNextDsl
 class StateBuilder(private val id: StateId) {
@@ -1645,27 +1764,19 @@ class StateBuilder(private val id: StateId) {
     private val parties = mutableListOf<PartyState>()
 
     fun realm(body: RealmStateBuilder.() -> Unit) {
-        val builder = RealmStateBuilder()
-        builder.body()
-        realmState = builder.build()
+        realmState = RealmStateBuilder().apply(body).build()
     }
 
     fun locations(body: LocationStateBuilder.() -> Unit) {
-        val builder = LocationStateBuilder()
-        builder.body()
-        locationPlacements += builder.build()
+        locationPlacements += LocationStateBuilder().apply(body).build()
     }
 
     fun npcs(body: NpcStateBuilder.() -> Unit) {
-        val builder = NpcStateBuilder()
-        builder.body()
-        npcPlacements += builder.build()
+        npcPlacements += NpcStateBuilder().apply(body).build()
     }
 
     fun party(id: PartyId, body: PartyStateBuilder.() -> Unit) {
-        val builder = PartyStateBuilder(id)
-        builder.body()
-        parties += builder.build()
+        parties += PartyStateBuilder(id).apply(body).build()
     }
 
     fun build(): StateModel =
@@ -1721,33 +1832,30 @@ class PartyStateBuilder(private val id: PartyId) {
     var position: WorldPosition = Wilderness.xy(0, 0)
     private var resourcesState = PartyResources(0, 0, 0, 0, 0)
     private val flags = mutableListOf<FlagState>()
+    private val milestones = mutableListOf<GameMilestoneId>()
     private val inventory = mutableListOf<InventorySlotState>()
     private val members = mutableListOf<PartyMemberState>()
     private val visitedNpcs = mutableListOf<NpcId>()
     private val journal = mutableListOf<TextId>()
 
     fun resources(body: PartyResourcesBuilder.() -> Unit) {
-        val builder = PartyResourcesBuilder()
-        builder.body()
-        resourcesState = builder.build()
+        resourcesState = PartyResourcesBuilder().apply(body).build()
     }
 
     fun flags(body: StateFlagBuilder.() -> Unit) {
-        val builder = StateFlagBuilder()
-        builder.body()
-        flags += builder.build()
+        flags += StateFlagBuilder().apply(body).build()
+    }
+
+    fun milestones(body: PartyMilestonesBuilder.() -> Unit) {
+        milestones += PartyMilestonesBuilder().apply(body).build()
     }
 
     fun inventory(body: InventoryStateBuilder.() -> Unit) {
-        val builder = InventoryStateBuilder()
-        builder.body()
-        inventory += builder.build()
+        inventory += InventoryStateBuilder().apply(body).build()
     }
 
     fun members(body: PartyMembersBuilder.() -> Unit) {
-        val builder = PartyMembersBuilder()
-        builder.body()
-        members += builder.build()
+        members += PartyMembersBuilder().apply(body).build()
     }
 
     fun visited(vararg npcs: NpcId) {
@@ -1766,6 +1874,7 @@ class PartyStateBuilder(private val id: PartyId) {
             position = position,
             resources = resourcesState,
             flags = flags.toList(),
+            milestones = milestones.toList(),
             inventory = inventory.sortedBy { it.slot },
             members = members.toList(),
             visitedNpcs = visitedNpcs.toList(),
@@ -1793,6 +1902,17 @@ class StateFlagBuilder {
     }
 
     fun build(): List<FlagState> = flags.toList()
+}
+
+@RylNextDsl
+class PartyMilestonesBuilder {
+    private val milestones = mutableListOf<GameMilestoneId>()
+
+    fun achieved(milestone: GameMilestoneId) {
+        milestones += milestone
+    }
+
+    fun build(): List<GameMilestoneId> = milestones.toList()
 }
 
 @RylNextDsl
@@ -1824,9 +1944,7 @@ class PartyMembersBuilder {
     private val members = mutableListOf<PartyMemberState>()
 
     fun member(name: String, body: PartyMemberBuilder.() -> Unit) {
-        val builder = PartyMemberBuilder(name)
-        builder.body()
-        members += builder.build()
+        members += PartyMemberBuilder(name).apply(body).build()
     }
 
     fun build(): List<PartyMemberState> = members.toList()
@@ -1927,7 +2045,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
     }
 
     fun ops(items: List<Op>) {
-        for (op in items) {
+        items.forEach { op ->
             when (op) {
                 is Op.Screen -> Unit
                 is Op.Emit -> Unit
@@ -1958,6 +2076,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.RunScene -> Unit
                 is Op.Encounter -> Unit
                 is Op.TakeItem -> Unit
+                is Op.AchieveMilestone -> Unit
                 is Op.NativeCall -> paths += op.path
             }
         }
@@ -1976,7 +2095,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
 fun validateFlagCatalog(flags: List<FlagRef>) {
     check(flags.map { it.slug }.toSet().size == flags.size) { "duplicate flag slug" }
 
-    for (flag in flags) {
+    flags.forEach { flag ->
         val nativeStates = flag.states.map { it.native }
         check(nativeStates.isNotEmpty()) { "flag ${flag.slug} has no states" }
         check(nativeStates.toSet().size == nativeStates.size) { "duplicate state in flag ${flag.slug}" }
@@ -1990,10 +2109,67 @@ fun validateFlagCatalog(flags: List<FlagRef>) {
         }
 }
 
-fun validateStates(states: List<StateModel>) {
-    for (state in states) {
-        for (party in state.parties) {
-            for (member in party.members) {
+fun validateGameProgress(progress: GameProgressModel) {
+    val ids = progress.milestones.map { it.id }
+    check(ids.toSet().size == ids.size) { "duplicate game milestone" }
+
+    val specialItems = progress.milestones.mapNotNull { it.specialInventoryItem }
+    check(specialItems.toSet().size == specialItems.size) {
+        "duplicate special inventory projection"
+    }
+
+    val defined = ids.toSet()
+    progress.win?.let { win ->
+        win.required.forEach { required ->
+            check(required in defined) { "win condition references unknown milestone ${required.slug}" }
+        }
+        win.completedBy?.let {
+            check(it in defined) { "win completion references unknown milestone ${it.slug}" }
+        }
+    }
+}
+
+fun specialInventoryItems(content: GameModel, party: PartyState): List<ItemId> =
+    party.milestones.toSet().let { achieved ->
+        content.progress.milestones
+            .filter { it.id in achieved }
+            .mapNotNull { it.specialInventoryItem }
+    }
+
+fun isWinningConfiguration(content: GameModel, party: PartyState): Boolean =
+    content.progress.win?.let { win ->
+        party.milestones.toSet().let { achieved ->
+            (win.completedBy?.let { it in achieved } ?: true) &&
+                    win.required.all { it in achieved }
+        }
+    } ?: false
+
+fun validateStates(states: List<StateModel>, content: GameModel? = null) {
+    val specialItems = content
+        ?.progress
+        ?.milestones
+        ?.mapNotNull { it.specialInventoryItem }
+        ?.toSet()
+        ?: emptySet()
+
+    states
+        .flatMap { it.parties }
+        .forEach { party ->
+            check(party.milestones.toSet().size == party.milestones.size) {
+                "party ${party.id.slug}: duplicate game milestone"
+            }
+            check(party.inventory.none { it.item in specialItems }) {
+                val special = party.inventory.first { it.item in specialItems }.item
+                "party ${party.id.slug}: ${special?.slug} is special state, not a slotted inventory item"
+            }
+            content
+                ?.takeIf { it.progress.win?.completedBy in party.milestones }
+                ?.let {
+                    check(isWinningConfiguration(it, party)) {
+                        "party ${party.id.slug}: completed win marker without all required milestones"
+                    }
+                }
+            party.members.forEach { member ->
                 check(member.hitPoints.max == member.health) {
                     "member ${member.name}: hit point max must match health"
                 }
@@ -2002,7 +2178,6 @@ fun validateStates(states: List<StateModel>) {
                 }
             }
         }
-    }
 }
 
 // =============================================================================
@@ -2027,6 +2202,47 @@ val nextRylween = rylween {
     // Content tables are still catalog-only in this first scratch pass. The
     // next passes should fill in visuals, layouts, terrain, maps, items,
     // monsters, spells, text declarations, menus, and mission tables here.
+
+    gameProgress {
+        milestone(Milestones.fireShield) {
+            showsAs(Items.fireshield)
+            requiredToWin()
+            legacyPartyField(LegacySpecialField.Fireshield)
+        }
+
+        milestone(Milestones.braceletsOfThun) {
+            showsAs(Items.bracelets)
+            requiredToWin()
+            legacyPartyField(LegacySpecialField.Bracelets)
+        }
+
+        milestone(Milestones.masterCrown) {
+            showsAs(Items.mastercrown)
+            requiredToWin()
+            legacyPartyField(LegacySpecialField.Mastercrown)
+        }
+
+        milestone(Milestones.footOfJazzy) {
+            showsAs(Items.jazzyfoot)
+            requiredToWin()
+            legacyPartyField(LegacySpecialField.Jazzyfoot)
+        }
+
+        milestone(Milestones.silverKey) {
+            showsAs(Items.silverkey)
+            requiredToWin()
+            legacyPartyField(LegacySpecialField.Silverkey)
+        }
+
+        milestone(Milestones.ydargVictory) {
+            legacyPartyField(LegacySpecialField.Silverkey, achievedValue = 2)
+        }
+
+        winningConfiguration {
+            requiresAllMilestonesMarkedRequired()
+            completedBy(Milestones.ydargVictory)
+        }
+    }
 
     // Scripts: six hard-case readability probes.
 
@@ -2235,6 +2451,10 @@ val nextRylween = rylween {
                 mark(Story.silverKey.noteFound)
             }
 
+            milestones {
+                // No special win-state milestones in this authored fixture yet.
+            }
+
             inventory {
                 slot(1).empty()
                 slot(2).item(Items.fireWand)
@@ -2285,12 +2505,17 @@ val nextRylween = rylween {
 val nextDsl = nextRylween.content
 
 check(nextDsl.flags.size == 13)
+check(nextDsl.progress.milestones.size == 6)
+check(nextDsl.progress.win?.required?.size == 5)
 check(nextDsl.scenes.size == 3)
 check(nextDsl.spells.size == 1)
 check(nextDsl.magicItems.size == 1)
 check(nextDsl.missions.size == 1)
 check(nextRylween.states.size == 1)
 check(nextRylween.states.single().parties.single().members.size == 2)
+check(specialInventoryItems(nextDsl, nextRylween.states.single().parties.single()).isEmpty())
+check(!isWinningConfiguration(nextDsl, nextRylween.states.single().parties.single()))
 validateFlagCatalog(nextDsl.flags)
-validateStates(nextRylween.states)
+validateGameProgress(nextDsl.progress)
+validateStates(nextRylween.states, nextDsl)
 check((nativePathsIn(nextDsl) - NativeAllowlist.byPath.keys).isEmpty())
