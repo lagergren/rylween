@@ -238,7 +238,11 @@ val Flags = Story
 data class TextId(val id: String)
 data class TextPattern(val pattern: String)
 data class ItemId(val slug: String)
-data class ItemPoolId(val slug: String)
+data class ItemPoolId(
+    val slug: String,
+    val items: List<ItemId> = emptyList(),
+    val legacyItemIds: IntRange? = null,
+)
 data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
 data class WorldMapId(val slug: String)
@@ -270,7 +274,8 @@ data class CombatLootTableId(val slug: String)
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId(slug)
-fun itemPool(slug: String) = ItemPoolId(slug)
+fun itemPool(slug: String, items: List<ItemId> = emptyList(), legacyItemIds: IntRange? = null) =
+    ItemPoolId(slug, items, legacyItemIds)
 fun monster(slug: String) = MonsterId(slug)
 fun encounterTier(slug: String) = EncounterTier(slug)
 fun worldMap(slug: String) = WorldMapId(slug)
@@ -388,8 +393,41 @@ val Items = ItemRefs()
 class ItemPoolRefs {
     // Legacy battle.c currently rolls ids 36..46 here: potions plus ordinary
     // treasure, excluding donkey and all milestone-projected special items.
-    val battleSpoils = itemPool("battle_spoils")
-    val magicItems = itemPool("magic_items")
+    val battleSpoils = itemPool(
+        "battle_spoils",
+        items = listOf(
+            Items.redPotion,
+            Items.bluePotion,
+            Items.amberPotion,
+            Items.redGem,
+            Items.blueGem,
+            Items.greenGem,
+            Items.chalice,
+            Items.pendant,
+            Items.broche,
+            Items.crystalBowl,
+            Items.necklace,
+        ),
+        legacyItemIds = 36..46,
+    )
+    val magicItems = itemPool(
+        "magic_items",
+        items = listOf(
+            Items.frostWand,
+            Items.fireWand,
+            Items.gemOfConfusion,
+            Items.gemOfBlindness,
+            Items.drumsOfDeath,
+            Items.staffOfHealing,
+            Items.blessingScroll,
+            Items.staffOfCuring,
+            Items.gemOfResurrection,
+            Items.kaelsAxe,
+            Items.holyHandgrenade,
+            Items.fluteOfMadness,
+        ),
+        legacyItemIds = 100..111,
+    )
 }
 val ItemPools = ItemPoolRefs()
 
@@ -2705,9 +2743,21 @@ fun validateCombatSystem(combat: CombatSystemModel) {
 
         checkPercent(battle.rewards.loot.dropChancePercent, "standard battle loot drop chance")
         checkPercent(battle.rewards.loot.treasureChancePercent, "standard battle loot treasure chance")
+        validateItemPool(battle.rewards.loot.treasure)
+        validateItemPool(battle.rewards.loot.magic)
 
         val services = battle.nativeServices.map { it.service }
         check(services.toSet().size == services.size) { "standard battle has duplicate native service" }
+    }
+}
+
+private fun validateItemPool(pool: ItemPoolId) {
+    check(pool.items.isNotEmpty()) { "item pool ${pool.slug} has no items" }
+    check(pool.items.toSet().size == pool.items.size) { "item pool ${pool.slug} has duplicate items" }
+    pool.legacyItemIds?.let { ids ->
+        check(ids.count() == pool.items.size) {
+            "item pool ${pool.slug}: legacy id range $ids has ${ids.count()} ids, but ${pool.items.size} items"
+        }
     }
 }
 
