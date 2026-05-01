@@ -89,6 +89,20 @@ val nextRylween = rylween {
         }
     }
 
+    rewards {
+        reward(Rewards.standardBattle) {
+            experience = Formulas.rewardXpPerSurvivor
+            gold = Formulas.rewardGoldParty
+
+            lootTable(LootTables.standardBattle) {
+                dropChancePercent = 5
+                treasureChancePercent = 59
+                treasure = ItemPools.battleSpoils
+                magic = ItemPools.magicItems
+            }
+        }
+    }
+
     combat {
         standardBattle {
             opening {
@@ -117,16 +131,7 @@ val nextRylween = rylween {
                 meleeFallback = Scenes.Battle.monsterMelee
             }
 
-            rewards {
-                experience = Formulas.rewardXpPerSurvivor
-                gold = Formulas.rewardGoldParty
-                lootTable(CombatLootTables.default) {
-                    dropChancePercent = 5
-                    treasureChancePercent = 59
-                    treasure = ItemPools.battleSpoils
-                    magic = ItemPools.magicItems
-                }
-            }
+            rewards = Rewards.standardBattle
         }
     }
 
@@ -667,7 +672,9 @@ check(nextDsl.flags.size == 13)
 check(nextDsl.authoredFlags.size == 13)
 check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
+check(nextDsl.rewards.size == 1)
 check(nextDsl.combat.standardBattle?.actions?.size == 5)
+check(nextDsl.combat.standardBattle?.rewards == Rewards.standardBattle)
 check(nextDsl.monsters.size == 2)
 check(nextDsl.scenes.size == 4)
 check(nextDsl.spells.size == 1)

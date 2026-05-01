@@ -269,7 +269,8 @@ data class FormulaId(val slug: String)
 data class KeyActionId(val slug: String)
 data class DungeonId(val slug: String)
 data class GameMilestoneId(val slug: String)
-data class CombatLootTableId(val slug: String)
+data class LootTableId(val slug: String)
+data class RewardBundleId(val slug: String)
 
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
@@ -302,7 +303,8 @@ fun formula(slug: String) = FormulaId(slug)
 fun keyAction(slug: String) = KeyActionId(slug)
 fun dungeon(slug: String) = DungeonId(slug)
 fun milestone(slug: String) = GameMilestoneId(slug)
-fun combatLootTable(slug: String) = CombatLootTableId(slug)
+fun lootTable(slug: String) = LootTableId(slug)
+fun rewardBundle(slug: String) = RewardBundleId(slug)
 
 // -----------------------------------------------------------------------------
 // Generated item handles from data/world/items/*.json5.
@@ -946,10 +948,20 @@ class FormulaRefs {
 }
 val Formulas = FormulaRefs()
 
+class LootTableRefs {
+    val standardBattle = lootTable("standard_battle")
+}
+val LootTables = LootTableRefs()
+
 class CombatLootTableRefs {
-    val default = combatLootTable("combat.drop_tables.default")
+    val default = LootTables.standardBattle
 }
 val CombatLootTables = CombatLootTableRefs()
+
+class RewardBundleRefs {
+    val standardBattle = rewardBundle("standard_battle")
+}
+val Rewards = RewardBundleRefs()
 
 class BuildingRefs {
     val none = building("none")
@@ -1245,25 +1257,26 @@ data class MonsterRoundModel(
     val meleeFallback: SceneId,
 )
 
-data class CombatLootTableModel(
-    val id: CombatLootTableId,
+data class LootTableModel(
+    val id: LootTableId,
     val dropChancePercent: Int,
     val treasureChancePercent: Int,
     val treasure: ItemPoolId,
     val magic: ItemPoolId,
 )
 
-data class CombatRewardsModel(
+data class RewardBundleModel(
+    val id: RewardBundleId,
     val experience: FormulaId,
     val gold: FormulaId,
-    val loot: CombatLootTableModel,
+    val loot: LootTableModel,
 )
 
 data class StandardBattleModel(
     val opening: EncounterOpeningModel,
     val actions: List<CombatActionModel>,
     val monsterRound: MonsterRoundModel,
-    val rewards: CombatRewardsModel,
+    val rewards: RewardBundleId,
     val nativeServices: List<EngineServiceUse>,
 )
 
@@ -1275,6 +1288,7 @@ data class GameModel(
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
+    val rewards: List<RewardBundleModel>,
     val combat: CombatSystemModel,
     val monsters: List<MonsterModel>,
     val scenes: List<SceneModel>,
@@ -1627,7 +1641,8 @@ fun render(arg: Any): String = when (arg) {
     is KeyActionId -> arg.slug
     is DungeonId -> arg.slug
     is GameMilestoneId -> arg.slug
-    is CombatLootTableId -> arg.slug
+    is LootTableId -> arg.slug
+    is RewardBundleId -> arg.slug
     else -> arg.toString()
 }
 
@@ -1823,6 +1838,7 @@ class NativeInput(private val script: ScriptScope) {
 class GameBuilder {
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
+    private val rewardsModel = mutableListOf<RewardBundleModel>()
     private var combatModel = CombatSystemModel(null)
     private val monsters = mutableListOf<MonsterModel>()
     private val scenes = mutableListOf<SceneModel>()
@@ -1836,6 +1852,10 @@ class GameBuilder {
 
     fun gameProgress(body: GameProgressBuilder.() -> Unit) {
         progressModel = GameProgressBuilder().apply(body).build()
+    }
+
+    fun rewards(body: RewardCatalogBuilder.() -> Unit) {
+        rewardsModel += RewardCatalogBuilder().apply(body).build()
     }
 
     fun combat(body: CombatBuilder.() -> Unit) {
@@ -1867,6 +1887,7 @@ class GameBuilder {
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
             progress = progressModel,
+            rewards = rewardsModel.toList(),
             combat = combatModel,
             monsters = monsters.toList(),
             scenes = scenes.toList(),
@@ -2043,6 +2064,41 @@ class WinConditionBuilder {
 }
 
 @RylNextDsl
+class RewardCatalogBuilder {
+    private val rewards = mutableListOf<RewardBundleModel>()
+
+    fun reward(id: RewardBundleId, body: RewardBundleBuilder.() -> Unit) {
+        rewards += RewardBundleBuilder(id).apply(body).build()
+    }
+
+    fun build(): List<RewardBundleModel> = rewards.toList()
+}
+
+@RylNextDsl
+class RewardBundleBuilder(private val id: RewardBundleId) {
+    var experience: FormulaId = Formulas.rewardXpPerSurvivor
+    var gold: FormulaId = Formulas.rewardGoldParty
+    private var lootModel = LootTableBuilder(LootTables.standardBattle).build()
+
+    fun lootTable(id: LootTableId, body: LootTableBuilder.() -> Unit) {
+        lootModel = LootTableBuilder(id).apply(body).build()
+    }
+
+    fun build(): RewardBundleModel = RewardBundleModel(id, experience, gold, lootModel)
+}
+
+@RylNextDsl
+class LootTableBuilder(private val id: LootTableId) {
+    var dropChancePercent: Int = 5
+    var treasureChancePercent: Int = 59
+    var treasure: ItemPoolId = ItemPools.battleSpoils
+    var magic: ItemPoolId = ItemPools.magicItems
+
+    fun build(): LootTableModel =
+        LootTableModel(id, dropChancePercent, treasureChancePercent, treasure, magic)
+}
+
+@RylNextDsl
 class CombatBuilder {
     private var standardBattleModel: StandardBattleModel? = null
 
@@ -2058,7 +2114,7 @@ class StandardBattleBuilder {
     private var openingModel = EncounterOpeningBuilder().build()
     private var actionModels = PlayerCombatActionsBuilder().build()
     private var monsterRoundModel = MonsterRoundBuilder().build()
-    private var rewardsModel = CombatRewardsBuilder().build()
+    var rewards: RewardBundleId = Rewards.standardBattle
 
     fun opening(body: EncounterOpeningBuilder.() -> Unit) {
         openingModel = EncounterOpeningBuilder(openingModel).apply(body).build()
@@ -2072,16 +2128,12 @@ class StandardBattleBuilder {
         monsterRoundModel = MonsterRoundBuilder(monsterRoundModel).apply(body).build()
     }
 
-    fun rewards(body: CombatRewardsBuilder.() -> Unit) {
-        rewardsModel = CombatRewardsBuilder(rewardsModel).apply(body).build()
-    }
-
     fun build(): StandardBattleModel =
         StandardBattleModel(
             opening = openingModel,
             actions = actionModels,
             monsterRound = monsterRoundModel,
-            rewards = rewardsModel,
+            rewards = rewards,
             nativeServices = defaultNativeServices,
         )
 
@@ -2168,30 +2220,6 @@ class MonsterRoundBuilder(initial: MonsterRoundModel? = null) {
 
     fun build(): MonsterRoundModel =
         MonsterRoundModel(spellChanceBasePercent, spellPowerDivisor, meleeFallback)
-}
-
-@RylNextDsl
-class CombatRewardsBuilder(initial: CombatRewardsModel? = null) {
-    var experience: FormulaId = initial?.experience ?: Formulas.rewardXpPerSurvivor
-    var gold: FormulaId = initial?.gold ?: Formulas.rewardGoldParty
-    private var lootModel = initial?.loot ?: CombatLootTableBuilder(CombatLootTables.default).build()
-
-    fun lootTable(id: CombatLootTableId, body: CombatLootTableBuilder.() -> Unit) {
-        lootModel = CombatLootTableBuilder(id).apply(body).build()
-    }
-
-    fun build(): CombatRewardsModel = CombatRewardsModel(experience, gold, lootModel)
-}
-
-@RylNextDsl
-class CombatLootTableBuilder(private val id: CombatLootTableId) {
-    var dropChancePercent: Int = 5
-    var treasureChancePercent: Int = 59
-    var treasure: ItemPoolId = ItemPools.battleSpoils
-    var magic: ItemPoolId = ItemPools.magicItems
-
-    fun build(): CombatLootTableModel =
-        CombatLootTableModel(id, dropChancePercent, treasureChancePercent, treasure, magic)
 }
 
 fun rylweenNext(body: GameBuilder.() -> Unit): GameModel =
@@ -2722,7 +2750,20 @@ fun validateGameProgress(progress: GameProgressModel) {
     }
 }
 
-fun validateCombatSystem(combat: CombatSystemModel) {
+fun validateRewardBundles(rewards: List<RewardBundleModel>) {
+    check(rewards.map { it.id }.toSet().size == rewards.size) { "duplicate reward bundle" }
+
+    rewards.forEach { reward ->
+        checkPercent(reward.loot.dropChancePercent, "reward ${reward.id.slug} loot drop chance")
+        checkPercent(reward.loot.treasureChancePercent, "reward ${reward.id.slug} loot treasure chance")
+        validateItemPool(reward.loot.treasure)
+        validateItemPool(reward.loot.magic)
+    }
+}
+
+fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleModel>) {
+    val rewardIds = rewards.map { it.id }.toSet()
+
     combat.standardBattle?.let { battle ->
         checkPercent(battle.opening.fleeChancePercent, "standard battle flee chance")
         checkPercent(battle.opening.desperateFleeChancePercent, "standard battle desperate flee chance")
@@ -2741,10 +2782,9 @@ fun validateCombatSystem(combat: CombatSystemModel) {
             "standard battle monster spell-power divisor must be positive"
         }
 
-        checkPercent(battle.rewards.loot.dropChancePercent, "standard battle loot drop chance")
-        checkPercent(battle.rewards.loot.treasureChancePercent, "standard battle loot treasure chance")
-        validateItemPool(battle.rewards.loot.treasure)
-        validateItemPool(battle.rewards.loot.magic)
+        check(battle.rewards in rewardIds) {
+            "standard battle references missing reward bundle ${battle.rewards.slug}"
+        }
 
         val services = battle.nativeServices.map { it.service }
         check(services.toSet().size == services.size) { "standard battle has duplicate native service" }
@@ -2799,7 +2839,8 @@ fun validateAuthoredContent(content: GameModel) {
         }
     }
 
-    validateCombatSystem(content.combat)
+    validateRewardBundles(content.rewards)
+    validateCombatSystem(content.combat, content.rewards)
 }
 
 fun specialInventoryItems(content: GameModel, party: PartyState): List<ItemId> =
