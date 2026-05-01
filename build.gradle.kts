@@ -544,6 +544,16 @@ val runKotlinTown by tasks.registering(JavaExec::class) {
     standardInput = System.`in`
 }
 
+val runKotlinGame by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Boots the compiled scratch game in the pure Kotlin terminal wilderness runner."
+
+    dependsOn(tasks.named(appSourceSet.classesTaskName))
+    classpath = appSourceSet.runtimeClasspath
+    mainClass.set("RylweenGameTerminalMain")
+    standardInput = System.`in`
+}
+
 val validateScratch by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Compiles and executes the scratch Kotlin DSL source against the built DSL jar."

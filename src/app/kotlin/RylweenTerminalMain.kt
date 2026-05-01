@@ -20,7 +20,7 @@ private class StdioTerminalPort : TerminalPort {
 }
 
 fun main(args: Array<String>) {
-    val config = parseTerminalConfig(args.toList())
+    val config = parseTerminalConfig(args.toList(), ::printTownUsage)
     val game = RylweenCompiledScratch.nextRylween
     val content = RylweenCompiledScratch.nextDsl
     val state = game.states.singleOrNull { it.id == config.state }
@@ -86,7 +86,74 @@ fun main(args: Array<String>) {
     }
 }
 
-private fun parseTerminalConfig(args: List<String>): TerminalConfig {
+object RylweenGameTerminalMain {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        val config = parseTerminalConfig(args.toList(), ::printGameUsage)
+        val game = RylweenCompiledScratch.nextRylween
+        val content = RylweenCompiledScratch.nextDsl
+        val baseState = game.states.singleOrNull { it.id == config.state }
+            ?: error("unknown state ${config.state.slug}")
+        val state = config.hour?.let { baseState.copy(realm = baseState.realm.copy(hour = it)) } ?: baseState
+        val terminal = StdioTerminalPort()
+        val worldMap = WorldMapGrid.loadLegacyMapDat(config.mapFile)
+        val engine = RylweenKotlinEngine(
+            content = content,
+            npcPlacementConfig = NpcPlacementRealizerConfig(
+                wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
+            ),
+        )
+        var session = engine.wildernessSession(
+            state = state,
+            worldMap = worldMap,
+            rngState = config.seed ?: state.realm.rngState,
+        )
+        val adapter = WildernessSessionTerminalAdapter(
+            terminal = terminal,
+            renderer = engine.textRenderer(),
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = engine.speakContent()),
+        )
+
+        terminal.write(
+            listOf(
+                "Rylween Kotlin wilderness runtime",
+                "State: ${state.id.slug}",
+                "Ctrl-D exits.",
+            ),
+        )
+
+        while (true) {
+            val result = adapter.runUntilBlocked(session)
+            session = result.session
+            when (val status = result.status) {
+                TerminalRunStatus.Finished -> {
+                    terminal.write(listOf("", "Wilderness session finished."))
+                    return
+                }
+                TerminalRunStatus.StepLimitReached -> {
+                    terminal.write(listOf("", "Step limit reached."))
+                    return
+                }
+                is TerminalRunStatus.Waiting -> {
+                    val rejection = status.rejection
+                    if (rejection == null) {
+                        terminal.write(listOf("", "Input unavailable."))
+                        return
+                    }
+                    terminal.write(
+                        listOf(
+                            "Invalid input '${rejection.input}'.",
+                            "Expected: ${rejection.expected.joinToString(", ")}",
+                            "",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): TerminalConfig {
     var config = TerminalConfig()
     var index = 0
     while (index < args.size) {
@@ -135,28 +202,10 @@ private fun townArg(value: String): TownId =
 
 private fun wildernessPlacementPolicy(mapFile: File): WildernessNpcPlacementPolicy =
     WildernessNpcPlacementPolicy(
-        allowedPoints = if (mapFile.isFile) mapFile.passableNpcPoints() else null,
+        allowedPoints = if (mapFile.isFile) WorldMapGrid.loadLegacyMapDat(mapFile).passableNpcPoints() else null,
     )
 
-private fun File.passableNpcPoints(): Set<GridPoint> =
-    readLines()
-        .flatMapIndexed { y, row ->
-            row.mapIndexedNotNull { x, tile ->
-                GridPoint(x, y).takeIf { tile.isNpcPlacementTerrain() }
-            }
-        }
-        .toSet()
-
-private fun Char.isNpcPlacementTerrain(): Boolean =
-    this !in setOf(
-        Terrain.mountain.legacyMapCode,
-        Terrain.water.legacyMapCode,
-        Terrain.town.legacyMapCode,
-        Terrain.hut.legacyMapCode,
-        Terrain.castle.legacyMapCode,
-    )
-
-private fun printUsage() {
+private fun printTownUsage() {
     println(
         """
         |Usage: ./gradlew runKotlinTown --args="--town thord --hour 12 --seed 1"
@@ -167,6 +216,20 @@ private fun printUsage() {
         |  --seed   runtime RNG state; omitted means deterministic fixture placement
         |  --state  state slug, defaults to fresh-replay
         |  --map    map file for wilderness NPC placement, defaults to data/map.dat
+        """.trimMargin(),
+    )
+}
+
+private fun printGameUsage() {
+    println(
+        """
+        |Usage: ./gradlew runKotlinGame --args="--state fresh-replay --seed 1"
+        |
+        |Options:
+        |  --state  state slug, defaults to fresh-replay
+        |  --seed   runtime RNG state; omitted means deterministic fixture placement
+        |  --hour   0..23, overrides the selected state hour
+        |  --map    map file for wilderness movement and NPC hut projection, defaults to data/map.dat
         """.trimMargin(),
     )
 }
