@@ -593,10 +593,17 @@ data class RewardGrantSession(
 data class SpeakRuntimeContent(
     val speak: SpeakSystemModel = SpeakSystemModel(null),
     val characters: List<CharacterModel> = emptyList(),
+    val dialogue: List<DialogueModel> = emptyList(),
 )
 
 sealed interface SpeakStep {
     data class ChooseNpc(val npcs: List<CharacterModel>) : SpeakStep
+    data class DialogueBranch(
+        val npc: CharacterModel,
+        val branch: DialogueBranchModel,
+        val next: SpeakStep,
+        val continuation: TownServiceContinuation? = null,
+    ) : SpeakStep
     data class MainMenu(val npc: CharacterModel, val actions: List<ConversationMenuActionModel>) : SpeakStep
     data class QuestionMenu(val npc: CharacterModel, val actions: List<QuestionMenuActionModel>) : SpeakStep
     data class Message(val blocks: List<TextBlock>, val next: SpeakStep) : SpeakStep
@@ -626,8 +633,15 @@ data class SpeakSession(
                 val character = current.npcs.firstOrNull { it.id == npc.npc }
                     ?: error("NPC ${npc.npc.slug} is not available for ${building.slug}")
                 val nextRuntime = runtime.withActiveParty(runtime.activeParty.withNpcVisit(character.id, visited = true))
-                copy(runtime = nextRuntime, selectedNpc = character, step = mainMenu(character))
+                val branch = content.firstMatchingDialogueBranch(character.id, nextRuntime.activeParty)
+                val menu = mainMenu(character)
+                copy(
+                    runtime = nextRuntime,
+                    selectedNpc = character,
+                    step = branch?.let { SpeakStep.DialogueBranch(character, it, next = menu) } ?: menu,
+                )
             }
+            is SpeakStep.DialogueBranch -> error("speak session is running a dialogue branch")
             is SpeakStep.MainMenu -> {
                 val choice = (input as? SpeakInput.Main)
                     ?: error("speak session is at the main conversation menu")
@@ -1731,6 +1745,13 @@ fun SpeakRuntimeContent.charactersFor(runtime: RuntimeSessionState, building: Bu
             placement is CharacterPlacementModel.Fixed && placement.position == WorldPosition.Town(town, building)
         }
         .sortedBy { it.name }
+}
+
+fun SpeakRuntimeContent.firstMatchingDialogueBranch(npc: NpcId, party: PartyState): DialogueBranchModel? {
+    val branches = dialogue.firstOrNull { it.npc == npc }?.branches.orEmpty()
+    return branches.firstOrNull { branch ->
+        branch.whenState?.let(party::hasFlagState) == true
+    } ?: branches.firstOrNull { it.whenState == null }
 }
 
 fun SpeakRuntimeContent.firstStandardRumour(party: PartyState): TextBlock? =

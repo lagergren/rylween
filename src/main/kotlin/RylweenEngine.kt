@@ -1117,6 +1117,32 @@ private class SpeakSessionTraceRunner(
                         TerminalInput.Unavailable -> return waiting(session)
                     }
                 }
+                is SpeakStep.DialogueBranch -> {
+                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
+                    val result = StatefulScriptServiceRunner(
+                        terminal = terminal,
+                        engine = engine,
+                        rootOps = step.branch.ops,
+                        continuation = continuation,
+                        speakContent = session.content,
+                    ).run()
+                    val nextSession = session.copy(runtime = result.runtime)
+                    when (result.status) {
+                        TownServiceBridgeStatus.Finished ->
+                            nextSession.copy(step = step.next)
+                        TownServiceBridgeStatus.Waiting ->
+                            return waiting(
+                                nextSession.copy(
+                                    step = step.copy(
+                                        continuation = checkNotNull(result.continuation) {
+                                            "waiting dialogue branch did not return continuation"
+                                        },
+                                    ),
+                                ),
+                                result.rejection,
+                            )
+                    }
+                }
                 is SpeakStep.MainMenu -> {
                     val keys = step.actions.map { it.key }
                     traceMenu(mainPrompt(step.npc), keys)

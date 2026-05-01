@@ -1609,6 +1609,42 @@ class RylweenDslValidationTest {
         })
     }
 
+    @Test
+    fun compiledScratchSpeakRunsGarthDialogueBranchBeforeConversationMenu() {
+        val service = BuildingServiceModel(
+            building = Buildings.inn,
+            action = KeyActions.enterInn,
+            scene = sceneId("test.speak_garth"),
+            opensAt = null,
+            closesAt = null,
+            nativeServices = emptyList(),
+        )
+        val scene = SceneModel(service.scene, listOf(Op.Speak(Buildings.inn)))
+        val result = StatefulTownServiceBridge(
+            terminal = FakeTerminalPort("1", "B"),
+            speakContent = compiledSpeakContent(),
+        ).run(
+            service,
+            scene,
+            TownServiceContinuation.start(
+                RuntimeSessionState.singleParty(
+                    party = testParty(gold = 10, flags = listOf(Story.garth.bandits.recovered)),
+                    hour = 12,
+                    currentTown = Towns.thord.id,
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertEquals(2010, result.party.resources.gold)
+        assertEquals(Items.redGem, result.party.inventoryItem(1))
+        assertTrue(result.party.hasFlagState(Story.garth.bandits.closed))
+        assertEquals(listOf(NpcVisitState(Npcs.garth, true)), result.party.visitedNpcs)
+        assertTrue(result.events.any { event ->
+            event is EngineTraceEvent.Menu && event.keys == listOf('C', 'Q', 'R', 'B')
+        })
+    }
+
     private fun garthRecoveredDialogueService(): Pair<BuildingServiceModel, SceneModel> {
         val content = RylweenCompiledScratch.nextDsl
         val branch = content.dialogue
@@ -1626,6 +1662,15 @@ class RylweenDslValidationTest {
         )
         return service to scene
     }
+
+    private fun compiledSpeakContent(): SpeakRuntimeContent =
+        RylweenCompiledScratch.nextDsl.let { content ->
+            SpeakRuntimeContent(
+                speak = content.speak,
+                characters = content.characters,
+                dialogue = content.dialogue,
+            )
+        }
 
     private fun compiledTownSession(
         party: PartyState,
