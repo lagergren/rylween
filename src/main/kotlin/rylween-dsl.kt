@@ -930,7 +930,6 @@ class SceneRefs {
     val Dungeon = DungeonSceneRefs()
     val Ydarg = YdargSceneRefs()
 
-    val churchHeal = Towne.churchHeal
     val rumour = Towne.rumour
     val ydargMain = Ydarg.main
     val ydargRoomMonster = Ydarg.roomMonster
@@ -943,7 +942,6 @@ class SceneRefs {
 
 class TowneSceneRefs {
     val church = sceneId("towne.church")
-    val churchHeal = sceneId("towne.church.heal")
     val rumour = sceneId("towne.rumour")
     val smith = sceneId("towne.smith")
     val inn = sceneId("towne.inn")
@@ -1329,12 +1327,9 @@ class TowneRefs {
 }
 
 class ChurchRefs {
+    val intro = text("towne.church.intro")
+    val menu = text("towne.church.menu")
     val who = text("towne.church.who")
-    val corpse = text("towne.church.corpse")
-    val noHealing = text("towne.church.no_healing")
-    val cost = text("towne.church.cost")
-    val noGold = text("towne.church.no_gold2")
-    val healed = text("towne.church.healed")
 }
 
 class RumourRefs {
@@ -1417,7 +1412,10 @@ val T = Texts
 
 class NativeOpRefs {
     val screenClearText = nativeOp("screen.clear_text")
+    val screenClearMapWindow = nativeOp("screen.clear_map_window")
     val screenRedrawMap = nativeOp("screen.redraw_map")
+    val screenShowImage = nativeOp("screen.show_image")
+    val screenStatusLine = nativeOp("screen.status_line")
     val inventoryAdd = nativeOp("inventory.add")
     val townEnterService = nativeOp("town.enter_service")
     val ydargInit = nativeOp("ydarg.init")
@@ -1489,6 +1487,7 @@ sealed interface Op {
     data class Break(val reason: String? = null) : Op
     data class Stop(val reason: String? = null) : Op
     data class Switch(val expr: IntAst, val cases: List<SwitchCase>) : Op
+    data class Menu(val prompt: TextBlock, val options: List<MenuOption>, val defaultOps: List<Op>) : Op
     data class AskMember(val prompt: TextId, val varName: String) : Op
     data class AskMonster(val prompt: TextId, val varName: String) : Op
     data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
@@ -1501,6 +1500,7 @@ sealed interface Op {
 }
 
 data class SwitchCase(val match: Int?, val body: List<Op>)
+data class MenuOption(val key: Char, val body: List<Op>)
 
 data class SceneModel(val id: SceneId, val ops: List<Op>)
 data class DialogueModel(val npc: NpcId, val branches: List<DialogueBranchModel>)
@@ -2052,6 +2052,7 @@ class BoolSlot(
 
 class PartyRef(private val script: ScriptScope) {
     val gold = IntSlot(script, LValueAst.PartyScalar("gold"), IntAst.PartyScalar("gold"))
+    val memberCount = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
 }
 
@@ -2066,6 +2067,7 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
         LValueAst.MemberField(index.ast, "dead"),
         BoolAst.MemberFlag(index.ast, "dead"),
     )
+    val spellcaster: BoolExpr = Bool(BoolAst.MemberFlag(index.ast, "spellcaster"))
 
     private fun intField(field: String): IntSlot =
         IntSlot(script, LValueAst.MemberField(index.ast, field), IntAst.MemberField(index.ast, field))
@@ -2097,7 +2099,10 @@ class NativeStringSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
 
 class NativeAllowlistRefs {
     val screenClearText = effect(NativeOps.screenClearText, "text-window rendering primitive")
+    val screenClearMapWindow = effect(NativeOps.screenClearMapWindow, "map-window clearing primitive")
     val screenRedrawMap = effect(NativeOps.screenRedrawMap, "map rendering primitive")
+    val screenShowImage = effect(NativeOps.screenShowImage, "map-window image rendering primitive")
+    val screenStatusLine = effect(NativeOps.screenStatusLine, "status-line rendering primitive")
     val inventoryAdd = effect(NativeOps.inventoryAdd, "legacy inventory slot mutation")
     val townEnterService = effect(NativeOps.townEnterService, "town building-service trampoline")
     val ydargInit = effect(NativeOps.ydargInit, "legacy Ydarg dungeon state setup")
@@ -2119,7 +2124,10 @@ class NativeAllowlistRefs {
 
     val all: List<NativeSpec> = listOf(
         screenClearText,
+        screenClearMapWindow,
         screenRedrawMap,
+        screenShowImage,
+        screenStatusLine,
         inventoryAdd,
         townEnterService,
         ydargInit,
@@ -2244,8 +2252,12 @@ class ScriptScope(
 
     fun screen(id: TextId) = record(Op.Screen(TextBlock.Ref(id)))
     fun screen(vararg lines: String) = record(Op.Screen(TextBlock.Inline(lines.toList())))
+    fun screen(body: StructuredTextBlockBuilder.() -> Unit) =
+        record(Op.Screen(StructuredTextBlockBuilder().apply(body).build()))
+
     fun say(id: TextId) = screen(id)
     fun say(vararg lines: String) = screen(*lines)
+    fun say(body: StructuredTextBlockBuilder.() -> Unit) = screen(body)
     fun emit(id: TextId) = record(Op.Emit(id))
     fun emitIndexed(pattern: TextPattern, value: IntExpr) = record(Op.EmitIndexed(pattern, value.ast))
     fun waitInput(reason: String? = null) = record(Op.WaitInput(reason))
@@ -2282,6 +2294,24 @@ class ScriptScope(
         val builder = SwitchBuilder(this)
         builder.body()
         record(Op.Switch(expr.ast, builder.cases))
+    }
+
+    fun menu(prompt: TextId, body: MenuBuilder.() -> Unit) {
+        val builder = MenuBuilder()
+        builder.body()
+        record(builder.build(TextBlock.Ref(prompt)))
+    }
+
+    fun menu(vararg promptLines: String, body: MenuBuilder.() -> Unit) {
+        val builder = MenuBuilder()
+        builder.body()
+        record(builder.build(TextBlock.Inline(promptLines.toList())))
+    }
+
+    fun menu(prompt: TextBlock, body: MenuBuilder.() -> Unit) {
+        val builder = MenuBuilder()
+        builder.body()
+        record(builder.build(prompt))
     }
 
     fun forEachMonster(includeDead: Boolean = false, body: ScriptScope.(MonsterRef) -> Unit) {
@@ -2394,6 +2424,22 @@ class SwitchBuilder(private val parent: ScriptScope) {
     }
 }
 
+@RylNextDsl
+class MenuBuilder {
+    private val options = mutableListOf<MenuOption>()
+    private var defaultOps = emptyList<Op>()
+
+    fun option(key: Char, body: ScriptScope.() -> Unit) {
+        options += MenuOption(key.uppercaseChar(), recordScript(body))
+    }
+
+    fun default(body: ScriptScope.() -> Unit) {
+        defaultOps = recordScript(body)
+    }
+
+    fun build(prompt: TextBlock): Op.Menu = Op.Menu(prompt, options.toList(), defaultOps)
+}
+
 class AskScope(private val script: ScriptScope) {
     fun member(prompt: TextId): MemberRef {
         val name = "member_pick"
@@ -2423,7 +2469,10 @@ class NativeScope(private val script: ScriptScope) {
 
 class NativeScreen(private val script: ScriptScope) {
     fun clearText() = script.record(Op.NativeCall(NativeAllowlist.screenClearText.path, emptyList()))
+    fun clearMapWindow() = script.record(Op.NativeCall(NativeAllowlist.screenClearMapWindow.path, emptyList()))
     fun redrawMap() = script.record(Op.NativeCall(NativeAllowlist.screenRedrawMap.path, emptyList()))
+    fun showImage(image: ImageId) = script.record(Op.NativeCall(NativeAllowlist.screenShowImage.path, listOf(render(image))))
+    fun statusLine() = script.record(Op.NativeCall(NativeAllowlist.screenStatusLine.path, emptyList()))
 }
 
 class NativeRumour(private val script: ScriptScope) {
@@ -4008,6 +4057,10 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.Switch -> {
                     int(op.expr)
                     op.cases.forEach { ops(it.body) }
+                }
+                is Op.Menu -> {
+                    op.options.forEach { ops(it.body) }
+                    ops(op.defaultOps)
                 }
                 is Op.AskMember -> Unit
                 is Op.AskMonster -> Unit
