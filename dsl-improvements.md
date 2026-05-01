@@ -175,11 +175,11 @@ Current status:
 | Runtime state/save | `stateFixture`, strict `runtimeState`, validation, deterministic text writer | 3 state fixtures, including near-winning and winning runtime snapshot | reader/parser, filesystem save/load policy, multi-party real saves, full exact snapshot coverage from live engine |
 | Flags/milestones/win | typed flag states, milestone projection, generic win predicate | 13 current story/encounter flags, 6 milestone records | full transition graph validation, generated catalog from source data |
 | Items/equipment | generated item metadata, slotted inventory, separate equipment, item pools | 63 current item handles/records, potion metadata, first magic item example | all item-use scripts, all equipment actions, generated metadata pipeline |
-| Towns/services | town declarations, service availability, reusable town menu/service shape, exact service hours, first typed service script | 4 current towns, C/S/I/M/T/L menu, 5 building services; church main/heal/energize/raise first-pass script | smith/inn/merchant/tavern/hut/lodge bodies still native trampolines; full byte-parity service runner |
+| Towns/services | town declarations, service availability, reusable town menu/service shape, exact service hours, first typed service script | 4 current towns, C/S/I/M/T/L menu, 5 building services; church main/heal/energize/raise first-pass script with typed text and reusable payment/member choices | smith/inn/merchant/tavern/hut/lodge bodies still native trampolines; full byte-parity service runner |
 | NPCs/roles/visits | character declarations, roles, fixed/random placement, visited bits | 39 current NPCs, 17 story roles, representative runtime placements | generated NPC catalog, full randomized placement runtime, all NPC-specific dialogue |
 | Speak/chitchat/rumours | standard conversation model, role/town text refs, anonymous rumours, exclusions | speak screens, chitchat/question tables, 33 town rumour entries | full speak mission scripts, final text binding/rendering runtime |
 | Combat/rewards | reusable standard battle shape, action list, tunables, reward bundle, traceable native boundary | standard battle tunables, 2 monster examples, battle loot/reward shape | full combat loop, all monsters, all spells/monster abilities, battle parity runner |
-| Missions/scenes/scripts | typed scenes/op AST, dialogue branches, rewards, native allowlist | bandits mission, Garth dialogue, Borin gift, rumour/church/Ydarg probes | broad script port from `data/world/scripts`, all mission triggers/actions |
+| Missions/scenes/scripts | typed scenes/op AST, dialogue branches, rewards, reusable choices, explicit control signals, native allowlist | bandits mission, Garth dialogue, Borin gift, rumour/church/Ydarg probes | broad script port from `data/world/scripts`, all mission triggers/actions |
 | World/map/terrain/visual/layout | typed handles exist for many concepts | mostly handles only | map cells, terrain semantics, visuals/assets, screen layout/static documents |
 | Dungeons/Ydarg/secrets/score | narrow native islands and handles | Ydarg probe only | dungeon scenarios, Ydarg room/state model, secrets/sysop actions, score/vscore |
 
@@ -231,6 +231,9 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - Town service availability and reusable building behavior are separate. `towns { ... services { inn(); tavern() } }` says which services a town offers; `townSystem { menu { ... } buildingServices { ... } }` says how the reusable town-entry loop maps keys to services, scenes, and opening hours. Current service hours are exact to `data/world.json5`: smith and merchant `6..18`, tavern `6..1`, inn/church always open.
 - Building service scenes can migrate one service at a time. Smith, inn, merchant, and tavern still use `native.town.enterService(Buildings.*)` as a narrow backend-neutral trampoline; church is now an inline typed script for its H/E/R/L menu, heal, energize, and raise branches.
 - Authoring should not create lookup handles for one-off branch text. Reusable service prompts such as church intro/menu/who can stay as `TextId` handles, but local results such as "corpse", "not spellcaster", "raised", and payment prompts should be inline structured text in the owning script unless they are reused by another action or screen.
+- Choice flows should use reusable helpers once their shape is understood. `choice.payNoThanks(...)` is the first helper; `choice.member(...)` records a typed member picker with filters such as `Any`, `AliveOnly`, `DeadOnly`, and `SpellcasterOnly`, and `choice.inventorySlot(...)` records the A-through-slot-limit inventory picker shape for future item/equipment scripts.
+- Inline text should carry typed values directly, e.g. `line("- That'll be ", price)` or `line(pronoun(member, PronounCase.Object), ".")`, instead of embedding `{cost}` or `{pro_obj}` placeholders in local string literals. Placeholder strings are still acceptable for imported legacy `TextId` tables until those records get typed binding metadata.
+- `breakLoop(...)` and `stop(...)` are explicit script-control signals. Menu, switch, and if bodies propagate those signals to their surrounding script runner; validation rejects `breakLoop(...)` outside a loop.
 - Legacy `main` C code confirms the original NPC layout: slots 1-24 are generated random people, slot 33 is Marcus the fixed Hermit at wilderness `48,7`, slots 34-35 are fixed tavern women, and slots 36-39 are Alex/Galdon/Kosch/Ufarsin as merchant wilderness records with implicit `0,0`. The DSL should not expose implicit wilderness-origin placement as an authoring concept; characters should be declared as `randomPlacement()`, `randomWilderness()`, or `fixed(Wilderness.xy(...))`.
 - Generated `Items.*` handles now carry legacy item ids from `data/world/items/*.json5` in Kotlin implementation metadata. Item-pool validation checks both the expected range length and the exact ordered ids of the referenced handles, so author-facing pools stay semantic while migration mistakes in numeric carryover fail validation.
 - Confirmed design decision: item ids should appear only in generated metadata, if they appear at all. The public author-facing `item("slug")` helper cannot attach a legacy id; generated catalog code uses the internal generated-handle path.
@@ -279,8 +282,8 @@ B1-B9 first-pass notes:
 
 ### D. Text, dialogue, NPCs, and story state
 
-- [ ] D1. Text records and local bindings. DSL delta: `texts { text(Texts.foo) { bind(LocalText.partyLeader, ...) } }`. Native decision: wrapping and final placeholder substitution.
-- [ ] D2. Pronouns and name bindings. DSL delta: typed binding names and pronoun cases instead of symbolic strings. Native decision: lookup by member/npc id.
+- [ ] D1. Text records and local bindings. DSL delta: `texts { text(Texts.foo) { bind(LocalText.partyLeader, ...) } }`. Native decision: wrapping and final placeholder substitution. Current scratch status: inline structured text can now include typed integer and string values directly, so local text should use `line("- That'll be ", price)` rather than `{cost}` placeholders.
+- [ ] D2. Pronouns and name bindings. DSL delta: typed binding names and pronoun cases instead of symbolic strings. Native decision: lookup by member/npc id. Current scratch status: inline church branch text now uses typed `pronoun(member, PronounCase.*)` parts rather than `{pro_sub}` / `{pro_obj}` string placeholders.
 - [ ] D3. NPC definitions and roles. DSL delta: `characters { character(Npcs.garth) { name; job; fixed(...); role(...) } }`. Native decision: role lookup and placement storage. Current scratch status: all 39 legacy NPC names/jobs are declared in the scratch file, including the 17 current semantic story roles used by text/rumours.
 - [ ] D4. NPC placement and visited state. DSL delta: content placement plus mutable `state { npcs { at(...) } visited(...) }`. Native decision: runtime coordinates and visited bitsets. Current scratch status: character content distinguishes `randomPlacement()`, `randomWilderness()`, and `fixed(...)`; runtime fixtures still carry explicit realized NPC locations and visited bits. Legacy C's trailing `0,0` wilderness merchant slots are documented as an import/migration concern, not an author-facing placement mode.
 - [ ] D5. Flags and story progress. DSL delta: typed flag families with explicit states and setters. Native decision: dense flag storage and save serialization.
@@ -291,7 +294,7 @@ B1-B9 first-pass notes:
 ### E. Towns, buildings, wilderness, and daily actions
 
 - [ ] E1. Towns and buildings. DSL delta: `towns { town("ollk") { name; position; taxPercent; services { ... } } }` plus `townSystem { buildingServices { ... } }`. Native decision: current-location state and generic enter dispatcher. Current scratch status: the four current towns are declared with exact names, coordinates, tax rates, settlement class, and service availability from `data/world.json5`; reusable building service records now carry exact service hours and scene targets.
-- [ ] E2. Keymaps and menus. DSL delta: typed `wildernessKeys`, `townKeys`, and `combatKeys` declarations. Native decision: keyboard input and dispatch execution. Current scratch status: the town-entry keymap is modeled under `townSystem { menu { church(); smith(); inn(); merchant(); tavern(); leave() } }`, preserving C/S/I/M/T/L order and leave-menu semantics.
+- [ ] E2. Keymaps and menus. DSL delta: typed `wildernessKeys`, `townKeys`, and `combatKeys` declarations. Native decision: keyboard input and dispatch execution. Current scratch status: the town-entry keymap is modeled under `townSystem { menu { church(); smith(); inn(); merchant(); tavern(); leave() } }`, preserving C/S/I/M/T/L order and leave-menu semantics; script menus now have reusable choice helpers and explicit `breakLoop`/`stop` propagation semantics.
 - [ ] E3. Shops and services. DSL delta: smith, merchant, inn, tavern, church, hut, and lodge as building scripts/tables. Native decision: menu input/render primitives, temporary pricing helpers if needed. Current scratch status: town building services for church, smith, inn, merchant, and tavern now have scene targets and exact opening hours; church has a first-pass typed H/E/R/L script with inline branch text, while smith/inn/merchant/tavern still call the backend-neutral `native.town.enterService(...)` trampoline.
 - [ ] E4. Rest, camp, hunt, and lodge. DSL delta: action scripts with costs, risks, time passage, food/fatigue effects. Native decision: RNG and state mutation primitives.
 - [ ] E5. Upkeep and time. DSL delta: `upkeep { daily { ... } hourly { ... } }` with balance tables. Native decision: clock/tick scheduling and deterministic RNG.
@@ -733,11 +736,14 @@ Text bindings should be typed instead of string-keyed:
 
 ```kotlin
 screen {
-    lines(
-        "- That'll be {cost}",
-        "gold coins, please.",
-        "",
-    )
+    line("- That'll be ", price)
+    line("gold coins, please.")
+    line("")
+}
+
+screen {
+    line("The priestess raises")
+    line(pronoun(member, PronounCase.Object), ".")
 }
 
 emit(

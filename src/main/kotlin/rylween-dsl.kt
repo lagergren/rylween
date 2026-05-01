@@ -250,6 +250,8 @@ data class TextId(val id: String)
 data class TextPattern(val pattern: String)
 sealed interface TextPart {
     data class Literal(val text: String) : TextPart
+    data class IntValue(val value: IntAst) : TextPart
+    data class StringValue(val value: StrAst) : TextPart
     data class RoleName(val role: NpcRole) : TextPart
     data class RoleLocation(val role: NpcRole) : TextPart
     data class TownName(val town: TownId) : TextPart
@@ -1470,6 +1472,10 @@ sealed interface LValueAst {
     data class MonsterField(val monster: IntAst, val field: String) : LValueAst
 }
 
+enum class ScriptControlSignal { Continue, BreakNearestLoop, StopScript }
+enum class MemberChoiceFilter { Any, AliveOnly, DeadOnly, SpellcasterOnly }
+enum class InventorySlotChoiceFilter { Any, NonEmpty, Empty }
+
 sealed interface Op {
     data class Screen(val text: TextBlock) : Op
     data class Emit(val text: TextId) : Op
@@ -1484,11 +1490,24 @@ sealed interface Op {
     data class SetFlag(val slug: String, val nativeValue: String) : Op
     data class If(val cond: BoolAst, val thenOps: List<Op>, val elseOps: List<Op>) : Op
     data class Loop(val body: List<Op>) : Op
-    data class Break(val reason: String? = null) : Op
-    data class Stop(val reason: String? = null) : Op
+    data class Break(
+        val reason: String? = null,
+        val signal: ScriptControlSignal = ScriptControlSignal.BreakNearestLoop,
+    ) : Op
+    data class Stop(
+        val reason: String? = null,
+        val signal: ScriptControlSignal = ScriptControlSignal.StopScript,
+    ) : Op
     data class Switch(val expr: IntAst, val cases: List<SwitchCase>) : Op
     data class Menu(val prompt: TextBlock, val options: List<MenuOption>, val defaultOps: List<Op>) : Op
-    data class AskMember(val prompt: TextId, val varName: String) : Op
+    data class AskMember(val prompt: TextBlock, val varName: String, val filter: MemberChoiceFilter) : Op
+    data class AskInventorySlot(
+        val prompt: TextBlock,
+        val varName: String,
+        val firstKey: Char,
+        val slots: IntRange,
+        val filter: InventorySlotChoiceFilter,
+    ) : Op
     data class AskMonster(val prompt: TextId, val varName: String) : Op
     data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
@@ -2241,6 +2260,7 @@ class ScriptScope(
 ) {
     val party = PartyRef(this)
     val ask = AskScope(this)
+    val choice = ChoiceScope(this)
     val native = NativeScope(this)
 
     val currentCaster: MemberRef
@@ -2249,6 +2269,8 @@ class ScriptScope(
     fun record(op: Op) {
         ops += op
     }
+
+    fun fresh(prefix: String): String = ctx.fresh(prefix)
 
     fun screen(id: TextId) = record(Op.Screen(TextBlock.Ref(id)))
     fun screen(vararg lines: String) = record(Op.Screen(TextBlock.Inline(lines.toList())))
@@ -2441,18 +2463,66 @@ class MenuBuilder {
 }
 
 class AskScope(private val script: ScriptScope) {
-    fun member(prompt: TextId): MemberRef {
-        val name = "member_pick"
-        script.record(Op.AskMember(prompt, name))
+    fun member(prompt: TextId, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
+        member(TextBlock.Ref(prompt), filter)
+
+    fun member(prompt: TextBlock, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef {
+        val name = script.fresh("member")
+        script.record(Op.AskMember(prompt, name, filter))
         return script.party.member(v(name))
     }
 
+    fun inventorySlot(
+        prompt: TextBlock,
+        firstKey: Char = 'A',
+        slots: IntRange = 1..InventorySaveSlotMax,
+        filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
+    ): InventorySlotRef {
+        val name = script.fresh("inventory_slot")
+        script.record(Op.AskInventorySlot(prompt, name, firstKey.uppercaseChar(), slots, filter))
+        return InventorySlotRef(v(name))
+    }
+
     fun monsterAlive(prompt: TextId): MonsterRef {
-        val name = "monster_pick"
+        val name = script.fresh("monster")
         script.record(Op.AskMonster(prompt, name))
         return MonsterRef(script, v(name))
     }
 }
+
+class ChoiceScope(private val script: ScriptScope) {
+    fun payNoThanks(amount: IntExpr, broke: ScriptScope.() -> Unit, paid: ScriptScope.() -> Unit) {
+        script.menu("(P)ay", "(N)o thanks") {
+            option('P') {
+                pay(amount, broke, paid)
+            }
+            option('N') {}
+        }
+    }
+
+    fun member(prompt: TextId, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
+        script.ask.member(prompt, filter)
+
+    fun member(
+        prompt: TextId,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        body: ScriptScope.(MemberRef) -> Unit,
+    ) {
+        script.body(member(prompt, filter))
+    }
+
+    fun inventorySlot(
+        prompt: TextBlock,
+        firstKey: Char = 'A',
+        slots: IntRange = 1..InventorySaveSlotMax,
+        filter: InventorySlotChoiceFilter = InventorySlotChoiceFilter.Any,
+        body: ScriptScope.(InventorySlotRef) -> Unit,
+    ) {
+        script.body(script.ask.inventorySlot(prompt, firstKey, slots, filter))
+    }
+}
+
+data class InventorySlotRef(val index: IntExpr)
 
 class NativeScope(private val script: ScriptScope) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
@@ -3279,6 +3349,8 @@ class StructuredTextBlockBuilder {
     private fun toTextPart(part: Any): TextPart =
         when (part) {
             is TextPart -> part
+            is IntExpr -> TextPart.IntValue(part.ast)
+            is StrExpr -> TextPart.StringValue(part.ast)
             is String -> TextPart.Literal(part)
             else -> TextPart.Literal(part.toString())
         }
@@ -4032,10 +4104,28 @@ fun nativePathsIn(model: GameModel): Set<String> {
         }
     }
 
+    fun text(block: TextBlock) {
+        if (block is TextBlock.Structured) {
+            block.lines.forEach { line ->
+                line.parts.forEach { part ->
+                    when (part) {
+                        is TextPart.IntValue -> int(part.value)
+                        is TextPart.StringValue -> str(part.value)
+                        is TextPart.Literal,
+                        is TextPart.RoleName,
+                        is TextPart.RoleLocation,
+                        is TextPart.TownName,
+                        is TextPart.FuzzyTownLocation -> Unit
+                    }
+                }
+            }
+        }
+    }
+
     fun ops(items: List<Op>) {
         items.forEach { op ->
             when (op) {
-                is Op.Screen -> Unit
+                is Op.Screen -> text(op.text)
                 is Op.Emit -> Unit
                 is Op.EmitIndexed -> int(op.value)
                 is Op.WaitInput -> Unit
@@ -4059,10 +4149,12 @@ fun nativePathsIn(model: GameModel): Set<String> {
                     op.cases.forEach { ops(it.body) }
                 }
                 is Op.Menu -> {
+                    text(op.prompt)
                     op.options.forEach { ops(it.body) }
                     ops(op.defaultOps)
                 }
-                is Op.AskMember -> Unit
+                is Op.AskMember -> text(op.prompt)
+                is Op.AskInventorySlot -> text(op.prompt)
                 is Op.AskMonster -> Unit
                 is Op.ForEachMonster -> ops(op.body)
                 is Op.RunScene -> Unit

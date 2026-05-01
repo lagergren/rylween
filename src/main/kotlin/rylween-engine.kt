@@ -27,12 +27,19 @@ sealed interface EngineTraceEvent {
     data class Pause(val ms: Int) : EngineTraceEvent
     data class SetFlag(val flag: String, val state: String) : EngineTraceEvent
     data class Menu(val prompt: TextBlock, val keys: List<Char>) : EngineTraceEvent
+    data class AskMember(val prompt: TextBlock, val filter: MemberChoiceFilter) : EngineTraceEvent
+    data class AskInventorySlot(
+        val prompt: TextBlock,
+        val firstKey: Char,
+        val slots: IntRange,
+        val filter: InventorySlotChoiceFilter,
+    ) : EngineTraceEvent
     data class GrantReward(val reward: ScriptRewardModel) : EngineTraceEvent
     data class AchieveMilestone(val milestone: GameMilestoneId) : EngineTraceEvent
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : EngineTraceEvent
     data class Encounter(val monster: MonsterId, val mandatory: Boolean, val tier: EncounterTier?) : EngineTraceEvent
-    data class Stop(val reason: String?) : EngineTraceEvent
-    data class Break(val reason: String?) : EngineTraceEvent
+    data class Stop(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
+    data class Break(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
 }
 
 class TraceEnginePort(
@@ -68,43 +75,73 @@ class ScriptTraceRunner(
     private val stringVars = mutableMapOf<String, String>()
 
     fun run(ops: List<Op>): List<EngineTraceEvent> {
-        ops.forEach(::run)
+        runAll(ops)
         return (engine as? TraceEnginePort)?.events.orEmpty()
     }
 
-    private fun run(op: Op) {
+    private fun run(op: Op): ScriptControlSignal =
         when (op) {
-            is Op.Screen -> trace(EngineTraceEvent.Screen(op.text))
-            is Op.Emit -> trace(EngineTraceEvent.Emit(op.text))
-            is Op.EmitIndexed -> trace(EngineTraceEvent.EmitIndexed(op.pattern, eval(op.value)))
-            is Op.WaitInput -> trace(EngineTraceEvent.WaitInput(op.reason))
-            is Op.Pause -> trace(EngineTraceEvent.Pause(op.millis))
-            is Op.LetInt -> intVars[op.name] = eval(op.value)
-            is Op.BindText -> stringVars[op.name] = eval(op.value)
-            is Op.Set -> Unit
-            is Op.Add -> Unit
-            is Op.Sub -> Unit
-            is Op.SetFlag -> trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
+            is Op.Screen -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.Screen(op.text)) }
+            is Op.Emit -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.Emit(op.text)) }
+            is Op.EmitIndexed -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.EmitIndexed(op.pattern, eval(op.value)))
+            }
+            is Op.WaitInput -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.WaitInput(op.reason)) }
+            is Op.Pause -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.Pause(op.millis)) }
+            is Op.LetInt -> ScriptControlSignal.Continue.also { intVars[op.name] = eval(op.value) }
+            is Op.BindText -> ScriptControlSignal.Continue.also { stringVars[op.name] = eval(op.value) }
+            is Op.Set -> ScriptControlSignal.Continue
+            is Op.Add -> ScriptControlSignal.Continue
+            is Op.Sub -> ScriptControlSignal.Continue
+            is Op.SetFlag -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
+            }
             is Op.If -> runAll(if (eval(op.cond)) op.thenOps else op.elseOps)
-            is Op.Loop -> trace(EngineTraceEvent.Stop("trace runner does not execute loops"))
-            is Op.Break -> trace(EngineTraceEvent.Break(op.reason))
-            is Op.Stop -> trace(EngineTraceEvent.Stop(op.reason))
-            is Op.Switch -> op.cases.firstOrNull { it.match == eval(op.expr) || it.match == null }?.let { runAll(it.body) }
-            is Op.Menu -> trace(EngineTraceEvent.Menu(op.prompt, op.options.map { it.key }))
-            is Op.AskMember -> Unit
-            is Op.AskMonster -> Unit
-            is Op.ForEachMonster -> trace(EngineTraceEvent.Stop("trace runner does not iterate monsters"))
-            is Op.RunScene -> trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
-            is Op.Encounter -> trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
-            Op.ConsumeActiveItem -> Unit
-            is Op.GrantReward -> trace(EngineTraceEvent.GrantReward(op.reward))
-            is Op.AchieveMilestone -> trace(EngineTraceEvent.AchieveMilestone(op.milestone))
-            is Op.NativeCall -> engine.effect(EngineRequest(op.path, op.args))
+            is Op.Loop -> ScriptControlSignal.StopScript.also {
+                trace(EngineTraceEvent.Stop("trace runner does not execute loops", ScriptControlSignal.StopScript))
+            }
+            is Op.Break -> op.signal.also { trace(EngineTraceEvent.Break(op.reason, op.signal)) }
+            is Op.Stop -> op.signal.also { trace(EngineTraceEvent.Stop(op.reason, op.signal)) }
+            is Op.Switch ->
+                op.cases.firstOrNull { it.match == eval(op.expr) || it.match == null }?.let { runAll(it.body) }
+                    ?: ScriptControlSignal.Continue
+            is Op.Menu -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.Menu(op.prompt, op.options.map { option -> option.key }))
+            }
+            is Op.AskMember -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.AskMember(op.prompt, op.filter))
+            }
+            is Op.AskInventorySlot -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.AskInventorySlot(op.prompt, op.firstKey, op.slots, op.filter))
+            }
+            is Op.AskMonster -> ScriptControlSignal.Continue
+            is Op.ForEachMonster -> ScriptControlSignal.StopScript.also {
+                trace(EngineTraceEvent.Stop("trace runner does not iterate monsters", ScriptControlSignal.StopScript))
+            }
+            is Op.RunScene -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
+            }
+            is Op.Encounter -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
+            }
+            Op.ConsumeActiveItem -> ScriptControlSignal.Continue
+            is Op.GrantReward -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.GrantReward(op.reward))
+            }
+            is Op.AchieveMilestone -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.AchieveMilestone(op.milestone))
+            }
+            is Op.NativeCall -> ScriptControlSignal.Continue.also {
+                engine.effect(EngineRequest(op.path, op.args))
+            }
         }
-    }
 
-    private fun runAll(ops: List<Op>) {
-        ops.forEach(::run)
+    private fun runAll(ops: List<Op>): ScriptControlSignal {
+        ops.forEach { op ->
+            val signal = run(op)
+            if (signal != ScriptControlSignal.Continue) return signal
+        }
+        return ScriptControlSignal.Continue
     }
 
     private fun eval(ast: IntAst): Int =
