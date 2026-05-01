@@ -262,39 +262,43 @@ private object RylweenMetadataGenerator {
     }
 
     private fun renderItemPools(items: List<GeneratedItem>): String {
-        fun propertyByLegacyId(id: Int): String =
-            items.singleOrNull { it.legacyId == id }?.propertyName ?: error("missing legacy item id $id")
+        fun item(slug: String): GeneratedItem =
+            items.singleOrNull { it.slug == slug } ?: error("missing generated item $slug")
 
-        fun renderItemList(ids: List<Int>): String =
-            ids.joinToString(separator = "\n") { id -> "            Items.${propertyByLegacyId(id)}," }
+        fun renderItemList(poolItems: List<GeneratedItem>): String =
+            poolItems.joinToString(separator = "\n") { item -> "            Items.${item.propertyName}," }
 
-        fun renderPool(name: String, slug: String, ids: List<Int>, legacyExpression: String): String =
+        fun renderPool(name: String, slug: String, poolItems: List<GeneratedItem>): String =
             """
             |    val $name = generatedItemPool(
             |        "$slug",
             |        items = listOf(
-            |${renderItemList(ids)}
+            |${renderItemList(poolItems)}
             |        ),
-            |        legacyItemIds = $legacyExpression,
             |    )
             """.trimMargin()
 
-        val battleSpoils = (36..46).toList()
-        val magicItems = (100..111).toList()
-        val tavernScruffySpecials = listOf(15, 17, 26, 38, 41) + magicItems
+        val battleSpoils = items.filter { it.kind == "Potion" || it.kind == "Treasure" }
+            .filterNot { it.slug == "donkey" }
+        val magicItems = items.filter { it.kind == "MagicItem" }
+        val tavernScruffySpecials = listOf(
+            item("magic_dagger"),
+            item("magic_axe"),
+            item("admt_mail"),
+            item("amber_potion"),
+            item("green_gem"),
+        ) + magicItems
         return """
             |class ItemPoolRefs {
-            |    // Legacy battle.c currently rolls ids 36..46 here: potions plus ordinary
-            |    // treasure, excluding donkey and all milestone-projected special items.
-            |${renderPool("battleSpoils", "battle_spoils", battleSpoils, "36..46")}
+            |    // Potions plus ordinary treasure, excluding donkey and milestone specials.
+            |${renderPool("battleSpoils", "battle_spoils", battleSpoils)}
             |
-            |${renderPool("magicItems", "magic_items", magicItems, "100..111")}
+            |${renderPool("magicItems", "magic_items", magicItems)}
             |
             |${renderPool(
                 "tavernScruffySpecials",
                 "tavern_scruffy_specials",
                 tavernScruffySpecials,
-                "listOf(15, 17, 26, 38, 41) + (100..111).toList()",
             )}
             |}
             |val ItemPools = ItemPoolRefs()

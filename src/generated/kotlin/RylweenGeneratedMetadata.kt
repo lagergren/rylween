@@ -418,8 +418,7 @@ class GeneratedItemCatalog {
 val ItemCatalog = GeneratedItemCatalog()
 
 class ItemPoolRefs {
-    // Legacy battle.c currently rolls ids 36..46 here: potions plus ordinary
-    // treasure, excluding donkey and all milestone-projected special items.
+    // Potions plus ordinary treasure, excluding donkey and milestone specials.
     val battleSpoils = generatedItemPool(
         "battle_spoils",
         items = listOf(
@@ -435,7 +434,6 @@ class ItemPoolRefs {
             Items.crystalBowl,
             Items.necklace,
         ),
-        legacyItemIds = 36..46,
     )
 
     val magicItems = generatedItemPool(
@@ -454,7 +452,6 @@ class ItemPoolRefs {
             Items.holyHandgrenade,
             Items.fluteOfMadness,
         ),
-        legacyItemIds = 100..111,
     )
 
     val tavernScruffySpecials = generatedItemPool(
@@ -478,7 +475,6 @@ class ItemPoolRefs {
             Items.holyHandgrenade,
             Items.fluteOfMadness,
         ),
-        legacyItemIds = listOf(15, 17, 26, 38, 41) + (100..111).toList(),
     )
 }
 val ItemPools = ItemPoolRefs()
