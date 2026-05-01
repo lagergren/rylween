@@ -1194,6 +1194,73 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townTerminalAdapterRunsInnChitchatThroughReusableSpeakSession() {
+        val terminal = FakeTerminalPort("I", "N", "N", "N", "C", "1", "C", "B", "L", "L")
+        val session = TownSessionTerminalAdapter(
+            terminal,
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = testSpeakContent()),
+        ).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.inn),
+                townSystem = testTownSystem(Buildings.inn),
+                scenes = listOf(testInnScene()),
+                party = testParty(),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(terminal.output.any { "Speak with whom?" in it })
+        assertTrue(terminal.output.any { "1. Dargoth, tavernkeeper" in it })
+        assertTrue(terminal.output.any { "- You look well today," in it })
+        assertTrue(terminal.output.any { "- You've had too much" in it })
+        assertEquals(listOf(NpcVisitState(Npcs.dargoth, true)), session.session.party.visitedNpcs)
+    }
+
+    @Test
+    fun townTerminalAdapterRunsTavernSpeakQuestionThroughReusableSpeakSession() {
+        val terminal = FakeTerminalPort("T", "S", "1", "Q", "P", "B", "L", "L")
+        val session = TownSessionTerminalAdapter(
+            terminal,
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = testSpeakContent()),
+        ).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.tavern),
+                townSystem = testTownSystem(Buildings.tavern),
+                scenes = listOf(testTavernSpeakRumourScene()),
+                party = testParty(),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(terminal.output.any { "1. Yog, innkeeper" in it })
+        assertTrue(terminal.output.any { "Ask people at the inn." in it })
+        assertEquals(listOf(NpcVisitState(Npcs.yog, true)), session.session.party.visitedNpcs)
+    }
+
+    @Test
+    fun townTerminalAdapterRunsTavernRumourThroughStandardRumourTableExclusions() {
+        val terminal = FakeTerminalPort("T", "R", "", "L", "L")
+        val session = TownSessionTerminalAdapter(
+            terminal,
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = testSpeakContent()),
+        ).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.tavern),
+                townSystem = testTownSystem(Buildings.tavern),
+                scenes = listOf(testTavernSpeakRumourScene()),
+                party = testParty(flags = listOf(Story.garth.bandits.recovered)),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(terminal.output.any { "Ydarg waits in the south." in it })
+        assertTrue(terminal.output.none { "A merchant needs bandits gone." in it })
+    }
+
+    @Test
     fun townServiceBridgeReturnsWaitingOnInvalidServiceInput() {
         val terminal = FakeTerminalPort("C", "X")
         val serviceScene = SceneModel(
@@ -1798,6 +1865,102 @@ class RylweenDslValidationTest {
             }
         }.build().scenes.single()
 
+    private fun testTavernSpeakRumourScene(): SceneModel =
+        GameBuilder().apply {
+            scene(Scenes.Towne.tavern) {
+                loop {
+                    native.screen.clearText()
+                    menu("(S)peak", "(R)umors", "(L)eave") {
+                        option('S') {
+                            speak(Buildings.inn)
+                        }
+                        option('R') {
+                            native.screen.clearText()
+                            run(Scenes.rumour)
+                            waitInput("after tavern rumour")
+                        }
+                        option('L') {
+                            native.screen.clearText()
+                            native.screen.clearMapWindow()
+                            breakLoop("leave tavern")
+                        }
+                    }
+                }
+            }
+        }.build().scenes.single()
+
+    private fun testSpeakContent(): SpeakRuntimeContent =
+        SpeakRuntimeContent(
+            speak = SpeakBuilder().apply {
+                standardConversation {
+                    menu {
+                        chitchat()
+                        question {
+                            lodging()
+                            magic()
+                            people()
+                            nothing()
+                        }
+                        rumour()
+                        bye()
+                    }
+                }
+                textTables {
+                    screen(T.Speak.noNpc) {
+                        lines("Noone is here!")
+                    }
+                    screen(T.Speak.noRumour) {
+                        lines("- Sorry. There's", "nothing new I can", "tell you.", "")
+                    }
+                    chitchatPrompt(ChitchatSubject.Well) {
+                        male {
+                            lines("- You look well today,", "  Sir...")
+                        }
+                    }
+                    chitchatReplies(ChitchatSubject.Well) {
+                        job(NpcJobs.tavernkeeper) {
+                            lines("- You've had too much", "to drink, boy?")
+                        }
+                        job(NpcJobs.innkeeper) {
+                            lines("- The same to you.")
+                        }
+                    }
+                    questionReplies(QuestionTopic.People) {
+                        job(NpcJobs.innkeeper) {
+                            lines("Ask people at the inn.")
+                        }
+                    }
+                    rumourTable(RumourTables.standardTown) {
+                        rumour {
+                            lines("A merchant needs bandits gone.")
+                            excludeWhen(Story.garth.bandits.recovered)
+                        }
+                        rumour {
+                            lines("Ydarg waits in the south.")
+                        }
+                    }
+                }
+            }.build(),
+            characters = listOf(
+                CharacterModel(
+                    id = Npcs.dargoth,
+                    name = "Dargoth",
+                    job = NpcJobs.tavernkeeper,
+                    gender = Gender.Male,
+                    placement = CharacterPlacementModel.Fixed(Towns.murn.tavern),
+                    roles = emptyList(),
+                ),
+                CharacterModel(
+                    id = Npcs.yog,
+                    name = "Yog",
+                    job = NpcJobs.innkeeper,
+                    gender = Gender.Male,
+                    placement = CharacterPlacementModel.Fixed(Towns.murn.inn),
+                    roles = emptyList(),
+                ),
+            ),
+        )
+
     private fun testMember(
         name: String = "Tester",
         gender: Gender = Gender.Male,
@@ -1845,6 +2008,7 @@ class RylweenDslValidationTest {
         memberCount: Int? = null,
         equipment: EquipmentState = EquipmentState(Items.none, Items.none),
         inventoryItems: Map<Int, ItemId> = emptyMap(),
+        flags: List<FlagState> = emptyList(),
         members: List<PartyMemberState> = listOf(
             testMember(
                 pcClass = pcClass,
@@ -1872,7 +2036,7 @@ class RylweenDslValidationTest {
                 attacked = false,
                 attackedToday = emptyList(),
             ),
-            flags = emptyList(),
+            flags = flags,
             milestones = emptyList(),
             inventory = (0..InventorySaveSlotMax).map { slot ->
                 InventorySlotState(slot, inventoryItems[slot])
