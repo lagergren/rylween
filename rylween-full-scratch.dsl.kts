@@ -94,6 +94,12 @@ val nextRylween = rylween {
             experience = Formulas.rewardXpPerSurvivor
             gold = Formulas.rewardGoldParty
 
+            itemPlacement {
+                regularItems = RewardItemPlacement.FirstFreeInventorySlot
+                overflow = RewardOverflowPolicy.SkipIfInventoryFull
+                specialItems = RewardSpecialItemPolicy.ProjectMilestoneState
+            }
+
             lootTable(LootTables.standardBattle) {
                 dropChancePercent = 5
                 treasureChancePercent = 59
@@ -682,9 +688,11 @@ val nextDsl = nextRylween.content
 
 check(nextDsl.flags.size == 13)
 check(nextDsl.authoredFlags.size == 13)
+check(ItemCatalog.all.size == 63)
 check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
 check(nextDsl.rewards.size == 1)
+check(nextDsl.rewards.single().application.overflow == RewardOverflowPolicy.SkipIfInventoryFull)
 check(nextDsl.combat.standardBattle?.actions?.size == 5)
 check(nextDsl.combat.standardBattle?.playerRound?.attack?.confusionDivisor == 3)
 check(nextDsl.combat.standardBattle?.monsterRound?.melee?.damageDivisor == 6)
