@@ -264,6 +264,7 @@ data class FormulaId(val slug: String)
 data class KeyActionId(val slug: String)
 data class DungeonId(val slug: String)
 data class GameMilestoneId(val slug: String)
+data class CombatLootTableId(val slug: String)
 
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
@@ -294,6 +295,7 @@ fun formula(slug: String) = FormulaId(slug)
 fun keyAction(slug: String) = KeyActionId(slug)
 fun dungeon(slug: String) = DungeonId(slug)
 fun milestone(slug: String) = GameMilestoneId(slug)
+fun combatLootTable(slug: String) = CombatLootTableId(slug)
 
 // -----------------------------------------------------------------------------
 // Generated item handles from data/world/items/*.json5.
@@ -887,6 +889,20 @@ class DungeonRefs {
 }
 val Dungeons = DungeonRefs()
 
+class FormulaRefs {
+    val encounterH1Scaled = formula("encounter_h1_scaled")
+    val encounterH2Scaled = formula("encounter_h2_scaled")
+    val rewardXpPerSurvivor = formula("reward_xp_per_survivor")
+    val rewardGoldParty = formula("reward_gold_party")
+    val levelUpHitPointFloor = formula("level_up_hp_floor")
+}
+val Formulas = FormulaRefs()
+
+class CombatLootTableRefs {
+    val default = combatLootTable("combat.drop_tables.default")
+}
+val CombatLootTables = CombatLootTableRefs()
+
 class BuildingRefs {
     val none = building("none")
     val inn = building("inn")
@@ -1144,10 +1160,74 @@ data class GameProgressModel(
     val win: WinConditionModel?,
 )
 
+enum class MandatoryRunRule { NoEscape }
+enum class CombatActionKind { Attack, Defend, UseMagicItem, BattleCry, CastMageSpell }
+enum class CombatActionRequirement { Always, Mage }
+enum class EngineService {
+    KeyboardInput,
+    Rendering,
+    RandomNumbers,
+    CombatContextStorage,
+    InventoryStorage,
+    PartyStateMutation,
+    TextFormatting,
+}
+
+data class EngineServiceUse(
+    val service: EngineService,
+    val reason: String,
+)
+
+data class EncounterOpeningModel(
+    val fleeChancePercent: Int,
+    val desperateFleeChancePercent: Int,
+    val mandatoryRun: MandatoryRunRule,
+    val banners: List<ImageId>,
+)
+
+data class CombatActionModel(
+    val key: KeyActionId,
+    val kind: CombatActionKind,
+    val requirement: CombatActionRequirement,
+)
+
+data class MonsterRoundModel(
+    val spellChanceBasePercent: Int,
+    val spellPowerDivisor: Int,
+    val meleeFallback: SceneId,
+)
+
+data class CombatLootTableModel(
+    val id: CombatLootTableId,
+    val dropChancePercent: Int,
+    val treasureChancePercent: Int,
+    val treasure: IntRange,
+    val magic: IntRange,
+)
+
+data class CombatRewardsModel(
+    val experience: FormulaId,
+    val gold: FormulaId,
+    val loot: CombatLootTableModel,
+)
+
+data class StandardBattleModel(
+    val opening: EncounterOpeningModel,
+    val actions: List<CombatActionModel>,
+    val monsterRound: MonsterRoundModel,
+    val rewards: CombatRewardsModel,
+    val nativeServices: List<EngineServiceUse>,
+)
+
+data class CombatSystemModel(
+    val standardBattle: StandardBattleModel?,
+)
+
 data class GameModel(
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
+    val combat: CombatSystemModel,
     val monsters: List<MonsterModel>,
     val scenes: List<SceneModel>,
     val spells: List<SpellModel>,
@@ -1498,6 +1578,7 @@ fun render(arg: Any): String = when (arg) {
     is KeyActionId -> arg.slug
     is DungeonId -> arg.slug
     is GameMilestoneId -> arg.slug
+    is CombatLootTableId -> arg.slug
     else -> arg.toString()
 }
 
@@ -1693,6 +1774,7 @@ class NativeInput(private val script: ScriptScope) {
 class GameBuilder {
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
+    private var combatModel = CombatSystemModel(null)
     private val monsters = mutableListOf<MonsterModel>()
     private val scenes = mutableListOf<SceneModel>()
     private val spells = mutableListOf<SpellModel>()
@@ -1705,6 +1787,10 @@ class GameBuilder {
 
     fun gameProgress(body: GameProgressBuilder.() -> Unit) {
         progressModel = GameProgressBuilder().apply(body).build()
+    }
+
+    fun combat(body: CombatBuilder.() -> Unit) {
+        combatModel = CombatBuilder().apply(body).build()
     }
 
     fun monsters(body: MonsterCatalogBuilder.() -> Unit) {
@@ -1732,6 +1818,7 @@ class GameBuilder {
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
             progress = progressModel,
+            combat = combatModel,
             monsters = monsters.toList(),
             scenes = scenes.toList(),
             spells = spells.toList(),
@@ -1904,6 +1991,158 @@ class WinConditionBuilder {
 
         return WinConditionModel((explicitRequired + markedRequired).distinct(), completionMilestone)
     }
+}
+
+@RylNextDsl
+class CombatBuilder {
+    private var standardBattleModel: StandardBattleModel? = null
+
+    fun standardBattle(body: StandardBattleBuilder.() -> Unit) {
+        standardBattleModel = StandardBattleBuilder().apply(body).build()
+    }
+
+    fun build(): CombatSystemModel = CombatSystemModel(standardBattleModel)
+}
+
+@RylNextDsl
+class StandardBattleBuilder {
+    private var openingModel = EncounterOpeningBuilder().build()
+    private var actionModels = PlayerCombatActionsBuilder().build()
+    private var monsterRoundModel = MonsterRoundBuilder().build()
+    private var rewardsModel = CombatRewardsBuilder().build()
+
+    fun opening(body: EncounterOpeningBuilder.() -> Unit) {
+        openingModel = EncounterOpeningBuilder(openingModel).apply(body).build()
+    }
+
+    fun playerActions(body: PlayerCombatActionsBuilder.() -> Unit) {
+        actionModels = PlayerCombatActionsBuilder().apply(body).build()
+    }
+
+    fun monsterRound(body: MonsterRoundBuilder.() -> Unit) {
+        monsterRoundModel = MonsterRoundBuilder(monsterRoundModel).apply(body).build()
+    }
+
+    fun rewards(body: CombatRewardsBuilder.() -> Unit) {
+        rewardsModel = CombatRewardsBuilder(rewardsModel).apply(body).build()
+    }
+
+    fun build(): StandardBattleModel =
+        StandardBattleModel(
+            opening = openingModel,
+            actions = actionModels,
+            monsterRound = monsterRoundModel,
+            rewards = rewardsModel,
+            nativeServices = defaultNativeServices,
+        )
+
+    companion object {
+        private val defaultNativeServices = listOf(
+            EngineServiceUse(EngineService.KeyboardInput, "fight/run, action, spell, item, and target selection"),
+            EngineServiceUse(EngineService.Rendering, "combat banners, text panes, map-window art, and status refresh"),
+            EngineServiceUse(EngineService.RandomNumbers, "encounter sizing, hit rolls, damage rolls, fleeing, loot, and AI"),
+            EngineServiceUse(EngineService.CombatContextStorage, "live monster hit points, death bits, and round status effects"),
+            EngineServiceUse(EngineService.InventoryStorage, "item use, consume, loot placement, and first-free-slot lookup"),
+            EngineServiceUse(EngineService.PartyStateMutation, "HP, mana, XP, gold, kills, and death-state updates"),
+            EngineServiceUse(EngineService.TextFormatting, "party, monster, item, pronoun, and reward bindings"),
+        )
+    }
+}
+
+@RylNextDsl
+class EncounterOpeningBuilder(initial: EncounterOpeningModel? = null) {
+    var fleeChancePercent: Int = initial?.fleeChancePercent ?: 95
+    var desperateFleeChancePercent: Int = initial?.desperateFleeChancePercent ?: 31
+    var mandatoryRun: MandatoryRunRule = initial?.mandatoryRun ?: MandatoryRunRule.NoEscape
+    private val banners = initial?.banners?.toMutableList() ?: mutableListOf(
+        Images.Scene.encounterBanner1,
+        Images.Scene.encounterBanner2,
+        Images.Scene.encounterBanner3,
+        Images.Scene.encounterBanner4,
+        Images.Scene.encounterBanner5,
+    )
+
+    fun encounterBanners(vararg images: ImageId) {
+        banners.clear()
+        banners += images
+    }
+
+    fun build(): EncounterOpeningModel =
+        EncounterOpeningModel(fleeChancePercent, desperateFleeChancePercent, mandatoryRun, banners.toList())
+}
+
+@RylNextDsl
+class PlayerCombatActionsBuilder {
+    private val actions = mutableListOf<CombatActionModel>()
+
+    fun attack(key: KeyActionId = KeyActions.attack) {
+        action(key, CombatActionKind.Attack, CombatActionRequirement.Always)
+    }
+
+    fun defend(key: KeyActionId = KeyActions.defend) {
+        action(key, CombatActionKind.Defend, CombatActionRequirement.Always)
+    }
+
+    fun useMagicItem(key: KeyActionId = KeyActions.useItem) {
+        action(key, CombatActionKind.UseMagicItem, CombatActionRequirement.Always)
+    }
+
+    fun battleCry(key: KeyActionId = KeyActions.battleCry) {
+        action(key, CombatActionKind.BattleCry, CombatActionRequirement.Always)
+    }
+
+    fun castMageSpell(key: KeyActionId = KeyActions.castSpell) {
+        action(key, CombatActionKind.CastMageSpell, CombatActionRequirement.Mage)
+    }
+
+    fun build(): List<CombatActionModel> = actions.toList()
+
+    private fun action(
+        key: KeyActionId,
+        kind: CombatActionKind,
+        requirement: CombatActionRequirement,
+    ) {
+        actions += CombatActionModel(key, kind, requirement)
+    }
+}
+
+@RylNextDsl
+class MonsterRoundBuilder(initial: MonsterRoundModel? = null) {
+    var spellChanceBasePercent: Int = initial?.spellChanceBasePercent ?: 15
+    var spellPowerDivisor: Int = initial?.spellPowerDivisor ?: 2
+    var meleeFallback: SceneId = initial?.meleeFallback ?: Scenes.Battle.monsterMelee
+
+    fun spellChance(basePercent: Int, spellPowerDivisor: Int) {
+        spellChanceBasePercent = basePercent
+        this.spellPowerDivisor = spellPowerDivisor
+    }
+
+    fun build(): MonsterRoundModel =
+        MonsterRoundModel(spellChanceBasePercent, spellPowerDivisor, meleeFallback)
+}
+
+@RylNextDsl
+class CombatRewardsBuilder(initial: CombatRewardsModel? = null) {
+    var experience: FormulaId = initial?.experience ?: Formulas.rewardXpPerSurvivor
+    var gold: FormulaId = initial?.gold ?: Formulas.rewardGoldParty
+    private var lootModel = initial?.loot ?: CombatLootTableBuilder(CombatLootTables.default).build()
+
+    fun lootTable(id: CombatLootTableId, body: CombatLootTableBuilder.() -> Unit) {
+        lootModel = CombatLootTableBuilder(id).apply(body).build()
+    }
+
+    fun build(): CombatRewardsModel = CombatRewardsModel(experience, gold, lootModel)
+}
+
+@RylNextDsl
+class CombatLootTableBuilder(private val id: CombatLootTableId) {
+    var dropChancePercent: Int = 5
+    var treasureChancePercent: Int = 59
+    var treasure: IntRange = 36..46
+    var magic: IntRange = 100..111
+
+    fun build(): CombatLootTableModel =
+        CombatLootTableModel(id, dropChancePercent, treasureChancePercent, treasure, magic)
 }
 
 fun rylweenNext(body: GameBuilder.() -> Unit): GameModel =
@@ -2434,6 +2673,43 @@ fun validateGameProgress(progress: GameProgressModel) {
     }
 }
 
+fun validateCombatSystem(combat: CombatSystemModel) {
+    combat.standardBattle?.let { battle ->
+        checkPercent(battle.opening.fleeChancePercent, "standard battle flee chance")
+        checkPercent(battle.opening.desperateFleeChancePercent, "standard battle desperate flee chance")
+        check(battle.opening.banners.isNotEmpty()) { "standard battle requires at least one encounter banner" }
+
+        val actionKeys = battle.actions.map { it.key }
+        val actionKinds = battle.actions.map { it.kind }
+        check(actionKeys.toSet().size == actionKeys.size) { "standard battle has duplicate action key" }
+        check(actionKinds.toSet().size == actionKinds.size) { "standard battle has duplicate action kind" }
+        check(CombatActionKind.Attack in actionKinds) { "standard battle requires an attack action" }
+        check(CombatActionKind.Defend in actionKinds) { "standard battle requires a defend action" }
+        check(CombatActionKind.UseMagicItem in actionKinds) { "standard battle requires a use-magic-item action" }
+
+        checkPercent(battle.monsterRound.spellChanceBasePercent, "standard battle monster spell base chance")
+        check(battle.monsterRound.spellPowerDivisor > 0) {
+            "standard battle monster spell-power divisor must be positive"
+        }
+
+        checkPercent(battle.rewards.loot.dropChancePercent, "standard battle loot drop chance")
+        checkPercent(battle.rewards.loot.treasureChancePercent, "standard battle loot treasure chance")
+        check(battle.rewards.loot.treasure.first <= battle.rewards.loot.treasure.last) {
+            "standard battle treasure loot range is invalid"
+        }
+        check(battle.rewards.loot.magic.first <= battle.rewards.loot.magic.last) {
+            "standard battle magic loot range is invalid"
+        }
+
+        val services = battle.nativeServices.map { it.service }
+        check(services.toSet().size == services.size) { "standard battle has duplicate native service" }
+    }
+}
+
+private fun checkPercent(value: Int, label: String) {
+    check(value in 0..100) { "$label must be 0..100" }
+}
+
 fun validateAuthoredContent(content: GameModel) {
     check(content.authoredFlags.map { it.ref.slug }.toSet().size == content.authoredFlags.size) {
         "duplicate authored flag"
@@ -2467,6 +2743,8 @@ fun validateAuthoredContent(content: GameModel) {
             }
         }
     }
+
+    validateCombatSystem(content.combat)
 }
 
 fun specialInventoryItems(content: GameModel, party: PartyState): List<ItemId> =
