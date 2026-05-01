@@ -1129,6 +1129,71 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townTerminalAdapterRunsAuthoredInnSupperBranch() {
+        val session = TownSessionTerminalAdapter(FakeTerminalPort("I", "Y", "", "N", "N", "L", "L"))
+            .runUntilBlocked(
+                TownSession.start(
+                    town = testTown(Buildings.inn),
+                    townSystem = testTownSystem(Buildings.inn),
+                    scenes = listOf(testInnScene()),
+                    party = testParty(gold = 100, level = 2, hitPoints = 1, health = 10),
+                    currentHour = 12,
+                ),
+            )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(7, session.session.party.members.single().hitPoints.current)
+        assertEquals(40, session.session.party.resources.gold)
+    }
+
+    @Test
+    fun townTerminalAdapterRunsAuthoredInnDrinkBranch() {
+        val session = TownSessionTerminalAdapter(FakeTerminalPort("I", "N", "Y", "D", "N", "L", "L"))
+            .runUntilBlocked(
+                TownSession.start(
+                    town = testTown(Buildings.inn),
+                    townSystem = testTownSystem(Buildings.inn),
+                    scenes = listOf(testInnScene()),
+                    party = testParty(gold = 20, hitPoints = 1, health = 10),
+                    currentHour = 12,
+                ),
+            )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(5, session.session.party.members.single().hitPoints.current)
+        assertEquals(13, session.session.party.resources.gold)
+    }
+
+    @Test
+    fun townTerminalAdapterRunsAuthoredInnLodgingBranchWithRealmAndPartyRecovery() {
+        val session = TownSessionTerminalAdapter(FakeTerminalPort("I", "N", "N", "Y", "T", "", "L"))
+            .runUntilBlocked(
+                TownSession.start(
+                    town = testTown(Buildings.inn),
+                    townSystem = testTownSystem(Buildings.inn),
+                    scenes = listOf(testInnScene()),
+                    party = testParty(
+                        gold = 100,
+                        members = listOf(
+                            testMember(name = "A", hitPoints = 2, health = 10),
+                            testMember(name = "B", hitPoints = 8, health = 12),
+                            testMember(name = "C", hitPoints = 0, health = 10, dead = true),
+                        ),
+                    ),
+                    currentHour = 23,
+                ),
+            )
+
+        val members = session.session.party.members
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(85, session.session.party.resources.gold)
+        assertEquals(14, session.session.party.resources.restedHours)
+        assertEquals(5, session.session.realm.hour)
+        assertEquals(listOf(4, 11, 0), members.map { it.hitPoints.current })
+        assertEquals(listOf(false, false, true), members.map { it.dead })
+    }
+
+    @Test
     fun townServiceBridgeReturnsWaitingOnInvalidServiceInput() {
         val terminal = FakeTerminalPort("C", "X")
         val serviceScene = SceneModel(
@@ -1512,6 +1577,260 @@ class RylweenDslValidationTest {
             }
         }.build().scenes.single()
 
+    private fun testInnScene(): SceneModel =
+        GameBuilder().apply {
+            scene(Scenes.Towne.inn) {
+                native.screen.clearMapWindow()
+                native.screen.showImage(Images.Scene.inn)
+
+                loop {
+                    val cost = localInt((party.leader.level * party.leader.level) * 15)
+
+                    native.screen.clearText()
+                    screen {
+                        line(townNpcName(NpcJobs.innkeeper), ", the Innkeeper")
+                        line("welcomes you.")
+                        line("")
+                        line("Do you want supper,")
+                        line("travellers?")
+                        line("")
+                    }
+                    choice.yesNo("(Y)es", "(N)o",
+                        yes = {
+                            when_(party.gold lt cost) {
+                                native.screen.clearText()
+                                screen {
+                                    line("Sorry, supper is ", cost)
+                                    line("gold.")
+                                }
+                                pause(1000)
+                            } otherwise {
+                                party.gold -= cost
+                                native.screen.clearText()
+                                screen {
+                                    lines(
+                                        "You are served a well",
+                                        "tasting dinner. Some",
+                                        "of your health returns.",
+                                        "",
+                                    )
+                                }
+                                healLivingMembers(6)
+                                waitInput("after inn supper")
+                            }
+                        },
+                    )
+
+                    native.screen.clearText()
+                    choice.yesNo("Anything to drink?", "",
+                        yes = {
+                            native.screen.clearText()
+                            menu(
+                                "What'll it be?",
+                                "",
+                                "A. Ale         2 au",
+                                "B. Mead        3 au",
+                                "C. Wine        5 au",
+                                "D. Whiskey     7 au",
+                                "E. Fanta       1 au",
+                            ) {
+                                option('A') {
+                                    pay(lit(2),
+                                        broke = {
+                                            native.screen.clearText()
+                                            screen("No money - No drink!")
+                                            pause(1000)
+                                        },
+                                        ok = {
+                                            native.screen.clearText()
+                                            screen("Ahh...!")
+                                            pause(1000)
+                                            healLivingMembers((lit(2) / 2) + 1)
+                                        },
+                                    )
+                                }
+                                option('B') {
+                                    pay(lit(3),
+                                        broke = {
+                                            native.screen.clearText()
+                                            screen("No money - No drink!")
+                                            pause(1000)
+                                        },
+                                        ok = {
+                                            native.screen.clearText()
+                                            screen("Ahh...!")
+                                            pause(1000)
+                                            healLivingMembers((lit(3) / 2) + 1)
+                                        },
+                                    )
+                                }
+                                option('C') {
+                                    pay(lit(5),
+                                        broke = {
+                                            native.screen.clearText()
+                                            screen("No money - No drink!")
+                                            pause(1000)
+                                        },
+                                        ok = {
+                                            native.screen.clearText()
+                                            screen("Ahh...!")
+                                            pause(1000)
+                                            healLivingMembers((lit(5) / 2) + 1)
+                                        },
+                                    )
+                                }
+                                option('D') {
+                                    pay(lit(7),
+                                        broke = {
+                                            native.screen.clearText()
+                                            screen("No money - No drink!")
+                                            pause(1000)
+                                        },
+                                        ok = {
+                                            native.screen.clearText()
+                                            screen("Ahh...!")
+                                            pause(1000)
+                                            healLivingMembers((lit(7) / 2) + 1)
+                                        },
+                                    )
+                                }
+                                option('E') {
+                                    pay(lit(1),
+                                        broke = {
+                                            native.screen.clearText()
+                                            screen("No money - No drink!")
+                                            pause(1000)
+                                        },
+                                        ok = {
+                                            native.screen.clearText()
+                                            screen("The other guests giggle.")
+                                            pause(1000)
+                                            healLivingMembers((lit(1) / 2) + 1)
+                                        },
+                                    )
+                                }
+                            }
+                        },
+                    )
+
+                    native.screen.clearText()
+                    choice.yesNo("Are you in need", "of lodging?", "",
+                        yes = {
+                            native.screen.clearText()
+                            screen {
+                                line("A room is ", cost, " gold/night.")
+                                line("")
+                            }
+
+                            choice.takeOrLeave(
+                                inlineText("(T)ake it", "(L)eave"),
+                                take = {
+                                    when_(party.gold lt cost) {
+                                        native.screen.clearText()
+                                        screen {
+                                            lines(
+                                                "- AHA! No gold!",
+                                                "You are thrown out.",
+                                            )
+                                        }
+                                        pause(2000)
+                                        native.screen.clearMapWindow()
+                                        breakLoop("thrown out of inn")
+                                    } otherwise {
+                                        party.gold -= cost
+                                        native.screen.clearText()
+                                        screen("You go to bed...")
+                                        pause(1000)
+                                        screen("Zzzz...", "")
+                                        party.restedHours set 14
+                                        pause(1500)
+                                        screen {
+                                            lines(
+                                                "You wake up a little",
+                                                "before dawn, well",
+                                                "rested.",
+                                                "",
+                                                "You have breakfast",
+                                                "and leave the inn.",
+                                                "",
+                                            )
+                                        }
+                                        waitInput("after inn lodging")
+                                        realm.hour set 5
+                                        forEachMember {
+                                            it.hp.addClamped(it.maxHp / 4, it.maxHp)
+                                        }
+                                        native.screen.clearMapWindow()
+                                        breakLoop("slept at inn")
+                                    }
+                                },
+                                leave = {
+                                    native.screen.clearText()
+                                    native.screen.clearMapWindow()
+                                    breakLoop("leave inn")
+                                },
+                            )
+                        },
+                        no = {
+                            loop {
+                                native.screen.clearText()
+                                screen("The innkeeper leaves.", "")
+                                menu("(C)hitchat with guests", "(L)eave") {
+                                    option('C') {
+                                        speak(Buildings.tavern)
+                                    }
+                                    option('L') {
+                                        native.screen.clearText()
+                                        native.screen.clearMapWindow()
+                                        breakLoop("leave inn chitchat")
+                                    }
+                                    default {
+                                        native.screen.clearText()
+                                        native.screen.clearMapWindow()
+                                        breakLoop("leave inn chitchat")
+                                    }
+                                }
+                            }
+                            breakLoop("leave inn after chitchat")
+                        },
+                    )
+                }
+            }
+        }.build().scenes.single()
+
+    private fun testMember(
+        name: String = "Tester",
+        gender: Gender = Gender.Male,
+        race: Race = Race.Human,
+        pcClass: PcClass = PcClass.Fighter,
+        level: Int = 1,
+        health: Int = 10,
+        hitPoints: Int = 10,
+        weaponSkill: Int = 10,
+        wisdom: Int = 10,
+        mana: Int = 0,
+        charisma: Int = 10,
+        equipment: EquipmentState = EquipmentState(Items.none, Items.none),
+        experience: Int = 0,
+        dead: Boolean = false,
+    ): PartyMemberState =
+        PartyMemberState(
+            name = name,
+            gender = gender,
+            race = race,
+            pcClass = pcClass,
+            level = level,
+            health = health,
+            hitPoints = hitPoints of health,
+            weaponSkill = weaponSkill,
+            wisdom = wisdom,
+            mana = mana manaOf wisdom,
+            charisma = charisma,
+            equipment = equipment,
+            experience = experience,
+            dead = dead,
+        )
+
     private fun testParty(
         gold: Int = 0,
         level: Int = 1,
@@ -1523,9 +1842,21 @@ class RylweenDslValidationTest {
         wisdom: Int = 10,
         pcClass: PcClass = PcClass.Fighter,
         dead: Boolean = false,
-        memberCount: Int = 1,
+        memberCount: Int? = null,
         equipment: EquipmentState = EquipmentState(Items.none, Items.none),
         inventoryItems: Map<Int, ItemId> = emptyMap(),
+        members: List<PartyMemberState> = listOf(
+            testMember(
+                pcClass = pcClass,
+                level = level,
+                health = health,
+                hitPoints = hitPoints,
+                wisdom = wisdom,
+                mana = mana,
+                equipment = equipment,
+                dead = dead,
+            ),
+        ),
     ): PartyState =
         PartyState(
             id = partyId("test"),
@@ -1535,7 +1866,7 @@ class RylweenDslValidationTest {
             facing = Facing.South,
             resources = PartyResources(gold = gold, torches = torches, food = food, timeLeft = 0, restedHours = 0),
             counters = PartyCounters(
-                memberCount = memberCount,
+                memberCount = memberCount ?: members.count { !it.dead },
                 kills = 0,
                 waitingMail = false,
                 attacked = false,
@@ -1546,24 +1877,7 @@ class RylweenDslValidationTest {
             inventory = (0..InventorySaveSlotMax).map { slot ->
                 InventorySlotState(slot, inventoryItems[slot])
             },
-            members = listOf(
-                PartyMemberState(
-                    name = "Tester",
-                    gender = Gender.Male,
-                    race = Race.Human,
-                    pcClass = pcClass,
-                    level = level,
-                    health = health,
-                    hitPoints = hitPoints of health,
-                    weaponSkill = 10,
-                    wisdom = wisdom,
-                    mana = mana manaOf wisdom,
-                    charisma = 10,
-                    equipment = equipment,
-                    experience = 0,
-                    dead = dead,
-                ),
-            ),
+            members = members,
             visitedNpcs = emptyList(),
             journal = emptyList(),
         )
