@@ -126,9 +126,21 @@ val nextRylween = rylween {
                 castMageSpell()
             }
 
+            playerRound {
+                attack(hitBonus = 1, damageSpreadMax = 4, confusionDivisor = 3)
+                defend(weaponSkillPenalty = 2, restThreshold = 5)
+                battleCry(weaponSkillPenalty = 4)
+            }
+
             monsterRound {
                 spellChance(basePercent = 15, spellPowerDivisor = 2)
-                meleeFallback = Scenes.Battle.monsterMelee
+                melee(
+                    hitBonus = 1,
+                    damageDivisor = 6,
+                    damageSpreadMax = 9,
+                    damageMin = 1,
+                    fallback = Scenes.Battle.monsterMelee,
+                )
             }
 
             rewards = Rewards.standardBattle
@@ -674,6 +686,8 @@ check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
 check(nextDsl.rewards.size == 1)
 check(nextDsl.combat.standardBattle?.actions?.size == 5)
+check(nextDsl.combat.standardBattle?.playerRound?.attack?.confusionDivisor == 3)
+check(nextDsl.combat.standardBattle?.monsterRound?.melee?.damageDivisor == 6)
 check(nextDsl.combat.standardBattle?.rewards == Rewards.standardBattle)
 check(nextDsl.monsters.size == 2)
 check(nextDsl.scenes.size == 4)
