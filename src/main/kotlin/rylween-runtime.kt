@@ -34,6 +34,64 @@ sealed interface TownSessionInput {
     data class FinishNativeService(val party: PartyState) : TownSessionInput
 }
 
+enum class TownServiceScriptBranch {
+    IfThen,
+    IfElse,
+    LoopBody,
+    ForEachMemberBody,
+    ForEachMonsterBody,
+    SwitchCase,
+    MenuOption,
+    MenuDefault,
+}
+
+data class TownServiceScriptSegment(
+    val opIndex: Int,
+    val branch: TownServiceScriptBranch,
+    val caseIndex: Int? = null,
+    val key: Char? = null,
+)
+
+data class TownServiceScriptBlockRef(
+    val segments: List<TownServiceScriptSegment> = emptyList(),
+) {
+    fun child(
+        opIndex: Int,
+        branch: TownServiceScriptBranch,
+        caseIndex: Int? = null,
+        key: Char? = null,
+    ): TownServiceScriptBlockRef =
+        copy(segments = segments + TownServiceScriptSegment(opIndex, branch, caseIndex, key))
+
+    companion object {
+        val Root = TownServiceScriptBlockRef()
+    }
+}
+
+data class TownServiceScriptFrame(
+    val block: TownServiceScriptBlockRef,
+    val nextIndex: Int,
+    val loop: Boolean = false,
+    val iteration: Int = 0,
+    val localName: String? = null,
+    val localValue: Int? = null,
+)
+
+data class TownServiceContinuation(
+    val party: PartyState,
+    val locals: Map<String, Int> = emptyMap(),
+    val realmScalars: Map<String, Int> = emptyMap(),
+    val stack: List<TownServiceScriptFrame>,
+) {
+    companion object {
+        fun start(party: PartyState): TownServiceContinuation =
+            TownServiceContinuation(
+                party = party,
+                stack = listOf(TownServiceScriptFrame(TownServiceScriptBlockRef.Root, nextIndex = 0)),
+            )
+    }
+}
+
 sealed interface InventoryPlacementResult {
     data class Placed(val party: PartyState, val slot: Int) : InventoryPlacementResult
     data class NeedsDropSlot(val party: PartyState) : InventoryPlacementResult
@@ -300,6 +358,7 @@ sealed interface TownSessionStep {
     data class NativeService(
         val service: BuildingServiceModel,
         val scene: SceneModel,
+        val continuation: TownServiceContinuation? = null,
     ) : TownSessionStep
     data class LeaveEquipment(
         val session: TownLeaveEquipmentSession,
@@ -351,6 +410,15 @@ data class TownSession(
         } else {
             copy(party = session.party, step = TownSessionStep.LeaveEquipment(session))
         }
+    }
+
+    fun replaceNativeServiceContinuation(continuation: TownServiceContinuation): TownSession {
+        val current = step as? TownSessionStep.NativeService
+            ?: error("town session is not running a native service")
+        return copy(
+            party = continuation.party,
+            step = current.copy(continuation = continuation),
+        )
     }
 
     private fun chooseMenu(key: Char): TownSession {

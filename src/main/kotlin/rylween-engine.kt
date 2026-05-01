@@ -392,6 +392,7 @@ data class TownServiceBridgeResult(
     val party: PartyState,
     val status: TownServiceBridgeStatus,
     val events: List<EngineTraceEvent> = emptyList(),
+    val continuation: TownServiceContinuation? = null,
     val rejection: TerminalInputRejection? = null,
 )
 
@@ -399,7 +400,7 @@ interface TownServiceBridge {
     fun run(
         service: BuildingServiceModel,
         scene: SceneModel,
-        party: PartyState,
+        continuation: TownServiceContinuation,
     ): TownServiceBridgeResult
 }
 
@@ -409,13 +410,13 @@ class TraceTownServiceBridge(
     override fun run(
         service: BuildingServiceModel,
         scene: SceneModel,
-        party: PartyState,
+        continuation: TownServiceContinuation,
     ): TownServiceBridgeResult {
         val eventStart = engine.events.size
         engine.trace(EngineTraceEvent.TownService(service, scene))
         ScriptTraceRunner(engine).run(scene.ops)
         return TownServiceBridgeResult(
-            party = party,
+            party = continuation.party,
             status = TownServiceBridgeStatus.Finished,
             events = engine.events.drop(eventStart),
         )
@@ -429,15 +430,16 @@ class StatefulTownServiceBridge(
     override fun run(
         service: BuildingServiceModel,
         scene: SceneModel,
-        party: PartyState,
+        continuation: TownServiceContinuation,
     ): TownServiceBridgeResult {
         val eventStart = engine.events.size
         engine.trace(EngineTraceEvent.TownService(service, scene))
-        val result = StatefulScriptServiceRunner(terminal, engine, party).run(scene.ops)
+        val result = StatefulScriptServiceRunner(terminal, engine, scene.ops, continuation).run()
         return TownServiceBridgeResult(
             party = result.party,
             status = result.status,
             events = engine.events.drop(eventStart),
+            continuation = result.continuation,
             rejection = result.rejection,
         )
     }
@@ -446,166 +448,318 @@ class StatefulTownServiceBridge(
 private data class StatefulScriptResult(
     val party: PartyState,
     val status: TownServiceBridgeStatus,
+    val continuation: TownServiceContinuation? = null,
     val rejection: TerminalInputRejection? = null,
 )
 
 private class StatefulScriptServiceRunner(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort,
-    initialParty: PartyState,
+    private val rootOps: List<Op>,
+    continuation: TownServiceContinuation,
 ) {
-    private var party = initialParty
-    private val locals = mutableMapOf<String, Int>()
-    private val realmInts = mutableMapOf<String, Int>()
+    private var party = continuation.party
+    private val locals = continuation.locals.toMutableMap()
+    private val realmInts = continuation.realmScalars.toMutableMap()
+    private val stack = continuation.stack.toMutableList()
     private var rejection: TerminalInputRejection? = null
     private var waiting = false
     private var opBudget = 4096
 
-    fun run(ops: List<Op>): StatefulScriptResult {
-        runAll(ops)
+    fun run(): StatefulScriptResult {
+        runUntilBlockedOrFinished()
+        val nextContinuation = if (waiting) continuation() else null
         return StatefulScriptResult(
             party = party,
             status = if (waiting) TownServiceBridgeStatus.Waiting else TownServiceBridgeStatus.Finished,
+            continuation = nextContinuation,
             rejection = rejection,
         )
     }
 
-    private fun runAll(ops: List<Op>): ScriptControlSignal {
-        for (op in ops) {
-            if (waiting) return ScriptControlSignal.StopScript
-            if (--opBudget <= 0) return ScriptControlSignal.StopScript
-            val signal = run(op)
-            if (signal != ScriptControlSignal.Continue) return signal
+    private fun runUntilBlockedOrFinished() {
+        while (stack.isNotEmpty() && !waiting) {
+            if (--opBudget <= 0) {
+                stack.clear()
+                return
+            }
+            val frame = stack.last()
+            frame.localName?.let { name -> locals[name] = checkNotNull(frame.localValue) }
+            val ops = opsFor(frame.block)
+            if (frame.nextIndex >= ops.size) {
+                finishFrame()
+                continue
+            }
+            run(ops[frame.nextIndex], frame)
         }
-        return ScriptControlSignal.Continue
     }
 
-    private fun run(op: Op): ScriptControlSignal =
+    private fun run(op: Op, frame: TownServiceScriptFrame) {
+        val opIndex = frame.nextIndex
         when (op) {
-            is Op.Screen -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.Screen(op.text)) }
-            is Op.Emit -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.Emit(op.text)) }
-            is Op.EmitIndexed -> ScriptControlSignal.Continue.also {
+            is Op.Screen -> {
+                advanceTop()
+                engine.trace(EngineTraceEvent.Screen(op.text))
+            }
+            is Op.Emit -> {
+                advanceTop()
+                engine.trace(EngineTraceEvent.Emit(op.text))
+            }
+            is Op.EmitIndexed -> {
+                advanceTop()
                 engine.trace(EngineTraceEvent.EmitIndexed(op.pattern, eval(op.value)))
             }
             is Op.WaitInput -> waitInput(op.reason)
-            is Op.Pause -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.Pause(op.millis)) }
-            is Op.LetInt -> ScriptControlSignal.Continue.also { locals[op.name] = eval(op.value) }
-            is Op.BindText -> ScriptControlSignal.Continue
-            is Op.Set -> ScriptControlSignal.Continue.also { set(op.target, eval(op.value)) }
-            is Op.Add -> ScriptControlSignal.Continue.also { set(op.target, read(op.target) + eval(op.value)) }
-            is Op.Sub -> ScriptControlSignal.Continue.also { set(op.target, read(op.target) - eval(op.value)) }
-            is Op.AddClamped -> ScriptControlSignal.Continue.also {
-                set(op.target, minOf(read(op.target) + eval(op.value), eval(op.max)))
+            is Op.Pause -> {
+                advanceTop()
+                engine.trace(EngineTraceEvent.Pause(op.millis))
             }
-            is Op.SetFlag -> ScriptControlSignal.Continue.also {
+            is Op.LetInt -> {
+                locals[op.name] = eval(op.value)
+                advanceTop()
+            }
+            is Op.BindText -> advanceTop()
+            is Op.Set -> {
+                set(op.target, eval(op.value))
+                advanceTop()
+            }
+            is Op.Add -> {
+                set(op.target, read(op.target) + eval(op.value))
+                advanceTop()
+            }
+            is Op.Sub -> {
+                set(op.target, read(op.target) - eval(op.value))
+                advanceTop()
+            }
+            is Op.AddClamped -> {
+                set(op.target, minOf(read(op.target) + eval(op.value), eval(op.max)))
+                advanceTop()
+            }
+            is Op.SetFlag -> {
+                advanceTop()
                 engine.trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
             }
-            is Op.If -> runAll(if (eval(op.cond)) op.thenOps else op.elseOps)
-            is Op.Loop -> runLoop(op.body)
-            is Op.Break -> op.signal.also { engine.trace(EngineTraceEvent.Break(op.reason, op.signal)) }
-            is Op.Stop -> op.signal.also { engine.trace(EngineTraceEvent.Stop(op.reason, op.signal)) }
-            is Op.Switch ->
-                runAll(op.cases.firstOrNull { it.match == eval(op.expr) || it.match == null }?.body.orEmpty())
+            is Op.If -> {
+                val branch = if (eval(op.cond)) TownServiceScriptBranch.IfThen else TownServiceScriptBranch.IfElse
+                advanceTop()
+                pushChild(frame.block.child(opIndex, branch))
+            }
+            is Op.Loop -> {
+                advanceTop()
+                pushChild(frame.block.child(opIndex, TownServiceScriptBranch.LoopBody), loop = true)
+            }
+            is Op.Break -> {
+                advanceTop()
+                engine.trace(EngineTraceEvent.Break(op.reason, op.signal))
+                handleControlSignal(op.signal)
+            }
+            is Op.Stop -> {
+                advanceTop()
+                engine.trace(EngineTraceEvent.Stop(op.reason, op.signal))
+                handleControlSignal(op.signal)
+            }
+            is Op.Switch -> {
+                val value = eval(op.expr)
+                val caseIndex = op.cases.indexOfFirst { it.match == value || it.match == null }
+                advanceTop()
+                if (caseIndex >= 0) {
+                    pushChild(
+                        frame.block.child(
+                            opIndex,
+                            TownServiceScriptBranch.SwitchCase,
+                            caseIndex = caseIndex,
+                        ),
+                    )
+                }
+            }
             is Op.Menu -> runMenu(op)
             is Op.AskMember -> askMember(op)
             is Op.AskInventorySlot -> askInventorySlot(op)
-            is Op.AskMonster -> ScriptControlSignal.Continue
-            is Op.ForEachMember -> forEachMember(op)
-            is Op.ForEachMonster -> ScriptControlSignal.Continue
-            is Op.Speak -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.Speak(op.building)) }
-            is Op.RunScene -> ScriptControlSignal.Continue.also {
+            is Op.AskMonster -> advanceTop()
+            is Op.ForEachMember -> {
+                advanceTop()
+                op.memberFrames(party, frame, opIndex).asReversed().forEach { (memberNumber, block) ->
+                    stack += TownServiceScriptFrame(
+                        block = block,
+                        nextIndex = 0,
+                        localName = op.varName,
+                        localValue = memberNumber,
+                    )
+                }
+            }
+            is Op.ForEachMonster -> advanceTop()
+            is Op.Speak -> {
+                advanceTop()
+                engine.trace(EngineTraceEvent.Speak(op.building))
+            }
+            is Op.RunScene -> {
+                advanceTop()
                 engine.trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
             }
-            is Op.Encounter -> ScriptControlSignal.Continue.also {
+            is Op.Encounter -> {
+                advanceTop()
                 engine.trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
             }
-            Op.ConsumeActiveItem -> ScriptControlSignal.Continue
-            Op.ConsumeTorch -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.ConsumeTorch) }
-            is Op.GrantReward -> ScriptControlSignal.Continue.also {
+            Op.ConsumeActiveItem -> advanceTop()
+            Op.ConsumeTorch -> {
+                advanceTop()
+                engine.trace(EngineTraceEvent.ConsumeTorch)
+            }
+            is Op.GrantReward -> {
+                advanceTop()
                 engine.trace(EngineTraceEvent.GrantReward(op.reward))
             }
-            is Op.RandomItemOffer -> ScriptControlSignal.Continue.also {
+            is Op.RandomItemOffer -> {
+                advanceTop()
                 engine.trace(EngineTraceEvent.RandomItemOffer(op.offer))
             }
-            is Op.ShopService -> ScriptControlSignal.Continue.also {
+            is Op.ShopService -> {
+                advanceTop()
                 engine.trace(EngineTraceEvent.ShopService(op.shop))
             }
-            is Op.AchieveMilestone -> ScriptControlSignal.Continue.also {
+            is Op.AchieveMilestone -> {
+                advanceTop()
                 engine.trace(EngineTraceEvent.AchieveMilestone(op.milestone))
             }
-            is Op.NativeCall -> ScriptControlSignal.Continue.also {
+            is Op.NativeCall -> {
+                advanceTop()
                 engine.effect(EngineRequest(op.path, op.args))
             }
         }
+    }
 
-    private fun waitInput(reason: String?): ScriptControlSignal {
+    private fun waitInput(reason: String?) {
         engine.trace(EngineTraceEvent.WaitInput(reason))
-        return when (terminal.readLine()) {
+        when (terminal.readLine()) {
             null -> wait()
-            else -> ScriptControlSignal.Continue
+            else -> advanceTop()
         }
     }
 
-    private fun runLoop(body: List<Op>): ScriptControlSignal {
-        repeat(128) {
-            when (val signal = runAll(body)) {
-                ScriptControlSignal.Continue -> Unit
-                ScriptControlSignal.BreakNearestLoop -> return ScriptControlSignal.Continue
-                ScriptControlSignal.StopScript -> return if (waiting) ScriptControlSignal.StopScript else ScriptControlSignal.Continue
-            }
-        }
-        return ScriptControlSignal.StopScript
-    }
-
-    private fun runMenu(op: Op.Menu): ScriptControlSignal {
+    private fun runMenu(op: Op.Menu) {
+        val frame = stack.last()
+        val opIndex = frame.nextIndex
         val keys = op.options.map { it.key }
         engine.trace(EngineTraceEvent.Menu(op.prompt, keys))
-        return when (val input = terminal.readKey(keys)) {
-            is TerminalInput.Value ->
-                runAll(checkNotNull(op.options.firstOrNull { it.key == input.value }).body)
+        when (val input = terminal.readKey(keys)) {
+            is TerminalInput.Value -> {
+                advanceTop()
+                pushChild(
+                    frame.block.child(opIndex, TownServiceScriptBranch.MenuOption, key = input.value),
+                )
+            }
             is TerminalInput.Rejected -> wait(input.rejection)
             TerminalInput.Unavailable -> wait()
         }
     }
 
-    private fun askMember(op: Op.AskMember): ScriptControlSignal {
+    private fun askMember(op: Op.AskMember) {
         engine.trace(EngineTraceEvent.AskMember(op.prompt, op.filter))
         val choices = party.memberChoices(op.filter)
-        return when (val input = terminal.readMemberNumber(choices)) {
-            is TerminalInput.Value -> ScriptControlSignal.Continue.also { locals[op.varName] = input.value }
+        when (val input = terminal.readMemberNumber(choices)) {
+            is TerminalInput.Value -> {
+                locals[op.varName] = input.value
+                advanceTop()
+            }
             is TerminalInput.Rejected -> wait(input.rejection)
             TerminalInput.Unavailable -> wait()
         }
     }
 
-    private fun askInventorySlot(op: Op.AskInventorySlot): ScriptControlSignal {
+    private fun askInventorySlot(op: Op.AskInventorySlot) {
         engine.trace(EngineTraceEvent.AskInventorySlot(op.prompt, op.firstKey, op.slots, op.filter))
         val choices = party.inventorySlotChoices(op.filter, op.slots, op.firstKey)
         val keys = choices.map { it.first }
-        return when (val input = terminal.readKey(keys)) {
-            is TerminalInput.Value -> ScriptControlSignal.Continue.also {
+        when (val input = terminal.readKey(keys)) {
+            is TerminalInput.Value -> {
                 locals[op.varName] = checkNotNull(choices.firstOrNull { it.first == input.value }).second
+                advanceTop()
             }
             is TerminalInput.Rejected -> wait(input.rejection)
             TerminalInput.Unavailable -> wait()
         }
     }
 
-    private fun forEachMember(op: Op.ForEachMember): ScriptControlSignal {
-        party.members.forEachIndexed { index, member ->
-            if (op.includeDead || !member.dead) {
-                locals[op.varName] = index + 1
-                val signal = runAll(op.body)
-                if (signal != ScriptControlSignal.Continue) return signal
-            }
-        }
-        return ScriptControlSignal.Continue
-    }
-
-    private fun wait(inputRejection: TerminalInputRejection? = null): ScriptControlSignal {
+    private fun wait(inputRejection: TerminalInputRejection? = null) {
         waiting = true
         rejection = inputRejection
-        return ScriptControlSignal.StopScript
+    }
+
+    private fun advanceTop() {
+        val index = stack.lastIndex
+        stack[index] = stack[index].copy(nextIndex = stack[index].nextIndex + 1)
+    }
+
+    private fun pushChild(block: TownServiceScriptBlockRef, loop: Boolean = false) {
+        if (opsFor(block).isNotEmpty() || loop) {
+            stack += TownServiceScriptFrame(block, nextIndex = 0, loop = loop)
+        }
+    }
+
+    private fun finishFrame() {
+        val frame = stack.removeLast()
+        if (frame.loop) {
+            if (frame.iteration < 127) {
+                stack += frame.copy(nextIndex = 0, iteration = frame.iteration + 1)
+            } else {
+                stack.clear()
+            }
+        }
+    }
+
+    private fun handleControlSignal(signal: ScriptControlSignal) {
+        when (signal) {
+            ScriptControlSignal.Continue -> Unit
+            ScriptControlSignal.BreakNearestLoop -> breakNearestLoop()
+            ScriptControlSignal.StopScript -> stack.clear()
+        }
+    }
+
+    private fun breakNearestLoop() {
+        while (stack.isNotEmpty()) {
+            val frame = stack.removeLast()
+            if (frame.loop) return
+        }
+    }
+
+    private fun continuation(): TownServiceContinuation =
+        TownServiceContinuation(
+            party = party,
+            locals = locals.toMap(),
+            realmScalars = realmInts.toMap(),
+            stack = stack.toList(),
+        )
+
+    private fun opsFor(block: TownServiceScriptBlockRef): List<Op> {
+        var ops = rootOps
+        block.segments.forEach { segment ->
+            val op = ops.getOrNull(segment.opIndex) ?: return emptyList()
+            ops = when (segment.branch) {
+                TownServiceScriptBranch.IfThen -> (op as? Op.If)?.thenOps.orEmpty()
+                TownServiceScriptBranch.IfElse -> (op as? Op.If)?.elseOps.orEmpty()
+                TownServiceScriptBranch.LoopBody -> (op as? Op.Loop)?.body.orEmpty()
+                TownServiceScriptBranch.ForEachMemberBody -> (op as? Op.ForEachMember)?.body.orEmpty()
+                TownServiceScriptBranch.ForEachMonsterBody -> (op as? Op.ForEachMonster)?.body.orEmpty()
+                TownServiceScriptBranch.SwitchCase ->
+                    (op as? Op.Switch)?.cases?.getOrNull(segment.caseIndex ?: -1)?.body.orEmpty()
+                TownServiceScriptBranch.MenuOption ->
+                    (op as? Op.Menu)?.options?.firstOrNull { it.key == segment.key }?.body.orEmpty()
+                TownServiceScriptBranch.MenuDefault -> (op as? Op.Menu)?.defaultOps.orEmpty()
+            }
+        }
+        return ops
+    }
+
+    private fun Op.ForEachMember.memberFrames(
+        party: PartyState,
+        frame: TownServiceScriptFrame,
+        opIndex: Int,
+    ): List<Pair<Int, TownServiceScriptBlockRef>> {
+        val block = frame.block.child(opIndex, TownServiceScriptBranch.ForEachMemberBody)
+        return party.members.mapIndexedNotNull { index, member ->
+            val memberNumber = index + 1
+            (memberNumber to block).takeIf { includeDead || !member.dead }
+        }
     }
 
     private fun eval(ast: IntAst): Int =
@@ -984,13 +1138,19 @@ class TownSessionTerminalAdapter(
                     }
                 }
                 is TownSessionStep.NativeService -> {
-                    val result = serviceBridge.run(step.service, step.scene, session.party)
+                    val continuation = step.continuation ?: TownServiceContinuation.start(session.party)
+                    val result = serviceBridge.run(step.service, step.scene, continuation)
                     writeBridgeEvents(result.events)
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
                             session.apply(TownSessionInput.FinishNativeService(result.party))
                         TownServiceBridgeStatus.Waiting ->
-                            return waiting(session, result.rejection)
+                            return waiting(
+                                session.replaceNativeServiceContinuation(
+                                    checkNotNull(result.continuation) { "waiting service bridge did not return continuation" },
+                                ),
+                                result.rejection,
+                            )
                     }
                 }
                 is TownSessionStep.Finished -> return finished(session)
