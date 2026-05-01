@@ -213,7 +213,7 @@ private fun printTownUsage() {
         |Options:
         |  --town   thord, ollk, wilor, murn, or a raw town slug
         |  --hour   0..23, defaults to the selected state hour
-        |  --seed   runtime RNG state; omitted means deterministic fixture placement
+        |  --seed   runtime RNG state; omitted means deterministic fixture placement/events
         |  --state  state slug, defaults to fresh-replay
         |  --map    map file for wilderness NPC placement, defaults to data/map.dat
         """.trimMargin(),
@@ -227,7 +227,7 @@ private fun printGameUsage() {
         |
         |Options:
         |  --state  state slug, defaults to fresh-replay
-        |  --seed   runtime RNG state; omitted means deterministic fixture placement
+        |  --seed   runtime RNG state; omitted means deterministic fixture placement/events
         |  --hour   0..23, overrides the selected state hour
         |  --map    map file for wilderness movement and NPC hut projection, defaults to data/map.dat
         """.trimMargin(),

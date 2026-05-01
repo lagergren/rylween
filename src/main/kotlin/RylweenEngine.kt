@@ -1717,6 +1717,23 @@ class WildernessSessionTerminalAdapter(
                         TerminalInput.Unavailable -> return waiting(session)
                     }
                 }
+                is WildernessSessionStep.CaveFound -> {
+                    writeMenu(step.prompt, listOf('E', 'L'))
+                    when (val input = terminal.readKey(listOf('E', 'L'))) {
+                        is TerminalInput.Value ->
+                            session.apply(WildernessSessionInput.CaveAnswer(input.value == 'E'))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is WildernessSessionStep.DungeonHandoff -> {
+                    terminal.write(renderer.lines(WildernessPromptText.dungeonHandoffPending(step.handoff)))
+                    session.completeDungeonHandoff()
+                }
+                is WildernessSessionStep.EncounterHandoff -> {
+                    terminal.write(renderer.lines(WildernessPromptText.encounterHandoffPending(step.handoff)))
+                    session.completeEncounterHandoff()
+                }
                 WildernessSessionStep.Explore -> {
                     writeExplore(session)
                     when (val input = terminal.readKey(WildernessCommandKeys)) {

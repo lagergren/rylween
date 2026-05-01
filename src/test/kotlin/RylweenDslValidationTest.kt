@@ -1853,6 +1853,98 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun wildernessMoveCanNarrateAuthoredTerrainTransition() {
+        val terminal = FakeTerminalPort("2")
+        val map = WorldMapGrid.legacyWilderness(
+            (1..12).map { y -> if (y == 10) mapRow(12 to 'g') else mapRow() },
+        )
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                    .copy(position = Wilderness.xy(12, 9)),
+                worldMap = map,
+                rngState = 4L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.TerrainNarrated, result.session.lastResult?.status)
+        assertEquals(Terrain.plain, result.session.runtime.realm.lastTerrain)
+        assertTrue(terminal.output.any { "The ancient forest is" in it })
+    }
+
+    @Test
+    fun wildernessMoveCanFindAndLeaveCave() {
+        val terminal = FakeTerminalPort("2", "L")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                    .copy(position = Wilderness.xy(12, 9)),
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.CaveLeft, result.session.lastResult?.status)
+        assertEquals(GridPoint(12, 10), (result.session.party.position as WorldPosition.Wilderness).point)
+        assertTrue(terminal.output.any { "You find a cave!" in it })
+    }
+
+    @Test
+    fun wildernessCaveEntryHandsOffToDungeonRuntimeShape() {
+        val terminal = FakeTerminalPort("2", "E")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                    .copy(position = Wilderness.xy(12, 9)),
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.DungeonHandoff, result.session.lastResult?.status)
+        assertEquals(Dungeons.randomCave, result.session.lastResult?.dungeon)
+        assertEquals(189, result.session.party.resources.timeLeft)
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertTrue(terminal.output.any { "Dungeon runtime is not ported yet." in it })
+    }
+
+    @Test
+    fun wildernessCaveEntryRejectsWhenMovesAreTooLow() {
+        val terminal = FakeTerminalPort("2", "E")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 11, restedHours = 14)
+                    .copy(position = Wilderness.xy(12, 9)),
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.CaveNoMoves, result.session.lastResult?.status)
+        assertEquals(10, result.session.party.resources.timeLeft)
+        assertTrue(terminal.output.any { "moves left to explore" in it })
+    }
+
+    @Test
+    fun wildernessMoveCanHandOffEncounterByAuthoredTier() {
+        val terminal = FakeTerminalPort("2")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                    .copy(position = Wilderness.xy(12, 9)),
+                rngState = 3L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.EncounterHandoff, result.session.lastResult?.status)
+        assertEquals(EncounterTiers.weak, result.session.lastResult?.encounterTier)
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertTrue(terminal.output.any { "Encounter: weak" in it })
+    }
+
+    @Test
     fun wildernessTerminalMovesIntoCompiledTownSession() {
         val content = RylweenCompiledScratch.nextDsl
         val state = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
@@ -2106,6 +2198,7 @@ class RylweenDslValidationTest {
         party: PartyState? = null,
         hour: Int? = null,
         rngState: Long? = null,
+        worldMap: WorldMapGrid = WorldMapGrid.legacyWilderness((1..12).map { mapRow() }),
     ): WildernessSession {
         val content = RylweenCompiledScratch.nextDsl
         val baseState = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
@@ -2115,7 +2208,7 @@ class RylweenDslValidationTest {
         )
         return RylweenKotlinEngine(content).wildernessSession(
             state = state,
-            worldMap = WorldMapGrid.legacyWilderness((1..12).map { mapRow() }),
+            worldMap = worldMap,
             rngState = rngState,
             realizeNpcs = false,
         )

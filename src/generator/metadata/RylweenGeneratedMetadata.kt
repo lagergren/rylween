@@ -599,12 +599,14 @@ class TerrainRefs {
     val mountain = terrain("mountain", 'm')
     val water = terrain("water", 'w')
     val plain = terrain("plain", 's')
+    val plainland = plain
     val town = terrain("town", '0')
     val hut = terrain("hut", '1')
-    val forest = terrain("forest", 'f')
+    val foothills = terrain("foothills", 'f')
     val desert = terrain("desert", 'd')
     val swamp = terrain("swamp", 't')
-    val grass = terrain("grass", 'g')
+    val forest = terrain("forest", 'g')
+    val grass = forest
     val castle = terrain("castle", '2')
 }
 val Terrain = TerrainRefs()

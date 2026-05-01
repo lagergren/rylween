@@ -153,6 +153,103 @@ val nextRylween = rylween {
         }
     }
 
+    wilderness {
+        events {
+            caveChancePercent = 3
+            quietChancePercent = 91
+            encounterSplitPercent = 50
+            easyEncounterTier = EncounterTiers.weak
+            hardEncounterTier = EncounterTiers.wild
+            caveDungeon = Dungeons.randomCave
+            caveDepthRange = 3..16
+            caveEntryCost = 10
+
+            caveFoundPrompt {
+                lines("You find a cave!", "", "(E)nter", "(L)eave")
+            }
+
+            caveNoMoves {
+                lines(
+                    "You don't have enough",
+                    "moves left to explore",
+                    "the cave...",
+                    "",
+                )
+            }
+        }
+
+        terrainTransitions {
+            chancePercent = 9
+
+            terrain(Terrain.plain) {
+                lines(
+                    "The rich green plainland",
+                    "of Rylween stretches far",
+                    "in all the directions.",
+                    "",
+                )
+            }
+
+            terrain(Terrain.hut) {
+                lines("You have found a hut.", "")
+            }
+
+            terrain(Terrain.town) {
+                lines("You are close to a towne.", "")
+            }
+
+            terrain(Terrain.foothills) {
+                lines(
+                    "Small foothills make your",
+                    "progress more arduous.",
+                    "",
+                )
+            }
+
+            terrain(Terrain.desert) {
+                lines(
+                    "You are in a hot and dry",
+                    "desert. The sun fries",
+                    "you mercilessly.",
+                    "",
+                )
+            }
+
+            terrain(Terrain.swamp) {
+                lines(
+                    "You are in the swampy",
+                    "marshlands of Rylween.",
+                    "Bubbles of gas rise to",
+                    "the surface where they",
+                    "burst and emit a foul",
+                    "smelling odour.",
+                    "",
+                )
+            }
+
+            terrain(Terrain.forest) {
+                lines(
+                    "The ancient forest is",
+                    "very tranquil. A soft",
+                    "breeze rustles the",
+                    "leaves of mighty oaks.",
+                    "",
+                )
+            }
+
+            terrain(Terrain.castle) {
+                lines(
+                    "You stand outside the",
+                    "castle Zadraz. The",
+                    "black steel building",
+                    "seems to want to swallow",
+                    "you whole.",
+                    "",
+                )
+            }
+        }
+    }
+
     speak {
         standardConversation {
             npcSelection = ConversationNpcSelection.BuildingListOrWildernessLocation

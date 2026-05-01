@@ -187,6 +187,30 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
     }
 }
 
+fun validateWildernessSystem(wilderness: WildernessSystemModel) {
+    val events = wilderness.events
+    checkPercent(events.caveChancePercent, "wilderness cave chance")
+    checkPercent(events.quietChancePercent, "wilderness quiet chance")
+    check(events.caveChancePercent + events.quietChancePercent <= 100) {
+        "wilderness cave chance + quiet chance must be <= 100"
+    }
+    checkPercent(events.encounterSplitPercent, "wilderness encounter split")
+    check(events.caveDepthRange.first > 0 && events.caveDepthRange.last >= events.caveDepthRange.first) {
+        "wilderness cave depth range must be positive and ascending"
+    }
+    check(events.caveEntryCost >= 0) { "wilderness cave entry cost must be non-negative" }
+
+    val transition = wilderness.terrainTransitions
+    checkPercent(transition.chancePercent, "wilderness terrain transition chance")
+    val terrains = transition.entries.map { it.terrain }
+    check(terrains.toSet().size == terrains.size) { "wilderness terrain transitions have duplicate terrain entries" }
+    transition.entries.forEach { entry ->
+        check(entry.terrain.legacyMapCode != null) {
+            "wilderness terrain transition ${entry.terrain.slug} needs a map tile code"
+        }
+    }
+}
+
 fun validateTowns(towns: List<TownModel>) {
     check(towns.isNotEmpty()) { "content must declare towns" }
     check(towns.map { it.id }.toSet().size == towns.size) { "duplicate town id" }
@@ -973,6 +997,7 @@ fun validateAuthoredContent(content: GameModel) {
 
     validateRewardBundles(content.rewards)
     validateCombatSystem(content.combat, content.rewards)
+    validateWildernessSystem(content.wilderness)
     validateTowns(content.towns)
     validateTownSystem(content.townSystem, content.towns, content.scenes)
     validateCharacters(content.characters, content.towns)
@@ -1016,6 +1041,11 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
         check(state.realm.hour in 0..24) { "state ${state.id.slug}: realm hour must be 0..24" }
         check(state.realm.minute in 0..59) { "state ${state.id.slug}: realm minute must be 0..59" }
         check(state.realm.partyMemberMax > 0) { "state ${state.id.slug}: partyMemberMax must be positive" }
+        state.realm.lastTerrain?.let { terrain ->
+            check(terrain.legacyMapCode != null) {
+                "state ${state.id.slug}: lastTerrain ${terrain.slug} needs a map tile code"
+            }
+        }
 
         state.parties.forEach { party ->
             val slots = party.inventory.map { it.slot }
