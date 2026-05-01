@@ -472,6 +472,7 @@ private class StatefulScriptServiceRunner(
     private val stack = continuation.stack.toMutableList()
     private var speakSession = continuation.speakSession
     private var randomItemOfferSession = continuation.randomItemOfferSession
+    private var rewardGrantSession = continuation.rewardGrantSession
     private var rejection: TerminalInputRejection? = null
     private var waiting = false
     private var opBudget = 4096
@@ -547,6 +548,7 @@ private class StatefulScriptServiceRunner(
                 advanceTop()
             }
             is Op.SetFlag -> {
+                party = party.withFlagState(op.slug, op.nativeValue)
                 advanceTop()
                 engine.trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
             }
@@ -612,16 +614,14 @@ private class StatefulScriptServiceRunner(
                 advanceTop()
                 engine.trace(EngineTraceEvent.ConsumeTorch)
             }
-            is Op.GrantReward -> {
-                advanceTop()
-                engine.trace(EngineTraceEvent.GrantReward(op.reward))
-            }
+            is Op.GrantReward -> runGrantReward(op)
             is Op.RandomItemOffer -> runRandomItemOffer(op)
             is Op.ShopService -> {
                 advanceTop()
                 engine.trace(EngineTraceEvent.ShopService(op.shop))
             }
             is Op.AchieveMilestone -> {
+                party = party.withMilestone(op.milestone)
                 advanceTop()
                 engine.trace(EngineTraceEvent.AchieveMilestone(op.milestone))
             }
@@ -750,6 +750,7 @@ private class StatefulScriptServiceRunner(
             stack = stack.toList(),
             speakSession = speakSession,
             randomItemOfferSession = randomItemOfferSession,
+            rewardGrantSession = rewardGrantSession,
         )
 
     private fun runSpeak(op: Op.Speak) {
@@ -801,6 +802,32 @@ private class StatefulScriptServiceRunner(
             }
             is TerminalRunStatus.Waiting -> {
                 randomItemOfferSession = result.session
+                wait(result.status.rejection)
+            }
+        }
+    }
+
+    private fun runGrantReward(op: Op.GrantReward) {
+        engine.trace(EngineTraceEvent.GrantReward(op.reward))
+        val initial = rewardGrantSession ?: RewardGrantSession.start(
+            reward = op.reward,
+            party = party,
+            gold = op.reward.gold?.let(::eval) ?: 0,
+        )
+        val result = RewardGrantSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
+        party = result.session.party
+        runtime = runtime.withActiveParty(party)
+        when (result.status) {
+            TerminalRunStatus.Finished -> {
+                rewardGrantSession = null
+                advanceTop()
+            }
+            TerminalRunStatus.StepLimitReached -> {
+                rewardGrantSession = null
+                stack.clear()
+            }
+            is TerminalRunStatus.Waiting -> {
+                rewardGrantSession = result.session
                 wait(result.status.rejection)
             }
         }
@@ -1020,6 +1047,50 @@ private class RandomItemOfferSessionTraceRunner(
                     session.apply(RandomItemOfferInput.Continue)
                 }
                 is RandomItemOfferStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+}
+
+private class RewardGrantSessionTraceRunner(
+    private val terminal: TerminalPort,
+    private val engine: TraceEnginePort,
+) {
+    fun runUntilBlocked(initial: RewardGrantSession): TerminalAdapterResult<RewardGrantSession> {
+        var session = initial
+        repeat(128) {
+            session = when (val step = session.step) {
+                is RewardGrantStep.DropSlot -> {
+                    val choices = session.party.inventorySlotChoices(
+                        InventorySlotChoiceFilter.NonEmpty,
+                        1..InventorySaveSlotMax,
+                        'A',
+                    )
+                    engine.trace(
+                        EngineTraceEvent.AskInventorySlot(
+                            prompt = step.prompt,
+                            firstKey = 'A',
+                            slots = 1..InventorySaveSlotMax,
+                            filter = InventorySlotChoiceFilter.NonEmpty,
+                        ),
+                    )
+                    when (val input = terminal.readKey(choices.map { it.first })) {
+                        is TerminalInput.Value ->
+                            session.apply(
+                                RewardGrantInput.DropSlot(
+                                    checkNotNull(choices.firstOrNull { it.first == input.value }).second,
+                                ),
+                            )
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is RewardGrantStep.Message -> {
+                    engine.trace(EngineTraceEvent.Screen(step.text))
+                    session.apply(RewardGrantInput.Continue)
+                }
+                is RewardGrantStep.Finished -> return finished(session)
             }
         }
         return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)

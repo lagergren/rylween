@@ -281,6 +281,21 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun scriptRewardsRejectMilestoneSpecialItems() {
+        val content = GameBuilder().apply {
+            scene(sceneId("test.special_reward")) {
+                reward {
+                    items(Items.silverkey)
+                }
+            }
+        }.build()
+
+        assertFailsWith<IllegalStateException> {
+            validateScriptRewards(content)
+        }
+    }
+
+    @Test
     fun randomItemOfferValidatesAndTracesAsReusableRuntimeAction() {
         val content = GameBuilder().apply {
             scene(sceneId("test.random_offer")) {
@@ -1532,6 +1547,84 @@ class RylweenDslValidationTest {
         assertEquals(200, result.session.party.resources.gold)
         assertEquals(Items.magicDagger, result.session.party.inventoryItem(1))
         assertTrue(terminal.output.any { "  Magic Dagger" in it })
+    }
+
+    @Test
+    fun compiledScratchGarthRewardBranchAppliesAuthoredRewardAndFlag() {
+        val (service, scene) = garthRecoveredDialogueService()
+        val result = StatefulTownServiceBridge(FakeTerminalPort()).run(
+            service,
+            scene,
+            TownServiceContinuation.start(
+                RuntimeSessionState.singleParty(
+                    party = testParty(gold = 10, flags = listOf(Story.garth.bandits.recovered)),
+                    hour = 12,
+                    currentTown = Towns.thord.id,
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertEquals(2010, result.party.resources.gold)
+        assertEquals(Items.redGem, result.party.inventoryItem(1))
+        assertTrue(result.party.hasFlagState(Story.garth.bandits.closed))
+        assertTrue(result.events.any { it is EngineTraceEvent.GrantReward })
+    }
+
+    @Test
+    fun compiledScratchGarthRewardDropPromptResumesWithoutRegrantingGold() {
+        val (service, scene) = garthRecoveredDialogueService()
+        val runtime = RuntimeSessionState.singleParty(
+            party = testParty(
+                gold = 10,
+                inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope },
+                flags = listOf(Story.garth.bandits.recovered),
+            ),
+            hour = 12,
+            currentTown = Towns.thord.id,
+        )
+        val blocked = StatefulTownServiceBridge(FakeTerminalPort()).run(
+            service,
+            scene,
+            TownServiceContinuation.start(runtime),
+        )
+
+        assertTrue(blocked.status is TownServiceBridgeStatus.Waiting)
+        assertEquals(2010, blocked.party.resources.gold)
+        assertEquals(Items.rope, blocked.party.inventoryItem(1))
+        assertTrue(blocked.continuation?.rewardGrantSession?.step is RewardGrantStep.DropSlot)
+
+        val resumed = StatefulTownServiceBridge(FakeTerminalPort("A")).run(
+            service,
+            scene,
+            checkNotNull(blocked.continuation),
+        )
+
+        assertTrue(resumed.status is TownServiceBridgeStatus.Finished)
+        assertEquals(2010, resumed.party.resources.gold)
+        assertEquals(Items.redGem, resumed.party.inventoryItem(1))
+        assertTrue(resumed.party.hasFlagState(Story.garth.bandits.closed))
+        assertTrue(resumed.events.any { event ->
+            event is EngineTraceEvent.Screen && event.text == inlineText("You pick up the gem.")
+        })
+    }
+
+    private fun garthRecoveredDialogueService(): Pair<BuildingServiceModel, SceneModel> {
+        val content = RylweenCompiledScratch.nextDsl
+        val branch = content.dialogue
+            .single { it.npc == Npcs.garth }
+            .branches
+            .single { it.whenState == Story.garth.bandits.recovered }
+        val scene = SceneModel(sceneId("test.garth_reward_branch"), branch.ops)
+        val service = BuildingServiceModel(
+            building = Buildings.inn,
+            action = KeyActions.enterInn,
+            scene = scene.id,
+            opensAt = null,
+            closesAt = null,
+            nativeServices = emptyList(),
+        )
+        return service to scene
     }
 
     private fun compiledTownSession(
