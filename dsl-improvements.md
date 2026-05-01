@@ -188,6 +188,7 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - First-pass combat-system shape is `combat { standardBattle { ... } }`. It names the reusable battle framework from the game author's point of view: opening flee rules, encounter banners, player actions, monster-round policy, and the reward bundle to apply. The actual XP/gold/loot declaration now lives in `rewards { reward(Rewards.standardBattle) { ... } }`, so the reusable battle loop can point at a shared reward bundle instead of embedding one-off reward rules.
 - Loot tables use semantic item pools such as `ItemPools.battleSpoils` and `ItemPools.magicItems`; legacy numeric item-id ranges stay in generated implementation/runtime metadata, not authoring. The implementation model also records the narrow native services the standard battle framework needs: keyboard input, rendering, RNG, combat context storage, inventory storage, party-state mutation, and text formatting.
 - Current battle loot pool mapping is exact to the legacy C/JSON5 ranges: `ItemPools.battleSpoils` maps ids `36..46` to red/blue/amber potions plus red/blue/green gems, chalice, pendant, broche, crystal bowl, and necklace. `ItemPools.magicItems` maps ids `100..111` to frost wand, fire wand, gem of confusion, gem of blindness, drums of death, staff of healing, blessing scroll, staff of curing, gem of resurrection, Kael's axe, holy handgrenade, and flute of madness.
+- Generated `Items.*` handles now carry legacy item ids from `data/world/items/*.json5` in Kotlin implementation metadata. Item-pool validation checks both the expected range length and the exact ordered ids of the referenced handles, so author-facing pools stay semantic while migration mistakes in numeric carryover fail validation.
 
 Open design questions:
 
@@ -246,7 +247,7 @@ B1-B9 first-pass notes:
 
 ### F. Items, spells, combat, monsters, and rewards
 
-- [ ] F1. Item records. DSL delta: typed item definitions for mundane, equipment, potion, magic, and quest items. Native decision: id lookup and inventory storage.
+- [ ] F1. Item records. DSL delta: typed item definitions for mundane, equipment, potion, magic, and quest items. Native decision: id lookup and inventory storage. Current scratch status: generated `Items.*` handles carry legacy ids from the JSON5 item shards; full item economics/effects records are still pending.
 - [ ] F2. Item use effects. DSL delta: item scripts for potions and magic items. Native decision: consume/remove primitive and typed stat mutation helpers.
 - [ ] F3. Equipment rules. DSL delta: ready/remove actions and derived combat values in DSL. Native decision: equipment storage and target/member access.
 - [ ] F4. Spell records. DSL delta: mage, priest, and monster spell definitions with typed costs, targets, effects, and text. Native decision: spell picker and cost-payment primitive. Current scratch status: one mage spell body exists; `standardBattle` now records that spell selection is part of the reusable battle framework, not per-encounter authoring.

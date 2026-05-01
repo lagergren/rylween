@@ -237,7 +237,15 @@ val Flags = Story
 
 data class TextId(val id: String)
 data class TextPattern(val pattern: String)
-data class ItemId(val slug: String)
+class ItemId(val slug: String, val legacyId: Int? = null) {
+    override fun equals(other: Any?): Boolean =
+        other is ItemId && slug == other.slug
+
+    override fun hashCode(): Int = slug.hashCode()
+
+    override fun toString(): String =
+        "ItemId(slug=$slug, legacyId=$legacyId)"
+}
 data class ItemPoolId(
     val slug: String,
     val items: List<ItemId> = emptyList(),
@@ -274,7 +282,7 @@ data class RewardBundleId(val slug: String)
 
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
-fun item(slug: String) = ItemId(slug)
+fun item(slug: String, legacyId: Int? = null) = ItemId(slug, legacyId)
 fun itemPool(slug: String, items: List<ItemId> = emptyList(), legacyItemIds: IntRange? = null) =
     ItemPoolId(slug, items, legacyItemIds)
 fun monster(slug: String) = MonsterId(slug)
@@ -312,83 +320,82 @@ fun rewardBundle(slug: String) = RewardBundleId(slug)
 
 class ItemRefs {
     // Weapons.
-    val blank = item("blank")
+    val blank = item("blank", legacyId = 0)
     val none = blank
-    val sword = item("sword")
-    val axe = item("axe")
-    val bow = item("bow")
-    val club = item("club")
-    val dart = item("dart")
-    val sling = item("sling")
-    val longsword = item("longsword")
-    val trident = item("trident")
-    val halbard = item("halbard")
-    val poleArm = item("pole_arm")
-    val crossbow = item("crossbow")
-    val scythe = item("scythe")
-    val scimitar = item("scimitar")
-    val twoHandSword = item("two_hand_sword")
-    val magicDagger = item("magic_dagger")
-    val magicSword = item("magic_sword")
-    val magicAxe = item("magic_axe")
-    val dancingSword = item("dancing_sword")
-    val deathBlade = item("death_blade")
+    val sword = item("sword", legacyId = 1)
+    val axe = item("axe", legacyId = 2)
+    val bow = item("bow", legacyId = 3)
+    val club = item("club", legacyId = 4)
+    val dart = item("dart", legacyId = 5)
+    val sling = item("sling", legacyId = 6)
+    val longsword = item("longsword", legacyId = 7)
+    val trident = item("trident", legacyId = 8)
+    val halbard = item("halbard", legacyId = 9)
+    val poleArm = item("pole_arm", legacyId = 10)
+    val crossbow = item("crossbow", legacyId = 11)
+    val scythe = item("scythe", legacyId = 12)
+    val scimitar = item("scimitar", legacyId = 13)
+    val twoHandSword = item("two_hand_sword", legacyId = 14)
+    val magicDagger = item("magic_dagger", legacyId = 15)
+    val magicSword = item("magic_sword", legacyId = 16)
+    val magicAxe = item("magic_axe", legacyId = 17)
+    val dancingSword = item("dancing_sword", legacyId = 18)
+    val deathBlade = item("death_blade", legacyId = 19)
 
     // Armor.
-    val leather = item("leather")
-    val chainMail = item("chain_mail")
-    val plateMail = item("plate_mail")
-    val ringMail = item("ring_mail")
-    val elvinCloak = item("elvin_cloak")
-    val mithrilMail = item("mithril_mail")
-    val admtMail = item("admt_mail")
-    val protSphere = item("prot_sphere")
-    val cloakOfGods = item("cloak_of_gods")
+    val leather = item("leather", legacyId = 20)
+    val chainMail = item("chain_mail", legacyId = 21)
+    val plateMail = item("plate_mail", legacyId = 22)
+    val ringMail = item("ring_mail", legacyId = 23)
+    val elvinCloak = item("elvin_cloak", legacyId = 24)
+    val mithrilMail = item("mithril_mail", legacyId = 25)
+    val admtMail = item("admt_mail", legacyId = 26)
+    val protSphere = item("prot_sphere", legacyId = 27)
+    val cloakOfGods = item("cloak_of_gods", legacyId = 28)
 
     // Gear.
-    val torch = item("torch")
-    val ration = item("ration")
-    val blanket = item("blanket")
-    val tent = item("tent")
-    val rope = item("rope")
+    val torch = item("torch", legacyId = 31)
+    val ration = item("ration", legacyId = 32)
+    val blanket = item("blanket", legacyId = 33)
+    val tent = item("tent", legacyId = 34)
+    val rope = item("rope", legacyId = 35)
 
     // Potions.
-    val redPotion = item("red_potion")
-    val bluePotion = item("blue_potion")
-    val amberPotion = item("amber_potion")
+    val redPotion = item("red_potion", legacyId = 36)
+    val bluePotion = item("blue_potion", legacyId = 37)
+    val amberPotion = item("amber_potion", legacyId = 38)
 
     // Treasures.
-    val redGem = item("red_gem")
-    val blueGem = item("blue_gem")
-    val greenGem = item("green_gem")
-    val chalice = item("chalice")
-    val pendant = item("pendant")
-    val broche = item("broche")
-    val crystalBowl = item("crystal_bowl")
-    val necklace = item("necklace")
-    val donkey = item("donkey")
+    val redGem = item("red_gem", legacyId = 39)
+    val blueGem = item("blue_gem", legacyId = 40)
+    val greenGem = item("green_gem", legacyId = 41)
+    val chalice = item("chalice", legacyId = 42)
+    val pendant = item("pendant", legacyId = 43)
+    val broche = item("broche", legacyId = 44)
+    val crystalBowl = item("crystal_bowl", legacyId = 45)
+    val necklace = item("necklace", legacyId = 46)
+    val donkey = item("donkey", legacyId = 47)
 
-    // Flag-backed special items. These need a B7 decision before save-state
-    // modeling: story flag, inventory item, capability, or party status field.
-    val fireshield = item("fireshield")
-    val bracelets = item("bracelets")
-    val mastercrown = item("mastercrown")
-    val jazzyfoot = item("jazzyfoot")
-    val silverkey = item("silverkey")
+    // Flag-backed special items project from milestones and do not occupy slots.
+    val fireshield = item("fireshield", legacyId = 48)
+    val bracelets = item("bracelets", legacyId = 49)
+    val mastercrown = item("mastercrown", legacyId = 50)
+    val jazzyfoot = item("jazzyfoot", legacyId = 51)
+    val silverkey = item("silverkey", legacyId = 52)
 
     // Magic items.
-    val frostWand = item("frost_wand")
-    val fireWand = item("fire_wand")
-    val gemOfConfusion = item("gem_of_confusion")
-    val gemOfBlindness = item("gem_of_blindness")
-    val drumsOfDeath = item("drums_of_death")
-    val staffOfHealing = item("staff_of_healing")
-    val blessingScroll = item("blessing_scroll")
-    val staffOfCuring = item("staff_of_curing")
-    val gemOfResurrection = item("gem_of_resurrection")
-    val kaelsAxe = item("kaels_axe")
-    val holyHandgrenade = item("holy_handgrenade")
-    val fluteOfMadness = item("flute_of_madness")
+    val frostWand = item("frost_wand", legacyId = 100)
+    val fireWand = item("fire_wand", legacyId = 101)
+    val gemOfConfusion = item("gem_of_confusion", legacyId = 102)
+    val gemOfBlindness = item("gem_of_blindness", legacyId = 103)
+    val drumsOfDeath = item("drums_of_death", legacyId = 104)
+    val staffOfHealing = item("staff_of_healing", legacyId = 105)
+    val blessingScroll = item("blessing_scroll", legacyId = 106)
+    val staffOfCuring = item("staff_of_curing", legacyId = 107)
+    val gemOfResurrection = item("gem_of_resurrection", legacyId = 108)
+    val kaelsAxe = item("kaels_axe", legacyId = 109)
+    val holyHandgrenade = item("holy_handgrenade", legacyId = 110)
+    val fluteOfMadness = item("flute_of_madness", legacyId = 111)
 }
 val Items = ItemRefs()
 
@@ -2797,6 +2804,14 @@ private fun validateItemPool(pool: ItemPoolId) {
     pool.legacyItemIds?.let { ids ->
         check(ids.count() == pool.items.size) {
             "item pool ${pool.slug}: legacy id range $ids has ${ids.count()} ids, but ${pool.items.size} items"
+        }
+        val actualIds = pool.items.map { item ->
+            checkNotNull(item.legacyId) {
+                "item pool ${pool.slug}: item ${item.slug} has no legacy id"
+            }
+        }
+        check(ids.toList() == actualIds) {
+            "item pool ${pool.slug}: legacy id range $ids does not match catalog ids $actualIds"
         }
     }
 }
