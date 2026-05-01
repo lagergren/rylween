@@ -1039,6 +1039,14 @@ class KeyActionRefs {
     val defend = keyAction("defend")
     val attack = keyAction("attack")
     val battleCry = keyAction("battle_cry")
+    val speakChitchat = keyAction("speak_chitchat")
+    val speakQuestion = keyAction("speak_question")
+    val speakRumour = keyAction("speak_rumour")
+    val speakBye = keyAction("speak_bye")
+    val questionLodging = keyAction("question_lodging")
+    val questionMagic = keyAction("question_magic")
+    val questionPeople = keyAction("question_people")
+    val questionNothing = keyAction("question_nothing")
 }
 val KeyActions = KeyActionRefs()
 
@@ -1421,6 +1429,7 @@ enum class EngineService {
     RandomNumbers,
     CombatContextStorage,
     InventoryStorage,
+    NpcStateStorage,
     PartyStateMutation,
     TextFormatting,
 }
@@ -1531,12 +1540,66 @@ data class CombatSystemModel(
     val standardBattle: StandardBattleModel?,
 )
 
+enum class ConversationNpcSelection { BuildingListOrWildernessLocation }
+enum class NpcVisitPolicy { PerPartyVisitedBit }
+enum class DialogueBranchSelection { FirstMatchingStateThenDefault }
+enum class MissionHintPolicy { BeforeEachMenu }
+enum class ConversationTopic { Chitchat, Question, Rumour, Bye }
+enum class QuestionTopic { Lodging, Magic, People, Nothing }
+enum class ChitchatSubject { Well, Weather, Health }
+enum class ChitchatReplyPolicy { BySubjectAndNpcJob }
+enum class RumourUsagePolicy { OncePerConversationThenFallback }
+enum class RumourSourcePolicy { StandardTownRumours }
+
+data class ConversationMenuActionModel(
+    val topic: ConversationTopic,
+    val key: Char,
+    val action: KeyActionId,
+)
+
+data class QuestionMenuActionModel(
+    val topic: QuestionTopic,
+    val key: Char,
+    val action: KeyActionId,
+)
+
+data class ConversationMenuModel(
+    val actions: List<ConversationMenuActionModel>,
+    val questions: List<QuestionMenuActionModel>,
+)
+
+data class ChitchatModel(
+    val subjects: List<ChitchatSubject>,
+    val replies: ChitchatReplyPolicy,
+)
+
+data class ConversationRumourModel(
+    val usage: RumourUsagePolicy,
+    val source: RumourSourcePolicy,
+)
+
+data class StandardConversationModel(
+    val npcSelection: ConversationNpcSelection,
+    val visitPolicy: NpcVisitPolicy,
+    val branchSelection: DialogueBranchSelection,
+    val missionHints: MissionHintPolicy,
+    val menu: ConversationMenuModel,
+    val chitchat: ChitchatModel,
+    val rumour: ConversationRumourModel,
+    val nativeServices: List<EngineServiceUse>,
+)
+
+data class SpeakSystemModel(
+    val standardConversation: StandardConversationModel?,
+)
+
 data class GameModel(
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
     val rewards: List<RewardBundleModel>,
     val combat: CombatSystemModel,
+    val speak: SpeakSystemModel,
     val monsters: List<MonsterModel>,
     val scenes: List<SceneModel>,
     val dialogue: List<DialogueModel>,
@@ -2143,6 +2206,7 @@ class GameBuilder {
     private var progressModel = GameProgressModel(emptyList(), null)
     private val rewardsModel = mutableListOf<RewardBundleModel>()
     private var combatModel = CombatSystemModel(null)
+    private var speakModel = SpeakSystemModel(null)
     private val monsters = mutableListOf<MonsterModel>()
     private val scenes = mutableListOf<SceneModel>()
     private val dialogue = mutableListOf<DialogueModel>()
@@ -2164,6 +2228,10 @@ class GameBuilder {
 
     fun combat(body: CombatBuilder.() -> Unit) {
         combatModel = CombatBuilder().apply(body).build()
+    }
+
+    fun speak(body: SpeakBuilder.() -> Unit) {
+        speakModel = SpeakBuilder().apply(body).build()
     }
 
     fun monsters(body: MonsterCatalogBuilder.() -> Unit) {
@@ -2197,6 +2265,7 @@ class GameBuilder {
             progress = progressModel,
             rewards = rewardsModel.toList(),
             combat = combatModel,
+            speak = speakModel,
             monsters = monsters.toList(),
             scenes = scenes.toList(),
             dialogue = dialogue.toList(),
@@ -2521,6 +2590,151 @@ class StandardBattleBuilder {
             EngineServiceUse(EngineService.TextFormatting, "party, monster, item, pronoun, and reward bindings"),
         )
     }
+}
+
+@RylNextDsl
+class SpeakBuilder {
+    private var standardConversationModel: StandardConversationModel? = null
+
+    fun standardConversation(body: StandardConversationBuilder.() -> Unit) {
+        standardConversationModel = StandardConversationBuilder().apply(body).build()
+    }
+
+    fun build(): SpeakSystemModel = SpeakSystemModel(standardConversationModel)
+}
+
+@RylNextDsl
+class StandardConversationBuilder {
+    var npcSelection: ConversationNpcSelection = ConversationNpcSelection.BuildingListOrWildernessLocation
+    var visitPolicy: NpcVisitPolicy = NpcVisitPolicy.PerPartyVisitedBit
+    var branchSelection: DialogueBranchSelection = DialogueBranchSelection.FirstMatchingStateThenDefault
+    var missionHints: MissionHintPolicy = MissionHintPolicy.BeforeEachMenu
+
+    private var menuModel = ConversationMenuBuilder().apply {
+        chitchat()
+        question {
+            lodging()
+            magic()
+            people()
+            nothing()
+        }
+        rumour()
+        bye()
+    }.build()
+    private var chitchatModel = ChitchatBuilder().build()
+    private var rumourModel = ConversationRumourBuilder().build()
+
+    fun menu(body: ConversationMenuBuilder.() -> Unit) {
+        menuModel = ConversationMenuBuilder().apply(body).build()
+    }
+
+    fun chitchat(body: ChitchatBuilder.() -> Unit) {
+        chitchatModel = ChitchatBuilder(chitchatModel).apply(body).build()
+    }
+
+    fun rumour(body: ConversationRumourBuilder.() -> Unit) {
+        rumourModel = ConversationRumourBuilder(rumourModel).apply(body).build()
+    }
+
+    fun build(): StandardConversationModel =
+        StandardConversationModel(
+            npcSelection = npcSelection,
+            visitPolicy = visitPolicy,
+            branchSelection = branchSelection,
+            missionHints = missionHints,
+            menu = menuModel,
+            chitchat = chitchatModel,
+            rumour = rumourModel,
+            nativeServices = defaultNativeServices,
+        )
+
+    companion object {
+        private val defaultNativeServices = listOf(
+            EngineServiceUse(EngineService.KeyboardInput, "NPC selection and conversation menu choices"),
+            EngineServiceUse(EngineService.Rendering, "text-window clearing, menu rendering, and dialogue screens"),
+            EngineServiceUse(EngineService.RandomNumbers, "chitchat subject and rumour selection"),
+            EngineServiceUse(EngineService.NpcStateStorage, "NPC lookup, job/gender/role metadata, and visited bits"),
+            EngineServiceUse(EngineService.PartyStateMutation, "dialogue scripts can advance flags, rewards, and journals"),
+            EngineServiceUse(EngineService.TextFormatting, "NPC names, jobs, locations, and role-bound text placeholders"),
+        )
+    }
+}
+
+@RylNextDsl
+class ConversationMenuBuilder {
+    private val actions = mutableListOf<ConversationMenuActionModel>()
+    private var questionActions = emptyList<QuestionMenuActionModel>()
+
+    fun chitchat(key: Char = 'C', action: KeyActionId = KeyActions.speakChitchat) {
+        actions += ConversationMenuActionModel(ConversationTopic.Chitchat, key, action)
+    }
+
+    fun question(
+        key: Char = 'Q',
+        action: KeyActionId = KeyActions.speakQuestion,
+        body: QuestionMenuBuilder.() -> Unit,
+    ) {
+        actions += ConversationMenuActionModel(ConversationTopic.Question, key, action)
+        questionActions = QuestionMenuBuilder().apply(body).build()
+    }
+
+    fun rumour(key: Char = 'R', action: KeyActionId = KeyActions.speakRumour) {
+        actions += ConversationMenuActionModel(ConversationTopic.Rumour, key, action)
+    }
+
+    fun bye(key: Char = 'B', action: KeyActionId = KeyActions.speakBye) {
+        actions += ConversationMenuActionModel(ConversationTopic.Bye, key, action)
+    }
+
+    fun build(): ConversationMenuModel =
+        ConversationMenuModel(actions.toList(), questionActions)
+}
+
+@RylNextDsl
+class QuestionMenuBuilder {
+    private val actions = mutableListOf<QuestionMenuActionModel>()
+
+    fun lodging(key: Char = 'L', action: KeyActionId = KeyActions.questionLodging) {
+        actions += QuestionMenuActionModel(QuestionTopic.Lodging, key, action)
+    }
+
+    fun magic(key: Char = 'M', action: KeyActionId = KeyActions.questionMagic) {
+        actions += QuestionMenuActionModel(QuestionTopic.Magic, key, action)
+    }
+
+    fun people(key: Char = 'P', action: KeyActionId = KeyActions.questionPeople) {
+        actions += QuestionMenuActionModel(QuestionTopic.People, key, action)
+    }
+
+    fun nothing(key: Char = 'N', action: KeyActionId = KeyActions.questionNothing) {
+        actions += QuestionMenuActionModel(QuestionTopic.Nothing, key, action)
+    }
+
+    fun build(): List<QuestionMenuActionModel> = actions.toList()
+}
+
+@RylNextDsl
+class ChitchatBuilder(initial: ChitchatModel? = null) {
+    private var subjectModels: List<ChitchatSubject> =
+        initial?.subjects ?: listOf(ChitchatSubject.Well, ChitchatSubject.Weather, ChitchatSubject.Health)
+    var replies: ChitchatReplyPolicy =
+        initial?.replies ?: ChitchatReplyPolicy.BySubjectAndNpcJob
+
+    fun subjects(vararg subjects: ChitchatSubject) {
+        subjectModels = subjects.toList()
+    }
+
+    fun build(): ChitchatModel = ChitchatModel(subjectModels, replies)
+}
+
+@RylNextDsl
+class ConversationRumourBuilder(initial: ConversationRumourModel? = null) {
+    var usage: RumourUsagePolicy =
+        initial?.usage ?: RumourUsagePolicy.OncePerConversationThenFallback
+    var source: RumourSourcePolicy =
+        initial?.source ?: RumourSourcePolicy.StandardTownRumours
+
+    fun build(): ConversationRumourModel = ConversationRumourModel(usage, source)
 }
 
 @RylNextDsl
@@ -3326,6 +3540,115 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
     }
 }
 
+fun validateSpeakSystem(speak: SpeakSystemModel) {
+    speak.standardConversation?.let { conversation ->
+        check(conversation.npcSelection == ConversationNpcSelection.BuildingListOrWildernessLocation) {
+            "standard conversation NPC selection must match building-list or wilderness-location lookup"
+        }
+        check(conversation.visitPolicy == NpcVisitPolicy.PerPartyVisitedBit) {
+            "standard conversation visit policy must use per-party NPC visited bits"
+        }
+        check(conversation.branchSelection == DialogueBranchSelection.FirstMatchingStateThenDefault) {
+            "standard conversation dialogue branch selection must be first matching state then default"
+        }
+        check(conversation.missionHints == MissionHintPolicy.BeforeEachMenu) {
+            "standard conversation mission hints must run before each menu loop"
+        }
+
+        check(conversation.menu.actions.isNotEmpty()) { "standard conversation requires a top-level menu" }
+        check(conversation.menu.questions.isNotEmpty()) { "standard conversation requires a question menu" }
+
+        checkUniqueConversationActions(conversation.menu.actions)
+        checkUniqueQuestionActions(conversation.menu.questions)
+
+        val expectedTopics = listOf(
+            ConversationTopic.Chitchat,
+            ConversationTopic.Question,
+            ConversationTopic.Rumour,
+            ConversationTopic.Bye,
+        )
+        check(conversation.menu.actions.map { it.topic } == expectedTopics) {
+            "standard conversation top-level menu must be C/Q/R/B chitchat, question, rumour, bye"
+        }
+
+        val expectedQuestionTopics = listOf(
+            QuestionTopic.Lodging,
+            QuestionTopic.Magic,
+            QuestionTopic.People,
+            QuestionTopic.Nothing,
+        )
+        check(conversation.menu.questions.map { it.topic } == expectedQuestionTopics) {
+            "standard conversation question menu must be L/M/P/N lodging, magic, people, nothing"
+        }
+
+        check(conversation.menu.actions.map { it.key } == listOf('C', 'Q', 'R', 'B')) {
+            "standard conversation top-level menu keys must match legacy C/Q/R/B"
+        }
+        check(conversation.menu.questions.map { it.key } == listOf('L', 'M', 'P', 'N')) {
+            "standard conversation question menu keys must match legacy L/M/P/N"
+        }
+
+        check(conversation.chitchat.subjects == listOf(
+            ChitchatSubject.Well,
+            ChitchatSubject.Weather,
+            ChitchatSubject.Health,
+        )) {
+            "standard conversation chitchat subjects must match legacy well/weather/health roll"
+        }
+        check(conversation.chitchat.replies == ChitchatReplyPolicy.BySubjectAndNpcJob) {
+            "standard conversation chitchat replies must dispatch by subject and NPC job"
+        }
+
+        check(conversation.rumour.usage == RumourUsagePolicy.OncePerConversationThenFallback) {
+            "standard conversation rumours must be once per conversation with fallback text"
+        }
+        check(conversation.rumour.source == RumourSourcePolicy.StandardTownRumours) {
+            "standard conversation rumours must use the standard town rumour source"
+        }
+
+        val services = conversation.nativeServices.map { it.service }
+        check(services.toSet().size == services.size) {
+            "standard conversation has duplicate native service"
+        }
+        listOf(
+            EngineService.KeyboardInput,
+            EngineService.Rendering,
+            EngineService.RandomNumbers,
+            EngineService.NpcStateStorage,
+            EngineService.PartyStateMutation,
+            EngineService.TextFormatting,
+        ).forEach { service ->
+            check(service in services) {
+                "standard conversation missing native service $service"
+            }
+        }
+    }
+}
+
+private fun checkUniqueConversationActions(actions: List<ConversationMenuActionModel>) {
+    check(actions.map { it.topic }.toSet().size == actions.size) {
+        "standard conversation has duplicate top-level menu topics"
+    }
+    check(actions.map { it.key }.toSet().size == actions.size) {
+        "standard conversation has duplicate top-level menu keys"
+    }
+    check(actions.map { it.action }.toSet().size == actions.size) {
+        "standard conversation has duplicate top-level menu actions"
+    }
+}
+
+private fun checkUniqueQuestionActions(actions: List<QuestionMenuActionModel>) {
+    check(actions.map { it.topic }.toSet().size == actions.size) {
+        "standard conversation has duplicate question menu topics"
+    }
+    check(actions.map { it.key }.toSet().size == actions.size) {
+        "standard conversation has duplicate question menu keys"
+    }
+    check(actions.map { it.action }.toSet().size == actions.size) {
+        "standard conversation has duplicate question menu actions"
+    }
+}
+
 fun validateMagicItemUses(
     magicItems: List<MagicItemModel>,
     itemRecords: List<ItemRecordModel> = ItemCatalog.all,
@@ -3531,6 +3854,7 @@ fun validateAuthoredContent(content: GameModel) {
 
     validateRewardBundles(content.rewards)
     validateCombatSystem(content.combat, content.rewards)
+    validateSpeakSystem(content.speak)
     validateMagicItemUses(content.magicItems)
     validateDialogue(content.dialogue)
     validateScriptRewards(content)

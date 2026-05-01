@@ -189,6 +189,7 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - Loot tables use semantic item pools such as `ItemPools.battleSpoils` and `ItemPools.magicItems`; legacy numeric item-id ranges stay in generated implementation/runtime metadata, not authoring. The implementation model also records the narrow native services the standard battle framework needs: keyboard input, rendering, RNG, combat context storage, inventory storage, party-state mutation, and text formatting.
 - Current battle loot pool mapping is exact to the legacy C/JSON5 ranges: `ItemPools.battleSpoils` maps ids `36..46` to red/blue/amber potions plus red/blue/green gems, chalice, pendant, broche, crystal bowl, and necklace. `ItemPools.magicItems` maps ids `100..111` to frost wand, fire wand, gem of confusion, gem of blindness, drums of death, staff of healing, blessing scroll, staff of curing, gem of resurrection, Kael's axe, holy handgrenade, and flute of madness.
 - First-pass dialogue shape is `dialogue { npc(Npcs.garth) { whenState(...) { ... } } }`. One-off NPC interactions such as Garth's merchant reward can keep their text, reward, prompt/drop handling, and flag transition inline in the branch; reusable screens/text remain a separate future text-asset concern and do not force a scene id for every dialogue branch.
+- First-pass speak dispatcher shape is `speak { standardConversation { ... } }`. It declares the reusable NPC selection, visited-bit recognition, branch-selection policy, C/Q/R/B top-level menu, L/M/P/N question submenu, well/weather/health chitchat roll, once-per-conversation rumour behavior, and the narrow native services the reusable runner needs. Game authors still provide per-NPC branch content in `dialogue { ... }` rather than writing the conversation loop.
 - Generated `Items.*` handles now carry legacy item ids from `data/world/items/*.json5` in Kotlin implementation metadata. Item-pool validation checks both the expected range length and the exact ordered ids of the referenced handles, so author-facing pools stay semantic while migration mistakes in numeric carryover fail validation.
 - Confirmed design decision: item ids should appear only in generated metadata, if they appear at all. The public author-facing `item("slug")` helper cannot attach a legacy id; generated catalog code uses the internal generated-handle path.
 - Generated item metadata now includes item kind, display name, cost, storage behavior, and weapon/armor combat values from `data/world/items/*.json5`. Validation checks unique handles/legacy ids, required combat values, and that special items are milestone-backed rather than slotted inventory.
@@ -240,7 +241,7 @@ B1-B9 first-pass notes:
 - [ ] D4. NPC placement and visited state. DSL delta: content placement plus mutable `state { npcs { at(...) } visited(...) }`. Native decision: runtime coordinates and visited bitsets.
 - [ ] D5. Flags and story progress. DSL delta: typed flag families with explicit states and setters. Native decision: dense flag storage and save serialization.
 - [ ] D6. Missions and triggers. DSL delta: `mission(...) { trigger { ... } action { ... } }`. Native decision: trigger polling and typed op dispatch.
-- [ ] D7. Dialogue and chitchat. DSL delta: `dialogue { npc(Npcs.garth) { whenState(...) { say(...) } } }`. Native decision: input selection and script runner. Current scratch status: Garth's merchant offer and grateful reward are first-class inline dialogue branches with exact legacy text, reward, prompt/drop behavior, and flag transitions, without introducing scene or text ids for one-off dialogue.
+- [ ] D7. Dialogue and chitchat. DSL delta: `speak { standardConversation { ... } }` plus `dialogue { npc(Npcs.garth) { whenState(...) { say(...) } } }`. Native decision: NPC lookup/visited bits, input, rendering, RNG, and text formatting stay narrow services behind a reusable Kotlin/runtime conversation runner. Current scratch status: Garth's merchant offer and grateful reward are first-class inline dialogue branches with exact legacy text, reward, prompt/drop behavior, and flag transitions. The standard conversation shape now pins C/Q/R/B and L/M/P/N menu structure, first-matching dialogue branch dispatch, visited recognition, well/weather/health chitchat, and once-per-conversation rumour fallback.
 - [ ] D8. Rumours. DSL delta: typed rumour tables bound to towns/roles. Native decision: RNG selection only.
 
 ### E. Towns, buildings, wilderness, and daily actions
@@ -773,7 +774,10 @@ the standard battle loop can be a shared Kotlin-defined flow that runs fight/run
 selection, rounds, casting, item use, monster turns, death/reward handling, and
 text hooks. The game source then declares monsters, spells, items, rewards, and
 optional hooks; native calls remain small services such as input, render, RNG,
-and state mutation primitives.
+and state mutation primitives. The same applies to speaking with NPCs: the
+standard conversation loop is reusable runtime code over authored dialogue,
+topic tables, and text hooks; native supplies only NPC lookup/visited bits,
+input, rendering, RNG, and formatting services.
 
 Temporary native bridges currently expected during migration:
 
