@@ -1,10 +1,10 @@
 // RylweenGeneratedMetadata.kt -- generated content metadata for the Rylween DSL.
 //
-// This file is hand-maintained during migration, but it represents generated
-// output from game content. During migration, ./gradlew generateRylweenMetadata
-// copies the temporary source fixture in src/generator/metadata into
-// src/generated/kotlin. Do not put DSL kernel behavior or engine runtime code
-// here.
+// This file represents generated output from game content. During migration,
+// ./gradlew generateRylweenMetadata renders the checked-in output from the
+// template in src/generator/metadata plus generated slices such as
+// data/world/items/*.json5. Do not put DSL kernel behavior or engine runtime
+// code here.
 
 @file:Suppress(
     "unused",
@@ -282,16 +282,15 @@ private fun generatedItemRecord(
 
 class GeneratedItemCatalog {
     val all = listOf(
+        // Weapons.
         generatedItemRecord(
             Items.blank,
             ItemKind.Empty,
-            displayName = "-",
+            "-",
             cost = 0,
             storage = ItemStorageKind.EmptySentinel,
             weaponDamage = 1,
         ),
-
-        // Weapons.
         generatedItemRecord(Items.sword, ItemKind.Weapon, "Sword", cost = 160, weaponDamage = 6),
         generatedItemRecord(Items.axe, ItemKind.Weapon, "Axe", cost = 240, weaponDamage = 10),
         generatedItemRecord(Items.bow, ItemKind.Weapon, "Bow", cost = 160, weaponDamage = 7),
@@ -364,7 +363,7 @@ class GeneratedItemCatalog {
         generatedItemRecord(Items.necklace, ItemKind.Treasure, "Necklace", cost = 987),
         generatedItemRecord(Items.donkey, ItemKind.Treasure, "Donkey", cost = 800),
 
-        // Milestone-backed special items.
+        // Flag-backed special items project from milestones and do not occupy slots.
         generatedItemRecord(
             Items.fireshield,
             ItemKind.Special,
@@ -438,6 +437,7 @@ class ItemPoolRefs {
         ),
         legacyItemIds = 36..46,
     )
+
     val magicItems = generatedItemPool(
         "magic_items",
         items = listOf(
@@ -456,6 +456,7 @@ class ItemPoolRefs {
         ),
         legacyItemIds = 100..111,
     )
+
     val tavernScruffySpecials = generatedItemPool(
         "tavern_scruffy_specials",
         items = listOf(
