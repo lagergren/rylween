@@ -238,6 +238,7 @@ val Flags = Story
 data class TextId(val id: String)
 data class TextPattern(val pattern: String)
 data class ItemId(val slug: String)
+data class ItemPoolId(val slug: String)
 data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
 data class WorldMapId(val slug: String)
@@ -269,6 +270,7 @@ data class CombatLootTableId(val slug: String)
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId(slug)
+fun itemPool(slug: String) = ItemPoolId(slug)
 fun monster(slug: String) = MonsterId(slug)
 fun encounterTier(slug: String) = EncounterTier(slug)
 fun worldMap(slug: String) = WorldMapId(slug)
@@ -382,6 +384,14 @@ class ItemRefs {
     val fluteOfMadness = item("flute_of_madness")
 }
 val Items = ItemRefs()
+
+class ItemPoolRefs {
+    // Legacy battle.c currently rolls ids 36..46 here: potions plus ordinary
+    // treasure, excluding donkey and all milestone-projected special items.
+    val battleSpoils = itemPool("battle_spoils")
+    val magicItems = itemPool("magic_items")
+}
+val ItemPools = ItemPoolRefs()
 
 // -----------------------------------------------------------------------------
 // Generated game-state milestone handles.
@@ -1201,8 +1211,8 @@ data class CombatLootTableModel(
     val id: CombatLootTableId,
     val dropChancePercent: Int,
     val treasureChancePercent: Int,
-    val treasure: IntRange,
-    val magic: IntRange,
+    val treasure: ItemPoolId,
+    val magic: ItemPoolId,
 )
 
 data class CombatRewardsModel(
@@ -1551,6 +1561,7 @@ fun render(arg: Any): String = when (arg) {
     is IntAst -> render(arg)
     is TextId -> arg.id
     is ItemId -> arg.slug
+    is ItemPoolId -> arg.slug
     is MonsterId -> arg.slug
     is EncounterTier -> arg.slug
     is WorldMapId -> arg.slug
@@ -2138,8 +2149,8 @@ class CombatRewardsBuilder(initial: CombatRewardsModel? = null) {
 class CombatLootTableBuilder(private val id: CombatLootTableId) {
     var dropChancePercent: Int = 5
     var treasureChancePercent: Int = 59
-    var treasure: IntRange = 36..46
-    var magic: IntRange = 100..111
+    var treasure: ItemPoolId = ItemPools.battleSpoils
+    var magic: ItemPoolId = ItemPools.magicItems
 
     fun build(): CombatLootTableModel =
         CombatLootTableModel(id, dropChancePercent, treasureChancePercent, treasure, magic)
@@ -2694,12 +2705,6 @@ fun validateCombatSystem(combat: CombatSystemModel) {
 
         checkPercent(battle.rewards.loot.dropChancePercent, "standard battle loot drop chance")
         checkPercent(battle.rewards.loot.treasureChancePercent, "standard battle loot treasure chance")
-        check(battle.rewards.loot.treasure.first <= battle.rewards.loot.treasure.last) {
-            "standard battle treasure loot range is invalid"
-        }
-        check(battle.rewards.loot.magic.first <= battle.rewards.loot.magic.last) {
-            "standard battle magic loot range is invalid"
-        }
 
         val services = battle.nativeServices.map { it.service }
         check(services.toSet().size == services.size) { "standard battle has duplicate native service" }
