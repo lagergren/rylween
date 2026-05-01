@@ -1701,6 +1701,22 @@ class WildernessSessionTerminalAdapter(
         var session = initial
         repeat(512) {
             session = when (val step = session.step) {
+                WildernessSessionStep.TurnStart -> session.beginTurn()
+                is WildernessSessionStep.Messages -> {
+                    step.blocks.forEach { block ->
+                        terminal.write(renderer.lines(block, TerminalTextContext(runtime = session.runtime)))
+                    }
+                    session.continueMessages()
+                }
+                is WildernessSessionStep.OutOfMoves -> {
+                    writeMenu(step.prompt, listOf('S', 'Q'))
+                    when (val input = terminal.readKey(listOf('S', 'Q'))) {
+                        is TerminalInput.Value ->
+                            session.apply(WildernessSessionInput.OutOfMovesAnswer(input.value == 'S'))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
                 WildernessSessionStep.Explore -> {
                     writeExplore(session)
                     when (val input = terminal.readKey(WildernessCommandKeys)) {
@@ -1741,6 +1757,7 @@ class WildernessSessionTerminalAdapter(
 
     private fun applyCommand(session: WildernessSession, key: Char): WildernessSession =
         when (key) {
+            ' ' -> session.apply(WildernessSessionInput.Pass)
             'E' -> session.apply(WildernessSessionInput.Enter)
             'X' -> session.apply(WildernessSessionInput.Quit)
             else -> session.apply(
@@ -1765,7 +1782,7 @@ class WildernessSessionTerminalAdapter(
             session.lastResult?.takeIf { it.status == WildernessSessionResultStatus.Blocked }?.let {
                 add("Blocked.")
             }
-            add("Commands: 8/2/4/6 move, E enter, X quit")
+            add("Commands: 8/2/4/6 move, Space pass, E enter, X quit")
         }
         terminal.write(lines)
     }
@@ -1781,7 +1798,7 @@ class WildernessSessionTerminalAdapter(
     }
 
     private companion object {
-        val WildernessCommandKeys = listOf('8', '2', '4', '6', 'E', 'X')
+        val WildernessCommandKeys = listOf('8', '2', '4', '6', ' ', 'E', 'X')
     }
 }
 
@@ -1800,7 +1817,11 @@ private fun <T, R> TerminalInput<T>.map(transform: (T) -> R): TerminalInput<R> =
 
 private fun TerminalPort.readKey(allowed: List<Char>): TerminalInput<Char> {
     val raw = readLine() ?: return TerminalInput.Unavailable
-    val key = raw.trim().firstOrNull()?.uppercaseChar()
+    val key = if (' ' in allowed && raw.firstOrNull() == ' ') {
+        ' '
+    } else {
+        raw.trim().firstOrNull()?.uppercaseChar()
+    }
     return if (key != null && key in allowed) {
         TerminalInput.Value(key)
     } else {
