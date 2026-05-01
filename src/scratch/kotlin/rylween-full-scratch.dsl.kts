@@ -1151,7 +1151,221 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Towne.inn) {
-        native.town.enterService(Buildings.inn)
+        native.screen.clearMapWindow()
+        native.screen.showImage(Images.Scene.inn)
+
+        loop {
+            val cost = let("cost", (party.leader.level * party.leader.level) * 15)
+
+            native.screen.clearText()
+            screen {
+                line(townNpcName(NpcJobs.innkeeper), ", the Innkeeper")
+                line("welcomes you.")
+                line("")
+                line("Do you want supper,")
+                line("travellers?")
+                line("")
+            }
+            choice.yesNo("(Y)es", "(N)o",
+                yes = {
+                    when_(party.gold lt cost) {
+                        native.screen.clearText()
+                        screen {
+                            line("Sorry, supper is ", cost)
+                            line("gold.")
+                        }
+                        pause(1000)
+                    } otherwise {
+                        party.gold -= cost
+                        native.screen.clearText()
+                        screen {
+                            lines(
+                                "You are served a well",
+                                "tasting dinner. Some",
+                                "of your health returns.",
+                                "",
+                            )
+                        }
+                        healLivingMembers(6)
+                        waitInput("after inn supper")
+                    }
+                },
+            )
+
+            native.screen.clearText()
+            choice.yesNo("Anything to drink?", "",
+                yes = {
+                    native.screen.clearText()
+                    menu(
+                        "What'll it be?",
+                        "",
+                        "A. Ale         2 au",
+                        "B. Mead        3 au",
+                        "C. Wine        5 au",
+                        "D. Whiskey     7 au",
+                        "E. Fanta       1 au",
+                    ) {
+                        option('A') {
+                            pay(lit(2),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen("Ahh...!")
+                                    pause(1000)
+                                    healLivingMembers((lit(2) / 2) + 1)
+                                },
+                            )
+                        }
+                        option('B') {
+                            pay(lit(3),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen("Ahh...!")
+                                    pause(1000)
+                                    healLivingMembers((lit(3) / 2) + 1)
+                                },
+                            )
+                        }
+                        option('C') {
+                            pay(lit(5),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen("Ahh...!")
+                                    pause(1000)
+                                    healLivingMembers((lit(5) / 2) + 1)
+                                },
+                            )
+                        }
+                        option('D') {
+                            pay(lit(7),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen("Ahh...!")
+                                    pause(1000)
+                                    healLivingMembers((lit(7) / 2) + 1)
+                                },
+                            )
+                        }
+                        option('E') {
+                            pay(lit(1),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen("The other guests giggle.")
+                                    pause(1000)
+                                    healLivingMembers((lit(1) / 2) + 1)
+                                },
+                            )
+                        }
+                    }
+                },
+            )
+
+            native.screen.clearText()
+            choice.yesNo("Are you in need", "of lodging?", "",
+                yes = {
+                    native.screen.clearText()
+                    screen {
+                        line("A room is ", cost, " gold/night.")
+                        line("")
+                    }
+
+                    choice.takeOrLeave(
+                        inlineText("(T)ake it", "(L)eave"),
+                        take = {
+                            when_(party.gold lt cost) {
+                                native.screen.clearText()
+                                screen {
+                                    lines(
+                                        "- AHA! No gold!",
+                                        "You are thrown out.",
+                                    )
+                                }
+                                pause(2000)
+                                native.screen.clearMapWindow()
+                                breakLoop("thrown out of inn")
+                            } otherwise {
+                                party.gold -= cost
+                                native.screen.clearText()
+                                screen("You go to bed...")
+                                pause(1000)
+                                screen("Zzzz...", "")
+                                party.restedHours set 14
+                                pause(1500)
+                                screen {
+                                    lines(
+                                        "You wake up a little",
+                                        "before dawn, well",
+                                        "rested.",
+                                        "",
+                                        "You have breakfast",
+                                        "and leave the inn.",
+                                        "",
+                                    )
+                                }
+                                waitInput("after inn lodging")
+                                realm.hour set 5
+                                forEachMember {
+                                    it.hp.addClamped(it.maxHp / 4, it.maxHp)
+                                }
+                                native.screen.clearMapWindow()
+                                breakLoop("slept at inn")
+                            }
+                        },
+                        leave = {
+                            native.screen.clearText()
+                            native.screen.clearMapWindow()
+                            breakLoop("leave inn")
+                        },
+                    )
+                },
+                no = {
+                    loop {
+                        native.screen.clearText()
+                        screen("The innkeeper leaves.", "")
+                        menu("(C)hitchat with guests", "(L)eave") {
+                            option('C') {
+                                speak(Buildings.tavern)
+                            }
+                            option('L') {
+                                native.screen.clearText()
+                                native.screen.clearMapWindow()
+                                breakLoop("leave inn chitchat")
+                            }
+                            default {
+                                native.screen.clearText()
+                                native.screen.clearMapWindow()
+                                breakLoop("leave inn chitchat")
+                            }
+                        }
+                    }
+                    breakLoop("leave inn after chitchat")
+                },
+            )
+        }
     }
 
     scene(Scenes.Towne.merchant) {
@@ -1761,6 +1975,9 @@ val churchScene = nextDsl.scenes.single { it.id == Scenes.Towne.church }
 val churchMenu = churchScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()
 check(churchMenu.options.map { it.key } == listOf('H', 'E', 'R', 'L'))
 check(churchScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
+val innScene = nextDsl.scenes.single { it.id == Scenes.Towne.inn }
+check(innScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
+check(innScene.ops.filterIsInstance<Op.Loop>().single().body.any { it is Op.Menu })
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
 check(nextDsl.dialogue.size == 1)
 check(nextDsl.dialogue.single().branches.size == 2)

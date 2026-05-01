@@ -1432,6 +1432,7 @@ class NativeOpRefs {
     val partyPronounSubject = nativeOp("party.member.pronoun.subject")
     val partyPronounObject = nativeOp("party.member.pronoun.object")
     val partyPronounPossessive = nativeOp("party.member.pronoun.possessive")
+    val townNpcName = nativeOp("town.npc.name")
     val npcRoleName = nativeOp("npc.role.name")
     val npcRoleLocation = nativeOp("npc.role.location")
 }
@@ -1448,6 +1449,7 @@ sealed interface IntAst {
     data class Random(val lo: IntAst, val hi: IntAst) : IntAst
     data class MemberField(val member: IntAst, val field: String) : IntAst
     data class MonsterField(val monster: IntAst, val field: String) : IntAst
+    data class RealmScalar(val name: String) : IntAst
     data class PartyScalar(val name: String) : IntAst
     data class NativeInt(val path: String, val args: List<String>) : IntAst
 }
@@ -1467,6 +1469,7 @@ sealed interface StrAst {
 }
 
 sealed interface LValueAst {
+    data class RealmScalar(val name: String) : LValueAst
     data class PartyScalar(val name: String) : LValueAst
     data class MemberField(val member: IntAst, val field: String) : LValueAst
     data class MonsterField(val monster: IntAst, val field: String) : LValueAst
@@ -1487,6 +1490,7 @@ sealed interface Op {
     data class Set(val target: LValueAst, val value: IntAst) : Op
     data class Add(val target: LValueAst, val value: IntAst) : Op
     data class Sub(val target: LValueAst, val value: IntAst) : Op
+    data class AddClamped(val target: LValueAst, val value: IntAst, val max: IntAst) : Op
     data class SetFlag(val slug: String, val nativeValue: String) : Op
     data class If(val cond: BoolAst, val thenOps: List<Op>, val elseOps: List<Op>) : Op
     data class Loop(val body: List<Op>) : Op
@@ -1509,7 +1513,9 @@ sealed interface Op {
         val filter: InventorySlotChoiceFilter,
     ) : Op
     data class AskMonster(val prompt: TextId, val varName: String) : Op
+    data class ForEachMember(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
     data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
+    data class Speak(val building: BuildingId) : Op
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
     object ConsumeActiveItem : Op
@@ -2058,6 +2064,12 @@ class IntSlot(
     operator fun plusAssign(value: Int) = plusAssign(lit(value))
     operator fun minusAssign(value: IntExpr) = script.record(Op.Sub(lvalue, value.ast))
     operator fun minusAssign(value: Int) = minusAssign(lit(value))
+    fun addClamped(value: IntExpr, max: IntExpr) = script.record(Op.AddClamped(lvalue, value.ast, max.ast))
+    fun addClamped(value: Int, max: IntExpr) = addClamped(lit(value), max)
+}
+
+class RealmRef(private val script: ScriptScope) {
+    val hour = IntSlot(script, LValueAst.RealmScalar("hour"), IntAst.RealmScalar("hour"))
 }
 
 class BoolSlot(
@@ -2071,7 +2083,12 @@ class BoolSlot(
 
 class PartyRef(private val script: ScriptScope) {
     val gold = IntSlot(script, LValueAst.PartyScalar("gold"), IntAst.PartyScalar("gold"))
+    val torches = IntSlot(script, LValueAst.PartyScalar("torches"), IntAst.PartyScalar("torches"))
+    val food = IntSlot(script, LValueAst.PartyScalar("food"), IntAst.PartyScalar("food"))
+    val timeLeft = IntSlot(script, LValueAst.PartyScalar("time_left"), IntAst.PartyScalar("time_left"))
+    val restedHours = IntSlot(script, LValueAst.PartyScalar("rested_hours"), IntAst.PartyScalar("rested_hours"))
     val memberCount = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
+    val leader: MemberRef get() = member(lit(1))
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
 }
 
@@ -2138,6 +2155,7 @@ class NativeAllowlistRefs {
     val partyPronounSubject = string(NativeOps.partyPronounSubject, "party-member pronoun binding")
     val partyPronounObject = string(NativeOps.partyPronounObject, "party-member pronoun binding")
     val partyPronounPossessive = string(NativeOps.partyPronounPossessive, "party-member pronoun binding")
+    val townNpcName = string(NativeOps.townNpcName, "current-town NPC display name binding")
     val npcRoleName = string(NativeOps.npcRoleName, "role-resolved NPC name binding")
     val npcRoleLocation = string(NativeOps.npcRoleLocation, "role-resolved NPC location binding")
 
@@ -2161,6 +2179,7 @@ class NativeAllowlistRefs {
         partyPronounSubject,
         partyPronounObject,
         partyPronounPossessive,
+        townNpcName,
         npcRoleName,
         npcRoleLocation,
     )
@@ -2191,6 +2210,9 @@ fun pronoun(member: MemberRef, case: PronounCase): StrExpr {
     }
     return Str(StrAst.NativeString(native.path, listOf(render(member.index.ast))))
 }
+
+fun townNpcName(job: NpcJobId): StrExpr =
+    Str(StrAst.NativeString(NativeAllowlist.townNpcName.path, listOf(render(job))))
 
 fun npcName(role: NpcRole): StrExpr =
     Str(StrAst.NativeString(NativeAllowlist.npcRoleName.path, listOf(role.slug)))
@@ -2258,6 +2280,7 @@ class ScriptScope(
     private val ctx: ScriptContext,
     private val ops: MutableList<Op>,
 ) {
+    val realm = RealmRef(this)
     val party = PartyRef(this)
     val ask = AskScope(this)
     val choice = ChoiceScope(this)
@@ -2344,8 +2367,28 @@ class ScriptScope(
         record(Op.ForEachMonster(name, includeDead, childOps))
     }
 
+    fun forEachMember(includeDead: Boolean = false, body: ScriptScope.(MemberRef) -> Unit) {
+        val name = ctx.fresh("member")
+        val childOps = capture {
+            body(MemberRef(this, v(name)))
+        }
+        record(Op.ForEachMember(name, includeDead, childOps))
+    }
+
+    fun healLivingMembers(amount: IntExpr) {
+        forEachMember {
+            it.hp.addClamped(amount, it.maxHp)
+        }
+    }
+
+    fun healLivingMembers(amount: Int) = healLivingMembers(lit(amount))
+
     fun run(scene: SceneId, vararg bindings: Pair<String, Any>) {
         record(Op.RunScene(scene, bindings.associate { it.first to render(it.second) }))
+    }
+
+    fun speak(building: BuildingId) {
+        record(Op.Speak(building))
     }
 
     fun encounter(monster: MonsterId, mandatory: Boolean = false, tier: EncounterTier? = null) {
@@ -2491,6 +2534,34 @@ class AskScope(private val script: ScriptScope) {
 }
 
 class ChoiceScope(private val script: ScriptScope) {
+    fun yesNo(
+        prompt: TextBlock,
+        yes: ScriptScope.() -> Unit,
+        no: ScriptScope.() -> Unit = {},
+    ) {
+        script.menu(prompt) {
+            option('Y', yes)
+            option('N', no)
+            default(no)
+        }
+    }
+
+    fun yesNo(
+        vararg promptLines: String,
+        yes: ScriptScope.() -> Unit,
+        no: ScriptScope.() -> Unit = {},
+    ) {
+        yesNo(TextBlock.Inline(promptLines.toList()), yes, no)
+    }
+
+    fun takeOrLeave(prompt: TextBlock, take: ScriptScope.() -> Unit, leave: ScriptScope.() -> Unit) {
+        script.menu(prompt) {
+            option('T', take)
+            option('L', leave)
+            default(leave)
+        }
+    }
+
     fun payNoThanks(amount: IntExpr, broke: ScriptScope.() -> Unit, paid: ScriptScope.() -> Unit) {
         script.menu("(P)ay", "(N)o thanks") {
             option('P') {
@@ -4072,6 +4143,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
             }
             is IntAst.MemberField -> int(ast.member)
             is IntAst.MonsterField -> int(ast.monster)
+            is IntAst.RealmScalar -> Unit
             is IntAst.PartyScalar -> Unit
             is IntAst.NativeInt -> paths += ast.path
         }
@@ -4135,6 +4207,10 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.Set -> int(op.value)
                 is Op.Add -> int(op.value)
                 is Op.Sub -> int(op.value)
+                is Op.AddClamped -> {
+                    int(op.value)
+                    int(op.max)
+                }
                 is Op.SetFlag -> Unit
                 is Op.If -> {
                     bool(op.cond)
@@ -4156,7 +4232,9 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.AskMember -> text(op.prompt)
                 is Op.AskInventorySlot -> text(op.prompt)
                 is Op.AskMonster -> Unit
+                is Op.ForEachMember -> ops(op.body)
                 is Op.ForEachMonster -> ops(op.body)
+                is Op.Speak -> Unit
                 is Op.RunScene -> Unit
                 is Op.Encounter -> Unit
                 Op.ConsumeActiveItem -> Unit
