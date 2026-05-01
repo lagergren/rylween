@@ -100,7 +100,7 @@ class RylweenDslValidationTest {
                 day = 3,
                 hour = 12,
                 minute = 5,
-                rngSeed = 1234L,
+                rngState = 1234L,
                 activeParty = party,
                 currentMap = Maps.wilderness,
                 currentMode = RuntimeMode.Wilderness,
@@ -158,7 +158,7 @@ class RylweenDslValidationTest {
         val snapshot = renderRuntimeStateSnapshot(state)
 
         assertTrue("""runtimeState(stateId("snapshot"))""" in snapshot)
-        assertTrue("""rngSeed = 1234L""" in snapshot)
+        assertTrue("""rngState = 1234L""" in snapshot)
         assertTrue("""mark(runtimeFlagState("garth.bandits", "recovered"))""" in snapshot)
         assertTrue("""slot(16).empty()""" in snapshot)
         assertTrue("""line("Castle Ydarg has fallen.")""" in snapshot)
@@ -1337,14 +1337,14 @@ class RylweenDslValidationTest {
                 scenes = listOf(testTavernSpeakRumourScene()),
                 party = testParty(),
                 currentHour = 12,
-                rngSeed = 1L,
+                rngState = 1L,
             ),
         )
 
         assertTrue(session.status is TerminalRunStatus.Finished)
         assertTrue(terminal.output.any { "Ydarg waits in the south." in it })
         assertTrue(terminal.output.none { "A merchant needs bandits gone." in it })
-        assertEquals(33554433L, session.session.runtime.realm.rngSeed)
+        assertEquals(33554433L, session.session.runtime.realm.rngState)
     }
 
     @Test
@@ -1378,14 +1378,14 @@ class RylweenDslValidationTest {
                 scenes = listOf(testTavernRandomOfferScene()),
                 party = testParty(gold = 2000),
                 currentHour = 12,
-                rngSeed = 1L,
+                rngState = 1L,
             ),
         )
 
         assertTrue(session.status is TerminalRunStatus.Finished)
         assertEquals(100, session.session.party.resources.gold)
         assertEquals(Items.greenGem, session.session.party.inventoryItem(1))
-        assertEquals(33554433L, session.session.runtime.realm.rngSeed)
+        assertEquals(33554433L, session.session.runtime.realm.rngState)
         assertTrue(terminal.output.any { "  Green Gem" in it })
     }
 
@@ -1608,13 +1608,13 @@ class RylweenDslValidationTest {
     fun compiledScratchTownRunsAuthoredTavernScruffyOfferWithSeededSelection() {
         val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
-            compiledTownSession(party = testParty(gold = 2000), rngSeed = 126L),
+            compiledTownSession(party = testParty(gold = 2000), rngState = 126L),
         )
 
         assertTrue(result.status is TerminalRunStatus.Finished)
         assertEquals(100, result.session.party.resources.gold)
         assertEquals(Items.greenGem, result.session.party.inventoryItem(1))
-        assertEquals(141898022896021606L, result.session.runtime.realm.rngSeed)
+        assertEquals(141898022896021606L, result.session.runtime.realm.rngState)
         assertTrue(terminal.output.any { "  Green Gem" in it })
     }
 
@@ -1665,13 +1665,13 @@ class RylweenDslValidationTest {
                 party = testParty(
                     members = listOf(testMember(name = "Borin", charisma = 10)),
                 ),
-                rngSeed = 4L,
+                rngState = 4L,
             ),
         )
 
         assertTrue(result.status is TerminalRunStatus.Finished)
         assertEquals(9, result.session.party.members.single().charisma)
-        assertEquals(4504699139039237L, result.session.runtime.realm.rngSeed)
+        assertEquals(4504699139039237L, result.session.runtime.realm.rngState)
         assertTrue(terminal.output.any { "The mob is bored." in it })
     }
 
@@ -1818,7 +1818,7 @@ class RylweenDslValidationTest {
         party: PartyState,
         townId: TownId = Towns.thord.id,
         currentHour: Int = 12,
-        rngSeed: Long? = null,
+        rngState: Long? = null,
     ): TownSession {
         val content = RylweenCompiledScratch.nextDsl
         return TownSession.start(
@@ -1827,7 +1827,7 @@ class RylweenDslValidationTest {
             scenes = content.scenes,
             party = party,
             currentHour = currentHour,
-            rngSeed = rngSeed,
+            rngState = rngState,
         )
     }
 

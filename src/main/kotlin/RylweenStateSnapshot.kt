@@ -27,15 +27,15 @@ private class RuntimeStateSnapshotWriter {
     }
 
     private fun realm(realm: RealmState) {
-        val rngSeed = checkNotNull(realm.rngSeed) {
-            "runtime snapshot ${realm.activeParty.slug} requires rngSeed before emission"
+        val rngState = checkNotNull(realm.rngState) {
+            "runtime snapshot ${realm.activeParty.slug} requires rngState before emission"
         }
         line("realm {")
         indented {
             assignment("day", realm.day)
             assignment("hour", realm.hour)
             assignment("minute", realm.minute)
-            line("rngSeed = ${rngSeed}L")
+            line("rngState = ${rngState}L")
             line("activeParty = ${partyId(realm.activeParty)}")
             line("currentMap = ${worldMapId(realm.currentMap)}")
             line("currentMode = RuntimeMode.${realm.currentMode.name}")
