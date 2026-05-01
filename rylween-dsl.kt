@@ -1355,6 +1355,8 @@ sealed interface Op {
 data class SwitchCase(val match: Int?, val body: List<Op>)
 
 data class SceneModel(val id: SceneId, val ops: List<Op>)
+data class DialogueModel(val npc: NpcId, val branches: List<DialogueBranchModel>)
+data class DialogueBranchModel(val whenState: FlagState?, val ops: List<Op>)
 data class SpellModel(val id: SpellId, val slot: Int, val baseCost: Int, val name: String, val ops: List<Op>)
 data class MagicItemModel(
     val id: ItemId,
@@ -1537,6 +1539,7 @@ data class GameModel(
     val combat: CombatSystemModel,
     val monsters: List<MonsterModel>,
     val scenes: List<SceneModel>,
+    val dialogue: List<DialogueModel>,
     val spells: List<SpellModel>,
     val magicItems: List<MagicItemModel>,
     val missions: List<MissionModel>,
@@ -1922,6 +1925,8 @@ class ScriptScope(
 
     fun screen(id: TextId) = record(Op.Screen(TextBlock.Ref(id)))
     fun screen(vararg lines: String) = record(Op.Screen(TextBlock.Inline(lines.toList())))
+    fun say(id: TextId) = screen(id)
+    fun say(vararg lines: String) = screen(*lines)
     fun emit(id: TextId) = record(Op.Emit(id))
     fun emitIndexed(pattern: TextPattern, value: IntExpr) = record(Op.EmitIndexed(pattern, value.ast))
     fun waitInput(reason: String? = null) = record(Op.WaitInput(reason))
@@ -2030,6 +2035,13 @@ class ScriptRewardBuilder {
         messagesModel = RewardMessageModel(cantCarry, pickedUp)
     }
 
+    fun promptDrop(cantCarry: String, pickedUp: String? = null) {
+        promptDrop(
+            TextBlock.Inline(listOf(cantCarry)),
+            pickedUp?.let { TextBlock.Inline(listOf(it)) },
+        )
+    }
+
     fun promptDrop(cantCarry: TextId, pickedUp: TextId? = null) {
         promptDrop(TextBlock.Ref(cantCarry), pickedUp?.let(TextBlock::Ref))
     }
@@ -2133,6 +2145,7 @@ class GameBuilder {
     private var combatModel = CombatSystemModel(null)
     private val monsters = mutableListOf<MonsterModel>()
     private val scenes = mutableListOf<SceneModel>()
+    private val dialogue = mutableListOf<DialogueModel>()
     private val spells = mutableListOf<SpellModel>()
     private val magicItems = mutableListOf<MagicItemModel>()
     private val missions = mutableListOf<MissionModel>()
@@ -2165,6 +2178,10 @@ class GameBuilder {
         scenes += SceneModel(id, recordScript(body))
     }
 
+    fun dialogue(body: DialogueCatalogBuilder.() -> Unit) {
+        dialogue += DialogueCatalogBuilder().apply(body).build()
+    }
+
     fun spell(id: SpellId, slot: Int, baseCost: Int, name: String, body: ScriptScope.() -> Unit) {
         spells += SpellModel(id, slot, baseCost, name, recordScript(body))
     }
@@ -2182,11 +2199,38 @@ class GameBuilder {
             combat = combatModel,
             monsters = monsters.toList(),
             scenes = scenes.toList(),
+            dialogue = dialogue.toList(),
             spells = spells.toList(),
             magicItems = magicItems.toList(),
             missions = missions.toList(),
         )
 
+}
+
+@RylNextDsl
+class DialogueCatalogBuilder {
+    private val dialogue = mutableListOf<DialogueModel>()
+
+    fun npc(id: NpcId, body: NpcDialogueBuilder.() -> Unit) {
+        dialogue += NpcDialogueBuilder(id).apply(body).build()
+    }
+
+    fun build(): List<DialogueModel> = dialogue.toList()
+}
+
+@RylNextDsl
+class NpcDialogueBuilder(private val id: NpcId) {
+    private val branches = mutableListOf<DialogueBranchModel>()
+
+    fun whenState(state: FlagState, body: ScriptScope.() -> Unit) {
+        branches += DialogueBranchModel(state, recordScript(body))
+    }
+
+    fun default(body: ScriptScope.() -> Unit) {
+        branches += DialogueBranchModel(null, recordScript(body))
+    }
+
+    fun build(): DialogueModel = DialogueModel(id, branches.toList())
 }
 
 @RylNextDsl
@@ -3082,6 +3126,9 @@ fun nativePathsIn(model: GameModel): Set<String> {
     }
 
     model.scenes.forEach { ops(it.ops) }
+    model.dialogue.forEach { dialogue ->
+        dialogue.branches.forEach { ops(it.ops) }
+    }
     model.spells.forEach { ops(it.ops) }
     model.magicItems.forEach { ops(it.ops) }
     model.missions.forEach {
@@ -3309,6 +3356,36 @@ fun validateMagicItemUses(
     }
 }
 
+fun validateDialogue(dialogue: List<DialogueModel>) {
+    check(dialogue.map { it.npc }.toSet().size == dialogue.size) { "duplicate authored NPC dialogue" }
+
+    dialogue.forEach { npcDialogue ->
+        check(npcDialogue.branches.isNotEmpty()) {
+            "dialogue for ${npcDialogue.npc.slug} requires at least one branch"
+        }
+
+        val states = npcDialogue.branches.mapNotNull { it.whenState }
+        check(states.toSet().size == states.size) {
+            "dialogue for ${npcDialogue.npc.slug} has duplicate state branches"
+        }
+
+        check(npcDialogue.branches.count { it.whenState == null } <= 1) {
+            "dialogue for ${npcDialogue.npc.slug} has duplicate default branches"
+        }
+
+        npcDialogue.branches.forEach { branch ->
+            branch.whenState?.let { state ->
+                check(state.flag.scope == FlagScope.Party) {
+                    "dialogue for ${npcDialogue.npc.slug} uses non-party state ${state.flag.slug}.${state.native}"
+                }
+            }
+            check(branch.ops.isNotEmpty()) {
+                "dialogue for ${npcDialogue.npc.slug} has an empty branch"
+            }
+        }
+    }
+}
+
 private fun List<Op>.containsConsumeActiveItem(): Boolean =
     any { op ->
         when (op) {
@@ -3376,6 +3453,9 @@ fun validateScriptRewards(
     }
 
     content.scenes.forEach { visit(it.ops) }
+    content.dialogue.forEach { dialogue ->
+        dialogue.branches.forEach { visit(it.ops) }
+    }
     content.spells.forEach { visit(it.ops) }
     content.magicItems.forEach { visit(it.ops) }
 }
@@ -3452,6 +3532,7 @@ fun validateAuthoredContent(content: GameModel) {
     validateRewardBundles(content.rewards)
     validateCombatSystem(content.combat, content.rewards)
     validateMagicItemUses(content.magicItems)
+    validateDialogue(content.dialogue)
     validateScriptRewards(content)
 }
 
