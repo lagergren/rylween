@@ -1028,11 +1028,51 @@ class RylweenDslValidationTest {
             ),
         )
 
-        assertTrue(result.session.step is TownSessionStep.NativeService)
+        val nativeStep = result.session.step
+        assertTrue(nativeStep is TownSessionStep.NativeService)
+        assertTrue(nativeStep.continuation != null)
         assertEquals(
             TerminalInputRejection("X", listOf("L")),
             (result.status as TerminalRunStatus.Waiting).rejection,
         )
+    }
+
+    @Test
+    fun townServiceBridgeResumesContinuationWithoutReplayingSideEffects() {
+        val serviceScene = SceneModel(
+            Scenes.Towne.church,
+            listOf(
+                Op.Sub(LValueAst.PartyScalar("gold"), IntAst.Lit(3)),
+                Op.AskMember(inlineText("Who?"), "member", MemberChoiceFilter.Any),
+                Op.WaitInput("pause after member choice"),
+                Op.Set(
+                    LValueAst.MemberField(IntAst.Var("member"), "hit_points"),
+                    IntAst.Lit(8),
+                ),
+                Op.Sub(LValueAst.PartyScalar("gold"), IntAst.Lit(2)),
+            ),
+        )
+        val start = TownSession.start(
+            town = testTown(Buildings.church),
+            townSystem = testTownSystem(Buildings.church),
+            scenes = listOf(serviceScene),
+            party = testParty(gold = 10, hitPoints = 2),
+            currentHour = 12,
+        )
+
+        val blocked = TownSessionTerminalAdapter(FakeTerminalPort("C", "1")).runUntilBlocked(start)
+        val blockedStep = blocked.session.step as TownSessionStep.NativeService
+
+        assertTrue(blocked.status is TerminalRunStatus.Waiting)
+        assertEquals(7, blocked.session.party.resources.gold)
+        assertEquals(2, blocked.session.party.members.single().hitPoints.current)
+        assertEquals(1, blockedStep.continuation?.locals?.get("member"))
+
+        val resumed = TownSessionTerminalAdapter(FakeTerminalPort("", "L")).runUntilBlocked(blocked.session)
+
+        assertTrue(resumed.status is TerminalRunStatus.Finished)
+        assertEquals(5, resumed.session.party.resources.gold)
+        assertEquals(8, resumed.session.party.members.single().hitPoints.current)
     }
 
     @Test
