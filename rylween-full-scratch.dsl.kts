@@ -2,12 +2,11 @@
 //
 // This file should contain game declarations: flags, progress milestones,
 // monsters, missions, scripts, and states. DSL implementation code belongs in
-// rylween-dsl.kt.
+// src/main/kotlin, with validation split into rylween-dsl-validation.kt.
 //
 // Validate with:
 //
-//   kotlinc rylween-dsl.kt -d /tmp/rylween-dsl.jar
-//   kotlinc -classpath /tmp/rylween-dsl.jar -script rylween-full-scratch.dsl.kts
+//   ./gradlew check
 
 // =============================================================================
 // 06. Full-game scratch authoring area
@@ -215,6 +214,15 @@ val nextRylween = rylween {
             screen(T.Speak.noRumour) {
                 lines("- Sorry. There's", "nothing new I can", "tell you.", "")
             }
+            screen(T.Speak.Lodge.bargirlOffer) {
+                lines("- Would you like to,", "  spend an hour", "  upstairs for {price}", "  gold coins?", "")
+            }
+            screen(T.Speak.Lodge.bargirlBroke) {
+                lines("- No money, eh?", "  don't bother", "  to come back!")
+            }
+            screen(T.Speak.Lodge.bargirlSpent) {
+                lines("You spend a very", "exhausting hour", "upstairs.", "(PERVERT!) ;-)", "")
+            }
 
             chitchatPrompt(ChitchatSubject.Well) {
                 female {
@@ -242,21 +250,174 @@ val nextRylween = rylween {
                 job(NpcJobs.merchant) {
                     lines("- Thanks, and the same", "to you!")
                 }
+                job(NpcJobs.ranger) {
+                    lines("- I do? Really? Are", "you gay or smth'n?")
+                }
+                job(NpcJobs.fighter) {
+                    lines("- Thank you. My health", "is slowly returning", "after a hard battle.")
+                }
+                job(NpcJobs.wizard) {
+                    lines("- Aha?")
+                }
+                job(NpcJobs.priest) {
+                    lines("- You too, my son.")
+                }
+                job(NpcJobs.thief) {
+                    lines("- What? No! Sccch!", "They can hear you.")
+                }
+                job(NpcJobs.peasant) {
+                    lines("- Thank you! You too.")
+                }
+                job(NpcJobs.bard) {
+                    lines("- That inspires me.", "I'll compose a song", "about you!")
+                }
+                job(NpcJobs.drifter) {
+                    lines("- YEAH? Take that!")
+                }
+                job(NpcJobs.halfOrc) {
+                    lines("- ME NOT LOOK WELL!", "ME BIG AND UGLY!")
+                }
+                job(NpcJobs.halfElf) {
+                    lines("- Oh...")
+                }
+                job(NpcJobs.smith) {
+                    lines("- I thank thee, my lad!")
+                }
+                job(NpcJobs.bargirl) {
+                    lines("- You too, honey!")
+                }
+                job(NpcJobs.innkeeper) {
+                    lines("- The same to you.")
+                }
+                job(NpcJobs.tavernkeeper) {
+                    lines("- You've had to much", "to drink, boy?")
+                }
+                job(NpcJobs.hermit) {
+                    lines("- It is written in the", "scrolls of Skelos...")
+                }
             }
             chitchatReplies(ChitchatSubject.Weather) {
                 job(NpcJobs.merchant) {
                     lines("- I think it will rain.")
+                }
+                job(NpcJobs.ranger) {
+                    lines("- Not a fine weather for", "tracking, mind you!")
+                }
+                job(NpcJobs.fighter) {
+                    lines("- Yeah! But my armor", "gets quite rusty.")
+                }
+                job(NpcJobs.wizard) {
+                    lines("- Really?")
+                }
+                job(NpcJobs.priest) {
+                    lines("- The gods have been", "kind to us, my son!")
+                }
+                job(NpcJobs.thief) {
+                    lines("- Perfect weather", "for stealing!")
+                }
+                job(NpcJobs.peasant) {
+                    lines("- Yeah, the crops grow", "better than ever.")
+                }
+                job(NpcJobs.bard) {
+                    lines("- This rain really", "inspires me. (He", "starts singing).")
+                }
+                job(NpcJobs.drifter) {
+                    lines("- Hehehehe...")
+                }
+                job(NpcJobs.halfOrc) {
+                    lines("- YEAH! NICE'N SLIMY!")
+                }
+                job(NpcJobs.halfElf) {
+                    lines("- I find it depressing.")
+                }
+                job(NpcJobs.smith) {
+                    lines("- Well, kinda good.")
+                }
+                job(NpcJobs.bargirl) {
+                    lines("- Let's not talk about", "the weather, honey?")
+                }
+                job(NpcJobs.innkeeper) {
+                    lines("- Well. Can't complain.")
+                }
+                job(NpcJobs.tavernkeeper) {
+                    lines("- Want a drink, sonny?")
+                }
+                job(NpcJobs.hermit) {
+                    lines("- Yes, a day like this", "is destined to come!")
                 }
             }
             chitchatReplies(ChitchatSubject.Health) {
                 job(NpcJobs.merchant) {
                     lines("- All's well, thanks.")
                 }
+                job(NpcJobs.ranger) {
+                    lines("- I'm fine.")
+                }
+                job(NpcJobs.fighter) {
+                    lines("- Yep.")
+                }
+                job(NpcJobs.wizard) {
+                    lines("- Health... yes.")
+                }
+                job(NpcJobs.priest) {
+                    lines("- All is well, my son.")
+                }
+                job(NpcJobs.thief) {
+                    lines("- Yeh, quite nice.")
+                }
+                job(NpcJobs.peasant) {
+                    lines("- Are you a fag?")
+                }
+                job(NpcJobs.bard) {
+                    lines("- Yes. I will sing", "a song of health", "for you!")
+                }
+                job(NpcJobs.drifter) {
+                    lines("(He chuckles under", "his breath).")
+                }
+                job(NpcJobs.halfOrc) {
+                    lines("- ME JUST FINE!")
+                }
+                job(NpcJobs.halfElf) {
+                    lines("- Very well, thanks.")
+                }
+                job(NpcJobs.smith) {
+                    lines("- Fine, laddie!")
+                }
+                job(NpcJobs.bargirl) {
+                    lines("- Sure, honey!")
+                }
+                job(NpcJobs.innkeeper) {
+                    lines("- Well...")
+                }
+                job(NpcJobs.tavernkeeper) {
+                    lines("- Just fine. Do you", "want something to", "drink?")
+                }
+                job(NpcJobs.hermit) {
+                    lines("- Oh. Meneth Sabaoth.")
+                }
             }
 
             questionReplies(QuestionTopic.People) {
                 job(NpcJobs.merchant) {
                     lines("- Well, I don't know", "that many people.")
+                }
+                job(NpcJobs.ranger) {
+                    lines("- No I'm a lone ranger.")
+                }
+                job(NpcJobs.fighter) {
+                    lines("- Well, I met this", "merchant who seeks", "revenge on a band of", "bandits.")
+                }
+                job(NpcJobs.wizard) {
+                    lines("- OH! Well... not really.")
+                }
+                job(NpcJobs.priest) {
+                    lines("- I've heard of a hermit", "who lives in the swamps", "by Ollk. Perhaps he can", "help you.")
+                }
+                job(NpcJobs.thief) {
+                    lines("- No. Sorry. Dunno.")
+                }
+                job(NpcJobs.peasant) {
+                    lines("- I think it's time", "someone found the", "Foot of Jazzy and", "defeated Ydarg!")
                 }
                 job(NpcJobs.bard) {
                     lines {
@@ -266,6 +427,30 @@ val nextRylween = rylween {
                         line("has a mission for you.")
                     }
                 }
+                job(NpcJobs.drifter) {
+                    lines("- Don't know anyone.")
+                }
+                job(NpcJobs.halfOrc) {
+                    lines("- ME ALONE AND STRONG!")
+                }
+                job(NpcJobs.halfElf) {
+                    lines("- There are many huts", "in the Wilderness.")
+                }
+                job(NpcJobs.smith) {
+                    lines("- Sorry, can't help ya.")
+                }
+                job(NpcJobs.bargirl) {
+                    lines("- Well...")
+                }
+                job(NpcJobs.innkeeper) {
+                    lines("- Want to meet interesting", "travellers? Try the", "inn or the tavern.")
+                }
+                job(NpcJobs.tavernkeeper) {
+                    lines("- Don't know about", "anyone particular.")
+                }
+                job(NpcJobs.hermit) {
+                    lines("- Many faces shine", "through the mist.")
+                }
             }
             questionReplies(QuestionTopic.Magic) {
                 job(NpcJobs.merchant) {
@@ -273,6 +458,48 @@ val nextRylween = rylween {
                 }
                 job(NpcJobs.ranger) {
                     lines("- You will need five", "magical items to", "defeat baron Ydarg.")
+                }
+                job(NpcJobs.fighter) {
+                    lines("- What? I don't believe", "in magic...")
+                }
+                job(NpcJobs.wizard) {
+                    lines("- Magic... Yes, Magic.")
+                }
+                job(NpcJobs.priest) {
+                    lines("- Yes my son, but we", "are all puny beings", "compared to the gods.")
+                }
+                job(NpcJobs.thief) {
+                    lines("- I know nothing of it.")
+                }
+                job(NpcJobs.peasant) {
+                    lines("- I don't know much about", "magic. Gems often have", "magical properties,", "though.")
+                }
+                job(NpcJobs.bard) {
+                    lines("- Magic is the subject", "of many of my songs.", "Ballad of the Fire", "Shield, for instance.")
+                }
+                job(NpcJobs.drifter) {
+                    lines("- GO AWAY!")
+                }
+                job(NpcJobs.halfOrc) {
+                    lines("- ME HAVE TRUSTY SWORD!", "ME NOT CARE 'BOUT", "MAGIK!")
+                }
+                job(NpcJobs.halfElf) {
+                    lines("- Yes, my people were", "created from the magic", "of mother earth.")
+                }
+                job(NpcJobs.smith) {
+                    lines("- Rumour has it, that", "some ogres have the foot", "of Jazzy, a powerful", "item.")
+                }
+                job(NpcJobs.bargirl) {
+                    lines("- I know nothing about", "that.")
+                }
+                job(NpcJobs.innkeeper) {
+                    lines("- Magic? Well, they say", "that baron Ydarg can", "be defeated only by", "aid of the Silver Key")
+                }
+                job(NpcJobs.tavernkeeper) {
+                    lines("- Sorry. Can't help you.")
+                }
+                job(NpcJobs.hermit) {
+                    lines("- The Crown, the Shield,", "the Bracelets and the Foot", "is all you need.")
                 }
             }
             questionReplies(QuestionTopic.Lodging) {
@@ -282,11 +509,85 @@ val nextRylween = rylween {
                 job(NpcJobs.ranger) {
                     lines("- I sleep under the open", "skies. Just beware of", "bandits if you do this!")
                 }
+                job(NpcJobs.fighter) {
+                    lines("- Well. I usually stay at", "the inn when I'm in town.")
+                }
+                job(NpcJobs.wizard) {
+                    lines("- Oh??? Eternal sleep!")
+                }
+                job(NpcJobs.priest) {
+                    lines("- I hire a room at", "the inn to meditate!")
+                }
+                job(NpcJobs.thief) {
+                    lines("- I sleep in the shadows.")
+                }
+                job(NpcJobs.peasant) {
+                    lines("- I sleep in my own", "room at my farm.")
+                }
+                job(NpcJobs.bard) {
+                    lines("- Imagine the beauty", "and danger to camp in", "the Wilderness these days.")
+                }
+                job(NpcJobs.drifter) {
+                    lines("- Look, why don't you", "just _GO AWAY_???")
+                }
+                job(NpcJobs.halfOrc) {
+                    lines("- ME NEVER GET TIRED!")
+                }
+                job(NpcJobs.halfElf) {
+                    lines("- I rent a room at the inn!")
+                }
+                job(NpcJobs.smith) {
+                    lines("- Well, sleeping at the", "inn is often nicer than", "in the Wilderness.")
+                }
+                // Bargirl lodging is an interactive service branch; its shared
+                // screens are declared above under T.Speak.Lodge.
+                job(NpcJobs.innkeeper) {
+                    lines("- Well. My inn is the", "best in the realm!")
+                }
+                job(NpcJobs.tavernkeeper) {
+                    lines("- I dunno, try my", "brother's inn.")
+                }
+                job(NpcJobs.hermit) {
+                    lines("- Yes. You are indeed", "the one...")
+                }
             }
 
             rumourTable(RumourTables.standardTown) {
-                rumour(Rumours.ydargCastleHidden) {
+                rumour {
                     lines("Baron Ydarg's castle", "Zadraz is hidden in a", "forest to the soutwest.")
+                }
+                rumour {
+                    lines("The Silver Key unlocks", "the gate to Ydarg's", "dimension.")
+                }
+                rumour {
+                    lines("You will need the Fire", "shield to defeat baron", "Ydarg.")
+                }
+                rumour {
+                    lines("You will need the", "Master Crown to", "defeat baron Ydarg.")
+                }
+                rumour {
+                    lines("You will need the", "Bracelets of Thun", "to resist the most", "evil of all spells...")
+                }
+                rumour {
+                    lines("The scythe is a", "useless weapon.")
+                }
+                rumour {
+                    lines("Some say that you", "need gems to enter", "the old Temple of", "Thun.")
+                }
+                rumour {
+                    lines("Seek the Hermit if", "you want to know", "of the Fire Shield")
+                }
+                rumour {
+                    lines("The Hermit lives in", "the swamp.")
+                }
+                rumour {
+                    lines("Always post a guard", "when you camp in the", "Wilderness.")
+                }
+                rumour {
+                    lines("The Foot of Jazzy is", "one of the objects", "Baron Ydarg can't", "control!")
+                }
+                rumour {
+                    lines("Skullweed plant grows", "deep in the swamp. It is", "a powerful reagent.")
                 }
                 rumour(Rumours.banditsQuestGiver) {
                     excludeWhen(Story.garth.bandits.recovered, Story.garth.bandits.closed)
@@ -296,11 +597,57 @@ val nextRylween = rylween {
                         line("killing some bandits.")
                     }
                 }
+                rumour(Rumours.rangerQuestGiver) {
+                    lines {
+                        line("A hunter called ", character(Roles.rangersQuestGiver).name)
+                        line("seeks a brave party")
+                        line("of adventurers.")
+                    }
+                }
+                rumour {
+                    lines("It is always wise to", "haggle.")
+                }
+                rumour {
+                    lines("Cthulhu will rise again!")
+                }
+                rumour {
+                    lines("Baron Ydarg's castle", "in this dimension lies", "far to the southwest.")
+                }
+                rumour {
+                    lines("Exploring caves can", "be profitable.")
+                }
+                rumour {
+                    lines("Flee from all beasts", "that you are uncertain", "of.")
+                }
+                rumour {
+                    lines("Before tempering in", "the business of a God,", "be a demi god yourself.")
+                }
+                rumour {
+                    lines("Jazzy is a mighty", "lesser god or a demon.")
+                }
+                rumour {
+                    lines("Baron Ydargs castle", "Zadraz is a gate to", "another dimension.")
+                }
+                rumour {
+                    lines("Never meddle in the", "affairs of wizards, for", "they are subtle, and", "swift to anger.")
+                }
+                rumour {
+                    lines("Magical objects can be", "a great aid in battle.")
+                }
+                rumour {
+                    lines("Seek the holy handgrenade!")
+                }
                 rumour(Rumours.crownSeer) {
                     lines {
                         line("A man named ", character(Roles.crownSeer).name)
                         line("knows of the Crown.")
                         line("He lives ", character(Roles.crownSeer).location, "!")
+                    }
+                }
+                rumour {
+                    lines {
+                        line(town(Towns.murn).name, " is situated")
+                        line("somewhere near ", town(Towns.murn).near(radius = 5), "!")
                     }
                 }
                 rumour(Rumours.templeOfThunSeer) {
@@ -310,6 +657,83 @@ val nextRylween = rylween {
                         line("Thun! He lives ", character(Roles.templeOfThunSeer).location)
                     }
                 }
+                rumour {
+                    lines("The more powerful", "creatures, the more", "experience.")
+                }
+                rumour {
+                    lines("A good sword beats", "four aces!")
+                }
+                rumour {
+                    lines("You need FIVE items,", "no less, no more", "to kill Ydarg!")
+                }
+                rumour {
+                    lines {
+                        line(town(Towns.wilor).name, " is situated")
+                        line("at ", town(Towns.wilor).near(radius = 0), ".")
+                    }
+                }
+                rumour {
+                    lines {
+                        line(town(Towns.ollk).name, " is situated")
+                        line("somewhere near ", town(Towns.ollk).near(radius = 5), "!")
+                    }
+                }
+            }
+        }
+    }
+
+    towns {
+        town("thord") {
+            name = "Thord"
+            position = xy(12, 11)
+            taxPercent = 7
+            village()
+            services {
+                merchant()
+                inn()
+                tavern()
+                smith()
+                church()
+            }
+        }
+
+        town("ollk") {
+            name = "Ollk"
+            position = xy(48, 12)
+            taxPercent = 10
+            village()
+            services {
+                merchant()
+                inn()
+                tavern()
+                smith()
+            }
+        }
+
+        town("wilor") {
+            name = "Wilor"
+            position = xy(43, 20)
+            taxPercent = 9
+            city()
+            services {
+                merchant()
+                inn()
+                tavern()
+                smith()
+                church()
+            }
+        }
+
+        town("murn") {
+            name = "Murn"
+            position = xy(55, 29)
+            taxPercent = 8
+            village()
+            services {
+                merchant()
+                inn()
+                tavern()
+                smith()
             }
         }
     }
@@ -1120,15 +1544,23 @@ check(nextDsl.speak.standardConversation?.menu?.actions?.map { it.key } == listO
 check(nextDsl.speak.standardConversation?.menu?.questions?.map { it.key } == listOf('L', 'M', 'P', 'N'))
 check(nextDsl.speak.standardConversation?.branchSelection == DialogueBranchSelection.FirstMatchingStateThenDefault)
 check(nextDsl.speak.standardConversation?.rumour?.usage == RumourUsagePolicy.OncePerConversationThenFallback)
-check(nextDsl.speak.textTables.screens.size == 9)
+check(nextDsl.speak.textTables.screens.size == 12)
 check(nextDsl.speak.textTables.chitchatPrompts.size == 3)
 check(nextDsl.speak.textTables.chitchatReplies.size == 3)
 check(nextDsl.speak.textTables.questionReplies.size == 3)
-check(nextDsl.speak.textTables.rumourTables.single { it.id == RumourTables.standardTown }.entries.size == 4)
+check(nextDsl.speak.textTables.chitchatReplies.all { it.replies.size == NpcJobs.all.size })
+check(nextDsl.speak.textTables.questionReplies.single { it.topic == QuestionTopic.People }.replies.size == NpcJobs.all.size)
+check(nextDsl.speak.textTables.questionReplies.single { it.topic == QuestionTopic.Magic }.replies.size == NpcJobs.all.size)
+check(nextDsl.speak.textTables.questionReplies.single { it.topic == QuestionTopic.Lodging }.replies.size == NpcJobs.all.size - 1)
+check(nextDsl.speak.textTables.rumourTables.single { it.id == RumourTables.standardTown }.entries.size == 33)
+check(nextDsl.speak.textTables.rumourTables.single().entries.count { it.id == null } == 29)
 check(nextDsl.speak.textTables.rumourTables.single().entries.any { it.id == Rumours.crownSeer })
 check(nextDsl.speak.textTables.rumourTables.single().entries.single {
     it.id == Rumours.banditsQuestGiver
 }.excludedBy == listOf(Story.garth.bandits.recovered, Story.garth.bandits.closed))
+check(nextDsl.towns.size == 4)
+check(nextDsl.towns.single { it.id == Towns.murn.id }.position == xy(55, 29))
+check(nextDsl.towns.single { it.id == Towns.wilor.id }.kind == TownKind.City)
 check(nextDsl.characters.size == 39)
 check(nextDsl.characters.single { Roles.crownSeer in it.roles }.placement == CharacterPlacementModel.Randomized)
 check(nextDsl.characters.single { it.id == Npcs.marcus }.placement == CharacterPlacementModel.Fixed(Wilderness.xy(48, 7)))
