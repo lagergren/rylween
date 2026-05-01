@@ -172,6 +172,7 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - Keep a hard boundary between DSL implementation and game authoring. Kotlin classes, builders, validators, and generated handles are implementation/compiler scaffolding; the game designer should add game-specific content through declaration blocks such as `flags { ... }`, `monsters { ... }`, `missions { ... }`, `gameProgress { ... }`, and `state { ... }`.
 - Adding a new monster, flag, mission, special milestone, text, or similar game-specific concept should not require writing a Kotlin class. The authoring source declares the concept in game terms; the content compiler can generate typed handles from those declarations.
 - Common Rylween engine/state concepts such as party state, member stats, inventory slots, positions, and validation helpers may remain normal Kotlin DSL implementation types because authors consume them rather than extend them.
+- Common gameplay systems such as battle rounds, fight/run menus, spell selection/casting, item use, reward application, and encounter orchestration should become reusable Kotlin DSL/runtime-library concepts. Game authors should declare the content those systems consume, plus explicit hooks or overrides when needed; they should not hand-write bespoke battle loops for normal monsters or spells. Those reusable Kotlin systems may call a narrow native surface for input, rendering, RNG, persistence, and low-level storage.
 - `Flags` aliases the existing `Story` flag catalog so scripts can keep the readable `Story.garth.bandits.accepted` form while A2 has a canonical `Flags.*` entry point.
 - `Items.none` is an author-facing alias for the current id-0 `blank` item. The prototype-only `garth_cargo` item was not carried forward because it is not present in the current item shards.
 - `Images.Scene.*` names the `blitgfx` map-window pictures semantically from `src/ryl.h` and `world.json5`'s `enums.pic` table, with comments preserving the legacy `data/tiles/NN.ans` filenames. Avoid `tile01`-style handles in authoring code.
@@ -181,6 +182,9 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - B7 ownership decision: `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot`, and `silverkey` are persisted game-state milestones. Each current milestone also projects into the special-inventory view, but that is a property of the milestone, not a hard-coded rule that every win milestone is a special item.
 - `silverkey == 2` in the legacy C engine is not a Silver Key item state. It becomes a separate `Milestones.ydargVictory` completion marker so "has Silver Key" and "finished Castle Ydarg / won" are distinct states.
 - The future engine should validate winning configurations at startup and save-load time: a party is in a winning configuration only when all content-defined required milestones are achieved and the configured completion marker is present.
+- First-pass B1-B9 runtime-state shape now distinguishes `stateFixture(...)` from strict `runtimeState(...)`. Fixtures can stay compact; runtime snapshots are validated as fuller save-shaped records with explicit realm runtime fields, member counts, full inventory slots, attack-today records, declared NPC visit bits, and literal journal lines where needed.
+- Equipment is modeled separately from slotted inventory in member `equipped { weapon; armor }` blocks. This mirrors current save coverage, where equipment is per member, while preserving the rule that milestone-projected special items are not slotted inventory.
+- Legacy special-field import mapping: `fireshield = 1`, `bracelets = 1`, `mastercrown = 1`, `jazzyfoot = 1`, and `silverkey = 1` map to their matching ownership milestones. Legacy `silverkey = 2` maps to `Milestones.ydargVictory`, not to an upgraded Silver Key item state.
 
 Open design questions:
 
@@ -189,15 +193,21 @@ Open design questions:
 
 ### B. Exact runtime state and savegames
 
-- [ ] B1. Realm/session state. DSL delta: `state { realm { day/hour/minute, rng, currentMode, currentMap } }`. Native decision: only active frame pointers and transient loop state remain native.
-- [ ] B2. Party identity and position. DSL delta: `party(Parties.main) { position = Wilderness.xy(...); facing = ... }`. Native decision: coordinate storage and bounds checks remain native.
-- [ ] B3. Party resources and counters. DSL delta: `resources { gold, food, fatigue, timeOfDay, upkeepDue }`. Native decision: primitive numeric mutation only.
-- [ ] B4. Party members. DSL delta: `member(1) { name; race; class; weaponSkill; charisma; wisdom; health; hitPoints; mana }`. Native decision: field storage and target selection only.
-- [ ] B5. Derived/depletable stat rules. DSL delta: validation for `hitPoints.max == health` and `mana.max == wisdom`, plus rules that modify max/current values. Native decision: no hidden C recalculation except typed helper ops.
-- [ ] B6. Inventory slots and equipment. DSL delta: `inventory { slot(1).item(...); equipped { weapon = ...; armor = ... } }`. Native decision: low-level insert/remove/first-free-slot helpers.
-- [ ] B7. Legacy special fields. DSL delta: `gameProgress { milestone(...) { showsAs(...); requiredToWin(); legacyPartyField(...) } winningConfiguration { ... } }` plus `party { milestones { achieved(...) } }`. Native decision: old positional fields are migration-only; native state should store dense milestone ids, derive special-inventory display from content metadata, and treat legacy `silverkey == 2` as a separate completion marker.
-- [ ] B8. Journal and visited records. DSL delta: `journal { entry(...) }` and `visited(Npcs...)`. Native decision: persistent string/id list storage.
-- [ ] B9. Savegame emission. DSL delta: exact fully expanded `state {}` output with no hidden defaults or helper loops. Native decision: filesystem write/read plus old-save importer.
+- [x] B1. Realm/session state. DSL delta: `state { realm { day/hour/minute, rng, currentMode, currentMap } }`. Native decision: only active frame pointers and transient loop state remain native. Current scratch status: first-pass `RealmState` covers day/hour/minute, RNG seed, active party, current map/mode/town, banishment, last-played day, and party-member max.
+- [x] B2. Party identity and position. DSL delta: `party(Parties.main) { position = Wilderness.xy(...); facing = ... }`. Native decision: coordinate storage and bounds checks remain native. Current scratch status: party id/player/name, world position, and optional facing are modeled.
+- [x] B3. Party resources and counters. DSL delta: `resources { gold, food, fatigue, timeOfDay, upkeepDue }`. Native decision: primitive numeric mutation only. Current scratch status: resources cover gold, torches, food, time left, and rested hours; counters cover member count, kills, mail/attack notices, and attack-today records.
+- [x] B4. Party members. DSL delta: `member(1) { name; race; class; weaponSkill; charisma; wisdom; health; hitPoints; mana }`. Native decision: field storage and target selection only. Current scratch status: member records include identity, class/race/gender, level, stats, HP/mana, equipment, experience, and dead/alive state.
+- [x] B5. Derived/depletable stat rules. DSL delta: validation for `hitPoints.max == health` and `mana.max == wisdom`, plus rules that modify max/current values. Native decision: no hidden C recalculation except typed helper ops. Current scratch status: validators enforce HP and mana max consistency.
+- [x] B6. Inventory slots and equipment. DSL delta: `inventory { slot(1).item(...) }` plus per-member `equipped { weapon = ...; armor = ... }`. Native decision: low-level insert/remove/first-free-slot helpers. Current scratch status: slotted inventory is separate from per-member equipment because current save coverage stores weapon/armor per member; runtime snapshots must list slots `0..16`.
+- [x] B7. Legacy special fields. DSL delta: `gameProgress { milestone(...) { showsAs(...); requiredToWin(); legacyPartyField(...) } winningConfiguration { ... } }` plus `party { milestones { achieved(...) } }`. Native decision: old positional fields are migration-only; native state should store dense milestone ids, derive special-inventory display from content metadata, and treat legacy `silverkey == 2` as a separate completion marker. Current scratch status: near-winning and winning fixtures exercise required milestones, `Milestones.ydargVictory`, special inventory projection, and generic win checking.
+- [x] B8. Journal and visited records. DSL delta: `journal { entry(...) }` and `visited(Npcs...)`. Native decision: persistent string/id list storage. Current scratch status: authored states can use compact `visited(...)` and text-id journal entries; runtime snapshots can list true/false NPC visit bits and literal journal lines.
+- [ ] B9. Savegame emission. DSL delta: exact fully expanded `state {}` output with no hidden defaults or helper loops. Native decision: filesystem write/read plus old-save importer. Current scratch status: `runtimeState(...)` and validation discipline exist, but no deterministic writer/loader has been built yet.
+
+B1-B9 first-pass notes:
+
+- `stateFixture(...)` is the authoring/test fixture form. It may stay compact and ergonomic.
+- `runtimeState(...)` is the future save snapshot subset. Validation currently requires explicit RNG seed, member count, full inventory slots `0..16`, attack-today records for every party in the state, and explicit visit bits for every NPC declared in that state.
+- Current C save coverage audited for this pass: realm header (`last_played_day`, party-member max, current session fields from snapshots), locations, NPC placement, party identity, flags, special fields, `pl`, position, resources, inventory, member records/equipment, `attack_today`, `waiting_mail`, `attacked`, `kills`, `visited_npcs`, and `journal`.
 
 ### C. World maps, terrain, visuals, and layout
 
@@ -744,6 +754,14 @@ Every native entry should have:
 
 Game rules should move out of native calls and into typed DSL verbs as they are
 understood.
+
+Reusable gameplay frameworks belong in the Kotlin DSL/runtime layer, not in
+game-specific authoring blocks and not as large native black boxes. For example,
+the standard battle loop can be a shared Kotlin-defined flow that runs fight/run
+selection, rounds, casting, item use, monster turns, death/reward handling, and
+text hooks. The game source then declares monsters, spells, items, rewards, and
+optional hooks; native calls remain small services such as input, render, RNG,
+and state mutation primitives.
 
 Temporary native bridges currently expected during migration:
 
