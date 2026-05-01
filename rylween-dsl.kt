@@ -808,6 +808,8 @@ val KeyActions = KeyActionRefs()
 
 class StateRefs {
     val freshReplay = stateId("fresh-replay")
+    val nearWinningReplay = stateId("near-winning-replay")
+    val winningReplay = stateId("winning-replay")
 }
 val States = StateRefs()
 
@@ -1164,6 +1166,11 @@ sealed interface Trigger {
 enum class Gender { Male, Female }
 enum class Race { Human, Dwarf, Elf, Halfling }
 enum class PcClass { Fighter, Thief, Mage, Priest, Bard, Ranger }
+enum class RuntimeMode { TitleMenu, Wilderness, Town, Dungeon, Battle, YdargCastle, GameOver }
+enum class Facing { North, East, South, West }
+enum class StateKind { AuthoredFixture, RuntimeSnapshot }
+
+const val InventorySaveSlotMax = 16
 
 data class HitPoints(val current: Int, val max: Int)
 infix fun Int.of(max: Int): HitPoints = HitPoints(this, max)
@@ -1185,7 +1192,15 @@ object Wilderness {
 data class RealmState(
     val day: Int,
     val hour: Int,
+    val minute: Int,
+    val rngSeed: Long?,
     val activeParty: PartyId,
+    val currentMap: WorldMapId,
+    val currentMode: RuntimeMode,
+    val currentTown: TownId?,
+    val banished: Boolean,
+    val lastPlayedDay: Int,
+    val partyMemberMax: Int,
 )
 
 data class LocationPlacement(val location: LocationId, val point: GridPoint)
@@ -1199,7 +1214,23 @@ data class PartyResources(
     val restedHours: Int,
 )
 
+data class PartyCounters(
+    val memberCount: Int?,
+    val kills: Int,
+    val waitingMail: Boolean,
+    val attacked: Boolean,
+    val attackedToday: List<PartyAttackRecord>,
+)
+
+data class PartyAttackRecord(val party: PartyId, val attacked: Boolean)
 data class InventorySlotState(val slot: Int, val item: ItemId?)
+data class EquipmentState(val weapon: ItemId, val armor: ItemId)
+data class NpcVisitState(val npc: NpcId, val visited: Boolean)
+
+sealed interface JournalEntryState {
+    data class Text(val id: TextId) : JournalEntryState
+    data class Line(val text: String) : JournalEntryState
+}
 
 data class PartyMemberState(
     val name: String,
@@ -1213,28 +1244,33 @@ data class PartyMemberState(
     val wisdom: Int,
     val mana: Mana,
     val charisma: Int,
-    val armor: ItemId,
-    val weapon: ItemId,
+    val equipment: EquipmentState,
     val experience: Int,
     val dead: Boolean,
-)
+) {
+    val armor: ItemId get() = equipment.armor
+    val weapon: ItemId get() = equipment.weapon
+}
 
 data class PartyState(
     val id: PartyId,
     val player: String,
     val name: String,
     val position: WorldPosition,
+    val facing: Facing?,
     val resources: PartyResources,
+    val counters: PartyCounters,
     val flags: List<FlagState>,
     val milestones: List<GameMilestoneId>,
     val inventory: List<InventorySlotState>,
     val members: List<PartyMemberState>,
-    val visitedNpcs: List<NpcId>,
-    val journal: List<TextId>,
+    val visitedNpcs: List<NpcVisitState>,
+    val journal: List<JournalEntryState>,
 )
 
 data class StateModel(
     val id: StateId,
+    val kind: StateKind,
     val realm: RealmState,
     val locations: List<LocationPlacement>,
     val npcs: List<NpcPlacement>,
@@ -1883,7 +1919,15 @@ class RylweenBuilder {
     }
 
     fun state(id: StateId, body: StateBuilder.() -> Unit) {
-        states += StateBuilder(id).apply(body).build()
+        stateFixture(id, body)
+    }
+
+    fun stateFixture(id: StateId, body: StateBuilder.() -> Unit) {
+        states += StateBuilder(id, StateKind.AuthoredFixture).apply(body).build()
+    }
+
+    fun runtimeState(id: StateId, body: StateBuilder.() -> Unit) {
+        states += StateBuilder(id, StateKind.RuntimeSnapshot).apply(body).build()
     }
 
     fun build(): RylweenModel =
@@ -1897,7 +1941,7 @@ fun rylween(body: RylweenBuilder.() -> Unit): RylweenModel =
     RylweenBuilder().apply(body).build()
 
 @RylNextDsl
-class StateBuilder(private val id: StateId) {
+class StateBuilder(private val id: StateId, private val kind: StateKind) {
     private var realmState: RealmState? = null
     private val locationPlacements = mutableListOf<LocationPlacement>()
     private val npcPlacements = mutableListOf<NpcPlacement>()
@@ -1922,6 +1966,7 @@ class StateBuilder(private val id: StateId) {
     fun build(): StateModel =
         StateModel(
             id = id,
+            kind = kind,
             realm = checkNotNull(realmState) { "state ${id.slug} requires realm { ... }" },
             locations = locationPlacements.toList(),
             npcs = npcPlacements.toList(),
@@ -1933,13 +1978,29 @@ class StateBuilder(private val id: StateId) {
 class RealmStateBuilder {
     var day: Int = 0
     var hour: Int = 0
+    var minute: Int = 0
+    var rngSeed: Long? = null
     var activeParty: PartyId? = null
+    var currentMap: WorldMapId = Maps.wilderness
+    var currentMode: RuntimeMode = RuntimeMode.Wilderness
+    var currentTown: TownId? = null
+    var banished: Boolean = false
+    var lastPlayedDay: Int? = null
+    var partyMemberMax: Int = 4
 
     fun build(): RealmState =
         RealmState(
             day = day,
             hour = hour,
+            minute = minute,
+            rngSeed = rngSeed,
             activeParty = checkNotNull(activeParty) { "realm requires activeParty" },
+            currentMap = currentMap,
+            currentMode = currentMode,
+            currentTown = currentTown,
+            banished = banished,
+            lastPlayedDay = lastPlayedDay ?: day,
+            partyMemberMax = partyMemberMax,
         )
 }
 
@@ -1970,16 +2031,22 @@ class PartyStateBuilder(private val id: PartyId) {
     var player: String = ""
     var name: String = ""
     var position: WorldPosition = Wilderness.xy(0, 0)
+    var facing: Facing? = null
     private var resourcesState = PartyResources(0, 0, 0, 0, 0)
+    private var countersState = PartyCounters(null, 0, false, false, emptyList())
     private val flags = mutableListOf<FlagState>()
     private val milestones = mutableListOf<GameMilestoneId>()
     private val inventory = mutableListOf<InventorySlotState>()
     private val members = mutableListOf<PartyMemberState>()
-    private val visitedNpcs = mutableListOf<NpcId>()
-    private val journal = mutableListOf<TextId>()
+    private val visitedNpcs = mutableMapOf<NpcId, NpcVisitState>()
+    private val journal = mutableListOf<JournalEntryState>()
 
     fun resources(body: PartyResourcesBuilder.() -> Unit) {
         resourcesState = PartyResourcesBuilder().apply(body).build()
+    }
+
+    fun counters(body: PartyCountersBuilder.() -> Unit) {
+        countersState = PartyCountersBuilder().apply(body).build()
     }
 
     fun flags(body: StateFlagBuilder.() -> Unit) {
@@ -1999,11 +2066,23 @@ class PartyStateBuilder(private val id: PartyId) {
     }
 
     fun visited(vararg npcs: NpcId) {
-        visitedNpcs += npcs
+        npcs.forEach { visitedNpcs[it] = NpcVisitState(it, true) }
+    }
+
+    fun npcVisits(body: NpcVisitBuilder.() -> Unit) {
+        NpcVisitBuilder().apply(body).build().forEach { visitedNpcs[it.npc] = it }
     }
 
     fun journal(vararg entries: TextId) {
-        journal += entries
+        journal += entries.map(JournalEntryState::Text)
+    }
+
+    fun journalLine(text: String) {
+        journal += JournalEntryState.Line(text)
+    }
+
+    fun journal(body: JournalBuilder.() -> Unit) {
+        journal += JournalBuilder().apply(body).build()
     }
 
     fun build(): PartyState =
@@ -2012,12 +2091,14 @@ class PartyStateBuilder(private val id: PartyId) {
             player = player,
             name = name,
             position = position,
+            facing = facing,
             resources = resourcesState,
+            counters = countersState,
             flags = flags.toList(),
             milestones = milestones.toList(),
             inventory = inventory.sortedBy { it.slot },
             members = members.toList(),
-            visitedNpcs = visitedNpcs.toList(),
+            visitedNpcs = visitedNpcs.values.sortedBy { it.npc.slug },
             journal = journal.toList(),
         )
 }
@@ -2031,6 +2112,41 @@ class PartyResourcesBuilder {
     var restedHours: Int = 0
 
     fun build(): PartyResources = PartyResources(gold, torches, food, timeLeft, restedHours)
+}
+
+@RylNextDsl
+class PartyCountersBuilder {
+    var memberCount: Int? = null
+    var kills: Int = 0
+    var waitingMail: Boolean = false
+    var attacked: Boolean = false
+    private val attackedToday = mutableMapOf<PartyId, PartyAttackRecord>()
+
+    fun attackToday(body: AttackTodayBuilder.() -> Unit) {
+        AttackTodayBuilder().apply(body).build().forEach { attackedToday[it.party] = it }
+    }
+
+    fun build(): PartyCounters =
+        PartyCounters(memberCount, kills, waitingMail, attacked, attackedToday.values.sortedBy { it.party.slug })
+}
+
+@RylNextDsl
+class AttackTodayBuilder {
+    private val records = mutableMapOf<PartyId, PartyAttackRecord>()
+
+    fun party(party: PartyId, attacked: Boolean) {
+        records[party] = PartyAttackRecord(party, attacked)
+    }
+
+    fun attacked(party: PartyId) {
+        party(party, true)
+    }
+
+    fun clear(party: PartyId) {
+        party(party, false)
+    }
+
+    fun build(): List<PartyAttackRecord> = records.values.sortedBy { it.party.slug }
 }
 
 @RylNextDsl
@@ -2053,6 +2169,36 @@ class PartyMilestonesBuilder {
     }
 
     fun build(): List<GameMilestoneId> = milestones.toList()
+}
+
+@RylNextDsl
+class NpcVisitBuilder {
+    private val visits = mutableMapOf<NpcId, NpcVisitState>()
+
+    fun visited(npc: NpcId) {
+        visits[npc] = NpcVisitState(npc, true)
+    }
+
+    fun notVisited(npc: NpcId) {
+        visits[npc] = NpcVisitState(npc, false)
+    }
+
+    fun build(): List<NpcVisitState> = visits.values.sortedBy { it.npc.slug }
+}
+
+@RylNextDsl
+class JournalBuilder {
+    private val entries = mutableListOf<JournalEntryState>()
+
+    fun entry(id: TextId) {
+        entries += JournalEntryState.Text(id)
+    }
+
+    fun line(text: String) {
+        entries += JournalEntryState.Line(text)
+    }
+
+    fun build(): List<JournalEntryState> = entries.toList()
 }
 
 @RylNextDsl
@@ -2102,10 +2248,23 @@ class PartyMemberBuilder(private val name: String) {
     var wisdom: Int = 0
     var mana: Mana = 0 manaOf 0
     var charisma: Int = 0
-    var armor: ItemId = Items.none
-    var weapon: ItemId = Items.none
+    private var equipmentState: EquipmentState = EquipmentState(Items.none, Items.none)
+    var armor: ItemId
+        get() = equipmentState.armor
+        set(value) {
+            equipmentState = equipmentState.copy(armor = value)
+        }
+    var weapon: ItemId
+        get() = equipmentState.weapon
+        set(value) {
+            equipmentState = equipmentState.copy(weapon = value)
+        }
     var experience: Int = 0
     private var dead: Boolean = false
+
+    fun equipped(body: EquipmentBuilder.() -> Unit) {
+        equipmentState = EquipmentBuilder(equipmentState).apply(body).build()
+    }
 
     fun alive() {
         dead = false
@@ -2128,11 +2287,18 @@ class PartyMemberBuilder(private val name: String) {
             wisdom = wisdom,
             mana = mana,
             charisma = charisma,
-            armor = armor,
-            weapon = weapon,
+            equipment = equipmentState,
             experience = experience,
             dead = dead,
         )
+}
+
+@RylNextDsl
+class EquipmentBuilder(initial: EquipmentState = EquipmentState(Items.none, Items.none)) {
+    var weapon: ItemId = initial.weapon
+    var armor: ItemId = initial.armor
+
+    fun build(): EquipmentState = EquipmentState(weapon, armor)
 }
 
 fun nativePathsIn(model: GameModel): Set<String> {
@@ -2319,6 +2485,8 @@ fun isWinningConfiguration(content: GameModel, party: PartyState): Boolean =
     } ?: false
 
 fun validateStates(states: List<StateModel>, content: GameModel? = null) {
+    check(states.map { it.id }.toSet().size == states.size) { "duplicate state id" }
+
     val specialItems = content
         ?.progress
         ?.milestones
@@ -2326,23 +2494,77 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
         ?.toSet()
         ?: emptySet()
 
-    states
-        .flatMap { it.parties }
-        .forEach { party ->
+    states.forEach { state ->
+        val partyIds = state.parties.map { it.id }
+        check(partyIds.toSet().size == partyIds.size) { "state ${state.id.slug}: duplicate party id" }
+        check(state.realm.activeParty in partyIds) {
+            "state ${state.id.slug}: active party ${state.realm.activeParty.slug} is not present"
+        }
+        check(state.realm.hour in 0..24) { "state ${state.id.slug}: realm hour must be 0..24" }
+        check(state.realm.minute in 0..59) { "state ${state.id.slug}: realm minute must be 0..59" }
+        check(state.realm.partyMemberMax > 0) { "state ${state.id.slug}: partyMemberMax must be positive" }
+
+        state.parties.forEach { party ->
+            val slots = party.inventory.map { it.slot }
+            check(slots.all { it in 0..InventorySaveSlotMax }) {
+                "party ${party.id.slug}: inventory slot outside 0..$InventorySaveSlotMax"
+            }
+            check(slots.toSet().size == slots.size) { "party ${party.id.slug}: duplicate inventory slot" }
+            party.counters.memberCount?.let { count ->
+                check(count == party.members.size) {
+                    "party ${party.id.slug}: memberCount $count does not match ${party.members.size} member records"
+                }
+            }
             check(party.milestones.toSet().size == party.milestones.size) {
                 "party ${party.id.slug}: duplicate game milestone"
+            }
+            check(party.flags.map { it.flag }.toSet().size == party.flags.size) {
+                "party ${party.id.slug}: duplicate party flag state"
+            }
+            check(party.visitedNpcs.map { it.npc }.toSet().size == party.visitedNpcs.size) {
+                "party ${party.id.slug}: duplicate NPC visit record"
             }
             check(party.inventory.none { it.item in specialItems }) {
                 val special = party.inventory.first { it.item in specialItems }.item
                 "party ${party.id.slug}: ${special?.slug} is special state, not a slotted inventory item"
             }
-            content
-                ?.takeIf { it.progress.win?.completedBy in party.milestones }
-                ?.let {
-                    check(isWinningConfiguration(it, party)) {
-                        "party ${party.id.slug}: completed win marker without all required milestones"
+            content?.let { game ->
+                game.progress.win?.completedBy
+                    ?.takeIf { it in party.milestones }
+                    ?.let {
+                        check(isWinningConfiguration(game, party)) {
+                            "party ${party.id.slug}: completed win marker without all required milestones"
+                        }
                     }
+            }
+            if (state.kind == StateKind.RuntimeSnapshot) {
+                check(state.realm.rngSeed != null) {
+                    "runtime state ${state.id.slug}: realm requires rngSeed"
                 }
+                check(party.counters.memberCount != null) {
+                    "runtime state ${state.id.slug}: party ${party.id.slug} requires counters.memberCount"
+                }
+                check(slots == (0..InventorySaveSlotMax).toList()) {
+                    "runtime state ${state.id.slug}: party ${party.id.slug} must list inventory slots 0..$InventorySaveSlotMax"
+                }
+                check(party.counters.attackedToday.map { it.party }.toSet() == partyIds.toSet()) {
+                    "runtime state ${state.id.slug}: party ${party.id.slug} must list attackToday for every party"
+                }
+                state.npcs
+                    .map { it.npc }
+                    .takeIf { it.isNotEmpty() }
+                    ?.toSet()
+                    ?.let { declaredNpcs ->
+                        check(party.visitedNpcs.map { it.npc }.toSet() == declaredNpcs) {
+                            "runtime state ${state.id.slug}: party ${party.id.slug} must list every declared NPC visit bit"
+                        }
+                    }
+                check(party.journal.all { entry ->
+                    entry !is JournalEntryState.Line || entry.text.isNotBlank()
+                }) {
+                    "runtime state ${state.id.slug}: party ${party.id.slug} has a blank journal line"
+                }
+            }
             party.members.forEach { member ->
                 check(member.hitPoints.max == member.health) {
                     "member ${member.name}: hit point max must match health"
@@ -2352,4 +2574,5 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
                 }
             }
         }
+    }
 }

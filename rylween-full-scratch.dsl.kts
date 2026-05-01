@@ -279,13 +279,14 @@ val nextRylween = rylween {
     }
     }
 
-    // Authored start state fixture. Runtime saves should use the same state
-    // model but be fully expanded and non-DRY.
-    state(States.freshReplay) {
+    // Authored start state fixture. It can stay compact and readable.
+    stateFixture(States.freshReplay) {
         realm {
             day = 14
             hour = 9
             activeParty = Parties.replay
+            currentMap = Maps.wilderness
+            currentMode = RuntimeMode.Wilderness
         }
 
         locations {
@@ -303,6 +304,7 @@ val nextRylween = rylween {
             player = "Replay"
             name = "Replay"
             position = Wilderness.xy(12, 9)
+            facing = Facing.North
 
             resources {
                 gold = 1000
@@ -338,8 +340,10 @@ val nextRylween = rylween {
                     wisdom = 27
                     mana = 0 manaOf 27
                     charisma = 49
-                    armor = Items.none
-                    weapon = Items.none
+                    equipped {
+                        weapon = Items.none
+                        armor = Items.none
+                    }
                     experience = 0
                     alive()
                 }
@@ -355,8 +359,10 @@ val nextRylween = rylween {
                     wisdom = 48
                     mana = 0 manaOf 48
                     charisma = 64
-                    armor = Items.none
-                    weapon = Items.none
+                    equipped {
+                        weapon = Items.none
+                        armor = Items.none
+                    }
                     experience = 0
                     alive()
                 }
@@ -364,6 +370,252 @@ val nextRylween = rylween {
 
             visited(Npcs.garth, Npcs.bernak)
             journal(T.MissionsText.Bandits.recovered)
+        }
+    }
+
+    // Near-winning authored fixture: all required special milestones are present,
+    // but the Ydarg completion marker is not.
+    stateFixture(States.nearWinningReplay) {
+        realm {
+            day = 14
+            hour = 22
+            activeParty = Parties.replay
+            currentMap = Maps.wilderness
+            currentMode = RuntimeMode.Wilderness
+        }
+
+        locations {
+            Locations.silverKeyPit at xy(45, 13)
+            Locations.beastCave at xy(11, 23)
+        }
+
+        npcs {
+            Npcs.garth at Towns.thord.inn
+            Npcs.bernak at Towns.wilor.inn
+            Npcs.azaaza at Towns.ollk.inn
+        }
+
+        party(Parties.replay) {
+            player = "Replay"
+            name = "Replay"
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+
+            resources {
+                gold = 1000
+                torches = 5
+                food = 100
+                timeLeft = 25
+                restedHours = 6
+            }
+
+            flags {
+                mark(Story.garth.bandits.recovered)
+                mark(Story.silverKey.keyTaken)
+                mark(Story.bracelets.thun.braceletsTaken)
+                mark(Story.masterCrown.crownTaken)
+                mark(Story.jazzy.ogre.jazzyDefeated)
+                mark(Story.hermit.trollTooth.fireShieldAcquired)
+            }
+
+            milestones {
+                achieved(Milestones.fireShield)
+                achieved(Milestones.braceletsOfThun)
+                achieved(Milestones.masterCrown)
+                achieved(Milestones.footOfJazzy)
+                achieved(Milestones.silverKey)
+            }
+
+            inventory {
+                slot(1).empty()
+                slot(2).item(Items.fireWand)
+            }
+
+            members {
+                member("A") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Thief
+                    level = 1
+                    health = 68
+                    hitPoints = 68 of 68
+                    weaponSkill = 27
+                    wisdom = 27
+                    mana = 0 manaOf 27
+                    charisma = 49
+                    equipped {
+                        weapon = Items.none
+                        armor = Items.none
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("B") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Thief
+                    level = 1
+                    health = 46
+                    hitPoints = 46 of 46
+                    weaponSkill = 42
+                    wisdom = 48
+                    mana = 0 manaOf 48
+                    charisma = 64
+                    equipped {
+                        weapon = Items.none
+                        armor = Items.none
+                    }
+                    experience = 0
+                    alive()
+                }
+            }
+
+            visited(Npcs.garth, Npcs.bernak)
+            journal(T.MissionsText.Bandits.recovered)
+        }
+    }
+
+    // Runtime snapshot fixture. This is deliberately fuller than authored
+    // states: persisted fields are present instead of implied by defaults.
+    runtimeState(States.winningReplay) {
+        realm {
+            day = 14
+            hour = 23
+            minute = 0
+            rngSeed = 12648430L
+            activeParty = Parties.replay
+            currentMap = Maps.wilderness
+            currentMode = RuntimeMode.GameOver
+            currentTown = null
+            banished = false
+            lastPlayedDay = 14
+            partyMemberMax = 2
+        }
+
+        locations {
+            Locations.silverKeyPit at xy(45, 13)
+            Locations.beastCave at xy(11, 23)
+        }
+
+        npcs {
+            Npcs.garth at Towns.thord.inn
+            Npcs.bernak at Towns.wilor.inn
+            Npcs.azaaza at Towns.ollk.inn
+        }
+
+        party(Parties.replay) {
+            player = "Replay"
+            name = "Replay"
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+
+            resources {
+                gold = 1000
+                torches = 5
+                food = 100
+                timeLeft = 0
+                restedHours = 6
+            }
+
+            counters {
+                memberCount = 2
+                kills = 1
+                waitingMail = false
+                attacked = false
+                attackToday {
+                    clear(Parties.replay)
+                }
+            }
+
+            flags {
+                mark(Story.garth.bandits.recovered)
+                mark(Story.silverKey.keyTaken)
+                mark(Story.bracelets.thun.braceletsTaken)
+                mark(Story.masterCrown.crownTaken)
+                mark(Story.jazzy.ogre.jazzyDefeated)
+                mark(Story.hermit.trollTooth.fireShieldAcquired)
+            }
+
+            milestones {
+                achieved(Milestones.fireShield)
+                achieved(Milestones.braceletsOfThun)
+                achieved(Milestones.masterCrown)
+                achieved(Milestones.footOfJazzy)
+                achieved(Milestones.silverKey)
+                achieved(Milestones.ydargVictory)
+            }
+
+            inventory {
+                slot(0).empty()
+                slot(1).empty()
+                slot(2).item(Items.fireWand)
+                slot(3).empty()
+                slot(4).empty()
+                slot(5).empty()
+                slot(6).empty()
+                slot(7).empty()
+                slot(8).empty()
+                slot(9).empty()
+                slot(10).empty()
+                slot(11).empty()
+                slot(12).empty()
+                slot(13).empty()
+                slot(14).empty()
+                slot(15).empty()
+                slot(16).empty()
+            }
+
+            members {
+                member("A") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Thief
+                    level = 1
+                    health = 68
+                    hitPoints = 68 of 68
+                    weaponSkill = 27
+                    wisdom = 27
+                    mana = 0 manaOf 27
+                    charisma = 49
+                    equipped {
+                        weapon = Items.none
+                        armor = Items.none
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("B") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Thief
+                    level = 1
+                    health = 46
+                    hitPoints = 46 of 46
+                    weaponSkill = 42
+                    wisdom = 48
+                    mana = 0 manaOf 48
+                    charisma = 64
+                    equipped {
+                        weapon = Items.none
+                        armor = Items.none
+                    }
+                    experience = 0
+                    alive()
+                }
+            }
+
+            npcVisits {
+                visited(Npcs.garth)
+                visited(Npcs.bernak)
+                notVisited(Npcs.azaaza)
+            }
+
+            journal {
+                entry(T.MissionsText.Bandits.recovered)
+                line("Castle Ydarg has fallen.")
+            }
         }
     }
 }
@@ -379,10 +631,19 @@ check(nextDsl.scenes.size == 4)
 check(nextDsl.spells.size == 1)
 check(nextDsl.magicItems.size == 1)
 check(nextDsl.missions.size == 1)
-check(nextRylween.states.size == 1)
-check(nextRylween.states.single().parties.single().members.size == 2)
-check(specialInventoryItems(nextDsl, nextRylween.states.single().parties.single()).isEmpty())
-check(!isWinningConfiguration(nextDsl, nextRylween.states.single().parties.single()))
+check(nextRylween.states.size == 3)
+
+val freshParty = nextRylween.states.single { it.id == States.freshReplay }.parties.single()
+val nearWinningParty = nextRylween.states.single { it.id == States.nearWinningReplay }.parties.single()
+val winningParty = nextRylween.states.single { it.id == States.winningReplay }.parties.single()
+
+check(freshParty.members.size == 2)
+check(specialInventoryItems(nextDsl, freshParty).isEmpty())
+check(!isWinningConfiguration(nextDsl, freshParty))
+check(specialInventoryItems(nextDsl, nearWinningParty).size == 5)
+check(!isWinningConfiguration(nextDsl, nearWinningParty))
+check(specialInventoryItems(nextDsl, winningParty).size == 5)
+check(isWinningConfiguration(nextDsl, winningParty))
 validateFlagCatalog(nextDsl.flags)
 validateAuthoredContent(nextDsl)
 validateGameProgress(nextDsl.progress)
