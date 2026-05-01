@@ -366,6 +366,8 @@ private fun validateTextBlock(
                     "$label references unknown town ${part.town.slug}"
                 }
             }
+            TextPart.OfferedItemName,
+            TextPart.OfferedItemPrice -> Unit
         }
     }
 
@@ -698,6 +700,47 @@ fun validateScriptRewards(
         }
     }
 
+    fun validateRandomItemOffer(offer: RandomItemOfferModel) {
+        validateItemPool(offer.pool, itemRecords)
+        offer.pool.items.forEach { item ->
+            val record = itemRecordById[item]
+            check(record?.storage == ItemStorageKind.SlottedInventory) {
+                "random item offer ${offer.pool.slug} can only sell slotted-inventory items"
+            }
+        }
+        validateTextBlock(offer.offer, "random item offer ${offer.pool.slug} offer")
+        validateTextBlock(offer.choicePrompt, "random item offer ${offer.pool.slug} choice prompt")
+        validateTextBlock(offer.broke, "random item offer ${offer.pool.slug} broke")
+        check(offer.application.regularItems == RewardItemPlacement.FirstFreeInventorySlot) {
+            "random item offer ${offer.pool.slug} only supports first-free-slot placement for now"
+        }
+        val cantCarry = checkNotNull(offer.messages.cantCarry) {
+            "random item offer ${offer.pool.slug} requires full/cant-carry text"
+        }
+        validateTextBlock(cantCarry, "random item offer ${offer.pool.slug} full")
+        offer.messages.pickedUp?.let { validateTextBlock(it, "random item offer ${offer.pool.slug} picked-up") }
+        if (offer.messages.pickedUp != null) {
+            check(offer.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
+                "random item offer ${offer.pool.slug} picked-up text only applies to drop-prompt overflow"
+            }
+        }
+        validateTextBlock(offer.deal, "random item offer ${offer.pool.slug} deal")
+        validateTextBlock(offer.declined, "random item offer ${offer.pool.slug} declined")
+        check(offer.buyKey.isLetter()) { "random item offer ${offer.pool.slug} buy key must be a letter" }
+        check(offer.declineKey.isLetter()) { "random item offer ${offer.pool.slug} decline key must be a letter" }
+        check(offer.buyKey != offer.declineKey) {
+            "random item offer ${offer.pool.slug} buy and decline keys must differ"
+        }
+        listOf(
+            "broke" to offer.brokePauseMillis,
+            "full" to offer.fullPauseMillis,
+            "deal" to offer.dealPauseMillis,
+            "declined" to offer.declinedPauseMillis,
+        ).forEach { (name, millis) ->
+            check(millis >= 0) { "random item offer ${offer.pool.slug} $name pause is negative" }
+        }
+    }
+
     fun visit(ops: List<Op>) {
         fun visitOps(items: List<Op>, loopDepth: Int) {
             items.forEach { op ->
@@ -718,6 +761,7 @@ fun validateScriptRewards(
                         }
                     }
                     is Op.GrantReward -> validateReward(op.reward)
+                    is Op.RandomItemOffer -> validateRandomItemOffer(op.offer)
                     is Op.If -> {
                         visitOps(op.thenOps, loopDepth)
                         visitOps(op.elseOps, loopDepth)
@@ -758,17 +802,17 @@ private fun validateItemPool(pool: ItemPoolId, itemRecords: List<ItemRecordModel
         }
     }
 
-    pool.legacyItemIds?.let { ids ->
-        check(ids.count() == pool.items.size) {
-            "item pool ${pool.slug}: legacy id range $ids has ${ids.count()} ids, but ${pool.items.size} items"
+    pool.legacyItemIds.takeIf { it.isNotEmpty() }?.let { ids ->
+        check(ids.size == pool.items.size) {
+            "item pool ${pool.slug}: legacy ids $ids has ${ids.size} ids, but ${pool.items.size} items"
         }
         val actualIds = pool.items.map { item ->
             checkNotNull(item.legacyId) {
                 "item pool ${pool.slug}: item ${item.slug} has no legacy id"
             }
         }
-        check(ids.toList() == actualIds) {
-            "item pool ${pool.slug}: legacy id range $ids does not match catalog ids $actualIds"
+        check(ids == actualIds) {
+            "item pool ${pool.slug}: legacy ids $ids do not match catalog ids $actualIds"
         }
     }
 }

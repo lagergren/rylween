@@ -266,6 +266,63 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun randomItemOfferValidatesAndTracesAsReusableRuntimeAction() {
+        val content = GameBuilder().apply {
+            scene(sceneId("test.random_offer")) {
+                choice.randomItemOffer(ItemPools.tavernScruffySpecials) {
+                    offer {
+                        line("- I will sell you this")
+                        line("  ", itemName)
+                        line("  for ", itemPrice, " Aurum!")
+                    }
+                    broke("- You don't have that", "  much gold!")
+                    full("- You can't carry it!")
+                    promptDrop()
+                    deal("- Deal!!!")
+                    declined("- Fine, I can live with", "  that.")
+                }
+            }
+        }.build()
+
+        validateScriptRewards(content)
+        assertEquals(
+            listOf(
+                Items.magicDagger,
+                Items.magicAxe,
+                Items.admtMail,
+                Items.amberPotion,
+                Items.greenGem,
+                Items.frostWand,
+                Items.fireWand,
+                Items.gemOfConfusion,
+                Items.gemOfBlindness,
+                Items.drumsOfDeath,
+                Items.staffOfHealing,
+                Items.blessingScroll,
+                Items.staffOfCuring,
+                Items.gemOfResurrection,
+                Items.kaelsAxe,
+                Items.holyHandgrenade,
+                Items.fluteOfMadness,
+            ),
+            ItemPools.tavernScruffySpecials.items,
+        )
+
+        val offer = content.scenes.single().ops.single() as Op.RandomItemOffer
+        assertEquals(RewardItemPlacement.FirstFreeInventorySlot, offer.offer.application.regularItems)
+        assertEquals(RewardOverflowPolicy.PromptDropThenPlace, offer.offer.application.overflow)
+        val text = offer.offer.offer as TextBlock.Structured
+        assertTrue(text.lines.any { line -> TextPart.OfferedItemName in line.parts })
+        assertTrue(text.lines.any { line -> TextPart.OfferedItemPrice in line.parts })
+
+        val engine = TraceEnginePort()
+        val runner = ScriptTraceRunner(engine)
+        runner.run(listOf(offer))
+
+        assertEquals(EngineTraceEvent.RandomItemOffer(offer.offer), engine.events.single())
+    }
+
+    @Test
     fun validationRejectsBreakOutsideLoop() {
         val content = GameBuilder().apply {
             scene(sceneId("bad.break")) {

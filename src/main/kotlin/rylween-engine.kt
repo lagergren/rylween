@@ -41,6 +41,7 @@ sealed interface EngineTraceEvent {
     data class Encounter(val monster: MonsterId, val mandatory: Boolean, val tier: EncounterTier?) : EngineTraceEvent
     data class Stop(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class Break(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
+    data class RandomItemOffer(val offer: RandomItemOfferModel) : EngineTraceEvent
 }
 
 class TraceEnginePort(
@@ -135,6 +136,9 @@ class ScriptTraceRunner(
             Op.ConsumeActiveItem -> ScriptControlSignal.Continue
             is Op.GrantReward -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.GrantReward(op.reward))
+            }
+            is Op.RandomItemOffer -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.RandomItemOffer(op.offer))
             }
             is Op.AchieveMilestone -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.AchieveMilestone(op.milestone))
