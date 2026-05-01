@@ -1741,6 +1741,72 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledRuntimeRealizesAuthoredNpcPlacements() {
+        val content = RylweenCompiledScratch.nextDsl
+        val runtime = compiledRuntimeWithRealizedNpcs(rngState = 1L)
+
+        assertEquals(content.characters.size, runtime.npcs.size)
+        assertEquals(Towns.thord.inn, runtime.npcs.single { it.npc == Npcs.garth }.position)
+        assertEquals(Wilderness.xy(48, 7), runtime.npcs.single { it.npc == Npcs.marcus }.position)
+
+        val wildernessMerchants = listOf(Npcs.alex, Npcs.galdon, Npcs.kosch, Npcs.ufarsin)
+            .map { npc -> runtime.npcs.single { it.npc == npc }.position }
+            .filterIsInstance<WorldPosition.Wilderness>()
+            .map { it.point }
+
+        assertEquals(4, wildernessMerchants.size)
+        assertTrue(wildernessMerchants.none { it == GridPoint(0, 0) })
+        assertEquals(wildernessMerchants.toSet().size, wildernessMerchants.size)
+        assertTrue(runtime.randomizedTownNpc(content) != null)
+    }
+
+    @Test
+    fun kotlinEngineBootsCompiledTownRuntimeWithRealizedNpcs() {
+        val engine = RylweenKotlinEngine(RylweenCompiledScratch.nextDsl)
+        val session = engine.townSession(
+            party = testParty(),
+            town = Towns.thord.id,
+            hour = 12,
+        )
+
+        assertEquals(Towns.thord.id, session.realm.currentTown)
+        assertEquals(null, session.realm.rngState)
+        assertEquals(39, session.runtime.npcs.size)
+        assertTrue(session.runtime.randomizedTownNpc(RylweenCompiledScratch.nextDsl) != null)
+        assertTrue(engine.speakContent().charactersFor(session.runtime, Buildings.inn).isNotEmpty())
+    }
+
+    @Test
+    fun speakSessionUsesRealizedRandomNpcTownPlacements() {
+        val content = RylweenCompiledScratch.nextDsl
+        val runtime = compiledRuntimeWithRealizedNpcs(rngState = 1L)
+        val placement = checkNotNull(runtime.randomizedTownNpc(content))
+        val position = placement.position as WorldPosition.Town
+        val townRuntime = runtime.withRealm(runtime.realm.copy(currentTown = position.town))
+        val session = SpeakSession.start(compiledSpeakContent(), townRuntime, position.building)
+        val step = session.step as SpeakStep.ChooseNpc
+
+        assertTrue(step.npcs.any { it.id == placement.npc })
+    }
+
+    @Test
+    fun compiledRumourRoleLocationsUseRealizedNpcPlacements() {
+        val content = RylweenCompiledScratch.nextDsl
+        val runtime = compiledRuntimeWithRealizedNpcs(rngState = 1L)
+        val rumour = content.speak.textTables.rumourTables
+            .single { it.id == RumourTables.standardTown }
+            .entries
+            .single { it.id == Rumours.crownSeer }
+            .text
+        val expectedLocation = runtime.npcs.single { it.npc == Npcs.broth }.position.renderForTest(content.towns)
+        val lines = compiledTextRenderer().lines(rumour, TerminalTextContext(runtime = runtime))
+
+        assertTrue(lines.any { "A man named Broth" in it })
+        assertTrue(lines.any { expectedLocation in it })
+        assertTrue(lines.none { "{crown_seer" in it })
+    }
+
+    @Test
     fun compiledScratchGarthRewardBranchAppliesAuthoredRewardAndFlag() {
         val (service, scene) = garthRecoveredDialogueService()
         val result = StatefulTownServiceBridge(FakeTerminalPort()).run(
@@ -1866,6 +1932,28 @@ class RylweenDslValidationTest {
     private fun compiledTextRenderer(): TerminalTextRenderer =
         RylweenCompiledScratch.nextDsl.let { content ->
             TerminalTextRenderer(towns = content.towns, characters = content.characters)
+        }
+
+    private fun compiledRuntimeWithRealizedNpcs(rngState: Long): RuntimeSessionState {
+        val content = RylweenCompiledScratch.nextDsl
+        return RuntimeSessionState.singleParty(
+            party = testParty(),
+            hour = 12,
+            currentTown = Towns.thord.id,
+            rngState = rngState,
+        ).realizeNpcPlacements(content.characters, content.towns)
+    }
+
+    private fun RuntimeSessionState.randomizedTownNpc(content: GameModel): NpcPlacement? =
+        npcs.firstOrNull { placement ->
+            content.characters.single { it.id == placement.npc }.placement == CharacterPlacementModel.Randomized &&
+                placement.position is WorldPosition.Town
+        }
+
+    private fun WorldPosition.renderForTest(towns: List<TownModel>): String =
+        when (this) {
+            is WorldPosition.Town -> "in ${towns.single { it.id == town }.name}"
+            is WorldPosition.Wilderness -> "at ${point.x}x${point.y}"
         }
 
     private fun compiledTownSession(

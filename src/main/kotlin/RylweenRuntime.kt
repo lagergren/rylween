@@ -147,6 +147,116 @@ fun RuntimeSessionState.drawRandom(
     return RuntimeRandomDraw(draw.value, withRealm(realm.copy(rngState = draw.nextSeed)))
 }
 
+data class WildernessNpcPlacementPolicy(
+    val x: IntRange = 8..57,
+    val y: IntRange = 8..27,
+    val allowedPoints: Set<GridPoint>? = null,
+    val maxAttempts: Int = 1024,
+) {
+    init {
+        require(x.first <= x.last) { "wilderness NPC x range must be ascending: $x" }
+        require(y.first <= y.last) { "wilderness NPC y range must be ascending: $y" }
+        require(maxAttempts > 0) { "wilderness NPC placement attempts must be positive" }
+    }
+
+    fun allows(point: GridPoint): Boolean =
+        allowedPoints?.contains(point) ?: true
+}
+
+data class NpcPlacementRealizerConfig(
+    val townSlack: Int = 1,
+    val townBuildings: List<BuildingId> = listOf(Buildings.inn, Buildings.tavern),
+    val wilderness: WildernessNpcPlacementPolicy = WildernessNpcPlacementPolicy(),
+    val deterministicSeed: Long = 1L,
+)
+
+fun RuntimeSessionState.realizeNpcPlacements(
+    characters: List<CharacterModel>,
+    towns: List<TownModel>,
+    config: NpcPlacementRealizerConfig = NpcPlacementRealizerConfig(),
+    random: RylweenRandomPort = LegacyRylweenRandom,
+): RuntimeSessionState {
+    require(config.townBuildings.isNotEmpty()) { "NPC placement requires at least one town building target" }
+    val bins = listOf<TownId?>(null) + towns.map { it.id }
+    val randomTownOrWildernessCount = characters.count { it.placement == CharacterPlacementModel.Randomized }
+    val capacity = ((randomTownOrWildernessCount + bins.lastIndex) / bins.size) + config.townSlack.coerceAtLeast(0)
+    val counts = IntArray(bins.size)
+    val placements = mutableListOf<NpcPlacement>()
+    val occupiedWilderness = characters
+        .mapNotNull { (it.placement as? CharacterPlacementModel.Fixed)?.position as? WorldPosition.Wilderness }
+        .mapTo(mutableSetOf()) { it.point }
+    val fixtureRng = realm.rngState == null
+    var runtime = if (fixtureRng) withRealm(realm.copy(rngState = config.deterministicSeed)) else this
+
+    characters.forEach { character ->
+        val position = when (val placement = character.placement) {
+            is CharacterPlacementModel.Fixed -> placement.position
+            CharacterPlacementModel.Randomized -> {
+                val draw = runtime.drawRandom(0, bins.lastIndex, random)
+                runtime = draw.runtime
+                val bin = firstAvailableBin(draw.value, counts, capacity)
+                counts[bin]++
+                val realized = bins[bin]?.let { town -> runtime.drawTownBuilding(town, config.townBuildings, random) }
+                    ?: runtime.drawWildernessHutPoint(occupiedWilderness, config.wilderness, random)
+                runtime = realized.runtime
+                realized.position
+            }
+            CharacterPlacementModel.RandomizedWilderness -> {
+                val realized = runtime.drawWildernessHutPoint(occupiedWilderness, config.wilderness, random)
+                runtime = realized.runtime
+                realized.position
+            }
+        }
+        placements += NpcPlacement(character.id, position)
+        (position as? WorldPosition.Wilderness)?.let { occupiedWilderness += it.point }
+    }
+
+    val realizedRuntime = if (fixtureRng) runtime.withRealm(runtime.realm.copy(rngState = null)) else runtime
+    return realizedRuntime.copy(npcs = placements)
+}
+
+private fun firstAvailableBin(start: Int, counts: IntArray, capacity: Int): Int {
+    require(capacity > 0) { "NPC placement bin capacity must be positive" }
+    var bin = start
+    repeat(counts.size) {
+        if (counts[bin] < capacity) return bin
+        bin = (bin + 1) % counts.size
+    }
+    error("no NPC placement bin has remaining capacity")
+}
+
+private data class NpcPositionDraw(
+    val runtime: RuntimeSessionState,
+    val position: WorldPosition,
+)
+
+private fun RuntimeSessionState.drawTownBuilding(
+    town: TownId,
+    buildings: List<BuildingId>,
+    random: RylweenRandomPort,
+): NpcPositionDraw {
+    val draw = drawRandom(0, buildings.lastIndex, random)
+    return NpcPositionDraw(draw.runtime, WorldPosition.Town(town, buildings[draw.value]))
+}
+
+private fun RuntimeSessionState.drawWildernessHutPoint(
+    occupied: Set<GridPoint>,
+    policy: WildernessNpcPlacementPolicy,
+    random: RylweenRandomPort,
+): NpcPositionDraw {
+    var runtime = this
+    repeat(policy.maxAttempts) {
+        val x = runtime.drawRandom(policy.x.first, policy.x.last, random)
+        val y = x.runtime.drawRandom(policy.y.first, policy.y.last, random)
+        runtime = y.runtime
+        val point = GridPoint(x.value, y.value)
+        if (point !in occupied && policy.allows(point)) {
+            return NpcPositionDraw(runtime, WorldPosition.Wilderness(point))
+        }
+    }
+    error("could not place wilderness NPC after ${policy.maxAttempts} attempts")
+}
+
 enum class TownServiceScriptBranch {
     IfThen,
     IfElse,
@@ -1793,10 +1903,12 @@ fun PartyState.campGearEffect(): CampGearEffect {
 
 fun SpeakRuntimeContent.charactersFor(runtime: RuntimeSessionState, building: BuildingId): List<CharacterModel> {
     val town = runtime.realm.currentTown ?: return emptyList()
+    val realizedByNpc = runtime.npcs.associateBy { it.npc }
     return characters
         .filter { character ->
-            val placement = character.placement
-            placement is CharacterPlacementModel.Fixed && placement.position == WorldPosition.Town(town, building)
+            val position = realizedByNpc[character.id]?.position
+                ?: (character.placement as? CharacterPlacementModel.Fixed)?.position
+            position == WorldPosition.Town(town, building)
         }
         .sortedBy { it.name }
 }

@@ -1063,6 +1063,57 @@ class TerminalTextRenderer(
         }
 }
 
+class RylweenKotlinEngine(
+    private val content: GameModel,
+    private val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    private val npcPlacementConfig: NpcPlacementRealizerConfig = NpcPlacementRealizerConfig(),
+) {
+    fun initialRuntime(
+        party: PartyState,
+        hour: Int,
+        currentTown: TownId?,
+        rngState: Long? = null,
+        realizeNpcs: Boolean = true,
+    ): RuntimeSessionState {
+        val runtime = RuntimeSessionState.singleParty(
+            party = party,
+            hour = hour,
+            currentTown = currentTown,
+            rngState = rngState,
+        )
+        return if (realizeNpcs) {
+            runtime.realizeNpcPlacements(content.characters, content.towns, npcPlacementConfig)
+        } else {
+            runtime
+        }
+    }
+
+    fun townSession(
+        party: PartyState,
+        town: TownId,
+        hour: Int,
+        rngState: Long? = null,
+        realizeNpcs: Boolean = true,
+    ): TownSession =
+        TownSession.start(
+            town = content.towns.single { it.id == town },
+            townSystem = requireNotNull(content.townSystem) { "town system is not configured" },
+            scenes = content.scenes,
+            runtime = initialRuntime(party, hour, town, rngState, realizeNpcs),
+            itemRecords = itemRecords,
+        )
+
+    fun speakContent(): SpeakRuntimeContent =
+        SpeakRuntimeContent(
+            speak = content.speak,
+            characters = content.characters,
+            dialogue = content.dialogue,
+        )
+
+    fun textRenderer(references: Map<String, List<String>> = emptyMap()): TerminalTextRenderer =
+        TerminalTextRenderer(references = references, towns = content.towns, characters = content.characters)
+}
+
 private class RandomItemOfferSessionTraceRunner(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort,
