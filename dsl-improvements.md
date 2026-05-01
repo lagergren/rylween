@@ -175,7 +175,7 @@ Current status:
 | Runtime state/save | `stateFixture`, strict `runtimeState`, validation, deterministic text writer | 3 state fixtures, including near-winning and winning runtime snapshot | reader/parser, filesystem save/load policy, multi-party real saves, full exact snapshot coverage from live engine |
 | Flags/milestones/win | typed flag states, milestone projection, generic win predicate | 13 current story/encounter flags, 6 milestone records | full transition graph validation, generated catalog from source data |
 | Items/equipment | generated item metadata, slotted inventory, separate equipment, item pools | 63 current item handles/records, potion metadata, first magic item example | all item-use scripts, all equipment actions, generated metadata pipeline |
-| Towns/services | town declarations, service availability, reusable town menu/service shape, exact service hours | 4 current towns, C/S/I/M/T/L menu, 5 building services | actual church/smith/inn/merchant/tavern/hut/lodge bodies still mostly native trampolines |
+| Towns/services | town declarations, service availability, reusable town menu/service shape, exact service hours, first typed service script | 4 current towns, C/S/I/M/T/L menu, 5 building services; church main/heal/energize/raise first-pass script | smith/inn/merchant/tavern/hut/lodge bodies still native trampolines; full byte-parity service runner |
 | NPCs/roles/visits | character declarations, roles, fixed/random placement, visited bits | 39 current NPCs, 17 story roles, representative runtime placements | generated NPC catalog, full randomized placement runtime, all NPC-specific dialogue |
 | Speak/chitchat/rumours | standard conversation model, role/town text refs, anonymous rumours, exclusions | speak screens, chitchat/question tables, 33 town rumour entries | full speak mission scripts, final text binding/rendering runtime |
 | Combat/rewards | reusable standard battle shape, action list, tunables, reward bundle, traceable native boundary | standard battle tunables, 2 monster examples, battle loot/reward shape | full combat loop, all monsters, all spells/monster abilities, battle parity runner |
@@ -229,7 +229,8 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - Character references in reusable text should point at semantic roles, not placeholder strings such as `{name15}` or `{loc15}`. The runtime resolves `character(Roles.crownSeer).name` and `.location` from the character currently bound to that role, so fixed and randomized NPC placement both produce correct dialogue/rumour text. Legacy rumour roll numbers live on generated `Rumours.*` metadata, not in authoring rows. Rumours can also declare story-state exclusions, such as hiding the bandit-merchant rumour once `Story.garth.bandits` is recovered or closed.
 - Town declarations should introduce their own authored ids, e.g. `town("ollk") { name = "Ollk"; ... }`. Generated `Towns.*` handles are compiler output used by other content, state, scripts, character placement, and text references; authors should not need to predeclare or manually maintain the handle catalog before declaring a town.
 - Town service availability and reusable building behavior are separate. `towns { ... services { inn(); tavern() } }` says which services a town offers; `townSystem { menu { ... } buildingServices { ... } }` says how the reusable town-entry loop maps keys to services, scenes, and opening hours. Current service hours are exact to `data/world.json5`: smith and merchant `6..18`, tavern `6..1`, inn/church always open.
-- Building service scenes currently use `native.town.enterService(Buildings.*)` as a narrow backend-neutral trampoline. That can be implemented by the C engine bridge today and replaced service-by-service by Kotlin DSL/runtime code later without changing authoring content.
+- Building service scenes can migrate one service at a time. Smith, inn, merchant, and tavern still use `native.town.enterService(Buildings.*)` as a narrow backend-neutral trampoline; church is now an inline typed script for its H/E/R/L menu, heal, energize, and raise branches.
+- Authoring should not create lookup handles for one-off branch text. Reusable service prompts such as church intro/menu/who can stay as `TextId` handles, but local results such as "corpse", "not spellcaster", "raised", and payment prompts should be inline structured text in the owning script unless they are reused by another action or screen.
 - Legacy `main` C code confirms the original NPC layout: slots 1-24 are generated random people, slot 33 is Marcus the fixed Hermit at wilderness `48,7`, slots 34-35 are fixed tavern women, and slots 36-39 are Alex/Galdon/Kosch/Ufarsin as merchant wilderness records with implicit `0,0`. The DSL should not expose implicit wilderness-origin placement as an authoring concept; characters should be declared as `randomPlacement()`, `randomWilderness()`, or `fixed(Wilderness.xy(...))`.
 - Generated `Items.*` handles now carry legacy item ids from `data/world/items/*.json5` in Kotlin implementation metadata. Item-pool validation checks both the expected range length and the exact ordered ids of the referenced handles, so author-facing pools stay semantic while migration mistakes in numeric carryover fail validation.
 - Confirmed design decision: item ids should appear only in generated metadata, if they appear at all. The public author-facing `item("slug")` helper cannot attach a legacy id; generated catalog code uses the internal generated-handle path.
@@ -291,7 +292,7 @@ B1-B9 first-pass notes:
 
 - [ ] E1. Towns and buildings. DSL delta: `towns { town("ollk") { name; position; taxPercent; services { ... } } }` plus `townSystem { buildingServices { ... } }`. Native decision: current-location state and generic enter dispatcher. Current scratch status: the four current towns are declared with exact names, coordinates, tax rates, settlement class, and service availability from `data/world.json5`; reusable building service records now carry exact service hours and scene targets.
 - [ ] E2. Keymaps and menus. DSL delta: typed `wildernessKeys`, `townKeys`, and `combatKeys` declarations. Native decision: keyboard input and dispatch execution. Current scratch status: the town-entry keymap is modeled under `townSystem { menu { church(); smith(); inn(); merchant(); tavern(); leave() } }`, preserving C/S/I/M/T/L order and leave-menu semantics.
-- [ ] E3. Shops and services. DSL delta: smith, merchant, inn, tavern, church, hut, and lodge as building scripts/tables. Native decision: menu input/render primitives, temporary pricing helpers if needed. Current scratch status: town building services for church, smith, inn, merchant, and tavern now have scene targets and exact opening hours; their first-pass scene bodies call the backend-neutral `native.town.enterService(...)` trampoline until each service body is ported.
+- [ ] E3. Shops and services. DSL delta: smith, merchant, inn, tavern, church, hut, and lodge as building scripts/tables. Native decision: menu input/render primitives, temporary pricing helpers if needed. Current scratch status: town building services for church, smith, inn, merchant, and tavern now have scene targets and exact opening hours; church has a first-pass typed H/E/R/L script with inline branch text, while smith/inn/merchant/tavern still call the backend-neutral `native.town.enterService(...)` trampoline.
 - [ ] E4. Rest, camp, hunt, and lodge. DSL delta: action scripts with costs, risks, time passage, food/fatigue effects. Native decision: RNG and state mutation primitives.
 - [ ] E5. Upkeep and time. DSL delta: `upkeep { daily { ... } hourly { ... } }` with balance tables. Native decision: clock/tick scheduling and deterministic RNG.
 - [ ] E6. Wilderness events and transitions. DSL delta: terrain transition scripts and random wilderness event tables. Native decision: random draw and event dispatch runner.
@@ -731,7 +732,13 @@ model is.
 Text bindings should be typed instead of string-keyed:
 
 ```kotlin
-screen(T.Towne.Church.cost, B.cost(price))
+screen {
+    lines(
+        "- That'll be {cost}",
+        "gold coins, please.",
+        "",
+    )
+}
 
 emit(
     T.Battle.FireWand.points,

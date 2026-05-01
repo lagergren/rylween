@@ -978,10 +978,201 @@ val nextRylween = rylween {
         }
     }
 
-    // Scripts: six hard-case readability probes.
-
     scene(Scenes.Towne.church) {
-        native.town.enterService(Buildings.church)
+        native.screen.clearMapWindow()
+        native.screen.showImage(Images.Scene.church)
+
+        loop {
+            native.screen.clearText()
+            native.screen.statusLine()
+            screen(T.Towne.Church.intro)
+
+            menu(T.Towne.Church.menu) {
+                option('H') {
+                    native.screen.clearText()
+                    val m = ask.member(T.Towne.Church.who)
+
+                    when_(m.dead) {
+                        screen {
+                            lines(
+                                "- GET THAT CORPSE",
+                                "OUTTA HERE!",
+                                "(You are thrown out).",
+                                "",
+                            )
+                        }
+                        pause(1200)
+                        breakLoop("corpse exits the church service")
+                    }
+
+                    when_(m.hp eq m.maxHp) {
+                        bind("pro_sub", pronoun(m, PronounCase.Subject))
+                        screen("{pro_sub} needs no healing.")
+                        pause(1000)
+                        stop("already fully healed")
+                    }
+
+                    val price = let("cost", (m.maxHp - m.hp) * 7)
+                    native.screen.clearText()
+                    screen {
+                        lines(
+                            "- That'll be {cost}",
+                            "gold coins, please.",
+                            "",
+                        )
+                    }
+
+                    menu("(P)ay", "(N)o thanks") {
+                        option('P') {
+                            pay(price,
+                                broke = {
+                                    screen {
+                                        lines(
+                                            "You don't have enough",
+                                            "gold!",
+                                        )
+                                    }
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    m.hp set m.maxHp
+                                    bind("pro_obj", pronoun(m, PronounCase.Object))
+                                    screen {
+                                        lines(
+                                            "The priestess heals",
+                                            "{pro_obj} fully.",
+                                        )
+                                    }
+                                    pause(1000)
+                                },
+                            )
+                        }
+                        option('N') {}
+                    }
+                }
+
+                option('E') {
+                    native.screen.clearText()
+                    val m = ask.member(T.Towne.Church.who)
+
+                    when_(!m.spellcaster) {
+                        native.screen.clearText()
+                        screen("Not a spellcaster!")
+                        pause(1000)
+                        stop("not a spellcaster")
+                    }
+
+                    when_(m.mp eq m.wisdom) {
+                        native.screen.clearText()
+                        screen {
+                            lines(
+                                "That character needs",
+                                "no spell points",
+                                "to be restored.",
+                            )
+                        }
+                        pause(2000)
+                        stop("spell points already restored")
+                    }
+
+                    native.screen.clearText()
+                    val price = let("cost", m.level * (m.wisdom - m.mp) * 2)
+                    screen {
+                        lines(
+                            "- That will be {cost}",
+                            "gold coins, please.",
+                            "",
+                        )
+                    }
+
+                    menu("(P)ay", "(N)o thanks") {
+                        option('P') {
+                            native.screen.clearText()
+                            pay(price,
+                                broke = {
+                                    screen("You don't have the gold!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    m.mp set m.wisdom
+                                    native.screen.clearText()
+                                    screen {
+                                        lines(
+                                            "The priestess",
+                                            "restores his energy.",
+                                        )
+                                    }
+                                    pause(1000)
+                                },
+                            )
+                        }
+                        option('N') {}
+                    }
+                }
+
+                option('R') {
+                    native.screen.clearText()
+                    val m = ask.member(T.Towne.Church.who)
+
+                    when_(!m.dead) {
+                        native.screen.clearText()
+                        bind("pro_sub", pronoun(m, PronounCase.Subject))
+                        screen {
+                            lines(
+                                "- {pro_sub} seems very alive",
+                                "at the moment.",
+                            )
+                        }
+                        pause(1200)
+                        stop("already alive")
+                    }
+
+                    native.screen.clearText()
+                    val price = let("cost", m.level * 650)
+                    screen {
+                        lines(
+                            "- That will be {cost}",
+                            "gold coins, please.",
+                            "",
+                        )
+                    }
+
+                    menu("(P)ay", "(N)o thanks") {
+                        option('P') {
+                            native.screen.clearText()
+                            pay(price,
+                                broke = {
+                                    screen("You don't have the gold!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    m.hp set 1
+                                    m.dead set false
+                                    party.memberCount += 1
+                                    native.screen.clearText()
+                                    bind("pro_obj", pronoun(m, PronounCase.Object))
+                                    screen {
+                                        lines(
+                                            "The priestess raises",
+                                            "{pro_obj}.",
+                                        )
+                                    }
+                                    pause(1000)
+                                },
+                            )
+                        }
+                        option('N') {}
+                    }
+                }
+
+                option('L') {
+                    native.screen.clearText()
+                    native.screen.clearMapWindow()
+                    breakLoop("leave church")
+                }
+            }
+        }
     }
 
     scene(Scenes.Towne.smith) {
@@ -1000,42 +1191,7 @@ val nextRylween = rylween {
         native.town.enterService(Buildings.tavern)
     }
 
-    // 1. Church heal: typed member fields, typed flagless flow, no engine names.
-    scene(Scenes.churchHeal) {
-        native.screen.clearText()
-        val m = ask.member(T.Towne.Church.who)
-
-        when_(m.dead) {
-            screen(T.Towne.Church.corpse)
-            pause(1200)
-            stop("corpse exits the heal service")
-        }
-
-        when_(m.hp eq m.maxHp) {
-            bind("pro_sub", pronoun(m, PronounCase.Subject))
-            screen(T.Towne.Church.noHealing)
-            pause(1000)
-            stop("already fully healed")
-        }
-
-        val price = let("cost", (m.maxHp - m.hp) * 7)
-        screen(T.Towne.Church.cost)
-
-        pay(price,
-            broke = {
-                screen(T.Towne.Church.noGold)
-                pause(1000)
-            },
-            ok = {
-                m.hp set m.maxHp
-                bind("pro_obj", pronoun(m, PronounCase.Object))
-                screen(T.Towne.Church.healed)
-                pause(1000)
-            },
-        )
-    }
-
-    // 2. Mage frost: spell body is normal script, combat target is typed.
+    // Mage frost: spell body is normal script, combat target is typed.
     spell(Spells.mageFrost, slot = 1, baseCost = 8, name = "Frost Finger") {
         val caster = currentCaster
         val target = ask.monsterAlive(T.Battle.Prompt.monster)
@@ -1629,7 +1785,11 @@ check(listOf(Npcs.alex, Npcs.galdon, Npcs.kosch, Npcs.ufarsin).all { npc ->
 })
 check(nextDsl.characters.flatMap { it.roles }.toSet() == NpcRoles.all.toSet())
 check(nextDsl.monsters.size == 2)
-check(nextDsl.scenes.size == 10)
+check(nextDsl.scenes.size == 9)
+val churchScene = nextDsl.scenes.single { it.id == Scenes.Towne.church }
+val churchMenu = churchScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()
+check(churchMenu.options.map { it.key } == listOf('H', 'E', 'R', 'L'))
+check(churchScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
 check(nextDsl.dialogue.size == 1)
 check(nextDsl.dialogue.single().branches.size == 2)

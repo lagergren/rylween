@@ -26,6 +26,7 @@ sealed interface EngineTraceEvent {
     data class WaitInput(val reason: String?) : EngineTraceEvent
     data class Pause(val ms: Int) : EngineTraceEvent
     data class SetFlag(val flag: String, val state: String) : EngineTraceEvent
+    data class Menu(val prompt: TextBlock, val keys: List<Char>) : EngineTraceEvent
     data class GrantReward(val reward: ScriptRewardModel) : EngineTraceEvent
     data class AchieveMilestone(val milestone: GameMilestoneId) : EngineTraceEvent
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : EngineTraceEvent
@@ -89,6 +90,7 @@ class ScriptTraceRunner(
             is Op.Break -> trace(EngineTraceEvent.Break(op.reason))
             is Op.Stop -> trace(EngineTraceEvent.Stop(op.reason))
             is Op.Switch -> op.cases.firstOrNull { it.match == eval(op.expr) || it.match == null }?.let { runAll(it.body) }
+            is Op.Menu -> trace(EngineTraceEvent.Menu(op.prompt, op.options.map { it.key }))
             is Op.AskMember -> Unit
             is Op.AskMonster -> Unit
             is Op.ForEachMonster -> trace(EngineTraceEvent.Stop("trace runner does not iterate monsters"))

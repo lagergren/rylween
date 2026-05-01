@@ -185,4 +185,25 @@ class RylweenDslValidationTest {
         assertEquals(EngineTraceEvent.NativeInt(keyRequest, 82), engine.events[1])
         assertTrue(engine.events[2] is EngineTraceEvent.EmitIndexed)
     }
+
+    @Test
+    fun traceEngineRecordsInlineMenusWithoutChoosing() {
+        val engine = TraceEnginePort()
+        val runner = ScriptTraceRunner(engine)
+
+        runner.run(
+            listOf(
+                Op.Menu(
+                    TextBlock.Inline(listOf("(P)ay", "(N)o thanks")),
+                    listOf(MenuOption('P', listOf(Op.Pause(1000))), MenuOption('N', emptyList())),
+                    emptyList(),
+                ),
+            ),
+        )
+
+        assertEquals(
+            EngineTraceEvent.Menu(TextBlock.Inline(listOf("(P)ay", "(N)o thanks")), listOf('P', 'N')),
+            engine.events.single(),
+        )
+    }
 }
