@@ -8,6 +8,12 @@ enum class ShopMainChoice { Buy, Sell, Leave }
 
 enum class SpeakMainChoice { Chitchat, Question, Rumour, Bye }
 
+sealed interface RandomItemOfferInput {
+    data class Buy(val accept: Boolean) : RandomItemOfferInput
+    data class DropSlot(val slot: Int) : RandomItemOfferInput
+    object Continue : RandomItemOfferInput
+}
+
 sealed interface EquipmentPromptInput {
     data class InventorySlot(val slot: Int) : EquipmentPromptInput
     data class Member(val memberNumber: Int) : EquipmentPromptInput
@@ -140,6 +146,7 @@ data class TownServiceContinuation(
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<TownServiceScriptFrame>,
     val speakSession: SpeakSession? = null,
+    val randomItemOfferSession: RandomItemOfferSession? = null,
 ) {
     val party: PartyState get() = runtime.activeParty
     val realm: RealmState get() = runtime.realm
@@ -245,6 +252,180 @@ data class CampGearEffect(
     val protectsLowTemperature: Boolean,
     val protectsVeryLowTemperature: Boolean,
 )
+
+enum class RandomItemOfferStatus {
+    Offered,
+    Bought,
+    Declined,
+    NotEnoughGold,
+    NeedsDropSlot,
+    InventoryFull,
+    InvalidDropSlot,
+}
+
+data class RandomItemOfferResult(
+    val status: RandomItemOfferStatus,
+    val party: PartyState,
+    val item: ItemId,
+    val price: Int,
+    val slot: Int? = null,
+)
+
+sealed interface RandomItemOfferStep {
+    data class Choice(
+        val offerText: TextBlock,
+        val prompt: TextBlock,
+        val item: ItemId,
+        val itemName: String,
+        val price: Int,
+        val buyKey: Char,
+        val declineKey: Char,
+    ) : RandomItemOfferStep
+
+    data class DropSlot(
+        val prompt: TextBlock,
+        val item: ItemId,
+        val itemName: String,
+        val price: Int,
+        val result: RandomItemOfferResult,
+    ) : RandomItemOfferStep
+
+    data class Message(
+        val text: TextBlock,
+        val next: RandomItemOfferStep,
+        val result: RandomItemOfferResult,
+    ) : RandomItemOfferStep
+
+    data class Finished(val result: RandomItemOfferResult) : RandomItemOfferStep {
+        val party: PartyState get() = result.party
+    }
+}
+
+data class RandomItemOfferSession(
+    val offer: RandomItemOfferModel,
+    val party: PartyState,
+    val item: ItemId,
+    val itemName: String,
+    val price: Int,
+    val step: RandomItemOfferStep,
+    val lastResult: RandomItemOfferResult? = null,
+) {
+    fun apply(input: RandomItemOfferInput): RandomItemOfferSession =
+        when (val current = step) {
+            is RandomItemOfferStep.Choice -> {
+                val buy = (input as? RandomItemOfferInput.Buy)
+                    ?: error("random item offer is waiting for buy/decline input")
+                if (buy.accept) buy() else decline()
+            }
+            is RandomItemOfferStep.DropSlot -> {
+                val drop = (input as? RandomItemOfferInput.DropSlot)
+                    ?: error("random item offer is waiting for a drop slot")
+                place(drop.slot)
+            }
+            is RandomItemOfferStep.Message -> {
+                require(input is RandomItemOfferInput.Continue) { "random item offer is showing message text" }
+                copy(step = current.next, lastResult = current.result)
+            }
+            is RandomItemOfferStep.Finished -> error("random item offer is already finished: $current")
+        }
+
+    private fun buy(): RandomItemOfferSession =
+        when {
+            party.resources.gold < price -> finish(RandomItemOfferStatus.NotEnoughGold, party, offer.broke)
+            else -> place(dropSlot = null)
+        }
+
+    private fun decline(): RandomItemOfferSession =
+        finish(RandomItemOfferStatus.Declined, party, offer.declined)
+
+    private fun place(dropSlot: Int?): RandomItemOfferSession =
+        when (val placed = party.placeInventoryItem(item, offer.application.overflow, dropSlot)) {
+            is InventoryPlacementResult.Placed -> {
+                val updated = placed.party.copy(resources = placed.party.resources.copy(gold = placed.party.resources.gold - price))
+                finish(RandomItemOfferStatus.Bought, updated, offer.deal, placed.slot)
+            }
+            is InventoryPlacementResult.NeedsDropSlot -> {
+                val result = result(RandomItemOfferStatus.NeedsDropSlot, placed.party)
+                copy(
+                    step = RandomItemOfferStep.DropSlot(
+                        prompt = checkNotNull(offer.messages.cantCarry) {
+                            "drop-prompt random item offer requires cant-carry text"
+                        },
+                        item = item,
+                        itemName = itemName,
+                        price = price,
+                        result = result,
+                    ),
+                    lastResult = result,
+                )
+            }
+            is InventoryPlacementResult.Full ->
+                finish(RandomItemOfferStatus.InventoryFull, placed.party, checkNotNull(offer.messages.cantCarry))
+            is InventoryPlacementResult.InvalidDropSlot -> {
+                val result = result(RandomItemOfferStatus.InvalidDropSlot, placed.party, placed.slot)
+                copy(
+                    step = RandomItemOfferStep.DropSlot(
+                        prompt = checkNotNull(offer.messages.cantCarry),
+                        item = item,
+                        itemName = itemName,
+                        price = price,
+                        result = result,
+                    ),
+                    lastResult = result,
+                )
+            }
+        }
+
+    private fun finish(
+        status: RandomItemOfferStatus,
+        nextParty: PartyState,
+        message: TextBlock,
+        slot: Int? = null,
+    ): RandomItemOfferSession {
+        val result = result(status, nextParty, slot)
+        return copy(
+            party = nextParty,
+            step = RandomItemOfferStep.Message(message, RandomItemOfferStep.Finished(result), result),
+            lastResult = result,
+        )
+    }
+
+    private fun result(
+        status: RandomItemOfferStatus,
+        nextParty: PartyState,
+        slot: Int? = null,
+    ): RandomItemOfferResult =
+        RandomItemOfferResult(status, nextParty, item, price, slot)
+
+    companion object {
+        fun start(
+            offer: RandomItemOfferModel,
+            party: PartyState,
+            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            selectedIndex: Int = 0,
+        ): RandomItemOfferSession {
+            require(offer.pool.items.isNotEmpty()) { "random item offer ${offer.pool.slug} has no items" }
+            val item = offer.pool.items[selectedIndex.floorMod(offer.pool.items.size)]
+            val record = checkNotNull(itemRecords.associateBy { it.id }[item]) { "unknown item ${item.slug}" }
+            return RandomItemOfferSession(
+                offer = offer,
+                party = party,
+                item = item,
+                itemName = record.displayName,
+                price = record.cost,
+                step = RandomItemOfferStep.Choice(
+                    offerText = offer.offer.withRandomItemOffer(record.displayName, record.cost),
+                    prompt = offer.choicePrompt,
+                    item = item,
+                    itemName = record.displayName,
+                    price = record.cost,
+                    buyKey = offer.buyKey,
+                    declineKey = offer.declineKey,
+                ),
+            )
+        }
+    }
+}
 
 data class SpeakRuntimeContent(
     val speak: SpeakSystemModel = SpeakSystemModel(null),
@@ -1403,6 +1584,25 @@ fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
 
 fun PartyState.hasFlagState(state: FlagState): Boolean =
     flags.any { it.flag == state.flag && it.native == state.native }
+
+fun TextBlock.withRandomItemOffer(itemName: String, itemPrice: Int): TextBlock =
+    when (this) {
+        is TextBlock.Inline -> this
+        is TextBlock.Ref -> this
+        is TextBlock.Structured -> TextBlock.Structured(
+            lines.map { line ->
+                TextLine(
+                    line.parts.map { part ->
+                        when (part) {
+                            TextPart.OfferedItemName -> TextPart.Literal(itemName)
+                            TextPart.OfferedItemPrice -> TextPart.Literal(itemPrice.toString())
+                            else -> part
+                        }
+                    },
+                )
+            },
+        )
+    }
 
 private fun ChitchatPromptAudience.matches(gender: Gender?): Boolean =
     when (this) {

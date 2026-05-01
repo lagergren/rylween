@@ -471,6 +471,7 @@ private class StatefulScriptServiceRunner(
     private val realmInts = continuation.realmScalars.toMutableMap()
     private val stack = continuation.stack.toMutableList()
     private var speakSession = continuation.speakSession
+    private var randomItemOfferSession = continuation.randomItemOfferSession
     private var rejection: TerminalInputRejection? = null
     private var waiting = false
     private var opBudget = 4096
@@ -615,10 +616,7 @@ private class StatefulScriptServiceRunner(
                 advanceTop()
                 engine.trace(EngineTraceEvent.GrantReward(op.reward))
             }
-            is Op.RandomItemOffer -> {
-                advanceTop()
-                engine.trace(EngineTraceEvent.RandomItemOffer(op.offer))
-            }
+            is Op.RandomItemOffer -> runRandomItemOffer(op)
             is Op.ShopService -> {
                 advanceTop()
                 engine.trace(EngineTraceEvent.ShopService(op.shop))
@@ -751,6 +749,7 @@ private class StatefulScriptServiceRunner(
             realmScalars = realmInts.toMap(),
             stack = stack.toList(),
             speakSession = speakSession,
+            randomItemOfferSession = randomItemOfferSession,
         )
 
     private fun runSpeak(op: Op.Speak) {
@@ -782,6 +781,28 @@ private class StatefulScriptServiceRunner(
             engine.trace(EngineTraceEvent.Screen(rumour))
         } else {
             engine.trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
+        }
+    }
+
+    private fun runRandomItemOffer(op: Op.RandomItemOffer) {
+        engine.trace(EngineTraceEvent.RandomItemOffer(op.offer))
+        val initial = randomItemOfferSession ?: RandomItemOfferSession.start(op.offer, party)
+        val result = RandomItemOfferSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
+        party = result.session.party
+        runtime = runtime.withActiveParty(party)
+        when (result.status) {
+            TerminalRunStatus.Finished -> {
+                randomItemOfferSession = null
+                advanceTop()
+            }
+            TerminalRunStatus.StepLimitReached -> {
+                randomItemOfferSession = null
+                stack.clear()
+            }
+            is TerminalRunStatus.Waiting -> {
+                randomItemOfferSession = result.session
+                wait(result.status.rejection)
+            }
         }
     }
 
@@ -949,6 +970,60 @@ class TerminalTextRenderer(
             is IntAst.Lit -> ast.value.toString()
             else -> "{int}"
         }
+}
+
+private class RandomItemOfferSessionTraceRunner(
+    private val terminal: TerminalPort,
+    private val engine: TraceEnginePort,
+) {
+    fun runUntilBlocked(initial: RandomItemOfferSession): TerminalAdapterResult<RandomItemOfferSession> {
+        var session = initial
+        repeat(64) {
+            session = when (val step = session.step) {
+                is RandomItemOfferStep.Choice -> {
+                    engine.trace(EngineTraceEvent.Screen(step.offerText))
+                    engine.trace(EngineTraceEvent.Menu(step.prompt, listOf(step.buyKey, step.declineKey)))
+                    when (val input = terminal.readKey(listOf(step.buyKey, step.declineKey))) {
+                        is TerminalInput.Value ->
+                            session.apply(RandomItemOfferInput.Buy(input.value == step.buyKey))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is RandomItemOfferStep.DropSlot -> {
+                    val choices = session.party.inventorySlotChoices(
+                        InventorySlotChoiceFilter.NonEmpty,
+                        1..InventorySaveSlotMax,
+                        'A',
+                    )
+                    engine.trace(
+                        EngineTraceEvent.AskInventorySlot(
+                            prompt = step.prompt,
+                            firstKey = 'A',
+                            slots = 1..InventorySaveSlotMax,
+                            filter = InventorySlotChoiceFilter.NonEmpty,
+                        ),
+                    )
+                    when (val input = terminal.readKey(choices.map { it.first })) {
+                        is TerminalInput.Value ->
+                            session.apply(
+                                RandomItemOfferInput.DropSlot(
+                                    checkNotNull(choices.firstOrNull { it.first == input.value }).second,
+                                ),
+                            )
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is RandomItemOfferStep.Message -> {
+                    engine.trace(EngineTraceEvent.Screen(step.text))
+                    session.apply(RandomItemOfferInput.Continue)
+                }
+                is RandomItemOfferStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
 }
 
 private class SpeakSessionTraceRunner(
