@@ -43,6 +43,7 @@ private class RuntimeStateSnapshotWriter {
             assignment("banished", realm.banished)
             assignment("lastPlayedDay", realm.lastPlayedDay)
             assignment("partyMemberMax", realm.partyMemberMax)
+            realm.lastTerrain?.let { line("lastTerrain = ${terrainId(it)}") }
         }
         line("}")
     }
@@ -217,6 +218,9 @@ private class RuntimeStateSnapshotWriter {
     private fun stateId(id: StateId): String = "stateId(${quote(id.slug)})"
     private fun partyId(id: PartyId): String = "partyId(${quote(id.slug)})"
     private fun worldMapId(id: WorldMapId): String = "worldMap(${quote(id.slug)})"
+    private fun terrainId(id: TerrainId): String =
+        id.legacyMapCode?.let { "terrain(${quote(id.slug)}, ${charLiteral(it)})" }
+            ?: "terrain(${quote(id.slug)})"
     private fun townId(id: TownId): String = "town(${quote(id.slug)})"
     private fun buildingId(id: BuildingId): String = "building(${quote(id.slug)})"
     private fun locationId(id: LocationId): String = "location(${quote(id.slug)})"
@@ -253,5 +257,15 @@ private class RuntimeStateSnapshotWriter {
                 }
             }
             append('"')
+        }
+
+    private fun charLiteral(value: Char): String =
+        when (value) {
+            '\\' -> "'\\\\'"
+            '\'' -> "'\\''"
+            '\n' -> "'\\n'"
+            '\r' -> "'\\r'"
+            '\t' -> "'\\t'"
+            else -> "'$value'"
         }
 }

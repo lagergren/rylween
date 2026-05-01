@@ -831,6 +831,7 @@ data class GameModel(
     val progress: GameProgressModel,
     val rewards: List<RewardBundleModel>,
     val combat: CombatSystemModel,
+    val wilderness: WildernessSystemModel,
     val speak: SpeakSystemModel,
     val towns: List<TownModel>,
     val townSystem: TownSystemModel?,
@@ -846,6 +847,34 @@ data class GameModel(
 sealed interface Trigger {
     data class RandomStep(val percent: Int) : Trigger
 }
+
+data class WildernessSystemModel(
+    val events: WildernessEventModel = WildernessEventModel(),
+    val terrainTransitions: TerrainTransitionModel = TerrainTransitionModel(),
+)
+
+data class WildernessEventModel(
+    val caveChancePercent: Int = 3,
+    val quietChancePercent: Int = 91,
+    val encounterSplitPercent: Int = 50,
+    val easyEncounterTier: EncounterTier = EncounterTiers.weak,
+    val hardEncounterTier: EncounterTier = EncounterTiers.wild,
+    val caveDungeon: DungeonId = Dungeons.randomCave,
+    val caveDepthRange: IntRange = 3..16,
+    val caveEntryCost: Int = 10,
+    val caveFoundPrompt: TextBlock = inlineText("You find a cave!", "", "(E)nter", "(L)eave"),
+    val caveNoMoves: TextBlock = inlineText("You don't have enough", "moves left to explore", "the cave...", ""),
+)
+
+data class TerrainTransitionModel(
+    val chancePercent: Int = 9,
+    val entries: List<TerrainTransitionTextModel> = emptyList(),
+)
+
+data class TerrainTransitionTextModel(
+    val terrain: TerrainId,
+    val text: TextBlock,
+)
 
 // =============================================================================
 // 03. DSL kernel: exact state model
@@ -901,6 +930,7 @@ data class RealmState(
     val banished: Boolean,
     val lastPlayedDay: Int,
     val partyMemberMax: Int,
+    val lastTerrain: TerrainId? = null,
 )
 
 data class LocationPlacement(val location: LocationId, val point: GridPoint)
@@ -2223,6 +2253,7 @@ class GameBuilder {
     private var progressModel = GameProgressModel(emptyList(), null)
     private val rewardsModel = mutableListOf<RewardBundleModel>()
     private var combatModel = CombatSystemModel(null)
+    private var wildernessModel = WildernessSystemModel()
     private var speakModel = SpeakSystemModel(null)
     private val towns = mutableListOf<TownModel>()
     private var townSystemModel: TownSystemModel? = null
@@ -2248,6 +2279,10 @@ class GameBuilder {
 
     fun combat(body: CombatBuilder.() -> Unit) {
         combatModel = CombatBuilder().apply(body).build()
+    }
+
+    fun wilderness(body: WildernessSystemBuilder.() -> Unit) {
+        wildernessModel = WildernessSystemBuilder().apply(body).build()
     }
 
     fun speak(body: SpeakBuilder.() -> Unit) {
@@ -2297,6 +2332,7 @@ class GameBuilder {
             progress = progressModel,
             rewards = rewardsModel.toList(),
             combat = combatModel,
+            wilderness = wildernessModel,
             speak = speakModel,
             towns = towns.toList(),
             townSystem = townSystemModel,
@@ -2309,6 +2345,87 @@ class GameBuilder {
             missions = missions.toList(),
         )
 
+}
+
+@RylNextDsl
+class WildernessSystemBuilder {
+    private var eventsModel = WildernessEventBuilder().build()
+    private var terrainTransitionModel = TerrainTransitionBuilder().build()
+
+    fun events(body: WildernessEventBuilder.() -> Unit) {
+        eventsModel = WildernessEventBuilder().apply(body).build()
+    }
+
+    fun terrainTransitions(body: TerrainTransitionBuilder.() -> Unit) {
+        terrainTransitionModel = TerrainTransitionBuilder().apply(body).build()
+    }
+
+    fun build(): WildernessSystemModel =
+        WildernessSystemModel(
+            events = eventsModel,
+            terrainTransitions = terrainTransitionModel,
+        )
+}
+
+@RylNextDsl
+class WildernessEventBuilder {
+    var caveChancePercent: Int = 3
+    var quietChancePercent: Int = 91
+    var encounterSplitPercent: Int = 50
+    var easyEncounterTier: EncounterTier = EncounterTiers.weak
+    var hardEncounterTier: EncounterTier = EncounterTiers.wild
+    var caveDungeon: DungeonId = Dungeons.randomCave
+    var caveDepthRange: IntRange = 3..16
+    var caveEntryCost: Int = 10
+    private var caveFoundPromptText: TextBlock = inlineText("You find a cave!", "", "(E)nter", "(L)eave")
+    private var caveNoMovesText: TextBlock = inlineText("You don't have enough", "moves left to explore", "the cave...", "")
+
+    fun caveFoundPrompt(vararg lines: String) {
+        caveFoundPromptText = inlineText(*lines)
+    }
+
+    fun caveFoundPrompt(body: StructuredTextBlockBuilder.() -> Unit) {
+        caveFoundPromptText = StructuredTextBlockBuilder().apply(body).build()
+    }
+
+    fun caveNoMoves(vararg lines: String) {
+        caveNoMovesText = inlineText(*lines)
+    }
+
+    fun caveNoMoves(body: StructuredTextBlockBuilder.() -> Unit) {
+        caveNoMovesText = StructuredTextBlockBuilder().apply(body).build()
+    }
+
+    fun build(): WildernessEventModel =
+        WildernessEventModel(
+            caveChancePercent = caveChancePercent,
+            quietChancePercent = quietChancePercent,
+            encounterSplitPercent = encounterSplitPercent,
+            easyEncounterTier = easyEncounterTier,
+            hardEncounterTier = hardEncounterTier,
+            caveDungeon = caveDungeon,
+            caveDepthRange = caveDepthRange,
+            caveEntryCost = caveEntryCost,
+            caveFoundPrompt = caveFoundPromptText,
+            caveNoMoves = caveNoMovesText,
+        )
+}
+
+@RylNextDsl
+class TerrainTransitionBuilder {
+    var chancePercent: Int = 9
+    private val entries = mutableListOf<TerrainTransitionTextModel>()
+
+    fun terrain(id: TerrainId, vararg lines: String) {
+        entries += TerrainTransitionTextModel(id, inlineText(*lines))
+    }
+
+    fun terrain(id: TerrainId, body: StructuredTextBlockBuilder.() -> Unit) {
+        entries += TerrainTransitionTextModel(id, StructuredTextBlockBuilder().apply(body).build())
+    }
+
+    fun build(): TerrainTransitionModel =
+        TerrainTransitionModel(chancePercent = chancePercent, entries = entries.toList())
 }
 
 @RylNextDsl
@@ -3377,6 +3494,7 @@ class RealmStateBuilder {
     var banished: Boolean = false
     var lastPlayedDay: Int? = null
     var partyMemberMax: Int = 4
+    var lastTerrain: TerrainId? = null
 
     fun build(): RealmState =
         RealmState(
@@ -3391,6 +3509,7 @@ class RealmStateBuilder {
             banished = banished,
             lastPlayedDay = lastPlayedDay ?: day,
             partyMemberMax = partyMemberMax,
+            lastTerrain = lastTerrain,
         )
 }
 

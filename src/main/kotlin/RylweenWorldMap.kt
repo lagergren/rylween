@@ -7,6 +7,7 @@ sealed interface WildernessSessionInput {
     object Enter : WildernessSessionInput
     object Pass : WildernessSessionInput
     object Continue : WildernessSessionInput
+    data class CaveAnswer(val enter: Boolean) : WildernessSessionInput
     object Quit : WildernessSessionInput
     data class QuitAnswer(val yes: Boolean) : WildernessSessionInput
     data class OutOfMovesAnswer(val save: Boolean) : WildernessSessionInput
@@ -22,6 +23,12 @@ enum class WildernessSessionResultStatus {
     EnteredCastle,
     NothingToEnter,
     UnknownTown,
+    TerrainNarrated,
+    CaveFound,
+    CaveLeft,
+    CaveNoMoves,
+    DungeonHandoff,
+    EncounterHandoff,
     LeftTown,
     NotInWilderness,
     QuitRequested,
@@ -37,6 +44,9 @@ data class WildernessSessionResult(
     val to: GridPoint? = null,
     val terrain: Char? = null,
     val town: TownId? = null,
+    val dungeon: DungeonId? = null,
+    val dungeonLevels: Int? = null,
+    val encounterTier: EncounterTier? = null,
 )
 
 sealed interface WildernessSessionStep {
@@ -44,11 +54,23 @@ sealed interface WildernessSessionStep {
     object Explore : WildernessSessionStep
     data class Messages(val blocks: List<TextBlock>, val next: WildernessSessionStep) : WildernessSessionStep
     data class OutOfMoves(val prompt: TextBlock) : WildernessSessionStep
+    data class CaveFound(val prompt: TextBlock) : WildernessSessionStep
+    data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
+    data class EncounterHandoff(val handoff: WildernessEncounterHandoff) : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
     data class QuitConfirm(val prompt: TextBlock) : WildernessSessionStep
     data class Town(val session: TownSession) : WildernessSessionStep
     data class Finished(val runtime: RuntimeSessionState) : WildernessSessionStep
 }
+
+data class WildernessDungeonHandoff(
+    val dungeon: DungeonId,
+    val levels: Int,
+)
+
+data class WildernessEncounterHandoff(
+    val tier: EncounterTier,
+)
 
 enum class WildernessFatigueMatch { Equal, LessThan }
 
@@ -78,6 +100,11 @@ private data class WildernessUpkeepResult(
     val runtime: RuntimeSessionState,
     val messages: List<TextBlock>,
     val allDead: Boolean,
+)
+
+private data class TerrainTransitionResult(
+    val runtime: RuntimeSessionState,
+    val text: TextBlock?,
 )
 
 data class WorldMapGrid(
@@ -166,6 +193,7 @@ data class WildernessSession(
     val towns: List<TownModel>,
     val townSystem: TownSystemModel,
     val scenes: List<SceneModel>,
+    val wilderness: WildernessSystemModel = WildernessSystemModel(),
     val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
     val upkeepRules: WildernessUpkeepRules = WildernessUpkeepRules(),
     val step: WildernessSessionStep = WildernessSessionStep.TurnStart,
@@ -179,6 +207,7 @@ data class WildernessSession(
             WildernessSessionInput.Enter -> enter()
             WildernessSessionInput.Pass -> pass()
             WildernessSessionInput.Continue -> continueNotice()
+            is WildernessSessionInput.CaveAnswer -> answerCave(input.enter)
             WildernessSessionInput.Quit -> requestQuit()
             is WildernessSessionInput.QuitAnswer -> answerQuit(input.yes)
             is WildernessSessionInput.OutOfMovesAnswer -> answerOutOfMoves(input.save)
@@ -211,6 +240,34 @@ data class WildernessSession(
         val current = step as? WildernessSessionStep.Messages
             ?: error("wilderness session is not showing messages")
         return copy(step = current.next)
+    }
+
+    fun completeDungeonHandoff(): WildernessSession {
+        require(step is WildernessSessionStep.DungeonHandoff) { "wilderness session is not handing off to a dungeon" }
+        return copy(
+            runtime = runtime.withRealm(
+                runtime.realm.copy(
+                    currentMode = RuntimeMode.Wilderness,
+                    currentMap = worldMap.id,
+                    currentTown = null,
+                ),
+            ),
+            step = WildernessSessionStep.TurnStart,
+        )
+    }
+
+    fun completeEncounterHandoff(): WildernessSession {
+        require(step is WildernessSessionStep.EncounterHandoff) { "wilderness session is not handing off to an encounter" }
+        return copy(
+            runtime = runtime.withRealm(
+                runtime.realm.copy(
+                    currentMode = RuntimeMode.Wilderness,
+                    currentMap = worldMap.id,
+                    currentTown = null,
+                ),
+            ),
+            step = WildernessSessionStep.TurnStart,
+        )
     }
 
     fun replaceTownSession(session: TownSession): WildernessSession {
@@ -269,6 +326,8 @@ data class WildernessSession(
             facing = direction.facing(),
             resources = party.resources.copy(timeLeft = (party.resources.timeLeft - 1).coerceAtLeast(0)),
         )
+        val fromTerrain = worldMap.tileAt(from)
+        val toTerrain = worldMap.tileAt(to)
         val nextRuntime = runtime
             .withActiveParty(nextParty)
             .withRealm(
@@ -276,16 +335,83 @@ data class WildernessSession(
                     currentMode = RuntimeMode.Wilderness,
                     currentTown = null,
                     currentMap = worldMap.id,
+                    lastTerrain = wilderness.terrainIdFor(fromTerrain),
                 ),
             )
-        return copy(
-            runtime = nextRuntime,
-            step = WildernessSessionStep.TurnStart,
-            lastResult = WildernessSessionResult(
-                WildernessSessionResultStatus.Moved,
+        val moved = WildernessSessionResult(
+            WildernessSessionResultStatus.Moved,
+            from = from,
+            to = to,
+            terrain = toTerrain,
+        )
+        return copy(runtime = nextRuntime, lastResult = moved)
+            .afterMoveEvent(
                 from = from,
                 to = to,
-                terrain = worldMap.tileAt(to),
+                fromTerrain = fromTerrain,
+                toTerrain = toTerrain,
+                moved = moved,
+            )
+    }
+
+    private fun afterMoveEvent(
+        from: GridPoint,
+        to: GridPoint,
+        fromTerrain: Char?,
+        toTerrain: Char?,
+        moved: WildernessSessionResult,
+    ): WildernessSession {
+        val events = wilderness.events
+        if (runtime.realm.rngState == null) {
+            return copy(step = WildernessSessionStep.TurnStart, lastResult = moved)
+        }
+
+        val eventDraw = runtime.drawRandom(0, 99)
+        val eventRuntime = eventDraw.runtime
+        if (eventDraw.value < events.caveChancePercent) {
+            return copy(
+                runtime = eventRuntime,
+                step = WildernessSessionStep.CaveFound(events.caveFoundPrompt),
+                lastResult = moved.copy(status = WildernessSessionResultStatus.CaveFound),
+            )
+        }
+
+        val quietLimit = events.caveChancePercent + events.quietChancePercent
+        if (eventDraw.value < quietLimit) {
+            val terrainResult = eventRuntime.terrainTransition(wilderness, fromTerrain, toTerrain)
+            return copy(
+                runtime = terrainResult.runtime,
+                step = terrainResult.text?.let {
+                    WildernessSessionStep.Messages(listOf(it), WildernessSessionStep.TurnStart)
+                } ?: WildernessSessionStep.TurnStart,
+                lastResult = terrainResult.text?.let {
+                    moved.copy(status = WildernessSessionResultStatus.TerrainNarrated)
+                } ?: moved,
+            )
+        }
+
+        val splitDraw = eventRuntime.drawRandom(0, 99)
+        val tier = if (splitDraw.value < events.encounterSplitPercent) {
+            events.easyEncounterTier
+        } else {
+            events.hardEncounterTier
+        }
+        val encounterRuntime = splitDraw.runtime.withRealm(
+            splitDraw.runtime.realm.copy(
+                currentMode = RuntimeMode.Battle,
+                currentTown = null,
+                currentMap = worldMap.id,
+            ),
+        )
+        return copy(
+            runtime = encounterRuntime,
+            step = WildernessSessionStep.EncounterHandoff(WildernessEncounterHandoff(tier)),
+            lastResult = WildernessSessionResult(
+                WildernessSessionResultStatus.EncounterHandoff,
+                from = from,
+                to = to,
+                terrain = toTerrain,
+                encounterTier = tier,
             ),
         )
     }
@@ -341,6 +467,56 @@ data class WildernessSession(
                 WildernessSessionResultStatus.EnteredTown,
                 from = point,
                 town = town.id,
+            ),
+        )
+    }
+
+    private fun answerCave(enter: Boolean): WildernessSession {
+        require(step is WildernessSessionStep.CaveFound) { "wilderness session is not waiting for cave input" }
+        if (!enter) {
+            return copy(
+                step = WildernessSessionStep.TurnStart,
+                lastResult = lastResult?.copy(status = WildernessSessionResultStatus.CaveLeft)
+                    ?: WildernessSessionResult(WildernessSessionResultStatus.CaveLeft),
+            )
+        }
+
+        val events = wilderness.events
+        if (party.resources.timeLeft <= events.caveEntryCost) {
+            return copy(
+                step = WildernessSessionStep.Notice(events.caveNoMoves, WildernessSessionStep.TurnStart),
+                lastResult = lastResult?.copy(status = WildernessSessionResultStatus.CaveNoMoves)
+                    ?: WildernessSessionResult(WildernessSessionResultStatus.CaveNoMoves),
+            )
+        }
+
+        val depthDraw = runtime.drawRandom(events.caveDepthRange.first, events.caveDepthRange.last)
+        val nextParty = depthDraw.runtime.activeParty.copy(
+            resources = depthDraw.runtime.activeParty.resources.copy(
+                timeLeft = depthDraw.runtime.activeParty.resources.timeLeft - events.caveEntryCost,
+            ),
+        )
+        val dungeonRuntime = depthDraw.runtime
+            .withActiveParty(nextParty)
+            .withRealm(
+                depthDraw.runtime.realm.copy(
+                    currentMode = RuntimeMode.Dungeon,
+                    currentTown = null,
+                    currentMap = worldMap.id,
+                ),
+            )
+        return copy(
+            runtime = dungeonRuntime,
+            step = WildernessSessionStep.DungeonHandoff(
+                WildernessDungeonHandoff(events.caveDungeon, depthDraw.value),
+            ),
+            lastResult = WildernessSessionResult(
+                WildernessSessionResultStatus.DungeonHandoff,
+                from = lastResult?.from,
+                to = lastResult?.to,
+                terrain = lastResult?.terrain,
+                dungeon = events.caveDungeon,
+                dungeonLevels = depthDraw.value,
             ),
         )
     }
@@ -411,6 +587,7 @@ data class WildernessSession(
                 towns = content.towns,
                 townSystem = requireNotNull(content.townSystem) { "town system is not configured" },
                 scenes = content.scenes,
+                wilderness = content.wilderness,
                 itemRecords = itemRecords,
             )
     }
@@ -441,6 +618,12 @@ object WildernessPromptText {
     fun castlePending(): TextBlock =
         inlineText("Castle entry is not ported yet.")
 
+    fun dungeonHandoffPending(handoff: WildernessDungeonHandoff): TextBlock =
+        inlineText("Entering ${handoff.dungeon.slug}.", "Levels: ${handoff.levels}", "Dungeon runtime is not ported yet.")
+
+    fun encounterHandoffPending(handoff: WildernessEncounterHandoff): TextBlock =
+        inlineText("Encounter: ${handoff.tier.slug}", "Battle runtime is not ported yet.")
+
     fun quitConfirm(): TextBlock =
         inlineText("Do you really want", "to quit?", "")
 }
@@ -454,8 +637,31 @@ fun wildernessDirectionForKey(key: Char): WildernessDirection? =
         else -> null
     }
 
+private fun WildernessSystemModel.terrainIdFor(tile: Char?): TerrainId? =
+    terrainTransitions.entries.firstOrNull { it.terrain.legacyMapCode == tile }?.terrain
+
+private fun TerrainTransitionModel.entryFor(tile: Char): TerrainTransitionTextModel? =
+    entries.firstOrNull { it.terrain.legacyMapCode == tile }
+
 private fun PartyState.wildernessPoint(): GridPoint? =
     (position as? WorldPosition.Wilderness)?.point
+
+private fun RuntimeSessionState.terrainTransition(
+    wilderness: WildernessSystemModel,
+    fromTerrain: Char?,
+    toTerrain: Char?,
+): TerrainTransitionResult {
+    if (fromTerrain == null || toTerrain == null || fromTerrain == toTerrain) {
+        return TerrainTransitionResult(this, null)
+    }
+    val transition = wilderness.terrainTransitions
+    val entry = transition.entryFor(toTerrain) ?: return TerrainTransitionResult(this, null)
+    val draw = drawRandom(0, 99)
+    return TerrainTransitionResult(
+        runtime = draw.runtime,
+        text = entry.text.takeIf { draw.value < transition.chancePercent },
+    )
+}
 
 private fun RuntimeSessionState.applyWildernessUpkeep(rules: WildernessUpkeepRules): WildernessUpkeepResult {
     val advancedHour = withRealm(realm.copy(hour = (realm.hour + 1).positiveMod(24)))
