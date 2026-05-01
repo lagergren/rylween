@@ -188,7 +188,7 @@ Current status:
 | NPCs/roles/visits | character declarations, roles, fixed/random placement, visited bits | 39 current NPCs, 17 story roles, representative runtime placements | generated NPC catalog, full randomized placement runtime, all NPC-specific dialogue |
 | Speak/chitchat/rumours | standard conversation model, role/town text refs, anonymous rumours, exclusions, first reusable speak session with NPC selection, visited bits, chitchat/question lookup, and standard rumour filtering | speak screens, chitchat/question tables, 33 town rumour entries | full speak mission scripts, final text binding/rendering runtime, randomized placement resolution, richer rumour selection policy |
 | Combat/rewards | reusable standard battle shape, action list, tunables, reward bundle, traceable native boundary | standard battle tunables, 2 monster examples, battle loot/reward shape | full combat loop, all monsters, all spells/monster abilities, battle parity runner |
-| Missions/scenes/scripts | typed scenes/op AST, dialogue branches, rewards, reusable choices, explicit control signals, native allowlist | bandits mission, Garth dialogue, Borin gift, rumour/church/Ydarg probes | broad script port from `data/world/scripts`, all mission triggers/actions |
+| Missions/scenes/scripts | typed scenes/op AST, dialogue branches, rewards, reusable choices, explicit control signals, native allowlist, current-game script helper layer | bandits mission, Garth dialogue, Borin gift, rumour/church/Ydarg probes, tavern traveller-story helper | broad script port from `data/world/scripts`, all mission triggers/actions, typed compiled fragment identity when persistence/debugging/bundles need it |
 | World/map/terrain/visual/layout | typed handles exist for many concepts | mostly handles only | map cells, terrain semantics, visuals/assets, screen layout/static documents |
 | Dungeons/Ydarg/secrets/score | narrow native islands and handles | Ydarg probe only | dungeon scenarios, Ydarg room/state model, secrets/sysop actions, score/vscore |
 
@@ -203,6 +203,7 @@ move, say that explicitly.
 - [ ] A2. Define the generated handle catalogs. DSL delta: `Items.*`, `Flags.*`, `Npcs.*`, `Maps.*`, `Terrain.*`, `Texts.*`, `Scenes.*`. Native decision: C receives dense ids plus diagnostic slugs. Current scratch status: partial in `RylweenGeneratedMetadata.kt`; hand-sketched catalogs now cover the listed handle families plus visuals, layouts, screen regions, roles, spells, missions, key actions, dungeons, towns/buildings, locations, and encounter tiers, but these catalogs are still hand-maintained generated-output scaffolding. `NativeOps.*` is intentionally in `RylweenDsl.kt` because it belongs to the reusable engine/native boundary, not game-generated metadata.
 - [ ] A3. Define typed native-op declarations. DSL delta: `nativeOps { op(NativeOps.renderMap) { ... } }` or equivalent. Native decision: no raw string function names in authored scripts.
 - [ ] A4. Define validation error style. DSL delta: validation helpers report game concepts such as missing terrain, text binding, or illegal flag transition. Native decision: loader can reject compiled bundles defensively but author-facing validation happens before C.
+- [ ] A5. Define reusable script-fragment identity only when it has a runtime need. DSL delta: keep Kotlin game-script helper functions such as `travellerStory()` for local reuse until persistence, debugging, trace reporting, or compiled-bundle emission needs a stable fragment id. Future shape should use typed generated handles such as `GameScripts.travellerStory`, not stringly authored ids such as `scriptHelper("traveller_story")`.
 
 ### Current scratch decisions and open questions
 
@@ -222,6 +223,15 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
   4. `src/scratch/kotlin/rylween-full-scratch.dsl.kts` owns the current game's content and inline script bodies: towns, services, stories, rumours, missions, item effects, and branch text.
   5. `src/main/kotlin/RylweenEngine.kt` and `RylweenRuntime.kt` own interpreters, resumable sessions, and backend-neutral ports. A C bridge, pure Kotlin runtime, server runtime, or native executable should all be able to implement the same narrow input/render/RNG/persistence boundary.
   6. Tests may use small capability fixtures, but exact full-game parity tests should execute the compiled scratch game model once that harness exists. Unit fixtures are not a second source of game content truth.
+- Reusable current-game script helpers should stay as typed Kotlin extension
+  functions while their only purpose is readability and local reuse. Do not add
+  a string-keyed helper registry. Revisit typed script fragments when a runtime
+  feature needs identity across the helper boundary: persisted continuation call
+  frames, debugger/trace locations, compiled content bundle chunks, source maps,
+  or C/server/native backends invoking reusable script bodies independently.
+  The preferred future shape is generated typed handles such as
+  `GameScripts.travellerStory` with `run(GameScripts.travellerStory)`, not
+  author-maintained string ids.
 - `Flags` aliases the existing `Story` flag catalog so scripts can keep the readable `Story.garth.bandits.accepted` form while A2 has a canonical `Flags.*` entry point.
 - `Items.none` is an author-facing alias for the current id-0 `blank` item. The prototype-only `garth_cargo` item was not carried forward because it is not present in the current item shards.
 - `Images.Scene.*` names the `blitgfx` map-window pictures semantically from `src/ryl.h` and `world.json5`'s `enums.pic` table, with comments preserving the legacy `data/tiles/NN.ans` filenames. Avoid `tile01`-style handles in authoring code.
@@ -254,7 +264,7 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - The inn pass adds `choice.yesNo(...)` and `choice.takeOrLeave(...)` as reusable menu shapes, plus `forEachMember`, `healLivingMembers`, and clamped stat mutation for party-wide recovery effects.
 - The tavern pass adds reusable typed support for structured inline prompts (`structuredText { ... }`), class checks such as `member.isClass(PcClass.Bard)`, member charisma mutation, realm values such as `realm.partyMemberMax`, and hidden integer locals via `localInt(...)`. Use `localInt` for authored counters, prices, rolls, and temporary script values; keep raw `let("name", ...)` as an implementation/import escape hatch where a backend or generated script really needs a stable symbolic name.
 - The scruffy dealer is now expressed as `choice.randomItemOffer(ItemPools.tavernScruffySpecials) { ... }`. The item pool is semantic and ordered in generated metadata, matching the legacy scruffy pool without exposing numeric item ids in authoring. `RandomItemOfferSession` owns generated item name/price lookup from `ItemCatalog`, B/N purchase input, gold check, first-free inventory placement, prompt/drop overflow, and resumable continuation state. Current runtime tests pick a deterministic pool entry; true RNG selection should plug into the same session boundary.
-- Tavern traveller storytelling is current-game content, not DSL kernel functionality. Its exact text, scoring thresholds, Bard/charisma bonuses, liar penalty, `waitInput`, and charisma adjustments now live in `src/game/kotlin/RylweenGameScripts.kt` as `travellerStory()`, while the tavern script calls that helper inline. If that shape becomes reusable across Rylween worlds, introduce a game-script-library mechanism or a parameterized generic contest helper; do not put one world's story body in `RylweenDsl.kt`.
+- Tavern traveller storytelling is current-game content, not DSL kernel functionality. Its exact text, scoring thresholds, Bard/charisma bonuses, liar penalty, `waitInput`, and charisma adjustments now live in `src/game/kotlin/RylweenGameScripts.kt` as `travellerStory()`, while the tavern script calls that helper inline. Keep this as a Kotlin game-script helper until stable fragment identity is needed for persisted continuations, debugger traces, source maps, or compiled bundles. If that happens, promote it to a typed generated script-fragment handle rather than a string id. If the shape becomes reusable across Rylween worlds, introduce a game-script-library mechanism or a parameterized generic contest helper; do not put one world's story body in `RylweenDsl.kt`.
 - Random-item offers and normal shop inventory purchases reuse the same reward overflow policy vocabulary as mission rewards, and default to the reusable drop-something-and-place flow. Exact legacy "can't carry it" rejection remains an explicit opt-out for byte-parity fixtures.
 - Smith and merchant are modeled with `shopService(...)`: authoring declares the service image, local text, optional chance interlude, buy catalogs, resource buys, sell policy, and bargain policy; Kotlin/runtime owns the shop loop, menu dispatch, item-cost lookup, dynamic level-based prices, first-free-slot placement, and prompt/drop overflow.
 - The first runnable shop runtime is `ShopServiceInterpreter`, a pure Kotlin transaction interpreter over immutable `PartyState`. It executes semantic buy/sell requests from a `ShopServiceModel`, including generated item-cost lookup, level-based merchant food/potion prices, torch/food caps, first-free-slot placement, prompt/drop overflow, merchant sell policy, and smith haggle math. It stays independent of concrete terminal, C, server, or native UI implementations.
@@ -366,6 +376,7 @@ B1-B9 first-pass notes:
 - [ ] H4. Typed script/op VM. DSL delta: scripts compile to typed ops with checked operands. Native decision: VM executes ids and typed values only.
 - [ ] H5. Renderer boundary. DSL delta: scripts use `showBackdrop`, `renderMap`, `say`, `status`, not terminal cursor calls. Native decision: backend-specific terminal/image drawing.
 - [ ] H6. Remove JSON5 runtime dependency. DSL delta: all inventory rows are modeled and emitted from Kotlin. Native decision: JSON5 reader deleted or kept only as offline migration tool.
+- [ ] H7. Reusable script-fragment identity. DSL delta: typed generated handles for reusable script fragments only if compiled bundles, saved continuations, debug traces, source maps, or non-Kotlin engine adapters need to name fragment boundaries. Native decision: persisted call frames and bundle debug metadata must refer to dense ids plus diagnostic slugs; authoring should still avoid string ids.
 
 ## Complete migration inventory
 
@@ -1150,17 +1161,21 @@ The Kotlin DSL compiler or loader should validate:
 
 1. Keep current JSON5/C data as reference.
 2. Grow `src/scratch/kotlin/rylween-full-scratch.dsl.kts` into a representative typed content/state source while keeping `dsl-next.kts` as the small prototype lab.
-3. Define the native bundle structs and ids.
-4. Add C string interning and resource hash tables.
-5. Model maps, terrain, visual assets, screen regions, and render styles.
-6. Add state DSL snapshot writer/reader.
-7. Replace flag storage with dense `flag_id` indexing.
-8. Replace map bytes with terrain ids.
-9. Replace text placeholder strings with placeholder ids.
-10. Add the typed renderer boundary over the current ANSI backend.
-11. Replace the JSON node script interpreter with typed ops.
-12. Port scenes/spells/items/missions/maps from JSON5 into Kotlin DSL.
-13. Remove JSON5 from the runtime path after parity tests pass.
+3. Keep reusable script bodies as Kotlin game-script helpers until stable
+   fragment identity is required by persistence, debugging, source maps, or
+   compiled bundles.
+4. Define the native bundle structs and ids, including typed script-fragment ids
+   only if the phase-3 triggers have appeared.
+5. Add C string interning and resource hash tables.
+6. Model maps, terrain, visual assets, screen regions, and render styles.
+7. Add state DSL snapshot writer/reader.
+8. Replace flag storage with dense `flag_id` indexing.
+9. Replace map bytes with terrain ids.
+10. Replace text placeholder strings with placeholder ids.
+11. Add the typed renderer boundary over the current ANSI backend.
+12. Replace the JSON node script interpreter with typed ops.
+13. Port scenes/spells/items/missions/maps from JSON5 into Kotlin DSL.
+14. Remove JSON5 from the runtime path after parity tests pass.
 
 The final state is: Kotlin DSL is the canonical source, C consumes compiled
 typed content/state, and runtime saves are exact state DSL snapshots.
