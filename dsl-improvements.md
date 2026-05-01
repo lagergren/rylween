@@ -127,10 +127,13 @@ Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 - `Images.Scene.*` names the `blitgfx` map-window pictures semantically from `src/ryl.h` and `world.json5`'s `enums.pic` table, with comments preserving the legacy `data/tiles/NN.ans` filenames. Avoid `tile01`-style handles in authoring code.
 - `Images.Static.*` is reserved for full/static ANSI assets under `data/ansi`, separate from map-window scene pictures under `data/tiles`.
 - `NativeOps.*` is a typed catalog, but in `.kts` it must currently be represented as a class plus top-level value rather than a Kotlin `object`; script objects that call script-level helpers trigger a Kotlin script capture error.
+- DSL implementation code should be idiomatic Kotlin: prefer expression-bodied helpers, `buildList`, `apply(...).build()`, and collection operations over local scratch variables and imperative loops. Authored game blocks should stay readable as game notes.
+- B7 ownership decision: `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot`, and `silverkey` are persisted game-state milestones. Each current milestone also projects into the special-inventory view, but that is a property of the milestone, not a hard-coded rule that every win milestone is a special item.
+- `silverkey == 2` in the legacy C engine is not a Silver Key item state. It becomes a separate `Milestones.ydargVictory` completion marker so "has Silver Key" and "finished Castle Ydarg / won" are distinct states.
+- The future engine should validate winning configurations at startup and save-load time: a party is in a winning configuration only when all content-defined required milestones are achieved and the configured completion marker is present.
 
 Open design questions:
 
-- Decide B7 ownership for `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot`, and `silverkey`: story flag state, inventory item, derived capability, or typed party status.
 - Decide whether final generated catalogs should mirror JSON5 shard names exactly or use more author-facing groups such as `Images.Static` / `Images.Scene`.
 - Decide scene slug normalization before broad script porting. The scratch file starts grouping scene handles by domain, but the migration needs one canonical mapping from legacy script ids to typed `Scenes.*`.
 
@@ -142,7 +145,7 @@ Open design questions:
 - [ ] B4. Party members. DSL delta: `member(1) { name; race; class; weaponSkill; charisma; wisdom; health; hitPoints; mana }`. Native decision: field storage and target selection only.
 - [ ] B5. Derived/depletable stat rules. DSL delta: validation for `hitPoints.max == health` and `mana.max == wisdom`, plus rules that modify max/current values. Native decision: no hidden C recalculation except typed helper ops.
 - [ ] B6. Inventory slots and equipment. DSL delta: `inventory { slot(1).item(...); equipped { weapon = ...; armor = ... } }`. Native decision: low-level insert/remove/first-free-slot helpers.
-- [ ] B7. Legacy special fields. DSL delta: explicit modeling of `silverkey`, `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot` as flags, capabilities, or items. Native decision: old positional fields are migration-only.
+- [ ] B7. Legacy special fields. DSL delta: `gameProgress { milestone(...) { showsAs(...); requiredToWin(); legacyPartyField(...) } winningConfiguration { ... } }` plus `party { milestones { achieved(...) } }`. Native decision: old positional fields are migration-only; native state should store dense milestone ids, derive special-inventory display from content metadata, and treat legacy `silverkey == 2` as a separate completion marker.
 - [ ] B8. Journal and visited records. DSL delta: `journal { entry(...) }` and `visited(Npcs...)`. Native decision: persistent string/id list storage.
 - [ ] B9. Savegame emission. DSL delta: exact fully expanded `state {}` output with no hidden defaults or helper loops. Native decision: filesystem write/read plus old-save importer.
 
@@ -226,7 +229,7 @@ are allowed during migration but should have an explicit shrinking path.
 | Parties | `party.c`, `driv.c` save/load | `party(...) { ... }` state | storage, bounds checks, state mutation primitives |
 | Party members | `struct party_member` | `member(...) { health/hitPoints/wisdom/mana/... }` | primitive field access in typed VM |
 | Inventory slots | `inventory.c`, party array | `inventory { slot(n).item(...) }` state + item scripts | slot storage, low-level insert/remove helpers |
-| Special party fields | `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot`, `silverkey` | story flags, capabilities, or inventory items | temporary legacy migration only |
+| Special party fields | `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot`, `silverkey` | `gameProgress` milestones with optional special-inventory projection and win-condition metadata | dense milestone storage; legacy field importer/exporter only during migration |
 | Journal | `interact.c`, party journal | typed journal entries in state and scripts | string persistence/render append primitive |
 | NPC definitions | `world.json5 npcs`, `res.c` | `npcs { ... }` content | id lookup, runtime placement storage |
 | NPC visited bits | `struct person.visited` | `visited(Npcs...)` state | bitset/set storage keyed by npc id |
@@ -513,8 +516,9 @@ Game state belongs in the DSL too. The state model should cover at least:
 - party position
 - party resources: gold, torches, food, time left, rested hours
 - party story flags
-- special story state currently represented as fields such as `fireshield`,
-  `bracelets`, `mastercrown`, `jazzyfoot`, and `silverkey`
+- game-state milestones currently represented as fields such as `fireshield`,
+  `bracelets`, `mastercrown`, `jazzyfoot`, and `silverkey`; these may project
+  into special inventory display without occupying inventory slots
 - inventory slots
 - party members and all member stats
 - per-party attack/mail/kills state
@@ -652,6 +656,8 @@ The native layer is for generic engine service:
 
 - loading a compiled content/state bundle
 - string interning and slug-to-id hash tables
+- dense storage for content-defined game-state milestones and their save/load
+  serialization
 - deterministic RNG, wall-clock access, and delay/timer services
 - keyboard/input and line-input services
 - filesystem I/O for saves, logs, snapshots, and static assets
@@ -665,6 +671,7 @@ The native layer is not the long-term home for game rules. These should move to
 Kotlin DSL content/state/scripts:
 
 - story progression and flags
+- milestone meaning, special-inventory projection, and win-condition membership
 - map triggers and mission conditions
 - terrain semantics and movement rules
 - town/building menus
@@ -702,6 +709,15 @@ Temporary native bridges currently expected during migration:
 Permanent native services should be small and domain-neutral. For example,
 `render_map(Maps.wilderness, ScreenRegion.map)` is acceptable; `do_silver_key`
 or `shop_smith_beer_offer` is not.
+
+For B7, native should not model a hard-coded "special item" family. It should
+store achieved milestone ids, expose generic milestone set/clear/test ops to the
+typed VM, derive any special-inventory rows from milestone metadata, and run the
+content-defined winning-configuration predicate when loading a state or booting
+from an authored fixture. Legacy save import can translate `fireshield = 1`,
+`bracelets = 1`, `mastercrown = 1`, `jazzyfoot = 1`, and `silverkey = 1` into
+their matching milestones; legacy `silverkey = 2` maps to the separate Ydarg
+victory/completion milestone.
 
 ## C engine rewrite plan
 
@@ -879,15 +895,39 @@ one model, not two different game definitions.
 ### 7. Move special party fields into typed state
 
 Fields such as `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot`, and
-`silverkey` are probably story/inventory state leaking into the native party
-struct. Decide whether each becomes:
+`silverkey` are story progress leaking into the native party struct. Model them
+as content-defined game-state milestones:
 
-- a story flag state
-- a real inventory/equipment item
-- a derived capability
-- or a small typed party status field
+```kotlin
+gameProgress {
+    milestone(Milestones.silverKey) {
+        showsAs(Items.silverkey)
+        requiredToWin()
+        legacyPartyField(LegacySpecialField.Silverkey)
+    }
 
-The DSL should express the meaning. C should store the compiled representation.
+    milestone(Milestones.ydargVictory) {
+        legacyPartyField(LegacySpecialField.Silverkey, achievedValue = 2)
+    }
+
+    winningConfiguration {
+        requiresAllMilestonesMarkedRequired()
+        completedBy(Milestones.ydargVictory)
+    }
+}
+```
+
+A milestone can have multiple roles: persisted story state, special-inventory
+display row, prerequisite for winning, capability gate, or migration alias.
+Those roles are metadata on the milestone, not separate C fields and not
+slotted inventory.
+
+C should store the compiled dense milestone ids in party state, not five
+special-case bytes. The renderer/inventory view can ask content metadata which
+achieved milestones project as special items. The loader should validate the
+content-defined winning predicate at startup, and legacy `silverkey == 2` should
+map to a separate completion milestone rather than overloading the Silver Key
+state.
 
 ### 8. Load and save state DSL snapshots
 
