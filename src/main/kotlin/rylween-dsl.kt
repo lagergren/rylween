@@ -264,6 +264,9 @@ sealed interface TextBlock {
     data class Structured(val lines: List<TextLine>) : TextBlock
 }
 fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(lines.toList())
+fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock =
+    StructuredTextBlockBuilder().apply(body).build()
+
 class CharacterTextRef(private val role: NpcRole) {
     val name: TextPart = TextPart.RoleName(role)
     val location: TextPart = TextPart.RoleLocation(role)
@@ -1892,6 +1895,15 @@ sealed interface Trigger {
 enum class Gender { Male, Female }
 enum class Race { Human, Dwarf, Elf, Halfling }
 enum class PcClass { Fighter, Thief, Mage, Priest, Bard, Ranger }
+val PcClass.legacyId: Int
+    get() = when (this) {
+        PcClass.Fighter -> 1
+        PcClass.Thief -> 2
+        PcClass.Mage -> 3
+        PcClass.Priest -> 4
+        PcClass.Bard -> 5
+        PcClass.Ranger -> 6
+    }
 enum class RuntimeMode { TitleMenu, Wilderness, Town, Dungeon, Battle, YdargCastle, GameOver }
 enum class Facing { North, East, South, West }
 enum class StateKind { AuthoredFixture, RuntimeSnapshot }
@@ -2037,11 +2049,15 @@ fun random(range: IntRange): IntExpr = Expr(IntAst.Random(IntAst.Lit(range.first
 infix fun IntExpr.eq(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "eq", other.ast))
 infix fun IntExpr.eq(other: Int): BoolExpr = this eq lit(other)
 infix fun IntExpr.ne(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "ne", other.ast))
+infix fun IntExpr.ne(other: Int): BoolExpr = this ne lit(other)
 infix fun IntExpr.lt(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "lt", other.ast))
 infix fun IntExpr.lt(other: Int): BoolExpr = this lt lit(other)
-infix fun IntExpr.lte(other: Int): BoolExpr = Bool(BoolAst.Cmp(ast, "lte", IntAst.Lit(other)))
-infix fun IntExpr.gt(other: Int): BoolExpr = Bool(BoolAst.Cmp(ast, "gt", IntAst.Lit(other)))
-infix fun IntExpr.gte(other: Int): BoolExpr = Bool(BoolAst.Cmp(ast, "gte", IntAst.Lit(other)))
+infix fun IntExpr.lte(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "lte", other.ast))
+infix fun IntExpr.lte(other: Int): BoolExpr = this lte lit(other)
+infix fun IntExpr.gt(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "gt", other.ast))
+infix fun IntExpr.gt(other: Int): BoolExpr = this gt lit(other)
+infix fun IntExpr.gte(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "gte", other.ast))
+infix fun IntExpr.gte(other: Int): BoolExpr = this gte lit(other)
 
 abstract class BoolExpr {
     abstract val ast: BoolAst
@@ -2070,6 +2086,11 @@ class IntSlot(
 
 class RealmRef(private val script: ScriptScope) {
     val hour = IntSlot(script, LValueAst.RealmScalar("hour"), IntAst.RealmScalar("hour"))
+    val partyMemberMax = IntSlot(
+        script,
+        LValueAst.RealmScalar("party_member_max"),
+        IntAst.RealmScalar("party_member_max"),
+    )
 }
 
 class BoolSlot(
@@ -2098,12 +2119,16 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
     val mp = intField("magic")
     val level = intField("level")
     val wisdom = intField("wisdom")
+    val charisma = intField("charisma")
+    val pcClass = intField("class")
     val dead = BoolSlot(
         script,
         LValueAst.MemberField(index.ast, "dead"),
         BoolAst.MemberFlag(index.ast, "dead"),
     )
     val spellcaster: BoolExpr = Bool(BoolAst.MemberFlag(index.ast, "spellcaster"))
+
+    fun isClass(klass: PcClass): BoolExpr = pcClass eq klass.legacyId
 
     private fun intField(field: String): IntSlot =
         IntSlot(script, LValueAst.MemberField(index.ast, field), IntAst.MemberField(index.ast, field))
@@ -2312,6 +2337,8 @@ class ScriptScope(
         record(Op.LetInt(name, value.ast))
         return v(name)
     }
+
+    fun let(name: String, value: Int): IntExpr = let(name, lit(value))
 
     fun bind(name: String, value: StrExpr) {
         record(Op.BindText(name, value.ast))
@@ -2572,6 +2599,9 @@ class ChoiceScope(private val script: ScriptScope) {
     }
 
     fun member(prompt: TextId, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
+        script.ask.member(prompt, filter)
+
+    fun member(prompt: TextBlock, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
         script.ask.member(prompt, filter)
 
     fun member(
