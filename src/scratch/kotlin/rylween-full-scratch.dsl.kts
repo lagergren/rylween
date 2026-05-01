@@ -2,7 +2,8 @@
 //
 // This file should contain game declarations: flags, progress milestones,
 // monsters, missions, scripts, and states. DSL implementation code belongs in
-// src/main/kotlin, with validation split into rylween-dsl-validation.kt.
+// src/main/kotlin; reusable current-game script helpers belong in
+// src/game/kotlin/RylweenGameScripts.kt.
 //
 // Validate with:
 //
@@ -1652,128 +1653,7 @@ val nextRylween = rylween {
                 }
 
                 option('T') {
-                    native.screen.clearText()
-                    val maxMembers = realm.partyMemberMax
-                    val storyteller = choice.member(
-                        structuredText {
-                            line("Who wants to tell")
-                            line("a story? (1-", maxMembers, ")")
-                        },
-                    )
-
-                    whenever(storyteller.dead) {
-                        native.screen.clearText()
-                        screen {
-                            lines(
-                                "Dead men do not",
-                                "tell any great",
-                                "stories...",
-                            )
-                        }
-                        pause(2000)
-                    } otherwise {
-                        native.screen.clearText()
-                        screen {
-                            line(partyName(storyteller), " stands up")
-                            line("and screams:")
-                            line("- ANYONE WHO WANNA HEAR")
-                            line("  A TRAVELLER'S STORY?")
-                            line("")
-                        }
-                        pause(2000)
-                        screen("- YEAAH! Roars the crowd!", "")
-                        pause(2000)
-
-                        val isBoast = localInt(0)
-                        menu("(T)rue story", "(B)oast") {
-                            option('T') {}
-                            option('B') {
-                                isBoast set 1
-                            }
-                        }
-
-                        val score = localInt(0)
-                        whenever(isBoast eq 1) {
-                            score += 100
-                        }
-                        whenever(storyteller.isClass(PcClass.Bard)) {
-                            score += 100
-                        }
-                        whenever(storyteller.charisma gt 90) {
-                            score += 50
-                        }
-                        whenever(storyteller.charisma gt 70) {
-                            score += 50
-                        }
-                        score += random(1..150)
-
-                        whenever(isBoast eq 1) {
-                            whenever(random(0..99) gt storyteller.charisma) {
-                                native.screen.clearText()
-                                screen("- Out with the liar!")
-                                pause(2000)
-                                screen("You are thrown out.")
-                                whenever(storyteller.charisma gte 10) {
-                                    storyteller.charisma -= 10
-                                } otherwise {
-                                    storyteller.charisma set 0
-                                }
-                                native.screen.clearMapWindow()
-                                breakLoop("liar thrown out of tavern")
-                            }
-                        }
-
-                        native.screen.clearText()
-                        whenever(score gt 400) {
-                            screen {
-                                lines(
-                                    "Superb Story! Let's",
-                                    "give 'em some ale, lads!",
-                                    "You are given a whole",
-                                    "tray of ale!",
-                                    "",
-                                )
-                            }
-                            waitInput("after superb tavern story")
-                            storyteller.charisma += 3
-                        }
-                        whenever((score gt 300) and (score lt 401)) {
-                            screen {
-                                lines(
-                                    "Very good! You've been",
-                                    "through much!",
-                                    "",
-                                )
-                            }
-                            waitInput("after good tavern story")
-                            storyteller.charisma += 1
-                        }
-                        whenever((score gt 150) and (score lt 301)) {
-                            screen("Nice story, Sir!", "")
-                            waitInput("after nice tavern story")
-                        }
-                        whenever((score gt 100) and (score lt 151)) {
-                            screen("The mob is bored.", "")
-                            waitInput("after boring tavern story")
-                            whenever(storyteller.charisma gt 0) {
-                                storyteller.charisma -= 1
-                            }
-                        }
-                        whenever(score lt 101) {
-                            screen {
-                                lines(
-                                    "Most of the crowd",
-                                    "falls asleep. The rest",
-                                    "beg you to stop.",
-                                    "",
-                                )
-                            }
-                            waitInput("after terrible tavern story")
-                            whenever(storyteller.charisma gte 3) {
-                                storyteller.charisma -= 3
-                            }
-                        }
-                    }
+                    travellerStory()
                 }
 
                 option('R') {
