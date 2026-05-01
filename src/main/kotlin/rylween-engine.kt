@@ -45,6 +45,7 @@ sealed interface EngineTraceEvent {
     data class ShopService(val shop: ShopServiceModel) : EngineTraceEvent
     data class ShopSellQuote(val quote: ShopSellQuoteResult) : EngineTraceEvent
     data class ShopTransaction(val result: ShopTransactionResult) : EngineTraceEvent
+    data class EquipmentAction(val result: EquipmentActionResult) : EngineTraceEvent
     object ConsumeTorch : EngineTraceEvent
 }
 
@@ -303,3 +304,332 @@ class ShopServiceTraceRunner(
         )
     }
 }
+
+class EquipmentPromptTraceRunner(
+    private val engine: TraceEnginePort,
+) {
+    fun run(
+        initial: EquipmentPromptSession,
+        inputs: List<EquipmentPromptInput>,
+    ): EquipmentPromptSession {
+        var session = initial
+        renderEquipmentStep(engine, session.step)
+        inputs.forEach { input ->
+            session = session.apply(input)
+            (session.step as? EquipmentPromptStep.Finished)?.let {
+                engine.trace(EngineTraceEvent.EquipmentAction(it.result))
+            }
+            renderEquipmentStep(engine, session.step)
+        }
+        return session
+    }
+}
+
+class TownLeaveEquipmentTraceRunner(
+    private val engine: TraceEnginePort,
+) {
+    fun run(
+        initial: TownLeaveEquipmentSession,
+        inputs: List<TownLeaveEquipmentInput>,
+    ): TownLeaveEquipmentSession {
+        var session = initial
+        render(session.step)
+        inputs.forEach { input ->
+            val previousResult = session.lastResult
+            session = session.apply(input)
+            session.lastResult
+                ?.takeUnless { it == previousResult }
+                ?.let { engine.trace(EngineTraceEvent.EquipmentAction(it)) }
+            render(session.step)
+        }
+        return session
+    }
+
+    private fun render(step: TownLeaveEquipmentStep) {
+        when (step) {
+            is TownLeaveEquipmentStep.ReadyQuestion -> engine.trace(EngineTraceEvent.Menu(step.prompt, listOf('Y', 'N')))
+            is TownLeaveEquipmentStep.Equipment -> renderEquipmentStep(engine, step.session.step)
+            is TownLeaveEquipmentStep.Finished -> Unit
+        }
+    }
+}
+
+interface TerminalPort {
+    fun write(lines: List<String>)
+    fun readLine(): String?
+}
+
+data class TerminalTextContext(
+    val shopPrice: Int? = null,
+    val shopCarryCap: Int? = null,
+    val offeredItemName: String? = null,
+    val offeredItemPrice: Int? = null,
+)
+
+class TerminalTextRenderer(
+    private val references: Map<String, List<String>> = emptyMap(),
+) {
+    fun lines(block: TextBlock, context: TerminalTextContext = TerminalTextContext()): List<String> =
+        when (block) {
+            is TextBlock.Inline -> block.lines
+            is TextBlock.Ref -> references[block.id.id] ?: listOf("[${block.id.id}]")
+            is TextBlock.Structured -> block.lines.map { line ->
+                line.parts.joinToString(separator = "") { part -> render(part, context) }
+            }
+        }
+
+    private fun render(part: TextPart, context: TerminalTextContext): String =
+        when (part) {
+            is TextPart.Literal -> part.text
+            is TextPart.IntValue -> render(part.value)
+            is TextPart.StringValue -> "{string}"
+            is TextPart.RoleName -> "{${part.role.slug}.name}"
+            is TextPart.RoleLocation -> "{${part.role.slug}.location}"
+            is TextPart.TownName -> part.town.slug
+            is TextPart.FuzzyTownLocation -> "${part.town.slug} near +/-${part.radius}"
+            TextPart.OfferedItemName -> context.offeredItemName ?: "{item_name}"
+            TextPart.OfferedItemPrice -> context.offeredItemPrice?.toString() ?: "{item_price}"
+            TextPart.ShopPrice -> context.shopPrice?.toString() ?: "{price}"
+            TextPart.ShopCarryCap -> context.shopCarryCap?.toString() ?: "{cap}"
+        }
+
+    private fun render(ast: IntAst): String =
+        when (ast) {
+            is IntAst.Lit -> ast.value.toString()
+            else -> "{int}"
+        }
+}
+
+class EquipmentPromptTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun run(initial: EquipmentPromptSession): EquipmentPromptSession {
+        var session = initial
+        repeat(64) {
+            session = when (val step = session.step) {
+                is EquipmentPromptStep.ChooseInventorySlot ->
+                    readInventorySlot(session.party, step.prompt, step.filter)
+                        ?.let { session.apply(EquipmentPromptInput.InventorySlot(it)) }
+                        ?: return session
+                is EquipmentPromptStep.ChooseMember ->
+                    readMember(session.party, step.prompt, step.filter)
+                        ?.let { session.apply(EquipmentPromptInput.Member(it)) }
+                        ?: return session
+                is EquipmentPromptStep.Finished -> return session
+            }
+        }
+        return session
+    }
+
+    private fun readInventorySlot(
+        party: PartyState,
+        prompt: TextBlock,
+        filter: InventorySlotChoiceFilter,
+    ): Int? {
+        val keys = party.inventoryKeys(filter)
+        writeMenu(prompt, keys)
+        return readKey(keys)?.let { it - 'A' + 1 }
+    }
+
+    private fun readMember(
+        party: PartyState,
+        prompt: TextBlock,
+        filter: MemberChoiceFilter,
+    ): Int? {
+        val choices = party.memberChoices(filter)
+        writeMenu(prompt, choices.map { it.digitToChar() })
+        return terminal.readLine()?.trim()?.toIntOrNull()?.takeIf { it in choices }
+    }
+
+    private fun writeMenu(block: TextBlock, keys: List<Char>) {
+        terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
+    }
+
+    private fun readKey(allowed: List<Char>): Char? =
+        terminal.readLine()
+            ?.trim()
+            ?.firstOrNull()
+            ?.uppercaseChar()
+            ?.takeIf { it in allowed }
+}
+
+class TownLeaveEquipmentTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun run(initial: TownLeaveEquipmentSession): TownLeaveEquipmentSession {
+        var session = initial
+        repeat(128) {
+            session = when (val step = session.step) {
+                is TownLeaveEquipmentStep.ReadyQuestion -> {
+                    writeMenu(step.prompt, listOf('Y', 'N'))
+                    session.apply(TownLeaveEquipmentInput.ReadyAnswer(readKey(listOf('Y', 'N')) == 'Y'))
+                }
+                is TownLeaveEquipmentStep.Equipment ->
+                    readEquipmentInput(step.session)
+                        ?.let { session.apply(TownLeaveEquipmentInput.Equipment(it)) }
+                        ?: return session
+                is TownLeaveEquipmentStep.Finished -> return session
+            }
+        }
+        return session
+    }
+
+    private fun readEquipmentInput(session: EquipmentPromptSession): EquipmentPromptInput? =
+        when (val step = session.step) {
+            is EquipmentPromptStep.ChooseInventorySlot -> {
+                val keys = session.party.inventoryKeys(step.filter)
+                writeMenu(step.prompt, keys)
+                readKey(keys)?.let { EquipmentPromptInput.InventorySlot(it - 'A' + 1) }
+            }
+            is EquipmentPromptStep.ChooseMember -> {
+                val choices = session.party.memberChoices(step.filter)
+                writeMenu(step.prompt, choices.map { it.digitToChar() })
+                terminal.readLine()?.trim()?.toIntOrNull()?.takeIf { it in choices }?.let {
+                    EquipmentPromptInput.Member(it)
+                }
+            }
+            is EquipmentPromptStep.Finished -> null
+        }
+
+    private fun writeMenu(block: TextBlock, keys: List<Char>) {
+        terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
+    }
+
+    private fun readKey(allowed: List<Char>): Char? =
+        terminal.readLine()
+            ?.trim()
+            ?.firstOrNull()
+            ?.uppercaseChar()
+            ?.takeIf { it in allowed }
+}
+
+class ShopServiceTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun run(initial: ShopServiceSession): ShopServiceSession {
+        var session = initial
+        repeat(256) {
+            session = when (val step = session.step) {
+                is ShopServiceStep.Intro -> {
+                    write(step.text)
+                    session.continueIntro()
+                }
+                is ShopServiceStep.MainMenu -> {
+                    val keys = buildList {
+                        if (step.canBuy) add('B')
+                        if (step.canSell) add('S')
+                        add('L')
+                    }
+                    writeMenu(step.text, keys)
+                    when (readKey(keys) ?: 'L') {
+                        'B' -> session.chooseMain(ShopMainChoice.Buy)
+                        'S' -> session.chooseMain(ShopMainChoice.Sell)
+                        else -> session.chooseMain(ShopMainChoice.Leave)
+                    }
+                }
+                is ShopServiceStep.BuyItem -> {
+                    val entries = step.catalogs.flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
+                    val keys = entries.map { it.key }
+                    terminal.write(renderer.lines(step.prompt) + entries.map { "(${it.key}) ${it.label ?: it.item.slug}" })
+                    val key = readKey(keys) ?: return session
+                    val item = checkNotNull(entries.firstOrNull { it.key == key }) { "missing buy item for key $key" }.item
+                    session.chooseBuyItem(item)
+                }
+                is ShopServiceStep.Quantity -> {
+                    write(step.prompt)
+                    session.enterQuantity(readInt() ?: return session)
+                }
+                is ShopServiceStep.ConfirmPurchase -> {
+                    writeMenu(step.prompt, listOf('P', 'N'))
+                    session.confirmPurchase(readKey(listOf('P', 'N')) == 'P')
+                }
+                is ShopServiceStep.DropSlot -> {
+                    write(step.prompt)
+                    session.chooseDropSlot(readInventorySlot() ?: return session)
+                }
+                is ShopServiceStep.SellSlot -> {
+                    write(step.prompt)
+                    session.chooseSellSlot(readInventorySlot() ?: return session)
+                }
+                is ShopServiceStep.ConfirmSale -> {
+                    writeMenu(step.prompt, listOf('Y', 'N'), TerminalTextContext(shopPrice = step.quote.price))
+                    session.confirmSale(readKey(listOf('Y', 'N')) == 'Y')
+                }
+                is ShopServiceStep.Finished -> {
+                    write(step.text)
+                    return session
+                }
+            }
+        }
+        return session
+    }
+
+    private fun write(block: TextBlock, context: TerminalTextContext = TerminalTextContext()) {
+        terminal.write(renderer.lines(block, context))
+    }
+
+    private fun writeMenu(
+        block: TextBlock,
+        keys: List<Char>,
+        context: TerminalTextContext = TerminalTextContext(),
+    ) {
+        terminal.write(renderer.lines(block, context) + "Options: ${keys.joinToString("/")}")
+    }
+
+    private fun readKey(allowed: List<Char>): Char? =
+        terminal.readLine()
+            ?.trim()
+            ?.firstOrNull()
+            ?.uppercaseChar()
+            ?.takeIf { it in allowed }
+
+    private fun readInt(): Int? =
+        terminal.readLine()?.trim()?.toIntOrNull()
+
+    private fun readInventorySlot(): Int? =
+        readKey((0 until InventorySaveSlotMax).map { 'A' + it })
+            ?.let { it - 'A' + 1 }
+}
+
+private fun renderEquipmentStep(engine: TraceEnginePort, step: EquipmentPromptStep) {
+    when (step) {
+        is EquipmentPromptStep.ChooseInventorySlot -> engine.trace(
+            EngineTraceEvent.AskInventorySlot(
+                prompt = step.prompt,
+                firstKey = 'A',
+                slots = 1..InventorySaveSlotMax,
+                filter = step.filter,
+            ),
+        )
+        is EquipmentPromptStep.ChooseMember -> engine.trace(EngineTraceEvent.AskMember(step.prompt, step.filter))
+        is EquipmentPromptStep.Finished -> Unit
+    }
+}
+
+private fun PartyState.inventoryKeys(filter: InventorySlotChoiceFilter): List<Char> =
+    inventory
+        .filter { slot ->
+            slot.slot in 1..InventorySaveSlotMax && when (filter) {
+                InventorySlotChoiceFilter.Any -> true
+                InventorySlotChoiceFilter.NonEmpty -> slot.item != null
+                InventorySlotChoiceFilter.Empty -> slot.item == null
+            }
+        }
+        .map { slot -> 'A' + (slot.slot - 1) }
+
+private fun PartyState.memberChoices(filter: MemberChoiceFilter): List<Int> =
+    members
+        .mapIndexedNotNull { index, member ->
+            (index + 1).takeIf { member.matches(filter) }
+        }
+
+private fun PartyMemberState.matches(filter: MemberChoiceFilter): Boolean =
+    when (filter) {
+        MemberChoiceFilter.Any -> true
+        MemberChoiceFilter.AliveOnly -> !dead
+        MemberChoiceFilter.DeadOnly -> dead
+        MemberChoiceFilter.SpellcasterOnly -> !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest)
+    }

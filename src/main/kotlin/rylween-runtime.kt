@@ -6,6 +6,16 @@ enum class EquipmentKind { Weapon, Armor }
 enum class EquipmentCommand { ReadyWeapon, ReadyArmor, RemoveWeapon, RemoveArmor }
 enum class ShopMainChoice { Buy, Sell, Leave }
 
+sealed interface EquipmentPromptInput {
+    data class InventorySlot(val slot: Int) : EquipmentPromptInput
+    data class Member(val memberNumber: Int) : EquipmentPromptInput
+}
+
+sealed interface TownLeaveEquipmentInput {
+    data class ReadyAnswer(val yes: Boolean) : TownLeaveEquipmentInput
+    data class Equipment(val input: EquipmentPromptInput) : TownLeaveEquipmentInput
+}
+
 sealed interface ShopServiceInput {
     object ContinueIntro : ShopServiceInput
     data class Main(val choice: ShopMainChoice) : ShopServiceInput
@@ -97,6 +107,145 @@ data class EquipmentPromptModel(
     val memberFilter: MemberChoiceFilter,
     val inventoryFilter: InventorySlotChoiceFilter?,
 )
+
+object EquipmentPromptText {
+    val inventory = inlineText("Ready what?")
+    val who = inlineText("Who? (1-N)")
+    val readyWeapons = inlineText("Do you want to ready", "some weapons before", "leaving?", "")
+    val readyArmors = inlineText("Do you want to ready", "some armors before", "leaving?", "")
+}
+
+sealed interface EquipmentPromptStep {
+    data class ChooseInventorySlot(
+        val prompt: TextBlock,
+        val filter: InventorySlotChoiceFilter,
+    ) : EquipmentPromptStep
+    data class ChooseMember(
+        val prompt: TextBlock,
+        val filter: MemberChoiceFilter,
+    ) : EquipmentPromptStep
+    data class Finished(val result: EquipmentActionResult) : EquipmentPromptStep
+}
+
+data class EquipmentPromptSession(
+    val command: EquipmentCommand,
+    val party: PartyState,
+    val step: EquipmentPromptStep,
+    val inventorySlot: Int? = null,
+) {
+    fun apply(input: EquipmentPromptInput): EquipmentPromptSession =
+        when (val current = step) {
+            is EquipmentPromptStep.ChooseInventorySlot -> {
+                val slot = (input as? EquipmentPromptInput.InventorySlot)
+                    ?: error("equipment session is choosing an inventory slot")
+                copy(
+                    step = EquipmentPromptStep.ChooseMember(
+                        EquipmentPromptText.who,
+                        command.prompt().memberFilter,
+                    ),
+                    inventorySlot = slot.slot,
+                )
+            }
+            is EquipmentPromptStep.ChooseMember -> {
+                val member = (input as? EquipmentPromptInput.Member)
+                    ?: error("equipment session is choosing a member")
+                val result = party.applyEquipmentCommand(command, member.memberNumber, inventorySlot)
+                copy(party = result.party, step = EquipmentPromptStep.Finished(result))
+            }
+            is EquipmentPromptStep.Finished -> error("equipment session is already finished: $current")
+        }
+
+    companion object {
+        fun start(command: EquipmentCommand, party: PartyState): EquipmentPromptSession {
+            val prompt = command.prompt()
+            val step = prompt.inventoryFilter?.let {
+                EquipmentPromptStep.ChooseInventorySlot(EquipmentPromptText.inventory, it)
+            } ?: EquipmentPromptStep.ChooseMember(EquipmentPromptText.who, prompt.memberFilter)
+            return EquipmentPromptSession(command, party, step)
+        }
+    }
+}
+
+sealed interface TownLeaveEquipmentStep {
+    data class ReadyQuestion(val command: EquipmentCommand, val prompt: TextBlock) : TownLeaveEquipmentStep
+    data class Equipment(val session: EquipmentPromptSession) : TownLeaveEquipmentStep
+    data class Finished(val party: PartyState) : TownLeaveEquipmentStep
+}
+
+data class TownLeaveEquipmentSession(
+    val party: PartyState,
+    val step: TownLeaveEquipmentStep,
+    val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    val phase: Int = 0,
+    val lastResult: EquipmentActionResult? = null,
+) {
+    fun apply(input: TownLeaveEquipmentInput): TownLeaveEquipmentSession =
+        when (val current = step) {
+            is TownLeaveEquipmentStep.ReadyQuestion -> {
+                val answer = (input as? TownLeaveEquipmentInput.ReadyAnswer)
+                    ?: error("town-leave equipment session is asking a ready question")
+                if (answer.yes) {
+                    copy(step = TownLeaveEquipmentStep.Equipment(EquipmentPromptSession.start(current.command, party)))
+                } else {
+                    advance(party, lastResult = null)
+                }
+            }
+            is TownLeaveEquipmentStep.Equipment -> {
+                val equipment = (input as? TownLeaveEquipmentInput.Equipment)
+                    ?: error("town-leave equipment session is running equipment prompts")
+                val updated = current.session.apply(equipment.input)
+                when (val finished = updated.step) {
+                    is EquipmentPromptStep.Finished ->
+                        advance(updated.party, finished.result)
+                    else -> copy(step = TownLeaveEquipmentStep.Equipment(updated), party = updated.party)
+                }
+            }
+            is TownLeaveEquipmentStep.Finished ->
+                error("town-leave equipment session is already finished: $current")
+        }
+
+    private fun advance(nextParty: PartyState, lastResult: EquipmentActionResult?): TownLeaveEquipmentSession {
+        val next = nextStep(nextParty, phase + 1)
+        return copy(
+            party = nextParty,
+            phase = next.phase,
+            lastResult = lastResult,
+            step = next.step,
+        )
+    }
+
+    private fun nextStep(nextParty: PartyState, nextPhase: Int): NextTownLeaveStep =
+        readyCommands
+            .withIndex()
+            .drop(nextPhase)
+            .firstOrNull { (_, command) -> nextParty.needsTownLeaveReadyPrompt(command, itemRecords) }
+            ?.let { (index, command) ->
+                NextTownLeaveStep(index, TownLeaveEquipmentStep.ReadyQuestion(command, command.townLeavePrompt()))
+            }
+            ?: NextTownLeaveStep(readyCommands.size, TownLeaveEquipmentStep.Finished(nextParty))
+
+    private data class NextTownLeaveStep(val phase: Int, val step: TownLeaveEquipmentStep)
+
+    companion object {
+        private val readyCommands = listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)
+
+        fun start(
+            party: PartyState,
+            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+        ): TownLeaveEquipmentSession {
+            val first = readyCommands
+                .withIndex()
+                .firstOrNull { (_, command) -> party.needsTownLeaveReadyPrompt(command, itemRecords) }
+            return TownLeaveEquipmentSession(
+                party = party,
+                phase = first?.index ?: readyCommands.size,
+                itemRecords = itemRecords,
+                step = first?.value?.let { TownLeaveEquipmentStep.ReadyQuestion(it, it.townLeavePrompt()) }
+                    ?: TownLeaveEquipmentStep.Finished(party),
+            )
+        }
+    }
+}
 
 sealed interface ShopServiceStep {
     data class Intro(val text: TextBlock) : ShopServiceStep
@@ -563,6 +712,14 @@ fun EquipmentCommand.prompt(): EquipmentPromptModel =
         )
     }
 
+fun EquipmentCommand.townLeavePrompt(): TextBlock =
+    when (this) {
+        EquipmentCommand.ReadyWeapon -> EquipmentPromptText.readyWeapons
+        EquipmentCommand.ReadyArmor -> EquipmentPromptText.readyArmors
+        EquipmentCommand.RemoveWeapon,
+        EquipmentCommand.RemoveArmor -> error("$this is not a town-leave ready command")
+    }
+
 fun PartyState.applyEquipmentCommand(
     command: EquipmentCommand,
     memberNumber: Int,
@@ -573,6 +730,31 @@ fun PartyState.applyEquipmentCommand(
         EquipmentCommand.ReadyArmor -> equipFromInventory(memberNumber, inventorySlot ?: 0, EquipmentKind.Armor)
         EquipmentCommand.RemoveWeapon -> unequipToInventory(memberNumber, EquipmentKind.Weapon)
         EquipmentCommand.RemoveArmor -> unequipToInventory(memberNumber, EquipmentKind.Armor)
+    }
+
+val EquipmentActionResult.party: PartyState
+    get() = when (this) {
+        is EquipmentActionResult.Equipped -> party
+        is EquipmentActionResult.Unequipped -> party
+        is EquipmentActionResult.InvalidMember -> party
+        is EquipmentActionResult.DeadMember -> party
+        is EquipmentActionResult.InvalidInventorySlot -> party
+        is EquipmentActionResult.WrongItemKind -> party
+        is EquipmentActionResult.NothingEquipped -> party
+        is EquipmentActionResult.InventoryFull -> party
+    }
+
+fun PartyState.needsTownLeaveReadyPrompt(
+    command: EquipmentCommand,
+    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+): Boolean =
+    when (command) {
+        EquipmentCommand.ReadyWeapon ->
+            hasInventoryEquipment(EquipmentKind.Weapon, itemRecords) && hasLivingMemberWithout(EquipmentKind.Weapon)
+        EquipmentCommand.ReadyArmor ->
+            hasInventoryEquipment(EquipmentKind.Armor, itemRecords) && hasLivingMemberWithout(EquipmentKind.Armor)
+        EquipmentCommand.RemoveWeapon,
+        EquipmentCommand.RemoveArmor -> false
     }
 
 fun PartyState.consumeTorch(): TorchActionResult =
@@ -617,6 +799,19 @@ fun PartyState.foodCapacityByDonkeys(): Int =
 
 fun PartyState.hasInventoryItem(item: ItemId): Boolean =
     inventory.any { it.slot in 1..InventorySaveSlotMax && it.item == item }
+
+fun PartyState.hasInventoryEquipment(
+    kind: EquipmentKind,
+    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+): Boolean {
+    val records = itemRecords.associateBy { it.id }
+    return inventory.any { slot ->
+        slot.slot in 1..InventorySaveSlotMax && slot.item?.let { records[it]?.matches(kind) } == true
+    }
+}
+
+fun PartyState.hasLivingMemberWithout(kind: EquipmentKind): Boolean =
+    members.any { member -> !member.dead && member.equipment.item(kind) == Items.none }
 
 fun PartyState.campGearEffect(): CampGearEffect {
     val hasTent = hasInventoryItem(Items.tent)

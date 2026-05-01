@@ -647,6 +647,32 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun shopTerminalAdapterRunsBuyAndSaleFlows() {
+        val buyTerminal = FakeTerminalPort("B", "A", "99", "P", "L")
+        val buySession = ShopServiceTerminalAdapter(buyTerminal).run(
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10, torches = 78)),
+        )
+
+        assertEquals(80, buySession.party.resources.torches)
+        assertEquals(8, buySession.party.resources.gold)
+        assertTrue(buySession.step is ShopServiceStep.Finished)
+        assertTrue(buyTerminal.output.any { "Options: B/S/L" in it })
+        assertTrue(buyTerminal.output.any { "(A) torch" in it })
+
+        val saleTerminal = FakeTerminalPort("S", "A", "Y", "L")
+        val saleSession = ShopServiceTerminalAdapter(saleTerminal).run(
+            ShopServiceSession.start(
+                testMerchantShop(),
+                testParty(gold = 10, inventoryItems = mapOf(1 to Items.blanket)),
+            ),
+        )
+
+        assertEquals(25, saleSession.party.resources.gold)
+        assertEquals(null, saleSession.party.inventoryItem(1))
+        assertTrue(saleTerminal.output.any { "Offer: 15" in it })
+    }
+
+    @Test
     fun shopInterpreterSellsAcceptedItemsAndRejectsWrongShopItems() {
         val shop = testMerchantShop()
         val party = testParty(
@@ -709,6 +735,99 @@ class RylweenDslValidationTest {
         assertEquals(Items.sword, readied.party.members.single().weapon)
         assertEquals(Items.none, removed.party.members.single().weapon)
         assertEquals(Items.sword, removed.party.inventoryItem(1))
+    }
+
+    @Test
+    fun equipmentPromptTraceRunnerRunsReadyAndRemoveCommands() {
+        val readyEngine = TraceEnginePort()
+        val ready = EquipmentPromptTraceRunner(readyEngine).run(
+            EquipmentPromptSession.start(
+                EquipmentCommand.ReadyWeapon,
+                testParty(inventoryItems = mapOf(1 to Items.sword)),
+            ),
+            listOf(EquipmentPromptInput.InventorySlot(1), EquipmentPromptInput.Member(1)),
+        )
+        val removeEngine = TraceEnginePort()
+        val removed = EquipmentPromptTraceRunner(removeEngine).run(
+            EquipmentPromptSession.start(
+                EquipmentCommand.RemoveWeapon,
+                testParty(equipment = EquipmentState(Items.sword, Items.none)),
+            ),
+            listOf(EquipmentPromptInput.Member(1)),
+        )
+
+        assertEquals(Items.sword, ready.party.members.single().weapon)
+        assertEquals(null, ready.party.inventoryItem(1))
+        assertEquals(Items.none, removed.party.members.single().weapon)
+        assertEquals(Items.sword, removed.party.inventoryItem(1))
+        assertTrue(readyEngine.events[0] is EngineTraceEvent.AskInventorySlot)
+        assertTrue(readyEngine.events[1] is EngineTraceEvent.AskMember)
+        assertTrue(readyEngine.events[2] is EngineTraceEvent.EquipmentAction)
+        assertTrue(removeEngine.events[0] is EngineTraceEvent.AskMember)
+    }
+
+    @Test
+    fun townLeaveEquipmentPromptReadiesWeaponsThenArmor() {
+        val engine = TraceEnginePort()
+        val runner = TownLeaveEquipmentTraceRunner(engine)
+
+        val session = runner.run(
+            TownLeaveEquipmentSession.start(
+                testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
+            ),
+            listOf(
+                TownLeaveEquipmentInput.ReadyAnswer(true),
+                TownLeaveEquipmentInput.Equipment(EquipmentPromptInput.InventorySlot(1)),
+                TownLeaveEquipmentInput.Equipment(EquipmentPromptInput.Member(1)),
+                TownLeaveEquipmentInput.ReadyAnswer(true),
+                TownLeaveEquipmentInput.Equipment(EquipmentPromptInput.InventorySlot(2)),
+                TownLeaveEquipmentInput.Equipment(EquipmentPromptInput.Member(1)),
+            ),
+        )
+
+        assertTrue(session.step is TownLeaveEquipmentStep.Finished)
+        assertEquals(Items.sword, session.party.members.single().weapon)
+        assertEquals(Items.leather, session.party.members.single().armor)
+        assertEquals(
+            listOf(EquipmentPromptText.readyWeapons, EquipmentPromptText.readyArmors),
+            engine.events.filterIsInstance<EngineTraceEvent.Menu>().map { it.prompt },
+        )
+        assertEquals(2, engine.events.filterIsInstance<EngineTraceEvent.EquipmentAction>().size)
+    }
+
+    @Test
+    fun equipmentTerminalAdaptersRunReadyOffAndTownLeavePrompts() {
+        val readyTerminal = FakeTerminalPort("A", "1")
+        val ready = EquipmentPromptTerminalAdapter(readyTerminal).run(
+            EquipmentPromptSession.start(
+                EquipmentCommand.ReadyWeapon,
+                testParty(inventoryItems = mapOf(1 to Items.sword)),
+            ),
+        )
+        val offTerminal = FakeTerminalPort("1")
+        val removed = EquipmentPromptTerminalAdapter(offTerminal).run(
+            EquipmentPromptSession.start(
+                EquipmentCommand.RemoveWeapon,
+                testParty(equipment = EquipmentState(Items.sword, Items.none)),
+            ),
+        )
+        val leaveTerminal = FakeTerminalPort("Y", "A", "1", "Y", "B", "1")
+        val leave = TownLeaveEquipmentTerminalAdapter(leaveTerminal).run(
+            TownLeaveEquipmentSession.start(
+                testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
+            ),
+        )
+
+        assertEquals(Items.sword, ready.party.members.single().weapon)
+        assertEquals(Items.none, removed.party.members.single().weapon)
+        assertEquals(Items.sword, removed.party.inventoryItem(1))
+        assertTrue(leave.step is TownLeaveEquipmentStep.Finished)
+        assertEquals(Items.sword, leave.party.members.single().weapon)
+        assertEquals(Items.leather, leave.party.members.single().armor)
+        assertTrue(readyTerminal.output.any { "Ready what?" in it })
+        assertTrue(readyTerminal.output.any { "Options: A" in it })
+        assertTrue(offTerminal.output.any { "Who? (1-N)" in it })
+        assertEquals(2, leaveTerminal.output.count { it == "Options: Y/N" })
     }
 
     @Test
@@ -788,6 +907,7 @@ class RylweenDslValidationTest {
         level: Int = 1,
         torches: Int = 0,
         food: Int = 0,
+        equipment: EquipmentState = EquipmentState(Items.none, Items.none),
         inventoryItems: Map<Int, ItemId> = emptyMap(),
     ): PartyState =
         PartyState(
@@ -822,7 +942,7 @@ class RylweenDslValidationTest {
                     wisdom = 10,
                     mana = 0 manaOf 10,
                     charisma = 10,
-                    equipment = EquipmentState(Items.none, Items.none),
+                    equipment = equipment,
                     experience = 0,
                     dead = false,
                 ),
@@ -830,4 +950,16 @@ class RylweenDslValidationTest {
             visitedNpcs = emptyList(),
             journal = emptyList(),
         )
+
+    private class FakeTerminalPort(vararg inputs: String) : TerminalPort {
+        private val queue = ArrayDeque(inputs.toList())
+        val output = mutableListOf<String>()
+
+        override fun write(lines: List<String>) {
+            output += lines
+        }
+
+        override fun readLine(): String? =
+            queue.removeFirstOrNull()
+    }
 }
