@@ -2,7 +2,7 @@
 //
 // This file is implementation/compiler scaffolding: typed handles, immutable
 // models, builders, and recorded script ASTs. Generated metadata lives in
-// RylweenGeneratedMetadata.kt. Game-specific content belongs in
+// src/generated/kotlin/RylweenGeneratedMetadata.kt. Game-specific content belongs in
 // rylween-full-scratch.dsl.kts, with reusable game-script helpers in
 // RylweenGameScripts.kt. Validation helpers live in RylweenDslValidation.kt.
 //
@@ -38,8 +38,8 @@
 // 01. DSL kernel: typed handles and factories
 // =============================================================================
 //
-// Generated content catalogs live in RylweenGeneratedMetadata.kt. The kernel
-// keeps the reusable types and factories those catalogs are built from.
+// Generated content catalogs live in src/generated/kotlin. The kernel keeps the
+// reusable types and factories those catalogs are built from.
 
 enum class FlagScope { Party, Encounter }
 
