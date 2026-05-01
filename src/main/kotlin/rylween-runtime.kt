@@ -6,6 +6,17 @@ enum class EquipmentKind { Weapon, Armor }
 enum class EquipmentCommand { ReadyWeapon, ReadyArmor, RemoveWeapon, RemoveArmor }
 enum class ShopMainChoice { Buy, Sell, Leave }
 
+sealed interface ShopServiceInput {
+    object ContinueIntro : ShopServiceInput
+    data class Main(val choice: ShopMainChoice) : ShopServiceInput
+    data class BuyItem(val item: ItemId) : ShopServiceInput
+    data class Quantity(val quantity: Int) : ShopServiceInput
+    data class ConfirmPurchase(val accept: Boolean) : ShopServiceInput
+    data class DropSlot(val slot: Int) : ShopServiceInput
+    data class SellSlot(val slot: Int, val bargainRolls: List<Int> = emptyList()) : ShopServiceInput
+    data class ConfirmSale(val accept: Boolean) : ShopServiceInput
+}
+
 sealed interface InventoryPlacementResult {
     data class Placed(val party: PartyState, val slot: Int) : InventoryPlacementResult
     data class NeedsDropSlot(val party: PartyState) : InventoryPlacementResult

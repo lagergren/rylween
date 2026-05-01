@@ -579,6 +579,74 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun shopTraceRunnerConsumesScriptedInputsAndEmitsPrompts() {
+        val shop = testMerchantShop()
+        val engine = TraceEnginePort()
+        val runner = ShopServiceTraceRunner(engine)
+
+        val session = runner.run(
+            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78)),
+            listOf(
+                ShopServiceInput.ContinueIntro,
+                ShopServiceInput.Main(ShopMainChoice.Buy),
+                ShopServiceInput.BuyItem(Items.torch),
+                ShopServiceInput.Quantity(99),
+                ShopServiceInput.ConfirmPurchase(accept = true),
+                ShopServiceInput.Main(ShopMainChoice.Leave),
+            ),
+        )
+
+        assertEquals(80, session.party.resources.torches)
+        assertEquals(8, session.party.resources.gold)
+        assertTrue(session.step is ShopServiceStep.Finished)
+        val buy = checkNotNull(shop.buy)
+        assertEquals(EngineTraceEvent.Screen(shop.intro), engine.events[0])
+        assertEquals(EngineTraceEvent.Menu(shop.menu, listOf('B', 'S', 'L')), engine.events[1])
+        assertEquals(EngineTraceEvent.Menu(buy.prompt, listOf('A', 'B', 'C')), engine.events[2])
+        assertEquals(EngineTraceEvent.Screen((buy.offerFor(Items.torch)!!.purchase as ShopPurchaseModel.Resource).quantityPrompt), engine.events[3])
+        assertEquals(EngineTraceEvent.Menu(buy.payPrompt, listOf('P', 'N')), engine.events[4])
+        assertEquals(
+            ShopTransactionStatus.Bought,
+            engine.events.filterIsInstance<EngineTraceEvent.ShopTransaction>().single().result.status,
+        )
+        assertEquals(EngineTraceEvent.Screen(shop.goodbye), engine.events.last())
+    }
+
+    @Test
+    fun shopTraceRunnerHandlesDropSlotAndSaleQuote() {
+        val shop = testMerchantShop()
+        val engine = TraceEnginePort()
+        val runner = ShopServiceTraceRunner(engine)
+        val party = testParty(
+            gold = 100,
+            inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope } + (1 to Items.blanket),
+        )
+
+        val session = runner.run(
+            ShopServiceSession.start(shop, party),
+            listOf(
+                ShopServiceInput.ContinueIntro,
+                ShopServiceInput.Main(ShopMainChoice.Buy),
+                ShopServiceInput.BuyItem(Items.blanket),
+                ShopServiceInput.ConfirmPurchase(accept = true),
+                ShopServiceInput.DropSlot(1),
+                ShopServiceInput.Main(ShopMainChoice.Sell),
+                ShopServiceInput.SellSlot(1),
+                ShopServiceInput.ConfirmSale(accept = true),
+            ),
+        )
+
+        val transactions = engine.events.filterIsInstance<EngineTraceEvent.ShopTransaction>()
+        val quote = engine.events.filterIsInstance<EngineTraceEvent.ShopSellQuote>().single().quote
+
+        assertEquals(ShopTransactionStatus.Sold, session.lastTransaction?.status)
+        assertEquals(null, session.party.inventoryItem(1))
+        assertEquals(ShopSellQuoteStatus.Quoted, quote.status)
+        assertEquals(listOf(ShopTransactionStatus.Bought, ShopTransactionStatus.Sold), transactions.map { it.result.status })
+        assertTrue(engine.events.any { it is EngineTraceEvent.AskInventorySlot })
+    }
+
+    @Test
     fun shopInterpreterSellsAcceptedItemsAndRejectsWrongShopItems() {
         val shop = testMerchantShop()
         val party = testParty(

@@ -43,6 +43,8 @@ sealed interface EngineTraceEvent {
     data class Break(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class RandomItemOffer(val offer: RandomItemOfferModel) : EngineTraceEvent
     data class ShopService(val shop: ShopServiceModel) : EngineTraceEvent
+    data class ShopSellQuote(val quote: ShopSellQuoteResult) : EngineTraceEvent
+    data class ShopTransaction(val result: ShopTransactionResult) : EngineTraceEvent
     object ConsumeTorch : EngineTraceEvent
 }
 
@@ -215,5 +217,89 @@ class ScriptTraceRunner(
 
     private fun trace(event: EngineTraceEvent) {
         (engine as? TraceEnginePort)?.trace(event)
+    }
+}
+
+class ShopServiceTraceRunner(
+    private val engine: TraceEnginePort,
+) {
+    fun run(
+        initial: ShopServiceSession,
+        inputs: List<ShopServiceInput>,
+    ): ShopServiceSession {
+        var session = initial
+        render(session.step)
+        inputs.forEach { input ->
+            val previous = session
+            session = session.apply(input)
+            traceResult(previous, session)
+            render(session.step)
+        }
+        return session
+    }
+
+    private fun ShopServiceSession.apply(input: ShopServiceInput): ShopServiceSession =
+        when (input) {
+            ShopServiceInput.ContinueIntro -> continueIntro()
+            is ShopServiceInput.Main -> chooseMain(input.choice)
+            is ShopServiceInput.BuyItem -> chooseBuyItem(input.item)
+            is ShopServiceInput.Quantity -> enterQuantity(input.quantity)
+            is ShopServiceInput.ConfirmPurchase -> confirmPurchase(input.accept)
+            is ShopServiceInput.DropSlot -> chooseDropSlot(input.slot)
+            is ShopServiceInput.SellSlot -> chooseSellSlot(input.slot, input.bargainRolls)
+            is ShopServiceInput.ConfirmSale -> confirmSale(input.accept)
+        }
+
+    private fun traceResult(previous: ShopServiceSession, session: ShopServiceSession) {
+        session.lastSellQuote
+            ?.takeUnless { it == previous.lastSellQuote }
+            ?.let { engine.trace(EngineTraceEvent.ShopSellQuote(it)) }
+        session.lastTransaction
+            ?.takeUnless { it == previous.lastTransaction }
+            ?.let { engine.trace(EngineTraceEvent.ShopTransaction(it)) }
+    }
+
+    private fun render(step: ShopServiceStep) {
+        when (step) {
+            is ShopServiceStep.Intro -> screen(step.text)
+            is ShopServiceStep.MainMenu -> menu(
+                step.text,
+                buildList {
+                    if (step.canBuy) add('B')
+                    if (step.canSell) add('S')
+                    add('L')
+                },
+            )
+            is ShopServiceStep.BuyItem -> menu(
+                step.prompt,
+                step.catalogs.flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
+                    .map { entry -> entry.key },
+            )
+            is ShopServiceStep.Quantity -> screen(step.prompt)
+            is ShopServiceStep.ConfirmPurchase -> menu(step.prompt, listOf('P', 'N'))
+            is ShopServiceStep.DropSlot -> inventorySlot(step.prompt)
+            is ShopServiceStep.SellSlot -> inventorySlot(step.prompt)
+            is ShopServiceStep.ConfirmSale -> menu(step.prompt, listOf('Y', 'N'))
+            is ShopServiceStep.Finished -> screen(step.text)
+        }
+    }
+
+    private fun screen(text: TextBlock) {
+        engine.trace(EngineTraceEvent.Screen(text))
+    }
+
+    private fun menu(prompt: TextBlock, keys: List<Char>) {
+        engine.trace(EngineTraceEvent.Menu(prompt, keys))
+    }
+
+    private fun inventorySlot(prompt: TextBlock) {
+        engine.trace(
+            EngineTraceEvent.AskInventorySlot(
+                prompt = prompt,
+                firstKey = 'A',
+                slots = 1..InventorySaveSlotMax,
+                filter = InventorySlotChoiceFilter.NonEmpty,
+            ),
+        )
     }
 }
