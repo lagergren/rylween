@@ -895,6 +895,26 @@ class RoleRefs {
     val wizardThreeTasks = npcRole("wizard_three_tasks")
     val silverKeySmith = npcRole("silver_key_smith")
     val hermitTrollTooth = npcRole("hermit_troll_tooth")
+
+    val all = listOf(
+        banditsQuestGiver,
+        rangersQuestGiver,
+        crownSeer,
+        templeOfThunSeer,
+        masterThief,
+        fighterIntro,
+        priestWithBook,
+        silverKeyVendor,
+        jazzyOgreTrader,
+        wizardRobbed,
+        erethorLuteBard,
+        rangerBrother,
+        peasantHusband,
+        minstrelCloak,
+        wizardThreeTasks,
+        silverKeySmith,
+        hermitTrollTooth,
+    )
 }
 val NpcRoles = RoleRefs()
 val Roles = NpcRoles
@@ -1475,6 +1495,7 @@ data class MagicItemModel(
 sealed interface CharacterPlacementModel {
     data class Fixed(val position: WorldPosition) : CharacterPlacementModel
     object Randomized : CharacterPlacementModel
+    object RandomizedWilderness : CharacterPlacementModel
 }
 
 data class CharacterModel(
@@ -2484,6 +2505,14 @@ class CharacterCatalogBuilder {
         characters += CharacterBuilder(id).apply(body).build()
     }
 
+    fun character(id: NpcId, name: String, job: NpcJobId, body: CharacterBuilder.() -> Unit = {}) {
+        characters += CharacterBuilder(id).apply {
+            this.name = name
+            this.job = job
+            body()
+        }.build()
+    }
+
     fun build(): List<CharacterModel> = characters.toList()
 }
 
@@ -2501,6 +2530,10 @@ class CharacterBuilder(private val id: NpcId) {
 
     fun randomPlacement() {
         placementModel = CharacterPlacementModel.Randomized
+    }
+
+    fun randomWilderness() {
+        placementModel = CharacterPlacementModel.RandomizedWilderness
     }
 
     fun role(vararg roles: NpcRole) {
@@ -2832,8 +2865,8 @@ class SpeakTextTablesBuilder {
     private val questionReplies = mutableListOf<QuestionReplyTextModel>()
     private val rumourTables = mutableListOf<RumourTextTableModel>()
 
-    fun screen(id: TextId, vararg lines: String) {
-        screens += ReusableScreenTextModel(id, TextBlock.Inline(lines.toList()))
+    fun screen(id: TextId, body: StructuredTextBlockBuilder.() -> Unit) {
+        screens += ReusableScreenTextModel(id, StructuredTextBlockBuilder().apply(body).build())
     }
 
     fun chitchatPrompt(subject: ChitchatSubject, body: ChitchatPromptTextBuilder.() -> Unit) {
@@ -2866,16 +2899,25 @@ class SpeakTextTablesBuilder {
 class ChitchatPromptTextBuilder(private val subject: ChitchatSubject) {
     private val variants = mutableListOf<ChitchatPromptVariantModel>()
 
-    fun any(vararg lines: String) {
-        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Any, TextBlock.Inline(lines.toList()))
+    fun any(body: StructuredTextBlockBuilder.() -> Unit) {
+        variants += ChitchatPromptVariantModel(
+            ChitchatPromptAudience.Any,
+            StructuredTextBlockBuilder().apply(body).build(),
+        )
     }
 
-    fun female(vararg lines: String) {
-        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Female, TextBlock.Inline(lines.toList()))
+    fun female(body: StructuredTextBlockBuilder.() -> Unit) {
+        variants += ChitchatPromptVariantModel(
+            ChitchatPromptAudience.Female,
+            StructuredTextBlockBuilder().apply(body).build(),
+        )
     }
 
-    fun male(vararg lines: String) {
-        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Male, TextBlock.Inline(lines.toList()))
+    fun male(body: StructuredTextBlockBuilder.() -> Unit) {
+        variants += ChitchatPromptVariantModel(
+            ChitchatPromptAudience.Male,
+            StructuredTextBlockBuilder().apply(body).build(),
+        )
     }
 
     fun build(): ChitchatPromptTextModel = ChitchatPromptTextModel(subject, variants.toList())
@@ -2887,6 +2929,14 @@ class StructuredTextBlockBuilder {
 
     fun line(vararg parts: Any) {
         lines += TextLine(parts.map(::toTextPart))
+    }
+
+    fun lines(vararg lines: String) {
+        lines.forEach { line(it) }
+    }
+
+    fun lines(body: StructuredTextBlockBuilder.() -> Unit) {
+        body()
     }
 
     fun build(): TextBlock = TextBlock.Structured(lines.toList())
@@ -2903,10 +2953,6 @@ class StructuredTextBlockBuilder {
 class JobTextTableBuilder {
     private val replies = mutableListOf<JobTextModel>()
 
-    fun job(id: NpcJobId, vararg lines: String) {
-        replies += JobTextModel(id, TextBlock.Inline(lines.toList()))
-    }
-
     fun job(id: NpcJobId, body: StructuredTextBlockBuilder.() -> Unit) {
         replies += JobTextModel(id, StructuredTextBlockBuilder().apply(body).build())
     }
@@ -2917,10 +2963,6 @@ class JobTextTableBuilder {
 @RylNextDsl
 class RumourTextTableBuilder(private val id: RumourTableId) {
     private val entries = mutableListOf<RumourEntryModel>()
-
-    fun rumour(id: RumourId, vararg lines: String) {
-        entries += RumourEntryModel(id, TextBlock.Inline(lines.toList()), emptyList())
-    }
 
     fun rumour(id: RumourId, body: RumourEntryBuilder.() -> Unit) {
         entries += RumourEntryBuilder(id).apply(body).build()
@@ -2936,6 +2978,14 @@ class RumourEntryBuilder(private val id: RumourId) {
 
     fun line(vararg parts: Any) {
         text.line(*parts)
+    }
+
+    fun lines(vararg lines: String) {
+        text.lines(*lines)
+    }
+
+    fun lines(body: StructuredTextBlockBuilder.() -> Unit) {
+        text.body()
     }
 
     fun excludeWhen(vararg states: FlagState) {
@@ -3896,6 +3946,21 @@ fun validateCharacters(characters: List<CharacterModel>) {
         check(character.job in NpcJobs.all) { "character ${character.id.slug} has unknown job ${character.job.slug}" }
         check(character.roles.toSet().size == character.roles.size) {
             "character ${character.id.slug} has duplicate roles"
+        }
+        character.roles.forEach { role ->
+            check(role in NpcRoles.all) { "character ${character.id.slug} has unknown role ${role.slug}" }
+        }
+        when (val placement = character.placement) {
+            is CharacterPlacementModel.Fixed -> when (val position = placement.position) {
+                is WorldPosition.Wilderness -> {
+                    check(position.point.x >= 0 && position.point.y >= 0) {
+                        "character ${character.id.slug} has invalid wilderness coordinate ${position.point}"
+                    }
+                }
+                is WorldPosition.Town -> Unit
+            }
+            CharacterPlacementModel.Randomized,
+            CharacterPlacementModel.RandomizedWilderness -> Unit
         }
     }
 }

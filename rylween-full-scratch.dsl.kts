@@ -188,111 +188,310 @@ val nextRylween = rylween {
         }
 
         textTables {
-            screen(T.Speak.noNpc, "Noone is here!")
-            screen(T.Speak.recognizePre, "{npc_name} nods as")
-            screen(T.Speak.recognizeHe, "he recognizes you.")
-            screen(T.Speak.recognizeShe, "she recognizes you.")
-            screen(T.Speak.tellsYouPre, "{npc_name} tells you:", "")
-            screen(T.Speak.chatting, "Chatting with", "{npc_name}:", "")
-            screen(T.Speak.menu, "(C)hitchat", "(Q)uestion", "(R)umors", "(B)ye")
-            screen(T.Speak.question, "(L)odging", "(M)agic", "(P)eople", "(N)othing")
-            screen(T.Speak.noRumour, "- Sorry. There's", "nothing new I can", "tell you.", "")
+            screen(T.Speak.noNpc) {
+                lines("Noone is here!")
+            }
+            screen(T.Speak.recognizePre) {
+                lines("{npc_name} nods as")
+            }
+            screen(T.Speak.recognizeHe) {
+                lines("he recognizes you.")
+            }
+            screen(T.Speak.recognizeShe) {
+                lines("she recognizes you.")
+            }
+            screen(T.Speak.tellsYouPre) {
+                lines("{npc_name} tells you:", "")
+            }
+            screen(T.Speak.chatting) {
+                lines("Chatting with", "{npc_name}:", "")
+            }
+            screen(T.Speak.menu) {
+                lines("(C)hitchat", "(Q)uestion", "(R)umors", "(B)ye")
+            }
+            screen(T.Speak.question) {
+                lines("(L)odging", "(M)agic", "(P)eople", "(N)othing")
+            }
+            screen(T.Speak.noRumour) {
+                lines("- Sorry. There's", "nothing new I can", "tell you.", "")
+            }
 
             chitchatPrompt(ChitchatSubject.Well) {
-                female("- You look well today,", "  miss...")
-                male("- You look well today,", "  Sir...")
+                female {
+                    lines("- You look well today,", "  miss...")
+                }
+                male {
+                    lines("- You look well today,", "  Sir...")
+                }
             }
             chitchatPrompt(ChitchatSubject.Weather) {
-                any("- Nice weather we're", "  having...")
+                any {
+                    lines("- Nice weather we're", "  having...")
+                }
             }
             chitchatPrompt(ChitchatSubject.Health) {
-                female("- Is all well with", "  you, miss?")
-                male("- Is all well with", "  you, Sir?")
+                female {
+                    lines("- Is all well with", "  you, miss?")
+                }
+                male {
+                    lines("- Is all well with", "  you, Sir?")
+                }
             }
 
             chitchatReplies(ChitchatSubject.Well) {
-                job(NpcJobs.merchant, "- Thanks, and the same", "to you!")
+                job(NpcJobs.merchant) {
+                    lines("- Thanks, and the same", "to you!")
+                }
             }
             chitchatReplies(ChitchatSubject.Weather) {
-                job(NpcJobs.merchant, "- I think it will rain.")
+                job(NpcJobs.merchant) {
+                    lines("- I think it will rain.")
+                }
             }
             chitchatReplies(ChitchatSubject.Health) {
-                job(NpcJobs.merchant, "- All's well, thanks.")
+                job(NpcJobs.merchant) {
+                    lines("- All's well, thanks.")
+                }
             }
 
             questionReplies(QuestionTopic.People) {
-                job(NpcJobs.merchant, "- Well, I don't know", "that many people.")
+                job(NpcJobs.merchant) {
+                    lines("- Well, I don't know", "that many people.")
+                }
                 job(NpcJobs.bard) {
-                    line("- Rumour has it that a")
-                    line("fighter called")
-                    line(character(Roles.fighterIntro).name)
-                    line("has a mission for you.")
+                    lines {
+                        line("- Rumour has it that a")
+                        line("fighter called")
+                        line(character(Roles.fighterIntro).name)
+                        line("has a mission for you.")
+                    }
                 }
             }
             questionReplies(QuestionTopic.Magic) {
-                job(
-                    NpcJobs.merchant,
-                    "- It is said that the",
-                    "Master Crown is the",
-                    "most powerful object",
-                    "in the realm.",
-                )
-                job(NpcJobs.ranger, "- You will need five", "magical items to", "defeat baron Ydarg.")
+                job(NpcJobs.merchant) {
+                    lines("- It is said that the", "Master Crown is the", "most powerful object", "in the realm.")
+                }
+                job(NpcJobs.ranger) {
+                    lines("- You will need five", "magical items to", "defeat baron Ydarg.")
+                }
             }
             questionReplies(QuestionTopic.Lodging) {
-                job(NpcJobs.merchant, "- Well. The city inn is", "a good try.")
-                job(NpcJobs.ranger, "- I sleep under the open", "skies. Just beware of", "bandits if you do this!")
+                job(NpcJobs.merchant) {
+                    lines("- Well. The city inn is", "a good try.")
+                }
+                job(NpcJobs.ranger) {
+                    lines("- I sleep under the open", "skies. Just beware of", "bandits if you do this!")
+                }
             }
 
             rumourTable(RumourTables.standardTown) {
-                rumour(Rumours.ydargCastleHidden, "Baron Ydarg's castle", "Zadraz is hidden in a", "forest to the soutwest.")
+                rumour(Rumours.ydargCastleHidden) {
+                    lines("Baron Ydarg's castle", "Zadraz is hidden in a", "forest to the soutwest.")
+                }
                 rumour(Rumours.banditsQuestGiver) {
                     excludeWhen(Story.garth.bandits.recovered, Story.garth.bandits.closed)
-                    line("A man named ", character(Roles.banditsQuestGiver).name)
-                    line("will pay you for")
-                    line("killing some bandits.")
+                    lines {
+                        line("A man named ", character(Roles.banditsQuestGiver).name)
+                        line("will pay you for")
+                        line("killing some bandits.")
+                    }
                 }
                 rumour(Rumours.crownSeer) {
-                    line("A man named ", character(Roles.crownSeer).name)
-                    line("knows of the Crown.")
-                    line("He lives ", character(Roles.crownSeer).location, "!")
+                    lines {
+                        line("A man named ", character(Roles.crownSeer).name)
+                        line("knows of the Crown.")
+                        line("He lives ", character(Roles.crownSeer).location, "!")
+                    }
                 }
                 rumour(Rumours.templeOfThunSeer) {
-                    line("Seek ", character(Roles.templeOfThunSeer).name, " if you")
-                    line("search the Temple of")
-                    line("Thun! He lives ", character(Roles.templeOfThunSeer).location)
+                    lines {
+                        line("Seek ", character(Roles.templeOfThunSeer).name, " if you")
+                        line("search the Temple of")
+                        line("Thun! He lives ", character(Roles.templeOfThunSeer).location)
+                    }
                 }
             }
         }
     }
 
     characters {
-        character(Npcs.garth) {
-            name = "Garth"
-            job = NpcJobs.merchant
+        character(Npcs.garth, "Garth", NpcJobs.merchant) {
             fixed(Towns.thord.inn)
             role(Roles.banditsQuestGiver)
         }
 
-        character(Npcs.areth) {
-            name = "Areth"
-            job = NpcJobs.fighter
+        character(Npcs.nrimTo, "Nrim'to", NpcJobs.ranger) {
+            randomPlacement()
+            role(Roles.rangersQuestGiver)
+        }
+
+        character(Npcs.areth, "Areth", NpcJobs.fighter) {
             randomPlacement()
             role(Roles.fighterIntro)
         }
 
-        character(Npcs.broth) {
-            name = "Broth"
-            job = NpcJobs.fighter
+        character(Npcs.nevaak, "Nevaak", NpcJobs.wizard) {
+            randomPlacement()
+            role(Roles.wizardRobbed)
+        }
+
+        character(Npcs.gorm, "Gorm", NpcJobs.priest) {
+            randomPlacement()
+            role(Roles.priestWithBook)
+        }
+
+        character(Npcs.bernak, "Bernak", NpcJobs.thief) {
+            randomPlacement()
+            role(Roles.silverKeyVendor)
+        }
+
+        character(Npcs.matias, "Matias", NpcJobs.peasant) {
+            randomPlacement()
+        }
+
+        character(Npcs.tybalt, "Tybalt", NpcJobs.bard) {
+            randomPlacement()
+            role(Roles.erethorLuteBard)
+        }
+
+        character(Npcs.romeo, "Romeo", NpcJobs.drifter) {
+            randomPlacement()
+        }
+
+        character(Npcs.werra, "Werra", NpcJobs.halfOrc) {
+            randomPlacement()
+        }
+
+        character(Npcs.arenjun, "Arenjun", NpcJobs.halfElf) {
+            randomPlacement()
+        }
+
+        character(Npcs.oskar, "Oskar", NpcJobs.smith) {
+            randomPlacement()
+        }
+
+        character(Npcs.harry, "Harry", NpcJobs.merchant) {
+            randomPlacement()
+            role(Roles.templeOfThunSeer)
+        }
+
+        character(Npcs.marraga, "Marraga", NpcJobs.ranger) {
+            randomPlacement()
+            role(Roles.rangerBrother)
+        }
+
+        character(Npcs.broth, "Broth", NpcJobs.fighter) {
             randomPlacement()
             role(Roles.crownSeer)
         }
 
-        character(Npcs.harry) {
-            name = "Harry"
-            job = NpcJobs.merchant
+        character(Npcs.ebond, "Ebond", NpcJobs.wizard) {
             randomPlacement()
-            role(Roles.templeOfThunSeer)
+        }
+
+        character(Npcs.bolph, "Bolph", NpcJobs.priest) {
+            randomPlacement()
+        }
+
+        character(Npcs.gotharp, "Gotharp", NpcJobs.thief) {
+            randomPlacement()
+            role(Roles.masterThief)
+        }
+
+        character(Npcs.ron, "Ron", NpcJobs.peasant) {
+            randomPlacement()
+            role(Roles.peasantHusband)
+        }
+
+        character(Npcs.kaal, "Kaal", NpcJobs.bard) {
+            randomPlacement()
+            role(Roles.minstrelCloak)
+        }
+
+        character(Npcs.daniel, "Daniel", NpcJobs.drifter) {
+            randomPlacement()
+        }
+
+        character(Npcs.leander, "Leander", NpcJobs.halfOrc) {
+            randomPlacement()
+            role(Roles.jazzyOgreTrader)
+        }
+
+        character(Npcs.ithienn, "Ithienn", NpcJobs.halfElf) {
+            randomPlacement()
+            role(Roles.wizardThreeTasks)
+        }
+
+        character(Npcs.azaaza, "Azaaza", NpcJobs.smith) {
+            randomPlacement()
+            role(Roles.silverKeySmith)
+        }
+
+        character(Npcs.hassan, "Hassan", NpcJobs.innkeeper) {
+            fixed(Towns.thord.inn)
+        }
+
+        character(Npcs.luqas, "Luqas", NpcJobs.innkeeper) {
+            fixed(Towns.ollk.inn)
+        }
+
+        character(Npcs.darth, "Darth", NpcJobs.innkeeper) {
+            fixed(Towns.wilor.inn)
+        }
+
+        character(Npcs.yog, "Yog", NpcJobs.innkeeper) {
+            fixed(Towns.murn.inn)
+        }
+
+        character(Npcs.niklas, "Niklas", NpcJobs.tavernkeeper) {
+            fixed(Towns.thord.tavern)
+        }
+
+        character(Npcs.tokawa, "Tokawa", NpcJobs.tavernkeeper) {
+            fixed(Towns.ollk.tavern)
+        }
+
+        character(Npcs.miyaki, "Miyaki", NpcJobs.tavernkeeper) {
+            fixed(Towns.wilor.tavern)
+        }
+
+        character(Npcs.dargoth, "Dargoth", NpcJobs.tavernkeeper) {
+            fixed(Towns.murn.tavern)
+        }
+
+        character(Npcs.marcus, "Marcus", NpcJobs.hermit) {
+            fixed(Wilderness.xy(48, 7))
+            role(Roles.hermitTrollTooth)
+        }
+
+        character(Npcs.deanna, "Deanna", NpcJobs.bargirl) {
+            gender = Gender.Female
+            fixed(Towns.thord.tavern)
+        }
+
+        character(Npcs.jeanne, "Jeanne", NpcJobs.bargirl) {
+            gender = Gender.Female
+            fixed(Towns.wilor.tavern)
+        }
+
+        // The original C puts these trailing merchant slots in wilderness at
+        // 0,0. Authoring should state intent instead of inheriting an implicit
+        // origin hut, so keep them as wilderness-randomized people unless old
+        // data archaeology proves explicit hut coordinates.
+        character(Npcs.alex, "Alex", NpcJobs.merchant) {
+            randomWilderness()
+        }
+
+        character(Npcs.galdon, "Galdon", NpcJobs.merchant) {
+            randomWilderness()
+        }
+
+        character(Npcs.kosch, "Kosch", NpcJobs.merchant) {
+            randomWilderness()
+        }
+
+        character(Npcs.ufarsin, "Ufarsin", NpcJobs.merchant) {
+            randomWilderness()
         }
     }
 
@@ -930,8 +1129,13 @@ check(nextDsl.speak.textTables.rumourTables.single().entries.any { it.id == Rumo
 check(nextDsl.speak.textTables.rumourTables.single().entries.single {
     it.id == Rumours.banditsQuestGiver
 }.excludedBy == listOf(Story.garth.bandits.recovered, Story.garth.bandits.closed))
-check(nextDsl.characters.size == 4)
+check(nextDsl.characters.size == 39)
 check(nextDsl.characters.single { Roles.crownSeer in it.roles }.placement == CharacterPlacementModel.Randomized)
+check(nextDsl.characters.single { it.id == Npcs.marcus }.placement == CharacterPlacementModel.Fixed(Wilderness.xy(48, 7)))
+check(listOf(Npcs.alex, Npcs.galdon, Npcs.kosch, Npcs.ufarsin).all { npc ->
+    nextDsl.characters.single { it.id == npc }.placement == CharacterPlacementModel.RandomizedWilderness
+})
+check(nextDsl.characters.flatMap { it.roles }.toSet() == NpcRoles.all.toSet())
 check(nextDsl.monsters.size == 2)
 check(nextDsl.scenes.size == 5)
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
