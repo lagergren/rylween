@@ -990,7 +990,7 @@ val nextRylween = rylween {
             menu(T.Towne.Church.menu) {
                 option('H') {
                     native.screen.clearText()
-                    val m = ask.member(T.Towne.Church.who)
+                    val m = choice.member(T.Towne.Church.who)
 
                     when_(m.dead) {
                         screen {
@@ -1006,8 +1006,9 @@ val nextRylween = rylween {
                     }
 
                     when_(m.hp eq m.maxHp) {
-                        bind("pro_sub", pronoun(m, PronounCase.Subject))
-                        screen("{pro_sub} needs no healing.")
+                        screen {
+                            line(pronoun(m, PronounCase.Subject), " needs no healing.")
+                        }
                         pause(1000)
                         stop("already fully healed")
                     }
@@ -1015,46 +1016,36 @@ val nextRylween = rylween {
                     val price = let("cost", (m.maxHp - m.hp) * 7)
                     native.screen.clearText()
                     screen {
-                        lines(
-                            "- That'll be {cost}",
-                            "gold coins, please.",
-                            "",
-                        )
+                        line("- That'll be ", price)
+                        line("gold coins, please.")
+                        line("")
                     }
 
-                    menu("(P)ay", "(N)o thanks") {
-                        option('P') {
-                            pay(price,
-                                broke = {
-                                    screen {
-                                        lines(
-                                            "You don't have enough",
-                                            "gold!",
-                                        )
-                                    }
-                                    pause(1000)
-                                },
-                                ok = {
-                                    native.screen.clearText()
-                                    m.hp set m.maxHp
-                                    bind("pro_obj", pronoun(m, PronounCase.Object))
-                                    screen {
-                                        lines(
-                                            "The priestess heals",
-                                            "{pro_obj} fully.",
-                                        )
-                                    }
-                                    pause(1000)
-                                },
-                            )
-                        }
-                        option('N') {}
-                    }
+                    choice.payNoThanks(price,
+                        broke = {
+                            screen {
+                                lines(
+                                    "You don't have enough",
+                                    "gold!",
+                                )
+                            }
+                            pause(1000)
+                        },
+                        paid = {
+                            native.screen.clearText()
+                            m.hp set m.maxHp
+                            screen {
+                                line("The priestess heals")
+                                line(pronoun(m, PronounCase.Object), " fully.")
+                            }
+                            pause(1000)
+                        },
+                    )
                 }
 
                 option('E') {
                     native.screen.clearText()
-                    val m = ask.member(T.Towne.Church.who)
+                    val m = choice.member(T.Towne.Church.who)
 
                     when_(!m.spellcaster) {
                         native.screen.clearText()
@@ -1079,50 +1070,40 @@ val nextRylween = rylween {
                     native.screen.clearText()
                     val price = let("cost", m.level * (m.wisdom - m.mp) * 2)
                     screen {
-                        lines(
-                            "- That will be {cost}",
-                            "gold coins, please.",
-                            "",
-                        )
+                        line("- That will be ", price)
+                        line("gold coins, please.")
+                        line("")
                     }
 
-                    menu("(P)ay", "(N)o thanks") {
-                        option('P') {
+                    choice.payNoThanks(price,
+                        broke = {
                             native.screen.clearText()
-                            pay(price,
-                                broke = {
-                                    screen("You don't have the gold!")
-                                    pause(1000)
-                                },
-                                ok = {
-                                    m.mp set m.wisdom
-                                    native.screen.clearText()
-                                    screen {
-                                        lines(
-                                            "The priestess",
-                                            "restores his energy.",
-                                        )
-                                    }
-                                    pause(1000)
-                                },
-                            )
-                        }
-                        option('N') {}
-                    }
+                            screen("You don't have the gold!")
+                            pause(1000)
+                        },
+                        paid = {
+                            m.mp set m.wisdom
+                            native.screen.clearText()
+                            screen {
+                                lines(
+                                    "The priestess",
+                                    "restores his energy.",
+                                )
+                            }
+                            pause(1000)
+                        },
+                    )
                 }
 
                 option('R') {
                     native.screen.clearText()
-                    val m = ask.member(T.Towne.Church.who)
+                    val m = choice.member(T.Towne.Church.who)
 
                     when_(!m.dead) {
                         native.screen.clearText()
-                        bind("pro_sub", pronoun(m, PronounCase.Subject))
                         screen {
-                            lines(
-                                "- {pro_sub} seems very alive",
-                                "at the moment.",
-                            )
+                            line("- ", pronoun(m, PronounCase.Subject), " seems very alive")
+                            line("at the moment.")
                         }
                         pause(1200)
                         stop("already alive")
@@ -1131,39 +1112,29 @@ val nextRylween = rylween {
                     native.screen.clearText()
                     val price = let("cost", m.level * 650)
                     screen {
-                        lines(
-                            "- That will be {cost}",
-                            "gold coins, please.",
-                            "",
-                        )
+                        line("- That will be ", price)
+                        line("gold coins, please.")
+                        line("")
                     }
 
-                    menu("(P)ay", "(N)o thanks") {
-                        option('P') {
+                    choice.payNoThanks(price,
+                        broke = {
                             native.screen.clearText()
-                            pay(price,
-                                broke = {
-                                    screen("You don't have the gold!")
-                                    pause(1000)
-                                },
-                                ok = {
-                                    m.hp set 1
-                                    m.dead set false
-                                    party.memberCount += 1
-                                    native.screen.clearText()
-                                    bind("pro_obj", pronoun(m, PronounCase.Object))
-                                    screen {
-                                        lines(
-                                            "The priestess raises",
-                                            "{pro_obj}.",
-                                        )
-                                    }
-                                    pause(1000)
-                                },
-                            )
-                        }
-                        option('N') {}
-                    }
+                            screen("You don't have the gold!")
+                            pause(1000)
+                        },
+                        paid = {
+                            m.hp set 1
+                            m.dead set false
+                            party.memberCount += 1
+                            native.screen.clearText()
+                            screen {
+                                line("The priestess raises")
+                                line(pronoun(m, PronounCase.Object), ".")
+                            }
+                            pause(1000)
+                        },
+                    )
                 }
 
                 option('L') {

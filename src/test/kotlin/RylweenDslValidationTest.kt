@@ -206,4 +206,65 @@ class RylweenDslValidationTest {
             engine.events.single(),
         )
     }
+
+    @Test
+    fun traceEngineRecordsReusableChoices() {
+        val engine = TraceEnginePort()
+        val runner = ScriptTraceRunner(engine)
+
+        runner.run(
+            listOf(
+                Op.AskMember(TextBlock.Ref(T.Towne.Church.who), "who", MemberChoiceFilter.DeadOnly),
+                Op.AskInventorySlot(
+                    TextBlock.Inline(listOf("Which item?")),
+                    "slot",
+                    'A',
+                    1..InventorySaveSlotMax,
+                    InventorySlotChoiceFilter.NonEmpty,
+                ),
+            ),
+        )
+
+        assertEquals(
+            EngineTraceEvent.AskMember(TextBlock.Ref(T.Towne.Church.who), MemberChoiceFilter.DeadOnly),
+            engine.events[0],
+        )
+        assertEquals(
+            EngineTraceEvent.AskInventorySlot(
+                TextBlock.Inline(listOf("Which item?")),
+                'A',
+                1..InventorySaveSlotMax,
+                InventorySlotChoiceFilter.NonEmpty,
+            ),
+            engine.events[1],
+        )
+    }
+
+    @Test
+    fun traceEnginePropagatesStopSignals() {
+        val engine = TraceEnginePort()
+        val runner = ScriptTraceRunner(engine)
+
+        runner.run(listOf(Op.Pause(1), Op.Stop("done"), Op.Pause(2)))
+
+        assertEquals(EngineTraceEvent.Pause(1), engine.events[0])
+        assertEquals(
+            EngineTraceEvent.Stop("done", ScriptControlSignal.StopScript),
+            engine.events[1],
+        )
+        assertEquals(2, engine.events.size)
+    }
+
+    @Test
+    fun validationRejectsBreakOutsideLoop() {
+        val content = GameBuilder().apply {
+            scene(sceneId("bad.break")) {
+                breakLoop("outside loop")
+            }
+        }.build()
+
+        assertFailsWith<IllegalStateException> {
+            validateAuthoredContent(content)
+        }
+    }
 }

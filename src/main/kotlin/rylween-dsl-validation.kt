@@ -339,6 +339,8 @@ private fun validateTextBlock(
     fun validatePart(part: TextPart) {
         when (part) {
             is TextPart.Literal -> Unit
+            is TextPart.IntValue -> Unit
+            is TextPart.StringValue -> Unit
             is TextPart.RoleName -> {
                 check(part.role.slug.isNotBlank()) { "$label references blank character role" }
                 check(knownRoles == null || part.role in knownRoles) {
@@ -694,20 +696,41 @@ fun validateScriptRewards(
     }
 
     fun visit(ops: List<Op>) {
-        ops.forEach { op ->
-            when (op) {
-                is Op.Screen -> validateTextBlock(op.text, "screen")
-                is Op.GrantReward -> validateReward(op.reward)
-                is Op.If -> {
-                    visit(op.thenOps)
-                    visit(op.elseOps)
+        fun visitOps(items: List<Op>, loopDepth: Int) {
+            items.forEach { op ->
+                when (op) {
+                    is Op.Screen -> validateTextBlock(op.text, "screen")
+                    is Op.Menu -> {
+                        validateTextBlock(op.prompt, "menu prompt")
+                        op.options.forEach { visitOps(it.body, loopDepth) }
+                        visitOps(op.defaultOps, loopDepth)
+                    }
+                    is Op.AskMember -> validateTextBlock(op.prompt, "member choice prompt")
+                    is Op.AskInventorySlot -> {
+                        validateTextBlock(op.prompt, "inventory-slot choice prompt")
+                        check(op.firstKey.isLetter()) { "inventory-slot choice first key must be a letter" }
+                        check(op.slots.first >= 0) { "inventory-slot choice starts before slot 0" }
+                        check(op.slots.last <= InventorySaveSlotMax) {
+                            "inventory-slot choice ends after slot $InventorySaveSlotMax"
+                        }
+                    }
+                    is Op.GrantReward -> validateReward(op.reward)
+                    is Op.If -> {
+                        visitOps(op.thenOps, loopDepth)
+                        visitOps(op.elseOps, loopDepth)
+                    }
+                    is Op.Loop -> visitOps(op.body, loopDepth + 1)
+                    is Op.Break -> check(loopDepth > 0) {
+                        "breakLoop(${op.reason ?: ""}) must be inside loop { ... }"
+                    }
+                    is Op.Switch -> op.cases.forEach { visitOps(it.body, loopDepth) }
+                    is Op.ForEachMonster -> visitOps(op.body, loopDepth)
+                    else -> Unit
                 }
-                is Op.Loop -> visit(op.body)
-                is Op.Switch -> op.cases.forEach { visit(it.body) }
-                is Op.ForEachMonster -> visit(op.body)
-                else -> Unit
             }
         }
+
+        visitOps(ops, loopDepth = 0)
     }
 
     content.scenes.forEach { visit(it.ops) }
