@@ -107,6 +107,14 @@ Keep implementation and authoring separate:
 - Game-specific content should be declared in plain domain blocks. Adding a
   monster, flag, mission, milestone, text, or scene should mean adding a content
   record, not writing a Kotlin class.
+- In the scratch source, `rylween-dsl.kt` is the Kotlin DSL implementation and
+  `rylween-full-scratch.dsl.kts` is the game-specific source. Validate them
+  with:
+
+```sh
+kotlinc rylween-dsl.kt -d /tmp/rylween-dsl.jar
+kotlinc -classpath /tmp/rylween-dsl.jar -script rylween-full-scratch.dsl.kts
+```
 
 Example authoring shape:
 
@@ -150,8 +158,8 @@ The "DSL delta" text is the concrete thing to look for in the Kotlin diff.
 ### A. Foundation and authoring surface
 
 - [x] A0. Seed typed DSL direction. DSL delta: `rylween { content { ... } state { ... } }`, typed handles, typed flags, first party-state model. Native decision: JSON5 is reference only, not the target runtime format.
-- [ ] A1. Split the prototype into clear authoring sections. DSL delta: stable `content`, `state`, `texts`, `scripts`, and handle catalog sections. Native decision: content compiler owns handle generation. Current scratch status: partial in `rylween-full-scratch.dsl.kts`; the file is split into handle catalogs, script AST/kernel, exact state model, builders/validation, and a full-game authoring area with declarative `flags`, `gameProgress`, `monsters`, `missions`, scripts, and `state` blocks.
-- [ ] A2. Define the generated handle catalogs. DSL delta: `Items.*`, `Flags.*`, `Npcs.*`, `Maps.*`, `Terrain.*`, `Texts.*`, `Scenes.*`, `NativeOps.*`. Native decision: C receives dense ids plus diagnostic slugs. Current scratch status: partial in `rylween-full-scratch.dsl.kts`; hand-sketched catalogs now cover the listed handle families plus visuals, layouts, screen regions, roles, spells, missions, key actions, dungeons, towns/buildings, locations, and encounter tiers, but these catalogs are treated as generated output rather than game-designer code.
+- [ ] A1. Split the prototype into clear authoring sections. DSL delta: stable `content`, `state`, `texts`, `scripts`, and handle catalog sections. Native decision: content compiler owns handle generation. Current scratch status: partial; `rylween-dsl.kt` now holds the DSL implementation, and `rylween-full-scratch.dsl.kts` holds the game authoring area with declarative `flags`, `gameProgress`, `monsters`, `missions`, scripts, and `state` blocks.
+- [ ] A2. Define the generated handle catalogs. DSL delta: `Items.*`, `Flags.*`, `Npcs.*`, `Maps.*`, `Terrain.*`, `Texts.*`, `Scenes.*`, `NativeOps.*`. Native decision: C receives dense ids plus diagnostic slugs. Current scratch status: partial in `rylween-dsl.kt`; hand-sketched catalogs now cover the listed handle families plus visuals, layouts, screen regions, roles, spells, missions, key actions, dungeons, towns/buildings, locations, and encounter tiers, but these catalogs are treated as generated output rather than game-designer code.
 - [ ] A3. Define typed native-op declarations. DSL delta: `nativeOps { op(NativeOps.renderMap) { ... } }` or equivalent. Native decision: no raw string function names in authored scripts.
 - [ ] A4. Define validation error style. DSL delta: validation helpers report game concepts such as missing terrain, text binding, or illegal flag transition. Native decision: loader can reject compiled bundles defensively but author-facing validation happens before C.
 
@@ -160,6 +168,7 @@ The "DSL delta" text is the concrete thing to look for in the Kotlin diff.
 Decisions from the first `rylween-full-scratch.dsl.kts` pass:
 
 - `rylween-full-scratch.dsl.kts` is the successor scratch source copied from `dsl-next.kts`; `dsl-next.kts` remains the small language/prototype lab.
+- `rylween-dsl.kt` is the Kotlin implementation of the scratch DSL; `rylween-full-scratch.dsl.kts` is only the game-specific declaration source. Plain `kotlinc -script` cannot import another regular `.kts` directly, so validation compiles `rylween-dsl.kt` to a jar and runs the game script with that jar on the classpath.
 - Keep a hard boundary between DSL implementation and game authoring. Kotlin classes, builders, validators, and generated handles are implementation/compiler scaffolding; the game designer should add game-specific content through declaration blocks such as `flags { ... }`, `monsters { ... }`, `missions { ... }`, `gameProgress { ... }`, and `state { ... }`.
 - Adding a new monster, flag, mission, special milestone, text, or similar game-specific concept should not require writing a Kotlin class. The authoring source declares the concept in game terms; the content compiler can generate typed handles from those declarations.
 - Common Rylween engine/state concepts such as party state, member stats, inventory slots, positions, and validation helpers may remain normal Kotlin DSL implementation types because authors consume them rather than extend them.
