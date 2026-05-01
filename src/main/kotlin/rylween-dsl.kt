@@ -298,11 +298,31 @@ class ItemId private constructor(val slug: String, val legacyId: Int? = null) {
             ItemId(slug, legacyId)
     }
 }
-data class ItemPoolId(
+class ItemPoolId private constructor(
     val slug: String,
     val items: List<ItemId> = emptyList(),
     val legacyItemIds: List<Int> = emptyList(),
-)
+) {
+    override fun equals(other: Any?): Boolean =
+        other is ItemPoolId && slug == other.slug
+
+    override fun hashCode(): Int = slug.hashCode()
+
+    override fun toString(): String =
+        "ItemPoolId(slug=$slug)"
+
+    companion object {
+        fun authored(slug: String, items: List<ItemId> = emptyList()): ItemPoolId =
+            ItemPoolId(slug, items)
+
+        internal fun generated(
+            slug: String,
+            items: List<ItemId>,
+            legacyItemIds: Iterable<Int>,
+        ): ItemPoolId =
+            ItemPoolId(slug, items, legacyItemIds.toList())
+    }
+}
 enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
 enum class ItemStorageKind { EmptySentinel, SlottedInventory, SpecialMilestone }
 data class ItemRecordModel(
@@ -353,8 +373,9 @@ fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId.authored(slug)
 private fun generatedItem(slug: String, legacyId: Int) = ItemId.generated(slug, legacyId)
-fun itemPool(slug: String, items: List<ItemId> = emptyList(), legacyItemIds: Iterable<Int> = emptyList()) =
-    ItemPoolId(slug, items, legacyItemIds.toList())
+fun itemPool(slug: String, items: List<ItemId> = emptyList()) = ItemPoolId.authored(slug, items)
+private fun generatedItemPool(slug: String, items: List<ItemId>, legacyItemIds: Iterable<Int>) =
+    ItemPoolId.generated(slug, items, legacyItemIds)
 fun monster(slug: String) = MonsterId(slug)
 fun encounterTier(slug: String) = EncounterTier(slug)
 fun worldMap(slug: String) = WorldMapId(slug)
@@ -625,7 +646,7 @@ val ItemCatalog = GeneratedItemCatalog()
 class ItemPoolRefs {
     // Legacy battle.c currently rolls ids 36..46 here: potions plus ordinary
     // treasure, excluding donkey and all milestone-projected special items.
-    val battleSpoils = itemPool(
+    val battleSpoils = generatedItemPool(
         "battle_spoils",
         items = listOf(
             Items.redPotion,
@@ -642,7 +663,7 @@ class ItemPoolRefs {
         ),
         legacyItemIds = 36..46,
     )
-    val magicItems = itemPool(
+    val magicItems = generatedItemPool(
         "magic_items",
         items = listOf(
             Items.frostWand,
@@ -660,7 +681,7 @@ class ItemPoolRefs {
         ),
         legacyItemIds = 100..111,
     )
-    val tavernScruffySpecials = itemPool(
+    val tavernScruffySpecials = generatedItemPool(
         "tavern_scruffy_specials",
         items = listOf(
             Items.magicDagger,
@@ -2556,12 +2577,15 @@ class ScriptScope(
         record(Op.SetFlag(state.flag.slug, state.native))
     }
 
-    fun when_(cond: BoolExpr, then: ScriptScope.() -> Unit): ElseBranch {
+    fun whenever(cond: BoolExpr, then: ScriptScope.() -> Unit): ElseBranch {
         val thenOps = capture(then)
         val index = ops.size
         ops += Op.If(cond.ast, thenOps, emptyList())
         return ElseBranch(ctx) { elseOps -> ops[index] = Op.If(cond.ast, thenOps, elseOps) }
     }
+
+    @Deprecated("Use whenever(...) in author-facing script blocks.")
+    fun when_(cond: BoolExpr, then: ScriptScope.() -> Unit): ElseBranch = whenever(cond, then)
 
     fun stop(reason: String? = null) = record(Op.Stop(reason))
     fun breakLoop(reason: String? = null) = record(Op.Break(reason))
@@ -2647,7 +2671,7 @@ class ScriptScope(
     }
 
     fun pay(amount: IntExpr, broke: ScriptScope.() -> Unit, ok: ScriptScope.() -> Unit) {
-        when_(party.gold lt amount) {
+        whenever(party.gold lt amount) {
             broke()
         } otherwise {
             party.gold -= amount

@@ -992,7 +992,7 @@ val nextRylween = rylween {
                     native.screen.clearText()
                     val m = choice.member(T.Towne.Church.who)
 
-                    when_(m.dead) {
+                    whenever(m.dead) {
                         screen {
                             lines(
                                 "- GET THAT CORPSE",
@@ -1005,7 +1005,7 @@ val nextRylween = rylween {
                         breakLoop("corpse exits the church service")
                     }
 
-                    when_(m.hp eq m.maxHp) {
+                    whenever(m.hp eq m.maxHp) {
                         screen {
                             line(pronoun(m, PronounCase.Subject), " needs no healing.")
                         }
@@ -1047,14 +1047,14 @@ val nextRylween = rylween {
                     native.screen.clearText()
                     val m = choice.member(T.Towne.Church.who)
 
-                    when_(!m.spellcaster) {
+                    whenever(!m.spellcaster) {
                         native.screen.clearText()
                         screen("Not a spellcaster!")
                         pause(1000)
                         stop("not a spellcaster")
                     }
 
-                    when_(m.mp eq m.wisdom) {
+                    whenever(m.mp eq m.wisdom) {
                         native.screen.clearText()
                         screen {
                             lines(
@@ -1099,7 +1099,7 @@ val nextRylween = rylween {
                     native.screen.clearText()
                     val m = choice.member(T.Towne.Church.who)
 
-                    when_(!m.dead) {
+                    whenever(!m.dead) {
                         native.screen.clearText()
                         screen {
                             line("- ", pronoun(m, PronounCase.Subject), " seems very alive")
@@ -1258,7 +1258,7 @@ val nextRylween = rylween {
             }
             choice.yesNo("(Y)es", "(N)o",
                 yes = {
-                    when_(party.gold lt cost) {
+                    whenever(party.gold lt cost) {
                         native.screen.clearText()
                         screen {
                             line("Sorry, supper is ", cost)
@@ -1386,7 +1386,7 @@ val nextRylween = rylween {
                     choice.takeOrLeave(
                         inlineText("(T)ake it", "(L)eave"),
                         take = {
-                            when_(party.gold lt cost) {
+                            whenever(party.gold lt cost) {
                                 native.screen.clearText()
                                 screen {
                                     lines(
@@ -1569,7 +1569,7 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Towne.tavern) {
-        when_((realm.hour lt 6) and (realm.hour gt 1)) {
+        whenever((realm.hour lt 6) and (realm.hour gt 1)) {
             native.screen.clearText()
             screen("Shop Closed.")
             pause(1000)
@@ -1581,12 +1581,12 @@ val nextRylween = rylween {
 
         val priestBonus = localInt(0)
         forEachMember(includeDead = true) { member ->
-            when_(member.isClass(PcClass.Priest)) {
+            whenever(member.isClass(PcClass.Priest)) {
                 priestBonus += member.charisma / 10
             }
         }
 
-        when_(chance(priestBonus + 5)) {
+        whenever(chance(priestBonus + 5)) {
             native.screen.clearText()
             screen(
                 "Just as you are about",
@@ -1661,7 +1661,7 @@ val nextRylween = rylween {
                         },
                     )
 
-                    when_(storyteller.dead) {
+                    whenever(storyteller.dead) {
                         native.screen.clearText()
                         screen {
                             lines(
@@ -1693,27 +1693,27 @@ val nextRylween = rylween {
                         }
 
                         val score = localInt(0)
-                        when_(isBoast eq 1) {
+                        whenever(isBoast eq 1) {
                             score += 100
                         }
-                        when_(storyteller.isClass(PcClass.Bard)) {
+                        whenever(storyteller.isClass(PcClass.Bard)) {
                             score += 100
                         }
-                        when_(storyteller.charisma gt 90) {
+                        whenever(storyteller.charisma gt 90) {
                             score += 50
                         }
-                        when_(storyteller.charisma gt 70) {
+                        whenever(storyteller.charisma gt 70) {
                             score += 50
                         }
                         score += random(1..150)
 
-                        when_(isBoast eq 1) {
-                            when_(random(0..99) gt storyteller.charisma) {
+                        whenever(isBoast eq 1) {
+                            whenever(random(0..99) gt storyteller.charisma) {
                                 native.screen.clearText()
                                 screen("- Out with the liar!")
                                 pause(2000)
                                 screen("You are thrown out.")
-                                when_(storyteller.charisma gte 10) {
+                                whenever(storyteller.charisma gte 10) {
                                     storyteller.charisma -= 10
                                 } otherwise {
                                     storyteller.charisma set 0
@@ -1724,7 +1724,7 @@ val nextRylween = rylween {
                         }
 
                         native.screen.clearText()
-                        when_(score gt 400) {
+                        whenever(score gt 400) {
                             screen {
                                 lines(
                                     "Superb Story! Let's",
@@ -1737,7 +1737,7 @@ val nextRylween = rylween {
                             waitInput("after superb tavern story")
                             storyteller.charisma += 3
                         }
-                        when_((score gt 300) and (score lt 401)) {
+                        whenever((score gt 300) and (score lt 401)) {
                             screen {
                                 lines(
                                     "Very good! You've been",
@@ -1748,18 +1748,18 @@ val nextRylween = rylween {
                             waitInput("after good tavern story")
                             storyteller.charisma += 1
                         }
-                        when_((score gt 150) and (score lt 301)) {
+                        whenever((score gt 150) and (score lt 301)) {
                             screen("Nice story, Sir!", "")
                             waitInput("after nice tavern story")
                         }
-                        when_((score gt 100) and (score lt 151)) {
+                        whenever((score gt 100) and (score lt 151)) {
                             screen("The mob is bored.", "")
                             waitInput("after boring tavern story")
-                            when_(storyteller.charisma gt 0) {
+                            whenever(storyteller.charisma gt 0) {
                                 storyteller.charisma -= 1
                             }
                         }
-                        when_(score lt 101) {
+                        whenever(score lt 101) {
                             screen {
                                 lines(
                                     "Most of the crowd",
@@ -1769,7 +1769,7 @@ val nextRylween = rylween {
                                 )
                             }
                             waitInput("after terrible tavern story")
-                            when_(storyteller.charisma gte 3) {
+                            whenever(storyteller.charisma gte 3) {
                                 storyteller.charisma -= 3
                             }
                         }
@@ -1778,10 +1778,10 @@ val nextRylween = rylween {
 
                 option('R') {
                     native.screen.clearText()
-                    when_(rumours lt 5) {
+                    whenever(rumours lt 5) {
                         rumours += 1
                     }
-                    when_(rumours gt 4) {
+                    whenever(rumours gt 4) {
                         screen {
                             lines(
                                 "The tavern has suddenly",
@@ -1955,7 +1955,7 @@ val nextRylween = rylween {
 
         target.hp -= damage
 
-        when_(target.hp lte 0) {
+        whenever(target.hp lte 0) {
             target.hp set 0
             target.dead set true
             emit(T.Battle.killed)
@@ -1976,7 +1976,7 @@ val nextRylween = rylween {
             forEachMonster(includeDead = true) { foe ->
                 val damage = localInt(caster.level * random(3..8))
 
-                when_(!foe.dead) {
+                whenever(!foe.dead) {
                     bind("monster_name", monsterName(foe))
                     emit(T.Battle.FireWand.burns)
                     emit(T.Battle.FireWand.points)
@@ -1984,7 +1984,7 @@ val nextRylween = rylween {
 
                     foe.hp -= damage
 
-                    when_(foe.hp lte 0) {
+                    whenever(foe.hp lte 0) {
                         foe.hp set 0
                         emit(T.Battle.killed)
                         pause(600)
@@ -2046,7 +2046,7 @@ val nextRylween = rylween {
                 }
                 case(50) {
                     run(Scenes.ydargStairs)
-                    when_(native.ydarg.exitRequested()) {
+                    whenever(native.ydarg.exitRequested()) {
                         breakLoop("stairs requested exit")
                     }
                 }
