@@ -123,8 +123,8 @@ val nextRylween = rylween {
                 lootTable(CombatLootTables.default) {
                     dropChancePercent = 5
                     treasureChancePercent = 59
-                    treasure = 36..46
-                    magic = 100..111
+                    treasure = ItemPools.battleSpoils
+                    magic = ItemPools.magicItems
                 }
             }
         }
