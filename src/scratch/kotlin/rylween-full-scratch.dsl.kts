@@ -1373,7 +1373,335 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Towne.tavern) {
-        native.town.enterService(Buildings.tavern)
+        when_((realm.hour lt 6) and (realm.hour gt 1)) {
+            native.screen.clearText()
+            screen("Shop Closed.")
+            pause(1000)
+            stop("tavern closed")
+        }
+
+        native.screen.clearMapWindow()
+        native.screen.showImage(Images.Scene.tavern)
+
+        // Scruffy's random item offer needs the shared random-item purchase
+        // helper that merchant/smith will also use. Keep the gap explicit
+        // instead of leaking generated item ids into authoring code.
+        val rumours = let("rumours", 0)
+
+        loop {
+            native.screen.clearText()
+            screen {
+                line("- Welcome! Have a seat")
+                line(townNpcName(NpcJobs.tavernkeeper), ", the keeper")
+                line("of the tavern greets")
+                line("you...")
+                line("")
+            }
+
+            menu(
+                "(O)rder drink",
+                "(S)peak",
+                "(T)ell story",
+                "(R)umors",
+                "(L)eave",
+            ) {
+                option('L') {
+                    native.screen.clearText()
+                    native.screen.clearMapWindow()
+                    breakLoop("leave tavern")
+                }
+
+                option('S') {
+                    speak(Buildings.inn)
+                }
+
+                option('T') {
+                    native.screen.clearText()
+                    val maxMembers = realm.partyMemberMax
+                    val storyteller = choice.member(
+                        structuredText {
+                            line("Who wants to tell")
+                            line("a story? (1-", maxMembers, ")")
+                        },
+                    )
+
+                    when_(storyteller.dead) {
+                        native.screen.clearText()
+                        screen {
+                            lines(
+                                "Dead men do not",
+                                "tell any great",
+                                "stories...",
+                            )
+                        }
+                        pause(2000)
+                    } otherwise {
+                        native.screen.clearText()
+                        screen {
+                            line(partyName(storyteller), " stands up")
+                            line("and screams:")
+                            line("- ANYONE WHO WANNA HEAR")
+                            line("  A TRAVELLER'S STORY?")
+                            line("")
+                        }
+                        pause(2000)
+                        screen("- YEAAH! Roars the crowd!", "")
+                        pause(2000)
+
+                        val isBoast = let("is_boast", 0)
+                        menu("(T)rue story", "(B)oast") {
+                            option('T') {}
+                            option('B') {
+                                let("is_boast", 1)
+                            }
+                        }
+
+                        val score = let("score", 0)
+                        when_(isBoast eq 1) {
+                            let("score", score + 100)
+                        }
+                        when_(storyteller.isClass(PcClass.Bard)) {
+                            let("score", score + 100)
+                        }
+                        when_(storyteller.charisma gt 90) {
+                            let("score", score + 50)
+                        }
+                        when_(storyteller.charisma gt 70) {
+                            let("score", score + 50)
+                        }
+                        let("score", score + random(1..150))
+
+                        when_(isBoast eq 1) {
+                            when_(random(0..99) gt storyteller.charisma) {
+                                native.screen.clearText()
+                                screen("- Out with the liar!")
+                                pause(2000)
+                                screen("You are thrown out.")
+                                when_(storyteller.charisma gte 10) {
+                                    storyteller.charisma -= 10
+                                } otherwise {
+                                    storyteller.charisma set 0
+                                }
+                                native.screen.clearMapWindow()
+                                breakLoop("liar thrown out of tavern")
+                            }
+                        }
+
+                        native.screen.clearText()
+                        when_(score gt 400) {
+                            screen {
+                                lines(
+                                    "Superb Story! Let's",
+                                    "give 'em some ale, lads!",
+                                    "You are given a whole",
+                                    "tray of ale!",
+                                    "",
+                                )
+                            }
+                            waitInput("after superb tavern story")
+                            storyteller.charisma += 3
+                        }
+                        when_((score gt 300) and (score lt 401)) {
+                            screen {
+                                lines(
+                                    "Very good! You've been",
+                                    "through much!",
+                                    "",
+                                )
+                            }
+                            waitInput("after good tavern story")
+                            storyteller.charisma += 1
+                        }
+                        when_((score gt 150) and (score lt 301)) {
+                            screen("Nice story, Sir!", "")
+                            waitInput("after nice tavern story")
+                        }
+                        when_((score gt 100) and (score lt 151)) {
+                            screen("The mob is bored.", "")
+                            waitInput("after boring tavern story")
+                            when_(storyteller.charisma gt 0) {
+                                storyteller.charisma -= 1
+                            }
+                        }
+                        when_(score lt 101) {
+                            screen {
+                                lines(
+                                    "Most of the crowd",
+                                    "falls asleep. The rest",
+                                    "beg you to stop.",
+                                    "",
+                                )
+                            }
+                            waitInput("after terrible tavern story")
+                            when_(storyteller.charisma gte 3) {
+                                storyteller.charisma -= 3
+                            }
+                        }
+                    }
+                }
+
+                option('R') {
+                    native.screen.clearText()
+                    when_(rumours lt 5) {
+                        let("rumours", rumours + 1)
+                    }
+                    when_(rumours gt 4) {
+                        screen {
+                            lines(
+                                "The tavern has suddenly",
+                                "become very quiet.",
+                                "",
+                            )
+                        }
+                        waitInput("after quiet tavern rumour")
+                    } otherwise {
+                        choose(random(0..4)) {
+                            case(0) {
+                                screen {
+                                    lines(
+                                        "After listening a while",
+                                        "you hear an old man say",
+                                        "to another:",
+                                        "",
+                                    )
+                                }
+                            }
+                            case(1) {
+                                screen("A drunken bard bellows:", "")
+                            }
+                            case(2) {
+                                screen {
+                                    lines(
+                                        "A halfling you rescued",
+                                        "from a brawl whispers:",
+                                        "",
+                                    )
+                                }
+                            }
+                            case(3) {
+                                screen {
+                                    lines(
+                                        "The tavern keeper",
+                                        "motions to you to",
+                                        "come closer, and",
+                                        "whispers :",
+                                        "",
+                                    )
+                                }
+                            }
+                            case(4) {
+                                screen("A bargirl tells you:", "")
+                            }
+                        }
+                        run(Scenes.rumour)
+                        waitInput("after tavern rumour")
+                    }
+                }
+
+                option('O') {
+                    native.screen.clearText()
+                    screen("Order:", "")
+                    menu(
+                        "A. Ale       2 au",
+                        "B. Mead      3 au",
+                        "C. Wine      4 au",
+                        "D. Fanta     1 au",
+                        "E. Nothing",
+                    ) {
+                        option('A') {
+                            pay(lit(2),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen {
+                                        lines(
+                                            "AAH! (your health",
+                                            "returns).",
+                                        )
+                                    }
+                                    pause(1000)
+                                    forEachMember(includeDead = true) {
+                                        it.hp.addClamped((lit(2) / 2) + 1, it.maxHp)
+                                    }
+                                },
+                            )
+                        }
+                        option('B') {
+                            pay(lit(3),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen {
+                                        lines(
+                                            "AAH! (your health",
+                                            "returns).",
+                                        )
+                                    }
+                                    pause(1000)
+                                    forEachMember(includeDead = true) {
+                                        it.hp.addClamped((lit(3) / 2) + 1, it.maxHp)
+                                    }
+                                },
+                            )
+                        }
+                        option('C') {
+                            pay(lit(4),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen {
+                                        lines(
+                                            "AAH! (your health",
+                                            "returns).",
+                                        )
+                                    }
+                                    pause(1000)
+                                    forEachMember(includeDead = true) {
+                                        it.hp.addClamped((lit(4) / 2) + 1, it.maxHp)
+                                    }
+                                },
+                            )
+                        }
+                        option('D') {
+                            pay(lit(1),
+                                broke = {
+                                    native.screen.clearText()
+                                    screen("No money - No drink!")
+                                    pause(1000)
+                                },
+                                ok = {
+                                    native.screen.clearText()
+                                    screen {
+                                        lines(
+                                            "You are the laughing",
+                                            "stock of the entire",
+                                            "tavern...",
+                                        )
+                                    }
+                                    pause(2000)
+                                    forEachMember(includeDead = true) {
+                                        it.hp.addClamped((lit(1) / 2) + 1, it.maxHp)
+                                    }
+                                },
+                            )
+                        }
+                        option('E') {}
+                    }
+                }
+            }
+        }
     }
 
     // Mage frost: spell body is normal script, combat target is typed.
@@ -1978,6 +2306,10 @@ check(churchScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.t
 val innScene = nextDsl.scenes.single { it.id == Scenes.Towne.inn }
 check(innScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
 check(innScene.ops.filterIsInstance<Op.Loop>().single().body.any { it is Op.Menu })
+val tavernScene = nextDsl.scenes.single { it.id == Scenes.Towne.tavern }
+check(tavernScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
+val tavernMenu = tavernScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()
+check(tavernMenu.options.map { it.key } == listOf('L', 'S', 'T', 'R', 'O'))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
 check(nextDsl.dialogue.size == 1)
 check(nextDsl.dialogue.single().branches.size == 2)
