@@ -1258,10 +1258,39 @@ data class CombatActionModel(
     val requirement: CombatActionRequirement,
 )
 
+data class PlayerAttackRulesModel(
+    val hitBonus: Int,
+    val damageSpreadMax: Int,
+    val confusionDivisor: Int,
+)
+
+data class DefendRulesModel(
+    val weaponSkillPenalty: Int,
+    val restThreshold: Int,
+)
+
+data class BattleCryRulesModel(
+    val weaponSkillPenalty: Int,
+)
+
+data class PlayerRoundModel(
+    val attack: PlayerAttackRulesModel,
+    val defend: DefendRulesModel,
+    val battleCry: BattleCryRulesModel,
+)
+
+data class MonsterMeleeRulesModel(
+    val hitBonus: Int,
+    val damageDivisor: Int,
+    val damageSpreadMax: Int,
+    val damageMin: Int,
+    val fallback: SceneId,
+)
+
 data class MonsterRoundModel(
     val spellChanceBasePercent: Int,
     val spellPowerDivisor: Int,
-    val meleeFallback: SceneId,
+    val melee: MonsterMeleeRulesModel,
 )
 
 data class LootTableModel(
@@ -1282,6 +1311,7 @@ data class RewardBundleModel(
 data class StandardBattleModel(
     val opening: EncounterOpeningModel,
     val actions: List<CombatActionModel>,
+    val playerRound: PlayerRoundModel,
     val monsterRound: MonsterRoundModel,
     val rewards: RewardBundleId,
     val nativeServices: List<EngineServiceUse>,
@@ -2120,6 +2150,7 @@ class CombatBuilder {
 class StandardBattleBuilder {
     private var openingModel = EncounterOpeningBuilder().build()
     private var actionModels = PlayerCombatActionsBuilder().build()
+    private var playerRoundModel = PlayerRoundBuilder().build()
     private var monsterRoundModel = MonsterRoundBuilder().build()
     var rewards: RewardBundleId = Rewards.standardBattle
 
@@ -2131,6 +2162,10 @@ class StandardBattleBuilder {
         actionModels = PlayerCombatActionsBuilder().apply(body).build()
     }
 
+    fun playerRound(body: PlayerRoundBuilder.() -> Unit) {
+        playerRoundModel = PlayerRoundBuilder(playerRoundModel).apply(body).build()
+    }
+
     fun monsterRound(body: MonsterRoundBuilder.() -> Unit) {
         monsterRoundModel = MonsterRoundBuilder(monsterRoundModel).apply(body).build()
     }
@@ -2139,6 +2174,7 @@ class StandardBattleBuilder {
         StandardBattleModel(
             opening = openingModel,
             actions = actionModels,
+            playerRound = playerRoundModel,
             monsterRound = monsterRoundModel,
             rewards = rewards,
             nativeServices = defaultNativeServices,
@@ -2215,18 +2251,65 @@ class PlayerCombatActionsBuilder {
 }
 
 @RylNextDsl
+class PlayerRoundBuilder(initial: PlayerRoundModel? = null) {
+    private var attackRules = initial?.attack ?: PlayerAttackRulesModel(
+        hitBonus = 1,
+        damageSpreadMax = 4,
+        confusionDivisor = 3,
+    )
+    private var defendRules = initial?.defend ?: DefendRulesModel(
+        weaponSkillPenalty = 2,
+        restThreshold = 5,
+    )
+    private var battleCryRules = initial?.battleCry ?: BattleCryRulesModel(
+        weaponSkillPenalty = 4,
+    )
+
+    fun attack(hitBonus: Int, damageSpreadMax: Int, confusionDivisor: Int) {
+        attackRules = PlayerAttackRulesModel(hitBonus, damageSpreadMax, confusionDivisor)
+    }
+
+    fun defend(weaponSkillPenalty: Int, restThreshold: Int) {
+        defendRules = DefendRulesModel(weaponSkillPenalty, restThreshold)
+    }
+
+    fun battleCry(weaponSkillPenalty: Int) {
+        battleCryRules = BattleCryRulesModel(weaponSkillPenalty)
+    }
+
+    fun build(): PlayerRoundModel =
+        PlayerRoundModel(attackRules, defendRules, battleCryRules)
+}
+
+@RylNextDsl
 class MonsterRoundBuilder(initial: MonsterRoundModel? = null) {
     var spellChanceBasePercent: Int = initial?.spellChanceBasePercent ?: 15
     var spellPowerDivisor: Int = initial?.spellPowerDivisor ?: 2
-    var meleeFallback: SceneId = initial?.meleeFallback ?: Scenes.Battle.monsterMelee
+    private var meleeRules = initial?.melee ?: MonsterMeleeRulesModel(
+        hitBonus = 1,
+        damageDivisor = 6,
+        damageSpreadMax = 9,
+        damageMin = 1,
+        fallback = Scenes.Battle.monsterMelee,
+    )
 
     fun spellChance(basePercent: Int, spellPowerDivisor: Int) {
         spellChanceBasePercent = basePercent
         this.spellPowerDivisor = spellPowerDivisor
     }
 
+    fun melee(
+        hitBonus: Int,
+        damageDivisor: Int,
+        damageSpreadMax: Int,
+        damageMin: Int,
+        fallback: SceneId,
+    ) {
+        meleeRules = MonsterMeleeRulesModel(hitBonus, damageDivisor, damageSpreadMax, damageMin, fallback)
+    }
+
     fun build(): MonsterRoundModel =
-        MonsterRoundModel(spellChanceBasePercent, spellPowerDivisor, meleeFallback)
+        MonsterRoundModel(spellChanceBasePercent, spellPowerDivisor, meleeRules)
 }
 
 fun rylweenNext(body: GameBuilder.() -> Unit): GameModel =
@@ -2784,9 +2867,40 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
         check(CombatActionKind.Defend in actionKinds) { "standard battle requires a defend action" }
         check(CombatActionKind.UseMagicItem in actionKinds) { "standard battle requires a use-magic-item action" }
 
+        check(battle.playerRound.attack.hitBonus >= 0) {
+            "standard battle attack hit bonus must be non-negative"
+        }
+        check(battle.playerRound.attack.damageSpreadMax >= 0) {
+            "standard battle attack damage spread must be non-negative"
+        }
+        check(battle.playerRound.attack.confusionDivisor > 0) {
+            "standard battle attack confusion divisor must be positive"
+        }
+        check(battle.playerRound.defend.weaponSkillPenalty >= 0) {
+            "standard battle defend weapon-skill penalty must be non-negative"
+        }
+        check(battle.playerRound.defend.restThreshold >= 0) {
+            "standard battle defend rest threshold must be non-negative"
+        }
+        check(battle.playerRound.battleCry.weaponSkillPenalty >= 0) {
+            "standard battle battle-cry weapon-skill penalty must be non-negative"
+        }
+
         checkPercent(battle.monsterRound.spellChanceBasePercent, "standard battle monster spell base chance")
         check(battle.monsterRound.spellPowerDivisor > 0) {
             "standard battle monster spell-power divisor must be positive"
+        }
+        check(battle.monsterRound.melee.hitBonus >= 0) {
+            "standard battle monster melee hit bonus must be non-negative"
+        }
+        check(battle.monsterRound.melee.damageDivisor > 0) {
+            "standard battle monster melee damage divisor must be positive"
+        }
+        check(battle.monsterRound.melee.damageSpreadMax >= 0) {
+            "standard battle monster melee damage spread must be non-negative"
+        }
+        check(battle.monsterRound.melee.damageMin >= 0) {
+            "standard battle monster melee damage minimum must be non-negative"
         }
 
         check(battle.rewards in rewardIds) {
