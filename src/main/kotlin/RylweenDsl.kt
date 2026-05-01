@@ -893,7 +893,7 @@ data class RealmState(
     val day: Int,
     val hour: Int,
     val minute: Int,
-    val rngSeed: Long?,
+    val rngState: Long?,
     val activeParty: PartyId,
     val currentMap: WorldMapId,
     val currentMode: RuntimeMode,
@@ -1134,7 +1134,7 @@ class NativeAllowlistRefs {
     val ydargClearRoomAtCurrent = effect(NativeOps.ydargClearRoomAtCurrent, "legacy Ydarg room state mutation")
     val ydargTryMove = effect(NativeOps.ydargTryMove, "legacy Ydarg movement and collision")
 
-    val rumourRoll = int(NativeOps.rumourRoll, "legacy rumour distribution")
+    val rumourRoll = int(NativeOps.rumourRoll, "imported rumour scene roll bridge")
     val ydargRoomAtCurrent = int(NativeOps.ydargRoomAtCurrent, "legacy Ydarg room table lookup")
     val ydargExitRequested = int(NativeOps.ydargExitRequested, "legacy Ydarg exit flag")
     val inputKeyUpper = int(NativeOps.inputKeyUpper, "keyboard input normalization")
@@ -3369,7 +3369,7 @@ class RealmStateBuilder {
     var day: Int = 0
     var hour: Int = 0
     var minute: Int = 0
-    var rngSeed: Long? = null
+    var rngState: Long? = null
     var activeParty: PartyId? = null
     var currentMap: WorldMapId = Maps.wilderness
     var currentMode: RuntimeMode = RuntimeMode.Wilderness
@@ -3383,7 +3383,7 @@ class RealmStateBuilder {
             day = day,
             hour = hour,
             minute = minute,
-            rngSeed = rngSeed,
+            rngState = rngState,
             activeParty = checkNotNull(activeParty) { "realm requires activeParty" },
             currentMap = currentMap,
             currentMode = currentMode,

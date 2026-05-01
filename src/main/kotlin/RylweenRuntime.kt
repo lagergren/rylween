@@ -82,14 +82,14 @@ data class RuntimeSessionState(
             party: PartyState,
             hour: Int,
             currentTown: TownId?,
-            rngSeed: Long? = null,
+            rngState: Long? = null,
         ): RuntimeSessionState =
             RuntimeSessionState(
                 realm = RealmState(
                     day = 0,
                     hour = hour,
                     minute = 0,
-                    rngSeed = rngSeed,
+                    rngState = rngState,
                     activeParty = party.id,
                     currentMap = Maps.wilderness,
                     currentMode = RuntimeMode.Town,
@@ -139,9 +139,9 @@ fun RuntimeSessionState.drawRandom(
     random: RylweenRandomPort = LegacyRylweenRandom,
 ): RuntimeRandomDraw {
     require(lo <= hi) { "random range must be ascending: $lo..$hi" }
-    val seed = realm.rngSeed ?: return RuntimeRandomDraw(lo, this)
+    val seed = realm.rngState ?: return RuntimeRandomDraw(lo, this)
     val draw = random.draw(seed, lo, hi)
-    return RuntimeRandomDraw(draw.value, withRealm(realm.copy(rngSeed = draw.nextSeed)))
+    return RuntimeRandomDraw(draw.value, withRealm(realm.copy(rngState = draw.nextSeed)))
 }
 
 enum class TownServiceScriptBranch {
@@ -1153,7 +1153,7 @@ data class TownSession(
             scenes: List<SceneModel>,
             party: PartyState,
             currentHour: Int,
-            rngSeed: Long? = null,
+            rngState: Long? = null,
             itemRecords: List<ItemRecordModel> = ItemCatalog.all,
         ): TownSession =
             start(
@@ -1164,7 +1164,7 @@ data class TownSession(
                     party = party,
                     hour = currentHour,
                     currentTown = town.id,
-                    rngSeed = rngSeed,
+                    rngState = rngState,
                 ),
                 itemRecords = itemRecords,
             )

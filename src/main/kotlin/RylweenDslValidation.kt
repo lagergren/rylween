@@ -1051,8 +1051,8 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
                     }
             }
             if (state.kind == StateKind.RuntimeSnapshot) {
-                check(state.realm.rngSeed != null) {
-                    "runtime state ${state.id.slug}: realm requires rngSeed"
+                check(state.realm.rngState != null) {
+                    "runtime state ${state.id.slug}: realm requires rngState"
                 }
                 check(party.counters.memberCount != null) {
                     "runtime state ${state.id.slug}: party ${party.id.slug} requires counters.memberCount"
