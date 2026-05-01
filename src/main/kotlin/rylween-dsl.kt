@@ -256,6 +256,8 @@ sealed interface TextPart {
     data class RoleLocation(val role: NpcRole) : TextPart
     data class TownName(val town: TownId) : TextPart
     data class FuzzyTownLocation(val town: TownId, val radius: Int) : TextPart
+    object OfferedItemName : TextPart
+    object OfferedItemPrice : TextPart
 }
 data class TextLine(val parts: List<TextPart>)
 sealed interface TextBlock {
@@ -297,7 +299,7 @@ class ItemId private constructor(val slug: String, val legacyId: Int? = null) {
 data class ItemPoolId(
     val slug: String,
     val items: List<ItemId> = emptyList(),
-    val legacyItemIds: IntRange? = null,
+    val legacyItemIds: List<Int> = emptyList(),
 )
 enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
 enum class ItemStorageKind { EmptySentinel, SlottedInventory, SpecialMilestone }
@@ -349,8 +351,8 @@ fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId.authored(slug)
 private fun generatedItem(slug: String, legacyId: Int) = ItemId.generated(slug, legacyId)
-fun itemPool(slug: String, items: List<ItemId> = emptyList(), legacyItemIds: IntRange? = null) =
-    ItemPoolId(slug, items, legacyItemIds)
+fun itemPool(slug: String, items: List<ItemId> = emptyList(), legacyItemIds: Iterable<Int> = emptyList()) =
+    ItemPoolId(slug, items, legacyItemIds.toList())
 fun monster(slug: String) = MonsterId(slug)
 fun encounterTier(slug: String) = EncounterTier(slug)
 fun worldMap(slug: String) = WorldMapId(slug)
@@ -655,6 +657,29 @@ class ItemPoolRefs {
             Items.fluteOfMadness,
         ),
         legacyItemIds = 100..111,
+    )
+    val tavernScruffySpecials = itemPool(
+        "tavern_scruffy_specials",
+        items = listOf(
+            Items.magicDagger,
+            Items.magicAxe,
+            Items.admtMail,
+            Items.amberPotion,
+            Items.greenGem,
+            Items.frostWand,
+            Items.fireWand,
+            Items.gemOfConfusion,
+            Items.gemOfBlindness,
+            Items.drumsOfDeath,
+            Items.staffOfHealing,
+            Items.blessingScroll,
+            Items.staffOfCuring,
+            Items.gemOfResurrection,
+            Items.kaelsAxe,
+            Items.holyHandgrenade,
+            Items.fluteOfMadness,
+        ),
+        legacyItemIds = listOf(15, 17, 26, 38, 41) + (100..111).toList(),
     )
 }
 val ItemPools = ItemPoolRefs()
@@ -1523,6 +1548,7 @@ sealed interface Op {
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
     object ConsumeActiveItem : Op
     data class GrantReward(val reward: ScriptRewardModel) : Op
+    data class RandomItemOffer(val offer: RandomItemOfferModel) : Op
     data class AchieveMilestone(val milestone: GameMilestoneId) : Op
     data class NativeCall(val path: String, val args: List<String>) : Op
 }
@@ -1736,6 +1762,23 @@ data class ScriptRewardModel(
     val items: List<ItemId>,
     val application: RewardApplicationModel,
     val messages: RewardMessageModel,
+)
+
+data class RandomItemOfferModel(
+    val pool: ItemPoolId,
+    val offer: TextBlock,
+    val choicePrompt: TextBlock,
+    val broke: TextBlock,
+    val deal: TextBlock,
+    val declined: TextBlock,
+    val application: RewardApplicationModel,
+    val messages: RewardMessageModel,
+    val buyKey: Char,
+    val declineKey: Char,
+    val brokePauseMillis: Int,
+    val fullPauseMillis: Int,
+    val dealPauseMillis: Int,
+    val declinedPauseMillis: Int,
 )
 
 data class RewardBundleModel(
@@ -2041,10 +2084,15 @@ abstract class IntExpr {
 }
 
 data class Expr(override val ast: IntAst) : IntExpr()
+class LocalIntRef internal constructor(val name: String) : IntExpr() {
+    override val ast: IntAst = IntAst.Var(name)
+}
 
 fun lit(value: Int): IntExpr = Expr(IntAst.Lit(value))
 fun v(name: String): IntExpr = Expr(IntAst.Var(name))
 fun random(range: IntRange): IntExpr = Expr(IntAst.Random(IntAst.Lit(range.first), IntAst.Lit(range.last)))
+fun chance(percent: IntExpr): BoolExpr = random(0..99) lt percent
+fun chance(percent: Int): BoolExpr = chance(lit(percent))
 
 infix fun IntExpr.eq(other: IntExpr): BoolExpr = Bool(BoolAst.Cmp(ast, "eq", other.ast))
 infix fun IntExpr.eq(other: Int): BoolExpr = this eq lit(other)
@@ -2340,6 +2388,32 @@ class ScriptScope(
 
     fun let(name: String, value: Int): IntExpr = let(name, lit(value))
 
+    fun localInt(value: IntExpr, hint: String = "local"): LocalIntRef {
+        val ref = LocalIntRef(fresh(hint))
+        record(Op.LetInt(ref.name, value.ast))
+        return ref
+    }
+
+    fun localInt(value: Int, hint: String = "local"): LocalIntRef = localInt(lit(value), hint)
+
+    infix fun LocalIntRef.set(value: IntExpr) {
+        record(Op.LetInt(name, value.ast))
+    }
+
+    infix fun LocalIntRef.set(value: Int) = set(lit(value))
+
+    operator fun LocalIntRef.plusAssign(value: IntExpr) {
+        record(Op.LetInt(name, (this + value).ast))
+    }
+
+    operator fun LocalIntRef.plusAssign(value: Int) = plusAssign(lit(value))
+
+    operator fun LocalIntRef.minusAssign(value: IntExpr) {
+        record(Op.LetInt(name, (this - value).ast))
+    }
+
+    operator fun LocalIntRef.minusAssign(value: Int) = minusAssign(lit(value))
+
     fun bind(name: String, value: StrExpr) {
         record(Op.BindText(name, value.ast))
     }
@@ -2352,7 +2426,7 @@ class ScriptScope(
         val thenOps = capture(then)
         val index = ops.size
         ops += Op.If(cond.ast, thenOps, emptyList())
-        return ElseBranch { elseOps -> ops[index] = Op.If(cond.ast, thenOps, elseOps) }
+        return ElseBranch(ctx) { elseOps -> ops[index] = Op.If(cond.ast, thenOps, elseOps) }
     }
 
     fun stop(reason: String? = null) = record(Op.Stop(reason))
@@ -2363,25 +2437,25 @@ class ScriptScope(
     }
 
     fun choose(expr: IntExpr, body: SwitchBuilder.() -> Unit) {
-        val builder = SwitchBuilder(this)
+        val builder = SwitchBuilder(ctx)
         builder.body()
         record(Op.Switch(expr.ast, builder.cases))
     }
 
     fun menu(prompt: TextId, body: MenuBuilder.() -> Unit) {
-        val builder = MenuBuilder()
+        val builder = MenuBuilder(ctx)
         builder.body()
         record(builder.build(TextBlock.Ref(prompt)))
     }
 
     fun menu(vararg promptLines: String, body: MenuBuilder.() -> Unit) {
-        val builder = MenuBuilder()
+        val builder = MenuBuilder(ctx)
         builder.body()
         record(builder.build(TextBlock.Inline(promptLines.toList())))
     }
 
     fun menu(prompt: TextBlock, body: MenuBuilder.() -> Unit) {
-        val builder = MenuBuilder()
+        val builder = MenuBuilder(ctx)
         builder.body()
         record(builder.build(prompt))
     }
@@ -2491,42 +2565,168 @@ class ScriptRewardBuilder {
         ScriptRewardModel(goldAst, itemIds.toList(), applicationModel, messagesModel)
 }
 
-class ElseBranch(private val finish: (List<Op>) -> Unit) {
+@RylNextDsl
+class RandomItemOfferTextBuilder {
+    private val text = StructuredTextBlockBuilder()
+
+    val itemName: TextPart = TextPart.OfferedItemName
+    val itemPrice: TextPart = TextPart.OfferedItemPrice
+
+    fun line(vararg parts: Any) {
+        text.line(*parts)
+    }
+
+    fun lines(vararg lines: String) {
+        text.lines(*lines)
+    }
+
+    fun lines(body: RandomItemOfferTextBuilder.() -> Unit) {
+        body()
+    }
+
+    fun build(): TextBlock = text.build()
+}
+
+@RylNextDsl
+class RandomItemOfferBuilder(private val pool: ItemPoolId) {
+    private var offerText: TextBlock? = null
+    private var choicePromptText: TextBlock = inlineText("(B)uy it", "(N)o thanks")
+    private var brokeText: TextBlock? = null
+    private var dealText: TextBlock? = null
+    private var declinedText: TextBlock? = null
+    private var applicationModel = RewardApplicationBuilder().build()
+    private var messagesModel = RewardMessageModel()
+
+    var buyKey: Char = 'B'
+    var declineKey: Char = 'N'
+    var brokePauseMillis: Int = 800
+    var fullPauseMillis: Int = 1000
+    var dealPauseMillis: Int = 800
+    var declinedPauseMillis: Int = 1000
+
+    fun offer(vararg lines: String) {
+        offerText = inlineText(*lines)
+    }
+
+    fun offer(body: RandomItemOfferTextBuilder.() -> Unit) {
+        offerText = RandomItemOfferTextBuilder().apply(body).build()
+    }
+
+    fun choicePrompt(vararg lines: String) {
+        choicePromptText = inlineText(*lines)
+    }
+
+    fun choicePrompt(body: RandomItemOfferTextBuilder.() -> Unit) {
+        choicePromptText = RandomItemOfferTextBuilder().apply(body).build()
+    }
+
+    fun broke(vararg lines: String) {
+        brokeText = inlineText(*lines)
+    }
+
+    fun broke(body: RandomItemOfferTextBuilder.() -> Unit) {
+        brokeText = RandomItemOfferTextBuilder().apply(body).build()
+    }
+
+    fun full(vararg lines: String) {
+        messagesModel = messagesModel.copy(cantCarry = inlineText(*lines))
+    }
+
+    fun full(body: RandomItemOfferTextBuilder.() -> Unit) {
+        messagesModel = messagesModel.copy(cantCarry = RandomItemOfferTextBuilder().apply(body).build())
+    }
+
+    fun promptDrop(pickedUp: TextBlock? = null) {
+        applicationModel = applicationModel.copy(overflow = RewardOverflowPolicy.PromptDropThenPlace)
+        messagesModel = messagesModel.copy(pickedUp = pickedUp)
+    }
+
+    fun promptDrop(pickedUp: String) {
+        promptDrop(inlineText(pickedUp))
+    }
+
+    fun promptDrop(pickedUp: TextId) {
+        promptDrop(TextBlock.Ref(pickedUp))
+    }
+
+    fun deal(vararg lines: String) {
+        dealText = inlineText(*lines)
+    }
+
+    fun deal(body: RandomItemOfferTextBuilder.() -> Unit) {
+        dealText = RandomItemOfferTextBuilder().apply(body).build()
+    }
+
+    fun declined(vararg lines: String) {
+        declinedText = inlineText(*lines)
+    }
+
+    fun declined(body: RandomItemOfferTextBuilder.() -> Unit) {
+        declinedText = RandomItemOfferTextBuilder().apply(body).build()
+    }
+
+    fun build(): RandomItemOfferModel =
+        RandomItemOfferModel(
+            pool = pool,
+            offer = requireNotNull(offerText) { "random item offer requires offer text" },
+            choicePrompt = choicePromptText,
+            broke = requireNotNull(brokeText) { "random item offer requires broke text" },
+            deal = requireNotNull(dealText) { "random item offer requires deal text" },
+            declined = requireNotNull(declinedText) { "random item offer requires declined text" },
+            application = applicationModel,
+            messages = messagesModel.copy(
+                cantCarry = requireNotNull(messagesModel.cantCarry) {
+                    "random item offer requires full/cant-carry text"
+                },
+            ),
+            buyKey = buyKey.uppercaseChar(),
+            declineKey = declineKey.uppercaseChar(),
+            brokePauseMillis = brokePauseMillis,
+            fullPauseMillis = fullPauseMillis,
+            dealPauseMillis = dealPauseMillis,
+            declinedPauseMillis = declinedPauseMillis,
+        )
+}
+
+class ElseBranch(
+    private val ctx: ScriptContext,
+    private val finish: (List<Op>) -> Unit,
+) {
     infix fun otherwise(body: ScriptScope.() -> Unit) {
         finish(buildList {
-            ScriptScope(ScriptContext(), this).body()
+            ScriptScope(ctx, this).body()
         })
     }
 }
 
 @RylNextDsl
-class SwitchBuilder(private val parent: ScriptScope) {
+class SwitchBuilder(private val ctx: ScriptContext) {
     val cases = mutableListOf<SwitchCase>()
 
     fun case(value: Int, body: ScriptScope.() -> Unit) {
         cases += SwitchCase(value, buildList {
-            ScriptScope(ScriptContext(), this).body()
+            ScriptScope(ctx, this).body()
         })
     }
 
     fun default(body: ScriptScope.() -> Unit) {
         cases += SwitchCase(null, buildList {
-            ScriptScope(ScriptContext(), this).body()
+            ScriptScope(ctx, this).body()
         })
     }
 }
 
 @RylNextDsl
-class MenuBuilder {
+class MenuBuilder(private val ctx: ScriptContext) {
     private val options = mutableListOf<MenuOption>()
     private var defaultOps = emptyList<Op>()
 
     fun option(key: Char, body: ScriptScope.() -> Unit) {
-        options += MenuOption(key.uppercaseChar(), recordScript(body))
+        options += MenuOption(key.uppercaseChar(), recordScript(ctx, body))
     }
 
     fun default(body: ScriptScope.() -> Unit) {
-        defaultOps = recordScript(body)
+        defaultOps = recordScript(ctx, body)
     }
 
     fun build(prompt: TextBlock): Op.Menu = Op.Menu(prompt, options.toList(), defaultOps)
@@ -2596,6 +2796,10 @@ class ChoiceScope(private val script: ScriptScope) {
             }
             option('N') {}
         }
+    }
+
+    fun randomItemOffer(pool: ItemPoolId, body: RandomItemOfferBuilder.() -> Unit) {
+        script.record(Op.RandomItemOffer(RandomItemOfferBuilder(pool).apply(body).build()))
     }
 
     fun member(prompt: TextId, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
@@ -2678,8 +2882,11 @@ class NativeInput(private val script: ScriptScope) {
 }
 
 private fun recordScript(body: ScriptScope.() -> Unit): List<Op> =
+    recordScript(ScriptContext(), body)
+
+private fun recordScript(ctx: ScriptContext, body: ScriptScope.() -> Unit): List<Op> =
     buildList {
-        ScriptScope(ScriptContext(), this).body()
+        ScriptScope(ctx, this).body()
     }
 
 @RylNextDsl
@@ -4217,7 +4424,9 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         is TextPart.RoleName,
                         is TextPart.RoleLocation,
                         is TextPart.TownName,
-                        is TextPart.FuzzyTownLocation -> Unit
+                        is TextPart.FuzzyTownLocation,
+                        TextPart.OfferedItemName,
+                        TextPart.OfferedItemPrice -> Unit
                     }
                 }
             }
@@ -4269,6 +4478,15 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.Encounter -> Unit
                 Op.ConsumeActiveItem -> Unit
                 is Op.GrantReward -> op.reward.gold?.let(::int)
+                is Op.RandomItemOffer -> {
+                    text(op.offer.offer)
+                    text(op.offer.choicePrompt)
+                    text(op.offer.broke)
+                    op.offer.messages.cantCarry?.let(::text)
+                    op.offer.messages.pickedUp?.let(::text)
+                    text(op.offer.deal)
+                    text(op.offer.declined)
+                }
                 is Op.AchieveMilestone -> Unit
                 is Op.NativeCall -> paths += op.path
             }

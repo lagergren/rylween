@@ -1013,7 +1013,7 @@ val nextRylween = rylween {
                         stop("already fully healed")
                     }
 
-                    val price = let("cost", (m.maxHp - m.hp) * 7)
+                    val price = localInt((m.maxHp - m.hp) * 7)
                     native.screen.clearText()
                     screen {
                         line("- That'll be ", price)
@@ -1068,7 +1068,7 @@ val nextRylween = rylween {
                     }
 
                     native.screen.clearText()
-                    val price = let("cost", m.level * (m.wisdom - m.mp) * 2)
+                    val price = localInt(m.level * (m.wisdom - m.mp) * 2)
                     screen {
                         line("- That will be ", price)
                         line("gold coins, please.")
@@ -1110,7 +1110,7 @@ val nextRylween = rylween {
                     }
 
                     native.screen.clearText()
-                    val price = let("cost", m.level * 650)
+                    val price = localInt(m.level * 650)
                     screen {
                         line("- That will be ", price)
                         line("gold coins, please.")
@@ -1155,7 +1155,7 @@ val nextRylween = rylween {
         native.screen.showImage(Images.Scene.inn)
 
         loop {
-            val cost = let("cost", (party.leader.level * party.leader.level) * 15)
+            val cost = localInt((party.leader.level * party.leader.level) * 15)
 
             native.screen.clearText()
             screen {
@@ -1383,10 +1383,51 @@ val nextRylween = rylween {
         native.screen.clearMapWindow()
         native.screen.showImage(Images.Scene.tavern)
 
-        // Scruffy's random item offer needs the shared random-item purchase
-        // helper that merchant/smith will also use. Keep the gap explicit
-        // instead of leaking generated item ids into authoring code.
-        val rumours = let("rumours", 0)
+        val priestBonus = localInt(0)
+        forEachMember(includeDead = true) { member ->
+            when_(member.isClass(PcClass.Priest)) {
+                priestBonus += member.charisma / 10
+            }
+        }
+
+        when_(chance(priestBonus + 5)) {
+            native.screen.clearText()
+            screen(
+                "Just as you are about",
+                "to sit down at a,",
+                "table, a scruffy",
+                "little man, pulls",
+                "at your sleeve...",
+                "",
+            )
+            pause(3000)
+            screen(
+                "- Hey, hey, hey! You!",
+                "  yes... you! I have",
+                "  and offer that may",
+                "  interest you...",
+                "",
+            )
+            pause(3000)
+            native.screen.clearText()
+            choice.randomItemOffer(ItemPools.tavernScruffySpecials) {
+                offer {
+                    line("- I will sell you this")
+                    line("  ", itemName)
+                    line("  for the ridiculously")
+                    line("  low price of ", itemPrice)
+                    line("  Aurum!")
+                    line("")
+                }
+                broke("- You don't have that", "  much gold!")
+                full("- You can't carry it!")
+                promptDrop()
+                deal("- Deal!!!")
+                declined("- Fine, I can live with", "  that.")
+            }
+        }
+
+        val rumours = localInt(0)
 
         loop {
             native.screen.clearText()
@@ -1448,28 +1489,28 @@ val nextRylween = rylween {
                         screen("- YEAAH! Roars the crowd!", "")
                         pause(2000)
 
-                        val isBoast = let("is_boast", 0)
+                        val isBoast = localInt(0)
                         menu("(T)rue story", "(B)oast") {
                             option('T') {}
                             option('B') {
-                                let("is_boast", 1)
+                                isBoast set 1
                             }
                         }
 
-                        val score = let("score", 0)
+                        val score = localInt(0)
                         when_(isBoast eq 1) {
-                            let("score", score + 100)
+                            score += 100
                         }
                         when_(storyteller.isClass(PcClass.Bard)) {
-                            let("score", score + 100)
+                            score += 100
                         }
                         when_(storyteller.charisma gt 90) {
-                            let("score", score + 50)
+                            score += 50
                         }
                         when_(storyteller.charisma gt 70) {
-                            let("score", score + 50)
+                            score += 50
                         }
-                        let("score", score + random(1..150))
+                        score += random(1..150)
 
                         when_(isBoast eq 1) {
                             when_(random(0..99) gt storyteller.charisma) {
@@ -1543,7 +1584,7 @@ val nextRylween = rylween {
                 option('R') {
                     native.screen.clearText()
                     when_(rumours lt 5) {
-                        let("rumours", rumours + 1)
+                        rumours += 1
                     }
                     when_(rumours gt 4) {
                         screen {
@@ -1708,7 +1749,7 @@ val nextRylween = rylween {
     spell(Spells.mageFrost, slot = 1, baseCost = 8, name = "Frost Finger") {
         val caster = currentCaster
         val target = ask.monsterAlive(T.Battle.Prompt.monster)
-        val damage = let("dmg", caster.level * random(2..8))
+        val damage = localInt(caster.level * random(2..8))
 
         native.screen.clearText()
         bind("caster", partyName(caster))
@@ -1738,7 +1779,7 @@ val nextRylween = rylween {
             bind("caster", partyName(caster))
 
             forEachMonster(includeDead = true) { foe ->
-                val damage = let("dmg", caster.level * random(3..8))
+                val damage = localInt(caster.level * random(3..8))
 
                 when_(!foe.dead) {
                     bind("monster_name", monsterName(foe))
@@ -1761,7 +1802,7 @@ val nextRylween = rylween {
 
     // 4. Rumour: switch is readable, role bindings are typed handles.
     scene(Scenes.rumour) {
-        val pick = let("pick", native.rumour.roll())
+        val pick = localInt(native.rumour.roll())
 
         choose(pick) {
             case(12) {
@@ -1796,7 +1837,7 @@ val nextRylween = rylween {
         loop {
             native.screen.clearText()
 
-            val room = let("room", native.ydarg.roomAtCurrent())
+            val room = localInt(native.ydarg.roomAtCurrent())
             choose(room) {
                 case(1) {
                     native.ydarg.clearRoomAtCurrent()
@@ -1817,7 +1858,7 @@ val nextRylween = rylween {
             }
 
             run(Scenes.ydargNavRender)
-            val key = let("key", native.input.keyUpper())
+            val key = localInt(native.input.keyUpper())
             native.ydarg.tryMove(key)
             run(Scenes.ydargCommandDispatch, "key" to key)
         }
@@ -2308,6 +2349,32 @@ check(innScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.town
 check(innScene.ops.filterIsInstance<Op.Loop>().single().body.any { it is Op.Menu })
 val tavernScene = nextDsl.scenes.single { it.id == Scenes.Towne.tavern }
 check(tavernScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
+check(ItemPools.tavernScruffySpecials.items == listOf(
+    Items.magicDagger,
+    Items.magicAxe,
+    Items.admtMail,
+    Items.amberPotion,
+    Items.greenGem,
+    Items.frostWand,
+    Items.fireWand,
+    Items.gemOfConfusion,
+    Items.gemOfBlindness,
+    Items.drumsOfDeath,
+    Items.staffOfHealing,
+    Items.blessingScroll,
+    Items.staffOfCuring,
+    Items.gemOfResurrection,
+    Items.kaelsAxe,
+    Items.holyHandgrenade,
+    Items.fluteOfMadness,
+))
+check(tavernScene.ops.any { op ->
+    op is Op.If && op.thenOps.any {
+        it is Op.RandomItemOffer &&
+                it.offer.pool == ItemPools.tavernScruffySpecials &&
+                it.offer.application.overflow == RewardOverflowPolicy.PromptDropThenPlace
+    }
+})
 val tavernMenu = tavernScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()
 check(tavernMenu.options.map { it.key } == listOf('L', 'S', 'T', 'R', 'O'))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
