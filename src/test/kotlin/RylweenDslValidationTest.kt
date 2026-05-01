@@ -1805,7 +1805,7 @@ class RylweenDslValidationTest {
             (1..11).map { y -> if (y == 11) mapRow(12 to '0') else mapRow() },
         )
         val engine = RylweenKotlinEngine(content)
-        val terminal = FakeTerminalPort("2", "2", "E", "L", "X")
+        val terminal = FakeTerminalPort("2", "2", "E", "L", "X", "Y")
         val result = WildernessSessionTerminalAdapter(
             terminal = terminal,
             renderer = compiledTextRenderer(),
@@ -1820,6 +1820,31 @@ class RylweenDslValidationTest {
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
         assertEquals(null, result.session.runtime.realm.currentTown)
         assertTrue(terminal.output.any { "Thord" in it })
+    }
+
+    @Test
+    fun wildernessQuitConfirmationCanCancelOrFinish() {
+        val session = compiledWildernessSession()
+
+        val cancelled = WildernessSessionTerminalAdapter(FakeTerminalPort("X", "N")).runUntilBlocked(session)
+        val finished = WildernessSessionTerminalAdapter(FakeTerminalPort("X", "Y")).runUntilBlocked(cancelled.session)
+
+        assertTrue(cancelled.status is TerminalRunStatus.Waiting)
+        assertTrue(cancelled.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.QuitCancelled, cancelled.session.lastResult?.status)
+        assertTrue(finished.status is TerminalRunStatus.Finished)
+        assertTrue(finished.session.step is WildernessSessionStep.Finished)
+        assertEquals(WildernessSessionResultStatus.Finished, finished.session.lastResult?.status)
+    }
+
+    @Test
+    fun wildernessQuitConfirmationBlocksForAnswer() {
+        val session = compiledWildernessSession()
+        val result = WildernessSessionTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(session)
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.QuitConfirm)
+        assertEquals(WildernessSessionResultStatus.QuitRequested, result.session.lastResult?.status)
     }
 
     @Test
@@ -2018,6 +2043,16 @@ class RylweenDslValidationTest {
             currentHour = currentHour,
             rngState = rngState,
             npcs = npcs,
+        )
+    }
+
+    private fun compiledWildernessSession(): WildernessSession {
+        val content = RylweenCompiledScratch.nextDsl
+        val state = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
+        return RylweenKotlinEngine(content).wildernessSession(
+            state = state,
+            worldMap = WorldMapGrid.legacyWilderness((1..12).map { mapRow() }),
+            realizeNpcs = false,
         )
     }
 
