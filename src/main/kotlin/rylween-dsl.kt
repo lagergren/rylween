@@ -258,6 +258,8 @@ sealed interface TextPart {
     data class FuzzyTownLocation(val town: TownId, val radius: Int) : TextPart
     object OfferedItemName : TextPart
     object OfferedItemPrice : TextPart
+    object ShopPrice : TextPart
+    object ShopCarryCap : TextPart
 }
 data class TextLine(val parts: List<TextPart>)
 sealed interface TextBlock {
@@ -1549,6 +1551,7 @@ sealed interface Op {
     object ConsumeActiveItem : Op
     data class GrantReward(val reward: ScriptRewardModel) : Op
     data class RandomItemOffer(val offer: RandomItemOfferModel) : Op
+    data class ShopService(val shop: ShopServiceModel) : Op
     data class AchieveMilestone(val milestone: GameMilestoneId) : Op
     data class NativeCall(val path: String, val args: List<String>) : Op
 }
@@ -1779,6 +1782,122 @@ data class RandomItemOfferModel(
     val fullPauseMillis: Int,
     val dealPauseMillis: Int,
     val declinedPauseMillis: Int,
+)
+
+enum class ShopResourceKind { Torches, Food }
+enum class ShopQuantityCap { TorchLimit80, FoodByDonkeys }
+enum class ShopZeroQuantityDealPolicy { Always, NonZeroOnly }
+enum class ShopSellBargainPolicy { None, SmithHaggle }
+
+object ShopResources {
+    val torches: ShopResourceKind = ShopResourceKind.Torches
+    val food: ShopResourceKind = ShopResourceKind.Food
+}
+
+object ShopQuantityCaps {
+    val torchLimit80: ShopQuantityCap = ShopQuantityCap.TorchLimit80
+    val foodByDonkeys: ShopQuantityCap = ShopQuantityCap.FoodByDonkeys
+}
+
+object ShopZeroQuantityDeal {
+    val always: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.Always
+    val nonZeroOnly: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly
+}
+
+sealed interface ShopPriceModel {
+    object ItemCost : ShopPriceModel
+    object HalfItemCost : ShopPriceModel
+    data class Fixed(val amount: Int) : ShopPriceModel
+    data class LeaderLevelPlus(val addend: Int) : ShopPriceModel
+    data class ItemCostPlusLeaderLevelTimes(val multiplier: Int) : ShopPriceModel
+}
+
+class ShopPriceRefs {
+    val itemCost: ShopPriceModel = ShopPriceModel.ItemCost
+    val halfItemCost: ShopPriceModel = ShopPriceModel.HalfItemCost
+    fun fixed(amount: Int): ShopPriceModel = ShopPriceModel.Fixed(amount)
+    fun leaderLevelPlus(addend: Int): ShopPriceModel = ShopPriceModel.LeaderLevelPlus(addend)
+    fun itemCostPlusLeaderLevelTimes(multiplier: Int): ShopPriceModel =
+        ShopPriceModel.ItemCostPlusLeaderLevelTimes(multiplier)
+}
+val ShopPrices = ShopPriceRefs()
+
+sealed interface ShopPurchaseModel {
+    object InventoryItem : ShopPurchaseModel
+    data class Resource(
+        val resource: ShopResourceKind,
+        val quantityPrompt: TextBlock,
+        val cap: ShopQuantityCap,
+        val tooMany: TextBlock,
+        val zeroQuantityDeal: ShopZeroQuantityDealPolicy,
+    ) : ShopPurchaseModel
+}
+
+data class ShopItemOfferModel(
+    val key: Char,
+    val item: ItemId,
+    val label: String?,
+    val description: TextBlock?,
+    val price: ShopPriceModel,
+    val purchase: ShopPurchaseModel,
+)
+
+data class ShopCatalogPageModel(
+    val entries: List<ShopItemOfferModel>,
+    val footer: TextBlock?,
+)
+
+data class ShopCatalogModel(
+    val key: Char,
+    val title: String,
+    val intro: TextBlock?,
+    val pages: List<ShopCatalogPageModel>,
+)
+
+data class ShopBuyModel(
+    val prompt: TextBlock,
+    val catalogs: List<ShopCatalogModel>,
+    val tooExpensive: TextBlock,
+    val cantCarry: TextBlock,
+    val deal: TextBlock,
+    val unitPrice: TextBlock?,
+    val singlePrice: TextBlock?,
+    val payPrompt: TextBlock,
+    val inventoryApplication: RewardApplicationModel,
+)
+
+data class ShopSellModel(
+    val prompt: TextBlock,
+    val acceptedKinds: Set<ItemKind>,
+    val acceptedItems: Set<ItemId>,
+    val rejectedItems: Set<ItemId>,
+    val wrongKind: TextBlock,
+    val offer: TextBlock,
+    val sold: TextBlock?,
+    val price: ShopPriceModel,
+    val bargain: ShopSellBargainPolicy,
+)
+
+data class ShopInterludeModel(
+    val chancePercent: Int,
+    val offer: TextBlock,
+    val acceptKey: Char,
+    val declineKey: Char,
+    val accepted: List<TextBlock>,
+    val declined: TextBlock,
+    val runsRumourAfterAccept: Boolean,
+)
+
+data class ShopServiceModel(
+    val building: BuildingId,
+    val image: ImageId,
+    val closed: TextBlock,
+    val intro: TextBlock,
+    val menu: TextBlock,
+    val goodbye: TextBlock,
+    val buy: ShopBuyModel?,
+    val sell: ShopSellModel?,
+    val interlude: ShopInterludeModel?,
 )
 
 data class RewardBundleModel(
@@ -2502,6 +2621,10 @@ class ScriptScope(
         record(Op.GrantReward(ScriptRewardBuilder().apply(body).build()))
     }
 
+    fun shopService(building: BuildingId, body: ShopServiceBuilder.() -> Unit) {
+        record(Op.ShopService(ShopServiceBuilder(building).apply(body).build()))
+    }
+
     fun achieve(milestone: GameMilestoneId) {
         record(Op.AchieveMilestone(milestone))
     }
@@ -2594,7 +2717,9 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
     private var brokeText: TextBlock? = null
     private var dealText: TextBlock? = null
     private var declinedText: TextBlock? = null
-    private var applicationModel = RewardApplicationBuilder().build()
+    private var applicationModel = RewardApplicationBuilder().apply {
+        overflow = RewardOverflowPolicy.PromptDropThenPlace
+    }.build()
     private var messagesModel = RewardMessageModel()
 
     var buyKey: Char = 'B'
@@ -2685,6 +2810,399 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
             fullPauseMillis = fullPauseMillis,
             dealPauseMillis = dealPauseMillis,
             declinedPauseMillis = declinedPauseMillis,
+        )
+}
+
+@RylNextDsl
+class ShopTextBuilder {
+    private val text = StructuredTextBlockBuilder()
+
+    val price: TextPart = TextPart.ShopPrice
+    val cap: TextPart = TextPart.ShopCarryCap
+
+    fun line(vararg parts: Any) {
+        text.line(*parts)
+    }
+
+    fun lines(vararg lines: String) {
+        text.lines(*lines)
+    }
+
+    fun lines(body: ShopTextBuilder.() -> Unit) {
+        body()
+    }
+
+    fun build(): TextBlock = text.build()
+}
+fun shopText(body: ShopTextBuilder.() -> Unit): TextBlock =
+    ShopTextBuilder().apply(body).build()
+
+@RylNextDsl
+class ShopServiceBuilder(private val building: BuildingId) {
+    var image: ImageId? = null
+    private var closedText: TextBlock = inlineText("Shop Closed.")
+    private var introText: TextBlock? = null
+    private var menuText: TextBlock? = null
+    private var goodbyeText: TextBlock = inlineText("Well, bye then...")
+    private var buyModel: ShopBuyModel? = null
+    private var sellModel: ShopSellModel? = null
+    private var interludeModel: ShopInterludeModel? = null
+
+    fun closed(vararg lines: String) {
+        closedText = inlineText(*lines)
+    }
+
+    fun closed(body: StructuredTextBlockBuilder.() -> Unit) {
+        closedText = structuredText(body)
+    }
+
+    fun intro(vararg lines: String) {
+        introText = inlineText(*lines)
+    }
+
+    fun intro(body: StructuredTextBlockBuilder.() -> Unit) {
+        introText = structuredText(body)
+    }
+
+    fun menu(vararg lines: String) {
+        menuText = inlineText(*lines)
+    }
+
+    fun menu(body: StructuredTextBlockBuilder.() -> Unit) {
+        menuText = structuredText(body)
+    }
+
+    fun goodbye(vararg lines: String) {
+        goodbyeText = inlineText(*lines)
+    }
+
+    fun goodbye(body: StructuredTextBlockBuilder.() -> Unit) {
+        goodbyeText = structuredText(body)
+    }
+
+    fun interlude(chancePercent: Int, body: ShopInterludeBuilder.() -> Unit) {
+        interludeModel = ShopInterludeBuilder(chancePercent).apply(body).build()
+    }
+
+    fun buy(body: ShopBuyBuilder.() -> Unit) {
+        buyModel = ShopBuyBuilder().apply(body).build()
+    }
+
+    fun sell(body: ShopSellBuilder.() -> Unit) {
+        sellModel = ShopSellBuilder().apply(body).build()
+    }
+
+    fun build(): ShopServiceModel =
+        ShopServiceModel(
+            building = building,
+            image = requireNotNull(image) { "shop ${building.slug} requires image" },
+            closed = closedText,
+            intro = requireNotNull(introText) { "shop ${building.slug} requires intro text" },
+            menu = requireNotNull(menuText) { "shop ${building.slug} requires menu text" },
+            goodbye = goodbyeText,
+            buy = buyModel,
+            sell = sellModel,
+            interlude = interludeModel,
+        )
+}
+
+@RylNextDsl
+class ShopInterludeBuilder(private val chancePercent: Int) {
+    private var offerText: TextBlock? = null
+    private val acceptedTexts = mutableListOf<TextBlock>()
+    private var declinedText: TextBlock? = null
+    var acceptKey: Char = 'A'
+    var declineKey: Char = 'D'
+    var runsRumourAfterAccept: Boolean = false
+
+    fun offer(vararg lines: String) {
+        offerText = inlineText(*lines)
+    }
+
+    fun offer(body: StructuredTextBlockBuilder.() -> Unit) {
+        offerText = structuredText(body)
+    }
+
+    fun accepted(vararg lines: String) {
+        acceptedTexts += inlineText(*lines)
+    }
+
+    fun accepted(body: StructuredTextBlockBuilder.() -> Unit) {
+        acceptedTexts += structuredText(body)
+    }
+
+    fun declined(vararg lines: String) {
+        declinedText = inlineText(*lines)
+    }
+
+    fun declined(body: StructuredTextBlockBuilder.() -> Unit) {
+        declinedText = structuredText(body)
+    }
+
+    fun build(): ShopInterludeModel =
+        ShopInterludeModel(
+            chancePercent = chancePercent,
+            offer = requireNotNull(offerText) { "shop interlude requires offer text" },
+            acceptKey = acceptKey.uppercaseChar(),
+            declineKey = declineKey.uppercaseChar(),
+            accepted = acceptedTexts.toList(),
+            declined = requireNotNull(declinedText) { "shop interlude requires declined text" },
+            runsRumourAfterAccept = runsRumourAfterAccept,
+        )
+}
+
+@RylNextDsl
+class ShopBuyBuilder {
+    private var promptText: TextBlock? = null
+    private val catalogModels = mutableListOf<ShopCatalogModel>()
+    private var tooExpensiveText: TextBlock = inlineText("Too expensive!")
+    private var cantCarryText: TextBlock = inlineText("You cannot carry more.")
+    private var dealText: TextBlock = inlineText("Deal!")
+    private var unitPriceText: TextBlock? = null
+    private var singlePriceText: TextBlock? = null
+    private var payPromptText: TextBlock = inlineText("(P)ay", "(N)one")
+    private var applicationModel = RewardApplicationBuilder().apply {
+        overflow = RewardOverflowPolicy.PromptDropThenPlace
+    }.build()
+
+    fun prompt(vararg lines: String) {
+        promptText = inlineText(*lines)
+    }
+
+    fun prompt(body: StructuredTextBlockBuilder.() -> Unit) {
+        promptText = structuredText(body)
+    }
+
+    fun tooExpensive(vararg lines: String) {
+        tooExpensiveText = inlineText(*lines)
+    }
+
+    fun cantCarry(vararg lines: String) {
+        cantCarryText = inlineText(*lines)
+    }
+
+    fun deal(vararg lines: String) {
+        dealText = inlineText(*lines)
+    }
+
+    fun unitPrice(body: ShopTextBuilder.() -> Unit) {
+        unitPriceText = ShopTextBuilder().apply(body).build()
+    }
+
+    fun singlePrice(body: ShopTextBuilder.() -> Unit) {
+        singlePriceText = ShopTextBuilder().apply(body).build()
+    }
+
+    fun payPrompt(vararg lines: String) {
+        payPromptText = inlineText(*lines)
+    }
+
+    fun exactFullInventoryReject() {
+        applicationModel = applicationModel.copy(overflow = RewardOverflowPolicy.SkipIfInventoryFull)
+    }
+
+    fun catalog(key: Char, title: String, body: ShopCatalogBuilder.() -> Unit) {
+        catalogModels += ShopCatalogBuilder(key, title).apply(body).build()
+    }
+
+    fun build(): ShopBuyModel =
+        ShopBuyModel(
+            prompt = requireNotNull(promptText) { "shop buy section requires prompt text" },
+            catalogs = catalogModels.toList(),
+            tooExpensive = tooExpensiveText,
+            cantCarry = cantCarryText,
+            deal = dealText,
+            unitPrice = unitPriceText,
+            singlePrice = singlePriceText,
+            payPrompt = payPromptText,
+            inventoryApplication = applicationModel,
+        )
+}
+
+@RylNextDsl
+class ShopCatalogBuilder(private val key: Char, private val title: String) {
+    private var introText: TextBlock? = null
+    private val pages = mutableListOf<ShopCatalogPageModel>()
+    private val looseEntries = mutableListOf<ShopItemOfferModel>()
+
+    fun intro(vararg lines: String) {
+        introText = inlineText(*lines)
+    }
+
+    fun item(
+        key: Char,
+        item: ItemId,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        description: TextBlock? = null,
+    ) {
+        looseEntries += ShopItemOfferModel(
+            key = key.uppercaseChar(),
+            item = item,
+            label = label,
+            description = description,
+            price = price,
+            purchase = ShopPurchaseModel.InventoryItem,
+        )
+    }
+
+    fun item(
+        key: Char,
+        item: ItemId,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        description: StructuredTextBlockBuilder.() -> Unit,
+    ) {
+        item(key, item, label, price, structuredText(description))
+    }
+
+    fun resource(
+        key: Char,
+        item: ItemId,
+        resource: ShopResourceKind,
+        cap: ShopQuantityCap,
+        tooMany: TextBlock,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        zeroQuantityDeal: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly,
+        quantityPrompt: TextBlock = inlineText("How many? "),
+        description: TextBlock? = null,
+    ) {
+        looseEntries += ShopItemOfferModel(
+            key = key.uppercaseChar(),
+            item = item,
+            label = label,
+            description = description,
+            price = price,
+            purchase = ShopPurchaseModel.Resource(resource, quantityPrompt, cap, tooMany, zeroQuantityDeal),
+        )
+    }
+
+    fun resource(
+        key: Char,
+        item: ItemId,
+        resource: ShopResourceKind,
+        cap: ShopQuantityCap,
+        tooMany: TextBlock,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        zeroQuantityDeal: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly,
+        quantityPrompt: TextBlock = inlineText("How many? "),
+        description: StructuredTextBlockBuilder.() -> Unit,
+    ) {
+        resource(
+            key,
+            item,
+            resource,
+            cap,
+            tooMany,
+            label,
+            price,
+            zeroQuantityDeal,
+            quantityPrompt,
+            structuredText(description),
+        )
+    }
+
+    fun page(footer: TextBlock? = null, body: ShopCatalogPageBuilder.() -> Unit) {
+        pages += ShopCatalogPageBuilder().apply(body).build(footer)
+    }
+
+    fun page(vararg footerLines: String, body: ShopCatalogPageBuilder.() -> Unit) {
+        page(inlineText(*footerLines), body)
+    }
+
+    fun build(): ShopCatalogModel =
+        ShopCatalogModel(
+            key = key.uppercaseChar(),
+            title = title,
+            intro = introText,
+            pages = pages.toList() + looseEntries.takeIf { it.isNotEmpty() }?.let {
+                listOf(ShopCatalogPageModel(it.toList(), footer = null))
+            }.orEmpty(),
+        )
+}
+
+@RylNextDsl
+class ShopCatalogPageBuilder {
+    private val entries = mutableListOf<ShopItemOfferModel>()
+
+    fun item(
+        key: Char,
+        item: ItemId,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        description: TextBlock? = null,
+    ) {
+        entries += ShopItemOfferModel(
+            key = key.uppercaseChar(),
+            item = item,
+            label = label,
+            description = description,
+            price = price,
+            purchase = ShopPurchaseModel.InventoryItem,
+        )
+    }
+
+    fun build(footer: TextBlock?): ShopCatalogPageModel =
+        ShopCatalogPageModel(entries.toList(), footer)
+}
+
+@RylNextDsl
+class ShopSellBuilder {
+    private var promptText: TextBlock? = null
+    private val acceptedKindModels = mutableSetOf<ItemKind>()
+    private val acceptedItemModels = mutableSetOf<ItemId>()
+    private val rejectedItemModels = mutableSetOf<ItemId>()
+    private var wrongKindText: TextBlock = inlineText("Wrong kind.")
+    private var offerText: TextBlock? = null
+    private var soldText: TextBlock? = null
+    var price: ShopPriceModel = ShopPriceModel.HalfItemCost
+    var bargain: ShopSellBargainPolicy = ShopSellBargainPolicy.None
+
+    fun prompt(vararg lines: String) {
+        promptText = inlineText(*lines)
+    }
+
+    fun acceptsKinds(vararg kinds: ItemKind) {
+        acceptedKindModels += kinds
+    }
+
+    fun accepts(vararg items: ItemId) {
+        acceptedItemModels += items
+    }
+
+    fun rejects(vararg items: ItemId) {
+        rejectedItemModels += items
+    }
+
+    fun wrongKind(vararg lines: String) {
+        wrongKindText = inlineText(*lines)
+    }
+
+    fun offer(body: ShopTextBuilder.() -> Unit) {
+        offerText = ShopTextBuilder().apply(body).build()
+    }
+
+    fun sold(vararg lines: String) {
+        soldText = inlineText(*lines)
+    }
+
+    fun smithHaggle() {
+        bargain = ShopSellBargainPolicy.SmithHaggle
+    }
+
+    fun build(): ShopSellModel =
+        ShopSellModel(
+            prompt = requireNotNull(promptText) { "shop sell section requires prompt text" },
+            acceptedKinds = acceptedKindModels.toSet(),
+            acceptedItems = acceptedItemModels.toSet(),
+            rejectedItems = rejectedItemModels.toSet(),
+            wrongKind = wrongKindText,
+            offer = requireNotNull(offerText) { "shop sell section requires offer text" },
+            sold = soldText,
+            price = price,
+            bargain = bargain,
         )
 }
 
@@ -4426,7 +4944,9 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         is TextPart.TownName,
                         is TextPart.FuzzyTownLocation,
                         TextPart.OfferedItemName,
-                        TextPart.OfferedItemPrice -> Unit
+                        TextPart.OfferedItemPrice,
+                        TextPart.ShopPrice,
+                        TextPart.ShopCarryCap -> Unit
                     }
                 }
             }
@@ -4486,6 +5006,45 @@ fun nativePathsIn(model: GameModel): Set<String> {
                     op.offer.messages.pickedUp?.let(::text)
                     text(op.offer.deal)
                     text(op.offer.declined)
+                }
+                is Op.ShopService -> {
+                    text(op.shop.closed)
+                    text(op.shop.intro)
+                    text(op.shop.menu)
+                    text(op.shop.goodbye)
+                    op.shop.interlude?.let { interlude ->
+                        text(interlude.offer)
+                        interlude.accepted.forEach(::text)
+                        text(interlude.declined)
+                    }
+                    op.shop.buy?.let { buy ->
+                        text(buy.prompt)
+                        text(buy.tooExpensive)
+                        text(buy.cantCarry)
+                        text(buy.deal)
+                        buy.unitPrice?.let(::text)
+                        buy.singlePrice?.let(::text)
+                        text(buy.payPrompt)
+                        buy.catalogs.forEach { catalog ->
+                            catalog.intro?.let(::text)
+                            catalog.pages.forEach { page ->
+                                page.footer?.let(::text)
+                                page.entries.forEach { entry ->
+                                    entry.description?.let(::text)
+                                    (entry.purchase as? ShopPurchaseModel.Resource)?.let { resource ->
+                                        text(resource.quantityPrompt)
+                                        text(resource.tooMany)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    op.shop.sell?.let { sell ->
+                        text(sell.prompt)
+                        text(sell.wrongKind)
+                        text(sell.offer)
+                        sell.sold?.let(::text)
+                    }
                 }
                 is Op.AchieveMilestone -> Unit
                 is Op.NativeCall -> paths += op.path

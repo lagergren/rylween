@@ -277,7 +277,6 @@ class RylweenDslValidationTest {
                     }
                     broke("- You don't have that", "  much gold!")
                     full("- You can't carry it!")
-                    promptDrop()
                     deal("- Deal!!!")
                     declined("- Fine, I can live with", "  that.")
                 }
@@ -320,6 +319,57 @@ class RylweenDslValidationTest {
         runner.run(listOf(offer))
 
         assertEquals(EngineTraceEvent.RandomItemOffer(offer.offer), engine.events.single())
+    }
+
+    @Test
+    fun shopServiceValidatesAndDefaultsInventoryPurchasesToPromptDrop() {
+        val content = GameBuilder().apply {
+            scene(sceneId("test.shop")) {
+                shopService(Buildings.merchant) {
+                    image = Images.Scene.merchant
+                    intro("Merchant", "")
+                    menu("(B)uy item", "(S)ell item", "(L)eave")
+                    buy {
+                        prompt("Buy what?", "")
+                        catalog('B', "Goods") {
+                            resource(
+                                'A',
+                                Items.torch,
+                                resource = ShopResources.torches,
+                                cap = ShopQuantityCaps.torchLimit80,
+                                tooMany = inlineText("Too many torches."),
+                                zeroQuantityDeal = ShopZeroQuantityDeal.always,
+                            )
+                            item('B', Items.blanket)
+                        }
+                    }
+                    sell {
+                        prompt("Sell what?", "")
+                        accepts(Items.blanket)
+                        wrongKind("Wrong kind.")
+                        offer {
+                            line("Offer: ", price)
+                        }
+                    }
+                }
+            }
+        }.build()
+
+        validateScriptRewards(content)
+
+        val shop = (content.scenes.single().ops.single() as Op.ShopService).shop
+        assertEquals(RewardOverflowPolicy.PromptDropThenPlace, shop.buy?.inventoryApplication?.overflow)
+        assertEquals(
+            listOf(Items.torch, Items.blanket),
+            shop.buy?.catalogs?.single()?.pages?.single()?.entries?.map { it.item },
+        )
+        assertEquals(setOf(Items.blanket), shop.sell?.acceptedItems)
+
+        val engine = TraceEnginePort()
+        val runner = ScriptTraceRunner(engine)
+        runner.run(listOf(Op.ShopService(shop)))
+
+        assertEquals(EngineTraceEvent.ShopService(shop), engine.events.single())
     }
 
     @Test

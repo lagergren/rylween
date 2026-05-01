@@ -42,6 +42,7 @@ sealed interface EngineTraceEvent {
     data class Stop(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class Break(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class RandomItemOffer(val offer: RandomItemOfferModel) : EngineTraceEvent
+    data class ShopService(val shop: ShopServiceModel) : EngineTraceEvent
 }
 
 class TraceEnginePort(
@@ -139,6 +140,9 @@ class ScriptTraceRunner(
             }
             is Op.RandomItemOffer -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.RandomItemOffer(op.offer))
+            }
+            is Op.ShopService -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.ShopService(op.shop))
             }
             is Op.AchieveMilestone -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.AchieveMilestone(op.milestone))
