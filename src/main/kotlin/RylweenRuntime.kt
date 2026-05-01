@@ -57,6 +57,7 @@ sealed interface TownSessionInput {
 data class RuntimeSessionState(
     val realm: RealmState,
     val parties: List<PartyState>,
+    val npcs: List<NpcPlacement> = emptyList(),
 ) {
     val activeParty: PartyState
         get() = parties.firstOrNull { party -> party.id == realm.activeParty }
@@ -83,6 +84,7 @@ data class RuntimeSessionState(
             hour: Int,
             currentTown: TownId?,
             rngState: Long? = null,
+            npcs: List<NpcPlacement> = emptyList(),
         ): RuntimeSessionState =
             RuntimeSessionState(
                 realm = RealmState(
@@ -99,6 +101,7 @@ data class RuntimeSessionState(
                     partyMemberMax = 4,
                 ),
                 parties = listOf(party),
+                npcs = npcs,
             )
     }
 }
@@ -1154,6 +1157,7 @@ data class TownSession(
             party: PartyState,
             currentHour: Int,
             rngState: Long? = null,
+            npcs: List<NpcPlacement> = emptyList(),
             itemRecords: List<ItemRecordModel> = ItemCatalog.all,
         ): TownSession =
             start(
@@ -1165,6 +1169,7 @@ data class TownSession(
                     hour = currentHour,
                     currentTown = town.id,
                     rngState = rngState,
+                    npcs = npcs,
                 ),
                 itemRecords = itemRecords,
             )

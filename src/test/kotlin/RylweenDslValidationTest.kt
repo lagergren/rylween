@@ -1692,6 +1692,55 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townTerminalAdapterRendersCompiledRumourRoleBindings() {
+        val terminal = FakeTerminalPort("T", "R", "", "L", "L")
+        val result = TownSessionTerminalAdapter(
+            terminal,
+            renderer = compiledTextRenderer(),
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
+        ).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.tavern),
+                townSystem = testTownSystem(Buildings.tavern),
+                scenes = listOf(testTavernSpeakRumourScene()),
+                party = testParty(),
+                currentHour = 12,
+                rngState = 54L,
+                npcs = listOf(NpcPlacement(Npcs.broth, Towns.wilor.inn)),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertTrue(terminal.output.any { "A man named Broth" in it })
+        assertTrue(terminal.output.any { "He lives in Wilor!" in it })
+        assertTrue(terminal.output.none { "{crown_seer" in it })
+    }
+
+    @Test
+    fun townTerminalAdapterRendersCompiledRumourTownBindings() {
+        val terminal = FakeTerminalPort("T", "R", "", "L", "L")
+        val result = TownSessionTerminalAdapter(
+            terminal,
+            renderer = compiledTextRenderer(),
+            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
+        ).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.tavern),
+                townSystem = testTownSystem(Buildings.tavern),
+                scenes = listOf(testTavernSpeakRumourScene()),
+                party = testParty(),
+                currentHour = 12,
+                rngState = 17L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertTrue(terminal.output.any { "Murn is situated" in it })
+        assertTrue(terminal.output.any { "somewhere near 52x27!" in it })
+        assertTrue(terminal.output.none { "murn near" in it })
+    }
+
+    @Test
     fun compiledScratchGarthRewardBranchAppliesAuthoredRewardAndFlag() {
         val (service, scene) = garthRecoveredDialogueService()
         val result = StatefulTownServiceBridge(FakeTerminalPort()).run(
@@ -1814,11 +1863,17 @@ class RylweenDslValidationTest {
             )
         }
 
+    private fun compiledTextRenderer(): TerminalTextRenderer =
+        RylweenCompiledScratch.nextDsl.let { content ->
+            TerminalTextRenderer(towns = content.towns, characters = content.characters)
+        }
+
     private fun compiledTownSession(
         party: PartyState,
         townId: TownId = Towns.thord.id,
         currentHour: Int = 12,
         rngState: Long? = null,
+        npcs: List<NpcPlacement> = emptyList(),
     ): TownSession {
         val content = RylweenCompiledScratch.nextDsl
         return TownSession.start(
@@ -1828,6 +1883,7 @@ class RylweenDslValidationTest {
             party = party,
             currentHour = currentHour,
             rngState = rngState,
+            npcs = npcs,
         )
     }
 

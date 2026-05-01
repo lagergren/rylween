@@ -365,6 +365,7 @@ data class TerminalTextContext(
     val shopCarryCap: Int? = null,
     val offeredItemName: String? = null,
     val offeredItemPrice: Int? = null,
+    val runtime: RuntimeSessionState? = null,
 )
 
 data class TerminalInputRejection(
@@ -982,6 +983,8 @@ private class StatefulScriptServiceRunner(
 
 class TerminalTextRenderer(
     private val references: Map<String, List<String>> = emptyMap(),
+    private val towns: List<TownModel> = emptyList(),
+    private val characters: List<CharacterModel> = emptyList(),
 ) {
     fun lines(block: TextBlock, context: TerminalTextContext = TerminalTextContext()): List<String> =
         when (block) {
@@ -997,15 +1000,61 @@ class TerminalTextRenderer(
             is TextPart.Literal -> part.text
             is TextPart.IntValue -> render(part.value)
             is TextPart.StringValue -> "{string}"
-            is TextPart.RoleName -> "{${part.role.slug}.name}"
-            is TextPart.RoleLocation -> "{${part.role.slug}.location}"
-            is TextPart.TownName -> part.town.slug
-            is TextPart.FuzzyTownLocation -> "${part.town.slug} near +/-${part.radius}"
+            is TextPart.RoleName -> characterFor(part.role)?.name ?: "{${part.role.slug}.name}"
+            is TextPart.RoleLocation -> roleLocation(part.role, context.runtime) ?: "{${part.role.slug}.location}"
+            is TextPart.TownName -> townName(part.town)
+            is TextPart.FuzzyTownLocation -> townLocation(part.town, part.radius) ?: "${part.town.slug}.location"
             TextPart.OfferedItemName -> context.offeredItemName ?: "{item_name}"
             TextPart.OfferedItemPrice -> context.offeredItemPrice?.toString() ?: "{item_price}"
             TextPart.ShopPrice -> context.shopPrice?.toString() ?: "{price}"
             TextPart.ShopCarryCap -> context.shopCarryCap?.toString() ?: "{cap}"
         }
+
+    private fun characterFor(role: NpcRole): CharacterModel? =
+        characters.firstOrNull { role in it.roles }
+
+    private fun roleLocation(role: NpcRole, runtime: RuntimeSessionState?): String? {
+        val character = characterFor(role) ?: return null
+        val placement = runtime
+            ?.npcs
+            ?.firstOrNull { it.npc == character.id }
+            ?.position
+            ?: (character.placement as? CharacterPlacementModel.Fixed)?.position
+            ?: return null
+        return position(placement)
+    }
+
+    private fun position(position: WorldPosition): String =
+        when (position) {
+            is WorldPosition.Town -> "in ${townName(position.town)}"
+            is WorldPosition.Wilderness -> "at ${point(position.point)}"
+        }
+
+    private fun townName(town: TownId): String =
+        towns.firstOrNull { it.id == town }?.name ?: town.slug
+
+    private fun townLocation(town: TownId, radius: Int): String? {
+        val model = towns.firstOrNull { it.id == town } ?: return null
+        return point(fuzzyPoint(model.position, town.slug, radius))
+    }
+
+    private fun fuzzyPoint(point: GridPoint, slug: String, radius: Int): GridPoint =
+        if (radius <= 0) {
+            point
+        } else {
+            GridPoint(
+                x = point.x + stableOffset("$slug:x", radius),
+                y = point.y + stableOffset("$slug:y", radius),
+            )
+        }
+
+    private fun stableOffset(key: String, radius: Int): Int {
+        val span = radius * 2 + 1
+        val hash = key.fold(0) { acc, char -> acc * 31 + char.code }
+        return Math.floorMod(hash, span) - radius
+    }
+
+    private fun point(point: GridPoint): String = "${point.x}x${point.y}"
 
     private fun render(ast: IntAst): String =
         when (ast) {
@@ -1458,7 +1507,7 @@ class TownSessionTerminalAdapter(
                     }
                 }
                 is TownSessionStep.Notice -> {
-                    terminal.write(renderer.lines(step.text))
+                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
                     session.continueNotice()
                 }
                 is TownSessionStep.Shop -> {
@@ -1486,7 +1535,7 @@ class TownSessionTerminalAdapter(
                 is TownSessionStep.NativeService -> {
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
                     val result = serviceBridge.run(step.service, step.scene, continuation)
-                    writeBridgeEvents(result.events)
+                    writeBridgeEvents(result.events, result.runtime)
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
                             session.apply(TownSessionInput.FinishNativeService(result.runtime))
@@ -1519,17 +1568,18 @@ class TownSessionTerminalAdapter(
             checkNotNull(building).slug.replaceFirstChar { it.uppercaseChar() }
         }
 
-    private fun writeBridgeEvents(events: List<EngineTraceEvent>) {
+    private fun writeBridgeEvents(events: List<EngineTraceEvent>, runtime: RuntimeSessionState) {
+        val context = TerminalTextContext(runtime = runtime)
         events.forEach { event ->
             when (event) {
-                is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text))
+                is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
                 is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
                 is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
                 is EngineTraceEvent.Menu -> terminal.write(
-                    renderer.lines(event.prompt) + "Options: ${event.keys.joinToString("/")}",
+                    renderer.lines(event.prompt, context) + "Options: ${event.keys.joinToString("/")}",
                 )
-                is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt))
-                is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt))
+                is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
+                is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
                 is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
                 is EngineTraceEvent.NativeString ->
