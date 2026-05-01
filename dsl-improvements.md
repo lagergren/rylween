@@ -112,10 +112,27 @@ The "DSL delta" text is the concrete thing to look for in the Kotlin diff.
 ### A. Foundation and authoring surface
 
 - [x] A0. Seed typed DSL direction. DSL delta: `rylween { content { ... } state { ... } }`, typed handles, typed flags, first party-state model. Native decision: JSON5 is reference only, not the target runtime format.
-- [ ] A1. Split the prototype into clear authoring sections. DSL delta: stable `content`, `state`, `texts`, `scripts`, and handle catalog sections. Native decision: content compiler owns handle generation.
-- [ ] A2. Define the generated handle catalogs. DSL delta: `Items.*`, `Flags.*`, `Npcs.*`, `Maps.*`, `Terrain.*`, `Texts.*`, `Scenes.*`, `NativeOps.*`. Native decision: C receives dense ids plus diagnostic slugs.
+- [ ] A1. Split the prototype into clear authoring sections. DSL delta: stable `content`, `state`, `texts`, `scripts`, and handle catalog sections. Native decision: content compiler owns handle generation. Current scratch status: partial in `rylween-full-scratch.dsl.kts`; the file is split into handle catalogs, script AST/kernel, exact state model, builders/validation, and a full-game authoring area with `content {}` and `state {}`.
+- [ ] A2. Define the generated handle catalogs. DSL delta: `Items.*`, `Flags.*`, `Npcs.*`, `Maps.*`, `Terrain.*`, `Texts.*`, `Scenes.*`, `NativeOps.*`. Native decision: C receives dense ids plus diagnostic slugs. Current scratch status: partial in `rylween-full-scratch.dsl.kts`; hand-sketched catalogs now cover the listed handle families plus visuals, layouts, screen regions, roles, spells, missions, key actions, dungeons, towns/buildings, locations, and encounter tiers.
 - [ ] A3. Define typed native-op declarations. DSL delta: `nativeOps { op(NativeOps.renderMap) { ... } }` or equivalent. Native decision: no raw string function names in authored scripts.
 - [ ] A4. Define validation error style. DSL delta: validation helpers report game concepts such as missing terrain, text binding, or illegal flag transition. Native decision: loader can reject compiled bundles defensively but author-facing validation happens before C.
+
+### Current scratch decisions and open questions
+
+Decisions from the first `rylween-full-scratch.dsl.kts` pass:
+
+- `rylween-full-scratch.dsl.kts` is the successor scratch source copied from `dsl-next.kts`; `dsl-next.kts` remains the small language/prototype lab.
+- `Flags` aliases the existing `Story` flag catalog so scripts can keep the readable `Story.garth.bandits.accepted` form while A2 has a canonical `Flags.*` entry point.
+- `Items.none` is an author-facing alias for the current id-0 `blank` item. The prototype-only `garth_cargo` item was not carried forward because it is not present in the current item shards.
+- `Images.Scene.*` names the `blitgfx` map-window pictures semantically from `src/ryl.h` and `world.json5`'s `enums.pic` table, with comments preserving the legacy `data/tiles/NN.ans` filenames. Avoid `tile01`-style handles in authoring code.
+- `Images.Static.*` is reserved for full/static ANSI assets under `data/ansi`, separate from map-window scene pictures under `data/tiles`.
+- `NativeOps.*` is a typed catalog, but in `.kts` it must currently be represented as a class plus top-level value rather than a Kotlin `object`; script objects that call script-level helpers trigger a Kotlin script capture error.
+
+Open design questions:
+
+- Decide B7 ownership for `fireshield`, `bracelets`, `mastercrown`, `jazzyfoot`, and `silverkey`: story flag state, inventory item, derived capability, or typed party status.
+- Decide whether final generated catalogs should mirror JSON5 shard names exactly or use more author-facing groups such as `Images.Static` / `Images.Scene`.
+- Decide scene slug normalization before broad script porting. The scratch file starts grouping scene handles by domain, but the migration needs one canonical mapping from legacy script ids to typed `Scenes.*`.
 
 ### B. Exact runtime state and savegames
 
