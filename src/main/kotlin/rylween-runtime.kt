@@ -27,6 +27,13 @@ sealed interface ShopServiceInput {
     data class ConfirmSale(val accept: Boolean) : ShopServiceInput
 }
 
+sealed interface TownSessionInput {
+    data class MenuKey(val key: Char) : TownSessionInput
+    data class Shop(val input: ShopServiceInput) : TownSessionInput
+    data class Equipment(val input: TownLeaveEquipmentInput) : TownSessionInput
+    data class FinishNativeService(val party: PartyState) : TownSessionInput
+}
+
 sealed interface InventoryPlacementResult {
     data class Placed(val party: PartyState, val slot: Int) : InventoryPlacementResult
     data class NeedsDropSlot(val party: PartyState) : InventoryPlacementResult
@@ -77,6 +84,16 @@ enum class ShopSellQuoteStatus {
     Declined,
 }
 
+enum class TownSessionResultStatus {
+    EnteredShop,
+    EnteredNativeService,
+    ServiceNotOffered,
+    ServiceClosed,
+    MissingService,
+    ShopFinished,
+    NativeServiceFinished,
+}
+
 data class ShopTransactionResult(
     val status: ShopTransactionStatus,
     val party: PartyState,
@@ -93,6 +110,12 @@ data class ShopSellQuoteResult(
     val slot: Int? = null,
     val price: Int = 0,
     val bargainRolls: List<Int> = emptyList(),
+)
+
+data class TownSessionResult(
+    val status: TownSessionResultStatus,
+    val party: PartyState,
+    val building: BuildingId? = null,
 )
 
 data class CampGearEffect(
@@ -244,6 +267,188 @@ data class TownLeaveEquipmentSession(
                     ?: TownLeaveEquipmentStep.Finished(party),
             )
         }
+    }
+}
+
+object TownPromptText {
+    fun menu(town: TownModel): TextBlock =
+        inlineText(town.name, "")
+
+    fun unavailable(building: BuildingId): TextBlock =
+        inlineText("${building.slug} is not available here.")
+
+    fun missingService(building: BuildingId): TextBlock =
+        inlineText("${building.slug} service is not implemented yet.")
+
+    fun closed(building: BuildingId): TextBlock =
+        inlineText("${building.slug} is closed.")
+}
+
+sealed interface TownSessionStep {
+    data class Menu(
+        val town: TownModel,
+        val actions: List<TownMenuActionModel>,
+    ) : TownSessionStep
+    data class Notice(
+        val text: TextBlock,
+        val next: Menu,
+    ) : TownSessionStep
+    data class Shop(
+        val service: BuildingServiceModel,
+        val session: ShopServiceSession,
+    ) : TownSessionStep
+    data class NativeService(
+        val service: BuildingServiceModel,
+    ) : TownSessionStep
+    data class LeaveEquipment(
+        val session: TownLeaveEquipmentSession,
+    ) : TownSessionStep
+    data class Finished(
+        val party: PartyState,
+    ) : TownSessionStep
+}
+
+data class TownSession(
+    val town: TownModel,
+    val townSystem: TownSystemModel,
+    val party: PartyState,
+    val currentHour: Int,
+    val shopServices: Map<BuildingId, ShopServiceModel>,
+    val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    val step: TownSessionStep = TownSessionStep.Menu(town, availableTownActions(town, townSystem)),
+    val lastResult: TownSessionResult? = null,
+) {
+    fun apply(input: TownSessionInput): TownSession =
+        when (input) {
+            is TownSessionInput.MenuKey -> chooseMenu(input.key)
+            is TownSessionInput.Shop -> applyShop(input.input)
+            is TownSessionInput.Equipment -> applyEquipment(input.input)
+            is TownSessionInput.FinishNativeService -> finishNative(input.party)
+        }
+
+    fun continueNotice(): TownSession {
+        val current = step as? TownSessionStep.Notice
+            ?: error("town session is not showing a notice")
+        return copy(step = current.next)
+    }
+
+    fun replaceShopSession(session: ShopServiceSession): TownSession {
+        val current = step as? TownSessionStep.Shop
+            ?: error("town session is not running a shop")
+        return if (session.step is ShopServiceStep.Finished) {
+            finishShop(session, current.service.building)
+        } else {
+            copy(party = session.party, step = current.copy(session = session))
+        }
+    }
+
+    fun replaceLeaveEquipmentSession(session: TownLeaveEquipmentSession): TownSession {
+        require(step is TownSessionStep.LeaveEquipment) { "town session is not running leave equipment prompts" }
+        return if (session.step is TownLeaveEquipmentStep.Finished) {
+            copy(party = session.party, step = TownSessionStep.Finished(session.party))
+        } else {
+            copy(party = session.party, step = TownSessionStep.LeaveEquipment(session))
+        }
+    }
+
+    private fun chooseMenu(key: Char): TownSession {
+        val action = townSystem.menu.firstOrNull { it.key == key.uppercaseChar() }
+            ?: return copy(lastResult = null)
+        if (action.endsMenu) {
+            val equipment = TownLeaveEquipmentSession.start(party, itemRecords)
+            return if (equipment.step is TownLeaveEquipmentStep.Finished) {
+                copy(step = TownSessionStep.Finished(party))
+            } else {
+                copy(step = TownSessionStep.LeaveEquipment(equipment), lastResult = null)
+            }
+        }
+
+        val building = checkNotNull(action.building) { "town service action ${action.action.slug} has no building" }
+        if (!town.offers(building)) {
+            return notice(
+                TownPromptText.unavailable(building),
+                TownSessionResult(TownSessionResultStatus.ServiceNotOffered, party, building),
+            )
+        }
+
+        val service = townSystem.buildingServices.firstOrNull { it.building == building }
+            ?: return notice(
+                TownPromptText.missingService(building),
+                TownSessionResult(TownSessionResultStatus.MissingService, party, building),
+            )
+        val shop = shopServices[building]
+        if (!service.isOpenAt(currentHour)) {
+            return notice(
+                shop?.closed ?: TownPromptText.closed(building),
+                TownSessionResult(TownSessionResultStatus.ServiceClosed, party, building),
+            )
+        }
+
+        return if (shop != null) {
+            copy(
+                step = TownSessionStep.Shop(service, ShopServiceSession.start(shop, party, itemRecords)),
+                lastResult = TownSessionResult(TownSessionResultStatus.EnteredShop, party, building),
+            )
+        } else {
+            copy(
+                step = TownSessionStep.NativeService(service),
+                lastResult = TownSessionResult(TownSessionResultStatus.EnteredNativeService, party, building),
+            )
+        }
+    }
+
+    private fun applyShop(input: ShopServiceInput): TownSession {
+        val current = step as? TownSessionStep.Shop
+            ?: error("town session is not running a shop")
+        return replaceShopSession(applyShopInput(current.session, input))
+    }
+
+    private fun applyEquipment(input: TownLeaveEquipmentInput): TownSession {
+        val current = step as? TownSessionStep.LeaveEquipment
+            ?: error("town session is not running leave equipment prompts")
+        return replaceLeaveEquipmentSession(current.session.apply(input))
+    }
+
+    private fun finishNative(nextParty: PartyState): TownSession {
+        val current = step as? TownSessionStep.NativeService
+            ?: error("town session is not running a native service")
+        return copy(
+            party = nextParty,
+            step = menuStep(),
+            lastResult = TownSessionResult(TownSessionResultStatus.NativeServiceFinished, nextParty, current.service.building),
+        )
+    }
+
+    private fun finishShop(session: ShopServiceSession, building: BuildingId): TownSession =
+        copy(
+            party = session.party,
+            step = menuStep(),
+            lastResult = TownSessionResult(TownSessionResultStatus.ShopFinished, session.party, building),
+        )
+
+    private fun notice(text: TextBlock, result: TownSessionResult): TownSession =
+        copy(step = TownSessionStep.Notice(text, menuStep()), lastResult = result)
+
+    private fun menuStep(): TownSessionStep.Menu =
+        TownSessionStep.Menu(town, availableTownActions(town, townSystem))
+
+    companion object {
+        fun start(
+            town: TownModel,
+            townSystem: TownSystemModel,
+            scenes: List<SceneModel>,
+            party: PartyState,
+            currentHour: Int,
+            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+        ): TownSession =
+            TownSession(
+                town = town,
+                townSystem = townSystem,
+                party = party,
+                currentHour = currentHour,
+                shopServices = scenes.shopServicesByBuilding(),
+                itemRecords = itemRecords,
+            )
     }
 }
 
@@ -416,6 +621,45 @@ data class ShopServiceSession(
             )
     }
 }
+
+fun applyShopInput(session: ShopServiceSession, input: ShopServiceInput): ShopServiceSession =
+    when (input) {
+        ShopServiceInput.ContinueIntro -> session.continueIntro()
+        is ShopServiceInput.Main -> session.chooseMain(input.choice)
+        is ShopServiceInput.BuyItem -> session.chooseBuyItem(input.item)
+        is ShopServiceInput.Quantity -> session.enterQuantity(input.quantity)
+        is ShopServiceInput.ConfirmPurchase -> session.confirmPurchase(input.accept)
+        is ShopServiceInput.DropSlot -> session.chooseDropSlot(input.slot)
+        is ShopServiceInput.SellSlot -> session.chooseSellSlot(input.slot, input.bargainRolls)
+        is ShopServiceInput.ConfirmSale -> session.confirmSale(input.accept)
+    }
+
+fun List<SceneModel>.shopServicesByBuilding(): Map<BuildingId, ShopServiceModel> =
+    flatMap { scene -> scene.ops.filterIsInstance<Op.ShopService>().map { it.shop } }
+        .associateBy { shop -> shop.building }
+
+fun BuildingServiceModel.isOpenAt(hour: Int): Boolean {
+    val opensAt = opensAt ?: return true
+    val closesAt = closesAt ?: return true
+    val current = hour.floorMod(24)
+    return if (opensAt <= closesAt) {
+        current in opensAt..closesAt
+    } else {
+        current >= opensAt || current <= closesAt
+    }
+}
+
+private fun availableTownActions(
+    town: TownModel,
+    townSystem: TownSystemModel,
+): List<TownMenuActionModel> =
+    townSystem.menu.filter { action -> action.endsMenu || action.building?.let(town::offers) == true }
+
+private fun TownModel.offers(building: BuildingId): Boolean =
+    services.any { it.building == building }
+
+private fun Int.floorMod(divisor: Int): Int =
+    ((this % divisor) + divisor) % divisor
 
 class ShopServiceInterpreter(
     itemRecords: List<ItemRecordModel> = ItemCatalog.all,

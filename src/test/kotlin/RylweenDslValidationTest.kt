@@ -857,6 +857,66 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townTerminalAdapterDispatchesShopAndLeaveFlows() {
+        val terminal = FakeTerminalPort("M", "B", "A", "99", "P", "L", "L")
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.merchant),
+                townSystem = testTownSystem(Buildings.merchant),
+                scenes = listOf(SceneModel(Scenes.Towne.merchant, listOf(Op.ShopService(testMerchantShop())))),
+                party = testParty(gold = 10, torches = 78),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(session.session.step is TownSessionStep.Finished)
+        assertEquals(80, session.session.party.resources.torches)
+        assertEquals(8, session.session.party.resources.gold)
+        assertTrue(terminal.output.any { "(M) Merchant" in it })
+        assertTrue(terminal.output.any { "(A) torch" in it })
+    }
+
+    @Test
+    fun townTerminalAdapterRunsLeaveEquipmentPromptBeforeExit() {
+        val terminal = FakeTerminalPort("L", "Y", "A", "1", "Y", "B", "1")
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.merchant),
+                townSystem = testTownSystem(Buildings.merchant),
+                scenes = emptyList(),
+                party = testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(session.session.step is TownSessionStep.Finished)
+        assertEquals(Items.sword, session.session.party.members.single().weapon)
+        assertEquals(Items.leather, session.session.party.members.single().armor)
+        assertEquals(2, terminal.output.count { it == "Options: Y/N" })
+    }
+
+    @Test
+    fun townTerminalAdapterReturnsUnchangedSessionOnInvalidMenuInput() {
+        val session = TownSession.start(
+            town = testTown(Buildings.merchant),
+            townSystem = testTownSystem(Buildings.merchant),
+            scenes = listOf(SceneModel(Scenes.Towne.merchant, listOf(Op.ShopService(testMerchantShop())))),
+            party = testParty(gold = 10),
+            currentHour = 12,
+        )
+        val result = TownSessionTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(session)
+
+        assertTrue(result.session.step is TownSessionStep.Menu)
+        assertEquals(session.party, result.session.party)
+        assertEquals(
+            TerminalInputRejection("X", listOf("M", "L")),
+            (result.status as TerminalRunStatus.Waiting).rejection,
+        )
+    }
+
+    @Test
     fun validationRejectsBreakOutsideLoop() {
         val content = GameBuilder().apply {
             scene(sceneId("bad.break")) {
@@ -868,6 +928,49 @@ class RylweenDslValidationTest {
             validateAuthoredContent(content)
         }
     }
+
+    private fun testTown(vararg services: BuildingId): TownModel =
+        TownModel(
+            id = Towns.murn.id,
+            name = "Murn",
+            position = xy(55, 29),
+            taxPercent = 8,
+            kind = TownKind.Village,
+            services = services.map { TownServiceModel(it) },
+        )
+
+    private fun testTownSystem(vararg services: BuildingId): TownSystemModel =
+        TownSystemBuilder().apply {
+            menu {
+                services.forEach { building ->
+                    when (building) {
+                        Buildings.church -> church()
+                        Buildings.smith -> smith()
+                        Buildings.inn -> inn()
+                        Buildings.merchant -> merchant()
+                        Buildings.tavern -> tavern()
+                        else -> service(building.slug.first().uppercaseChar(), building, keyAction("enter.${building.slug}"))
+                    }
+                }
+                leave()
+            }
+            buildingServices {
+                services.forEach { serviceBuilding ->
+                    when (serviceBuilding) {
+                        Buildings.church -> church()
+                        Buildings.smith -> smith()
+                        Buildings.inn -> inn()
+                        Buildings.merchant -> merchant()
+                        Buildings.tavern -> tavern()
+                        else -> building(
+                            serviceBuilding,
+                            keyAction("enter.${serviceBuilding.slug}"),
+                            sceneId("towne.${serviceBuilding.slug}"),
+                        )
+                    }
+                }
+            }
+        }.build()
 
     private fun testMerchantShop(): ShopServiceModel =
         ShopServiceBuilder(Buildings.merchant).apply {
