@@ -392,6 +392,7 @@ data class TownServiceBridgeResult(
     val party: PartyState,
     val status: TownServiceBridgeStatus,
     val events: List<EngineTraceEvent> = emptyList(),
+    val rejection: TerminalInputRejection? = null,
 )
 
 interface TownServiceBridge {
@@ -418,6 +419,269 @@ class TraceTownServiceBridge(
             status = TownServiceBridgeStatus.Finished,
             events = engine.events.drop(eventStart),
         )
+    }
+}
+
+class StatefulTownServiceBridge(
+    private val terminal: TerminalPort,
+    private val engine: TraceEnginePort = TraceEnginePort(),
+) : TownServiceBridge {
+    override fun run(
+        service: BuildingServiceModel,
+        scene: SceneModel,
+        party: PartyState,
+    ): TownServiceBridgeResult {
+        val eventStart = engine.events.size
+        engine.trace(EngineTraceEvent.TownService(service, scene))
+        val result = StatefulScriptServiceRunner(terminal, engine, party).run(scene.ops)
+        return TownServiceBridgeResult(
+            party = result.party,
+            status = result.status,
+            events = engine.events.drop(eventStart),
+            rejection = result.rejection,
+        )
+    }
+}
+
+private data class StatefulScriptResult(
+    val party: PartyState,
+    val status: TownServiceBridgeStatus,
+    val rejection: TerminalInputRejection? = null,
+)
+
+private class StatefulScriptServiceRunner(
+    private val terminal: TerminalPort,
+    private val engine: TraceEnginePort,
+    initialParty: PartyState,
+) {
+    private var party = initialParty
+    private val locals = mutableMapOf<String, Int>()
+    private val realmInts = mutableMapOf<String, Int>()
+    private var rejection: TerminalInputRejection? = null
+    private var waiting = false
+    private var opBudget = 4096
+
+    fun run(ops: List<Op>): StatefulScriptResult {
+        runAll(ops)
+        return StatefulScriptResult(
+            party = party,
+            status = if (waiting) TownServiceBridgeStatus.Waiting else TownServiceBridgeStatus.Finished,
+            rejection = rejection,
+        )
+    }
+
+    private fun runAll(ops: List<Op>): ScriptControlSignal {
+        for (op in ops) {
+            if (waiting) return ScriptControlSignal.StopScript
+            if (--opBudget <= 0) return ScriptControlSignal.StopScript
+            val signal = run(op)
+            if (signal != ScriptControlSignal.Continue) return signal
+        }
+        return ScriptControlSignal.Continue
+    }
+
+    private fun run(op: Op): ScriptControlSignal =
+        when (op) {
+            is Op.Screen -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.Screen(op.text)) }
+            is Op.Emit -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.Emit(op.text)) }
+            is Op.EmitIndexed -> ScriptControlSignal.Continue.also {
+                engine.trace(EngineTraceEvent.EmitIndexed(op.pattern, eval(op.value)))
+            }
+            is Op.WaitInput -> waitInput(op.reason)
+            is Op.Pause -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.Pause(op.millis)) }
+            is Op.LetInt -> ScriptControlSignal.Continue.also { locals[op.name] = eval(op.value) }
+            is Op.BindText -> ScriptControlSignal.Continue
+            is Op.Set -> ScriptControlSignal.Continue.also { set(op.target, eval(op.value)) }
+            is Op.Add -> ScriptControlSignal.Continue.also { set(op.target, read(op.target) + eval(op.value)) }
+            is Op.Sub -> ScriptControlSignal.Continue.also { set(op.target, read(op.target) - eval(op.value)) }
+            is Op.AddClamped -> ScriptControlSignal.Continue.also {
+                set(op.target, minOf(read(op.target) + eval(op.value), eval(op.max)))
+            }
+            is Op.SetFlag -> ScriptControlSignal.Continue.also {
+                engine.trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
+            }
+            is Op.If -> runAll(if (eval(op.cond)) op.thenOps else op.elseOps)
+            is Op.Loop -> runLoop(op.body)
+            is Op.Break -> op.signal.also { engine.trace(EngineTraceEvent.Break(op.reason, op.signal)) }
+            is Op.Stop -> op.signal.also { engine.trace(EngineTraceEvent.Stop(op.reason, op.signal)) }
+            is Op.Switch ->
+                runAll(op.cases.firstOrNull { it.match == eval(op.expr) || it.match == null }?.body.orEmpty())
+            is Op.Menu -> runMenu(op)
+            is Op.AskMember -> askMember(op)
+            is Op.AskInventorySlot -> askInventorySlot(op)
+            is Op.AskMonster -> ScriptControlSignal.Continue
+            is Op.ForEachMember -> forEachMember(op)
+            is Op.ForEachMonster -> ScriptControlSignal.Continue
+            is Op.Speak -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.Speak(op.building)) }
+            is Op.RunScene -> ScriptControlSignal.Continue.also {
+                engine.trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
+            }
+            is Op.Encounter -> ScriptControlSignal.Continue.also {
+                engine.trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
+            }
+            Op.ConsumeActiveItem -> ScriptControlSignal.Continue
+            Op.ConsumeTorch -> ScriptControlSignal.Continue.also { engine.trace(EngineTraceEvent.ConsumeTorch) }
+            is Op.GrantReward -> ScriptControlSignal.Continue.also {
+                engine.trace(EngineTraceEvent.GrantReward(op.reward))
+            }
+            is Op.RandomItemOffer -> ScriptControlSignal.Continue.also {
+                engine.trace(EngineTraceEvent.RandomItemOffer(op.offer))
+            }
+            is Op.ShopService -> ScriptControlSignal.Continue.also {
+                engine.trace(EngineTraceEvent.ShopService(op.shop))
+            }
+            is Op.AchieveMilestone -> ScriptControlSignal.Continue.also {
+                engine.trace(EngineTraceEvent.AchieveMilestone(op.milestone))
+            }
+            is Op.NativeCall -> ScriptControlSignal.Continue.also {
+                engine.effect(EngineRequest(op.path, op.args))
+            }
+        }
+
+    private fun waitInput(reason: String?): ScriptControlSignal {
+        engine.trace(EngineTraceEvent.WaitInput(reason))
+        return when (terminal.readLine()) {
+            null -> wait()
+            else -> ScriptControlSignal.Continue
+        }
+    }
+
+    private fun runLoop(body: List<Op>): ScriptControlSignal {
+        repeat(128) {
+            when (val signal = runAll(body)) {
+                ScriptControlSignal.Continue -> Unit
+                ScriptControlSignal.BreakNearestLoop -> return ScriptControlSignal.Continue
+                ScriptControlSignal.StopScript -> return if (waiting) ScriptControlSignal.StopScript else ScriptControlSignal.Continue
+            }
+        }
+        return ScriptControlSignal.StopScript
+    }
+
+    private fun runMenu(op: Op.Menu): ScriptControlSignal {
+        val keys = op.options.map { it.key }
+        engine.trace(EngineTraceEvent.Menu(op.prompt, keys))
+        return when (val input = terminal.readKey(keys)) {
+            is TerminalInput.Value ->
+                runAll(checkNotNull(op.options.firstOrNull { it.key == input.value }).body)
+            is TerminalInput.Rejected -> wait(input.rejection)
+            TerminalInput.Unavailable -> wait()
+        }
+    }
+
+    private fun askMember(op: Op.AskMember): ScriptControlSignal {
+        engine.trace(EngineTraceEvent.AskMember(op.prompt, op.filter))
+        val choices = party.memberChoices(op.filter)
+        return when (val input = terminal.readMemberNumber(choices)) {
+            is TerminalInput.Value -> ScriptControlSignal.Continue.also { locals[op.varName] = input.value }
+            is TerminalInput.Rejected -> wait(input.rejection)
+            TerminalInput.Unavailable -> wait()
+        }
+    }
+
+    private fun askInventorySlot(op: Op.AskInventorySlot): ScriptControlSignal {
+        engine.trace(EngineTraceEvent.AskInventorySlot(op.prompt, op.firstKey, op.slots, op.filter))
+        val choices = party.inventorySlotChoices(op.filter, op.slots, op.firstKey)
+        val keys = choices.map { it.first }
+        return when (val input = terminal.readKey(keys)) {
+            is TerminalInput.Value -> ScriptControlSignal.Continue.also {
+                locals[op.varName] = checkNotNull(choices.firstOrNull { it.first == input.value }).second
+            }
+            is TerminalInput.Rejected -> wait(input.rejection)
+            TerminalInput.Unavailable -> wait()
+        }
+    }
+
+    private fun forEachMember(op: Op.ForEachMember): ScriptControlSignal {
+        party.members.forEachIndexed { index, member ->
+            if (op.includeDead || !member.dead) {
+                locals[op.varName] = index + 1
+                val signal = runAll(op.body)
+                if (signal != ScriptControlSignal.Continue) return signal
+            }
+        }
+        return ScriptControlSignal.Continue
+    }
+
+    private fun wait(inputRejection: TerminalInputRejection? = null): ScriptControlSignal {
+        waiting = true
+        rejection = inputRejection
+        return ScriptControlSignal.StopScript
+    }
+
+    private fun eval(ast: IntAst): Int =
+        when (ast) {
+            is IntAst.Lit -> ast.value
+            is IntAst.Var -> locals[ast.name] ?: 0
+            is IntAst.Binary -> evalBinary(eval(ast.left), ast.op, eval(ast.right))
+            is IntAst.Random -> eval(ast.lo)
+            is IntAst.MemberField -> memberField(eval(ast.member), ast.field)
+            is IntAst.MonsterField -> 0
+            is IntAst.RealmScalar -> realmInts[ast.name] ?: 0
+            is IntAst.PartyScalar -> partyScalar(ast.name)
+            is IntAst.NativeInt -> engine.readInt(EngineRequest(ast.path, ast.args))
+        }
+
+    private fun eval(ast: BoolAst): Boolean =
+        when (ast) {
+            is BoolAst.Cmp -> compare(eval(ast.left), ast.op, eval(ast.right))
+            is BoolAst.Not -> !eval(ast.expr)
+            is BoolAst.And -> eval(ast.left) && eval(ast.right)
+            is BoolAst.Or -> eval(ast.left) || eval(ast.right)
+            is BoolAst.FlagIs -> party.flags.any { it.flag.slug == ast.slug && it.native == ast.nativeValue }
+            is BoolAst.MemberFlag -> memberFlag(eval(ast.member), ast.name)
+            is BoolAst.MonsterFlag -> false
+        }
+
+    private fun read(target: LValueAst): Int =
+        when (target) {
+            is LValueAst.PartyScalar -> partyScalar(target.name)
+            is LValueAst.MemberField -> memberField(eval(target.member), target.field)
+            is LValueAst.RealmScalar -> realmInts[target.name] ?: 0
+            is LValueAst.MonsterField -> 0
+        }
+
+    private fun set(target: LValueAst, value: Int) {
+        when (target) {
+            is LValueAst.PartyScalar -> party = party.withPartyScalar(target.name, value)
+            is LValueAst.MemberField -> party = party.withMemberField(eval(target.member), target.field, value)
+            is LValueAst.RealmScalar -> realmInts[target.name] = value
+            is LValueAst.MonsterField -> Unit
+        }
+    }
+
+    private fun partyScalar(name: String): Int =
+        when (name) {
+            "gold" -> party.resources.gold
+            "torches" -> party.resources.torches
+            "food" -> party.resources.food
+            "time_left" -> party.resources.timeLeft
+            "rested_hours" -> party.resources.restedHours
+            "member_count" -> party.counters.memberCount ?: party.members.count { !it.dead }
+            else -> 0
+        }
+
+    private fun memberField(memberNumber: Int, field: String): Int {
+        val member = party.members.getOrNull(memberNumber - 1) ?: return 0
+        return when (field) {
+            "hit_points" -> member.hitPoints.current
+            "health" -> member.health
+            "magic" -> member.mana.current
+            "level" -> member.level
+            "wisdom" -> member.wisdom
+            "charisma" -> member.charisma
+            "class" -> member.pcClass.legacyId
+            "dead" -> if (member.dead) 1 else 0
+            else -> 0
+        }
+    }
+
+    private fun memberFlag(memberNumber: Int, name: String): Boolean {
+        val member = party.members.getOrNull(memberNumber - 1) ?: return false
+        return when (name) {
+            "dead" -> member.dead
+            "spellcaster" -> !member.dead && member.pcClass in setOf(PcClass.Mage, PcClass.Priest)
+            else -> false
+        }
     }
 }
 
@@ -675,7 +939,7 @@ class ShopServiceTerminalAdapter(
 class TownSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
-    private val serviceBridge: TownServiceBridge = TraceTownServiceBridge(),
+    private val serviceBridge: TownServiceBridge = StatefulTownServiceBridge(terminal),
 ) {
     fun run(initial: TownSession): TownSession =
         runUntilBlocked(initial).session
@@ -726,7 +990,7 @@ class TownSessionTerminalAdapter(
                         TownServiceBridgeStatus.Finished ->
                             session.apply(TownSessionInput.FinishNativeService(result.party))
                         TownServiceBridgeStatus.Waiting ->
-                            return waiting(session)
+                            return waiting(session, result.rejection)
                     }
                 }
                 is TownSessionStep.Finished -> return finished(session)
@@ -851,15 +1115,24 @@ private fun renderEquipmentStep(engine: TraceEnginePort, step: EquipmentPromptSt
 }
 
 private fun PartyState.inventoryKeys(filter: InventorySlotChoiceFilter): List<Char> =
-    inventory
+    inventorySlotChoices(filter, 1..InventorySaveSlotMax, 'A').map { it.first }
+
+private fun PartyState.inventorySlotChoices(
+    filter: InventorySlotChoiceFilter,
+    slots: IntRange,
+    firstKey: Char,
+): List<Pair<Char, Int>> {
+    val itemsBySlot = inventory.associate { it.slot to it.item }
+    return slots
         .filter { slot ->
-            slot.slot in 1..InventorySaveSlotMax && when (filter) {
+            slot in 1..InventorySaveSlotMax && when (filter) {
                 InventorySlotChoiceFilter.Any -> true
-                InventorySlotChoiceFilter.NonEmpty -> slot.item != null
-                InventorySlotChoiceFilter.Empty -> slot.item == null
+                InventorySlotChoiceFilter.NonEmpty -> itemsBySlot[slot] != null
+                InventorySlotChoiceFilter.Empty -> itemsBySlot[slot] == null
             }
         }
-        .map { slot -> 'A' + (slot.slot - 1) }
+        .map { slot -> firstKey + (slot - slots.first) to slot }
+}
 
 private fun PartyState.memberChoices(filter: MemberChoiceFilter): List<Int> =
     members
@@ -874,3 +1147,53 @@ private fun PartyMemberState.matches(filter: MemberChoiceFilter): Boolean =
         MemberChoiceFilter.DeadOnly -> dead
         MemberChoiceFilter.SpellcasterOnly -> !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest)
     }
+
+private fun evalBinary(left: Int, op: String, right: Int): Int =
+    when (op) {
+        "add" -> left + right
+        "sub" -> left - right
+        "mul" -> left * right
+        "div" -> if (right == 0) 0 else left / right
+        else -> 0
+    }
+
+private fun compare(left: Int, op: String, right: Int): Boolean =
+    when (op) {
+        "eq" -> left == right
+        "ne" -> left != right
+        "lt" -> left < right
+        "lte" -> left <= right
+        "gt" -> left > right
+        "gte" -> left >= right
+        else -> false
+    }
+
+private fun PartyState.withPartyScalar(name: String, value: Int): PartyState =
+    when (name) {
+        "gold" -> copy(resources = resources.copy(gold = value.coerceAtLeast(0)))
+        "torches" -> copy(resources = resources.copy(torches = value.coerceAtLeast(0)))
+        "food" -> copy(resources = resources.copy(food = value.coerceAtLeast(0)))
+        "time_left" -> copy(resources = resources.copy(timeLeft = value))
+        "rested_hours" -> copy(resources = resources.copy(restedHours = value))
+        "member_count" -> copy(counters = counters.copy(memberCount = value.coerceAtLeast(0)))
+        else -> this
+    }
+
+private fun PartyState.withMemberField(memberNumber: Int, field: String, value: Int): PartyState {
+    val index = memberNumber - 1
+    val member = members.getOrNull(index) ?: return this
+    val updated = when (field) {
+        "hit_points" -> member.copy(hitPoints = member.hitPoints.copy(current = value.coerceAtLeast(0)))
+        "health" -> member.copy(
+            health = value.coerceAtLeast(0),
+            hitPoints = member.hitPoints.copy(max = value.coerceAtLeast(0)),
+        )
+        "magic" -> member.copy(mana = member.mana.copy(current = value.coerceAtLeast(0)))
+        "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
+        "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
+        "level" -> member.copy(level = value.coerceAtLeast(1))
+        "dead" -> member.copy(dead = value != 0)
+        else -> member
+    }
+    return copy(members = members.mapIndexed { i, existing -> if (i == index) updated else existing })
+}

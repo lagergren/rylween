@@ -927,6 +927,115 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townServiceBridgeConsumesServiceInputAndMutatesPartyState() {
+        val terminal = FakeTerminalPort("C", "H", "1", "L", "L")
+        val serviceScene = SceneModel(
+            Scenes.Towne.church,
+            listOf(
+                Op.Loop(
+                    listOf(
+                        Op.Menu(
+                            inlineText("Church menu"),
+                            options = listOf(
+                                MenuOption(
+                                    'H',
+                                    listOf(
+                                        Op.AskMember(inlineText("Who?"), "member", MemberChoiceFilter.Any),
+                                        Op.Set(
+                                            LValueAst.MemberField(IntAst.Var("member"), "hit_points"),
+                                            IntAst.Lit(10),
+                                        ),
+                                        Op.Sub(LValueAst.PartyScalar("gold"), IntAst.Lit(3)),
+                                    ),
+                                ),
+                                MenuOption('L', listOf(Op.Break("leave test church"))),
+                            ),
+                            defaultOps = emptyList(),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(serviceScene),
+                party = testParty(gold = 10, hitPoints = 2),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(10, session.session.party.members.single().hitPoints.current)
+        assertEquals(7, session.session.party.resources.gold)
+        assertEquals(TownSessionResultStatus.NativeServiceFinished, session.session.lastResult?.status)
+    }
+
+    @Test
+    fun townServiceBridgeMapsInventoryPromptKeysToRequestedSlots() {
+        val terminal = FakeTerminalPort("C", "B", "L")
+        val serviceScene = SceneModel(
+            Scenes.Towne.church,
+            listOf(
+                Op.AskInventorySlot(
+                    inlineText("Which slot?"),
+                    "slot",
+                    firstKey = 'A',
+                    slots = 3..5,
+                    filter = InventorySlotChoiceFilter.NonEmpty,
+                ),
+                Op.Set(LValueAst.PartyScalar("gold"), IntAst.Var("slot")),
+            ),
+        )
+
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(serviceScene),
+                party = testParty(inventoryItems = mapOf(4 to Items.ration)),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertEquals(4, session.session.party.resources.gold)
+    }
+
+    @Test
+    fun townServiceBridgeReturnsWaitingOnInvalidServiceInput() {
+        val terminal = FakeTerminalPort("C", "X")
+        val serviceScene = SceneModel(
+            Scenes.Towne.church,
+            listOf(
+                Op.Menu(
+                    inlineText("Church menu"),
+                    options = listOf(MenuOption('L', listOf(Op.Break("leave test church")))),
+                    defaultOps = emptyList(),
+                ),
+            ),
+        )
+
+        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = testTownSystem(Buildings.church),
+                scenes = listOf(serviceScene),
+                party = testParty(gold = 10),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(result.session.step is TownSessionStep.NativeService)
+        assertEquals(
+            TerminalInputRejection("X", listOf("L")),
+            (result.status as TerminalRunStatus.Waiting).rejection,
+        )
+    }
+
+    @Test
     fun townTerminalAdapterReturnsUnchangedSessionOnInvalidMenuInput() {
         val session = TownSession.start(
             town = testTown(Buildings.merchant),
@@ -1065,6 +1174,8 @@ class RylweenDslValidationTest {
         level: Int = 1,
         torches: Int = 0,
         food: Int = 0,
+        hitPoints: Int = 10,
+        health: Int = 10,
         equipment: EquipmentState = EquipmentState(Items.none, Items.none),
         inventoryItems: Map<Int, ItemId> = emptyMap(),
     ): PartyState =
@@ -1094,8 +1205,8 @@ class RylweenDslValidationTest {
                     race = Race.Human,
                     pcClass = PcClass.Fighter,
                     level = level,
-                    health = 10,
-                    hitPoints = 10 of 10,
+                    health = health,
+                    hitPoints = hitPoints of health,
                     weaponSkill = 10,
                     wisdom = 10,
                     mana = 0 manaOf 10,
