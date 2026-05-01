@@ -633,6 +633,77 @@ class ShopServiceTerminalAdapter(
             .map { it - 'A' + 1 }
 }
 
+class TownSessionTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun run(initial: TownSession): TownSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: TownSession): TerminalAdapterResult<TownSession> {
+        var session = initial
+        repeat(512) {
+            session = when (val step = session.step) {
+                is TownSessionStep.Menu -> {
+                    val keys = step.actions.map { it.key }
+                    writeTownMenu(step)
+                    when (val input = terminal.readKey(keys)) {
+                        is TerminalInput.Value -> session.apply(TownSessionInput.MenuKey(input.value))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is TownSessionStep.Notice -> {
+                    terminal.write(renderer.lines(step.text))
+                    session.continueNotice()
+                }
+                is TownSessionStep.Shop -> {
+                    val result = ShopServiceTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceShopSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is TownSessionStep.LeaveEquipment -> {
+                    val result = TownLeaveEquipmentTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceLeaveEquipmentSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is TownSessionStep.NativeService -> {
+                    terminal.write(listOf("Run scene: ${step.service.scene.slug}"))
+                    return waiting(session)
+                }
+                is TownSessionStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun writeTownMenu(step: TownSessionStep.Menu) {
+        terminal.write(
+            renderer.lines(TownPromptText.menu(step.town)) +
+                step.actions.map { action -> "(${action.key}) ${action.label()}" },
+        )
+    }
+
+    private fun TownMenuActionModel.label(): String =
+        if (endsMenu) {
+            "Leave"
+        } else {
+            checkNotNull(building).slug.replaceFirstChar { it.uppercaseChar() }
+        }
+}
+
 private sealed interface TerminalInput<out T> {
     data class Value<T>(val value: T) : TerminalInput<T>
     data class Rejected(val rejection: TerminalInputRejection) : TerminalInput<Nothing>
