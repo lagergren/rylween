@@ -186,6 +186,114 @@ val nextRylween = rylween {
                 source = RumourSourcePolicy.StandardTownRumours
             }
         }
+
+        textTables {
+            screen(T.Speak.noNpc, "Noone is here!")
+            screen(T.Speak.recognizePre, "{npc_name} nods as")
+            screen(T.Speak.recognizeHe, "he recognizes you.")
+            screen(T.Speak.recognizeShe, "she recognizes you.")
+            screen(T.Speak.tellsYouPre, "{npc_name} tells you:", "")
+            screen(T.Speak.chatting, "Chatting with", "{npc_name}:", "")
+            screen(T.Speak.menu, "(C)hitchat", "(Q)uestion", "(R)umors", "(B)ye")
+            screen(T.Speak.question, "(L)odging", "(M)agic", "(P)eople", "(N)othing")
+            screen(T.Speak.noRumour, "- Sorry. There's", "nothing new I can", "tell you.", "")
+
+            chitchatPrompt(ChitchatSubject.Well) {
+                female("- You look well today,", "  miss...")
+                male("- You look well today,", "  Sir...")
+            }
+            chitchatPrompt(ChitchatSubject.Weather) {
+                any("- Nice weather we're", "  having...")
+            }
+            chitchatPrompt(ChitchatSubject.Health) {
+                female("- Is all well with", "  you, miss?")
+                male("- Is all well with", "  you, Sir?")
+            }
+
+            chitchatReplies(ChitchatSubject.Well) {
+                job(NpcJobs.merchant, "- Thanks, and the same", "to you!")
+            }
+            chitchatReplies(ChitchatSubject.Weather) {
+                job(NpcJobs.merchant, "- I think it will rain.")
+            }
+            chitchatReplies(ChitchatSubject.Health) {
+                job(NpcJobs.merchant, "- All's well, thanks.")
+            }
+
+            questionReplies(QuestionTopic.People) {
+                job(NpcJobs.merchant, "- Well, I don't know", "that many people.")
+                job(NpcJobs.bard) {
+                    line("- Rumour has it that a")
+                    line("fighter called")
+                    line(character(Roles.fighterIntro).name)
+                    line("has a mission for you.")
+                }
+            }
+            questionReplies(QuestionTopic.Magic) {
+                job(
+                    NpcJobs.merchant,
+                    "- It is said that the",
+                    "Master Crown is the",
+                    "most powerful object",
+                    "in the realm.",
+                )
+                job(NpcJobs.ranger, "- You will need five", "magical items to", "defeat baron Ydarg.")
+            }
+            questionReplies(QuestionTopic.Lodging) {
+                job(NpcJobs.merchant, "- Well. The city inn is", "a good try.")
+                job(NpcJobs.ranger, "- I sleep under the open", "skies. Just beware of", "bandits if you do this!")
+            }
+
+            rumourTable(RumourTables.standardTown) {
+                rumour(Rumours.ydargCastleHidden, "Baron Ydarg's castle", "Zadraz is hidden in a", "forest to the soutwest.")
+                rumour(Rumours.banditsQuestGiver) {
+                    excludeWhen(Story.garth.bandits.recovered, Story.garth.bandits.closed)
+                    line("A man named ", character(Roles.banditsQuestGiver).name)
+                    line("will pay you for")
+                    line("killing some bandits.")
+                }
+                rumour(Rumours.crownSeer) {
+                    line("A man named ", character(Roles.crownSeer).name)
+                    line("knows of the Crown.")
+                    line("He lives ", character(Roles.crownSeer).location, "!")
+                }
+                rumour(Rumours.templeOfThunSeer) {
+                    line("Seek ", character(Roles.templeOfThunSeer).name, " if you")
+                    line("search the Temple of")
+                    line("Thun! He lives ", character(Roles.templeOfThunSeer).location)
+                }
+            }
+        }
+    }
+
+    characters {
+        character(Npcs.garth) {
+            name = "Garth"
+            job = NpcJobs.merchant
+            fixed(Towns.thord.inn)
+            role(Roles.banditsQuestGiver)
+        }
+
+        character(Npcs.areth) {
+            name = "Areth"
+            job = NpcJobs.fighter
+            randomPlacement()
+            role(Roles.fighterIntro)
+        }
+
+        character(Npcs.broth) {
+            name = "Broth"
+            job = NpcJobs.fighter
+            randomPlacement()
+            role(Roles.crownSeer)
+        }
+
+        character(Npcs.harry) {
+            name = "Harry"
+            job = NpcJobs.merchant
+            randomPlacement()
+            role(Roles.templeOfThunSeer)
+        }
     }
 
     monsters {
@@ -813,6 +921,17 @@ check(nextDsl.speak.standardConversation?.menu?.actions?.map { it.key } == listO
 check(nextDsl.speak.standardConversation?.menu?.questions?.map { it.key } == listOf('L', 'M', 'P', 'N'))
 check(nextDsl.speak.standardConversation?.branchSelection == DialogueBranchSelection.FirstMatchingStateThenDefault)
 check(nextDsl.speak.standardConversation?.rumour?.usage == RumourUsagePolicy.OncePerConversationThenFallback)
+check(nextDsl.speak.textTables.screens.size == 9)
+check(nextDsl.speak.textTables.chitchatPrompts.size == 3)
+check(nextDsl.speak.textTables.chitchatReplies.size == 3)
+check(nextDsl.speak.textTables.questionReplies.size == 3)
+check(nextDsl.speak.textTables.rumourTables.single { it.id == RumourTables.standardTown }.entries.size == 4)
+check(nextDsl.speak.textTables.rumourTables.single().entries.any { it.id == Rumours.crownSeer })
+check(nextDsl.speak.textTables.rumourTables.single().entries.single {
+    it.id == Rumours.banditsQuestGiver
+}.excludedBy == listOf(Story.garth.bandits.recovered, Story.garth.bandits.closed))
+check(nextDsl.characters.size == 4)
+check(nextDsl.characters.single { Roles.crownSeer in it.roles }.placement == CharacterPlacementModel.Randomized)
 check(nextDsl.monsters.size == 2)
 check(nextDsl.scenes.size == 5)
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })

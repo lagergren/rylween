@@ -237,11 +237,23 @@ val Flags = Story
 
 data class TextId(val id: String)
 data class TextPattern(val pattern: String)
+sealed interface TextPart {
+    data class Literal(val text: String) : TextPart
+    data class RoleName(val role: NpcRole) : TextPart
+    data class RoleLocation(val role: NpcRole) : TextPart
+}
+data class TextLine(val parts: List<TextPart>)
 sealed interface TextBlock {
     data class Ref(val id: TextId) : TextBlock
     data class Inline(val lines: List<String>) : TextBlock
+    data class Structured(val lines: List<TextLine>) : TextBlock
 }
 fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(lines.toList())
+class CharacterTextRef(private val role: NpcRole) {
+    val name: TextPart = TextPart.RoleName(role)
+    val location: TextPart = TextPart.RoleLocation(role)
+}
+fun character(role: NpcRole) = CharacterTextRef(role)
 class ItemId private constructor(val slug: String, val legacyId: Int? = null) {
     override fun equals(other: Any?): Boolean =
         other is ItemId && slug == other.slug
@@ -292,6 +304,7 @@ data class SceneId(val slug: String)
 data class SpellId(val slug: String)
 data class MissionId(val slug: String)
 data class NpcRole(val slug: String)
+data class NpcJobId(val slug: String)
 data class NativeOpId(val slug: String)
 data class StateId(val slug: String)
 data class PartyId(val slug: String)
@@ -305,6 +318,23 @@ data class DungeonId(val slug: String)
 data class GameMilestoneId(val slug: String)
 data class LootTableId(val slug: String)
 data class RewardBundleId(val slug: String)
+data class RumourTableId(val slug: String)
+class RumourId private constructor(val slug: String, val legacyRoll: Int? = null) {
+    override fun equals(other: Any?): Boolean =
+        other is RumourId && slug == other.slug
+
+    override fun hashCode(): Int = slug.hashCode()
+
+    override fun toString(): String =
+        "RumourId(slug=$slug, legacyRoll=$legacyRoll)"
+
+    companion object {
+        fun authored(slug: String): RumourId = RumourId(slug)
+
+        internal fun generated(slug: String, legacyRoll: Int): RumourId =
+            RumourId(slug, legacyRoll)
+    }
+}
 
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
@@ -327,6 +357,7 @@ fun sceneId(slug: String) = SceneId(slug)
 fun spellId(slug: String) = SpellId(slug)
 fun missionId(slug: String) = MissionId(slug)
 fun npcRole(slug: String) = NpcRole(slug)
+fun npcJob(slug: String) = NpcJobId(slug)
 fun nativeOp(slug: String) = NativeOpId(slug)
 fun stateId(slug: String) = StateId(slug)
 fun partyId(slug: String) = PartyId(slug)
@@ -340,6 +371,9 @@ fun dungeon(slug: String) = DungeonId(slug)
 fun milestone(slug: String) = GameMilestoneId(slug)
 fun lootTable(slug: String) = LootTableId(slug)
 fun rewardBundle(slug: String) = RewardBundleId(slug)
+fun rumourTable(slug: String) = RumourTableId(slug)
+fun rumour(slug: String) = RumourId.authored(slug)
+private fun generatedRumour(slug: String, legacyRoll: Int) = RumourId.generated(slug, legacyRoll)
 
 // -----------------------------------------------------------------------------
 // Generated item handles from data/world/items/*.json5.
@@ -1050,6 +1084,58 @@ class KeyActionRefs {
 }
 val KeyActions = KeyActionRefs()
 
+class NpcJobRefs {
+    val merchant = npcJob("merchant")
+    val ranger = npcJob("ranger")
+    val fighter = npcJob("fighter")
+    val wizard = npcJob("wizard")
+    val priest = npcJob("priest")
+    val thief = npcJob("thief")
+    val peasant = npcJob("peasant")
+    val bard = npcJob("bard")
+    val drifter = npcJob("drifter")
+    val halfOrc = npcJob("half_orc")
+    val halfElf = npcJob("half_elf")
+    val smith = npcJob("smith")
+    val bargirl = npcJob("bargirl")
+    val innkeeper = npcJob("innkeeper")
+    val tavernkeeper = npcJob("tavernkeeper")
+    val hermit = npcJob("hermit")
+
+    val all = listOf(
+        merchant,
+        ranger,
+        fighter,
+        wizard,
+        priest,
+        thief,
+        peasant,
+        bard,
+        drifter,
+        halfOrc,
+        halfElf,
+        smith,
+        bargirl,
+        innkeeper,
+        tavernkeeper,
+        hermit,
+    )
+}
+val NpcJobs = NpcJobRefs()
+
+class RumourTableRefs {
+    val standardTown = rumourTable("standard_town")
+}
+val RumourTables = RumourTableRefs()
+
+class RumourHandleRefs {
+    val ydargCastleHidden = generatedRumour("ydarg_castle_hidden", legacyRoll = 0)
+    val banditsQuestGiver = generatedRumour("bandits_quest_giver", legacyRoll = 12)
+    val crownSeer = generatedRumour("crown_seer", legacyRoll = 25)
+    val templeOfThunSeer = generatedRumour("temple_of_thun_seer", legacyRoll = 27)
+}
+val Rumours = RumourHandleRefs()
+
 class StateRefs {
     val freshReplay = stateId("fresh-replay")
     val nearWinningReplay = stateId("near-winning-replay")
@@ -1187,6 +1273,7 @@ class TextRefs {
     val Title = TitleTextRefs()
     val Driv = DrivTextRefs()
     val Towne = TowneRefs()
+    val Speak = SpeakRefs()
     val Battle = BattleRefs()
     val MissionsText = MissionTextRefs()
     val Ydarg = YdargTextRefs()
@@ -1223,6 +1310,18 @@ class RumourRefs {
     val r25 = text("towne.rumour.r25")
     val r27 = text("towne.rumour.r27")
     val indexed = textPattern("towne.rumour.r{}")
+}
+
+class SpeakRefs {
+    val noNpc = text("speak.no_npc")
+    val recognizePre = text("speak.recognize_pre")
+    val recognizeHe = text("speak.recognize_he")
+    val recognizeShe = text("speak.recognize_she")
+    val tellsYouPre = text("speak.tells_you_pre")
+    val chatting = text("speak.chatting")
+    val menu = text("speak.menu")
+    val noRumour = text("speak.no_rumour")
+    val question = text("speak.question")
 }
 
 class BattleRefs {
@@ -1371,6 +1470,20 @@ data class MagicItemModel(
     val contexts: Set<ItemUseContext>,
     val consume: ItemConsumePolicy,
     val ops: List<Op>,
+)
+
+sealed interface CharacterPlacementModel {
+    data class Fixed(val position: WorldPosition) : CharacterPlacementModel
+    object Randomized : CharacterPlacementModel
+}
+
+data class CharacterModel(
+    val id: NpcId,
+    val name: String,
+    val job: NpcJobId,
+    val gender: Gender,
+    val placement: CharacterPlacementModel,
+    val roles: List<NpcRole>,
 )
 
 data class FlagContentModel(
@@ -1550,6 +1663,7 @@ enum class ChitchatSubject { Well, Weather, Health }
 enum class ChitchatReplyPolicy { BySubjectAndNpcJob }
 enum class RumourUsagePolicy { OncePerConversationThenFallback }
 enum class RumourSourcePolicy { StandardTownRumours }
+enum class ChitchatPromptAudience { Any, Female, Male }
 
 data class ConversationMenuActionModel(
     val topic: ConversationTopic,
@@ -1578,6 +1692,55 @@ data class ConversationRumourModel(
     val source: RumourSourcePolicy,
 )
 
+data class ReusableScreenTextModel(
+    val id: TextId,
+    val text: TextBlock,
+)
+
+data class ChitchatPromptVariantModel(
+    val audience: ChitchatPromptAudience,
+    val text: TextBlock,
+)
+
+data class ChitchatPromptTextModel(
+    val subject: ChitchatSubject,
+    val variants: List<ChitchatPromptVariantModel>,
+)
+
+data class JobTextModel(
+    val job: NpcJobId,
+    val text: TextBlock,
+)
+
+data class ChitchatReplyTextModel(
+    val subject: ChitchatSubject,
+    val replies: List<JobTextModel>,
+)
+
+data class QuestionReplyTextModel(
+    val topic: QuestionTopic,
+    val replies: List<JobTextModel>,
+)
+
+data class RumourEntryModel(
+    val id: RumourId,
+    val text: TextBlock,
+    val excludedBy: List<FlagState>,
+)
+
+data class RumourTextTableModel(
+    val id: RumourTableId,
+    val entries: List<RumourEntryModel>,
+)
+
+data class SpeakTextTablesModel(
+    val screens: List<ReusableScreenTextModel> = emptyList(),
+    val chitchatPrompts: List<ChitchatPromptTextModel> = emptyList(),
+    val chitchatReplies: List<ChitchatReplyTextModel> = emptyList(),
+    val questionReplies: List<QuestionReplyTextModel> = emptyList(),
+    val rumourTables: List<RumourTextTableModel> = emptyList(),
+)
+
 data class StandardConversationModel(
     val npcSelection: ConversationNpcSelection,
     val visitPolicy: NpcVisitPolicy,
@@ -1591,6 +1754,7 @@ data class StandardConversationModel(
 
 data class SpeakSystemModel(
     val standardConversation: StandardConversationModel?,
+    val textTables: SpeakTextTablesModel = SpeakTextTablesModel(),
 )
 
 data class GameModel(
@@ -1600,6 +1764,7 @@ data class GameModel(
     val rewards: List<RewardBundleModel>,
     val combat: CombatSystemModel,
     val speak: SpeakSystemModel,
+    val characters: List<CharacterModel>,
     val monsters: List<MonsterModel>,
     val scenes: List<SceneModel>,
     val dialogue: List<DialogueModel>,
@@ -1954,6 +2119,9 @@ fun render(arg: Any): String = when (arg) {
     is GameMilestoneId -> arg.slug
     is LootTableId -> arg.slug
     is RewardBundleId -> arg.slug
+    is NpcJobId -> arg.slug
+    is RumourTableId -> arg.slug
+    is RumourId -> arg.slug
     else -> arg.toString()
 }
 
@@ -2207,6 +2375,7 @@ class GameBuilder {
     private val rewardsModel = mutableListOf<RewardBundleModel>()
     private var combatModel = CombatSystemModel(null)
     private var speakModel = SpeakSystemModel(null)
+    private val characters = mutableListOf<CharacterModel>()
     private val monsters = mutableListOf<MonsterModel>()
     private val scenes = mutableListOf<SceneModel>()
     private val dialogue = mutableListOf<DialogueModel>()
@@ -2232,6 +2401,10 @@ class GameBuilder {
 
     fun speak(body: SpeakBuilder.() -> Unit) {
         speakModel = SpeakBuilder().apply(body).build()
+    }
+
+    fun characters(body: CharacterCatalogBuilder.() -> Unit) {
+        characters += CharacterCatalogBuilder().apply(body).build()
     }
 
     fun monsters(body: MonsterCatalogBuilder.() -> Unit) {
@@ -2266,6 +2439,7 @@ class GameBuilder {
             rewards = rewardsModel.toList(),
             combat = combatModel,
             speak = speakModel,
+            characters = characters.toList(),
             monsters = monsters.toList(),
             scenes = scenes.toList(),
             dialogue = dialogue.toList(),
@@ -2300,6 +2474,48 @@ class NpcDialogueBuilder(private val id: NpcId) {
     }
 
     fun build(): DialogueModel = DialogueModel(id, branches.toList())
+}
+
+@RylNextDsl
+class CharacterCatalogBuilder {
+    private val characters = mutableListOf<CharacterModel>()
+
+    fun character(id: NpcId, body: CharacterBuilder.() -> Unit) {
+        characters += CharacterBuilder(id).apply(body).build()
+    }
+
+    fun build(): List<CharacterModel> = characters.toList()
+}
+
+@RylNextDsl
+class CharacterBuilder(private val id: NpcId) {
+    var name: String = ""
+    var job: NpcJobId = NpcJobs.merchant
+    var gender: Gender = Gender.Male
+    private var placementModel: CharacterPlacementModel = CharacterPlacementModel.Randomized
+    private val roleModels = mutableListOf<NpcRole>()
+
+    fun fixed(position: WorldPosition) {
+        placementModel = CharacterPlacementModel.Fixed(position)
+    }
+
+    fun randomPlacement() {
+        placementModel = CharacterPlacementModel.Randomized
+    }
+
+    fun role(vararg roles: NpcRole) {
+        roleModels += roles
+    }
+
+    fun build(): CharacterModel =
+        CharacterModel(
+            id = id,
+            name = name,
+            job = job,
+            gender = gender,
+            placement = placementModel,
+            roles = roleModels.toList(),
+        )
 }
 
 @RylNextDsl
@@ -2595,12 +2811,139 @@ class StandardBattleBuilder {
 @RylNextDsl
 class SpeakBuilder {
     private var standardConversationModel: StandardConversationModel? = null
+    private var textTablesModel = SpeakTextTablesModel()
 
     fun standardConversation(body: StandardConversationBuilder.() -> Unit) {
         standardConversationModel = StandardConversationBuilder().apply(body).build()
     }
 
-    fun build(): SpeakSystemModel = SpeakSystemModel(standardConversationModel)
+    fun textTables(body: SpeakTextTablesBuilder.() -> Unit) {
+        textTablesModel = SpeakTextTablesBuilder().apply(body).build()
+    }
+
+    fun build(): SpeakSystemModel = SpeakSystemModel(standardConversationModel, textTablesModel)
+}
+
+@RylNextDsl
+class SpeakTextTablesBuilder {
+    private val screens = mutableListOf<ReusableScreenTextModel>()
+    private val chitchatPrompts = mutableListOf<ChitchatPromptTextModel>()
+    private val chitchatReplies = mutableListOf<ChitchatReplyTextModel>()
+    private val questionReplies = mutableListOf<QuestionReplyTextModel>()
+    private val rumourTables = mutableListOf<RumourTextTableModel>()
+
+    fun screen(id: TextId, vararg lines: String) {
+        screens += ReusableScreenTextModel(id, TextBlock.Inline(lines.toList()))
+    }
+
+    fun chitchatPrompt(subject: ChitchatSubject, body: ChitchatPromptTextBuilder.() -> Unit) {
+        chitchatPrompts += ChitchatPromptTextBuilder(subject).apply(body).build()
+    }
+
+    fun chitchatReplies(subject: ChitchatSubject, body: JobTextTableBuilder.() -> Unit) {
+        chitchatReplies += ChitchatReplyTextModel(subject, JobTextTableBuilder().apply(body).build())
+    }
+
+    fun questionReplies(topic: QuestionTopic, body: JobTextTableBuilder.() -> Unit) {
+        questionReplies += QuestionReplyTextModel(topic, JobTextTableBuilder().apply(body).build())
+    }
+
+    fun rumourTable(id: RumourTableId, body: RumourTextTableBuilder.() -> Unit) {
+        rumourTables += RumourTextTableBuilder(id).apply(body).build()
+    }
+
+    fun build(): SpeakTextTablesModel =
+        SpeakTextTablesModel(
+            screens = screens.toList(),
+            chitchatPrompts = chitchatPrompts.toList(),
+            chitchatReplies = chitchatReplies.toList(),
+            questionReplies = questionReplies.toList(),
+            rumourTables = rumourTables.toList(),
+        )
+}
+
+@RylNextDsl
+class ChitchatPromptTextBuilder(private val subject: ChitchatSubject) {
+    private val variants = mutableListOf<ChitchatPromptVariantModel>()
+
+    fun any(vararg lines: String) {
+        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Any, TextBlock.Inline(lines.toList()))
+    }
+
+    fun female(vararg lines: String) {
+        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Female, TextBlock.Inline(lines.toList()))
+    }
+
+    fun male(vararg lines: String) {
+        variants += ChitchatPromptVariantModel(ChitchatPromptAudience.Male, TextBlock.Inline(lines.toList()))
+    }
+
+    fun build(): ChitchatPromptTextModel = ChitchatPromptTextModel(subject, variants.toList())
+}
+
+@RylNextDsl
+class StructuredTextBlockBuilder {
+    private val lines = mutableListOf<TextLine>()
+
+    fun line(vararg parts: Any) {
+        lines += TextLine(parts.map(::toTextPart))
+    }
+
+    fun build(): TextBlock = TextBlock.Structured(lines.toList())
+
+    private fun toTextPart(part: Any): TextPart =
+        when (part) {
+            is TextPart -> part
+            is String -> TextPart.Literal(part)
+            else -> TextPart.Literal(part.toString())
+        }
+}
+
+@RylNextDsl
+class JobTextTableBuilder {
+    private val replies = mutableListOf<JobTextModel>()
+
+    fun job(id: NpcJobId, vararg lines: String) {
+        replies += JobTextModel(id, TextBlock.Inline(lines.toList()))
+    }
+
+    fun job(id: NpcJobId, body: StructuredTextBlockBuilder.() -> Unit) {
+        replies += JobTextModel(id, StructuredTextBlockBuilder().apply(body).build())
+    }
+
+    fun build(): List<JobTextModel> = replies.toList()
+}
+
+@RylNextDsl
+class RumourTextTableBuilder(private val id: RumourTableId) {
+    private val entries = mutableListOf<RumourEntryModel>()
+
+    fun rumour(id: RumourId, vararg lines: String) {
+        entries += RumourEntryModel(id, TextBlock.Inline(lines.toList()), emptyList())
+    }
+
+    fun rumour(id: RumourId, body: RumourEntryBuilder.() -> Unit) {
+        entries += RumourEntryBuilder(id).apply(body).build()
+    }
+
+    fun build(): RumourTextTableModel = RumourTextTableModel(id, entries.toList())
+}
+
+@RylNextDsl
+class RumourEntryBuilder(private val id: RumourId) {
+    private val text = StructuredTextBlockBuilder()
+    private val excludedStates = mutableListOf<FlagState>()
+
+    fun line(vararg parts: Any) {
+        text.line(*parts)
+    }
+
+    fun excludeWhen(vararg states: FlagState) {
+        excludedStates += states
+    }
+
+    fun build(): RumourEntryModel =
+        RumourEntryModel(id, text.build(), excludedStates.toList())
 }
 
 @RylNextDsl
@@ -3540,7 +3883,66 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
     }
 }
 
-fun validateSpeakSystem(speak: SpeakSystemModel) {
+fun validateCharacters(characters: List<CharacterModel>) {
+    check(characters.map { it.id }.toSet().size == characters.size) { "duplicate character id" }
+
+    val roles = characters.flatMap { character -> character.roles.map { it to character.id } }
+    check(roles.map { it.first }.toSet().size == roles.size) {
+        "duplicate character role binding"
+    }
+
+    characters.forEach { character ->
+        check(character.name.isNotBlank()) { "character ${character.id.slug} requires a display name" }
+        check(character.job in NpcJobs.all) { "character ${character.id.slug} has unknown job ${character.job.slug}" }
+        check(character.roles.toSet().size == character.roles.size) {
+            "character ${character.id.slug} has duplicate roles"
+        }
+    }
+}
+
+private fun validateTextBlock(block: TextBlock, label: String, knownRoles: Set<NpcRole>? = null) {
+    fun validatePart(part: TextPart) {
+        when (part) {
+            is TextPart.Literal -> Unit
+            is TextPart.RoleName -> {
+                check(part.role.slug.isNotBlank()) { "$label references blank character role" }
+                check(knownRoles == null || part.role in knownRoles) {
+                    "$label references unbound character role ${part.role.slug}"
+                }
+            }
+            is TextPart.RoleLocation -> {
+                check(part.role.slug.isNotBlank()) { "$label references blank character role" }
+                check(knownRoles == null || part.role in knownRoles) {
+                    "$label references unbound character role ${part.role.slug}"
+                }
+            }
+        }
+    }
+
+    when (block) {
+        is TextBlock.Ref -> check(block.id.id.isNotBlank()) { "$label text id is blank" }
+        is TextBlock.Inline -> {
+            check(block.lines.isNotEmpty()) { "$label inline text has no lines" }
+            check(block.lines.any { it.isNotBlank() }) { "$label inline text is blank" }
+        }
+        is TextBlock.Structured -> {
+            check(block.lines.isNotEmpty()) { "$label structured text has no lines" }
+            check(block.lines.any { line ->
+                line.parts.any { it !is TextPart.Literal || it.text.isNotBlank() }
+            }) {
+                "$label structured text is blank"
+            }
+            block.lines.forEachIndexed { index, line ->
+                check(line.parts.isNotEmpty()) { "$label line $index has no parts" }
+                line.parts.forEach(::validatePart)
+            }
+        }
+    }
+}
+
+fun validateSpeakSystem(speak: SpeakSystemModel, characters: List<CharacterModel> = emptyList()) {
+    validateSpeakTextTables(speak.textTables, characters)
+
     speak.standardConversation?.let { conversation ->
         check(conversation.npcSelection == ConversationNpcSelection.BuildingListOrWildernessLocation) {
             "standard conversation NPC selection must match building-list or wilderness-location lookup"
@@ -3625,6 +4027,87 @@ fun validateSpeakSystem(speak: SpeakSystemModel) {
     }
 }
 
+private fun validateSpeakTextTables(tables: SpeakTextTablesModel, characters: List<CharacterModel>) {
+    val knownRoles = characters.flatMap { it.roles }.toSet()
+
+    check(tables.screens.map { it.id }.toSet().size == tables.screens.size) {
+        "duplicate reusable speak screen"
+    }
+    tables.screens.forEach { screen ->
+        validateTextBlock(screen.text, "reusable speak screen ${screen.id.id}")
+    }
+
+    check(tables.chitchatPrompts.map { it.subject }.toSet().size == tables.chitchatPrompts.size) {
+        "duplicate chitchat prompt table"
+    }
+    tables.chitchatPrompts.forEach { prompt ->
+        check(prompt.variants.isNotEmpty()) { "chitchat prompt ${prompt.subject} has no variants" }
+        check(prompt.variants.map { it.audience }.toSet().size == prompt.variants.size) {
+            "chitchat prompt ${prompt.subject} has duplicate audience variants"
+        }
+        prompt.variants.forEach { variant ->
+            validateTextBlock(variant.text, "chitchat prompt ${prompt.subject}.${variant.audience}")
+        }
+    }
+
+    check(tables.chitchatReplies.map { it.subject }.toSet().size == tables.chitchatReplies.size) {
+        "duplicate chitchat reply table"
+    }
+    tables.chitchatReplies.forEach { replies ->
+        validateJobReplies(replies.replies, "chitchat reply ${replies.subject}", knownRoles)
+    }
+
+    check(tables.questionReplies.map { it.topic }.toSet().size == tables.questionReplies.size) {
+        "duplicate question reply table"
+    }
+    tables.questionReplies.forEach { replies ->
+        check(replies.topic != QuestionTopic.Nothing) {
+            "question reply table Nothing should not have canned replies"
+        }
+        validateJobReplies(replies.replies, "question reply ${replies.topic}", knownRoles)
+    }
+
+    check(tables.rumourTables.map { it.id }.toSet().size == tables.rumourTables.size) {
+        "duplicate rumour table"
+    }
+    tables.rumourTables.forEach { table ->
+        check(table.entries.isNotEmpty()) { "rumour table ${table.id.slug} has no entries" }
+        check(table.entries.map { it.id }.toSet().size == table.entries.size) {
+            "rumour table ${table.id.slug} has duplicate rumours"
+        }
+        table.entries.mapNotNull { it.id.legacyRoll }.let { rolls ->
+            check(rolls.toSet().size == rolls.size) {
+                "rumour table ${table.id.slug} has duplicate generated legacy rolls"
+            }
+            rolls.forEach { roll ->
+                check(roll in 0..32) {
+                    "rumour table ${table.id.slug} generated legacy roll $roll must be in 0..32"
+                }
+            }
+        }
+        table.entries.forEach { entry ->
+            check(entry.excludedBy.toSet().size == entry.excludedBy.size) {
+                "rumour ${entry.id.slug} has duplicate exclusion states"
+            }
+            entry.excludedBy.forEach { state ->
+                check(state.flag.scope == FlagScope.Party) {
+                    "rumour ${entry.id.slug} exclusion ${state.flag.slug}.${state.native} must be a party state"
+                }
+            }
+            validateTextBlock(entry.text, "rumour table ${table.id.slug}.${entry.id.slug}", knownRoles)
+        }
+    }
+}
+
+private fun validateJobReplies(replies: List<JobTextModel>, label: String, knownRoles: Set<NpcRole>? = null) {
+    check(replies.isNotEmpty()) { "$label has no job replies" }
+    check(replies.map { it.job }.toSet().size == replies.size) { "$label has duplicate job replies" }
+    replies.forEach { reply ->
+        check(reply.job in NpcJobs.all) { "$label references unknown NPC job ${reply.job.slug}" }
+        validateTextBlock(reply.text, "$label ${reply.job.slug}", knownRoles)
+    }
+}
+
 private fun checkUniqueConversationActions(actions: List<ConversationMenuActionModel>) {
     check(actions.map { it.topic }.toSet().size == actions.size) {
         "standard conversation has duplicate top-level menu topics"
@@ -3679,10 +4162,14 @@ fun validateMagicItemUses(
     }
 }
 
-fun validateDialogue(dialogue: List<DialogueModel>) {
+fun validateDialogue(dialogue: List<DialogueModel>, characters: List<CharacterModel> = emptyList()) {
     check(dialogue.map { it.npc }.toSet().size == dialogue.size) { "duplicate authored NPC dialogue" }
+    val characterIds = characters.map { it.id }.toSet()
 
     dialogue.forEach { npcDialogue ->
+        check(characters.isEmpty() || npcDialogue.npc in characterIds) {
+            "dialogue for ${npcDialogue.npc.slug} has no character definition"
+        }
         check(npcDialogue.branches.isNotEmpty()) {
             "dialogue for ${npcDialogue.npc.slug} requires at least one branch"
         }
@@ -3727,16 +4214,6 @@ fun validateScriptRewards(
 ) {
     val itemRecordById = itemRecords.associateBy { it.id }
 
-    fun validateText(block: TextBlock, label: String) {
-        when (block) {
-            is TextBlock.Ref -> check(block.id.id.isNotBlank()) { "$label text id is blank" }
-            is TextBlock.Inline -> {
-                check(block.lines.isNotEmpty()) { "$label inline text has no lines" }
-                check(block.lines.any { it.isNotBlank() }) { "$label inline text is blank" }
-            }
-        }
-    }
-
     fun validateReward(reward: ScriptRewardModel) {
         check(reward.gold != null || reward.items.isNotEmpty()) { "script reward has no gold or items" }
         reward.items.forEach { item ->
@@ -3749,8 +4226,8 @@ fun validateScriptRewards(
         if (reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
             check(reward.messages.cantCarry != null) { "drop-prompt reward requires cant-carry text" }
         }
-        reward.messages.cantCarry?.let { validateText(it, "reward cant-carry") }
-        reward.messages.pickedUp?.let { validateText(it, "reward picked-up") }
+        reward.messages.cantCarry?.let { validateTextBlock(it, "reward cant-carry") }
+        reward.messages.pickedUp?.let { validateTextBlock(it, "reward picked-up") }
         if (reward.messages.pickedUp != null) {
             check(reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace) {
                 "picked-up reward text only applies to drop-prompt rewards"
@@ -3761,7 +4238,7 @@ fun validateScriptRewards(
     fun visit(ops: List<Op>) {
         ops.forEach { op ->
             when (op) {
-                is Op.Screen -> validateText(op.text, "screen")
+                is Op.Screen -> validateTextBlock(op.text, "screen")
                 is Op.GrantReward -> validateReward(op.reward)
                 is Op.If -> {
                     visit(op.thenOps)
@@ -3854,9 +4331,10 @@ fun validateAuthoredContent(content: GameModel) {
 
     validateRewardBundles(content.rewards)
     validateCombatSystem(content.combat, content.rewards)
-    validateSpeakSystem(content.speak)
+    validateCharacters(content.characters)
+    validateSpeakSystem(content.speak, content.characters)
     validateMagicItemUses(content.magicItems)
-    validateDialogue(content.dialogue)
+    validateDialogue(content.dialogue, content.characters)
     validateScriptRewards(content)
 }
 
