@@ -160,11 +160,15 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
         checkPercent(battle.opening.fleeChancePercent, "standard battle flee chance")
         checkPercent(battle.opening.desperateFleeChancePercent, "standard battle desperate flee chance")
         check(battle.opening.banners.isNotEmpty()) { "standard battle requires at least one encounter banner" }
+        validateInputChoiceBinding(battle.openingKeys.fight, "standard battle fight key")
+        validateInputChoiceBinding(battle.openingKeys.run, "standard battle run key")
+        checkUniqueBindings(listOf(battle.openingKeys.fight, battle.openingKeys.run), "standard battle opening")
 
-        val actionKeys = battle.actions.map { it.key }
         val actionKinds = battle.actions.map { it.kind }
-        check(actionKeys.toSet().size == actionKeys.size) { "standard battle has duplicate action key" }
-        check(actionKeys.all { it.uppercaseChar() == it }) { "standard battle action keys must be uppercase" }
+        battle.actions.forEach { action ->
+            validateInputChoiceBinding(action.binding, "standard battle action ${action.kind} key")
+        }
+        checkUniqueBindings(battle.actions.map { it.binding }, "standard battle actions")
         check(actionKinds.toSet().size == actionKinds.size) { "standard battle has duplicate action kind" }
         check(CombatActionKind.Attack in actionKinds) { "standard battle requires an attack action" }
         check(CombatActionKind.Defend in actionKinds) { "standard battle requires a defend action" }
@@ -319,6 +323,11 @@ private fun validateInputBinding(binding: InputBindingModel, label: String) {
     check(tokens.toSet().size == tokens.size) { "$label has duplicate input aliases" }
 }
 
+private fun validateInputChoiceBinding(binding: InputBindingModel, label: String) {
+    validateInputBinding(binding, label)
+    check(binding.primary.length == 1) { "$label primary input must be one character for the current terminal adapter" }
+}
+
 private fun checkUniqueBindings(bindings: List<InputBindingModel>, label: String) {
     val tokens = bindings.flatMap { binding -> binding.tokens.flatMap(::inputTokenVariants).toSet() }
     check(tokens.toSet().size == tokens.size) {
@@ -358,9 +367,10 @@ fun validateTownSystem(
 
     val menu = townSystem.menu
     check(menu.isNotEmpty()) { "town system needs a town entry menu" }
-    check(menu.map { it.key.uppercaseChar() }.toSet().size == menu.size) {
-        "town entry menu has duplicate keys"
+    menu.forEach { action ->
+        validateInputChoiceBinding(action.binding, "town entry menu ${action.action.slug} key")
     }
+    checkUniqueBindings(menu.map { it.binding }, "town entry menu")
     check(menu.any { it.action == KeyActions.leaveTown && it.endsMenu }) {
         "town entry menu needs a leave action that exits the menu"
     }
@@ -382,9 +392,6 @@ fun validateTownSystem(
     }
 
     menu.forEach { action ->
-        check(action.key.uppercaseChar() == action.key) {
-            "town entry menu key ${action.key} must be uppercase"
-        }
         check(action.action.slug.isNotBlank()) { "town entry menu has blank action" }
         action.building?.let { building ->
             check(building in buildingServiceIds) {
@@ -715,9 +722,10 @@ private fun checkUniqueConversationActions(actions: List<ConversationMenuActionM
     check(actions.map { it.topic }.toSet().size == actions.size) {
         "standard conversation has duplicate top-level menu topics"
     }
-    check(actions.map { it.key }.toSet().size == actions.size) {
-        "standard conversation has duplicate top-level menu keys"
+    actions.forEach { action ->
+        validateInputChoiceBinding(action.binding, "standard conversation ${action.topic} key")
     }
+    checkUniqueBindings(actions.map { it.binding }, "standard conversation top-level menu")
     check(actions.map { it.action }.toSet().size == actions.size) {
         "standard conversation has duplicate top-level menu actions"
     }
@@ -727,9 +735,10 @@ private fun checkUniqueQuestionActions(actions: List<QuestionMenuActionModel>) {
     check(actions.map { it.topic }.toSet().size == actions.size) {
         "standard conversation has duplicate question menu topics"
     }
-    check(actions.map { it.key }.toSet().size == actions.size) {
-        "standard conversation has duplicate question menu keys"
+    actions.forEach { action ->
+        validateInputChoiceBinding(action.binding, "standard conversation question ${action.topic} key")
     }
+    checkUniqueBindings(actions.map { it.binding }, "standard conversation question menu")
     check(actions.map { it.action }.toSet().size == actions.size) {
         "standard conversation has duplicate question menu actions"
     }
@@ -870,11 +879,11 @@ fun validateScriptRewards(
         }
         validateTextBlock(offer.deal, "random item offer ${offer.pool.slug} deal")
         validateTextBlock(offer.declined, "random item offer ${offer.pool.slug} declined")
+        validateInputChoiceBinding(offer.buy, "random item offer ${offer.pool.slug} buy key")
+        validateInputChoiceBinding(offer.decline, "random item offer ${offer.pool.slug} decline key")
         check(offer.buyKey.isLetter()) { "random item offer ${offer.pool.slug} buy key must be a letter" }
         check(offer.declineKey.isLetter()) { "random item offer ${offer.pool.slug} decline key must be a letter" }
-        check(offer.buyKey != offer.declineKey) {
-            "random item offer ${offer.pool.slug} buy and decline keys must differ"
-        }
+        checkUniqueBindings(listOf(offer.buy, offer.decline), "random item offer ${offer.pool.slug}")
         listOf(
             "broke" to offer.brokePauseMillis,
             "full" to offer.fullPauseMillis,
@@ -905,12 +914,19 @@ fun validateScriptRewards(
         validateTextBlock(shop.intro, "shop ${shop.building.slug} intro")
         validateTextBlock(shop.menu, "shop ${shop.building.slug} menu")
         validateTextBlock(shop.goodbye, "shop ${shop.building.slug} goodbye")
+        val shopMenuKeys = buildList {
+            if (shop.buy != null) add(shop.keys.buy)
+            if (shop.sell != null) add(shop.keys.sell)
+            add(shop.keys.leave)
+        }
+        shopMenuKeys.forEach { binding -> validateInputChoiceBinding(binding, "shop ${shop.building.slug} menu key") }
+        checkUniqueBindings(shopMenuKeys, "shop ${shop.building.slug} menu")
 
         shop.interlude?.let { interlude ->
             checkPercent(interlude.chancePercent, "shop ${shop.building.slug} interlude chance")
-            check(interlude.acceptKey != interlude.declineKey) {
-                "shop ${shop.building.slug} interlude accept and decline keys must differ"
-            }
+            validateInputChoiceBinding(interlude.accept, "shop ${shop.building.slug} interlude accept key")
+            validateInputChoiceBinding(interlude.decline, "shop ${shop.building.slug} interlude decline key")
+            checkUniqueBindings(listOf(interlude.accept, interlude.decline), "shop ${shop.building.slug} interlude")
             validateTextBlock(interlude.offer, "shop ${shop.building.slug} interlude offer")
             check(interlude.accepted.isNotEmpty()) {
                 "shop ${shop.building.slug} interlude accepted branch is empty"
@@ -929,10 +945,17 @@ fun validateScriptRewards(
             buy.unitPrice?.let { validateTextBlock(it, "shop ${shop.building.slug} unit-price") }
             buy.singlePrice?.let { validateTextBlock(it, "shop ${shop.building.slug} single-price") }
             validateTextBlock(buy.payPrompt, "shop ${shop.building.slug} pay prompt")
+            validateInputChoiceBinding(buy.paymentKeys.pay, "shop ${shop.building.slug} pay key")
+            validateInputChoiceBinding(buy.paymentKeys.decline, "shop ${shop.building.slug} decline-purchase key")
+            checkUniqueBindings(
+                listOf(buy.paymentKeys.pay, buy.paymentKeys.decline),
+                "shop ${shop.building.slug} purchase confirmation",
+            )
             check(buy.catalogs.isNotEmpty()) { "shop ${shop.building.slug} buy section has no catalogs" }
-            check(buy.catalogs.map { it.key }.toSet().size == buy.catalogs.size) {
-                "shop ${shop.building.slug} has duplicate buy catalog keys"
+            buy.catalogs.forEach { catalog ->
+                validateInputChoiceBinding(catalog.binding, "shop ${shop.building.slug} catalog ${catalog.title} key")
             }
+            checkUniqueBindings(buy.catalogs.map { it.binding }, "shop ${shop.building.slug} buy catalogs")
             buy.catalogs.forEach { catalog ->
                 check(catalog.title.isNotBlank()) {
                     "shop ${shop.building.slug} catalog ${catalog.key} has blank title"
@@ -945,9 +968,16 @@ fun validateScriptRewards(
                     check(page.entries.isNotEmpty()) {
                         "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex has no entries"
                     }
-                    check(page.entries.map { it.key }.toSet().size == page.entries.size) {
-                        "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex has duplicate keys"
+                    page.entries.forEach { entry ->
+                        validateInputChoiceBinding(
+                            entry.binding,
+                            "shop ${shop.building.slug} catalog ${catalog.title} item ${entry.item.slug} key",
+                        )
                     }
+                    checkUniqueBindings(
+                        page.entries.map { it.binding },
+                        "shop ${shop.building.slug} catalog ${catalog.title} page $pageIndex",
+                    )
                     page.footer?.let {
                         validateTextBlock(it, "shop ${shop.building.slug} ${catalog.title} page $pageIndex footer")
                     }
@@ -988,6 +1018,12 @@ fun validateScriptRewards(
             validateTextBlock(sell.offer, "shop ${shop.building.slug} sell offer")
             sell.sold?.let { validateTextBlock(it, "shop ${shop.building.slug} sold") }
             validateShopPrice(sell.price, "shop ${shop.building.slug} sell")
+            validateInputChoiceBinding(sell.saleKeys.accept, "shop ${shop.building.slug} sale accept key")
+            validateInputChoiceBinding(sell.saleKeys.decline, "shop ${shop.building.slug} sale decline key")
+            checkUniqueBindings(
+                listOf(sell.saleKeys.accept, sell.saleKeys.decline),
+                "shop ${shop.building.slug} sale confirmation",
+            )
             check(sell.acceptedKinds.isNotEmpty() || sell.acceptedItems.isNotEmpty()) {
                 "shop ${shop.building.slug} sell policy accepts nothing"
             }
@@ -1012,6 +1048,10 @@ fun validateScriptRewards(
                     is Op.Screen -> validateTextBlock(op.text, "screen")
                     is Op.Menu -> {
                         validateTextBlock(op.prompt, "menu prompt")
+                        op.options.forEach { option ->
+                            validateInputChoiceBinding(option.binding, "script menu option ${option.key}")
+                        }
+                        checkUniqueBindings(op.options.map { it.binding }, "script menu")
                         op.options.forEach { visitOps(it.body, loopDepth) }
                         visitOps(op.defaultOps, loopDepth)
                     }
