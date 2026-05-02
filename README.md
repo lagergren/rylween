@@ -30,9 +30,9 @@ build/install/rylween-kotlin/bin/rylween --state fresh-replay --seed 1
 The generated `build/install/rylween-kotlin/bin/rylween` script is the closest
 current equivalent to `rylween.exe`. Use that for interactive ANSI play; it runs
 outside Gradle so Gradle progress output and key echo do not share the game
-screen. It loads the compiled DSL game, packaged `ansi/**` resources, packaged
-`map.dat`, the classic screen frame, text/status/map regions, and the terminal
-terrain glyph table.
+screen. It loads the compiled DSL game, packaged `ansi/**` resources, the
+authored wilderness map, the classic screen frame, text/status/map regions, and
+the terminal terrain glyph table.
 
 The line-oriented shells are still useful for testing:
 

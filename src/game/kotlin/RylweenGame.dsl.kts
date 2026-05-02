@@ -2,12 +2,16 @@
 //
 // This file should contain game declarations: flags, progress milestones,
 // monsters, missions, scripts, and states. DSL implementation code belongs in
-// src/main/kotlin; reusable current-game script helpers belong in
-// src/game/kotlin/RylweenGameScripts.kt.
+// src/main/kotlin/rylween; reusable current-game script helpers belong in
+// src/game/kotlin/rylween/game/RylweenGameScripts.kt.
 //
 // Validate with:
 //
 //   ./gradlew check
+
+import rylween.dsl.*
+import rylween.game.*
+import rylween.save.*
 
 // =============================================================================
 // 06. Full-game authoring area
@@ -3834,6 +3838,29 @@ val nextRylween = rylween {
         }
     }
 
+    scene(Scenes.Towne.hut) {
+        native.screen.clearMapWindow()
+        native.screen.showImage(Images.Scene.hut)
+        native.screen.clearText()
+        screen("You enter the hut.")
+        pause(600)
+
+        loop {
+            native.screen.clearText()
+            menu("(T)alk", "(L)eave") {
+                option('T') {
+                    speak(Buildings.none)
+                }
+                option('L') {
+                    native.screen.clearText()
+                    native.screen.clearMapWindow()
+                    native.screen.redrawMap()
+                    breakLoop("leave hut")
+                }
+            }
+        }
+    }
+
     // Battle magic: the reusable battle runner owns turn order, menus,
     // casting cost, magic immunity, rewards, and monster AI. These blocks
     // declare this game's spell and combat-item effects.
@@ -6400,7 +6427,7 @@ check(nextDsl.monsters.count { it.tier == EncounterTiers.weak } == 10)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.wild } == 14)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.deep } == 20)
 check(nextDsl.monsters.single { it.id == Monsters.gnoll }.countMaxLevelDivisor == 2)
-check(nextDsl.scenes.size == 24)
+check(nextDsl.scenes.size == 25)
 fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
     any { op ->
         when (op) {
@@ -6497,6 +6524,8 @@ check(merchantShop.sell?.acceptedItems == setOf(Items.ration, Items.blanket, Ite
 check(merchantShop.sell?.rejectedItems == setOf(Items.donkey))
 val tavernScene = nextDsl.scenes.single { it.id == Scenes.Towne.tavern }
 check(tavernScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
+val hutScene = nextDsl.scenes.single { it.id == Scenes.Towne.hut }
+check(hutScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single().options.map { it.key } == listOf('T', 'L'))
 check(nextDsl.itemPool(ItemPools.tavernScruffySpecials).items == listOf(
     Items.magicDagger,
     Items.magicAxe,
