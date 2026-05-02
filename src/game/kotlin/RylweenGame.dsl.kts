@@ -194,12 +194,49 @@ val nextRylween = rylween {
                 )
             }
 
+            text {
+                encounterBanner { lines("ENCOUNTER!", "") }
+                youFace { line("You face") }
+                stillFace { line("You still face") }
+                fight { line("(F)ight") }
+                run { line("(R)un") }
+                bloodFlow { line("Blood shall flow!") }
+                whatNow { lines("What now?", "") }
+                targetPrompt { lines("Who?", "") }
+                useWhat { lines("Use what?", "") }
+                spellAbort { line("7. Abort") }
+                runCoward { lines("Coward. You won't get", "any EXP for this battle.") }
+                runDesperateFail { lines("You desperately try to", "get away, but fail!") }
+                runFailAway { line("You fail to get away!") }
+                runEscaped { line("You escaped...") }
+                notPossible { line("Not possible.") }
+                magicImmune { lines("The magic item doesn't seem", "to work on this enemy!!!") }
+                spellFizzle { lines("The spell fizzles!", "this creature is immune", "to ordinary magic!!!") }
+                notEnoughMagic { line("Not enough magic!") }
+                restGainHits { lines("You gain some hits pts", "as you rest this round.") }
+                defendStance { lines("You put up a defensive", "stance...") }
+                battleCry {
+                    lines(
+                        "HI-YAAAA!",
+                        "",
+                        "(You manage to scare your",
+                        " enemies enough to get",
+                        " them off guard.)",
+                    )
+                }
+                killed { line("...KILLED!") }
+                partyHeld { line("PARTY IS HELD!") }
+                victoryBested { lines("Thou hast bested", "thy foes.", "") }
+                victoryEachSurvivor { line("Each survivor gets") }
+                victoryFoundObject { line("You find a") }
+            }
+
             playerActions {
-                attack()
-                defend()
-                useMagicItem()
-                battleCry()
-                castMageSpell()
+                attack { line("(A)ttack") }
+                defend { line("(D)efend") }
+                useMagicItem { line("(U)se Item") }
+                battleCry { line("(B)attle Cry") }
+                castMageSpell { line("(C)ast Spell") }
             }
 
             playerRound {
@@ -3563,6 +3600,8 @@ check(nextDsl.rewards.size == 1)
 check(nextDsl.rewards.single().application.overflow == RewardOverflowPolicy.SkipIfInventoryFull)
 check(nextDsl.combat.standardBattle?.actions?.size == 5)
 check(nextDsl.combat.standardBattle?.actions?.map { it.key } == listOf('A', 'D', 'U', 'B', 'C'))
+check(nextDsl.combat.standardBattle?.actions?.map { it.prompt }?.first() == structuredText { line("(A)ttack") })
+check(nextDsl.combat.standardBattle?.text?.useWhat == structuredText { lines("Use what?", "") })
 check(nextDsl.combat.standardBattle?.playerRound?.attack?.confusionDivisor == 3)
 check(nextDsl.combat.standardBattle?.playerRound?.attack?.hpDefenseDivisor == 12)
 check(nextDsl.combat.standardBattle?.playerRound?.defend?.cap == 250)

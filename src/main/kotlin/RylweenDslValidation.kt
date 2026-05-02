@@ -169,6 +169,10 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
         check(CombatActionKind.Attack in actionKinds) { "standard battle requires an attack action" }
         check(CombatActionKind.Defend in actionKinds) { "standard battle requires a defend action" }
         check(CombatActionKind.UseMagicItem in actionKinds) { "standard battle requires a use-magic-item action" }
+        battle.actions.forEach { action ->
+            validateTextBlock(action.prompt, "standard battle action ${action.kind} prompt")
+        }
+        validateBattleText(battle.text)
 
         check(battle.playerRound.attack.hitBonus >= 0) {
             "standard battle attack hit bonus must be non-negative"
@@ -219,6 +223,39 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
 
         val services = battle.nativeServices.map { it.service }
         check(services.toSet().size == services.size) { "standard battle has duplicate native service" }
+    }
+}
+
+private fun validateBattleText(text: BattleTextModel) {
+    listOf(
+        "encounter banner" to text.encounterBanner,
+        "you-face" to text.youFace,
+        "still-face" to text.stillFace,
+        "fight prompt" to text.fight,
+        "run prompt" to text.run,
+        "blood-flow" to text.bloodFlow,
+        "what-now" to text.whatNow,
+        "target prompt" to text.targetPrompt,
+        "use-what" to text.useWhat,
+        "spell abort" to text.spellAbort,
+        "run coward" to text.runCoward,
+        "run desperate fail" to text.runDesperateFail,
+        "run fail away" to text.runFailAway,
+        "run escaped" to text.runEscaped,
+        "not possible" to text.notPossible,
+        "magic immune" to text.magicImmune,
+        "spell fizzle" to text.spellFizzle,
+        "not enough magic" to text.notEnoughMagic,
+        "rest gain hits" to text.restGainHits,
+        "defend stance" to text.defendStance,
+        "battle cry" to text.battleCry,
+        "killed" to text.killed,
+        "party held" to text.partyHeld,
+        "victory bested" to text.victoryBested,
+        "victory each survivor" to text.victoryEachSurvivor,
+        "victory found object" to text.victoryFoundObject,
+    ).forEach { (label, block) ->
+        validateTextBlock(block, "standard battle text $label")
     }
 }
 
