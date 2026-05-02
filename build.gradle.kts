@@ -13,9 +13,15 @@ abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
 
     @org.gradle.api.tasks.TaskAction
     fun generate() {
-        val indentedGame = gameSource.get().asFile
-            .readLines()
+        val gameLines = gameSource.get().asFile.readLines()
+        val importLines = gameLines.filter { it.trimStart().startsWith("import ") }
+        val bodyLines = gameLines.filterNot { it.trimStart().startsWith("import ") }
+        val indentedGame = bodyLines
             .joinToString(separator = "\n") { line -> "        $line" }
+        val imports = (importLines + "import rylween.dsl.*")
+            .distinct()
+            .joinToString(separator = "\n")
+            .let { if (it.isBlank()) "" else "$it\n\n" }
         outputFile.get().asFile.apply {
             parentFile.mkdirs()
             writeText(
@@ -24,6 +30,10 @@ abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
                 |// Do not edit directly.
 
                 |@file:Suppress("UNNECESSARY_SAFE_CALL")
+
+                |package rylween.game
+
+                |$imports
 
                 |object RylweenCompiledGame {
                 |    val nextRylween: RylweenModel
@@ -135,7 +145,7 @@ val runKotlinTown by tasks.registering(JavaExec::class) {
 
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     classpath = appSourceSet.runtimeClasspath
-    mainClass.set("RylweenTerminalMainKt")
+    mainClass.set("rylween.app.RylweenTerminalMainKt")
     standardInput = System.`in`
 }
 
@@ -145,7 +155,7 @@ val runKotlinGame by tasks.registering(JavaExec::class) {
 
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     classpath = appSourceSet.runtimeClasspath
-    mainClass.set("RylweenGameTerminalMain")
+    mainClass.set("rylween.app.RylweenGameTerminalMain")
     standardInput = System.`in`
 }
 
@@ -160,7 +170,7 @@ val kotlinAnsiJar by tasks.registering(Jar::class) {
     from(gameSourceSet.output)
     from(appSourceSet.output)
     manifest {
-        attributes["Main-Class"] = "RylweenAnsiMain"
+        attributes["Main-Class"] = "rylween.app.RylweenAnsiMain"
     }
 }
 
@@ -172,7 +182,7 @@ val kotlinAnsiStartScripts by tasks.registering(CreateStartScripts::class) {
 
     dependsOn(kotlinAnsiJar)
     applicationName = "rylween"
-    mainClass.set("RylweenAnsiMain")
+    mainClass.set("rylween.app.RylweenAnsiMain")
     outputDir = layout.buildDirectory.dir("scripts/kotlinAnsi").get().asFile
     classpath = files(kotlinAnsiJar) + kotlinAnsiRuntimeJars
 }

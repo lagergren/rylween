@@ -1,0 +1,308 @@
+// Reusable runtime session for the standard NPC conversation. Drives NPC
+// selection, visited bits, dialogue branches, the C/Q/R/B menu, the L/M/P/N
+// question submenu, chitchat/rumour selection, and rumour quiet-limit behavior.
+
+package rylween.runtime
+
+import rylween.dsl.*
+
+data class SpeakRuntimeContent(
+    val speak: SpeakSystemModel = SpeakSystemModel(null),
+    val characters: List<CharacterModel> = emptyList(),
+    val dialogue: List<DialogueModel> = emptyList(),
+)
+
+sealed interface SpeakStep {
+    data class ChooseNpc(val npcs: List<CharacterModel>) : SpeakStep
+    data class DialogueBranch(
+        val npc: CharacterModel,
+        val branch: DialogueBranchModel,
+        val next: SpeakStep,
+        val continuation: TownServiceContinuation? = null,
+    ) : SpeakStep
+    data class MainMenu(val npc: CharacterModel, val actions: List<ConversationMenuActionModel>) : SpeakStep
+    data class QuestionMenu(val npc: CharacterModel, val actions: List<QuestionMenuActionModel>) : SpeakStep
+    data class LodgingOffer(
+        val npc: CharacterModel,
+        val price: Int,
+        val offer: TextBlock,
+        val yes: InputBindingModel = inputKey('Y'),
+        val no: InputBindingModel = inputKey('N'),
+    ) : SpeakStep
+    data class Message(val blocks: List<TextBlock>, val next: SpeakStep) : SpeakStep
+    data class Finished(val runtime: RuntimeSessionState) : SpeakStep {
+        val party: PartyState get() = runtime.activeParty
+    }
+}
+
+data class SpeakSession(
+    val content: SpeakRuntimeContent,
+    val runtime: RuntimeSessionState,
+    val building: BuildingId,
+    val step: SpeakStep,
+    val selectedNpc: CharacterModel? = null,
+    val rumourTold: Boolean = false,
+) {
+    private val conversation: StandardConversationModel
+        get() = requireNotNull(content.speak.standardConversation) {
+            "standard conversation system is not configured"
+        }
+
+    fun apply(input: SpeakInput): SpeakSession =
+        when (val current = step) {
+            is SpeakStep.ChooseNpc -> {
+                val npc = (input as? SpeakInput.Npc)
+                    ?: error("speak session is choosing an NPC")
+                val character = current.npcs.firstOrNull { it.id == npc.npc }
+                    ?: error("NPC ${npc.npc.slug} is not available for ${building.slug}")
+                val nextRuntime = runtime.withActiveParty(runtime.activeParty.withNpcVisit(character.id, visited = true))
+                val branch = content.firstMatchingDialogueBranch(character.id, nextRuntime.activeParty)
+                val menu = mainMenu(character)
+                copy(
+                    runtime = nextRuntime,
+                    selectedNpc = character,
+                    step = branch?.let { SpeakStep.DialogueBranch(character, it, next = menu) } ?: menu,
+                )
+            }
+            is SpeakStep.DialogueBranch -> error("speak session is running a dialogue branch")
+            is SpeakStep.MainMenu -> {
+                val choice = (input as? SpeakInput.Main)
+                    ?: error("speak session is at the main conversation menu")
+                when (choice.choice) {
+                    SpeakMainChoice.Chitchat -> chitchat(current.npc)
+                    SpeakMainChoice.Question -> copy(step = questionMenu(current.npc))
+                    SpeakMainChoice.Rumour -> rumour(current.npc)
+                    SpeakMainChoice.Bye -> copy(step = SpeakStep.Finished(runtime))
+                }
+            }
+            is SpeakStep.QuestionMenu -> {
+                val question = (input as? SpeakInput.Question)
+                    ?: error("speak session is at the question menu")
+                if (question.topic == QuestionTopic.Nothing) {
+                    copy(step = mainMenu(current.npc))
+                } else if (question.topic == QuestionTopic.Lodging && current.npc.job == DslDefaultNpcJobs.bargirl) {
+                    bargirlLodging(current.npc)
+                } else {
+                    copy(step = message(questionReply(question.topic, current.npc), mainMenu(current.npc)))
+                }
+            }
+            is SpeakStep.LodgingOffer -> {
+                val answer = (input as? SpeakInput.LodgingAnswer)
+                    ?: error("speak session is offering lodging")
+                answerBargirlLodging(current, answer.yes)
+            }
+            is SpeakStep.Message -> {
+                require(input is SpeakInput.Continue) { "speak session is showing message text" }
+                copy(step = current.next)
+            }
+            is SpeakStep.Finished -> error("speak session is already finished: $current")
+        }
+
+    private fun chitchat(npc: CharacterModel): SpeakSession {
+        val subjects = conversation.chitchat.subjects.ifEmpty { listOf(ChitchatSubject.Well) }
+        val draw = runtime.drawRandom(0, subjects.lastIndex)
+        val subject = subjects[draw.value]
+        return copy(
+            runtime = draw.runtime,
+            step = message(
+                listOf(chitchatPrompt(subject), chitchatReply(subject, npc)),
+                mainMenu(npc),
+            ),
+        )
+    }
+
+    private fun rumour(npc: CharacterModel): SpeakSession {
+        val selection = if (rumourTold) null else content.selectStandardRumour(runtime)
+        val text = selection?.rumour?.text ?: noRumourText()
+        return copy(
+            runtime = selection?.runtime ?: runtime,
+            rumourTold = true,
+            step = message(text, mainMenu(npc)),
+            )
+    }
+
+    private fun bargirlLodging(npc: CharacterModel): SpeakSession {
+        val price = (runtime.activeParty.members.firstOrNull()?.level ?: 1) * 50
+        return copy(step = SpeakStep.LodgingOffer(npc, price, lodgeScreen(DslDefaultText.Speak.Lodge.bargirlOffer).replace("{price}", price.toString())))
+    }
+
+    private fun answerBargirlLodging(offer: SpeakStep.LodgingOffer, yes: Boolean): SpeakSession {
+        if (!yes) return copy(step = mainMenu(offer.npc))
+        val party = runtime.activeParty
+        if (party.resources.gold < offer.price) {
+            return copy(step = message(lodgeScreen(DslDefaultText.Speak.Lodge.bargirlBroke), mainMenu(offer.npc)))
+        }
+        val nextParty = party.copy(
+            resources = party.resources.copy(gold = party.resources.gold - offer.price),
+            members = party.members.map { member ->
+                if (member.hitPoints.current > 1) {
+                    member.copy(hitPoints = (member.hitPoints.current - 1) of member.hitPoints.max)
+                } else {
+                    member
+                }
+            },
+        )
+        return copy(
+            runtime = runtime.withActiveParty(nextParty),
+            step = message(lodgeScreen(DslDefaultText.Speak.Lodge.bargirlSpent), mainMenu(offer.npc)),
+        )
+    }
+
+    private fun mainMenu(npc: CharacterModel): SpeakStep.MainMenu =
+        SpeakStep.MainMenu(npc, conversation.menu.actions)
+
+    private fun questionMenu(npc: CharacterModel): SpeakStep.QuestionMenu =
+        SpeakStep.QuestionMenu(npc, conversation.menu.questions)
+
+    private fun message(text: TextBlock, next: SpeakStep): SpeakStep.Message =
+        message(listOf(text), next)
+
+    private fun message(blocks: List<TextBlock>, next: SpeakStep): SpeakStep.Message =
+        SpeakStep.Message(blocks, next)
+
+    private fun chitchatPrompt(subject: ChitchatSubject): TextBlock {
+        val leaderGender = runtime.activeParty.members.firstOrNull()?.gender
+        val variants = content.speak.textTables.chitchatPrompts.firstOrNull { it.subject == subject }?.variants.orEmpty()
+        return variants.firstOrNull { it.audience.matches(leaderGender) }?.text
+            ?: variants.firstOrNull()?.text
+            ?: inlineText("- Hello.")
+    }
+
+    private fun chitchatReply(subject: ChitchatSubject, npc: CharacterModel): TextBlock =
+        content.speak.textTables.chitchatReplies
+            .firstOrNull { it.subject == subject }
+            ?.replies
+            ?.firstOrNull { it.job == npc.job }
+            ?.text
+            ?: inlineText("- I have nothing to say.")
+
+    private fun questionReply(topic: QuestionTopic, npc: CharacterModel): TextBlock =
+        content.speak.textTables.questionReplies
+            .firstOrNull { it.topic == topic }
+            ?.replies
+            ?.firstOrNull { it.job == npc.job }
+            ?.text
+            ?: noRumourText()
+
+    private fun noRumourText(): TextBlock =
+        content.speak.textTables.screens.firstOrNull { it.id == DslDefaultText.Speak.noRumour }?.text
+            ?: inlineText("- Sorry. There's", "nothing new I can", "tell you.", "")
+
+    private fun lodgeScreen(id: TextId): TextBlock =
+        content.speak.textTables.screens.firstOrNull { it.id == id }?.text ?: inlineText("")
+
+    companion object {
+        fun start(
+            content: SpeakRuntimeContent,
+            runtime: RuntimeSessionState,
+            building: BuildingId,
+        ): SpeakSession {
+            val npcs = content.charactersFor(runtime, building)
+            val step = if (npcs.isEmpty()) {
+                SpeakStep.Message(
+                    blocks = listOf(
+                        content.speak.textTables.screens.firstOrNull { it.id == DslDefaultText.Speak.noNpc }?.text
+                            ?: inlineText("Noone is here!"),
+                    ),
+                    next = SpeakStep.Finished(runtime),
+                )
+            } else {
+                SpeakStep.ChooseNpc(npcs)
+            }
+            return SpeakSession(content, runtime, building, step)
+        }
+    }
+}
+
+data class RumourSelection(
+    val rumour: RumourEntryModel,
+    val runtime: RuntimeSessionState,
+)
+
+fun SpeakRuntimeContent.charactersFor(runtime: RuntimeSessionState, building: BuildingId): List<CharacterModel> {
+    val realizedByNpc = runtime.npcs.associateBy { it.npc }
+    val town = runtime.realm.currentTown
+    val wildernessPoint = runtime.activeParty.position.let { (it as? WorldPosition.Wilderness)?.point }
+    return characters
+        .filter { character ->
+            val position = realizedByNpc[character.id]?.position
+                ?: (character.placement as? CharacterPlacementModel.Fixed)?.position
+            if (town != null) {
+                position == WorldPosition.Town(town, building)
+            } else {
+                building == DslDefaultBuildings.none && position == wildernessPoint?.let { WorldPosition.Wilderness(it) }
+            }
+        }
+        .sortedBy { it.name }
+}
+
+fun RuntimeContent.speakRuntimeContent(): SpeakRuntimeContent =
+    SpeakRuntimeContent(
+        speak = speak,
+        characters = characters,
+        dialogue = dialogue,
+    )
+
+private fun TextBlock.replace(target: String, replacement: String): TextBlock =
+    when (this) {
+        is TextBlock.Ref -> this
+        is TextBlock.Inline -> TextBlock.Inline(lines.map { it.replace(target, replacement) })
+        is TextBlock.Structured -> TextBlock.Structured(
+            lines.map { line ->
+                TextLine(
+                    line.parts.map { part ->
+                        if (part is TextPart.Literal) {
+                            part.copy(text = part.text.replace(target, replacement))
+                        } else {
+                            part
+                        }
+                    },
+                )
+            },
+        )
+    }
+
+fun SpeakRuntimeContent.firstMatchingDialogueBranch(npc: NpcId, party: PartyState): DialogueBranchModel? {
+    val branches = dialogue.firstOrNull { it.npc == npc }?.branches.orEmpty()
+    return branches.firstOrNull { branch ->
+        branch.whenState?.let(party::hasFlagState) == true
+    } ?: branches.firstOrNull { it.whenState == null }
+}
+
+fun SpeakRuntimeContent.standardRumours(party: PartyState): List<RumourEntryModel> =
+    speak.textTables.rumourTables
+        .firstOrNull { it.id == DslDefaultRumourTables.standardTown }
+        ?.entries
+        ?.filter { entry -> entry.excludedBy.none(party::hasFlagState) }
+        .orEmpty()
+
+fun SpeakRuntimeContent.firstStandardRumour(party: PartyState): TextBlock? =
+    standardRumours(party).firstOrNull()?.text
+
+fun SpeakRuntimeContent.selectStandardRumour(runtime: RuntimeSessionState): RumourSelection? {
+    val entries = standardRumours(runtime.activeParty)
+    if (entries.isEmpty()) return null
+    val draw = runtime.drawRandom(0, entries.lastIndex)
+    return RumourSelection(entries[draw.value], draw.runtime)
+}
+
+fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
+    val visits = visitedNpcs.associateBy { it.npc } + (npc to NpcVisitState(npc, visited))
+    return copy(visitedNpcs = visits.values.sortedBy { it.npc.slug })
+}
+
+fun PartyState.withFlagState(flag: String, native: String): PartyState =
+    copy(
+        flags = (flags.filterNot { it.flag.slug == flag } + runtimeFlagState(flag, native))
+            .sortedWith(compareBy({ it.flag.slug }, { it.native })),
+    )
+
+fun PartyState.hasFlagState(state: FlagState): Boolean =
+    flags.any { it.flag == state.flag && it.native == state.native }
+
+private fun ChitchatPromptAudience.matches(gender: Gender?): Boolean =
+    when (this) {
+        ChitchatPromptAudience.Any -> true
+        ChitchatPromptAudience.Female -> gender == Gender.Female
+        ChitchatPromptAudience.Male -> gender == Gender.Male
+    }
