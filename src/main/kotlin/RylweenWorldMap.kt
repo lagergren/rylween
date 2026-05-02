@@ -121,13 +121,13 @@ data class WorldMapGrid(
         tileAt(point)?.isImpassableTerrain() == false
 
     fun isTown(point: GridPoint): Boolean =
-        tileAt(point) == Terrain.town.legacyMapCode
+        tileAt(point) == Terrain.town.sourceMapCode
 
     fun isHut(point: GridPoint): Boolean =
-        tileAt(point) == Terrain.hut.legacyMapCode
+        tileAt(point) == Terrain.hut.sourceMapCode
 
     fun isCastle(point: GridPoint): Boolean =
-        tileAt(point) == Terrain.castle.legacyMapCode
+        tileAt(point) == Terrain.castle.sourceMapCode
 
     fun isSettlement(point: GridPoint): Boolean =
         isTown(point) || isHut(point) || isCastle(point)
@@ -146,7 +146,7 @@ data class WorldMapGrid(
         npcs.fold(this) { map, placement ->
             val point = (placement.position as? WorldPosition.Wilderness)?.point
             if (point != null && map.isNpcPlacementTerrain(point)) {
-                map.withTileAt(point, requireNotNull(Terrain.hut.legacyMapCode))
+                map.withTileAt(point, requireNotNull(Terrain.hut.sourceMapCode))
             } else {
                 map
             }
@@ -172,14 +172,14 @@ data class WorldMapGrid(
     }
 
     companion object {
-        fun legacyWilderness(rows: List<String>): WorldMapGrid =
+        fun fromSourceRows(rows: List<String>): WorldMapGrid =
             WorldMapGrid(
                 id = Maps.wilderness,
                 rows = listOf("") + rows.map { it.trimEnd('\r', '\n') },
             )
 
-        fun loadLegacyMapDat(file: File): WorldMapGrid =
-            legacyWilderness(file.readLines())
+        fun loadReferenceMapDat(file: File): WorldMapGrid =
+            fromSourceRows(file.readLines())
     }
 }
 
@@ -666,10 +666,10 @@ fun wildernessDirectionForKey(key: Char): WildernessDirection? =
     }
 
 private fun WildernessSystemModel.terrainIdFor(tile: Char?): TerrainId? =
-    terrainTransitions.entries.firstOrNull { it.terrain.legacyMapCode == tile }?.terrain
+    terrainTransitions.entries.firstOrNull { it.terrain.sourceMapCode == tile }?.terrain
 
 private fun TerrainTransitionModel.entryFor(tile: Char): TerrainTransitionTextModel? =
-    entries.firstOrNull { it.terrain.legacyMapCode == tile }
+    entries.firstOrNull { it.terrain.sourceMapCode == tile }
 
 private fun PartyState.wildernessPoint(): GridPoint? =
     (position as? WorldPosition.Wilderness)?.point
@@ -834,8 +834,8 @@ private fun Char.isImpassableTerrain(): Boolean =
 
 private val ImpassableTerrainTiles: Set<Char> =
     listOfNotNull(
-        Terrain.mountain.legacyMapCode,
-        Terrain.water.legacyMapCode,
+        Terrain.mountain.sourceMapCode,
+        Terrain.water.sourceMapCode,
     ).toSet()
 
 private val StandardRylweenFatigue: List<WildernessFatigueRule> =

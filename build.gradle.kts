@@ -50,33 +50,33 @@ abstract class GenerateRylweenMetadataTask : org.gradle.api.DefaultTask() {
     }
 }
 
-abstract class GenerateCompiledScratchHarnessTask : org.gradle.api.DefaultTask() {
+abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
     @get:org.gradle.api.tasks.InputFile
-    abstract val scratchSource: org.gradle.api.file.RegularFileProperty
+    abstract val gameSource: org.gradle.api.file.RegularFileProperty
 
     @get:org.gradle.api.tasks.OutputFile
     abstract val outputFile: org.gradle.api.file.RegularFileProperty
 
     @org.gradle.api.tasks.TaskAction
     fun generate() {
-        val indentedScratch = scratchSource.get().asFile
+        val indentedGame = gameSource.get().asFile
             .readLines()
             .joinToString(separator = "\n") { line -> "        $line" }
         outputFile.get().asFile.apply {
             parentFile.mkdirs()
             writeText(
                 """
-                |// Generated from src/scratch/kotlin/rylween-full-scratch.dsl.kts.
+                |// Generated from src/game/kotlin/RylweenGame.dsl.kts.
                 |// Do not edit directly.
 
                 |@file:Suppress("UNNECESSARY_SAFE_CALL")
 
-                |object RylweenCompiledScratch {
+                |object RylweenCompiledGame {
                 |    val nextRylween: RylweenModel
                 |    val nextDsl: GameModel
 
                 |    init {
-                |$indentedScratch
+                |$indentedGame
 
                 |        this.nextRylween = nextRylween
                 |        this.nextDsl = nextDsl
@@ -122,7 +122,7 @@ private object RylweenMetadataGenerator {
         val items = shards.flatMap { shard ->
             parseShard(File(itemDirectory, shard.fileName), shard)
         }
-        val byId = items.associateBy { it.legacyId }
+        val byId = items.associateBy { it.sourceId }
         check(byId.size == items.size) { "duplicate item ids in data/world/items" }
         check(items.map { it.slug }.toSet().size == items.size) { "duplicate item slugs in data/world/items" }
         check(items.firstOrNull()?.slug == "blank") { "first generated item must be blank sentinel" }
@@ -135,7 +135,7 @@ private object RylweenMetadataGenerator {
                 val shardItems = items.filter { it.shard == shard }
                 appendLine("    // ${shard.comment}${shard.comment.sentenceSuffix()}")
                 shardItems.forEach { item ->
-                    appendLine("    val ${item.propertyName} = generatedItem(\"${item.slug}\", legacyId = ${item.legacyId})")
+                    appendLine("    val ${item.propertyName} = generatedItem(\"${item.slug}\", sourceId = ${item.sourceId})")
                     if (item.slug == "blank") {
                         appendLine("    val none = blank")
                     }
@@ -184,7 +184,7 @@ private object RylweenMetadataGenerator {
                 shard = shard,
                 slug = record.slug,
                 propertyName = slugToProperty(record.slug),
-                legacyId = intField(body, "id"),
+                sourceId = intField(body, "id"),
                 displayName = stringField(body, "name") ?: error("missing name for ${record.slug}"),
                 cost = intField(body, "cost"),
                 kind = when {
@@ -409,7 +409,7 @@ private object RylweenMetadataGenerator {
         val shard: ItemShard,
         val slug: String,
         val propertyName: String,
-        val legacyId: Int,
+        val sourceId: Int,
         val displayName: String,
         val cost: Int,
         val kind: String,
@@ -430,8 +430,8 @@ repositories {
 val generatedMetadataSource = layout.projectDirectory.file("src/generator/metadata/RylweenGeneratedMetadata.kt")
 val generatedMetadataOutput = layout.projectDirectory.file("src/generated/kotlin/RylweenGeneratedMetadata.kt")
 val generatedMetadataItemDirectory = layout.projectDirectory.dir("data/world/items")
-val generatedScratchHarnessDir = layout.buildDirectory.dir("generated/scratchHarness/kotlin")
-val generatedScratchHarnessFile = layout.buildDirectory.file("generated/scratchHarness/kotlin/RylweenCompiledScratch.kt")
+val generatedGameHarnessDir = layout.buildDirectory.dir("generated/gameHarness/kotlin")
+val generatedGameHarnessFile = layout.buildDirectory.file("generated/gameHarness/kotlin/RylweenCompiledGame.kt")
 
 kotlin {
     jvmToolchain(25)
@@ -449,13 +449,13 @@ val gameSourceSet = sourceSets.create("game") {
 
 val appSourceSet = sourceSets.create("app") {
     java.srcDir("src/app/kotlin")
-    java.srcDir(generatedScratchHarnessDir)
+    java.srcDir(generatedGameHarnessDir)
     compileClasspath += sourceSets.named("main").get().output + gameSourceSet.output
     runtimeClasspath += output + compileClasspath
 }
 
 sourceSets.named("test") {
-    java.srcDir(generatedScratchHarnessDir)
+    java.srcDir(generatedGameHarnessDir)
     compileClasspath += gameSourceSet.output
     runtimeClasspath += gameSourceSet.output
 }
@@ -495,25 +495,25 @@ val validateGeneratedMetadata by tasks.registering(ValidateGeneratedMetadataTask
     outputFile.set(generatedMetadataOutput)
 }
 
-val generateCompiledScratchHarness by tasks.registering(GenerateCompiledScratchHarnessTask::class) {
+val generateCompiledGameHarness by tasks.registering(GenerateCompiledGameHarnessTask::class) {
     group = "generation"
-    description = "Generates a test harness that compiles the scratch DSL as Kotlin and exposes nextRylween."
+    description = "Generates a test harness that compiles the game DSL as Kotlin and exposes nextRylween."
 
-    scratchSource.set(layout.projectDirectory.file("src/scratch/kotlin/rylween-full-scratch.dsl.kts"))
-    outputFile.set(generatedScratchHarnessFile)
+    gameSource.set(layout.projectDirectory.file("src/game/kotlin/RylweenGame.dsl.kts"))
+    outputFile.set(generatedGameHarnessFile)
 }
 
 val kotlinCompiler by configurations.creating
-val scratchRuntime by configurations.creating
+val gameDslRuntime by configurations.creating
 
 dependencies {
     val kotlinVersion = libs.versions.kotlin.get()
     kotlinCompiler("org.jetbrains.kotlin:kotlin-compiler-embeddable:$kotlinVersion")
     kotlinCompiler("org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:$kotlinVersion")
     kotlinCompiler("org.jetbrains.kotlin:kotlin-scripting-jvm:$kotlinVersion")
-    scratchRuntime("org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion")
-    scratchRuntime("org.jetbrains.kotlin:kotlin-script-runtime:$kotlinVersion")
-    scratchRuntime("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
+    gameDslRuntime("org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion")
+    gameDslRuntime("org.jetbrains.kotlin:kotlin-script-runtime:$kotlinVersion")
+    gameDslRuntime("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
 }
 
 tasks.jar {
@@ -525,18 +525,18 @@ tasks.named("compileKotlin") {
 }
 
 tasks.named("compileTestKotlin") {
-    dependsOn(generateCompiledScratchHarness)
+    dependsOn(generateCompiledGameHarness)
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
 }
 
 tasks.named("compileAppKotlin") {
-    dependsOn(generateCompiledScratchHarness)
+    dependsOn(generateCompiledGameHarness)
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
 }
 
 val runKotlinTown by tasks.registering(JavaExec::class) {
     group = "application"
-    description = "Boots the compiled scratch game in the pure Kotlin terminal town runner."
+    description = "Boots the compiled game in the pure Kotlin terminal town runner."
 
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     classpath = appSourceSet.runtimeClasspath
@@ -546,7 +546,7 @@ val runKotlinTown by tasks.registering(JavaExec::class) {
 
 val runKotlinGame by tasks.registering(JavaExec::class) {
     group = "application"
-    description = "Boots the compiled scratch game in the pure Kotlin terminal wilderness runner."
+    description = "Boots the compiled game in the pure Kotlin terminal wilderness runner."
 
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     classpath = appSourceSet.runtimeClasspath
@@ -554,28 +554,28 @@ val runKotlinGame by tasks.registering(JavaExec::class) {
     standardInput = System.`in`
 }
 
-val validateScratch by tasks.registering(JavaExec::class) {
+val validateGameDsl by tasks.registering(JavaExec::class) {
     group = "verification"
-    description = "Compiles and executes the scratch Kotlin DSL source against the built DSL jar."
+    description = "Compiles and executes the game Kotlin DSL source against the built DSL jar."
 
     dependsOn(tasks.jar)
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
     classpath = kotlinCompiler
     mainClass.set("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
     val gameKotlinClasses = layout.buildDirectory.dir("classes/kotlin/${gameSourceSet.name}")
-    val scratchClasspath = files(tasks.jar.flatMap { it.archiveFile }, gameKotlinClasses) + scratchRuntime
+    val gameDslClasspath = files(tasks.jar.flatMap { it.archiveFile }, gameKotlinClasses) + gameDslRuntime
     args(
         "-no-stdlib",
         "-no-reflect",
         "-classpath",
-        scratchClasspath.asPath,
+        gameDslClasspath.asPath,
         "-script",
-        layout.projectDirectory.file("src/scratch/kotlin/rylween-full-scratch.dsl.kts").asFile.absolutePath,
+        layout.projectDirectory.file("src/game/kotlin/RylweenGame.dsl.kts").asFile.absolutePath,
     )
 }
 
 tasks.check {
     dependsOn(validateGeneratedMetadata)
-    dependsOn(validateScratch)
+    dependsOn(validateGameDsl)
     dependsOn(tasks.named(appSourceSet.classesTaskName))
 }

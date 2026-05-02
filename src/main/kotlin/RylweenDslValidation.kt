@@ -10,8 +10,8 @@ fun validateFlagCatalog(flags: List<FlagRef>) {
     flags
         .groupBy { it.scope }
         .forEach { (scope, scopedFlags) ->
-            val slots = scopedFlags.mapNotNull { it.legacySlot }
-            check(slots.toSet().size == slots.size) { "duplicate $scope legacy flag slot" }
+            val slots = scopedFlags.mapNotNull { it.sourceSlot }
+            check(slots.toSet().size == slots.size) { "duplicate $scope source flag slot" }
         }
 }
 
@@ -19,12 +19,12 @@ fun validateGeneratedItemCatalog(records: List<ItemRecordModel> = ItemCatalog.al
     check(records.isNotEmpty()) { "generated item catalog is empty" }
     check(records.map { it.id }.toSet().size == records.size) { "duplicate generated item handle" }
 
-    val legacyIds = records.map { record ->
-        checkNotNull(record.id.legacyId) {
-            "generated item ${record.id.slug} has no legacy id"
+    val sourceIds = records.map { record ->
+        checkNotNull(record.id.sourceId) {
+            "generated item ${record.id.slug} has no source id"
         }
     }
-    check(legacyIds.toSet().size == legacyIds.size) { "duplicate generated item legacy id" }
+    check(sourceIds.toSet().size == sourceIds.size) { "duplicate generated item source id" }
 
     records.forEach { record ->
         check(record.displayName.isNotBlank()) { "item ${record.id.slug} requires a display name" }
@@ -240,7 +240,7 @@ fun validateWildernessSystem(wilderness: WildernessSystemModel) {
     val terrains = transition.entries.map { it.terrain }
     check(terrains.toSet().size == terrains.size) { "wilderness terrain transitions have duplicate terrain entries" }
     transition.entries.forEach { entry ->
-        check(entry.terrain.legacyMapCode != null) {
+        check(entry.terrain.sourceMapCode != null) {
             "wilderness terrain transition ${entry.terrain.slug} needs a map tile code"
         }
     }
@@ -501,10 +501,10 @@ fun validateSpeakSystem(
         }
 
         check(conversation.menu.actions.map { it.key } == listOf('C', 'Q', 'R', 'B')) {
-            "standard conversation top-level menu keys must match legacy C/Q/R/B"
+            "standard conversation top-level menu keys must match C/Q/R/B"
         }
         check(conversation.menu.questions.map { it.key } == listOf('L', 'M', 'P', 'N')) {
-            "standard conversation question menu keys must match legacy L/M/P/N"
+            "standard conversation question menu keys must match L/M/P/N"
         }
 
         check(conversation.chitchat.subjects == listOf(
@@ -512,7 +512,7 @@ fun validateSpeakSystem(
             ChitchatSubject.Weather,
             ChitchatSubject.Health,
         )) {
-            "standard conversation chitchat subjects must match legacy well/weather/health roll"
+            "standard conversation chitchat subjects must match well/weather/health roll"
         }
         check(conversation.chitchat.replies == ChitchatReplyPolicy.BySubjectAndNpcJob) {
             "standard conversation chitchat replies must dispatch by subject and NPC job"
@@ -1079,7 +1079,7 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
         check(state.realm.minute in 0..59) { "state ${state.id.slug}: realm minute must be 0..59" }
         check(state.realm.partyMemberMax > 0) { "state ${state.id.slug}: partyMemberMax must be positive" }
         state.realm.lastTerrain?.let { terrain ->
-            check(terrain.legacyMapCode != null) {
+            check(terrain.sourceMapCode != null) {
                 "state ${state.id.slug}: lastTerrain ${terrain.slug} needs a map tile code"
             }
         }

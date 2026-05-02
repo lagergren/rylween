@@ -369,9 +369,9 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun legacyRylweenRandomMatchesNativeXorshift64StarSequence() {
-        val first = LegacyRylweenRandom.draw(seed = 1L, lo = 0, hi = 16)
-        val second = LegacyRylweenRandom.draw(seed = first.nextSeed, lo = 0, hi = 16)
+    fun referenceRylweenRandomMatchesNativeXorshift64StarSequence() {
+        val first = ReferenceRylweenRandom.draw(seed = 1L, lo = 0, hi = 16)
+        val second = ReferenceRylweenRandom.draw(seed = first.nextSeed, lo = 0, hi = 16)
 
         assertEquals(4, first.value)
         assertEquals(33554433L, first.nextSeed)
@@ -1553,9 +1553,9 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchHarnessExposesNextRylweenToRuntimeTests() {
-        val game = RylweenCompiledScratch.nextRylween
-        val content = RylweenCompiledScratch.nextDsl
+    fun compiledGameHarnessExposesNextRylweenToRuntimeTests() {
+        val game = RylweenCompiledGame.nextRylween
+        val content = RylweenCompiledGame.nextDsl
 
         val result = TownSessionTerminalAdapter(FakeTerminalPort("C", "L", "L")).runUntilBlocked(
             compiledTownSession(party = game.states.single { it.id == States.freshReplay }.parties.single()),
@@ -1567,7 +1567,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchTownRunsAuthoredMerchantTorchPurchase() {
+    fun compiledGameTownRunsAuthoredMerchantTorchPurchase() {
         val terminal = FakeTerminalPort("M", "B", "A", "99", "P", "L", "L")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
             compiledTownSession(party = testParty(gold = 10, torches = 78)),
@@ -1580,7 +1580,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchTownRunsAuthoredSmithSale() {
+    fun compiledGameTownRunsAuthoredSmithSale() {
         val terminal = FakeTerminalPort("S", "S", "A", "Y", "L", "L")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
             compiledTownSession(party = testParty(inventoryItems = mapOf(1 to Items.sword))),
@@ -1593,7 +1593,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchTownRunsAuthoredTavernScruffyOffer() {
+    fun compiledGameTownRunsAuthoredTavernScruffyOffer() {
         val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
             compiledTownSession(party = testParty(gold = 2000)),
@@ -1606,7 +1606,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchTownRunsAuthoredTavernScruffyOfferWithSeededSelection() {
+    fun compiledGameTownRunsAuthoredTavernScruffyOfferWithSeededSelection() {
         val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
             compiledTownSession(party = testParty(gold = 2000), rngState = 126L),
@@ -1620,7 +1620,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchTownRunsAuthoredTavernDrinkOrder() {
+    fun compiledGameTownRunsAuthoredTavernDrinkOrder() {
         val terminal = FakeTerminalPort("T", "N", "O", "A", "L", "L")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
             compiledTownSession(
@@ -1642,7 +1642,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchTownRunsAuthoredTavernTravellerStory() {
+    fun compiledGameTownRunsAuthoredTavernTravellerStory() {
         val terminal = FakeTerminalPort("T", "N", "T", "1", "T", "", "L", "L")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
             compiledTownSession(
@@ -1659,7 +1659,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchTownRunsAuthoredTavernTravellerStoryWithSeededScore() {
+    fun compiledGameTownRunsAuthoredTavernTravellerStoryWithSeededScore() {
         val terminal = FakeTerminalPort("T", "T", "1", "T", "", "L", "L")
         val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
             compiledTownSession(
@@ -1677,7 +1677,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchTownRunsAuthoredTavernRumourQuietLimit() {
+    fun compiledGameTownRunsAuthoredTavernRumourQuietLimit() {
         val terminal = FakeTerminalPort("T", "N", "R", "", "R", "", "R", "", "R", "", "R", "", "L", "L")
         val result = TownSessionTerminalAdapter(
             terminal,
@@ -1743,7 +1743,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun compiledRuntimeRealizesAuthoredNpcPlacements() {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         val runtime = compiledRuntimeWithRealizedNpcs(rngState = 1L)
 
         assertEquals(content.characters.size, runtime.npcs.size)
@@ -1763,7 +1763,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun kotlinEngineBootsCompiledTownRuntimeWithRealizedNpcs() {
-        val engine = RylweenKotlinEngine(RylweenCompiledScratch.nextDsl)
+        val engine = RylweenKotlinEngine(RylweenCompiledGame.nextDsl)
         val session = engine.townSession(
             party = testParty(),
             town = Towns.thord.id,
@@ -1773,13 +1773,13 @@ class RylweenDslValidationTest {
         assertEquals(Towns.thord.id, session.realm.currentTown)
         assertEquals(null, session.realm.rngState)
         assertEquals(39, session.runtime.npcs.size)
-        assertTrue(session.runtime.randomizedTownNpc(RylweenCompiledScratch.nextDsl) != null)
+        assertTrue(session.runtime.randomizedTownNpc(RylweenCompiledGame.nextDsl) != null)
         assertTrue(engine.speakContent().charactersFor(session.runtime, Buildings.inn).isNotEmpty())
     }
 
     @Test
-    fun legacyMapDatRowsUseWorldYCoordinates() {
-        val map = WorldMapGrid.legacyWilderness(
+    fun referenceMapDatRowsUseWorldYCoordinates() {
+        val map = WorldMapGrid.fromSourceRows(
             (1..11).map { y -> if (y == 11) mapRow(12 to '0') else mapRow() },
         )
 
@@ -1790,7 +1790,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun wildernessMapProjectsRealizedNpcHuts() {
-        val map = WorldMapGrid.legacyWilderness((1..12).map { mapRow() })
+        val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow() })
         val withHut = map.withNpcHuts(listOf(NpcPlacement(Npcs.marcus, Wilderness.xy(12, 11))))
 
         assertEquals('1', withHut.tileAt(GridPoint(12, 11)))
@@ -1855,7 +1855,7 @@ class RylweenDslValidationTest {
     @Test
     fun wildernessMoveCanNarrateAuthoredTerrainTransition() {
         val terminal = FakeTerminalPort("2")
-        val map = WorldMapGrid.legacyWilderness(
+        val map = WorldMapGrid.fromSourceRows(
             (1..12).map { y -> if (y == 10) mapRow(12 to 'g') else mapRow() },
         )
         val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
@@ -1999,7 +1999,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun battleSessionVictoryAppliesStandardRewardsAndLoot() {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         val terminal = FakeTerminalPort("F", "A", "A")
         val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
             BattleSession.start(
@@ -2102,7 +2102,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun battleSessionMonsterSpellRunsFromAuthoredScript() {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         val terminal = FakeTerminalPort("F", "D")
         val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
             BattleSession.start(
@@ -2141,9 +2141,9 @@ class RylweenDslValidationTest {
 
     @Test
     fun wildernessTerminalMovesIntoCompiledTownSession() {
-        val content = RylweenCompiledScratch.nextDsl
-        val state = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
-        val map = WorldMapGrid.legacyWilderness(
+        val content = RylweenCompiledGame.nextDsl
+        val state = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val map = WorldMapGrid.fromSourceRows(
             (1..11).map { y -> if (y == 11) mapRow(12 to '0') else mapRow() },
         )
         val engine = RylweenKotlinEngine(content)
@@ -2192,7 +2192,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun speakSessionUsesRealizedRandomNpcTownPlacements() {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         val runtime = compiledRuntimeWithRealizedNpcs(rngState = 1L)
         val placement = checkNotNull(runtime.randomizedTownNpc(content))
         val position = placement.position as WorldPosition.Town
@@ -2205,7 +2205,7 @@ class RylweenDslValidationTest {
 
     @Test
     fun compiledRumourRoleLocationsUseRealizedNpcPlacements() {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         val runtime = compiledRuntimeWithRealizedNpcs(rngState = 1L)
         val rumour = content.speak.textTables.rumourTables
             .single { it.id == RumourTables.standardTown }
@@ -2221,7 +2221,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchGarthRewardBranchAppliesAuthoredRewardAndFlag() {
+    fun compiledGameGarthRewardBranchAppliesAuthoredRewardAndFlag() {
         val (service, scene) = garthRecoveredDialogueService()
         val result = StatefulTownServiceBridge(FakeTerminalPort()).run(
             service,
@@ -2243,7 +2243,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchGarthRewardDropPromptResumesWithoutRegrantingGold() {
+    fun compiledGameGarthRewardDropPromptResumesWithoutRegrantingGold() {
         val (service, scene) = garthRecoveredDialogueService()
         val runtime = RuntimeSessionState.singleParty(
             party = testParty(
@@ -2281,7 +2281,7 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun compiledScratchSpeakRunsGarthDialogueBranchBeforeConversationMenu() {
+    fun compiledGameSpeakRunsGarthDialogueBranchBeforeConversationMenu() {
         val service = BuildingServiceModel(
             building = Buildings.inn,
             action = KeyActions.enterInn,
@@ -2317,7 +2317,7 @@ class RylweenDslValidationTest {
     }
 
     private fun garthRecoveredDialogueService(): Pair<BuildingServiceModel, SceneModel> {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         val branch = content.dialogue
             .single { it.npc == Npcs.garth }
             .branches
@@ -2335,7 +2335,7 @@ class RylweenDslValidationTest {
     }
 
     private fun compiledSpeakContent(): SpeakRuntimeContent =
-        RylweenCompiledScratch.nextDsl.let { content ->
+        RylweenCompiledGame.nextDsl.let { content ->
             SpeakRuntimeContent(
                 speak = content.speak,
                 characters = content.characters,
@@ -2344,12 +2344,12 @@ class RylweenDslValidationTest {
         }
 
     private fun compiledTextRenderer(): TerminalTextRenderer =
-        RylweenCompiledScratch.nextDsl.let { content ->
+        RylweenCompiledGame.nextDsl.let { content ->
             TerminalTextRenderer(towns = content.towns, characters = content.characters)
         }
 
     private fun compiledRuntimeWithRealizedNpcs(rngState: Long): RuntimeSessionState {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         return RuntimeSessionState.singleParty(
             party = testParty(),
             hour = 12,
@@ -2377,10 +2377,10 @@ class RylweenDslValidationTest {
         rngState: Long? = null,
         npcs: List<NpcPlacement> = emptyList(),
     ): TownSession {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         return TownSession.start(
             town = content.towns.single { it.id == townId },
-            townSystem = content.townSystem ?: error("compiled scratch town system missing"),
+            townSystem = content.townSystem ?: error("compiled game town system missing"),
             scenes = content.scenes,
             party = party,
             currentHour = currentHour,
@@ -2393,10 +2393,10 @@ class RylweenDslValidationTest {
         party: PartyState? = null,
         hour: Int? = null,
         rngState: Long? = null,
-        worldMap: WorldMapGrid = WorldMapGrid.legacyWilderness((1..12).map { mapRow() }),
+        worldMap: WorldMapGrid = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
     ): WildernessSession {
-        val content = RylweenCompiledScratch.nextDsl
-        val baseState = RylweenCompiledScratch.nextRylween.states.single { it.id == States.freshReplay }
+        val content = RylweenCompiledGame.nextDsl
+        val baseState = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
         val state = baseState.copy(
             realm = hour?.let { baseState.realm.copy(hour = it) } ?: baseState.realm,
             parties = party?.let { listOf(it.copy(id = baseState.realm.activeParty)) } ?: baseState.parties,
@@ -2413,7 +2413,7 @@ class RylweenDslValidationTest {
         tier: EncounterTier,
         party: PartyState = testParty(food = 100, timeLeft = 200, restedHours = 14),
     ): BattleSession {
-        val content = RylweenCompiledScratch.nextDsl
+        val content = RylweenCompiledGame.nextDsl
         return BattleSession.start(
             runtime = RuntimeSessionState.singleParty(
                 party = party,
@@ -2563,7 +2563,11 @@ class RylweenDslValidationTest {
                     menu(T.Towne.Church.menu) {
                         option('H') {
                             native.screen.clearText()
-                            val member = choice.member(T.Towne.Church.who)
+                            val member = choice.member(
+                                T.Towne.Church.who,
+                                filter = MemberChoiceFilter.AliveOnly,
+                                accepting = MemberChoiceFilter.Any,
+                            )
 
                             whenever(member.dead) {
                                 screen("- GET THAT CORPSE", "OUTTA HERE!", "(You are thrown out).", "")
@@ -2606,7 +2610,11 @@ class RylweenDslValidationTest {
 
                         option('E') {
                             native.screen.clearText()
-                            val member = choice.member(T.Towne.Church.who)
+                            val member = choice.member(
+                                T.Towne.Church.who,
+                                filter = MemberChoiceFilter.SpellcasterOnly,
+                                accepting = MemberChoiceFilter.Any,
+                            )
 
                             whenever(!member.spellcaster) {
                                 native.screen.clearText()
@@ -2647,7 +2655,11 @@ class RylweenDslValidationTest {
 
                         option('R') {
                             native.screen.clearText()
-                            val member = choice.member(T.Towne.Church.who)
+                            val member = choice.member(
+                                T.Towne.Church.who,
+                                filter = MemberChoiceFilter.DeadOnly,
+                                accepting = MemberChoiceFilter.Any,
+                            )
 
                             whenever(!member.dead) {
                                 native.screen.clearText()

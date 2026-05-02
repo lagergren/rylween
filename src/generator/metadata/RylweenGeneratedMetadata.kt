@@ -13,7 +13,7 @@
     "UNUSED_PARAMETER",
 )
 
-class GarthBanditsFlag : FlagRef("garth.bandits", legacySlot = 1) {
+class GarthBanditsFlag : FlagRef("garth.bandits", sourceSlot = 1) {
     val none = state("none")
     val accepted = state("accepted")
     val recovered = state("recovered")
@@ -24,7 +24,7 @@ class GarthFlags {
     val bandits = GarthBanditsFlag().declareFlag()
 }
 
-class RangerLetterFlag : FlagRef("ranger.letter", legacySlot = 2) {
+class RangerLetterFlag : FlagRef("ranger.letter", sourceSlot = 2) {
     val none = state("none")
     val accepted = state("accepted")
     val delivered = state("delivered")
@@ -34,7 +34,7 @@ class RangerFlags {
     val letter = RangerLetterFlag().declareFlag()
 }
 
-class FighterPriestBookFlag : FlagRef("fighter.priest_book", legacySlot = 3) {
+class FighterPriestBookFlag : FlagRef("fighter.priest_book", sourceSlot = 3) {
     val none = state("none")
     val priestTold = state("priest_told")
     val priestVisited = state("priest_visited")
@@ -46,7 +46,7 @@ class FighterFlags {
     val priestBook = FighterPriestBookFlag().declareFlag()
 }
 
-class ChurchDonationFlag : FlagRef("church.donation.once", legacySlot = 5) {
+class ChurchDonationFlag : FlagRef("church.donation.once", sourceSlot = 5) {
     val no = state("no")
     val yes = state("yes")
 }
@@ -55,7 +55,7 @@ class ChurchFlags {
     val donationOnce = ChurchDonationFlag().declareFlag()
 }
 
-class SilverKeyFlag : FlagRef("silver_key", legacySlot = 6) {
+class SilverKeyFlag : FlagRef("silver_key", sourceSlot = 6) {
     val none = state("none")
     val mapBought = state("map_bought")
     val noteFound = state("note_found")
@@ -68,7 +68,7 @@ class SilverKeyFlag : FlagRef("silver_key", legacySlot = 6) {
         get() = mapBought or noteFound or thiefSqueezed or smithConfessed or caveLocated
 }
 
-class ErethorLuteFlag : FlagRef("erethor.lute", legacySlot = 8) {
+class ErethorLuteFlag : FlagRef("erethor.lute", sourceSlot = 8) {
     val none = state("none")
     val rumourTold = state("rumour_told")
     val luteTaken = state("lute_taken")
@@ -80,7 +80,7 @@ class ErethorFlags {
     val lute = ErethorLuteFlag().declareFlag()
 }
 
-class BraceletsThunFlag : FlagRef("bracelets.thun", legacySlot = 13) {
+class BraceletsThunFlag : FlagRef("bracelets.thun", sourceSlot = 13) {
     val none = state("none")
     val mapBought = state("map_bought")
     val braceletsTaken = state("bracelets_taken")
@@ -90,7 +90,7 @@ class BraceletsFlags {
     val thun = BraceletsThunFlag().declareFlag()
 }
 
-class NymphSeekerFlag : FlagRef("nymph.seeker", legacySlot = 15) {
+class NymphSeekerFlag : FlagRef("nymph.seeker", sourceSlot = 15) {
     val none = state("none")
     val told = state("told")
     val wizard3tActive = state("wizard3t_active")
@@ -100,7 +100,7 @@ class NymphFlags {
     val seeker = NymphSeekerFlag().declareFlag()
 }
 
-class PeasantWifeFlag : FlagRef("peasant_wife", legacySlot = 19) {
+class PeasantWifeFlag : FlagRef("peasant_wife", sourceSlot = 19) {
     val none = state("none")
     val accepted = state("accepted")
     val rescued = state("rescued")
@@ -111,7 +111,7 @@ class PeasantFlags {
     val wife = PeasantWifeFlag().declareFlag()
 }
 
-class JazzyOgreFlag : FlagRef("jazzy_ogre", legacySlot = 22) {
+class JazzyOgreFlag : FlagRef("jazzy_ogre", sourceSlot = 22) {
     val none = state("none")
     val accepted = state("accepted")
     val ogresCleared = state("ogres_cleared")
@@ -122,7 +122,7 @@ class JazzyFlags {
     val ogre = JazzyOgreFlag().declareFlag()
 }
 
-class MasterCrownFlag : FlagRef("mastercrown", legacySlot = 23) {
+class MasterCrownFlag : FlagRef("mastercrown", sourceSlot = 23) {
     val none = state("none")
     val task1Assigned = state("task1_assigned")
     val task1Done = state("task1_done")
@@ -139,7 +139,7 @@ class MasterCrownFlag : FlagRef("mastercrown", legacySlot = 23) {
         get() = task1Assigned or task2Assigned or task3Assigned
 }
 
-class HermitTrollToothFlag : FlagRef("hermit.troll_tooth", legacySlot = 33) {
+class HermitTrollToothFlag : FlagRef("hermit.troll_tooth", sourceSlot = 33) {
     val none = state("none")
     val accepted = state("accepted")
     val extracted = state("extracted")
@@ -154,7 +154,7 @@ class HermitFlags {
 class EncounterImmuneFlag : FlagRef(
         "encounter.immune",
         scope = FlagScope.Encounter,
-        legacySlot = 0,
+        sourceSlot = 0,
     ) {
     val no = state("no")
     val yes = state("yes")
@@ -189,82 +189,82 @@ val Flags = Story
 
 class ItemRefs {
     // Weapons.
-    val blank = generatedItem("blank", legacyId = 0)
+    val blank = generatedItem("blank", sourceId = 0)
     val none = blank
-    val sword = generatedItem("sword", legacyId = 1)
-    val axe = generatedItem("axe", legacyId = 2)
-    val bow = generatedItem("bow", legacyId = 3)
-    val club = generatedItem("club", legacyId = 4)
-    val dart = generatedItem("dart", legacyId = 5)
-    val sling = generatedItem("sling", legacyId = 6)
-    val longsword = generatedItem("longsword", legacyId = 7)
-    val trident = generatedItem("trident", legacyId = 8)
-    val halbard = generatedItem("halbard", legacyId = 9)
-    val poleArm = generatedItem("pole_arm", legacyId = 10)
-    val crossbow = generatedItem("crossbow", legacyId = 11)
-    val scythe = generatedItem("scythe", legacyId = 12)
-    val scimitar = generatedItem("scimitar", legacyId = 13)
-    val twoHandSword = generatedItem("two_hand_sword", legacyId = 14)
-    val magicDagger = generatedItem("magic_dagger", legacyId = 15)
-    val magicSword = generatedItem("magic_sword", legacyId = 16)
-    val magicAxe = generatedItem("magic_axe", legacyId = 17)
-    val dancingSword = generatedItem("dancing_sword", legacyId = 18)
-    val deathBlade = generatedItem("death_blade", legacyId = 19)
+    val sword = generatedItem("sword", sourceId = 1)
+    val axe = generatedItem("axe", sourceId = 2)
+    val bow = generatedItem("bow", sourceId = 3)
+    val club = generatedItem("club", sourceId = 4)
+    val dart = generatedItem("dart", sourceId = 5)
+    val sling = generatedItem("sling", sourceId = 6)
+    val longsword = generatedItem("longsword", sourceId = 7)
+    val trident = generatedItem("trident", sourceId = 8)
+    val halbard = generatedItem("halbard", sourceId = 9)
+    val poleArm = generatedItem("pole_arm", sourceId = 10)
+    val crossbow = generatedItem("crossbow", sourceId = 11)
+    val scythe = generatedItem("scythe", sourceId = 12)
+    val scimitar = generatedItem("scimitar", sourceId = 13)
+    val twoHandSword = generatedItem("two_hand_sword", sourceId = 14)
+    val magicDagger = generatedItem("magic_dagger", sourceId = 15)
+    val magicSword = generatedItem("magic_sword", sourceId = 16)
+    val magicAxe = generatedItem("magic_axe", sourceId = 17)
+    val dancingSword = generatedItem("dancing_sword", sourceId = 18)
+    val deathBlade = generatedItem("death_blade", sourceId = 19)
 
     // Armor.
-    val leather = generatedItem("leather", legacyId = 20)
-    val chainMail = generatedItem("chain_mail", legacyId = 21)
-    val plateMail = generatedItem("plate_mail", legacyId = 22)
-    val ringMail = generatedItem("ring_mail", legacyId = 23)
-    val elvinCloak = generatedItem("elvin_cloak", legacyId = 24)
-    val mithrilMail = generatedItem("mithril_mail", legacyId = 25)
-    val admtMail = generatedItem("admt_mail", legacyId = 26)
-    val protSphere = generatedItem("prot_sphere", legacyId = 27)
-    val cloakOfGods = generatedItem("cloak_of_gods", legacyId = 28)
+    val leather = generatedItem("leather", sourceId = 20)
+    val chainMail = generatedItem("chain_mail", sourceId = 21)
+    val plateMail = generatedItem("plate_mail", sourceId = 22)
+    val ringMail = generatedItem("ring_mail", sourceId = 23)
+    val elvinCloak = generatedItem("elvin_cloak", sourceId = 24)
+    val mithrilMail = generatedItem("mithril_mail", sourceId = 25)
+    val admtMail = generatedItem("admt_mail", sourceId = 26)
+    val protSphere = generatedItem("prot_sphere", sourceId = 27)
+    val cloakOfGods = generatedItem("cloak_of_gods", sourceId = 28)
 
     // Gear.
-    val torch = generatedItem("torch", legacyId = 31)
-    val ration = generatedItem("ration", legacyId = 32)
-    val blanket = generatedItem("blanket", legacyId = 33)
-    val tent = generatedItem("tent", legacyId = 34)
-    val rope = generatedItem("rope", legacyId = 35)
+    val torch = generatedItem("torch", sourceId = 31)
+    val ration = generatedItem("ration", sourceId = 32)
+    val blanket = generatedItem("blanket", sourceId = 33)
+    val tent = generatedItem("tent", sourceId = 34)
+    val rope = generatedItem("rope", sourceId = 35)
 
     // Potions.
-    val redPotion = generatedItem("red_potion", legacyId = 36)
-    val bluePotion = generatedItem("blue_potion", legacyId = 37)
-    val amberPotion = generatedItem("amber_potion", legacyId = 38)
+    val redPotion = generatedItem("red_potion", sourceId = 36)
+    val bluePotion = generatedItem("blue_potion", sourceId = 37)
+    val amberPotion = generatedItem("amber_potion", sourceId = 38)
 
     // Treasures.
-    val redGem = generatedItem("red_gem", legacyId = 39)
-    val blueGem = generatedItem("blue_gem", legacyId = 40)
-    val greenGem = generatedItem("green_gem", legacyId = 41)
-    val chalice = generatedItem("chalice", legacyId = 42)
-    val pendant = generatedItem("pendant", legacyId = 43)
-    val broche = generatedItem("broche", legacyId = 44)
-    val crystalBowl = generatedItem("crystal_bowl", legacyId = 45)
-    val necklace = generatedItem("necklace", legacyId = 46)
-    val donkey = generatedItem("donkey", legacyId = 47)
+    val redGem = generatedItem("red_gem", sourceId = 39)
+    val blueGem = generatedItem("blue_gem", sourceId = 40)
+    val greenGem = generatedItem("green_gem", sourceId = 41)
+    val chalice = generatedItem("chalice", sourceId = 42)
+    val pendant = generatedItem("pendant", sourceId = 43)
+    val broche = generatedItem("broche", sourceId = 44)
+    val crystalBowl = generatedItem("crystal_bowl", sourceId = 45)
+    val necklace = generatedItem("necklace", sourceId = 46)
+    val donkey = generatedItem("donkey", sourceId = 47)
 
     // Flag-backed special items project from milestones and do not occupy slots.
-    val fireshield = generatedItem("fireshield", legacyId = 48)
-    val bracelets = generatedItem("bracelets", legacyId = 49)
-    val mastercrown = generatedItem("mastercrown", legacyId = 50)
-    val jazzyfoot = generatedItem("jazzyfoot", legacyId = 51)
-    val silverkey = generatedItem("silverkey", legacyId = 52)
+    val fireshield = generatedItem("fireshield", sourceId = 48)
+    val bracelets = generatedItem("bracelets", sourceId = 49)
+    val mastercrown = generatedItem("mastercrown", sourceId = 50)
+    val jazzyfoot = generatedItem("jazzyfoot", sourceId = 51)
+    val silverkey = generatedItem("silverkey", sourceId = 52)
 
     // Magic items.
-    val frostWand = generatedItem("frost_wand", legacyId = 100)
-    val fireWand = generatedItem("fire_wand", legacyId = 101)
-    val gemOfConfusion = generatedItem("gem_of_confusion", legacyId = 102)
-    val gemOfBlindness = generatedItem("gem_of_blindness", legacyId = 103)
-    val drumsOfDeath = generatedItem("drums_of_death", legacyId = 104)
-    val staffOfHealing = generatedItem("staff_of_healing", legacyId = 105)
-    val blessingScroll = generatedItem("blessing_scroll", legacyId = 106)
-    val staffOfCuring = generatedItem("staff_of_curing", legacyId = 107)
-    val gemOfResurrection = generatedItem("gem_of_resurrection", legacyId = 108)
-    val kaelsAxe = generatedItem("kaels_axe", legacyId = 109)
-    val holyHandgrenade = generatedItem("holy_handgrenade", legacyId = 110)
-    val fluteOfMadness = generatedItem("flute_of_madness", legacyId = 111)
+    val frostWand = generatedItem("frost_wand", sourceId = 100)
+    val fireWand = generatedItem("fire_wand", sourceId = 101)
+    val gemOfConfusion = generatedItem("gem_of_confusion", sourceId = 102)
+    val gemOfBlindness = generatedItem("gem_of_blindness", sourceId = 103)
+    val drumsOfDeath = generatedItem("drums_of_death", sourceId = 104)
+    val staffOfHealing = generatedItem("staff_of_healing", sourceId = 105)
+    val blessingScroll = generatedItem("blessing_scroll", sourceId = 106)
+    val staffOfCuring = generatedItem("staff_of_curing", sourceId = 107)
+    val gemOfResurrection = generatedItem("gem_of_resurrection", sourceId = 108)
+    val kaelsAxe = generatedItem("kaels_axe", sourceId = 109)
+    val holyHandgrenade = generatedItem("holy_handgrenade", sourceId = 110)
+    val fluteOfMadness = generatedItem("flute_of_madness", sourceId = 111)
 }
 val Items = ItemRefs()
 
@@ -419,8 +419,7 @@ class GeneratedItemCatalog {
 val ItemCatalog = GeneratedItemCatalog()
 
 class ItemPoolRefs {
-    // Legacy battle.c currently rolls ids 36..46 here: potions plus ordinary
-    // treasure, excluding donkey and all milestone-projected special items.
+    // Potions plus ordinary treasure, excluding donkey and milestone specials.
     val battleSpoils = generatedItemPool(
         "battle_spoils",
         items = listOf(
@@ -436,7 +435,7 @@ class ItemPoolRefs {
             Items.crystalBowl,
             Items.necklace,
         ),
-        legacyItemIds = 36..46,
+        sourceItemIds = 36..46,
     )
     val magicItems = generatedItemPool(
         "magic_items",
@@ -454,7 +453,7 @@ class ItemPoolRefs {
             Items.holyHandgrenade,
             Items.fluteOfMadness,
         ),
-        legacyItemIds = 100..111,
+        sourceItemIds = 100..111,
     )
     val tavernScruffySpecials = generatedItemPool(
         "tavern_scruffy_specials",
@@ -477,7 +476,7 @@ class ItemPoolRefs {
             Items.holyHandgrenade,
             Items.fluteOfMadness,
         ),
-        legacyItemIds = listOf(15, 17, 26, 38, 41) + (100..111).toList(),
+        sourceItemIds = listOf(15, 17, 26, 38, 41) + (100..111).toList(),
     )
 }
 val ItemPools = ItemPoolRefs()
@@ -496,7 +495,7 @@ class GameMilestoneRefs {
     val footOfJazzy = milestone("foot_of_jazzy")
     val silverKey = milestone("silver_key")
 
-    // Legacy C encoded "castle cleared / game won" as silverkey == 2. The DSL
+    // The 1992 C source encoded "castle cleared / game won" as silverkey == 2. The DSL
     // keeps that as a separate milestone from owning the Silver Key item.
     val ydargVictory = milestone("ydarg_victory")
 }

@@ -634,7 +634,7 @@ private class StatefulScriptServiceRunner(
 
     private fun askMember(op: Op.AskMember) {
         engine.trace(EngineTraceEvent.AskMember(op.prompt, op.filter))
-        val choices = party.memberChoices(op.filter)
+        val choices = party.memberChoices(op.accepting)
         when (val input = terminal.readMemberNumber(choices)) {
             is TerminalInput.Value -> {
                 locals[op.varName] = input.value
@@ -940,7 +940,7 @@ private class StatefulScriptServiceRunner(
             "level" -> member.level
             "wisdom" -> member.wisdom
             "charisma" -> member.charisma
-            "class" -> member.pcClass.legacyId
+            "class" -> member.pcClass.sourceId
             "dead" -> if (member.dead) 1 else 0
             else -> 0
         }

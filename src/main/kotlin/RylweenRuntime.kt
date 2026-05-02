@@ -996,7 +996,7 @@ private class CombatScriptRunner(
         op: Op.AskMember,
     ): CombatScriptRunResult.NeedMember {
         val keys = runtime.activeParty.members.mapIndexedNotNull { memberIndex, member ->
-            ('1' + memberIndex).takeIf { member.matchesCombatFilter(op.filter) }
+            ('1' + memberIndex).takeIf { member.matchesCombatFilter(op.accepting) }
         }
         return CombatScriptRunResult.NeedMember(
             runtime = runtime,
@@ -1063,7 +1063,7 @@ private class CombatScriptRunner(
             "wisdom" -> member.wisdom
             "charisma" -> member.charisma
             "weapon_skill" -> member.weaponSkill
-            "class" -> member.pcClass.legacyId
+            "class" -> member.pcClass.sourceId
             "dead" -> if (member.dead) 1 else 0
             else -> error("unknown battle member field $field")
         }
@@ -1581,7 +1581,7 @@ interface RylweenRandomPort {
     fun draw(seed: Long, lo: Int, hi: Int): RylweenRandomDraw
 }
 
-object LegacyRylweenRandom : RylweenRandomPort {
+object ReferenceRylweenRandom : RylweenRandomPort {
     private const val Multiplier: Long = 0x2545F4914F6CDD1DL
 
     override fun draw(seed: Long, lo: Int, hi: Int): RylweenRandomDraw {
@@ -1600,7 +1600,7 @@ object LegacyRylweenRandom : RylweenRandomPort {
 fun RuntimeSessionState.drawRandom(
     lo: Int,
     hi: Int,
-    random: RylweenRandomPort = LegacyRylweenRandom,
+    random: RylweenRandomPort = ReferenceRylweenRandom,
 ): RuntimeRandomDraw {
     require(lo <= hi) { "random range must be ascending: $lo..$hi" }
     val seed = realm.rngState ?: return RuntimeRandomDraw(lo, this)
@@ -1729,7 +1729,7 @@ fun RuntimeSessionState.realizeNpcPlacements(
     characters: List<CharacterModel>,
     towns: List<TownModel>,
     config: NpcPlacementRealizerConfig = NpcPlacementRealizerConfig(),
-    random: RylweenRandomPort = LegacyRylweenRandom,
+    random: RylweenRandomPort = ReferenceRylweenRandom,
 ): RuntimeSessionState {
     require(config.townBuildings.isNotEmpty()) { "NPC placement requires at least one town building target" }
     val bins = listOf<TownId?>(null) + towns.map { it.id }
