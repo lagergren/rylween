@@ -2044,6 +2044,7 @@ val nextRylween = rylween {
     }
 
     townSystem {
+        leavePrompts(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)
         menu {
             church()
             smith()
@@ -5650,6 +5651,7 @@ check(nextDsl.towns.single { it.id == Towns.wilor.id }.kind == TownKind.City)
 check(nextDsl.townSystem?.menu?.map { it.key } == listOf('C', 'S', 'I', 'M', 'T', 'L'))
 check(nextDsl.townSystem?.menu?.single { it.key == 'C' }?.building == Buildings.church)
 check(nextDsl.townSystem?.menu?.single { it.action == KeyActions.leaveTown }?.endsMenu == true)
+check(nextDsl.townSystem?.leavePrompts == listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor))
 check(nextDsl.townSystem?.buildingServices?.size == 5)
 check(nextDsl.townSystem?.buildingServices?.single { it.building == Buildings.merchant }?.opensAt == 6)
 check(nextDsl.townSystem?.buildingServices?.single { it.building == Buildings.tavern }?.closesAt == 1)

@@ -673,6 +673,7 @@ data class BuildingServiceModel(
 data class TownSystemModel(
     val menu: List<TownMenuActionModel>,
     val buildingServices: List<BuildingServiceModel>,
+    val leavePrompts: List<EquipmentCommand>,
     val nativeServices: List<EngineServiceUse>,
 )
 
@@ -4483,9 +4484,18 @@ class TownServicesBuilder {
 class TownSystemBuilder {
     private var menuModel = TownMenuBuilder().build()
     private var buildingServiceModels = BuildingServiceCatalogBuilder().build()
+    private var leavePromptCommands: List<EquipmentCommand> = emptyList()
 
     fun menu(body: TownMenuBuilder.() -> Unit) {
         menuModel = TownMenuBuilder().apply(body).build()
+    }
+
+    fun leavePrompts(vararg commands: EquipmentCommand) {
+        leavePrompts(commands.toList())
+    }
+
+    fun leavePrompts(commands: List<EquipmentCommand>) {
+        leavePromptCommands = commands.toList()
     }
 
     fun buildingServices(body: BuildingServiceCatalogBuilder.() -> Unit) {
@@ -4496,6 +4506,7 @@ class TownSystemBuilder {
         TownSystemModel(
             menu = menuModel,
             buildingServices = buildingServiceModels,
+            leavePrompts = leavePromptCommands,
             nativeServices = listOf(
                 EngineServiceUse(EngineService.KeyboardInput, "town menu command selection"),
                 EngineServiceUse(EngineService.Rendering, "town entry art, text panes, and status refresh"),
