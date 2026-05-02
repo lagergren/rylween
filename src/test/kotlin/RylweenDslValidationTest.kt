@@ -1963,18 +1963,180 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun battleSessionFightStopsAtReusableRoundHandoff() {
-        val terminal = FakeTerminalPort("F")
+    fun battleSessionFightRunsFirstPlayerAttackAndMonsterRound() {
+        val terminal = FakeTerminalPort("F", "A", "A")
         val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            compiledBattleSession(tier = EncounterTiers.wild),
+            compiledBattleSession(
+                tier = EncounterTiers.wild,
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14, health = 100, hitPoints = 100),
+            ),
         )
 
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(BattleSessionResultStatus.RoundHandoff, result.session.lastResult.status)
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(BattleSessionResultStatus.FightSelected, result.session.lastResult.status)
         assertEquals(Monsters.stirge, result.session.lastResult.monster)
+        assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
+        assertTrue(result.session.step is BattleSessionStep.RoundOpening)
+        assertEquals(3, result.session.encounter.hitPoints.first())
+        assertEquals(89, result.session.runtime.activeParty.members.single().hitPoints.current)
+    }
+
+    @Test
+    fun battleSessionDefendClampsHitPointsBeforeMonsterRound() {
+        val terminal = FakeTerminalPort("F", "D")
+        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledBattleSession(
+                tier = EncounterTiers.weak,
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14, health = 100, hitPoints = 99),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
+        assertTrue(result.session.step is BattleSessionStep.RoundOpening)
+        assertEquals(84, result.session.runtime.activeParty.members.single().hitPoints.current)
+    }
+
+    @Test
+    fun battleSessionVictoryAppliesStandardRewardsAndLoot() {
+        val content = RylweenCompiledScratch.nextDsl
+        val terminal = FakeTerminalPort("F", "A", "A")
+        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            BattleSession.start(
+                runtime = RuntimeSessionState.singleParty(
+                    party = testParty(
+                        food = 100,
+                        timeLeft = 200,
+                        restedHours = 14,
+                        members = listOf(
+                            testMember(
+                                weaponSkill = 100,
+                                equipment = EquipmentState(Items.deathBlade, Items.none),
+                            ),
+                        ),
+                    ),
+                    hour = 12,
+                    currentTown = null,
+                ),
+                combat = content.combat,
+                monsters = listOf(
+                    MonsterModel(
+                        id = Monsters.bandit,
+                        name = "Bandit",
+                        count = 1..1,
+                        hitPoints = 1..99,
+                        weaponSkill = 50,
+                        spellPower = 0,
+                        tier = EncounterTiers.weak,
+                        immune = false,
+                    ),
+                ),
+                formulas = content.formulas,
+                rewards = content.rewards,
+                leveling = content.leveling,
+                spells = content.spells,
+                magicItems = content.magicItems,
+                tier = EncounterTiers.weak,
+            ),
+        )
+
+        val party = result.session.runtime.activeParty
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(BattleSessionResultStatus.Victory, result.session.lastResult.status)
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
-        assertTrue(terminal.output.any { "Blood shall flow!" in it })
-        assertTrue(terminal.output.any { "Battle rounds are not ported yet." in it })
+        assertEquals(1, party.counters.kills)
+        assertEquals(168, party.resources.gold)
+        assertEquals(300, party.members.single().experience)
+        assertEquals(Items.redPotion, party.inventoryItem(1))
+    }
+
+    @Test
+    fun battleSessionMageFrostSpellSpendsManaAndDamagesTarget() {
+        val terminal = FakeTerminalPort("F", "C", "1", "A")
+        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledBattleSession(
+                tier = EncounterTiers.weak,
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    pcClass = PcClass.Mage,
+                    level = 5,
+                    health = 100,
+                    hitPoints = 100,
+                    wisdom = 100,
+                    mana = 100,
+                ),
+            ),
+        )
+
+        val member = result.session.runtime.activeParty.members.single()
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is BattleSessionStep.RoundOpening)
+        assertEquals(87, member.mana.current)
+        assertEquals(60, result.session.encounter.hitPoints.first())
+    }
+
+    @Test
+    fun battleSessionMagicItemCanRetryWithoutConsuming() {
+        val terminal = FakeTerminalPort("F", "U", "A", "1")
+        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledBattleSession(
+                tier = EncounterTiers.weak,
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    health = 100,
+                    hitPoints = 100,
+                    inventoryItems = mapOf(1 to Items.gemOfResurrection),
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is BattleSessionStep.PlayerAction)
+        assertEquals(Items.gemOfResurrection, result.session.runtime.activeParty.inventoryItem(1))
+        assertTrue(terminal.output.any { "not dead" in it })
+    }
+
+    @Test
+    fun battleSessionMonsterSpellRunsFromAuthoredScript() {
+        val content = RylweenCompiledScratch.nextDsl
+        val terminal = FakeTerminalPort("F", "D")
+        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            BattleSession.start(
+                runtime = RuntimeSessionState.singleParty(
+                    party = testParty(food = 100, timeLeft = 200, restedHours = 14, health = 100, hitPoints = 100),
+                    hour = 12,
+                    currentTown = null,
+                ),
+                combat = content.combat,
+                monsters = listOf(
+                    MonsterModel(
+                        id = Monsters.bandit,
+                        name = "Spellcaster",
+                        count = 1..1,
+                        hitPoints = 50..50,
+                        weaponSkill = 0,
+                        spellPower = 300,
+                        tier = EncounterTiers.weak,
+                        immune = false,
+                    ),
+                ),
+                formulas = content.formulas,
+                rewards = content.rewards,
+                leveling = content.leveling,
+                spells = content.spells,
+                magicItems = content.magicItems,
+                tier = EncounterTiers.weak,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is BattleSessionStep.RoundOpening)
+        assertEquals(90, result.session.runtime.activeParty.members.single().hitPoints.current)
+        assertTrue(terminal.output.any { "Frost Finger" in it })
     }
 
     @Test
@@ -2247,16 +2409,24 @@ class RylweenDslValidationTest {
         )
     }
 
-    private fun compiledBattleSession(tier: EncounterTier): BattleSession {
+    private fun compiledBattleSession(
+        tier: EncounterTier,
+        party: PartyState = testParty(food = 100, timeLeft = 200, restedHours = 14),
+    ): BattleSession {
         val content = RylweenCompiledScratch.nextDsl
         return BattleSession.start(
             runtime = RuntimeSessionState.singleParty(
-                party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+                party = party,
                 hour = 12,
                 currentTown = null,
             ),
             combat = content.combat,
             monsters = content.monsters,
+            formulas = content.formulas,
+            rewards = content.rewards,
+            leveling = content.leveling,
+            spells = content.spells,
+            magicItems = content.magicItems,
             tier = tier,
         )
     }

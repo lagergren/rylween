@@ -89,6 +89,75 @@ val nextRylween = rylween {
         }
     }
 
+    leveling {
+        maxLevel = 28
+        hitPointFloor = Formulas.levelUpHitPointFloor
+        xpThresholds(
+            0, 0,
+            2000, 4000, 8000, 12000, 20000, 28000, 36000, 48000, 54000,
+            64000, 74000, 86000, 98000, 110000, 125000, 150000, 180000,
+            240000, 300000, 400000, 550000, 700000, 900000, 1100000,
+            1500000, 2000000, 2800000,
+        )
+        classLevelUp(PcClass.Fighter) {
+            weaponSkill = 3
+            health = 8
+            wisdom = 1
+            charisma = 1
+        }
+        classLevelUp(PcClass.Thief) {
+            weaponSkill = 1
+            health = 5
+            wisdom = 1
+            charisma = 2
+        }
+        classLevelUp(PcClass.Mage) {
+            weaponSkill = 1
+            health = 4
+            wisdom = 7
+            charisma = 2
+        }
+        classLevelUp(PcClass.Priest) {
+            weaponSkill = 1
+            health = 5
+            wisdom = 8
+            charisma = 3
+        }
+        classLevelUp(PcClass.Bard) {
+            weaponSkill = 2
+            health = 7
+            wisdom = 2
+            charisma = 6
+        }
+        classLevelUp(PcClass.Ranger) {
+            weaponSkill = 2
+            health = 8
+            wisdom = 3
+            charisma = 3
+        }
+    }
+
+    formulas {
+        formula(Formulas.encounterH1Scaled) {
+            value = encounterHitPointMinBase + partyAverage * 2 + whenValue(firstLevel gt 2, firstLevel * 2)
+        }
+        formula(Formulas.encounterH2Scaled) {
+            value = encounterHitPointMaxBase + firstLevel * 3
+        }
+        formula(Formulas.rewardXpPerSurvivor) {
+            value = encounterFoeCount *
+                ((encounterHitPointMax / 4) * (monsterWeaponSkill / 4)) +
+                monsterSpellPower * 3
+        }
+        formula(Formulas.rewardGoldParty) {
+            value = encounterFoeCount *
+                ((encounterHitPointMax / 7) * (monsterWeaponSkill / 4))
+        }
+        formula(Formulas.levelUpHitPointFloor) {
+            value = (health * 2) / 3
+        }
+    }
+
     rewards {
         reward(Rewards.standardBattle) {
             experience = Formulas.rewardXpPerSurvivor
@@ -135,8 +204,8 @@ val nextRylween = rylween {
             }
 
             playerRound {
-                attack(hitBonus = 1, damageSpreadMax = 4, confusionDivisor = 3)
-                defend(weaponSkillPenalty = 2, restThreshold = 5)
+                attack(hitBonus = 1, damageSpreadMax = 4, confusionDivisor = 3, hpDefenseDivisor = 12)
+                defend(weaponSkillPenalty = 2, restThreshold = 5, cap = 250)
                 battleCry(weaponSkillPenalty = 4)
             }
 
@@ -1927,17 +1996,19 @@ val nextRylween = rylween {
         }
     }
 
-    // Mage frost: spell body is normal script, combat target is typed.
+    // Battle magic: the reusable battle runner owns turn order, menus,
+    // casting cost, magic immunity, rewards, and monster AI. These blocks
+    // declare this game's spell and combat-item effects.
     spell(Spells.mageFrost, slot = 1, baseCost = 8, name = "Frost Finger") {
         val caster = currentCaster
         val target = ask.monsterAlive(T.Battle.Prompt.monster)
         val damage = localInt(caster.level * random(2..8))
 
         native.screen.clearText()
-        bind("caster", partyName(caster))
-        emit(T.Battle.Frost.chills)
-        emit(T.Battle.Frost.damage)
-        emit(T.Battle.Frost.damagePts)
+        screen {
+            line("Frost bites the target")
+            line("for ", damage, " damage pts.")
+        }
         pause(1000)
 
         target.hp -= damage
@@ -1950,7 +2021,180 @@ val nextRylween = rylween {
         }
     }
 
-    // 3. Fire wand: item-use metadata owns consumption; the effect preserves per-slot RNG.
+    spell(Spells.Mage.fire, slot = 2, baseCost = 25, name = "Fire Cloud") {
+        val caster = currentCaster
+
+        forEachMonster(includeDead = true) { foe ->
+            val damage = localInt(caster.level * random(1..4))
+
+            whenever(!foe.dead) {
+                native.screen.clearText()
+                screen {
+                    line("Fire burns a foe")
+                    line("for ", damage, " pts!")
+                }
+                pause(1000)
+
+                foe.hp -= damage
+
+                whenever(foe.hp lte 0) {
+                    foe.hp set 0
+                    emit(T.Battle.killed)
+                    pause(600)
+                    foe.dead set true
+                }
+            }
+        }
+    }
+
+    spell(Spells.Mage.confusion, slot = 3, baseCost = 17, name = "Confusion") {
+        native.screen.clearText()
+        screen {
+            lines(
+                "Your images waver and",
+                "blur in front of your",
+                "enemies.",
+            )
+        }
+        pause(2000)
+        battle.monsterWeaponSkill /= 2
+        battle.monsterConfused set true
+    }
+
+    spell(Spells.Mage.death, slot = 4, baseCost = 78, name = "Death Strike") {
+        val target = ask.monsterAlive(T.Battle.Prompt.monster)
+
+        native.screen.clearText()
+        whenever(random(0..199) lt target.hp) {
+            screen {
+                lines(
+                    "Through incredible",
+                    "resistance, the enemy",
+                    "is still alive, badly",
+                    "wounded.",
+                )
+            }
+            pause(2000)
+            target.hp set 1
+        } otherwise {
+            screen {
+                lines(
+                    "The enemy is wiped",
+                    "straight off the surface",
+                    "of the earth!",
+                )
+            }
+            pause(2000)
+            target.dead set true
+            target.hp set 0
+        }
+    }
+
+    spell(Spells.Mage.hold, slot = 5, baseCost = 43, name = "Hold Enemies") {
+        native.screen.clearText()
+        screen {
+            lines("The enemies freeze dead", "in their tracks.")
+        }
+        pause(2000)
+        battle.monstersHeld set true
+    }
+
+    spell(Spells.Mage.antimagic, slot = 6, baseCost = 28, name = "Anti Magic") {
+        native.screen.clearText()
+        screen {
+            lines(
+                "The enemy is now",
+                "stopped from using magic",
+                "against you this round.",
+            )
+        }
+        pause(2800)
+        battle.antimagic set true
+    }
+
+    spell(Spells.Monster.frost, slot = 1, baseCost = 0, name = "Frost Finger") {
+        val target = battle.randomAliveMember()
+        val damage = localInt((battle.encounterHitPointMax / 5) + random(0..3))
+
+        screen {
+            line("Frost Finger")
+            line("does ", damage, " pts")
+            line("of damage!")
+        }
+        pause(1000)
+        target.hp -= damage
+        whenever(target.hp lte 0) {
+            target.hp set 0
+            target.dead set true
+            screen("The target dies!")
+            pause(1000)
+        }
+    }
+
+    spell(Spells.Monster.fire, slot = 2, baseCost = 0, name = "Cloud of Fire") {
+        screen("Cloud of Fire!")
+        pause(1000)
+        forEachMember { target ->
+            val damage = localInt((battle.encounterHitPointMax / 5) + random(0..4))
+            native.screen.clearText()
+            screen {
+                line("A party member is burnt")
+                line("for ", damage, " damage pts!")
+            }
+            pause(1000)
+            target.hp -= damage
+            whenever(target.hp lte 0) {
+                target.hp set 0
+                target.dead set true
+                screen("The target dies!")
+                pause(1000)
+            }
+        }
+    }
+
+    spell(Spells.Monster.hold, slot = 3, baseCost = 0, name = "Hold Creature") {
+        screen("Hold Creature!")
+        pause(600)
+        screen("You realize with horror", "that you cannot move!")
+        pause(1500)
+        battle.partyHeld set true
+    }
+
+    spell(Spells.Monster.confusion, slot = 4, baseCost = 0, name = "Confusion") {
+        screen("Confusion!")
+        pause(600)
+        screen("You are almost blinded", "by a colorful haze.")
+        pause(1500)
+        battle.partyConfused set true
+    }
+
+    magicItem(Items.frostWand) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            val caster = currentCaster
+            val target = battle.firstAliveMonster()
+            val damage = localInt(random(5..11) + caster.level)
+
+            native.screen.clearText()
+            screen {
+                line("The frost wand chills")
+                line("for ", damage, " damage pts.")
+            }
+            pause(1000)
+
+            target.hp -= damage
+
+            whenever(target.hp lte 0) {
+                target.hp set 0
+                emit(T.Battle.killed)
+                pause(600)
+                target.dead set true
+            }
+        }
+    }
+
     magicItem(Items.fireWand) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
@@ -1958,15 +2202,16 @@ val nextRylween = rylween {
         effect {
             val caster = currentCaster
             native.screen.clearText()
-            bind("caster", partyName(caster))
 
             forEachMonster(includeDead = true) { foe ->
                 val damage = localInt(caster.level * random(3..8))
 
                 whenever(!foe.dead) {
-                    bind("monster_name", monsterName(foe))
-                    emit(T.Battle.FireWand.burns)
-                    emit(T.Battle.FireWand.points)
+                    native.screen.clearText()
+                    screen {
+                        line("The fire wand burns")
+                        line("for ", damage, " pts!")
+                    }
                     pause(1000)
 
                     foe.hp -= damage
@@ -1979,6 +2224,202 @@ val nextRylween = rylween {
                     }
                 }
             }
+        }
+    }
+
+    magicItem(Items.gemOfConfusion) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            native.screen.clearText()
+            screen {
+                lines(
+                    "The gem breaks before",
+                    "the enemies in a rain",
+                    "of sparks.",
+                    "They bump into each",
+                    "other as they try to",
+                    "see you.",
+                )
+            }
+            waitInput("after gem of confusion")
+            battle.monsterWeaponSkill /= 2
+        }
+    }
+
+    magicItem(Items.gemOfBlindness) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            native.screen.clearText()
+            screen {
+                lines(
+                    "The gem releases a",
+                    "brilliant cloud of light",
+                    "around the enemies.",
+                )
+            }
+            waitInput("after gem of blindness")
+            battle.monsterWeaponSkill set 5
+        }
+    }
+
+    magicItem(Items.drumsOfDeath) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            val target = battle.firstAliveMonster()
+
+            native.screen.clearText()
+            screen("The drums summon death", "to take a foe away...")
+            pause(2000)
+            emit(T.Battle.killed)
+            pause(600)
+            target.dead set true
+            target.hp set 0
+        }
+    }
+
+    magicItem(Items.staffOfHealing) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            val maxMembers = realm.partyMemberMax
+            val target = ask.member(
+                structuredText {
+                    line("On Whom? (1-", maxMembers, ")")
+                },
+                filter = MemberChoiceFilter.AliveOnly,
+            )
+
+            native.screen.clearText()
+            whenever(!target.dead) {
+                target.fullHeal()
+            }
+            screen("The target is fully", "healed.")
+            pause(1000)
+        }
+    }
+
+    magicItem(Items.blessingScroll) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            native.screen.clearText()
+            screen {
+                lines(
+                    "The party feels their",
+                    "spirits grow. You are",
+                    "all stronger than",
+                    "before.",
+                )
+            }
+            waitInput("after blessing scroll")
+
+            forEachMember(includeDead = true) { member ->
+                member.weaponSkill += 3
+                member.maxHp += 3
+                member.charisma += 3
+                member.wisdom += 3
+            }
+        }
+    }
+
+    magicItem(Items.staffOfCuring) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            native.screen.clearText()
+            screen("The party is fully", "healed!")
+            waitInput("after staff of curing")
+
+            forEachMember(includeDead = true) { member ->
+                whenever(!member.dead) {
+                    member.fullHeal()
+                }
+            }
+        }
+    }
+
+    magicItem(Items.gemOfResurrection) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.ScriptControlled
+
+        effect {
+            val maxMembers = realm.partyMemberMax
+            val target = ask.member(
+                structuredText {
+                    line("On Whom? (1-", maxMembers, ")")
+                },
+            )
+
+            native.screen.clearText()
+            whenever(target.dead) {
+                screen("The target opens", "their eyes!")
+                pause(1000)
+                target.dead set false
+                target.hp set 1
+                consumeActiveItem()
+            } otherwise {
+                screen("The target is not dead.")
+                pause(1000)
+                battle.actionRetry set true
+            }
+        }
+    }
+
+    magicItem(Items.kaelsAxe) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            native.screen.clearText()
+            screen("Kael's axe wounds", "the enemies severely.")
+            pause(4000)
+
+            forEachMonster { foe ->
+                foe.hp set random(1..3)
+            }
+        }
+    }
+
+    magicItem(Items.holyHandgrenade) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            native.screen.clearText()
+            screen("KA-BLAM!")
+            pause(1500)
+
+            forEachMonster { foe ->
+                foe.hp /= 4
+                foe.hp += 1
+            }
+        }
+    }
+
+    magicItem(Items.fluteOfMadness) {
+        usableIn(ItemUseContext.Combat)
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            native.screen.clearText()
+            screen {
+                lines(
+                    "The flute produces a",
+                    "shrill, fragile sound,",
+                    "and breaks.",
+                    "Nothing happens.",
+                )
+            }
+            waitInput("after flute of madness")
         }
     }
 
@@ -2481,10 +2922,16 @@ check(ItemCatalog.all.size == 63)
 check(ItemCatalog.all.single { it.id == Items.redPotion }.potionEffect?.amount == 15)
 check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
+check(nextDsl.leveling?.maxLevel == 28)
+check(nextDsl.leveling?.classGrowth?.size == 6)
+check(nextDsl.formulas.size == 5)
 check(nextDsl.rewards.size == 1)
 check(nextDsl.rewards.single().application.overflow == RewardOverflowPolicy.SkipIfInventoryFull)
 check(nextDsl.combat.standardBattle?.actions?.size == 5)
+check(nextDsl.combat.standardBattle?.actions?.map { it.key } == listOf('A', 'D', 'U', 'B', 'C'))
 check(nextDsl.combat.standardBattle?.playerRound?.attack?.confusionDivisor == 3)
+check(nextDsl.combat.standardBattle?.playerRound?.attack?.hpDefenseDivisor == 12)
+check(nextDsl.combat.standardBattle?.playerRound?.defend?.cap == 250)
 check(nextDsl.combat.standardBattle?.monsterRound?.melee?.damageDivisor == 6)
 check(nextDsl.combat.standardBattle?.encounterFoeCountMax == 8)
 check(nextDsl.combat.standardBattle?.rewards == Rewards.standardBattle)
@@ -2602,9 +3049,10 @@ check(nextDsl.dialogue.single().branches.any { branch ->
                         op.reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace
             }
 })
-check(nextDsl.spells.size == 1)
-check(nextDsl.magicItems.size == 1)
-check(nextDsl.magicItems.single().consume == ItemConsumePolicy.BeforeUse)
+check(nextDsl.spells.size == 10)
+check(nextDsl.magicItems.size == 12)
+check(nextDsl.magicItems.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
+check(nextDsl.magicItems.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
 check(nextDsl.missions.size == 1)
 check(nextRylween.states.size == 3)
 

@@ -272,9 +272,12 @@ sealed interface IntAst {
     data class Lit(val value: Int) : IntAst
     data class Var(val name: String) : IntAst
     data class Binary(val left: IntAst, val op: String, val right: IntAst) : IntAst
+    data class If(val cond: BoolAst, val thenValue: IntAst, val elseValue: IntAst) : IntAst
     data class Random(val lo: IntAst, val hi: IntAst) : IntAst
     data class MemberField(val member: IntAst, val field: String) : IntAst
     data class MonsterField(val monster: IntAst, val field: String) : IntAst
+    data class BattleFlag(val name: String) : IntAst
+    data class BattleQuery(val name: String) : IntAst
     data class RealmScalar(val name: String) : IntAst
     data class PartyScalar(val name: String) : IntAst
     data class NativeInt(val path: String, val args: List<String>) : IntAst
@@ -288,6 +291,7 @@ sealed interface BoolAst {
     data class FlagIs(val slug: String, val nativeValue: String) : BoolAst
     data class MemberFlag(val member: IntAst, val name: String) : BoolAst
     data class MonsterFlag(val monster: IntAst, val name: String) : BoolAst
+    data class BattleFlag(val name: String) : BoolAst
 }
 
 sealed interface StrAst {
@@ -299,6 +303,7 @@ sealed interface LValueAst {
     data class PartyScalar(val name: String) : LValueAst
     data class MemberField(val member: IntAst, val field: String) : LValueAst
     data class MonsterField(val monster: IntAst, val field: String) : LValueAst
+    data class BattleFlag(val name: String) : LValueAst
 }
 
 enum class ScriptControlSignal { Continue, BreakNearestLoop, StopScript }
@@ -466,6 +471,21 @@ data class GameProgressModel(
     val win: WinConditionModel?,
 )
 
+data class LevelingModel(
+    val maxLevel: Int,
+    val xpThresholds: List<Int>,
+    val hitPointFloor: FormulaId,
+    val classGrowth: List<ClassLevelUpModel>,
+)
+
+data class ClassLevelUpModel(
+    val klass: PcClass,
+    val weaponSkill: Int,
+    val health: Int,
+    val wisdom: Int,
+    val charisma: Int,
+)
+
 enum class MandatoryRunRule { NoEscape }
 enum class CombatActionKind { Attack, Defend, UseMagicItem, BattleCry, CastMageSpell }
 enum class CombatActionRequirement { Always, Mage }
@@ -495,7 +515,8 @@ data class EncounterOpeningModel(
 )
 
 data class CombatActionModel(
-    val key: KeyActionId,
+    val key: Char,
+    val action: KeyActionId,
     val kind: CombatActionKind,
     val requirement: CombatActionRequirement,
 )
@@ -504,11 +525,13 @@ data class PlayerAttackRulesModel(
     val hitBonus: Int,
     val damageSpreadMax: Int,
     val confusionDivisor: Int,
+    val hpDefenseDivisor: Int,
 )
 
 data class DefendRulesModel(
     val weaponSkillPenalty: Int,
     val restThreshold: Int,
+    val cap: Int,
 )
 
 data class BattleCryRulesModel(
@@ -705,6 +728,11 @@ data class RewardBundleModel(
     val loot: LootTableModel,
 )
 
+data class FormulaModel(
+    val id: FormulaId,
+    val value: IntAst,
+)
+
 enum class ItemUseContext { Combat, Inventory }
 enum class ItemConsumePolicy { BeforeUse, ScriptControlled, NeverConsumes }
 
@@ -830,6 +858,8 @@ data class GameModel(
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
+    val leveling: LevelingModel?,
+    val formulas: List<FormulaModel>,
     val rewards: List<RewardBundleModel>,
     val combat: CombatSystemModel,
     val wilderness: WildernessSystemModel,
@@ -1075,6 +1105,10 @@ class IntSlot(
     operator fun plusAssign(value: Int) = plusAssign(lit(value))
     operator fun minusAssign(value: IntExpr) = script.record(Op.Sub(lvalue, value.ast))
     operator fun minusAssign(value: Int) = minusAssign(lit(value))
+    operator fun timesAssign(value: IntExpr) = script.record(Op.Set(lvalue, (this * value).ast))
+    operator fun timesAssign(value: Int) = timesAssign(lit(value))
+    operator fun divAssign(value: IntExpr) = script.record(Op.Set(lvalue, (this / value).ast))
+    operator fun divAssign(value: Int) = divAssign(lit(value))
     fun addClamped(value: IntExpr, max: IntExpr) = script.record(Op.AddClamped(lvalue, value.ast, max.ast))
     fun addClamped(value: Int, max: IntExpr) = addClamped(lit(value), max)
 }
@@ -1115,6 +1149,7 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
     val level = intField("level")
     val wisdom = intField("wisdom")
     val charisma = intField("charisma")
+    val weaponSkill = intField("weapon_skill")
     val pcClass = intField("class")
     val dead = BoolSlot(
         script,
@@ -1124,6 +1159,9 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
     val spellcaster: BoolExpr = Bool(BoolAst.MemberFlag(index.ast, "spellcaster"))
 
     fun isClass(klass: PcClass): BoolExpr = pcClass eq klass.legacyId
+    fun fullHeal() {
+        script.record(Op.Set(LValueAst.MemberField(index.ast, "hit_points"), maxHp.ast))
+    }
 
     private fun intField(field: String): IntSlot =
         IntSlot(script, LValueAst.MemberField(index.ast, field), IntAst.MemberField(index.ast, field))
@@ -1136,6 +1174,30 @@ class MonsterRef(private val script: ScriptScope, val index: IntExpr) {
         LValueAst.MonsterField(index.ast, "dead"),
         BoolAst.MonsterFlag(index.ast, "dead"),
     )
+}
+
+class BattleRef(private val script: ScriptScope) {
+    val monsterWeaponSkill = IntSlot(
+        script,
+        LValueAst.BattleFlag("monster_weapon_skill"),
+        IntAst.BattleFlag("monster_weapon_skill"),
+    )
+    val encounterHitPointMax: IntExpr = Expr(IntAst.BattleFlag("encounter_hit_point_max"))
+    val monsterConfused = boolFlag("monster_confused")
+    val monstersHeld = boolFlag("monsters_held")
+    val antimagic = boolFlag("antimagic")
+    val partyHeld = boolFlag("party_held")
+    val partyConfused = boolFlag("party_confused")
+    val actionRetry = boolFlag("action_retry")
+
+    fun firstAliveMonster(): MonsterRef =
+        MonsterRef(script, script.localInt(Expr(IntAst.BattleQuery("first_alive_monster")), "monster"))
+
+    fun randomAliveMember(): MemberRef =
+        MemberRef(script, script.localInt(Expr(IntAst.BattleQuery("random_alive_member")), "member"))
+
+    private fun boolFlag(name: String): BoolSlot =
+        BoolSlot(script, LValueAst.BattleFlag(name), BoolAst.BattleFlag(name))
 }
 
 sealed interface StrExpr {
@@ -1316,6 +1378,7 @@ class ScriptScope(
 ) {
     val realm = RealmRef(this)
     val party = PartyRef(this)
+    val battle = BattleRef(this)
     val ask = AskScope(this)
     val choice = ChoiceScope(this)
     val native = NativeScope(this)
@@ -2252,6 +2315,8 @@ private fun recordScript(ctx: ScriptContext, body: ScriptScope.() -> Unit): List
 class GameBuilder {
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
+    private var levelingModel: LevelingModel? = null
+    private val formulasModel = mutableListOf<FormulaModel>()
     private val rewardsModel = mutableListOf<RewardBundleModel>()
     private var combatModel = CombatSystemModel(null)
     private var wildernessModel = WildernessSystemModel()
@@ -2272,6 +2337,14 @@ class GameBuilder {
 
     fun gameProgress(body: GameProgressBuilder.() -> Unit) {
         progressModel = GameProgressBuilder().apply(body).build()
+    }
+
+    fun leveling(body: LevelingBuilder.() -> Unit) {
+        levelingModel = LevelingBuilder().apply(body).build()
+    }
+
+    fun formulas(body: FormulaCatalogBuilder.() -> Unit) {
+        formulasModel += FormulaCatalogBuilder().apply(body).build()
     }
 
     fun rewards(body: RewardCatalogBuilder.() -> Unit) {
@@ -2331,6 +2404,8 @@ class GameBuilder {
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
             progress = progressModel,
+            leveling = levelingModel,
+            formulas = formulasModel.toList(),
             rewards = rewardsModel.toList(),
             combat = combatModel,
             wilderness = wildernessModel,
@@ -2871,6 +2946,75 @@ class WinConditionBuilder {
 }
 
 @RylNextDsl
+class LevelingBuilder {
+    var maxLevel: Int = 28
+    var hitPointFloor: FormulaId = Formulas.levelUpHitPointFloor
+    private var thresholdModel: List<Int> = emptyList()
+    private val classGrowthModel = mutableListOf<ClassLevelUpModel>()
+
+    fun xpThresholds(vararg thresholds: Int) {
+        thresholdModel = thresholds.toList()
+    }
+
+    fun classLevelUp(klass: PcClass, body: ClassLevelUpBuilder.() -> Unit) {
+        classGrowthModel += ClassLevelUpBuilder(klass).apply(body).build()
+    }
+
+    fun build(): LevelingModel =
+        LevelingModel(
+            maxLevel = maxLevel,
+            xpThresholds = thresholdModel,
+            hitPointFloor = hitPointFloor,
+            classGrowth = classGrowthModel.toList(),
+        )
+}
+
+@RylNextDsl
+class ClassLevelUpBuilder(private val klass: PcClass) {
+    var weaponSkill: Int = 0
+    var health: Int = 0
+    var wisdom: Int = 0
+    var charisma: Int = 0
+
+    fun build(): ClassLevelUpModel =
+        ClassLevelUpModel(klass, weaponSkill, health, wisdom, charisma)
+}
+
+@RylNextDsl
+class FormulaCatalogBuilder {
+    private val formulas = mutableListOf<FormulaModel>()
+
+    fun formula(id: FormulaId, body: FormulaBuilder.() -> Unit) {
+        formulas += FormulaBuilder(id).apply(body).build()
+    }
+
+    fun build(): List<FormulaModel> = formulas.toList()
+}
+
+@RylNextDsl
+class FormulaBuilder(private val id: FormulaId) {
+    var value: IntExpr = lit(0)
+
+    val encounterHitPointMinBase: IntExpr = v("encounter_hit_point_min_base")
+    val encounterHitPointMaxBase: IntExpr = v("encounter_hit_point_max_base")
+    val partyAverage: IntExpr = v("party_avg")
+    val firstLevel: IntExpr = v("first_level")
+    val encounterFoeCount: IntExpr = v("encounter_foe_count")
+    val encounterHitPointMax: IntExpr = v("encounter_hit_point_max")
+    val monsterWeaponSkill: IntExpr = v("monster_weapon_skill")
+    val monsterSpellPower: IntExpr = v("monster_spell_power")
+    val health: IntExpr = v("health")
+
+    fun whenValue(condition: BoolExpr, thenValue: IntExpr, elseValue: IntExpr = lit(0)): IntExpr =
+        Expr(IntAst.If(condition.ast, thenValue.ast, elseValue.ast))
+
+    fun whenValue(condition: BoolExpr, thenValue: Int, elseValue: Int = 0): IntExpr =
+        whenValue(condition, lit(thenValue), lit(elseValue))
+
+    fun build(): FormulaModel = FormulaModel(id, value.ast)
+}
+
+@RylNextDsl
 class MagicItemUseBuilder(private val id: ItemId) {
     private val contexts = mutableSetOf(ItemUseContext.Combat)
     var consume: ItemConsumePolicy = ItemConsumePolicy.BeforeUse
@@ -3323,34 +3467,35 @@ class EncounterOpeningBuilder(initial: EncounterOpeningModel? = null) {
 class PlayerCombatActionsBuilder {
     private val actions = mutableListOf<CombatActionModel>()
 
-    fun attack(key: KeyActionId = KeyActions.attack) {
-        action(key, CombatActionKind.Attack, CombatActionRequirement.Always)
+    fun attack(key: Char = 'A', action: KeyActionId = KeyActions.attack) {
+        action(key, action, CombatActionKind.Attack, CombatActionRequirement.Always)
     }
 
-    fun defend(key: KeyActionId = KeyActions.defend) {
-        action(key, CombatActionKind.Defend, CombatActionRequirement.Always)
+    fun defend(key: Char = 'D', action: KeyActionId = KeyActions.defend) {
+        action(key, action, CombatActionKind.Defend, CombatActionRequirement.Always)
     }
 
-    fun useMagicItem(key: KeyActionId = KeyActions.useItem) {
-        action(key, CombatActionKind.UseMagicItem, CombatActionRequirement.Always)
+    fun useMagicItem(key: Char = 'U', action: KeyActionId = KeyActions.useItem) {
+        action(key, action, CombatActionKind.UseMagicItem, CombatActionRequirement.Always)
     }
 
-    fun battleCry(key: KeyActionId = KeyActions.battleCry) {
-        action(key, CombatActionKind.BattleCry, CombatActionRequirement.Always)
+    fun battleCry(key: Char = 'B', action: KeyActionId = KeyActions.battleCry) {
+        action(key, action, CombatActionKind.BattleCry, CombatActionRequirement.Always)
     }
 
-    fun castMageSpell(key: KeyActionId = KeyActions.castSpell) {
-        action(key, CombatActionKind.CastMageSpell, CombatActionRequirement.Mage)
+    fun castMageSpell(key: Char = 'C', action: KeyActionId = KeyActions.castSpell) {
+        action(key, action, CombatActionKind.CastMageSpell, CombatActionRequirement.Mage)
     }
 
     fun build(): List<CombatActionModel> = actions.toList()
 
     private fun action(
-        key: KeyActionId,
+        key: Char,
+        action: KeyActionId,
         kind: CombatActionKind,
         requirement: CombatActionRequirement,
     ) {
-        actions += CombatActionModel(key, kind, requirement)
+        actions += CombatActionModel(key, action, kind, requirement)
     }
 }
 
@@ -3360,21 +3505,23 @@ class PlayerRoundBuilder(initial: PlayerRoundModel? = null) {
         hitBonus = 1,
         damageSpreadMax = 4,
         confusionDivisor = 3,
+        hpDefenseDivisor = 12,
     )
     private var defendRules = initial?.defend ?: DefendRulesModel(
         weaponSkillPenalty = 2,
         restThreshold = 5,
+        cap = 250,
     )
     private var battleCryRules = initial?.battleCry ?: BattleCryRulesModel(
         weaponSkillPenalty = 4,
     )
 
-    fun attack(hitBonus: Int, damageSpreadMax: Int, confusionDivisor: Int) {
-        attackRules = PlayerAttackRulesModel(hitBonus, damageSpreadMax, confusionDivisor)
+    fun attack(hitBonus: Int, damageSpreadMax: Int, confusionDivisor: Int, hpDefenseDivisor: Int = 12) {
+        attackRules = PlayerAttackRulesModel(hitBonus, damageSpreadMax, confusionDivisor, hpDefenseDivisor)
     }
 
-    fun defend(weaponSkillPenalty: Int, restThreshold: Int) {
-        defendRules = DefendRulesModel(weaponSkillPenalty, restThreshold)
+    fun defend(weaponSkillPenalty: Int, restThreshold: Int, cap: Int = 250) {
+        defendRules = DefendRulesModel(weaponSkillPenalty, restThreshold, cap)
     }
 
     fun battleCry(weaponSkillPenalty: Int) {
@@ -3816,7 +3963,10 @@ class EquipmentBuilder(initial: EquipmentState = EquipmentState(Items.none, Item
 fun nativePathsIn(model: GameModel): Set<String> {
     val paths = mutableSetOf<String>()
 
-    fun int(ast: IntAst) {
+    lateinit var int: (IntAst) -> Unit
+    lateinit var bool: (BoolAst) -> Unit
+
+    int = fun(ast: IntAst) {
         when (ast) {
             is IntAst.Lit -> Unit
             is IntAst.Var -> Unit
@@ -3824,19 +3974,26 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 int(ast.left)
                 int(ast.right)
             }
+            is IntAst.If -> {
+                bool(ast.cond)
+                int(ast.thenValue)
+                int(ast.elseValue)
+            }
             is IntAst.Random -> {
                 int(ast.lo)
                 int(ast.hi)
             }
             is IntAst.MemberField -> int(ast.member)
             is IntAst.MonsterField -> int(ast.monster)
+            is IntAst.BattleFlag -> Unit
+            is IntAst.BattleQuery -> Unit
             is IntAst.RealmScalar -> Unit
             is IntAst.PartyScalar -> Unit
             is IntAst.NativeInt -> paths += ast.path
         }
     }
 
-    fun bool(ast: BoolAst) {
+    bool = fun(ast: BoolAst) {
         when (ast) {
             is BoolAst.Cmp -> {
                 int(ast.left)
@@ -3854,6 +4011,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
             is BoolAst.FlagIs -> Unit
             is BoolAst.MemberFlag -> int(ast.member)
             is BoolAst.MonsterFlag -> int(ast.monster)
+            is BoolAst.BattleFlag -> Unit
         }
     }
 
@@ -3930,7 +4088,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.Encounter -> Unit
                 Op.ConsumeActiveItem -> Unit
                 Op.ConsumeTorch -> Unit
-                is Op.GrantReward -> op.reward.gold?.let(::int)
+                is Op.GrantReward -> op.reward.gold?.let { int(it) }
                 is Op.RandomItemOffer -> {
                     text(op.offer.offer)
                     text(op.offer.choicePrompt)
@@ -3992,7 +4150,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
     model.spells.forEach { ops(it.ops) }
     model.magicItems.forEach { ops(it.ops) }
     model.missions.forEach {
-        it.requires?.let(::bool)
+        it.requires?.let { bool(it) }
     }
     return paths
 }
