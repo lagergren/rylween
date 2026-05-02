@@ -2200,7 +2200,7 @@ class ShopServiceTerminalAdapter(
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
-                    session.chooseBuyItem(entry.item)
+                    session.withFeedback { chooseBuyItem(entry.item) }
                 }
                 is ShopServiceStep.Quantity -> {
                     write(step.prompt)
@@ -2225,7 +2225,7 @@ class ShopServiceTerminalAdapter(
                     )
                     writeBindingMenu(step.prompt, choices.map { it.binding })
                     when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.confirmPurchase(input.value)
+                        is TerminalInput.Value -> session.withFeedback { confirmPurchase(input.value) }
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -2233,7 +2233,7 @@ class ShopServiceTerminalAdapter(
                 is ShopServiceStep.DropSlot -> {
                     write(step.prompt)
                     when (val input = readInventorySlot()) {
-                        is TerminalInput.Value -> session.chooseDropSlot(input.value)
+                        is TerminalInput.Value -> session.withFeedback { chooseDropSlot(input.value) }
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -2241,7 +2241,7 @@ class ShopServiceTerminalAdapter(
                 is ShopServiceStep.SellSlot -> {
                     write(step.prompt)
                     when (val input = readInventorySlot()) {
-                        is TerminalInput.Value -> session.chooseSellSlot(input.value)
+                        is TerminalInput.Value -> session.withFeedback { chooseSellSlot(input.value) }
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -2254,7 +2254,7 @@ class ShopServiceTerminalAdapter(
                     )
                     writeBindingMenu(step.prompt, choices.map { it.binding }, TerminalTextContext(shopPrice = step.quote.price))
                     when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.confirmSale(input.value)
+                        is TerminalInput.Value -> session.withFeedback { confirmSale(input.value) }
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -2303,6 +2303,44 @@ class ShopServiceTerminalAdapter(
     private fun readInventorySlot(): TerminalInput<Int> =
         terminal.readKey((0 until InventorySaveSlotMax).map { 'A' + it })
             .map { it - 'A' + 1 }
+
+    private fun ShopServiceSession.withFeedback(update: ShopServiceSession.() -> ShopServiceSession): ShopServiceSession {
+        val previous = this
+        val updated = update()
+        writeFeedback(previous, updated)
+        return updated
+    }
+
+    private fun writeFeedback(previous: ShopServiceSession, updated: ShopServiceSession) {
+        updated.lastSellQuote
+            ?.takeUnless { it == previous.lastSellQuote }
+            ?.let { quote ->
+                when (quote.status) {
+                    ShopSellQuoteStatus.ItemNotAcceptedHere -> updated.shop.sell?.wrongKind
+                    ShopSellQuoteStatus.EmptySlot,
+                    ShopSellQuoteStatus.Declined,
+                    ShopSellQuoteStatus.Quoted -> null
+                }?.let(::write)
+            }
+
+        updated.lastTransaction
+            ?.takeUnless { it == previous.lastTransaction }
+            ?.let { transaction ->
+                when (transaction.status) {
+                    ShopTransactionStatus.Bought -> updated.shop.buy?.deal
+                    ShopTransactionStatus.Sold -> updated.shop.sell?.sold
+                    ShopTransactionStatus.InventoryFull,
+                    ShopTransactionStatus.InvalidDropSlot -> updated.shop.buy?.cantCarry
+                    ShopTransactionStatus.NotEnoughGold -> updated.shop.buy?.tooExpensive
+                    ShopTransactionStatus.ItemNotAcceptedHere -> updated.shop.sell?.wrongKind
+                    ShopTransactionStatus.NeedsDropSlot,
+                    ShopTransactionStatus.ItemNotSoldHere,
+                    ShopTransactionStatus.EmptySlot,
+                    ShopTransactionStatus.InvalidQuantity,
+                    ShopTransactionStatus.Declined -> null
+                }?.let(::write)
+            }
+    }
 }
 
 private fun List<String>.containsBindingMarkers(bindings: List<InputBindingModel>): Boolean =
