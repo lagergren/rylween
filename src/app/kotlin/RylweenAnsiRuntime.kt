@@ -464,8 +464,12 @@ private class ClassicAnsiScreen(
         }
         val bottom = (0 until 4).joinToString("   ") { index ->
             val member = party.members.getOrNull(index)
-            "H${index + 1}: ${CSI}33m${(member?.hitPoints?.current ?: 0).toString().padStart(3)}/" +
-                "${(member?.hitPoints?.max ?: 0).toString().padStart(3)}"
+            if (member == null) {
+                "H${index + 1}:        "
+            } else {
+                "H${index + 1}: ${CSI}33m${member.hitPoints.current.toString().padStart(3)}/" +
+                    "${member.hitPoints.max.toString().padStart(3)}$FG_GREEN"
+            }
         }
         goto(statusTop)
         terminal.writeRaw(top)
