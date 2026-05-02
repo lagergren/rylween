@@ -4,6 +4,60 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+private fun compiledItemRecords(): List<ItemRecordModel> =
+    RylweenCompiledGame.nextDsl.itemCatalog
+
+private fun ItemCatalogBuilder.silverKeyTestItem() {
+    special(Items.silverkey, "Silver Key")
+}
+
+private fun ItemCatalogBuilder.shopTestItems() {
+    gear(Items.torch, "Torch", cost = 1)
+    gear(Items.blanket, "Blanket", cost = 30)
+}
+
+private fun ItemCatalogBuilder.scruffyOfferTestItems() {
+    weapon(Items.magicDagger, "Magic Dagger", cost = 1800, damage = 24)
+    weapon(Items.magicAxe, "Magic Axe", cost = 4000, damage = 38)
+    armor(Items.admtMail, "Admt. Mail", cost = 9400, armorClass = 16)
+    potion(Items.amberPotion, "Amber Potion", cost = 500)
+    treasure(Items.greenGem, "Green Gem", cost = 1900)
+    magicItem(Items.frostWand, "Frost Wand", cost = 1000)
+    magicItem(Items.fireWand, "Fire Wand", cost = 3000)
+    magicItem(Items.gemOfConfusion, "Gem of Confusion", cost = 1560)
+    magicItem(Items.gemOfBlindness, "Gem of Blindness", cost = 4900)
+    magicItem(Items.drumsOfDeath, "Drums of Death", cost = 4500)
+    magicItem(Items.staffOfHealing, "Staff of Healing", cost = 670)
+    magicItem(Items.blessingScroll, "Blessing Scroll", cost = 2000)
+    magicItem(Items.staffOfCuring, "Staff of Curing", cost = 4343)
+    magicItem(Items.gemOfResurrection, "Gem of Resurrection", cost = 9000)
+    magicItem(Items.kaelsAxe, "Kael's Axe", cost = 14000)
+    magicItem(Items.holyHandgrenade, "Holy Handgrenade", cost = 5600)
+    magicItem(Items.fluteOfMadness, "Flute of Madness", cost = 9000)
+
+    pool(ItemPools.tavernScruffySpecials) {
+        items(
+            Items.magicDagger,
+            Items.magicAxe,
+            Items.admtMail,
+            Items.amberPotion,
+            Items.greenGem,
+            Items.frostWand,
+            Items.fireWand,
+            Items.gemOfConfusion,
+            Items.gemOfBlindness,
+            Items.drumsOfDeath,
+            Items.staffOfHealing,
+            Items.blessingScroll,
+            Items.staffOfCuring,
+            Items.gemOfResurrection,
+            Items.kaelsAxe,
+            Items.holyHandgrenade,
+            Items.fluteOfMadness,
+        )
+    }
+}
+
 class RylweenDslValidationTest {
     @Test
     fun townServicesValidateCharacterPlacement() {
@@ -272,7 +326,10 @@ class RylweenDslValidationTest {
             locations = listOf(LocationPlacement(Locations.nolrimCrypt, GridPoint(37, 14))),
         )
 
-        val result = StatefulTownServiceBridge(FakeTerminalPort()).run(
+        val result = StatefulTownServiceBridge(
+            FakeTerminalPort(),
+            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+        ).run(
             service,
             scene,
             TownServiceContinuation.start(runtime),
@@ -380,6 +437,9 @@ class RylweenDslValidationTest {
     @Test
     fun scriptRewardsRejectMilestoneSpecialItems() {
         val content = GameBuilder().apply {
+            items {
+                silverKeyTestItem()
+            }
             scene(sceneId("test.special_reward")) {
                 reward {
                     items(Items.silverkey)
@@ -388,13 +448,16 @@ class RylweenDslValidationTest {
         }.build()
 
         assertFailsWith<IllegalStateException> {
-            validateScriptRewards(content)
+            validateScriptRewards(content, content.itemCatalog)
         }
     }
 
     @Test
     fun randomItemOfferValidatesAndTracesAsReusableRuntimeAction() {
         val content = GameBuilder().apply {
+            items {
+                scruffyOfferTestItems()
+            }
             scene(sceneId("test.random_offer")) {
                 choice.randomItemOffer(ItemPools.tavernScruffySpecials) {
                     offer {
@@ -410,7 +473,7 @@ class RylweenDslValidationTest {
             }
         }.build()
 
-        validateScriptRewards(content)
+        validateScriptRewards(content, content.itemCatalog)
         assertEquals(
             listOf(
                 Items.magicDagger,
@@ -431,7 +494,7 @@ class RylweenDslValidationTest {
                 Items.holyHandgrenade,
                 Items.fluteOfMadness,
             ),
-            ItemPools.tavernScruffySpecials.items,
+            content.itemPool(ItemPools.tavernScruffySpecials).items,
         )
 
         val offer = content.scenes.single().ops.single() as Op.RandomItemOffer
@@ -450,7 +513,11 @@ class RylweenDslValidationTest {
 
     @Test
     fun randomItemOfferSessionBuysSelectedItemUsingGeneratedItemCost() {
-        val session = RandomItemOfferSession.start(testRandomItemOffer(), testParty(gold = 2000))
+        val session = RandomItemOfferSession.start(
+            testRandomItemOffer(),
+            testParty(gold = 2000),
+            itemRecords = compiledItemRecords(),
+        )
         val bought = session
             .apply(RandomItemOfferInput.Buy(accept = true))
             .apply(RandomItemOfferInput.Continue)
@@ -481,7 +548,11 @@ class RylweenDslValidationTest {
             gold = 2000,
             inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope },
         )
-        val dropPrompt = RandomItemOfferSession.start(testRandomItemOffer(), fullParty)
+        val dropPrompt = RandomItemOfferSession.start(
+            testRandomItemOffer(),
+            fullParty,
+            itemRecords = compiledItemRecords(),
+        )
             .apply(RandomItemOfferInput.Buy(accept = true))
 
         assertTrue(dropPrompt.step is RandomItemOfferStep.DropSlot)
@@ -500,6 +571,9 @@ class RylweenDslValidationTest {
     @Test
     fun shopServiceValidatesAndDefaultsInventoryPurchasesToPromptDrop() {
         val content = GameBuilder().apply {
+            items {
+                shopTestItems()
+            }
             scene(sceneId("test.shop")) {
                 shopService(Buildings.merchant) {
                     image = Images.Scene.merchant
@@ -531,7 +605,7 @@ class RylweenDslValidationTest {
             }
         }.build()
 
-        validateScriptRewards(content)
+        validateScriptRewards(content, content.itemCatalog)
 
         val shop = (content.scenes.single().ops.single() as Op.ShopService).shop
         assertEquals(RewardOverflowPolicy.PromptDropThenPlace, shop.buy?.inventoryApplication?.overflow)
@@ -555,7 +629,7 @@ class RylweenDslValidationTest {
             gold = 100,
             inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope } + (1 to Items.redPotion),
         )
-        val interpreter = ShopServiceInterpreter()
+        val interpreter = ShopServiceInterpreter(compiledItemRecords())
 
         val needsDrop = interpreter.buy(shop, fullParty, Items.blanket)
         assertEquals(ShopTransactionStatus.NeedsDropSlot, needsDrop.status)
@@ -581,7 +655,7 @@ class RylweenDslValidationTest {
             food = 100,
             inventoryItems = mapOf(1 to Items.donkey),
         )
-        val interpreter = ShopServiceInterpreter()
+        val interpreter = ShopServiceInterpreter(compiledItemRecords())
 
         val boughtNoDonkeyFood = interpreter.buy(shop, noDonkeyParty, Items.ration, quantity = 999)
         val boughtDonkeyFood = interpreter.buy(shop, donkeyParty, Items.ration, quantity = 999)
@@ -610,7 +684,7 @@ class RylweenDslValidationTest {
             food = 300,
             inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope } + (1 to Items.donkey),
         )
-        val interpreter = ShopServiceInterpreter()
+        val interpreter = ShopServiceInterpreter(compiledItemRecords())
 
         val bought = interpreter.buy(shop, fullParty, Items.blanket, dropSlot = 1)
 
@@ -665,10 +739,11 @@ class RylweenDslValidationTest {
             ),
         )
 
-        val consumed = party.consumeInventoryItems(ItemPools.thunAltarGems, 5)
+        val gems = RylweenCompiledGame.nextDsl.itemPool(ItemPools.thunAltarGems)
+        val consumed = party.consumeInventoryItems(gems, 5)
 
-        assertEquals(6, party.countInventoryItems(ItemPools.thunAltarGems))
-        assertEquals(1, consumed.countInventoryItems(ItemPools.thunAltarGems))
+        assertEquals(6, party.countInventoryItems(gems))
+        assertEquals(1, consumed.countInventoryItems(gems))
         assertEquals(Items.redGem, consumed.inventoryItem(0))
         assertEquals(null, consumed.inventoryItem(1))
         assertEquals(null, consumed.inventoryItem(2))
@@ -705,7 +780,7 @@ class RylweenDslValidationTest {
                     mapOf(1 to Items.blanket, 2 to Items.donkey, 3 to Items.sword),
         )
 
-        var session = ShopServiceSession.start(shop, party).continueIntro()
+        var session = ShopServiceSession.start(shop, party, compiledItemRecords()).continueIntro()
 
         session = session.chooseMain(ShopMainChoice.Buy)
             .chooseBuyItem(Items.torch)
@@ -750,6 +825,7 @@ class RylweenDslValidationTest {
         var session = ShopServiceSession.start(
             shop,
             testParty(gold = 0, inventoryItems = mapOf(1 to Items.sword, 2 to Items.axe)),
+            compiledItemRecords(),
         ).continueIntro()
 
         session = session.chooseMain(ShopMainChoice.Sell).chooseSellSlot(1, bargainRolls = listOf(91))
@@ -775,7 +851,7 @@ class RylweenDslValidationTest {
         val runner = ShopServiceTraceRunner(engine)
 
         val session = runner.run(
-            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78)),
+            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78), compiledItemRecords()),
             listOf(
                 ShopServiceInput.ContinueIntro,
                 ShopServiceInput.Main(ShopMainChoice.Buy),
@@ -813,7 +889,7 @@ class RylweenDslValidationTest {
         )
 
         val session = runner.run(
-            ShopServiceSession.start(shop, party),
+            ShopServiceSession.start(shop, party, compiledItemRecords()),
             listOf(
                 ShopServiceInput.ContinueIntro,
                 ShopServiceInput.Main(ShopMainChoice.Buy),
@@ -840,7 +916,7 @@ class RylweenDslValidationTest {
     fun shopTerminalAdapterRunsBuyAndSaleFlows() {
         val buyTerminal = FakeTerminalPort("B", "A", "99", "P", "L")
         val buySession = ShopServiceTerminalAdapter(buyTerminal).run(
-            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10, torches = 78)),
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10, torches = 78), compiledItemRecords()),
         )
 
         assertEquals(80, buySession.party.resources.torches)
@@ -854,6 +930,7 @@ class RylweenDslValidationTest {
             ShopServiceSession.start(
                 testMerchantShop(),
                 testParty(gold = 10, inventoryItems = mapOf(1 to Items.blanket)),
+                compiledItemRecords(),
             ),
         )
 
@@ -896,7 +973,7 @@ class RylweenDslValidationTest {
         )
         val terminal = FakeTerminalPort("BUY", "TORCH", "99", "PAY", "LEAVE")
         val session = ShopServiceTerminalAdapter(terminal).run(
-            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78)),
+            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78), compiledItemRecords()),
         )
 
         assertTrue(session.step is ShopServiceStep.Finished)
@@ -912,7 +989,7 @@ class RylweenDslValidationTest {
             gold = 10,
             inventoryItems = mapOf(1 to Items.blanket, 2 to Items.sword),
         )
-        val interpreter = ShopServiceInterpreter()
+        val interpreter = ShopServiceInterpreter(compiledItemRecords())
 
         val sold = interpreter.sell(shop, party, slot = 1)
         val rejected = interpreter.sell(shop, party, slot = 2)
@@ -929,12 +1006,18 @@ class RylweenDslValidationTest {
             inventoryItems = mapOf(1 to Items.sword, 2 to Items.axe),
         )
 
-        val equippedSword = party.equipFromInventory(memberNumber = 1, slot = 1, kind = EquipmentKind.Weapon)
+        val equippedSword = party.equipFromInventory(
+            memberNumber = 1,
+            slot = 1,
+            kind = EquipmentKind.Weapon,
+            itemRecords = compiledItemRecords(),
+        )
                 as EquipmentActionResult.Equipped
         val equippedAxe = equippedSword.party.equipFromInventory(
             memberNumber = 1,
             slot = 2,
             kind = EquipmentKind.Weapon,
+            itemRecords = compiledItemRecords(),
         ) as EquipmentActionResult.Equipped
         val unequipped = equippedAxe.party.unequipToInventory(memberNumber = 1, kind = EquipmentKind.Weapon)
                 as EquipmentActionResult.Unequipped
@@ -955,7 +1038,12 @@ class RylweenDslValidationTest {
         val readyPrompt = EquipmentCommand.ReadyWeapon.prompt()
         val removePrompt = EquipmentCommand.RemoveWeapon.prompt()
 
-        val readied = party.applyEquipmentCommand(EquipmentCommand.ReadyWeapon, memberNumber = 1, inventorySlot = 1)
+        val readied = party.applyEquipmentCommand(
+            EquipmentCommand.ReadyWeapon,
+            memberNumber = 1,
+            inventorySlot = 1,
+            itemRecords = compiledItemRecords(),
+        )
                 as EquipmentActionResult.Equipped
         val removed = readied.party.applyEquipmentCommand(EquipmentCommand.RemoveWeapon, memberNumber = 1)
                 as EquipmentActionResult.Unequipped
@@ -977,6 +1065,7 @@ class RylweenDslValidationTest {
             EquipmentPromptSession.start(
                 EquipmentCommand.ReadyWeapon,
                 testParty(inventoryItems = mapOf(1 to Items.sword)),
+                compiledItemRecords(),
             ),
             listOf(EquipmentPromptInput.InventorySlot(1), EquipmentPromptInput.Member(1)),
         )
@@ -985,6 +1074,7 @@ class RylweenDslValidationTest {
             EquipmentPromptSession.start(
                 EquipmentCommand.RemoveWeapon,
                 testParty(equipment = EquipmentState(Items.sword, Items.none)),
+                compiledItemRecords(),
             ),
             listOf(EquipmentPromptInput.Member(1)),
         )
@@ -1007,6 +1097,7 @@ class RylweenDslValidationTest {
         val session = runner.run(
             TownLeaveEquipmentSession.start(
                 testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
+                compiledItemRecords(),
             ),
             listOf(
                 TownLeaveEquipmentInput.ReadyAnswer(true),
@@ -1035,6 +1126,7 @@ class RylweenDslValidationTest {
             EquipmentPromptSession.start(
                 EquipmentCommand.ReadyWeapon,
                 testParty(inventoryItems = mapOf(1 to Items.sword)),
+                compiledItemRecords(),
             ),
         )
         val offTerminal = FakeTerminalPort("1")
@@ -1042,12 +1134,14 @@ class RylweenDslValidationTest {
             EquipmentPromptSession.start(
                 EquipmentCommand.RemoveWeapon,
                 testParty(equipment = EquipmentState(Items.sword, Items.none)),
+                compiledItemRecords(),
             ),
         )
         val leaveTerminal = FakeTerminalPort("Y", "A", "1", "Y", "B", "1")
         val leave = TownLeaveEquipmentTerminalAdapter(leaveTerminal).run(
             TownLeaveEquipmentSession.start(
                 testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
+                compiledItemRecords(),
             ),
         )
 
@@ -1066,13 +1160,13 @@ class RylweenDslValidationTest {
     @Test
     fun terminalAdaptersReturnUnfinishedSessionOnInvalidInput() {
         val invalidShop = ShopServiceTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(
-            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10)),
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10), compiledItemRecords()),
         )
         val missingShopInput = ShopServiceTerminalAdapter(FakeTerminalPort()).runUntilBlocked(
-            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10)),
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10), compiledItemRecords()),
         )
         val invalidTownLeave = TownLeaveEquipmentTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(
-            TownLeaveEquipmentSession.start(testParty(inventoryItems = mapOf(1 to Items.sword))),
+            TownLeaveEquipmentSession.start(testParty(inventoryItems = mapOf(1 to Items.sword)), compiledItemRecords()),
         )
 
         assertTrue(invalidShop.session.step is ShopServiceStep.MainMenu)
@@ -1099,6 +1193,7 @@ class RylweenDslValidationTest {
                 scenes = listOf(SceneModel(Scenes.Towne.merchant, listOf(Op.ShopService(testMerchantShop())))),
                 party = testParty(gold = 10, torches = 78),
                 currentHour = 12,
+                itemRecords = compiledItemRecords(),
             ),
         )
 
@@ -1120,6 +1215,7 @@ class RylweenDslValidationTest {
                 scenes = emptyList(),
                 party = testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
                 currentHour = 12,
+                itemRecords = compiledItemRecords(),
             ),
         )
 
@@ -1595,6 +1691,7 @@ class RylweenDslValidationTest {
                 scenes = listOf(testTavernRandomOfferScene()),
                 party = testParty(gold = 2000),
                 currentHour = 12,
+                itemRecords = compiledItemRecords(),
             ),
         )
 
@@ -1617,6 +1714,7 @@ class RylweenDslValidationTest {
                 party = testParty(gold = 2000),
                 currentHour = 12,
                 rngState = 1L,
+                itemRecords = compiledItemRecords(),
             ),
         )
 
@@ -1638,6 +1736,7 @@ class RylweenDslValidationTest {
                 inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope },
             ),
             currentHour = 12,
+            itemRecords = compiledItemRecords(),
         )
 
         val blocked = TownSessionTerminalAdapter(FakeTerminalPort("T", "B")).runUntilBlocked(start)
@@ -1918,7 +2017,11 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort("T", "N", "R", "", "R", "", "R", "", "R", "", "R", "", "L", "L")
         val result = TownSessionTerminalAdapter(
             terminal,
-            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
+            serviceBridge = StatefulTownServiceBridge(
+                terminal,
+                speakContent = compiledSpeakContent(),
+                battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            ),
         ).runUntilBlocked(
             compiledTownSession(party = testParty()),
         )
@@ -2255,7 +2358,7 @@ class RylweenDslValidationTest {
         assertEquals(Missions.thunTemple, result.session.lastResult?.mission)
         assertEquals(Dungeons.thunTemple, result.session.lastResult?.dungeon)
         assertEquals(18, result.session.lastResult?.dungeonLevels)
-        assertEquals(0, result.session.party.countInventoryItems(ItemPools.thunAltarGems))
+        assertEquals(0, result.session.party.countInventoryItems(RylweenCompiledGame.nextDsl.itemPool(ItemPools.thunAltarGems)))
         assertEquals(Items.rope, result.session.party.inventoryItem(6))
         assertTrue(terminal.output.any { "With a resounding 'CRUNG'" in it })
         assertTrue(terminal.output.any { "Entering thun_temple." in it })
@@ -2288,7 +2391,7 @@ class RylweenDslValidationTest {
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
         assertEquals(Missions.thunTemple, result.session.lastResult?.mission)
-        assertEquals(3, result.session.party.countInventoryItems(ItemPools.thunAltarGems))
+        assertEquals(3, result.session.party.countInventoryItems(RylweenCompiledGame.nextDsl.itemPool(ItemPools.thunAltarGems)))
         assertEquals(Items.rope, result.session.party.inventoryItem(4))
         assertTrue(terminal.output.any { "You don't have five" in it })
     }
@@ -2625,7 +2728,7 @@ class RylweenDslValidationTest {
 
         val armed = runAttackWith(Items.deathBlade)
         val unarmed = runAttackWith(Items.none)
-        val deathBladeDamage = checkNotNull(ItemCatalog.all.single { it.id == Items.deathBlade }.weaponDamage)
+        val deathBladeDamage = checkNotNull(compiledItemRecords().single { it.id == Items.deathBlade }.weaponDamage)
 
         assertTrue(armed.status is TerminalRunStatus.Waiting)
         assertTrue(unarmed.status is TerminalRunStatus.Waiting)
@@ -2722,9 +2825,10 @@ class RylweenDslValidationTest {
                 ),
                 formulas = content.formulas,
                 rewards = content.rewards,
+                itemRecords = content.itemCatalog,
                 leveling = content.leveling,
                 spells = content.spells,
-                magicItems = content.magicItems,
+                itemUses = content.itemUses,
                 tier = EncounterTiers.weak,
             ),
         )
@@ -2819,9 +2923,10 @@ class RylweenDslValidationTest {
                 ),
                 formulas = content.formulas,
                 rewards = content.rewards,
+                itemRecords = content.itemCatalog,
                 leveling = content.leveling,
                 spells = content.spells,
-                magicItems = content.magicItems,
+                itemUses = content.itemUses,
                 tier = EncounterTiers.weak,
             ),
         )
@@ -2916,7 +3021,10 @@ class RylweenDslValidationTest {
     @Test
     fun compiledGameGarthRewardBranchAppliesAuthoredRewardAndFlag() {
         val (service, scene) = garthRecoveredDialogueService()
-        val result = StatefulTownServiceBridge(FakeTerminalPort()).run(
+        val result = StatefulTownServiceBridge(
+            FakeTerminalPort(),
+            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+        ).run(
             service,
             scene,
             TownServiceContinuation.start(
@@ -2947,7 +3055,10 @@ class RylweenDslValidationTest {
             hour = 12,
             currentTown = Towns.thord.id,
         )
-        val blocked = StatefulTownServiceBridge(FakeTerminalPort()).run(
+        val blocked = StatefulTownServiceBridge(
+            FakeTerminalPort(),
+            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+        ).run(
             service,
             scene,
             TownServiceContinuation.start(runtime),
@@ -2958,7 +3069,10 @@ class RylweenDslValidationTest {
         assertEquals(Items.rope, blocked.party.inventoryItem(1))
         assertTrue(blocked.continuation?.rewardGrantSession?.step is RewardGrantStep.DropSlot)
 
-        val resumed = StatefulTownServiceBridge(FakeTerminalPort("A")).run(
+        val resumed = StatefulTownServiceBridge(
+            FakeTerminalPort("A"),
+            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+        ).run(
             service,
             scene,
             checkNotNull(blocked.continuation),
@@ -2987,6 +3101,7 @@ class RylweenDslValidationTest {
         val result = StatefulTownServiceBridge(
             terminal = FakeTerminalPort("1", "B"),
             speakContent = compiledSpeakContent(),
+            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
             service,
             scene,
@@ -3079,6 +3194,7 @@ class RylweenDslValidationTest {
             currentHour = currentHour,
             rngState = rngState,
             npcs = npcs,
+            itemRecords = content.itemCatalog,
         )
     }
 
@@ -3117,11 +3233,12 @@ class RylweenDslValidationTest {
             ),
             combat = content.combat,
             monsters = content.monsters,
+            itemRecords = content.itemCatalog,
             formulas = content.formulas,
             rewards = content.rewards,
             leveling = content.leveling,
             spells = content.spells,
-            magicItems = content.magicItems,
+            itemUses = content.itemUses,
             tier = tier,
         )
     }
@@ -3140,11 +3257,12 @@ class RylweenDslValidationTest {
             ),
             combat = content.combat,
             monsters = listOf(monster),
+            itemRecords = content.itemCatalog,
             formulas = content.formulas,
             rewards = content.rewards,
             leveling = content.leveling,
             spells = content.spells,
-            magicItems = content.magicItems,
+            itemUses = content.itemUses,
             tier = tier,
         )
     }
@@ -3252,7 +3370,7 @@ class RylweenDslValidationTest {
         }.build()
 
     private fun testRandomItemOffer(): RandomItemOfferModel =
-        RandomItemOfferBuilder(ItemPools.tavernScruffySpecials).apply {
+        RandomItemOfferBuilder(RylweenCompiledGame.nextDsl.itemPool(ItemPools.tavernScruffySpecials)).apply {
             offer {
                 line("- I will sell you this")
                 line("  ", itemName)
@@ -3429,6 +3547,9 @@ class RylweenDslValidationTest {
 
     private fun testTavernRandomOfferScene(): SceneModel =
         GameBuilder().apply {
+            items {
+                scruffyOfferTestItems()
+            }
             scene(Scenes.Towne.tavern) {
                 native.screen.clearMapWindow()
                 native.screen.showImage(Images.Scene.tavern)

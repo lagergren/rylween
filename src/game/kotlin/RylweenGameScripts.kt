@@ -14,20 +14,6 @@ val MissionRefs.thunTemple: MissionId
 val MissionSceneRefs.thunTemple: SceneId
     get() = sceneId("missions.thun_temple")
 
-val ItemPoolRefs.thunAltarGems: ItemPoolId
-    get() = CurrentGameItemPools.thunAltarGems
-
-private object CurrentGameItemPools {
-    val thunAltarGems = itemPool(
-        "thun_altar_gems",
-        items = listOf(
-            Items.redGem,
-            Items.blueGem,
-            Items.greenGem,
-        ),
-    )
-}
-
 fun ScriptScope.dungeonEntrance(
     dungeon: DungeonId,
     levels: Int,

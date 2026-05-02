@@ -794,7 +794,7 @@ private class StatefulScriptServiceRunner(
     private fun runSpeak(op: Op.Speak) {
         engine.trace(EngineTraceEvent.Speak(op.building))
         val initial = speakSession ?: SpeakSession.start(speakContent, currentRuntime(), op.building)
-        val result = SpeakSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
+        val result = SpeakSessionTraceRunner(terminal, engine, battleContent).runUntilBlocked(initial)
         runtime = result.session.runtime
         party = runtime.activeParty
         when (result.status) {
@@ -852,7 +852,7 @@ private class StatefulScriptServiceRunner(
                 rewards = battleContent.rewards,
                 leveling = battleContent.leveling,
                 spells = battleContent.spells,
-                magicItems = battleContent.magicItems,
+                itemUses = battleContent.itemUses,
             )
             wait()
             return
@@ -893,7 +893,12 @@ private class StatefulScriptServiceRunner(
         val initial = randomItemOfferSession ?: run {
             val draw = runtime.drawRandom(0, op.offer.pool.items.lastIndex)
             runtime = draw.runtime
-            RandomItemOfferSession.start(op.offer, party, selectedIndex = draw.value)
+            RandomItemOfferSession.start(
+                op.offer,
+                party,
+                itemRecords = battleContent.itemRecords,
+                selectedIndex = draw.value,
+            )
         }
         val result = RandomItemOfferSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
@@ -920,6 +925,7 @@ private class StatefulScriptServiceRunner(
             reward = op.reward,
             party = party,
             gold = op.reward.gold?.let(::eval) ?: 0,
+            itemRecords = battleContent.itemRecords,
         )
         val result = RewardGrantSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
@@ -1059,6 +1065,7 @@ private class StatefulScriptServiceRunner(
             "hit_points" -> member.hitPoints.current
             "health" -> member.health
             "magic" -> member.mana.current
+            "magic_max" -> member.mana.max
             "level" -> member.level
             "wisdom" -> member.wisdom
             "charisma" -> member.charisma
@@ -1204,7 +1211,7 @@ class TerminalTextRenderer(
 
 class RylweenKotlinEngine(
     private val content: GameModel,
-    private val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    private val itemRecords: List<ItemRecordModel> = content.itemCatalog,
     private val npcPlacementConfig: NpcPlacementRealizerConfig = NpcPlacementRealizerConfig(),
 ) {
     fun initialRuntime(
@@ -1391,6 +1398,7 @@ private class RewardGrantSessionTraceRunner(
 private class SpeakSessionTraceRunner(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort,
+    private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
 ) {
     fun runUntilBlocked(initial: SpeakSession): TerminalAdapterResult<SpeakSession> {
         var session = initial
@@ -1416,6 +1424,7 @@ private class SpeakSessionTraceRunner(
                         rootOps = step.branch.ops,
                         continuation = continuation,
                         speakContent = session.content,
+                        battleContent = battleContent,
                     ).run()
                     val nextSession = session.copy(runtime = result.runtime)
                     when (result.status) {
@@ -1727,7 +1736,7 @@ class ShopServiceTerminalAdapter(
 class TownSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
-    private val serviceBridge: TownServiceBridge = StatefulTownServiceBridge(terminal),
+    private val serviceBridge: TownServiceBridge? = null,
 ) {
     fun run(initial: TownSession): TownSession =
         runUntilBlocked(initial).session
@@ -1773,7 +1782,11 @@ class TownSessionTerminalAdapter(
                 }
                 is TownSessionStep.NativeService -> {
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
-                    val result = serviceBridge.run(step.service, step.scene, continuation)
+                    val bridge = serviceBridge ?: StatefulTownServiceBridge(
+                        terminal,
+                        battleContent = BattleRuntimeContent(itemRecords = session.itemRecords),
+                    )
+                    val result = bridge.run(step.service, step.scene, continuation)
                     writeBridgeEvents(result.events, result.runtime)
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
@@ -1854,7 +1867,7 @@ class TownSessionTerminalAdapter(
 class WildernessSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
-    private val serviceBridge: TownServiceBridge = StatefulTownServiceBridge(terminal),
+    private val serviceBridge: TownServiceBridge? = null,
 ) {
     fun run(initial: WildernessSession): WildernessSession =
         runUntilBlocked(initial).session
@@ -1909,7 +1922,7 @@ class WildernessSessionTerminalAdapter(
                             rewards = session.rewards,
                             leveling = session.leveling,
                             spells = session.spells,
-                            magicItems = session.magicItems,
+                            itemUses = session.itemUses,
                             itemRecords = session.itemRecords,
                         ),
                     )
@@ -2369,6 +2382,7 @@ private fun PartyState.withMemberField(memberNumber: Int, field: String, value: 
             hitPoints = member.hitPoints.copy(max = value.coerceAtLeast(0)),
         )
         "magic" -> member.copy(mana = member.mana.copy(current = value.coerceAtLeast(0)))
+        "magic_max" -> member.copy(mana = member.mana.current.coerceAtMost(value.coerceAtLeast(0)) manaOf value.coerceAtLeast(0))
         "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
         "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
         "level" -> member.copy(level = value.coerceAtLeast(1))

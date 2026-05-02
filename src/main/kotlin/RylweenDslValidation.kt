@@ -8,7 +8,7 @@ fun validateFlagCatalog(flags: List<FlagRef>) {
     }
 }
 
-fun validateItemCatalog(records: List<ItemRecordModel> = ItemCatalog.all) {
+fun validateItemCatalog(records: List<ItemRecordModel>) {
     check(records.isNotEmpty()) { "item catalog is empty" }
     check(records.map { it.id }.toSet().size == records.size) { "duplicate item handle" }
 
@@ -44,17 +44,10 @@ fun validateItemCatalog(records: List<ItemRecordModel> = ItemCatalog.all) {
                 check(record.storage == ItemStorageKind.SlottedInventory) {
                     "item ${record.id.slug} must use slotted-inventory storage"
                 }
-                check(record.potionEffect == null) {
-                    "item ${record.id.slug} cannot carry a potion effect"
-                }
             }
             ItemKind.Potion -> {
                 check(record.storage == ItemStorageKind.SlottedInventory) {
                     "potion ${record.id.slug} must use slotted-inventory storage"
-                }
-                check(record.potionEffect != null) { "potion ${record.id.slug} requires an effect" }
-                record.potionEffect.amount?.let { amount ->
-                    check(amount > 0) { "potion ${record.id.slug} effect amount must be positive" }
                 }
             }
         }
@@ -63,7 +56,7 @@ fun validateItemCatalog(records: List<ItemRecordModel> = ItemCatalog.all) {
 
 fun validateGameProgress(
     progress: GameProgressModel,
-    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    itemRecords: List<ItemRecordModel>,
 ) {
     val ids = progress.milestones.map { it.id }
     check(ids.toSet().size == ids.size) { "duplicate game milestone" }
@@ -113,7 +106,7 @@ fun validateLeveling(leveling: LevelingModel?, formulas: List<FormulaModel>) {
 fun validateRewardBundles(
     rewards: List<RewardBundleModel>,
     formulas: List<FormulaModel>,
-    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    itemRecords: List<ItemRecordModel>,
 ) {
     check(rewards.map { it.id }.toSet().size == rewards.size) { "duplicate reward bundle" }
     val formulaIds = formulas.map { it.id }.toSet()
@@ -733,31 +726,31 @@ private fun checkUniqueQuestionActions(actions: List<QuestionMenuActionModel>) {
     }
 }
 
-fun validateMagicItemUses(
-    magicItems: List<MagicItemModel>,
-    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+fun validateItemUses(
+    itemUses: List<ItemUseModel>,
+    itemRecords: List<ItemRecordModel>,
 ) {
-    check(magicItems.map { it.id }.toSet().size == magicItems.size) { "duplicate magic item use" }
+    check(itemUses.map { it.id }.toSet().size == itemUses.size) { "duplicate item use" }
 
     val itemRecordById = itemRecords.associateBy { it.id }
-    magicItems.forEach { magicItem ->
-        val record = itemRecordById[magicItem.id]
-        check(record?.kind == ItemKind.MagicItem) {
-            "magic item use ${magicItem.id.slug} must reference a generated magic item"
+    itemUses.forEach { itemUse ->
+        val record = itemRecordById[itemUse.id]
+        check(record?.storage == ItemStorageKind.SlottedInventory) {
+            "item use ${itemUse.id.slug} must reference a slotted inventory item"
         }
-        check(magicItem.contexts.isNotEmpty()) { "magic item use ${magicItem.id.slug} has no contexts" }
-        check(magicItem.ops.isNotEmpty()) { "magic item use ${magicItem.id.slug} has no effect body" }
+        check(itemUse.contexts.isNotEmpty()) { "item use ${itemUse.id.slug} has no contexts" }
+        check(itemUse.ops.isNotEmpty()) { "item use ${itemUse.id.slug} has no effect body" }
 
-        val consumesInBody = magicItem.ops.containsConsumeActiveItem()
-        when (magicItem.consume) {
+        val consumesInBody = itemUse.ops.containsConsumeActiveItem()
+        when (itemUse.consume) {
             ItemConsumePolicy.BeforeUse -> check(!consumesInBody) {
-                "magic item use ${magicItem.id.slug} consumes before use and should not consume in script"
+                "item use ${itemUse.id.slug} consumes before use and should not consume in script"
             }
             ItemConsumePolicy.ScriptControlled -> check(consumesInBody) {
-                "magic item use ${magicItem.id.slug} is script-controlled but never consumes active item"
+                "item use ${itemUse.id.slug} is script-controlled but never consumes active item"
             }
             ItemConsumePolicy.NeverConsumes -> check(!consumesInBody) {
-                "magic item use ${magicItem.id.slug} is non-consuming but consumes active item in script"
+                "item use ${itemUse.id.slug} is non-consuming but consumes active item in script"
             }
         }
     }
@@ -814,7 +807,7 @@ private fun List<Op>.containsConsumeActiveItem(): Boolean =
 
 fun validateScriptRewards(
     content: GameModel,
-    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    itemRecords: List<ItemRecordModel>,
 ) {
     val itemRecordById = itemRecords.associateBy { it.id }
 
@@ -1163,7 +1156,7 @@ fun validateScriptRewards(
         dialogue.branches.forEach { visit(it.ops) }
     }
     content.spells.forEach { visit(it.ops) }
-    content.magicItems.forEach { visit(it.ops) }
+    content.itemUses.forEach { visit(it.ops) }
 }
 
 private fun validateItemPool(pool: ItemPoolId, itemRecords: List<ItemRecordModel>) {
@@ -1186,8 +1179,12 @@ private fun checkPercent(value: Int, label: String) {
 }
 
 fun validateAuthoredContent(content: GameModel) {
-    validateItemCatalog()
-    validateGameProgress(content.progress)
+    validateItemCatalog(content.itemCatalog)
+    check(content.itemPools.map { it.slug }.toSet().size == content.itemPools.size) {
+        "duplicate item pool"
+    }
+    content.itemPools.forEach { validateItemPool(it, content.itemCatalog) }
+    validateGameProgress(content.progress, content.itemCatalog)
 
     check(content.authoredFlags.map { it.ref.slug }.toSet().size == content.authoredFlags.size) {
         "duplicate authored flag"
@@ -1237,16 +1234,16 @@ fun validateAuthoredContent(content: GameModel) {
 
     validateFormulas(content.formulas)
     validateLeveling(content.leveling, content.formulas)
-    validateRewardBundles(content.rewards, content.formulas)
+    validateRewardBundles(content.rewards, content.formulas, content.itemCatalog)
     validateCombatSystem(content.combat, content.rewards)
     validateWildernessSystem(content.wilderness)
     validateTowns(content.towns)
     validateTownSystem(content.townSystem, content.towns, content.scenes)
     validateCharacters(content.characters, content.towns)
     validateSpeakSystem(content.speak, content.characters, content.towns)
-    validateMagicItemUses(content.magicItems)
+    validateItemUses(content.itemUses, content.itemCatalog)
     validateDialogue(content.dialogue, content.characters)
-    validateScriptRewards(content)
+    validateScriptRewards(content, content.itemCatalog)
 }
 
 fun specialInventoryItems(content: GameModel, party: PartyState): List<ItemId> =
