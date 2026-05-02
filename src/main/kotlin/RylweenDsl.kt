@@ -714,6 +714,7 @@ data class StandardBattleModel(
     val playerRound: PlayerRoundModel,
     val monsterRound: MonsterRoundModel,
     val rewards: RewardBundleId,
+    val encounterFoeCountMax: Int,
     val nativeServices: List<EngineServiceUse>,
 )
 
@@ -2959,6 +2960,7 @@ class StandardBattleBuilder {
     private var playerRoundModel = PlayerRoundBuilder().build()
     private var monsterRoundModel = MonsterRoundBuilder().build()
     var rewards: RewardBundleId = Rewards.standardBattle
+    var encounterFoeCountMax: Int = 8
 
     fun opening(body: EncounterOpeningBuilder.() -> Unit) {
         openingModel = EncounterOpeningBuilder(openingModel).apply(body).build()
@@ -2983,6 +2985,7 @@ class StandardBattleBuilder {
             playerRound = playerRoundModel,
             monsterRound = monsterRoundModel,
             rewards = rewards,
+            encounterFoeCountMax = encounterFoeCountMax,
             nativeServices = defaultNativeServices,
         )
 

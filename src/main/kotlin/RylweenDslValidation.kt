@@ -177,6 +177,7 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
         check(battle.monsterRound.melee.damageMin >= 0) {
             "standard battle monster melee damage minimum must be non-negative"
         }
+        check(battle.encounterFoeCountMax > 0) { "standard battle foe count max must be positive" }
 
         check(battle.rewards in rewardIds) {
             "standard battle references missing reward bundle ${battle.rewards.slug}"
