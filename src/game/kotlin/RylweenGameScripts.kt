@@ -16,6 +16,8 @@ fun ScriptScope.travellerStory() {
             line("Who wants to tell")
             line("a story? (1-", maxMembers, ")")
         },
+        filter = MemberChoiceFilter.AliveOnly,
+        accepting = MemberChoiceFilter.Any,
     )
 
     whenever(storyteller.dead) {
@@ -38,6 +40,7 @@ fun ScriptScope.travellerStory() {
             line("")
         }
         pause(2000)
+
         screen("- YEAAH! Roars the crowd!", "")
         pause(2000)
 

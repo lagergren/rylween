@@ -3,10 +3,10 @@
 // This file is implementation/compiler scaffolding: typed handles, immutable
 // models, builders, and recorded script ASTs. Generated metadata lives in
 // src/generated/kotlin/RylweenGeneratedMetadata.kt. Game-specific content belongs in
-// rylween-full-scratch.dsl.kts, with reusable game-script helpers in
+// RylweenGame.dsl.kts, with reusable game-script helpers in
 // RylweenGameScripts.kt. Validation helpers live in RylweenDslValidation.kt.
 //
-// Validate the split scratch source with:
+// Validate the game source with:
 //
 //   ./gradlew check
 //
@@ -46,7 +46,7 @@ enum class FlagScope { Party, Encounter }
 abstract class FlagRef(
     val slug: String,
     val scope: FlagScope = FlagScope.Party,
-    val legacySlot: Int? = null,
+    val sourceSlot: Int? = null,
 ) {
     private val declaredStates = mutableListOf<FlagState>()
     val states: List<FlagState> get() = declaredStates
@@ -113,20 +113,20 @@ class TownTextRef(private val town: TownId) {
     fun near(radius: Int = 5): TextPart = TextPart.FuzzyTownLocation(town, radius)
 }
 fun town(town: TownRef) = TownTextRef(town.id)
-class ItemId private constructor(val slug: String, val legacyId: Int? = null) {
+class ItemId private constructor(val slug: String, val sourceId: Int? = null) {
     override fun equals(other: Any?): Boolean =
         other is ItemId && slug == other.slug
 
     override fun hashCode(): Int = slug.hashCode()
 
     override fun toString(): String =
-        "ItemId(slug=$slug, legacyId=$legacyId)"
+        "ItemId(slug=$slug, sourceId=$sourceId)"
 
     companion object {
         fun authored(slug: String): ItemId = ItemId(slug)
 
-        internal fun generated(slug: String, legacyId: Int): ItemId =
-            ItemId(slug, legacyId)
+        internal fun generated(slug: String, sourceId: Int): ItemId =
+            ItemId(slug, sourceId)
     }
 }
 class ItemPoolId private constructor(
@@ -167,7 +167,7 @@ data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
 data class WorldMapId(val slug: String)
 data class MapLayerId(val slug: String)
-data class TerrainId(val slug: String, val legacyMapCode: Char? = null)
+data class TerrainId(val slug: String, val sourceMapCode: Char? = null)
 data class TerrainTagId(val slug: String)
 data class ImageId(val slug: String)
 data class PaletteId(val slug: String)
@@ -198,7 +198,7 @@ data class RumourId(val slug: String)
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId.authored(slug)
-internal fun generatedItem(slug: String, legacyId: Int) = ItemId.generated(slug, legacyId)
+internal fun generatedItem(slug: String, sourceId: Int) = ItemId.generated(slug, sourceId)
 fun itemPool(slug: String, items: List<ItemId> = emptyList()) = ItemPoolId.authored(slug, items)
 internal fun generatedItemPool(slug: String, items: List<ItemId>) =
     ItemPoolId.generated(slug, items)
@@ -206,7 +206,7 @@ fun monster(slug: String) = MonsterId(slug)
 fun encounterTier(slug: String) = EncounterTier(slug)
 fun worldMap(slug: String) = WorldMapId(slug)
 fun mapLayer(slug: String) = MapLayerId(slug)
-fun terrain(slug: String, legacyMapCode: Char? = null) = TerrainId(slug, legacyMapCode)
+fun terrain(slug: String, sourceMapCode: Char? = null) = TerrainId(slug, sourceMapCode)
 fun terrainTag(slug: String) = TerrainTagId(slug)
 fun image(slug: String) = ImageId(slug)
 fun palette(slug: String) = PaletteId(slug)
@@ -335,7 +335,12 @@ sealed interface Op {
     ) : Op
     data class Switch(val expr: IntAst, val cases: List<SwitchCase>) : Op
     data class Menu(val prompt: TextBlock, val options: List<MenuOption>, val defaultOps: List<Op>) : Op
-    data class AskMember(val prompt: TextBlock, val varName: String, val filter: MemberChoiceFilter) : Op
+    data class AskMember(
+        val prompt: TextBlock,
+        val varName: String,
+        val filter: MemberChoiceFilter,
+        val accepting: MemberChoiceFilter = filter,
+    ) : Op
     data class AskInventorySlot(
         val prompt: TextBlock,
         val varName: String,
@@ -447,10 +452,10 @@ data class MissionModel(
     val action: SceneId,
 )
 
-enum class LegacySpecialField { Fireshield, Bracelets, Mastercrown, Jazzyfoot, Silverkey }
+enum class SourceSpecialField { Fireshield, Bracelets, Mastercrown, Jazzyfoot, Silverkey }
 
-data class LegacySpecialMapping(
-    val field: LegacySpecialField,
+data class SourceSpecialMapping(
+    val field: SourceSpecialField,
     val achievedValue: Int,
 )
 
@@ -458,7 +463,7 @@ data class GameMilestoneModel(
     val id: GameMilestoneId,
     val specialInventoryItem: ItemId?,
     val requiredToWin: Boolean,
-    val legacySpecial: LegacySpecialMapping?,
+    val sourceSpecial: SourceSpecialMapping?,
 )
 
 data class WinConditionModel(
@@ -914,7 +919,7 @@ data class TerrainTransitionTextModel(
 enum class Gender { Male, Female }
 enum class Race { Human, Dwarf, Elf, Halfling }
 enum class PcClass { Fighter, Thief, Mage, Priest, Bard, Ranger }
-val PcClass.legacyId: Int
+val PcClass.sourceId: Int
     get() = when (this) {
         PcClass.Fighter -> 1
         PcClass.Thief -> 2
@@ -1158,7 +1163,7 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
     )
     val spellcaster: BoolExpr = Bool(BoolAst.MemberFlag(index.ast, "spellcaster"))
 
-    fun isClass(klass: PcClass): BoolExpr = pcClass eq klass.legacyId
+    fun isClass(klass: PcClass): BoolExpr = pcClass eq klass.sourceId
     fun fullHeal() {
         script.record(Op.Set(LValueAst.MemberField(index.ast, "hit_points"), maxHp.ast))
     }
@@ -1221,15 +1226,15 @@ class NativeAllowlistRefs {
     val screenRedrawMap = effect(NativeOps.screenRedrawMap, "map rendering primitive")
     val screenShowImage = effect(NativeOps.screenShowImage, "map-window image rendering primitive")
     val screenStatusLine = effect(NativeOps.screenStatusLine, "status-line rendering primitive")
-    val inventoryAdd = effect(NativeOps.inventoryAdd, "legacy inventory slot mutation")
+    val inventoryAdd = effect(NativeOps.inventoryAdd, "inventory slot mutation")
     val townEnterService = effect(NativeOps.townEnterService, "town building-service trampoline")
-    val ydargInit = effect(NativeOps.ydargInit, "legacy Ydarg dungeon state setup")
-    val ydargClearRoomAtCurrent = effect(NativeOps.ydargClearRoomAtCurrent, "legacy Ydarg room state mutation")
-    val ydargTryMove = effect(NativeOps.ydargTryMove, "legacy Ydarg movement and collision")
+    val ydargInit = effect(NativeOps.ydargInit, "Ydarg dungeon state setup")
+    val ydargClearRoomAtCurrent = effect(NativeOps.ydargClearRoomAtCurrent, "Ydarg room state mutation")
+    val ydargTryMove = effect(NativeOps.ydargTryMove, "Ydarg movement and collision")
 
     val rumourRoll = int(NativeOps.rumourRoll, "imported rumour scene roll bridge")
-    val ydargRoomAtCurrent = int(NativeOps.ydargRoomAtCurrent, "legacy Ydarg room table lookup")
-    val ydargExitRequested = int(NativeOps.ydargExitRequested, "legacy Ydarg exit flag")
+    val ydargRoomAtCurrent = int(NativeOps.ydargRoomAtCurrent, "Ydarg room table lookup")
+    val ydargExitRequested = int(NativeOps.ydargExitRequested, "Ydarg exit flag")
     val inputKeyUpper = int(NativeOps.inputKeyUpper, "keyboard input normalization")
 
     val partyMemberName = string(NativeOps.partyMemberName, "party-member display name binding")
@@ -2153,12 +2158,20 @@ class MenuBuilder(private val ctx: ScriptContext) {
 }
 
 class AskScope(private val script: ScriptScope) {
-    fun member(prompt: TextId, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
-        member(TextBlock.Ref(prompt), filter)
+    fun member(
+        prompt: TextId,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+    ): MemberRef =
+        member(TextBlock.Ref(prompt), filter, accepting)
 
-    fun member(prompt: TextBlock, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef {
+    fun member(
+        prompt: TextBlock,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+    ): MemberRef {
         val name = script.fresh("member")
-        script.record(Op.AskMember(prompt, name, filter))
+        script.record(Op.AskMember(prompt, name, filter, accepting))
         return script.party.member(v(name))
     }
 
@@ -2222,18 +2235,27 @@ class ChoiceScope(private val script: ScriptScope) {
         script.record(Op.RandomItemOffer(RandomItemOfferBuilder(pool).apply(body).build()))
     }
 
-    fun member(prompt: TextId, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
-        script.ask.member(prompt, filter)
+    fun member(
+        prompt: TextId,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+    ): MemberRef =
+        script.ask.member(prompt, filter, accepting)
 
-    fun member(prompt: TextBlock, filter: MemberChoiceFilter = MemberChoiceFilter.Any): MemberRef =
-        script.ask.member(prompt, filter)
+    fun member(
+        prompt: TextBlock,
+        filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
+    ): MemberRef =
+        script.ask.member(prompt, filter, accepting)
 
     fun member(
         prompt: TextId,
         filter: MemberChoiceFilter = MemberChoiceFilter.Any,
+        accepting: MemberChoiceFilter = filter,
         body: ScriptScope.(MemberRef) -> Unit,
     ) {
-        script.body(member(prompt, filter))
+        script.body(member(prompt, filter, accepting))
     }
 
     fun inventorySlot(
@@ -2251,7 +2273,7 @@ data class InventorySlotRef(val index: IntExpr)
 
 class NativeScope(private val script: ScriptScope) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
-    // plumbing, legacy Ydarg state, and helper calls whose implementation is
+    // plumbing, Ydarg state, and helper calls whose implementation is
     // genuinely engine-owned. Game rules should become typed DSL verbs before
     // they are allowed here.
     val screen = NativeScreen(script)
@@ -2898,7 +2920,7 @@ class GameProgressBuilder {
 class GameMilestoneBuilder(private val id: GameMilestoneId) {
     private var specialInventoryItem: ItemId? = null
     private var requiredToWin: Boolean = false
-    private var legacySpecial: LegacySpecialMapping? = null
+    private var sourceSpecial: SourceSpecialMapping? = null
 
     fun showsAs(item: ItemId) {
         specialInventoryItem = item
@@ -2908,12 +2930,12 @@ class GameMilestoneBuilder(private val id: GameMilestoneId) {
         requiredToWin = true
     }
 
-    fun legacyPartyField(field: LegacySpecialField, achievedValue: Int = 1) {
-        legacySpecial = LegacySpecialMapping(field, achievedValue)
+    fun sourcePartyField(field: SourceSpecialField, achievedValue: Int = 1) {
+        sourceSpecial = SourceSpecialMapping(field, achievedValue)
     }
 
     fun build(): GameMilestoneModel =
-        GameMilestoneModel(id, specialInventoryItem, requiredToWin, legacySpecial)
+        GameMilestoneModel(id, specialInventoryItem, requiredToWin, sourceSpecial)
 }
 
 @RylNextDsl

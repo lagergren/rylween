@@ -21,8 +21,8 @@ private class StdioTerminalPort : TerminalPort {
 
 fun main(args: Array<String>) {
     val config = parseTerminalConfig(args.toList(), ::printTownUsage)
-    val game = RylweenCompiledScratch.nextRylween
-    val content = RylweenCompiledScratch.nextDsl
+    val game = RylweenCompiledGame.nextRylween
+    val content = RylweenCompiledGame.nextDsl
     val state = game.states.singleOrNull { it.id == config.state }
         ?: error("unknown state ${config.state.slug}")
     val party = state.parties.firstOrNull { it.id == state.realm.activeParty }
@@ -90,13 +90,13 @@ object RylweenGameTerminalMain {
     @JvmStatic
     fun main(args: Array<String>) {
         val config = parseTerminalConfig(args.toList(), ::printGameUsage)
-        val game = RylweenCompiledScratch.nextRylween
-        val content = RylweenCompiledScratch.nextDsl
+        val game = RylweenCompiledGame.nextRylween
+        val content = RylweenCompiledGame.nextDsl
         val baseState = game.states.singleOrNull { it.id == config.state }
             ?: error("unknown state ${config.state.slug}")
         val state = config.hour?.let { baseState.copy(realm = baseState.realm.copy(hour = it)) } ?: baseState
         val terminal = StdioTerminalPort()
-        val worldMap = WorldMapGrid.loadLegacyMapDat(config.mapFile)
+        val worldMap = WorldMapGrid.loadReferenceMapDat(config.mapFile)
         val engine = RylweenKotlinEngine(
             content = content,
             npcPlacementConfig = NpcPlacementRealizerConfig(
@@ -202,7 +202,7 @@ private fun townArg(value: String): TownId =
 
 private fun wildernessPlacementPolicy(mapFile: File): WildernessNpcPlacementPolicy =
     WildernessNpcPlacementPolicy(
-        allowedPoints = if (mapFile.isFile) WorldMapGrid.loadLegacyMapDat(mapFile).passableNpcPoints() else null,
+        allowedPoints = if (mapFile.isFile) WorldMapGrid.loadReferenceMapDat(mapFile).passableNpcPoints() else null,
     )
 
 private fun printTownUsage() {

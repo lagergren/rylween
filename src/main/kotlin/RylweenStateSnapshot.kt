@@ -219,7 +219,7 @@ private class RuntimeStateSnapshotWriter {
     private fun partyId(id: PartyId): String = "partyId(${quote(id.slug)})"
     private fun worldMapId(id: WorldMapId): String = "worldMap(${quote(id.slug)})"
     private fun terrainId(id: TerrainId): String =
-        id.legacyMapCode?.let { "terrain(${quote(id.slug)}, ${charLiteral(it)})" }
+        id.sourceMapCode?.let { "terrain(${quote(id.slug)}, ${charLiteral(it)})" }
             ?: "terrain(${quote(id.slug)})"
     private fun townId(id: TownId): String = "town(${quote(id.slug)})"
     private fun buildingId(id: BuildingId): String = "building(${quote(id.slug)})"

@@ -1,4 +1,4 @@
-// rylween-full-scratch.dsl.kts -- game-specific Rylween scratch source.
+// RylweenGame.dsl.kts -- game-specific Rylween content source.
 //
 // This file should contain game declarations: flags, progress milestones,
 // monsters, missions, scripts, and states. DSL implementation code belongs in
@@ -10,7 +10,7 @@
 //   ./gradlew check
 
 // =============================================================================
-// 06. Full-game scratch authoring area
+// 06. Full-game authoring area
 // =============================================================================
 //
 // This section should eventually contain the whole game in the order below:
@@ -22,13 +22,12 @@
 //   states:
 //     authored start states first, then exact runtime-save-shaped fixtures.
 //
-// For now, it keeps the six hard-case readability probes from dsl-next.kts and
-// the first state fixture. New migration passes should add real content here
-// incrementally instead of creating another full transcription file.
+// New migration passes should add real content here incrementally instead of
+// creating another full transcription file.
 
 val nextRylween = rylween {
     content {
-    // Content tables are still skeletal in this first scratch pass. The next
+    // Content tables are still skeletal. The next
     // passes should fill in visuals, layouts, terrain, maps, items, spells,
     // text declarations, menus, and the rest of the monster/mission tables here.
 
@@ -52,35 +51,35 @@ val nextRylween = rylween {
         milestone(Milestones.fireShield) {
             showsAs(Items.fireshield)
             requiredToWin()
-            legacyPartyField(LegacySpecialField.Fireshield)
+            sourcePartyField(SourceSpecialField.Fireshield)
         }
 
         milestone(Milestones.braceletsOfThun) {
             showsAs(Items.bracelets)
             requiredToWin()
-            legacyPartyField(LegacySpecialField.Bracelets)
+            sourcePartyField(SourceSpecialField.Bracelets)
         }
 
         milestone(Milestones.masterCrown) {
             showsAs(Items.mastercrown)
             requiredToWin()
-            legacyPartyField(LegacySpecialField.Mastercrown)
+            sourcePartyField(SourceSpecialField.Mastercrown)
         }
 
         milestone(Milestones.footOfJazzy) {
             showsAs(Items.jazzyfoot)
             requiredToWin()
-            legacyPartyField(LegacySpecialField.Jazzyfoot)
+            sourcePartyField(SourceSpecialField.Jazzyfoot)
         }
 
         milestone(Milestones.silverKey) {
             showsAs(Items.silverkey)
             requiredToWin()
-            legacyPartyField(LegacySpecialField.Silverkey)
+            sourcePartyField(SourceSpecialField.Silverkey)
         }
 
         milestone(Milestones.ydargVictory) {
-            legacyPartyField(LegacySpecialField.Silverkey, achievedValue = 2)
+            sourcePartyField(SourceSpecialField.Silverkey, achievedValue = 2)
         }
 
         winningConfiguration {
@@ -1167,7 +1166,11 @@ val nextRylween = rylween {
             menu(T.Towne.Church.menu) {
                 option('H') {
                     native.screen.clearText()
-                    val m = choice.member(T.Towne.Church.who)
+                    val m = choice.member(
+                        T.Towne.Church.who,
+                        filter = MemberChoiceFilter.AliveOnly,
+                        accepting = MemberChoiceFilter.Any,
+                    )
 
                     whenever(m.dead) {
                         screen {
@@ -1222,7 +1225,11 @@ val nextRylween = rylween {
 
                 option('E') {
                     native.screen.clearText()
-                    val m = choice.member(T.Towne.Church.who)
+                    val m = choice.member(
+                        T.Towne.Church.who,
+                        filter = MemberChoiceFilter.SpellcasterOnly,
+                        accepting = MemberChoiceFilter.Any,
+                    )
 
                     whenever(!m.spellcaster) {
                         native.screen.clearText()
@@ -1274,7 +1281,11 @@ val nextRylween = rylween {
 
                 option('R') {
                     native.screen.clearText()
-                    val m = choice.member(T.Towne.Church.who)
+                    val m = choice.member(
+                        T.Towne.Church.who,
+                        filter = MemberChoiceFilter.DeadOnly,
+                        accepting = MemberChoiceFilter.Any,
+                    )
 
                     whenever(!m.dead) {
                         native.screen.clearText()
@@ -2357,6 +2368,8 @@ val nextRylween = rylween {
                 structuredText {
                     line("On Whom? (1-", maxMembers, ")")
                 },
+                filter = MemberChoiceFilter.DeadOnly,
+                accepting = MemberChoiceFilter.Any,
             )
 
             native.screen.clearText()
