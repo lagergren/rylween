@@ -2189,10 +2189,17 @@ class ShopServiceTerminalAdapter(
                     }
                 }
                 is ShopServiceStep.ConfirmPurchase -> {
-                    val keys = checkNotNull(session.shop.buy).paymentKeys
+                    val buy = checkNotNull(session.shop.buy)
+                    val priceText = when (step.offer.purchase) {
+                        is ShopPurchaseModel.Bulk -> buy.unitPrice
+                        ShopPurchaseModel.InventoryItem -> buy.singlePrice
+                    }
+                    priceText?.let {
+                        terminal.write(renderer.lines(it, TerminalTextContext(shopPrice = step.totalPrice)))
+                    }
                     val choices = listOf(
-                        TerminalChoice(true, keys.pay),
-                        TerminalChoice(false, keys.decline),
+                        TerminalChoice(true, buy.paymentKeys.pay),
+                        TerminalChoice(false, buy.paymentKeys.decline),
                     )
                     writeBindingMenu(step.prompt, choices.map { it.binding })
                     when (val input = terminal.readChoice(choices)) {
