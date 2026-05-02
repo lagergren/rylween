@@ -149,6 +149,15 @@ private class RylweenAnsiGame(
                         is TerminalRunStatus.Waiting -> updated
                     }
                 }
+                is WildernessSessionStep.Camp -> {
+                    val result = CampSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceCampSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "camp step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
                 is WildernessSessionStep.InventoryItemUse -> {
                     val result = InventoryItemUseTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceInventoryItemUseSession(result.session)
@@ -554,6 +563,9 @@ private fun WildernessSessionResultStatus.statusLine(): List<String> =
         WildernessSessionResultStatus.ViewPartyUnavailable -> listOf("Party view not ported yet.")
         WildernessSessionResultStatus.DropUnavailable -> listOf("Drop not ported yet.")
         WildernessSessionResultStatus.CampUnavailable -> listOf("Camp not ported yet.")
+        WildernessSessionResultStatus.Camped -> emptyList()
+        WildernessSessionResultStatus.NotTired -> emptyList()
+        WildernessSessionResultStatus.CampNotEnoughFood -> listOf("Not enough food.")
         WildernessSessionResultStatus.CastSpellUnavailable -> listOf("No spell cast.")
         WildernessSessionResultStatus.CastSpellUsed -> listOf("Spell cast.")
         WildernessSessionResultStatus.EquipmentUsed -> listOf("Equipment updated.")

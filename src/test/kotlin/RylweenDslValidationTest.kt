@@ -792,6 +792,83 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun campSessionReportsNotTiredWhenRestedHoursAreNonZero() {
+        val party = testParty(food = 100, restedHours = 4)
+        val session = CampSession.start(
+            runtime = RuntimeSessionState.singleParty(party = party, hour = 12, currentTown = null),
+            content = RylweenCompiledGame.nextDsl.runtimeContent(),
+        )
+
+        val finished = session
+            .apply(CampSessionInput.Continue)
+            .step as CampSessionStep.Finished
+
+        assertEquals(CampSessionStatus.NotTired, finished.result.status)
+        assertEquals(4, finished.result.runtime.activeParty.resources.restedHours)
+    }
+
+    @Test
+    fun campSessionRefusesWithInsufficientFoodAfterGuardChoice() {
+        val party = testParty(food = 0, restedHours = 0)
+        val session = CampSession.start(
+            runtime = RuntimeSessionState.singleParty(party = party, hour = 12, currentTown = null),
+            content = RylweenCompiledGame.nextDsl.runtimeContent(),
+        )
+
+        val finished = session
+            .apply(CampSessionInput.GuardAnswer(yes = false))
+            .apply(CampSessionInput.Continue)
+            .step as CampSessionStep.Finished
+
+        assertEquals(CampSessionStatus.NotEnoughFood, finished.result.status)
+        assertEquals(0, finished.result.runtime.activeParty.resources.restedHours)
+    }
+
+    @Test
+    fun campSessionAppliesFoodCostHealingAndAdvancesHourWhenRested() {
+        val damaged = testParty(
+            food = 100,
+            restedHours = 0,
+            inventoryItems = mapOf(1 to Items.tent),
+            members = listOf(
+                testMember(name = "A", hitPoints = 4, health = 30),
+                testMember(name = "B", hitPoints = 5, health = 30),
+            ),
+        )
+        val content = RylweenCompiledGame.nextDsl.runtimeContent().copy(
+            realm = RylweenCompiledGame.nextDsl.realm.copy(
+                camp = RylweenCompiledGame.nextDsl.realm.camp.copy(
+                    ambushChancePercent = 0,
+                    temperatureMax = 0,
+                ),
+            ),
+        )
+        val runtime = RuntimeSessionState.singleParty(
+            party = damaged,
+            hour = 10,
+            currentTown = null,
+        )
+        val initial = CampSession.start(runtime, content)
+
+        var session = initial.apply(CampSessionInput.GuardAnswer(yes = false))
+        while (session.step is CampSessionStep.Messages) {
+            session = session.apply(CampSessionInput.Continue)
+        }
+        val finished = session.step as CampSessionStep.Finished
+
+        assertEquals(CampSessionStatus.Rested, finished.result.status)
+        val rested = finished.result.runtime
+        assertEquals(14, rested.activeParty.resources.restedHours)
+        // food cost = foodCostPerMember (4) * 2 living = 8 → 100 - 8 = 92
+        assertEquals(92, rested.activeParty.resources.food)
+        // hour advanced by hoursAdvanced (8) → 10 + 8 = 18
+        assertEquals(18, rested.realm.hour)
+        // both members healed by healthGain (+15), clamped to per-member max
+        assertEquals(19, rested.activeParty.members[0].hitPoints.current)
+        assertEquals(20, rested.activeParty.members[1].hitPoints.current)
+    }
+
+    @Test
     fun consumeTorchDecrementsResourceOrReportsNoTorches() {
         val lit = testParty(torches = 2).consumeTorch() as TorchActionResult.Consumed
         val last = testParty(torches = 1).consumeTorch() as TorchActionResult.Consumed

@@ -193,7 +193,41 @@ data class ItemRecordModel(
 )
 data class RealmContentModel(
     val baseResourceCapacity: Map<Resource, Int> = emptyMap(),
+    val camp: CampRulesModel = CampRulesModel(),
 )
+
+/**
+ * Authored camp / rest balance. Read by [CampSession]; every value is
+ * data so a different game can change healing, food cost, temperature
+ * bands, or shelter rules without touching the runtime. Damage applies
+ * to members not protected by an item with [TemperatureBand] coverage
+ * declared on the carried inventory (see [ItemRecordModel.campProtection]).
+ */
+data class CampRulesModel(
+    val healthGain: Int = 0,
+    val foodCostPerMember: Int = 0,
+    val hoursAdvanced: Int = 0,
+    val hoursRestedReset: Int = 0,
+    val temperatureMax: Int = 0,
+    val temperatureBands: List<TemperatureBandRange> = emptyList(),
+    val temperatureDamage: Map<TemperatureBand, Int> = emptyMap(),
+    val ambushChancePercent: Int = 0,
+    val ambushTier: EncounterTier? = null,
+    val notTired: TextBlock = inlineText("You are not tired."),
+    val notEnoughFood: TextBlock = inlineText("Not enough food."),
+    val guardPrompt: TextBlock = inlineText("Camp.", "", "Post a guard?", ""),
+    val guardMemberPrompt: TextBlock = inlineText("Who?"),
+    val guardMemberDead: TextBlock = inlineText("Dead."),
+    val standsGuard: TextBlock = inlineText("Guard stands watch."),
+    val sleeping: TextBlock = inlineText("Zzz..."),
+    val rested: TextBlock = inlineText("You feel rested."),
+    val ambush: TextBlock = inlineText("Ambush!!!"),
+    val surpriseKill: TextBlock = inlineText("A camper is dead", "before you can react!"),
+    val temperatureMessage: Map<TemperatureBand, TextBlock> = emptyMap(),
+    val noShelterMessage: Map<TemperatureBand, TextBlock> = emptyMap(),
+)
+
+data class TemperatureBandRange(val band: TemperatureBand, val range: IntRange)
 data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
 data class WorldMapId(val slug: String)
@@ -3135,13 +3169,83 @@ class ItemRecordBuilder {
 @RylNextDsl
 class RealmContentBuilder {
     private val baseCapacity = mutableMapOf<Resource, Int>()
+    private var camp = CampRulesModel()
 
     fun baseResourceCapacity(resource: Resource, amount: Int) {
         baseCapacity[resource] = amount
     }
 
+    fun camp(body: CampRulesBuilder.() -> Unit) {
+        camp = CampRulesBuilder().apply(body).build()
+    }
+
     internal fun build(): RealmContentModel =
-        RealmContentModel(baseResourceCapacity = baseCapacity.toMap())
+        RealmContentModel(
+            baseResourceCapacity = baseCapacity.toMap(),
+            camp = camp,
+        )
+}
+
+@RylNextDsl
+class CampRulesBuilder {
+    var healthGain: Int = 0
+    var foodCostPerMember: Int = 0
+    var hoursAdvanced: Int = 0
+    var hoursRestedReset: Int = 0
+    var temperatureMax: Int = 0
+    var ambushChancePercent: Int = 0
+    var ambushTier: EncounterTier? = null
+    var notTired: TextBlock = inlineText("You are not tired.")
+    var notEnoughFood: TextBlock = inlineText("Not enough food.")
+    var guardPrompt: TextBlock = inlineText("Camp.", "", "Post a guard?", "")
+    var guardMemberPrompt: TextBlock = inlineText("Who?")
+    var guardMemberDead: TextBlock = inlineText("Dead.")
+    var standsGuard: TextBlock = inlineText("Guard stands watch.")
+    var sleeping: TextBlock = inlineText("Zzz...")
+    var rested: TextBlock = inlineText("You feel rested.")
+    var ambush: TextBlock = inlineText("Ambush!!!")
+    var surpriseKill: TextBlock = inlineText("A camper is dead", "before you can react!")
+    private val bands = mutableListOf<TemperatureBandRange>()
+    private val damage = mutableMapOf<TemperatureBand, Int>()
+    private val temperatureMessage = mutableMapOf<TemperatureBand, TextBlock>()
+    private val noShelterMessage = mutableMapOf<TemperatureBand, TextBlock>()
+
+    fun temperatureBand(
+        band: TemperatureBand,
+        range: IntRange,
+        damage: Int,
+        message: TextBlock,
+        noShelter: TextBlock,
+    ) {
+        bands += TemperatureBandRange(band, range)
+        this.damage[band] = damage
+        temperatureMessage[band] = message
+        noShelterMessage[band] = noShelter
+    }
+
+    internal fun build(): CampRulesModel = CampRulesModel(
+        healthGain = healthGain,
+        foodCostPerMember = foodCostPerMember,
+        hoursAdvanced = hoursAdvanced,
+        hoursRestedReset = hoursRestedReset,
+        temperatureMax = temperatureMax,
+        temperatureBands = bands.toList(),
+        temperatureDamage = damage.toMap(),
+        ambushChancePercent = ambushChancePercent,
+        ambushTier = ambushTier,
+        notTired = notTired,
+        notEnoughFood = notEnoughFood,
+        guardPrompt = guardPrompt,
+        guardMemberPrompt = guardMemberPrompt,
+        guardMemberDead = guardMemberDead,
+        standsGuard = standsGuard,
+        sleeping = sleeping,
+        rested = rested,
+        ambush = ambush,
+        surpriseKill = surpriseKill,
+        temperatureMessage = temperatureMessage.toMap(),
+        noShelterMessage = noShelterMessage.toMap(),
+    )
 }
 
 @RylNextDsl
