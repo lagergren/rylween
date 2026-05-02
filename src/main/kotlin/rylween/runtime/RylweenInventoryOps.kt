@@ -284,6 +284,9 @@ fun PartyState.consumeInventoryItems(pool: ItemPoolId, quantity: Int): PartyStat
 fun PartyState.withMilestone(milestone: GameMilestoneId): PartyState =
     if (milestone in milestones) this else copy(milestones = (milestones + milestone).sortedBy { it.slug })
 
+fun PartyState.withoutMilestone(milestone: GameMilestoneId): PartyState =
+    if (milestone !in milestones) this else copy(milestones = milestones.filterNot { it == milestone })
+
 fun PartyState.withJournalLines(lines: List<String>): PartyState =
     copy(journal = journal + lines.filter { it.isNotBlank() }.map(JournalEntryState::Line))
 

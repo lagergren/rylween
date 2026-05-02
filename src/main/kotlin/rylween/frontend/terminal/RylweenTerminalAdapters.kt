@@ -5,6 +5,7 @@ package rylween.frontend.terminal
 
 import rylween.dsl.*
 import rylween.engine.*
+import rylween.frontend.terminal.ydarg.YdargSessionTerminalAdapter
 import rylween.runtime.*
 
 class CampSessionTerminalAdapter(
@@ -1030,6 +1031,17 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.Dungeon -> {
                     val result = DungeonSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceDungeonSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is WildernessSessionStep.Ydarg -> {
+                    val result = YdargSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceYdargSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
                         TerminalRunStatus.StepLimitReached ->
