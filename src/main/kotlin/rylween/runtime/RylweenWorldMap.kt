@@ -199,16 +199,22 @@ data class WorldMapGrid(
             }
         }
 
-    fun viewport(center: GridPoint, radius: Int = 2): List<String> {
+    fun viewport(center: GridPoint, radius: Int = 2): WorldMapViewport {
         require(radius >= 0) { "map viewport radius must be non-negative" }
-        return (-radius..radius).map { dy ->
-            buildString {
-                (-radius..radius).forEach { dx ->
+        return WorldMapViewport(
+            center = center,
+            radius = radius,
+            rows = (-radius..radius).map { dy ->
+                (-radius..radius).map { dx ->
                     val point = GridPoint(center.x + dx, center.y + dy)
-                    append(if (point == center) '@' else tileAt(point) ?: ' ')
+                    WorldMapViewportCell(
+                        point = point,
+                        tile = tileAt(point),
+                        isCenter = point == center,
+                    )
                 }
-            }
-        }
+            },
+        )
     }
 
     private fun withTileAt(point: GridPoint, tile: Char): WorldMapGrid {
@@ -229,6 +235,18 @@ data class WorldMapGrid(
             fromSourceRows(file.readLines())
     }
 }
+
+data class WorldMapViewport(
+    val center: GridPoint,
+    val radius: Int,
+    val rows: List<List<WorldMapViewportCell>>,
+)
+
+data class WorldMapViewportCell(
+    val point: GridPoint,
+    val tile: Char?,
+    val isCenter: Boolean,
+)
 
 fun GameModel.worldMapGrid(id: WorldMapId): WorldMapGrid? =
     worldMaps.firstOrNull { it.id == id }?.toGrid()

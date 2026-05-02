@@ -666,6 +666,7 @@ class TownSessionTerminalAdapter(
                 return@forEach
             }
             when (event) {
+                is EngineTraceEvent.View -> Unit
                 is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
                 is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
                 is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
@@ -674,9 +675,7 @@ class TownSessionTerminalAdapter(
                 is EngineTraceEvent.AskText -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
-                    terminal.write(listOf("Native: ${event.request.path}"))
-                }
+                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
                 is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
                 is EngineTraceEvent.NativeString ->
                     terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
@@ -867,9 +866,7 @@ class DungeonSessionTerminalAdapter(
     private fun writeExplore(session: DungeonSession) {
         session.dungeons.backdrop?.let { image ->
             terminal.writeEngineEvent(
-                EngineTraceEvent.NativeEffect(
-                    EngineRequest(NativeAllowlist.screenShowImage.path, listOf(image.slug)),
-                ),
+                EngineTraceEvent.View(ViewCommand.ShowImage(image)),
                 renderer,
                 TerminalTextContext(runtime = session.runtime),
             )
@@ -936,9 +933,7 @@ class WildernessSessionTerminalAdapter(
                     val keys = session.wilderness.keys
                     step.image?.let { image ->
                         terminal.writeEngineEvent(
-                            EngineTraceEvent.NativeEffect(
-                                EngineRequest(NativeAllowlist.screenShowImage.path, listOf(image.slug)),
-                            ),
+                            EngineTraceEvent.View(ViewCommand.ShowImage(image)),
                             renderer,
                             TerminalTextContext(runtime = session.runtime),
                         )
@@ -1182,7 +1177,7 @@ class WildernessSessionTerminalAdapter(
         val lines = buildList {
             add("")
             add("Wilderness")
-            addAll(point?.let { session.worldMap.viewport(it) }.orEmpty())
+            addAll(point?.let { renderer.worldMapViewportLines(session.worldMap.viewport(it)) }.orEmpty())
             add(statusLine(session, point))
             point?.let { current ->
                 session.towns.firstOrNull { town -> town.position == current }?.let { town ->
@@ -1215,6 +1210,7 @@ class WildernessSessionTerminalAdapter(
                 return@forEach
             }
             when (event) {
+                is EngineTraceEvent.View -> Unit
                 is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
                 is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
                 is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
@@ -1223,9 +1219,7 @@ class WildernessSessionTerminalAdapter(
                 is EngineTraceEvent.AskText -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
-                    terminal.write(listOf("Native: ${event.request.path}"))
-                }
+                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
                 is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
                 is EngineTraceEvent.NativeString ->
                     terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))

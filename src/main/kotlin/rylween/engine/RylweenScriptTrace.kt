@@ -25,6 +25,7 @@ class ScriptTraceRunner(
             }
             is Op.WaitInput -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.WaitInput(op.reason)) }
             is Op.Pause -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.Pause(op.millis)) }
+            is Op.View -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.View(op.command)) }
             is Op.LetInt -> ScriptControlSignal.Continue.also { intVars[op.name] = eval(op.value) }
             is Op.BindText -> ScriptControlSignal.Continue.also { stringVars[op.name] = eval(op.value) }
             is Op.Set -> ScriptControlSignal.Continue

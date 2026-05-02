@@ -176,6 +176,10 @@ class StatefulScriptServiceRunner(
                 advanceTop()
                 engine.trace(EngineTraceEvent.Pause(op.millis))
             }
+            is Op.View -> {
+                advanceTop()
+                engine.trace(EngineTraceEvent.View(op.command))
+            }
             is Op.LetInt -> {
                 locals[op.name] = eval(op.value)
                 advanceTop()

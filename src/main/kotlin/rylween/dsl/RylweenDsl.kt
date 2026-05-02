@@ -432,11 +432,6 @@ fun rumour(slug: String) = RumourId(slug)
 // Engine-native operation handles are part of the reusable runtime boundary,
 // not game content.
 class NativeOpRefs {
-    val screenClearText = nativeOp("screen.clear_text")
-    val screenClearMapWindow = nativeOp("screen.clear_map_window")
-    val screenRedrawMap = nativeOp("screen.redraw_map")
-    val screenShowImage = nativeOp("screen.show_image")
-    val screenStatusLine = nativeOp("screen.status_line")
     val inventoryAdd = nativeOp("inventory.add")
     val townEnterService = nativeOp("town.enter_service")
     val ydargInit = nativeOp("ydarg.init")
@@ -513,6 +508,14 @@ enum class ScriptControlSignal { Continue, BreakNearestLoop, StopScript }
 enum class MemberChoiceFilter { Any, AliveOnly, DeadOnly, SpellcasterOnly }
 enum class InventorySlotChoiceFilter { Any, NonEmpty, Empty }
 
+sealed interface ViewCommand {
+    data object ClearText : ViewCommand
+    data object ClearMapWindow : ViewCommand
+    data object RenderMap : ViewCommand
+    data object StatusLine : ViewCommand
+    data class ShowImage(val image: ImageId) : ViewCommand
+}
+
 data class InputBindingModel(
     val primary: String,
     val aliases: List<String> = emptyList(),
@@ -560,6 +563,7 @@ sealed interface Op {
     data class EmitIndexed(val pattern: TextPattern, val value: IntAst) : Op
     data class WaitInput(val reason: String? = null) : Op
     data class Pause(val millis: Int) : Op
+    data class View(val command: ViewCommand) : Op
     data class LetInt(val name: String, val value: IntAst) : Op
     data class BindText(val name: String, val value: StrAst) : Op
     data class Set(val target: LValueAst, val value: IntAst) : Op
@@ -1993,11 +1997,6 @@ class NativeIntSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
 class NativeStringSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
 
 class NativeAllowlistRefs {
-    val screenClearText = effect(NativeOps.screenClearText, "text-window rendering primitive")
-    val screenClearMapWindow = effect(NativeOps.screenClearMapWindow, "map-window clearing primitive")
-    val screenRedrawMap = effect(NativeOps.screenRedrawMap, "map rendering primitive")
-    val screenShowImage = effect(NativeOps.screenShowImage, "map-window image rendering primitive")
-    val screenStatusLine = effect(NativeOps.screenStatusLine, "status-line rendering primitive")
     val inventoryAdd = effect(NativeOps.inventoryAdd, "inventory slot mutation")
     val townEnterService = effect(NativeOps.townEnterService, "town building-service trampoline")
     val ydargInit = effect(NativeOps.ydargInit, "Ydarg dungeon state setup")
@@ -2019,11 +2018,6 @@ class NativeAllowlistRefs {
     val npcRoleLocation = string(NativeOps.npcRoleLocation, "role-resolved NPC location binding")
 
     val all: List<NativeSpec> = listOf(
-        screenClearText,
-        screenClearMapWindow,
-        screenRedrawMap,
-        screenShowImage,
-        screenStatusLine,
         inventoryAdd,
         townEnterService,
         ydargInit,
@@ -2159,6 +2153,7 @@ class ScriptScope(
     val battle = BattleRef(this)
     val ask = AskScope(this)
     val choice = ChoiceScope(this)
+    val view = ViewScope(this)
     val native = NativeScope(this)
 
     val currentCaster: MemberRef
@@ -2186,6 +2181,13 @@ class ScriptScope(
     fun journal(body: StructuredTextBlockBuilder.() -> Unit) = journal(structuredText(body))
     fun waitInput(reason: String? = null) = record(Op.WaitInput(reason))
     fun pause(ms: Int) = record(Op.Pause(ms))
+
+    fun clearText() = view.clearText()
+    fun clearMapWindow() = view.clearMapWindow()
+    fun renderMap() = view.renderMap()
+    fun showBackdrop(image: ImageId) = view.showBackdrop(image)
+    fun showImage(image: ImageId) = view.showImage(image)
+    fun statusLine() = view.statusLine()
 
     fun let(name: String, value: IntExpr): IntExpr {
         record(Op.LetInt(name, value.ast))
@@ -3335,6 +3337,16 @@ class ChoiceScope(private val script: ScriptScope) {
 
 data class InventorySlotRef(val index: IntExpr)
 
+class ViewScope(private val script: ScriptScope) {
+    fun clearText() = script.record(Op.View(ViewCommand.ClearText))
+    fun clearMapWindow() = script.record(Op.View(ViewCommand.ClearMapWindow))
+    fun renderMap() = script.record(Op.View(ViewCommand.RenderMap))
+    fun redrawMap() = renderMap()
+    fun showBackdrop(image: ImageId) = showImage(image)
+    fun showImage(image: ImageId) = script.record(Op.View(ViewCommand.ShowImage(image)))
+    fun statusLine() = script.record(Op.View(ViewCommand.StatusLine))
+}
+
 class NativeScope(private val script: ScriptScope) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
     // plumbing, Ydarg state, and helper calls whose implementation is
@@ -3349,11 +3361,20 @@ class NativeScope(private val script: ScriptScope) {
 }
 
 class NativeScreen(private val script: ScriptScope) {
-    fun clearText() = script.record(Op.NativeCall(NativeAllowlist.screenClearText.path, emptyList()))
-    fun clearMapWindow() = script.record(Op.NativeCall(NativeAllowlist.screenClearMapWindow.path, emptyList()))
-    fun redrawMap() = script.record(Op.NativeCall(NativeAllowlist.screenRedrawMap.path, emptyList()))
-    fun showImage(image: ImageId) = script.record(Op.NativeCall(NativeAllowlist.screenShowImage.path, listOf(render(image))))
-    fun statusLine() = script.record(Op.NativeCall(NativeAllowlist.screenStatusLine.path, emptyList()))
+    @Deprecated("Use view.clearText() or clearText(); rendering is no longer a native string request.")
+    fun clearText() = script.record(Op.View(ViewCommand.ClearText))
+
+    @Deprecated("Use view.clearMapWindow() or clearMapWindow(); rendering is no longer a native string request.")
+    fun clearMapWindow() = script.record(Op.View(ViewCommand.ClearMapWindow))
+
+    @Deprecated("Use view.renderMap() or renderMap(); rendering is no longer a native string request.")
+    fun redrawMap() = script.record(Op.View(ViewCommand.RenderMap))
+
+    @Deprecated("Use view.showBackdrop(...) or showBackdrop(...); rendering is no longer a native string request.")
+    fun showImage(image: ImageId) = script.record(Op.View(ViewCommand.ShowImage(image)))
+
+    @Deprecated("Use view.statusLine() or statusLine(); rendering is no longer a native string request.")
+    fun statusLine() = script.record(Op.View(ViewCommand.StatusLine))
 }
 
 class NativeRumour(private val script: ScriptScope) {
@@ -6470,6 +6491,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.EmitIndexed -> int(op.value)
                 is Op.WaitInput -> Unit
                 is Op.Pause -> Unit
+                is Op.View -> Unit
                 is Op.LetInt -> int(op.value)
                 is Op.BindText -> str(op.value)
                 is Op.Set -> int(op.value)

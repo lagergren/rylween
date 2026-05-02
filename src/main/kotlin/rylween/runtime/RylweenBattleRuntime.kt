@@ -962,6 +962,7 @@ private class CombatScriptRunner(
                 is Op.EmitIndexed -> texts += inlineText(evaluator.int(op.value).toString())
                 is Op.WaitInput -> Unit
                 is Op.Pause -> Unit
+                is Op.View -> Unit
                 is Op.LetInt -> locals = locals + (op.name to evaluator.int(op.value))
                 is Op.BindText -> Unit
                 is Op.Set -> write(op.target, evaluator.int(op.value))

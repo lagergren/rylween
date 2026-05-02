@@ -12,15 +12,6 @@ data class EngineRequest(
     val args: List<String> = emptyList(),
 )
 
-fun EngineRequest.isRenderingPrimitive(): Boolean =
-    path in setOf(
-        NativeAllowlist.screenClearText.path,
-        NativeAllowlist.screenClearMapWindow.path,
-        NativeAllowlist.screenRedrawMap.path,
-        NativeAllowlist.screenShowImage.path,
-        NativeAllowlist.screenStatusLine.path,
-    )
-
 interface RylweenEnginePort {
     fun effect(request: EngineRequest)
     fun readInt(request: EngineRequest): Int
@@ -28,6 +19,7 @@ interface RylweenEnginePort {
 }
 
 sealed interface EngineTraceEvent {
+    data class View(val command: ViewCommand) : EngineTraceEvent
     data class NativeEffect(val request: EngineRequest) : EngineTraceEvent
     data class NativeInt(val request: EngineRequest, val result: Int) : EngineTraceEvent
     data class NativeString(val request: EngineRequest, val result: String) : EngineTraceEvent

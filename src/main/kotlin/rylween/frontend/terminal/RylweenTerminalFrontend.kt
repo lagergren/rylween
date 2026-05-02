@@ -13,11 +13,20 @@ interface TerminalPort {
     fun readTextLine(maxLength: Int? = null): String? = readLine()
     fun readReturn(): Boolean? = readLine()?.let { true }
     fun pause(ms: Int) {}
+    fun writeViewCommand(
+        command: ViewCommand,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext,
+    ): Boolean = false
     fun writeEngineEvent(
         event: EngineTraceEvent,
         renderer: TerminalTextRenderer,
         context: TerminalTextContext,
-    ): Boolean = false
+    ): Boolean =
+        when (event) {
+            is EngineTraceEvent.View -> writeViewCommand(event.command, renderer, context)
+            else -> false
+        }
 }
 
 fun TerminalPort.writeKeyPrompt(
@@ -93,6 +102,13 @@ class TerminalTextRenderer(
             is TextBlock.Ref -> references[block.id.id] ?: listOf("[${block.id.id}]")
             is TextBlock.Structured -> block.lines.map { line ->
                 line.parts.joinToString(separator = "") { part -> render(part, context) }
+            }
+        }
+
+    fun worldMapViewportLines(viewport: WorldMapViewport): List<String> =
+        viewport.rows.map { row ->
+            row.joinToString(separator = "") { cell ->
+                if (cell.isCenter) "@" else (cell.tile ?: ' ').toString()
             }
         }
 
@@ -279,6 +295,7 @@ fun TerminalPort.writeScriptEvents(
             return@forEach
         }
         when (event) {
+            is EngineTraceEvent.View -> Unit
             is EngineTraceEvent.Screen -> write(renderer.lines(event.text, context))
             is EngineTraceEvent.Emit -> write(listOf("[${event.id.id}]"))
             is EngineTraceEvent.EmitIndexed -> write(listOf("[${event.pattern.pattern}: ${event.value}]"))
@@ -287,9 +304,7 @@ fun TerminalPort.writeScriptEvents(
             is EngineTraceEvent.AskText -> write(renderer.lines(event.prompt, context))
             is EngineTraceEvent.AskMember -> write(renderer.lines(event.prompt, context))
             is EngineTraceEvent.AskInventorySlot -> write(renderer.lines(event.prompt, context))
-            is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
-                write(listOf("Native: ${event.request.path}"))
-            }
+            is EngineTraceEvent.NativeEffect -> write(listOf("Native: ${event.request.path}"))
             is EngineTraceEvent.NativeInt -> write(listOf("Native int: ${event.request.path} = ${event.result}"))
             is EngineTraceEvent.NativeString -> write(listOf("Native string: ${event.request.path} = ${event.result}"))
             is EngineTraceEvent.RunScene -> write(listOf("Scene: ${event.scene.slug}"))

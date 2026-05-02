@@ -256,25 +256,35 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun traceEngineRecordsNativeBoundaryRequests() {
+    fun traceEngineSeparatesViewCommandsFromNativeBoundaryRequests() {
         val keyRequest = EngineRequest(NativeAllowlist.inputKeyUpper.path)
         val engine = TraceEnginePort(ints = mapOf(keyRequest to 82))
         val runner = ScriptTraceRunner(engine)
 
         runner.run(
             listOf(
-                Op.NativeCall(NativeAllowlist.screenClearText.path, emptyList()),
+                Op.View(ViewCommand.ClearText),
                 Op.LetInt("key", IntAst.NativeInt(keyRequest.path, keyRequest.args)),
                 Op.EmitIndexed(TextPattern("key.{}"), IntAst.Var("key")),
             ),
         )
 
         assertEquals(
-            EngineTraceEvent.NativeEffect(EngineRequest(NativeAllowlist.screenClearText.path)),
+            EngineTraceEvent.View(ViewCommand.ClearText),
             engine.events[0],
         )
         assertEquals(EngineTraceEvent.NativeInt(keyRequest, 82), engine.events[1])
         assertTrue(engine.events[2] is EngineTraceEvent.EmitIndexed)
+    }
+
+    @Test
+    fun compiledGameUsesTypedViewCommandsInsteadOfNativeScreenCalls() {
+        val nativePaths = nativePathsIn(RylweenCompiledGame.nextDsl)
+
+        assertFalse(
+            nativePaths.any { it.startsWith("screen.") },
+            "screen render calls should be typed ViewCommand events, not native paths: $nativePaths",
+        )
     }
 
     @Test
@@ -1307,7 +1317,7 @@ class RylweenDslValidationTest {
 
         assertTrue(result.status is TerminalRunStatus.Finished)
         assertTrue(Images.Scene.church.slug in terminal.imageSlugs)
-        assertTrue(NativeAllowlist.screenClearMapWindow.path in terminal.renderingOps)
+        assertTrue(ViewCommand.ClearMapWindow in terminal.viewCommands)
     }
 
     @Test
@@ -1950,7 +1960,7 @@ class RylweenDslValidationTest {
                         Scenes.Towne.church,
                         listOf(
                             Op.Screen(inlineText("Church body")),
-                            Op.NativeCall(NativeAllowlist.screenClearText.path, emptyList()),
+                            Op.View(ViewCommand.ClearText),
                         ),
                     ),
                 ),
@@ -1963,7 +1973,7 @@ class RylweenDslValidationTest {
         assertTrue(session.session.step is TownSessionStep.Finished)
         assertTrue(terminal.output.any { "Church body" in it })
         assertTrue(terminal.output.none { "Service: church" in it })
-        assertTrue(terminal.output.none { "Native: screen.clear_text" in it })
+        assertTrue(terminal.output.none { it.startsWith("Native:") })
         assertEquals(TownSessionResultStatus.NativeServiceFinished, session.session.lastResult?.status)
     }
 
@@ -4425,17 +4435,17 @@ class RylweenDslValidationTest {
     private fun testChurchScene(): SceneModel =
         GameBuilder().apply {
             scene(Scenes.Towne.church) {
-                native.screen.clearMapWindow()
-                native.screen.showImage(Images.Scene.church)
+                clearMapWindow()
+                showBackdrop(Images.Scene.church)
 
                 loop {
-                    native.screen.clearText()
-                    native.screen.statusLine()
+                    clearText()
+                    statusLine()
                     screen(T.Towne.Church.intro)
 
                     menu(T.Towne.Church.menu) {
                         option('H') {
-                            native.screen.clearText()
+                            clearText()
                             val member = choice.member(
                                 T.Towne.Church.who,
                                 filter = MemberChoiceFilter.AliveOnly,
@@ -4457,7 +4467,7 @@ class RylweenDslValidationTest {
                             }
 
                             val price = localInt((member.maxHp - member.hp) * 7)
-                            native.screen.clearText()
+                            clearText()
                             screen {
                                 line("- That'll be ", price)
                                 line("gold coins, please.")
@@ -4470,7 +4480,7 @@ class RylweenDslValidationTest {
                                     pause(1000)
                                 },
                                 paid = {
-                                    native.screen.clearText()
+                                    clearText()
                                     member.hp set member.maxHp
                                     screen {
                                         line("The priestess heals")
@@ -4482,7 +4492,7 @@ class RylweenDslValidationTest {
                         }
 
                         option('E') {
-                            native.screen.clearText()
+                            clearText()
                             val member = choice.member(
                                 T.Towne.Church.who,
                                 filter = MemberChoiceFilter.SpellcasterOnly,
@@ -4490,20 +4500,20 @@ class RylweenDslValidationTest {
                             )
 
                             whenever(!member.spellcaster) {
-                                native.screen.clearText()
+                                clearText()
                                 screen("Not a spellcaster!")
                                 pause(1000)
                                 stop("not a spellcaster")
                             }
 
                             whenever(member.mp eq member.wisdom) {
-                                native.screen.clearText()
+                                clearText()
                                 screen("That character needs", "no spell points", "to be restored.")
                                 pause(2000)
                                 stop("spell points already restored")
                             }
 
-                            native.screen.clearText()
+                            clearText()
                             val price = localInt(member.level * (member.wisdom - member.mp) * 2)
                             screen {
                                 line("- That will be ", price)
@@ -4513,13 +4523,13 @@ class RylweenDslValidationTest {
 
                             choice.payNoThanks(price,
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("You don't have the gold!")
                                     pause(1000)
                                 },
                                 paid = {
                                     member.mp set member.wisdom
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("The priestess", "restores his energy.")
                                     pause(1000)
                                 },
@@ -4527,7 +4537,7 @@ class RylweenDslValidationTest {
                         }
 
                         option('R') {
-                            native.screen.clearText()
+                            clearText()
                             val member = choice.member(
                                 T.Towne.Church.who,
                                 filter = MemberChoiceFilter.DeadOnly,
@@ -4535,7 +4545,7 @@ class RylweenDslValidationTest {
                             )
 
                             whenever(!member.dead) {
-                                native.screen.clearText()
+                                clearText()
                                 screen {
                                     line("- ", pronoun(member, PronounCase.Subject), " seems very alive")
                                     line("at the moment.")
@@ -4544,7 +4554,7 @@ class RylweenDslValidationTest {
                                 stop("already alive")
                             }
 
-                            native.screen.clearText()
+                            clearText()
                             val price = localInt(member.level * 650)
                             screen {
                                 line("- That will be ", price)
@@ -4554,7 +4564,7 @@ class RylweenDslValidationTest {
 
                             choice.payNoThanks(price,
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("You don't have the gold!")
                                     pause(1000)
                                 },
@@ -4562,7 +4572,7 @@ class RylweenDslValidationTest {
                                     member.hp set 1
                                     member.dead set false
                                     party.memberCount += 1
-                                    native.screen.clearText()
+                                    clearText()
                                     screen {
                                         line("The priestess raises")
                                         line(pronoun(member, PronounCase.Object), ".")
@@ -4573,8 +4583,8 @@ class RylweenDslValidationTest {
                         }
 
                         option('L') {
-                            native.screen.clearText()
-                            native.screen.clearMapWindow()
+                            clearText()
+                            clearMapWindow()
                             breakLoop("leave church")
                         }
                     }
@@ -4588,8 +4598,8 @@ class RylweenDslValidationTest {
                 scruffyOfferTestItems()
             }
             scene(Scenes.Towne.tavern) {
-                native.screen.clearMapWindow()
-                native.screen.showImage(Images.Scene.tavern)
+                clearMapWindow()
+                showBackdrop(Images.Scene.tavern)
 
                 choice.randomItemOffer(ItemPools.tavernScruffySpecials) {
                     offer {
@@ -4607,11 +4617,11 @@ class RylweenDslValidationTest {
                 }
 
                 loop {
-                    native.screen.clearText()
+                    clearText()
                     menu("(L)eave") {
                         option('L') {
-                            native.screen.clearText()
-                            native.screen.clearMapWindow()
+                            clearText()
+                            clearMapWindow()
                             breakLoop("leave tavern")
                         }
                     }
@@ -4622,13 +4632,13 @@ class RylweenDslValidationTest {
     private fun testInnScene(): SceneModel =
         GameBuilder().apply {
             scene(Scenes.Towne.inn) {
-                native.screen.clearMapWindow()
-                native.screen.showImage(Images.Scene.inn)
+                clearMapWindow()
+                showBackdrop(Images.Scene.inn)
 
                 loop {
                     val cost = localInt((party.leader.level * party.leader.level) * 15)
 
-                    native.screen.clearText()
+                    clearText()
                     screen {
                         line(townNpcName(NpcJobs.innkeeper), ", the Innkeeper")
                         line("welcomes you.")
@@ -4640,7 +4650,7 @@ class RylweenDslValidationTest {
                     choice.yesNo("(Y)es", "(N)o",
                         yes = {
                             whenever(party.gold lt cost) {
-                                native.screen.clearText()
+                                clearText()
                                 screen {
                                     line("Sorry, supper is ", cost)
                                     line("gold.")
@@ -4648,7 +4658,7 @@ class RylweenDslValidationTest {
                                 pause(1000)
                             } otherwise {
                                 party.gold -= cost
-                                native.screen.clearText()
+                                clearText()
                                 screen {
                                     lines(
                                         "You are served a well",
@@ -4663,10 +4673,10 @@ class RylweenDslValidationTest {
                         },
                     )
 
-                    native.screen.clearText()
+                    clearText()
                     choice.yesNo("Anything to drink?", "",
                         yes = {
-                            native.screen.clearText()
+                            clearText()
                             menu(
                                 "What'll it be?",
                                 "",
@@ -4679,12 +4689,12 @@ class RylweenDslValidationTest {
                                 option('A') {
                                     pay(lit(2),
                                         broke = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("No money - No drink!")
                                             pause(1000)
                                         },
                                         ok = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("Ahh...!")
                                             pause(1000)
                                             healLivingMembers((lit(2) / 2) + 1)
@@ -4694,12 +4704,12 @@ class RylweenDslValidationTest {
                                 option('B') {
                                     pay(lit(3),
                                         broke = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("No money - No drink!")
                                             pause(1000)
                                         },
                                         ok = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("Ahh...!")
                                             pause(1000)
                                             healLivingMembers((lit(3) / 2) + 1)
@@ -4709,12 +4719,12 @@ class RylweenDslValidationTest {
                                 option('C') {
                                     pay(lit(5),
                                         broke = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("No money - No drink!")
                                             pause(1000)
                                         },
                                         ok = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("Ahh...!")
                                             pause(1000)
                                             healLivingMembers((lit(5) / 2) + 1)
@@ -4724,12 +4734,12 @@ class RylweenDslValidationTest {
                                 option('D') {
                                     pay(lit(7),
                                         broke = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("No money - No drink!")
                                             pause(1000)
                                         },
                                         ok = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("Ahh...!")
                                             pause(1000)
                                             healLivingMembers((lit(7) / 2) + 1)
@@ -4739,12 +4749,12 @@ class RylweenDslValidationTest {
                                 option('E') {
                                     pay(lit(1),
                                         broke = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("No money - No drink!")
                                             pause(1000)
                                         },
                                         ok = {
-                                            native.screen.clearText()
+                                            clearText()
                                             screen("The other guests giggle.")
                                             pause(1000)
                                             healLivingMembers((lit(1) / 2) + 1)
@@ -4755,10 +4765,10 @@ class RylweenDslValidationTest {
                         },
                     )
 
-                    native.screen.clearText()
+                    clearText()
                     choice.yesNo("Are you in need", "of lodging?", "",
                         yes = {
-                            native.screen.clearText()
+                            clearText()
                             screen {
                                 line("A room is ", cost, " gold/night.")
                                 line("")
@@ -4768,7 +4778,7 @@ class RylweenDslValidationTest {
                                 inlineText("(T)ake it", "(L)eave"),
                                 take = {
                                     whenever(party.gold lt cost) {
-                                        native.screen.clearText()
+                                        clearText()
                                         screen {
                                             lines(
                                                 "- AHA! No gold!",
@@ -4776,11 +4786,11 @@ class RylweenDslValidationTest {
                                             )
                                         }
                                         pause(2000)
-                                        native.screen.clearMapWindow()
+                                        clearMapWindow()
                                         breakLoop("thrown out of inn")
                                     } otherwise {
                                         party.gold -= cost
-                                        native.screen.clearText()
+                                        clearText()
                                         screen("You go to bed...")
                                         pause(1000)
                                         screen("Zzzz...", "")
@@ -4802,33 +4812,33 @@ class RylweenDslValidationTest {
                                         forEachMember {
                                             it.hp.addClamped(it.maxHp / 4, it.maxHp)
                                         }
-                                        native.screen.clearMapWindow()
+                                        clearMapWindow()
                                         breakLoop("slept at inn")
                                     }
                                 },
                                 leave = {
-                                    native.screen.clearText()
-                                    native.screen.clearMapWindow()
+                                    clearText()
+                                    clearMapWindow()
                                     breakLoop("leave inn")
                                 },
                             )
                         },
                         no = {
                             loop {
-                                native.screen.clearText()
+                                clearText()
                                 screen("The innkeeper leaves.", "")
                                 menu("(C)hitchat with guests", "(L)eave") {
                                     option('C') {
                                         speak(Buildings.tavern)
                                     }
                                     option('L') {
-                                        native.screen.clearText()
-                                        native.screen.clearMapWindow()
+                                        clearText()
+                                        clearMapWindow()
                                         breakLoop("leave inn chitchat")
                                     }
                                     default {
-                                        native.screen.clearText()
-                                        native.screen.clearMapWindow()
+                                        clearText()
+                                        clearMapWindow()
                                         breakLoop("leave inn chitchat")
                                     }
                                 }
@@ -4844,19 +4854,19 @@ class RylweenDslValidationTest {
         GameBuilder().apply {
             scene(Scenes.Towne.tavern) {
                 loop {
-                    native.screen.clearText()
+                    clearText()
                     menu("(S)peak", "(R)umors", "(L)eave") {
                         option('S') {
                             speak(Buildings.inn)
                         }
                         option('R') {
-                            native.screen.clearText()
+                            clearText()
                             run(Scenes.rumour)
                             waitInput("after tavern rumour")
                         }
                         option('L') {
-                            native.screen.clearText()
-                            native.screen.clearMapWindow()
+                            clearText()
+                            clearMapWindow()
                             breakLoop("leave tavern")
                         }
                     }
@@ -5051,25 +5061,18 @@ class RylweenDslValidationTest {
 
     private class RecordingTerminalPort(vararg inputs: String) : FakeTerminalPort(*inputs) {
         val imageSlugs = mutableListOf<String>()
-        val renderingOps = mutableListOf<String>()
+        val viewCommands = mutableListOf<ViewCommand>()
 
-        override fun writeEngineEvent(
-            event: EngineTraceEvent,
+        override fun writeViewCommand(
+            command: ViewCommand,
             renderer: TerminalTextRenderer,
             context: TerminalTextContext,
         ): Boolean {
-            val native = event as? EngineTraceEvent.NativeEffect ?: return false
-            renderingOps += native.request.path
-            if (native.request.path == NativeAllowlist.screenShowImage.path) {
-                native.request.args.firstOrNull()?.let(imageSlugs::add)
+            viewCommands += command
+            if (command is ViewCommand.ShowImage) {
+                imageSlugs += command.image.slug
             }
-            return native.request.path in setOf(
-                NativeAllowlist.screenClearText.path,
-                NativeAllowlist.screenClearMapWindow.path,
-                NativeAllowlist.screenRedrawMap.path,
-                NativeAllowlist.screenShowImage.path,
-                NativeAllowlist.screenStatusLine.path,
-            )
+            return true
         }
     }
 }
