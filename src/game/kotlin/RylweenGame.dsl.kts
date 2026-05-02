@@ -47,6 +47,17 @@ val nextRylween = rylween {
         encounter(Story.encounter.immune)
     }
 
+    visuals {
+        staticScreens {
+            image(StaticScreens.frame, Images.Static.screen)
+            image(StaticScreens.title, Images.Static.title)
+            commandHelp(StaticScreens.help)
+            resource(StaticScreens.manual, "rylween.doc")
+            resource(StaticScreens.score, "score.txt")
+            resource(StaticScreens.verboseScore, "vscore.txt")
+        }
+    }
+
     terminal {
         terrain(Terrain.mountain, glyph = "/\\", color = PaletteColors.white)
         terrain(Terrain.water, glyph = "~~", color = PaletteColors.blue)
@@ -6559,6 +6570,11 @@ check(nextDsl.prompts.town.closed(Buildings.inn) == inlineText("inn is closed.")
 check(nextDsl.realm.upkeep.foodTickEvery == 5)
 check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
 check(nextDsl.realm.upkeep.fatigue.size == 4)
+check(nextDsl.visuals.staticScreens.size == 6)
+check(nextDsl.visuals.staticScreens.single { it.id == StaticScreens.frame }.image == Images.Static.screen)
+check(nextDsl.visuals.staticScreens.single { it.id == StaticScreens.title }.image == Images.Static.title)
+check(nextDsl.visuals.staticScreens.single { it.id == StaticScreens.help }.commandHelp)
+check(nextDsl.visuals.staticScreens.single { it.id == StaticScreens.manual }.resource == "rylween.doc")
 check(nextDsl.terminal.terrain.size == 10)
 check(nextDsl.terminal.terrain.single { it.terrain == Terrain.town }.glyph == "TT")
 check(nextDsl.terminal.regions.single { it.id == ScreenRegions.textWindow }.width == 26)

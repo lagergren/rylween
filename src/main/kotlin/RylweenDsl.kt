@@ -301,6 +301,7 @@ data class MapLayerId(val slug: String)
 data class TerrainId(val slug: String, val sourceMapCode: Char? = null)
 data class TerrainTagId(val slug: String)
 data class ImageId(val slug: String)
+data class StaticScreenId(val slug: String)
 data class PaletteId(val slug: String)
 data class PaletteColorId(val slug: String)
 data class LayoutId(val slug: String)
@@ -346,6 +347,17 @@ data class TerminalPresentationModel(
     val regions: List<ScreenRegionModel> = emptyList(),
 )
 
+data class VisualsModel(
+    val staticScreens: List<StaticScreenModel> = emptyList(),
+)
+
+data class StaticScreenModel(
+    val id: StaticScreenId,
+    val image: ImageId? = null,
+    val resource: String? = null,
+    val commandHelp: Boolean = false,
+)
+
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId.authored(slug)
@@ -357,6 +369,7 @@ fun mapLayer(slug: String) = MapLayerId(slug)
 fun terrain(slug: String, sourceMapCode: Char? = null) = TerrainId(slug, sourceMapCode)
 fun terrainTag(slug: String) = TerrainTagId(slug)
 fun image(slug: String) = ImageId(slug)
+fun staticScreen(slug: String) = StaticScreenId(slug)
 fun palette(slug: String) = PaletteId(slug)
 fun paletteColor(slug: String) = PaletteColorId(slug)
 fun layout(slug: String) = LayoutId(slug)
@@ -1307,6 +1320,7 @@ data class GameModel(
     val itemPools: List<ItemPoolId>,
     val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel,
+    val visuals: VisualsModel,
     val terminal: TerminalPresentationModel,
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
@@ -3796,6 +3810,7 @@ class GameBuilder {
     private val itemPools = mutableListOf<ItemPoolId>()
     private var realmModel = RealmContentModel()
     private var promptsModel = GamePromptsModel()
+    private var visualsModel = VisualsModel()
     private var terminalPresentationModel = TerminalPresentationModel()
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
@@ -3832,6 +3847,10 @@ class GameBuilder {
 
     fun prompts(body: GamePromptsBuilder.() -> Unit) {
         promptsModel = GamePromptsBuilder(promptsModel).apply(body).build()
+    }
+
+    fun visuals(body: VisualsBuilder.() -> Unit) {
+        visualsModel = VisualsBuilder(visualsModel).apply(body).build()
     }
 
     fun terminal(body: TerminalPresentationBuilder.() -> Unit) {
@@ -3916,6 +3935,7 @@ class GameBuilder {
             itemPools = itemPools.toList(),
             realm = realmModel,
             prompts = promptsModel,
+            visuals = visualsModel,
             terminal = terminalPresentationModel,
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
@@ -3939,6 +3959,68 @@ class GameBuilder {
         )
     }
 
+}
+
+@RylNextDsl
+class VisualsBuilder(initial: VisualsModel = VisualsModel()) {
+    private val staticScreenModels = initial.staticScreens.toMutableList()
+
+    fun staticScreens(body: StaticScreensBuilder.() -> Unit) {
+        staticScreenModels += StaticScreensBuilder().apply(body).build()
+    }
+
+    fun build(): VisualsModel =
+        VisualsModel(staticScreens = staticScreenModels.toList())
+}
+
+@RylNextDsl
+class StaticScreensBuilder {
+    private val screens = mutableListOf<StaticScreenModel>()
+
+    fun screen(id: StaticScreenId, body: StaticScreenBuilder.() -> Unit) {
+        screens += StaticScreenBuilder(id).apply(body).build()
+    }
+
+    fun image(id: StaticScreenId, staticImage: ImageId) {
+        screen(id) { image(staticImage) }
+    }
+
+    fun resource(id: StaticScreenId, path: String) {
+        screen(id) { resource(path) }
+    }
+
+    fun commandHelp(id: StaticScreenId) {
+        screen(id) { commandHelp() }
+    }
+
+    fun build(): List<StaticScreenModel> = screens.toList()
+}
+
+@RylNextDsl
+class StaticScreenBuilder(private val id: StaticScreenId) {
+    private var imageModel: ImageId? = null
+    private var resourcePath: String? = null
+    private var usesCommandHelp = false
+
+    fun image(image: ImageId) {
+        imageModel = image
+    }
+
+    fun resource(path: String) {
+        resourcePath = path
+    }
+
+    fun commandHelp() {
+        usesCommandHelp = true
+    }
+
+    fun build(): StaticScreenModel =
+        StaticScreenModel(
+            id = id,
+            image = imageModel,
+            resource = resourcePath,
+            commandHelp = usesCommandHelp,
+        )
 }
 
 @RylNextDsl

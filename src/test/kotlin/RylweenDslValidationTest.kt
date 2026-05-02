@@ -910,6 +910,21 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledGameAuthorsStaticScreens() {
+        val screens = RylweenCompiledGame.nextDsl.visuals.staticScreens.associateBy { it.id }
+        val help = screens.getValue(StaticScreens.help)
+
+        assertEquals(6, screens.size)
+        assertEquals(Images.Static.screen, screens.getValue(StaticScreens.frame).image)
+        assertEquals(Images.Static.title, screens.getValue(StaticScreens.title).image)
+        assertTrue(help.commandHelp)
+        assertEquals("rylween.doc", screens.getValue(StaticScreens.manual).resource)
+        assertEquals("score.txt", screens.getValue(StaticScreens.score).resource)
+        assertEquals("vscore.txt", screens.getValue(StaticScreens.verboseScore).resource)
+        assertEquals(3, RylweenCompiledGame.nextDsl.wilderness.keys.helpPages.size)
+    }
+
+    @Test
     fun huntSessionSpendsMovesAndAddsFoodOnSuccess() {
         val rules = checkNotNull(compiledRealmContent().hunt).copy(
             successChancePercent = 100,
@@ -2547,6 +2562,50 @@ class RylweenDslValidationTest {
 
         assertFailsWith<IllegalStateException> {
             validateAuthoredContent(content)
+        }
+    }
+
+    @Test
+    fun validationRejectsDuplicateStaticScreens() {
+        val content = GameBuilder().apply {
+            visuals {
+                staticScreens {
+                    image(StaticScreens.title, Images.Static.title)
+                    resource(StaticScreens.title, "score.txt")
+                }
+            }
+        }.build()
+
+        assertFailsWith<IllegalStateException> {
+            validateAuthoredContent(content)
+        }
+    }
+
+    @Test
+    fun validationRejectsStaticScreenWithoutSingleSource() {
+        val empty = GameBuilder().apply {
+            visuals {
+                staticScreens {
+                    screen(StaticScreens.title) {}
+                }
+            }
+        }.build()
+        val conflicting = GameBuilder().apply {
+            visuals {
+                staticScreens {
+                    screen(StaticScreens.title) {
+                        image(Images.Static.title)
+                        resource("score.txt")
+                    }
+                }
+            }
+        }.build()
+
+        assertFailsWith<IllegalStateException> {
+            validateAuthoredContent(empty)
+        }
+        assertFailsWith<IllegalStateException> {
+            validateAuthoredContent(conflicting)
         }
     }
 

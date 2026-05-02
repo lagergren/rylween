@@ -66,7 +66,7 @@ val appSourceSet = sourceSets.create("app") {
     java.srcDir("src/app/kotlin")
     java.srcDir(generatedGameHarnessDir)
     resources.srcDir("data")
-    resources.include("ansi/**", "tiles/**", "map.dat")
+    resources.include("ansi/**", "tiles/**", "map.dat", "rylween.doc", "score.txt", "vscore.txt")
     compileClasspath += sourceSets.named("main").get().output + gameSourceSet.output
     runtimeClasspath += output + compileClasspath
 }
