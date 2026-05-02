@@ -68,6 +68,31 @@ val nextRylween = rylween {
 
     realm {
         baseResourceCapacity(Resource.Food, 150)
+        hunt {
+            successChancePercent = 45
+            timeCost = 5
+            foodMin = 10
+            foodMax = 19
+            whoPrompt = structuredText {
+                line("Who? (1-", HuntText.partyMemberMax, ")")
+            }
+            dead = inlineText("Dead.")
+            notRanger = structuredText {
+                line(HuntText.memberSubjectPronoun, " is not a ranger.")
+            }
+            tooFewMoves = inlineText("Too few moves for that.")
+            tries = structuredText {
+                line(HuntText.memberName, " tries")
+                line("to trap a rabbit...")
+            }
+            succeeds = structuredText {
+                line("...and succeeds.")
+                line("The party gains")
+                line(HuntText.foodGained, " food rations.")
+                line("")
+            }
+            fails = inlineText("...but fails.", "")
+        }
         camp {
             healthGain = 15
             foodCostPerMember = 4

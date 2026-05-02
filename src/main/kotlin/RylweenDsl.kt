@@ -91,6 +91,10 @@ sealed interface TextPart {
     object OfferedItemPrice : TextPart
     object ShopPrice : TextPart
     object ShopCarryCap : TextPart
+    object HuntMemberName : TextPart
+    object HuntMemberSubjectPronoun : TextPart
+    object HuntFoodGained : TextPart
+    object PartyMemberMax : TextPart
 }
 data class TextLine(val parts: List<TextPart>)
 sealed interface TextBlock {
@@ -194,6 +198,7 @@ data class ItemRecordModel(
 data class RealmContentModel(
     val baseResourceCapacity: Map<Resource, Int> = emptyMap(),
     val camp: CampRulesModel = CampRulesModel(),
+    val hunt: HuntRulesModel? = null,
 )
 
 /**
@@ -228,6 +233,33 @@ data class CampRulesModel(
 )
 
 data class TemperatureBandRange(val band: TemperatureBand, val range: IntRange)
+
+/**
+ * Authored wilderness hunting balance. The runtime owns party-state mutation
+ * and deterministic RNG; designers own the chance, move cost, food range, and
+ * player-facing narration.
+ */
+data class HuntRulesModel(
+    val successChancePercent: Int,
+    val timeCost: Int,
+    val foodMin: Int,
+    val foodMax: Int,
+    val whoPrompt: TextBlock,
+    val dead: TextBlock,
+    val notRanger: TextBlock,
+    val tooFewMoves: TextBlock,
+    val tries: TextBlock,
+    val succeeds: TextBlock,
+    val fails: TextBlock,
+) {
+    init {
+        require(successChancePercent in 0..100) { "hunt success chance must be 0..100" }
+        require(timeCost >= 0) { "hunt time cost must be non-negative" }
+        require(foodMin >= 0) { "hunt food minimum must be non-negative" }
+        require(foodMax >= foodMin) { "hunt food range must be ascending: $foodMin..$foodMax" }
+    }
+}
+
 data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
 data class WorldMapId(val slug: String)
@@ -888,6 +920,13 @@ object ShopQuantityCaps {
 object ShopZeroQuantityDeal {
     val always: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.Always
     val nonZeroOnly: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly
+}
+
+object HuntText {
+    val memberName: TextPart = TextPart.HuntMemberName
+    val memberSubjectPronoun: TextPart = TextPart.HuntMemberSubjectPronoun
+    val foodGained: TextPart = TextPart.HuntFoodGained
+    val partyMemberMax: TextPart = TextPart.PartyMemberMax
 }
 
 sealed interface ShopPriceModel {
@@ -3170,6 +3209,7 @@ class ItemRecordBuilder {
 class RealmContentBuilder {
     private val baseCapacity = mutableMapOf<Resource, Int>()
     private var camp = CampRulesModel()
+    private var hunt: HuntRulesModel? = null
 
     fun baseResourceCapacity(resource: Resource, amount: Int) {
         baseCapacity[resource] = amount
@@ -3179,10 +3219,15 @@ class RealmContentBuilder {
         camp = CampRulesBuilder().apply(body).build()
     }
 
+    fun hunt(body: HuntRulesBuilder.() -> Unit) {
+        hunt = HuntRulesBuilder().apply(body).build()
+    }
+
     internal fun build(): RealmContentModel =
         RealmContentModel(
             baseResourceCapacity = baseCapacity.toMap(),
             camp = camp,
+            hunt = hunt,
         )
 }
 
@@ -3246,6 +3291,44 @@ class CampRulesBuilder {
         temperatureMessage = temperatureMessage.toMap(),
         noShelterMessage = noShelterMessage.toMap(),
     )
+}
+
+@RylNextDsl
+class HuntRulesBuilder {
+    var successChancePercent: Int = 0
+    var timeCost: Int = 0
+    var foodMin: Int = 0
+    var foodMax: Int = 0
+    var whoPrompt: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") }
+    var dead: TextBlock = inlineText("Dead.")
+    var notRanger: TextBlock = structuredText { line(HuntText.memberSubjectPronoun, " is not a ranger.") }
+    var tooFewMoves: TextBlock = inlineText("Too few moves for that.")
+    var tries: TextBlock = structuredText {
+        line(HuntText.memberName, " tries")
+        line("to trap a rabbit...")
+    }
+    var succeeds: TextBlock = structuredText {
+        line("...and succeeds.")
+        line("The party gains")
+        line(HuntText.foodGained, " food rations.")
+        line("")
+    }
+    var fails: TextBlock = inlineText("...but fails.", "")
+
+    internal fun build(): HuntRulesModel =
+        HuntRulesModel(
+            successChancePercent = successChancePercent,
+            timeCost = timeCost,
+            foodMin = foodMin,
+            foodMax = foodMax,
+            whoPrompt = whoPrompt,
+            dead = dead,
+            notRanger = notRanger,
+            tooFewMoves = tooFewMoves,
+            tries = tries,
+            succeeds = succeeds,
+            fails = fails,
+        )
 }
 
 @RylNextDsl
@@ -5859,7 +5942,11 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         TextPart.OfferedItemName,
                         TextPart.OfferedItemPrice,
                         TextPart.ShopPrice,
-                        TextPart.ShopCarryCap -> Unit
+                        TextPart.ShopCarryCap,
+                        TextPart.HuntMemberName,
+                        TextPart.HuntMemberSubjectPronoun,
+                        TextPart.HuntFoodGained,
+                        TextPart.PartyMemberMax -> Unit
                     }
                 }
             }

@@ -869,6 +869,95 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledRealmAuthorsHuntBalanceAndNarration() {
+        val hunt = checkNotNull(compiledRealmContent().hunt)
+        val runtime = RuntimeSessionState.singleParty(testParty(), hour = 12, currentTown = null)
+
+        assertEquals(45, hunt.successChancePercent)
+        assertEquals(5, hunt.timeCost)
+        assertEquals(10, hunt.foodMin)
+        assertEquals(19, hunt.foodMax)
+        assertEquals(
+            listOf("Who? (1-4)"),
+            compiledTextRenderer().lines(hunt.whoPrompt, TerminalTextContext(runtime = runtime)),
+        )
+    }
+
+    @Test
+    fun huntSessionSpendsMovesAndAddsFoodOnSuccess() {
+        val rules = checkNotNull(compiledRealmContent().hunt).copy(
+            successChancePercent = 100,
+            foodMin = 10,
+            foodMax = 10,
+        )
+        val party = testParty(
+            food = 20,
+            timeLeft = 20,
+            members = listOf(testMember(name = "Risha", pcClass = PcClass.Ranger, level = 3)),
+        )
+        var session = HuntSession.start(
+            runtime = RuntimeSessionState.singleParty(party, hour = 12, currentTown = null),
+            rules = rules,
+        ).apply(HuntSessionInput.Member(1))
+
+        val messages = session.step as HuntSessionStep.Messages
+        val context = TerminalTextContext(
+            runtime = session.runtime,
+            huntMemberNumber = messages.memberNumber,
+            huntFoodGained = messages.foodGained,
+        )
+        assertEquals(
+            listOf("Risha tries", "to trap a rabbit..."),
+            compiledTextRenderer().lines(messages.blocks[0], context),
+        )
+        assertEquals(
+            listOf("...and succeeds.", "The party gains", "13 food rations.", ""),
+            compiledTextRenderer().lines(messages.blocks[1], context),
+        )
+
+        session = session.apply(HuntSessionInput.Continue)
+        val finished = session.step as HuntSessionStep.Finished
+
+        assertEquals(HuntSessionStatus.Succeeded, finished.result.status)
+        assertEquals(15, finished.result.runtime.activeParty.resources.timeLeft)
+        assertEquals(33, finished.result.runtime.activeParty.resources.food)
+    }
+
+    @Test
+    fun wildernessTerminalAdapterRunsAuthoredHunt() {
+        val terminal = FakeTerminalPort("H", "1")
+        val party = testParty(
+            food = 20,
+            timeLeft = 20,
+            members = listOf(testMember(name = "Risha", pcClass = PcClass.Ranger, level = 3)),
+        )
+        val session = WildernessSession(
+            runtime = RuntimeSessionState.singleParty(party, hour = 12, currentTown = null),
+            worldMap = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
+            content = RylweenCompiledGame.nextDsl.runtimeContent().copy(
+                realm = RylweenCompiledGame.nextDsl.realm.copy(
+                    hunt = checkNotNull(RylweenCompiledGame.nextDsl.realm.hunt).copy(
+                        successChancePercent = 100,
+                        foodMin = 10,
+                        foodMax = 10,
+                    ),
+                ),
+            ),
+            upkeepRules = WildernessUpkeepRules(foodTickEvery = 0, fatigue = emptyList()),
+            step = WildernessSessionStep.Explore,
+        )
+
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(session)
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.HuntSucceeded, result.session.lastResult?.status)
+        assertEquals(15, result.session.runtime.activeParty.resources.timeLeft)
+        assertEquals(33, result.session.runtime.activeParty.resources.food)
+        assertTrue(terminal.output.any { "Risha tries" in it })
+        assertTrue(terminal.output.any { "13 food rations." in it })
+    }
+
+    @Test
     fun consumeTorchDecrementsResourceOrReportsNoTorches() {
         val lit = testParty(torches = 2).consumeTorch() as TorchActionResult.Consumed
         val last = testParty(torches = 1).consumeTorch() as TorchActionResult.Consumed

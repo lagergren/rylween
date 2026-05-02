@@ -1083,6 +1083,10 @@ private class CombatScriptRunner(
                             TextPart.OfferedItemPrice -> "{item_price}"
                             TextPart.ShopPrice -> "{price}"
                             TextPart.ShopCarryCap -> "{cap}"
+                            TextPart.HuntMemberName -> "{who_name}"
+                            TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
+                            TextPart.HuntFoodGained -> "{fdplus}"
+                            TextPart.PartyMemberMax -> "{party_max}"
                         }
                     }
                 },

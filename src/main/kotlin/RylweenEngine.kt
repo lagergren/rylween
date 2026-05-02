@@ -414,6 +414,8 @@ data class TerminalTextContext(
     val offeredItemName: String? = null,
     val offeredItemPrice: Int? = null,
     val runtime: RuntimeSessionState? = null,
+    val huntMemberNumber: Int? = null,
+    val huntFoodGained: Int? = null,
 )
 
 data class TerminalInputRejection(
@@ -1157,6 +1159,10 @@ private class StatefulScriptServiceRunner(
                             TextPart.OfferedItemPrice -> "{item_price}"
                             TextPart.ShopPrice -> "{price}"
                             TextPart.ShopCarryCap -> "{cap}"
+                            TextPart.HuntMemberName -> "{who_name}"
+                            TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
+                            TextPart.HuntFoodGained -> "{fdplus}"
+                            TextPart.PartyMemberMax -> "{party_max}"
                         }
                     }
                 },
@@ -1346,6 +1352,10 @@ class TerminalTextRenderer(
             TextPart.OfferedItemPrice -> context.offeredItemPrice?.toString() ?: "{item_price}"
             TextPart.ShopPrice -> context.shopPrice?.toString() ?: "{price}"
             TextPart.ShopCarryCap -> context.shopCarryCap?.toString() ?: "{cap}"
+            TextPart.HuntMemberName -> huntMember(context)?.name ?: "{who_name}"
+            TextPart.HuntMemberSubjectPronoun -> huntMemberSubjectPronoun(context) ?: "{pro_sub}"
+            TextPart.HuntFoodGained -> context.huntFoodGained?.toString() ?: "{fdplus}"
+            TextPart.PartyMemberMax -> context.runtime?.realm?.partyMemberMax?.toString() ?: "{party_max}"
         }
 
     fun pausePrompt(verbIndex: Int? = null): TextBlock {
@@ -1385,6 +1395,16 @@ class TerminalTextRenderer(
             PronounCase.Possessive -> if (gender == Gender.Female) "her" else "his"
         }
     }
+
+    private fun huntMember(context: TerminalTextContext): PartyMemberState? {
+        val memberNumber = context.huntMemberNumber ?: return null
+        return context.runtime?.activeParty?.members?.getOrNull(memberNumber - 1)
+    }
+
+    private fun huntMemberSubjectPronoun(context: TerminalTextContext): String? =
+        huntMember(context)?.gender?.let { gender ->
+            if (gender == Gender.Female) "she" else "he"
+        }
 
     private fun NativeStringArg.literalInt(): Int? =
         when (this) {
@@ -1803,6 +1823,48 @@ class CampSessionTerminalAdapter(
 
     private fun writeMenu(block: TextBlock, keys: List<Char>) {
         terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
+    }
+}
+
+class HuntSessionTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun run(initial: HuntSession): HuntSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: HuntSession): TerminalAdapterResult<HuntSession> {
+        var session = initial
+        repeat(64) {
+            session = when (val step = session.step) {
+                is HuntSessionStep.ChooseMember -> {
+                    val choices = session.memberChoices()
+                    writeMenu(step.prompt, choices.map { it.digitToChar() }, session.runtime)
+                    when (val input = terminal.readMemberNumber(choices)) {
+                        is TerminalInput.Value -> session.apply(HuntSessionInput.Member(input.value))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is HuntSessionStep.Messages -> {
+                    val context = TerminalTextContext(
+                        runtime = session.runtime,
+                        huntMemberNumber = step.memberNumber,
+                        huntFoodGained = step.foodGained,
+                    )
+                    step.blocks.forEach { block ->
+                        terminal.write(renderer.lines(block, context))
+                    }
+                    session.apply(HuntSessionInput.Continue)
+                }
+                is HuntSessionStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun writeMenu(block: TextBlock, keys: List<Char>, runtime: RuntimeSessionState) {
+        terminal.write(renderer.lines(block, TerminalTextContext(runtime = runtime)) + "Options: ${keys.joinToString("/")}")
     }
 }
 
@@ -2907,6 +2969,17 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.Camp -> {
                     val result = CampSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceCampSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is WildernessSessionStep.Hunt -> {
+                    val result = HuntSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceHuntSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
                         TerminalRunStatus.StepLimitReached ->

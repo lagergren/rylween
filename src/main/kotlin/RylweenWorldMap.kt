@@ -12,6 +12,8 @@ sealed interface WildernessSessionInput {
     object Journal : WildernessSessionInput
     object Help : WildernessSessionInput
     object Hunt : WildernessSessionInput
+    data class HuntMember(val memberNumber: Int) : WildernessSessionInput
+    object HuntContinue : WildernessSessionInput
     object ViewParty : WildernessSessionInput
     object RemoveArmor : WildernessSessionInput
     object RemoveWeapon : WildernessSessionInput
@@ -46,6 +48,10 @@ enum class WildernessSessionResultStatus {
     JournalUnavailable,
     HelpShown,
     HuntUnavailable,
+    HuntSucceeded,
+    HuntFailed,
+    HuntNotRanger,
+    HuntTooFewMoves,
     ViewPartyUnavailable,
     DropUnavailable,
     CampUnavailable,
@@ -105,6 +111,7 @@ sealed interface WildernessSessionStep {
     data class Dungeon(val session: DungeonSession) : WildernessSessionStep
     data class Battle(val session: BattleSession) : WildernessSessionStep
     data class Camp(val session: CampSession) : WildernessSessionStep
+    data class Hunt(val session: HuntSession) : WildernessSessionStep
     data class InventoryItemUse(val session: InventoryItemUseSession) : WildernessSessionStep
     data class Equipment(val session: EquipmentPromptSession) : WildernessSessionStep
     data class PriestSpell(val session: PriestSpellSession) : WildernessSessionStep
@@ -279,7 +286,9 @@ data class WildernessSession(
                 step = WildernessSessionStep.Messages(wilderness.keys.helpPages, WildernessSessionStep.TurnStart),
                 lastResult = WildernessSessionResult(WildernessSessionResultStatus.HelpShown),
             )
-            WildernessSessionInput.Hunt -> pending(WildernessPromptText.huntPending(), WildernessSessionResultStatus.HuntUnavailable)
+            WildernessSessionInput.Hunt -> hunt()
+            is WildernessSessionInput.HuntMember -> applyHuntInput(HuntSessionInput.Member(input.memberNumber))
+            WildernessSessionInput.HuntContinue -> applyHuntInput(HuntSessionInput.Continue)
             WildernessSessionInput.ViewParty ->
                 pending(WildernessPromptText.viewPartyPending(), WildernessSessionResultStatus.ViewPartyUnavailable)
             WildernessSessionInput.RemoveArmor -> equipment(EquipmentCommand.RemoveArmor)
@@ -588,6 +597,14 @@ data class WildernessSession(
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.Camped),
         )
 
+    private fun hunt(): WildernessSession {
+        val rules = realm.hunt ?: return pending(
+            WildernessPromptText.huntPending(),
+            WildernessSessionResultStatus.HuntUnavailable,
+        )
+        return copy(step = WildernessSessionStep.Hunt(HuntSession.start(runtime, rules)))
+    }
+
     private fun applyCampInput(input: CampSessionInput): WildernessSession {
         val current = step as? WildernessSessionStep.Camp
             ?: error("wilderness session is not running a camp")
@@ -595,8 +612,18 @@ data class WildernessSession(
         return resolveCampSession(updated)
     }
 
+    private fun applyHuntInput(input: HuntSessionInput): WildernessSession {
+        val current = step as? WildernessSessionStep.Hunt
+            ?: error("wilderness session is not running a hunt")
+        val updated = current.session.apply(input)
+        return resolveHuntSession(updated)
+    }
+
     fun replaceCampSession(session: CampSession): WildernessSession =
         resolveCampSession(session)
+
+    fun replaceHuntSession(session: HuntSession): WildernessSession =
+        resolveHuntSession(session)
 
     private fun resolveCampSession(session: CampSession): WildernessSession {
         val finished = (session.step as? CampSessionStep.Finished)?.result
@@ -615,6 +642,29 @@ data class WildernessSession(
                         CampSessionStatus.NotEnoughFood -> WildernessSessionResultStatus.CampNotEnoughFood
                         CampSessionStatus.Ambushed -> WildernessSessionResultStatus.EncounterHandoff
                         CampSessionStatus.SurpriseKill -> WildernessSessionResultStatus.EncounterHandoff
+                    },
+                ),
+            )
+        }
+    }
+
+    private fun resolveHuntSession(session: HuntSession): WildernessSession {
+        val finished = (session.step as? HuntSessionStep.Finished)?.result
+        return when (finished?.status) {
+            null -> copy(
+                runtime = session.runtime,
+                step = WildernessSessionStep.Hunt(session),
+            )
+            else -> copy(
+                runtime = finished.runtime,
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(
+                    when (finished.status) {
+                        HuntSessionStatus.Succeeded -> WildernessSessionResultStatus.HuntSucceeded
+                        HuntSessionStatus.Failed -> WildernessSessionResultStatus.HuntFailed
+                        HuntSessionStatus.NotRanger -> WildernessSessionResultStatus.HuntNotRanger
+                        HuntSessionStatus.TooFewMoves -> WildernessSessionResultStatus.HuntTooFewMoves
+                        HuntSessionStatus.DeadMember -> WildernessSessionResultStatus.HuntUnavailable
                     },
                 ),
             )
