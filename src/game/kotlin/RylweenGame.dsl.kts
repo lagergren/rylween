@@ -213,6 +213,295 @@ val nextRylween = rylween {
         }
     }
 
+    ydarg {
+        entry = xy(14, 30)
+        image = Images.Backdrop.ydargCastle
+        requiredKey = Milestones.silverKey
+        victoryMilestone = Milestones.ydargVictory
+        monsterTier = EncounterTiers.deep
+        map(size = 5, roomTypeMax = 5)
+
+        treasure {
+            gateMax = 4
+            regularKind(
+                Items.sword, Items.axe, Items.bow, Items.club, Items.dart, Items.sling, Items.longsword,
+                Items.trident, Items.halbard, Items.poleArm, Items.crossbow, Items.scythe, Items.scimitar,
+                Items.twoHandSword,
+            )
+            regularKind(
+                Items.leather, Items.chainMail, Items.plateMail, Items.ringMail, Items.elvinCloak,
+                Items.mithrilMail, Items.admtMail,
+            )
+            regularKind(
+                Items.torch, Items.ration, Items.blanket, Items.tent, Items.rope,
+                Items.redPotion, Items.bluePotion, Items.amberPotion,
+            )
+            magic(
+                Items.frostWand, Items.fireWand, Items.gemOfConfusion, Items.gemOfBlindness,
+                Items.drumsOfDeath, Items.staffOfHealing, Items.blessingScroll, Items.staffOfCuring,
+                Items.gemOfResurrection, Items.kaelsAxe, Items.holyHandgrenade, Items.fluteOfMadness,
+            )
+        }
+
+        pitfall {
+            damageDivisor = 6
+            trap {
+                lines("Arrows speed through", "the air and hits the", "party!", "")
+            }
+            trap {
+                lines("Poison needles shoot", "out from the floor!", "")
+            }
+            trap {
+                lines("A volley of shurikens", "is hurled from a hatch", "in the wall!", "")
+            }
+        }
+
+        stairs {
+            floorCount = 4
+            item(1, Milestones.fireShield, "The Fire Shield", inlineText("You don't have it!"))
+            item(2, Milestones.masterCrown, "The Master Crown", inlineText("You don't have it!"))
+            item(3, Milestones.footOfJazzy, "The Foot of Jazzy", inlineText("You don't have it!"))
+            item(4, Milestones.braceletsOfThun, "The Bracelets of Thun", inlineText("You don't have them!"))
+        }
+
+        confrontation {
+            sequence(Monsters.cryptHorror, Monsters.nightGaunt, Monsters.thyraga, Monsters.liche)
+            baron = Monsters.baronYdarg
+        }
+
+        text {
+            ruin = inlineText(
+                "The once so mighty",
+                "castle Zadraz is now",
+                "nothing but a ruin.",
+                "You have nothing else",
+                "to do here.",
+                "",
+            )
+            approach = inlineText(
+                "A black and foreboding",
+                "castle looms over the",
+                "horizon. Its cold, black",
+                "stone walls are decorated",
+                "with complex symbols and",
+                "archaic runes of long",
+                "forgotten language.",
+                "",
+            )
+            jaaraForm = inlineText(
+                "A shape of white mist",
+                "slowly thickens to human",
+                "shape. A transparent image",
+                "of a beautiful woman",
+                "forms in front of you.",
+                "",
+            )
+            jaaraSpeech = inlineText(
+                "- Do not be afraid,",
+                "adventurers. I am Jaara,",
+                "guardian of the gate.",
+                "Baron Ydarg has imprisoned",
+                "me here forever. I can't",
+                "hurt you, just stop you",
+                "from entering if you don't",
+                "have the Silver Key!",
+                "",
+            )
+            noKey = inlineText(
+                "- You don't have the",
+                "Key. The gate will",
+                "remain sealed.",
+                "",
+            )
+            keyAccepted = inlineText(
+                "You show the Silver Key to",
+                "the ghost. Her eyes widen,",
+                "as she sees it. She smiles",
+                "and waves her hand towards",
+                "the drawbridge. It falls",
+                "to the ground with a",
+                "resounding KRASH. Jaara",
+                "slowly fades away until",
+                "nothing remains.",
+                "",
+            )
+            enter = inlineText("You enter.", "")
+            doorSlams = inlineText("The first door you enter", "slams shut behind you!")
+            roomMonster = inlineText("You are spotted by", "monsters!")
+            trapTriesDisarmSuffix = inlineText("tries to", "disarm it...", "")
+            trapDisarmSucceed = inlineText("AND SUCCEEDS!")
+            trapDisarmFail = inlineText("BUT FAILS!")
+            treasureMenu = inlineText("(T)ake it", "(L)eave it")
+            treasureFull = inlineText("You can't carry more.")
+            treasureTaken = inlineText("", "Ok.")
+            stairsIntro = inlineText("You stand before the", "stairs to the next level.", "")
+            stairsMageOffer = inlineText(
+                "A mage imprisoned in a",
+                "fiery sphere offers to",
+                "open trapdoor at the top",
+                "of the stairs if you",
+                "give him an item of power!",
+                "He also offers to teleport",
+                "you out of the castle,",
+                "for free.",
+                "",
+            )
+            stairsMenu = inlineText("Choose:", "", "(T)eleport Out", "(G)ive him an item", "(L)eave")
+            stairsLeave = inlineText("You take the nearest exit!")
+            teleportVortex = inlineText("The world fades into a", "vortex of agonizing", "vertigo...", "")
+            teleportOutside = inlineText("And you are outside...")
+            giveMenu = inlineText(
+                "Give him what?",
+                "",
+                "1. The Fire Shield",
+                "2. The Master Crown",
+                "3. The Foot of Jazzy",
+                "4. The Bracelets of Thun",
+                "5. Nothing",
+            )
+            mageGrateful = inlineText(
+                "The sphere fades away",
+                "and the mage steps out.",
+                "He is grateful. Before",
+                "he teleports away, he",
+                "casts an OPEN spell on the",
+                "trapdoor above and speaks:",
+                "- I will aid thee in the",
+                "final battle!",
+                "",
+            )
+            commandHelp = inlineText(
+                "8/2/4/6 = Move",
+                "T = Take off armor",
+                "P = Put down weapon",
+                "L = Leave item",
+                "W = Wield weapon",
+                "R = Ready armor",
+                "Q = Quaff potion",
+                "Z = Cast spell",
+                "V = View party",
+                "? = Help",
+                "",
+            )
+            unsupportedCommand = inlineText("Not available here.", "")
+            confrontationAct1(
+                inlineText(
+                    "The last trapdoor",
+                    "slams shut behind you.",
+                    "You are high above the",
+                    "forest, on the roof",
+                    "of this fortress.",
+                    "Suddenly, a voice speaks:",
+                    "",
+                ),
+                inlineText(
+                    "- Fools! You have gone",
+                    "long to come this far, but",
+                    "here ends your journey!",
+                    "",
+                    "The night sky above lights",
+                    "up with green flashes, and",
+                    "Ydargs minions rush",
+                    "to attack you!",
+                    "",
+                ),
+            )
+            confrontationAct2(
+                inlineText(
+                    "Corpses of the nightmare",
+                    "terrors are strewn all",
+                    "around. A dark cloaked",
+                    "figure appears before you.",
+                    "He takes a broad step over",
+                    "the dead and dying, and",
+                    "gazes at you with cold",
+                    "glowing green eyes.",
+                    "",
+                ),
+                inlineText(
+                    "- So. You have completed",
+                    "the battle test. I must",
+                    "confess that you impress",
+                    "me. But now...",
+                    "",
+                    "(He waves a pointed stick",
+                    "and energy begins to form",
+                    "in the air before you.)",
+                    "",
+                ),
+                inlineText(
+                    "A glowing energy sphere",
+                    "appears, and at a gesture",
+                    "from Ydarg's stick, it",
+                    "hurtles towards you!!!",
+                    "",
+                ),
+                inlineText(
+                    "Suddenly! You feel someone",
+                    "else near. The four",
+                    "grey-clad mages raise",
+                    "their hands, and the",
+                    "sphere is absorbed by",
+                    "their hands!",
+                    "",
+                ),
+                inlineText(
+                    "- CURSES! Ydarg growls.",
+                    "- So this is what has come",
+                    "to! Well, you got here by",
+                    "aid of cold steel, and",
+                    "that is the way you shall",
+                    "perish!",
+                    "",
+                ),
+                inlineText(
+                    "He pulls a huge trident",
+                    "from his robe and utters",
+                    "a single syllable. Without",
+                    "warning he appears a foot",
+                    "before you!!!",
+                    "",
+                ),
+                inlineText("Let the battle commence!", ""),
+            )
+            confrontationAct3(
+                inlineText(
+                    "Ydarg's trident clatters",
+                    "to the ground before you.",
+                    "He shudders and falls over.",
+                    "As you rush to kill him",
+                    "he screams:",
+                    "",
+                ),
+                inlineText(
+                    "- It is not over! I shall",
+                    "see you in hell! In",
+                    "another world! A time",
+                    "to come! You have tainted",
+                    "Zadraz with your ancient",
+                    "items, but I will triumph",
+                    "again!!! Anew...",
+                    "",
+                ),
+                inlineText("His cloak collapses, and", "when you tear it away,", "you reveal nothing but...", ""),
+                inlineText("dust...", ""),
+                inlineText(
+                    "CONGRATULATIONS!",
+                    "",
+                    "You have banished Ydarg",
+                    "from this dimension.",
+                    "Please ask your SysOp to",
+                    "reset the game.",
+                    "",
+                ),
+            )
+            confrontationAct4(
+                inlineText("Be ready for:", "HEROES OF RYLWEEN", "- The second coming.", "Soon online at a BBS", "near you!", ""),
+                inlineText("See Ya!!!", "", "     /Marcus", ""),
+            )
+        }
+    }
+
     prompts {
         pauseVerbs(
             "Smash", "Bash", "Slash", "Lunge at", "Crush",
@@ -4703,42 +4992,7 @@ val nextRylween = rylween {
         }
     }
 
-    // 5. Ydarg main: the native island is explicit and narrow.
-    scene(Scenes.ydargMain) {
-        native.ydarg.init()
-        waitInput("after castle intro")
-
-        loop {
-            clearText()
-
-            val room = localInt(native.ydarg.roomAtCurrent())
-            choose(room) {
-                case(1) {
-                    native.ydarg.clearRoomAtCurrent()
-                    run(Scenes.ydargRoomMonster)
-                }
-                case(2) {
-                    run(Scenes.ydargPitfall)
-                }
-                case(3) {
-                    run(Scenes.ydargTreasure)
-                }
-                case(50) {
-                    run(Scenes.ydargStairs)
-                    whenever(native.ydarg.exitRequested()) {
-                        breakLoop("stairs requested exit")
-                    }
-                }
-            }
-
-            run(Scenes.ydargNavRender)
-            val key = localInt(native.input.keyUpper())
-            native.ydarg.tryMove(key)
-            run(Scenes.ydargCommandDispatch, "key" to key)
-        }
-    }
-
-    // 6. Mission action scene: flag states are fluent typed markers, not strings.
+    // 5. Mission action scene: flag states are fluent typed markers, not strings.
     scene(Scenes.Missions.erethorEntry) {
         dungeonEntrance(Dungeons.erethorTemple, levels = 12) {
             line("Here is the temple of")
@@ -6427,7 +6681,10 @@ check(nextDsl.monsters.count { it.tier == EncounterTiers.weak } == 10)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.wild } == 14)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.deep } == 20)
 check(nextDsl.monsters.single { it.id == Monsters.gnoll }.countMaxLevelDivisor == 2)
-check(nextDsl.scenes.size == 25)
+check(nextDsl.ydarg?.entry == xy(14, 30))
+check(nextDsl.ydarg?.requiredKey == Milestones.silverKey)
+check(nextDsl.ydarg?.confrontation?.sequence == listOf(Monsters.cryptHorror, Monsters.nightGaunt, Monsters.thyraga, Monsters.liche))
+check(nextDsl.scenes.size == 24)
 fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
     any { op ->
         when (op) {

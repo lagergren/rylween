@@ -3,9 +3,11 @@ package rylween
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.frontend.terminal.*
+import rylween.frontend.terminal.ydarg.*
 import rylween.game.RylweenCompiledGame
 import rylween.game.*
 import rylween.runtime.*
+import rylween.runtime.ydarg.*
 import rylween.save.*
 
 import java.io.File
@@ -3190,6 +3192,88 @@ class RylweenDslValidationTest {
         assertEquals(10, dungeon.session.maxDepth)
         assertTrue(terminal.output.any { "Entering random_cave." in it })
         assertTrue(dungeon.session.levelEvents.containsKey(1))
+    }
+
+    @Test
+    fun wildernessCastleEntryWithoutSilverKeyRunsAuthoredYdargGate() {
+        val terminal = RecordingTerminalPort("E")
+        val map = WorldMapGrid.fromSourceRows(
+            List(30) { y ->
+                if (y == 29) mapRow(14 to '2', width = 20) else mapRow(width = 20)
+            },
+        )
+
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                    .copy(position = Wilderness.xy(14, 30)),
+                worldMap = map,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.LeftYdarg, result.session.lastResult?.status)
+        assertTrue(terminal.imageSlugs.contains(Images.Backdrop.ydargCastle.slug))
+        assertTrue(terminal.output.any { "guardian of the gate." in it })
+        assertTrue(terminal.output.any { "remain sealed." in it })
+        assertFalse(terminal.output.any { "Castle entry is not ported yet." in it })
+    }
+
+    @Test
+    fun wildernessCastleEntryWithSilverKeyHandsOffToYdargSession() {
+        val terminal = RecordingTerminalPort("E")
+        val map = WorldMapGrid.fromSourceRows(
+            List(30) { y ->
+                if (y == 29) mapRow(14 to '2', width = 20) else mapRow(width = 20)
+            },
+        )
+
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    milestones = listOf(Milestones.silverKey),
+                ).copy(position = Wilderness.xy(14, 30)),
+                worldMap = map,
+                rngState = 1L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Ydarg)
+        assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
+        assertTrue(terminal.output.any { "resounding KRASH" in it })
+        assertTrue(terminal.output.any { "You are spotted by" in it })
+        assertFalse(terminal.output.any { "Castle entry is not ported yet." in it })
+    }
+
+    @Test
+    fun ydargStairGiftConsumesAuthoredMilestoneAndAdvancesFloor() {
+        val content = RylweenCompiledGame.nextDsl
+        val party = testParty(
+            food = 100,
+            timeLeft = 200,
+            restedHours = 14,
+            milestones = listOf(Milestones.silverKey, Milestones.fireShield),
+        )
+        val started = YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(party = party, hour = 12, currentTown = null),
+            content = content.runtimeContent(),
+        )
+
+        val stairs = started.copy(
+            step = YdargSessionStep.StairGive,
+            floor = 1,
+            point = GridPoint(5, 5),
+        )
+        val result = stairs.apply(YdargSessionInput.StairItem(1))
+
+        assertEquals(2, result.floor)
+        assertEquals(GridPoint(1, 1), result.point)
+        assertFalse(Milestones.fireShield in result.party.milestones)
+        assertTrue(result.step is YdargSessionStep.Messages)
     }
 
     @Test

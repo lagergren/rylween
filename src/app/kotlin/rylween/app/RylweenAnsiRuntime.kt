@@ -3,6 +3,7 @@ package rylween.app
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.frontend.terminal.*
+import rylween.frontend.terminal.ydarg.YdargSessionTerminalAdapter
 import rylween.game.*
 import rylween.game.RylweenCompiledGame
 import rylween.runtime.*
@@ -140,6 +141,15 @@ private class RylweenAnsiGame(
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
                         TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "dungeon step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
+                is WildernessSessionStep.Ydarg -> {
+                    val result = YdargSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceYdargSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "Ydarg step limit reached") }
                         is TerminalRunStatus.Waiting -> updated
                     }
                 }

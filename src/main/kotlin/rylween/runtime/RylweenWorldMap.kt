@@ -1,6 +1,8 @@
 package rylween.runtime
 
 import rylween.dsl.*
+import rylween.runtime.ydarg.YdargSession
+import rylween.runtime.ydarg.YdargSessionStep
 
 import java.io.File
 
@@ -78,6 +80,7 @@ enum class WildernessSessionResultStatus {
     CaveNoMoves,
     DungeonHandoff,
     LeftDungeon,
+    LeftYdarg,
     EncounterHandoff,
     LeftTown,
     NotInWilderness,
@@ -117,6 +120,7 @@ sealed interface WildernessSessionStep {
     ) : WildernessSessionStep
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
     data class Dungeon(val session: DungeonSession) : WildernessSessionStep
+    data class Ydarg(val session: YdargSession) : WildernessSessionStep
     data class Battle(val session: BattleSession) : WildernessSessionStep
     data class Camp(val session: CampSession) : WildernessSessionStep
     data class Hunt(val session: HuntSession) : WildernessSessionStep
@@ -394,6 +398,33 @@ data class WildernessSession(
             )
         } else {
             copy(runtime = session.runtime, step = WildernessSessionStep.Dungeon(session))
+        }
+    }
+
+    fun replaceYdargSession(session: YdargSession): WildernessSession {
+        require(step is WildernessSessionStep.Ydarg) { "wilderness session is not running Ydarg" }
+        return if (session.step is YdargSessionStep.Finished) {
+            if (session.runtime.realm.currentMode == RuntimeMode.GameOver) {
+                return copy(
+                    runtime = session.runtime,
+                    step = WildernessSessionStep.Finished(session.runtime),
+                    lastResult = WildernessSessionResult(WildernessSessionResultStatus.Finished),
+                )
+            }
+            val finishedRuntime = session.runtime.withRealm(
+                session.runtime.realm.copy(
+                    currentMode = RuntimeMode.Wilderness,
+                    currentTown = null,
+                    currentMap = worldMap.id,
+                ),
+            )
+            copy(
+                runtime = finishedRuntime,
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.LeftYdarg),
+            )
+        } else {
+            copy(runtime = session.runtime, step = WildernessSessionStep.Ydarg(session))
         }
     }
 
@@ -887,10 +918,7 @@ data class WildernessSession(
         return when {
             worldMap.isTown(point) -> enterTown(point)
             worldMap.isHut(point) -> enterHut(point)
-            worldMap.isCastle(point) -> notice(
-                WildernessPromptText.castlePending(),
-                WildernessSessionResult(WildernessSessionResultStatus.EnteredCastle, from = point),
-            )
+            worldMap.isCastle(point) -> enterCastle(point)
             else -> notice(
                 WildernessPromptText.nothingToEnter(),
                 WildernessSessionResult(WildernessSessionResultStatus.NothingToEnter, from = point),
@@ -937,6 +965,31 @@ data class WildernessSession(
         return copy(
             step = WildernessSessionStep.Hut(scene),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.EnteredHut, from = point),
+        )
+    }
+
+    private fun enterCastle(point: GridPoint): WildernessSession {
+        val ydarg = content.ydarg ?: return notice(
+            WildernessPromptText.castlePending(),
+            WildernessSessionResult(WildernessSessionResultStatus.EnteredCastle, from = point),
+        )
+        if (point != ydarg.entry) {
+            return notice(
+                WildernessPromptText.castlePending(),
+                WildernessSessionResult(WildernessSessionResultStatus.EnteredCastle, from = point),
+            )
+        }
+        val castleRuntime = runtime.withRealm(
+            runtime.realm.copy(
+                currentMode = RuntimeMode.YdargCastle,
+                currentTown = null,
+                currentMap = worldMap.id,
+            ),
+        )
+        return copy(
+            runtime = castleRuntime,
+            step = WildernessSessionStep.Ydarg(YdargSession.start(castleRuntime, content)),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.EnteredCastle, from = point),
         )
     }
 

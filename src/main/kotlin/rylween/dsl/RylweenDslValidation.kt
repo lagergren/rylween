@@ -317,6 +317,141 @@ fun validateDungeonSystem(dungeons: DungeonSystemModel) {
     }
 }
 
+fun validateYdargSystem(
+    ydarg: YdargContentModel?,
+    itemCatalog: List<ItemRecordModel>,
+    progress: GameProgressModel,
+    monsters: List<MonsterModel>,
+) {
+    if (ydarg == null) return
+
+    check(ydarg.entry.x >= 0 && ydarg.entry.y >= 0) { "Ydarg entry must use non-negative world coordinates" }
+    check(ydarg.mapSize > 1) { "Ydarg map size must be greater than one" }
+    check(ydarg.roomTypeMax >= 3) { "Ydarg room type max must allow monster, pitfall, and treasure rooms" }
+    check(ydarg.roomEvents.keys.all { it in 1..ydarg.roomTypeMax }) {
+        "Ydarg room event rolls must fit inside 1..${ydarg.roomTypeMax}"
+    }
+    val milestones = progress.milestones.map { it.id }.toSet()
+    check(ydarg.requiredKey in milestones) { "Ydarg required key references unknown milestone ${ydarg.requiredKey.slug}" }
+    check(ydarg.victoryMilestone in milestones) {
+        "Ydarg victory marker references unknown milestone ${ydarg.victoryMilestone.slug}"
+    }
+    val monsterIds = monsters.map { it.id }.toSet()
+    check(monsters.any { it.tier == ydarg.monsterTier }) {
+        "Ydarg monster tier ${ydarg.monsterTier.slug} has no authored monsters"
+    }
+    ydarg.confrontation.sequence.forEach { monster ->
+        check(monster in monsterIds) { "Ydarg confrontation references missing monster ${monster.slug}" }
+    }
+    ydarg.confrontation.baron?.let { baron ->
+        check(baron in monsterIds) { "Ydarg baron references missing monster ${baron.slug}" }
+    }
+
+    val itemIds = itemCatalog.map { it.id }.toSet()
+    check(ydarg.treasure.gateMax >= 0) { "Ydarg treasure gate max must be non-negative" }
+    check(ydarg.treasure.regularKinds.isNotEmpty()) { "Ydarg treasure needs at least one regular kind table" }
+    ydarg.treasure.regularKinds.forEachIndexed { index, items ->
+        check(items.isNotEmpty()) { "Ydarg regular treasure kind $index is empty" }
+        items.forEach { item -> check(item in itemIds) { "Ydarg treasure references missing item ${item.slug}" } }
+    }
+    check(ydarg.treasure.magic.isNotEmpty()) { "Ydarg magic treasure table is empty" }
+    ydarg.treasure.magic.forEach { item ->
+        check(item in itemIds) { "Ydarg magic treasure references missing item ${item.slug}" }
+    }
+
+    check(ydarg.pitfall.damageDivisor > 0) { "Ydarg pitfall damage divisor must be positive" }
+    check(ydarg.pitfall.trapTypes.isNotEmpty()) { "Ydarg pitfall needs at least one trap type" }
+    ydarg.pitfall.trapTypes.forEachIndexed { index, block ->
+        validateTextBlock(block, "Ydarg pitfall trap ${index + 1}")
+    }
+
+    check(ydarg.stairs.floorCount > 0) { "Ydarg floor count must be positive" }
+    check(ydarg.stairs.items.map { it.digit }.toSet().size == ydarg.stairs.items.size) {
+        "Ydarg stairs contain duplicate give digits"
+    }
+    ydarg.stairs.items.forEach { item ->
+        check(item.digit in 1..9) { "Ydarg stair item digit must be 1..9" }
+        check(item.milestone in milestones) {
+            "Ydarg stair item ${item.itemName} references unknown milestone ${item.milestone.slug}"
+        }
+        check(item.itemName.isNotBlank()) { "Ydarg stair item ${item.digit} has blank display name" }
+        validateTextBlock(item.reject, "Ydarg stair item ${item.itemName} rejection")
+    }
+
+    validateYdargKeys(ydarg.keys)
+    validateYdargText(ydarg.text)
+}
+
+private fun validateYdargKeys(keys: YdargKeysModel) {
+    val navigate = listOf(
+        "move north" to keys.moveNorth,
+        "move south" to keys.moveSouth,
+        "move west" to keys.moveWest,
+        "move east" to keys.moveEast,
+        "help" to keys.help,
+        "view party" to keys.viewParty,
+        "remove armor" to keys.removeArmor,
+        "remove weapon" to keys.removeWeapon,
+        "drop" to keys.drop,
+        "ready weapon" to keys.readyWeapon,
+        "ready armor" to keys.readyArmor,
+        "quaff" to keys.quaff,
+        "cast spell" to keys.castSpell,
+    )
+    val treasure = listOf("take treasure" to keys.treasureTake, "leave treasure" to keys.treasureLeave)
+    val stairs = listOf(
+        "teleport" to keys.stairsTeleport,
+        "give" to keys.stairsGive,
+        "leave" to keys.stairsLeave,
+    )
+    (navigate + treasure + stairs).forEach { (label, binding) ->
+        validateInputBinding(binding, "Ydarg key $label")
+    }
+    checkUniqueBindings(navigate.map { it.second }, "Ydarg navigation")
+    checkUniqueBindings(treasure.map { it.second }, "Ydarg treasure")
+    checkUniqueBindings(stairs.map { it.second }, "Ydarg stairs")
+}
+
+private fun validateYdargText(text: YdargTextModel) {
+    listOf(
+        "ruin" to text.ruin,
+        "approach" to text.approach,
+        "Jaara form" to text.jaaraForm,
+        "Jaara speech" to text.jaaraSpeech,
+        "no key" to text.noKey,
+        "key accepted" to text.keyAccepted,
+        "enter" to text.enter,
+        "door slams" to text.doorSlams,
+        "room monster" to text.roomMonster,
+        "trap disarm suffix" to text.trapTriesDisarmSuffix,
+        "trap disarm succeeds" to text.trapDisarmSucceed,
+        "trap disarm fails" to text.trapDisarmFail,
+        "treasure menu" to text.treasureMenu,
+        "treasure full" to text.treasureFull,
+        "treasure taken" to text.treasureTaken,
+        "stairs intro" to text.stairsIntro,
+        "stairs mage offer" to text.stairsMageOffer,
+        "stairs menu" to text.stairsMenu,
+        "stairs leave" to text.stairsLeave,
+        "teleport vortex" to text.teleportVortex,
+        "teleport outside" to text.teleportOutside,
+        "give menu" to text.giveMenu,
+        "mage grateful" to text.mageGrateful,
+        "command help" to text.commandHelp,
+        "unsupported command" to text.unsupportedCommand,
+    ).forEach { (label, block) -> validateTextBlock(block, "Ydarg $label") }
+    listOf(
+        "act1" to text.confrontationAct1,
+        "act2" to text.confrontationAct2,
+        "act3" to text.confrontationAct3,
+        "act4" to text.confrontationAct4,
+    ).forEach { (label, blocks) ->
+        blocks.forEachIndexed { index, block ->
+            validateTextBlock(block, "Ydarg confrontation $label screen ${index + 1}")
+        }
+    }
+}
+
 private fun validateWildernessKeys(keys: WildernessKeysModel) {
     listOf(
         "move north" to keys.moveNorth,
@@ -1459,6 +1594,7 @@ fun validateAuthoredContent(content: GameModel) {
     validateCombatSystem(content.combat, content.rewards)
     validateWildernessSystem(content.wilderness)
     validateDungeonSystem(content.dungeons)
+    validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters)
     validateTowns(content.towns)
     validateTownSystem(content.townSystem, content.towns, content.scenes)
     validateCharacters(content.characters, content.towns)

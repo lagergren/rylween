@@ -434,12 +434,7 @@ fun rumour(slug: String) = RumourId(slug)
 class NativeOpRefs {
     val inventoryAdd = nativeOp("inventory.add")
     val townEnterService = nativeOp("town.enter_service")
-    val ydargInit = nativeOp("ydarg.init")
-    val ydargClearRoomAtCurrent = nativeOp("ydarg.clear_room_at_current")
-    val ydargTryMove = nativeOp("ydarg.try_move")
     val rumourRoll = nativeOp("rumour.roll")
-    val ydargRoomAtCurrent = nativeOp("ydarg.room_at_current")
-    val ydargExitRequested = nativeOp("ydarg.exit_requested")
     val inputKeyUpper = nativeOp("input.key_upper")
     val partyMemberName = nativeOp("party.member.name")
     val combatMonsterName = nativeOp("combat.monster.name")
@@ -1342,6 +1337,7 @@ data class RuntimeContent(
     val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel = GamePromptsModel(),
     val dungeons: DungeonSystemModel = DungeonSystemModel(),
+    val ydarg: YdargContentModel? = null,
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
     val towns: List<TownModel> = emptyList(),
     val townSystem: TownSystemModel? = null,
@@ -1371,6 +1367,7 @@ data class GameModel(
     val combat: CombatSystemModel,
     val wilderness: WildernessSystemModel,
     val dungeons: DungeonSystemModel,
+    val ydarg: YdargContentModel?,
     val speak: SpeakSystemModel,
     val towns: List<TownModel>,
     val townSystem: TownSystemModel?,
@@ -1399,6 +1396,7 @@ fun GameModel.runtimeContent(): RuntimeContent =
         realm = realm,
         prompts = prompts,
         dungeons = dungeons,
+        ydarg = ydarg,
         wilderness = wilderness,
         towns = towns,
         townSystem = townSystem,
@@ -1999,13 +1997,8 @@ class NativeStringSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
 class NativeAllowlistRefs {
     val inventoryAdd = effect(NativeOps.inventoryAdd, "inventory slot mutation")
     val townEnterService = effect(NativeOps.townEnterService, "town building-service trampoline")
-    val ydargInit = effect(NativeOps.ydargInit, "Ydarg dungeon state setup")
-    val ydargClearRoomAtCurrent = effect(NativeOps.ydargClearRoomAtCurrent, "Ydarg room state mutation")
-    val ydargTryMove = effect(NativeOps.ydargTryMove, "Ydarg movement and collision")
 
     val rumourRoll = int(NativeOps.rumourRoll, "imported rumour scene roll bridge")
-    val ydargRoomAtCurrent = int(NativeOps.ydargRoomAtCurrent, "Ydarg room table lookup")
-    val ydargExitRequested = int(NativeOps.ydargExitRequested, "Ydarg exit flag")
     val inputKeyUpper = int(NativeOps.inputKeyUpper, "keyboard input normalization")
 
     val partyMemberName = string(NativeOps.partyMemberName, "party-member display name binding")
@@ -2020,12 +2013,7 @@ class NativeAllowlistRefs {
     val all: List<NativeSpec> = listOf(
         inventoryAdd,
         townEnterService,
-        ydargInit,
-        ydargClearRoomAtCurrent,
-        ydargTryMove,
         rumourRoll,
-        ydargRoomAtCurrent,
-        ydargExitRequested,
         inputKeyUpper,
         partyMemberName,
         combatMonsterName,
@@ -3349,14 +3337,12 @@ class ViewScope(private val script: ScriptScope) {
 
 class NativeScope(private val script: ScriptScope) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
-    // plumbing, Ydarg state, and helper calls whose implementation is
-    // genuinely engine-owned. Game rules should become typed DSL verbs before
-    // they are allowed here.
+    // plumbing, and helper calls whose implementation is genuinely engine-owned.
+    // Game rules should become typed DSL verbs before they are allowed here.
     val screen = NativeScreen(script)
     val rumour = NativeRumour(script)
     val inventory = NativeInventory(script)
     val town = NativeTown(script)
-    val ydarg = NativeYdarg(script)
     val input = NativeInput(script)
 }
 
@@ -3389,19 +3375,6 @@ class NativeInventory(private val script: ScriptScope) {
 class NativeTown(private val script: ScriptScope) {
     fun enterService(building: BuildingId) =
         script.record(Op.NativeCall(NativeAllowlist.townEnterService.path, listOf(render(building))))
-}
-
-class NativeYdarg(private val script: ScriptScope) {
-    fun init() = script.record(Op.NativeCall(NativeAllowlist.ydargInit.path, emptyList()))
-    fun roomAtCurrent(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.ydargRoomAtCurrent.path, emptyList()))
-    fun clearRoomAtCurrent() =
-        script.record(Op.NativeCall(NativeAllowlist.ydargClearRoomAtCurrent.path, emptyList()))
-
-    fun exitRequested(): BoolExpr =
-        Bool(BoolAst.Cmp(IntAst.NativeInt(NativeAllowlist.ydargExitRequested.path, emptyList()), "ne", IntAst.Lit(0)))
-
-    fun tryMove(key: IntExpr) =
-        script.record(Op.NativeCall(NativeAllowlist.ydargTryMove.path, listOf(render(key))))
 }
 
 class NativeInput(private val script: ScriptScope) {
@@ -3914,6 +3887,7 @@ class GameBuilder {
     private var combatModel = CombatSystemModel(null)
     private var wildernessModel = WildernessSystemModel()
     private var dungeonsModel = DungeonSystemModel()
+    private var ydargModel: YdargContentModel? = null
     private var speakModel = SpeakSystemModel(null)
     private val towns = mutableListOf<TownModel>()
     private var townSystemModel: TownSystemModel? = null
@@ -3983,6 +3957,10 @@ class GameBuilder {
         dungeonsModel = DungeonSystemBuilder().apply(body).build()
     }
 
+    fun ydarg(body: YdargBuilder.() -> Unit) {
+        ydargModel = YdargBuilder().apply(body).build()
+    }
+
     fun speak(body: SpeakBuilder.() -> Unit) {
         speakModel = SpeakBuilder().apply(body).build()
     }
@@ -4045,6 +4023,7 @@ class GameBuilder {
             combat = combatModel,
             wilderness = wildernessModel,
             dungeons = dungeonsModel.resolveItemPools(::resolveItemPool),
+            ydarg = ydargModel,
             speak = speakModel,
             towns = towns.toList(),
             townSystem = townSystemModel,
