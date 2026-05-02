@@ -3,6 +3,19 @@
 // This file is backend-neutral. Battle rules come from CombatSystemModel,
 // spell/item-use scripts, formulas, rewards, monsters, and item records supplied by the game model.
 
+data class BattleRuntimeContent(
+    val combat: CombatSystemModel = CombatSystemModel(null),
+    val monsters: List<MonsterModel> = emptyList(),
+    val formulas: List<FormulaModel> = emptyList(),
+    val rewards: List<RewardBundleModel> = emptyList(),
+    val leveling: LevelingModel? = null,
+    val spells: List<SpellModel> = emptyList(),
+    val itemUses: List<ItemUseModel> = emptyList(),
+    val itemRecords: List<ItemRecordModel> = emptyList(),
+) {
+    val configured: Boolean get() = combat.standardBattle != null
+}
+
 enum class BattleOpeningChoice { Fight, Run }
 
 sealed interface BattleSessionInput {
