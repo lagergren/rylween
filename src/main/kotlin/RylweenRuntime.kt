@@ -1028,6 +1028,7 @@ private class CombatScriptRunner(
                 is Op.Switch,
                 is Op.Menu,
                 is Op.AskInventorySlot,
+                is Op.AskText,
                 is Op.Speak,
                 is Op.RunScene,
                 is Op.Encounter,
@@ -1178,6 +1179,7 @@ private class CombatScriptRunner(
             "charisma" -> member.charisma
             "weapon_skill" -> member.weaponSkill
             "class" -> member.pcClass.sourceId
+            "experience" -> member.experience
             "dead" -> if (member.dead) 1 else 0
             else -> error("unknown battle member field $field")
         }
@@ -1197,6 +1199,7 @@ private class CombatScriptRunner(
             "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
             "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
             "weapon_skill" -> member.copy(weaponSkill = value.coerceAtLeast(0))
+            "experience" -> member.copy(experience = value.coerceAtLeast(0))
             "dead" -> member.copy(dead = value != 0)
             else -> error("unknown battle member field $field")
         }
@@ -1914,6 +1917,8 @@ enum class TownServiceScriptBranch {
     SwitchCase,
     MenuOption,
     MenuDefault,
+    TextAnswerMatch,
+    TextAnswerMiss,
 }
 
 data class TownServiceScriptSegment(
@@ -2252,18 +2257,19 @@ data class RandomItemOfferSession(
             require(offer.pool.items.isNotEmpty()) { "random item offer ${offer.pool.slug} has no items" }
             val item = offer.pool.items[selectedIndex.floorMod(offer.pool.items.size)]
             val record = checkNotNull(itemRecords.associateBy { it.id }[item]) { "unknown item ${item.slug}" }
+            val price = offer.priceOverride ?: record.cost
             return RandomItemOfferSession(
                 offer = offer,
                 party = party,
                 item = item,
                 itemName = record.displayName,
-                price = record.cost,
+                price = price,
                 step = RandomItemOfferStep.Choice(
-                    offerText = offer.offer.withRandomItemOffer(record.displayName, record.cost),
+                    offerText = offer.offer.withRandomItemOffer(record.displayName, price),
                     prompt = offer.choicePrompt,
                     item = item,
                     itemName = record.displayName,
-                    price = record.cost,
+                    price = price,
                     buy = offer.buy,
                     decline = offer.decline,
                 ),

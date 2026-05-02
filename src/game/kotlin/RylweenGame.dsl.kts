@@ -196,6 +196,50 @@ val nextRylween = rylween {
         pool(ItemPools.thunAltarGems) {
             items(Items.redGem, Items.blueGem, Items.greenGem)
         }
+
+        pool(ItemPools.dungeonWeaponFinds) {
+            items(
+                Items.sword,
+                Items.axe,
+                Items.bow,
+                Items.club,
+                Items.dart,
+                Items.sling,
+                Items.longsword,
+                Items.trident,
+                Items.halbard,
+                Items.poleArm,
+                Items.crossbow,
+                Items.scythe,
+                Items.scimitar,
+                Items.twoHandSword,
+            )
+        }
+
+        pool(ItemPools.dungeonPotionGemFinds) {
+            items(
+                Items.redPotion,
+                Items.bluePotion,
+                Items.amberPotion,
+                Items.redGem,
+                Items.blueGem,
+                Items.greenGem,
+                Items.chalice,
+            )
+        }
+
+        pool(ItemPools.dungeonTreasureFinds) {
+            items(
+                Items.redGem,
+                Items.blueGem,
+                Items.greenGem,
+                Items.chalice,
+                Items.pendant,
+                Items.broche,
+                Items.crystalBowl,
+                Items.necklace,
+            )
+        }
     }
 
     gameProgress {
@@ -618,6 +662,87 @@ val nextRylween = rylween {
             }
         }
 
+        event(DungeonEvents.findObject) {
+            recurring()
+            run {
+                findDungeonObject()
+            }
+        }
+
+        event(DungeonEvents.goldChest) {
+            recurring()
+            run {
+                menu(
+                    "You find a chest!",
+                    "",
+                    "(O)pen chest",
+                    "(L)eave",
+                ) {
+                    option('O') {
+                        val trapChance = localInt(4)
+                        val thiefFound = localInt(0)
+                        forEachMember {
+                            whenever((thiefFound eq 0) and it.isClass(PcClass.Thief)) {
+                                native.screen.clearText()
+                                screen {
+                                    line(partyName(it), " checks the")
+                                    line("chest for traps.")
+                                }
+                                pause(1000)
+                                trapChance set 2
+                                thiefFound set 1
+                            }
+                        }
+
+                        whenever(random(0..9) lt trapChance) {
+                            native.screen.clearText()
+                            screen("A TRAP!")
+                            pause(600)
+                            choose(random(0..2)) {
+                                case(0) {
+                                    screen("Poisonous gas", "hisses out through", "hidden holes.", "")
+                                    pause(1400)
+                                    screen("The party coughs", "and retches.")
+                                    pause(600)
+                                    screen("Finally. The gas clears.", "")
+                                }
+                                case(1) {
+                                    screen("A spiked pitfall", "opens in the floor", "beneath you.", "")
+                                    pause(1400)
+                                    screen("You climb out of it,", "badly wounded.", "")
+                                }
+                                case(2) {
+                                    screen("A large boulder", "drops from above!!!")
+                                    pause(1400)
+                                    screen("Badly bruised, you", "try to stand up again.", "")
+                                }
+                            }
+                            forEachMember {
+                                it.hp -= it.level * 4
+                                whenever(it.hp lt 1) {
+                                    it.hp set 1
+                                }
+                            }
+                            waitInput("after chest trap")
+                        }
+
+                        native.screen.clearText()
+                        val goldAmount = localInt(random(0..99) + 320 + (party.leader.experience / 500))
+                        screen {
+                            line("The chest contained")
+                            line(goldAmount, " pieces of gold.")
+                            line("")
+                        }
+                        party.gold += goldAmount
+                        waitInput("after chest gold")
+                        native.screen.clearText()
+                    }
+                    option('L') {}
+                    default {}
+                }
+            }
+        }
+
         event(DungeonEvents.weakEncounter) {
             recurring()
             randomEncounter(EncounterTiers.weak)
@@ -626,6 +751,128 @@ val nextRylween = rylween {
         event(DungeonEvents.deepEncounter) {
             recurring()
             randomEncounter(EncounterTiers.deep)
+        }
+
+        event(DungeonEvents.thunRiddle1) {
+            run {
+                thunRiddle(
+                    intro = textLines(
+                        "You stand before a",
+                        "mage dressed entirenly",
+                        "in red.",
+                        "",
+                        "- Answer this, fools, or",
+                        "  die where you stand!",
+                        "",
+                    ),
+                    riddle = textLines(
+                        "'Between fire and ice,",
+                        "who ends the fight?",
+                        "Who stands between those",
+                        "two? Not red, not white",
+                        "but blue!",
+                        "",
+                    ),
+                    answers = listOf("water"),
+                    guardian = Monsters.norker,
+                )
+            }
+        }
+
+        event(DungeonEvents.thunRiddle2) {
+            run {
+                thunRiddle(
+                    intro = textLines(
+                        "You stand before a",
+                        "mage dressed entirenly",
+                        "in green.",
+                        "",
+                        "- Answer this, fools, or",
+                        "  die where you stand!",
+                        "",
+                    ),
+                    riddle = textLines(
+                        "'Siblings we are,",
+                        "I'm black and she's",
+                        "white. Each dreary",
+                        "evening, I swallow her",
+                        "light.'",
+                        "",
+                    ),
+                    answers = listOf("night", "darkness"),
+                    guardian = Monsters.voodooLord,
+                )
+            }
+        }
+
+        event(DungeonEvents.thunRiddle3) {
+            run {
+                thunRiddle(
+                    intro = textLines(
+                        "You stand before a",
+                        "mage dressed entirenly",
+                        "in blue.",
+                        "",
+                        "- Answer this, fools, or",
+                        "  die where you stand!",
+                        "",
+                    ),
+                    riddle = textLines(
+                        "'Tall as a house,",
+                        "round as a cup, and",
+                        "all the king's horses",
+                        "can't draw me up! What",
+                        "am I?'",
+                        "",
+                    ),
+                    answers = listOf("well", "a well"),
+                    guardian = Monsters.archdevil,
+                )
+            }
+        }
+
+        event(DungeonEvents.colourRiddle) {
+            recurring()
+            run {
+                val antechamber = localInt(context.dungeonLevel - 12)
+                readScreen {
+                    line("A plaque here reads:")
+                    line("ANTECHAMBER #", antechamber)
+                    line("")
+                }
+                readScreen(
+                    "Before you are seven",
+                    "squares of 20x20 feet.",
+                    "To get across this room",
+                    "you will need to step",
+                    "on one of them.",
+                    "",
+                )
+                val pick = ask.digit(
+                    textLines(
+                        "1. Red Square",
+                        "2. Orange Square",
+                        "3. Yellow Square",
+                        "4. Green Square",
+                        "5. Blue Square",
+                        "6. Indigo Square",
+                        "7. Violet Square",
+                    ),
+                    1..7,
+                )
+                whenever(context.dungeonLevel + pick eq 20) {
+                    readScreen("You feel a slight", "tingle in your bodies,", "but otherwise, nothing", "happens.", "")
+                } otherwise {
+                    readScreen(
+                        "With a horrible scream",
+                        "a shape of pure colour",
+                        "forms in thin air before",
+                        "you!",
+                        "",
+                    )
+                    encounter(Monsters.rainbowDemon, mandatory = true)
+                }
+            }
         }
 
         event(DungeonEvents.fireShieldGuardian) {
@@ -728,6 +975,274 @@ val nextRylween = rylween {
             }
         }
 
+        event(DungeonEvents.silverSanctum) {
+            run {
+                whenever(!Story.silverKey.noteFound) {
+                    readScreen(
+                        "This room shines like",
+                        "silver. You can see your",
+                        "mirror image in the",
+                        "walls. After searching",
+                        "the room thorougly, you",
+                        "find nothing. No Silver",
+                        "Key, no treasure.",
+                        "",
+                    )
+                    readScreen(
+                        "You curse the rouge who",
+                        "tricked you and are just",
+                        "about to leave...",
+                        "",
+                    )
+                    readScreen(
+                        "...when you spot a paper",
+                        "of some kind in a crack",
+                        "in the wall... You pull",
+                        "it out and read...",
+                        "",
+                    )
+                    readScreen {
+                        line("'Guild Master: This is")
+                        line("the proof that I, ", character(Roles.masterThief).name)
+                        line("am worthy of the title")
+                        line("Master Thief.'")
+                        line("      - ", character(Roles.masterThief).name)
+                        line("")
+                    }
+                    mark(Story.silverKey.noteFound)
+                }
+            }
+        }
+
+        event(DungeonEvents.hobgoblinPatrol) {
+            recurring()
+            run {
+                readScreen(
+                    "You bump into a hobgoblin",
+                    "patrol. With shiny and",
+                    "well used scimitars, they",
+                    "attack you!",
+                    "",
+                )
+                encounter(Monsters.hobgoblin, mandatory = true)
+                whenever(chance(39)) {
+                    readScreen(
+                        "You find a scribbled",
+                        "note on the leader:",
+                        "Password: 'RISH EKKIN'",
+                        "",
+                    )
+                }
+            }
+        }
+
+        event(DungeonEvents.royalGuard1) {
+            run {
+                readScreen(
+                    "As you enter this room",
+                    "an army of hobgoblin",
+                    "skeletons attack you!",
+                    "",
+                )
+                encounter(Monsters.hobgoblinSkeleton, mandatory = true)
+            }
+        }
+
+        event(DungeonEvents.royalGuard2) {
+            run {
+                readScreen(
+                    "As you enter this room",
+                    "an army of undead",
+                    "hobgoblins, smelling",
+                    "of rotting flesh and",
+                    "brandising gleaming",
+                    "tridents attack you.",
+                    "",
+                )
+                encounter(Monsters.undeadHobgoblin, mandatory = true)
+            }
+        }
+
+        event(DungeonEvents.hobgoblinChief) {
+            run {
+                whenever(!achieved(Milestones.silverKey)) {
+                    readScreen(
+                        "You stand before a",
+                        "silk curtain. You hear",
+                        "someone moving behind",
+                        "it. A voice calls:",
+                        "- What's the password?",
+                        "",
+                    )
+                    choice.textAnswer(
+                        prompt = "Password: ",
+                        accepting = listOf("RISH EKKIN"),
+                        maxLength = 15,
+                        match = {
+                            readScreen(
+                                "- Step inside and identify",
+                                "yourself. You do so. The",
+                                "hobgoblin chief eyes you",
+                                "suspiciously for a few",
+                                "seconds. Not hestitating",
+                                "a moment you attack.",
+                                "",
+                            )
+                            encounter(Monsters.hobgoblinChief, mandatory = true)
+                        },
+                        miss = {
+                            screen("- GUARDS! GUARDS!", "", "(Hobgoblin guards rush", " to confront you.)")
+                            pause(2000)
+                            encounter(Monsters.hobgoblin, mandatory = true)
+                            encounter(Monsters.hobgoblinChief, mandatory = true)
+                        },
+                    )
+                    readScreen(
+                        "You have killed the chief",
+                        "of the hobgoblin tribe.",
+                        "The precious Silver Key",
+                        "hangs around his neck.",
+                        "With trembling hands",
+                        "you pick it up!!!",
+                        "",
+                    )
+                    achieve(Milestones.silverKey)
+                    mark(Story.silverKey.keyTaken)
+                }
+            }
+        }
+
+        event(DungeonEvents.orcNest) {
+            run {
+                readScreen(
+                    "Some orcs watch a trapdoor",
+                    "in the floor here. As",
+                    "you enter, they attack!",
+                    "",
+                )
+                encounter(Monsters.orc, mandatory = true)
+                readScreen(
+                    "The last of the guardians",
+                    "lie dead. Suddenly, more",
+                    "orcs rush out of their",
+                    "sleeping quarters,",
+                    "disturbed by the noise.",
+                    "",
+                )
+                encounter(Monsters.orc, mandatory = true)
+                encounter(Monsters.orc, mandatory = true)
+                readScreen("You have slain the orcs.", "")
+            }
+        }
+
+        event(DungeonEvents.tammysPrison) {
+            recurring()
+            run {
+                whenever(Story.peasant.wife.accepted and !Story.peasant.wife.rescued) {
+                    readScreen(
+                        "The peasant's wife is in",
+                        "this room. You untie",
+                        "her bonds and let her",
+                        "join your party!",
+                        "",
+                    )
+                    mark(Story.peasant.wife.rescued)
+                }
+            }
+        }
+
+        event(DungeonEvents.erethorPriests) {
+            recurring()
+            run {
+                readScreen(
+                    "You are spotted by",
+                    "some priests. They",
+                    "attack you with blind",
+                    "fury.",
+                    "",
+                )
+                encounter(Monsters.erethorPriest, mandatory = true)
+            }
+        }
+
+        event(DungeonEvents.luteChamber) {
+            run {
+                whenever(!Story.erethor.lute.luteTaken) {
+                    readScreen(
+                        "This is the altar chamber",
+                        "of the temple. Hooded",
+                        "shapes kneel at the",
+                        "blood stained altar at",
+                        "the end of this chamber.",
+                        "",
+                    )
+                    readScreen("You rush to attack the", "priests...", "")
+                    readScreen("They quickly turn around", "and draw their daggers.", "")
+                    readScreen(
+                        "The acolyte kneels before",
+                        "the altar in silent prayer",
+                        "while the others form a",
+                        "circle around him to",
+                        "protect him.",
+                        "",
+                    )
+                    readScreen(
+                        "Suddenly there is an",
+                        "ear splitting bang",
+                        "and a ghastly creature",
+                        "emerges from the shadows",
+                        "of this uncanny sanctuary.",
+                        "",
+                    )
+                    encounter(Monsters.erethor, mandatory = true)
+                    encounter(Monsters.erethorPriest, mandatory = true)
+                    readScreen("More priests rush to", "attack you...", "")
+                    encounter(Monsters.erethorPriest, mandatory = true)
+                    readScreen(
+                        "The last priest lies",
+                        "dead. You stand still",
+                        "for a moment, and then",
+                        "start searching the",
+                        "hall for the Lute.",
+                        "",
+                    )
+                    val surprised = party.member(3)
+                    readScreen {
+                        line(partyName(surprised), " suddenly")
+                        line("hears something behind")
+                        line(pronoun(surprised, PronounCase.Object), "!")
+                        line("")
+                    }
+                    readScreen(
+                        "You scream in terror",
+                        "when you see the source",
+                        "of that sound! ERETHOR",
+                        "HAS COME TO LIFE ONCE",
+                        "AGAIN!!!",
+                        "",
+                    )
+                    encounter(Monsters.erethor, mandatory = true)
+                    readScreen(
+                        "This time Erethor",
+                        "remains dead. His flesh",
+                        "blisters and bursts.",
+                        "A rotten smell spreads",
+                        "throughout the hall.",
+                        "",
+                    )
+                    val finder = party.member(4)
+                    readScreen {
+                        line(partyName(finder), " finds the")
+                        line("Lute on a pedestal,")
+                        line("and you are all glad")
+                        line("to leave this place.")
+                        line("")
+                    }
+                    mark(Story.erethor.lute.luteTaken)
+                }
+            }
+        }
+
         scenario(Dungeons.randomCave) {
             standardDungeonEvents()
         }
@@ -742,6 +1257,9 @@ val nextRylween = rylween {
         scenario(Dungeons.thunTemple) {
             levels(18)
             standardDungeonEvents()
+            level(4, DungeonEvents.thunRiddle1)
+            level(8, DungeonEvents.thunRiddle2)
+            level(12, DungeonEvents.thunRiddle3)
             level(18, DungeonEvents.bracelets)
         }
 
@@ -749,6 +1267,13 @@ val nextRylween = rylween {
             levels(20)
             standardDungeonEvents()
             level(12, DungeonEvents.spectrumMessage)
+            level(13, DungeonEvents.colourRiddle)
+            level(14, DungeonEvents.colourRiddle)
+            level(15, DungeonEvents.colourRiddle)
+            level(16, DungeonEvents.colourRiddle)
+            level(17, DungeonEvents.colourRiddle)
+            level(18, DungeonEvents.colourRiddle)
+            level(19, DungeonEvents.colourRiddle)
             level(20, DungeonEvents.nolrimTomb)
         }
 
@@ -756,6 +1281,41 @@ val nextRylween = rylween {
             levels(10)
             standardDungeonEvents()
             level(10, DungeonEvents.masterCrown)
+        }
+
+        scenario(Dungeons.silverSanctum) {
+            levels(20)
+            standardDungeonEvents()
+            level(20, DungeonEvents.silverSanctum)
+        }
+
+        scenario(Dungeons.hobgoblinStronghold) {
+            levels(22)
+            standardDungeonEvents()
+            level(3, DungeonEvents.hobgoblinPatrol)
+            level(6, DungeonEvents.hobgoblinPatrol)
+            level(9, DungeonEvents.hobgoblinPatrol)
+            level(14, DungeonEvents.hobgoblinPatrol)
+            level(17, DungeonEvents.hobgoblinPatrol)
+            level(19, DungeonEvents.hobgoblinPatrol)
+            level(20, DungeonEvents.royalGuard1)
+            level(21, DungeonEvents.royalGuard2)
+            level(22, DungeonEvents.hobgoblinChief)
+        }
+
+        scenario(Dungeons.ogreCave) {
+            levels(7)
+            standardDungeonEvents()
+            level(6, DungeonEvents.orcNest)
+            level(7, DungeonEvents.tammysPrison)
+        }
+
+        scenario(Dungeons.erethorTemple) {
+            levels(12)
+            standardDungeonEvents()
+            level(3, DungeonEvents.erethorPriests)
+            level(7, DungeonEvents.erethorPriests)
+            level(12, DungeonEvents.luteChamber)
         }
     }
 
@@ -4906,7 +5466,7 @@ check(nextDsl.flags.size == 13)
 check(nextDsl.authoredFlags.size == 13)
 check(nextDsl.itemCatalog.size == 63)
 check(nextDsl.itemCatalog.single { it.id == Items.redPotion }.kind == ItemKind.Potion)
-check(nextDsl.itemPools.size == 4)
+check(nextDsl.itemPools.size == 7)
 check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
 check(nextDsl.leveling?.maxLevel == 28)
@@ -4977,6 +5537,8 @@ fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
             is Op.Switch -> op.cases.any { it.body.containsEnterDungeon(dungeon, levels) }
             is Op.Menu -> op.options.any { it.body.containsEnterDungeon(dungeon, levels) } ||
                     op.defaultOps.containsEnterDungeon(dungeon, levels)
+            is Op.AskText -> op.matchOps.containsEnterDungeon(dungeon, levels) ||
+                    op.missOps.containsEnterDungeon(dungeon, levels)
             is Op.ForEachMember -> op.body.containsEnterDungeon(dungeon, levels)
             is Op.ForEachMonster -> op.body.containsEnterDungeon(dungeon, levels)
             else -> false
@@ -4992,6 +5554,8 @@ fun List<Op>.containsConsumeInventoryPool(pool: ItemPoolId, quantity: Int): Bool
             is Op.Switch -> op.cases.any { it.body.containsConsumeInventoryPool(pool, quantity) }
             is Op.Menu -> op.options.any { it.body.containsConsumeInventoryPool(pool, quantity) } ||
                     op.defaultOps.containsConsumeInventoryPool(pool, quantity)
+            is Op.AskText -> op.matchOps.containsConsumeInventoryPool(pool, quantity) ||
+                    op.missOps.containsConsumeInventoryPool(pool, quantity)
             is Op.ForEachMember -> op.body.containsConsumeInventoryPool(pool, quantity)
             is Op.ForEachMonster -> op.body.containsConsumeInventoryPool(pool, quantity)
             else -> false
@@ -5007,6 +5571,7 @@ fun List<Op>.containsEncounter(monster: MonsterId): Boolean =
             is Op.Switch -> op.cases.any { it.body.containsEncounter(monster) }
             is Op.Menu -> op.options.any { it.body.containsEncounter(monster) } ||
                     op.defaultOps.containsEncounter(monster)
+            is Op.AskText -> op.matchOps.containsEncounter(monster) || op.missOps.containsEncounter(monster)
             is Op.ForEachMember -> op.body.containsEncounter(monster)
             is Op.ForEachMonster -> op.body.containsEncounter(monster)
             else -> false
@@ -5071,6 +5636,41 @@ check(nextDsl.itemPool(ItemPools.tavernScruffySpecials).items == listOf(
     Items.holyHandgrenade,
     Items.fluteOfMadness,
 ))
+check(nextDsl.itemPool(ItemPools.dungeonWeaponFinds).items == listOf(
+    Items.sword,
+    Items.axe,
+    Items.bow,
+    Items.club,
+    Items.dart,
+    Items.sling,
+    Items.longsword,
+    Items.trident,
+    Items.halbard,
+    Items.poleArm,
+    Items.crossbow,
+    Items.scythe,
+    Items.scimitar,
+    Items.twoHandSword,
+))
+check(nextDsl.itemPool(ItemPools.dungeonPotionGemFinds).items == listOf(
+    Items.redPotion,
+    Items.bluePotion,
+    Items.amberPotion,
+    Items.redGem,
+    Items.blueGem,
+    Items.greenGem,
+    Items.chalice,
+))
+check(nextDsl.itemPool(ItemPools.dungeonTreasureFinds).items == listOf(
+    Items.redGem,
+    Items.blueGem,
+    Items.greenGem,
+    Items.chalice,
+    Items.pendant,
+    Items.broche,
+    Items.crystalBowl,
+    Items.necklace,
+))
 check(tavernScene.ops.any { op ->
     op is Op.If && op.thenOps.any {
         it is Op.RandomItemOffer &&
@@ -5090,6 +5690,27 @@ check(nextDsl.scenes.single { it.id == Scenes.Missions.borinMeet }.ops.any { it 
 check(nextDsl.scenes.single { it.id == Scenes.Missions.hobgoblinCaravan }.ops.any { it is Op.AppendJournal })
 check(nextDsl.scenes.single { it.id == Scenes.Missions.koboldVillage }.ops.containsEncounter(Monsters.orc))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.ogreCave }.ops.containsEncounter(Monsters.ogreLord))
+val dungeonSystem = nextDsl.dungeons
+check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.randomCave }.randomEvents.map { it.event } == listOf(
+    DungeonEvents.findObject,
+    DungeonEvents.gold,
+    DungeonEvents.weakEncounter,
+    DungeonEvents.deepEncounter,
+    DungeonEvents.nothingSpecial,
+    DungeonEvents.emptyLevel,
+    DungeonEvents.goldChest,
+    DungeonEvents.torches,
+))
+check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.thunTemple }.fixedLevelEvents[4] == DungeonEvents.thunRiddle1)
+check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.thunTemple }.fixedLevelEvents[12] == DungeonEvents.thunRiddle3)
+check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.reebarTomb }.fixedLevelEvents[19] == DungeonEvents.colourRiddle)
+check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.hobgoblinStronghold }.fixedLevelEvents[22] == DungeonEvents.hobgoblinChief)
+check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.ogreCave }.fixedLevelEvents[7] == DungeonEvents.tammysPrison)
+check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.erethorTemple }.fixedLevelEvents[12] == DungeonEvents.luteChamber)
+check(dungeonSystem.events.single { it.id == DungeonEvents.hobgoblinPatrol }.disposition == DungeonEventDisposition.Recurring)
+check(dungeonSystem.events.single { it.id == DungeonEvents.erethorPriests }.disposition == DungeonEventDisposition.Recurring)
+check(dungeonSystem.events.single { it.id == DungeonEvents.luteChamber }.ops.containsEncounter(Monsters.erethor))
+check(dungeonSystem.events.single { it.id == DungeonEvents.hobgoblinChief }.ops.containsEncounter(Monsters.hobgoblinChief))
 check(nextDsl.dialogue.size == 1)
 check(nextDsl.dialogue.single().branches.size == 2)
 check(nextDsl.dialogue.single().branches.any { branch ->

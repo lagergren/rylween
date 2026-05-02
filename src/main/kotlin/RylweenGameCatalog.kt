@@ -271,6 +271,9 @@ class ItemPoolRefs {
     val magicItems = itemPool("magic_items")
     val tavernScruffySpecials = itemPool("tavern_scruffy_specials")
     val thunAltarGems = itemPool("thun_altar_gems")
+    val dungeonWeaponFinds = itemPool("dungeon_weapon_finds")
+    val dungeonPotionGemFinds = itemPool("dungeon_potion_gem_finds")
+    val dungeonTreasureFinds = itemPool("dungeon_treasure_finds")
 }
 val ItemPools = ItemPoolRefs()
 
@@ -869,18 +872,33 @@ class DungeonRefs {
 val Dungeons = DungeonRefs()
 
 class DungeonEventRefs {
+    val findObject = dungeonEvent("find_object")
     val nothingSpecial = dungeonEvent("nothing_special")
     val emptyLevel = dungeonEvent("empty_level")
     val spectrumMessage = dungeonEvent("spectrum_message")
     val gold = dungeonEvent("gold")
+    val goldChest = dungeonEvent("gold_chest")
     val torches = dungeonEvent("torches")
     val weakEncounter = dungeonEvent("weak_encounter")
     val deepEncounter = dungeonEvent("deep_encounter")
+    val thunRiddle1 = dungeonEvent("thun_riddle1")
+    val thunRiddle2 = dungeonEvent("thun_riddle2")
+    val thunRiddle3 = dungeonEvent("thun_riddle3")
+    val colourRiddle = dungeonEvent("colour_riddle")
     val fireShieldGuardian = dungeonEvent("fire_shield_guardian")
     val fireShield = dungeonEvent("fire_shield")
     val bracelets = dungeonEvent("bracelets")
     val nolrimTomb = dungeonEvent("nolrim_tomb")
     val masterCrown = dungeonEvent("master_crown")
+    val silverSanctum = dungeonEvent("silver_sanctum")
+    val hobgoblinPatrol = dungeonEvent("hobgoblin_patrol")
+    val royalGuard1 = dungeonEvent("royal_guard1")
+    val royalGuard2 = dungeonEvent("royal_guard2")
+    val hobgoblinChief = dungeonEvent("hobgoblin_chief")
+    val orcNest = dungeonEvent("orc_nest")
+    val tammysPrison = dungeonEvent("tammys_prison")
+    val erethorPriests = dungeonEvent("erethor_priests")
+    val luteChamber = dungeonEvent("lute_chamber")
 }
 val DungeonEvents = DungeonEventRefs()
 

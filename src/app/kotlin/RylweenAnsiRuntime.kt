@@ -319,6 +319,9 @@ private class AnsiTerminalPort(
 
     override fun readLine(): String? =
         terminal.readKeyToken()
+
+    override fun readTextLine(maxLength: Int?): String? =
+        terminal.readTextLine(maxLength)
 }
 
 private class ClassicAnsiScreen(
@@ -562,6 +565,30 @@ private class JLineAnsiTerminal private constructor(
             4 -> null
             10, 13 -> ""
             else -> ch.toChar().toString()
+        }
+    }
+
+    fun readTextLine(maxLength: Int?): String? {
+        val out = StringBuilder()
+        while (true) {
+            when (val ch = reader.read()) {
+                -1, 3, 4 -> return null
+                10, 13 -> return out.toString()
+                8, 127 -> if (out.isNotEmpty()) {
+                    out.deleteCharAt(out.lastIndex)
+                    writeRaw("\b \b")
+                    flush()
+                }
+                else -> {
+                    val cap = maxLength ?: Int.MAX_VALUE
+                    if (out.length < cap && ch >= 32) {
+                        val c = ch.toChar()
+                        out.append(c)
+                        writeRaw(c.toString())
+                        flush()
+                    }
+                }
+            }
         }
     }
 

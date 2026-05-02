@@ -987,6 +987,9 @@ fun validateScriptRewards(
         }
         validateTextBlock(offer.deal, "random item offer ${offer.pool.slug} deal")
         validateTextBlock(offer.declined, "random item offer ${offer.pool.slug} declined")
+        offer.priceOverride?.let { price ->
+            check(price >= 0) { "random item offer ${offer.pool.slug} price override must be non-negative" }
+        }
         validateInputChoiceBinding(offer.buy, "random item offer ${offer.pool.slug} buy key")
         validateInputChoiceBinding(offer.decline, "random item offer ${offer.pool.slug} decline key")
         check(offer.buyKey.isLetter()) { "random item offer ${offer.pool.slug} buy key must be a letter" }
@@ -1189,6 +1192,16 @@ fun validateScriptRewards(
                         check(op.slots.last <= InventorySaveSlotMax) {
                             "inventory-slot choice ends after slot $InventorySaveSlotMax"
                         }
+                    }
+                    is Op.AskText -> {
+                        validateTextBlock(op.prompt, "text answer prompt")
+                        check(op.accepted.isNotEmpty()) { "text answer prompt must accept at least one value" }
+                        check(op.accepted.none { it.isEmpty() }) { "text answer prompt cannot accept an empty value" }
+                        op.maxLength?.let { max ->
+                            check(max > 0) { "text answer max length must be positive" }
+                        }
+                        visitOps(op.matchOps, loopDepth)
+                        visitOps(op.missOps, loopDepth)
                     }
                     is Op.GrantReward -> validateReward(op.reward)
                     is Op.RandomItemOffer -> validateRandomItemOffer(op.offer)
