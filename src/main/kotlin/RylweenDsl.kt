@@ -530,6 +530,42 @@ data class CombatActionModel(
     val action: KeyActionId,
     val kind: CombatActionKind,
     val requirement: CombatActionRequirement,
+    val prompt: TextBlock,
+)
+
+data class BattleTextModel(
+    val encounterBanner: TextBlock = inlineText("ENCOUNTER!", ""),
+    val youFace: TextBlock = inlineText("You face"),
+    val stillFace: TextBlock = inlineText("You still face"),
+    val fight: TextBlock = inlineText("(F)ight"),
+    val run: TextBlock = inlineText("(R)un"),
+    val bloodFlow: TextBlock = inlineText("Blood shall flow!"),
+    val whatNow: TextBlock = inlineText("What now?", ""),
+    val targetPrompt: TextBlock = inlineText("Who?", ""),
+    val useWhat: TextBlock = inlineText("Use what?", ""),
+    val spellAbort: TextBlock = inlineText("7. Abort"),
+    val runCoward: TextBlock = inlineText("Coward. You won't get", "any EXP for this battle."),
+    val runDesperateFail: TextBlock = inlineText("You desperately try to", "get away, but fail!"),
+    val runFailAway: TextBlock = inlineText("You fail to get away!"),
+    val runEscaped: TextBlock = inlineText("You escaped..."),
+    val notPossible: TextBlock = inlineText("Not possible."),
+    val magicImmune: TextBlock = inlineText("The magic item doesn't seem", "to work on this enemy!!!"),
+    val spellFizzle: TextBlock = inlineText("The spell fizzles!", "this creature is immune", "to ordinary magic!!!"),
+    val notEnoughMagic: TextBlock = inlineText("Not enough magic!"),
+    val restGainHits: TextBlock = inlineText("You gain some hits pts", "as you rest this round."),
+    val defendStance: TextBlock = inlineText("You put up a defensive", "stance..."),
+    val battleCry: TextBlock = inlineText(
+        "HI-YAAAA!",
+        "",
+        "(You manage to scare your",
+        " enemies enough to get",
+        " them off guard.)",
+    ),
+    val killed: TextBlock = inlineText("...KILLED!"),
+    val partyHeld: TextBlock = inlineText("PARTY IS HELD!"),
+    val victoryBested: TextBlock = inlineText("Thou hast bested", "thy foes.", ""),
+    val victoryEachSurvivor: TextBlock = inlineText("Each survivor gets"),
+    val victoryFoundObject: TextBlock = inlineText("You find a"),
 )
 
 data class PlayerAttackRulesModel(
@@ -752,6 +788,7 @@ data class StandardBattleModel(
     val actions: List<CombatActionModel>,
     val playerRound: PlayerRoundModel,
     val monsterRound: MonsterRoundModel,
+    val text: BattleTextModel,
     val rewards: RewardBundleId,
     val encounterFoeCountMax: Int,
     val nativeServices: List<EngineServiceUse>,
@@ -3132,8 +3169,13 @@ class StandardBattleBuilder {
     private var actionModels = PlayerCombatActionsBuilder().build()
     private var playerRoundModel = PlayerRoundBuilder().build()
     private var monsterRoundModel = MonsterRoundBuilder().build()
+    private var textModel = BattleTextBuilder().build()
     var rewards: RewardBundleId = Rewards.standardBattle
     var encounterFoeCountMax: Int = 8
+
+    fun text(body: BattleTextBuilder.() -> Unit) {
+        textModel = BattleTextBuilder(textModel).apply(body).build()
+    }
 
     fun opening(body: EncounterOpeningBuilder.() -> Unit) {
         openingModel = EncounterOpeningBuilder(openingModel).apply(body).build()
@@ -3157,6 +3199,7 @@ class StandardBattleBuilder {
             actions = actionModels,
             playerRound = playerRoundModel,
             monsterRound = monsterRoundModel,
+            text = textModel,
             rewards = rewards,
             encounterFoeCountMax = encounterFoeCountMax,
             nativeServices = defaultNativeServices,
@@ -3173,6 +3216,171 @@ class StandardBattleBuilder {
             EngineServiceUse(EngineService.TextFormatting, "party, monster, item, pronoun, and reward bindings"),
         )
     }
+}
+
+@RylNextDsl
+class BattleTextBuilder(initial: BattleTextModel? = null) {
+    private val defaults = initial ?: BattleTextModel()
+    private var encounterBannerText = defaults.encounterBanner
+    private var youFaceText = defaults.youFace
+    private var stillFaceText = defaults.stillFace
+    private var fightText = defaults.fight
+    private var runText = defaults.run
+    private var bloodFlowText = defaults.bloodFlow
+    private var whatNowText = defaults.whatNow
+    private var targetPromptText = defaults.targetPrompt
+    private var useWhatText = defaults.useWhat
+    private var spellAbortText = defaults.spellAbort
+    private var runCowardText = defaults.runCoward
+    private var runDesperateFailText = defaults.runDesperateFail
+    private var runFailAwayText = defaults.runFailAway
+    private var runEscapedText = defaults.runEscaped
+    private var notPossibleText = defaults.notPossible
+    private var magicImmuneText = defaults.magicImmune
+    private var spellFizzleText = defaults.spellFizzle
+    private var notEnoughMagicText = defaults.notEnoughMagic
+    private var restGainHitsText = defaults.restGainHits
+    private var defendStanceText = defaults.defendStance
+    private var battleCryText = defaults.battleCry
+    private var killedText = defaults.killed
+    private var partyHeldText = defaults.partyHeld
+    private var victoryBestedText = defaults.victoryBested
+    private var victoryEachSurvivorText = defaults.victoryEachSurvivor
+    private var victoryFoundObjectText = defaults.victoryFoundObject
+
+    fun encounterBanner(body: StructuredTextBlockBuilder.() -> Unit) {
+        encounterBannerText = structuredText(body)
+    }
+
+    fun youFace(body: StructuredTextBlockBuilder.() -> Unit) {
+        youFaceText = structuredText(body)
+    }
+
+    fun stillFace(body: StructuredTextBlockBuilder.() -> Unit) {
+        stillFaceText = structuredText(body)
+    }
+
+    fun fight(body: StructuredTextBlockBuilder.() -> Unit) {
+        fightText = structuredText(body)
+    }
+
+    fun run(body: StructuredTextBlockBuilder.() -> Unit) {
+        runText = structuredText(body)
+    }
+
+    fun bloodFlow(body: StructuredTextBlockBuilder.() -> Unit) {
+        bloodFlowText = structuredText(body)
+    }
+
+    fun whatNow(body: StructuredTextBlockBuilder.() -> Unit) {
+        whatNowText = structuredText(body)
+    }
+
+    fun targetPrompt(body: StructuredTextBlockBuilder.() -> Unit) {
+        targetPromptText = structuredText(body)
+    }
+
+    fun useWhat(body: StructuredTextBlockBuilder.() -> Unit) {
+        useWhatText = structuredText(body)
+    }
+
+    fun spellAbort(body: StructuredTextBlockBuilder.() -> Unit) {
+        spellAbortText = structuredText(body)
+    }
+
+    fun runCoward(body: StructuredTextBlockBuilder.() -> Unit) {
+        runCowardText = structuredText(body)
+    }
+
+    fun runDesperateFail(body: StructuredTextBlockBuilder.() -> Unit) {
+        runDesperateFailText = structuredText(body)
+    }
+
+    fun runFailAway(body: StructuredTextBlockBuilder.() -> Unit) {
+        runFailAwayText = structuredText(body)
+    }
+
+    fun runEscaped(body: StructuredTextBlockBuilder.() -> Unit) {
+        runEscapedText = structuredText(body)
+    }
+
+    fun notPossible(body: StructuredTextBlockBuilder.() -> Unit) {
+        notPossibleText = structuredText(body)
+    }
+
+    fun magicImmune(body: StructuredTextBlockBuilder.() -> Unit) {
+        magicImmuneText = structuredText(body)
+    }
+
+    fun spellFizzle(body: StructuredTextBlockBuilder.() -> Unit) {
+        spellFizzleText = structuredText(body)
+    }
+
+    fun notEnoughMagic(body: StructuredTextBlockBuilder.() -> Unit) {
+        notEnoughMagicText = structuredText(body)
+    }
+
+    fun restGainHits(body: StructuredTextBlockBuilder.() -> Unit) {
+        restGainHitsText = structuredText(body)
+    }
+
+    fun defendStance(body: StructuredTextBlockBuilder.() -> Unit) {
+        defendStanceText = structuredText(body)
+    }
+
+    fun battleCry(body: StructuredTextBlockBuilder.() -> Unit) {
+        battleCryText = structuredText(body)
+    }
+
+    fun killed(body: StructuredTextBlockBuilder.() -> Unit) {
+        killedText = structuredText(body)
+    }
+
+    fun partyHeld(body: StructuredTextBlockBuilder.() -> Unit) {
+        partyHeldText = structuredText(body)
+    }
+
+    fun victoryBested(body: StructuredTextBlockBuilder.() -> Unit) {
+        victoryBestedText = structuredText(body)
+    }
+
+    fun victoryEachSurvivor(body: StructuredTextBlockBuilder.() -> Unit) {
+        victoryEachSurvivorText = structuredText(body)
+    }
+
+    fun victoryFoundObject(body: StructuredTextBlockBuilder.() -> Unit) {
+        victoryFoundObjectText = structuredText(body)
+    }
+
+    fun build(): BattleTextModel =
+        BattleTextModel(
+            encounterBanner = encounterBannerText,
+            youFace = youFaceText,
+            stillFace = stillFaceText,
+            fight = fightText,
+            run = runText,
+            bloodFlow = bloodFlowText,
+            whatNow = whatNowText,
+            targetPrompt = targetPromptText,
+            useWhat = useWhatText,
+            spellAbort = spellAbortText,
+            runCoward = runCowardText,
+            runDesperateFail = runDesperateFailText,
+            runFailAway = runFailAwayText,
+            runEscaped = runEscapedText,
+            notPossible = notPossibleText,
+            magicImmune = magicImmuneText,
+            spellFizzle = spellFizzleText,
+            notEnoughMagic = notEnoughMagicText,
+            restGainHits = restGainHitsText,
+            defendStance = defendStanceText,
+            battleCry = battleCryText,
+            killed = killedText,
+            partyHeld = partyHeldText,
+            victoryBested = victoryBestedText,
+            victoryEachSurvivor = victoryEachSurvivorText,
+            victoryFoundObject = victoryFoundObjectText,
+        )
 }
 
 @RylNextDsl
@@ -3496,24 +3704,44 @@ class EncounterOpeningBuilder(initial: EncounterOpeningModel? = null) {
 class PlayerCombatActionsBuilder {
     private val actions = mutableListOf<CombatActionModel>()
 
-    fun attack(key: Char = 'A', action: KeyActionId = KeyActions.attack) {
-        action(key, action, CombatActionKind.Attack, CombatActionRequirement.Always)
+    fun attack(
+        key: Char = 'A',
+        action: KeyActionId = KeyActions.attack,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(A)ttack") },
+    ) {
+        action(key, action, CombatActionKind.Attack, CombatActionRequirement.Always, prompt)
     }
 
-    fun defend(key: Char = 'D', action: KeyActionId = KeyActions.defend) {
-        action(key, action, CombatActionKind.Defend, CombatActionRequirement.Always)
+    fun defend(
+        key: Char = 'D',
+        action: KeyActionId = KeyActions.defend,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(D)efend") },
+    ) {
+        action(key, action, CombatActionKind.Defend, CombatActionRequirement.Always, prompt)
     }
 
-    fun useMagicItem(key: Char = 'U', action: KeyActionId = KeyActions.useItem) {
-        action(key, action, CombatActionKind.UseMagicItem, CombatActionRequirement.Always)
+    fun useMagicItem(
+        key: Char = 'U',
+        action: KeyActionId = KeyActions.useItem,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(U)se Item") },
+    ) {
+        action(key, action, CombatActionKind.UseMagicItem, CombatActionRequirement.Always, prompt)
     }
 
-    fun battleCry(key: Char = 'B', action: KeyActionId = KeyActions.battleCry) {
-        action(key, action, CombatActionKind.BattleCry, CombatActionRequirement.Always)
+    fun battleCry(
+        key: Char = 'B',
+        action: KeyActionId = KeyActions.battleCry,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(B)attle Cry") },
+    ) {
+        action(key, action, CombatActionKind.BattleCry, CombatActionRequirement.Always, prompt)
     }
 
-    fun castMageSpell(key: Char = 'C', action: KeyActionId = KeyActions.castSpell) {
-        action(key, action, CombatActionKind.CastMageSpell, CombatActionRequirement.Mage)
+    fun castMageSpell(
+        key: Char = 'C',
+        action: KeyActionId = KeyActions.castSpell,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(C)ast Spell") },
+    ) {
+        action(key, action, CombatActionKind.CastMageSpell, CombatActionRequirement.Mage, prompt)
     }
 
     fun build(): List<CombatActionModel> = actions.toList()
@@ -3523,8 +3751,9 @@ class PlayerCombatActionsBuilder {
         action: KeyActionId,
         kind: CombatActionKind,
         requirement: CombatActionRequirement,
+        prompt: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        actions += CombatActionModel(key, action, kind, requirement)
+        actions += CombatActionModel(key, action, kind, requirement, structuredText(prompt))
     }
 }
 
