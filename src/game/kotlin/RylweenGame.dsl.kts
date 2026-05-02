@@ -1728,6 +1728,18 @@ val nextRylween = rylween {
     }
 
     missions {
+        mission(Missions.erethorEntry) {
+            at(xy(6, 20))
+            requires(Story.erethor.lute.rumourTold)
+            runs(Scenes.Missions.erethorEntry)
+        }
+
+        mission(Missions.husbandCave) {
+            at(xy(42, 23))
+            requires(Story.peasant.wife.accepted)
+            runs(Scenes.Missions.husbandCave)
+        }
+
         mission(Missions.bandits) {
             randomStep(percent = 9)
             requires(Story.garth.bandits.accepted)
@@ -1740,16 +1752,46 @@ val nextRylween = rylween {
             runs(Scenes.Missions.trollTooth)
         }
 
+        mission(Missions.hermitDungeon) {
+            at(Locations.hermitDungeon)
+            requires(Story.hermit.trollTooth.delivered)
+            runs(Scenes.Missions.hermitDungeon)
+        }
+
         mission(Missions.skullweed) {
             onTerrain(Terrain.swamp)
             requires(Story.masterCrown.task2Assigned)
             runs(Scenes.Missions.skullweed)
         }
 
+        mission(Missions.nolrimCrypt) {
+            at(Locations.nolrimCrypt)
+            requires(Story.masterCrown.borinMet)
+            runs(Scenes.Missions.nolrimCrypt)
+        }
+
+        mission(Missions.masterCrown) {
+            at(Locations.masterCrownDungeon)
+            requires(Story.masterCrown.crownTold)
+            runs(Scenes.Missions.masterCrown)
+        }
+
         mission(Missions.jazzyFoot) {
             onTerrain(Terrain.foothills)
             requires(Story.jazzy.ogre.ogresCleared)
             runs(Scenes.Missions.jazzyFoot)
+        }
+
+        mission(Missions.silverKey) {
+            at(Locations.silverKeyPit)
+            requires(Story.silverKey.mapBought)
+            runs(Scenes.Missions.silverKey)
+        }
+
+        mission(Missions.hobgoblinCave) {
+            at(Locations.hobgoblinCave)
+            requires(Story.silverKey.caveLocated)
+            runs(Scenes.Missions.hobgoblinCave)
         }
     }
 
@@ -3190,6 +3232,31 @@ val nextRylween = rylween {
     }
 
     // 6. Mission action scene: flag states are fluent typed markers, not strings.
+    scene(Scenes.Missions.erethorEntry) {
+        dungeonEntrance(Dungeons.erethorTemple, levels = 12) {
+            line("Here is the temple of")
+            line("the chaos lord Erethor.")
+            line("A winding staircase")
+            line("spirals down between")
+            line("broken pillars.")
+            line("")
+            line("(E)nter")
+            line("(L)eave")
+        }
+    }
+
+    scene(Scenes.Missions.husbandCave) {
+        dungeonEntrance(Dungeons.ogreCave, levels = 7) {
+            line("There is a cave entrance")
+            line("in the foothills to the")
+            line("east. Is this the place")
+            line(character(Roles.peasantHusband).name, " talked about?")
+            line("")
+            line("(E)nter")
+            line("(L)eave")
+        }
+    }
+
     scene(Scenes.Missions.bandits) {
         native.screen.clearText()
         screen(T.MissionsText.Bandits.spotted)
@@ -3218,6 +3285,18 @@ val nextRylween = rylween {
         mark(Story.hermit.trollTooth.extracted)
     }
 
+    scene(Scenes.Missions.hermitDungeon) {
+        dungeonEntrance(Dungeons.fireShieldCave, levels = 20, leaveClearsText = false) {
+            line("You have found a dungeon.")
+            line("The entrance has been")
+            line("cut out of some huge")
+            line("animal's skull.")
+            line("")
+            line("(E)nter")
+            line("(L)eave")
+        }
+    }
+
     scene(Scenes.Missions.skullweed) {
         native.screen.clearText()
         screen(
@@ -3230,6 +3309,31 @@ val nextRylween = rylween {
         waitInput("after skullweed pickup")
         native.screen.clearText()
         mark(Story.masterCrown.task2Done)
+    }
+
+    scene(Scenes.Missions.nolrimCrypt) {
+        dungeonEntrance(Dungeons.reebarTomb, levels = 20) {
+            line("Before you is the crypt")
+            line("of Nolrim. After levering")
+            line("a stone slab away, a dark")
+            line("forboding passage leads")
+            line("down to unknown depths.")
+            line("")
+            line("(E)nter the Crypt")
+            line("(L)eave")
+        }
+    }
+
+    scene(Scenes.Missions.masterCrown) {
+        dungeonEntrance(Dungeons.masterCrownDungeon, levels = 10) {
+            line("Before you is the dungeon")
+            line("where the ancients hid the")
+            line("Master Crown. Your long")
+            line("trek has come to an end.")
+            line("")
+            line("(E)nter")
+            line("(L)eave")
+        }
     }
 
     scene(Scenes.Missions.jazzyFoot) {
@@ -3300,6 +3404,36 @@ val nextRylween = rylween {
         native.screen.clearText()
         mark(Story.jazzy.ogre.jazzyDefeated)
         achieve(Milestones.footOfJazzy)
+    }
+
+    scene(Scenes.Missions.silverKey) {
+        dungeonEntrance(Dungeons.silverSanctum, levels = 20) {
+            line("Here lies the dungeon")
+            line("of the Silver Key.")
+            line("It is merely a pit in the")
+            line("ground. You _hope_ that")
+            line("that despicable thief")
+            line("didn't trick you.")
+            line("")
+            line("(E)nter dungeon")
+            line("(L)eave")
+        }
+    }
+
+    scene(Scenes.Missions.hobgoblinCave) {
+        dungeonEntrance(Dungeons.hobgoblinStronghold, levels = 22) {
+            line("This is a hobgoblin cave.")
+            line("Smoke drifts out of a pit")
+            line("in the ground. A staircase")
+            line("spirals around the inside")
+            line("of the pit. When you see")
+            line("the impaled human skulls")
+            line("decorating the entrance,")
+            line("you feel uneasy.")
+            line("")
+            line("(E)nter pit")
+            line("(L)eave")
+        }
     }
 
     // 7. Script reward: semantic items, typed placement policy, no numeric ids.
@@ -3782,7 +3916,22 @@ check(nextDsl.monsters.count { it.tier == EncounterTiers.weak } == 10)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.wild } == 14)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.deep } == 20)
 check(nextDsl.monsters.single { it.id == Monsters.gnoll }.countMaxLevelDivisor == 2)
-check(nextDsl.scenes.size == 12)
+check(nextDsl.scenes.size == 19)
+fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
+    any { op ->
+        when (op) {
+            is Op.EnterDungeon -> op.dungeon == dungeon && op.levels == levels
+            is Op.If -> op.thenOps.containsEnterDungeon(dungeon, levels) ||
+                    op.elseOps.containsEnterDungeon(dungeon, levels)
+            is Op.Loop -> op.body.containsEnterDungeon(dungeon, levels)
+            is Op.Switch -> op.cases.any { it.body.containsEnterDungeon(dungeon, levels) }
+            is Op.Menu -> op.options.any { it.body.containsEnterDungeon(dungeon, levels) } ||
+                    op.defaultOps.containsEnterDungeon(dungeon, levels)
+            is Op.ForEachMember -> op.body.containsEnterDungeon(dungeon, levels)
+            is Op.ForEachMonster -> op.body.containsEnterDungeon(dungeon, levels)
+            else -> false
+        }
+    }
 val churchScene = nextDsl.scenes.single { it.id == Scenes.Towne.church }
 val churchMenu = churchScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()
 check(churchMenu.options.map { it.key } == listOf('H', 'E', 'R', 'L'))
@@ -3853,6 +4002,8 @@ val tavernMenu = tavernScene.ops.filterIsInstance<Op.Loop>().single().body.filte
 check(tavernMenu.options.map { it.key } == listOf('L', 'S', 'T', 'R', 'O'))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
 check(nextDsl.scenes.single { it.id == Scenes.Missions.jazzyFoot }.ops.any { it == Op.AchieveMilestone(Milestones.footOfJazzy) })
+check(nextDsl.scenes.single { it.id == Scenes.Missions.erethorEntry }.ops.containsEnterDungeon(Dungeons.erethorTemple, 12))
+check(nextDsl.scenes.single { it.id == Scenes.Missions.silverKey }.ops.containsEnterDungeon(Dungeons.silverSanctum, 20))
 check(nextDsl.dialogue.size == 1)
 check(nextDsl.dialogue.single().branches.size == 2)
 check(nextDsl.dialogue.single().branches.any { branch ->
@@ -3866,9 +4017,12 @@ check(nextDsl.spells.size == 10)
 check(nextDsl.magicItems.size == 12)
 check(nextDsl.magicItems.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
 check(nextDsl.magicItems.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
-check(nextDsl.missions.size == 4)
+check(nextDsl.missions.size == 11)
+check(nextDsl.missions.single { it.id == Missions.erethorEntry }.trigger == Trigger.AtPosition(xy(6, 20)))
+check(nextDsl.missions.single { it.id == Missions.hermitDungeon }.trigger == Trigger.AtLocation(Locations.hermitDungeon))
 check(nextDsl.missions.single { it.id == Missions.skullweed }.trigger == Trigger.OnTerrain(Terrain.swamp))
 check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
+check(nextDsl.missions.single { it.id == Missions.silverKey }.trigger == Trigger.AtLocation(Locations.silverKeyPit))
 check(nextRylween.states.size == 3)
 
 val freshParty = nextRylween.states.single { it.id == States.freshReplay }.parties.single()

@@ -298,6 +298,24 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun traceEngineRecordsReusableDungeonHandoffAction() {
+        val content = GameBuilder().apply {
+            scene(sceneId("test.enter_dungeon")) {
+                enterDungeon(Dungeons.erethorTemple, levels = 12)
+            }
+        }.build()
+        val engine = TraceEnginePort()
+        val runner = ScriptTraceRunner(engine)
+
+        runner.run(content.scenes.single().ops)
+
+        assertEquals(
+            EngineTraceEvent.DungeonHandoff(WildernessDungeonHandoff(Dungeons.erethorTemple, 12)),
+            engine.events.single(),
+        )
+    }
+
+    @Test
     fun scriptRewardsRejectMilestoneSpecialItems() {
         val content = GameBuilder().apply {
             scene(sceneId("test.special_reward")) {
@@ -2061,6 +2079,61 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun wildernessMoveCanEnterAuthoredPositionDungeonMission() {
+        val terminal = FakeTerminalPort("2", "E")
+        val map = WorldMapGrid.fromSourceRows((1..22).map { mapRow(width = 50) })
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.erethor.lute.rumourTold),
+                ).copy(position = Wilderness.xy(6, 19)),
+                worldMap = map,
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.DungeonHandoff, result.session.lastResult?.status)
+        assertEquals(Missions.erethorEntry, result.session.lastResult?.mission)
+        assertEquals(Dungeons.erethorTemple, result.session.lastResult?.dungeon)
+        assertEquals(12, result.session.lastResult?.dungeonLevels)
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertTrue(terminal.output.any { "Here is the temple of" in it })
+        assertTrue(terminal.output.any { "Entering erethor_temple." in it })
+    }
+
+    @Test
+    fun wildernessMoveCanEnterAuthoredLocationDungeonMission() {
+        val terminal = FakeTerminalPort("2", "E")
+        val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow(width = 20) })
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.silverKey.mapBought),
+                ).copy(position = Wilderness.xy(12, 9)),
+                locations = listOf(LocationPlacement(Locations.silverKeyPit, GridPoint(12, 10))),
+                worldMap = map,
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.DungeonHandoff, result.session.lastResult?.status)
+        assertEquals(Missions.silverKey, result.session.lastResult?.mission)
+        assertEquals(Dungeons.silverSanctum, result.session.lastResult?.dungeon)
+        assertEquals(20, result.session.lastResult?.dungeonLevels)
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertTrue(terminal.output.any { "Here lies the dungeon" in it })
+        assertTrue(terminal.output.any { "Entering silver_sanctum." in it })
+    }
+
+    @Test
     fun wildernessCaveEntryRejectsWhenMovesAreTooLow() {
         val terminal = FakeTerminalPort("2", "E")
         val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
@@ -2795,12 +2868,14 @@ class RylweenDslValidationTest {
         party: PartyState? = null,
         hour: Int? = null,
         rngState: Long? = null,
+        locations: List<LocationPlacement>? = null,
         worldMap: WorldMapGrid = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
     ): WildernessSession {
         val content = RylweenCompiledGame.nextDsl
         val baseState = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
         val state = baseState.copy(
             realm = hour?.let { baseState.realm.copy(hour = it) } ?: baseState.realm,
+            locations = locations ?: baseState.locations,
             parties = party?.let { listOf(it.copy(id = baseState.realm.activeParty)) } ?: baseState.parties,
         )
         return RylweenKotlinEngine(content).wildernessSession(

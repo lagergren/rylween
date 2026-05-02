@@ -356,6 +356,34 @@ data class WildernessSession(
         )
     }
 
+    fun handOffMissionDungeon(
+        runtime: RuntimeSessionState,
+        handoff: WildernessDungeonHandoff,
+    ): WildernessSession {
+        val current = step as? WildernessSessionStep.Mission
+            ?: error("wilderness session is not running a mission")
+        val nextRuntime = runtime.withRealm(
+            runtime.realm.copy(
+                currentMode = RuntimeMode.Dungeon,
+                currentTown = null,
+                currentMap = worldMap.id,
+            ),
+        )
+        return copy(
+            runtime = nextRuntime,
+            step = WildernessSessionStep.DungeonHandoff(handoff),
+            lastResult = WildernessSessionResult(
+                WildernessSessionResultStatus.DungeonHandoff,
+                from = lastResult?.from,
+                to = lastResult?.to,
+                terrain = lastResult?.terrain,
+                mission = current.mission.id,
+                dungeon = handoff.dungeon,
+                dungeonLevels = handoff.levels,
+            ),
+        )
+    }
+
     private fun pass(): WildernessSession =
         notice(
             WildernessPromptText.pass(),
