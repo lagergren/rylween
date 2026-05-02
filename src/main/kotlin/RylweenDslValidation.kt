@@ -1178,7 +1178,29 @@ private fun checkPercent(value: Int, label: String) {
     check(value in 0..100) { "$label must be 0..100" }
 }
 
+private fun validateTerminalPresentation(model: TerminalPresentationModel) {
+    check(model.terrain.map { it.terrain }.toSet().size == model.terrain.size) {
+        "duplicate terminal terrain style"
+    }
+    model.terrain.forEach { style ->
+        check(style.terrain.sourceMapCode != null) {
+            "terminal terrain ${style.terrain.slug} has no source map code"
+        }
+        check(style.glyph.isNotEmpty()) { "terminal terrain ${style.terrain.slug} has blank glyph" }
+    }
+
+    check(model.regions.map { it.id }.toSet().size == model.regions.size) {
+        "duplicate terminal screen region"
+    }
+    model.regions.forEach { region ->
+        check(region.x >= 0 && region.y >= 0) { "screen region ${region.id.slug} has negative coordinates" }
+        region.width?.let { check(it > 0) { "screen region ${region.id.slug} has non-positive width" } }
+        region.height?.let { check(it > 0) { "screen region ${region.id.slug} has non-positive height" } }
+    }
+}
+
 fun validateAuthoredContent(content: GameModel) {
+    validateTerminalPresentation(content.terminal)
     validateItemCatalog(content.itemCatalog)
     check(content.itemPools.map { it.slug }.toSet().size == content.itemPools.size) {
         "duplicate item pool"

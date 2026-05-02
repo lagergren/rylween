@@ -47,6 +47,25 @@ val nextRylween = rylween {
         encounter(Story.encounter.immune)
     }
 
+    terminal {
+        terrain(Terrain.mountain, glyph = "/\\", color = PaletteColors.white)
+        terrain(Terrain.water, glyph = "~~", color = PaletteColors.blue)
+        terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
+        terrain(Terrain.town, glyph = "TT", color = PaletteColors.white)
+        terrain(Terrain.hut, glyph = "HH", color = PaletteColors.white)
+        terrain(Terrain.foothills, glyph = "^^", color = PaletteColors.white)
+        terrain(Terrain.desert, glyph = "::", color = PaletteColors.red)
+        terrain(Terrain.swamp, glyph = "%%", color = PaletteColors.magenta)
+        terrain(Terrain.forest, glyph = "gg", color = PaletteColors.green)
+        terrain(Terrain.castle, glyph = "CC", color = PaletteColors.white)
+
+        region(ScreenRegions.textWindow, x = 49, y = 6, width = 26, height = 11)
+        region(ScreenRegions.topLeft, x = 0, y = 0)
+        region(ScreenRegions.statuslineTop, x = 3, y = 21)
+        region(ScreenRegions.statuslineBottom, x = 13, y = 22)
+        region(ScreenRegions.mapWindow, x = 8, y = 6, width = 16, height = 9)
+    }
+
     items {
         empty(Items.none)
 
@@ -4630,6 +4649,9 @@ check(nextDsl.itemUses.single { it.id == Items.redPotion }.ops.any { it is Op.As
 check(nextDsl.itemUses.single { it.id == Items.redPotion }.consume == ItemConsumePolicy.ScriptControlled)
 check(nextDsl.itemUses.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
 check(nextDsl.itemUses.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
+check(nextDsl.terminal.terrain.size == 10)
+check(nextDsl.terminal.terrain.single { it.terrain == Terrain.town }.glyph == "TT")
+check(nextDsl.terminal.regions.single { it.id == ScreenRegions.textWindow }.width == 26)
 check(nextDsl.missions.size == 17)
 check(nextDsl.missions.single { it.id == Missions.erethorEntry }.trigger == Trigger.AtPosition(xy(6, 20)))
 check(nextDsl.missions.single { it.id == Missions.hermitDungeon }.trigger == Trigger.AtLocation(Locations.hermitDungeon))

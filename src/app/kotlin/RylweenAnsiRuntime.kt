@@ -1,0 +1,683 @@
+import org.jline.terminal.Attributes
+import org.jline.terminal.Terminal
+import org.jline.terminal.TerminalBuilder
+import org.jline.utils.NonBlockingReader
+import java.io.Closeable
+import java.io.File
+import java.net.InetSocketAddress
+import java.nio.ByteBuffer
+import java.nio.channels.ServerSocketChannel
+import java.nio.channels.SocketChannel
+import java.nio.charset.StandardCharsets
+
+private const val ESC = "\u001B"
+private const val CSI = "$ESC["
+private const val RESET = "${CSI}0m"
+private const val FG_BLACK = "${CSI}30m"
+private const val FG_GREEN = "${CSI}32m"
+private const val FG_WHITE = "${CSI}37m"
+private const val BG_BLACK = "${CSI}40m"
+private const val BG_BLUE = "${CSI}44m"
+
+private data class AnsiRuntimeConfig(
+    val state: StateId = States.freshReplay,
+    val seed: Long? = null,
+    val hour: Int? = null,
+    val mapFile: File? = null,
+)
+
+object RylweenAnsiMain {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        val config = parseAnsiConfig(args.toList())
+        RylweenLog.open().use { log ->
+            JLineAnsiTerminal.open(log).use { terminal ->
+                val game = RylweenCompiledGame.nextRylween
+                val content = RylweenCompiledGame.nextDsl
+                val state = game.states.singleOrNull { it.id == config.state }
+                    ?: error("unknown state ${config.state.slug}")
+                val bootState = config.hour?.let { state.copy(realm = state.realm.copy(hour = it)) } ?: state
+                val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
+                    ?: WorldMapGrid.fromSourceRows(RylweenAssets.readLines("map.dat"))
+                val engine = RylweenKotlinEngine(
+                    content = content,
+                    npcPlacementConfig = NpcPlacementRealizerConfig(
+                        wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
+                    ),
+                )
+                val session = engine.wildernessSession(
+                    state = bootState,
+                    worldMap = worldMap,
+                    rngState = config.seed ?: bootState.realm.rngState,
+                )
+                log.info("ansi", "boot state=${bootState.id.slug} seed=${config.seed ?: bootState.realm.rngState}")
+                RylweenAnsiGame(
+                    terminal = terminal,
+                    content = content,
+                    renderer = engine.textRenderer(),
+                    speakContent = engine.speakContent(),
+                    log = log,
+                ).run(session)
+            }
+        }
+    }
+}
+
+private class RylweenAnsiGame(
+    private val terminal: JLineAnsiTerminal,
+    private val content: GameModel,
+    private val renderer: TerminalTextRenderer,
+    private val speakContent: SpeakRuntimeContent,
+    private val log: RylweenLog,
+) {
+    private val screen = ClassicAnsiScreen(terminal, content.terminal, content.towns)
+    private val port = AnsiTerminalPort(terminal, screen, renderer)
+    private val serviceBridge = StatefulTownServiceBridge(port, speakContent = speakContent)
+
+    fun run(initial: WildernessSession) {
+        var session = initial
+        screen.bootFrame()
+        screen.writeText(listOf("Rylween Kotlin ANSI runtime", "X quits. E enters towns.", ""))
+        while (true) {
+            session = when (val step = session.step) {
+                WildernessSessionStep.TurnStart -> session.beginTurn().also(screen::renderHud)
+                is WildernessSessionStep.Messages -> {
+                    screen.writeBlocks(step.blocks, session.runtime, renderer)
+                    waitForReturn()
+                    session.continueMessages()
+                }
+                WildernessSessionStep.Explore -> explore(session)
+                is WildernessSessionStep.Notice -> {
+                    screen.writeBlock(step.text, session.runtime, renderer)
+                    waitForReturn()
+                    session.continueNotice()
+                }
+                is WildernessSessionStep.CaveFound -> {
+                    screen.writeBlock(step.prompt, session.runtime, renderer)
+                    when (readChoice(session.wilderness.keys.caveEnter, session.wilderness.keys.caveLeave)) {
+                        true -> session.apply(WildernessSessionInput.CaveAnswer(true))
+                        false -> session.apply(WildernessSessionInput.CaveAnswer(false))
+                        null -> session
+                    }
+                }
+                is WildernessSessionStep.OutOfMoves -> {
+                    screen.writeBlock(step.prompt, session.runtime, renderer)
+                    when (readChoice(session.wilderness.keys.outOfMovesSave, session.wilderness.keys.outOfMovesQuit)) {
+                        true -> session.apply(WildernessSessionInput.OutOfMovesAnswer(true))
+                        false -> session.apply(WildernessSessionInput.OutOfMovesAnswer(false))
+                        null -> session
+                    }
+                }
+                is WildernessSessionStep.QuitConfirm -> {
+                    screen.writeBlock(step.prompt, session.runtime, renderer)
+                    when (readChoice(session.wilderness.keys.quitYes, session.wilderness.keys.quitNo)) {
+                        true -> session.apply(WildernessSessionInput.QuitAnswer(true))
+                        false -> session.apply(WildernessSessionInput.QuitAnswer(false))
+                        null -> session
+                    }
+                }
+                is WildernessSessionStep.DungeonHandoff -> {
+                    screen.writeBlock(WildernessPromptText.dungeonHandoffPending(step.handoff), session.runtime, renderer)
+                    waitForReturn()
+                    session.completeDungeonHandoff()
+                }
+                is WildernessSessionStep.Town -> {
+                    screen.writeText(listOf("Entering town...", ""))
+                    val result = TownSessionTerminalAdapter(port, renderer, serviceBridge).runUntilBlocked(step.session)
+                    val updated = session.replaceTownSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "town step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
+                is WildernessSessionStep.Battle -> {
+                    val result = BattleSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceBattleSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "battle step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
+                is WildernessSessionStep.InventoryItemUse -> {
+                    val result = InventoryItemUseTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceInventoryItemUseSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "inventory step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
+                is WildernessSessionStep.Mission -> {
+                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
+                    val missionBridge = StatefulTownServiceBridge(
+                        port,
+                        speakContent = speakContent,
+                        battleContent = BattleRuntimeContent(
+                            combat = session.combat,
+                            monsters = session.monsters,
+                            formulas = session.formulas,
+                            rewards = session.rewards,
+                            leveling = session.leveling,
+                            spells = session.spells,
+                            itemUses = session.itemUses,
+                            itemRecords = session.itemRecords,
+                        ),
+                    )
+                    val result = missionBridge.run(step.mission.service(), step.scene, continuation)
+                    when (result.status) {
+                        TownServiceBridgeStatus.Finished ->
+                            result.dungeonHandoff?.let { session.handOffMissionDungeon(result.runtime, it) }
+                                ?: session.finishMission(result.runtime)
+                        TownServiceBridgeStatus.Waiting -> {
+                            val nextContinuation = checkNotNull(result.continuation) {
+                                "waiting mission bridge did not return continuation"
+                            }
+                            val battle = nextContinuation.battleSession
+                            if (battle == null) {
+                                session.replaceMissionContinuation(nextContinuation)
+                            } else {
+                                val battleResult = BattleSessionTerminalAdapter(port, renderer).runUntilBlocked(battle)
+                                session.replaceMissionContinuation(
+                                    nextContinuation.copy(
+                                        runtime = battleResult.session.runtime,
+                                        battleSession = battleResult.session,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+                is WildernessSessionStep.Finished -> {
+                    screen.writeText(listOf("Fare thee well.", ""))
+                    log.audit("realm", "ANSI session finished")
+                    return
+                }
+            }
+        }
+    }
+
+    private fun explore(session: WildernessSession): WildernessSession {
+        screen.renderHud(session)
+        return when (val token = terminal.readKeyToken()) {
+            null -> session.copy(step = WildernessSessionStep.Finished(session.runtime))
+            else -> {
+                val input = session.wilderness.keys.exploreInput(token)
+                if (input == null) {
+                    screen.writeText(listOf("Unknown command.", ""))
+                    session
+                } else {
+                    session.apply(input)
+                }
+            }
+        }
+    }
+
+    private fun waitForReturn() {
+        while (true) {
+            when (terminal.readKeyToken()) {
+                null, "" -> return
+            }
+        }
+    }
+
+    private fun readChoice(yes: InputBindingModel, no: InputBindingModel): Boolean? =
+        when (val token = terminal.readKeyToken()) {
+            null -> null
+            else -> when {
+                yes.matches(token) -> true
+                no.matches(token) -> false
+                else -> {
+                    screen.writeText(listOf("Invalid input.", "Expected: ${yes.label}/${no.label}", ""))
+                    null
+                }
+            }
+        }
+}
+
+private fun MissionModel.service(): BuildingServiceModel =
+    BuildingServiceModel(
+        building = Buildings.none,
+        action = keyAction("mission.${id.slug}"),
+        scene = action,
+        opensAt = null,
+        closesAt = null,
+        nativeServices = emptyList(),
+    )
+
+private fun WildernessKeysModel.exploreInput(token: String): WildernessSessionInput? =
+    when {
+        moveNorth.matches(token) -> WildernessSessionInput.Move(WildernessDirection.North)
+        moveSouth.matches(token) -> WildernessSessionInput.Move(WildernessDirection.South)
+        moveWest.matches(token) -> WildernessSessionInput.Move(WildernessDirection.West)
+        moveEast.matches(token) -> WildernessSessionInput.Move(WildernessDirection.East)
+        pass.matches(token) -> WildernessSessionInput.Pass
+        enter.matches(token) -> WildernessSessionInput.Enter
+        useInventory.matches(token) -> WildernessSessionInput.UseInventory
+        quit.matches(token) -> WildernessSessionInput.Quit
+        else -> null
+    }
+
+private class AnsiTerminalPort(
+    private val terminal: JLineAnsiTerminal,
+    private val screen: ClassicAnsiScreen,
+    private val renderer: TerminalTextRenderer,
+) : TerminalPort {
+    override fun write(lines: List<String>) {
+        screen.writeText(lines)
+    }
+
+    override fun readLine(): String? =
+        terminal.readKeyToken()
+}
+
+private class ClassicAnsiScreen(
+    private val terminal: JLineAnsiTerminal,
+    presentation: TerminalPresentationModel,
+    private val towns: List<TownModel>,
+) {
+    private val regions = presentation.regions.associateBy { it.id }
+    private val terrain = TerrainGlyphs(presentation.terrain)
+    private val textWindow = regions.getValue(ScreenRegions.textWindow)
+    private val mapWindow = regions.getValue(ScreenRegions.mapWindow)
+    private val statusTop = regions.getValue(ScreenRegions.statuslineTop)
+    private val statusBottom = regions.getValue(ScreenRegions.statuslineBottom)
+
+    fun bootFrame() {
+        terminal.writeRaw("$CSI?25l")
+        terminal.writeRaw("${CSI}2J${CSI}1;1H")
+        terminal.writeRaw(RylweenAssets.readText("ansi/screen.ans"))
+        terminal.writeRaw("$FG_WHITE$BG_BLACK")
+        terminal.flush()
+    }
+
+    fun renderHud(session: WildernessSession) {
+        renderStatus(session.runtime)
+        renderMap(session)
+        val town = (session.party.position as? WorldPosition.Wilderness)
+            ?.point
+            ?.let { point -> towns.firstOrNull { it.position == point } }
+        val lines = buildList {
+            add("Wilderness")
+            town?.let { add("At: ${it.name}") }
+            addAll(session.lastResult?.status?.statusLine().orEmpty())
+            add("8/2/4/6 move")
+            add("E enter  Q inv")
+            add("X quit")
+        }
+        writeText(lines)
+    }
+
+    fun writeBlocks(blocks: List<TextBlock>, runtime: RuntimeSessionState, renderer: TerminalTextRenderer) {
+        writeText(blocks.flatMap { renderer.lines(it, TerminalTextContext(runtime = runtime)) })
+    }
+
+    fun writeBlock(block: TextBlock, runtime: RuntimeSessionState, renderer: TerminalTextRenderer) {
+        writeText(renderer.lines(block, TerminalTextContext(runtime = runtime)))
+    }
+
+    fun writeText(lines: List<String>) {
+        clearRegion(textWindow)
+        lines.take(textWindow.height ?: lines.size).forEachIndexed { index, line ->
+            gotoTextRow(index)
+            terminal.writeRaw(line.take(textWindow.width ?: line.length))
+        }
+        terminal.flush()
+    }
+
+    private fun renderStatus(runtime: RuntimeSessionState) {
+        val party = runtime.activeParty
+        val point = (party.position as? WorldPosition.Wilderness)?.point ?: GridPoint(0, 0)
+        val food = party.resources.food.coerceAtLeast(0)
+        val status = when {
+            food == 0 -> "${CSI}31mSTARVING$FG_GREEN "
+            food < party.members.count { !it.dead } * 3 -> "${CSI}35mHUNGRY  "
+            else -> "${CSI}33mOK    "
+        }
+        val top = buildString {
+            append("$FG_GREEN")
+            append(timeLabel(runtime.realm.hour))
+            append("ST: ")
+            append(status)
+            append("$FG_GREEN X: ${CSI}33m${point.x.toString().padStart(2)}   ")
+            append("$FG_GREEN Y: ${CSI}33m${point.y.toString().padStart(2)}$FG_GREEN     ")
+            append("FD: ${CSI}33m${food.toString().padStart(4)}$FG_GREEN  ")
+            append("MV: ${CSI}33m${party.resources.timeLeft.toString().padStart(3)}$FG_GREEN  ")
+            append("AU: ${CSI}33m${party.resources.gold.toString().padStart(6)}$FG_GREEN")
+        }
+        val bottom = (0 until 4).joinToString("   ") { index ->
+            val member = party.members.getOrNull(index)
+            "H${index + 1}: ${CSI}33m${(member?.hitPoints?.current ?: 0).toString().padStart(3)}/" +
+                "${(member?.hitPoints?.max ?: 0).toString().padStart(3)}"
+        }
+        goto(statusTop)
+        terminal.writeRaw(top)
+        goto(statusBottom)
+        terminal.writeRaw("$FG_GREEN$bottom$FG_WHITE")
+        terminal.flush()
+    }
+
+    private fun renderMap(session: WildernessSession) {
+        val center = (session.party.position as? WorldPosition.Wilderness)?.point ?: return
+        (-2..2).forEach { dy ->
+            gotoMapRow(dy + 2)
+            val row = buildString {
+                (-2..2).forEach { dx ->
+                    val point = GridPoint(center.x + dx, center.y + dy)
+                    val tile = session.worldMap.tileAt(point)
+                    val style = terrain.style(tile)
+                    if (dx == 0 && dy == 0) append(BG_BLUE)
+                    append("${CSI}${style.ansiColor}m${style.glyph}$BG_BLACK")
+                    if (dx < 2) append(' ')
+                }
+                append(FG_WHITE)
+            }
+            terminal.writeRaw(row)
+        }
+        terminal.flush()
+    }
+
+    private fun clearRegion(region: ScreenRegionModel) {
+        val width = region.width ?: return
+        val height = region.height ?: return
+        repeat(height) { row ->
+            goto(region, rowOffset = row)
+            terminal.writeRaw(" ".repeat(width))
+        }
+    }
+
+    private fun gotoTextRow(row: Int) {
+        goto(textWindow, rowOffset = row)
+    }
+
+    private fun gotoMapRow(row: Int) {
+        // The classic map draw starts one column inside the clearable map region.
+        terminal.writeRaw("${CSI}${mapWindow.y + row * 2};1H\r${CSI}${mapWindow.x + 1}C")
+    }
+
+    private fun goto(region: ScreenRegionModel, rowOffset: Int = 0) {
+        terminal.writeRaw("${CSI}${region.y + rowOffset};1H\r${CSI}${region.x}C")
+    }
+
+    private fun timeLabel(hour: Int): String =
+        when (hour.mod(24)) {
+            in 6..11 -> "TIME: ${CSI}33mDAWN$FG_GREEN      "
+            in 12..17 -> "TIME: ${CSI}33mMIDDAY$FG_GREEN    "
+            in 18..23 -> "TIME: ${CSI}33mTWILIGHT$FG_GREEN  "
+            else -> "TIME: ${CSI}33mMIDNIGHT$FG_GREEN  "
+        }
+}
+
+private fun WildernessSessionResultStatus.statusLine(): List<String> =
+    when (this) {
+        WildernessSessionResultStatus.Blocked -> listOf("Blocked.")
+        WildernessSessionResultStatus.InventoryUsed -> listOf("Inventory updated.")
+        WildernessSessionResultStatus.InventoryUnavailable -> listOf("Nothing useful.")
+        else -> emptyList()
+    }
+
+private data class TerrainGlyph(val glyph: String, val ansiColor: Int)
+
+private class TerrainGlyphs(styles: List<TerminalTerrainStyleModel>) {
+    private val bySourceCode = styles.mapNotNull { style ->
+        style.terrain.sourceMapCode?.let { it to TerrainGlyph(style.glyph, style.color.ansiForeground()) }
+    }.toMap()
+
+    fun style(tile: Char?): TerrainGlyph =
+        tile?.let(bySourceCode::get) ?: TerrainGlyph("  ", 36)
+}
+
+private fun PaletteColorId.ansiForeground(): Int =
+    when (this) {
+        PaletteColors.black -> 30
+        PaletteColors.red -> 31
+        PaletteColors.green -> 32
+        PaletteColors.yellow -> 33
+        PaletteColors.blue -> 34
+        PaletteColors.magenta -> 35
+        PaletteColors.cyan -> 36
+        PaletteColors.white -> 37
+        else -> 36
+    }
+
+private class JLineAnsiTerminal private constructor(
+    private val terminal: Terminal,
+    private val savedAttributes: Attributes,
+    private val log: RylweenLog,
+) : Closeable {
+    private val reader: NonBlockingReader = terminal.reader()
+    private val writer = terminal.writer()
+
+    fun writeRaw(text: String) {
+        writer.print(text)
+    }
+
+    fun flush() {
+        writer.flush()
+    }
+
+    fun readKeyToken(): String? {
+        val ch = reader.read()
+        if (ch == -1) return null
+        if (ch == 27) {
+            val b1 = reader.read(50)
+            val b2 = if (b1 == '['.code) reader.read(50) else -1
+            return when (b2) {
+                'A'.code -> "8"
+                'B'.code -> "2"
+                'C'.code -> "6"
+                'D'.code -> "4"
+                else -> ESC
+            }
+        }
+        return when (ch) {
+            3 -> null
+            4 -> null
+            10, 13 -> ""
+            else -> ch.toChar().toString()
+        }
+    }
+
+    override fun close() {
+        writeRaw("$RESET${CSI}?25h")
+        flush()
+        terminal.setAttributes(savedAttributes)
+        terminal.close()
+        log.info("terminal", "closed")
+    }
+
+    companion object {
+        fun open(log: RylweenLog): JLineAnsiTerminal {
+            val terminal = TerminalBuilder.builder()
+                .name("rylween-ansi")
+                .system(true)
+                .build()
+            val saved = terminal.enterRawMode()
+            log.info("terminal", "opened ${terminal.name} ${terminal.type}")
+            return JLineAnsiTerminal(terminal, saved, log)
+        }
+    }
+}
+
+private object RylweenAssets {
+    fun readText(path: String): String =
+        stream(path).readBytes().toString(StandardCharsets.UTF_8)
+
+    fun readLines(path: String): List<String> =
+        readText(path).lineSequence().filter { it.isNotEmpty() }.toList()
+
+    private fun stream(path: String) =
+        Thread.currentThread().contextClassLoader.getResourceAsStream(path)
+            ?: error("missing app resource $path")
+}
+
+private class RylweenLog private constructor(private val sinks: List<LogSink>) : Closeable {
+    fun info(module: String, message: String) = emit("INF", module, message)
+    fun warn(module: String, message: String) = emit("WRN", module, message)
+    fun audit(module: String, message: String) = emit("AUD", module, message)
+
+    private fun emit(level: String, module: String, message: String) {
+        val line = "[$level][$module] $message\n"
+        sinks.forEach { it.write(line) }
+    }
+
+    override fun close() {
+        sinks.forEach(LogSink::close)
+    }
+
+    companion object {
+        fun open(): RylweenLog =
+            RylweenLog(parseLogSinks(System.getenv("RYL_LOG").orEmpty()))
+    }
+}
+
+private interface LogSink : Closeable {
+    fun write(line: String)
+    override fun close() {}
+}
+
+private fun parseLogSinks(spec: String): List<LogSink> {
+    val tokens = spec.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    val sinks = tokens.mapNotNull { token ->
+        when {
+            token == "null" -> null
+            token == "stderr" -> StderrLogSink
+            token.startsWith("file:") -> FileLogSink(File(token.removePrefix("file:")))
+            token.startsWith("tcp:") -> TcpLogSink.open(token.removePrefix("tcp:"))
+            else -> StderrLogSink
+        }
+    }
+    return sinks.ifEmpty { listOf(NoopLogSink) }
+}
+
+private object NoopLogSink : LogSink {
+    override fun write(line: String) = Unit
+}
+
+private object StderrLogSink : LogSink {
+    override fun write(line: String) {
+        System.err.print(line)
+    }
+}
+
+private class FileLogSink(file: File) : LogSink {
+    private val writer = file.apply { parentFile?.mkdirs() }.bufferedWriter()
+
+    override fun write(line: String) {
+        writer.write(line)
+        writer.flush()
+    }
+
+    override fun close() {
+        writer.close()
+    }
+}
+
+private class TcpLogSink private constructor(private val server: ServerSocketChannel) : LogSink {
+    private val clients = mutableListOf<SocketChannel>()
+
+    override fun write(line: String) {
+        acceptPending()
+        val bytes = ByteBuffer.wrap(line.toByteArray(StandardCharsets.UTF_8))
+        val dead = mutableListOf<SocketChannel>()
+        clients.forEach { client ->
+            try {
+                bytes.rewind()
+                client.write(bytes)
+            } catch (_: Exception) {
+                dead += client
+            }
+        }
+        dead.forEach { client ->
+            clients -= client
+            client.close()
+        }
+    }
+
+    override fun close() {
+        clients.forEach(SocketChannel::close)
+        server.close()
+    }
+
+    private fun acceptPending() {
+        while (true) {
+            val client = server.accept() ?: return
+            client.configureBlocking(false)
+            clients += client
+        }
+    }
+
+    companion object {
+        fun open(spec: String): TcpLogSink {
+            val address = tcpAddress(spec)
+            val server = ServerSocketChannel.open()
+            server.configureBlocking(false)
+            server.bind(address)
+            return TcpLogSink(server)
+        }
+    }
+}
+
+private fun tcpAddress(spec: String): InetSocketAddress {
+    val parts = spec.split(':')
+    val host = when (parts.size) {
+        1 -> "127.0.0.1"
+        else -> parts.dropLast(1).joinToString(":").ifEmpty { "127.0.0.1" }
+    }
+    val port = parts.last().toInt()
+    return InetSocketAddress(host, port)
+}
+
+private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
+    var config = AnsiRuntimeConfig()
+    var index = 0
+    while (index < args.size) {
+        when (val arg = args[index]) {
+            "--state" -> {
+                config = config.copy(state = stateId(args.valueAfter(index, arg)))
+                index += 2
+            }
+            "--seed" -> {
+                config = config.copy(seed = args.valueAfter(index, arg).toLong())
+                index += 2
+            }
+            "--hour" -> {
+                config = config.copy(hour = args.valueAfter(index, arg).toInt().mod(24))
+                index += 2
+            }
+            "--map" -> {
+                config = config.copy(mapFile = File(args.valueAfter(index, arg)))
+                index += 2
+            }
+            "--help", "-h" -> {
+                printAnsiUsage()
+                kotlin.system.exitProcess(0)
+            }
+            else -> error("unknown argument $arg")
+        }
+    }
+    return config
+}
+
+private fun List<String>.valueAfter(index: Int, option: String): String =
+    getOrNull(index + 1) ?: error("$option requires a value")
+
+private fun printAnsiUsage() {
+    println(
+        """
+        |Usage: ./gradlew runKotlinAnsi --args="--state fresh-replay --seed 1"
+        |
+        |Options:
+        |  --state  state slug, defaults to fresh-replay
+        |  --seed   runtime RNG state, defaults to the selected state seed
+        |  --hour   0..23, overrides the selected state hour
+        |  --map    file path override; defaults to packaged app resource map.dat
+        |
+        |Logging:
+        |  RYL_LOG=stderr
+        |  RYL_LOG=file:build/rylween.log
+        |  RYL_LOG=tcp:9999,file:build/rylween.log
+        """.trimMargin(),
+    )
+}

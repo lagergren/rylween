@@ -218,6 +218,25 @@ data class RewardBundleId(val slug: String)
 data class RumourTableId(val slug: String)
 data class RumourId(val slug: String)
 
+data class TerminalTerrainStyleModel(
+    val terrain: TerrainId,
+    val glyph: String,
+    val color: PaletteColorId,
+)
+
+data class ScreenRegionModel(
+    val id: ScreenRegionId,
+    val x: Int,
+    val y: Int,
+    val width: Int? = null,
+    val height: Int? = null,
+)
+
+data class TerminalPresentationModel(
+    val terrain: List<TerminalTerrainStyleModel> = emptyList(),
+    val regions: List<ScreenRegionModel> = emptyList(),
+)
+
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId.authored(slug)
@@ -1060,6 +1079,7 @@ data class SpeakSystemModel(
 data class GameModel(
     val itemCatalog: List<ItemRecordModel>,
     val itemPools: List<ItemPoolId>,
+    val terminal: TerminalPresentationModel,
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
@@ -2845,6 +2865,32 @@ class ItemCatalogBuilder {
         ItemCatalogDeclaration(records.toList(), pools.toList())
 }
 
+@RylNextDsl
+class TerminalPresentationBuilder {
+    private val terrainStyles = mutableListOf<TerminalTerrainStyleModel>()
+    private val screenRegions = mutableListOf<ScreenRegionModel>()
+
+    fun terrain(id: TerrainId, glyph: String, color: PaletteColorId) {
+        terrainStyles += TerminalTerrainStyleModel(id, glyph, color)
+    }
+
+    fun region(
+        id: ScreenRegionId,
+        x: Int,
+        y: Int,
+        width: Int? = null,
+        height: Int? = null,
+    ) {
+        screenRegions += ScreenRegionModel(id, x, y, width, height)
+    }
+
+    fun build(): TerminalPresentationModel =
+        TerminalPresentationModel(
+            terrain = terrainStyles.toList(),
+            regions = screenRegions.toList(),
+        )
+}
+
 private fun RewardBundleModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): RewardBundleModel =
     copy(loot = loot.copy(treasure = resolve(loot.treasure), magic = resolve(loot.magic)))
 
@@ -2941,6 +2987,7 @@ private fun BoolAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): BoolA
 class GameBuilder {
     private val itemRecords = mutableListOf<ItemRecordModel>()
     private val itemPools = mutableListOf<ItemPoolId>()
+    private var terminalPresentationModel = TerminalPresentationModel()
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
     private var levelingModel: LevelingModel? = null
@@ -2967,6 +3014,10 @@ class GameBuilder {
         val declaration = ItemCatalogBuilder().apply(body).build()
         itemRecords += declaration.records
         itemPools += declaration.pools
+    }
+
+    fun terminal(body: TerminalPresentationBuilder.() -> Unit) {
+        terminalPresentationModel = TerminalPresentationBuilder().apply(body).build()
     }
 
     fun gameProgress(body: GameProgressBuilder.() -> Unit) {
@@ -3041,6 +3092,7 @@ class GameBuilder {
         return GameModel(
             itemCatalog = itemRecords.toList(),
             itemPools = itemPools.toList(),
+            terminal = terminalPresentationModel,
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
             progress = progressModel,

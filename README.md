@@ -18,3 +18,23 @@ sized depends on the terminal:
 If you must run in `Terminal.app`, expect occasional one-cell drift in
 borders and decorative art. Gameplay text is unaffected.
 
+## Kotlin runtime commands
+
+The current Kotlin build has three runnable shells:
+
+```sh
+./gradlew runKotlinAnsi --args="--state fresh-replay --seed 1"
+./gradlew runKotlinGame --args="--state fresh-replay --seed 1"
+./gradlew runKotlinTown --args="--town thord --hour 12 --seed 1"
+```
+
+`runKotlinAnsi` is the closest current equivalent to `rylween.exe`: it loads
+the compiled DSL game, packaged `ansi/**` resources, packaged `map.dat`, the
+classic screen frame, text/status/map regions, and the terminal terrain glyph
+table. Useful logging forms:
+
+```sh
+RYL_LOG=stderr ./gradlew runKotlinAnsi --args="--state fresh-replay"
+RYL_LOG=file:build/rylween.log ./gradlew runKotlinAnsi --args="--state fresh-replay"
+RYL_LOG=tcp:9999,file:build/rylween.log ./gradlew runKotlinAnsi --args="--state fresh-replay"
+```
