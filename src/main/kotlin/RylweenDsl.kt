@@ -513,6 +513,7 @@ data class DungeonScenarioModel(
 data class DungeonSystemModel(
     val events: List<DungeonEventModel> = emptyList(),
     val scenarios: List<DungeonScenarioModel> = emptyList(),
+    val backdrop: ImageId? = null,
 )
 
 sealed interface CharacterPlacementModel {
@@ -1273,6 +1274,7 @@ data class WildernessEventModel(
     val caveDungeon: DungeonId = Dungeons.randomCave,
     val caveDepthRange: IntRange = 3..16,
     val caveEntryCost: Int = 10,
+    val caveImage: ImageId? = null,
     val caveFoundPrompt: TextBlock = inlineText("You find a cave!", "", "(E)nter", "(L)eave"),
     val caveNoMoves: TextBlock = inlineText("You don't have enough", "moves left to explore", "the cave...", ""),
 )
@@ -3548,6 +3550,11 @@ class WildernessHelpPagesBuilder {
 class DungeonSystemBuilder {
     private val events = mutableListOf<DungeonEventModel>()
     private val scenarios = mutableListOf<DungeonScenarioModel>()
+    private var backdrop: ImageId? = null
+
+    fun backdrop(image: ImageId?) {
+        backdrop = image
+    }
 
     fun event(id: DungeonEventId, body: DungeonEventBuilder.() -> Unit) {
         events += DungeonEventBuilder(id).apply(body).build()
@@ -3558,7 +3565,7 @@ class DungeonSystemBuilder {
     }
 
     fun build(): DungeonSystemModel =
-        DungeonSystemModel(events.toList(), scenarios.toList())
+        DungeonSystemModel(events.toList(), scenarios.toList(), backdrop)
 }
 
 @RylNextDsl
@@ -3644,6 +3651,7 @@ class WildernessEventBuilder {
     var caveDungeon: DungeonId = Dungeons.randomCave
     var caveDepthRange: IntRange = 3..16
     var caveEntryCost: Int = 10
+    var caveImage: ImageId? = null
     private var caveFoundPromptText: TextBlock = inlineText("You find a cave!", "", "(E)nter", "(L)eave")
     private var caveNoMovesText: TextBlock = inlineText("You don't have enough", "moves left to explore", "the cave...", "")
 
@@ -3673,6 +3681,7 @@ class WildernessEventBuilder {
             caveDungeon = caveDungeon,
             caveDepthRange = caveDepthRange,
             caveEntryCost = caveEntryCost,
+            caveImage = caveImage,
             caveFoundPrompt = caveFoundPromptText,
             caveNoMoves = caveNoMovesText,
         )

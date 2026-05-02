@@ -71,7 +71,7 @@ private class RylweenAnsiGame(
     private val log: RylweenLog,
 ) {
     private val screen = ClassicAnsiScreen(terminal, content.terminal, content.towns)
-    private val port = AnsiTerminalPort(terminal, screen, renderer)
+    private val port = AnsiTerminalPort(terminal, screen)
     private val serviceBridge = StatefulTownServiceBridge(port, speakContent = speakContent, renderer = renderer)
 
     fun run(initial: WildernessSession) {
@@ -92,6 +92,7 @@ private class RylweenAnsiGame(
                     session.continueNotice()
                 }
                 is WildernessSessionStep.CaveFound -> {
+                    step.image?.let(screen::showImage)
                     screen.writeBlock(step.prompt, session.runtime, renderer)
                     when (readChoice(session.wilderness.keys.caveEnter, session.wilderness.keys.caveLeave)) {
                         true -> session.apply(WildernessSessionInput.CaveAnswer(true))
@@ -311,7 +312,6 @@ private fun WildernessKeysModel.exploreInput(token: String): WildernessSessionIn
 private class AnsiTerminalPort(
     private val terminal: JLineAnsiTerminal,
     private val screen: ClassicAnsiScreen,
-    private val renderer: TerminalTextRenderer,
 ) : TerminalPort {
     override fun write(lines: List<String>) {
         screen.writeText(lines)
@@ -322,6 +322,24 @@ private class AnsiTerminalPort(
 
     override fun readTextLine(maxLength: Int?): String? =
         terminal.readTextLine(maxLength)
+
+    override fun writeEngineEvent(
+        event: EngineTraceEvent,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext,
+    ): Boolean {
+        val native = event as? EngineTraceEvent.NativeEffect ?: return false
+        return when (native.request.path) {
+            NativeAllowlist.screenClearText.path -> true.also { screen.clearText() }
+            NativeAllowlist.screenClearMapWindow.path -> true.also { screen.clearMapWindow() }
+            NativeAllowlist.screenRedrawMap.path -> true.also { screen.redrawMap() }
+            NativeAllowlist.screenShowImage.path -> true.also {
+                native.request.args.firstOrNull()?.let(screen::showImageSlug)
+            }
+            NativeAllowlist.screenStatusLine.path -> true.also { screen.renderStatus() }
+            else -> false
+        }
+    }
 }
 
 private class ClassicAnsiScreen(
@@ -335,6 +353,7 @@ private class ClassicAnsiScreen(
     private val mapWindow = regions.getValue(ScreenRegions.mapWindow)
     private val statusTop = regions.getValue(ScreenRegions.statuslineTop)
     private val statusBottom = regions.getValue(ScreenRegions.statuslineBottom)
+    private var lastWildernessSession: WildernessSession? = null
 
     fun bootFrame() {
         terminal.writeRaw("$CSI?25l")
@@ -345,9 +364,49 @@ private class ClassicAnsiScreen(
     }
 
     fun renderHud(session: WildernessSession) {
+        lastWildernessSession = session
         renderStatus(session.runtime)
         renderMap(session)
         writeText(wildernessContextLines(session))
+    }
+
+    fun clearText() {
+        clearRegion(textWindow)
+        terminal.flush()
+    }
+
+    fun clearMapWindow() {
+        clearRegion(mapWindow)
+        terminal.flush()
+    }
+
+    fun redrawMap() {
+        lastWildernessSession?.let(::renderMap)
+    }
+
+    fun renderStatus() {
+        lastWildernessSession?.let { renderStatus(it.runtime) }
+    }
+
+    fun showImage(image: ImageId) {
+        showImageSlug(image.slug)
+    }
+
+    fun showImageSlug(slug: String) {
+        when (val asset = AnsiImageAssets.resolve(slug)) {
+            is AnsiImageAsset.FullScreen -> {
+                terminal.writeRaw("${CSI}2J${CSI}1;1H")
+                terminal.writeRaw(RylweenAssets.readText(asset.resource))
+            }
+            is AnsiImageAsset.MapWindow -> {
+                clearRegion(mapWindow)
+                renderAnsiAt(asset.resource, mapWindow.x, mapWindow.y)
+                goto(textWindow)
+            }
+            null -> return
+        }
+        terminal.writeRaw("$FG_WHITE$BG_BLACK")
+        terminal.flush()
     }
 
     fun writeHelp(session: WildernessSession, renderer: TerminalTextRenderer) {
@@ -446,6 +505,17 @@ private class ClassicAnsiScreen(
         terminal.flush()
     }
 
+    private fun renderAnsiAt(resource: String, x: Int, y: Int) {
+        RylweenAssets.readText(resource)
+            .lineSequence()
+            .map { it.trimEnd('\r') }
+            .forEachIndexed { row, line ->
+                terminal.writeRaw("${CSI}${y + row};${x}H")
+                terminal.writeRaw(line)
+            }
+        terminal.writeRaw(RESET)
+    }
+
     private fun clearRegion(region: ScreenRegionModel) {
         val width = region.width ?: return
         val height = region.height ?: return
@@ -496,6 +566,44 @@ private fun WildernessSessionResultStatus.statusLine(): List<String> =
     }
 
 private data class TerrainGlyph(val glyph: String, val ansiColor: Int)
+
+private sealed interface AnsiImageAsset {
+    val resource: String
+
+    data class FullScreen(override val resource: String) : AnsiImageAsset
+    data class MapWindow(override val resource: String) : AnsiImageAsset
+}
+
+private object AnsiImageAssets {
+    private val mapWindowImages = mapOf(
+        "blitgfx.inn" to "tiles/01.ans",
+        "blitgfx.tavern" to "tiles/02.ans",
+        "blitgfx.smith" to "tiles/03.ans",
+        "blitgfx.church" to "tiles/04.ans",
+        "blitgfx.merchant" to "tiles/05.ans",
+        "blitgfx.inside_cave" to "tiles/10.ans",
+        "blitgfx.cave" to "tiles/11.ans",
+        "blitgfx.death" to "tiles/12.ans",
+        "blitgfx.hut" to "tiles/13.ans",
+        "blitgfx.ydarg_castle" to "tiles/14.ans",
+        "blitgfx.city" to "tiles/15.ans",
+        "blitgfx.battle_victory" to "tiles/16.ans",
+        "blitgfx.tent" to "tiles/17.ans",
+        "blitgfx.no_tent" to "tiles/18.ans",
+        "blitgfx.guild" to "tiles/19.ans",
+        "blitgfx.encounter.1" to "tiles/40.ans",
+        "blitgfx.encounter.2" to "tiles/41.ans",
+        "blitgfx.encounter.3" to "tiles/42.ans",
+        "blitgfx.encounter.4" to "tiles/43.ans",
+        "blitgfx.encounter.5" to "tiles/44.ans",
+    )
+
+    fun resolve(slug: String): AnsiImageAsset? =
+        when {
+            slug.startsWith("ansi.") -> AnsiImageAsset.FullScreen("ansi/${slug.removePrefix("ansi.")}.ans")
+            else -> mapWindowImages[slug]?.let(AnsiImageAsset::MapWindow)
+        }
+}
 
 private class TerrainGlyphs(styles: List<TerminalTerrainStyleModel>) {
     private val byTerrainCode = styles.mapNotNull { style ->

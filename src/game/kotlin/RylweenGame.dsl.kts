@@ -520,6 +520,7 @@ val nextRylween = rylween {
             caveDungeon = Dungeons.randomCave
             caveDepthRange = 3..16
             caveEntryCost = 10
+            caveImage = Images.Backdrop.cave
 
             caveFoundPrompt {
                 lines("You find a cave!", "", "(E)nter", "(L)eave")
@@ -608,6 +609,8 @@ val nextRylween = rylween {
     }
 
     dungeons {
+        backdrop(Images.Backdrop.insideCave)
+
         event(DungeonEvents.nothingSpecial) {
             run {
                 readScreen("You find nothing", "special on this level.", "")
@@ -5691,6 +5694,8 @@ check(nextDsl.scenes.single { it.id == Scenes.Missions.hobgoblinCaravan }.ops.an
 check(nextDsl.scenes.single { it.id == Scenes.Missions.koboldVillage }.ops.containsEncounter(Monsters.orc))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.ogreCave }.ops.containsEncounter(Monsters.ogreLord))
 val dungeonSystem = nextDsl.dungeons
+check(nextDsl.wilderness.events.caveImage == Images.Backdrop.cave)
+check(dungeonSystem.backdrop == Images.Backdrop.insideCave)
 check(dungeonSystem.scenarios.single { it.dungeon == Dungeons.randomCave }.randomEvents.map { it.event } == listOf(
     DungeonEvents.findObject,
     DungeonEvents.gold,

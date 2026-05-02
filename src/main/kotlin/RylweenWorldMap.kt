@@ -89,7 +89,7 @@ sealed interface WildernessSessionStep {
     object Explore : WildernessSessionStep
     data class Messages(val blocks: List<TextBlock>, val next: WildernessSessionStep) : WildernessSessionStep
     data class OutOfMoves(val prompt: TextBlock) : WildernessSessionStep
-    data class CaveFound(val prompt: TextBlock) : WildernessSessionStep
+    data class CaveFound(val prompt: TextBlock, val image: ImageId?) : WildernessSessionStep
     data class Mission(
         val mission: MissionModel,
         val scene: SceneModel,
@@ -691,7 +691,7 @@ data class WildernessSession(
         if (eventDraw.value < events.caveChancePercent) {
             return copy(
                 runtime = eventRuntime,
-                step = WildernessSessionStep.CaveFound(events.caveFoundPrompt),
+                step = WildernessSessionStep.CaveFound(events.caveFoundPrompt, events.caveImage),
                 lastResult = moved.copy(status = WildernessSessionResultStatus.CaveFound),
             )
         }

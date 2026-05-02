@@ -894,6 +894,137 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledDungeonPlaythroughSolvesThunRiddlesAndTakesBracelets() {
+        val terminal = FakeTerminalPort(
+            "",
+            "water",
+            "",
+            "D",
+            "",
+            "night",
+            "",
+            "D",
+            "",
+            "a well",
+            "",
+            "D",
+            "",
+        )
+        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.thunTemple,
+                levels = 4,
+                dungeons = fixedCompiledDungeon(
+                    Dungeons.thunTemple,
+                    1 to DungeonEvents.thunRiddle1,
+                    2 to DungeonEvents.thunRiddle2,
+                    3 to DungeonEvents.thunRiddle3,
+                    4 to DungeonEvents.bracelets,
+                ),
+                party = testParty(torches = 4),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+        assertTrue(result.session.party.milestones.contains(Milestones.braceletsOfThun))
+        assertTrue(result.session.party.hasFlagState(Story.bracelets.thun.braceletsTaken))
+        assertTrue(terminal.output.any { "Bracelets of Thun" in it })
+    }
+
+    @Test
+    fun compiledDungeonPlaythroughUsesDungeonLevelContextForColourRiddle() {
+        val terminal = FakeTerminalPort(
+            *(
+                List(12) { "D" } +
+                    listOf("", "", "7", "")
+                ).toTypedArray(),
+        )
+        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.reebarTomb,
+                levels = 13,
+                dungeons = fixedCompiledDungeon(
+                    Dungeons.reebarTomb,
+                    13 to DungeonEvents.colourRiddle,
+                ),
+                party = testParty(torches = 12),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(13, result.session.depth)
+        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+        assertTrue(result.session.step is DungeonSessionStep.Explore)
+        assertTrue(terminal.output.any { "ANTECHAMBER #1" in it })
+        assertTrue(terminal.output.any { "You feel a slight" in it })
+    }
+
+    @Test
+    fun compiledDungeonPlaythroughCanTakeSilverKeyAfterPassword() {
+        val terminal = FakeTerminalPort("", "RISH EKKIN", "", "")
+        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.hobgoblinStronghold,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(
+                    Dungeons.hobgoblinStronghold,
+                    1 to DungeonEvents.hobgoblinChief,
+                ),
+                party = testParty(),
+                withCombat = false,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+        assertTrue(result.session.party.milestones.contains(Milestones.silverKey))
+        assertTrue(result.session.party.hasFlagState(Story.silverKey.keyTaken))
+        assertTrue(terminal.output.any { "Silver Key" in it })
+    }
+
+    @Test
+    fun terminalEventHookReceivesAuthoredAnsiScreenImages() {
+        val terminal = RecordingTerminalPort("C", "L", "L")
+        val result = TownSessionTerminalAdapter(
+            terminal,
+            renderer = compiledTextRenderer(),
+            serviceBridge = StatefulTownServiceBridge(
+                terminal,
+                renderer = compiledTextRenderer(),
+            ),
+        ).runUntilBlocked(compiledTownSession(party = testParty(gold = 10)))
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertTrue(Images.Scene.church.slug in terminal.imageSlugs)
+        assertTrue(NativeAllowlist.screenClearMapWindow.path in terminal.renderingOps)
+    }
+
+    @Test
+    fun terminalEventHookReceivesCaveAndDungeonBackdropImages() {
+        val caveTerminal = RecordingTerminalPort("2", "L")
+        WildernessSessionTerminalAdapter(caveTerminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                    .copy(position = Wilderness.xy(12, 9)),
+                rngState = 21L,
+            ),
+        )
+
+        val dungeonTerminal = RecordingTerminalPort()
+        DungeonSessionTerminalAdapter(dungeonTerminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.randomCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+            ),
+        )
+
+        assertTrue(Images.Backdrop.cave.slug in caveTerminal.imageSlugs)
+        assertTrue(Images.Backdrop.insideCave.slug in dungeonTerminal.imageSlugs)
+    }
+
+    @Test
     fun shopSessionRunsMerchantBuyDropSellAndRejectFlows() {
         val shop = testMerchantShop()
         val party = testParty(
@@ -3557,6 +3688,58 @@ class RylweenDslValidationTest {
         )
     }
 
+    private fun compiledDungeonSession(
+        dungeon: DungeonId,
+        levels: Int,
+        dungeons: DungeonSystemModel,
+        party: PartyState = testParty(torches = levels),
+        rngState: Long? = 1L,
+        withCombat: Boolean = true,
+    ): DungeonSession {
+        val content = RylweenCompiledGame.nextDsl
+        return DungeonSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = party,
+                hour = 12,
+                currentTown = null,
+                rngState = rngState,
+            ),
+            worldMap = WorldMapGrid.fromSourceRows((1..4).map { mapRow(width = 4) }),
+            dungeon = dungeon,
+            levels = levels,
+            dungeons = dungeons,
+            combat = if (withCombat) content.combat else CombatSystemModel(null),
+            monsters = content.monsters,
+            formulas = content.formulas,
+            rewards = content.rewards,
+            leveling = content.leveling,
+            spells = content.spells,
+            itemUses = content.itemUses,
+            itemRecords = content.itemCatalog,
+        )
+    }
+
+    private fun fixedCompiledDungeon(
+        dungeon: DungeonId,
+        vararg placements: Pair<Int, DungeonEventId>,
+    ): DungeonSystemModel {
+        val content = RylweenCompiledGame.nextDsl.dungeons
+        val events = placements.map { it.second }.toSet()
+        return content.copy(
+            events = content.events.filter { it.id in events },
+            scenarios = listOf(
+                DungeonScenarioModel(
+                    dungeon = dungeon,
+                    levelRange = placements.minOfOrNull { it.first }?.let { lo ->
+                        lo..checkNotNull(placements.maxOfOrNull { it.first })
+                    },
+                    fixedLevelEvents = placements.toMap(),
+                    randomEvents = emptyList(),
+                ),
+            ),
+        )
+    }
+
     private fun customBattleSession(
         party: PartyState,
         monster: MonsterModel,
@@ -4270,6 +4453,7 @@ class RylweenDslValidationTest {
         equipment: EquipmentState = EquipmentState(Items.none, Items.none),
         inventoryItems: Map<Int, ItemId> = emptyMap(),
         flags: List<FlagState> = emptyList(),
+        milestones: List<GameMilestoneId> = emptyList(),
         members: List<PartyMemberState> = listOf(
             testMember(
                 pcClass = pcClass,
@@ -4304,7 +4488,7 @@ class RylweenDslValidationTest {
                 attackedToday = emptyList(),
             ),
             flags = flags,
-            milestones = emptyList(),
+            milestones = milestones,
             inventory = (0..InventorySaveSlotMax).map { slot ->
                 InventorySlotState(slot, inventoryItems[slot])
             },
@@ -4313,7 +4497,7 @@ class RylweenDslValidationTest {
             journal = emptyList(),
         )
 
-    private class FakeTerminalPort(vararg inputs: String) : TerminalPort {
+    private open class FakeTerminalPort(vararg inputs: String) : TerminalPort {
         private val queue = ArrayDeque(inputs.toList())
         val output = mutableListOf<String>()
 
@@ -4323,5 +4507,29 @@ class RylweenDslValidationTest {
 
         override fun readLine(): String? =
             queue.removeFirstOrNull()
+    }
+
+    private class RecordingTerminalPort(vararg inputs: String) : FakeTerminalPort(*inputs) {
+        val imageSlugs = mutableListOf<String>()
+        val renderingOps = mutableListOf<String>()
+
+        override fun writeEngineEvent(
+            event: EngineTraceEvent,
+            renderer: TerminalTextRenderer,
+            context: TerminalTextContext,
+        ): Boolean {
+            val native = event as? EngineTraceEvent.NativeEffect ?: return false
+            renderingOps += native.request.path
+            if (native.request.path == NativeAllowlist.screenShowImage.path) {
+                native.request.args.firstOrNull()?.let(imageSlugs::add)
+            }
+            return native.request.path in setOf(
+                NativeAllowlist.screenClearText.path,
+                NativeAllowlist.screenClearMapWindow.path,
+                NativeAllowlist.screenRedrawMap.path,
+                NativeAllowlist.screenShowImage.path,
+                NativeAllowlist.screenStatusLine.path,
+            )
+        }
     }
 }
