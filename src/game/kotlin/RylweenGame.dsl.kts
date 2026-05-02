@@ -5257,6 +5257,675 @@ val nextRylween = rylween {
                 mark(Story.garth.bandits.closed)
             }
         }
+
+        npc(Npcs.nrimTo) {
+            whenState(Story.ranger.letter.none) {
+                say(
+                    "- Greetings, adventurers.",
+                    "I have a mission for you.",
+                    "He hands you a letter.",
+                    "",
+                )
+                say {
+                    line("- If you deliver this")
+                    line("to my brother, ", character(Roles.rangerBrother).name, ",")
+                    line("who lives ", character(Roles.rangerBrother).location, ",")
+                    line("he will give you")
+                    line("a great weapon!")
+                    line("")
+                }
+                journal {
+                    line(character(Roles.rangerBrother).name, ", the Ranger lives ", character(Roles.rangerBrother).location)
+                }
+                mark(Story.ranger.letter.accepted)
+            }
+        }
+
+        npc(Npcs.areth) {
+            whenState(Story.fighter.priestBook.none) {
+                say(
+                    "- Greetings. Once upon",
+                    "a time, I was a mighty",
+                    "fighter. Before I retired",
+                    "I managed to slay over",
+                    "two hundred orcs. All",
+                    "of this, because of my",
+                    "Dancing Blade. I have",
+                    "no use for this weapon",
+                    "",
+                )
+                say {
+                    line("anymore, and I will give")
+                    line("it to you, if you do me a")
+                    line("small favour. A priest")
+                    line("named ", character(Roles.priestWithBook).name, " has got")
+                    line("one of my books. We are")
+                    line("old friends, and I lended")
+                    line("it to him. However, I")
+                    line("haven't heard much from")
+                    line("him lately.")
+                    line("")
+                }
+                mark(Story.fighter.priestBook.priestTold)
+            }
+
+            whenState(Story.fighter.priestBook.wizardRobbed) {
+                say(
+                    "- Oh! Thank you!!! He",
+                    "removes a floor board",
+                    "and gives you a WONDERFUL",
+                    "blade. It sparkles in",
+                    "the light!",
+                    "",
+                )
+                mark(Story.fighter.priestBook.fighterGrateful)
+                reward {
+                    items(Items.dancingSword)
+                    promptDrop(
+                        cantCarry = "You can't carry it!!!.",
+                        pickedUp = "You take the blade.",
+                    )
+                }
+            }
+        }
+
+        npc(Npcs.nevaak) {
+            whenState(Story.fighter.priestBook.priestVisited) {
+                say(
+                    "You persuade him to",
+                    "give you the book.",
+                    "After showing him your",
+                    "sharp weapons, he",
+                    "chickens out and pulls",
+                    "it out of his robe.",
+                    "He throws it at you and",
+                    "flees...",
+                    "",
+                )
+                mark(Story.fighter.priestBook.wizardRobbed)
+            }
+        }
+
+        npc(Npcs.gorm) {
+            whenState(Story.fighter.priestBook.priestTold) {
+                say {
+                    line("When you mention the")
+                    line("book, he nods and looks")
+                    line("a bit embarrased.")
+                    line("- Yes, I know. I happened")
+                    line("to lose it. A wizard")
+                    line("called ", character(Roles.wizardRobbed).name, " stole it")
+                    line("from my bedroom a week")
+                    line("ago...")
+                    line("")
+                }
+                say(
+                    "He quickly fled, but I",
+                    "know it's him, because",
+                    "he made inquieries about",
+                    "it, and tried to steal",
+                    "it from me when I was",
+                    "having dinner.",
+                    "",
+                )
+                say {
+                    line("I don't know his")
+                    line("whereabouts, but please")
+                    line("find the book and")
+                    line("take it back to ", character(Roles.fighterIntro).name)
+                    line("if you can.")
+                    line("")
+                }
+                mark(Story.fighter.priestBook.priestVisited)
+            }
+        }
+
+        npc(Npcs.bernak) {
+            whenState(Story.silverKey.none) {
+                say("- There is an item of", "great power, he hisses.", "")
+                say(
+                    "- It is called the",
+                    "SILVER KEY. It has taken",
+                    "me many years of research",
+                    "to find its location, and",
+                    "this only to be stopped",
+                    "by a guardian telling me",
+                    "that 'only those of pure",
+                    "heart can enter'.",
+                    "",
+                )
+                say("- I fled for my life as", "horned creatures chased", "me through the woods.", "")
+                say(
+                    "I have an offer to make",
+                    "thee. I will sell you",
+                    "a map to the location of",
+                    "the SILVER KEY for 50000",
+                    "gold coins. The price is",
+                    "resonable. 10000 gold for",
+                    "each of those fruitless",
+                    "years.",
+                    "",
+                )
+                menu("(B)uy it", "(N)o thanks") {
+                    option('B') {
+                        pay(
+                            amount = lit(50000),
+                            broke = {
+                                say("- Sorry! 50000! No more", "no less. Come back when", "you have the gold.", "")
+                            },
+                            ok = {
+                                say {
+                                    line("He quietly slips you the")
+                                    line("precious map. It")
+                                    line("tells you that the Pit")
+                                    line("of the Key is at")
+                                    line(location(Locations.silverKeyPit).coordinates, "!")
+                                    line("")
+                                    line("")
+                                }
+                                journal {
+                                    line("The Pit of the Silver Key is at ", location(Locations.silverKeyPit).coordinates, ".")
+                                }
+                                mark(Story.silverKey.mapBought)
+                            },
+                        )
+                    }
+                    option('N') {}
+                    default {}
+                }
+            }
+        }
+
+        npc(Npcs.tybalt) {
+            whenState(Story.erethor.lute.none) {
+                say(
+                    "- Rumor has it that",
+                    "Erethor's Lute, a",
+                    "musical instrument with",
+                    "magical properties",
+                    "exists somewhere in",
+                    "the realm.",
+                    "",
+                )
+                say("- Erethor is a mighty", "demon...", "")
+                say(
+                    "- I am a very poor man",
+                    "myself, but I know of",
+                    "the Cloak of Gods,",
+                    "the most powerful of",
+                    "all armors. I will",
+                    "",
+                )
+                say(
+                    "trade this information",
+                    "if you find me Erethor's",
+                    "Lute. One of Erethor's",
+                    "temples, where mad",
+                    "priests practise",
+                    "blasphemous magic is",
+                    "located at 6x20, near",
+                    "the western peaks.",
+                    "",
+                )
+                say(
+                    "- This may be a dangerous",
+                    "mission for such a",
+                    "small reward, but the",
+                    "Cloak will make it's",
+                    "bearer almost",
+                    "invulnerable.",
+                    "",
+                )
+                journal("Erethor's temple is situated at 6x20.")
+                mark(Story.erethor.lute.rumourTold)
+            }
+
+            whenState(Story.erethor.lute.luteTaken) {
+                say("You hand him the", "golden lute...", "")
+                say(
+                    "- I can't believe you",
+                    "actually made it!!!",
+                    "- Now for my part of",
+                    "the deal. Listen closely,",
+                    "for I shall say this only",
+                    "once.",
+                    "",
+                )
+                say {
+                    line("- Take this note here")
+                    line("and seek out my friend")
+                    line(character(Roles.minstrelCloak).name, ". He is also a")
+                    line("minstrel.")
+                    line(character(Roles.minstrelCloak).name, " lives ", character(Roles.minstrelCloak).location, ".")
+                    line("")
+                }
+                journal {
+                    line(character(Roles.minstrelCloak).name, " lives ", character(Roles.minstrelCloak).location, ".")
+                }
+                say(
+                    "- We used to travel",
+                    "together and he found",
+                    "the Cloak in a long dead",
+                    "hero's tomb. Now that",
+                    "we have the Lute, the",
+                    "Cloak is yours. Just",
+                    "deliver this explaining",
+                    "note!",
+                    "",
+                )
+                say("He hands you a piece of", "paper and bids you", "farewell.", "")
+                mark(Story.erethor.lute.noteReceived)
+            }
+        }
+
+        npc(Npcs.harry) {
+            whenState(Story.bracelets.thun.none) {
+                say(
+                    "- I have a map of the",
+                    "road to the temple of",
+                    "Thun! The legend says",
+                    "it keeps the Bracelets",
+                    "of Thun, which is one of",
+                    "the objects that can",
+                    "destroy baron Ydarg!",
+                    "",
+                )
+                say("- I will sell it to you", "for 10000 gold pieces!", "")
+                menu("(B)uy it", "(N)o thanks") {
+                    option('B') {
+                        pay(
+                            amount = lit(10000),
+                            broke = {
+                                say("- Sorry! 10000! No more", "no less. Come back when", "you have the gold.", "")
+                            },
+                            ok = {
+                                say {
+                                    line("- Ok, here. He slowly")
+                                    line("hands you an old map. It")
+                                    line("tells you that the temple")
+                                    line("of Thun is situated at")
+                                    line(location(Locations.thunTemple).coordinates, "!")
+                                    line("")
+                                    line("")
+                                }
+                                journal {
+                                    line("The Temple of Thun is at ", location(Locations.thunTemple).coordinates, ".")
+                                }
+                                mark(Story.bracelets.thun.mapBought)
+                            },
+                        )
+                    }
+                    option('N') {}
+                    default {}
+                }
+            }
+        }
+
+        npc(Npcs.marraga) {
+            whenState(Story.ranger.letter.accepted) {
+                say(
+                    "- OH! A message from my",
+                    "brother! This is indeed",
+                    "great news. I will give",
+                    "you this sword for",
+                    "delivering the letter!",
+                    "",
+                )
+                say("He produces a sparkling", "sword and wishes you a", "happy journey.", "")
+                reward {
+                    items(Items.magicSword)
+                    promptDrop(
+                        cantCarry = "You can't carry it!!!.",
+                        pickedUp = "You take the sword.",
+                    )
+                }
+                mark(Story.ranger.letter.delivered)
+            }
+        }
+
+        npc(Npcs.broth) {
+            whenState(Story.nymph.seeker.none) {
+                say {
+                    line("I heard that a man called")
+                    line(character(Roles.wizardThreeTasks).name, " knows of the")
+                    line("Crown. I have roamed the")
+                    line("land in search for him,")
+                    line("since I want this item")
+                    line("to be found. Here! Take")
+                    line("this ring and show it")
+                    line("to him. You are better fit")
+                    line("for this mission than me.")
+                    line("")
+                }
+                say {
+                    line(character(Roles.wizardThreeTasks).name, " lives")
+                    line(character(Roles.wizardThreeTasks).location)
+                    line("")
+                }
+                journal {
+                    line(character(Roles.wizardThreeTasks).name, " lives ", character(Roles.wizardThreeTasks).location, ".")
+                }
+                mark(Story.nymph.seeker.told)
+            }
+        }
+
+        npc(Npcs.gotharp) {
+            whenState(Story.silverKey.noteFound) {
+                mark(Story.silverKey.thiefSqueezed)
+                say(
+                    "You push him up against",
+                    "a wall and start asking",
+                    "him questions. After",
+                    "some 'mild' persuation",
+                    "he tells you that he",
+                    "sold the Key to a",
+                    "travelling blacksmith",
+                    "who was interested in",
+                    "its metalurgic structure.",
+                    "",
+                )
+                say {
+                    line("After breaking a few")
+                    line("of his teeth, he also")
+                    line("willinly reveals that")
+                    line("the smith went by the")
+                    line("name of ", character(Roles.silverKeySmith).name, "...")
+                    line("")
+                }
+                say("You let go of your grip", "of his collar, and he", "falls to the floor.", "")
+            }
+        }
+
+        npc(Npcs.ron) {
+            whenState(Story.peasant.wife.none) {
+                say(
+                    "- Oh, I'm so depressed.",
+                    "Orcs have kidnapped my",
+                    "wife, Tammy, and demand",
+                    "a ransom for her. I will",
+                    "give you my entire fortune",
+                    "if you retrieve her.",
+                    "",
+                )
+                say(
+                    "About 3000 gold coins,",
+                    "a fine armor, and",
+                    "some strange items my",
+                    "father left me, will be",
+                    "yours if you rescue her.",
+                    "",
+                )
+                say("The orcs have a cave", "at 42x23 in Lonewood.", "")
+                journal("The orc cavern is at 42x23.")
+                mark(Story.peasant.wife.accepted)
+            }
+
+            whenState(Story.peasant.wife.rescued) {
+                say(
+                    "When he sees Tammy enter",
+                    "the room, he cries tears",
+                    "of happiness and kisses",
+                    "her. When they have had",
+                    "this happy reunion, he",
+                    "motions to you to follow.",
+                    "",
+                )
+                say(
+                    "He hands you 3000 gold,",
+                    "an Adamantium Armor of",
+                    "advanced craftmanship",
+                    "and some other assorted",
+                    "objects. (An amber potion",
+                    "a holy handgrenade, a",
+                    "fire wand and a crystal.",
+                    "",
+                )
+                mark(Story.peasant.wife.paid)
+                reward {
+                    gold(3000)
+                    items(Items.admtMail, Items.holyHandgrenade, Items.amberPotion, Items.fireWand, Items.crystalBowl)
+                    promptDrop(cantCarry = "You can't carry all the")
+                }
+            }
+        }
+
+        npc(Npcs.kaal) {
+            whenState(Story.erethor.lute.noteReceived) {
+                say {
+                    line("After reading the note")
+                    line(character(Roles.minstrelCloak).name, " cries tears")
+                    line("of happiness. He")
+                    line("shakes all your hands")
+                    line("and produces a purple")
+                    line("cloak.")
+                    line("")
+                }
+                reward {
+                    items(Items.cloakOfGods)
+                    promptDrop(
+                        cantCarry = "You can't carry it!",
+                        pickedUp = "You take the cloak.",
+                    )
+                }
+                say {
+                    line("He bids you farewell")
+                    line("and tells you that")
+                    line("he'll travel to")
+                    line(character(Roles.erethorLuteBard).name, " the very")
+                    line("next day...")
+                    line("")
+                }
+                mark(Story.erethor.lute.cloakReceived)
+            }
+        }
+
+        npc(Npcs.leander) {
+            whenState(Story.jazzy.ogre.none) {
+                say(
+                    "- ME HEAR YOU LOOK",
+                    "FOR POWER ITEMS!",
+                    "",
+                    "- ME VERY POOR! SELL",
+                    "YOU INFORMATION ABOUT",
+                    "FOOT OF JAZZY, YES?",
+                    "",
+                )
+                say(
+                    "- LET US TRADE! OFFER",
+                    "ITEM AND I'LL TELL YA!",
+                    "",
+                    "(You offer him something).",
+                    "",
+                )
+                val slot = ask.inventorySlot(inlineText("Offer what?"), filter = InventorySlotChoiceFilter.NonEmpty)
+                whenever(party.inventory.itemCost(slot) lt 35) {
+                    native.screen.clearText()
+                    say("- NAH, THINK NOT!.")
+                    pause(1000)
+                } otherwise {
+                    native.screen.clearText()
+                    say {
+                        line("- YEEES! NICE NIICE!")
+                        line("GO TO CAVE AT ", location(Locations.beastCave).coordinates, "!")
+                        line("BEAST HAS THE FOOT.")
+                        line("")
+                    }
+                    journal {
+                        line("The 'Beast Cave' is at ", location(Locations.beastCave).coordinates, ".")
+                    }
+                    mark(Story.jazzy.ogre.accepted)
+                    waitInput("after Jazzy ogre trade")
+                    native.screen.clearText()
+                    party.inventory.clear(slot)
+                }
+            }
+        }
+
+        npc(Npcs.ithienn) {
+            whenState(Story.nymph.seeker.told) {
+                whenever(Story.masterCrown.none) {
+                    say(
+                        "- Ah, a seeker! Yes, I",
+                        "know about the Master",
+                        "Crown, but since I'm",
+                        "neither good nor evil,",
+                        "I have no interest in it.",
+                        "I will give you the",
+                        "information if you do",
+                        "three tasks for me.",
+                        "",
+                    )
+                    say("(Since there is nothing", "else you can do,you agree", "to complete the three", "tasks).", "")
+                    say {
+                        line("- Firstly, I want you to")
+                        line("go to the kobold lair at")
+                        line(location(Locations.koboldVillage).coordinates, ", and kill all life")
+                        line("there. It is close to my")
+                        line("home village, and the foul")
+                        line("creatures have many times")
+                        line("attacked us. Farewell.")
+                        line("")
+                    }
+                    journal {
+                        line("The kobold lair is at ", location(Locations.koboldVillage).coordinates, ".")
+                    }
+                    mark(Story.nymph.seeker.wizard3tActive)
+                    mark(Story.masterCrown.task1Assigned)
+                }
+            }
+
+            whenState(Story.masterCrown.task1Done) {
+                say("You hand him the pendant.", "He stares at you, almost", "admiring.", "- WELL DONE! I will now", "grant you the second", "quest.", "")
+                say(
+                    "- Being a magician, I'm",
+                    "always in search for",
+                    "powerful spell reagents.",
+                    "There is one plant I need",
+                    "but can't find. It is",
+                    "called Skullweed, and is",
+                    "purple with small green",
+                    "twigs. Find this plant",
+                    "plant for me!",
+                    "",
+                )
+                mark(Story.masterCrown.task2Assigned)
+            }
+
+            whenState(Story.masterCrown.task2Done) {
+                say(
+                    "- Well done again,",
+                    "adventurers. The third",
+                    "of my tasks will perhaps",
+                    "be the toughest one",
+                    "of them all! Find me a",
+                    "DWARF STONE. It is a",
+                    "stone of magnetic iron",
+                    "which gives the wielder",
+                    "the power of levitation.",
+                    "",
+                )
+                say {
+                    line("- Begin your search in")
+                    line("the dwarven colony, near")
+                    line(location(Locations.borinCamp).coordinates, ". Be sure to treat")
+                    line("the dwarves with respect,")
+                    line("for they are swift to")
+                    line("anger.")
+                    line("")
+                }
+                journal {
+                    line("The dwarf village is at ", location(Locations.borinCamp).coordinates, ".")
+                }
+                mark(Story.masterCrown.task3Assigned)
+            }
+
+            whenState(Story.masterCrown.borinPaid) {
+                say {
+                    line("- I JUST CAN'T TELL YOU")
+                    line("HOW GRATEFUL I AM!")
+                    line("He takes the stone and")
+                    line("smiles broadly at you.")
+                    line("- Very well, seekers! The")
+                    line("Master Crown is hidden in")
+                    line("a dungeon near ", location(Locations.masterCrownDungeon).coordinates, "!")
+                    line("Fare thee well.")
+                    line("")
+                }
+                journal {
+                    line("The Master Crown dungeon is at ", location(Locations.masterCrownDungeon).coordinates, ".")
+                }
+                mark(Story.masterCrown.crownTold)
+            }
+        }
+
+        npc(Npcs.azaaza) {
+            whenState(Story.silverKey.thiefSqueezed) {
+                say("You ask him if he still", "has the Key, prepared", "for the worst...", "")
+                say(
+                    "- Nah, sorry. I kinda",
+                    "studied it enough and",
+                    "was gonna bring it to",
+                    "Ollk to sell it. However",
+                    "on the road between Wilor",
+                    "and Ollk I was caught by",
+                    "filthy hobgoblins!",
+                    "",
+                )
+                say(
+                    "- I managed to get away,",
+                    "but they followed me! Just",
+                    "to the south-west of here",
+                    "one of their arrows hit",
+                    "my horse.",
+                    "",
+                )
+                say(
+                    "- They clubbed me",
+                    "unconcious and took all",
+                    "my belonings!!! Including",
+                    "that key. Find them and",
+                    "take it back. It's yours",
+                    "if you get it.",
+                    "",
+                )
+                mark(Story.silverKey.smithConfessed)
+            }
+        }
+
+        npc(Npcs.marcus) {
+            whenState(Story.hermit.trollTooth.none) {
+                say(
+                    "- Welcome, chosen ones!",
+                    "the hermit cackles.",
+                    "- I know of the Fire",
+                    "Shield, an item of",
+                    "great power.",
+                    "Go find me teeth of",
+                    "a troll, and I will",
+                    "tell you about it.",
+                    "",
+                )
+                mark(Story.hermit.trollTooth.accepted)
+            }
+
+            whenState(Story.hermit.trollTooth.extracted) {
+                say {
+                    line("You hand him the troll")
+                    line("tooth.")
+                    line("- Oh YES! He cackles.")
+                    line("At areas uncharted, near")
+                    line(location(Locations.hermitDungeon).coordinates, " is the cave you")
+                    line("seek. Beware of the")
+                    line("guardian the ancients")
+                    line("gave birth too...")
+                    line("")
+                }
+                journal {
+                    line("The Fire Shield Dungeon is at ", location(Locations.hermitDungeon).coordinates, ".")
+                }
+                mark(Story.hermit.trollTooth.delivered)
+            }
+        }
     }
 
     }
@@ -5645,6 +6314,9 @@ check(nextDsl.speak.textTables.rumourTables.single().entries.any { it.id == Rumo
 check(nextDsl.speak.textTables.rumourTables.single().entries.single {
     it.id == Rumours.banditsQuestGiver
 }.excludedBy == listOf(Story.garth.bandits.recovered, Story.garth.bandits.closed))
+check(nextDsl.dialogue.size == NpcRoles.all.size)
+check(nextDsl.dialogue.single { it.npc == Npcs.leander }.branches.single().whenState == Story.jazzy.ogre.none)
+check(nextDsl.dialogue.single { it.npc == Npcs.ithienn }.branches.size == 4)
 check(nextDsl.towns.size == 4)
 check(nextDsl.towns.single { it.id == Towns.murn.id }.position == xy(55, 29))
 check(nextDsl.towns.single { it.id == Towns.wilor.id }.kind == TownKind.City)
@@ -5863,9 +6535,8 @@ check(dungeonSystem.events.single { it.id == DungeonEvents.hobgoblinPatrol }.dis
 check(dungeonSystem.events.single { it.id == DungeonEvents.erethorPriests }.disposition == DungeonEventDisposition.Recurring)
 check(dungeonSystem.events.single { it.id == DungeonEvents.luteChamber }.ops.containsEncounter(Monsters.erethor))
 check(dungeonSystem.events.single { it.id == DungeonEvents.hobgoblinChief }.ops.containsEncounter(Monsters.hobgoblinChief))
-check(nextDsl.dialogue.size == 1)
-check(nextDsl.dialogue.single().branches.size == 2)
-check(nextDsl.dialogue.single().branches.any { branch ->
+check(nextDsl.dialogue.single { it.npc == Npcs.garth }.branches.size == 2)
+check(nextDsl.dialogue.single { it.npc == Npcs.garth }.branches.any { branch ->
     branch.whenState == Story.garth.bandits.recovered &&
             branch.ops.any { op ->
                 op is Op.GrantReward &&

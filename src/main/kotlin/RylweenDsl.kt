@@ -429,6 +429,7 @@ sealed interface IntAst {
     data class RealmScalar(val name: String) : IntAst
     data class PartyScalar(val name: String) : IntAst
     data class InventoryPoolCount(val pool: ItemPoolId) : IntAst
+    data class InventorySlotCost(val slot: IntAst) : IntAst
     data class NativeInt(val path: String, val args: List<String>) : IntAst
 }
 
@@ -568,6 +569,7 @@ sealed interface Op {
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
     data class EnterDungeon(val dungeon: DungeonId, val levels: Int) : Op
     object ConsumeActiveItem : Op
+    data class ClearInventorySlot(val slot: IntAst) : Op
     data class ConsumeInventoryPool(val pool: ItemPoolId, val quantity: IntAst) : Op
     object ConsumeTorch : Op
     data class TeleportParty(val directionKey: IntAst, val distance: IntAst) : Op
@@ -1813,11 +1815,18 @@ class PartyRef(private val script: ScriptScope) {
 class PartyInventoryRef(private val script: ScriptScope) {
     fun count(pool: ItemPoolId): IntExpr = Expr(IntAst.InventoryPoolCount(pool))
 
+    fun itemCost(slot: InventorySlotRef): IntExpr =
+        Expr(IntAst.InventorySlotCost(slot.index.ast))
+
     fun consume(pool: ItemPoolId, quantity: IntExpr) {
         script.record(Op.ConsumeInventoryPool(pool, quantity.ast))
     }
 
     fun consume(pool: ItemPoolId, quantity: Int) = consume(pool, lit(quantity))
+
+    fun clear(slot: InventorySlotRef) {
+        script.record(Op.ClearInventorySlot(slot.index.ast))
+    }
 }
 
 class MemberRef(private val script: ScriptScope, val index: IntExpr) {
@@ -3765,6 +3774,7 @@ private fun IntAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): IntAst
         is IntAst.MemberField -> copy(member = member.resolveItemPools(resolve))
         is IntAst.MonsterField -> copy(monster = monster.resolveItemPools(resolve))
         is IntAst.InventoryPoolCount -> copy(pool = resolve(pool))
+        is IntAst.InventorySlotCost -> copy(slot = slot.resolveItemPools(resolve))
         else -> this
     }
 
@@ -6194,6 +6204,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
             is IntAst.RealmScalar -> Unit
             is IntAst.PartyScalar -> Unit
             is IntAst.InventoryPoolCount -> Unit
+            is IntAst.InventorySlotCost -> int(ast.slot)
             is IntAst.NativeInt -> paths += ast.path
         }
     }
@@ -6315,6 +6326,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.Encounter -> Unit
                 is Op.EnterDungeon -> Unit
                 Op.ConsumeActiveItem -> Unit
+                is Op.ClearInventorySlot -> int(op.slot)
                 is Op.ConsumeInventoryPool -> int(op.quantity)
                 Op.ConsumeTorch -> Unit
                 is Op.TeleportParty -> {

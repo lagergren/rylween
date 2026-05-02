@@ -168,6 +168,7 @@ class ScriptTraceRunner(
                 trace(EngineTraceEvent.DungeonHandoff(WildernessDungeonHandoff(op.dungeon, op.levels)))
             }
             Op.ConsumeActiveItem -> ScriptControlSignal.Continue
+            is Op.ClearInventorySlot -> ScriptControlSignal.Continue
             is Op.ConsumeInventoryPool -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.ConsumeInventoryPool(op.pool, eval(op.quantity)))
             }
@@ -215,6 +216,7 @@ class ScriptTraceRunner(
         override fun realmScalar(name: String): Int = 0
         override fun partyScalar(name: String): Int = 0
         override fun inventoryPoolCount(pool: ItemPoolId): Int = 0
+        override fun inventorySlotCost(slot: Int): Int = 0
         override fun nativeInt(path: String, args: List<String>): Int =
             engine.readInt(EngineRequest(path, args))
         override fun flagIs(slug: String, native: String): Boolean = false
@@ -693,6 +695,10 @@ private class StatefulScriptServiceRunner(
                 activeInventorySlot?.let { slot ->
                     party = party.withInventoryItem(slot, null)
                 }
+                advanceTop()
+            }
+            is Op.ClearInventorySlot -> {
+                party = party.withInventoryItem(eval(op.slot), null)
                 advanceTop()
             }
             is Op.ConsumeInventoryPool -> {
@@ -1221,6 +1227,10 @@ private class StatefulScriptServiceRunner(
         override fun realmScalar(name: String): Int = this@StatefulScriptServiceRunner.realmScalar(name)
         override fun partyScalar(name: String): Int = this@StatefulScriptServiceRunner.partyScalar(name)
         override fun inventoryPoolCount(pool: ItemPoolId): Int = party.countInventoryItems(pool)
+        override fun inventorySlotCost(slot: Int): Int =
+            party.inventoryItem(slot)
+                ?.let { item -> battleContent.itemRecords.firstOrNull { it.id == item }?.cost }
+                ?: 0
         override fun nativeInt(path: String, args: List<String>): Int =
             engine.readInt(EngineRequest(path, args))
         override fun flagIs(slug: String, native: String): Boolean =
