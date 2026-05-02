@@ -347,6 +347,16 @@ data class TerminalPresentationModel(
     val regions: List<ScreenRegionModel> = emptyList(),
 )
 
+data class WorldMapModel(
+    val id: WorldMapId,
+    val layers: List<WorldMapLayerModel>,
+)
+
+data class WorldMapLayerModel(
+    val id: MapLayerId,
+    val rows: List<String>,
+)
+
 data class VisualsModel(
     val staticScreens: List<StaticScreenModel> = emptyList(),
 )
@@ -1321,6 +1331,7 @@ data class GameModel(
     val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel,
     val visuals: VisualsModel,
+    val worldMaps: List<WorldMapModel>,
     val terminal: TerminalPresentationModel,
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
@@ -3811,6 +3822,7 @@ class GameBuilder {
     private var realmModel = RealmContentModel()
     private var promptsModel = GamePromptsModel()
     private var visualsModel = VisualsModel()
+    private val worldMaps = mutableListOf<WorldMapModel>()
     private var terminalPresentationModel = TerminalPresentationModel()
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
@@ -3851,6 +3863,10 @@ class GameBuilder {
 
     fun visuals(body: VisualsBuilder.() -> Unit) {
         visualsModel = VisualsBuilder(visualsModel).apply(body).build()
+    }
+
+    fun worldMap(id: WorldMapId, body: WorldMapBuilder.() -> Unit) {
+        worldMaps += WorldMapBuilder(id).apply(body).build()
     }
 
     fun terminal(body: TerminalPresentationBuilder.() -> Unit) {
@@ -3936,6 +3952,7 @@ class GameBuilder {
             realm = realmModel,
             prompts = promptsModel,
             visuals = visualsModel,
+            worldMaps = worldMaps.toList(),
             terminal = terminalPresentationModel,
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
@@ -3959,6 +3976,34 @@ class GameBuilder {
         )
     }
 
+}
+
+@RylNextDsl
+class WorldMapBuilder(private val id: WorldMapId) {
+    private val layerModels = mutableListOf<WorldMapLayerModel>()
+
+    fun layer(id: MapLayerId, body: WorldMapLayerBuilder.() -> Unit) {
+        layerModels += WorldMapLayerBuilder(id).apply(body).build()
+    }
+
+    fun build(): WorldMapModel =
+        WorldMapModel(id = id, layers = layerModels.toList())
+}
+
+@RylNextDsl
+class WorldMapLayerBuilder(private val id: MapLayerId) {
+    private var rowModels = emptyList<String>()
+
+    fun rows(vararg rows: String) {
+        rowModels = rows.toList()
+    }
+
+    fun rows(rows: List<String>) {
+        rowModels = rows.toList()
+    }
+
+    fun build(): WorldMapLayerModel =
+        WorldMapLayerModel(id = id, rows = rowModels)
 }
 
 @RylNextDsl

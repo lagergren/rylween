@@ -222,6 +222,15 @@ data class WorldMapGrid(
     }
 }
 
+fun GameModel.worldMapGrid(id: WorldMapId): WorldMapGrid? =
+    worldMaps.firstOrNull { it.id == id }?.toGrid()
+
+fun WorldMapModel.toGrid(): WorldMapGrid {
+    val terrainRows = layers.singleOrNull { it.id == MapLayers.terrain }?.rows
+        ?: error("world map ${id.slug} has no terrain layer")
+    return WorldMapGrid(id = id, rows = listOf("") + terrainRows)
+}
+
 data class WildernessSession(
     val runtime: RuntimeSessionState,
     val worldMap: WorldMapGrid,

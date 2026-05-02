@@ -1345,6 +1345,33 @@ private fun validateVisuals(visuals: VisualsModel) {
     }
 }
 
+private fun validateWorldMaps(worldMaps: List<WorldMapModel>, terminal: TerminalPresentationModel) {
+    check(worldMaps.map { it.id }.toSet().size == worldMaps.size) {
+        "duplicate world map"
+    }
+    val terrainCodes = terminal.terrain.mapNotNull { it.terrain.sourceMapCode }.toSet()
+    worldMaps.forEach { map ->
+        check(map.layers.map { it.id }.toSet().size == map.layers.size) {
+            "world map ${map.id.slug} has duplicate layers"
+        }
+        val terrainLayer = map.layers.singleOrNull { it.id == MapLayers.terrain }
+            ?: error("world map ${map.id.slug} requires terrain layer")
+        check(terrainLayer.rows.isNotEmpty()) { "world map ${map.id.slug} terrain layer has no rows" }
+        val width = terrainLayer.rows.first().length
+        check(width > 0) { "world map ${map.id.slug} terrain layer has blank first row" }
+        terrainLayer.rows.forEachIndexed { index, row ->
+            check(row.length == width) {
+                "world map ${map.id.slug} terrain row ${index + 1} width ${row.length} differs from $width"
+            }
+            row.forEach { tile ->
+                check(tile in terrainCodes) {
+                    "world map ${map.id.slug} terrain row ${index + 1} uses unknown tile '$tile'"
+                }
+            }
+        }
+    }
+}
+
 fun validateAuthoredContent(content: GameModel) {
     check(content.prompts.pauseVerbs.all { it.isNotBlank() }) {
         "pause prompt verbs must not be blank"
@@ -1370,6 +1397,7 @@ fun validateAuthoredContent(content: GameModel) {
     validateRealmContent(content.realm)
     validateVisuals(content.visuals)
     validateTerminalPresentation(content.terminal)
+    validateWorldMaps(content.worldMaps, content.terminal)
     validateItemCatalog(content.itemCatalog)
     check(content.itemPools.map { it.slug }.toSet().size == content.itemPools.size) {
         "duplicate item pool"

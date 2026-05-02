@@ -38,7 +38,8 @@ object RylweenAnsiMain {
                     ?: error("unknown state ${config.state.slug}")
                 val bootState = config.hour?.let { state.copy(realm = state.realm.copy(hour = it)) } ?: state
                 val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
-                    ?: WorldMapGrid.fromSourceRows(RylweenAssets.readLines("map.dat"))
+                    ?: content.worldMapGrid(Maps.wilderness)
+                    ?: error("missing authored wilderness map")
                 val engine = RylweenKotlinEngine(
                     content = content,
                     npcPlacementConfig = NpcPlacementRealizerConfig(
@@ -949,7 +950,7 @@ private fun printAnsiUsage() {
         |  --state  state slug, defaults to fresh-replay
         |  --seed   runtime RNG state, defaults to the selected state seed
         |  --hour   0..23, overrides the selected state hour
-        |  --map    file path override; defaults to packaged app resource map.dat
+        |  --map    file path override; defaults to authored wilderness map
         |
         |Logging:
         |  RYL_LOG=stderr

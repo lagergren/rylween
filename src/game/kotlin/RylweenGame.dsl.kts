@@ -58,6 +58,53 @@ val nextRylween = rylween {
         }
     }
 
+    worldMap(Maps.wilderness) {
+        layer(MapLayers.terrain) {
+            rows(
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmwwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmsmsmmmmmsmssmsmmmmmmwmmmmmsmsfsssmsmmmtmmmtmmmmmmsmmfmmmfmmmmsffsmmmmmmm",
+                "mmmmmssmffssmssmssfsmsfssmwmmmssfsfsfsfsfsmmttmtttsmffmsfmsfmfsffsmfsmfsfmmmmm",
+                "mmmmmfsssssffssfsfsfsfsfwwwsmssfsfsssfsfsssmttsstssmsssttttsstsssttssttsmmmmmm",
+                "mmmmmmfssssssfsssssssssswfssmsfsssssssssfssssttstssssttssssttstttssttffmmmmmmm",
+                "mmmmmmfssssssssssssssssswsssssssssssssssssssstttsttttssttsttttssssstttfsmmmmmm",
+                "mmmmmfssssss0sssssssssswwwwwwsssssssssssssssssttsttttssssssssstttstffsmmmmmmmm",
+                "mmmmmmffssssssssssssssswsssswswwwwwsssssssssttss0tststtssststsssstsffssmmmmmmm",
+                "mmmmmmmfsssfssssssssssswsssswwwssswsssssssstttsttssttttsttttstttsssffttmmmmmmm",
+                "mmmmmfssssssssssssssssswwssssssssswsssssssttsssssttttsssttssssssssfssftttmmmmm",
+                "mmmmmmmmfssffssssssssssswwwwssssswwwssssssssttttsssssssssttstssssmfmmmmmmmmmmm",
+                "mmmmmmmfssfsssssssssssssssswssssswswsssssssssssssssssssssstsssssffsmmmmmmmmmmm",
+                "mmmmmfssssssssssggsgsssssggwssgsssswssssssssssgsssssssssssssssssssffffsmmmmmmm",
+                "mmmmmmmfsssfsssssgggssssssgwgggssggwggsssgggggggsssssssssssssssssssssfssfmmmmm",
+                "mmmmmmmfssssssssssggssssssgggggggggggggssssssggsssssssssssssssssssssssfssmmmmm",
+                "mmmmmmsfssfssssssssssssssssssssssgggggggsgg0gggggggsssssssssssssssssssfsmmmmmm",
+                "mmmmmmfsssfssssssssssssssggggggggggfgfgfmggfggggggsssssssssssssssssssssfsmmmmm",
+                "mmmmmsffsssssfsssssssgggggggggggggggggmmmmgmggggggggggssgssssssssssssfmmmmmmmm",
+                "mmmmmmmmsssfsssssssggssssggggggggggfffgfmfgfgggggggsssssggggsssssssssfsmmmmmmm",
+                "mmmmmmffssssssfsssssssssssssssssggggggggggggggggggggggsssggssssssssssfsfsmmmmm",
+                "mmmmmmsfsssfsssssssssssssggggggggggggggggggggggggggggggssssssssssssssssmmmmmmm",
+                "mmmmmmmmfsssfsssssssgggssssssssggggggggggggggssssssssssssssssssdssssfsfssmmmmm",
+                "mmmmfffsfssssssssssssgsssssssssssssssssssssssssssssssssddsssssddsssdsmmmmmmmmm",
+                "mmmmmmmmmmssssssssssssssssssssssswwsssssssssssssssddsddddddddddddddddfdmmmmmmm",
+                "mmmmmssfsssssggsgsssssssssssssssswssssssssssssssssddddd0dddddddddddddfdmmmmmmm",
+                "mmmmmmfsssssgg2ggssssssssssssssswwsmsssssssssddddddddddddddddddddddddfdmmmmmmm",
+                "mmmmmmsfssssssggsssssssfsssssswwwsmmmssssddddddddddddddddddddddddddddfmmmmmmmm",
+                "mmmmmmmmffssssssssssssfsfsfssswsssmsssssdddddddddddddddddddddddddddfdddmdmmmmm",
+                "mmmmmmsffssffsfsfsfsffmfsfsmfswffsmfffssssfdfddfdddddfdfdddddffddfdfddmmmmmmmm",
+                "mmmmmmmsffsmsfssmfsmssmmsssmmfwwsmmsmfsffmmmfmfmffdffdffdfdfffdffdddmmmmmmmmmm",
+                "mmmmmmmmmmsmmsmmmsmmmsmmmmsmmmmwsmmsmsfsmmmmmmmmmmdmddmmmmmdmmdmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+                "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+            )
+        }
+    }
+
     terminal {
         terrain(Terrain.mountain, glyph = "/\\", color = PaletteColors.white)
         terrain(Terrain.water, glyph = "~~", color = PaletteColors.blue)
@@ -6575,6 +6622,8 @@ check(nextDsl.visuals.staticScreens.single { it.id == StaticScreens.frame }.imag
 check(nextDsl.visuals.staticScreens.single { it.id == StaticScreens.title }.image == Images.Static.title)
 check(nextDsl.visuals.staticScreens.single { it.id == StaticScreens.help }.commandHelp)
 check(nextDsl.visuals.staticScreens.single { it.id == StaticScreens.manual }.resource == "rylween.doc")
+check(nextDsl.worldMaps.single { it.id == Maps.wilderness }.layers.single { it.id == MapLayers.terrain }.rows.size == 40)
+check(nextDsl.worldMaps.single { it.id == Maps.wilderness }.layers.single { it.id == MapLayers.terrain }.rows.first().length == 78)
 check(nextDsl.terminal.terrain.size == 10)
 check(nextDsl.terminal.terrain.single { it.terrain == Terrain.town }.glyph == "TT")
 check(nextDsl.terminal.regions.single { it.id == ScreenRegions.textWindow }.width == 26)
