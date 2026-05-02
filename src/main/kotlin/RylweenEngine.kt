@@ -340,7 +340,7 @@ class TownLeaveEquipmentTraceRunner(
 
     private fun render(step: TownLeaveEquipmentStep) {
         when (step) {
-            is TownLeaveEquipmentStep.ReadyQuestion -> engine.trace(EngineTraceEvent.Menu(step.prompt, listOf('Y', 'N')))
+            is TownLeaveEquipmentStep.ReadyQuestion -> engine.trace(EngineTraceEvent.Menu(step.prompt, yesNoKeys()))
             is TownLeaveEquipmentStep.Equipment -> renderEquipmentStep(engine, step.session.step)
             is TownLeaveEquipmentStep.Finished -> Unit
         }
@@ -1449,10 +1449,10 @@ class TownLeaveEquipmentTerminalAdapter(
         repeat(128) {
             session = when (val step = session.step) {
                 is TownLeaveEquipmentStep.ReadyQuestion -> {
-                    writeMenu(step.prompt, listOf('Y', 'N'))
-                    when (val input = terminal.readKey(listOf('Y', 'N'))) {
+                    writeMenu(step.prompt, yesNoKeys())
+                    when (val input = terminal.readYesNo()) {
                         is TerminalInput.Value ->
-                            session.apply(TownLeaveEquipmentInput.ReadyAnswer(input.value == 'Y'))
+                            session.apply(TownLeaveEquipmentInput.ReadyAnswer(input.value))
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -2007,6 +2007,18 @@ private fun TerminalPort.readKey(allowed: List<Char>): TerminalInput<Char> {
     val choices = allowed.map { key -> TerminalChoice(key, inputKey(key, label = key.toString())) }
     return readChoice(choices)
 }
+
+private fun yesNoChoices(keys: YesNoKeysModel = StandardYesNoKeys): List<TerminalChoice<Boolean>> =
+    listOf(
+        TerminalChoice(true, keys.yes),
+        TerminalChoice(false, keys.no),
+    )
+
+private fun yesNoKeys(keys: YesNoKeysModel = StandardYesNoKeys): List<Char> =
+    yesNoChoices(keys).map { it.binding.primaryChar }
+
+private fun TerminalPort.readYesNo(keys: YesNoKeysModel = StandardYesNoKeys): TerminalInput<Boolean> =
+    readChoice(yesNoChoices(keys))
 
 private fun <T> TerminalPort.readChoice(choices: List<TerminalChoice<T>>): TerminalInput<T> {
     val raw = readLine() ?: return TerminalInput.Unavailable
