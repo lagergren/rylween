@@ -25,6 +25,12 @@ sealed interface InventoryItemUseInput {
     object Continue : InventoryItemUseInput
 }
 
+sealed interface PriestSpellInput {
+    data class Caster(val memberNumber: Int) : PriestSpellInput
+    data class SpellSlot(val slot: Int) : PriestSpellInput
+    object Continue : PriestSpellInput
+}
+
 sealed interface EquipmentPromptInput {
     data class InventorySlot(val slot: Int) : EquipmentPromptInput
     data class Member(val memberNumber: Int) : EquipmentPromptInput
@@ -1754,6 +1760,11 @@ private fun BattleRoundState.afterMonsterRound(): BattleRoundState =
 private fun Int.reducedBy(amount: Int): Int =
     if (this > amount) this - amount else this
 
+private fun Int.digitKey(): Char {
+    require(this in 0..9) { "single-key numeric choice must be 0..9: $this" }
+    return ('0'.code + this).toChar()
+}
+
 private fun combineTextBlocks(vararg blocks: TextBlock): TextBlock =
     combineTextBlocks(blocks.toList())
 
@@ -2372,6 +2383,218 @@ data class RewardGrantSession(
     }
 }
 
+enum class PriestSpellPlace(val code: Int) {
+    Wilderness(0),
+    Dungeon(1),
+}
+
+enum class PriestSpellStatus {
+    Cast,
+    Aborted,
+    MageCombatOnly,
+    WrongClass,
+    Dead,
+    InvalidCaster,
+    InvalidSpell,
+    NoSpells,
+}
+
+data class PriestSpellResult(
+    val status: PriestSpellStatus,
+    val runtime: RuntimeSessionState,
+    val casterNumber: Int? = null,
+    val spell: SpellId? = null,
+)
+
+sealed interface PriestSpellStep {
+    data class ChooseCaster(val prompt: TextBlock, val casterKeys: List<Char>) : PriestSpellStep
+    data class ChooseSpell(
+        val casterNumber: Int,
+        val prompt: TextBlock,
+        val spellKeys: List<Char>,
+    ) : PriestSpellStep
+    data class Script(
+        val spell: SpellModel,
+        val casterNumber: Int,
+        val continuation: TownServiceContinuation,
+    ) : PriestSpellStep
+    data class Message(val text: TextBlock, val next: PriestSpellStep) : PriestSpellStep
+    data class Finished(val result: PriestSpellResult) : PriestSpellStep {
+        val runtime: RuntimeSessionState get() = result.runtime
+    }
+}
+
+data class PriestSpellSession(
+    val runtime: RuntimeSessionState,
+    val spells: List<SpellModel>,
+    val place: PriestSpellPlace,
+    val step: PriestSpellStep,
+    val lastResult: PriestSpellResult? = null,
+) {
+    val party: PartyState get() = runtime.activeParty
+    private val priestSpells: List<SpellModel>
+        get() = spells.filter { it.id.slug.startsWith("priest.") }.sortedBy { it.slot }
+
+    fun apply(input: PriestSpellInput): PriestSpellSession =
+        when (val current = step) {
+            is PriestSpellStep.ChooseCaster -> {
+                val caster = input as? PriestSpellInput.Caster
+                    ?: error("priest spell session is choosing a caster")
+                chooseCaster(caster.memberNumber)
+            }
+            is PriestSpellStep.ChooseSpell -> {
+                val spell = input as? PriestSpellInput.SpellSlot
+                    ?: error("priest spell session is choosing a spell")
+                chooseSpell(current.casterNumber, spell.slot)
+            }
+            is PriestSpellStep.Message -> {
+                require(input is PriestSpellInput.Continue) { "priest spell session is showing a message" }
+                val nextRuntime = (current.next as? PriestSpellStep.Finished)?.runtime ?: runtime
+                copy(runtime = nextRuntime, step = current.next)
+            }
+            is PriestSpellStep.Script -> error("priest spell script must be driven by a script runner")
+            is PriestSpellStep.Finished -> error("priest spell session is already finished: $current")
+        }
+
+    fun replaceScriptContinuation(continuation: TownServiceContinuation): PriestSpellSession {
+        val current = step as? PriestSpellStep.Script
+            ?: error("priest spell session is not running a script")
+        return copy(
+            runtime = continuation.runtime,
+            step = current.copy(continuation = continuation),
+        )
+    }
+
+    fun finishScript(nextRuntime: RuntimeSessionState): PriestSpellSession {
+        val current = step as? PriestSpellStep.Script
+            ?: error("priest spell session is not running a script")
+        return finish(PriestSpellStatus.Cast, nextRuntime, current.casterNumber, current.spell.id)
+    }
+
+    private fun chooseCaster(memberNumber: Int): PriestSpellSession {
+        val member = party.members.getOrNull(memberNumber - 1)
+            ?: return message(PriestSpellStatus.InvalidCaster, PriestSpellPromptText.invalidCaster(), memberNumber)
+        return when {
+            member.pcClass == PcClass.Mage ->
+                message(PriestSpellStatus.MageCombatOnly, PriestSpellPromptText.mageCombatOnly(), memberNumber)
+            member.pcClass != PcClass.Priest ->
+                message(PriestSpellStatus.WrongClass, PriestSpellPromptText.wrongClass(), memberNumber)
+            member.dead ->
+                message(PriestSpellStatus.Dead, PriestSpellPromptText.dead(), memberNumber)
+            priestSpells.isEmpty() ->
+                message(PriestSpellStatus.NoSpells, PriestSpellPromptText.noSpells(), memberNumber)
+            else -> copy(
+                step = PriestSpellStep.ChooseSpell(
+                    casterNumber = memberNumber,
+                    prompt = PriestSpellPromptText.spellList(member, priestSpells, abortSlot()),
+                    spellKeys = spellKeys(),
+                ),
+            )
+        }
+    }
+
+    private fun chooseSpell(casterNumber: Int, slot: Int): PriestSpellSession {
+        if (slot == abortSlot()) {
+            return finish(PriestSpellStatus.Aborted, runtime, casterNumber)
+        }
+        val spell = priestSpells.firstOrNull { it.slot == slot }
+            ?: return message(PriestSpellStatus.InvalidSpell, PriestSpellPromptText.invalidSpell(), casterNumber)
+        return copy(
+            step = PriestSpellStep.Script(
+                spell = spell,
+                casterNumber = casterNumber,
+                continuation = TownServiceContinuation.start(runtime).copy(
+                    locals = mapOf(
+                        "caster_idx" to casterNumber,
+                        "place" to place.code,
+                    ),
+                ),
+            ),
+        )
+    }
+
+    private fun message(
+        status: PriestSpellStatus,
+        text: TextBlock,
+        casterNumber: Int? = null,
+    ): PriestSpellSession {
+        val finished = PriestSpellStep.Finished(result(status, runtime, casterNumber))
+        return copy(step = PriestSpellStep.Message(text, finished), lastResult = finished.result)
+    }
+
+    private fun finish(
+        status: PriestSpellStatus,
+        nextRuntime: RuntimeSessionState,
+        casterNumber: Int? = null,
+        spell: SpellId? = null,
+    ): PriestSpellSession {
+        val result = result(status, nextRuntime, casterNumber, spell)
+        return copy(runtime = nextRuntime, step = PriestSpellStep.Finished(result), lastResult = result)
+    }
+
+    private fun result(
+        status: PriestSpellStatus,
+        nextRuntime: RuntimeSessionState,
+        casterNumber: Int? = null,
+        spell: SpellId? = null,
+    ): PriestSpellResult =
+        PriestSpellResult(status, nextRuntime, casterNumber, spell)
+
+    private fun abortSlot(): Int =
+        priestSpells.maxOfOrNull { it.slot }?.plus(1) ?: 1
+
+    private fun spellKeys(): List<Char> =
+        (priestSpells.map { it.slot } + abortSlot()).map(Int::digitKey)
+
+    companion object {
+        fun start(
+            runtime: RuntimeSessionState,
+            spells: List<SpellModel>,
+            place: PriestSpellPlace,
+        ): PriestSpellSession =
+            PriestSpellSession(
+                runtime = runtime,
+                spells = spells,
+                place = place,
+                step = PriestSpellStep.ChooseCaster(
+                    PriestSpellPromptText.who(runtime.realm.partyMemberMax),
+                    runtime.activeParty.members.indices.map { (it + 1).digitKey() },
+                ),
+            )
+    }
+}
+
+object PriestSpellPromptText {
+    fun who(maxMembers: Int): TextBlock =
+        inlineText("Who? (1-$maxMembers)")
+
+    fun mageCombatOnly(): TextBlock =
+        inlineText("Sorry. Mage spells are", "combat-only.")
+
+    fun wrongClass(): TextBlock =
+        inlineText("Wrong class.")
+
+    fun dead(): TextBlock =
+        inlineText("Dead.")
+
+    fun invalidCaster(): TextBlock =
+        inlineText("Not a party member.")
+
+    fun invalidSpell(): TextBlock =
+        inlineText("Not possible.")
+
+    fun noSpells(): TextBlock =
+        inlineText("No priest spells are", "declared.")
+
+    fun spellList(member: PartyMemberState, spells: List<SpellModel>, abortSlot: Int): TextBlock =
+        inlineText(
+            *(spells.map { spell ->
+                val cost = spell.baseCost + member.level
+                "${spell.slot}. ${spell.name.padEnd(12)}(${cost.toString().padStart(3)}/${member.mana.current.toString().padStart(3)})"
+            } + "$abortSlot. Abort").toTypedArray(),
+        )
+}
+
 enum class InventoryItemUseStatus {
     Used,
     Equipped,
@@ -2415,6 +2638,8 @@ data class InventoryItemUseSession(
     val runtime: RuntimeSessionState,
     val itemUses: List<ItemUseModel>,
     val itemRecords: List<ItemRecordModel>,
+    val allowedKinds: Set<ItemKind>? = null,
+    val choosePrompt: TextBlock = InventoryUsePromptText.use,
     val step: InventoryItemUseStep,
     val lastResult: InventoryItemUseResult? = null,
 ) {
@@ -2484,6 +2709,9 @@ data class InventoryItemUseSession(
             ?: return message(InventoryItemUseStatus.NoItem, InventoryUsePromptText.noItem(), slot = slot)
         val record = itemRecords.associateBy { it.id }[item]
             ?: return message(InventoryItemUseStatus.NotUsable, InventoryUsePromptText.notUsable(item.slug), item, slot)
+        if (allowedKinds?.contains(record.kind) == false) {
+            return message(InventoryItemUseStatus.NotUsable, InventoryUsePromptText.notUsable(record.displayName), item, slot)
+        }
         val use = itemUses.firstOrNull { it.id == item && ItemUseContext.Inventory in it.contexts }
         return when {
             use != null -> beginScript(use, item, slot)
@@ -2555,8 +2783,11 @@ data class InventoryItemUseSession(
             runtime: RuntimeSessionState,
             itemUses: List<ItemUseModel> = emptyList(),
             itemRecords: List<ItemRecordModel> = emptyList(),
+            allowedKinds: Set<ItemKind>? = null,
+            choosePrompt: TextBlock = InventoryUsePromptText.use,
         ): InventoryItemUseSession {
             val choices = runtime.activeParty.inventoryItemChoices(itemRecords)
+                .filter { choice -> allowedKinds?.contains(choice.kind) ?: true }
             val result = InventoryItemUseResult(InventoryItemUseStatus.NoItems, runtime)
             val step = if (choices.isEmpty()) {
                 InventoryItemUseStep.Message(
@@ -2564,12 +2795,14 @@ data class InventoryItemUseSession(
                     InventoryItemUseStep.Finished(result),
                 )
             } else {
-                InventoryItemUseStep.ChooseItem(InventoryUsePromptText.choose(choices), choices)
+                InventoryItemUseStep.ChooseItem(InventoryUsePromptText.choose(choosePrompt, choices), choices)
             }
             return InventoryItemUseSession(
                 runtime = runtime,
                 itemUses = itemUses,
                 itemRecords = itemRecords,
+                allowedKinds = allowedKinds,
+                choosePrompt = choosePrompt,
                 step = step,
                 lastResult = result.takeIf { choices.isEmpty() },
             )
@@ -2578,11 +2811,17 @@ data class InventoryItemUseSession(
 }
 
 object InventoryUsePromptText {
+    val use = inlineText("Use what?")
+    val quaff = inlineText("Quaff what?")
+
     fun choose(choices: List<InventoryItemChoice>): TextBlock =
         combineTextBlocks(
-            inlineText("Use what?"),
+            use,
             TextBlock.Inline(choices.map { "${it.key}. ${it.label}" }),
         )
+
+    fun choose(prompt: TextBlock, choices: List<InventoryItemChoice>): TextBlock =
+        combineTextBlocks(prompt, TextBlock.Inline(choices.map { "${it.key}. ${it.label}" }))
 
     fun noItems(): TextBlock =
         inlineText("You are not carrying", "anything.")

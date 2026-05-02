@@ -1,3 +1,5 @@
+import org.gradle.jvm.application.tasks.CreateStartScripts
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
 }
@@ -147,14 +149,49 @@ val runKotlinGame by tasks.registering(JavaExec::class) {
     standardInput = System.`in`
 }
 
-val runKotlinAnsi by tasks.registering(JavaExec::class) {
-    group = "application"
-    description = "Boots the compiled game in the ANSI terminal runtime shell."
+val kotlinAnsiJar by tasks.registering(Jar::class) {
+    group = "build"
+    description = "Packages the compiled Kotlin DSL game and ANSI app resources into one launcher jar."
 
     dependsOn(tasks.named(appSourceSet.classesTaskName))
-    classpath = appSourceSet.runtimeClasspath
+    archiveBaseName.set("rylween-kotlin")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(sourceSets.named("main").get().output)
+    from(gameSourceSet.output)
+    from(appSourceSet.output)
+    manifest {
+        attributes["Main-Class"] = "RylweenAnsiMain"
+    }
+}
+
+val kotlinAnsiRuntimeJars = appSourceSet.runtimeClasspath.filter { it.isFile && it.extension == "jar" }
+
+val kotlinAnsiStartScripts by tasks.registering(CreateStartScripts::class) {
+    group = "application"
+    description = "Generates direct start scripts for the ANSI runtime."
+
+    dependsOn(kotlinAnsiJar)
+    applicationName = "rylween"
     mainClass.set("RylweenAnsiMain")
-    standardInput = System.`in`
+    outputDir = layout.buildDirectory.dir("scripts/kotlinAnsi").get().asFile
+    classpath = files(kotlinAnsiJar) + kotlinAnsiRuntimeJars
+}
+
+val installKotlinAnsi by tasks.registering(Sync::class) {
+    group = "application"
+    description = "Installs the direct ANSI runtime launcher outside Gradle's interactive console."
+
+    dependsOn(kotlinAnsiStartScripts)
+    into(layout.buildDirectory.dir("install/rylween-kotlin"))
+    from(kotlinAnsiStartScripts) {
+        into("bin")
+        filePermissions {
+            unix("rwxr-xr-x")
+        }
+    }
+    from(files(kotlinAnsiJar) + kotlinAnsiRuntimeJars) {
+        into("lib")
+    }
 }
 
 val validateGameDsl by tasks.registering(JavaExec::class) {

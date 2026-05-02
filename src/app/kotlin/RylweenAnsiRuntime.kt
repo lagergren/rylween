@@ -77,7 +77,6 @@ private class RylweenAnsiGame(
     fun run(initial: WildernessSession) {
         var session = initial
         screen.bootFrame()
-        screen.writeText(listOf("Rylween Kotlin ANSI runtime", "X quits. E enters towns.", ""))
         while (true) {
             session = when (val step = session.step) {
                 WildernessSessionStep.TurnStart -> session.beginTurn().also(screen::renderHud)
@@ -149,6 +148,24 @@ private class RylweenAnsiGame(
                         is TerminalRunStatus.Waiting -> updated
                     }
                 }
+                is WildernessSessionStep.Equipment -> {
+                    val result = EquipmentPromptTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceEquipmentSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "equipment step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
+                is WildernessSessionStep.PriestSpell -> {
+                    val result = PriestSpellTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replacePriestSpellSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "priest spell step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
                 is WildernessSessionStep.Mission -> {
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
                     val missionBridge = StatefulTownServiceBridge(
@@ -204,8 +221,15 @@ private class RylweenAnsiGame(
             null -> session.copy(step = WildernessSessionStep.Finished(session.runtime))
             else -> {
                 val input = session.wilderness.keys.exploreInput(token)
-                if (input == null) {
-                    screen.writeText(listOf("Unknown command.", ""))
+                if (session.wilderness.keys.redraw.matches(token)) {
+                    screen.bootFrame()
+                    screen.renderHud(session)
+                    session.apply(WildernessSessionInput.Redraw)
+                } else if (session.wilderness.keys.help.matches(token)) {
+                    screen.writeHelp(session, renderer)
+                    session
+                } else if (input == null) {
+                    screen.writeText(listOf("Unknown command.", "Press ? for commands.", ""))
                     session
                 } else {
                     session.apply(input)
@@ -253,8 +277,21 @@ private fun WildernessKeysModel.exploreInput(token: String): WildernessSessionIn
         moveWest.matches(token) -> WildernessSessionInput.Move(WildernessDirection.West)
         moveEast.matches(token) -> WildernessSessionInput.Move(WildernessDirection.East)
         pass.matches(token) -> WildernessSessionInput.Pass
+        save.matches(token) -> WildernessSessionInput.Save
+        readyWeapon.matches(token) -> WildernessSessionInput.ReadyWeapon
+        readyArmor.matches(token) -> WildernessSessionInput.ReadyArmor
+        redraw.matches(token) -> WildernessSessionInput.Redraw
+        journal.matches(token) -> WildernessSessionInput.Journal
+        help.matches(token) -> WildernessSessionInput.Help
+        hunt.matches(token) -> WildernessSessionInput.Hunt
+        viewParty.matches(token) -> WildernessSessionInput.ViewParty
+        removeArmor.matches(token) -> WildernessSessionInput.RemoveArmor
+        removeWeapon.matches(token) -> WildernessSessionInput.RemoveWeapon
         enter.matches(token) -> WildernessSessionInput.Enter
-        useInventory.matches(token) -> WildernessSessionInput.UseInventory
+        drop.matches(token) -> WildernessSessionInput.Drop
+        camp.matches(token) -> WildernessSessionInput.Camp
+        castSpell.matches(token) -> WildernessSessionInput.CastSpell
+        quaff.matches(token) -> WildernessSessionInput.Quaff
         quit.matches(token) -> WildernessSessionInput.Quit
         else -> null
     }
@@ -295,18 +332,16 @@ private class ClassicAnsiScreen(
     fun renderHud(session: WildernessSession) {
         renderStatus(session.runtime)
         renderMap(session)
-        val town = (session.party.position as? WorldPosition.Wilderness)
-            ?.point
-            ?.let { point -> towns.firstOrNull { it.position == point } }
-        val lines = buildList {
-            add("Wilderness")
-            town?.let { add("At: ${it.name}") }
-            addAll(session.lastResult?.status?.statusLine().orEmpty())
-            add("8/2/4/6 move")
-            add("E enter  Q inv")
-            add("X quit")
+        writeText(wildernessContextLines(session))
+    }
+
+    fun writeHelp(session: WildernessSession, renderer: TerminalTextRenderer) {
+        val context = TerminalTextContext(runtime = session.runtime)
+        session.wilderness.keys.helpPages.forEach { page ->
+            writeText(renderer.lines(page, context))
+            terminal.readKeyToken()
         }
-        writeText(lines)
+        renderHud(session)
     }
 
     fun writeBlocks(blocks: List<TextBlock>, runtime: RuntimeSessionState, renderer: TerminalTextRenderer) {
@@ -356,6 +391,24 @@ private class ClassicAnsiScreen(
         goto(statusBottom)
         terminal.writeRaw("$FG_GREEN$bottom$FG_WHITE")
         terminal.flush()
+    }
+
+    private fun wildernessContextLines(session: WildernessSession): List<String> {
+        val point = (session.party.position as? WorldPosition.Wilderness)?.point
+        val terrainLine = point?.let { point ->
+            terrain.name(session.worldMap.tileAt(point))?.let { "Terrain: $it" }
+        }
+        val town = point?.let { current -> towns.firstOrNull { it.position == current } }
+        return buildList {
+            add("Wilderness")
+            terrainLine?.let(::add)
+            town?.let {
+                add("At: ${it.name}")
+                add("Press E to enter.")
+            }
+            addAll(session.lastResult?.status?.statusLine().orEmpty())
+            add("Press ? for commands.")
+        }
     }
 
     private fun renderMap(session: WildernessSession) {
@@ -412,6 +465,16 @@ private class ClassicAnsiScreen(
 private fun WildernessSessionResultStatus.statusLine(): List<String> =
     when (this) {
         WildernessSessionResultStatus.Blocked -> listOf("Blocked.")
+        WildernessSessionResultStatus.SaveUnavailable -> listOf("Save not wired yet.")
+        WildernessSessionResultStatus.JournalUnavailable -> listOf("Journal not ported yet.")
+        WildernessSessionResultStatus.HuntUnavailable -> listOf("Hunt not ported yet.")
+        WildernessSessionResultStatus.ViewPartyUnavailable -> listOf("Party view not ported yet.")
+        WildernessSessionResultStatus.DropUnavailable -> listOf("Drop not ported yet.")
+        WildernessSessionResultStatus.CampUnavailable -> listOf("Camp not ported yet.")
+        WildernessSessionResultStatus.CastSpellUnavailable -> listOf("No spell cast.")
+        WildernessSessionResultStatus.CastSpellUsed -> listOf("Spell cast.")
+        WildernessSessionResultStatus.EquipmentUsed -> listOf("Equipment updated.")
+        WildernessSessionResultStatus.EquipmentUnavailable -> listOf("No equipment change.")
         WildernessSessionResultStatus.InventoryUsed -> listOf("Inventory updated.")
         WildernessSessionResultStatus.InventoryUnavailable -> listOf("Nothing useful.")
         else -> emptyList()
@@ -420,13 +483,24 @@ private fun WildernessSessionResultStatus.statusLine(): List<String> =
 private data class TerrainGlyph(val glyph: String, val ansiColor: Int)
 
 private class TerrainGlyphs(styles: List<TerminalTerrainStyleModel>) {
+    private val byTerrainCode = styles.mapNotNull { style ->
+        style.terrain.sourceMapCode?.let { it to style.terrain.slug.readableSlug() }
+    }.toMap()
     private val bySourceCode = styles.mapNotNull { style ->
         style.terrain.sourceMapCode?.let { it to TerrainGlyph(style.glyph, style.color.ansiForeground()) }
     }.toMap()
 
     fun style(tile: Char?): TerrainGlyph =
         tile?.let(bySourceCode::get) ?: TerrainGlyph("  ", 36)
+
+    fun name(tile: Char?): String? =
+        tile?.let(byTerrainCode::get)
 }
+
+private fun String.readableSlug(): String =
+    split('_', '-')
+        .filter { it.isNotEmpty() }
+        .joinToString(" ") { part -> part.replaceFirstChar { it.uppercaseChar() } }
 
 private fun PaletteColorId.ansiForeground(): Int =
     when (this) {
@@ -666,7 +740,7 @@ private fun List<String>.valueAfter(index: Int, option: String): String =
 private fun printAnsiUsage() {
     println(
         """
-        |Usage: ./gradlew runKotlinAnsi --args="--state fresh-replay --seed 1"
+        |Usage: build/install/rylween-kotlin/bin/rylween --state fresh-replay --seed 1
         |
         |Options:
         |  --state  state slug, defaults to fresh-replay
