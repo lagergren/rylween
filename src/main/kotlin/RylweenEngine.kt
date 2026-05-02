@@ -1730,10 +1730,6 @@ class WildernessSessionTerminalAdapter(
                     terminal.write(renderer.lines(WildernessPromptText.dungeonHandoffPending(step.handoff)))
                     session.completeDungeonHandoff()
                 }
-                is WildernessSessionStep.EncounterHandoff -> {
-                    terminal.write(renderer.lines(WildernessPromptText.encounterHandoffPending(step.handoff)))
-                    session.completeEncounterHandoff()
-                }
                 WildernessSessionStep.Explore -> {
                     writeExplore(session)
                     when (val input = terminal.readKey(WildernessCommandKeys)) {
@@ -1758,6 +1754,17 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.Town -> {
                     val result = TownSessionTerminalAdapter(terminal, renderer, serviceBridge).runUntilBlocked(step.session)
                     val updated = session.replaceTownSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is WildernessSessionStep.Battle -> {
+                    val result = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceBattleSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
                         TerminalRunStatus.StepLimitReached ->
@@ -1816,6 +1823,48 @@ class WildernessSessionTerminalAdapter(
 
     private companion object {
         val WildernessCommandKeys = listOf('8', '2', '4', '6', ' ', 'E', 'X')
+    }
+}
+
+class BattleSessionTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun run(initial: BattleSession): BattleSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: BattleSession): TerminalAdapterResult<BattleSession> {
+        var session = initial
+        repeat(64) {
+            session = when (val step = session.step) {
+                is BattleSessionStep.Opening -> {
+                    writeMenu(step.prompt, listOf('F', 'R'))
+                    when (val input = terminal.readKey(listOf('F', 'R'))) {
+                        is TerminalInput.Value -> session.apply(
+                            BattleSessionInput.Opening(
+                                if (input.value == 'F') BattleOpeningChoice.Fight else BattleOpeningChoice.Run,
+                            ),
+                        )
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is BattleSessionStep.Message -> {
+                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
+                    session.apply(BattleSessionInput.Continue)
+                }
+                is BattleSessionStep.RoundHandoff -> {
+                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
+                    session.apply(BattleSessionInput.Continue)
+                }
+                is BattleSessionStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun writeMenu(block: TextBlock, keys: List<Char>) {
+        terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
     }
 }
 

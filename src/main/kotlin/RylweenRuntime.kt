@@ -54,6 +54,171 @@ sealed interface TownSessionInput {
     data class FinishNativeService(val runtime: RuntimeSessionState) : TownSessionInput
 }
 
+enum class BattleOpeningChoice { Fight, Run }
+
+sealed interface BattleSessionInput {
+    data class Opening(val choice: BattleOpeningChoice) : BattleSessionInput
+    object Continue : BattleSessionInput
+}
+
+enum class BattleSessionResultStatus {
+    EncounterStarted,
+    FightSelected,
+    RunEscaped,
+    RunFailed,
+    RunDenied,
+    RoundHandoff,
+}
+
+data class BattleMonsterState(
+    val monster: MonsterModel,
+    val count: Int,
+    val hitPoints: List<Int>,
+    val mandatory: Boolean,
+)
+
+data class BattleSessionResult(
+    val status: BattleSessionResultStatus,
+    val monster: MonsterId? = null,
+    val tier: EncounterTier? = null,
+)
+
+sealed interface BattleSessionStep {
+    data class Opening(val prompt: TextBlock) : BattleSessionStep
+    data class Message(val text: TextBlock, val next: BattleSessionStep) : BattleSessionStep
+    data class RoundHandoff(val text: TextBlock) : BattleSessionStep
+    data class Finished(val runtime: RuntimeSessionState) : BattleSessionStep
+}
+
+data class BattleSession(
+    val runtime: RuntimeSessionState,
+    val battle: StandardBattleModel,
+    val tier: EncounterTier?,
+    val encounter: BattleMonsterState,
+    val step: BattleSessionStep,
+    val lastResult: BattleSessionResult,
+) {
+    fun apply(input: BattleSessionInput): BattleSession =
+        when (val current = step) {
+            is BattleSessionStep.Opening -> {
+                val opening = (input as? BattleSessionInput.Opening)
+                    ?: error("battle session is waiting for fight/run input")
+                answerOpening(opening.choice)
+            }
+            is BattleSessionStep.Message -> {
+                require(input is BattleSessionInput.Continue) { "battle session is showing message text" }
+                copy(
+                    runtime = (current.next as? BattleSessionStep.Finished)?.runtime ?: runtime,
+                    step = current.next,
+                )
+            }
+            is BattleSessionStep.RoundHandoff -> {
+                require(input is BattleSessionInput.Continue) { "battle session is handing off to battle rounds" }
+                finish(BattleSessionResultStatus.RoundHandoff)
+            }
+            is BattleSessionStep.Finished -> error("battle session is already finished")
+        }
+
+    private fun answerOpening(choice: BattleOpeningChoice): BattleSession =
+        when (choice) {
+            BattleOpeningChoice.Fight -> continueToRound(
+                status = BattleSessionResultStatus.FightSelected,
+                text = BattlePromptText.bloodFlow(),
+            )
+            BattleOpeningChoice.Run -> runFromEncounter()
+        }
+
+    private fun runFromEncounter(): BattleSession {
+        if (encounter.mandatory) {
+            return continueToRound(
+                status = BattleSessionResultStatus.RunDenied,
+                text = BattlePromptText.desperateFail(),
+            )
+        }
+
+        val draw = runtime.drawRandom(0, 99)
+        return if (draw.value < battle.opening.fleeChancePercent) {
+            copy(
+                runtime = draw.runtime,
+                step = BattleSessionStep.Message(
+                    BattlePromptText.coward(),
+                    BattleSessionStep.Finished(draw.runtime.asWilderness()),
+                ),
+                lastResult = result(BattleSessionResultStatus.RunEscaped),
+            )
+        } else {
+            copy(runtime = draw.runtime).continueToRound(
+                status = BattleSessionResultStatus.RunFailed,
+                text = BattlePromptText.failAway(),
+            )
+        }
+    }
+
+    private fun continueToRound(status: BattleSessionResultStatus, text: TextBlock): BattleSession =
+        copy(
+            step = BattleSessionStep.Message(
+                text,
+                BattleSessionStep.RoundHandoff(BattlePromptText.roundsPending()),
+            ),
+            lastResult = result(status),
+        )
+
+    private fun finish(status: BattleSessionResultStatus): BattleSession {
+        val nextRuntime = runtime.asWilderness()
+        return copy(
+            runtime = nextRuntime,
+            step = BattleSessionStep.Finished(nextRuntime),
+            lastResult = result(status),
+        )
+    }
+
+    private fun result(status: BattleSessionResultStatus): BattleSessionResult =
+        BattleSessionResult(status, encounter.monster.id, tier)
+
+    companion object {
+        fun start(
+            runtime: RuntimeSessionState,
+            combat: CombatSystemModel,
+            monsters: List<MonsterModel>,
+            tier: EncounterTier,
+            mandatory: Boolean = false,
+        ): BattleSession {
+            val battle = requireNotNull(combat.standardBattle) { "standard battle is not configured" }
+            val candidates = monsters.filter { it.tier == tier }
+            require(candidates.isNotEmpty()) { "no monsters declared for encounter tier ${tier.slug}" }
+
+            val pick = runtime.drawRandom(0, candidates.lastIndex)
+            val monster = candidates[pick.value]
+            val countDraw = pick.runtime.drawRandom(1, monster.count.last)
+            val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(battle.encounterFoeCountMax)
+            val hpRange = countDraw.runtime.scaledEncounterHpRange(monster)
+            var hpRuntime = countDraw.runtime
+            val hitPoints = buildList {
+                repeat(count) {
+                    val hpDraw = hpRuntime.drawRandom(1, hpRange.last)
+                    hpRuntime = hpDraw.runtime
+                    add(hpDraw.value.coerceAtLeast(hpRange.first))
+                }
+            }
+            val nextRuntime = hpRuntime.withRealm(
+                hpRuntime.realm.copy(
+                    currentMode = RuntimeMode.Battle,
+                    currentTown = null,
+                ),
+            )
+            val encounter = BattleMonsterState(monster, count, hitPoints, mandatory)
+            return BattleSession(
+                runtime = nextRuntime,
+                battle = battle,
+                tier = tier,
+                encounter = encounter,
+                step = BattleSessionStep.Opening(BattlePromptText.opening(encounter)),
+                lastResult = BattleSessionResult(BattleSessionResultStatus.EncounterStarted, monster.id, tier),
+            )
+        }
+    }
+}
+
 data class RuntimeSessionState(
     val realm: RealmState,
     val parties: List<PartyState>,
@@ -106,6 +271,34 @@ data class RuntimeSessionState(
     }
 }
 
+object BattlePromptText {
+    fun opening(encounter: BattleMonsterState): TextBlock =
+        inlineText(
+            "ENCOUNTER!",
+            "",
+            "You face",
+            encounter.foeDisplayName(),
+            "",
+            "(F)ight",
+            "(R)un",
+        )
+
+    fun coward(): TextBlock =
+        inlineText("Coward. You won't get", "any EXP for this battle.")
+
+    fun desperateFail(): TextBlock =
+        inlineText("You desperately try to", "get away, but fail!")
+
+    fun failAway(): TextBlock =
+        inlineText("You fail to get away!")
+
+    fun bloodFlow(): TextBlock =
+        inlineText("Blood shall flow!")
+
+    fun roundsPending(): TextBlock =
+        inlineText("Battle rounds are not ported yet.")
+}
+
 data class RylweenRandomDraw(
     val value: Int,
     val nextSeed: Long,
@@ -146,6 +339,37 @@ fun RuntimeSessionState.drawRandom(
     val draw = random.draw(seed, lo, hi)
     return RuntimeRandomDraw(draw.value, withRealm(realm.copy(rngState = draw.nextSeed)))
 }
+
+private fun RuntimeSessionState.asWilderness(): RuntimeSessionState =
+    withRealm(
+        realm.copy(
+            currentMode = RuntimeMode.Wilderness,
+            currentTown = null,
+        ),
+    )
+
+private fun RuntimeSessionState.scaledEncounterHpRange(monster: MonsterModel): IntRange {
+    val firstLevel = activeParty.members.firstOrNull()?.level ?: 0
+    val partyAverage = activeParty.members
+        .takeIf { it.isNotEmpty() }
+        ?.map { it.level }
+        ?.average()
+        ?.toInt()
+        ?: 0
+    val min = monster.hitPoints.first +
+        partyAverage * 2 +
+        if (firstLevel > 2) firstLevel * 2 else 0
+    val max = monster.hitPoints.last + firstLevel * 3
+    return min.coerceAtMost(max)..max
+}
+
+private fun BattleMonsterState.foeDisplayName(): String =
+    buildString {
+        append(count)
+        append(' ')
+        append(monster.name)
+        if (count > 1) append('s')
+    }
 
 data class WildernessNpcPlacementPolicy(
     val x: IntRange = 8..57,

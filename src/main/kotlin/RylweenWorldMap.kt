@@ -56,7 +56,7 @@ sealed interface WildernessSessionStep {
     data class OutOfMoves(val prompt: TextBlock) : WildernessSessionStep
     data class CaveFound(val prompt: TextBlock) : WildernessSessionStep
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
-    data class EncounterHandoff(val handoff: WildernessEncounterHandoff) : WildernessSessionStep
+    data class Battle(val session: BattleSession) : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
     data class QuitConfirm(val prompt: TextBlock) : WildernessSessionStep
     data class Town(val session: TownSession) : WildernessSessionStep
@@ -66,10 +66,6 @@ sealed interface WildernessSessionStep {
 data class WildernessDungeonHandoff(
     val dungeon: DungeonId,
     val levels: Int,
-)
-
-data class WildernessEncounterHandoff(
-    val tier: EncounterTier,
 )
 
 enum class WildernessFatigueMatch { Equal, LessThan }
@@ -194,6 +190,8 @@ data class WildernessSession(
     val townSystem: TownSystemModel,
     val scenes: List<SceneModel>,
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
+    val combat: CombatSystemModel = CombatSystemModel(null),
+    val monsters: List<MonsterModel> = emptyList(),
     val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
     val upkeepRules: WildernessUpkeepRules = WildernessUpkeepRules(),
     val step: WildernessSessionStep = WildernessSessionStep.TurnStart,
@@ -256,20 +254,6 @@ data class WildernessSession(
         )
     }
 
-    fun completeEncounterHandoff(): WildernessSession {
-        require(step is WildernessSessionStep.EncounterHandoff) { "wilderness session is not handing off to an encounter" }
-        return copy(
-            runtime = runtime.withRealm(
-                runtime.realm.copy(
-                    currentMode = RuntimeMode.Wilderness,
-                    currentMap = worldMap.id,
-                    currentTown = null,
-                ),
-            ),
-            step = WildernessSessionStep.TurnStart,
-        )
-    }
-
     fun replaceTownSession(session: TownSession): WildernessSession {
         require(step is WildernessSessionStep.Town) { "wilderness session is not running a town session" }
         return if (session.step is TownSessionStep.Finished) {
@@ -287,6 +271,30 @@ data class WildernessSession(
             )
         } else {
             copy(runtime = session.runtime, step = WildernessSessionStep.Town(session))
+        }
+    }
+
+    fun replaceBattleSession(session: BattleSession): WildernessSession {
+        require(step is WildernessSessionStep.Battle) { "wilderness session is not running a battle session" }
+        return if (session.step is BattleSessionStep.Finished) {
+            val finished = session.step
+            val nextRuntime = finished.runtime.withRealm(
+                finished.runtime.realm.copy(
+                    currentMode = RuntimeMode.Wilderness,
+                    currentTown = null,
+                    currentMap = worldMap.id,
+                ),
+            )
+            copy(
+                runtime = nextRuntime,
+                step = WildernessSessionStep.TurnStart,
+                lastResult = lastResult?.copy(
+                    status = WildernessSessionResultStatus.EncounterHandoff,
+                    encounterTier = session.tier,
+                ),
+            )
+        } else {
+            copy(runtime = session.runtime, step = WildernessSessionStep.Battle(session))
         }
     }
 
@@ -396,16 +404,21 @@ data class WildernessSession(
         } else {
             events.hardEncounterTier
         }
-        val encounterRuntime = splitDraw.runtime.withRealm(
-            splitDraw.runtime.realm.copy(
-                currentMode = RuntimeMode.Battle,
-                currentTown = null,
-                currentMap = worldMap.id,
+        val battleSession = BattleSession.start(
+            runtime = splitDraw.runtime.withRealm(
+                splitDraw.runtime.realm.copy(
+                    currentMode = RuntimeMode.Battle,
+                    currentTown = null,
+                    currentMap = worldMap.id,
+                ),
             ),
+            combat = combat,
+            monsters = monsters,
+            tier = tier,
         )
         return copy(
-            runtime = encounterRuntime,
-            step = WildernessSessionStep.EncounterHandoff(WildernessEncounterHandoff(tier)),
+            runtime = battleSession.runtime,
+            step = WildernessSessionStep.Battle(battleSession),
             lastResult = WildernessSessionResult(
                 WildernessSessionResultStatus.EncounterHandoff,
                 from = from,
@@ -588,6 +601,8 @@ data class WildernessSession(
                 townSystem = requireNotNull(content.townSystem) { "town system is not configured" },
                 scenes = content.scenes,
                 wilderness = content.wilderness,
+                combat = content.combat,
+                monsters = content.monsters,
                 itemRecords = itemRecords,
             )
     }
@@ -620,9 +635,6 @@ object WildernessPromptText {
 
     fun dungeonHandoffPending(handoff: WildernessDungeonHandoff): TextBlock =
         inlineText("Entering ${handoff.dungeon.slug}.", "Levels: ${handoff.levels}", "Dungeon runtime is not ported yet.")
-
-    fun encounterHandoffPending(handoff: WildernessEncounterHandoff): TextBlock =
-        inlineText("Encounter: ${handoff.tier.slug}", "Battle runtime is not ported yet.")
 
     fun quitConfirm(): TextBlock =
         inlineText("Do you really want", "to quit?", "")

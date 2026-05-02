@@ -111,6 +111,8 @@ val nextRylween = rylween {
 
     combat {
         standardBattle {
+            encounterFoeCountMax = 8
+
             opening {
                 fleeChancePercent = 95
                 desperateFleeChancePercent = 31
@@ -1058,6 +1060,14 @@ val nextRylween = rylween {
             hitPoints = 50..99
             weaponSkill = 50
             tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.stirge) {
+            name = "Stirge"
+            count = 6..8
+            hitPoints = 10..20
+            weaponSkill = 90
+            tier = EncounterTiers.wild
         }
 
         monster(Monsters.guardian) {
@@ -2126,6 +2136,7 @@ val nextRylween = rylween {
         realm {
             day = 14
             hour = 9
+            rngState = 1L
             activeParty = Parties.replay
             currentMap = Maps.wilderness
             currentMode = RuntimeMode.Wilderness
@@ -2475,6 +2486,7 @@ check(nextDsl.rewards.single().application.overflow == RewardOverflowPolicy.Skip
 check(nextDsl.combat.standardBattle?.actions?.size == 5)
 check(nextDsl.combat.standardBattle?.playerRound?.attack?.confusionDivisor == 3)
 check(nextDsl.combat.standardBattle?.monsterRound?.melee?.damageDivisor == 6)
+check(nextDsl.combat.standardBattle?.encounterFoeCountMax == 8)
 check(nextDsl.combat.standardBattle?.rewards == Rewards.standardBattle)
 check(nextDsl.speak.standardConversation?.menu?.actions?.map { it.key } == listOf('C', 'Q', 'R', 'B'))
 check(nextDsl.speak.standardConversation?.menu?.questions?.map { it.key } == listOf('L', 'M', 'P', 'N'))
@@ -2510,7 +2522,7 @@ check(listOf(Npcs.alex, Npcs.galdon, Npcs.kosch, Npcs.ufarsin).all { npc ->
     nextDsl.characters.single { it.id == npc }.placement == CharacterPlacementModel.RandomizedWilderness
 })
 check(nextDsl.characters.flatMap { it.roles }.toSet() == NpcRoles.all.toSet())
-check(nextDsl.monsters.size == 2)
+check(nextDsl.monsters.size == 3)
 check(nextDsl.scenes.size == 9)
 val churchScene = nextDsl.scenes.single { it.id == Scenes.Towne.church }
 val churchMenu = churchScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()

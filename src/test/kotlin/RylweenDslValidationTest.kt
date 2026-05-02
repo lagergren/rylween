@@ -1940,8 +1940,41 @@ class RylweenDslValidationTest {
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertEquals(WildernessSessionResultStatus.EncounterHandoff, result.session.lastResult?.status)
         assertEquals(EncounterTiers.weak, result.session.lastResult?.encounterTier)
+        assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
+        assertTrue(result.session.step is WildernessSessionStep.Battle)
+        assertTrue(terminal.output.any { "ENCOUNTER!" in it })
+        assertTrue(terminal.output.any { "You face" in it })
+        assertTrue(terminal.output.any { "Options: F/R" in it })
+    }
+
+    @Test
+    fun battleSessionRunCanEscapeFromOpeningPrompt() {
+        val terminal = FakeTerminalPort("R")
+        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledBattleSession(tier = EncounterTiers.weak),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(BattleSessionResultStatus.RunEscaped, result.session.lastResult.status)
+        assertEquals(Monsters.bandit, result.session.lastResult.monster)
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
-        assertTrue(terminal.output.any { "Encounter: weak" in it })
+        assertTrue(terminal.output.any { "2 Bandits" in it })
+        assertTrue(terminal.output.any { "Coward. You won't get" in it })
+    }
+
+    @Test
+    fun battleSessionFightStopsAtReusableRoundHandoff() {
+        val terminal = FakeTerminalPort("F")
+        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledBattleSession(tier = EncounterTiers.wild),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(BattleSessionResultStatus.RoundHandoff, result.session.lastResult.status)
+        assertEquals(Monsters.stirge, result.session.lastResult.monster)
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertTrue(terminal.output.any { "Blood shall flow!" in it })
+        assertTrue(terminal.output.any { "Battle rounds are not ported yet." in it })
     }
 
     @Test
@@ -1958,7 +1991,7 @@ class RylweenDslValidationTest {
             renderer = compiledTextRenderer(),
             serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
         ).runUntilBlocked(
-            engine.wildernessSession(state, map, realizeNpcs = false),
+            engine.wildernessSession(state, map, rngState = null, realizeNpcs = false),
         )
 
         assertTrue(result.status is TerminalRunStatus.Finished)
@@ -2211,6 +2244,20 @@ class RylweenDslValidationTest {
             worldMap = worldMap,
             rngState = rngState,
             realizeNpcs = false,
+        )
+    }
+
+    private fun compiledBattleSession(tier: EncounterTier): BattleSession {
+        val content = RylweenCompiledScratch.nextDsl
+        return BattleSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+                hour = 12,
+                currentTown = null,
+            ),
+            combat = content.combat,
+            monsters = content.monsters,
+            tier = tier,
         )
     }
 
