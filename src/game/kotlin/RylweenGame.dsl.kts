@@ -402,7 +402,8 @@ val nextRylween = rylween {
             outOfMoves(save = inputKey("S"), quit = inputKey("Q"))
             quitConfirm(yes = inputKey("Y"), no = inputKey("N"))
             commandHint {
-                line("Commands: 8/2/4/6 or arrows move, Space pass, E enter, X quit")
+                line("Commands: 8/2/4/6 or arrows move, Space pass, E enter,")
+                line("Q inventory, X quit")
             }
         }
 
@@ -3008,7 +3009,7 @@ val nextRylween = rylween {
 
     itemUse(Items.redPotion) {
         inventory()
-        consume = ItemConsumePolicy.BeforeUse
+        consume = ItemConsumePolicy.ScriptControlled
 
         effect {
             val maxMembers = realm.partyMemberMax
@@ -3019,6 +3020,7 @@ val nextRylween = rylween {
                 filter = MemberChoiceFilter.AliveOnly,
             )
 
+            consumeActiveItem()
             target.hp.addClamped(15, target.maxHp)
             screen {
                 line(partyName(target), " recovers")
@@ -3030,7 +3032,7 @@ val nextRylween = rylween {
 
     itemUse(Items.bluePotion) {
         inventory()
-        consume = ItemConsumePolicy.BeforeUse
+        consume = ItemConsumePolicy.ScriptControlled
 
         effect {
             val maxMembers = realm.partyMemberMax
@@ -3041,6 +3043,7 @@ val nextRylween = rylween {
                 filter = MemberChoiceFilter.AliveOnly,
             )
 
+            consumeActiveItem()
             target.hp -= 15
             screen {
                 line(partyName(target), " is poisoned")
@@ -3056,7 +3059,7 @@ val nextRylween = rylween {
 
     itemUse(Items.amberPotion) {
         inventory()
-        consume = ItemConsumePolicy.BeforeUse
+        consume = ItemConsumePolicy.ScriptControlled
 
         effect {
             val maxMembers = realm.partyMemberMax
@@ -3068,6 +3071,7 @@ val nextRylween = rylween {
                 accepting = MemberChoiceFilter.AliveOnly,
             )
 
+            consumeActiveItem()
             target.mp.addClamped(15, target.maxMp)
             screen {
                 line(partyName(target), " recovers")
@@ -4623,6 +4627,7 @@ check(nextDsl.spells.size == 10)
 check(nextDsl.itemUses.size == 15)
 check(nextDsl.itemUses.count { ItemUseContext.Inventory in it.contexts } == 3)
 check(nextDsl.itemUses.single { it.id == Items.redPotion }.ops.any { it is Op.AskMember })
+check(nextDsl.itemUses.single { it.id == Items.redPotion }.consume == ItemConsumePolicy.ScriptControlled)
 check(nextDsl.itemUses.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
 check(nextDsl.itemUses.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
 check(nextDsl.missions.size == 17)
