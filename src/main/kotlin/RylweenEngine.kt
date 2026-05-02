@@ -214,6 +214,7 @@ class ScriptTraceRunner(
         override fun nativeInt(path: String, args: List<String>): Int =
             engine.readInt(EngineRequest(path, args))
         override fun flagIs(slug: String, native: String): Boolean = false
+        override fun milestoneAchieved(milestone: GameMilestoneId): Boolean = false
         override fun memberFlag(member: Int, name: String): Boolean = false
         override fun monsterFlag(monster: Int, name: String): Boolean = false
         override fun runtimeFlag(name: String): Boolean = false
@@ -513,6 +514,7 @@ private class StatefulScriptServiceRunner(
     private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
     private val worldMap: WorldMapGrid? = null,
     private val textRenderer: TerminalTextRenderer = TerminalTextRenderer(characters = speakContent.characters),
+    private val resumeModeAfterBattle: RuntimeMode? = null,
 ) {
     private var runtime = continuation.runtime
     private var party = continuation.party
@@ -851,6 +853,21 @@ private class StatefulScriptServiceRunner(
     private fun currentRuntime(): RuntimeSessionState =
         runtime.withActiveParty(party)
 
+    private fun RuntimeSessionState.afterScriptBattle(): RuntimeSessionState {
+        val mode = resumeModeAfterBattle ?: return this
+        return if (realm.currentMode == RuntimeMode.GameOver) {
+            this
+        } else {
+            withRealm(
+                realm.copy(
+                    currentMode = mode,
+                    currentTown = null,
+                    currentMap = worldMap?.id ?: realm.currentMap,
+                ),
+            )
+        }
+    }
+
     private fun continuation(runtime: RuntimeSessionState): TownServiceContinuation =
         TownServiceContinuation(
             runtime = runtime,
@@ -931,13 +948,15 @@ private class StatefulScriptServiceRunner(
             return
         }
 
-        runtime = current.runtime
-        party = runtime.activeParty
         if (current.step !is BattleSessionStep.Finished) {
+            runtime = current.runtime
+            party = runtime.activeParty
             wait()
             return
         }
 
+        runtime = current.runtime.afterScriptBattle()
+        party = runtime.activeParty
         battleSession = null
         if (runtime.realm.currentMode == RuntimeMode.GameOver) {
             stack.clear()
@@ -1165,6 +1184,8 @@ private class StatefulScriptServiceRunner(
             engine.readInt(EngineRequest(path, args))
         override fun flagIs(slug: String, native: String): Boolean =
             party.flags.any { it.flag.slug == slug && it.native == native }
+        override fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
+            milestone in party.milestones
         override fun memberFlag(member: Int, name: String): Boolean =
             this@StatefulScriptServiceRunner.memberFlag(member, name)
         override fun monsterFlag(monster: Int, name: String): Boolean =
@@ -2329,10 +2350,103 @@ class DungeonSessionTerminalAdapter(
                         is TerminalRunStatus.Waiting -> return TerminalAdapterResult(updated, result.status)
                     }
                 }
+                is DungeonSessionStep.Event -> {
+                    val result = runEventScript(session, step)
+                    terminal.writeScriptEvents(result.events, renderer, result.runtime)
+                    when (result.status) {
+                        TownServiceBridgeStatus.Finished -> session.finishEvent(result.runtime)
+                        TownServiceBridgeStatus.Waiting -> {
+                            val continuation = checkNotNull(result.continuation) {
+                                "waiting dungeon event did not return continuation"
+                            }
+                            val battle = continuation.battleSession
+                            if (battle == null) {
+                                return waiting(session.replaceEventContinuation(continuation), result.rejection)
+                            }
+                            val battleResult = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(battle)
+                            val updated = session.replaceEventContinuation(
+                                continuation.copy(
+                                    runtime = battleResult.session.runtime,
+                                    battleSession = battleResult.session,
+                                ),
+                            )
+                            when (battleResult.status) {
+                                TerminalRunStatus.Finished -> updated
+                                TerminalRunStatus.StepLimitReached ->
+                                    return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                                is TerminalRunStatus.Waiting ->
+                                    return TerminalAdapterResult(updated, battleResult.status)
+                            }
+                        }
+                    }
+                }
+                is DungeonSessionStep.RandomEncounter -> {
+                    val battle = step.session ?: BattleSession.start(
+                        runtime = session.runtime,
+                        combat = session.combat,
+                        monsters = session.monsters,
+                        tier = checkNotNull(step.event.randomEncounterTier) {
+                            "dungeon random encounter event ${step.event.id.slug} has no tier"
+                        },
+                        itemRecords = session.itemRecords,
+                        formulas = session.formulas,
+                        rewards = session.rewards,
+                        leveling = session.leveling,
+                        spells = session.spells,
+                        itemUses = session.itemUses,
+                    )
+                    val result = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(battle)
+                    val updated = session.copy(step = step.copy(session = battle))
+                        .replaceRandomEncounterSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
                 is DungeonSessionStep.Finished -> return finished(session)
             }
         }
         return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun runEventScript(
+        session: DungeonSession,
+        step: DungeonSessionStep.Event,
+    ): TownServiceBridgeResult {
+        val engine = TraceEnginePort()
+        val eventStart = engine.events.size
+        val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
+        val result = StatefulScriptServiceRunner(
+            terminal = terminal,
+            engine = engine,
+            rootOps = step.event.ops,
+            continuation = continuation,
+            speakContent = SpeakRuntimeContent(),
+            battleContent = BattleRuntimeContent(
+                combat = session.combat,
+                monsters = session.monsters,
+                formulas = session.formulas,
+                rewards = session.rewards,
+                leveling = session.leveling,
+                spells = session.spells,
+                itemUses = session.itemUses,
+                itemRecords = session.itemRecords,
+            ),
+            worldMap = session.worldMap,
+            textRenderer = renderer,
+            resumeModeAfterBattle = RuntimeMode.Dungeon,
+        ).run()
+        return TownServiceBridgeResult(
+            runtime = result.runtime,
+            status = result.status,
+            events = engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
+            continuation = result.continuation,
+            rejection = result.rejection,
+            dungeonHandoff = result.dungeonHandoff,
+        )
     }
 
     private fun writeExplore(session: DungeonSession) {

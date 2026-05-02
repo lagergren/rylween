@@ -933,6 +933,8 @@ fun validateScriptRewards(
                 validateBoolExpression(ast.right, label)
             }
             is BoolAst.FlagIs -> Unit
+            is BoolAst.MilestoneAchieved ->
+                check(ast.milestone.slug.isNotBlank()) { "$label references blank milestone" }
             is BoolAst.MemberFlag -> validateIntExpression(ast.member, label)
             is BoolAst.MonsterFlag -> validateIntExpression(ast.monster, label)
             is BoolAst.BattleFlag -> Unit

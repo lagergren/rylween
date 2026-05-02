@@ -32,6 +32,7 @@ enum class DungeonSessionResultStatus {
     CastSpellRequested,
     CastSpellUsed,
     CastSpellUnavailable,
+    EventCompleted,
 }
 
 data class DungeonSessionResult(
@@ -48,8 +49,16 @@ sealed interface DungeonSessionStep {
     data class Equipment(val session: EquipmentPromptSession) : DungeonSessionStep
     data class InventoryItemUse(val session: InventoryItemUseSession) : DungeonSessionStep
     data class PriestSpell(val session: PriestSpellSession) : DungeonSessionStep
+    data class Event(val event: DungeonEventModel, val continuation: TownServiceContinuation? = null) :
+        DungeonSessionStep
+    data class RandomEncounter(val event: DungeonEventModel, val session: BattleSession? = null) : DungeonSessionStep
     data class Finished(val runtime: RuntimeSessionState) : DungeonSessionStep
 }
+
+private data class DungeonLevelEventPlan(
+    val runtime: RuntimeSessionState,
+    val levelEvents: Map<Int, DungeonEventId>,
+)
 
 data class DungeonSession(
     val runtime: RuntimeSessionState,
@@ -57,6 +66,13 @@ data class DungeonSession(
     val dungeon: DungeonId,
     val maxDepth: Int,
     val depth: Int = 1,
+    val dungeons: DungeonSystemModel = DungeonSystemModel(),
+    val levelEvents: Map<Int, DungeonEventId> = emptyMap(),
+    val combat: CombatSystemModel = CombatSystemModel(null),
+    val monsters: List<MonsterModel> = emptyList(),
+    val formulas: List<FormulaModel> = emptyList(),
+    val rewards: List<RewardBundleModel> = emptyList(),
+    val leveling: LevelingModel? = null,
     val keys: DungeonKeysModel = DungeonKeysModel(),
     val spells: List<SpellModel> = emptyList(),
     val itemUses: List<ItemUseModel> = emptyList(),
@@ -97,7 +113,9 @@ data class DungeonSession(
             }
             is DungeonSessionStep.Equipment,
             is DungeonSessionStep.InventoryItemUse,
-            is DungeonSessionStep.PriestSpell -> error("nested dungeon session must be driven by its own adapter")
+            is DungeonSessionStep.PriestSpell,
+            is DungeonSessionStep.Event,
+            is DungeonSessionStep.RandomEncounter -> error("nested dungeon session must be driven by its own adapter")
             is DungeonSessionStep.Finished -> error("dungeon session is already finished")
         }
 
@@ -155,6 +173,43 @@ data class DungeonSession(
         }
     }
 
+    fun replaceEventContinuation(continuation: TownServiceContinuation): DungeonSession {
+        val current = step as? DungeonSessionStep.Event
+            ?: error("dungeon session is not running an event script")
+        return copy(
+            runtime = continuation.runtime,
+            step = current.copy(continuation = continuation),
+        )
+    }
+
+    fun replaceRandomEncounterSession(session: BattleSession): DungeonSession {
+        val current = step as? DungeonSessionStep.RandomEncounter
+            ?: error("dungeon session is not running a random encounter")
+        return if (session.step is BattleSessionStep.Finished) {
+            finishEvent(session.runtime)
+        } else {
+            copy(runtime = session.runtime, step = current.copy(session = session))
+        }
+    }
+
+    fun finishEvent(nextRuntime: RuntimeSessionState): DungeonSession {
+        val event = when (val current = step) {
+            is DungeonSessionStep.Event -> current.event
+            is DungeonSessionStep.RandomEncounter -> current.event
+            else -> error("dungeon session is not resolving an event")
+        }
+        return copy(
+            runtime = nextRuntime.asDungeonRuntime(),
+            levelEvents = if (event.disposition == DungeonEventDisposition.ClearAfterRun) {
+                levelEvents - depth
+            } else {
+                levelEvents
+            },
+            step = DungeonSessionStep.Explore,
+            lastResult = result(DungeonSessionResultStatus.EventCompleted),
+        )
+    }
+
     private fun descend(): DungeonSession =
         when (val descent = party.tryDungeonDescent(depth, maxDepth)) {
             is DungeonDescentResult.Descended -> copy(
@@ -162,7 +217,7 @@ data class DungeonSession(
                 depth = depth + 1,
                 step = DungeonSessionStep.Messages(
                     listOf(DungeonPromptText.enterLevel(depth + 1)),
-                    DungeonSessionStep.Explore,
+                    nextEventStep(depth + 1),
                 ),
                 lastResult = result(DungeonSessionResultStatus.Descended),
             )
@@ -194,7 +249,7 @@ data class DungeonSession(
                 depth = depth - 1,
                 step = DungeonSessionStep.Messages(
                     listOf(DungeonPromptText.enterLevel(depth - 1)),
-                    DungeonSessionStep.Explore,
+                    nextEventStep(depth - 1),
                 ),
                 lastResult = result(DungeonSessionResultStatus.Ascended),
             )
@@ -240,27 +295,66 @@ data class DungeonSession(
     private fun result(status: DungeonSessionResultStatus): DungeonSessionResult =
         DungeonSessionResult(status, dungeon, depth, maxDepth)
 
+    private fun nextEventStep(targetDepth: Int): DungeonSessionStep {
+        val eventId = levelEvents[targetDepth] ?: return DungeonSessionStep.Explore
+        val event = dungeons.events.firstOrNull { it.id == eventId } ?: return DungeonSessionStep.Explore
+        return if (event.randomEncounterTier != null && event.ops.isEmpty()) {
+            DungeonSessionStep.RandomEncounter(event)
+        } else {
+            DungeonSessionStep.Event(event)
+        }
+    }
+
+    private fun RuntimeSessionState.asDungeonRuntime(): RuntimeSessionState =
+        if (realm.currentMode == RuntimeMode.GameOver) {
+            this
+        } else {
+            withRealm(
+                realm.copy(
+                    currentMode = RuntimeMode.Dungeon,
+                    currentTown = null,
+                    currentMap = worldMap.id,
+                ),
+            )
+        }
+
     companion object {
         fun start(
             runtime: RuntimeSessionState,
             worldMap: WorldMapGrid,
             dungeon: DungeonId,
             levels: Int,
+            dungeons: DungeonSystemModel = DungeonSystemModel(),
+            combat: CombatSystemModel = CombatSystemModel(null),
+            monsters: List<MonsterModel> = emptyList(),
+            formulas: List<FormulaModel> = emptyList(),
+            rewards: List<RewardBundleModel> = emptyList(),
+            leveling: LevelingModel? = null,
             spells: List<SpellModel> = emptyList(),
             itemUses: List<ItemUseModel> = emptyList(),
             itemRecords: List<ItemRecordModel> = emptyList(),
-        ): DungeonSession =
-            DungeonSession(
-                runtime = runtime.withRealm(
-                    runtime.realm.copy(
-                        currentMode = RuntimeMode.Dungeon,
-                        currentTown = null,
-                        currentMap = worldMap.id,
-                    ),
+        ): DungeonSession {
+            val depth = levels.coerceAtLeast(1)
+            val dungeonRuntime = runtime.withRealm(
+                runtime.realm.copy(
+                    currentMode = RuntimeMode.Dungeon,
+                    currentTown = null,
+                    currentMap = worldMap.id,
                 ),
+            )
+            val plan = dungeons.planLevelEvents(dungeonRuntime, dungeon, depth)
+            val base = DungeonSession(
+                runtime = plan.runtime,
                 worldMap = worldMap,
                 dungeon = dungeon,
-                maxDepth = levels.coerceAtLeast(1),
+                maxDepth = depth,
+                dungeons = dungeons,
+                levelEvents = plan.levelEvents,
+                combat = combat,
+                monsters = monsters,
+                formulas = formulas,
+                rewards = rewards,
+                leveling = leveling,
                 spells = spells,
                 itemUses = itemUses,
                 itemRecords = itemRecords,
@@ -268,10 +362,52 @@ data class DungeonSession(
                     DungeonSessionResultStatus.Started,
                     dungeon,
                     1,
-                    levels.coerceAtLeast(1),
+                    depth,
                 ),
             )
+            return base.copy(step = base.nextEventStep(1))
+        }
     }
+}
+
+private fun DungeonSystemModel.planLevelEvents(
+    runtime: RuntimeSessionState,
+    dungeon: DungeonId,
+    maxDepth: Int,
+): DungeonLevelEventPlan {
+    val scenario = scenarios.firstOrNull { it.dungeon == dungeon }
+    var nextRuntime = runtime
+    val randomLevelEvents = (1..maxDepth).mapNotNull { level ->
+        val draw = scenario?.randomEvents.orEmpty().drawEvent(nextRuntime) ?: return@mapNotNull null
+        nextRuntime = draw.runtime
+        level to draw.event
+    }.toMap()
+    val fixedLevelEvents = scenario
+        ?.fixedLevelEvents
+        .orEmpty()
+        .filterKeys { it in 1..maxDepth }
+    return DungeonLevelEventPlan(
+        runtime = nextRuntime,
+        levelEvents = randomLevelEvents + fixedLevelEvents,
+    )
+}
+
+private data class DungeonRandomEventDraw(
+    val runtime: RuntimeSessionState,
+    val event: DungeonEventId,
+)
+
+private fun List<DungeonRandomEventModel>.drawEvent(runtime: RuntimeSessionState): DungeonRandomEventDraw? {
+    if (isEmpty()) return null
+    val totalWeight = sumOf { it.weight }
+    if (totalWeight <= 0) return null
+    val draw = runtime.drawRandom(1, totalWeight)
+    var running = 0
+    val event = first { random ->
+        running += random.weight
+        draw.value <= running
+    }.event
+    return DungeonRandomEventDraw(draw.runtime, event)
 }
 
 object DungeonPromptText {

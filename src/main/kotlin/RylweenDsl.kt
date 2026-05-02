@@ -330,6 +330,7 @@ sealed interface BoolAst {
     data class And(val left: BoolAst, val right: BoolAst) : BoolAst
     data class Or(val left: BoolAst, val right: BoolAst) : BoolAst
     data class FlagIs(val slug: String, val nativeValue: String) : BoolAst
+    data class MilestoneAchieved(val milestone: GameMilestoneId) : BoolAst
     data class MemberFlag(val member: IntAst, val name: String) : BoolAst
     data class MonsterFlag(val monster: IntAst, val name: String) : BoolAst
     data class BattleFlag(val name: String) : BoolAst
@@ -1462,6 +1463,9 @@ abstract class BoolExpr {
 }
 
 data class Bool(override val ast: BoolAst) : BoolExpr()
+
+fun achieved(milestone: GameMilestoneId): BoolExpr =
+    Bool(BoolAst.MilestoneAchieved(milestone))
 
 class IntSlot(
     private val script: ScriptScope,
@@ -5450,6 +5454,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 bool(ast.right)
             }
             is BoolAst.FlagIs -> Unit
+            is BoolAst.MilestoneAchieved -> Unit
             is BoolAst.MemberFlag -> int(ast.member)
             is BoolAst.MonsterFlag -> int(ast.monster)
             is BoolAst.BattleFlag -> Unit

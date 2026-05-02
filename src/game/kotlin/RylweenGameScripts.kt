@@ -36,6 +36,17 @@ fun ScriptScope.dungeonEntrance(
     )
 }
 
+fun DungeonScenarioBuilder.standardDungeonEvents() {
+    randomEvents {
+        event(DungeonEvents.gold)
+        event(DungeonEvents.weakEncounter, weight = 2)
+        event(DungeonEvents.deepEncounter)
+        event(DungeonEvents.nothingSpecial)
+        event(DungeonEvents.emptyLevel)
+        event(DungeonEvents.torches)
+    }
+}
+
 fun ScriptScope.readScreen(vararg lines: String) {
     screen(*lines)
     waitInput()
