@@ -562,7 +562,11 @@ private fun validateTextBlock(
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
             TextPart.ShopPrice,
-            TextPart.ShopCarryCap -> Unit
+            TextPart.ShopCarryCap,
+            TextPart.HuntMemberName,
+            TextPart.HuntMemberSubjectPronoun,
+            TextPart.HuntFoodGained,
+            TextPart.PartyMemberMax -> Unit
         }
     }
 

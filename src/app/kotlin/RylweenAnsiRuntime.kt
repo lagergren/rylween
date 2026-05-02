@@ -166,6 +166,18 @@ private class RylweenAnsiGame(
                         is TerminalRunStatus.Waiting -> updated
                     }
                 }
+                is WildernessSessionStep.Hunt -> {
+                    val result = HuntSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceHuntSession(result.session)
+                    when (val status = result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "hunt step limit reached") }
+                        is TerminalRunStatus.Waiting -> {
+                            if (status.rejection == null) return
+                            updated
+                        }
+                    }
+                }
                 is WildernessSessionStep.InventoryItemUse -> {
                     val result = InventoryItemUseTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceInventoryItemUseSession(result.session)
