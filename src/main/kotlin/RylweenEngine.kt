@@ -168,53 +168,27 @@ class ScriptTraceRunner(
         return ScriptControlSignal.Continue
     }
 
-    private fun eval(ast: IntAst): Int =
-        when (ast) {
-            is IntAst.Lit -> ast.value
-            is IntAst.Var -> intVars[ast.name] ?: 0
-            is IntAst.Binary -> evalBinary(eval(ast.left), ast.op, eval(ast.right))
-            is IntAst.Random -> eval(ast.lo)
-            is IntAst.MemberField -> 0
-            is IntAst.MonsterField -> 0
-            is IntAst.RealmScalar -> 0
-            is IntAst.PartyScalar -> 0
-            is IntAst.NativeInt -> engine.readInt(EngineRequest(ast.path, ast.args))
-        }
+    private val evaluator = object : IntAstEvaluator() {
+        override fun local(name: String): Int = intVars[name] ?: 0
+        override fun random(lo: Int, hi: Int): Int = lo
+        override fun memberField(member: Int, field: String): Int = 0
+        override fun monsterField(monster: Int, field: String): Int = 0
+        override fun realmScalar(name: String): Int = 0
+        override fun partyScalar(name: String): Int = 0
+        override fun nativeInt(path: String, args: List<String>): Int =
+            engine.readInt(EngineRequest(path, args))
+        override fun flagIs(slug: String, native: String): Boolean = false
+        override fun memberFlag(member: Int, name: String): Boolean = false
+        override fun monsterFlag(monster: Int, name: String): Boolean = false
+    }
 
-    private fun eval(ast: BoolAst): Boolean =
-        when (ast) {
-            is BoolAst.Cmp -> compare(eval(ast.left), ast.op, eval(ast.right))
-            is BoolAst.Not -> !eval(ast.expr)
-            is BoolAst.And -> eval(ast.left) && eval(ast.right)
-            is BoolAst.Or -> eval(ast.left) || eval(ast.right)
-            is BoolAst.FlagIs -> false
-            is BoolAst.MemberFlag -> false
-            is BoolAst.MonsterFlag -> false
-        }
+    private fun eval(ast: IntAst): Int = evaluator.int(ast)
+
+    private fun eval(ast: BoolAst): Boolean = evaluator.bool(ast)
 
     private fun eval(ast: StrAst): String =
         when (ast) {
             is StrAst.NativeString -> engine.readString(EngineRequest(ast.path, ast.args))
-        }
-
-    private fun evalBinary(left: Int, op: String, right: Int): Int =
-        when (op) {
-            "add" -> left + right
-            "sub" -> left - right
-            "mul" -> left * right
-            "div" -> if (right == 0) 0 else left / right
-            else -> 0
-        }
-
-    private fun compare(left: Int, op: String, right: Int): Boolean =
-        when (op) {
-            "eq" -> left == right
-            "ne" -> left != right
-            "lt" -> left < right
-            "lte" -> left <= right
-            "gt" -> left > right
-            "gte" -> left >= right
-            else -> false
         }
 
     private fun trace(event: EngineTraceEvent) {
@@ -877,40 +851,40 @@ private class StatefulScriptServiceRunner(
         }
     }
 
-    private fun eval(ast: IntAst): Int =
-        when (ast) {
-            is IntAst.Lit -> ast.value
-            is IntAst.Var -> locals[ast.name] ?: 0
-            is IntAst.Binary -> evalBinary(eval(ast.left), ast.op, eval(ast.right))
-            is IntAst.Random -> {
-                val draw = runtime.drawRandom(eval(ast.lo), eval(ast.hi))
-                runtime = draw.runtime
-                draw.value
-            }
-            is IntAst.MemberField -> memberField(eval(ast.member), ast.field)
-            is IntAst.MonsterField -> 0
-            is IntAst.RealmScalar -> realmScalar(ast.name)
-            is IntAst.PartyScalar -> partyScalar(ast.name)
-            is IntAst.NativeInt -> engine.readInt(EngineRequest(ast.path, ast.args))
+    private val evaluator = object : IntAstEvaluator() {
+        override fun local(name: String): Int = locals[name] ?: 0
+        override fun random(lo: Int, hi: Int): Int {
+            val draw = runtime.drawRandom(lo, hi)
+            runtime = draw.runtime
+            return draw.value
         }
+        override fun memberField(member: Int, field: String): Int =
+            this@StatefulScriptServiceRunner.memberField(member, field)
+        override fun monsterField(monster: Int, field: String): Int =
+            error("town/service scripts cannot read combat monster fields")
+        override fun realmScalar(name: String): Int = this@StatefulScriptServiceRunner.realmScalar(name)
+        override fun partyScalar(name: String): Int = this@StatefulScriptServiceRunner.partyScalar(name)
+        override fun nativeInt(path: String, args: List<String>): Int =
+            engine.readInt(EngineRequest(path, args))
+        override fun flagIs(slug: String, native: String): Boolean =
+            party.flags.any { it.flag.slug == slug && it.native == native }
+        override fun memberFlag(member: Int, name: String): Boolean =
+            this@StatefulScriptServiceRunner.memberFlag(member, name)
+        override fun monsterFlag(monster: Int, name: String): Boolean =
+            error("town/service scripts cannot read combat monster flags")
+    }
 
-    private fun eval(ast: BoolAst): Boolean =
-        when (ast) {
-            is BoolAst.Cmp -> compare(eval(ast.left), ast.op, eval(ast.right))
-            is BoolAst.Not -> !eval(ast.expr)
-            is BoolAst.And -> eval(ast.left) && eval(ast.right)
-            is BoolAst.Or -> eval(ast.left) || eval(ast.right)
-            is BoolAst.FlagIs -> party.flags.any { it.flag.slug == ast.slug && it.native == ast.nativeValue }
-            is BoolAst.MemberFlag -> memberFlag(eval(ast.member), ast.name)
-            is BoolAst.MonsterFlag -> false
-        }
+    private fun eval(ast: IntAst): Int = evaluator.int(ast)
+
+    private fun eval(ast: BoolAst): Boolean = evaluator.bool(ast)
 
     private fun read(target: LValueAst): Int =
         when (target) {
             is LValueAst.PartyScalar -> partyScalar(target.name)
             is LValueAst.MemberField -> memberField(eval(target.member), target.field)
             is LValueAst.RealmScalar -> realmScalar(target.name)
-            is LValueAst.MonsterField -> 0
+            is LValueAst.MonsterField -> error("town/service scripts cannot read combat monster fields")
+            is LValueAst.BattleFlag -> error("town/service scripts cannot read combat battle flags")
         }
 
     private fun set(target: LValueAst, value: Int) {
@@ -918,7 +892,8 @@ private class StatefulScriptServiceRunner(
             is LValueAst.PartyScalar -> party = party.withPartyScalar(target.name, value)
             is LValueAst.MemberField -> party = party.withMemberField(eval(target.member), target.field, value)
             is LValueAst.RealmScalar -> setRealmScalar(target.name, value)
-            is LValueAst.MonsterField -> Unit
+            is LValueAst.MonsterField -> error("town/service scripts cannot write combat monster fields")
+            is LValueAst.BattleFlag -> error("town/service scripts cannot write combat battle flags")
         }
     }
 
@@ -1849,14 +1824,77 @@ class BattleSessionTerminalAdapter(
                         TerminalInput.Unavailable -> return waiting(session)
                     }
                 }
+                is BattleSessionStep.RoundOpening -> {
+                    writeMenu(step.prompt, listOf('F', 'R'))
+                    when (val input = terminal.readKey(listOf('F', 'R'))) {
+                        is TerminalInput.Value -> session.apply(
+                            BattleSessionInput.Opening(
+                                if (input.value == 'F') BattleOpeningChoice.Fight else BattleOpeningChoice.Run,
+                            ),
+                        )
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
                 is BattleSessionStep.Message -> {
-                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
+                    step.texts.forEach { text ->
+                        terminal.write(renderer.lines(text, TerminalTextContext(runtime = session.runtime)))
+                    }
                     session.apply(BattleSessionInput.Continue)
                 }
-                is BattleSessionStep.RoundHandoff -> {
-                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
-                    session.apply(BattleSessionInput.Continue)
+                is BattleSessionStep.PlayerAction -> {
+                    writeMenu(step.prompt, step.actions.map { it.key })
+                    when (val input = terminal.readKey(step.actions.map { it.key })) {
+                        is TerminalInput.Value -> session.apply(
+                            BattleSessionInput.PlayerAction(
+                                checkNotNull(step.actions.firstOrNull { it.key == input.value }).kind,
+                            ),
+                        )
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
                 }
+                is BattleSessionStep.MonsterTarget -> {
+                    writeMenu(step.prompt, step.targetKeys)
+                    when (val input = terminal.readKey(step.targetKeys)) {
+                        is TerminalInput.Value -> session.apply(BattleSessionInput.TargetMonster(input.value - 'A'))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is BattleSessionStep.ScriptMonsterTarget -> {
+                    writeMenu(step.prompt, step.targetKeys)
+                    when (val input = terminal.readKey(step.targetKeys)) {
+                        is TerminalInput.Value -> session.apply(BattleSessionInput.TargetMonster(input.value - 'A'))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is BattleSessionStep.MemberTarget -> {
+                    writeMenu(step.prompt, step.targetKeys)
+                    when (val input = terminal.readKey(step.targetKeys)) {
+                        is TerminalInput.Value -> session.apply(BattleSessionInput.TargetMember(input.value - '1'))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is BattleSessionStep.MagicItemSlot -> {
+                    writeMenu(step.prompt, step.slotKeys)
+                    when (val input = terminal.readKey(step.slotKeys)) {
+                        is TerminalInput.Value -> session.apply(BattleSessionInput.InventorySlot(input.value - 'A' + 1))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is BattleSessionStep.SpellChoice -> {
+                    writeMenu(step.prompt, step.spellKeys)
+                    when (val input = terminal.readKey(step.spellKeys)) {
+                        is TerminalInput.Value -> session.apply(BattleSessionInput.SpellSlot(input.value - '0'))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                BattleSessionStep.MonsterRound -> session.apply(BattleSessionInput.Continue)
                 is BattleSessionStep.Finished -> return finished(session)
             }
         }

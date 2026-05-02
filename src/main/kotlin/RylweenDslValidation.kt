@@ -105,13 +105,40 @@ fun validateGameProgress(
     }
 }
 
+fun validateFormulas(formulas: List<FormulaModel>) {
+    check(formulas.map { it.id }.toSet().size == formulas.size) { "duplicate formula" }
+}
+
+fun validateLeveling(leveling: LevelingModel?, formulas: List<FormulaModel>) {
+    leveling ?: return
+    check(leveling.maxLevel > 0) { "leveling max level must be positive" }
+    check(leveling.xpThresholds.size > leveling.maxLevel) {
+        "leveling XP thresholds must include indexes through max level ${leveling.maxLevel}"
+    }
+    check(leveling.xpThresholds.all { it >= 0 }) { "leveling XP thresholds must be non-negative" }
+    check(leveling.hitPointFloor in formulas.map { it.id }.toSet()) {
+        "leveling hit point floor references missing formula ${leveling.hitPointFloor.slug}"
+    }
+    check(leveling.classGrowth.map { it.klass }.toSet().size == leveling.classGrowth.size) {
+        "duplicate class level-up declaration"
+    }
+}
+
 fun validateRewardBundles(
     rewards: List<RewardBundleModel>,
+    formulas: List<FormulaModel>,
     itemRecords: List<ItemRecordModel> = ItemCatalog.all,
 ) {
     check(rewards.map { it.id }.toSet().size == rewards.size) { "duplicate reward bundle" }
+    val formulaIds = formulas.map { it.id }.toSet()
 
     rewards.forEach { reward ->
+        check(reward.experience in formulaIds) {
+            "reward ${reward.id.slug} references missing experience formula ${reward.experience.slug}"
+        }
+        check(reward.gold in formulaIds) {
+            "reward ${reward.id.slug} references missing gold formula ${reward.gold.slug}"
+        }
         checkPercent(reward.loot.dropChancePercent, "reward ${reward.id.slug} loot drop chance")
         checkPercent(reward.loot.treasureChancePercent, "reward ${reward.id.slug} loot treasure chance")
         validateItemPool(reward.loot.treasure, itemRecords)
@@ -137,6 +164,7 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
         val actionKeys = battle.actions.map { it.key }
         val actionKinds = battle.actions.map { it.kind }
         check(actionKeys.toSet().size == actionKeys.size) { "standard battle has duplicate action key" }
+        check(actionKeys.all { it.uppercaseChar() == it }) { "standard battle action keys must be uppercase" }
         check(actionKinds.toSet().size == actionKinds.size) { "standard battle has duplicate action kind" }
         check(CombatActionKind.Attack in actionKinds) { "standard battle requires an attack action" }
         check(CombatActionKind.Defend in actionKinds) { "standard battle requires a defend action" }
@@ -151,11 +179,17 @@ fun validateCombatSystem(combat: CombatSystemModel, rewards: List<RewardBundleMo
         check(battle.playerRound.attack.confusionDivisor > 0) {
             "standard battle attack confusion divisor must be positive"
         }
+        check(battle.playerRound.attack.hpDefenseDivisor > 0) {
+            "standard battle attack HP defense divisor must be positive"
+        }
         check(battle.playerRound.defend.weaponSkillPenalty >= 0) {
             "standard battle defend weapon-skill penalty must be non-negative"
         }
         check(battle.playerRound.defend.restThreshold >= 0) {
             "standard battle defend rest threshold must be non-negative"
+        }
+        check(battle.playerRound.defend.cap > 0) {
+            "standard battle defend cap must be positive"
         }
         check(battle.playerRound.battleCry.weaponSkillPenalty >= 0) {
             "standard battle battle-cry weapon-skill penalty must be non-negative"
@@ -996,7 +1030,9 @@ fun validateAuthoredContent(content: GameModel) {
         }
     }
 
-    validateRewardBundles(content.rewards)
+    validateFormulas(content.formulas)
+    validateLeveling(content.leveling, content.formulas)
+    validateRewardBundles(content.rewards, content.formulas)
     validateCombatSystem(content.combat, content.rewards)
     validateWildernessSystem(content.wilderness)
     validateTowns(content.towns)
