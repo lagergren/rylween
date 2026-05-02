@@ -468,12 +468,17 @@ class ShopServiceInterpreter(
         rolls: List<Int>,
     ): Int? {
         var current = price(sell.price, item, party)
-        if (sell.bargain != ShopSellBargainPolicy.SmithHaggle) return current
+        val bargain = sell.bargain ?: return current
 
         rolls.forEach { roll ->
-            if (roll > 90) current += current / 4
-            if (roll > 75) current += current / 6
-            if (roll < 76) return null
+            bargain.bonuses.forEach { bonus ->
+                if (roll > bonus.rollGreaterThan) {
+                    current += current / bonus.addCurrentDivisor
+                }
+            }
+            bargain.rejectRollBelow?.let { threshold ->
+                if (roll < threshold) return null
+            }
         }
         return current
     }
