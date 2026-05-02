@@ -1649,8 +1649,9 @@ class RylweenDslValidationTest {
         assertTrue(session.step is TownLeaveEquipmentStep.Finished)
         assertEquals(Items.sword, session.party.members.single().weapon)
         assertEquals(Items.leather, session.party.members.single().armor)
+        val prompts = EquipmentPromptsModel()
         assertEquals(
-            listOf(EquipmentPromptText.readyWeapons, EquipmentPromptText.readyArmors),
+            listOf(prompts.readyWeapons, prompts.readyArmors),
             engine.events.filterIsInstance<EngineTraceEvent.Menu>().map { it.prompt },
         )
         assertEquals(2, engine.events.filterIsInstance<EngineTraceEvent.EquipmentAction>().size)

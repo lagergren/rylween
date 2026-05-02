@@ -148,6 +148,38 @@ val nextRylween = rylween {
             "Cleave", "Mangle", "Skewer", "Eviscerate", "Vanquish",
             "Trample", "Batter", "Slam", "Smite", "Decapitate",
         )
+        priest {
+            who = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") }
+            mageCombatOnly = inlineText("Sorry. Mage spells are", "combat-only.")
+            wrongClass = inlineText("Wrong class.")
+            dead = inlineText("Dead.")
+            invalidCaster = inlineText("Not a party member.")
+            invalidSpell = inlineText("Not possible.")
+            noSpells = inlineText("No priest spells are", "declared.")
+        }
+        inventoryUse {
+            use = inlineText("Use what?")
+            quaff = inlineText("Quaff what?")
+            noItems = inlineText("You are not carrying", "anything.")
+            noItem = inlineText("There is nothing", "in that slot.")
+            invalidSlotFirstPrefix = "Inventory slot "
+            invalidSlotFirstSuffix = ""
+            invalidSlotSecond = "does not exist."
+            notUsableFirst = "Nothing happens"
+            notUsableSecondPrefix = "with "
+            notUsableSecondSuffix = "."
+        }
+        equipment {
+            inventory = inlineText("Ready what?")
+            who = inlineText("Who? (1-N)")
+            readyWeapons = inlineText("Do you want to ready", "some weapons before", "leaving?", "")
+            readyArmors = inlineText("Do you want to ready", "some armors before", "leaving?", "")
+        }
+        town {
+            unavailableSuffix = " is not available here."
+            missingServiceSuffix = " service is not implemented yet."
+            closedSuffix = " is closed."
+        }
     }
 
     items {
@@ -5836,6 +5868,9 @@ check(nextDsl.itemUses.single { it.id == Items.gemOfResurrection }.consume == It
 check(nextDsl.prompts.pauseVerbs.size == 30)
 check(nextDsl.prompts.pauseVerbs.first() == "Smash")
 check(nextDsl.prompts.pauseVerbs.last() == "Decapitate")
+check(nextDsl.prompts.inventoryUse.quaff == inlineText("Quaff what?"))
+check(nextDsl.prompts.equipment.readyArmors == inlineText("Do you want to ready", "some armors before", "leaving?", ""))
+check(nextDsl.prompts.town.closed(Buildings.inn) == inlineText("inn is closed."))
 check(nextDsl.terminal.terrain.size == 10)
 check(nextDsl.terminal.terrain.single { it.terrain == Terrain.town }.glyph == "TT")
 check(nextDsl.terminal.regions.single { it.id == ScreenRegions.textWindow }.width == 26)

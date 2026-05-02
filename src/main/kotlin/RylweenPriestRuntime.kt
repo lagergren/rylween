@@ -48,6 +48,7 @@ data class PriestSpellSession(
     val runtime: RuntimeSessionState,
     val spells: List<SpellModel>,
     val place: PriestSpellPlace,
+    val prompts: PriestSpellPromptsModel = PriestSpellPromptsModel(),
     val step: PriestSpellStep,
     val lastResult: PriestSpellResult? = null,
 ) {
@@ -96,20 +97,20 @@ data class PriestSpellSession(
 
     private fun chooseCaster(memberNumber: Int): PriestSpellSession {
         val member = party.members.getOrNull(memberNumber - 1)
-            ?: return message(PriestSpellStatus.InvalidCaster, PriestSpellPromptText.invalidCaster(), memberNumber)
+            ?: return message(PriestSpellStatus.InvalidCaster, prompts.invalidCaster, memberNumber)
         return when {
             member.pcClass == PcClass.Mage ->
-                message(PriestSpellStatus.MageCombatOnly, PriestSpellPromptText.mageCombatOnly(), memberNumber)
+                message(PriestSpellStatus.MageCombatOnly, prompts.mageCombatOnly, memberNumber)
             member.pcClass != PcClass.Priest ->
-                message(PriestSpellStatus.WrongClass, PriestSpellPromptText.wrongClass(), memberNumber)
+                message(PriestSpellStatus.WrongClass, prompts.wrongClass, memberNumber)
             member.dead ->
-                message(PriestSpellStatus.Dead, PriestSpellPromptText.dead(), memberNumber)
+                message(PriestSpellStatus.Dead, prompts.dead, memberNumber)
             priestSpells.isEmpty() ->
-                message(PriestSpellStatus.NoSpells, PriestSpellPromptText.noSpells(), memberNumber)
+                message(PriestSpellStatus.NoSpells, prompts.noSpells, memberNumber)
             else -> copy(
                 step = PriestSpellStep.ChooseSpell(
                     casterNumber = memberNumber,
-                    prompt = PriestSpellPromptText.spellList(member, priestSpells, abortSlot()),
+                    prompt = prompts.spellList(member, priestSpells, abortSlot()),
                     spellKeys = spellKeys(),
                 ),
             )
@@ -121,7 +122,7 @@ data class PriestSpellSession(
             return finish(PriestSpellStatus.Aborted, runtime, casterNumber)
         }
         val spell = priestSpells.firstOrNull { it.slot == slot }
-            ?: return message(PriestSpellStatus.InvalidSpell, PriestSpellPromptText.invalidSpell(), casterNumber)
+            ?: return message(PriestSpellStatus.InvalidSpell, prompts.invalidSpell, casterNumber)
         return copy(
             step = PriestSpellStep.Script(
                 spell = spell,
@@ -175,46 +176,17 @@ data class PriestSpellSession(
             runtime: RuntimeSessionState,
             spells: List<SpellModel>,
             place: PriestSpellPlace,
+            prompts: PriestSpellPromptsModel = PriestSpellPromptsModel(),
         ): PriestSpellSession =
             PriestSpellSession(
                 runtime = runtime,
                 spells = spells,
                 place = place,
+                prompts = prompts,
                 step = PriestSpellStep.ChooseCaster(
-                    PriestSpellPromptText.who(runtime.realm.partyMemberMax),
+                    prompts.who,
                     runtime.activeParty.members.indices.map { (it + 1).digitKey() },
                 ),
             )
     }
-}
-
-object PriestSpellPromptText {
-    fun who(maxMembers: Int): TextBlock =
-        inlineText("Who? (1-$maxMembers)")
-
-    fun mageCombatOnly(): TextBlock =
-        inlineText("Sorry. Mage spells are", "combat-only.")
-
-    fun wrongClass(): TextBlock =
-        inlineText("Wrong class.")
-
-    fun dead(): TextBlock =
-        inlineText("Dead.")
-
-    fun invalidCaster(): TextBlock =
-        inlineText("Not a party member.")
-
-    fun invalidSpell(): TextBlock =
-        inlineText("Not possible.")
-
-    fun noSpells(): TextBlock =
-        inlineText("No priest spells are", "declared.")
-
-    fun spellList(member: PartyMemberState, spells: List<SpellModel>, abortSlot: Int): TextBlock =
-        inlineText(
-            *(spells.map { spell ->
-                val cost = spell.baseCost + member.level
-                "${spell.slot}. ${spell.name.padEnd(12)}(${cost.toString().padStart(3)}/${member.mana.current.toString().padStart(3)})"
-            } + "$abortSlot. Abort").toTypedArray(),
-        )
 }

@@ -18,20 +18,6 @@ data class TownSessionResult(
     val building: BuildingId? = null,
 )
 
-object TownPromptText {
-    fun menu(town: TownModel): TextBlock =
-        inlineText(town.name, "")
-
-    fun unavailable(building: BuildingId): TextBlock =
-        inlineText("${building.slug} is not available here.")
-
-    fun missingService(building: BuildingId): TextBlock =
-        inlineText("${building.slug} service is not implemented yet.")
-
-    fun closed(building: BuildingId): TextBlock =
-        inlineText("${building.slug} is closed.")
-}
-
 sealed interface TownLeaveEquipmentStep {
     data class ReadyQuestion(val command: EquipmentCommand, val prompt: TextBlock) : TownLeaveEquipmentStep
     data class Equipment(val session: EquipmentPromptSession) : TownLeaveEquipmentStep
@@ -42,6 +28,7 @@ data class TownLeaveEquipmentSession(
     val party: PartyState,
     val step: TownLeaveEquipmentStep,
     val itemRecords: List<ItemRecordModel> = emptyList(),
+    val prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
     val phase: Int = 0,
     val lastResult: EquipmentActionResult? = null,
 ) {
@@ -51,7 +38,11 @@ data class TownLeaveEquipmentSession(
                 val answer = (input as? TownLeaveEquipmentInput.ReadyAnswer)
                     ?: error("town-leave equipment session is asking a ready question")
                 if (answer.yes) {
-                    copy(step = TownLeaveEquipmentStep.Equipment(EquipmentPromptSession.start(current.command, party, itemRecords)))
+                    copy(
+                        step = TownLeaveEquipmentStep.Equipment(
+                            EquipmentPromptSession.start(current.command, party, itemRecords, prompts),
+                        ),
+                    )
                 } else {
                     advance(party, lastResult = null)
                 }
@@ -86,7 +77,7 @@ data class TownLeaveEquipmentSession(
             .drop(nextPhase)
             .firstOrNull { (_, command) -> nextParty.needsTownLeaveReadyPrompt(command, itemRecords) }
             ?.let { (index, command) ->
-                NextTownLeaveStep(index, TownLeaveEquipmentStep.ReadyQuestion(command, command.townLeavePrompt()))
+                NextTownLeaveStep(index, TownLeaveEquipmentStep.ReadyQuestion(command, command.townLeavePrompt(prompts)))
             }
             ?: NextTownLeaveStep(readyCommands.size, TownLeaveEquipmentStep.Finished(nextParty))
 
@@ -98,6 +89,7 @@ data class TownLeaveEquipmentSession(
         fun start(
             party: PartyState,
             itemRecords: List<ItemRecordModel> = emptyList(),
+            prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
         ): TownLeaveEquipmentSession {
             val first = readyCommands
                 .withIndex()
@@ -106,7 +98,8 @@ data class TownLeaveEquipmentSession(
                 party = party,
                 phase = first?.index ?: readyCommands.size,
                 itemRecords = itemRecords,
-                step = first?.value?.let { TownLeaveEquipmentStep.ReadyQuestion(it, it.townLeavePrompt()) }
+                prompts = prompts,
+                step = first?.value?.let { TownLeaveEquipmentStep.ReadyQuestion(it, it.townLeavePrompt(prompts)) }
                     ?: TownLeaveEquipmentStep.Finished(party),
             )
         }
@@ -204,7 +197,7 @@ data class TownSession(
         val action = townSystem.menu.firstOrNull { it.key == key.uppercaseChar() }
             ?: return copy(lastResult = null)
         if (action.endsMenu) {
-            val equipment = TownLeaveEquipmentSession.start(party, itemRecords)
+            val equipment = TownLeaveEquipmentSession.start(party, itemRecords, content.prompts.equipment)
             return if (equipment.step is TownLeaveEquipmentStep.Finished) {
                 copy(step = TownSessionStep.Finished(runtime))
             } else {
@@ -215,25 +208,25 @@ data class TownSession(
         val building = checkNotNull(action.building) { "town service action ${action.action.slug} has no building" }
         if (!town.offers(building)) {
             return notice(
-                TownPromptText.unavailable(building),
+                content.prompts.town.unavailable(building),
                 TownSessionResult(TownSessionResultStatus.ServiceNotOffered, party, building),
             )
         }
 
         val service = townSystem.buildingServices.firstOrNull { it.building == building }
             ?: return notice(
-                TownPromptText.missingService(building),
+                content.prompts.town.missingService(building),
                 TownSessionResult(TownSessionResultStatus.MissingService, party, building),
             )
         val scene = serviceScenes[service.scene]
             ?: return notice(
-                TownPromptText.missingService(building),
+                content.prompts.town.missingService(building),
                 TownSessionResult(TownSessionResultStatus.MissingService, party, building),
             )
         val shop = shopServices[building]
         if (!service.isOpenAt(currentHour)) {
             return notice(
-                shop?.closed ?: TownPromptText.closed(building),
+                shop?.closed ?: content.prompts.town.closed(building),
                 TownSessionResult(TownSessionResultStatus.ServiceClosed, party, building),
             )
         }

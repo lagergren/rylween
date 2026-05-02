@@ -585,7 +585,7 @@ data class WildernessSession(
                     runtime = runtime,
                     content = content,
                     allowedKinds = setOf(ItemKind.Potion),
-                    choosePrompt = InventoryUsePromptText.quaff,
+                    choosePrompt = content.prompts.inventoryUse.quaff,
                 ),
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.InventoryRequested),
@@ -678,6 +678,7 @@ data class WildernessSession(
                     runtime = runtime,
                     spells = spells,
                     place = PriestSpellPlace.Wilderness,
+                    prompts = content.prompts.priest,
                 ),
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.CastSpellRequested),
@@ -686,7 +687,7 @@ data class WildernessSession(
     private fun equipment(command: EquipmentCommand): WildernessSession =
         copy(
             step = WildernessSessionStep.Equipment(
-                EquipmentPromptSession.start(command, party, itemRecords),
+                EquipmentPromptSession.start(command, party, itemRecords, content.prompts.equipment),
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.EquipmentRequested),
         )

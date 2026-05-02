@@ -264,7 +264,7 @@ data class DungeonSession(
                     runtime = runtime,
                     content = content,
                     allowedKinds = setOf(ItemKind.Potion),
-                    choosePrompt = InventoryUsePromptText.quaff,
+                    choosePrompt = content.prompts.inventoryUse.quaff,
                 ),
             ),
             lastResult = result(DungeonSessionResultStatus.InventoryRequested),
@@ -277,6 +277,7 @@ data class DungeonSession(
                     runtime = runtime,
                     spells = spells,
                     place = PriestSpellPlace.Dungeon,
+                    prompts = content.prompts.priest,
                 ),
             ),
             lastResult = result(DungeonSessionResultStatus.CastSpellRequested),
@@ -285,7 +286,7 @@ data class DungeonSession(
     private fun equipment(command: EquipmentCommand): DungeonSession =
         copy(
             step = DungeonSessionStep.Equipment(
-                EquipmentPromptSession.start(command, party, itemRecords),
+                EquipmentPromptSession.start(command, party, itemRecords, content.prompts.equipment),
             ),
             lastResult = result(DungeonSessionResultStatus.EquipmentRequested),
         )
