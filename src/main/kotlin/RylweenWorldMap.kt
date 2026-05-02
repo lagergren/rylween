@@ -61,6 +61,7 @@ enum class WildernessSessionResultStatus {
     CaveLeft,
     CaveNoMoves,
     DungeonHandoff,
+    LeftDungeon,
     EncounterHandoff,
     LeftTown,
     NotInWilderness,
@@ -95,6 +96,7 @@ sealed interface WildernessSessionStep {
         val continuation: TownServiceContinuation? = null,
     ) : WildernessSessionStep
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
+    data class Dungeon(val session: DungeonSession) : WildernessSessionStep
     data class Battle(val session: BattleSession) : WildernessSessionStep
     data class InventoryItemUse(val session: InventoryItemUseSession) : WildernessSessionStep
     data class Equipment(val session: EquipmentPromptSession) : WildernessSessionStep
@@ -312,18 +314,46 @@ data class WildernessSession(
         return copy(step = current.next)
     }
 
-    fun completeDungeonHandoff(): WildernessSession {
-        require(step is WildernessSessionStep.DungeonHandoff) { "wilderness session is not handing off to a dungeon" }
+    fun startDungeonFromHandoff(): WildernessSession {
+        val current = step as? WildernessSessionStep.DungeonHandoff
+            ?: error("wilderness session is not handing off to a dungeon")
         return copy(
-            runtime = runtime.withRealm(
-                runtime.realm.copy(
-                    currentMode = RuntimeMode.Wilderness,
-                    currentMap = worldMap.id,
-                    currentTown = null,
+            step = WildernessSessionStep.Dungeon(
+                DungeonSession.start(
+                    runtime = runtime,
+                    worldMap = worldMap,
+                    dungeon = current.handoff.dungeon,
+                    levels = current.handoff.levels,
+                    spells = spells,
+                    itemUses = itemUses,
+                    itemRecords = itemRecords,
                 ),
             ),
-            step = WildernessSessionStep.TurnStart,
         )
+    }
+
+    fun replaceDungeonSession(session: DungeonSession): WildernessSession {
+        require(step is WildernessSessionStep.Dungeon) { "wilderness session is not running a dungeon session" }
+        return if (session.step is DungeonSessionStep.Finished) {
+            val finishedRuntime = session.runtime.withRealm(
+                session.runtime.realm.copy(
+                    currentMode = RuntimeMode.Wilderness,
+                    currentTown = null,
+                    currentMap = worldMap.id,
+                ),
+            )
+            copy(
+                runtime = finishedRuntime,
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(
+                    WildernessSessionResultStatus.LeftDungeon,
+                    dungeon = session.dungeon,
+                    dungeonLevels = session.maxDepth,
+                ),
+            )
+        } else {
+            copy(runtime = session.runtime, step = WildernessSessionStep.Dungeon(session))
+        }
     }
 
     fun replaceTownSession(session: TownSession): WildernessSession {
@@ -422,6 +452,18 @@ data class WildernessSession(
             "wilderness session is not running priest spell casting"
         }
         return if (session.step is PriestSpellStep.Finished) {
+            val handoff = session.lastResult?.dungeonHandoff
+            if (handoff != null) {
+                return copy(
+                    runtime = session.runtime,
+                    step = WildernessSessionStep.DungeonHandoff(handoff),
+                    lastResult = WildernessSessionResult(
+                        WildernessSessionResultStatus.DungeonHandoff,
+                        dungeon = handoff.dungeon,
+                        dungeonLevels = handoff.levels,
+                    ),
+                )
+            }
             val status = when (session.lastResult?.status) {
                 PriestSpellStatus.Cast -> WildernessSessionResultStatus.CastSpellUsed
                 else -> WildernessSessionResultStatus.CastSpellUnavailable
@@ -912,7 +954,7 @@ object WildernessPromptText {
         inlineText("Castle entry is not ported yet.")
 
     fun dungeonHandoffPending(handoff: WildernessDungeonHandoff): TextBlock =
-        inlineText("Entering ${handoff.dungeon.slug}.", "Levels: ${handoff.levels}", "Dungeon runtime is not ported yet.")
+        inlineText("Entering ${handoff.dungeon.slug}.", "Levels: ${handoff.levels}")
 
     fun quitConfirm(): TextBlock =
         inlineText("Do you really want", "to quit?", "")
@@ -985,13 +1027,34 @@ fun WildernessKeysModel.directionForInput(input: String): WildernessDirection? =
 fun wildernessDirectionForKey(key: Char): WildernessDirection? =
     WildernessKeysModel().directionForKey(key)
 
+fun RuntimeSessionState.teleportParty(
+    directionKey: Int,
+    distance: Int,
+    worldMap: WorldMapGrid?,
+): RuntimeSessionState {
+    val direction = teleportDirection(directionKey) ?: return this
+    val steps = teleportDistance(distance) * 2
+    if (steps <= 0) return this
+    val start = activeParty.wildernessPoint() ?: return this
+    val destination = (1..steps).fold(start) { point, _ ->
+        val next = point + direction.delta()
+        if (worldMap == null || worldMap.isTeleportOpen(next)) next else point
+    }
+    return withActiveParty(
+        activeParty.copy(
+            position = WorldPosition.Wilderness(destination),
+            facing = direction.facing(),
+        ),
+    )
+}
+
 private fun WildernessSystemModel.terrainIdFor(tile: Char?): TerrainId? =
     terrainTransitions.entries.firstOrNull { it.terrain.sourceMapCode == tile }?.terrain
 
 private fun TerrainTransitionModel.entryFor(tile: Char): TerrainTransitionTextModel? =
     entries.firstOrNull { it.terrain.sourceMapCode == tile }
 
-private fun PartyState.wildernessPoint(): GridPoint? =
+fun PartyState.wildernessPoint(): GridPoint? =
     (position as? WorldPosition.Wilderness)?.point
 
 private fun RuntimeSessionState.terrainTransition(
@@ -1212,7 +1275,7 @@ private fun WildernessFatigueRule.matches(restedHours: Int): Boolean =
         WildernessFatigueMatch.LessThan -> restedHours < threshold
     }
 
-private fun WildernessDirection.delta(): GridPoint =
+fun WildernessDirection.delta(): GridPoint =
     when (this) {
         WildernessDirection.North -> GridPoint(0, -1)
         WildernessDirection.South -> GridPoint(0, 1)
@@ -1220,7 +1283,7 @@ private fun WildernessDirection.delta(): GridPoint =
         WildernessDirection.West -> GridPoint(-1, 0)
     }
 
-private fun WildernessDirection.facing(): Facing =
+fun WildernessDirection.facing(): Facing =
     when (this) {
         WildernessDirection.North -> Facing.North
         WildernessDirection.South -> Facing.South
@@ -1228,8 +1291,27 @@ private fun WildernessDirection.facing(): Facing =
         WildernessDirection.West -> Facing.West
     }
 
-private operator fun GridPoint.plus(other: GridPoint): GridPoint =
+operator fun GridPoint.plus(other: GridPoint): GridPoint =
     GridPoint(x + other.x, y + other.y)
+
+private fun teleportDirection(key: Int): WildernessDirection? =
+    when (key) {
+        8, '8'.code -> WildernessDirection.North
+        2, '2'.code -> WildernessDirection.South
+        6, '6'.code -> WildernessDirection.East
+        4, '4'.code -> WildernessDirection.West
+        else -> null
+    }
+
+private fun teleportDistance(value: Int): Int =
+    when (value) {
+        in 1..9 -> value
+        in '1'.code..'9'.code -> value - '0'.code
+        else -> 0
+    }
+
+private fun WorldMapGrid.isTeleportOpen(point: GridPoint): Boolean =
+    tileAt(point)?.let { it != Terrain.mountain.sourceMapCode } == true
 
 private fun Int.positiveMod(divisor: Int): Int =
     ((this % divisor) + divisor) % divisor

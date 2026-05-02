@@ -331,6 +331,7 @@ sealed interface BoolAst {
     data class MemberFlag(val member: IntAst, val name: String) : BoolAst
     data class MonsterFlag(val monster: IntAst, val name: String) : BoolAst
     data class BattleFlag(val name: String) : BoolAst
+    data class RuntimeFlag(val name: String) : BoolAst
 }
 
 sealed interface StrAst {
@@ -421,6 +422,11 @@ sealed interface Op {
     ) : Op
     data class Switch(val expr: IntAst, val cases: List<SwitchCase>) : Op
     data class Menu(val prompt: TextBlock, val options: List<MenuOption>, val defaultOps: List<Op>) : Op
+    data class AskKey(
+        val prompt: TextBlock,
+        val varName: String,
+        val bindings: List<InputBindingModel>,
+    ) : Op
     data class AskMember(
         val prompt: TextBlock,
         val varName: String,
@@ -444,6 +450,8 @@ sealed interface Op {
     object ConsumeActiveItem : Op
     data class ConsumeInventoryPool(val pool: ItemPoolId, val quantity: IntAst) : Op
     object ConsumeTorch : Op
+    data class TeleportParty(val directionKey: IntAst, val distance: IntAst) : Op
+    data class DiscoverCave(val dungeon: DungeonId, val levels: IntAst, val moveCost: IntAst) : Op
     data class GrantReward(val reward: ScriptRewardModel) : Op
     data class RandomItemOffer(val offer: RandomItemOfferModel) : Op
     data class ShopService(val shop: ShopServiceModel) : Op
@@ -1148,6 +1156,22 @@ data class WildernessKeysModel(
     val helpPages: List<TextBlock> = StandardWildernessHelpPages,
 )
 
+data class DungeonKeysModel(
+    val descend: InputBindingModel = inputKey("D"),
+    val ascend: InputBindingModel = inputKey("A"),
+    val help: InputBindingModel = inputKey("?"),
+    val drop: InputBindingModel = inputKey("L"),
+    val removeArmor: InputBindingModel = inputKey("T"),
+    val removeWeapon: InputBindingModel = inputKey("P"),
+    val readyWeapon: InputBindingModel = inputKey("W"),
+    val readyArmor: InputBindingModel = inputKey("R"),
+    val quaff: InputBindingModel = inputKey("Q"),
+    val castSpell: InputBindingModel = inputKey("Z"),
+    val viewParty: InputBindingModel = inputKey("V"),
+    val commandHint: TextBlock = inlineText("Press ? for commands."),
+    val helpPages: List<TextBlock> = StandardDungeonHelpPages,
+)
+
 val StandardWildernessHelpPages: List<TextBlock> = listOf(
     inlineText(
         "C = Camp",
@@ -1173,11 +1197,32 @@ val StandardWildernessHelpPages: List<TextBlock> = listOf(
         "! = Redraw Screen",
         "? = View this help",
         "    8     Move North,",
-        "  4-+-6   South, East &",
-        "    2     West",
+        "  4-+-6   West & East,",
+        "    2     Move South",
         "",
     ),
 )
+
+val StandardDungeonHelpPages: List<TextBlock> = listOf(
+    inlineText(
+        "A = Ascend",
+        "D = Descend",
+        "L = Leave (Discard) Item",
+        "P = Put down weapon",
+        "Q = Quaff Potion",
+        "R = Ready Armor",
+        "",
+    ),
+    inlineText(
+        "T = Take off armor",
+        "V = View Party",
+        "W = Wield Weapon",
+        "Z = Cast Spell",
+        "? = View this help",
+        "",
+    ),
+)
+
 
 data class WildernessEventModel(
     val caveChancePercent: Int = 3,
@@ -1420,6 +1465,11 @@ class RealmRef(private val script: ScriptScope) {
         LValueAst.RealmScalar("banished"),
         BoolAst.Cmp(IntAst.RealmScalar("banished"), "ne", IntAst.Lit(0)),
     )
+}
+
+class RuntimeContextRef {
+    val inDungeon: BoolExpr = Bool(BoolAst.RuntimeFlag("in_dungeon"))
+    val underground: BoolExpr = inDungeon
 }
 
 class BoolSlot(
@@ -1692,6 +1742,7 @@ class ScriptScope(
     private val ops: MutableList<Op>,
 ) {
     val realm = RealmRef(this)
+    val context = RuntimeContextRef()
     val party = PartyRef(this)
     val battle = BattleRef(this)
     val ask = AskScope(this)
@@ -1844,6 +1895,30 @@ class ScriptScope(
 
     fun enterDungeon(dungeon: DungeonId, levels: Int) {
         record(Op.EnterDungeon(dungeon, levels))
+    }
+
+    fun teleportParty(directionKey: IntExpr, distance: IntExpr) {
+        record(Op.TeleportParty(directionKey.ast, distance.ast))
+    }
+
+    fun teleportParty(directionKey: Int, distance: Int) {
+        teleportParty(lit(directionKey), lit(distance))
+    }
+
+    fun discoverCave(
+        levels: IntExpr,
+        dungeon: DungeonId = Dungeons.randomCave,
+        moveCost: IntExpr = lit(10),
+    ) {
+        record(Op.DiscoverCave(dungeon, levels.ast, moveCost.ast))
+    }
+
+    fun discoverCave(
+        levels: Int,
+        dungeon: DungeonId = Dungeons.randomCave,
+        moveCost: Int = 10,
+    ) {
+        discoverCave(lit(levels), dungeon, lit(moveCost))
     }
 
     fun consumeActiveItem() = record(Op.ConsumeActiveItem)
@@ -2623,6 +2698,25 @@ class MenuBuilder(private val ctx: ScriptContext) {
 }
 
 class AskScope(private val script: ScriptScope) {
+    fun key(prompt: TextBlock, vararg bindings: InputBindingModel): IntExpr {
+        val uniqueBindings = bindings.toList()
+        require(uniqueBindings.isNotEmpty()) { "key prompt must accept at least one key" }
+        val name = script.fresh("key")
+        script.record(Op.AskKey(prompt, name, uniqueBindings))
+        return v(name)
+    }
+
+    fun key(prompt: TextBlock, vararg keys: Char): IntExpr =
+        key(prompt, *keys.map(::inputKey).toTypedArray())
+
+    fun digit(prompt: TextBlock, range: IntRange): IntExpr =
+        key(prompt, *range.map { inputKey(it.toString()) }.toTypedArray())
+
+    fun wildernessDirection(prompt: TextBlock): IntExpr {
+        val keys = WildernessKeysModel()
+        return key(prompt, keys.moveSouth, keys.moveWest, keys.moveEast, keys.moveNorth)
+    }
+
     fun member(
         prompt: TextId,
         filter: MemberChoiceFilter = MemberChoiceFilter.Any,
@@ -2987,11 +3081,20 @@ private fun Op.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): Op =
             options = options.resolveMenuItemPools(resolve),
             defaultOps = defaultOps.resolveItemPools(resolve),
         )
+        is Op.AskKey -> copy()
         is Op.AskMember -> copy()
         is Op.AskInventorySlot -> copy()
         is Op.ForEachMember -> copy(body = body.resolveItemPools(resolve))
         is Op.ForEachMonster -> copy(body = body.resolveItemPools(resolve))
         is Op.ConsumeInventoryPool -> copy(pool = resolve(pool), quantity = quantity.resolveItemPools(resolve))
+        is Op.TeleportParty -> copy(
+            directionKey = directionKey.resolveItemPools(resolve),
+            distance = distance.resolveItemPools(resolve),
+        )
+        is Op.DiscoverCave -> copy(
+            levels = levels.resolveItemPools(resolve),
+            moveCost = moveCost.resolveItemPools(resolve),
+        )
         is Op.GrantReward -> copy(reward = reward.resolveItemPools(resolve))
         is Op.RandomItemOffer -> copy(offer = offer.copy(pool = resolve(offer.pool)))
         else -> this
@@ -3030,6 +3133,7 @@ private fun BoolAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): BoolA
         is BoolAst.Or -> copy(left = left.resolveItemPools(resolve), right = right.resolveItemPools(resolve))
         is BoolAst.MemberFlag -> copy(member = member.resolveItemPools(resolve))
         is BoolAst.MonsterFlag -> copy(monster = monster.resolveItemPools(resolve))
+        is BoolAst.RuntimeFlag -> this
         else -> this
     }
 
@@ -5221,6 +5325,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
             is BoolAst.MemberFlag -> int(ast.member)
             is BoolAst.MonsterFlag -> int(ast.monster)
             is BoolAst.BattleFlag -> Unit
+            is BoolAst.RuntimeFlag -> Unit
         }
     }
 
@@ -5297,6 +5402,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                     op.options.forEach { ops(it.body) }
                     ops(op.defaultOps)
                 }
+                is Op.AskKey -> text(op.prompt)
                 is Op.AskMember -> text(op.prompt)
                 is Op.AskInventorySlot -> text(op.prompt)
                 is Op.AskMonster -> Unit
@@ -5309,6 +5415,14 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 Op.ConsumeActiveItem -> Unit
                 is Op.ConsumeInventoryPool -> int(op.quantity)
                 Op.ConsumeTorch -> Unit
+                is Op.TeleportParty -> {
+                    int(op.directionKey)
+                    int(op.distance)
+                }
+                is Op.DiscoverCave -> {
+                    int(op.levels)
+                    int(op.moveCost)
+                }
                 is Op.GrantReward -> op.reward.gold?.let { int(it) }
                 is Op.RandomItemOffer -> {
                     text(op.offer.offer)

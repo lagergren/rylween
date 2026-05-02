@@ -3186,7 +3186,7 @@ val nextRylween = rylween {
 
         native.screen.clearText()
         whenever(caster.mp gte cost) {
-            whenever(v("place") eq 1) {
+            whenever(context.inDungeon) {
                 caster.mp -= cost
                 native.screen.clearText()
                 screen {
@@ -3218,7 +3218,7 @@ val nextRylween = rylween {
 
         native.screen.clearText()
         whenever(caster.mp gte cost) {
-            whenever(v("place") eq 1) {
+            whenever(context.inDungeon) {
                 screen("Dungeon revelation", "is not ported yet.")
                 waitInput("after pending revelation")
                 native.screen.clearText()
@@ -3235,15 +3235,104 @@ val nextRylween = rylween {
     }
 
     spell(Spells.Priest.teleport, slot = 6, baseCost = 35, name = "Teleport") {
-        screen("Teleport is not", "ported yet.")
-        waitInput("after pending teleport")
-        native.screen.clearText()
+        val caster = currentCaster
+        val cost = lit(35) + caster.level
+
+        whenever(caster.mp gte cost) {
+            caster.mp -= cost
+            native.screen.clearText()
+            screen {
+                line(partyName(caster), " carefully")
+                lines("prepares the ritual of")
+                line("Teleportation. ", pronoun(caster, PronounCase.Subject), " spends")
+                lines("an hour chanting mantras", "and burning blue candles.", "")
+            }
+            realm.hour += 1
+            waitInput("after teleport ritual")
+            native.screen.clearText()
+            screen {
+                line(pronoun(caster, PronounCase.Subject), " picks up a stone slab")
+                lines(
+                    "from his satchel and",
+                    "uses a special instrument",
+                    "to scratch the direction",
+                )
+                line(pronoun(caster, PronounCase.Subject), " wants you to teleport")
+                lines("to.", "")
+            }
+            waitInput("after teleport slab")
+            native.screen.clearText()
+            val direction = ask.wildernessDirection(
+                textLines(
+                    "Teleport :",
+                    "",
+                    "   8",
+                    " 4-+-6",
+                    "   2",
+                    "",
+                ),
+            )
+            native.screen.clearText()
+            val distance = ask.digit(textLines("How many miles do you", "want to travel? (1-9)"), 1..9)
+            teleportParty(direction, distance)
+            screen("You appear to be", "somewhere else.")
+            native.screen.redrawMap()
+            pause(1200)
+            native.screen.clearText()
+        } otherwise {
+            screen("Not enough spell pts!")
+            pause(1000)
+            native.screen.clearText()
+        }
     }
 
     spell(Spells.Priest.earthquake, slot = 7, baseCost = 55, name = "Earthquake") {
-        screen("Earthquake is not", "ported yet.")
-        waitInput("after pending earthquake")
+        val caster = currentCaster
+        val cost = lit(55) + caster.level
+
         native.screen.clearText()
+        whenever(context.inDungeon) {
+            screen("The roof would cave", "in on you!", "")
+            waitInput("after earthquake dungeon warning")
+            native.screen.clearText()
+        } otherwise {
+            whenever(caster.mp gte cost) {
+                caster.mp -= cost
+                screen {
+                    line(partyName(caster), " utters")
+                    lines("three syllabels in an", "archaic tongue...", "")
+                }
+                pause(2000)
+                screen("and the ground cracks", "open!")
+                pause(3000)
+                native.screen.clearMapWindow()
+                native.screen.showImage(Images.Backdrop.cave)
+                native.screen.clearText()
+                choice.enterOrLeave(
+                    textLines("You find a cave!", "", "(E)nter", "(L)eave"),
+                    enter = {
+                        whenever(party.timeLeft gt 10) {
+                            discoverCave(random(5..18), Dungeons.randomCave, lit(10))
+                        } otherwise {
+                            native.screen.clearText()
+                            screen("You don't have enough", "moves left to explore", "the cave...", "")
+                            waitInput("after earthquake no moves")
+                            native.screen.clearMapWindow()
+                            native.screen.clearText()
+                        }
+                    },
+                    leave = {
+                        native.screen.clearText()
+                        native.screen.clearMapWindow()
+                        native.screen.redrawMap()
+                    },
+                )
+            } otherwise {
+                screen("Not enough spell pts!")
+                pause(1000)
+                native.screen.clearText()
+            }
+        }
     }
 
     itemUse(Items.redPotion) {

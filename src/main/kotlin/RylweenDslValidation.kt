@@ -889,6 +889,7 @@ fun validateScriptRewards(
             is BoolAst.MemberFlag -> validateIntExpression(ast.member, label)
             is BoolAst.MonsterFlag -> validateIntExpression(ast.monster, label)
             is BoolAst.BattleFlag -> Unit
+            is BoolAst.RuntimeFlag -> check(ast.name.isNotBlank()) { "$label references blank runtime flag" }
         }
     }
 
@@ -1123,6 +1124,14 @@ fun validateScriptRewards(
                         op.options.forEach { visitOps(it.body, loopDepth) }
                         visitOps(op.defaultOps, loopDepth)
                     }
+                    is Op.AskKey -> {
+                        validateTextBlock(op.prompt, "key choice prompt")
+                        check(op.bindings.isNotEmpty()) { "key choice prompt must accept at least one key" }
+                        op.bindings.forEach { binding ->
+                            validateInputChoiceBinding(binding, "key choice ${binding.label}")
+                        }
+                        checkUniqueBindings(op.bindings, "key choice prompt")
+                    }
                     is Op.AskMember -> validateTextBlock(op.prompt, "member choice prompt")
                     is Op.AskInventorySlot -> {
                         validateTextBlock(op.prompt, "inventory-slot choice prompt")
@@ -1145,6 +1154,15 @@ fun validateScriptRewards(
                     is Op.EnterDungeon -> {
                         check(op.dungeon.slug.isNotBlank()) { "script dungeon handoff references blank dungeon" }
                         check(op.levels > 0) { "script dungeon handoff must use positive level count" }
+                    }
+                    is Op.TeleportParty -> {
+                        validateIntExpression(op.directionKey, "teleport direction key")
+                        validateIntExpression(op.distance, "teleport distance")
+                    }
+                    is Op.DiscoverCave -> {
+                        check(op.dungeon.slug.isNotBlank()) { "discover cave references blank dungeon" }
+                        validateIntExpression(op.levels, "discover cave level count")
+                        validateIntExpression(op.moveCost, "discover cave move cost")
                     }
                     is Op.If -> {
                         validateBoolExpression(op.cond, "script condition")

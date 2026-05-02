@@ -10,6 +10,15 @@ data class EngineRequest(
     val args: List<String> = emptyList(),
 )
 
+private fun EngineRequest.isRenderingPrimitive(): Boolean =
+    path in setOf(
+        NativeAllowlist.screenClearText.path,
+        NativeAllowlist.screenClearMapWindow.path,
+        NativeAllowlist.screenRedrawMap.path,
+        NativeAllowlist.screenShowImage.path,
+        NativeAllowlist.screenStatusLine.path,
+    )
+
 interface RylweenEnginePort {
     fun effect(request: EngineRequest)
     fun readInt(request: EngineRequest): Int
@@ -28,6 +37,7 @@ sealed interface EngineTraceEvent {
     data class SetFlag(val flag: String, val state: String) : EngineTraceEvent
     data class AppendJournal(val text: TextBlock) : EngineTraceEvent
     data class Menu(val prompt: TextBlock, val keys: List<Char>) : EngineTraceEvent
+    data class AskKey(val prompt: TextBlock, val bindings: List<InputBindingModel>) : EngineTraceEvent
     data class AskMember(val prompt: TextBlock, val filter: MemberChoiceFilter) : EngineTraceEvent
     data class AskInventorySlot(
         val prompt: TextBlock,
@@ -41,6 +51,8 @@ sealed interface EngineTraceEvent {
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : EngineTraceEvent
     data class Encounter(val monster: MonsterId, val mandatory: Boolean, val tier: EncounterTier?) : EngineTraceEvent
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : EngineTraceEvent
+    data class TeleportParty(val directionKey: Int, val distance: Int) : EngineTraceEvent
+    data class DiscoverCave(val handoff: WildernessDungeonHandoff, val moveCost: Int) : EngineTraceEvent
     data class Stop(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class Break(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class RandomItemOffer(val offer: RandomItemOfferModel) : EngineTraceEvent
@@ -123,6 +135,9 @@ class ScriptTraceRunner(
             is Op.Menu -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.Menu(op.prompt, op.options.map { option -> option.key }))
             }
+            is Op.AskKey -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.AskKey(op.prompt, op.bindings))
+            }
             is Op.AskMember -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.AskMember(op.prompt, op.filter))
             }
@@ -154,6 +169,14 @@ class ScriptTraceRunner(
             }
             Op.ConsumeTorch -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.ConsumeTorch)
+            }
+            is Op.TeleportParty -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.TeleportParty(eval(op.directionKey), eval(op.distance)))
+            }
+            is Op.DiscoverCave -> ScriptControlSignal.StopScript.also {
+                val handoff = WildernessDungeonHandoff(op.dungeon, eval(op.levels))
+                trace(EngineTraceEvent.DiscoverCave(handoff, eval(op.moveCost)))
+                trace(EngineTraceEvent.DungeonHandoff(handoff))
             }
             is Op.GrantReward -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.GrantReward(op.reward))
@@ -193,6 +216,7 @@ class ScriptTraceRunner(
         override fun flagIs(slug: String, native: String): Boolean = false
         override fun memberFlag(member: Int, name: String): Boolean = false
         override fun monsterFlag(monster: Int, name: String): Boolean = false
+        override fun runtimeFlag(name: String): Boolean = false
     }
 
     private fun eval(ast: IntAst): Int = evaluator.int(ast)
@@ -438,6 +462,8 @@ class StatefulTownServiceBridge(
     private val engine: TraceEnginePort = TraceEnginePort(),
     private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
     private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
+    private val worldMap: WorldMapGrid? = null,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(characters = speakContent.characters),
 ) : TownServiceBridge {
     override fun run(
         service: BuildingServiceModel,
@@ -446,11 +472,20 @@ class StatefulTownServiceBridge(
     ): TownServiceBridgeResult {
         val eventStart = engine.events.size
         engine.trace(EngineTraceEvent.TownService(service, scene))
-        val result = StatefulScriptServiceRunner(terminal, engine, scene.ops, continuation, speakContent, battleContent).run()
+        val result = StatefulScriptServiceRunner(
+            terminal,
+            engine,
+            scene.ops,
+            continuation,
+            speakContent,
+            battleContent,
+            worldMap,
+            renderer,
+        ).run()
         return TownServiceBridgeResult(
             runtime = result.runtime,
             status = result.status,
-            events = engine.events.drop(eventStart),
+            events = engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
             continuation = result.continuation,
             rejection = result.rejection,
             dungeonHandoff = result.dungeonHandoff,
@@ -464,6 +499,7 @@ private data class StatefulScriptResult(
     val continuation: TownServiceContinuation? = null,
     val rejection: TerminalInputRejection? = null,
     val dungeonHandoff: WildernessDungeonHandoff? = null,
+    val unwrittenEventStart: Int = 0,
 ) {
     val party: PartyState get() = runtime.activeParty
 }
@@ -475,6 +511,8 @@ private class StatefulScriptServiceRunner(
     continuation: TownServiceContinuation,
     private val speakContent: SpeakRuntimeContent,
     private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
+    private val worldMap: WorldMapGrid? = null,
+    private val textRenderer: TerminalTextRenderer = TerminalTextRenderer(characters = speakContent.characters),
 ) {
     private var runtime = continuation.runtime
     private var party = continuation.party
@@ -490,7 +528,7 @@ private class StatefulScriptServiceRunner(
     private var dungeonHandoff: WildernessDungeonHandoff? = null
     private var waiting = false
     private var opBudget = 4096
-    private val textRenderer = TerminalTextRenderer(characters = speakContent.characters)
+    private var writtenEventCount = engine.events.size
 
     fun run(): StatefulScriptResult {
         runUntilBlockedOrFinished()
@@ -502,6 +540,7 @@ private class StatefulScriptServiceRunner(
             continuation = nextContinuation,
             rejection = rejection,
             dungeonHandoff = dungeonHandoff,
+            unwrittenEventStart = writtenEventCount,
         )
     }
 
@@ -603,6 +642,7 @@ private class StatefulScriptServiceRunner(
                 }
             }
             is Op.Menu -> runMenu(op)
+            is Op.AskKey -> askKey(op)
             is Op.AskMember -> askMember(op)
             is Op.AskInventorySlot -> askInventorySlot(op)
             is Op.AskMonster -> advanceTop()
@@ -642,6 +682,8 @@ private class StatefulScriptServiceRunner(
                 advanceTop()
                 engine.trace(EngineTraceEvent.ConsumeTorch)
             }
+            is Op.TeleportParty -> runTeleportParty(op)
+            is Op.DiscoverCave -> runDiscoverCave(op)
             is Op.GrantReward -> runGrantReward(op)
             is Op.RandomItemOffer -> runRandomItemOffer(op)
             is Op.ShopService -> {
@@ -671,6 +713,7 @@ private class StatefulScriptServiceRunner(
 
     private fun waitInput(reason: String?) {
         engine.trace(EngineTraceEvent.WaitInput(reason))
+        flushScriptOutput()
         when (terminal.readLine()) {
             null -> wait()
             else -> advanceTop()
@@ -682,6 +725,7 @@ private class StatefulScriptServiceRunner(
         val opIndex = frame.nextIndex
         val choices = op.options.map { option -> TerminalChoice(option, option.binding) }
         engine.trace(EngineTraceEvent.Menu(renderText(op.prompt), op.options.map { it.key }))
+        flushScriptOutput()
         when (val input = terminal.readChoice(choices)) {
             is TerminalInput.Value -> {
                 advanceTop()
@@ -701,9 +745,24 @@ private class StatefulScriptServiceRunner(
         }
     }
 
+    private fun askKey(op: Op.AskKey) {
+        engine.trace(EngineTraceEvent.AskKey(renderText(op.prompt), op.bindings))
+        val choices = op.bindings.map { binding -> TerminalChoice(binding.promptValue(), binding) }
+        flushScriptOutput()
+        when (val input = terminal.readChoice(choices)) {
+            is TerminalInput.Value -> {
+                locals[op.varName] = input.value
+                advanceTop()
+            }
+            is TerminalInput.Rejected -> wait(input.rejection)
+            TerminalInput.Unavailable -> wait()
+        }
+    }
+
     private fun askMember(op: Op.AskMember) {
         engine.trace(EngineTraceEvent.AskMember(renderText(op.prompt), op.filter))
         val choices = party.memberChoices(op.accepting)
+        flushScriptOutput()
         when (val input = terminal.readMemberNumber(choices)) {
             is TerminalInput.Value -> {
                 locals[op.varName] = input.value
@@ -718,6 +777,7 @@ private class StatefulScriptServiceRunner(
         engine.trace(EngineTraceEvent.AskInventorySlot(renderText(op.prompt), op.firstKey, op.slots, op.filter))
         val choices = party.inventorySlotChoices(op.filter, op.slots, op.firstKey)
         val keys = choices.map { it.first }
+        flushScriptOutput()
         when (val input = terminal.readKey(keys)) {
             is TerminalInput.Value -> {
                 locals[op.varName] = checkNotNull(choices.firstOrNull { it.first == input.value }).second
@@ -731,6 +791,11 @@ private class StatefulScriptServiceRunner(
     private fun wait(inputRejection: TerminalInputRejection? = null) {
         waiting = true
         rejection = inputRejection
+    }
+
+    private fun flushScriptOutput() {
+        terminal.writeScriptEvents(engine.events.drop(writtenEventCount), textRenderer, currentRuntime())
+        writtenEventCount = engine.events.size
     }
 
     private fun advanceTop() {
@@ -892,6 +957,38 @@ private class StatefulScriptServiceRunner(
         party = runtime.activeParty
         dungeonHandoff = handoff
         advanceTop()
+        engine.trace(EngineTraceEvent.DungeonHandoff(handoff))
+        stack.clear()
+    }
+
+    private fun runTeleportParty(op: Op.TeleportParty) {
+        val directionKey = eval(op.directionKey)
+        val distance = eval(op.distance)
+        runtime = currentRuntime().teleportParty(directionKey, distance, worldMap)
+        party = runtime.activeParty
+        advanceTop()
+        engine.trace(EngineTraceEvent.TeleportParty(directionKey, distance))
+    }
+
+    private fun runDiscoverCave(op: Op.DiscoverCave) {
+        val levels = eval(op.levels)
+        val moveCost = eval(op.moveCost)
+        val handoff = WildernessDungeonHandoff(op.dungeon, levels)
+        party = party.copy(
+            resources = party.resources.copy(
+                timeLeft = (party.resources.timeLeft - moveCost).coerceAtLeast(0),
+            ),
+        )
+        runtime = currentRuntime().withRealm(
+            runtime.realm.copy(
+                currentMode = RuntimeMode.Dungeon,
+                currentTown = null,
+            ),
+        )
+        party = runtime.activeParty
+        dungeonHandoff = handoff
+        advanceTop()
+        engine.trace(EngineTraceEvent.DiscoverCave(handoff, moveCost))
         engine.trace(EngineTraceEvent.DungeonHandoff(handoff))
         stack.clear()
     }
@@ -1072,6 +1169,11 @@ private class StatefulScriptServiceRunner(
             this@StatefulScriptServiceRunner.memberFlag(member, name)
         override fun monsterFlag(monster: Int, name: String): Boolean =
             error("town/service scripts cannot read combat monster flags")
+        override fun runtimeFlag(name: String): Boolean =
+            when (name) {
+                "in_dungeon" -> runtime.realm.currentMode == RuntimeMode.Dungeon
+                else -> false
+            }
     }
 
     private fun eval(ast: IntAst): Int = evaluator.int(ast)
@@ -1676,8 +1778,13 @@ class InventoryItemUseTerminalAdapter(
                         continuation = step.continuation,
                         speakContent = speakContent,
                         battleContent = BattleRuntimeContent(itemRecords = session.itemRecords),
+                        textRenderer = renderer,
                     ).run()
-                    terminal.writeScriptEvents(engine.events.drop(eventStart), renderer, result.runtime)
+                    terminal.writeScriptEvents(
+                        engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
+                        renderer,
+                        result.runtime,
+                    )
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
                             session.finishScript(result.runtime)
@@ -1716,6 +1823,7 @@ class PriestSpellTerminalAdapter(
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
     private val engine: TraceEnginePort = TraceEnginePort(),
     private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
+    private val worldMap: WorldMapGrid? = null,
 ) {
     fun runUntilBlocked(initial: PriestSpellSession): TerminalAdapterResult<PriestSpellSession> {
         var session = initial
@@ -1746,10 +1854,16 @@ class PriestSpellTerminalAdapter(
                         continuation = step.continuation,
                         speakContent = speakContent,
                         battleContent = BattleRuntimeContent(itemRecords = emptyList()),
+                        worldMap = worldMap,
+                        textRenderer = renderer,
                     ).run()
-                    terminal.writeScriptEvents(engine.events.drop(eventStart), renderer, result.runtime)
+                    terminal.writeScriptEvents(
+                        engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
+                        renderer,
+                        result.runtime,
+                    )
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished -> session.finishScript(result.runtime)
+                        TownServiceBridgeStatus.Finished -> session.finishScript(result.runtime, result.dungeonHandoff)
                         TownServiceBridgeStatus.Waiting ->
                             return waiting(
                                 session.replaceScriptContinuation(
@@ -1793,14 +1907,21 @@ private fun TerminalPort.writeScriptEvents(
             is EngineTraceEvent.Menu -> write(
                 renderer.lines(event.prompt, context) + "Options: ${event.keys.joinToString("/")}",
             )
+            is EngineTraceEvent.AskKey -> write(
+                renderer.lines(event.prompt, context) + "Options: ${event.bindings.joinToString("/") { it.label }}",
+            )
             is EngineTraceEvent.AskMember -> write(renderer.lines(event.prompt, context))
             is EngineTraceEvent.AskInventorySlot -> write(renderer.lines(event.prompt, context))
-            is EngineTraceEvent.NativeEffect -> write(listOf("Native: ${event.request.path}"))
+            is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
+                write(listOf("Native: ${event.request.path}"))
+            }
             is EngineTraceEvent.NativeInt -> write(listOf("Native int: ${event.request.path} = ${event.result}"))
             is EngineTraceEvent.NativeString -> write(listOf("Native string: ${event.request.path} = ${event.result}"))
             is EngineTraceEvent.RunScene -> write(listOf("Scene: ${event.scene.slug}"))
             is EngineTraceEvent.DungeonHandoff ->
                 write(renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context))
+            is EngineTraceEvent.TeleportParty,
+            is EngineTraceEvent.DiscoverCave -> Unit
             is EngineTraceEvent.Stop -> write(listOf(event.reason ?: "Stop"))
             is EngineTraceEvent.Break -> write(listOf(event.reason ?: "Break"))
             is EngineTraceEvent.WaitInput,
@@ -2048,6 +2169,7 @@ class TownSessionTerminalAdapter(
                     val bridge = serviceBridge ?: StatefulTownServiceBridge(
                         terminal,
                         battleContent = BattleRuntimeContent(itemRecords = session.itemRecords),
+                        renderer = renderer,
                     )
                     val result = bridge.run(step.service, step.scene, continuation)
                     writeBridgeEvents(result.events, result.runtime)
@@ -2106,9 +2228,15 @@ class TownSessionTerminalAdapter(
                 is EngineTraceEvent.Menu -> terminal.write(
                     renderer.lines(event.prompt, context) + "Options: ${event.keys.joinToString("/")}",
                 )
+                is EngineTraceEvent.AskKey -> terminal.write(
+                    renderer.lines(event.prompt, context) +
+                        "Options: ${event.bindings.joinToString("/") { it.label }}",
+                )
                 is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
+                is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
+                    terminal.write(listOf("Native: ${event.request.path}"))
+                }
                 is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
                 is EngineTraceEvent.NativeString ->
                     terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
@@ -2117,6 +2245,8 @@ class TownSessionTerminalAdapter(
                     terminal.write(
                         renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context),
                     )
+                is EngineTraceEvent.TeleportParty,
+                is EngineTraceEvent.DiscoverCave -> Unit
                 is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
                 is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
                 is EngineTraceEvent.TownService -> terminal.write(listOf("Service: ${event.service.building.slug}"))
@@ -2138,6 +2268,94 @@ class TownSessionTerminalAdapter(
             }
         }
     }
+}
+
+class DungeonSessionTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun runUntilBlocked(initial: DungeonSession): TerminalAdapterResult<DungeonSession> {
+        var session = initial
+        repeat(128) {
+            session = when (val step = session.step) {
+                DungeonSessionStep.Explore -> {
+                    writeExplore(session)
+                    val choices = dungeonChoices(session.keys)
+                    when (val input = terminal.readChoice(choices)) {
+                        is TerminalInput.Value -> session.apply(input.value)
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is DungeonSessionStep.Messages -> {
+                    terminal.write(step.blocks.flatMap { renderer.lines(it, TerminalTextContext(runtime = session.runtime)) })
+                    session.apply(DungeonSessionInput.Continue)
+                }
+                is DungeonSessionStep.Notice -> {
+                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
+                    session.apply(DungeonSessionInput.Continue)
+                }
+                is DungeonSessionStep.Equipment -> {
+                    val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceEquipmentSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting -> return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is DungeonSessionStep.InventoryItemUse -> {
+                    val result = InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceInventoryItemUseSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting -> return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is DungeonSessionStep.PriestSpell -> {
+                    val result = PriestSpellTerminalAdapter(
+                        terminal = terminal,
+                        renderer = renderer,
+                        worldMap = session.worldMap,
+                    ).runUntilBlocked(step.session)
+                    val updated = session.replacePriestSpellSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting -> return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is DungeonSessionStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun writeExplore(session: DungeonSession) {
+        terminal.write(
+            renderer.lines(DungeonPromptText.levelMenu(session.depth), TerminalTextContext(runtime = session.runtime)) +
+                "Options: ${dungeonChoices(session.keys).joinToString("/") { it.binding.label }}",
+        )
+    }
+
+    private fun dungeonChoices(keys: DungeonKeysModel): List<TerminalChoice<DungeonSessionInput>> =
+        listOf(
+            TerminalChoice(DungeonSessionInput.Descend, keys.descend),
+            TerminalChoice(DungeonSessionInput.Ascend, keys.ascend),
+            TerminalChoice(DungeonSessionInput.Help, keys.help),
+            TerminalChoice(DungeonSessionInput.Drop, keys.drop),
+            TerminalChoice(DungeonSessionInput.RemoveArmor, keys.removeArmor),
+            TerminalChoice(DungeonSessionInput.RemoveWeapon, keys.removeWeapon),
+            TerminalChoice(DungeonSessionInput.ReadyWeapon, keys.readyWeapon),
+            TerminalChoice(DungeonSessionInput.ReadyArmor, keys.readyArmor),
+            TerminalChoice(DungeonSessionInput.Quaff, keys.quaff),
+            TerminalChoice(DungeonSessionInput.CastSpell, keys.castSpell),
+            TerminalChoice(DungeonSessionInput.ViewParty, keys.viewParty),
+        )
 }
 
 class WildernessSessionTerminalAdapter(
@@ -2201,6 +2419,8 @@ class WildernessSessionTerminalAdapter(
                             itemUses = session.itemUses,
                             itemRecords = session.itemRecords,
                         ),
+                        worldMap = session.worldMap,
+                        renderer = renderer,
                     )
                     val result = bridge.run(step.mission.service(), step.scene, continuation)
                     writeBridgeEvents(result.events, result.runtime)
@@ -2238,8 +2458,24 @@ class WildernessSessionTerminalAdapter(
                     }
                 }
                 is WildernessSessionStep.DungeonHandoff -> {
-                    terminal.write(renderer.lines(WildernessPromptText.dungeonHandoffPending(step.handoff)))
-                    session.completeDungeonHandoff()
+                    terminal.write(
+                        renderer.lines(
+                            WildernessPromptText.dungeonHandoffPending(step.handoff),
+                            TerminalTextContext(runtime = session.runtime),
+                        ),
+                    )
+                    session.startDungeonFromHandoff()
+                }
+                is WildernessSessionStep.Dungeon -> {
+                    val result = DungeonSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceDungeonSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
                 }
                 WildernessSessionStep.Explore -> {
                     writeExplore(session)
@@ -2336,7 +2572,8 @@ class WildernessSessionTerminalAdapter(
                     }
                 }
                 is WildernessSessionStep.PriestSpell -> {
-                    val result = PriestSpellTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val result = PriestSpellTerminalAdapter(terminal, renderer, worldMap = session.worldMap)
+                        .runUntilBlocked(step.session)
                     val updated = session.replacePriestSpellSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
@@ -2386,14 +2623,22 @@ class WildernessSessionTerminalAdapter(
                 is EngineTraceEvent.Menu -> terminal.write(
                     renderer.lines(event.prompt, context) + "Options: ${event.keys.joinToString("/")}",
                 )
+                is EngineTraceEvent.AskKey -> terminal.write(
+                    renderer.lines(event.prompt, context) +
+                        "Options: ${event.bindings.joinToString("/") { it.label }}",
+                )
                 is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
+                is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
+                    terminal.write(listOf("Native: ${event.request.path}"))
+                }
                 is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
                 is EngineTraceEvent.NativeString ->
                     terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
                 is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
                 is EngineTraceEvent.DungeonHandoff -> Unit
+                is EngineTraceEvent.TeleportParty,
+                is EngineTraceEvent.DiscoverCave -> Unit
                 is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
                 is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
                 is EngineTraceEvent.TownService -> Unit
@@ -2551,6 +2796,11 @@ private data class TerminalChoice<out T>(
     val value: T,
     val binding: InputBindingModel,
 )
+
+private fun InputBindingModel.promptValue(): Int =
+    primary.singleOrNull()?.let { char ->
+        char.digitToIntOrNull() ?: char.uppercaseChar().code
+    } ?: primary.uppercase().hashCode()
 
 private fun <T, R> TerminalInput<T>.map(transform: (T) -> R): TerminalInput<R> =
     when (this) {

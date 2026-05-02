@@ -72,7 +72,7 @@ private class RylweenAnsiGame(
 ) {
     private val screen = ClassicAnsiScreen(terminal, content.terminal, content.towns)
     private val port = AnsiTerminalPort(terminal, screen, renderer)
-    private val serviceBridge = StatefulTownServiceBridge(port, speakContent = speakContent)
+    private val serviceBridge = StatefulTownServiceBridge(port, speakContent = speakContent, renderer = renderer)
 
     fun run(initial: WildernessSession) {
         var session = initial
@@ -118,7 +118,16 @@ private class RylweenAnsiGame(
                 is WildernessSessionStep.DungeonHandoff -> {
                     screen.writeBlock(WildernessPromptText.dungeonHandoffPending(step.handoff), session.runtime, renderer)
                     waitForReturn()
-                    session.completeDungeonHandoff()
+                    session.startDungeonFromHandoff()
+                }
+                is WildernessSessionStep.Dungeon -> {
+                    val result = DungeonSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceDungeonSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "dungeon step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
                 }
                 is WildernessSessionStep.Town -> {
                     screen.writeText(listOf("Entering town...", ""))
@@ -158,7 +167,8 @@ private class RylweenAnsiGame(
                     }
                 }
                 is WildernessSessionStep.PriestSpell -> {
-                    val result = PriestSpellTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val result = PriestSpellTerminalAdapter(port, renderer, worldMap = session.worldMap)
+                        .runUntilBlocked(step.session)
                     val updated = session.replacePriestSpellSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
@@ -181,6 +191,8 @@ private class RylweenAnsiGame(
                             itemUses = session.itemUses,
                             itemRecords = session.itemRecords,
                         ),
+                        worldMap = session.worldMap,
+                        renderer = renderer,
                     )
                     val result = missionBridge.run(step.mission.service(), step.scene, continuation)
                     when (result.status) {
