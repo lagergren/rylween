@@ -1055,6 +1055,7 @@ private class StatefulScriptServiceRunner(
                 party,
                 itemRecords = battleContent.itemRecords,
                 selectedIndex = draw.value,
+                realmContent = battleContent.realm,
             )
         }
         val result = RandomItemOfferSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
@@ -1083,6 +1084,7 @@ private class StatefulScriptServiceRunner(
             party = party,
             gold = op.reward.gold?.let(::eval) ?: 0,
             itemRecords = battleContent.itemRecords,
+            realmContent = battleContent.realm,
         )
         val result = RewardGrantSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
@@ -1508,6 +1510,7 @@ class RylweenKotlinEngine(
             scenes = content.scenes,
             runtime = initialRuntime(party, hour, town, rngState, realizeNpcs),
             itemRecords = itemRecords,
+            realmContent = content.realm,
         )
 
     fun wildernessSession(
@@ -1851,7 +1854,10 @@ class InventoryItemUseTerminalAdapter(
                         rootOps = step.use.ops,
                         continuation = step.continuation,
                         speakContent = speakContent,
-                        battleContent = BattleRuntimeContent(itemRecords = session.itemRecords),
+                        battleContent = BattleRuntimeContent(
+                            itemRecords = session.itemRecords,
+                            realm = session.realmContent,
+                        ),
                         textRenderer = renderer,
                     ).run()
                     terminal.writeScriptEvents(
@@ -2264,7 +2270,10 @@ class TownSessionTerminalAdapter(
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
                     val bridge = serviceBridge ?: StatefulTownServiceBridge(
                         terminal,
-                        battleContent = BattleRuntimeContent(itemRecords = session.itemRecords),
+                        battleContent = BattleRuntimeContent(
+                            itemRecords = session.itemRecords,
+                            realm = session.realmContent,
+                        ),
                         renderer = renderer,
                     )
                     val result = bridge.run(step.service, step.scene, continuation)
@@ -2518,6 +2527,7 @@ class DungeonSessionTerminalAdapter(
                 spells = session.spells,
                 itemUses = session.itemUses,
                 itemRecords = session.itemRecords,
+                realm = session.realm,
             ),
             worldMap = session.worldMap,
             textRenderer = renderer,
@@ -2634,6 +2644,7 @@ class WildernessSessionTerminalAdapter(
                             spells = session.spells,
                             itemUses = session.itemUses,
                             itemRecords = session.itemRecords,
+                            realm = session.realm,
                         ),
                         worldMap = session.worldMap,
                         renderer = renderer,

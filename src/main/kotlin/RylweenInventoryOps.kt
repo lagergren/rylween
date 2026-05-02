@@ -32,9 +32,10 @@ sealed interface DungeonDescentResult {
 
 data class CampGearEffect(
     val image: ImageId,
-    val protectsLowTemperature: Boolean,
-    val protectsVeryLowTemperature: Boolean,
-)
+    val protectedBands: Set<TemperatureBand>,
+) {
+    fun protects(band: TemperatureBand): Boolean = band in protectedBands
+}
 
 val EquipmentActionResult.party: PartyState
     get() = when (this) {
@@ -52,10 +53,16 @@ fun PartyState.placeInventoryItem(
     item: ItemId,
     overflow: RewardOverflowPolicy = RewardOverflowPolicy.PromptDropThenPlace,
     dropSlot: Int? = null,
+    itemRecords: List<ItemRecordModel> = emptyList(),
+    realmContent: RealmContentModel = RealmContentModel(),
 ): InventoryPlacementResult {
-    firstFreeInventorySlot()?.let { slot ->
-        return InventoryPlacementResult.Placed(withInventoryItem(slot, item), slot)
-    }
+    fun placed(slot: Int): InventoryPlacementResult.Placed =
+        InventoryPlacementResult.Placed(
+            withInventoryItem(slot, item).clampResourcesToCapacity(itemRecords, realmContent),
+            slot,
+        )
+
+    firstFreeInventorySlot()?.let { return placed(it) }
 
     if (overflow == RewardOverflowPolicy.SkipIfInventoryFull) {
         return InventoryPlacementResult.Full(this)
@@ -65,7 +72,7 @@ fun PartyState.placeInventoryItem(
     if (slot !in 1..InventorySaveSlotMax || inventoryItem(slot) == null) {
         return InventoryPlacementResult.InvalidDropSlot(this, slot)
     }
-    return InventoryPlacementResult.Placed(withInventoryItem(slot, item), slot)
+    return placed(slot)
 }
 
 fun PartyState.equipFromInventory(
@@ -186,18 +193,34 @@ fun PartyState.firstFreeInventorySlot(): Int? =
 fun PartyState.withInventoryItem(slot: Int, item: ItemId?): PartyState {
     require(slot in 0..InventorySaveSlotMax) { "inventory slot $slot outside 0..$InventorySaveSlotMax" }
     val slots = inventory.associateBy { it.slot }.toMutableMap()
-    val previous = slots[slot]?.item
     slots[slot] = InventorySlotState(slot, item)
-    val updated = copy(inventory = slots.values.sortedBy { it.slot })
-    return if (previous == Items.donkey && item != Items.donkey) {
-        updated.withFoodClampedToDonkeyCapacity()
-    } else {
-        updated
-    }
+    return copy(inventory = slots.values.sortedBy { it.slot })
 }
 
-fun PartyState.foodCapacityByDonkeys(): Int =
-    150 * (countInventoryItem(Items.donkey) + 1)
+fun PartyState.resourceCapacity(
+    itemRecords: List<ItemRecordModel>,
+    resource: Resource,
+    baseCapacity: Int,
+): Int {
+    val byId = itemRecords.associateBy { it.id }
+    val bonus = inventory
+        .asSequence()
+        .filter { it.slot in 1..InventorySaveSlotMax }
+        .sumOf { slot ->
+            val item = slot.item ?: return@sumOf 0
+            byId[item]?.resourceCapacityBonus?.get(resource) ?: 0
+        }
+    return baseCapacity + bonus
+}
+
+fun PartyState.clampResourcesToCapacity(
+    itemRecords: List<ItemRecordModel>,
+    realmContent: RealmContentModel,
+): PartyState {
+    val foodBase = realmContent.baseResourceCapacity[Resource.Food] ?: return this
+    val cap = resourceCapacity(itemRecords, Resource.Food, foodBase)
+    return if (resources.food <= cap) this else copy(resources = resources.copy(food = cap))
+}
 
 fun PartyState.hasInventoryItem(item: ItemId): Boolean =
     inventory.any { it.slot in 1..InventorySaveSlotMax && it.item == item }
@@ -215,14 +238,19 @@ fun PartyState.hasInventoryEquipment(
 fun PartyState.hasLivingMemberWithout(kind: EquipmentKind): Boolean =
     members.any { member -> !member.dead && member.equipment.item(kind) == Items.none }
 
-fun PartyState.campGearEffect(): CampGearEffect {
-    val hasTent = hasInventoryItem(Items.tent)
-    val hasBlanket = hasInventoryItem(Items.blanket)
-    return CampGearEffect(
-        image = if (hasTent) Images.Scene.tent else Images.Scene.noTent,
-        protectsLowTemperature = hasBlanket || hasTent,
-        protectsVeryLowTemperature = hasTent,
-    )
+fun PartyState.campGearEffect(
+    itemRecords: List<ItemRecordModel>,
+    fallbackImage: ImageId,
+): CampGearEffect {
+    val byId = itemRecords.associateBy { it.id }
+    val carriedRecords = inventory
+        .asSequence()
+        .filter { it.slot in 1..InventorySaveSlotMax }
+        .mapNotNull { slot -> slot.item?.let(byId::get) }
+        .toList()
+    val protections = carriedRecords.flatMapTo(mutableSetOf()) { it.campProtection }
+    val image = carriedRecords.firstNotNullOfOrNull { it.campImage } ?: fallbackImage
+    return CampGearEffect(image = image, protectedBands = protections)
 }
 
 fun PartyState.withGold(gold: Int): PartyState =
@@ -254,11 +282,6 @@ fun PartyState.withMilestone(milestone: GameMilestoneId): PartyState =
 
 fun PartyState.withJournalLines(lines: List<String>): PartyState =
     copy(journal = journal + lines.filter { it.isNotBlank() }.map(JournalEntryState::Line))
-
-private fun PartyState.withFoodClampedToDonkeyCapacity(): PartyState {
-    val cap = foodCapacityByDonkeys()
-    return if (resources.food <= cap) this else copy(resources = resources.copy(food = cap))
-}
 
 private fun PartyState.withMember(index: Int, member: PartyMemberState): PartyState =
     copy(members = members.mapIndexed { i, existing -> if (i == index) member else existing })

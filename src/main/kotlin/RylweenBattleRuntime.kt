@@ -12,6 +12,7 @@ data class BattleRuntimeContent(
     val spells: List<SpellModel> = emptyList(),
     val itemUses: List<ItemUseModel> = emptyList(),
     val itemRecords: List<ItemRecordModel> = emptyList(),
+    val realm: RealmContentModel = RealmContentModel(),
 ) {
     val configured: Boolean get() = combat.standardBattle != null
 }

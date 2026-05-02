@@ -70,8 +70,9 @@ data class ShopServiceSession(
     val lastTransaction: ShopTransactionResult? = null,
     val lastSellQuote: ShopSellQuoteResult? = null,
     val itemRecords: List<ItemRecordModel> = emptyList(),
+    val realmContent: RealmContentModel = RealmContentModel(),
 ) {
-    private fun interpreter(): ShopServiceInterpreter = ShopServiceInterpreter(itemRecords)
+    private fun interpreter(): ShopServiceInterpreter = ShopServiceInterpreter(itemRecords, realmContent)
     private fun mainMenu(): ShopServiceStep =
         ShopServiceStep.MainMenu(shop.menu, canBuy = shop.buy != null, canSell = shop.sell != null)
 
@@ -104,7 +105,7 @@ data class ShopServiceSession(
                 lastTransaction = ShopTransactionResult(ShopTransactionStatus.ItemNotSoldHere, party, item),
             )
         val purchase = offer.purchase
-        return if (purchase is ShopPurchaseModel.Resource) {
+        return if (purchase is ShopPurchaseModel.Bulk) {
             copy(step = ShopServiceStep.Quantity(offer, purchase.quantityPrompt), lastTransaction = null, lastSellQuote = null)
         } else {
             purchaseStep(offer, quantity = 1)
@@ -200,12 +201,14 @@ data class ShopServiceSession(
             shop: ShopServiceModel,
             party: PartyState,
             itemRecords: List<ItemRecordModel> = emptyList(),
+            realmContent: RealmContentModel = RealmContentModel(),
         ): ShopServiceSession =
             ShopServiceSession(
                 shop = shop,
                 party = party,
                 step = ShopServiceStep.Intro(shop.intro),
                 itemRecords = itemRecords,
+                realmContent = realmContent,
             )
     }
 }
@@ -244,7 +247,8 @@ fun ShopBuyModel.offerFor(item: ItemId): ShopItemOfferModel? =
     offers().firstOrNull { it.item == item }
 
 class ShopServiceInterpreter(
-    itemRecords: List<ItemRecordModel> = emptyList(),
+    private val itemRecords: List<ItemRecordModel> = emptyList(),
+    private val realmContent: RealmContentModel = RealmContentModel(),
 ) {
     private val itemRecordById = itemRecords.associateBy { it.id }
 
@@ -262,7 +266,7 @@ class ShopServiceInterpreter(
 
         return when (val purchase = offer.purchase) {
             ShopPurchaseModel.InventoryItem -> buyInventoryItem(buy, party, offer.item, unitPrice, dropSlot)
-            is ShopPurchaseModel.Resource -> buyResource(party, offer.item, purchase, unitPrice, quantity)
+            is ShopPurchaseModel.Bulk -> buyResource(party, offer.item, purchase, unitPrice, quantity)
         }
     }
 
@@ -339,7 +343,13 @@ class ShopServiceInterpreter(
         if (party.resources.gold < unitPrice) {
             return ShopTransactionResult(ShopTransactionStatus.NotEnoughGold, party, item, goldDelta = -unitPrice)
         }
-        return when (val placed = party.placeInventoryItem(item, buy.inventoryApplication.overflow, dropSlot)) {
+        return when (val placed = party.placeInventoryItem(
+            item,
+            buy.inventoryApplication.overflow,
+            dropSlot,
+            itemRecords = itemRecords,
+            realmContent = realmContent,
+        )) {
             is InventoryPlacementResult.Placed -> ShopTransactionResult(
                 status = ShopTransactionStatus.Bought,
                 party = placed.party.withGold(placed.party.resources.gold - unitPrice),
@@ -369,7 +379,7 @@ class ShopServiceInterpreter(
     private fun buyResource(
         party: PartyState,
         item: ItemId,
-        purchase: ShopPurchaseModel.Resource,
+        purchase: ShopPurchaseModel.Bulk,
         unitPrice: Int,
         requestedQuantity: Int,
     ): ShopTransactionResult {
@@ -433,19 +443,30 @@ class ShopServiceInterpreter(
 
     private fun itemRecord(item: ItemId): ItemRecordModel =
         checkNotNull(itemRecordById[item]) { "unknown item ${item.slug}" }
+
+    private fun PartyState.remainingCapacity(cap: ShopQuantityCap): Int {
+        val limit = when (cap) {
+            is ShopQuantityCap.FixedAmount -> cap.amount
+            is ShopQuantityCap.CarryCapacity -> {
+                val base = realmContent.baseResourceCapacity[cap.resource] ?: 0
+                resourceCapacity(itemRecords, cap.resource, base)
+            }
+        }
+        return (limit - resourceAmount(cap.resource)).coerceAtLeast(0)
+    }
 }
 
-private fun PartyState.withResource(resource: ShopResourceKind, quantity: Int): PartyState =
+internal fun PartyState.resourceAmount(resource: Resource): Int =
     when (resource) {
-        ShopResourceKind.Torches -> copy(resources = resources.copy(torches = resources.torches + quantity))
-        ShopResourceKind.Food -> copy(resources = resources.copy(food = resources.food + quantity))
+        Resource.Food -> resources.food
+        Resource.Torches -> resources.torches
+    }
+
+private fun PartyState.withResource(resource: Resource, quantity: Int): PartyState =
+    when (resource) {
+        Resource.Torches -> copy(resources = resources.copy(torches = resources.torches + quantity))
+        Resource.Food -> copy(resources = resources.copy(food = resources.food + quantity))
     }
 
 private val PartyState.leaderLevel: Int
     get() = members.firstOrNull()?.level ?: 0
-
-private fun PartyState.remainingCapacity(cap: ShopQuantityCap): Int =
-    when (cap) {
-        ShopQuantityCap.TorchLimit80 -> 80 - resources.torches
-        ShopQuantityCap.FoodByDonkeys -> foodCapacityByDonkeys() - resources.food
-    }.coerceAtLeast(0)

@@ -177,6 +177,8 @@ class ItemPoolId private constructor(
 }
 enum class ItemKind { Empty, Weapon, Armor, Gear, Potion, Treasure, Special, MagicItem }
 enum class ItemStorageKind { EmptySentinel, SlottedInventory, SpecialMilestone }
+enum class Resource { Food, Torches }
+enum class TemperatureBand { Low, VeryLow }
 data class ItemRecordModel(
     val id: ItemId,
     val kind: ItemKind,
@@ -185,6 +187,12 @@ data class ItemRecordModel(
     val storage: ItemStorageKind,
     val weaponDamage: Int? = null,
     val armorClass: Int? = null,
+    val campImage: ImageId? = null,
+    val campProtection: Set<TemperatureBand> = emptySet(),
+    val resourceCapacityBonus: Map<Resource, Int> = emptyMap(),
+)
+data class RealmContentModel(
+    val baseResourceCapacity: Map<Resource, Int> = emptyMap(),
 )
 data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
@@ -820,19 +828,27 @@ data class RandomItemOfferModel(
     val declineKey: Char get() = decline.primaryChar
 }
 
-enum class ShopResourceKind { Torches, Food }
-enum class ShopQuantityCap { TorchLimit80, FoodByDonkeys }
 enum class ShopZeroQuantityDealPolicy { Always, NonZeroOnly }
 enum class ShopSellBargainPolicy { None, SmithHaggle }
 
+sealed interface ShopQuantityCap {
+    val resource: Resource
+
+    data class FixedAmount(override val resource: Resource, val amount: Int) : ShopQuantityCap
+    data class CarryCapacity(override val resource: Resource) : ShopQuantityCap
+}
+
 object ShopResources {
-    val torches: ShopResourceKind = ShopResourceKind.Torches
-    val food: ShopResourceKind = ShopResourceKind.Food
+    val torches: Resource = Resource.Torches
+    val food: Resource = Resource.Food
 }
 
 object ShopQuantityCaps {
-    val torchLimit80: ShopQuantityCap = ShopQuantityCap.TorchLimit80
-    val foodByDonkeys: ShopQuantityCap = ShopQuantityCap.FoodByDonkeys
+    fun fixed(resource: Resource, amount: Int): ShopQuantityCap =
+        ShopQuantityCap.FixedAmount(resource, amount)
+
+    fun carryCapacity(resource: Resource): ShopQuantityCap =
+        ShopQuantityCap.CarryCapacity(resource)
 }
 
 object ShopZeroQuantityDeal {
@@ -860,8 +876,8 @@ val ShopPrices = ShopPriceRefs()
 
 sealed interface ShopPurchaseModel {
     object InventoryItem : ShopPurchaseModel
-    data class Resource(
-        val resource: ShopResourceKind,
+    data class Bulk(
+        val resource: Resource,
         val quantityPrompt: TextBlock,
         val cap: ShopQuantityCap,
         val tooMany: TextBlock,
@@ -1127,6 +1143,7 @@ data class SpeakSystemModel(
 data class GameModel(
     val itemCatalog: List<ItemRecordModel>,
     val itemPools: List<ItemPoolId>,
+    val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel,
     val terminal: TerminalPresentationModel,
     val flags: List<FlagRef>,
@@ -2496,7 +2513,7 @@ class ShopCatalogBuilder(private val binding: InputBindingModel, private val tit
     fun resource(
         key: Char,
         item: ItemId,
-        resource: ShopResourceKind,
+        resource: Resource,
         cap: ShopQuantityCap,
         tooMany: TextBlock,
         label: String? = null,
@@ -2511,7 +2528,7 @@ class ShopCatalogBuilder(private val binding: InputBindingModel, private val tit
     fun resource(
         binding: InputBindingModel,
         item: ItemId,
-        resource: ShopResourceKind,
+        resource: Resource,
         cap: ShopQuantityCap,
         tooMany: TextBlock,
         label: String? = null,
@@ -2526,14 +2543,14 @@ class ShopCatalogBuilder(private val binding: InputBindingModel, private val tit
             label = label,
             description = description,
             price = price,
-            purchase = ShopPurchaseModel.Resource(resource, quantityPrompt, cap, tooMany, zeroQuantityDeal),
+            purchase = ShopPurchaseModel.Bulk(resource, quantityPrompt, cap, tooMany, zeroQuantityDeal),
         )
     }
 
     fun resource(
         key: Char,
         item: ItemId,
-        resource: ShopResourceKind,
+        resource: Resource,
         cap: ShopQuantityCap,
         tooMany: TextBlock,
         label: String? = null,
@@ -2559,7 +2576,7 @@ class ShopCatalogBuilder(private val binding: InputBindingModel, private val tit
     fun resource(
         binding: InputBindingModel,
         item: ItemId,
-        resource: ShopResourceKind,
+        resource: Resource,
         cap: ShopQuantityCap,
         tooMany: TextBlock,
         label: String? = null,
@@ -3031,6 +3048,52 @@ class ItemPoolBuilder {
 }
 
 @RylNextDsl
+class CampProtectionBuilder {
+    private val bands = mutableSetOf<TemperatureBand>()
+
+    fun protects(vararg bands: TemperatureBand) {
+        this.bands += bands
+    }
+
+    internal fun build(): Set<TemperatureBand> = bands.toSet()
+}
+
+@RylNextDsl
+class ItemRecordBuilder {
+    private var image: ImageId? = null
+    private var protection: Set<TemperatureBand> = emptySet()
+    private val capacityBonuses = mutableMapOf<Resource, Int>()
+
+    fun campImage(image: ImageId) {
+        this.image = image
+    }
+
+    fun campProtection(body: CampProtectionBuilder.() -> Unit) {
+        protection = CampProtectionBuilder().apply(body).build()
+    }
+
+    fun resourceCapacityBonus(resource: Resource, amount: Int) {
+        capacityBonuses[resource] = amount
+    }
+
+    internal fun campImageValue(): ImageId? = image
+    internal fun campProtectionValue(): Set<TemperatureBand> = protection
+    internal fun resourceCapacityBonusValue(): Map<Resource, Int> = capacityBonuses.toMap()
+}
+
+@RylNextDsl
+class RealmContentBuilder {
+    private val baseCapacity = mutableMapOf<Resource, Int>()
+
+    fun baseResourceCapacity(resource: Resource, amount: Int) {
+        baseCapacity[resource] = amount
+    }
+
+    internal fun build(): RealmContentModel =
+        RealmContentModel(baseResourceCapacity = baseCapacity.toMap())
+}
+
+@RylNextDsl
 class ItemCatalogBuilder {
     private val records = mutableListOf<ItemRecordModel>()
     private val pools = mutableListOf<ItemPoolId>()
@@ -3058,6 +3121,10 @@ class ItemCatalogBuilder {
         record(id, ItemKind.Gear, name, cost)
     }
 
+    fun gear(id: ItemId, name: String, cost: Int, body: ItemRecordBuilder.() -> Unit) {
+        customizable(id, ItemKind.Gear, name, cost, body)
+    }
+
     fun potion(id: ItemId, name: String, cost: Int) {
         record(
             id = id,
@@ -3069,6 +3136,29 @@ class ItemCatalogBuilder {
 
     fun treasure(id: ItemId, name: String, cost: Int) {
         record(id, ItemKind.Treasure, name, cost)
+    }
+
+    fun treasure(id: ItemId, name: String, cost: Int, body: ItemRecordBuilder.() -> Unit) {
+        customizable(id, ItemKind.Treasure, name, cost, body)
+    }
+
+    private fun customizable(
+        id: ItemId,
+        kind: ItemKind,
+        name: String,
+        cost: Int,
+        body: ItemRecordBuilder.() -> Unit,
+    ) {
+        val builder = ItemRecordBuilder().apply(body)
+        record(
+            id = id,
+            kind = kind,
+            name = name,
+            cost = cost,
+            campImage = builder.campImageValue(),
+            campProtection = builder.campProtectionValue(),
+            resourceCapacityBonus = builder.resourceCapacityBonusValue(),
+        )
     }
 
     fun special(id: ItemId, name: String) {
@@ -3099,8 +3189,22 @@ class ItemCatalogBuilder {
         storage: ItemStorageKind = ItemStorageKind.SlottedInventory,
         weaponDamage: Int? = null,
         armorClass: Int? = null,
+        campImage: ImageId? = null,
+        campProtection: Set<TemperatureBand> = emptySet(),
+        resourceCapacityBonus: Map<Resource, Int> = emptyMap(),
     ) {
-        records += ItemRecordModel(id, kind, name, cost, storage, weaponDamage, armorClass)
+        records += ItemRecordModel(
+            id = id,
+            kind = kind,
+            displayName = name,
+            cost = cost,
+            storage = storage,
+            weaponDamage = weaponDamage,
+            armorClass = armorClass,
+            campImage = campImage,
+            campProtection = campProtection,
+            resourceCapacityBonus = resourceCapacityBonus,
+        )
     }
 
     internal fun build(): ItemCatalogDeclaration =
@@ -3246,6 +3350,7 @@ private fun BoolAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): BoolA
 class GameBuilder {
     private val itemRecords = mutableListOf<ItemRecordModel>()
     private val itemPools = mutableListOf<ItemPoolId>()
+    private var realmModel = RealmContentModel()
     private var promptsModel = GamePromptsModel()
     private var terminalPresentationModel = TerminalPresentationModel()
     private val authoredFlags = mutableListOf<FlagContentModel>()
@@ -3275,6 +3380,10 @@ class GameBuilder {
         val declaration = ItemCatalogBuilder().apply(body).build()
         itemRecords += declaration.records
         itemPools += declaration.pools
+    }
+
+    fun realm(body: RealmContentBuilder.() -> Unit) {
+        realmModel = RealmContentBuilder().apply(body).build()
     }
 
     fun prompts(body: GamePromptsBuilder.() -> Unit) {
@@ -3361,6 +3470,7 @@ class GameBuilder {
         return GameModel(
             itemCatalog = itemRecords.toList(),
             itemPools = itemPools.toList(),
+            realm = realmModel,
             prompts = promptsModel,
             terminal = terminalPresentationModel,
             flags = declaredFlags.toList(),
@@ -5697,7 +5807,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                                 page.footer?.let(::text)
                                 page.entries.forEach { entry ->
                                     entry.description?.let(::text)
-                                    (entry.purchase as? ShopPurchaseModel.Resource)?.let { resource ->
+                                    (entry.purchase as? ShopPurchaseModel.Bulk)?.let { resource ->
                                         text(resource.quantityPrompt)
                                         text(resource.tooMany)
                                     }
