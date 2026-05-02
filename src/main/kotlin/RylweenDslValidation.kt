@@ -925,6 +925,7 @@ fun validateScriptRewards(
             is IntAst.RealmScalar -> Unit
             is IntAst.PartyScalar -> Unit
             is IntAst.InventoryPoolCount -> validateSlottedItemPool(ast.pool, label)
+            is IntAst.InventorySlotCost -> validateIntExpression(ast.slot, label)
             is IntAst.NativeInt -> Unit
         }
     }
@@ -1225,6 +1226,7 @@ fun validateScriptRewards(
                             check(quantity.value > 0) { "consume inventory quantity must be positive" }
                         }
                     }
+                    is Op.ClearInventorySlot -> validateIntExpression(op.slot, "clear inventory slot")
                     is Op.EnterDungeon -> {
                         check(op.dungeon.slug.isNotBlank()) { "script dungeon handoff references blank dungeon" }
                         check(op.levels > 0) { "script dungeon handoff must use positive level count" }

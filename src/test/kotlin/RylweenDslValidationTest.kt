@@ -3885,6 +3885,56 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledGameSilverKeyVendorDialogueBuysAuthoredMap() {
+        val (service, scene) = dialogueBranchService(Npcs.bernak, Story.silverKey.none)
+        val result = StatefulTownServiceBridge(
+            FakeTerminalPort("B"),
+            battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            renderer = compiledTextRenderer(),
+        ).run(
+            service,
+            scene,
+            TownServiceContinuation.start(
+                RuntimeSessionState.singleParty(
+                    party = testParty(gold = 50000),
+                    hour = 12,
+                    currentTown = Towns.wilor.id,
+                ).copy(locations = listOf(LocationPlacement(Locations.silverKeyPit, GridPoint(45, 13)))),
+            ),
+        )
+
+        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertEquals(0, result.party.resources.gold)
+        assertTrue(result.party.hasFlagState(Story.silverKey.mapBought))
+        assertEquals(listOf(JournalEntryState.Line("The Pit of the Silver Key is at 45x13.")), result.party.journal)
+    }
+
+    @Test
+    fun compiledGameJazzyOgreTradeConsumesValuableItemAndMarksQuest() {
+        val (service, scene) = dialogueBranchService(Npcs.leander, Story.jazzy.ogre.none)
+        val result = StatefulTownServiceBridge(
+            FakeTerminalPort("A", ""),
+            battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            renderer = compiledTextRenderer(),
+        ).run(
+            service,
+            scene,
+            TownServiceContinuation.start(
+                RuntimeSessionState.singleParty(
+                    party = testParty(inventoryItems = mapOf(1 to Items.redGem)),
+                    hour = 12,
+                    currentTown = Towns.murn.id,
+                ).copy(locations = listOf(LocationPlacement(Locations.beastCave, GridPoint(11, 23)))),
+            ),
+        )
+
+        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertTrue(result.party.hasFlagState(Story.jazzy.ogre.accepted))
+        assertEquals(null, result.party.inventoryItem(1))
+        assertEquals(listOf(JournalEntryState.Line("The 'Beast Cave' is at 11x23.")), result.party.journal)
+    }
+
+    @Test
     fun compiledGameSpeakRunsGarthDialogueBranchBeforeConversationMenu() {
         val service = BuildingServiceModel(
             building = Buildings.inn,
@@ -3923,12 +3973,16 @@ class RylweenDslValidationTest {
     }
 
     private fun garthRecoveredDialogueService(): Pair<BuildingServiceModel, SceneModel> {
+        return dialogueBranchService(Npcs.garth, Story.garth.bandits.recovered)
+    }
+
+    private fun dialogueBranchService(npc: NpcId, state: FlagState): Pair<BuildingServiceModel, SceneModel> {
         val content = RylweenCompiledGame.nextDsl
         val branch = content.dialogue
-            .single { it.npc == Npcs.garth }
+            .single { it.npc == npc }
             .branches
-            .single { it.whenState == Story.garth.bandits.recovered }
-        val scene = SceneModel(sceneId("test.garth_reward_branch"), branch.ops)
+            .single { it.whenState == state }
+        val scene = SceneModel(sceneId("test.${npc.slug}.${state.native}"), branch.ops)
         val service = BuildingServiceModel(
             building = Buildings.inn,
             action = KeyActions.enterInn,

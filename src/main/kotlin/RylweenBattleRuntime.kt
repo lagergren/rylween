@@ -988,6 +988,9 @@ private class CombatScriptRunner(
                 Op.ConsumeActiveItem -> start.activeInventorySlot?.let { slot ->
                     runtime = runtime.withActiveParty(runtime.activeParty.withInventoryItem(slot, null))
                 }
+                is Op.ClearInventorySlot -> runtime = runtime.withActiveParty(
+                    runtime.activeParty.withInventoryItem(evaluator.int(op.slot), null),
+                )
                 is Op.ConsumeInventoryPool -> runtime = runtime.withActiveParty(
                     runtime.activeParty.consumeInventoryItems(op.pool, evaluator.int(op.quantity)),
                 )
@@ -1323,6 +1326,7 @@ abstract class IntAstEvaluator {
             is IntAst.RealmScalar -> realmScalar(ast.name)
             is IntAst.PartyScalar -> partyScalar(ast.name)
             is IntAst.InventoryPoolCount -> inventoryPoolCount(ast.pool)
+            is IntAst.InventorySlotCost -> inventorySlotCost(int(ast.slot))
             is IntAst.NativeInt -> nativeInt(ast.path, ast.args)
         }
 
@@ -1349,6 +1353,7 @@ abstract class IntAstEvaluator {
     protected open fun realmScalar(name: String): Int = unsupported("realm scalar $name")
     protected open fun partyScalar(name: String): Int = unsupported("party scalar $name")
     protected open fun inventoryPoolCount(pool: ItemPoolId): Int = unsupported("inventory pool ${pool.slug}")
+    protected open fun inventorySlotCost(slot: Int): Int = unsupported("inventory slot cost $slot")
     protected open fun nativeInt(path: String, args: List<String>): Int = unsupported("native int $path")
     protected open fun flagIs(slug: String, native: String): Boolean = unsupported("flag $slug")
     protected open fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
