@@ -7,6 +7,20 @@ import kotlin.test.assertTrue
 private fun compiledItemRecords(): List<ItemRecordModel> =
     RylweenCompiledGame.nextDsl.itemCatalog
 
+private fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
+    any { op ->
+        predicate(op) || when (op) {
+            is Op.If -> op.thenOps.anyNested(predicate) || op.elseOps.anyNested(predicate)
+            is Op.Loop -> op.body.anyNested(predicate)
+            is Op.Switch -> op.cases.any { case -> case.body.anyNested(predicate) }
+            is Op.Menu -> op.options.any { option -> option.body.anyNested(predicate) } ||
+                op.defaultOps.anyNested(predicate)
+            is Op.ForEachMember -> op.body.anyNested(predicate)
+            is Op.ForEachMonster -> op.body.anyNested(predicate)
+            else -> false
+        }
+    }
+
 private fun ItemCatalogBuilder.silverKeyTestItem() {
     special(Items.silverkey, "Silver Key")
 }
@@ -1983,6 +1997,37 @@ class RylweenDslValidationTest {
         assertTrue(result.status is TerminalRunStatus.Finished)
         assertEquals(Towns.thord.id, result.session.realm.currentTown)
         assertEquals(Scenes.Towne.church, content.scenes.single { it.id == Scenes.Towne.church }.id)
+    }
+
+    @Test
+    fun compiledGameDeclaresFirstDungeonEventScenarios() {
+        val dungeons = RylweenCompiledGame.nextDsl.dungeons
+        val randomCave = dungeons.scenarios.single { it.dungeon == Dungeons.randomCave }
+        val fireShield = dungeons.scenarios.single { it.dungeon == Dungeons.fireShieldCave }
+        val fireShieldEvent = dungeons.events.single { it.id == DungeonEvents.fireShield }
+        val weakEncounter = dungeons.events.single { it.id == DungeonEvents.weakEncounter }
+
+        assertEquals(null, randomCave.levelRange)
+        assertEquals(2, randomCave.randomEvents.single { it.event == DungeonEvents.weakEncounter }.weight)
+        assertEquals(DungeonEvents.fireShieldGuardian, fireShield.fixedLevelEvents[19])
+        assertEquals(DungeonEvents.fireShield, fireShield.fixedLevelEvents[20])
+        assertEquals(DungeonEventDisposition.Recurring, weakEncounter.disposition)
+        assertEquals(EncounterTiers.weak, weakEncounter.randomEncounterTier)
+        assertTrue(fireShieldEvent.ops.anyNested { op ->
+            op is Op.AchieveMilestone && op.milestone == Milestones.fireShield
+        })
+        assertTrue(fireShieldEvent.ops.anyNested { op ->
+            op is Op.SetFlag && op.slug == Story.hermit.trollTooth.slug &&
+                op.nativeValue == Story.hermit.trollTooth.fireShieldAcquired.native
+        })
+    }
+
+    @Test
+    fun compiledPriestTeleportUsesSemanticPromptAndMovementOps() {
+        val teleport = RylweenCompiledGame.nextDsl.spells.single { it.id == Spells.Priest.teleport }
+
+        assertTrue(teleport.ops.anyNested { it is Op.AskKey })
+        assertTrue(teleport.ops.anyNested { it is Op.TeleportParty })
     }
 
     @Test

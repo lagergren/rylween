@@ -48,6 +48,66 @@ fun ScriptScope.readScreen(body: StructuredTextBlockBuilder.() -> Unit) {
     native.screen.clearText()
 }
 
+fun ScriptScope.notEnoughSpellPoints() {
+    screen("Not enough spell pts!")
+    pause(1000)
+    native.screen.clearText()
+}
+
+fun ScriptScope.withPriestSpellPoints(caster: MemberRef, baseCost: Int, body: ScriptScope.() -> Unit) {
+    val cost = lit(baseCost) + caster.level
+    whenever(caster.mp gte cost) {
+        caster.mp -= cost
+        body()
+    } otherwise {
+        notEnoughSpellPoints()
+    }
+}
+
+fun ScriptScope.priestTeleport(caster: MemberRef) {
+    withPriestSpellPoints(caster, baseCost = 35) {
+        native.screen.clearText()
+        screen {
+            line(partyName(caster), " carefully")
+            lines("prepares the ritual of")
+            line("Teleportation. ", pronoun(caster, PronounCase.Subject), " spends")
+            lines("an hour chanting mantras", "and burning blue candles.", "")
+        }
+        realm.hour += 1
+        waitInput("after teleport ritual")
+        native.screen.clearText()
+        screen {
+            line(pronoun(caster, PronounCase.Subject), " picks up a stone slab")
+            lines(
+                "from his satchel and",
+                "uses a special instrument",
+                "to scratch the direction",
+            )
+            line(pronoun(caster, PronounCase.Subject), " wants you to teleport")
+            lines("to.", "")
+        }
+        waitInput("after teleport slab")
+        native.screen.clearText()
+        val direction = ask.wildernessDirection(
+            textLines(
+                "Teleport :",
+                "",
+                "   8",
+                " 4-+-6",
+                "   2",
+                "",
+            ),
+        )
+        native.screen.clearText()
+        val distance = ask.digit(textLines("How many miles do you", "want to travel? (1-9)"), 1..9)
+        teleportParty(direction, distance)
+        screen("You appear to be", "somewhere else.")
+        native.screen.redrawMap()
+        pause(1200)
+        native.screen.clearText()
+    }
+}
+
 fun ScriptScope.travellerStory() {
     native.screen.clearText()
     val maxMembers = realm.partyMemberMax

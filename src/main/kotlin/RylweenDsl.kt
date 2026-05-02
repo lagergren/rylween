@@ -212,6 +212,7 @@ data class BuildingId(val slug: String)
 data class FormulaId(val slug: String)
 data class KeyActionId(val slug: String)
 data class DungeonId(val slug: String)
+data class DungeonEventId(val slug: String)
 data class GameMilestoneId(val slug: String)
 data class LootTableId(val slug: String)
 data class RewardBundleId(val slug: String)
@@ -267,6 +268,7 @@ fun building(slug: String) = BuildingId(slug)
 fun formula(slug: String) = FormulaId(slug)
 fun keyAction(slug: String) = KeyActionId(slug)
 fun dungeon(slug: String) = DungeonId(slug)
+fun dungeonEvent(slug: String) = DungeonEventId(slug)
 fun milestone(slug: String) = GameMilestoneId(slug)
 fun lootTable(slug: String) = LootTableId(slug)
 fun rewardBundle(slug: String) = RewardBundleId(slug)
@@ -475,6 +477,32 @@ data class ItemUseModel(
     val contexts: Set<ItemUseContext>,
     val consume: ItemConsumePolicy,
     val ops: List<Op>,
+)
+
+enum class DungeonEventDisposition { ClearAfterRun, Recurring }
+
+data class DungeonEventModel(
+    val id: DungeonEventId,
+    val disposition: DungeonEventDisposition,
+    val ops: List<Op>,
+    val randomEncounterTier: EncounterTier? = null,
+)
+
+data class DungeonRandomEventModel(
+    val event: DungeonEventId,
+    val weight: Int,
+)
+
+data class DungeonScenarioModel(
+    val dungeon: DungeonId,
+    val levelRange: IntRange?,
+    val fixedLevelEvents: Map<Int, DungeonEventId>,
+    val randomEvents: List<DungeonRandomEventModel>,
+)
+
+data class DungeonSystemModel(
+    val events: List<DungeonEventModel> = emptyList(),
+    val scenarios: List<DungeonScenarioModel> = emptyList(),
 )
 
 sealed interface CharacterPlacementModel {
@@ -1096,6 +1124,7 @@ data class GameModel(
     val rewards: List<RewardBundleModel>,
     val combat: CombatSystemModel,
     val wilderness: WildernessSystemModel,
+    val dungeons: DungeonSystemModel,
     val speak: SpeakSystemModel,
     val towns: List<TownModel>,
     val townSystem: TownSystemModel?,
@@ -3050,6 +3079,9 @@ private fun SpellModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): Sp
 private fun ItemUseModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): ItemUseModel =
     copy(ops = ops.resolveItemPools(resolve))
 
+private fun DungeonSystemModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): DungeonSystemModel =
+    copy(events = events.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
+
 private fun List<Op>.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<Op> =
     map { it.resolveItemPools(resolve) }
 
@@ -3149,6 +3181,7 @@ class GameBuilder {
     private val rewardsModel = mutableListOf<RewardBundleModel>()
     private var combatModel = CombatSystemModel(null)
     private var wildernessModel = WildernessSystemModel()
+    private var dungeonsModel = DungeonSystemModel()
     private var speakModel = SpeakSystemModel(null)
     private val towns = mutableListOf<TownModel>()
     private var townSystemModel: TownSystemModel? = null
@@ -3196,6 +3229,10 @@ class GameBuilder {
 
     fun wilderness(body: WildernessSystemBuilder.() -> Unit) {
         wildernessModel = WildernessSystemBuilder().apply(body).build()
+    }
+
+    fun dungeons(body: DungeonSystemBuilder.() -> Unit) {
+        dungeonsModel = DungeonSystemBuilder().apply(body).build()
     }
 
     fun speak(body: SpeakBuilder.() -> Unit) {
@@ -3255,6 +3292,7 @@ class GameBuilder {
             rewards = rewardsModel.map { it.resolveItemPools(::resolveItemPool) },
             combat = combatModel,
             wilderness = wildernessModel,
+            dungeons = dungeonsModel.resolveItemPools(::resolveItemPool),
             speak = speakModel,
             towns = towns.toList(),
             townSystem = townSystemModel,
@@ -3439,6 +3477,96 @@ class WildernessHelpPagesBuilder {
     }
 
     fun build(): List<TextBlock> = pages.toList()
+}
+
+@RylNextDsl
+class DungeonSystemBuilder {
+    private val events = mutableListOf<DungeonEventModel>()
+    private val scenarios = mutableListOf<DungeonScenarioModel>()
+
+    fun event(id: DungeonEventId, body: DungeonEventBuilder.() -> Unit) {
+        events += DungeonEventBuilder(id).apply(body).build()
+    }
+
+    fun scenario(dungeon: DungeonId, body: DungeonScenarioBuilder.() -> Unit) {
+        scenarios += DungeonScenarioBuilder(dungeon).apply(body).build()
+    }
+
+    fun build(): DungeonSystemModel =
+        DungeonSystemModel(events.toList(), scenarios.toList())
+}
+
+@RylNextDsl
+class DungeonEventBuilder(private val id: DungeonEventId) {
+    private var disposition = DungeonEventDisposition.ClearAfterRun
+    private var randomEncounterTier: EncounterTier? = null
+    private val ops = mutableListOf<Op>()
+
+    fun recurring() {
+        disposition = DungeonEventDisposition.Recurring
+    }
+
+    fun clearsAfterRun() {
+        disposition = DungeonEventDisposition.ClearAfterRun
+    }
+
+    fun randomEncounter(tier: EncounterTier) {
+        randomEncounterTier = tier
+    }
+
+    fun run(body: ScriptScope.() -> Unit) {
+        ops += recordScript(body)
+    }
+
+    fun build(): DungeonEventModel =
+        DungeonEventModel(
+            id = id,
+            disposition = disposition,
+            ops = ops.toList(),
+            randomEncounterTier = randomEncounterTier,
+        )
+}
+
+@RylNextDsl
+class DungeonScenarioBuilder(private val dungeon: DungeonId) {
+    private var levelRange: IntRange? = null
+    private val fixedLevelEvents = linkedMapOf<Int, DungeonEventId>()
+    private val randomEvents = mutableListOf<DungeonRandomEventModel>()
+
+    fun levels(count: Int) {
+        levelRange = count..count
+    }
+
+    fun randomLevels(range: IntRange) {
+        levelRange = range
+    }
+
+    fun level(number: Int, event: DungeonEventId) {
+        fixedLevelEvents[number] = event
+    }
+
+    fun randomEvents(body: DungeonRandomEventPoolBuilder.() -> Unit) {
+        randomEvents += DungeonRandomEventPoolBuilder().apply(body).build()
+    }
+
+    fun build(): DungeonScenarioModel =
+        DungeonScenarioModel(
+            dungeon = dungeon,
+            levelRange = levelRange,
+            fixedLevelEvents = fixedLevelEvents.toMap(),
+            randomEvents = randomEvents.toList(),
+        )
+}
+
+@RylNextDsl
+class DungeonRandomEventPoolBuilder {
+    private val events = mutableListOf<DungeonRandomEventModel>()
+
+    fun event(event: DungeonEventId, weight: Int = 1) {
+        events += DungeonRandomEventModel(event, weight)
+    }
+
+    fun build(): List<DungeonRandomEventModel> = events.toList()
 }
 
 @RylNextDsl
@@ -5479,6 +5607,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
     }
 
     model.scenes.forEach { ops(it.ops) }
+    model.dungeons.events.forEach { ops(it.ops) }
     model.dialogue.forEach { dialogue ->
         dialogue.branches.forEach { ops(it.ops) }
     }

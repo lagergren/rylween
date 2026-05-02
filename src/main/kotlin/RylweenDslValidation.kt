@@ -268,6 +268,53 @@ fun validateWildernessSystem(wilderness: WildernessSystemModel) {
     }
 }
 
+fun validateDungeonSystem(dungeons: DungeonSystemModel) {
+    check(dungeons.events.map { it.id }.toSet().size == dungeons.events.size) {
+        "duplicate dungeon event"
+    }
+    val eventIds = dungeons.events.map { it.id }.toSet()
+    dungeons.events.forEach { event ->
+        check(event.id.slug.isNotBlank()) { "dungeon event references blank id" }
+        event.randomEncounterTier?.let { tier ->
+            check(tier.slug.isNotBlank()) { "dungeon event ${event.id.slug} references blank encounter tier" }
+        }
+        check(event.ops.isNotEmpty() || event.randomEncounterTier != null) {
+            "dungeon event ${event.id.slug} must declare script or random encounter"
+        }
+    }
+
+    check(dungeons.scenarios.map { it.dungeon }.toSet().size == dungeons.scenarios.size) {
+        "duplicate dungeon scenario"
+    }
+    dungeons.scenarios.forEach { scenario ->
+        check(scenario.dungeon.slug.isNotBlank()) { "dungeon scenario references blank dungeon" }
+        scenario.levelRange?.let { range ->
+            check(range.first > 0 && range.last >= range.first) {
+                "dungeon scenario ${scenario.dungeon.slug} has invalid level range"
+            }
+        }
+        scenario.fixedLevelEvents.forEach { (level, event) ->
+            check(level > 0) { "dungeon scenario ${scenario.dungeon.slug} uses invalid level $level" }
+            scenario.levelRange?.let { range ->
+                check(level <= range.last) {
+                    "dungeon scenario ${scenario.dungeon.slug} level $level is deeper than ${range.last}"
+                }
+            }
+            check(event in eventIds) {
+                "dungeon scenario ${scenario.dungeon.slug} references missing event ${event.slug}"
+            }
+        }
+        scenario.randomEvents.forEach { random ->
+            check(random.weight > 0) {
+                "dungeon scenario ${scenario.dungeon.slug} random event ${random.event.slug} has invalid weight"
+            }
+            check(random.event in eventIds) {
+                "dungeon scenario ${scenario.dungeon.slug} references missing random event ${random.event.slug}"
+            }
+        }
+    }
+}
+
 private fun validateWildernessKeys(keys: WildernessKeysModel) {
     listOf(
         "move north" to keys.moveNorth,
@@ -1188,6 +1235,7 @@ fun validateScriptRewards(
     }
 
     content.scenes.forEach { visit(it.ops) }
+    content.dungeons.events.forEach { visit(it.ops) }
     content.dialogue.forEach { dialogue ->
         dialogue.branches.forEach { visit(it.ops) }
     }
@@ -1295,6 +1343,7 @@ fun validateAuthoredContent(content: GameModel) {
     validateRewardBundles(content.rewards, content.formulas, content.itemCatalog)
     validateCombatSystem(content.combat, content.rewards)
     validateWildernessSystem(content.wilderness)
+    validateDungeonSystem(content.dungeons)
     validateTowns(content.towns)
     validateTownSystem(content.townSystem, content.towns, content.scenes)
     validateCharacters(content.characters, content.towns)

@@ -868,6 +868,22 @@ class DungeonRefs {
 }
 val Dungeons = DungeonRefs()
 
+class DungeonEventRefs {
+    val nothingSpecial = dungeonEvent("nothing_special")
+    val emptyLevel = dungeonEvent("empty_level")
+    val spectrumMessage = dungeonEvent("spectrum_message")
+    val gold = dungeonEvent("gold")
+    val torches = dungeonEvent("torches")
+    val weakEncounter = dungeonEvent("weak_encounter")
+    val deepEncounter = dungeonEvent("deep_encounter")
+    val fireShieldGuardian = dungeonEvent("fire_shield_guardian")
+    val fireShield = dungeonEvent("fire_shield")
+    val bracelets = dungeonEvent("bracelets")
+    val nolrimTomb = dungeonEvent("nolrim_tomb")
+    val masterCrown = dungeonEvent("master_crown")
+}
+val DungeonEvents = DungeonEventRefs()
+
 class FormulaRefs {
     val encounterH1Scaled = formula("encounter_h1_scaled")
     val encounterH2Scaled = formula("encounter_h2_scaled")

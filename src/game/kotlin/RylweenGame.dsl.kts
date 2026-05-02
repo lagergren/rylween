@@ -460,8 +460,8 @@ val nextRylween = rylween {
                     "! = Redraw Screen",
                     "? = View this help",
                     "    8     Move North,",
-                    "  4-+-6   South, East &",
-                    "    2     West",
+                    "  4-+-6   West & East,",
+                    "    2     Move South",
                     "",
                 )
             }
@@ -560,6 +560,197 @@ val nextRylween = rylween {
                     "",
                 )
             }
+        }
+    }
+
+    dungeons {
+        event(DungeonEvents.nothingSpecial) {
+            run {
+                readScreen("You find nothing", "special on this level.", "")
+            }
+        }
+
+        event(DungeonEvents.emptyLevel) {
+            run {
+                readScreen("This level is empty.", "")
+            }
+        }
+
+        event(DungeonEvents.spectrumMessage) {
+            run {
+                readScreen(
+                    "A message on the wall",
+                    "reads:",
+                    "",
+                    "'M U R T C E P S'",
+                    "THiNgs aren't aLways iN",
+                    "theIR naTuRAl oRDeR...",
+                    "",
+                )
+            }
+        }
+
+        event(DungeonEvents.gold) {
+            recurring()
+            run {
+                val amount = localInt(random(40..339))
+                screen {
+                    line("You find ", amount)
+                    lines("gold pieces.", "")
+                }
+                party.gold += amount
+                waitInput("after dungeon gold")
+                native.screen.clearText()
+            }
+        }
+
+        event(DungeonEvents.torches) {
+            recurring()
+            run {
+                val amount = localInt(random(2..4))
+                screen {
+                    line("You find ", amount, " torches.")
+                    line("")
+                }
+                party.torches += amount
+                waitInput("after dungeon torches")
+                native.screen.clearText()
+            }
+        }
+
+        event(DungeonEvents.weakEncounter) {
+            recurring()
+            randomEncounter(EncounterTiers.weak)
+        }
+
+        event(DungeonEvents.deepEncounter) {
+            recurring()
+            randomEncounter(EncounterTiers.deep)
+        }
+
+        event(DungeonEvents.fireShieldGuardian) {
+            run {
+                readScreen(
+                    "As you enter this level",
+                    "you hear a horrible",
+                    "evil laughter.",
+                    "Suddenly!",
+                    "Out of the shadows,",
+                    "something HIDEOUS",
+                    "emerges.",
+                    "",
+                )
+                encounter(Monsters.guardian, mandatory = true)
+            }
+        }
+
+        event(DungeonEvents.fireShield) {
+            run {
+                readScreen(
+                    "After you have bested",
+                    "the foul thing, the",
+                    "dungeon is strangely",
+                    "quiet. Upon entering",
+                    "this level, you find the",
+                    "marvelous FIRE SHIELD on",
+                    "a pedestal! You take it.",
+                    "",
+                )
+                achieve(Milestones.fireShield)
+                mark(Story.hermit.trollTooth.fireShieldAcquired)
+            }
+        }
+
+        event(DungeonEvents.bracelets) {
+            run {
+                readScreen(
+                    "This whole chamber",
+                    "shines of a bright",
+                    "white light! On a",
+                    "table before you,",
+                    "lie the fabled",
+                    "Bracelets of Thun!",
+                    "The glow fades as",
+                    "you put them in your",
+                    "backpack.",
+                    "",
+                )
+                achieve(Milestones.braceletsOfThun)
+                mark(Story.bracelets.thun.braceletsTaken)
+            }
+        }
+
+        event(DungeonEvents.nolrimTomb) {
+            run {
+                readScreen(
+                    "Nolrim's body rests on",
+                    "a stone slab in this room.",
+                    "On his chest lies the",
+                    "dagger you seek. You put",
+                    "it in your backpack.",
+                    "",
+                )
+                mark(Story.masterCrown.daggerTaken)
+            }
+        }
+
+        event(DungeonEvents.masterCrown) {
+            run {
+                readScreen(
+                    "FINALLY! In the hands of",
+                    "a long dead warrior, who",
+                    "is placed like a statue",
+                    "by the east wall of this",
+                    "chamber, is the Master",
+                    "Crown. The most powerful",
+                    "object in the realm.",
+                    "It shines with an inner",
+                    "light.",
+                    "",
+                )
+                readScreen(
+                    "...but as you take it,",
+                    "THE WARRIOR COMES",
+                    "TO LIFE!!!",
+                    "",
+                )
+                encounter(Monsters.longDeadWarrior, mandatory = true)
+                achieve(Milestones.masterCrown)
+                mark(Story.masterCrown.crownTaken)
+            }
+        }
+
+        scenario(Dungeons.randomCave) {
+            randomEvents {
+                event(DungeonEvents.gold)
+                event(DungeonEvents.weakEncounter, weight = 2)
+                event(DungeonEvents.deepEncounter)
+                event(DungeonEvents.nothingSpecial)
+                event(DungeonEvents.emptyLevel)
+                event(DungeonEvents.torches)
+            }
+        }
+
+        scenario(Dungeons.fireShieldCave) {
+            levels(20)
+            level(19, DungeonEvents.fireShieldGuardian)
+            level(20, DungeonEvents.fireShield)
+        }
+
+        scenario(Dungeons.thunTemple) {
+            levels(18)
+            level(18, DungeonEvents.bracelets)
+        }
+
+        scenario(Dungeons.reebarTomb) {
+            levels(20)
+            level(12, DungeonEvents.spectrumMessage)
+            level(20, DungeonEvents.nolrimTomb)
+        }
+
+        scenario(Dungeons.masterCrownDungeon) {
+            levels(10)
+            level(10, DungeonEvents.masterCrown)
         }
     }
 
@@ -3235,55 +3426,7 @@ val nextRylween = rylween {
     }
 
     spell(Spells.Priest.teleport, slot = 6, baseCost = 35, name = "Teleport") {
-        val caster = currentCaster
-        val cost = lit(35) + caster.level
-
-        whenever(caster.mp gte cost) {
-            caster.mp -= cost
-            native.screen.clearText()
-            screen {
-                line(partyName(caster), " carefully")
-                lines("prepares the ritual of")
-                line("Teleportation. ", pronoun(caster, PronounCase.Subject), " spends")
-                lines("an hour chanting mantras", "and burning blue candles.", "")
-            }
-            realm.hour += 1
-            waitInput("after teleport ritual")
-            native.screen.clearText()
-            screen {
-                line(pronoun(caster, PronounCase.Subject), " picks up a stone slab")
-                lines(
-                    "from his satchel and",
-                    "uses a special instrument",
-                    "to scratch the direction",
-                )
-                line(pronoun(caster, PronounCase.Subject), " wants you to teleport")
-                lines("to.", "")
-            }
-            waitInput("after teleport slab")
-            native.screen.clearText()
-            val direction = ask.wildernessDirection(
-                textLines(
-                    "Teleport :",
-                    "",
-                    "   8",
-                    " 4-+-6",
-                    "   2",
-                    "",
-                ),
-            )
-            native.screen.clearText()
-            val distance = ask.digit(textLines("How many miles do you", "want to travel? (1-9)"), 1..9)
-            teleportParty(direction, distance)
-            screen("You appear to be", "somewhere else.")
-            native.screen.redrawMap()
-            pause(1200)
-            native.screen.clearText()
-        } otherwise {
-            screen("Not enough spell pts!")
-            pause(1000)
-            native.screen.clearText()
-        }
+        priestTeleport(currentCaster)
     }
 
     spell(Spells.Priest.earthquake, slot = 7, baseCost = 55, name = "Earthquake") {
