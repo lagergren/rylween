@@ -323,6 +323,13 @@ private class AnsiTerminalPort(
     override fun readTextLine(maxLength: Int?): String? =
         terminal.readTextLine(maxLength)
 
+    override fun readReturn(): Boolean? =
+        terminal.readReturn()
+
+    override fun pause(ms: Int) {
+        terminal.pause(ms)
+    }
+
     override fun writeEngineEvent(
         event: EngineTraceEvent,
         renderer: TerminalTextRenderer,
@@ -697,6 +704,21 @@ private class JLineAnsiTerminal private constructor(
                     }
                 }
             }
+        }
+    }
+
+    fun readReturn(): Boolean? {
+        while (true) {
+            when (readKeyToken()) {
+                null -> return null
+                "" -> return true
+            }
+        }
+    }
+
+    fun pause(ms: Int) {
+        if (ms > 0) {
+            Thread.sleep(ms.toLong())
         }
     }
 

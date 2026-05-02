@@ -1127,6 +1127,7 @@ data class SpeakSystemModel(
 data class GameModel(
     val itemCatalog: List<ItemRecordModel>,
     val itemPools: List<ItemPoolId>,
+    val prompts: GamePromptsModel,
     val terminal: TerminalPresentationModel,
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
@@ -1262,6 +1263,11 @@ val StandardDungeonHelpPages: List<TextBlock> = listOf(
         "? = View this help",
         "",
     ),
+)
+
+data class GamePromptsModel(
+    val pauseVerbs: List<String> = emptyList(),
+    val returnKeyName: String = "RETURN key",
 )
 
 
@@ -3240,6 +3246,7 @@ private fun BoolAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): BoolA
 class GameBuilder {
     private val itemRecords = mutableListOf<ItemRecordModel>()
     private val itemPools = mutableListOf<ItemPoolId>()
+    private var promptsModel = GamePromptsModel()
     private var terminalPresentationModel = TerminalPresentationModel()
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
@@ -3268,6 +3275,10 @@ class GameBuilder {
         val declaration = ItemCatalogBuilder().apply(body).build()
         itemRecords += declaration.records
         itemPools += declaration.pools
+    }
+
+    fun prompts(body: GamePromptsBuilder.() -> Unit) {
+        promptsModel = GamePromptsBuilder(promptsModel).apply(body).build()
     }
 
     fun terminal(body: TerminalPresentationBuilder.() -> Unit) {
@@ -3350,6 +3361,7 @@ class GameBuilder {
         return GameModel(
             itemCatalog = itemRecords.toList(),
             itemPools = itemPools.toList(),
+            prompts = promptsModel,
             terminal = terminalPresentationModel,
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
@@ -3373,6 +3385,26 @@ class GameBuilder {
         )
     }
 
+}
+
+@RylNextDsl
+class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
+    private var pauseVerbList = initial.pauseVerbs
+    var returnKeyName: String = initial.returnKeyName
+
+    fun pauseVerbs(vararg verbs: String) {
+        pauseVerbList = verbs.toList()
+    }
+
+    fun pauseVerbs(verbs: List<String>) {
+        pauseVerbList = verbs.toList()
+    }
+
+    fun build(): GamePromptsModel =
+        GamePromptsModel(
+            pauseVerbs = pauseVerbList,
+            returnKeyName = returnKeyName,
+        )
 }
 
 @RylNextDsl

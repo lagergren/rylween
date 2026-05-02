@@ -2153,12 +2153,17 @@ class RylweenDslValidationTest {
             currentHour = 12,
         )
 
-        val blocked = TownSessionTerminalAdapter(FakeTerminalPort("C")).runUntilBlocked(start)
+        val terminal = FakeTerminalPort("C")
+        val blocked = TownSessionTerminalAdapter(
+            terminal,
+            renderer = TerminalTextRenderer(prompts = GamePromptsModel(pauseVerbs = listOf("Hammer"))),
+        ).runUntilBlocked(start)
         val blockedStep = blocked.session.step as TownSessionStep.NativeService
 
         assertTrue(blocked.status is TerminalRunStatus.Waiting)
         assertEquals(6, blocked.session.realm.hour)
         assertEquals(6, blockedStep.continuation?.runtime?.realm?.hour)
+        assertTrue("(Hammer RETURN key)" in terminal.output)
 
         val resumed = TownSessionTerminalAdapter(FakeTerminalPort("", "L")).runUntilBlocked(blocked.session)
 
@@ -3598,7 +3603,7 @@ class RylweenDslValidationTest {
 
     private fun compiledTextRenderer(): TerminalTextRenderer =
         RylweenCompiledGame.nextDsl.let { content ->
-            TerminalTextRenderer(towns = content.towns, characters = content.characters)
+            TerminalTextRenderer(towns = content.towns, characters = content.characters, prompts = content.prompts)
         }
 
     private fun compiledRuntimeWithRealizedNpcs(rngState: Long): RuntimeSessionState {

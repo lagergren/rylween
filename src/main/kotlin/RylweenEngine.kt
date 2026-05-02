@@ -32,7 +32,7 @@ sealed interface EngineTraceEvent {
     data class Screen(val text: TextBlock) : EngineTraceEvent
     data class Emit(val id: TextId) : EngineTraceEvent
     data class EmitIndexed(val pattern: TextPattern, val value: Int) : EngineTraceEvent
-    data class WaitInput(val reason: String?) : EngineTraceEvent
+    data class WaitInput(val reason: String?, val prompt: TextBlock? = null) : EngineTraceEvent
     data class Pause(val ms: Int) : EngineTraceEvent
     data class SetFlag(val flag: String, val state: String) : EngineTraceEvent
     data class AppendJournal(val text: TextBlock) : EngineTraceEvent
@@ -393,6 +393,8 @@ interface TerminalPort {
     fun write(lines: List<String>)
     fun readLine(): String?
     fun readTextLine(maxLength: Int? = null): String? = readLine()
+    fun readReturn(): Boolean? = readLine()?.let { true }
+    fun pause(ms: Int) {}
     fun writeEngineEvent(
         event: EngineTraceEvent,
         renderer: TerminalTextRenderer,
@@ -725,11 +727,18 @@ private class StatefulScriptServiceRunner(
     }
 
     private fun waitInput(reason: String?) {
-        engine.trace(EngineTraceEvent.WaitInput(reason))
+        val prompt = textRenderer.pauseVerbIndexRange()?.let { range ->
+            val draw = currentRuntime().drawRandom(range.first, range.last)
+            runtime = draw.runtime
+            party = runtime.activeParty
+            textRenderer.pausePrompt(draw.value)
+        } ?: textRenderer.pausePrompt()
+        engine.trace(EngineTraceEvent.WaitInput(reason, prompt))
         flushScriptOutput()
-        when (terminal.readLine()) {
+        when (terminal.readReturn()) {
+            true -> advanceTop()
+            false -> wait()
             null -> wait()
-            else -> advanceTop()
         }
     }
 
@@ -1311,6 +1320,7 @@ class TerminalTextRenderer(
     private val references: Map<String, List<String>> = emptyMap(),
     private val towns: List<TownModel> = emptyList(),
     private val characters: List<CharacterModel> = emptyList(),
+    private val prompts: GamePromptsModel = GamePromptsModel(),
 ) {
     fun lines(block: TextBlock, context: TerminalTextContext = TerminalTextContext()): List<String> =
         when (block) {
@@ -1337,6 +1347,17 @@ class TerminalTextRenderer(
             TextPart.ShopPrice -> context.shopPrice?.toString() ?: "{price}"
             TextPart.ShopCarryCap -> context.shopCarryCap?.toString() ?: "{cap}"
         }
+
+    fun pausePrompt(verbIndex: Int? = null): TextBlock {
+        val verb = verbIndex
+            ?.let { prompts.pauseVerbs.getOrNull(it) }
+            ?: prompts.pauseVerbs.firstOrNull()
+            ?: "Press"
+        return inlineText("($verb ${prompts.returnKeyName})")
+    }
+
+    fun pauseVerbIndexRange(): IntRange? =
+        prompts.pauseVerbs.takeIf { it.isNotEmpty() }?.indices
 
     private fun render(ast: StrAst, context: TerminalTextContext): String =
         when (ast) {
@@ -1512,7 +1533,12 @@ class RylweenKotlinEngine(
         )
 
     fun textRenderer(references: Map<String, List<String>> = emptyMap()): TerminalTextRenderer =
-        TerminalTextRenderer(references = references, towns = content.towns, characters = content.characters)
+        TerminalTextRenderer(
+            references = references,
+            towns = content.towns,
+            characters = content.characters,
+            prompts = content.prompts,
+        )
 }
 
 private class RandomItemOfferSessionTraceRunner(
@@ -1951,6 +1977,9 @@ private fun TerminalPort.writeScriptEvents(
         if (writeEngineEvent(event, renderer, context)) {
             return@forEach
         }
+        if (writePauseEvent(event, renderer, context)) {
+            return@forEach
+        }
         when (event) {
             is EngineTraceEvent.Screen -> write(renderer.lines(event.text, context))
             is EngineTraceEvent.Emit -> write(listOf("[${event.id.id}]"))
@@ -1995,6 +2024,21 @@ private fun TerminalPort.writeScriptEvents(
         }
     }
 }
+
+private fun TerminalPort.writePauseEvent(
+    event: EngineTraceEvent,
+    renderer: TerminalTextRenderer,
+    context: TerminalTextContext,
+): Boolean =
+    when (event) {
+        is EngineTraceEvent.WaitInput -> true.also {
+            write(renderer.lines(event.prompt ?: renderer.pausePrompt(), context))
+        }
+        is EngineTraceEvent.Pause -> true.also {
+            pause(event.ms)
+        }
+        else -> false
+    }
 
 class TownLeaveEquipmentTerminalAdapter(
     private val terminal: TerminalPort,
@@ -2274,6 +2318,9 @@ class TownSessionTerminalAdapter(
         val context = TerminalTextContext(runtime = runtime)
         events.forEach { event ->
             if (terminal.writeEngineEvent(event, renderer, context)) {
+                return@forEach
+            }
+            if (terminal.writePauseEvent(event, renderer, context)) {
                 return@forEach
             }
             when (event) {
@@ -2786,6 +2833,9 @@ class WildernessSessionTerminalAdapter(
         val context = TerminalTextContext(runtime = runtime)
         events.forEach { event ->
             if (terminal.writeEngineEvent(event, renderer, context)) {
+                return@forEach
+            }
+            if (terminal.writePauseEvent(event, renderer, context)) {
                 return@forEach
             }
             when (event) {
