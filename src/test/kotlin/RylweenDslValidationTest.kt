@@ -1,3 +1,4 @@
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -922,6 +923,17 @@ class RylweenDslValidationTest {
         assertEquals("score.txt", screens.getValue(StaticScreens.score).resource)
         assertEquals("vscore.txt", screens.getValue(StaticScreens.verboseScore).resource)
         assertEquals(3, RylweenCompiledGame.nextDsl.wilderness.keys.helpPages.size)
+    }
+
+    @Test
+    fun compiledGameAuthorsWildernessMapRows() {
+        val grid = checkNotNull(RylweenCompiledGame.nextDsl.worldMapGrid(Maps.wilderness))
+        val reference = WorldMapGrid.loadReferenceMapDat(File("data/map.dat"))
+
+        assertEquals(reference.rows, grid.rows)
+        assertEquals(Maps.wilderness, grid.id)
+        assertEquals(41, grid.height)
+        assertEquals(78, grid.width)
     }
 
     @Test
@@ -2606,6 +2618,36 @@ class RylweenDslValidationTest {
         }
         assertFailsWith<IllegalStateException> {
             validateAuthoredContent(conflicting)
+        }
+    }
+
+    @Test
+    fun validationRejectsMalformedWorldMaps() {
+        val duplicate = GameBuilder().apply {
+            terminal {
+                terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
+            }
+            worldMap(Maps.wilderness) {
+                layer(MapLayers.terrain) { rows("ss") }
+            }
+            worldMap(Maps.wilderness) {
+                layer(MapLayers.terrain) { rows("ss") }
+            }
+        }.build()
+        val unknownTile = GameBuilder().apply {
+            terminal {
+                terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
+            }
+            worldMap(Maps.wilderness) {
+                layer(MapLayers.terrain) { rows("sx") }
+            }
+        }.build()
+
+        assertFailsWith<IllegalStateException> {
+            validateAuthoredContent(duplicate)
+        }
+        assertFailsWith<IllegalStateException> {
+            validateAuthoredContent(unknownTile)
         }
     }
 

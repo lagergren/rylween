@@ -5,7 +5,7 @@ private data class TerminalConfig(
     val hour: Int? = null,
     val seed: Long? = null,
     val state: StateId = States.freshReplay,
-    val mapFile: File = File("data/map.dat"),
+    val mapFile: File? = null,
 )
 
 private class StdioTerminalPort : TerminalPort {
@@ -31,7 +31,7 @@ fun main(args: Array<String>) {
     val engine = RylweenKotlinEngine(
         content = content,
         npcPlacementConfig = NpcPlacementRealizerConfig(
-            wilderness = wildernessPlacementPolicy(config.mapFile),
+            wilderness = wildernessPlacementPolicy(config.mapFile, content),
         ),
     )
     var session = engine.townSession(
@@ -96,7 +96,9 @@ object RylweenGameTerminalMain {
             ?: error("unknown state ${config.state.slug}")
         val state = config.hour?.let { baseState.copy(realm = baseState.realm.copy(hour = it)) } ?: baseState
         val terminal = StdioTerminalPort()
-        val worldMap = WorldMapGrid.loadReferenceMapDat(config.mapFile)
+        val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
+            ?: content.worldMapGrid(Maps.wilderness)
+            ?: error("missing authored wilderness map")
         val engine = RylweenKotlinEngine(
             content = content,
             npcPlacementConfig = NpcPlacementRealizerConfig(
@@ -200,9 +202,11 @@ private fun townArg(value: String): TownId =
         else -> town(value)
     }
 
-private fun wildernessPlacementPolicy(mapFile: File): WildernessNpcPlacementPolicy =
+private fun wildernessPlacementPolicy(mapFile: File?, content: GameModel): WildernessNpcPlacementPolicy =
     WildernessNpcPlacementPolicy(
-        allowedPoints = if (mapFile.isFile) WorldMapGrid.loadReferenceMapDat(mapFile).passableNpcPoints() else null,
+        allowedPoints = (mapFile?.let(WorldMapGrid::loadReferenceMapDat)
+            ?: content.worldMapGrid(Maps.wilderness))
+            ?.passableNpcPoints(),
     )
 
 private fun printTownUsage() {
@@ -215,7 +219,7 @@ private fun printTownUsage() {
         |  --hour   0..23, defaults to the selected state hour
         |  --seed   runtime RNG state; omitted means deterministic fixture placement/events
         |  --state  state slug, defaults to fresh-replay
-        |  --map    map file for wilderness NPC placement, defaults to data/map.dat
+        |  --map    map file for wilderness NPC placement, defaults to authored wilderness map
         """.trimMargin(),
     )
 }
@@ -229,7 +233,7 @@ private fun printGameUsage() {
         |  --state  state slug, defaults to fresh-replay
         |  --seed   runtime RNG state; omitted means deterministic fixture placement/events
         |  --hour   0..23, overrides the selected state hour
-        |  --map    map file for wilderness movement and NPC hut projection, defaults to data/map.dat
+        |  --map    map file for wilderness movement and NPC hut projection, defaults to authored wilderness map
         """.trimMargin(),
     )
 }
