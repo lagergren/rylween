@@ -887,6 +887,9 @@ private fun PartyState.matches(ast: BoolAst): Boolean {
                 "member_count" -> party.counters.memberCount ?: party.members.count { !it.dead }
                 else -> 0
             }
+
+        override fun inventoryPoolCount(pool: ItemPoolId): Int =
+            party.countInventoryItems(pool)
     }
     return evaluator.bool(ast)
 }

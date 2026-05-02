@@ -1,10 +1,9 @@
-// RylweenGeneratedMetadata.kt -- generated content metadata for the Rylween DSL.
+// RylweenGameCatalog.kt -- current Rylween game handles and catalog records.
 //
-// This file represents generated output from game content. During migration,
-// ./gradlew generateRylweenMetadata renders the checked-in output from the
-// template in src/generator/metadata plus generated slices such as
-// data/world/items/*.json5. Do not put DSL kernel behavior or engine runtime
-// code here.
+// This is ordinary Kotlin source for now, not generated metadata. It is kept in
+// main only because some reusable runtime helpers still reference current-game
+// handles directly; moving those dependencies behind content/runtime parameters
+// is the next catalog cleanup step.
 
 @file:Suppress(
     "unused",
@@ -13,7 +12,7 @@
     "UNUSED_PARAMETER",
 )
 
-class GarthBanditsFlag : FlagRef("garth.bandits", sourceSlot = 1) {
+class GarthBanditsFlag : FlagRef("garth.bandits") {
     val none = state("none")
     val accepted = state("accepted")
     val recovered = state("recovered")
@@ -24,7 +23,7 @@ class GarthFlags {
     val bandits = GarthBanditsFlag().declareFlag()
 }
 
-class RangerLetterFlag : FlagRef("ranger.letter", sourceSlot = 2) {
+class RangerLetterFlag : FlagRef("ranger.letter") {
     val none = state("none")
     val accepted = state("accepted")
     val delivered = state("delivered")
@@ -34,7 +33,7 @@ class RangerFlags {
     val letter = RangerLetterFlag().declareFlag()
 }
 
-class FighterPriestBookFlag : FlagRef("fighter.priest_book", sourceSlot = 3) {
+class FighterPriestBookFlag : FlagRef("fighter.priest_book") {
     val none = state("none")
     val priestTold = state("priest_told")
     val priestVisited = state("priest_visited")
@@ -46,7 +45,7 @@ class FighterFlags {
     val priestBook = FighterPriestBookFlag().declareFlag()
 }
 
-class ChurchDonationFlag : FlagRef("church.donation.once", sourceSlot = 5) {
+class ChurchDonationFlag : FlagRef("church.donation.once") {
     val no = state("no")
     val yes = state("yes")
 }
@@ -55,7 +54,7 @@ class ChurchFlags {
     val donationOnce = ChurchDonationFlag().declareFlag()
 }
 
-class SilverKeyFlag : FlagRef("silver_key", sourceSlot = 6) {
+class SilverKeyFlag : FlagRef("silver_key") {
     val none = state("none")
     val mapBought = state("map_bought")
     val noteFound = state("note_found")
@@ -68,7 +67,7 @@ class SilverKeyFlag : FlagRef("silver_key", sourceSlot = 6) {
         get() = mapBought or noteFound or thiefSqueezed or smithConfessed or caveLocated
 }
 
-class ErethorLuteFlag : FlagRef("erethor.lute", sourceSlot = 8) {
+class ErethorLuteFlag : FlagRef("erethor.lute") {
     val none = state("none")
     val rumourTold = state("rumour_told")
     val luteTaken = state("lute_taken")
@@ -80,7 +79,7 @@ class ErethorFlags {
     val lute = ErethorLuteFlag().declareFlag()
 }
 
-class BraceletsThunFlag : FlagRef("bracelets.thun", sourceSlot = 13) {
+class BraceletsThunFlag : FlagRef("bracelets.thun") {
     val none = state("none")
     val mapBought = state("map_bought")
     val braceletsTaken = state("bracelets_taken")
@@ -90,7 +89,7 @@ class BraceletsFlags {
     val thun = BraceletsThunFlag().declareFlag()
 }
 
-class NymphSeekerFlag : FlagRef("nymph.seeker", sourceSlot = 15) {
+class NymphSeekerFlag : FlagRef("nymph.seeker") {
     val none = state("none")
     val told = state("told")
     val wizard3tActive = state("wizard3t_active")
@@ -100,7 +99,7 @@ class NymphFlags {
     val seeker = NymphSeekerFlag().declareFlag()
 }
 
-class PeasantWifeFlag : FlagRef("peasant_wife", sourceSlot = 19) {
+class PeasantWifeFlag : FlagRef("peasant_wife") {
     val none = state("none")
     val accepted = state("accepted")
     val rescued = state("rescued")
@@ -111,7 +110,7 @@ class PeasantFlags {
     val wife = PeasantWifeFlag().declareFlag()
 }
 
-class JazzyOgreFlag : FlagRef("jazzy_ogre", sourceSlot = 22) {
+class JazzyOgreFlag : FlagRef("jazzy_ogre") {
     val none = state("none")
     val accepted = state("accepted")
     val ogresCleared = state("ogres_cleared")
@@ -122,7 +121,7 @@ class JazzyFlags {
     val ogre = JazzyOgreFlag().declareFlag()
 }
 
-class MasterCrownFlag : FlagRef("mastercrown", sourceSlot = 23) {
+class MasterCrownFlag : FlagRef("mastercrown") {
     val none = state("none")
     val task1Assigned = state("task1_assigned")
     val task1Done = state("task1_done")
@@ -139,7 +138,7 @@ class MasterCrownFlag : FlagRef("mastercrown", sourceSlot = 23) {
         get() = task1Assigned or task2Assigned or task3Assigned
 }
 
-class HermitTrollToothFlag : FlagRef("hermit.troll_tooth", sourceSlot = 33) {
+class HermitTrollToothFlag : FlagRef("hermit.troll_tooth") {
     val none = state("none")
     val accepted = state("accepted")
     val extracted = state("extracted")
@@ -154,7 +153,6 @@ class HermitFlags {
 class EncounterImmuneFlag : FlagRef(
         "encounter.immune",
         scope = FlagScope.Encounter,
-        sourceSlot = 0,
     ) {
     val no = state("no")
     val yes = state("yes")
@@ -184,91 +182,91 @@ val Flags = Story
 
 
 // -----------------------------------------------------------------------------
-// Generated item handles from data/world/items/*.json5.
+// Current game item handles.
 // -----------------------------------------------------------------------------
 
 class ItemRefs {
     // Weapons.
-    val blank = generatedItem("blank", sourceId = 0)
+    val blank = item("blank")
     val none = blank
-    val sword = generatedItem("sword", sourceId = 1)
-    val axe = generatedItem("axe", sourceId = 2)
-    val bow = generatedItem("bow", sourceId = 3)
-    val club = generatedItem("club", sourceId = 4)
-    val dart = generatedItem("dart", sourceId = 5)
-    val sling = generatedItem("sling", sourceId = 6)
-    val longsword = generatedItem("longsword", sourceId = 7)
-    val trident = generatedItem("trident", sourceId = 8)
-    val halbard = generatedItem("halbard", sourceId = 9)
-    val poleArm = generatedItem("pole_arm", sourceId = 10)
-    val crossbow = generatedItem("crossbow", sourceId = 11)
-    val scythe = generatedItem("scythe", sourceId = 12)
-    val scimitar = generatedItem("scimitar", sourceId = 13)
-    val twoHandSword = generatedItem("two_hand_sword", sourceId = 14)
-    val magicDagger = generatedItem("magic_dagger", sourceId = 15)
-    val magicSword = generatedItem("magic_sword", sourceId = 16)
-    val magicAxe = generatedItem("magic_axe", sourceId = 17)
-    val dancingSword = generatedItem("dancing_sword", sourceId = 18)
-    val deathBlade = generatedItem("death_blade", sourceId = 19)
+    val sword = item("sword")
+    val axe = item("axe")
+    val bow = item("bow")
+    val club = item("club")
+    val dart = item("dart")
+    val sling = item("sling")
+    val longsword = item("longsword")
+    val trident = item("trident")
+    val halbard = item("halbard")
+    val poleArm = item("pole_arm")
+    val crossbow = item("crossbow")
+    val scythe = item("scythe")
+    val scimitar = item("scimitar")
+    val twoHandSword = item("two_hand_sword")
+    val magicDagger = item("magic_dagger")
+    val magicSword = item("magic_sword")
+    val magicAxe = item("magic_axe")
+    val dancingSword = item("dancing_sword")
+    val deathBlade = item("death_blade")
 
     // Armor.
-    val leather = generatedItem("leather", sourceId = 20)
-    val chainMail = generatedItem("chain_mail", sourceId = 21)
-    val plateMail = generatedItem("plate_mail", sourceId = 22)
-    val ringMail = generatedItem("ring_mail", sourceId = 23)
-    val elvinCloak = generatedItem("elvin_cloak", sourceId = 24)
-    val mithrilMail = generatedItem("mithril_mail", sourceId = 25)
-    val admtMail = generatedItem("admt_mail", sourceId = 26)
-    val protSphere = generatedItem("prot_sphere", sourceId = 27)
-    val cloakOfGods = generatedItem("cloak_of_gods", sourceId = 28)
+    val leather = item("leather")
+    val chainMail = item("chain_mail")
+    val plateMail = item("plate_mail")
+    val ringMail = item("ring_mail")
+    val elvinCloak = item("elvin_cloak")
+    val mithrilMail = item("mithril_mail")
+    val admtMail = item("admt_mail")
+    val protSphere = item("prot_sphere")
+    val cloakOfGods = item("cloak_of_gods")
 
     // Gear.
-    val torch = generatedItem("torch", sourceId = 31)
-    val ration = generatedItem("ration", sourceId = 32)
-    val blanket = generatedItem("blanket", sourceId = 33)
-    val tent = generatedItem("tent", sourceId = 34)
-    val rope = generatedItem("rope", sourceId = 35)
+    val torch = item("torch")
+    val ration = item("ration")
+    val blanket = item("blanket")
+    val tent = item("tent")
+    val rope = item("rope")
 
     // Potions.
-    val redPotion = generatedItem("red_potion", sourceId = 36)
-    val bluePotion = generatedItem("blue_potion", sourceId = 37)
-    val amberPotion = generatedItem("amber_potion", sourceId = 38)
+    val redPotion = item("red_potion")
+    val bluePotion = item("blue_potion")
+    val amberPotion = item("amber_potion")
 
     // Treasures.
-    val redGem = generatedItem("red_gem", sourceId = 39)
-    val blueGem = generatedItem("blue_gem", sourceId = 40)
-    val greenGem = generatedItem("green_gem", sourceId = 41)
-    val chalice = generatedItem("chalice", sourceId = 42)
-    val pendant = generatedItem("pendant", sourceId = 43)
-    val broche = generatedItem("broche", sourceId = 44)
-    val crystalBowl = generatedItem("crystal_bowl", sourceId = 45)
-    val necklace = generatedItem("necklace", sourceId = 46)
-    val donkey = generatedItem("donkey", sourceId = 47)
+    val redGem = item("red_gem")
+    val blueGem = item("blue_gem")
+    val greenGem = item("green_gem")
+    val chalice = item("chalice")
+    val pendant = item("pendant")
+    val broche = item("broche")
+    val crystalBowl = item("crystal_bowl")
+    val necklace = item("necklace")
+    val donkey = item("donkey")
 
     // Flag-backed special items project from milestones and do not occupy slots.
-    val fireshield = generatedItem("fireshield", sourceId = 48)
-    val bracelets = generatedItem("bracelets", sourceId = 49)
-    val mastercrown = generatedItem("mastercrown", sourceId = 50)
-    val jazzyfoot = generatedItem("jazzyfoot", sourceId = 51)
-    val silverkey = generatedItem("silverkey", sourceId = 52)
+    val fireshield = item("fireshield")
+    val bracelets = item("bracelets")
+    val mastercrown = item("mastercrown")
+    val jazzyfoot = item("jazzyfoot")
+    val silverkey = item("silverkey")
 
     // Magic items.
-    val frostWand = generatedItem("frost_wand", sourceId = 100)
-    val fireWand = generatedItem("fire_wand", sourceId = 101)
-    val gemOfConfusion = generatedItem("gem_of_confusion", sourceId = 102)
-    val gemOfBlindness = generatedItem("gem_of_blindness", sourceId = 103)
-    val drumsOfDeath = generatedItem("drums_of_death", sourceId = 104)
-    val staffOfHealing = generatedItem("staff_of_healing", sourceId = 105)
-    val blessingScroll = generatedItem("blessing_scroll", sourceId = 106)
-    val staffOfCuring = generatedItem("staff_of_curing", sourceId = 107)
-    val gemOfResurrection = generatedItem("gem_of_resurrection", sourceId = 108)
-    val kaelsAxe = generatedItem("kaels_axe", sourceId = 109)
-    val holyHandgrenade = generatedItem("holy_handgrenade", sourceId = 110)
-    val fluteOfMadness = generatedItem("flute_of_madness", sourceId = 111)
+    val frostWand = item("frost_wand")
+    val fireWand = item("fire_wand")
+    val gemOfConfusion = item("gem_of_confusion")
+    val gemOfBlindness = item("gem_of_blindness")
+    val drumsOfDeath = item("drums_of_death")
+    val staffOfHealing = item("staff_of_healing")
+    val blessingScroll = item("blessing_scroll")
+    val staffOfCuring = item("staff_of_curing")
+    val gemOfResurrection = item("gem_of_resurrection")
+    val kaelsAxe = item("kaels_axe")
+    val holyHandgrenade = item("holy_handgrenade")
+    val fluteOfMadness = item("flute_of_madness")
 }
 val Items = ItemRefs()
 
-private fun generatedItemRecord(
+private fun itemRecord(
     id: ItemId,
     kind: ItemKind,
     displayName: String,
@@ -280,10 +278,10 @@ private fun generatedItemRecord(
 ): ItemRecordModel =
     ItemRecordModel(id, kind, displayName, cost, storage, weaponDamage, armorClass, potionEffect)
 
-class GeneratedItemCatalog {
+class RylweenItemCatalog {
     val all = listOf(
         // Weapons.
-        generatedItemRecord(
+        itemRecord(
             Items.blank,
             ItemKind.Empty,
             "-",
@@ -291,60 +289,60 @@ class GeneratedItemCatalog {
             storage = ItemStorageKind.EmptySentinel,
             weaponDamage = 1,
         ),
-        generatedItemRecord(Items.sword, ItemKind.Weapon, "Sword", cost = 160, weaponDamage = 6),
-        generatedItemRecord(Items.axe, ItemKind.Weapon, "Axe", cost = 240, weaponDamage = 10),
-        generatedItemRecord(Items.bow, ItemKind.Weapon, "Bow", cost = 160, weaponDamage = 7),
-        generatedItemRecord(Items.club, ItemKind.Weapon, "Club", cost = 140, weaponDamage = 4),
-        generatedItemRecord(Items.dart, ItemKind.Weapon, "Dart", cost = 40, weaponDamage = 3),
-        generatedItemRecord(Items.sling, ItemKind.Weapon, "Sling", cost = 165, weaponDamage = 5),
-        generatedItemRecord(Items.longsword, ItemKind.Weapon, "Longsword", cost = 280, weaponDamage = 9),
-        generatedItemRecord(Items.trident, ItemKind.Weapon, "Trident", cost = 350, weaponDamage = 11),
-        generatedItemRecord(Items.halbard, ItemKind.Weapon, "Halbard", cost = 500, weaponDamage = 14),
-        generatedItemRecord(Items.poleArm, ItemKind.Weapon, "Pole arm", cost = 670, weaponDamage = 18),
-        generatedItemRecord(Items.crossbow, ItemKind.Weapon, "Crossbow", cost = 900, weaponDamage = 21),
-        generatedItemRecord(Items.scythe, ItemKind.Weapon, "Scythe", cost = 870, weaponDamage = 14),
-        generatedItemRecord(Items.scimitar, ItemKind.Weapon, "Scimitar", cost = 600, weaponDamage = 8),
-        generatedItemRecord(Items.twoHandSword, ItemKind.Weapon, "2H-Sword", cost = 1200, weaponDamage = 19),
-        generatedItemRecord(Items.magicDagger, ItemKind.Weapon, "Magic Dagger", cost = 1800, weaponDamage = 24),
-        generatedItemRecord(Items.magicSword, ItemKind.Weapon, "Magic Sword", cost = 3000, weaponDamage = 30),
-        generatedItemRecord(Items.magicAxe, ItemKind.Weapon, "Magic Axe", cost = 4000, weaponDamage = 38),
-        generatedItemRecord(Items.dancingSword, ItemKind.Weapon, "Dancing Sword", cost = 6000, weaponDamage = 50),
-        generatedItemRecord(Items.deathBlade, ItemKind.Weapon, "Death Blade", cost = 10000, weaponDamage = 68),
+        itemRecord(Items.sword, ItemKind.Weapon, "Sword", cost = 160, weaponDamage = 6),
+        itemRecord(Items.axe, ItemKind.Weapon, "Axe", cost = 240, weaponDamage = 10),
+        itemRecord(Items.bow, ItemKind.Weapon, "Bow", cost = 160, weaponDamage = 7),
+        itemRecord(Items.club, ItemKind.Weapon, "Club", cost = 140, weaponDamage = 4),
+        itemRecord(Items.dart, ItemKind.Weapon, "Dart", cost = 40, weaponDamage = 3),
+        itemRecord(Items.sling, ItemKind.Weapon, "Sling", cost = 165, weaponDamage = 5),
+        itemRecord(Items.longsword, ItemKind.Weapon, "Longsword", cost = 280, weaponDamage = 9),
+        itemRecord(Items.trident, ItemKind.Weapon, "Trident", cost = 350, weaponDamage = 11),
+        itemRecord(Items.halbard, ItemKind.Weapon, "Halbard", cost = 500, weaponDamage = 14),
+        itemRecord(Items.poleArm, ItemKind.Weapon, "Pole arm", cost = 670, weaponDamage = 18),
+        itemRecord(Items.crossbow, ItemKind.Weapon, "Crossbow", cost = 900, weaponDamage = 21),
+        itemRecord(Items.scythe, ItemKind.Weapon, "Scythe", cost = 870, weaponDamage = 14),
+        itemRecord(Items.scimitar, ItemKind.Weapon, "Scimitar", cost = 600, weaponDamage = 8),
+        itemRecord(Items.twoHandSword, ItemKind.Weapon, "2H-Sword", cost = 1200, weaponDamage = 19),
+        itemRecord(Items.magicDagger, ItemKind.Weapon, "Magic Dagger", cost = 1800, weaponDamage = 24),
+        itemRecord(Items.magicSword, ItemKind.Weapon, "Magic Sword", cost = 3000, weaponDamage = 30),
+        itemRecord(Items.magicAxe, ItemKind.Weapon, "Magic Axe", cost = 4000, weaponDamage = 38),
+        itemRecord(Items.dancingSword, ItemKind.Weapon, "Dancing Sword", cost = 6000, weaponDamage = 50),
+        itemRecord(Items.deathBlade, ItemKind.Weapon, "Death Blade", cost = 10000, weaponDamage = 68),
 
         // Armor.
-        generatedItemRecord(Items.leather, ItemKind.Armor, "Leather", cost = 260, armorClass = 2),
-        generatedItemRecord(Items.chainMail, ItemKind.Armor, "Chain Mail", cost = 600, armorClass = 5),
-        generatedItemRecord(Items.plateMail, ItemKind.Armor, "Plate Mail", cost = 980, armorClass = 7),
-        generatedItemRecord(Items.ringMail, ItemKind.Armor, "Ring Mail", cost = 1950, armorClass = 9),
-        generatedItemRecord(Items.elvinCloak, ItemKind.Armor, "Elvin Cloak", cost = 3600, armorClass = 12),
-        generatedItemRecord(Items.mithrilMail, ItemKind.Armor, "Mithril Mail", cost = 5800, armorClass = 14),
-        generatedItemRecord(Items.admtMail, ItemKind.Armor, "Admt. Mail", cost = 9400, armorClass = 16),
-        generatedItemRecord(Items.protSphere, ItemKind.Armor, "Prot. Sphere", cost = 15000, armorClass = 20),
-        generatedItemRecord(Items.cloakOfGods, ItemKind.Armor, "Cloak of Gods", cost = 28000, armorClass = 30),
+        itemRecord(Items.leather, ItemKind.Armor, "Leather", cost = 260, armorClass = 2),
+        itemRecord(Items.chainMail, ItemKind.Armor, "Chain Mail", cost = 600, armorClass = 5),
+        itemRecord(Items.plateMail, ItemKind.Armor, "Plate Mail", cost = 980, armorClass = 7),
+        itemRecord(Items.ringMail, ItemKind.Armor, "Ring Mail", cost = 1950, armorClass = 9),
+        itemRecord(Items.elvinCloak, ItemKind.Armor, "Elvin Cloak", cost = 3600, armorClass = 12),
+        itemRecord(Items.mithrilMail, ItemKind.Armor, "Mithril Mail", cost = 5800, armorClass = 14),
+        itemRecord(Items.admtMail, ItemKind.Armor, "Admt. Mail", cost = 9400, armorClass = 16),
+        itemRecord(Items.protSphere, ItemKind.Armor, "Prot. Sphere", cost = 15000, armorClass = 20),
+        itemRecord(Items.cloakOfGods, ItemKind.Armor, "Cloak of Gods", cost = 28000, armorClass = 30),
 
         // Gear.
-        generatedItemRecord(Items.torch, ItemKind.Gear, "Torch", cost = 1),
-        generatedItemRecord(Items.ration, ItemKind.Gear, "Ration", cost = 2),
-        generatedItemRecord(Items.blanket, ItemKind.Gear, "Blanket", cost = 30),
-        generatedItemRecord(Items.tent, ItemKind.Gear, "Tent", cost = 80),
-        generatedItemRecord(Items.rope, ItemKind.Gear, "Rope", cost = 15),
+        itemRecord(Items.torch, ItemKind.Gear, "Torch", cost = 1),
+        itemRecord(Items.ration, ItemKind.Gear, "Ration", cost = 2),
+        itemRecord(Items.blanket, ItemKind.Gear, "Blanket", cost = 30),
+        itemRecord(Items.tent, ItemKind.Gear, "Tent", cost = 80),
+        itemRecord(Items.rope, ItemKind.Gear, "Rope", cost = 15),
 
         // Potions.
-        generatedItemRecord(
+        itemRecord(
             Items.redPotion,
             ItemKind.Potion,
             "Red Potion",
             cost = 30,
             potionEffect = PotionEffectModel(PotionEffectKind.HealHitPoints, amount = 15),
         ),
-        generatedItemRecord(
+        itemRecord(
             Items.bluePotion,
             ItemKind.Potion,
             "Blue Potion",
             cost = 100,
             potionEffect = PotionEffectModel(PotionEffectKind.PoisonHitPoints, amount = 15),
         ),
-        generatedItemRecord(
+        itemRecord(
             Items.amberPotion,
             ItemKind.Potion,
             "Amber Potion",
@@ -353,46 +351,46 @@ class GeneratedItemCatalog {
         ),
 
         // Treasures.
-        generatedItemRecord(Items.redGem, ItemKind.Treasure, "Red Gem", cost = 1000),
-        generatedItemRecord(Items.blueGem, ItemKind.Treasure, "Blue Gem", cost = 1200),
-        generatedItemRecord(Items.greenGem, ItemKind.Treasure, "Green Gem", cost = 1900),
-        generatedItemRecord(Items.chalice, ItemKind.Treasure, "Chalice", cost = 2340),
-        generatedItemRecord(Items.pendant, ItemKind.Treasure, "Pendant", cost = 5000),
-        generatedItemRecord(Items.broche, ItemKind.Treasure, "Broche", cost = 1234),
-        generatedItemRecord(Items.crystalBowl, ItemKind.Treasure, "Crystal Bowl", cost = 4567),
-        generatedItemRecord(Items.necklace, ItemKind.Treasure, "Necklace", cost = 987),
-        generatedItemRecord(Items.donkey, ItemKind.Treasure, "Donkey", cost = 800),
+        itemRecord(Items.redGem, ItemKind.Treasure, "Red Gem", cost = 1000),
+        itemRecord(Items.blueGem, ItemKind.Treasure, "Blue Gem", cost = 1200),
+        itemRecord(Items.greenGem, ItemKind.Treasure, "Green Gem", cost = 1900),
+        itemRecord(Items.chalice, ItemKind.Treasure, "Chalice", cost = 2340),
+        itemRecord(Items.pendant, ItemKind.Treasure, "Pendant", cost = 5000),
+        itemRecord(Items.broche, ItemKind.Treasure, "Broche", cost = 1234),
+        itemRecord(Items.crystalBowl, ItemKind.Treasure, "Crystal Bowl", cost = 4567),
+        itemRecord(Items.necklace, ItemKind.Treasure, "Necklace", cost = 987),
+        itemRecord(Items.donkey, ItemKind.Treasure, "Donkey", cost = 800),
 
         // Flag-backed special items project from milestones and do not occupy slots.
-        generatedItemRecord(
+        itemRecord(
             Items.fireshield,
             ItemKind.Special,
             "Fire Shield",
             cost = 0,
             storage = ItemStorageKind.SpecialMilestone,
         ),
-        generatedItemRecord(
+        itemRecord(
             Items.bracelets,
             ItemKind.Special,
             "Bracelets of Thun",
             cost = 0,
             storage = ItemStorageKind.SpecialMilestone,
         ),
-        generatedItemRecord(
+        itemRecord(
             Items.mastercrown,
             ItemKind.Special,
             "Master Crown",
             cost = 0,
             storage = ItemStorageKind.SpecialMilestone,
         ),
-        generatedItemRecord(
+        itemRecord(
             Items.jazzyfoot,
             ItemKind.Special,
             "Jazzyfoot",
             cost = 0,
             storage = ItemStorageKind.SpecialMilestone,
         ),
-        generatedItemRecord(
+        itemRecord(
             Items.silverkey,
             ItemKind.Special,
             "Silver Key",
@@ -401,25 +399,25 @@ class GeneratedItemCatalog {
         ),
 
         // Magic items.
-        generatedItemRecord(Items.frostWand, ItemKind.MagicItem, "Frost Wand", cost = 1000),
-        generatedItemRecord(Items.fireWand, ItemKind.MagicItem, "Fire Wand", cost = 3000),
-        generatedItemRecord(Items.gemOfConfusion, ItemKind.MagicItem, "Gem of Confusion", cost = 1560),
-        generatedItemRecord(Items.gemOfBlindness, ItemKind.MagicItem, "Gem of Blindness", cost = 4900),
-        generatedItemRecord(Items.drumsOfDeath, ItemKind.MagicItem, "Drums of Death", cost = 4500),
-        generatedItemRecord(Items.staffOfHealing, ItemKind.MagicItem, "Staff of Healing", cost = 670),
-        generatedItemRecord(Items.blessingScroll, ItemKind.MagicItem, "Blessing Scroll", cost = 2000),
-        generatedItemRecord(Items.staffOfCuring, ItemKind.MagicItem, "Staff of Curing", cost = 4343),
-        generatedItemRecord(Items.gemOfResurrection, ItemKind.MagicItem, "Gem of Resurrection", cost = 9000),
-        generatedItemRecord(Items.kaelsAxe, ItemKind.MagicItem, "Kael's Axe", cost = 14000),
-        generatedItemRecord(Items.holyHandgrenade, ItemKind.MagicItem, "Holy Handgrenade", cost = 5600),
-        generatedItemRecord(Items.fluteOfMadness, ItemKind.MagicItem, "Flute of Madness", cost = 9000),
+        itemRecord(Items.frostWand, ItemKind.MagicItem, "Frost Wand", cost = 1000),
+        itemRecord(Items.fireWand, ItemKind.MagicItem, "Fire Wand", cost = 3000),
+        itemRecord(Items.gemOfConfusion, ItemKind.MagicItem, "Gem of Confusion", cost = 1560),
+        itemRecord(Items.gemOfBlindness, ItemKind.MagicItem, "Gem of Blindness", cost = 4900),
+        itemRecord(Items.drumsOfDeath, ItemKind.MagicItem, "Drums of Death", cost = 4500),
+        itemRecord(Items.staffOfHealing, ItemKind.MagicItem, "Staff of Healing", cost = 670),
+        itemRecord(Items.blessingScroll, ItemKind.MagicItem, "Blessing Scroll", cost = 2000),
+        itemRecord(Items.staffOfCuring, ItemKind.MagicItem, "Staff of Curing", cost = 4343),
+        itemRecord(Items.gemOfResurrection, ItemKind.MagicItem, "Gem of Resurrection", cost = 9000),
+        itemRecord(Items.kaelsAxe, ItemKind.MagicItem, "Kael's Axe", cost = 14000),
+        itemRecord(Items.holyHandgrenade, ItemKind.MagicItem, "Holy Handgrenade", cost = 5600),
+        itemRecord(Items.fluteOfMadness, ItemKind.MagicItem, "Flute of Madness", cost = 9000),
     )
 }
-val ItemCatalog = GeneratedItemCatalog()
+val ItemCatalog = RylweenItemCatalog()
 
 class ItemPoolRefs {
     // Potions plus ordinary treasure, excluding donkey and milestone specials.
-    val battleSpoils = generatedItemPool(
+    val battleSpoils = itemPool(
         "battle_spoils",
         items = listOf(
             Items.redPotion,
@@ -436,7 +434,7 @@ class ItemPoolRefs {
         ),
     )
 
-    val magicItems = generatedItemPool(
+    val magicItems = itemPool(
         "magic_items",
         items = listOf(
             Items.frostWand,
@@ -454,7 +452,7 @@ class ItemPoolRefs {
         ),
     )
 
-    val tavernScruffySpecials = generatedItemPool(
+    val tavernScruffySpecials = itemPool(
         "tavern_scruffy_specials",
         items = listOf(
             Items.magicDagger,
@@ -480,7 +478,7 @@ class ItemPoolRefs {
 val ItemPools = ItemPoolRefs()
 
 // -----------------------------------------------------------------------------
-// Generated game-state milestone handles.
+// Current game-state milestone handles.
 // -----------------------------------------------------------------------------
 //
 // These are persisted party state. Some milestones also project into the
@@ -500,7 +498,7 @@ class GameMilestoneRefs {
 val Milestones = GameMilestoneRefs()
 
 // -----------------------------------------------------------------------------
-// Generated combat, map, visual, layout, text, scene, and native handles.
+// Current combat, map, visual, layout, text, scene, and native handles.
 // -----------------------------------------------------------------------------
 
 class MonsterIds {

@@ -952,6 +952,7 @@ private class CombatScriptRunner(
         override fun battleQuery(name: String): Int = readBattleQuery(name)
         override fun realmScalar(name: String): Int = readRealmScalar(name)
         override fun partyScalar(name: String): Int = readPartyScalar(name)
+        override fun inventoryPoolCount(pool: ItemPoolId): Int = runtime.activeParty.countInventoryItems(pool)
         override fun memberFlag(member: Int, name: String): Boolean = readMemberFlag(member, name)
         override fun monsterFlag(monster: Int, name: String): Boolean = readMonsterFlag(monster, name)
     }
@@ -995,6 +996,9 @@ private class CombatScriptRunner(
                 Op.ConsumeActiveItem -> start.activeInventorySlot?.let { slot ->
                     runtime = runtime.withActiveParty(runtime.activeParty.withInventoryItem(slot, null))
                 }
+                is Op.ConsumeInventoryPool -> runtime = runtime.withActiveParty(
+                    runtime.activeParty.consumeInventoryItems(op.pool, evaluator.int(op.quantity)),
+                )
                 is Op.NativeCall -> Unit
                 is Op.SetFlag,
                 is Op.AppendJournal,
@@ -1312,6 +1316,7 @@ abstract class IntAstEvaluator {
             is IntAst.BattleQuery -> battleQuery(ast.name)
             is IntAst.RealmScalar -> realmScalar(ast.name)
             is IntAst.PartyScalar -> partyScalar(ast.name)
+            is IntAst.InventoryPoolCount -> inventoryPoolCount(ast.pool)
             is IntAst.NativeInt -> nativeInt(ast.path, ast.args)
         }
 
@@ -1335,6 +1340,7 @@ abstract class IntAstEvaluator {
     protected open fun battleQuery(name: String): Int = unsupported("battle query $name")
     protected open fun realmScalar(name: String): Int = unsupported("realm scalar $name")
     protected open fun partyScalar(name: String): Int = unsupported("party scalar $name")
+    protected open fun inventoryPoolCount(pool: ItemPoolId): Int = unsupported("inventory pool ${pool.slug}")
     protected open fun nativeInt(path: String, args: List<String>): Int = unsupported("native int $path")
     protected open fun flagIs(slug: String, native: String): Boolean = unsupported("flag $slug")
     protected open fun memberFlag(member: Int, name: String): Boolean = unsupported("member flag $name")
@@ -3633,6 +3639,24 @@ private fun PartyState.remainingCapacity(cap: ShopQuantityCap): Int =
 
 fun PartyState.countInventoryItem(item: ItemId): Int =
     inventory.count { it.slot in 1..InventorySaveSlotMax && it.item == item }
+
+fun PartyState.countInventoryItems(pool: ItemPoolId): Int {
+    val pooledItems = pool.items.toSet()
+    return inventory.count { it.slot in 1..InventorySaveSlotMax && it.item in pooledItems }
+}
+
+fun PartyState.consumeInventoryItems(pool: ItemPoolId, quantity: Int): PartyState {
+    val pooledItems = pool.items.toSet()
+    val consumedSlots = inventory
+        .asSequence()
+        .filter { it.slot in 1..InventorySaveSlotMax && it.item in pooledItems }
+        .take(quantity.coerceAtLeast(0))
+        .map { it.slot }
+        .toSet()
+    return copy(
+        inventory = inventory.map { slot -> slot.copy(item = slot.item.takeUnless { slot.slot in consumedSlots }) },
+    )
+}
 
 private fun PartyState.withFoodClampedToDonkeyCapacity(): PartyState {
     val cap = foodCapacityByDonkeys()

@@ -651,6 +651,35 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun inventoryPoolCountAndConsumeUseSlottedItemsOnly() {
+        val party = testParty(
+            inventoryItems = mapOf(
+                0 to Items.redGem,
+                1 to Items.redGem,
+                2 to Items.blueGem,
+                3 to Items.rope,
+                4 to Items.greenGem,
+                5 to Items.redGem,
+                6 to Items.blueGem,
+                7 to Items.greenGem,
+            ),
+        )
+
+        val consumed = party.consumeInventoryItems(ItemPools.thunAltarGems, 5)
+
+        assertEquals(6, party.countInventoryItems(ItemPools.thunAltarGems))
+        assertEquals(1, consumed.countInventoryItems(ItemPools.thunAltarGems))
+        assertEquals(Items.redGem, consumed.inventoryItem(0))
+        assertEquals(null, consumed.inventoryItem(1))
+        assertEquals(null, consumed.inventoryItem(2))
+        assertEquals(Items.rope, consumed.inventoryItem(3))
+        assertEquals(null, consumed.inventoryItem(4))
+        assertEquals(null, consumed.inventoryItem(5))
+        assertEquals(null, consumed.inventoryItem(6))
+        assertEquals(Items.greenGem, consumed.inventoryItem(7))
+    }
+
+    @Test
     fun dungeonDescentConsumesTorchOnlyAfterTransitionChecksPass() {
         val descended = testParty(torches = 2).tryDungeonDescent(currentDepth = 1, maxDepth = 3)
                 as DungeonDescentResult.Descended
@@ -2193,6 +2222,75 @@ class RylweenDslValidationTest {
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
         assertTrue(terminal.output.any { "Here lies the dungeon" in it })
         assertTrue(terminal.output.any { "Entering silver_sanctum." in it })
+    }
+
+    @Test
+    fun wildernessMoveCanOpenThunTempleBySpendingFiveGems() {
+        val terminal = FakeTerminalPort("2", "", "", "Y", "")
+        val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow(width = 20) })
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.bracelets.thun.mapBought),
+                    inventoryItems = mapOf(
+                        1 to Items.redGem,
+                        2 to Items.blueGem,
+                        3 to Items.greenGem,
+                        4 to Items.redGem,
+                        5 to Items.blueGem,
+                        6 to Items.rope,
+                    ),
+                ).copy(position = Wilderness.xy(12, 9)),
+                locations = listOf(LocationPlacement(Locations.thunTemple, GridPoint(12, 10))),
+                worldMap = map,
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.DungeonHandoff, result.session.lastResult?.status)
+        assertEquals(Missions.thunTemple, result.session.lastResult?.mission)
+        assertEquals(Dungeons.thunTemple, result.session.lastResult?.dungeon)
+        assertEquals(18, result.session.lastResult?.dungeonLevels)
+        assertEquals(0, result.session.party.countInventoryItems(ItemPools.thunAltarGems))
+        assertEquals(Items.rope, result.session.party.inventoryItem(6))
+        assertTrue(terminal.output.any { "With a resounding 'CRUNG'" in it })
+        assertTrue(terminal.output.any { "Entering thun_temple." in it })
+    }
+
+    @Test
+    fun wildernessMoveToThunTempleWithoutFiveGemsDoesNotSpendOrEnter() {
+        val terminal = FakeTerminalPort("2", "", "", "Y", "")
+        val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow(width = 20) })
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.bracelets.thun.mapBought),
+                    inventoryItems = mapOf(
+                        1 to Items.redGem,
+                        2 to Items.blueGem,
+                        3 to Items.greenGem,
+                        4 to Items.rope,
+                    ),
+                ).copy(position = Wilderness.xy(12, 9)),
+                locations = listOf(LocationPlacement(Locations.thunTemple, GridPoint(12, 10))),
+                worldMap = map,
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
+        assertEquals(Missions.thunTemple, result.session.lastResult?.mission)
+        assertEquals(3, result.session.party.countInventoryItems(ItemPools.thunAltarGems))
+        assertEquals(Items.rope, result.session.party.inventoryItem(4))
+        assertTrue(terminal.output.any { "You don't have five" in it })
     }
 
     @Test

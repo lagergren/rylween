@@ -6,25 +6,11 @@ fun validateFlagCatalog(flags: List<FlagRef>) {
         check(nativeStates.isNotEmpty()) { "flag ${flag.slug} has no states" }
         check(nativeStates.toSet().size == nativeStates.size) { "duplicate state in flag ${flag.slug}" }
     }
-
-    flags
-        .groupBy { it.scope }
-        .forEach { (scope, scopedFlags) ->
-            val slots = scopedFlags.mapNotNull { it.sourceSlot }
-            check(slots.toSet().size == slots.size) { "duplicate $scope source flag slot" }
-        }
 }
 
-fun validateGeneratedItemCatalog(records: List<ItemRecordModel> = ItemCatalog.all) {
-    check(records.isNotEmpty()) { "generated item catalog is empty" }
-    check(records.map { it.id }.toSet().size == records.size) { "duplicate generated item handle" }
-
-    val sourceIds = records.map { record ->
-        checkNotNull(record.id.sourceId) {
-            "generated item ${record.id.slug} has no source id"
-        }
-    }
-    check(sourceIds.toSet().size == sourceIds.size) { "duplicate generated item source id" }
+fun validateItemCatalog(records: List<ItemRecordModel> = ItemCatalog.all) {
+    check(records.isNotEmpty()) { "item catalog is empty" }
+    check(records.map { it.id }.toSet().size == records.size) { "duplicate item handle" }
 
     records.forEach { record ->
         check(record.displayName.isNotBlank()) { "item ${record.id.slug} requires a display name" }
@@ -832,8 +818,72 @@ fun validateScriptRewards(
 ) {
     val itemRecordById = itemRecords.associateBy { it.id }
 
+    fun validateSlottedItemPool(pool: ItemPoolId, label: String) {
+        validateItemPool(pool, itemRecords)
+        pool.items.forEach { item ->
+            val record = itemRecordById[item]
+            check(record?.storage == ItemStorageKind.SlottedInventory) {
+                "$label item pool ${pool.slug} can only include slotted-inventory items"
+            }
+        }
+    }
+
+    lateinit var validateIntExpression: (IntAst, String) -> Unit
+    lateinit var validateBoolExpression: (BoolAst, String) -> Unit
+
+    validateIntExpression = fun(ast: IntAst, label: String) {
+        when (ast) {
+            is IntAst.Lit -> Unit
+            is IntAst.Var -> Unit
+            is IntAst.Binary -> {
+                validateIntExpression(ast.left, label)
+                validateIntExpression(ast.right, label)
+            }
+            is IntAst.If -> {
+                validateBoolExpression(ast.cond, label)
+                validateIntExpression(ast.thenValue, label)
+                validateIntExpression(ast.elseValue, label)
+            }
+            is IntAst.Random -> {
+                validateIntExpression(ast.lo, label)
+                validateIntExpression(ast.hi, label)
+            }
+            is IntAst.MemberField -> validateIntExpression(ast.member, label)
+            is IntAst.MonsterField -> validateIntExpression(ast.monster, label)
+            is IntAst.BattleFlag -> Unit
+            is IntAst.BattleQuery -> Unit
+            is IntAst.RealmScalar -> Unit
+            is IntAst.PartyScalar -> Unit
+            is IntAst.InventoryPoolCount -> validateSlottedItemPool(ast.pool, label)
+            is IntAst.NativeInt -> Unit
+        }
+    }
+
+    validateBoolExpression = fun(ast: BoolAst, label: String) {
+        when (ast) {
+            is BoolAst.Cmp -> {
+                validateIntExpression(ast.left, label)
+                validateIntExpression(ast.right, label)
+            }
+            is BoolAst.Not -> validateBoolExpression(ast.expr, label)
+            is BoolAst.And -> {
+                validateBoolExpression(ast.left, label)
+                validateBoolExpression(ast.right, label)
+            }
+            is BoolAst.Or -> {
+                validateBoolExpression(ast.left, label)
+                validateBoolExpression(ast.right, label)
+            }
+            is BoolAst.FlagIs -> Unit
+            is BoolAst.MemberFlag -> validateIntExpression(ast.member, label)
+            is BoolAst.MonsterFlag -> validateIntExpression(ast.monster, label)
+            is BoolAst.BattleFlag -> Unit
+        }
+    }
+
     fun validateReward(reward: ScriptRewardModel) {
         check(reward.gold != null || reward.items.isNotEmpty()) { "script reward has no gold or items" }
+        reward.gold?.let { validateIntExpression(it, "script reward gold") }
         reward.items.forEach { item ->
             val record = itemRecordById[item]
             check(record != null) { "script reward references unknown item ${item.slug}" }
@@ -857,13 +907,7 @@ fun validateScriptRewards(
     }
 
     fun validateRandomItemOffer(offer: RandomItemOfferModel) {
-        validateItemPool(offer.pool, itemRecords)
-        offer.pool.items.forEach { item ->
-            val record = itemRecordById[item]
-            check(record?.storage == ItemStorageKind.SlottedInventory) {
-                "random item offer ${offer.pool.slug} can only sell slotted-inventory items"
-            }
-        }
+        validateSlottedItemPool(offer.pool, "random item offer")
         validateTextBlock(offer.offer, "random item offer ${offer.pool.slug} offer")
         validateTextBlock(offer.choicePrompt, "random item offer ${offer.pool.slug} choice prompt")
         validateTextBlock(offer.broke, "random item offer ${offer.pool.slug} broke")
@@ -1049,6 +1093,15 @@ fun validateScriptRewards(
             items.forEach { op ->
                 when (op) {
                     is Op.Screen -> validateTextBlock(op.text, "screen")
+                    is Op.EmitIndexed -> validateIntExpression(op.value, "indexed text emit")
+                    is Op.LetInt -> validateIntExpression(op.value, "local int")
+                    is Op.Set -> validateIntExpression(op.value, "state assignment")
+                    is Op.Add -> validateIntExpression(op.value, "state add")
+                    is Op.Sub -> validateIntExpression(op.value, "state subtract")
+                    is Op.AddClamped -> {
+                        validateIntExpression(op.value, "state clamped add")
+                        validateIntExpression(op.max, "state clamped add max")
+                    }
                     is Op.AppendJournal -> validateTextBlock(op.text, "journal append")
                     is Op.Menu -> {
                         validateTextBlock(op.prompt, "menu prompt")
@@ -1071,11 +1124,19 @@ fun validateScriptRewards(
                     is Op.GrantReward -> validateReward(op.reward)
                     is Op.RandomItemOffer -> validateRandomItemOffer(op.offer)
                     is Op.ShopService -> validateShop(op.shop)
+                    is Op.ConsumeInventoryPool -> {
+                        validateSlottedItemPool(op.pool, "consume inventory")
+                        validateIntExpression(op.quantity, "consume inventory quantity")
+                        (op.quantity as? IntAst.Lit)?.let { quantity ->
+                            check(quantity.value > 0) { "consume inventory quantity must be positive" }
+                        }
+                    }
                     is Op.EnterDungeon -> {
                         check(op.dungeon.slug.isNotBlank()) { "script dungeon handoff references blank dungeon" }
                         check(op.levels > 0) { "script dungeon handoff must use positive level count" }
                     }
                     is Op.If -> {
+                        validateBoolExpression(op.cond, "script condition")
                         visitOps(op.thenOps, loopDepth)
                         visitOps(op.elseOps, loopDepth)
                     }
@@ -1083,7 +1144,10 @@ fun validateScriptRewards(
                     is Op.Break -> check(loopDepth > 0) {
                         "breakLoop(${op.reason ?: ""}) must be inside loop { ... }"
                     }
-                    is Op.Switch -> op.cases.forEach { visitOps(it.body, loopDepth) }
+                    is Op.Switch -> {
+                        validateIntExpression(op.expr, "script switch")
+                        op.cases.forEach { visitOps(it.body, loopDepth) }
+                    }
                     is Op.ForEachMember -> visitOps(op.body, loopDepth)
                     is Op.ForEachMonster -> visitOps(op.body, loopDepth)
                     else -> Unit
@@ -1122,7 +1186,7 @@ private fun checkPercent(value: Int, label: String) {
 }
 
 fun validateAuthoredContent(content: GameModel) {
-    validateGeneratedItemCatalog()
+    validateItemCatalog()
     validateGameProgress(content.progress)
 
     check(content.authoredFlags.map { it.ref.slug }.toSet().size == content.authoredFlags.size) {
