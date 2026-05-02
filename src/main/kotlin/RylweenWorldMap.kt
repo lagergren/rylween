@@ -4,9 +4,22 @@ enum class WildernessDirection { North, South, East, West }
 
 sealed interface WildernessSessionInput {
     data class Move(val direction: WildernessDirection) : WildernessSessionInput
-    object Enter : WildernessSessionInput
-    object UseInventory : WildernessSessionInput
     object Pass : WildernessSessionInput
+    object Save : WildernessSessionInput
+    object ReadyWeapon : WildernessSessionInput
+    object ReadyArmor : WildernessSessionInput
+    object Redraw : WildernessSessionInput
+    object Journal : WildernessSessionInput
+    object Help : WildernessSessionInput
+    object Hunt : WildernessSessionInput
+    object ViewParty : WildernessSessionInput
+    object RemoveArmor : WildernessSessionInput
+    object RemoveWeapon : WildernessSessionInput
+    object Enter : WildernessSessionInput
+    object Drop : WildernessSessionInput
+    object Camp : WildernessSessionInput
+    object CastSpell : WildernessSessionInput
+    object Quaff : WildernessSessionInput
     object Continue : WildernessSessionInput
     data class CaveAnswer(val enter: Boolean) : WildernessSessionInput
     object Quit : WildernessSessionInput
@@ -25,6 +38,20 @@ enum class WildernessSessionResultStatus {
     NothingToEnter,
     UnknownTown,
     TerrainNarrated,
+    SaveUnavailable,
+    RedrawRequested,
+    JournalUnavailable,
+    HelpShown,
+    HuntUnavailable,
+    ViewPartyUnavailable,
+    DropUnavailable,
+    CampUnavailable,
+    CastSpellUnavailable,
+    CastSpellRequested,
+    CastSpellUsed,
+    EquipmentRequested,
+    EquipmentUsed,
+    EquipmentUnavailable,
     InventoryRequested,
     InventoryUsed,
     InventoryUnavailable,
@@ -70,6 +97,8 @@ sealed interface WildernessSessionStep {
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
     data class Battle(val session: BattleSession) : WildernessSessionStep
     data class InventoryItemUse(val session: InventoryItemUseSession) : WildernessSessionStep
+    data class Equipment(val session: EquipmentPromptSession) : WildernessSessionStep
+    data class PriestSpell(val session: PriestSpellSession) : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
     data class QuitConfirm(val prompt: TextBlock) : WildernessSessionStep
     data class Town(val session: TownSession) : WildernessSessionStep
@@ -226,9 +255,27 @@ data class WildernessSession(
     fun apply(input: WildernessSessionInput): WildernessSession =
         when (input) {
             is WildernessSessionInput.Move -> move(input.direction)
-            WildernessSessionInput.Enter -> enter()
-            WildernessSessionInput.UseInventory -> useInventory()
             WildernessSessionInput.Pass -> pass()
+            WildernessSessionInput.Save -> pending(WildernessPromptText.savePending(), WildernessSessionResultStatus.SaveUnavailable)
+            WildernessSessionInput.ReadyWeapon -> equipment(EquipmentCommand.ReadyWeapon)
+            WildernessSessionInput.ReadyArmor -> equipment(EquipmentCommand.ReadyArmor)
+            WildernessSessionInput.Redraw -> copy(lastResult = WildernessSessionResult(WildernessSessionResultStatus.RedrawRequested))
+            WildernessSessionInput.Journal ->
+                pending(WildernessPromptText.journalPending(), WildernessSessionResultStatus.JournalUnavailable)
+            WildernessSessionInput.Help -> copy(
+                step = WildernessSessionStep.Messages(wilderness.keys.helpPages, WildernessSessionStep.TurnStart),
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.HelpShown),
+            )
+            WildernessSessionInput.Hunt -> pending(WildernessPromptText.huntPending(), WildernessSessionResultStatus.HuntUnavailable)
+            WildernessSessionInput.ViewParty ->
+                pending(WildernessPromptText.viewPartyPending(), WildernessSessionResultStatus.ViewPartyUnavailable)
+            WildernessSessionInput.RemoveArmor -> equipment(EquipmentCommand.RemoveArmor)
+            WildernessSessionInput.RemoveWeapon -> equipment(EquipmentCommand.RemoveWeapon)
+            WildernessSessionInput.Enter -> enter()
+            WildernessSessionInput.Drop -> pending(WildernessPromptText.dropPending(), WildernessSessionResultStatus.DropUnavailable)
+            WildernessSessionInput.Camp -> pending(WildernessPromptText.campPending(), WildernessSessionResultStatus.CampUnavailable)
+            WildernessSessionInput.CastSpell -> castSpell()
+            WildernessSessionInput.Quaff -> quaff()
             WildernessSessionInput.Continue -> continueNotice()
             is WildernessSessionInput.CaveAnswer -> answerCave(input.enter)
             WildernessSessionInput.Quit -> requestQuit()
@@ -350,6 +397,51 @@ data class WildernessSession(
         }
     }
 
+    fun replaceEquipmentSession(session: EquipmentPromptSession): WildernessSession {
+        require(step is WildernessSessionStep.Equipment) {
+            "wilderness session is not running equipment prompts"
+        }
+        return if (session.step is EquipmentPromptStep.Finished) {
+            val status = when (session.step.result) {
+                is EquipmentActionResult.Equipped,
+                is EquipmentActionResult.Unequipped -> WildernessSessionResultStatus.EquipmentUsed
+                else -> WildernessSessionResultStatus.EquipmentUnavailable
+            }
+            copy(
+                runtime = runtime.withActiveParty(session.party),
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(status),
+            )
+        } else {
+            copy(runtime = runtime.withActiveParty(session.party), step = WildernessSessionStep.Equipment(session))
+        }
+    }
+
+    fun replacePriestSpellSession(session: PriestSpellSession): WildernessSession {
+        require(step is WildernessSessionStep.PriestSpell) {
+            "wilderness session is not running priest spell casting"
+        }
+        return if (session.step is PriestSpellStep.Finished) {
+            val status = when (session.lastResult?.status) {
+                PriestSpellStatus.Cast -> WildernessSessionResultStatus.CastSpellUsed
+                else -> WildernessSessionResultStatus.CastSpellUnavailable
+            }
+            copy(
+                runtime = session.runtime.withRealm(
+                    session.runtime.realm.copy(
+                        currentMode = RuntimeMode.Wilderness,
+                        currentTown = null,
+                        currentMap = worldMap.id,
+                    ),
+                ),
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(status),
+            )
+        } else {
+            copy(runtime = session.runtime, step = WildernessSessionStep.PriestSpell(session))
+        }
+    }
+
     fun replaceMissionContinuation(continuation: TownServiceContinuation): WildernessSession {
         val current = step as? WildernessSessionStep.Mission
             ?: error("wilderness session is not running a mission")
@@ -423,16 +515,38 @@ data class WildernessSession(
             WildernessSessionResult(WildernessSessionResultStatus.Passed),
         )
 
-    private fun useInventory(): WildernessSession =
+    private fun quaff(): WildernessSession =
         copy(
             step = WildernessSessionStep.InventoryItemUse(
                 InventoryItemUseSession.start(
                     runtime = runtime,
                     itemUses = itemUses,
                     itemRecords = itemRecords,
+                    allowedKinds = setOf(ItemKind.Potion),
+                    choosePrompt = InventoryUsePromptText.quaff,
                 ),
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.InventoryRequested),
+        )
+
+    private fun castSpell(): WildernessSession =
+        copy(
+            step = WildernessSessionStep.PriestSpell(
+                PriestSpellSession.start(
+                    runtime = runtime,
+                    spells = spells,
+                    place = PriestSpellPlace.Wilderness,
+                ),
+            ),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.CastSpellRequested),
+        )
+
+    private fun equipment(command: EquipmentCommand): WildernessSession =
+        copy(
+            step = WildernessSessionStep.Equipment(
+                EquipmentPromptSession.start(command, party, itemRecords),
+            ),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.EquipmentRequested),
         )
 
     private fun move(direction: WildernessDirection): WildernessSession {
@@ -736,6 +850,9 @@ data class WildernessSession(
     private fun notice(text: TextBlock, result: WildernessSessionResult): WildernessSession =
         copy(step = WildernessSessionStep.Notice(text, WildernessSessionStep.TurnStart), lastResult = result)
 
+    private fun pending(text: TextBlock, status: WildernessSessionResultStatus): WildernessSession =
+        notice(text, WildernessSessionResult(status))
+
     companion object {
         fun start(
             content: GameModel,
@@ -799,10 +916,50 @@ object WildernessPromptText {
 
     fun quitConfirm(): TextBlock =
         inlineText("Do you really want", "to quit?", "")
+
+    fun savePending(): TextBlock =
+        inlineText("Save is not wired", "in the Kotlin runtime yet.")
+
+    fun journalPending(): TextBlock =
+        inlineText("Journal viewing is not", "ported yet.")
+
+    fun huntPending(): TextBlock =
+        inlineText("Hunting is not", "ported yet.")
+
+    fun viewPartyPending(): TextBlock =
+        inlineText("Party viewing is not", "ported yet.")
+
+    fun dropPending(): TextBlock =
+        inlineText("Dropping items is not", "ported yet.")
+
+    fun campPending(): TextBlock =
+        inlineText("Camp is not ported yet.")
 }
 
 fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
-    listOf(moveNorth, moveSouth, moveWest, moveEast, pass, enter, useInventory, quit)
+    listOf(
+        moveNorth,
+        moveSouth,
+        moveWest,
+        moveEast,
+        pass,
+        save,
+        readyWeapon,
+        readyArmor,
+        redraw,
+        journal,
+        help,
+        hunt,
+        viewParty,
+        removeArmor,
+        removeWeapon,
+        enter,
+        drop,
+        camp,
+        castSpell,
+        quaff,
+        quit,
+    )
 
 fun WildernessKeysModel.caveKeys(): List<InputBindingModel> =
     listOf(caveEnter, caveLeave)

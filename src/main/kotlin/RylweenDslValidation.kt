@@ -275,7 +275,21 @@ private fun validateWildernessKeys(keys: WildernessKeysModel) {
         "move west" to keys.moveWest,
         "move east" to keys.moveEast,
         "pass" to keys.pass,
+        "save" to keys.save,
+        "ready weapon" to keys.readyWeapon,
+        "ready armor" to keys.readyArmor,
+        "redraw" to keys.redraw,
+        "journal" to keys.journal,
+        "help" to keys.help,
+        "hunt" to keys.hunt,
+        "view party" to keys.viewParty,
+        "remove armor" to keys.removeArmor,
+        "remove weapon" to keys.removeWeapon,
         "enter" to keys.enter,
+        "drop" to keys.drop,
+        "camp" to keys.camp,
+        "cast spell" to keys.castSpell,
+        "quaff" to keys.quaff,
         "quit" to keys.quit,
         "cave enter" to keys.caveEnter,
         "cave leave" to keys.caveLeave,
@@ -292,6 +306,10 @@ private fun validateWildernessKeys(keys: WildernessKeysModel) {
     checkUniqueBindings(keys.outOfMovesKeys(), "wilderness out-of-moves")
     checkUniqueBindings(keys.quitConfirmKeys(), "wilderness quit-confirm")
     validateTextBlock(keys.commandHint, "wilderness command hint")
+    check(keys.helpPages.isNotEmpty()) { "wilderness help pages must not be empty" }
+    keys.helpPages.forEachIndexed { index, page ->
+        validateTextBlock(page, "wilderness help page ${index + 1}")
+    }
 }
 
 private fun validateInputBinding(binding: InputBindingModel, label: String) {

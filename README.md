@@ -20,21 +20,31 @@ borders and decorative art. Gameplay text is unaffected.
 
 ## Kotlin runtime commands
 
-The current Kotlin build has three runnable shells:
+Build the direct ANSI launcher first:
 
 ```sh
-./gradlew runKotlinAnsi --args="--state fresh-replay --seed 1"
+./gradlew installKotlinAnsi --console=plain
+build/install/rylween-kotlin/bin/rylween --state fresh-replay --seed 1
+```
+
+The generated `build/install/rylween-kotlin/bin/rylween` script is the closest
+current equivalent to `rylween.exe`. Use that for interactive ANSI play; it runs
+outside Gradle so Gradle progress output and key echo do not share the game
+screen. It loads the compiled DSL game, packaged `ansi/**` resources, packaged
+`map.dat`, the classic screen frame, text/status/map regions, and the terminal
+terrain glyph table.
+
+The line-oriented shells are still useful for testing:
+
+```sh
 ./gradlew runKotlinGame --args="--state fresh-replay --seed 1"
 ./gradlew runKotlinTown --args="--town thord --hour 12 --seed 1"
 ```
 
-`runKotlinAnsi` is the closest current equivalent to `rylween.exe`: it loads
-the compiled DSL game, packaged `ansi/**` resources, packaged `map.dat`, the
-classic screen frame, text/status/map regions, and the terminal terrain glyph
-table. Useful logging forms:
+Useful ANSI logging forms:
 
 ```sh
-RYL_LOG=stderr ./gradlew runKotlinAnsi --args="--state fresh-replay"
-RYL_LOG=file:build/rylween.log ./gradlew runKotlinAnsi --args="--state fresh-replay"
-RYL_LOG=tcp:9999,file:build/rylween.log ./gradlew runKotlinAnsi --args="--state fresh-replay"
+RYL_LOG=stderr build/install/rylween-kotlin/bin/rylween --state fresh-replay
+RYL_LOG=file:build/rylween.log build/install/rylween-kotlin/bin/rylween --state fresh-replay
+RYL_LOG=tcp:9999,file:build/rylween.log build/install/rylween-kotlin/bin/rylween --state fresh-replay
 ```

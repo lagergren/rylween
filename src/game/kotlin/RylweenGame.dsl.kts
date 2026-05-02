@@ -415,14 +415,55 @@ val nextRylween = rylween {
         keys {
             numberPadMovementWithArrows()
             pass = inputKey(" ", "SPACE", label = "Space")
+            save = inputKey("S")
+            readyWeapon = inputKey("W")
+            readyArmor = inputKey("R")
+            redraw = inputKey("!")
+            journal = inputKey("J")
+            help = inputKey("?")
+            hunt = inputKey("H")
+            viewParty = inputKey("V")
+            removeArmor = inputKey("T")
+            removeWeapon = inputKey("P")
             enter = inputKey("E")
+            drop = inputKey("L")
+            camp = inputKey("C")
+            castSpell = inputKey("Z")
+            quaff = inputKey("Q")
             quit = inputKey("X")
             cave(enter = inputKey("E"), leave = inputKey("L"))
             outOfMoves(save = inputKey("S"), quit = inputKey("Q"))
             quitConfirm(yes = inputKey("Y"), no = inputKey("N"))
-            commandHint {
-                line("Commands: 8/2/4/6 or arrows move, Space pass, E enter,")
-                line("Q inventory, X quit")
+            commandHint("Press ? for commands.")
+            helpPages {
+                page(
+                    "C = Camp",
+                    "E = Enter",
+                    "H = Hunt for Food",
+                    "J = View Journal",
+                    "L = Leave (Discard) Item",
+                    "P = Put down weapon",
+                    "",
+                )
+                page(
+                    "Q = Quaff Potion",
+                    "R = Ready Armor",
+                    "S = Save Game",
+                    "T = Take off armor",
+                    "V = View Party",
+                    "W = Wield Weapon",
+                    "",
+                )
+                page(
+                    "X = Quit Game (No Save)",
+                    "Z = Cast Spell",
+                    "! = Redraw Screen",
+                    "? = View this help",
+                    "    8     Move North,",
+                    "  4-+-6   South, East &",
+                    "    2     West",
+                    "",
+                )
             }
         }
 
@@ -3026,6 +3067,185 @@ val nextRylween = rylween {
         battle.partyConfused set true
     }
 
+    // Priest spells are used by the wilderness/dungeon Z command. The reusable
+    // runtime owns the "Who?", class gate, spell list, and abort key; these
+    // blocks declare the current game's spell effects.
+    spell(Spells.Priest.heal, slot = 1, baseCost = 8, name = "Healing") {
+        val caster = currentCaster
+        val cost = lit(8) + caster.level
+
+        native.screen.clearText()
+        whenever(caster.mp gte cost) {
+            caster.mp -= cost
+            val maxMembers = realm.partyMemberMax
+            val target = ask.member(
+                structuredText {
+                    line("Who? (1-", maxMembers, ")")
+                },
+                filter = MemberChoiceFilter.Any,
+            )
+            val healing = localInt(random(10..19) + (caster.level * 2))
+
+            whenever(target.dead) {
+                native.screen.clearText()
+                screen("Dead.")
+                pause(600)
+                native.screen.clearText()
+            } otherwise {
+                target.hp.addClamped(healing, target.maxHp)
+                native.screen.clearText()
+                screen {
+                    line(partyName(caster), " heals")
+                    line(partyName(target))
+                    line("for ", healing, " hit points...")
+                }
+                pause(1500)
+                native.screen.clearText()
+            }
+        } otherwise {
+            screen("Not enough spell pts!")
+            pause(1000)
+            native.screen.clearText()
+        }
+    }
+
+    spell(Spells.Priest.restoration, slot = 2, baseCost = 20, name = "Restoration") {
+        val caster = currentCaster
+        val cost = lit(20) + caster.level
+
+        native.screen.clearText()
+        whenever(caster.mp gte cost) {
+            caster.mp -= cost
+            val maxMembers = realm.partyMemberMax
+            val target = ask.member(
+                structuredText {
+                    line("Who? (1-", maxMembers, ")")
+                },
+                filter = MemberChoiceFilter.Any,
+            )
+
+            target.fullHeal()
+            native.screen.clearText()
+            screen {
+                line(partyName(caster), " heals")
+                line(partyName(target))
+                line("fully...")
+            }
+            pause(1500)
+            native.screen.clearText()
+        } otherwise {
+            screen("Not enough spell pts!")
+            pause(1000)
+            native.screen.clearText()
+        }
+    }
+
+    spell(Spells.Priest.rebirth, slot = 3, baseCost = 90, name = "Rebirth") {
+        val caster = currentCaster
+        val cost = lit(90) + caster.level
+
+        native.screen.clearText()
+        whenever(caster.mp gte cost) {
+            val maxMembers = realm.partyMemberMax
+            val target = ask.member(
+                structuredText {
+                    line("Who? (1-", maxMembers, ")")
+                },
+                filter = MemberChoiceFilter.Any,
+            )
+
+            whenever(target.dead) {
+                caster.mp -= cost
+                target.dead set false
+                target.hp set 1
+                native.screen.clearText()
+                screen {
+                    line(partyName(target), "'s eyelids")
+                    lines("flicker, and finally")
+                    line(pronoun(target, PronounCase.Subject), " opens ", pronoun(target, PronounCase.Possessive), " eyes!")
+                }
+                pause(1700)
+                native.screen.clearText()
+            } otherwise {
+                screen {
+                    line(partyName(target), " is alive and")
+                    line("healthy.")
+                }
+                pause(1500)
+            }
+        } otherwise {
+            screen("Not enough spell pts!")
+            pause(1000)
+            native.screen.clearText()
+        }
+    }
+
+    spell(Spells.Priest.banish, slot = 4, baseCost = 85, name = "Banish Evil") {
+        val caster = currentCaster
+        val cost = lit(85) + caster.level
+
+        native.screen.clearText()
+        whenever(caster.mp gte cost) {
+            whenever(v("place") eq 1) {
+                caster.mp -= cost
+                native.screen.clearText()
+                screen {
+                    line(partyName(caster), " raises ", pronoun(caster, PronounCase.Possessive), " hands.")
+                    line(pronoun(caster, PronounCase.Subject), " gathers divine power")
+                    line("between ", pronoun(caster, PronounCase.Possessive), " palms, and")
+                    line("suddenly clasps them.")
+                    line("together over ", pronoun(caster, PronounCase.Possessive), " head.")
+                }
+                screen("There is a deafening clap", "of thunder, and you hear", "beings scream in agony", "in the dungeon below...", "")
+                waitInput("after banish evil")
+                native.screen.clearText()
+                realm.banished set true
+            } otherwise {
+                screen("There is no particular", "target for this banishing.", "This spell is meant for", "use in dungeons and caves.", "")
+                waitInput("after banish no target")
+                native.screen.clearText()
+            }
+        } otherwise {
+            screen("Not enough spell pts!")
+            pause(1000)
+            native.screen.clearText()
+        }
+    }
+
+    spell(Spells.Priest.revelation, slot = 5, baseCost = 40, name = "Revelation") {
+        val caster = currentCaster
+        val cost = lit(40) + caster.level
+
+        native.screen.clearText()
+        whenever(caster.mp gte cost) {
+            whenever(v("place") eq 1) {
+                screen("Dungeon revelation", "is not ported yet.")
+                waitInput("after pending revelation")
+                native.screen.clearText()
+            } otherwise {
+                screen("This spell can be used in", "dungeons only, where there", "is a limited radius for", "the caster to enchant.", "")
+                waitInput("after revelation dungeon-only")
+                native.screen.clearText()
+            }
+        } otherwise {
+            screen("Not enough spell pts!")
+            pause(1000)
+            native.screen.clearText()
+        }
+    }
+
+    spell(Spells.Priest.teleport, slot = 6, baseCost = 35, name = "Teleport") {
+        screen("Teleport is not", "ported yet.")
+        waitInput("after pending teleport")
+        native.screen.clearText()
+    }
+
+    spell(Spells.Priest.earthquake, slot = 7, baseCost = 55, name = "Earthquake") {
+        screen("Earthquake is not", "ported yet.")
+        waitInput("after pending earthquake")
+        native.screen.clearText()
+    }
+
     itemUse(Items.redPotion) {
         inventory()
         consume = ItemConsumePolicy.ScriptControlled
@@ -4642,7 +4862,7 @@ check(nextDsl.dialogue.single().branches.any { branch ->
                         op.reward.application.overflow == RewardOverflowPolicy.PromptDropThenPlace
             }
 })
-check(nextDsl.spells.size == 10)
+check(nextDsl.spells.size == 17)
 check(nextDsl.itemUses.size == 15)
 check(nextDsl.itemUses.count { ItemUseContext.Inventory in it.contexts } == 3)
 check(nextDsl.itemUses.single { it.id == Items.redPotion }.ops.any { it is Op.AskMember })

@@ -1255,7 +1255,7 @@ class RylweenDslValidationTest {
         assertTrue(session.session.step is TownSessionStep.Finished)
         assertEquals(80, session.session.party.resources.torches)
         assertEquals(8, session.session.party.resources.gold)
-        assertTrue(terminal.output.any { "(M) Merchant" in it })
+        assertTrue(terminal.output.any { "(M)erchant" in it })
         assertTrue(terminal.output.any { "(A) torch" in it })
     }
 
@@ -2311,8 +2311,54 @@ class RylweenDslValidationTest {
         assertEquals(WildernessSessionResultStatus.InventoryUsed, result.session.lastResult?.status)
         assertEquals(null, result.session.party.inventoryItem(1))
         assertEquals(25, result.session.party.members.single().hitPoints.current)
-        assertTrue(terminal.output.any { "Q inventory" in it })
+        assertTrue(terminal.output.any { "Press ? for commands." in it })
+        assertTrue(terminal.output.any { "Quaff what?" in it })
         assertTrue(terminal.output.any { "A. Red Potion" in it })
+    }
+
+    @Test
+    fun wildernessCastSpellKeyRejectsNonPriest() {
+        val terminal = FakeTerminalPort("Z", "1")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.CastSpellUnavailable, result.session.lastResult?.status)
+        assertTrue(terminal.output.any { "Who? (1-4)" in it })
+        assertTrue(terminal.output.any { "Wrong class." in it })
+    }
+
+    @Test
+    fun wildernessCastSpellKeyRunsPriestHealingScript() {
+        val terminal = FakeTerminalPort("Z", "1", "1", "1")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    pcClass = PcClass.Priest,
+                    level = 1,
+                    health = 30,
+                    hitPoints = 10,
+                    wisdom = 20,
+                    mana = 20,
+                ),
+            ),
+        )
+
+        val member = result.session.party.members.single()
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.CastSpellUsed, result.session.lastResult?.status)
+        assertEquals(22, member.hitPoints.current)
+        assertEquals(12, member.mana.current)
+        assertTrue(terminal.output.any { "1. Healing" in it })
+        assertTrue(terminal.output.any { "8. Abort" in it })
+        assertTrue(terminal.output.any { "Tester heals" in it })
     }
 
     @Test

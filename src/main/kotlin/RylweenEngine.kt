@@ -1677,7 +1677,7 @@ class InventoryItemUseTerminalAdapter(
                         speakContent = speakContent,
                         battleContent = BattleRuntimeContent(itemRecords = session.itemRecords),
                     ).run()
-                    writeScriptEvents(engine.events.drop(eventStart), result.runtime)
+                    terminal.writeScriptEvents(engine.events.drop(eventStart), renderer, result.runtime)
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
                             session.finishScript(result.runtime)
@@ -1709,44 +1709,116 @@ class InventoryItemUseTerminalAdapter(
         )
     }
 
-    private fun writeScriptEvents(events: List<EngineTraceEvent>, runtime: RuntimeSessionState) {
-        val context = TerminalTextContext(runtime = runtime)
-        events.forEach { event ->
-            when (event) {
-                is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
-                is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
-                is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
-                is EngineTraceEvent.Menu -> terminal.write(
-                    renderer.lines(event.prompt, context) + "Options: ${event.keys.joinToString("/")}",
-                )
-                is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
-                is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
-                is EngineTraceEvent.NativeString ->
-                    terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
-                is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
-                is EngineTraceEvent.DungeonHandoff ->
-                    terminal.write(renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context))
-                is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
-                is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
-                is EngineTraceEvent.WaitInput,
-                is EngineTraceEvent.Pause,
-                is EngineTraceEvent.SetFlag,
-                is EngineTraceEvent.AppendJournal,
-                is EngineTraceEvent.GrantReward,
-                is EngineTraceEvent.AchieveMilestone,
-                is EngineTraceEvent.Speak,
-                is EngineTraceEvent.Encounter,
-                is EngineTraceEvent.RandomItemOffer,
-                is EngineTraceEvent.ShopService,
-                is EngineTraceEvent.ShopSellQuote,
-                is EngineTraceEvent.ShopTransaction,
-                is EngineTraceEvent.EquipmentAction,
-                is EngineTraceEvent.TownService,
-                is EngineTraceEvent.ConsumeInventoryPool,
-                EngineTraceEvent.ConsumeTorch -> Unit
+}
+
+class PriestSpellTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+    private val engine: TraceEnginePort = TraceEnginePort(),
+    private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
+) {
+    fun runUntilBlocked(initial: PriestSpellSession): TerminalAdapterResult<PriestSpellSession> {
+        var session = initial
+        repeat(128) {
+            session = when (val step = session.step) {
+                is PriestSpellStep.ChooseCaster -> {
+                    writeMenu(step.prompt, step.casterKeys, session.runtime)
+                    when (val input = terminal.readMemberNumber(step.casterKeys.map { it.digitToInt() })) {
+                        is TerminalInput.Value -> session.apply(PriestSpellInput.Caster(input.value))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is PriestSpellStep.ChooseSpell -> {
+                    writeMenu(step.prompt, step.spellKeys, session.runtime)
+                    when (val input = terminal.readKey(step.spellKeys)) {
+                        is TerminalInput.Value -> session.apply(PriestSpellInput.SpellSlot(input.value.digitToInt()))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is PriestSpellStep.Script -> {
+                    val eventStart = engine.events.size
+                    val result = StatefulScriptServiceRunner(
+                        terminal = terminal,
+                        engine = engine,
+                        rootOps = step.spell.ops,
+                        continuation = step.continuation,
+                        speakContent = speakContent,
+                        battleContent = BattleRuntimeContent(itemRecords = emptyList()),
+                    ).run()
+                    terminal.writeScriptEvents(engine.events.drop(eventStart), renderer, result.runtime)
+                    when (result.status) {
+                        TownServiceBridgeStatus.Finished -> session.finishScript(result.runtime)
+                        TownServiceBridgeStatus.Waiting ->
+                            return waiting(
+                                session.replaceScriptContinuation(
+                                    checkNotNull(result.continuation) {
+                                        "waiting priest spell script did not return continuation"
+                                    },
+                                ),
+                                result.rejection,
+                            )
+                    }
+                }
+                is PriestSpellStep.Message -> {
+                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
+                    session.apply(PriestSpellInput.Continue)
+                }
+                is PriestSpellStep.Finished -> return finished(session)
             }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun writeMenu(block: TextBlock, keys: List<Char>, runtime: RuntimeSessionState) {
+        terminal.write(
+            renderer.lines(block, TerminalTextContext(runtime = runtime)) +
+                "Options: ${keys.joinToString("/")}",
+        )
+    }
+}
+
+private fun TerminalPort.writeScriptEvents(
+    events: List<EngineTraceEvent>,
+    renderer: TerminalTextRenderer,
+    runtime: RuntimeSessionState,
+) {
+    val context = TerminalTextContext(runtime = runtime)
+    events.forEach { event ->
+        when (event) {
+            is EngineTraceEvent.Screen -> write(renderer.lines(event.text, context))
+            is EngineTraceEvent.Emit -> write(listOf("[${event.id.id}]"))
+            is EngineTraceEvent.EmitIndexed -> write(listOf("[${event.pattern.pattern}: ${event.value}]"))
+            is EngineTraceEvent.Menu -> write(
+                renderer.lines(event.prompt, context) + "Options: ${event.keys.joinToString("/")}",
+            )
+            is EngineTraceEvent.AskMember -> write(renderer.lines(event.prompt, context))
+            is EngineTraceEvent.AskInventorySlot -> write(renderer.lines(event.prompt, context))
+            is EngineTraceEvent.NativeEffect -> write(listOf("Native: ${event.request.path}"))
+            is EngineTraceEvent.NativeInt -> write(listOf("Native int: ${event.request.path} = ${event.result}"))
+            is EngineTraceEvent.NativeString -> write(listOf("Native string: ${event.request.path} = ${event.result}"))
+            is EngineTraceEvent.RunScene -> write(listOf("Scene: ${event.scene.slug}"))
+            is EngineTraceEvent.DungeonHandoff ->
+                write(renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context))
+            is EngineTraceEvent.Stop -> write(listOf(event.reason ?: "Stop"))
+            is EngineTraceEvent.Break -> write(listOf(event.reason ?: "Break"))
+            is EngineTraceEvent.WaitInput,
+            is EngineTraceEvent.Pause,
+            is EngineTraceEvent.SetFlag,
+            is EngineTraceEvent.AppendJournal,
+            is EngineTraceEvent.GrantReward,
+            is EngineTraceEvent.AchieveMilestone,
+            is EngineTraceEvent.Speak,
+            is EngineTraceEvent.Encounter,
+            is EngineTraceEvent.RandomItemOffer,
+            is EngineTraceEvent.ShopService,
+            is EngineTraceEvent.ShopSellQuote,
+            is EngineTraceEvent.ShopTransaction,
+            is EngineTraceEvent.EquipmentAction,
+            is EngineTraceEvent.TownService,
+            is EngineTraceEvent.ConsumeInventoryPool,
+            EngineTraceEvent.ConsumeTorch -> Unit
         }
     }
 }
@@ -1998,9 +2070,22 @@ class TownSessionTerminalAdapter(
     }
 
     private fun writeTownMenu(step: TownSessionStep.Menu) {
+        val header = when (step.town.kind) {
+            TownKind.City -> "City of ${step.town.name}"
+            TownKind.Village -> "Village of ${step.town.name}"
+        }
+        val hasChurch = step.actions.any { it.building == Buildings.church }
         terminal.write(
-            renderer.lines(TownPromptText.menu(step.town)) +
-                step.actions.map { action -> "(${action.binding.label}) ${action.label()}" },
+            listOf(
+                header,
+                "=======================",
+                "",
+                "(M)erchant  (I)nn",
+                "(T)avern    (G)uild",
+                if (hasChurch) "(S)mith     (C)hurch" else "(S)mith",
+                "(L)eave",
+                ": ",
+            ),
         )
     }
 
@@ -2165,8 +2250,21 @@ class WildernessSessionTerminalAdapter(
                         TerminalChoice(WildernessSessionInput.Move(WildernessDirection.West), keys.moveWest),
                         TerminalChoice(WildernessSessionInput.Move(WildernessDirection.East), keys.moveEast),
                         TerminalChoice(WildernessSessionInput.Pass, keys.pass),
+                        TerminalChoice(WildernessSessionInput.Save, keys.save),
+                        TerminalChoice(WildernessSessionInput.ReadyWeapon, keys.readyWeapon),
+                        TerminalChoice(WildernessSessionInput.ReadyArmor, keys.readyArmor),
+                        TerminalChoice(WildernessSessionInput.Redraw, keys.redraw),
+                        TerminalChoice(WildernessSessionInput.Journal, keys.journal),
+                        TerminalChoice(WildernessSessionInput.Help, keys.help),
+                        TerminalChoice(WildernessSessionInput.Hunt, keys.hunt),
+                        TerminalChoice(WildernessSessionInput.ViewParty, keys.viewParty),
+                        TerminalChoice(WildernessSessionInput.RemoveArmor, keys.removeArmor),
+                        TerminalChoice(WildernessSessionInput.RemoveWeapon, keys.removeWeapon),
                         TerminalChoice(WildernessSessionInput.Enter, keys.enter),
-                        TerminalChoice(WildernessSessionInput.UseInventory, keys.useInventory),
+                        TerminalChoice(WildernessSessionInput.Drop, keys.drop),
+                        TerminalChoice(WildernessSessionInput.Camp, keys.camp),
+                        TerminalChoice(WildernessSessionInput.CastSpell, keys.castSpell),
+                        TerminalChoice(WildernessSessionInput.Quaff, keys.quaff),
                         TerminalChoice(WildernessSessionInput.Quit, keys.quit),
                     )
                     when (val input = terminal.readChoice(choices)) {
@@ -2218,6 +2316,28 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.InventoryItemUse -> {
                     val result = InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceInventoryItemUseSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is WildernessSessionStep.Equipment -> {
+                    val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceEquipmentSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is WildernessSessionStep.PriestSpell -> {
+                    val result = PriestSpellTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replacePriestSpellSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
                         TerminalRunStatus.StepLimitReached ->

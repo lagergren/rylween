@@ -1122,8 +1122,21 @@ data class WildernessKeysModel(
     val moveWest: InputBindingModel = inputKey("4", InputAliases.ArrowLeft, "LEFT", "ARROW_LEFT", label = "4/Left"),
     val moveEast: InputBindingModel = inputKey("6", InputAliases.ArrowRight, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
     val pass: InputBindingModel = inputKey(" ", "SPACE", label = "Space"),
+    val save: InputBindingModel = inputKey("S"),
+    val readyWeapon: InputBindingModel = inputKey("W"),
+    val readyArmor: InputBindingModel = inputKey("R"),
+    val redraw: InputBindingModel = inputKey("!"),
+    val journal: InputBindingModel = inputKey("J"),
+    val help: InputBindingModel = inputKey("?"),
+    val hunt: InputBindingModel = inputKey("H"),
+    val viewParty: InputBindingModel = inputKey("V"),
+    val removeArmor: InputBindingModel = inputKey("T"),
+    val removeWeapon: InputBindingModel = inputKey("P"),
     val enter: InputBindingModel = inputKey("E"),
-    val useInventory: InputBindingModel = inputKey("Q"),
+    val drop: InputBindingModel = inputKey("L"),
+    val camp: InputBindingModel = inputKey("C"),
+    val castSpell: InputBindingModel = inputKey("Z"),
+    val quaff: InputBindingModel = inputKey("Q"),
     val quit: InputBindingModel = inputKey("X"),
     val caveEnter: InputBindingModel = inputKey("E"),
     val caveLeave: InputBindingModel = inputKey("L"),
@@ -1131,7 +1144,39 @@ data class WildernessKeysModel(
     val outOfMovesQuit: InputBindingModel = inputKey("Q"),
     val quitYes: InputBindingModel = inputKey("Y"),
     val quitNo: InputBindingModel = inputKey("N"),
-    val commandHint: TextBlock = inlineText("Commands: 8/2/4/6 or arrows move, Space pass, E enter, Q inventory, X quit"),
+    val commandHint: TextBlock = inlineText("Press ? for commands."),
+    val helpPages: List<TextBlock> = StandardWildernessHelpPages,
+)
+
+val StandardWildernessHelpPages: List<TextBlock> = listOf(
+    inlineText(
+        "C = Camp",
+        "E = Enter",
+        "H = Hunt for Food",
+        "J = View Journal",
+        "L = Leave (Discard) Item",
+        "P = Put down weapon",
+        "",
+    ),
+    inlineText(
+        "Q = Quaff Potion",
+        "R = Ready Armor",
+        "S = Save Game",
+        "T = Take off armor",
+        "V = View Party",
+        "W = Wield Weapon",
+        "",
+    ),
+    inlineText(
+        "X = Quit Game (No Save)",
+        "Z = Cast Spell",
+        "! = Redraw Screen",
+        "? = View this help",
+        "    8     Move North,",
+        "  4-+-6   South, East &",
+        "    2     West",
+        "",
+    ),
 )
 
 data class WildernessEventModel(
@@ -1369,6 +1414,11 @@ class RealmRef(private val script: ScriptScope) {
         script,
         LValueAst.RealmScalar("party_member_max"),
         IntAst.RealmScalar("party_member_max"),
+    )
+    val banished = BoolSlot(
+        script,
+        LValueAst.RealmScalar("banished"),
+        BoolAst.Cmp(IntAst.RealmScalar("banished"), "ne", IntAst.Lit(0)),
     )
 }
 
@@ -3149,8 +3199,21 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
     private var moveWestKey = initial.moveWest
     private var moveEastKey = initial.moveEast
     var pass: InputBindingModel = initial.pass
+    var save: InputBindingModel = initial.save
+    var readyWeapon: InputBindingModel = initial.readyWeapon
+    var readyArmor: InputBindingModel = initial.readyArmor
+    var redraw: InputBindingModel = initial.redraw
+    var journal: InputBindingModel = initial.journal
+    var help: InputBindingModel = initial.help
+    var hunt: InputBindingModel = initial.hunt
+    var viewParty: InputBindingModel = initial.viewParty
+    var removeArmor: InputBindingModel = initial.removeArmor
+    var removeWeapon: InputBindingModel = initial.removeWeapon
     var enter: InputBindingModel = initial.enter
-    var useInventory: InputBindingModel = initial.useInventory
+    var drop: InputBindingModel = initial.drop
+    var camp: InputBindingModel = initial.camp
+    var castSpell: InputBindingModel = initial.castSpell
+    var quaff: InputBindingModel = initial.quaff
     var quit: InputBindingModel = initial.quit
     private var caveEnterKey = initial.caveEnter
     private var caveLeaveKey = initial.caveLeave
@@ -3159,6 +3222,7 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
     private var quitYesKey = initial.quitYes
     private var quitNoKey = initial.quitNo
     private var commandHintText = initial.commandHint
+    private var helpPageText = initial.helpPages
 
     fun movement(
         north: InputBindingModel = moveNorthKey,
@@ -3220,6 +3284,10 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
         commandHintText = structuredText(body)
     }
 
+    fun helpPages(body: WildernessHelpPagesBuilder.() -> Unit) {
+        helpPageText = WildernessHelpPagesBuilder().apply(body).build()
+    }
+
     fun build(): WildernessKeysModel =
         WildernessKeysModel(
             moveNorth = moveNorthKey,
@@ -3227,8 +3295,21 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
             moveWest = moveWestKey,
             moveEast = moveEastKey,
             pass = pass,
+            save = save,
+            readyWeapon = readyWeapon,
+            readyArmor = readyArmor,
+            redraw = redraw,
+            journal = journal,
+            help = help,
+            hunt = hunt,
+            viewParty = viewParty,
+            removeArmor = removeArmor,
+            removeWeapon = removeWeapon,
             enter = enter,
-            useInventory = useInventory,
+            drop = drop,
+            camp = camp,
+            castSpell = castSpell,
+            quaff = quaff,
             quit = quit,
             caveEnter = caveEnterKey,
             caveLeave = caveLeaveKey,
@@ -3237,7 +3318,23 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
             quitYes = quitYesKey,
             quitNo = quitNoKey,
             commandHint = commandHintText,
+            helpPages = helpPageText,
         )
+}
+
+@RylNextDsl
+class WildernessHelpPagesBuilder {
+    private val pages = mutableListOf<TextBlock>()
+
+    fun page(vararg lines: String) {
+        pages += inlineText(*lines)
+    }
+
+    fun page(body: StructuredTextBlockBuilder.() -> Unit) {
+        pages += structuredText(body)
+    }
+
+    fun build(): List<TextBlock> = pages.toList()
 }
 
 @RylNextDsl
