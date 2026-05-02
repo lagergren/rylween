@@ -1309,6 +1309,21 @@ fun validateAuthoredContent(content: GameModel) {
     check(content.prompts.returnKeyName.isNotBlank()) {
         "pause prompt return key name must not be blank"
     }
+    validateTextBlock(content.prompts.priest.who, "priest who prompt")
+    validateTextBlock(content.prompts.priest.mageCombatOnly, "priest mage-combat-only prompt")
+    validateTextBlock(content.prompts.priest.wrongClass, "priest wrong-class prompt")
+    validateTextBlock(content.prompts.priest.dead, "priest dead prompt")
+    validateTextBlock(content.prompts.priest.invalidCaster, "priest invalid-caster prompt")
+    validateTextBlock(content.prompts.priest.invalidSpell, "priest invalid-spell prompt")
+    validateTextBlock(content.prompts.priest.noSpells, "priest no-spells prompt")
+    validateTextBlock(content.prompts.inventoryUse.use, "inventory use prompt")
+    validateTextBlock(content.prompts.inventoryUse.quaff, "inventory quaff prompt")
+    validateTextBlock(content.prompts.inventoryUse.noItems, "inventory no-items prompt")
+    validateTextBlock(content.prompts.inventoryUse.noItem, "inventory no-item prompt")
+    validateTextBlock(content.prompts.equipment.inventory, "equipment inventory prompt")
+    validateTextBlock(content.prompts.equipment.who, "equipment who prompt")
+    validateTextBlock(content.prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
+    validateTextBlock(content.prompts.equipment.readyArmors, "equipment ready-armors prompt")
     validateTerminalPresentation(content.terminal)
     validateItemCatalog(content.itemCatalog)
     check(content.itemPools.map { it.slug }.toSet().size == content.itemPools.size) {

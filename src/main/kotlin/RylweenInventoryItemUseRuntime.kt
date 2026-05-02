@@ -45,13 +45,14 @@ data class InventoryItemUseSession(
     val runtime: RuntimeSessionState,
     val content: RuntimeContent = RuntimeContent(),
     val allowedKinds: Set<ItemKind>? = null,
-    val choosePrompt: TextBlock = InventoryUsePromptText.use,
+    val choosePrompt: TextBlock = content.prompts.inventoryUse.use,
     val step: InventoryItemUseStep,
     val lastResult: InventoryItemUseResult? = null,
 ) {
     val itemUses: List<ItemUseModel> get() = content.itemUses
     val itemRecords: List<ItemRecordModel> get() = content.itemRecords
     val realmContent: RealmContentModel get() = content.realm
+    val prompts: InventoryUsePromptsModel get() = content.prompts.inventoryUse
     val party: PartyState get() = runtime.activeParty
 
     fun apply(input: InventoryItemUseInput): InventoryItemUseSession =
@@ -110,23 +111,23 @@ data class InventoryItemUseSession(
         if (slot !in 1..InventorySaveSlotMax) {
             return message(
                 InventoryItemUseStatus.InvalidSlot,
-                InventoryUsePromptText.invalidSlot(slot),
+                prompts.invalidSlot(slot),
                 slot = slot,
             )
         }
         val item = party.inventoryItem(slot)
-            ?: return message(InventoryItemUseStatus.NoItem, InventoryUsePromptText.noItem(), slot = slot)
+            ?: return message(InventoryItemUseStatus.NoItem, prompts.noItem, slot = slot)
         val record = itemRecords.associateBy { it.id }[item]
-            ?: return message(InventoryItemUseStatus.NotUsable, InventoryUsePromptText.notUsable(item.slug), item, slot)
+            ?: return message(InventoryItemUseStatus.NotUsable, prompts.notUsable(item.slug), item, slot)
         if (allowedKinds?.contains(record.kind) == false) {
-            return message(InventoryItemUseStatus.NotUsable, InventoryUsePromptText.notUsable(record.displayName), item, slot)
+            return message(InventoryItemUseStatus.NotUsable, prompts.notUsable(record.displayName), item, slot)
         }
         val use = itemUses.firstOrNull { it.id == item && ItemUseContext.Inventory in it.contexts }
         return when {
             use != null -> beginScript(use, item, slot)
             record.kind == ItemKind.Weapon -> beginEquipment(EquipmentCommand.ReadyWeapon, item, slot)
             record.kind == ItemKind.Armor -> beginEquipment(EquipmentCommand.ReadyArmor, item, slot)
-            else -> message(InventoryItemUseStatus.NotUsable, InventoryUsePromptText.notUsable(record.displayName), item, slot)
+            else -> message(InventoryItemUseStatus.NotUsable, prompts.notUsable(record.displayName), item, slot)
         }
     }
 
@@ -153,7 +154,13 @@ data class InventoryItemUseSession(
     private fun beginEquipment(command: EquipmentCommand, item: ItemId, slot: Int): InventoryItemUseSession =
         copy(
             step = InventoryItemUseStep.Equipment(
-                session = EquipmentPromptSession.startWithInventorySlot(command, party, slot, itemRecords),
+                session = EquipmentPromptSession.startWithInventorySlot(
+                    command = command,
+                    party = party,
+                    slot = slot,
+                    itemRecords = itemRecords,
+                    prompts = content.prompts.equipment,
+                ),
                 item = item,
                 slot = slot,
             ),
@@ -193,7 +200,7 @@ data class InventoryItemUseSession(
             itemUses: List<ItemUseModel>,
             itemRecords: List<ItemRecordModel> = emptyList(),
             allowedKinds: Set<ItemKind>? = null,
-            choosePrompt: TextBlock = InventoryUsePromptText.use,
+            choosePrompt: TextBlock? = null,
             realmContent: RealmContentModel = RealmContentModel(),
         ): InventoryItemUseSession =
             start(
@@ -211,53 +218,32 @@ data class InventoryItemUseSession(
             runtime: RuntimeSessionState,
             content: RuntimeContent = RuntimeContent(),
             allowedKinds: Set<ItemKind>? = null,
-            choosePrompt: TextBlock = InventoryUsePromptText.use,
+            choosePrompt: TextBlock? = null,
         ): InventoryItemUseSession {
+            val prompts = content.prompts.inventoryUse
+            val prompt = choosePrompt ?: prompts.use
             val choices = runtime.activeParty.inventoryItemChoices(content.itemRecords)
                 .filter { choice -> allowedKinds?.contains(choice.kind) ?: true }
             val result = InventoryItemUseResult(InventoryItemUseStatus.NoItems, runtime)
             val step = if (choices.isEmpty()) {
                 InventoryItemUseStep.Message(
-                    InventoryUsePromptText.noItems(),
+                    prompts.noItems,
                     InventoryItemUseStep.Finished(result),
                 )
             } else {
-                InventoryItemUseStep.ChooseItem(InventoryUsePromptText.choose(choosePrompt, choices), choices)
+                InventoryItemUseStep.ChooseItem(
+                    prompts.choose(prompt, choices.map { "${it.key}. ${it.label}" }),
+                    choices,
+                )
             }
             return InventoryItemUseSession(
                 runtime = runtime,
                 content = content,
                 allowedKinds = allowedKinds,
-                choosePrompt = choosePrompt,
+                choosePrompt = prompt,
                 step = step,
                 lastResult = result.takeIf { choices.isEmpty() },
             )
         }
     }
-}
-
-object InventoryUsePromptText {
-    val use = inlineText("Use what?")
-    val quaff = inlineText("Quaff what?")
-
-    fun choose(choices: List<InventoryItemChoice>): TextBlock =
-        combineTextBlocks(
-            use,
-            TextBlock.Inline(choices.map { "${it.key}. ${it.label}" }),
-        )
-
-    fun choose(prompt: TextBlock, choices: List<InventoryItemChoice>): TextBlock =
-        combineTextBlocks(prompt, TextBlock.Inline(choices.map { "${it.key}. ${it.label}" }))
-
-    fun noItems(): TextBlock =
-        inlineText("You are not carrying", "anything.")
-
-    fun noItem(): TextBlock =
-        inlineText("There is nothing", "in that slot.")
-
-    fun invalidSlot(slot: Int): TextBlock =
-        inlineText("Inventory slot $slot", "does not exist.")
-
-    fun notUsable(itemName: String): TextBlock =
-        inlineText("Nothing happens", "with $itemName.")
 }

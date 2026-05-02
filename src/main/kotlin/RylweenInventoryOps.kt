@@ -313,13 +313,6 @@ data class EquipmentPromptModel(
     val inventoryFilter: InventorySlotChoiceFilter?,
 )
 
-object EquipmentPromptText {
-    val inventory = inlineText("Ready what?")
-    val who = inlineText("Who? (1-N)")
-    val readyWeapons = inlineText("Do you want to ready", "some weapons before", "leaving?", "")
-    val readyArmors = inlineText("Do you want to ready", "some armors before", "leaving?", "")
-}
-
 sealed interface EquipmentPromptStep {
     data class ChooseInventorySlot(
         val prompt: TextBlock,
@@ -338,6 +331,7 @@ data class EquipmentPromptSession(
     val step: EquipmentPromptStep,
     val itemRecords: List<ItemRecordModel> = emptyList(),
     val inventorySlot: Int? = null,
+    val prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
 ) {
     fun apply(input: EquipmentPromptInput): EquipmentPromptSession =
         when (val current = step) {
@@ -346,7 +340,7 @@ data class EquipmentPromptSession(
                     ?: error("equipment session is choosing an inventory slot")
                 copy(
                     step = EquipmentPromptStep.ChooseMember(
-                        EquipmentPromptText.who,
+                        prompts.who,
                         command.prompt().memberFilter,
                     ),
                     inventorySlot = slot.slot,
@@ -366,12 +360,13 @@ data class EquipmentPromptSession(
             command: EquipmentCommand,
             party: PartyState,
             itemRecords: List<ItemRecordModel> = emptyList(),
+            prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
         ): EquipmentPromptSession {
             val prompt = command.prompt()
             val step = prompt.inventoryFilter?.let {
-                EquipmentPromptStep.ChooseInventorySlot(EquipmentPromptText.inventory, it)
-            } ?: EquipmentPromptStep.ChooseMember(EquipmentPromptText.who, prompt.memberFilter)
-            return EquipmentPromptSession(command, party, step, itemRecords)
+                EquipmentPromptStep.ChooseInventorySlot(prompts.inventory, it)
+            } ?: EquipmentPromptStep.ChooseMember(prompts.who, prompt.memberFilter)
+            return EquipmentPromptSession(command, party, step, itemRecords, prompts = prompts)
         }
 
         fun startWithInventorySlot(
@@ -379,15 +374,17 @@ data class EquipmentPromptSession(
             party: PartyState,
             slot: Int,
             itemRecords: List<ItemRecordModel> = emptyList(),
+            prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
         ): EquipmentPromptSession {
             val prompt = command.prompt()
             require(prompt.inventoryFilter != null) { "$command does not choose inventory items" }
             return EquipmentPromptSession(
                 command = command,
                 party = party,
-                step = EquipmentPromptStep.ChooseMember(EquipmentPromptText.who, prompt.memberFilter),
+                step = EquipmentPromptStep.ChooseMember(prompts.who, prompt.memberFilter),
                 itemRecords = itemRecords,
                 inventorySlot = slot,
+                prompts = prompts,
             )
         }
     }
@@ -421,10 +418,10 @@ fun EquipmentCommand.prompt(): EquipmentPromptModel =
         )
     }
 
-fun EquipmentCommand.townLeavePrompt(): TextBlock =
+fun EquipmentCommand.townLeavePrompt(prompts: EquipmentPromptsModel = EquipmentPromptsModel()): TextBlock =
     when (this) {
-        EquipmentCommand.ReadyWeapon -> EquipmentPromptText.readyWeapons
-        EquipmentCommand.ReadyArmor -> EquipmentPromptText.readyArmors
+        EquipmentCommand.ReadyWeapon -> prompts.readyWeapons
+        EquipmentCommand.ReadyArmor -> prompts.readyArmors
         EquipmentCommand.RemoveWeapon,
         EquipmentCommand.RemoveArmor -> error("$this is not a town-leave ready command")
     }

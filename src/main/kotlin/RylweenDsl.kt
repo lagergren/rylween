@@ -1253,6 +1253,7 @@ data class RuntimeContent(
     val itemUses: List<ItemUseModel> = emptyList(),
     val itemRecords: List<ItemRecordModel> = emptyList(),
     val realm: RealmContentModel = RealmContentModel(),
+    val prompts: GamePromptsModel = GamePromptsModel(),
     val dungeons: DungeonSystemModel = DungeonSystemModel(),
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
     val towns: List<TownModel> = emptyList(),
@@ -1305,6 +1306,7 @@ fun GameModel.runtimeContent(): RuntimeContent =
         itemUses = itemUses,
         itemRecords = itemCatalog,
         realm = realm,
+        prompts = prompts,
         dungeons = dungeons,
         wilderness = wilderness,
         towns = towns,
@@ -1429,7 +1431,73 @@ val StandardDungeonHelpPages: List<TextBlock> = listOf(
 data class GamePromptsModel(
     val pauseVerbs: List<String> = emptyList(),
     val returnKeyName: String = "RETURN key",
+    val priest: PriestSpellPromptsModel = PriestSpellPromptsModel(),
+    val inventoryUse: InventoryUsePromptsModel = InventoryUsePromptsModel(),
+    val equipment: EquipmentPromptsModel = EquipmentPromptsModel(),
+    val town: TownPromptsModel = TownPromptsModel(),
 )
+
+data class PriestSpellPromptsModel(
+    val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") },
+    val mageCombatOnly: TextBlock = inlineText("Sorry. Mage spells are", "combat-only."),
+    val wrongClass: TextBlock = inlineText("Wrong class."),
+    val dead: TextBlock = inlineText("Dead."),
+    val invalidCaster: TextBlock = inlineText("Not a party member."),
+    val invalidSpell: TextBlock = inlineText("Not possible."),
+    val noSpells: TextBlock = inlineText("No priest spells are", "declared."),
+) {
+    fun spellList(member: PartyMemberState, spells: List<SpellModel>, abortSlot: Int): TextBlock =
+        inlineText(
+            *(spells.map { spell ->
+                val cost = spell.baseCost + member.level
+                "${spell.slot}. ${spell.name.padEnd(12)}(${cost.toString().padStart(3)}/${member.mana.current.toString().padStart(3)})"
+            } + "$abortSlot. Abort").toTypedArray(),
+        )
+}
+
+data class InventoryUsePromptsModel(
+    val use: TextBlock = inlineText("Use what?"),
+    val quaff: TextBlock = inlineText("Quaff what?"),
+    val noItems: TextBlock = inlineText("You are not carrying", "anything."),
+    val noItem: TextBlock = inlineText("There is nothing", "in that slot."),
+    val invalidSlotFirstPrefix: String = "Inventory slot ",
+    val invalidSlotFirstSuffix: String = "",
+    val invalidSlotSecond: String = "does not exist.",
+    val notUsableFirst: String = "Nothing happens",
+    val notUsableSecondPrefix: String = "with ",
+    val notUsableSecondSuffix: String = ".",
+) {
+    fun choose(prompt: TextBlock, choiceLines: List<String>): TextBlock =
+        combineTextBlocks(prompt, TextBlock.Inline(choiceLines))
+
+    fun invalidSlot(slot: Int): TextBlock =
+        inlineText("$invalidSlotFirstPrefix$slot$invalidSlotFirstSuffix", invalidSlotSecond)
+
+    fun notUsable(itemName: String): TextBlock =
+        inlineText(notUsableFirst, "$notUsableSecondPrefix$itemName$notUsableSecondSuffix")
+}
+
+data class EquipmentPromptsModel(
+    val inventory: TextBlock = inlineText("Ready what?"),
+    val who: TextBlock = inlineText("Who? (1-N)"),
+    val readyWeapons: TextBlock = inlineText("Do you want to ready", "some weapons before", "leaving?", ""),
+    val readyArmors: TextBlock = inlineText("Do you want to ready", "some armors before", "leaving?", ""),
+)
+
+data class TownPromptsModel(
+    val unavailableSuffix: String = " is not available here.",
+    val missingServiceSuffix: String = " service is not implemented yet.",
+    val closedSuffix: String = " is closed.",
+) {
+    fun unavailable(building: BuildingId): TextBlock =
+        inlineText("${building.slug}$unavailableSuffix")
+
+    fun missingService(building: BuildingId): TextBlock =
+        inlineText("${building.slug}$missingServiceSuffix")
+
+    fun closed(building: BuildingId): TextBlock =
+        inlineText("${building.slug}$closedSuffix")
+}
 
 
 data class WildernessEventModel(
@@ -3787,6 +3855,10 @@ class GameBuilder {
 class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
     private var pauseVerbList = initial.pauseVerbs
     var returnKeyName: String = initial.returnKeyName
+    private var priest = initial.priest
+    private var inventoryUse = initial.inventoryUse
+    private var equipment = initial.equipment
+    private var town = initial.town
 
     fun pauseVerbs(vararg verbs: String) {
         pauseVerbList = verbs.toList()
@@ -3796,10 +3868,110 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
         pauseVerbList = verbs.toList()
     }
 
+    fun priest(body: PriestSpellPromptsBuilder.() -> Unit) {
+        priest = PriestSpellPromptsBuilder(priest).apply(body).build()
+    }
+
+    fun inventoryUse(body: InventoryUsePromptsBuilder.() -> Unit) {
+        inventoryUse = InventoryUsePromptsBuilder(inventoryUse).apply(body).build()
+    }
+
+    fun equipment(body: EquipmentPromptsBuilder.() -> Unit) {
+        equipment = EquipmentPromptsBuilder(equipment).apply(body).build()
+    }
+
+    fun town(body: TownPromptsBuilder.() -> Unit) {
+        town = TownPromptsBuilder(town).apply(body).build()
+    }
+
     fun build(): GamePromptsModel =
         GamePromptsModel(
             pauseVerbs = pauseVerbList,
             returnKeyName = returnKeyName,
+            priest = priest,
+            inventoryUse = inventoryUse,
+            equipment = equipment,
+            town = town,
+        )
+}
+
+@RylNextDsl
+class PriestSpellPromptsBuilder(initial: PriestSpellPromptsModel = PriestSpellPromptsModel()) {
+    var who: TextBlock = initial.who
+    var mageCombatOnly: TextBlock = initial.mageCombatOnly
+    var wrongClass: TextBlock = initial.wrongClass
+    var dead: TextBlock = initial.dead
+    var invalidCaster: TextBlock = initial.invalidCaster
+    var invalidSpell: TextBlock = initial.invalidSpell
+    var noSpells: TextBlock = initial.noSpells
+
+    fun build(): PriestSpellPromptsModel =
+        PriestSpellPromptsModel(
+            who = who,
+            mageCombatOnly = mageCombatOnly,
+            wrongClass = wrongClass,
+            dead = dead,
+            invalidCaster = invalidCaster,
+            invalidSpell = invalidSpell,
+            noSpells = noSpells,
+        )
+}
+
+@RylNextDsl
+class InventoryUsePromptsBuilder(initial: InventoryUsePromptsModel = InventoryUsePromptsModel()) {
+    var use: TextBlock = initial.use
+    var quaff: TextBlock = initial.quaff
+    var noItems: TextBlock = initial.noItems
+    var noItem: TextBlock = initial.noItem
+    var invalidSlotFirstPrefix: String = initial.invalidSlotFirstPrefix
+    var invalidSlotFirstSuffix: String = initial.invalidSlotFirstSuffix
+    var invalidSlotSecond: String = initial.invalidSlotSecond
+    var notUsableFirst: String = initial.notUsableFirst
+    var notUsableSecondPrefix: String = initial.notUsableSecondPrefix
+    var notUsableSecondSuffix: String = initial.notUsableSecondSuffix
+
+    fun build(): InventoryUsePromptsModel =
+        InventoryUsePromptsModel(
+            use = use,
+            quaff = quaff,
+            noItems = noItems,
+            noItem = noItem,
+            invalidSlotFirstPrefix = invalidSlotFirstPrefix,
+            invalidSlotFirstSuffix = invalidSlotFirstSuffix,
+            invalidSlotSecond = invalidSlotSecond,
+            notUsableFirst = notUsableFirst,
+            notUsableSecondPrefix = notUsableSecondPrefix,
+            notUsableSecondSuffix = notUsableSecondSuffix,
+        )
+}
+
+@RylNextDsl
+class EquipmentPromptsBuilder(initial: EquipmentPromptsModel = EquipmentPromptsModel()) {
+    var inventory: TextBlock = initial.inventory
+    var who: TextBlock = initial.who
+    var readyWeapons: TextBlock = initial.readyWeapons
+    var readyArmors: TextBlock = initial.readyArmors
+
+    fun build(): EquipmentPromptsModel =
+        EquipmentPromptsModel(
+            inventory = inventory,
+            who = who,
+            readyWeapons = readyWeapons,
+            readyArmors = readyArmors,
+        )
+}
+
+@RylNextDsl
+class TownPromptsBuilder(initial: TownPromptsModel = TownPromptsModel()) {
+    var unavailableSuffix: String = initial.unavailableSuffix
+    var missingServiceSuffix: String = initial.missingServiceSuffix
+    var closedSuffix: String = initial.closedSuffix
+
+    fun build(): TownPromptsModel =
+        TownPromptsModel(
+            unavailableSuffix = unavailableSuffix,
+            missingServiceSuffix = missingServiceSuffix,
+            closedSuffix = closedSuffix,
         )
 }
 
