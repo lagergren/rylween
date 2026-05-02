@@ -45,6 +45,7 @@ sealed interface EngineTraceEvent {
         val slots: IntRange,
         val filter: InventorySlotChoiceFilter,
     ) : EngineTraceEvent
+    data class AskText(val prompt: TextBlock, val accepted: List<String>, val maxLength: Int?) : EngineTraceEvent
     data class GrantReward(val reward: ScriptRewardModel) : EngineTraceEvent
     data class AchieveMilestone(val milestone: GameMilestoneId) : EngineTraceEvent
     data class Speak(val building: BuildingId) : EngineTraceEvent
@@ -143,6 +144,9 @@ class ScriptTraceRunner(
             }
             is Op.AskInventorySlot -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.AskInventorySlot(op.prompt, op.firstKey, op.slots, op.filter))
+            }
+            is Op.AskText -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.AskText(op.prompt, op.accepted, op.maxLength))
             }
             is Op.AskMonster -> ScriptControlSignal.Continue
             is Op.ForEachMember -> ScriptControlSignal.StopScript.also {
@@ -388,6 +392,7 @@ class TownLeaveEquipmentTraceRunner(
 interface TerminalPort {
     fun write(lines: List<String>)
     fun readLine(): String?
+    fun readTextLine(maxLength: Int? = null): String? = readLine()
 }
 
 data class TerminalTextContext(
@@ -647,6 +652,7 @@ private class StatefulScriptServiceRunner(
             is Op.AskKey -> askKey(op)
             is Op.AskMember -> askMember(op)
             is Op.AskInventorySlot -> askInventorySlot(op)
+            is Op.AskText -> askText(op, frame, opIndex)
             is Op.AskMonster -> advanceTop()
             is Op.ForEachMember -> {
                 advanceTop()
@@ -788,6 +794,19 @@ private class StatefulScriptServiceRunner(
             is TerminalInput.Rejected -> wait(input.rejection)
             TerminalInput.Unavailable -> wait()
         }
+    }
+
+    private fun askText(op: Op.AskText, frame: TownServiceScriptFrame, opIndex: Int) {
+        engine.trace(EngineTraceEvent.AskText(renderText(op.prompt), op.accepted, op.maxLength))
+        flushScriptOutput()
+        val raw = terminal.readTextLine(op.maxLength) ?: return wait()
+        val branch = if (op.accepts(raw)) {
+            TownServiceScriptBranch.TextAnswerMatch
+        } else {
+            TownServiceScriptBranch.TextAnswerMiss
+        }
+        advanceTop()
+        pushChild(frame.block.child(opIndex, branch))
     }
 
     private fun wait(inputRejection: TerminalInputRejection? = null) {
@@ -1085,6 +1104,8 @@ private class StatefulScriptServiceRunner(
                 TownServiceScriptBranch.MenuOption ->
                     (op as? Op.Menu)?.options?.firstOrNull { it.key == segment.key }?.body.orEmpty()
                 TownServiceScriptBranch.MenuDefault -> (op as? Op.Menu)?.defaultOps.orEmpty()
+                TownServiceScriptBranch.TextAnswerMatch -> (op as? Op.AskText)?.matchOps.orEmpty()
+                TownServiceScriptBranch.TextAnswerMiss -> (op as? Op.AskText)?.missOps.orEmpty()
             }
         }
         return ops
@@ -1265,6 +1286,7 @@ private class StatefulScriptServiceRunner(
             "wisdom" -> member.wisdom
             "charisma" -> member.charisma
             "class" -> member.pcClass.sourceId
+            "experience" -> member.experience
             "dead" -> if (member.dead) 1 else 0
             else -> 0
         }
@@ -1931,6 +1953,7 @@ private fun TerminalPort.writeScriptEvents(
             is EngineTraceEvent.AskKey -> write(
                 renderer.lines(event.prompt, context) + "Options: ${event.bindings.joinToString("/") { it.label }}",
             )
+            is EngineTraceEvent.AskText -> write(renderer.lines(event.prompt, context))
             is EngineTraceEvent.AskMember -> write(renderer.lines(event.prompt, context))
             is EngineTraceEvent.AskInventorySlot -> write(renderer.lines(event.prompt, context))
             is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
@@ -2253,6 +2276,7 @@ class TownSessionTerminalAdapter(
                     renderer.lines(event.prompt, context) +
                         "Options: ${event.bindings.joinToString("/") { it.label }}",
                 )
+                is EngineTraceEvent.AskText -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
@@ -2418,7 +2442,9 @@ class DungeonSessionTerminalAdapter(
     ): TownServiceBridgeResult {
         val engine = TraceEnginePort()
         val eventStart = engine.events.size
-        val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
+        val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime).copy(
+            locals = mapOf("dungeon_level" to session.depth),
+        )
         val result = StatefulScriptServiceRunner(
             terminal = terminal,
             engine = engine,
@@ -2741,6 +2767,7 @@ class WildernessSessionTerminalAdapter(
                     renderer.lines(event.prompt, context) +
                         "Options: ${event.bindings.joinToString("/") { it.label }}",
                 )
+                is EngineTraceEvent.AskText -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
                 is EngineTraceEvent.NativeEffect -> if (!event.request.isRenderingPrimitive()) {
@@ -3045,6 +3072,17 @@ private fun compare(left: Int, op: String, right: Int): Boolean =
         else -> false
     }
 
+private fun Op.AskText.accepts(raw: String): Boolean {
+    val input = raw.normalizedTextAnswer(trim, caseSensitive, maxLength)
+    return accepted.any { it.normalizedTextAnswer(trim, caseSensitive, maxLength = null) == input }
+}
+
+private fun String.normalizedTextAnswer(trim: Boolean, caseSensitive: Boolean, maxLength: Int?): String {
+    val limited = maxLength?.let { take(it) } ?: this
+    val spaced = if (trim) limited.trim() else limited
+    return if (caseSensitive) spaced else spaced.lowercase()
+}
+
 private fun Int.positiveMod(divisor: Int): Int =
     ((this % divisor) + divisor) % divisor
 
@@ -3073,6 +3111,7 @@ private fun PartyState.withMemberField(memberNumber: Int, field: String, value: 
         "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
         "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
         "level" -> member.copy(level = value.coerceAtLeast(1))
+        "experience" -> member.copy(experience = value.coerceAtLeast(0))
         "dead" -> member.copy(dead = value != 0)
         else -> member
     }

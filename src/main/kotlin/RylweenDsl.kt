@@ -443,6 +443,15 @@ sealed interface Op {
         val slots: IntRange,
         val filter: InventorySlotChoiceFilter,
     ) : Op
+    data class AskText(
+        val prompt: TextBlock,
+        val accepted: List<String>,
+        val matchOps: List<Op>,
+        val missOps: List<Op>,
+        val caseSensitive: Boolean = false,
+        val trim: Boolean = true,
+        val maxLength: Int? = null,
+    ) : Op
     data class AskMonster(val prompt: TextId, val varName: String) : Op
     data class ForEachMember(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
     data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
@@ -800,6 +809,7 @@ data class RandomItemOfferModel(
     val messages: RewardMessageModel,
     val buy: InputBindingModel,
     val decline: InputBindingModel,
+    val priceOverride: Int?,
     val brokePauseMillis: Int,
     val fullPauseMillis: Int,
     val dealPauseMillis: Int,
@@ -1503,6 +1513,7 @@ class RealmRef(private val script: ScriptScope) {
 class RuntimeContextRef {
     val inDungeon: BoolExpr = Bool(BoolAst.RuntimeFlag("in_dungeon"))
     val underground: BoolExpr = inDungeon
+    val dungeonLevel: IntExpr = v("dungeon_level")
 }
 
 class BoolSlot(
@@ -1545,6 +1556,7 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
     val mana = mp
     val maxMana = maxMp
     val level = intField("level")
+    val experience = intField("experience")
     val wisdom = intField("wisdom")
     val charisma = intField("charisma")
     val weaponSkill = intField("weapon_skill")
@@ -1979,7 +1991,7 @@ class ScriptScope(
         }
     }
 
-    private fun capture(body: ScriptScope.() -> Unit): List<Op> {
+    internal fun capture(body: ScriptScope.() -> Unit): List<Op> {
         return recordScript(ctx, body)
     }
 }
@@ -2054,6 +2066,7 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
     private var messagesModel = RewardMessageModel()
     private var buyBinding: InputBindingModel = inputKey('B')
     private var declineBinding: InputBindingModel = inputKey('N')
+    private var priceOverrideModel: Int? = null
 
     var buyKey: Char
         get() = buyBinding.primaryChar
@@ -2089,6 +2102,14 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
     fun choiceKeys(buy: InputBindingModel = buyBinding, decline: InputBindingModel = declineBinding) {
         buyBinding = buy
         declineBinding = decline
+    }
+
+    fun free() {
+        priceOverrideModel = 0
+    }
+
+    fun price(amount: Int) {
+        priceOverrideModel = amount.coerceAtLeast(0)
     }
 
     fun broke(vararg lines: String) {
@@ -2152,6 +2173,7 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
             ),
             buy = buyBinding,
             decline = declineBinding,
+            priceOverride = priceOverrideModel,
             brokePauseMillis = brokePauseMillis,
             fullPauseMillis = fullPauseMillis,
             dealPauseMillis = dealPauseMillis,
@@ -2847,6 +2869,41 @@ class ChoiceScope(private val script: ScriptScope) {
         script.record(Op.RandomItemOffer(RandomItemOfferBuilder(pool).apply(body).build()))
     }
 
+    fun textAnswer(
+        prompt: TextBlock,
+        accepting: List<String>,
+        caseSensitive: Boolean = false,
+        trim: Boolean = true,
+        maxLength: Int? = null,
+        match: ScriptScope.() -> Unit,
+        miss: ScriptScope.() -> Unit,
+    ) {
+        require(accepting.isNotEmpty()) { "text answer prompt must accept at least one value" }
+        script.record(
+            Op.AskText(
+                prompt = prompt,
+                accepted = accepting,
+                matchOps = script.capture(match),
+                missOps = script.capture(miss),
+                caseSensitive = caseSensitive,
+                trim = trim,
+                maxLength = maxLength,
+            ),
+        )
+    }
+
+    fun textAnswer(
+        prompt: String,
+        accepting: List<String>,
+        caseSensitive: Boolean = false,
+        trim: Boolean = true,
+        maxLength: Int? = null,
+        match: ScriptScope.() -> Unit,
+        miss: ScriptScope.() -> Unit,
+    ) {
+        textAnswer(inlineText(prompt), accepting, caseSensitive, trim, maxLength, match, miss)
+    }
+
     fun member(
         prompt: TextId,
         filter: MemberChoiceFilter = MemberChoiceFilter.Any,
@@ -3120,6 +3177,10 @@ private fun Op.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): Op =
         is Op.AskKey -> copy()
         is Op.AskMember -> copy()
         is Op.AskInventorySlot -> copy()
+        is Op.AskText -> copy(
+            matchOps = matchOps.resolveItemPools(resolve),
+            missOps = missOps.resolveItemPools(resolve),
+        )
         is Op.ForEachMember -> copy(body = body.resolveItemPools(resolve))
         is Op.ForEachMonster -> copy(body = body.resolveItemPools(resolve))
         is Op.ConsumeInventoryPool -> copy(pool = resolve(pool), quantity = quantity.resolveItemPools(resolve))
@@ -5538,6 +5599,11 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.AskKey -> text(op.prompt)
                 is Op.AskMember -> text(op.prompt)
                 is Op.AskInventorySlot -> text(op.prompt)
+                is Op.AskText -> {
+                    text(op.prompt)
+                    ops(op.matchOps)
+                    ops(op.missOps)
+                }
                 is Op.AskMonster -> Unit
                 is Op.ForEachMember -> ops(op.body)
                 is Op.ForEachMonster -> ops(op.body)

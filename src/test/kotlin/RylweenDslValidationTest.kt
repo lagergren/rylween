@@ -15,6 +15,7 @@ private fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
             is Op.Switch -> op.cases.any { case -> case.body.anyNested(predicate) }
             is Op.Menu -> op.options.any { option -> option.body.anyNested(predicate) } ||
                 op.defaultOps.anyNested(predicate)
+            is Op.AskText -> op.matchOps.anyNested(predicate) || op.missOps.anyNested(predicate)
             is Op.ForEachMember -> op.body.anyNested(predicate)
             is Op.ForEachMonster -> op.body.anyNested(predicate)
             else -> false

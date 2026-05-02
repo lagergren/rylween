@@ -38,17 +38,83 @@ fun ScriptScope.dungeonEntrance(
 
 fun DungeonScenarioBuilder.standardDungeonEvents() {
     randomEvents {
+        event(DungeonEvents.findObject)
         event(DungeonEvents.gold)
         event(DungeonEvents.weakEncounter, weight = 2)
         event(DungeonEvents.deepEncounter)
         event(DungeonEvents.nothingSpecial)
         event(DungeonEvents.emptyLevel)
+        event(DungeonEvents.goldChest)
         event(DungeonEvents.torches)
     }
 }
 
+fun ScriptScope.offerDungeonFind(pool: ItemPoolId) {
+    choice.randomItemOffer(pool) {
+        free()
+        choiceKeys(buy = inputKey("T"), decline = inputKey("L"))
+        offer {
+            line("You find a")
+            line(itemName, ".")
+            line("")
+        }
+        choicePrompt("(T)ake it", "(L)eave it")
+        broke("No gold changes hands.")
+        full("You can't carry more.")
+        promptDrop("Ok.")
+        deal("", "Ok.")
+        declined("You leave it.")
+    }
+}
+
+fun ScriptScope.findDungeonObject() {
+    whenever(chance(80)) {
+        choose(random(0..2)) {
+            case(0) { offerDungeonFind(ItemPools.dungeonWeaponFinds) }
+            case(1) { offerDungeonFind(ItemPools.dungeonPotionGemFinds) }
+            case(2) { offerDungeonFind(ItemPools.dungeonTreasureFinds) }
+        }
+    } otherwise {
+        offerDungeonFind(ItemPools.magicItems)
+    }
+}
+
+fun ScriptScope.thunRiddle(
+    intro: TextBlock,
+    riddle: TextBlock,
+    answers: List<String>,
+    guardian: MonsterId,
+) {
+    readScreen(intro)
+    screen(riddle)
+    choice.textAnswer(
+        prompt = "Answer: ",
+        accepting = answers,
+        maxLength = 15,
+        match = {
+            readScreen("- Well done. Pass.", "")
+        },
+        miss = {
+            readScreen(
+                "- FOOLS! Meet thy doom!",
+                "at a gesture from him,",
+                "something evil appears.",
+                "",
+            )
+            encounter(guardian, mandatory = true)
+        },
+    )
+    native.screen.clearText()
+}
+
 fun ScriptScope.readScreen(vararg lines: String) {
     screen(*lines)
+    waitInput()
+    native.screen.clearText()
+}
+
+fun ScriptScope.readScreen(text: TextBlock) {
+    screen(text)
     waitInput()
     native.screen.clearText()
 }
