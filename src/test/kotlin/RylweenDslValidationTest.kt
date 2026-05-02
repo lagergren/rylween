@@ -1349,6 +1349,7 @@ class RylweenDslValidationTest {
         assertFalse(buyTerminal.output.any { "Options: B/S/L" in it })
         assertFalse(buyTerminal.output.any { "Options: P/N" in it })
         assertTrue(buyTerminal.output.any { "(A) torch" in it })
+        assertTrue(buyTerminal.output.any { "Deal!" in it })
 
         val saleTerminal = FakeTerminalPort("S", "A", "Y", "L")
         val saleSession = ShopServiceTerminalAdapter(saleTerminal).run(
@@ -2451,6 +2452,7 @@ class RylweenDslValidationTest {
         assertEquals(80, result.session.party.resources.torches)
         assertEquals(8, result.session.party.resources.gold)
         assertTrue(terminal.output.any { "(A) Torch" in it })
+        assertTrue(terminal.output.any { "Deal!" in it })
     }
 
     @Test
