@@ -1723,19 +1723,29 @@ class WildernessSessionTerminalAdapter(
                     session.continueMessages()
                 }
                 is WildernessSessionStep.OutOfMoves -> {
-                    writeMenu(step.prompt, listOf('S', 'Q'))
-                    when (val input = terminal.readKey(listOf('S', 'Q'))) {
+                    val keys = session.wilderness.keys
+                    writeMenu(step.prompt, keys.outOfMovesKeys().map { it.label })
+                    val choices = listOf(
+                        TerminalChoice(true, keys.outOfMovesSave),
+                        TerminalChoice(false, keys.outOfMovesQuit),
+                    )
+                    when (val input = terminal.readChoice(choices)) {
                         is TerminalInput.Value ->
-                            session.apply(WildernessSessionInput.OutOfMovesAnswer(input.value == 'S'))
+                            session.apply(WildernessSessionInput.OutOfMovesAnswer(input.value))
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
                 }
                 is WildernessSessionStep.CaveFound -> {
-                    writeMenu(step.prompt, listOf('E', 'L'))
-                    when (val input = terminal.readKey(listOf('E', 'L'))) {
+                    val keys = session.wilderness.keys
+                    writeMenu(step.prompt, keys.caveKeys().map { it.label })
+                    val choices = listOf(
+                        TerminalChoice(true, keys.caveEnter),
+                        TerminalChoice(false, keys.caveLeave),
+                    )
+                    when (val input = terminal.readChoice(choices)) {
                         is TerminalInput.Value ->
-                            session.apply(WildernessSessionInput.CaveAnswer(input.value == 'E'))
+                            session.apply(WildernessSessionInput.CaveAnswer(input.value))
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -1746,8 +1756,18 @@ class WildernessSessionTerminalAdapter(
                 }
                 WildernessSessionStep.Explore -> {
                     writeExplore(session)
-                    when (val input = terminal.readKey(WildernessCommandKeys)) {
-                        is TerminalInput.Value -> applyCommand(session, input.value)
+                    val keys = session.wilderness.keys
+                    val choices: List<TerminalChoice<WildernessSessionInput>> = listOf(
+                        TerminalChoice(WildernessSessionInput.Move(WildernessDirection.North), keys.moveNorth),
+                        TerminalChoice(WildernessSessionInput.Move(WildernessDirection.South), keys.moveSouth),
+                        TerminalChoice(WildernessSessionInput.Move(WildernessDirection.West), keys.moveWest),
+                        TerminalChoice(WildernessSessionInput.Move(WildernessDirection.East), keys.moveEast),
+                        TerminalChoice(WildernessSessionInput.Pass, keys.pass),
+                        TerminalChoice(WildernessSessionInput.Enter, keys.enter),
+                        TerminalChoice(WildernessSessionInput.Quit, keys.quit),
+                    )
+                    when (val input = terminal.readChoice(choices)) {
+                        is TerminalInput.Value -> session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -1757,10 +1777,15 @@ class WildernessSessionTerminalAdapter(
                     session.continueNotice()
                 }
                 is WildernessSessionStep.QuitConfirm -> {
-                    writeMenu(step.prompt, listOf('Y', 'N'))
-                    when (val input = terminal.readKey(listOf('Y', 'N'))) {
+                    val keys = session.wilderness.keys
+                    writeMenu(step.prompt, keys.quitConfirmKeys().map { it.label })
+                    val choices = listOf(
+                        TerminalChoice(true, keys.quitYes),
+                        TerminalChoice(false, keys.quitNo),
+                    )
+                    when (val input = terminal.readChoice(choices)) {
                         is TerminalInput.Value ->
-                            session.apply(WildernessSessionInput.QuitAnswer(input.value == 'Y'))
+                            session.apply(WildernessSessionInput.QuitAnswer(input.value))
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -1793,18 +1818,6 @@ class WildernessSessionTerminalAdapter(
         return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
     }
 
-    private fun applyCommand(session: WildernessSession, key: Char): WildernessSession =
-        when (key) {
-            ' ' -> session.apply(WildernessSessionInput.Pass)
-            'E' -> session.apply(WildernessSessionInput.Enter)
-            'X' -> session.apply(WildernessSessionInput.Quit)
-            else -> session.apply(
-                WildernessSessionInput.Move(
-                    checkNotNull(wildernessDirectionForKey(key)) { "unsupported wilderness command $key" },
-                ),
-            )
-        }
-
     private fun writeExplore(session: WildernessSession) {
         val point = (session.party.position as? WorldPosition.Wilderness)?.point
         val lines = buildList {
@@ -1820,23 +1833,19 @@ class WildernessSessionTerminalAdapter(
             session.lastResult?.takeIf { it.status == WildernessSessionResultStatus.Blocked }?.let {
                 add("Blocked.")
             }
-            add("Commands: 8/2/4/6 move, Space pass, E enter, X quit")
+            addAll(renderer.lines(session.wilderness.keys.commandHint, TerminalTextContext(runtime = session.runtime)))
         }
         terminal.write(lines)
     }
 
-    private fun writeMenu(block: TextBlock, keys: List<Char>) {
-        terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
+    private fun writeMenu(block: TextBlock, labels: List<String>) {
+        terminal.write(renderer.lines(block) + "Options: ${labels.joinToString("/")}")
     }
 
     private fun statusLine(session: WildernessSession, point: GridPoint?): String {
         val terrain = point?.let { session.worldMap.tileAt(it) } ?: ' '
         val position = point?.let { "${it.x}x${it.y}" } ?: "not in wilderness"
         return "Position: $position  Moves: ${session.party.resources.timeLeft}  Tile: $terrain"
-    }
-
-    private companion object {
-        val WildernessCommandKeys = listOf('8', '2', '4', '6', ' ', 'E', 'X')
     }
 }
 
@@ -1951,6 +1960,11 @@ private sealed interface TerminalInput<out T> {
     object Unavailable : TerminalInput<Nothing>
 }
 
+private data class TerminalChoice<out T>(
+    val value: T,
+    val binding: InputBindingModel,
+)
+
 private fun <T, R> TerminalInput<T>.map(transform: (T) -> R): TerminalInput<R> =
     when (this) {
         is TerminalInput.Value -> TerminalInput.Value(transform(value))
@@ -1959,16 +1973,17 @@ private fun <T, R> TerminalInput<T>.map(transform: (T) -> R): TerminalInput<R> =
     }
 
 private fun TerminalPort.readKey(allowed: List<Char>): TerminalInput<Char> {
+    val choices = allowed.map { key -> TerminalChoice(key, inputKey(key, label = key.toString())) }
+    return readChoice(choices)
+}
+
+private fun <T> TerminalPort.readChoice(choices: List<TerminalChoice<T>>): TerminalInput<T> {
     val raw = readLine() ?: return TerminalInput.Unavailable
-    val key = if (' ' in allowed && raw.firstOrNull() == ' ') {
-        ' '
+    val choice = choices.firstOrNull { it.binding.matches(raw) }
+    return if (choice != null) {
+        TerminalInput.Value(choice.value)
     } else {
-        raw.trim().firstOrNull()?.uppercaseChar()
-    }
-    return if (key != null && key in allowed) {
-        TerminalInput.Value(key)
-    } else {
-        TerminalInput.Rejected(TerminalInputRejection(raw, allowed.map { it.toString() }))
+        TerminalInput.Rejected(TerminalInputRejection(raw, choices.map { it.binding.label }.distinct()))
     }
 }
 

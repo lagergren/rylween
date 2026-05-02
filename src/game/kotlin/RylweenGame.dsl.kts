@@ -261,6 +261,19 @@ val nextRylween = rylween {
     }
 
     wilderness {
+        keys {
+            numberPadMovementWithArrows()
+            pass = inputKey(" ", "SPACE", label = "Space")
+            enter = inputKey("E")
+            quit = inputKey("X")
+            cave(enter = inputKey("E"), leave = inputKey("L"))
+            outOfMoves(save = inputKey("S"), quit = inputKey("Q"))
+            quitConfirm(yes = inputKey("Y"), no = inputKey("N"))
+            commandHint {
+                line("Commands: 8/2/4/6 or arrows move, Space pass, E enter, X quit")
+            }
+        }
+
         events {
             caveChancePercent = 3
             quietChancePercent = 91
@@ -3635,6 +3648,9 @@ check(nextDsl.townSystem?.menu?.single { it.action == KeyActions.leaveTown }?.en
 check(nextDsl.townSystem?.buildingServices?.size == 5)
 check(nextDsl.townSystem?.buildingServices?.single { it.building == Buildings.merchant }?.opensAt == 6)
 check(nextDsl.townSystem?.buildingServices?.single { it.building == Buildings.tavern }?.closesAt == 1)
+check(nextDsl.wilderness.keys.moveNorth.matches("8"))
+check(nextDsl.wilderness.keys.moveNorth.matches("UP"))
+check(nextDsl.wilderness.keys.moveNorth.matches(InputAliases.ArrowUp))
 check(nextDsl.characters.size == 39)
 check(nextDsl.characters.single { Roles.crownSeer in it.roles }.placement == CharacterPlacementModel.Randomized)
 check(nextDsl.characters.single { it.id == Npcs.marcus }.placement == CharacterPlacementModel.Fixed(Wilderness.xy(48, 7)))
