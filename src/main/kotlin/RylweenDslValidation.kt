@@ -1299,6 +1299,12 @@ private fun validateTerminalPresentation(model: TerminalPresentationModel) {
 }
 
 fun validateAuthoredContent(content: GameModel) {
+    check(content.prompts.pauseVerbs.all { it.isNotBlank() }) {
+        "pause prompt verbs must not be blank"
+    }
+    check(content.prompts.returnKeyName.isNotBlank()) {
+        "pause prompt return key name must not be blank"
+    }
     validateTerminalPresentation(content.terminal)
     validateItemCatalog(content.itemCatalog)
     check(content.itemPools.map { it.slug }.toSet().size == content.itemPools.size) {

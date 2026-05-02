@@ -66,6 +66,17 @@ val nextRylween = rylween {
         region(ScreenRegions.mapWindow, x = 8, y = 6, width = 16, height = 9)
     }
 
+    prompts {
+        pauseVerbs(
+            "Smash", "Bash", "Slash", "Lunge at", "Crush",
+            "Destroy", "Mutilate", "Thrash", "Stab", "Brain",
+            "Pummel", "Whack", "Pulverize", "Annihilate", "Obliterate",
+            "Demolish", "Hammer", "Pound", "Maul", "Wallop",
+            "Cleave", "Mangle", "Skewer", "Eviscerate", "Vanquish",
+            "Trample", "Batter", "Slam", "Smite", "Decapitate",
+        )
+    }
+
     items {
         empty(Items.none)
 
@@ -5732,6 +5743,9 @@ check(nextDsl.itemUses.single { it.id == Items.redPotion }.ops.any { it is Op.As
 check(nextDsl.itemUses.single { it.id == Items.redPotion }.consume == ItemConsumePolicy.ScriptControlled)
 check(nextDsl.itemUses.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
 check(nextDsl.itemUses.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
+check(nextDsl.prompts.pauseVerbs.size == 30)
+check(nextDsl.prompts.pauseVerbs.first() == "Smash")
+check(nextDsl.prompts.pauseVerbs.last() == "Decapitate")
 check(nextDsl.terminal.terrain.size == 10)
 check(nextDsl.terminal.terrain.single { it.terrain == Terrain.town }.glyph == "TT")
 check(nextDsl.terminal.regions.single { it.id == ScreenRegions.textWindow }.width == 26)
