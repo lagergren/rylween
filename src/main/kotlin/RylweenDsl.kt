@@ -426,6 +426,7 @@ sealed interface Op {
     data class Speak(val building: BuildingId) : Op
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
+    data class EnterDungeon(val dungeon: DungeonId, val levels: Int) : Op
     object ConsumeActiveItem : Op
     object ConsumeTorch : Op
     data class GrantReward(val reward: ScriptRewardModel) : Op
@@ -1751,6 +1752,10 @@ class ScriptScope(
         record(Op.Encounter(monster, mandatory, tier))
     }
 
+    fun enterDungeon(dungeon: DungeonId, levels: Int) {
+        record(Op.EnterDungeon(dungeon, levels))
+    }
+
     fun consumeActiveItem() = record(Op.ConsumeActiveItem)
 
     fun consumeTorch() = record(Op.ConsumeTorch)
@@ -2588,6 +2593,17 @@ class ChoiceScope(private val script: ScriptScope) {
             option('T', take)
             option('L', leave)
             default(leave)
+        }
+    }
+
+    fun enterOrLeave(
+        prompt: TextBlock,
+        enter: ScriptScope.() -> Unit,
+        leave: ScriptScope.() -> Unit = {},
+    ) {
+        script.menu(prompt) {
+            option('E', enter)
+            option('L', leave)
         }
     }
 
@@ -4895,6 +4911,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.Speak -> Unit
                 is Op.RunScene -> Unit
                 is Op.Encounter -> Unit
+                is Op.EnterDungeon -> Unit
                 Op.ConsumeActiveItem -> Unit
                 Op.ConsumeTorch -> Unit
                 is Op.GrantReward -> op.reward.gold?.let { int(it) }

@@ -1067,6 +1067,10 @@ fun validateScriptRewards(
                     is Op.GrantReward -> validateReward(op.reward)
                     is Op.RandomItemOffer -> validateRandomItemOffer(op.offer)
                     is Op.ShopService -> validateShop(op.shop)
+                    is Op.EnterDungeon -> {
+                        check(op.dungeon.slug.isNotBlank()) { "script dungeon handoff references blank dungeon" }
+                        check(op.levels > 0) { "script dungeon handoff must use positive level count" }
+                    }
                     is Op.If -> {
                         visitOps(op.thenOps, loopDepth)
                         visitOps(op.elseOps, loopDepth)

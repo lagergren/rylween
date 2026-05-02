@@ -8,6 +8,28 @@
     "unused",
 )
 
+fun ScriptScope.dungeonEntrance(
+    dungeon: DungeonId,
+    levels: Int,
+    leaveClearsText: Boolean = true,
+    prompt: StructuredTextBlockBuilder.() -> Unit,
+) {
+    native.screen.clearText()
+    choice.enterOrLeave(
+        structuredText(prompt),
+        enter = {
+            enterDungeon(dungeon, levels)
+            native.screen.clearMapWindow()
+            native.screen.redrawMap()
+        },
+        leave = {
+            if (leaveClearsText) {
+                native.screen.clearText()
+            }
+        },
+    )
+}
+
 fun ScriptScope.travellerStory() {
     native.screen.clearText()
     val maxMembers = realm.partyMemberMax

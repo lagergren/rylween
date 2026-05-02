@@ -39,6 +39,7 @@ sealed interface EngineTraceEvent {
     data class Speak(val building: BuildingId) : EngineTraceEvent
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : EngineTraceEvent
     data class Encounter(val monster: MonsterId, val mandatory: Boolean, val tier: EncounterTier?) : EngineTraceEvent
+    data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : EngineTraceEvent
     data class Stop(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class Break(val reason: String?, val signal: ScriptControlSignal) : EngineTraceEvent
     data class RandomItemOffer(val offer: RandomItemOfferModel) : EngineTraceEvent
@@ -138,6 +139,9 @@ class ScriptTraceRunner(
             }
             is Op.Encounter -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
+            }
+            is Op.EnterDungeon -> ScriptControlSignal.StopScript.also {
+                trace(EngineTraceEvent.DungeonHandoff(WildernessDungeonHandoff(op.dungeon, op.levels)))
             }
             Op.ConsumeActiveItem -> ScriptControlSignal.Continue
             Op.ConsumeTorch -> ScriptControlSignal.Continue.also {
@@ -387,6 +391,7 @@ data class TownServiceBridgeResult(
     val events: List<EngineTraceEvent> = emptyList(),
     val continuation: TownServiceContinuation? = null,
     val rejection: TerminalInputRejection? = null,
+    val dungeonHandoff: WildernessDungeonHandoff? = null,
 ) {
     val party: PartyState get() = runtime.activeParty
     val realm: RealmState get() = runtime.realm
@@ -439,6 +444,7 @@ class StatefulTownServiceBridge(
             events = engine.events.drop(eventStart),
             continuation = result.continuation,
             rejection = result.rejection,
+            dungeonHandoff = result.dungeonHandoff,
         )
     }
 }
@@ -448,6 +454,7 @@ private data class StatefulScriptResult(
     val status: TownServiceBridgeStatus,
     val continuation: TownServiceContinuation? = null,
     val rejection: TerminalInputRejection? = null,
+    val dungeonHandoff: WildernessDungeonHandoff? = null,
 ) {
     val party: PartyState get() = runtime.activeParty
 }
@@ -470,6 +477,7 @@ private class StatefulScriptServiceRunner(
     private var randomItemOfferSession = continuation.randomItemOfferSession
     private var rewardGrantSession = continuation.rewardGrantSession
     private var rejection: TerminalInputRejection? = null
+    private var dungeonHandoff: WildernessDungeonHandoff? = null
     private var waiting = false
     private var opBudget = 4096
 
@@ -482,6 +490,7 @@ private class StatefulScriptServiceRunner(
             status = if (waiting) TownServiceBridgeStatus.Waiting else TownServiceBridgeStatus.Finished,
             continuation = nextContinuation,
             rejection = rejection,
+            dungeonHandoff = dungeonHandoff,
         )
     }
 
@@ -604,6 +613,7 @@ private class StatefulScriptServiceRunner(
             is Op.Encounter -> {
                 runEncounter(op)
             }
+            is Op.EnterDungeon -> runEnterDungeon(op)
             Op.ConsumeActiveItem -> advanceTop()
             Op.ConsumeTorch -> {
                 advanceTop()
@@ -647,7 +657,14 @@ private class StatefulScriptServiceRunner(
                     frame.block.child(opIndex, TownServiceScriptBranch.MenuOption, key = input.value.key),
                 )
             }
-            is TerminalInput.Rejected -> wait(input.rejection)
+            is TerminalInput.Rejected -> {
+                if (op.defaultOps.isEmpty()) {
+                    wait(input.rejection)
+                } else {
+                    advanceTop()
+                    pushChild(frame.block.child(opIndex, TownServiceScriptBranch.MenuDefault))
+                }
+            }
             TerminalInput.Unavailable -> wait()
         }
     }
@@ -829,6 +846,21 @@ private class StatefulScriptServiceRunner(
         } else {
             advanceTop()
         }
+    }
+
+    private fun runEnterDungeon(op: Op.EnterDungeon) {
+        val handoff = WildernessDungeonHandoff(op.dungeon, op.levels)
+        runtime = currentRuntime().withRealm(
+            runtime.realm.copy(
+                currentMode = RuntimeMode.Dungeon,
+                currentTown = null,
+            ),
+        )
+        party = runtime.activeParty
+        dungeonHandoff = handoff
+        advanceTop()
+        engine.trace(EngineTraceEvent.DungeonHandoff(handoff))
+        stack.clear()
     }
 
     private fun runRandomItemOffer(op: Op.RandomItemOffer) {
@@ -1757,6 +1789,10 @@ class TownSessionTerminalAdapter(
                 is EngineTraceEvent.NativeString ->
                     terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
                 is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
+                is EngineTraceEvent.DungeonHandoff ->
+                    terminal.write(
+                        renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context),
+                    )
                 is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
                 is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
                 is EngineTraceEvent.TownService -> terminal.write(listOf("Service: ${event.service.building.slug}"))
@@ -1844,7 +1880,9 @@ class WildernessSessionTerminalAdapter(
                     writeBridgeEvents(result.events, result.runtime)
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
-                            session.finishMission(result.runtime)
+                            result.dungeonHandoff?.let { handoff ->
+                                session.handOffMissionDungeon(result.runtime, handoff)
+                            } ?: session.finishMission(result.runtime)
                         TownServiceBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {
                                 "waiting mission bridge did not return continuation"
@@ -1982,6 +2020,7 @@ class WildernessSessionTerminalAdapter(
                 is EngineTraceEvent.NativeString ->
                     terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
                 is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
+                is EngineTraceEvent.DungeonHandoff -> Unit
                 is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
                 is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
                 is EngineTraceEvent.TownService -> Unit

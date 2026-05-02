@@ -1006,6 +1006,7 @@ private class CombatScriptRunner(
                 is Op.Speak,
                 is Op.RunScene,
                 is Op.Encounter,
+                is Op.EnterDungeon,
                 Op.ConsumeTorch,
                 is Op.GrantReward,
                 is Op.RandomItemOffer,
