@@ -1014,6 +1014,9 @@ fun validateAuthoredContent(content: GameModel) {
         check(monster.count.first > 0 && monster.count.last >= monster.count.first) {
             "monster ${monster.id.slug} has invalid count range"
         }
+        monster.countMaxLevelDivisor?.let { divisor ->
+            check(divisor > 0) { "monster ${monster.id.slug} has invalid count level divisor" }
+        }
         check(monster.hitPoints.first > 0 && monster.hitPoints.last >= monster.hitPoints.first) {
             "monster ${monster.id.slug} has invalid hit point range"
         }

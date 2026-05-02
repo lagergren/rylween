@@ -188,7 +188,13 @@ class ScriptTraceRunner(
 
     private fun eval(ast: StrAst): String =
         when (ast) {
-            is StrAst.NativeString -> engine.readString(EngineRequest(ast.path, ast.args))
+            is StrAst.NativeString -> engine.readString(EngineRequest(ast.path, ast.args.map(::eval)))
+        }
+
+    private fun eval(arg: NativeStringArg): String =
+        when (arg) {
+            is NativeStringArg.IntValue -> eval(arg.value).toString()
+            is NativeStringArg.Literal -> arg.value
         }
 
     private fun trace(event: EngineTraceEvent) {
@@ -974,7 +980,7 @@ class TerminalTextRenderer(
         when (part) {
             is TextPart.Literal -> part.text
             is TextPart.IntValue -> render(part.value)
-            is TextPart.StringValue -> "{string}"
+            is TextPart.StringValue -> render(part.value, context)
             is TextPart.RoleName -> characterFor(part.role)?.name ?: "{${part.role.slug}.name}"
             is TextPart.RoleLocation -> roleLocation(part.role, context.runtime) ?: "{${part.role.slug}.location}"
             is TextPart.TownName -> townName(part.town)
@@ -983,6 +989,39 @@ class TerminalTextRenderer(
             TextPart.OfferedItemPrice -> context.offeredItemPrice?.toString() ?: "{item_price}"
             TextPart.ShopPrice -> context.shopPrice?.toString() ?: "{price}"
             TextPart.ShopCarryCap -> context.shopCarryCap?.toString() ?: "{cap}"
+        }
+
+    private fun render(ast: StrAst, context: TerminalTextContext): String =
+        when (ast) {
+            is StrAst.NativeString -> when (ast.path) {
+                NativeAllowlist.partyMemberName.path -> {
+                    val index = ast.args.singleOrNull()?.literalInt()
+                    index?.let { context.runtime?.activeParty?.members?.getOrNull(it)?.name } ?: "{party.name}"
+                }
+                NativeAllowlist.partyPronounSubject.path ->
+                    renderPronoun(ast, context, PronounCase.Subject)
+                NativeAllowlist.partyPronounObject.path ->
+                    renderPronoun(ast, context, PronounCase.Object)
+                NativeAllowlist.partyPronounPossessive.path ->
+                    renderPronoun(ast, context, PronounCase.Possessive)
+                else -> "{${ast.path}}"
+            }
+        }
+
+    private fun renderPronoun(ast: StrAst.NativeString, context: TerminalTextContext, case: PronounCase): String {
+        val index = ast.args.singleOrNull()?.literalInt()
+        val gender = index?.let { context.runtime?.activeParty?.members?.getOrNull(it)?.gender } ?: return "{pronoun}"
+        return when (case) {
+            PronounCase.Subject -> if (gender == Gender.Female) "she" else "he"
+            PronounCase.Object -> if (gender == Gender.Female) "her" else "him"
+            PronounCase.Possessive -> if (gender == Gender.Female) "her" else "his"
+        }
+    }
+
+    private fun NativeStringArg.literalInt(): Int? =
+        when (this) {
+            is NativeStringArg.IntValue -> (value as? IntAst.Lit)?.value
+            is NativeStringArg.Literal -> value.toIntOrNull()
         }
 
     private fun characterFor(role: NpcRole): CharacterModel? =

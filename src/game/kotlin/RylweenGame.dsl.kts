@@ -1122,11 +1122,85 @@ val nextRylween = rylween {
     }
 
     monsters {
+        monster(Monsters.kobold) {
+            name = "Kobold"
+            count = 2..8
+            hitPoints = 30..50
+            weaponSkill = 35
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.orc) {
+            name = "Orc"
+            count = 2..5
+            hitPoints = 50..99
+            weaponSkill = 50
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.troll) {
+            name = "Troll"
+            count = 1..3
+            hitPoints = 99..199
+            weaponSkill = 55
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.warrior) {
+            name = "Warrior"
+            count = 1..4
+            hitPoints = 50..99
+            weaponSkill = 60
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.goblin) {
+            name = "Goblin"
+            count = 2..7
+            hitPoints = 50..80
+            weaponSkill = 30
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.wildDog) {
+            name = "Wild Dog"
+            count = 1..3
+            hitPoints = 15..40
+            weaponSkill = 60
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.knight) {
+            name = "Knight"
+            count = 1..5
+            hitPoints = 25..99
+            weaponSkill = 75
+            tier = EncounterTiers.weak
+        }
+
         monster(Monsters.bandit) {
             name = "Bandit"
             count = 2..6
             hitPoints = 50..99
             weaponSkill = 50
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.hobgoblin) {
+            name = "Hobgoblin"
+            count = 2..5
+            hitPoints = 20..70
+            weaponSkill = 40
+            spellPower = 5
+            tier = EncounterTiers.weak
+        }
+
+        monster(Monsters.zombie) {
+            name = "Zombie"
+            count = 2..4
+            hitPoints = 70..70
+            weaponSkill = 65
+            spellPower = 5
             tier = EncounterTiers.weak
         }
 
@@ -1143,6 +1217,463 @@ val nextRylween = rylween {
             count = 1..1
             hitPoints = 250..350
             weaponSkill = 80
+        }
+
+        monster(Monsters.norker) {
+            name = "Norker"
+            count = 1..1
+            hitPoints = 350..400
+            weaponSkill = 90
+        }
+
+        monster(Monsters.voodooLord) {
+            name = "Voodoo Lord"
+            count = 1..1
+            hitPoints = 300..350
+            weaponSkill = 80
+        }
+
+        monster(Monsters.archdevil) {
+            name = "Archdevil"
+            count = 1..1
+            hitPoints = 450..450
+            weaponSkill = 85
+            spellPower = 60
+        }
+
+        monster(Monsters.koboldHorde) {
+            name = "Kobold"
+            count = 6..8
+            hitPoints = 30..45
+            weaponSkill = 25
+        }
+
+        monster(Monsters.rainbowDemon) {
+            name = "Rainbow Demon"
+            count = 1..1
+            hitPoints = 150..250
+            weaponSkill = 95
+            spellPower = 10
+        }
+
+        monster(Monsters.longDeadWarrior) {
+            name = "Long Dead Warrior"
+            count = 1..1
+            hitPoints = 400..500
+            weaponSkill = 80
+        }
+
+        monster(Monsters.ogre) {
+            name = "Ogre"
+            count = 4..7
+            hitPoints = 90..190
+            weaponSkill = 65
+        }
+
+        monster(Monsters.ogreLord) {
+            name = "Ogre Lord"
+            count = 1..1
+            hitPoints = 190..270
+            weaponSkill = 85
+            spellPower = 25
+        }
+
+        monster(Monsters.wingedThing) {
+            name = "Winged Thing"
+            count = 7..8
+            hitPoints = 150..200
+            weaponSkill = 95
+        }
+
+        monster(Monsters.jazzy) {
+            name = "Jazzy"
+            count = 1..1
+            hitPoints = 450..580
+            weaponSkill = 95
+            spellPower = 50
+            immune = true
+        }
+
+        monster(Monsters.ridingHobgoblin) {
+            name = "Riding Hobgoblin"
+            count = 4..7
+            hitPoints = 30..70
+            weaponSkill = 40
+            spellPower = 10
+        }
+
+        monster(Monsters.hobgoblinChief) {
+            name = "Hobgoblin Chief"
+            count = 1..1
+            hitPoints = 150..230
+            weaponSkill = 100
+            spellPower = 40
+        }
+
+        monster(Monsters.hobgoblinSkeleton) {
+            name = "Hobgoblin Skeleton"
+            count = 5..6
+            hitPoints = 50..60
+            weaponSkill = 90
+        }
+
+        monster(Monsters.undeadHobgoblin) {
+            name = "Undead Hobgoblin"
+            count = 5..5
+            hitPoints = 60..70
+            weaponSkill = 95
+        }
+
+        monster(Monsters.cryptHorror) {
+            name = "Crypt Horror"
+            count = 3..4
+            hitPoints = 100..200
+            weaponSkill = 60
+            spellPower = 5
+        }
+
+        monster(Monsters.nightGaunt) {
+            name = "Night Gaunt"
+            count = 1..2
+            hitPoints = 200..350
+            weaponSkill = 90
+            spellPower = 10
+        }
+
+        monster(Monsters.thyraga) {
+            name = "Thyraga"
+            count = 1..2
+            hitPoints = 250..300
+            weaponSkill = 90
+        }
+
+        monster(Monsters.liche) {
+            name = "Liche"
+            count = 1..1
+            hitPoints = 300..400
+            weaponSkill = 85
+        }
+
+        monster(Monsters.baronYdarg) {
+            name = "Baron Ydarg"
+            count = 1..1
+            hitPoints = 500..1000
+            weaponSkill = 90
+            spellPower = 5
+            immune = true
+        }
+
+        monster(Monsters.gnoll) {
+            name = "Gnoll"
+            count = 2..2
+            countMaxLevelDivisor = 2
+            hitPoints = 60..80
+            weaponSkill = 70
+        }
+
+        monster(Monsters.erethorPriest) {
+            name = "Erethor Priest"
+            count = 3..4
+            hitPoints = 80..99
+            weaponSkill = 70
+            spellPower = 50
+        }
+
+        monster(Monsters.erethor) {
+            name = "Erethor"
+            count = 1..1
+            hitPoints = 600..900
+            weaponSkill = 80
+            spellPower = 10
+        }
+
+        monster(Monsters.wanderMage) {
+            name = "Wander Mage"
+            count = 3..4
+            hitPoints = 50..60
+            weaponSkill = 20
+            spellPower = 80
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.hillGiant) {
+            name = "Hill Giant"
+            count = 1..2
+            hitPoints = 100..190
+            weaponSkill = 40
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.wizard) {
+            name = "Wizard"
+            count = 2..4
+            hitPoints = 30..50
+            weaponSkill = 40
+            spellPower = 70
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.druid) {
+            name = "Druid"
+            count = 3..4
+            hitPoints = 50..60
+            weaponSkill = 60
+            spellPower = 60
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.sabreToothTiger) {
+            name = "Sabre Tooth Tiger"
+            count = 1..2
+            hitPoints = 100..120
+            weaponSkill = 95
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.headHunter) {
+            name = "Head Hunter"
+            count = 3..5
+            hitPoints = 60..80
+            weaponSkill = 65
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.skeleton) {
+            name = "Skeleton"
+            count = 3..6
+            hitPoints = 20..60
+            weaponSkill = 70
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.vampireBat) {
+            name = "Vampire Bat"
+            count = 7..8
+            hitPoints = 10..20
+            weaponSkill = 55
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.giantSnake) {
+            name = "Giant Snake"
+            count = 1..3
+            hitPoints = 40..90
+            weaponSkill = 60
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.ghoul) {
+            name = "Ghoul"
+            count = 1..2
+            hitPoints = 100..150
+            weaponSkill = 35
+            spellPower = 10
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.spider) {
+            name = "Spider"
+            count = 5..8
+            hitPoints = 10..20
+            weaponSkill = 95
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.hugeLizard) {
+            name = "Huge Lizard"
+            count = 3..5
+            hitPoints = 30..60
+            weaponSkill = 75
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.dryder) {
+            name = "Dryder"
+            count = 1..5
+            hitPoints = 80..130
+            weaponSkill = 75
+            spellPower = 20
+            tier = EncounterTiers.wild
+        }
+
+        monster(Monsters.xvart) {
+            name = "Xvart"
+            count = 2..2
+            hitPoints = 50..75
+            weaponSkill = 80
+            spellPower = 10
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.jellyCube) {
+            name = "Jelly Cube"
+            count = 1..1
+            hitPoints = 200..300
+            weaponSkill = 50
+            spellPower = 2
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.troglodyte) {
+            name = "Troglodyte"
+            count = 2..4
+            hitPoints = 40..60
+            weaponSkill = 70
+            spellPower = 5
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.bugbear) {
+            name = "Bugbear"
+            count = 3..4
+            hitPoints = 40..50
+            weaponSkill = 70
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.drowElf) {
+            name = "Drow Elf"
+            count = 2..4
+            hitPoints = 80..100
+            weaponSkill = 70
+            spellPower = 50
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.phantom) {
+            name = "Phantom"
+            count = 2..3
+            hitPoints = 100..200
+            weaponSkill = 80
+            spellPower = 40
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.worg) {
+            name = "Worg"
+            count = 2..4
+            hitPoints = 80..100
+            weaponSkill = 60
+            spellPower = 20
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.rustMonster) {
+            name = "Rust Monster"
+            count = 1..1
+            hitPoints = 150..250
+            weaponSkill = 70
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.owlbear) {
+            name = "Owlbear"
+            count = 2..3
+            hitPoints = 100..120
+            weaponSkill = 70
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.werewolf) {
+            name = "Werewolf"
+            count = 1..1
+            hitPoints = 300..300
+            weaponSkill = 90
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.hookHorror) {
+            name = "Hook Horror"
+            count = 2..3
+            hitPoints = 70..100
+            weaponSkill = 85
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.minotaur) {
+            name = "Minotaur"
+            count = 1..3
+            hitPoints = 200..240
+            weaponSkill = 80
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.imp) {
+            name = "Imp"
+            count = 1..3
+            hitPoints = 100..120
+            weaponSkill = 90
+            spellPower = 30
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.svirfneblin) {
+            name = "Svirfneblin"
+            count = 2..3
+            hitPoints = 100..100
+            weaponSkill = 90
+            spellPower = 20
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.yeti) {
+            name = "Yeti"
+            count = 1..1
+            hitPoints = 300..350
+            weaponSkill = 60
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.wight) {
+            name = "Wight"
+            count = 1..3
+            hitPoints = 90..120
+            weaponSkill = 95
+            spellPower = 35
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.wraith) {
+            name = "Wraith"
+            count = 2..4
+            hitPoints = 80..110
+            weaponSkill = 80
+            spellPower = 25
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.basilisk) {
+            name = "Basilisk"
+            count = 1..1
+            hitPoints = 240..300
+            weaponSkill = 60
+            spellPower = 20
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.wyvern) {
+            name = "Wyvern"
+            count = 1..1
+            hitPoints = 350..450
+            weaponSkill = 80
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.tunnelWorm) {
+            name = "Tunnel Worm"
+            count = 1..1
+            hitPoints = 300..350
+            weaponSkill = 45
+            tier = EncounterTiers.deep
+        }
+
+        monster(Monsters.skagerbergKiller) {
+            name = "Skagerberg Killer"
+            count = 1..1
+            hitPoints = 2000..3500
+            weaponSkill = 100
+            spellPower = 20
+            immune = true
         }
     }
 
@@ -2017,10 +2548,11 @@ val nextRylween = rylween {
 
         native.screen.clearText()
         screen {
-            line("Frost bites the target")
-            line("for ", damage, " damage pts.")
+            line(partyName(caster), " chills the")
+            line("opponent for ", damage)
+            line("damage pts.")
         }
-        pause(1000)
+        pause(1600)
 
         target.hp -= damage
 
@@ -2041,7 +2573,7 @@ val nextRylween = rylween {
             whenever(!foe.dead) {
                 native.screen.clearText()
                 screen {
-                    line("Fire burns a foe")
+                    line(partyName(caster), " burns ", monsterName(foe))
                     line("for ", damage, " pts!")
                 }
                 pause(1000)
@@ -2059,12 +2591,15 @@ val nextRylween = rylween {
     }
 
     spell(Spells.Mage.confusion, slot = 3, baseCost = 17, name = "Confusion") {
+        val caster = currentCaster
+
         native.screen.clearText()
         screen {
+            line(partyName(caster), " utters a word.")
             lines(
-                "Your images waver and",
-                "blur in front of your",
-                "enemies.",
+                "Your images wavers and",
+                "blurs in front of your",
+                "enemies",
             )
         }
         pause(2000)
@@ -2079,7 +2614,7 @@ val nextRylween = rylween {
         whenever(random(0..199) lt target.hp) {
             screen {
                 lines(
-                    "Through incredible",
+                    "Through INCREDIBLE",
                     "resistance, the enemy",
                     "is still alive, badly",
                     "wounded.",
@@ -2091,7 +2626,7 @@ val nextRylween = rylween {
             screen {
                 lines(
                     "The enemy is wiped",
-                    "straight off the surface",
+                    "straigt off the surface",
                     "of the earth!",
                 )
             }
@@ -2102,8 +2637,11 @@ val nextRylween = rylween {
     }
 
     spell(Spells.Mage.hold, slot = 5, baseCost = 43, name = "Hold Enemies") {
+        val caster = currentCaster
+
         native.screen.clearText()
         screen {
+            line(partyName(caster), " utters a word.")
             lines("The enemies freeze dead", "in their tracks.")
         }
         pause(2000)
@@ -2111,11 +2649,14 @@ val nextRylween = rylween {
     }
 
     spell(Spells.Mage.antimagic, slot = 6, baseCost = 28, name = "Anti Magic") {
+        val caster = currentCaster
+
         native.screen.clearText()
         screen {
+            line(partyName(caster), " utters a word.")
             lines(
                 "The enemy is now",
-                "stopped from using magic",
+                "stopped from using magic.",
                 "against you this round.",
             )
         }
@@ -2127,9 +2668,13 @@ val nextRylween = rylween {
         val target = battle.randomAliveMember()
         val damage = localInt((battle.encounterHitPointMax / 5) + random(0..3))
 
+        screen("Frost Finger")
         screen {
-            line("Frost Finger")
-            line("does ", damage, " pts")
+            line("on ", partyName(target), "!")
+        }
+        pause(1000)
+        screen {
+            line("and does ", damage, " pts")
             line("of damage!")
         }
         pause(1000)
@@ -2137,7 +2682,9 @@ val nextRylween = rylween {
         whenever(target.hp lte 0) {
             target.hp set 0
             target.dead set true
-            screen("The target dies!")
+            screen {
+                line("\u001B[31m", partyName(target), " DIES!\u001B[37m")
+            }
             pause(1000)
         }
     }
@@ -2149,15 +2696,17 @@ val nextRylween = rylween {
             val damage = localInt((battle.encounterHitPointMax / 5) + random(0..4))
             native.screen.clearText()
             screen {
-                line("A party member is burnt")
-                line("for ", damage, " damage pts!")
+                line(partyName(target), " is burnt for")
+                line(damage, " damage pts!")
             }
             pause(1000)
             target.hp -= damage
             whenever(target.hp lte 0) {
                 target.hp set 0
                 target.dead set true
-                screen("The target dies!")
+                screen {
+                    line("\u001B[31m", partyName(target), " DIES!\u001B[37m")
+                }
                 pause(1000)
             }
         }
@@ -2190,7 +2739,7 @@ val nextRylween = rylween {
 
             native.screen.clearText()
             screen {
-                line("The frost wand chills")
+                line(partyName(caster), " chills ", monsterName(target))
                 line("for ", damage, " damage pts.")
             }
             pause(1000)
@@ -2220,7 +2769,7 @@ val nextRylween = rylween {
                 whenever(!foe.dead) {
                     native.screen.clearText()
                     screen {
-                        line("The fire wand burns")
+                        line(partyName(caster), " burns ", monsterName(foe))
                         line("for ", damage, " pts!")
                     }
                     pause(1000)
@@ -2243,18 +2792,23 @@ val nextRylween = rylween {
         consume = ItemConsumePolicy.BeforeUse
 
         effect {
+            val caster = currentCaster
+
             native.screen.clearText()
             screen {
+                line(partyName(caster), " throws the")
                 lines(
-                    "The gem breaks before",
-                    "the enemies in a rain",
-                    "of sparks.",
+                    "at the enemy. It",
+                    "breaks before them in",
+                    "a rain of sparks.",
                     "They bump into each",
                     "other as they try to",
                     "see you.",
+                    "",
                 )
             }
             waitInput("after gem of confusion")
+            native.screen.clearText()
             battle.monsterWeaponSkill /= 2
         }
     }
@@ -2264,15 +2818,24 @@ val nextRylween = rylween {
         consume = ItemConsumePolicy.BeforeUse
 
         effect {
+            val caster = currentCaster
+
             native.screen.clearText()
             screen {
+                line(partyName(caster), " throws the")
                 lines(
-                    "The gem releases a",
-                    "brilliant cloud of light",
-                    "around the enemies.",
+                    "gem at the enemy.",
+                    "It breaks, releasing",
+                    "a brilliant cloud",
+                    "of light which completely",
+                    "surrounds them. As the",
+                    "light fades, your enemies",
+                    "are blind.",
+                    "",
                 )
             }
             waitInput("after gem of blindness")
+            native.screen.clearText()
             battle.monsterWeaponSkill set 5
         }
     }
@@ -2282,15 +2845,21 @@ val nextRylween = rylween {
         consume = ItemConsumePolicy.BeforeUse
 
         effect {
+            val caster = currentCaster
             val target = battle.firstAliveMonster()
 
             native.screen.clearText()
-            screen("The drums summon death", "to take a foe away...")
+            screen {
+                line(partyName(caster), " summons death")
+                line("to take a ", monsterName(target))
+                line("away...")
+            }
             pause(2000)
             emit(T.Battle.killed)
             pause(600)
             target.dead set true
             target.hp set 0
+            native.screen.clearText()
         }
     }
 
@@ -2304,15 +2873,19 @@ val nextRylween = rylween {
                 structuredText {
                     line("On Whom? (1-", maxMembers, ")")
                 },
-                filter = MemberChoiceFilter.AliveOnly,
+                filter = MemberChoiceFilter.Any,
             )
 
             native.screen.clearText()
             whenever(!target.dead) {
                 target.fullHeal()
             }
-            screen("The target is fully", "healed.")
+            screen {
+                line(partyName(target), " is fully")
+                line("healed.")
+            }
             pause(1000)
+            native.screen.clearText()
         }
     }
 
@@ -2328,9 +2901,11 @@ val nextRylween = rylween {
                     "spirits grow. You are",
                     "all stronger than",
                     "before.",
+                    "",
                 )
             }
             waitInput("after blessing scroll")
+            native.screen.clearText()
 
             forEachMember(includeDead = true) { member ->
                 member.weaponSkill += 3
@@ -2347,8 +2922,9 @@ val nextRylween = rylween {
 
         effect {
             native.screen.clearText()
-            screen("The party is fully", "healed!")
+            screen("The party is fully", "healed!", "")
             waitInput("after staff of curing")
+            native.screen.clearText()
 
             forEachMember(includeDead = true) { member ->
                 whenever(!member.dead) {
@@ -2374,13 +2950,17 @@ val nextRylween = rylween {
 
             native.screen.clearText()
             whenever(target.dead) {
-                screen("The target opens", "their eyes!")
+                screen {
+                    line(partyName(target), " opens ", pronoun(target, PronounCase.Possessive), " eyes!")
+                }
                 pause(1000)
                 target.dead set false
                 target.hp set 1
                 consumeActiveItem()
             } otherwise {
-                screen("The target is not dead.")
+                screen {
+                    line(partyName(target), " is not dead.")
+                }
                 pause(1000)
                 battle.actionRetry set true
             }
@@ -2392,9 +2972,32 @@ val nextRylween = rylween {
         consume = ItemConsumePolicy.BeforeUse
 
         effect {
+            val caster = currentCaster
+
             native.screen.clearText()
-            screen("Kael's axe wounds", "the enemies severely.")
+            screen {
+                line(partyName(caster), " throws Kael's")
+                lines("axe at the enemy!", "")
+            }
+            pause(1500)
+            screen {
+                lines(
+                    "It wounds them severely",
+                    "as it spins around,",
+                    "wielded by hands you",
+                    "cannot see!",
+                )
+            }
             pause(4000)
+            native.screen.clearText()
+            screen {
+                lines(
+                    "With a raging battle",
+                    "cry, you attack the",
+                    "mortally wounded foes!",
+                )
+            }
+            pause(3000)
 
             forEachMonster { foe ->
                 foe.hp set random(1..3)
@@ -2407,9 +3010,22 @@ val nextRylween = rylween {
         consume = ItemConsumePolicy.BeforeUse
 
         effect {
+            val caster = currentCaster
+
             native.screen.clearText()
-            screen("KA-BLAM!")
+            screen {
+                line(partyName(caster), " pulls the")
+                lines(
+                    "holy pin, and lobbeth",
+                    "the holy handgrenade",
+                    "at the foes...",
+                    "",
+                )
+            }
+            pause(3000)
+            screen("KA-BLAM!", "")
             pause(1500)
+            native.screen.clearText()
 
             forEachMonster { foe ->
                 foe.hp /= 4
@@ -2423,16 +3039,21 @@ val nextRylween = rylween {
         consume = ItemConsumePolicy.BeforeUse
 
         effect {
+            val caster = currentCaster
+
             native.screen.clearText()
             screen {
+                line(partyName(caster), " plays the")
                 lines(
-                    "The flute produces a",
-                    "shrill, fragile sound,",
-                    "and breaks.",
+                    "Flute of Madness.",
+                    "It produces a shrill,",
+                    "fragile sound, and breaks.",
                     "Nothing happens.",
+                    "",
                 )
             }
             waitInput("after flute of madness")
+            native.screen.clearText()
         }
     }
 
@@ -2982,7 +3603,11 @@ check(listOf(Npcs.alex, Npcs.galdon, Npcs.kosch, Npcs.ufarsin).all { npc ->
     nextDsl.characters.single { it.id == npc }.placement == CharacterPlacementModel.RandomizedWilderness
 })
 check(nextDsl.characters.flatMap { it.roles }.toSet() == NpcRoles.all.toSet())
-check(nextDsl.monsters.size == 3)
+check(nextDsl.monsters.size == 68)
+check(nextDsl.monsters.count { it.tier == EncounterTiers.weak } == 10)
+check(nextDsl.monsters.count { it.tier == EncounterTiers.wild } == 14)
+check(nextDsl.monsters.count { it.tier == EncounterTiers.deep } == 20)
+check(nextDsl.monsters.single { it.id == Monsters.gnoll }.countMaxLevelDivisor == 2)
 check(nextDsl.scenes.size == 9)
 val churchScene = nextDsl.scenes.single { it.id == Scenes.Towne.church }
 val churchMenu = churchScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()

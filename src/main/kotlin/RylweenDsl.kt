@@ -295,7 +295,12 @@ sealed interface BoolAst {
 }
 
 sealed interface StrAst {
-    data class NativeString(val path: String, val args: List<String>) : StrAst
+    data class NativeString(val path: String, val args: List<NativeStringArg>) : StrAst
+}
+
+sealed interface NativeStringArg {
+    data class Literal(val value: String) : NativeStringArg
+    data class IntValue(val value: IntAst) : NativeStringArg
 }
 
 sealed interface LValueAst {
@@ -438,6 +443,7 @@ data class MonsterModel(
     val id: MonsterId,
     val name: String,
     val count: IntRange,
+    val countMaxLevelDivisor: Int?,
     val hitPoints: IntRange,
     val weaponSkill: Int,
     val spellPower: Int,
@@ -1284,10 +1290,10 @@ class NativeAllowlistRefs {
 val NativeAllowlist = NativeAllowlistRefs()
 
 fun partyName(member: MemberRef): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.partyMemberName.path, listOf(render(member.index.ast))))
+    Str(StrAst.NativeString(NativeAllowlist.partyMemberName.path, listOf(NativeStringArg.IntValue(member.index.ast))))
 
 fun monsterName(monster: MonsterRef): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.combatMonsterName.path, listOf(render(monster.index.ast))))
+    Str(StrAst.NativeString(NativeAllowlist.combatMonsterName.path, listOf(NativeStringArg.IntValue(monster.index.ast))))
 
 fun pronoun(member: MemberRef, case: PronounCase): StrExpr {
     val native = when (case) {
@@ -1295,17 +1301,17 @@ fun pronoun(member: MemberRef, case: PronounCase): StrExpr {
         PronounCase.Object -> NativeAllowlist.partyPronounObject
         PronounCase.Possessive -> NativeAllowlist.partyPronounPossessive
     }
-    return Str(StrAst.NativeString(native.path, listOf(render(member.index.ast))))
+    return Str(StrAst.NativeString(native.path, listOf(NativeStringArg.IntValue(member.index.ast))))
 }
 
 fun townNpcName(job: NpcJobId): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.townNpcName.path, listOf(render(job))))
+    Str(StrAst.NativeString(NativeAllowlist.townNpcName.path, listOf(NativeStringArg.Literal(render(job)))))
 
 fun npcName(role: NpcRole): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.npcRoleName.path, listOf(role.slug)))
+    Str(StrAst.NativeString(NativeAllowlist.npcRoleName.path, listOf(NativeStringArg.Literal(role.slug))))
 
 fun npcLocation(role: NpcRole): StrExpr =
-    Str(StrAst.NativeString(NativeAllowlist.npcRoleLocation.path, listOf(role.slug)))
+    Str(StrAst.NativeString(NativeAllowlist.npcRoleLocation.path, listOf(NativeStringArg.Literal(role.slug))))
 
 fun render(ast: IntAst): String = ast.toString()
 fun render(arg: Any): String = when (arg) {
@@ -2851,6 +2857,7 @@ class MonsterCatalogBuilder {
 class MonsterBuilder(private val id: MonsterId) {
     var name: String = ""
     var count: IntRange = 1..1
+    var countMaxLevelDivisor: Int? = null
     var hitPoints: IntRange = 1..1
     var weaponSkill: Int = 0
     var spellPower: Int = 0
@@ -2858,7 +2865,7 @@ class MonsterBuilder(private val id: MonsterId) {
     var immune: Boolean = false
 
     fun build(): MonsterModel =
-        MonsterModel(id, name, count, hitPoints, weaponSkill, spellPower, tier, immune)
+        MonsterModel(id, name, count, countMaxLevelDivisor, hitPoints, weaponSkill, spellPower, tier, immune)
 }
 
 @RylNextDsl
@@ -4039,7 +4046,15 @@ fun nativePathsIn(model: GameModel): Set<String> {
 
     fun str(ast: StrAst) {
         when (ast) {
-            is StrAst.NativeString -> paths += ast.path
+            is StrAst.NativeString -> {
+                paths += ast.path
+                ast.args.forEach { arg ->
+                    when (arg) {
+                        is NativeStringArg.IntValue -> int(arg.value)
+                        is NativeStringArg.Literal -> Unit
+                    }
+                }
+            }
         }
     }
 

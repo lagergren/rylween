@@ -1956,9 +1956,9 @@ class RylweenDslValidationTest {
 
         assertTrue(result.status is TerminalRunStatus.Finished)
         assertEquals(BattleSessionResultStatus.RunEscaped, result.session.lastResult.status)
-        assertEquals(Monsters.bandit, result.session.lastResult.monster)
+        assertEquals(Monsters.kobold, result.session.lastResult.monster)
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
-        assertTrue(terminal.output.any { "2 Bandits" in it })
+        assertTrue(terminal.output.any { "2 Kobolds" in it })
         assertTrue(terminal.output.any { "Coward. You won't get" in it })
     }
 
@@ -1994,7 +1994,7 @@ class RylweenDslValidationTest {
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
         assertTrue(result.session.step is BattleSessionStep.RoundOpening)
-        assertEquals(84, result.session.runtime.activeParty.members.single().hitPoints.current)
+        assertEquals(90, result.session.runtime.activeParty.members.single().hitPoints.current)
     }
 
     @Test
@@ -2024,6 +2024,7 @@ class RylweenDslValidationTest {
                         id = Monsters.bandit,
                         name = "Bandit",
                         count = 1..1,
+                        countMaxLevelDivisor = null,
                         hitPoints = 1..99,
                         weaponSkill = 50,
                         spellPower = 0,
@@ -2074,7 +2075,9 @@ class RylweenDslValidationTest {
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertTrue(result.session.step is BattleSessionStep.RoundOpening)
         assertEquals(87, member.mana.current)
-        assertEquals(60, result.session.encounter.hitPoints.first())
+        assertEquals(40, result.session.encounter.hitPoints.first())
+        assertTrue(terminal.output.any { it == "Tester chills the" })
+        assertFalse(terminal.output.any { "{string}" in it })
     }
 
     @Test
@@ -2097,6 +2100,7 @@ class RylweenDslValidationTest {
         assertTrue(result.status is TerminalRunStatus.Waiting)
         assertTrue(result.session.step is BattleSessionStep.PlayerAction)
         assertEquals(Items.gemOfResurrection, result.session.runtime.activeParty.inventoryItem(1))
+        assertTrue(terminal.output.any { "A. Gem of Resurrection" in it })
         assertTrue(terminal.output.any { "not dead" in it })
     }
 
@@ -2117,6 +2121,7 @@ class RylweenDslValidationTest {
                         id = Monsters.bandit,
                         name = "Spellcaster",
                         count = 1..1,
+                        countMaxLevelDivisor = null,
                         hitPoints = 50..50,
                         weaponSkill = 0,
                         spellPower = 300,
