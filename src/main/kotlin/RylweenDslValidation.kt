@@ -1152,6 +1152,13 @@ fun validateAuthoredContent(content: GameModel) {
             }
             when (val trigger = mission.trigger) {
                 is Trigger.RandomStep -> checkPercent(trigger.percent, "mission ${mission.id.slug} random step")
+                is Trigger.AtPosition -> {
+                    check(trigger.point.x >= 0 && trigger.point.y >= 0) {
+                        "mission ${mission.id.slug} position trigger must use non-negative world coordinates"
+                    }
+                }
+                is Trigger.AtLocation,
+                is Trigger.OnTerrain -> Unit
             }
         }
     }

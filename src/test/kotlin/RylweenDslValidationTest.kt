@@ -209,6 +209,22 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun structuredTextLineExtensionsAreSharedAcrossDomainBuilders() {
+        assertEquals(structuredText { line("Hello") }, textLines("Hello"))
+
+        val shop = shopText {
+            line("Price: ", price)
+        } as TextBlock.Structured
+        val offer = RandomItemOfferTextBuilder().apply {
+            line("Buy ", itemName, " for ", itemPrice)
+        }.build() as TextBlock.Structured
+
+        assertEquals(TextPart.ShopPrice, shop.lines.single().parts[1])
+        assertEquals(TextPart.OfferedItemName, offer.lines.single().parts[1])
+        assertEquals(TextPart.OfferedItemPrice, offer.lines.single().parts[3])
+    }
+
+    @Test
     fun traceEngineRecordsReusableChoices() {
         val engine = TraceEnginePort()
         val runner = ScriptTraceRunner(engine)
@@ -2137,6 +2153,88 @@ class RylweenDslValidationTest {
         assertTrue(result.session.party.hasFlagState(Story.garth.bandits.recovered))
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
         assertTrue(terminal.output.any { "recovered" in it.lowercase() })
+    }
+
+    @Test
+    fun wildernessMoveCanTriggerAuthoredTrollToothMissionAndWaitInBattle() {
+        val terminal = FakeTerminalPort("2")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.hermit.trollTooth.accepted),
+                ).copy(position = Wilderness.xy(12, 9)),
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.MissionHandoff, result.session.lastResult?.status)
+        assertEquals(Missions.trollTooth, result.session.lastResult?.mission)
+        assertTrue(result.session.step is WildernessSessionStep.Mission)
+        val mission = result.session.step
+        assertTrue(mission.continuation?.battleSession?.encounter?.monster?.id == Monsters.troll)
+        assertFalse(result.session.party.hasFlagState(Story.hermit.trollTooth.extracted))
+        assertTrue(terminal.output.any { "ENCOUNTER!" in it })
+    }
+
+    @Test
+    fun wildernessMoveCanCompleteAuthoredSkullweedTerrainMission() {
+        val terminal = FakeTerminalPort("2", "")
+        val map = WorldMapGrid.fromSourceRows(
+            (1..12).map { y -> if (y == 10) mapRow(12 to 't') else mapRow() },
+        )
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.masterCrown.task2Assigned),
+                ).copy(position = Wilderness.xy(12, 9)),
+                worldMap = map,
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
+        assertEquals(Missions.skullweed, result.session.lastResult?.mission)
+        assertTrue(result.session.party.hasFlagState(Story.masterCrown.task2Done))
+        assertTrue(terminal.output.any { "skullweed" in it.lowercase() })
+    }
+
+    @Test
+    fun wildernessMoveCanTriggerAuthoredJazzyFootMissionAndWaitInFirstBattle() {
+        val terminal = FakeTerminalPort("2", "", "")
+        val map = WorldMapGrid.fromSourceRows(
+            (1..12).map { y -> if (y == 10) mapRow(12 to 'f') else mapRow() },
+        )
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.jazzy.ogre.ogresCleared),
+                ).copy(position = Wilderness.xy(12, 9)),
+                worldMap = map,
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.MissionHandoff, result.session.lastResult?.status)
+        assertEquals(Missions.jazzyFoot, result.session.lastResult?.mission)
+        assertTrue(result.session.step is WildernessSessionStep.Mission)
+        val mission = result.session.step
+        assertTrue(mission.continuation?.battleSession?.encounter?.monster?.id == Monsters.wingedThing)
+        assertFalse(result.session.party.hasFlagState(Story.jazzy.ogre.jazzyDefeated))
+        assertTrue(terminal.output.any { "FOOT OF JAZZY" in it })
+        assertTrue(terminal.output.any { "ENCOUNTER!" in it })
     }
 
     @Test

@@ -1149,6 +1149,7 @@ class RylweenKotlinEngine(
             realm = state.realm.copy(rngState = rngState),
             parties = state.parties,
             npcs = state.npcs,
+            locations = state.locations,
         )
         return if (realizeNpcs) {
             runtime.realizeNpcPlacements(content.characters, content.towns, npcPlacementConfig)
