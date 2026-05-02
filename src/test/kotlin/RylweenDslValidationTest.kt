@@ -1982,6 +1982,53 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun battleSessionAttackUsesReadiedWeaponDamage() {
+        fun runAttackWith(weapon: ItemId): TerminalAdapterResult<BattleSession> {
+            val terminal = FakeTerminalPort("F", "A", "A")
+            return BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+                customBattleSession(
+                    party = testParty(
+                        food = 100,
+                        timeLeft = 200,
+                        restedHours = 14,
+                        members = listOf(
+                            testMember(
+                                health = 100,
+                                hitPoints = 100,
+                                weaponSkill = 100,
+                                equipment = EquipmentState(weapon, Items.none),
+                            ),
+                        ),
+                    ),
+                    monster = MonsterModel(
+                        id = Monsters.bandit,
+                        name = "Training Dummy",
+                        count = 1..1,
+                        countMaxLevelDivisor = null,
+                        hitPoints = 100..100,
+                        weaponSkill = 0,
+                        spellPower = 0,
+                        tier = EncounterTiers.weak,
+                        immune = false,
+                    ),
+                ),
+            )
+        }
+
+        val armed = runAttackWith(Items.deathBlade)
+        val unarmed = runAttackWith(Items.none)
+        val deathBladeDamage = checkNotNull(ItemCatalog.all.single { it.id == Items.deathBlade }.weaponDamage)
+
+        assertTrue(armed.status is TerminalRunStatus.Waiting)
+        assertTrue(unarmed.status is TerminalRunStatus.Waiting)
+        assertEquals(68, deathBladeDamage)
+        assertEquals(
+            deathBladeDamage - 1,
+            unarmed.session.encounter.hitPoints.single() - armed.session.encounter.hitPoints.single(),
+        )
+    }
+
+    @Test
     fun battleSessionDefendClampsHitPointsBeforeMonsterRound() {
         val terminal = FakeTerminalPort("F", "D")
         val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
@@ -1995,6 +2042,39 @@ class RylweenDslValidationTest {
         assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
         assertTrue(result.session.step is BattleSessionStep.RoundOpening)
         assertEquals(90, result.session.runtime.activeParty.members.single().hitPoints.current)
+    }
+
+    @Test
+    fun battleSessionMonsterMeleeUsesReadiedArmorClass() {
+        val terminal = FakeTerminalPort("F", "D")
+        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            customBattleSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    health = 100,
+                    hitPoints = 100,
+                    equipment = EquipmentState(Items.none, Items.plateMail),
+                ),
+                monster = MonsterModel(
+                    id = Monsters.bandit,
+                    name = "Armored Bruiser",
+                    count = 1..1,
+                    countMaxLevelDivisor = null,
+                    hitPoints = 60..60,
+                    weaponSkill = 100,
+                    spellPower = 0,
+                    tier = EncounterTiers.weak,
+                    immune = false,
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is BattleSessionStep.RoundOpening)
+        assertEquals(97, result.session.runtime.activeParty.members.single().hitPoints.current)
+        assertTrue(terminal.output.any { "3 damage pts!!!" in it })
     }
 
     @Test
@@ -2427,6 +2507,29 @@ class RylweenDslValidationTest {
             ),
             combat = content.combat,
             monsters = content.monsters,
+            formulas = content.formulas,
+            rewards = content.rewards,
+            leveling = content.leveling,
+            spells = content.spells,
+            magicItems = content.magicItems,
+            tier = tier,
+        )
+    }
+
+    private fun customBattleSession(
+        party: PartyState,
+        monster: MonsterModel,
+        tier: EncounterTier = EncounterTiers.weak,
+    ): BattleSession {
+        val content = RylweenCompiledGame.nextDsl
+        return BattleSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = party,
+                hour = 12,
+                currentTown = null,
+            ),
+            combat = content.combat,
+            monsters = listOf(monster),
             formulas = content.formulas,
             rewards = content.rewards,
             leveling = content.leveling,
