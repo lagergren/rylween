@@ -1743,6 +1743,63 @@ private class SpeakSessionTraceRunner(
         }
 }
 
+class CampSessionTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun run(initial: CampSession): CampSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: CampSession): TerminalAdapterResult<CampSession> {
+        var session = initial
+        repeat(64) {
+            session = when (val step = session.step) {
+                is CampSessionStep.GuardChoice -> {
+                    writeMenu(step.prompt, listOf('Y', 'N'))
+                    val choices = listOf(TerminalChoice(true, inputKey("Y")), TerminalChoice(false, inputKey("N")))
+                    when (val input = terminal.readChoice(choices)) {
+                        is TerminalInput.Value -> session.apply(CampSessionInput.GuardAnswer(input.value))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is CampSessionStep.GuardMember -> {
+                    val keys = session.party.members.indices.map { (it + 1).digitToChar() }
+                    writeMenu(step.prompt, keys)
+                    when (val input = terminal.readMemberNumber(session.party.members.indices.map { it + 1 })) {
+                        is TerminalInput.Value -> session.apply(CampSessionInput.GuardMember(input.value))
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is CampSessionStep.Messages -> {
+                    step.blocks.forEach { block ->
+                        terminal.write(renderer.lines(block, TerminalTextContext(runtime = session.runtime)))
+                    }
+                    session.apply(CampSessionInput.Continue)
+                }
+                is CampSessionStep.Ambush -> {
+                    val battleResult = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceAmbushSession(battleResult.session)
+                    when (battleResult.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, battleResult.status)
+                    }
+                }
+                is CampSessionStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun writeMenu(block: TextBlock, keys: List<Char>) {
+        terminal.write(renderer.lines(block) + "Options: ${keys.joinToString("/")}")
+    }
+}
+
 class EquipmentPromptTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -2749,6 +2806,17 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.Battle -> {
                     val result = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceBattleSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is WildernessSessionStep.Camp -> {
+                    val result = CampSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceCampSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
                         TerminalRunStatus.StepLimitReached ->

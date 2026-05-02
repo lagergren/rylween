@@ -18,6 +18,9 @@ sealed interface WildernessSessionInput {
     object Enter : WildernessSessionInput
     object Drop : WildernessSessionInput
     object Camp : WildernessSessionInput
+    data class CampGuardAnswer(val yes: Boolean) : WildernessSessionInput
+    data class CampGuardMember(val memberNumber: Int) : WildernessSessionInput
+    object CampContinue : WildernessSessionInput
     object CastSpell : WildernessSessionInput
     object Quaff : WildernessSessionInput
     object Continue : WildernessSessionInput
@@ -46,6 +49,9 @@ enum class WildernessSessionResultStatus {
     ViewPartyUnavailable,
     DropUnavailable,
     CampUnavailable,
+    Camped,
+    NotTired,
+    CampNotEnoughFood,
     CastSpellUnavailable,
     CastSpellRequested,
     CastSpellUsed,
@@ -98,6 +104,7 @@ sealed interface WildernessSessionStep {
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
     data class Dungeon(val session: DungeonSession) : WildernessSessionStep
     data class Battle(val session: BattleSession) : WildernessSessionStep
+    data class Camp(val session: CampSession) : WildernessSessionStep
     data class InventoryItemUse(val session: InventoryItemUseSession) : WildernessSessionStep
     data class Equipment(val session: EquipmentPromptSession) : WildernessSessionStep
     data class PriestSpell(val session: PriestSpellSession) : WildernessSessionStep
@@ -279,7 +286,10 @@ data class WildernessSession(
             WildernessSessionInput.RemoveWeapon -> equipment(EquipmentCommand.RemoveWeapon)
             WildernessSessionInput.Enter -> enter()
             WildernessSessionInput.Drop -> pending(WildernessPromptText.dropPending(), WildernessSessionResultStatus.DropUnavailable)
-            WildernessSessionInput.Camp -> pending(WildernessPromptText.campPending(), WildernessSessionResultStatus.CampUnavailable)
+            WildernessSessionInput.Camp -> camp()
+            is WildernessSessionInput.CampGuardAnswer -> applyCampInput(CampSessionInput.GuardAnswer(input.yes))
+            is WildernessSessionInput.CampGuardMember -> applyCampInput(CampSessionInput.GuardMember(input.memberNumber))
+            WildernessSessionInput.CampContinue -> applyCampInput(CampSessionInput.Continue)
             WildernessSessionInput.CastSpell -> castSpell()
             WildernessSessionInput.Quaff -> quaff()
             WildernessSessionInput.Continue -> continueNotice()
@@ -571,6 +581,45 @@ data class WildernessSession(
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.InventoryRequested),
         )
+
+    private fun camp(): WildernessSession =
+        copy(
+            step = WildernessSessionStep.Camp(CampSession.start(runtime, content)),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.Camped),
+        )
+
+    private fun applyCampInput(input: CampSessionInput): WildernessSession {
+        val current = step as? WildernessSessionStep.Camp
+            ?: error("wilderness session is not running a camp")
+        val updated = current.session.apply(input)
+        return resolveCampSession(updated)
+    }
+
+    fun replaceCampSession(session: CampSession): WildernessSession =
+        resolveCampSession(session)
+
+    private fun resolveCampSession(session: CampSession): WildernessSession {
+        val finished = (session.step as? CampSessionStep.Finished)?.result
+        return when (finished?.status) {
+            null -> copy(
+                runtime = session.runtime,
+                step = WildernessSessionStep.Camp(session),
+            )
+            else -> copy(
+                runtime = finished.runtime,
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(
+                    when (finished.status) {
+                        CampSessionStatus.Rested -> WildernessSessionResultStatus.Camped
+                        CampSessionStatus.NotTired -> WildernessSessionResultStatus.NotTired
+                        CampSessionStatus.NotEnoughFood -> WildernessSessionResultStatus.CampNotEnoughFood
+                        CampSessionStatus.Ambushed -> WildernessSessionResultStatus.EncounterHandoff
+                        CampSessionStatus.SurpriseKill -> WildernessSessionResultStatus.EncounterHandoff
+                    },
+                ),
+            )
+        }
+    }
 
     private fun castSpell(): WildernessSession =
         copy(

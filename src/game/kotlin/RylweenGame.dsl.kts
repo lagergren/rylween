@@ -68,6 +68,50 @@ val nextRylween = rylween {
 
     realm {
         baseResourceCapacity(Resource.Food, 150)
+        camp {
+            healthGain = 15
+            foodCostPerMember = 4
+            hoursAdvanced = 8
+            hoursRestedReset = 14
+            temperatureMax = 15
+            ambushChancePercent = 19
+            ambushTier = EncounterTiers.weak
+            notTired = inlineText("Not tired.")
+            notEnoughFood = inlineText("Not enough food.")
+            guardPrompt = inlineText("Camp.", "", "Post a guard?", "")
+            guardMemberPrompt = inlineText("Who? (1-{party_max})")
+            guardMemberDead = inlineText("Dead.")
+            standsGuard = inlineText(
+                "Guard stands watch.",
+                "They won't get any",
+                "health back during",
+                "this rest.",
+                "",
+            )
+            sleeping = inlineText("Zzz...")
+            rested = inlineText("You wake up 8 hours", "later. Well rested.", "")
+            ambush = inlineText("Ambush!!!")
+            surpriseKill = inlineText(
+                "A camper is dead",
+                "before you can",
+                "react!!!",
+                "",
+            )
+            temperatureBand(
+                band = TemperatureBand.Low,
+                range = 6 until 10,
+                damage = 5,
+                message = inlineText("Low Temperature."),
+                noShelter = inlineText("No good equipment,", "Party loses 5 health."),
+            )
+            temperatureBand(
+                band = TemperatureBand.VeryLow,
+                range = 10..15,
+                damage = 5,
+                message = inlineText("Very low temperature."),
+                noShelter = inlineText("No good equipment,", "Party loses 10 health."),
+            )
+        }
     }
 
     prompts {
