@@ -844,7 +844,7 @@ val nextRylween = rylween {
                 }
                 party.gold += amount
                 waitInput("after dungeon gold")
-                native.screen.clearText()
+                clearText()
             }
         }
 
@@ -858,7 +858,7 @@ val nextRylween = rylween {
                 }
                 party.torches += amount
                 waitInput("after dungeon torches")
-                native.screen.clearText()
+                clearText()
             }
         }
 
@@ -883,7 +883,7 @@ val nextRylween = rylween {
                         val thiefFound = localInt(0)
                         forEachMember {
                             whenever((thiefFound eq 0) and it.isClass(PcClass.Thief)) {
-                                native.screen.clearText()
+                                clearText()
                                 screen {
                                     line(partyName(it), " checks the")
                                     line("chest for traps.")
@@ -895,7 +895,7 @@ val nextRylween = rylween {
                         }
 
                         whenever(random(0..9) lt trapChance) {
-                            native.screen.clearText()
+                            clearText()
                             screen("A TRAP!")
                             pause(600)
                             choose(random(0..2)) {
@@ -926,7 +926,7 @@ val nextRylween = rylween {
                             waitInput("after chest trap")
                         }
 
-                        native.screen.clearText()
+                        clearText()
                         val goldAmount = localInt(random(0..99) + 320 + (party.leader.experience / 500))
                         screen {
                             line("The chest contained")
@@ -935,7 +935,7 @@ val nextRylween = rylween {
                         }
                         party.gold += goldAmount
                         waitInput("after chest gold")
-                        native.screen.clearText()
+                        clearText()
                     }
                     option('L') {}
                     default {}
@@ -2982,17 +2982,17 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Towne.church) {
-        native.screen.clearMapWindow()
-        native.screen.showImage(Images.Scene.church)
+        clearMapWindow()
+        showBackdrop(Images.Scene.church)
 
         loop {
-            native.screen.clearText()
-            native.screen.statusLine()
+            clearText()
+            statusLine()
             screen(T.Towne.Church.intro)
 
             menu(T.Towne.Church.menu) {
                 option('H') {
-                    native.screen.clearText()
+                    clearText()
                     val m = choice.member(
                         T.Towne.Church.who,
                         filter = MemberChoiceFilter.AliveOnly,
@@ -3021,7 +3021,7 @@ val nextRylween = rylween {
                     }
 
                     val price = localInt((m.maxHp - m.hp) * 7)
-                    native.screen.clearText()
+                    clearText()
                     screen {
                         line("- That'll be ", price)
                         line("gold coins, please.")
@@ -3039,7 +3039,7 @@ val nextRylween = rylween {
                             pause(1000)
                         },
                         paid = {
-                            native.screen.clearText()
+                            clearText()
                             m.hp set m.maxHp
                             screen {
                                 line("The priestess heals")
@@ -3051,7 +3051,7 @@ val nextRylween = rylween {
                 }
 
                 option('E') {
-                    native.screen.clearText()
+                    clearText()
                     val m = choice.member(
                         T.Towne.Church.who,
                         filter = MemberChoiceFilter.SpellcasterOnly,
@@ -3059,14 +3059,14 @@ val nextRylween = rylween {
                     )
 
                     whenever(!m.spellcaster) {
-                        native.screen.clearText()
+                        clearText()
                         screen("Not a spellcaster!")
                         pause(1000)
                         stop("not a spellcaster")
                     }
 
                     whenever(m.mp eq m.wisdom) {
-                        native.screen.clearText()
+                        clearText()
                         screen {
                             lines(
                                 "That character needs",
@@ -3078,7 +3078,7 @@ val nextRylween = rylween {
                         stop("spell points already restored")
                     }
 
-                    native.screen.clearText()
+                    clearText()
                     val price = localInt(m.level * (m.wisdom - m.mp) * 2)
                     screen {
                         line("- That will be ", price)
@@ -3088,13 +3088,13 @@ val nextRylween = rylween {
 
                     choice.payNoThanks(price,
                         broke = {
-                            native.screen.clearText()
+                            clearText()
                             screen("You don't have the gold!")
                             pause(1000)
                         },
                         paid = {
                             m.mp set m.wisdom
-                            native.screen.clearText()
+                            clearText()
                             screen {
                                 lines(
                                     "The priestess",
@@ -3107,7 +3107,7 @@ val nextRylween = rylween {
                 }
 
                 option('R') {
-                    native.screen.clearText()
+                    clearText()
                     val m = choice.member(
                         T.Towne.Church.who,
                         filter = MemberChoiceFilter.DeadOnly,
@@ -3115,7 +3115,7 @@ val nextRylween = rylween {
                     )
 
                     whenever(!m.dead) {
-                        native.screen.clearText()
+                        clearText()
                         screen {
                             line("- ", pronoun(m, PronounCase.Subject), " seems very alive")
                             line("at the moment.")
@@ -3124,7 +3124,7 @@ val nextRylween = rylween {
                         stop("already alive")
                     }
 
-                    native.screen.clearText()
+                    clearText()
                     val price = localInt(m.level * 650)
                     screen {
                         line("- That will be ", price)
@@ -3134,7 +3134,7 @@ val nextRylween = rylween {
 
                     choice.payNoThanks(price,
                         broke = {
-                            native.screen.clearText()
+                            clearText()
                             screen("You don't have the gold!")
                             pause(1000)
                         },
@@ -3142,7 +3142,7 @@ val nextRylween = rylween {
                             m.hp set 1
                             m.dead set false
                             party.memberCount += 1
-                            native.screen.clearText()
+                            clearText()
                             screen {
                                 line("The priestess raises")
                                 line(pronoun(m, PronounCase.Object), ".")
@@ -3153,8 +3153,8 @@ val nextRylween = rylween {
                 }
 
                 option('L') {
-                    native.screen.clearText()
-                    native.screen.clearMapWindow()
+                    clearText()
+                    clearMapWindow()
                     breakLoop("leave church")
                 }
             }
@@ -3260,13 +3260,13 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Towne.inn) {
-        native.screen.clearMapWindow()
-        native.screen.showImage(Images.Scene.inn)
+        clearMapWindow()
+        showBackdrop(Images.Scene.inn)
 
         loop {
             val cost = localInt((party.leader.level * party.leader.level) * 15)
 
-            native.screen.clearText()
+            clearText()
             screen {
                 line(townNpcName(NpcJobs.innkeeper), ", the Innkeeper")
                 line("welcomes you.")
@@ -3278,7 +3278,7 @@ val nextRylween = rylween {
             choice.yesNo("(Y)es", "(N)o",
                 yes = {
                     whenever(party.gold lt cost) {
-                        native.screen.clearText()
+                        clearText()
                         screen {
                             line("Sorry, supper is ", cost)
                             line("gold.")
@@ -3286,7 +3286,7 @@ val nextRylween = rylween {
                         pause(1000)
                     } otherwise {
                         party.gold -= cost
-                        native.screen.clearText()
+                        clearText()
                         screen {
                             lines(
                                 "You are served a well",
@@ -3301,10 +3301,10 @@ val nextRylween = rylween {
                 },
             )
 
-            native.screen.clearText()
+            clearText()
             choice.yesNo("Anything to drink?", "",
                 yes = {
-                    native.screen.clearText()
+                    clearText()
                     menu(
                         "What'll it be?",
                         "",
@@ -3317,12 +3317,12 @@ val nextRylween = rylween {
                         option('A') {
                             pay(lit(2),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("Ahh...!")
                                     pause(1000)
                                     healLivingMembers((lit(2) / 2) + 1)
@@ -3332,12 +3332,12 @@ val nextRylween = rylween {
                         option('B') {
                             pay(lit(3),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("Ahh...!")
                                     pause(1000)
                                     healLivingMembers((lit(3) / 2) + 1)
@@ -3347,12 +3347,12 @@ val nextRylween = rylween {
                         option('C') {
                             pay(lit(5),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("Ahh...!")
                                     pause(1000)
                                     healLivingMembers((lit(5) / 2) + 1)
@@ -3362,12 +3362,12 @@ val nextRylween = rylween {
                         option('D') {
                             pay(lit(7),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("Ahh...!")
                                     pause(1000)
                                     healLivingMembers((lit(7) / 2) + 1)
@@ -3377,12 +3377,12 @@ val nextRylween = rylween {
                         option('E') {
                             pay(lit(1),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("The other guests giggle.")
                                     pause(1000)
                                     healLivingMembers((lit(1) / 2) + 1)
@@ -3393,10 +3393,10 @@ val nextRylween = rylween {
                 },
             )
 
-            native.screen.clearText()
+            clearText()
             choice.yesNo("Are you in need", "of lodging?", "",
                 yes = {
-                    native.screen.clearText()
+                    clearText()
                     screen {
                         line("A room is ", cost, " gold/night.")
                         line("")
@@ -3406,7 +3406,7 @@ val nextRylween = rylween {
                         inlineText("(T)ake it", "(L)eave"),
                         take = {
                             whenever(party.gold lt cost) {
-                                native.screen.clearText()
+                                clearText()
                                 screen {
                                     lines(
                                         "- AHA! No gold!",
@@ -3414,11 +3414,11 @@ val nextRylween = rylween {
                                     )
                                 }
                                 pause(2000)
-                                native.screen.clearMapWindow()
+                                clearMapWindow()
                                 breakLoop("thrown out of inn")
                             } otherwise {
                                 party.gold -= cost
-                                native.screen.clearText()
+                                clearText()
                                 screen("You go to bed...")
                                 pause(1000)
                                 screen("Zzzz...", "")
@@ -3440,33 +3440,33 @@ val nextRylween = rylween {
                                 forEachMember {
                                     it.hp.addClamped(it.maxHp / 4, it.maxHp)
                                 }
-                                native.screen.clearMapWindow()
+                                clearMapWindow()
                                 breakLoop("slept at inn")
                             }
                         },
                         leave = {
-                            native.screen.clearText()
-                            native.screen.clearMapWindow()
+                            clearText()
+                            clearMapWindow()
                             breakLoop("leave inn")
                         },
                     )
                 },
                 no = {
                     loop {
-                        native.screen.clearText()
+                        clearText()
                         screen("The innkeeper leaves.", "")
                         menu("(C)hitchat with guests", "(L)eave") {
                             option('C') {
                                 speak(Buildings.tavern)
                             }
                             option('L') {
-                                native.screen.clearText()
-                                native.screen.clearMapWindow()
+                                clearText()
+                                clearMapWindow()
                                 breakLoop("leave inn chitchat")
                             }
                             default {
-                                native.screen.clearText()
-                                native.screen.clearMapWindow()
+                                clearText()
+                                clearMapWindow()
                                 breakLoop("leave inn chitchat")
                             }
                         }
@@ -3589,14 +3589,14 @@ val nextRylween = rylween {
 
     scene(Scenes.Towne.tavern) {
         whenever((realm.hour lt 6) and (realm.hour gt 1)) {
-            native.screen.clearText()
+            clearText()
             screen("Tavern Closed.")
             pause(1000)
             stop("tavern closed")
         }
 
-        native.screen.clearMapWindow()
-        native.screen.showImage(Images.Scene.tavern)
+        clearMapWindow()
+        showBackdrop(Images.Scene.tavern)
 
         val priestBonus = localInt(0)
         forEachMember(includeDead = true) { member ->
@@ -3606,7 +3606,7 @@ val nextRylween = rylween {
         }
 
         whenever(chance(priestBonus + 5)) {
-            native.screen.clearText()
+            clearText()
             screen(
                 "Just as you are about",
                 "to sit down at a,",
@@ -3624,7 +3624,7 @@ val nextRylween = rylween {
                 "",
             )
             pause(3000)
-            native.screen.clearText()
+            clearText()
             choice.randomItemOffer(ItemPools.tavernScruffySpecials) {
                 offer {
                     line("- I will sell you this")
@@ -3644,7 +3644,7 @@ val nextRylween = rylween {
         val rumours = localInt(0)
 
         loop {
-            native.screen.clearText()
+            clearText()
             screen {
                 line("- Welcome! Have a seat")
                 line(townNpcName(NpcJobs.tavernkeeper), ", the keeper")
@@ -3661,8 +3661,8 @@ val nextRylween = rylween {
                 "(L)eave",
             ) {
                 option('L') {
-                    native.screen.clearText()
-                    native.screen.clearMapWindow()
+                    clearText()
+                    clearMapWindow()
                     breakLoop("leave tavern")
                 }
 
@@ -3675,7 +3675,7 @@ val nextRylween = rylween {
                 }
 
                 option('R') {
-                    native.screen.clearText()
+                    clearText()
                     whenever(rumours lt 5) {
                         rumours += 1
                     }
@@ -3733,7 +3733,7 @@ val nextRylween = rylween {
                 }
 
                 option('O') {
-                    native.screen.clearText()
+                    clearText()
                     screen("Order:", "")
                     menu(
                         "A. Ale       2 au",
@@ -3745,12 +3745,12 @@ val nextRylween = rylween {
                         option('A') {
                             pay(lit(2),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen {
                                         lines(
                                             "AAH! (your health",
@@ -3767,12 +3767,12 @@ val nextRylween = rylween {
                         option('B') {
                             pay(lit(3),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen {
                                         lines(
                                             "AAH! (your health",
@@ -3789,12 +3789,12 @@ val nextRylween = rylween {
                         option('C') {
                             pay(lit(4),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen {
                                         lines(
                                             "AAH! (your health",
@@ -3811,12 +3811,12 @@ val nextRylween = rylween {
                         option('D') {
                             pay(lit(1),
                                 broke = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen("No money - No drink!")
                                     pause(1000)
                                 },
                                 ok = {
-                                    native.screen.clearText()
+                                    clearText()
                                     screen {
                                         lines(
                                             "You are the laughing",
@@ -3839,22 +3839,22 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Towne.hut) {
-        native.screen.clearMapWindow()
-        native.screen.showImage(Images.Scene.hut)
-        native.screen.clearText()
+        clearMapWindow()
+        showBackdrop(Images.Scene.hut)
+        clearText()
         screen("You enter the hut.")
         pause(600)
 
         loop {
-            native.screen.clearText()
+            clearText()
             menu("(T)alk", "(L)eave") {
                 option('T') {
                     speak(Buildings.none)
                 }
                 option('L') {
-                    native.screen.clearText()
-                    native.screen.clearMapWindow()
-                    native.screen.redrawMap()
+                    clearText()
+                    clearMapWindow()
+                    renderMap()
                     breakLoop("leave hut")
                 }
             }
@@ -3869,7 +3869,7 @@ val nextRylween = rylween {
         val target = ask.monsterAlive(T.Battle.Prompt.monster)
         val damage = localInt(caster.level * random(2..8))
 
-        native.screen.clearText()
+        clearText()
         screen {
             line(partyName(caster), " chills the")
             line("opponent for ", damage)
@@ -3894,7 +3894,7 @@ val nextRylween = rylween {
             val damage = localInt(caster.level * random(1..4))
 
             whenever(!foe.dead) {
-                native.screen.clearText()
+                clearText()
                 screen {
                     line(partyName(caster), " burns ", monsterName(foe))
                     line("for ", damage, " pts!")
@@ -3916,7 +3916,7 @@ val nextRylween = rylween {
     spell(Spells.Mage.confusion, slot = 3, baseCost = 17, name = "Confusion") {
         val caster = currentCaster
 
-        native.screen.clearText()
+        clearText()
         screen {
             line(partyName(caster), " utters a word.")
             lines(
@@ -3933,7 +3933,7 @@ val nextRylween = rylween {
     spell(Spells.Mage.death, slot = 4, baseCost = 78, name = "Death Strike") {
         val target = ask.monsterAlive(T.Battle.Prompt.monster)
 
-        native.screen.clearText()
+        clearText()
         whenever(random(0..199) lt target.hp) {
             screen {
                 lines(
@@ -3962,7 +3962,7 @@ val nextRylween = rylween {
     spell(Spells.Mage.hold, slot = 5, baseCost = 43, name = "Hold Enemies") {
         val caster = currentCaster
 
-        native.screen.clearText()
+        clearText()
         screen {
             line(partyName(caster), " utters a word.")
             lines("The enemies freeze dead", "in their tracks.")
@@ -3974,7 +3974,7 @@ val nextRylween = rylween {
     spell(Spells.Mage.antimagic, slot = 6, baseCost = 28, name = "Anti Magic") {
         val caster = currentCaster
 
-        native.screen.clearText()
+        clearText()
         screen {
             line(partyName(caster), " utters a word.")
             lines(
@@ -4017,7 +4017,7 @@ val nextRylween = rylween {
         pause(1000)
         forEachMember { target ->
             val damage = localInt((battle.encounterHitPointMax / 5) + random(0..4))
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(target), " is burnt for")
                 line(damage, " damage pts!")
@@ -4058,7 +4058,7 @@ val nextRylween = rylween {
         val caster = currentCaster
         val cost = lit(8) + caster.level
 
-        native.screen.clearText()
+        clearText()
         whenever(caster.mp gte cost) {
             caster.mp -= cost
             val maxMembers = realm.partyMemberMax
@@ -4071,25 +4071,25 @@ val nextRylween = rylween {
             val healing = localInt(random(10..19) + (caster.level * 2))
 
             whenever(target.dead) {
-                native.screen.clearText()
+                clearText()
                 screen("Dead.")
                 pause(600)
-                native.screen.clearText()
+                clearText()
             } otherwise {
                 target.hp.addClamped(healing, target.maxHp)
-                native.screen.clearText()
+                clearText()
                 screen {
                     line(partyName(caster), " heals")
                     line(partyName(target))
                     line("for ", healing, " hit points...")
                 }
                 pause(1500)
-                native.screen.clearText()
+                clearText()
             }
         } otherwise {
             screen("Not enough spell pts!")
             pause(1000)
-            native.screen.clearText()
+            clearText()
         }
     }
 
@@ -4097,7 +4097,7 @@ val nextRylween = rylween {
         val caster = currentCaster
         val cost = lit(20) + caster.level
 
-        native.screen.clearText()
+        clearText()
         whenever(caster.mp gte cost) {
             caster.mp -= cost
             val maxMembers = realm.partyMemberMax
@@ -4109,18 +4109,18 @@ val nextRylween = rylween {
             )
 
             target.fullHeal()
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(caster), " heals")
                 line(partyName(target))
                 line("fully...")
             }
             pause(1500)
-            native.screen.clearText()
+            clearText()
         } otherwise {
             screen("Not enough spell pts!")
             pause(1000)
-            native.screen.clearText()
+            clearText()
         }
     }
 
@@ -4128,7 +4128,7 @@ val nextRylween = rylween {
         val caster = currentCaster
         val cost = lit(90) + caster.level
 
-        native.screen.clearText()
+        clearText()
         whenever(caster.mp gte cost) {
             val maxMembers = realm.partyMemberMax
             val target = ask.member(
@@ -4142,14 +4142,14 @@ val nextRylween = rylween {
                 caster.mp -= cost
                 target.dead set false
                 target.hp set 1
-                native.screen.clearText()
+                clearText()
                 screen {
                     line(partyName(target), "'s eyelids")
                     lines("flicker, and finally")
                     line(pronoun(target, PronounCase.Subject), " opens ", pronoun(target, PronounCase.Possessive), " eyes!")
                 }
                 pause(1700)
-                native.screen.clearText()
+                clearText()
             } otherwise {
                 screen {
                     line(partyName(target), " is alive and")
@@ -4160,7 +4160,7 @@ val nextRylween = rylween {
         } otherwise {
             screen("Not enough spell pts!")
             pause(1000)
-            native.screen.clearText()
+            clearText()
         }
     }
 
@@ -4168,11 +4168,11 @@ val nextRylween = rylween {
         val caster = currentCaster
         val cost = lit(85) + caster.level
 
-        native.screen.clearText()
+        clearText()
         whenever(caster.mp gte cost) {
             whenever(context.inDungeon) {
                 caster.mp -= cost
-                native.screen.clearText()
+                clearText()
                 screen {
                     line(partyName(caster), " raises ", pronoun(caster, PronounCase.Possessive), " hands.")
                     line(pronoun(caster, PronounCase.Subject), " gathers divine power")
@@ -4182,17 +4182,17 @@ val nextRylween = rylween {
                 }
                 screen("There is a deafening clap", "of thunder, and you hear", "beings scream in agony", "in the dungeon below...", "")
                 waitInput("after banish evil")
-                native.screen.clearText()
+                clearText()
                 realm.banished set true
             } otherwise {
                 screen("There is no particular", "target for this banishing.", "This spell is meant for", "use in dungeons and caves.", "")
                 waitInput("after banish no target")
-                native.screen.clearText()
+                clearText()
             }
         } otherwise {
             screen("Not enough spell pts!")
             pause(1000)
-            native.screen.clearText()
+            clearText()
         }
     }
 
@@ -4200,21 +4200,21 @@ val nextRylween = rylween {
         val caster = currentCaster
         val cost = lit(40) + caster.level
 
-        native.screen.clearText()
+        clearText()
         whenever(caster.mp gte cost) {
             whenever(context.inDungeon) {
                 screen("Dungeon revelation", "is not ported yet.")
                 waitInput("after pending revelation")
-                native.screen.clearText()
+                clearText()
             } otherwise {
                 screen("This spell can be used in", "dungeons only, where there", "is a limited radius for", "the caster to enchant.", "")
                 waitInput("after revelation dungeon-only")
-                native.screen.clearText()
+                clearText()
             }
         } otherwise {
             screen("Not enough spell pts!")
             pause(1000)
-            native.screen.clearText()
+            clearText()
         }
     }
 
@@ -4226,11 +4226,11 @@ val nextRylween = rylween {
         val caster = currentCaster
         val cost = lit(55) + caster.level
 
-        native.screen.clearText()
+        clearText()
         whenever(context.inDungeon) {
             screen("The roof would cave", "in on you!", "")
             waitInput("after earthquake dungeon warning")
-            native.screen.clearText()
+            clearText()
         } otherwise {
             whenever(caster.mp gte cost) {
                 caster.mp -= cost
@@ -4241,32 +4241,32 @@ val nextRylween = rylween {
                 pause(2000)
                 screen("and the ground cracks", "open!")
                 pause(3000)
-                native.screen.clearMapWindow()
-                native.screen.showImage(Images.Backdrop.cave)
-                native.screen.clearText()
+                clearMapWindow()
+                showBackdrop(Images.Backdrop.cave)
+                clearText()
                 choice.enterOrLeave(
                     textLines("You find a cave!", "", "(E)nter", "(L)eave"),
                     enter = {
                         whenever(party.timeLeft gt 10) {
                             discoverCave(random(5..18), Dungeons.randomCave, lit(10))
                         } otherwise {
-                            native.screen.clearText()
+                            clearText()
                             screen("You don't have enough", "moves left to explore", "the cave...", "")
                             waitInput("after earthquake no moves")
-                            native.screen.clearMapWindow()
-                            native.screen.clearText()
+                            clearMapWindow()
+                            clearText()
                         }
                     },
                     leave = {
-                        native.screen.clearText()
-                        native.screen.clearMapWindow()
-                        native.screen.redrawMap()
+                        clearText()
+                        clearMapWindow()
+                        renderMap()
                     },
                 )
             } otherwise {
                 screen("Not enough spell pts!")
                 pause(1000)
-                native.screen.clearText()
+                clearText()
             }
         }
     }
@@ -4354,7 +4354,7 @@ val nextRylween = rylween {
             val target = battle.firstAliveMonster()
             val damage = localInt(random(5..11) + caster.level)
 
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(caster), " chills ", monsterName(target))
                 line("for ", damage, " damage pts.")
@@ -4378,13 +4378,13 @@ val nextRylween = rylween {
 
         effect {
             val caster = currentCaster
-            native.screen.clearText()
+            clearText()
 
             forEachMonster(includeDead = true) { foe ->
                 val damage = localInt(caster.level * random(3..8))
 
                 whenever(!foe.dead) {
-                    native.screen.clearText()
+                    clearText()
                     screen {
                         line(partyName(caster), " burns ", monsterName(foe))
                         line("for ", damage, " pts!")
@@ -4411,7 +4411,7 @@ val nextRylween = rylween {
         effect {
             val caster = currentCaster
 
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(caster), " throws the")
                 lines(
@@ -4425,7 +4425,7 @@ val nextRylween = rylween {
                 )
             }
             waitInput("after gem of confusion")
-            native.screen.clearText()
+            clearText()
             battle.monsterWeaponSkill /= 2
         }
     }
@@ -4437,7 +4437,7 @@ val nextRylween = rylween {
         effect {
             val caster = currentCaster
 
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(caster), " throws the")
                 lines(
@@ -4452,7 +4452,7 @@ val nextRylween = rylween {
                 )
             }
             waitInput("after gem of blindness")
-            native.screen.clearText()
+            clearText()
             battle.monsterWeaponSkill set 5
         }
     }
@@ -4465,7 +4465,7 @@ val nextRylween = rylween {
             val caster = currentCaster
             val target = battle.firstAliveMonster()
 
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(caster), " summons death")
                 line("to take a ", monsterName(target))
@@ -4476,7 +4476,7 @@ val nextRylween = rylween {
             pause(600)
             target.dead set true
             target.hp set 0
-            native.screen.clearText()
+            clearText()
         }
     }
 
@@ -4493,7 +4493,7 @@ val nextRylween = rylween {
                 filter = MemberChoiceFilter.Any,
             )
 
-            native.screen.clearText()
+            clearText()
             whenever(!target.dead) {
                 target.fullHeal()
             }
@@ -4502,7 +4502,7 @@ val nextRylween = rylween {
                 line("healed.")
             }
             pause(1000)
-            native.screen.clearText()
+            clearText()
         }
     }
 
@@ -4511,7 +4511,7 @@ val nextRylween = rylween {
         consume = ItemConsumePolicy.BeforeUse
 
         effect {
-            native.screen.clearText()
+            clearText()
             screen {
                 lines(
                     "The party feels their",
@@ -4522,7 +4522,7 @@ val nextRylween = rylween {
                 )
             }
             waitInput("after blessing scroll")
-            native.screen.clearText()
+            clearText()
 
             forEachMember(includeDead = true) { member ->
                 member.weaponSkill += 3
@@ -4538,10 +4538,10 @@ val nextRylween = rylween {
         consume = ItemConsumePolicy.BeforeUse
 
         effect {
-            native.screen.clearText()
+            clearText()
             screen("The party is fully", "healed!", "")
             waitInput("after staff of curing")
-            native.screen.clearText()
+            clearText()
 
             forEachMember(includeDead = true) { member ->
                 whenever(!member.dead) {
@@ -4565,7 +4565,7 @@ val nextRylween = rylween {
                 accepting = MemberChoiceFilter.Any,
             )
 
-            native.screen.clearText()
+            clearText()
             whenever(target.dead) {
                 screen {
                     line(partyName(target), " opens ", pronoun(target, PronounCase.Possessive), " eyes!")
@@ -4591,7 +4591,7 @@ val nextRylween = rylween {
         effect {
             val caster = currentCaster
 
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(caster), " throws Kael's")
                 lines("axe at the enemy!", "")
@@ -4606,7 +4606,7 @@ val nextRylween = rylween {
                 )
             }
             pause(4000)
-            native.screen.clearText()
+            clearText()
             screen {
                 lines(
                     "With a raging battle",
@@ -4629,7 +4629,7 @@ val nextRylween = rylween {
         effect {
             val caster = currentCaster
 
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(caster), " pulls the")
                 lines(
@@ -4642,7 +4642,7 @@ val nextRylween = rylween {
             pause(3000)
             screen("KA-BLAM!", "")
             pause(1500)
-            native.screen.clearText()
+            clearText()
 
             forEachMonster { foe ->
                 foe.hp /= 4
@@ -4658,7 +4658,7 @@ val nextRylween = rylween {
         effect {
             val caster = currentCaster
 
-            native.screen.clearText()
+            clearText()
             screen {
                 line(partyName(caster), " plays the")
                 lines(
@@ -4670,7 +4670,7 @@ val nextRylween = rylween {
                 )
             }
             waitInput("after flute of madness")
-            native.screen.clearText()
+            clearText()
         }
     }
 
@@ -4709,7 +4709,7 @@ val nextRylween = rylween {
         waitInput("after castle intro")
 
         loop {
-            native.screen.clearText()
+            clearText()
 
             val room = localInt(native.ydarg.roomAtCurrent())
             choose(room) {
@@ -4765,20 +4765,20 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Missions.bandits) {
-        native.screen.clearText()
+        clearText()
         screen(T.MissionsText.Bandits.spotted)
         screen(T.MissionsText.Bandits.warned)
         encounter(Monsters.bandit, mandatory = true)
-        native.screen.redrawMap()
-        native.screen.clearText()
+        renderMap()
+        clearText()
         screen(T.MissionsText.Bandits.recovered)
         mark(Story.garth.bandits.recovered)
     }
 
     scene(Scenes.Missions.trollTooth) {
         encounter(Monsters.troll, mandatory = true)
-        native.screen.redrawMap()
-        native.screen.clearText()
+        renderMap()
+        clearText()
         screen(
             "You break off a troll",
             "tooth to give the hermit.",
@@ -4788,7 +4788,7 @@ val nextRylween = rylween {
             "",
         )
         waitInput("after troll tooth")
-        native.screen.clearText()
+        clearText()
         mark(Story.hermit.trollTooth.extracted)
     }
 
@@ -4805,7 +4805,7 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Missions.thunTemple) {
-        native.screen.clearText()
+        clearText()
         readScreen {
             line("You stand before the")
             line("ancient temple of Thun.")
@@ -4834,7 +4834,7 @@ val nextRylween = rylween {
         ) {
             defaultOption('Y') {
                 whenever(party.inventory.count(ItemPools.thunAltarGems) lt 5) {
-                    native.screen.clearText()
+                    clearText()
                     readScreen {
                         line("You don't have five")
                         line("different gems.")
@@ -4842,7 +4842,7 @@ val nextRylween = rylween {
                     }
                 } otherwise {
                     party.inventory.consume(ItemPools.thunAltarGems, 5)
-                    native.screen.clearText()
+                    clearText()
                     readScreen {
                         line("With a resounding 'CRUNG'")
                         line("the altar slides away")
@@ -4851,18 +4851,18 @@ val nextRylween = rylween {
                         line("")
                     }
                     enterDungeon(Dungeons.thunTemple, levels = 18)
-                    native.screen.clearMapWindow()
-                    native.screen.redrawMap()
+                    clearMapWindow()
+                    renderMap()
                 }
             }
             option('L') {
-                native.screen.clearText()
+                clearText()
             }
         }
     }
 
     scene(Scenes.Missions.koboldVillage) {
-        native.screen.clearText()
+        clearText()
         menu(
             structuredText {
                 line("The kobold village lies")
@@ -4876,7 +4876,7 @@ val nextRylween = rylween {
             },
         ) {
             option('A') {
-                native.screen.clearText()
+                clearText()
                 screen(
                     "You run screaming into",
                     "a large celebration of",
@@ -4889,9 +4889,9 @@ val nextRylween = rylween {
                     "",
                 )
                 waitInput()
-                native.screen.clearText()
+                clearText()
                 encounter(Monsters.koboldHorde, mandatory = true)
-                native.screen.clearText()
+                clearText()
                 screen(
                     "Piles of dead kobolds are",
                     "lying all around. Still,",
@@ -4900,7 +4900,7 @@ val nextRylween = rylween {
                 )
                 waitInput()
                 encounter(Monsters.koboldHorde, mandatory = true)
-                native.screen.clearText()
+                clearText()
                 screen(
                     "You have annihilated most",
                     "of the village. You pause",
@@ -4912,8 +4912,8 @@ val nextRylween = rylween {
                 )
                 waitInput()
                 encounter(Monsters.orc, mandatory = true)
-                native.screen.redrawMap()
-                native.screen.clearText()
+                renderMap()
+                clearText()
                 readScreen(
                     "The entire village is",
                     "wiped out. You snatch",
@@ -4929,7 +4929,7 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Missions.skullweed) {
-        native.screen.clearText()
+        clearText()
         screen(
             "On the ground before you",
             "grows the skullweed plant.",
@@ -4938,12 +4938,12 @@ val nextRylween = rylween {
             "",
         )
         waitInput("after skullweed pickup")
-        native.screen.clearText()
+        clearText()
         mark(Story.masterCrown.task2Done)
     }
 
     scene(Scenes.Missions.borinMeet) {
-        native.screen.clearText()
+        clearText()
         readScreen(
             "You arrive at a village",
             "which looks typically",
@@ -5036,7 +5036,7 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Missions.ogreCave) {
-        native.screen.clearText()
+        clearText()
         choice.enterOrLeave(
             structuredText {
                 line("You find a the cave the")
@@ -5050,7 +5050,7 @@ val nextRylween = rylween {
                 line("(L)eave")
             },
             enter = {
-                native.screen.clearText()
+                clearText()
                 screen(
                     "You enter the cave.",
                     "piles of treasure are",
@@ -5065,8 +5065,8 @@ val nextRylween = rylween {
                 )
                 waitInput()
                 encounter(Monsters.ogre, mandatory = true)
-                native.screen.redrawMap()
-                native.screen.clearText()
+                renderMap()
+                clearText()
                 screen(
                     "You defeat the ogres and",
                     "start to search for the",
@@ -5081,8 +5081,8 @@ val nextRylween = rylween {
                 )
                 waitInput()
                 encounter(Monsters.ogreLord, mandatory = true)
-                native.screen.redrawMap()
-                native.screen.clearText()
+                renderMap()
+                clearText()
                 readScreen(
                     "You defeat the Ogre Lord.",
                     "You take all the gold",
@@ -5125,13 +5125,13 @@ val nextRylween = rylween {
                 mark(Story.jazzy.ogre.ogresCleared)
             },
             leave = {
-                native.screen.clearText()
+                clearText()
             },
         )
     }
 
     scene(Scenes.Missions.jazzyFoot) {
-        native.screen.clearText()
+        clearText()
         screen(
             "Something about this whole",
             "area is weird. The air",
@@ -5145,7 +5145,7 @@ val nextRylween = rylween {
             "",
         )
         waitInput("after finding the foot")
-        native.screen.clearText()
+        clearText()
         screen(
             "Just as you touch it,",
             "the sky splits open and",
@@ -5158,8 +5158,8 @@ val nextRylween = rylween {
         )
         waitInput("before Jazzy minions")
         encounter(Monsters.wingedThing, mandatory = true)
-        native.screen.redrawMap()
-        native.screen.clearText()
+        renderMap()
+        clearText()
         screen(
             "Quiet settles again, as",
             "you destroy the foul",
@@ -5171,7 +5171,7 @@ val nextRylween = rylween {
             "",
         )
         waitInput("after Jazzy minions")
-        native.screen.clearText()
+        clearText()
         screen(
             "A twenty foot tall",
             "being materializes",
@@ -5182,8 +5182,8 @@ val nextRylween = rylween {
         )
         waitInput("before Jazzy")
         encounter(Monsters.jazzy, mandatory = true)
-        native.screen.redrawMap()
-        native.screen.clearText()
+        renderMap()
+        clearText()
         screen(
             "Today, you have killed a",
             "god. You watch silently as",
@@ -5195,7 +5195,7 @@ val nextRylween = rylween {
             "",
         )
         waitInput("after Jazzy defeat")
-        native.screen.clearText()
+        clearText()
         mark(Story.jazzy.ogre.jazzyDefeated)
         achieve(Milestones.footOfJazzy)
     }
@@ -5215,7 +5215,7 @@ val nextRylween = rylween {
     }
 
     scene(Scenes.Missions.hobgoblinCaravan) {
-        native.screen.clearText()
+        clearText()
         readScreen(
             "Just before you is a",
             "caravan of hobgoblins on",
@@ -5233,8 +5233,8 @@ val nextRylween = rylween {
             "",
         )
         encounter(Monsters.ridingHobgoblin, mandatory = true)
-        native.screen.redrawMap()
-        native.screen.clearText()
+        renderMap()
+        clearText()
         readScreen {
             line("Before you kill the last")
             line("hobgoblin you ask him")
@@ -5275,7 +5275,7 @@ val nextRylween = rylween {
 
     // 7. Script reward: semantic items, typed placement policy, no numeric ids.
     scene(Scenes.Missions.borinGift) {
-        native.screen.clearText()
+        clearText()
         readScreen(
             "Borin greets you. He",
             "can hardly believe his",
@@ -5824,11 +5824,11 @@ val nextRylween = rylween {
                 )
                 val slot = ask.inventorySlot(inlineText("Offer what?"), filter = InventorySlotChoiceFilter.NonEmpty)
                 whenever(party.inventory.itemCost(slot) lt 35) {
-                    native.screen.clearText()
+                    clearText()
                     say("- NAH, THINK NOT!.")
                     pause(1000)
                 } otherwise {
-                    native.screen.clearText()
+                    clearText()
                     say {
                         line("- YEEES! NICE NIICE!")
                         line("GO TO CAVE AT ", location(Locations.beastCave).coordinates, "!")
@@ -5840,7 +5840,7 @@ val nextRylween = rylween {
                     }
                     mark(Story.jazzy.ogre.accepted)
                     waitInput("after Jazzy ogre trade")
-                    native.screen.clearText()
+                    clearText()
                     party.inventory.clear(slot)
                 }
             }

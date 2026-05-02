@@ -375,21 +375,17 @@ private class AnsiTerminalPort(
         terminal.pause(ms)
     }
 
-    override fun writeEngineEvent(
-        event: EngineTraceEvent,
+    override fun writeViewCommand(
+        command: ViewCommand,
         renderer: TerminalTextRenderer,
         context: TerminalTextContext,
     ): Boolean {
-        val native = event as? EngineTraceEvent.NativeEffect ?: return false
-        return when (native.request.path) {
-            NativeAllowlist.screenClearText.path -> true.also { screen.clearText() }
-            NativeAllowlist.screenClearMapWindow.path -> true.also { screen.clearMapWindow() }
-            NativeAllowlist.screenRedrawMap.path -> true.also { screen.redrawMap() }
-            NativeAllowlist.screenShowImage.path -> true.also {
-                native.request.args.firstOrNull()?.let(screen::showImageSlug)
-            }
-            NativeAllowlist.screenStatusLine.path -> true.also { screen.renderStatus() }
-            else -> false
+        return when (command) {
+            ViewCommand.ClearText -> true.also { screen.clearText() }
+            ViewCommand.ClearMapWindow -> true.also { screen.clearMapWindow() }
+            ViewCommand.RenderMap -> true.also { screen.redrawMap() }
+            is ViewCommand.ShowImage -> true.also { screen.showImage(command.image) }
+            ViewCommand.StatusLine -> true.also { screen.renderStatus() }
         }
     }
 }
@@ -549,16 +545,16 @@ private class ClassicAnsiScreen(
 
     private fun renderMap(session: WildernessSession) {
         val center = (session.party.position as? WorldPosition.Wilderness)?.point ?: return
-        (-2..2).forEach { dy ->
-            gotoMapRow(dy + 2)
+        val viewport = session.worldMap.viewport(center)
+        viewport.rows.forEachIndexed { rowIndex, cells ->
+            gotoMapRow(rowIndex)
             val row = buildString {
-                (-2..2).forEach { dx ->
-                    val point = GridPoint(center.x + dx, center.y + dy)
-                    val tile = session.worldMap.tileAt(point)
+                cells.forEachIndexed { cellIndex, cell ->
+                    val tile = cell.tile
                     val style = terrain.style(tile)
-                    if (dx == 0 && dy == 0) append(BG_BLUE)
+                    if (cell.isCenter) append(BG_BLUE)
                     append("${CSI}${style.ansiColor}m${style.glyph}$BG_BLACK")
-                    if (dx < 2) append(' ')
+                    if (cellIndex < cells.lastIndex) append(' ')
                 }
                 append(FG_WHITE)
             }

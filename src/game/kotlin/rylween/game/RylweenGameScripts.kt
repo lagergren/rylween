@@ -24,17 +24,17 @@ fun ScriptScope.dungeonEntrance(
     leaveClearsText: Boolean = true,
     prompt: StructuredTextBlockBuilder.() -> Unit,
 ) {
-    native.screen.clearText()
+    clearText()
     choice.enterOrLeave(
         structuredText(prompt),
         enter = {
             enterDungeon(dungeon, levels)
-            native.screen.clearMapWindow()
-            native.screen.redrawMap()
+            clearMapWindow()
+            renderMap()
         },
         leave = {
             if (leaveClearsText) {
-                native.screen.clearText()
+                clearText()
             }
         },
     )
@@ -108,31 +108,31 @@ fun ScriptScope.thunRiddle(
             encounter(guardian, mandatory = true)
         },
     )
-    native.screen.clearText()
+    clearText()
 }
 
 fun ScriptScope.readScreen(vararg lines: String) {
     screen(*lines)
     waitInput()
-    native.screen.clearText()
+    clearText()
 }
 
 fun ScriptScope.readScreen(text: TextBlock) {
     screen(text)
     waitInput()
-    native.screen.clearText()
+    clearText()
 }
 
 fun ScriptScope.readScreen(body: StructuredTextBlockBuilder.() -> Unit) {
     screen(body)
     waitInput()
-    native.screen.clearText()
+    clearText()
 }
 
 fun ScriptScope.notEnoughSpellPoints() {
     screen("Not enough spell pts!")
     pause(1000)
-    native.screen.clearText()
+    clearText()
 }
 
 fun ScriptScope.withPriestSpellPoints(caster: MemberRef, baseCost: Int, body: ScriptScope.() -> Unit) {
@@ -147,7 +147,7 @@ fun ScriptScope.withPriestSpellPoints(caster: MemberRef, baseCost: Int, body: Sc
 
 fun ScriptScope.priestTeleport(caster: MemberRef) {
     withPriestSpellPoints(caster, baseCost = 35) {
-        native.screen.clearText()
+        clearText()
         screen {
             line(partyName(caster), " carefully")
             lines("prepares the ritual of")
@@ -156,7 +156,7 @@ fun ScriptScope.priestTeleport(caster: MemberRef) {
         }
         realm.hour += 1
         waitInput("after teleport ritual")
-        native.screen.clearText()
+        clearText()
         screen {
             line(pronoun(caster, PronounCase.Subject), " picks up a stone slab")
             lines(
@@ -168,7 +168,7 @@ fun ScriptScope.priestTeleport(caster: MemberRef) {
             lines("to.", "")
         }
         waitInput("after teleport slab")
-        native.screen.clearText()
+        clearText()
         val direction = ask.wildernessDirection(
             textLines(
                 "Teleport :",
@@ -179,18 +179,18 @@ fun ScriptScope.priestTeleport(caster: MemberRef) {
                 "",
             ),
         )
-        native.screen.clearText()
+        clearText()
         val distance = ask.digit(textLines("How many miles do you", "want to travel? (1-9)"), 1..9)
         teleportParty(direction, distance)
         screen("You appear to be", "somewhere else.")
-        native.screen.redrawMap()
+        renderMap()
         pause(1200)
-        native.screen.clearText()
+        clearText()
     }
 }
 
 fun ScriptScope.travellerStory() {
-    native.screen.clearText()
+    clearText()
     val maxMembers = realm.partyMemberMax
     val storyteller = choice.member(
         structuredText {
@@ -202,7 +202,7 @@ fun ScriptScope.travellerStory() {
     )
 
     whenever(storyteller.dead) {
-        native.screen.clearText()
+        clearText()
         screen {
             lines(
                 "Dead men do not",
@@ -212,7 +212,7 @@ fun ScriptScope.travellerStory() {
         }
         pause(2000)
     } otherwise {
-        native.screen.clearText()
+        clearText()
         screen {
             line(partyName(storyteller), " stands up")
             line("and screams:")
@@ -250,7 +250,7 @@ fun ScriptScope.travellerStory() {
 
         whenever(isBoast eq 1) {
             whenever(random(0..99) gt storyteller.charisma) {
-                native.screen.clearText()
+                clearText()
                 screen("- Out with the liar!")
                 pause(2000)
                 screen("You are thrown out.")
@@ -259,12 +259,12 @@ fun ScriptScope.travellerStory() {
                 } otherwise {
                     storyteller.charisma set 0
                 }
-                native.screen.clearMapWindow()
+                clearMapWindow()
                 breakLoop("liar thrown out of tavern")
             }
         }
 
-        native.screen.clearText()
+        clearText()
         whenever(score gt 400) {
             screen {
                 lines(
