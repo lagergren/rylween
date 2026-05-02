@@ -30,6 +30,18 @@ fun ScriptScope.dungeonEntrance(
     )
 }
 
+fun ScriptScope.readScreen(vararg lines: String) {
+    screen(*lines)
+    waitInput()
+    native.screen.clearText()
+}
+
+fun ScriptScope.readScreen(body: StructuredTextBlockBuilder.() -> Unit) {
+    screen(body)
+    waitInput()
+    native.screen.clearText()
+}
+
 fun ScriptScope.travellerStory() {
     native.screen.clearText()
     val maxMembers = realm.partyMemberMax

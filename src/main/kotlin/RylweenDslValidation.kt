@@ -512,6 +512,9 @@ private fun validateTextBlock(
                     "$label references unknown town ${part.town.slug}"
                 }
             }
+            is TextPart.LocationCoordinate -> {
+                check(part.location.slug.isNotBlank()) { "$label references blank location" }
+            }
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
             TextPart.ShopPrice,
@@ -1046,6 +1049,7 @@ fun validateScriptRewards(
             items.forEach { op ->
                 when (op) {
                     is Op.Screen -> validateTextBlock(op.text, "screen")
+                    is Op.AppendJournal -> validateTextBlock(op.text, "journal append")
                     is Op.Menu -> {
                         validateTextBlock(op.prompt, "menu prompt")
                         op.options.forEach { option ->

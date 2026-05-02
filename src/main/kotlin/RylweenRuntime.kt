@@ -997,6 +997,7 @@ private class CombatScriptRunner(
                 }
                 is Op.NativeCall -> Unit
                 is Op.SetFlag,
+                is Op.AppendJournal,
                 is Op.Loop,
                 is Op.Break,
                 is Op.Stop,
@@ -1078,6 +1079,7 @@ private class CombatScriptRunner(
                             is TextPart.RoleLocation -> "{${part.role.slug}.location}"
                             is TextPart.TownName -> part.town.slug
                             is TextPart.FuzzyTownLocation -> "${part.town.slug}.near"
+                            is TextPart.LocationCoordinate -> "${part.location.slug}.coordinates"
                             TextPart.OfferedItemName -> "{item_name}"
                             TextPart.OfferedItemPrice -> "{item_price}"
                             TextPart.ShopPrice -> "{price}"
@@ -3578,6 +3580,9 @@ fun PartyState.hasFlagState(state: FlagState): Boolean =
 
 fun PartyState.withMilestone(milestone: GameMilestoneId): PartyState =
     if (milestone in milestones) this else copy(milestones = (milestones + milestone).sortedBy { it.slug })
+
+fun PartyState.withJournalLines(lines: List<String>): PartyState =
+    copy(journal = journal + lines.filter { it.isNotBlank() }.map(JournalEntryState::Line))
 
 fun TextBlock.withRandomItemOffer(itemName: String, itemPrice: Int): TextBlock =
     when (this) {
