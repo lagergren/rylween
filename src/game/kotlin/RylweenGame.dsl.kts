@@ -1758,6 +1758,12 @@ val nextRylween = rylween {
             runs(Scenes.Missions.hermitDungeon)
         }
 
+        mission(Missions.thunTemple) {
+            at(Locations.thunTemple)
+            requires(Story.bracelets.thun.mapBought)
+            runs(Scenes.Missions.thunTemple)
+        }
+
         mission(Missions.koboldVillage) {
             at(Locations.koboldVillage)
             requires(Story.masterCrown.task1Assigned)
@@ -3327,6 +3333,63 @@ val nextRylween = rylween {
         }
     }
 
+    scene(Scenes.Missions.thunTemple) {
+        native.screen.clearText()
+        readScreen {
+            line("You stand before the")
+            line("ancient temple of Thun.")
+            line("Around you are the ruins")
+            line("of the once proud city")
+            line("of Thun...")
+            line("")
+        }
+        readScreen {
+            line("You see an altar")
+            line("with five sockets before")
+            line("you. Each is roughly")
+            line("gem-sized. An inscription")
+            line("says: 'Insert the gems")
+            line("and your path shall open'")
+            line("")
+        }
+        menu(
+            structuredText {
+                line("Do you want to put")
+                line("five gems in the sockets?")
+                line("")
+                line("(Y)es")
+                line("(L)eave")
+            },
+        ) {
+            defaultOption('Y') {
+                whenever(party.inventory.count(ItemPools.thunAltarGems) lt 5) {
+                    native.screen.clearText()
+                    readScreen {
+                        line("You don't have five")
+                        line("different gems.")
+                        line("")
+                    }
+                } otherwise {
+                    party.inventory.consume(ItemPools.thunAltarGems, 5)
+                    native.screen.clearText()
+                    readScreen {
+                        line("With a resounding 'CRUNG'")
+                        line("the altar slides away")
+                        line("to reveal a dark pit.")
+                        line("You enter...")
+                        line("")
+                    }
+                    enterDungeon(Dungeons.thunTemple, levels = 18)
+                    native.screen.clearMapWindow()
+                    native.screen.redrawMap()
+                }
+            }
+            option('L') {
+                native.screen.clearText()
+            }
+        }
+    }
+
     scene(Scenes.Missions.koboldVillage) {
         native.screen.clearText()
         menu(
@@ -4219,7 +4282,7 @@ check(nextDsl.monsters.count { it.tier == EncounterTiers.weak } == 10)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.wild } == 14)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.deep } == 20)
 check(nextDsl.monsters.single { it.id == Monsters.gnoll }.countMaxLevelDivisor == 2)
-check(nextDsl.scenes.size == 23)
+check(nextDsl.scenes.size == 24)
 fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
     any { op ->
         when (op) {
@@ -4232,6 +4295,21 @@ fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
                     op.defaultOps.containsEnterDungeon(dungeon, levels)
             is Op.ForEachMember -> op.body.containsEnterDungeon(dungeon, levels)
             is Op.ForEachMonster -> op.body.containsEnterDungeon(dungeon, levels)
+            else -> false
+        }
+    }
+fun List<Op>.containsConsumeInventoryPool(pool: ItemPoolId, quantity: Int): Boolean =
+    any { op ->
+        when (op) {
+            is Op.ConsumeInventoryPool -> op.pool == pool && op.quantity == IntAst.Lit(quantity)
+            is Op.If -> op.thenOps.containsConsumeInventoryPool(pool, quantity) ||
+                    op.elseOps.containsConsumeInventoryPool(pool, quantity)
+            is Op.Loop -> op.body.containsConsumeInventoryPool(pool, quantity)
+            is Op.Switch -> op.cases.any { it.body.containsConsumeInventoryPool(pool, quantity) }
+            is Op.Menu -> op.options.any { it.body.containsConsumeInventoryPool(pool, quantity) } ||
+                    op.defaultOps.containsConsumeInventoryPool(pool, quantity)
+            is Op.ForEachMember -> op.body.containsConsumeInventoryPool(pool, quantity)
+            is Op.ForEachMonster -> op.body.containsConsumeInventoryPool(pool, quantity)
             else -> false
         }
     }
@@ -4321,6 +4399,8 @@ check(tavernMenu.options.map { it.key } == listOf('L', 'S', 'T', 'R', 'O'))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
 check(nextDsl.scenes.single { it.id == Scenes.Missions.jazzyFoot }.ops.any { it == Op.AchieveMilestone(Milestones.footOfJazzy) })
 check(nextDsl.scenes.single { it.id == Scenes.Missions.erethorEntry }.ops.containsEnterDungeon(Dungeons.erethorTemple, 12))
+check(nextDsl.scenes.single { it.id == Scenes.Missions.thunTemple }.ops.containsEnterDungeon(Dungeons.thunTemple, 18))
+check(nextDsl.scenes.single { it.id == Scenes.Missions.thunTemple }.ops.containsConsumeInventoryPool(ItemPools.thunAltarGems, 5))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.silverKey }.ops.containsEnterDungeon(Dungeons.silverSanctum, 20))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinMeet }.ops.any { it is Op.AppendJournal })
 check(nextDsl.scenes.single { it.id == Scenes.Missions.hobgoblinCaravan }.ops.any { it is Op.AppendJournal })
@@ -4339,9 +4419,10 @@ check(nextDsl.spells.size == 10)
 check(nextDsl.magicItems.size == 12)
 check(nextDsl.magicItems.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
 check(nextDsl.magicItems.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
-check(nextDsl.missions.size == 16)
+check(nextDsl.missions.size == 17)
 check(nextDsl.missions.single { it.id == Missions.erethorEntry }.trigger == Trigger.AtPosition(xy(6, 20)))
 check(nextDsl.missions.single { it.id == Missions.hermitDungeon }.trigger == Trigger.AtLocation(Locations.hermitDungeon))
+check(nextDsl.missions.single { it.id == Missions.thunTemple }.trigger == Trigger.AtLocation(Locations.thunTemple))
 check(nextDsl.missions.single { it.id == Missions.koboldVillage }.trigger == Trigger.AtLocation(Locations.koboldVillage))
 check(nextDsl.missions.single { it.id == Missions.borinMeet }.trigger == Trigger.AtLocation(Locations.borinCamp))
 check(nextDsl.missions.single { it.id == Missions.skullweed }.trigger == Trigger.OnTerrain(Terrain.swamp))

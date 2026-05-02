@@ -1,8 +1,9 @@
 // RylweenDsl.kt -- Kotlin implementation for the Rylween authoring DSL.
 //
 // This file is implementation/compiler scaffolding: typed handles, immutable
-// models, builders, and recorded script ASTs. Generated metadata lives in
-// src/generated/kotlin/RylweenGeneratedMetadata.kt. Game-specific content belongs in
+// models, builders, and recorded script ASTs. Current-game catalog scaffolding
+// lives in RylweenGameCatalog.kt until the game DSL/content compiler derives
+// those handles from declarations. Game-specific content belongs in
 // RylweenGame.dsl.kts, with reusable game-script helpers in
 // RylweenGameScripts.kt. Validation helpers live in RylweenDslValidation.kt.
 //
@@ -23,9 +24,9 @@
 //      under `native.*`.
 //   6. Kotlin implementation code should be idiomatic Kotlin.
 //   7. Game-specific declarations should read like game data, not Kotlin
-//      programming. Generated handle classes are migration scaffolding in
-//      RylweenGeneratedMetadata.kt; a real content compiler should generate
-//      them from the author's declarations.
+//      programming. RylweenGameCatalog.kt is migration scaffolding; a real
+//      content compiler should derive handles and catalogs from the author's
+//      declarations.
 
 @file:Suppress(
     "unused",
@@ -38,15 +39,13 @@
 // 01. DSL kernel: typed handles and factories
 // =============================================================================
 //
-// Generated content catalogs live in src/generated/kotlin. The kernel keeps the
-// reusable types and factories those catalogs are built from.
+// Current content catalogs use these reusable types and factories.
 
 enum class FlagScope { Party, Encounter }
 
 abstract class FlagRef(
     val slug: String,
     val scope: FlagScope = FlagScope.Party,
-    val sourceSlot: Int? = null,
 ) {
     private val declaredStates = mutableListOf<FlagState>()
     val states: List<FlagState> get() = declaredStates
@@ -146,20 +145,17 @@ class LocationTextRef(private val location: LocationId) {
 }
 fun location(location: LocationId) = LocationTextRef(location)
 
-class ItemId private constructor(val slug: String, val sourceId: Int? = null) {
+class ItemId private constructor(val slug: String) {
     override fun equals(other: Any?): Boolean =
         other is ItemId && slug == other.slug
 
     override fun hashCode(): Int = slug.hashCode()
 
     override fun toString(): String =
-        "ItemId(slug=$slug, sourceId=$sourceId)"
+        "ItemId(slug=$slug)"
 
     companion object {
         fun authored(slug: String): ItemId = ItemId(slug)
-
-        internal fun generated(slug: String, sourceId: Int): ItemId =
-            ItemId(slug, sourceId)
     }
 }
 class ItemPoolId private constructor(
@@ -176,9 +172,6 @@ class ItemPoolId private constructor(
 
     companion object {
         fun authored(slug: String, items: List<ItemId> = emptyList()): ItemPoolId =
-            ItemPoolId(slug, items)
-
-        internal fun generated(slug: String, items: List<ItemId>): ItemPoolId =
             ItemPoolId(slug, items)
     }
 }
@@ -231,10 +224,7 @@ data class RumourId(val slug: String)
 fun text(id: String) = TextId(id)
 fun textPattern(pattern: String) = TextPattern(pattern)
 fun item(slug: String) = ItemId.authored(slug)
-internal fun generatedItem(slug: String, sourceId: Int) = ItemId.generated(slug, sourceId)
 fun itemPool(slug: String, items: List<ItemId> = emptyList()) = ItemPoolId.authored(slug, items)
-internal fun generatedItemPool(slug: String, items: List<ItemId>) =
-    ItemPoolId.generated(slug, items)
 fun monster(slug: String) = MonsterId(slug)
 fun encounterTier(slug: String) = EncounterTier(slug)
 fun worldMap(slug: String) = WorldMapId(slug)
@@ -268,8 +258,7 @@ fun rumourTable(slug: String) = RumourTableId(slug)
 fun rumour(slug: String) = RumourId(slug)
 
 // Engine-native operation handles are part of the reusable runtime boundary,
-// not generated game content. Generated metadata may reference these APIs, but
-// the kernel cannot depend on generated catalog initialization.
+// not game content.
 class NativeOpRefs {
     val screenClearText = nativeOp("screen.clear_text")
     val screenClearMapWindow = nativeOp("screen.clear_map_window")
@@ -313,6 +302,7 @@ sealed interface IntAst {
     data class BattleQuery(val name: String) : IntAst
     data class RealmScalar(val name: String) : IntAst
     data class PartyScalar(val name: String) : IntAst
+    data class InventoryPoolCount(val pool: ItemPoolId) : IntAst
     data class NativeInt(val path: String, val args: List<String>) : IntAst
 }
 
@@ -436,6 +426,7 @@ sealed interface Op {
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
     data class EnterDungeon(val dungeon: DungeonId, val levels: Int) : Op
     object ConsumeActiveItem : Op
+    data class ConsumeInventoryPool(val pool: ItemPoolId, val quantity: IntAst) : Op
     object ConsumeTorch : Op
     data class GrantReward(val reward: ScriptRewardModel) : Op
     data class RandomItemOffer(val offer: RandomItemOfferModel) : Op
@@ -1374,9 +1365,20 @@ class PartyRef(private val script: ScriptScope) {
     val timeLeft = IntSlot(script, LValueAst.PartyScalar("time_left"), IntAst.PartyScalar("time_left"))
     val restedHours = IntSlot(script, LValueAst.PartyScalar("rested_hours"), IntAst.PartyScalar("rested_hours"))
     val memberCount = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
+    val inventory = PartyInventoryRef(script)
     val leader: MemberRef get() = member(lit(1))
     fun member(index: Int): MemberRef = member(lit(index))
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
+}
+
+class PartyInventoryRef(private val script: ScriptScope) {
+    fun count(pool: ItemPoolId): IntExpr = Expr(IntAst.InventoryPoolCount(pool))
+
+    fun consume(pool: ItemPoolId, quantity: IntExpr) {
+        script.record(Op.ConsumeInventoryPool(pool, quantity.ast))
+    }
+
+    fun consume(pool: ItemPoolId, quantity: Int) = consume(pool, lit(quantity))
 }
 
 class MemberRef(private val script: ScriptScope, val index: IntExpr) {
@@ -2525,6 +2527,16 @@ class MenuBuilder(private val ctx: ScriptContext) {
 
     fun option(binding: InputBindingModel, body: ScriptScope.() -> Unit) {
         options += MenuOption(binding, recordScript(ctx, body))
+    }
+
+    fun defaultOption(key: Char, body: ScriptScope.() -> Unit) {
+        defaultOption(inputKey(key), body)
+    }
+
+    fun defaultOption(binding: InputBindingModel, body: ScriptScope.() -> Unit) {
+        val bodyOps = recordScript(ctx, body)
+        options += MenuOption(binding, bodyOps)
+        defaultOps = bodyOps
     }
 
     fun default(body: ScriptScope.() -> Unit) {
@@ -4818,6 +4830,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
             is IntAst.BattleQuery -> Unit
             is IntAst.RealmScalar -> Unit
             is IntAst.PartyScalar -> Unit
+            is IntAst.InventoryPoolCount -> Unit
             is IntAst.NativeInt -> paths += ast.path
         }
     }
@@ -4927,6 +4940,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.Encounter -> Unit
                 is Op.EnterDungeon -> Unit
                 Op.ConsumeActiveItem -> Unit
+                is Op.ConsumeInventoryPool -> int(op.quantity)
                 Op.ConsumeTorch -> Unit
                 is Op.GrantReward -> op.reward.gold?.let { int(it) }
                 is Op.RandomItemOffer -> {

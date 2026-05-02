@@ -50,6 +50,7 @@ sealed interface EngineTraceEvent {
     data class EquipmentAction(val result: EquipmentActionResult) : EngineTraceEvent
     data class TownService(val service: BuildingServiceModel, val scene: SceneModel) : EngineTraceEvent
     object ConsumeTorch : EngineTraceEvent
+    data class ConsumeInventoryPool(val pool: ItemPoolId, val quantity: Int) : EngineTraceEvent
 }
 
 class TraceEnginePort(
@@ -148,6 +149,9 @@ class ScriptTraceRunner(
                 trace(EngineTraceEvent.DungeonHandoff(WildernessDungeonHandoff(op.dungeon, op.levels)))
             }
             Op.ConsumeActiveItem -> ScriptControlSignal.Continue
+            is Op.ConsumeInventoryPool -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.ConsumeInventoryPool(op.pool, eval(op.quantity)))
+            }
             Op.ConsumeTorch -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.ConsumeTorch)
             }
@@ -183,6 +187,7 @@ class ScriptTraceRunner(
         override fun monsterField(monster: Int, field: String): Int = 0
         override fun realmScalar(name: String): Int = 0
         override fun partyScalar(name: String): Int = 0
+        override fun inventoryPoolCount(pool: ItemPoolId): Int = 0
         override fun nativeInt(path: String, args: List<String>): Int =
             engine.readInt(EngineRequest(path, args))
         override fun flagIs(slug: String, native: String): Boolean = false
@@ -621,6 +626,12 @@ private class StatefulScriptServiceRunner(
             }
             is Op.EnterDungeon -> runEnterDungeon(op)
             Op.ConsumeActiveItem -> advanceTop()
+            is Op.ConsumeInventoryPool -> {
+                val quantity = eval(op.quantity)
+                party = party.consumeInventoryItems(op.pool, quantity)
+                advanceTop()
+                engine.trace(EngineTraceEvent.ConsumeInventoryPool(op.pool, quantity))
+            }
             Op.ConsumeTorch -> {
                 advanceTop()
                 engine.trace(EngineTraceEvent.ConsumeTorch)
@@ -974,6 +985,7 @@ private class StatefulScriptServiceRunner(
             error("town/service scripts cannot read combat monster fields")
         override fun realmScalar(name: String): Int = this@StatefulScriptServiceRunner.realmScalar(name)
         override fun partyScalar(name: String): Int = this@StatefulScriptServiceRunner.partyScalar(name)
+        override fun inventoryPoolCount(pool: ItemPoolId): Int = party.countInventoryItems(pool)
         override fun nativeInt(path: String, args: List<String>): Int =
             engine.readInt(EngineRequest(path, args))
         override fun flagIs(slug: String, native: String): Boolean =
@@ -1832,6 +1844,7 @@ class TownSessionTerminalAdapter(
                 is EngineTraceEvent.ShopSellQuote,
                 is EngineTraceEvent.ShopTransaction,
                 is EngineTraceEvent.EquipmentAction,
+                is EngineTraceEvent.ConsumeInventoryPool,
                 EngineTraceEvent.ConsumeTorch -> Unit
             }
         }
@@ -2061,6 +2074,7 @@ class WildernessSessionTerminalAdapter(
                 is EngineTraceEvent.ShopSellQuote,
                 is EngineTraceEvent.ShopTransaction,
                 is EngineTraceEvent.EquipmentAction,
+                is EngineTraceEvent.ConsumeInventoryPool,
                 EngineTraceEvent.ConsumeTorch -> Unit
             }
         }
