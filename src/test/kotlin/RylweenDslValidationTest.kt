@@ -1346,7 +1346,8 @@ class RylweenDslValidationTest {
         assertEquals(80, buySession.party.resources.torches)
         assertEquals(8, buySession.party.resources.gold)
         assertTrue(buySession.step is ShopServiceStep.Finished)
-        assertTrue(buyTerminal.output.any { "Options: B/S/L" in it })
+        assertFalse(buyTerminal.output.any { "Options: B/S/L" in it })
+        assertFalse(buyTerminal.output.any { "Options: P/N" in it })
         assertTrue(buyTerminal.output.any { "(A) torch" in it })
 
         val saleTerminal = FakeTerminalPort("S", "A", "Y", "L")
@@ -1362,6 +1363,7 @@ class RylweenDslValidationTest {
         assertEquals(25, saleSession.party.resources.gold)
         assertEquals(null, saleSession.party.inventoryItem(1))
         assertTrue(saleTerminal.output.any { "Offer: 15" in it })
+        assertTrue(saleTerminal.output.any { "Options: Y/N" in it })
     }
 
     @Test
@@ -1381,6 +1383,7 @@ class RylweenDslValidationTest {
         assertTrue(terminal.output.any { "(A)rmor" in it })
         assertTrue(terminal.output.any { "(1) Leather" in it })
         assertFalse(terminal.output.any { "(1) Sword" in it })
+        assertFalse(terminal.output.any { "Options: P/N" in it })
     }
 
     @Test
@@ -1423,7 +1426,7 @@ class RylweenDslValidationTest {
         assertTrue(session.step is ShopServiceStep.Finished)
         assertEquals(80, session.party.resources.torches)
         assertEquals(8, session.party.resources.gold)
-        assertTrue(terminal.output.any { "Options: B/S/L" in it })
+        assertFalse(terminal.output.any { line -> line.startsWith("Options:") && "BUY" in line })
     }
 
     @Test

@@ -2277,7 +2277,13 @@ class ShopServiceTerminalAdapter(
         keys: List<Char>,
         context: TerminalTextContext = TerminalTextContext(),
     ) {
-        terminal.write(renderer.lines(block, context) + "Options: ${keys.joinToString("/")}")
+        val lines = renderer.lines(block, context)
+        val options = if (lines.containsKeyMarkers(keys)) {
+            emptyList()
+        } else {
+            listOf("Options: ${keys.joinToString("/")}")
+        }
+        terminal.write(lines + options)
     }
 
     private fun writeBindingMenu(
@@ -2285,12 +2291,29 @@ class ShopServiceTerminalAdapter(
         bindings: List<InputBindingModel>,
         context: TerminalTextContext = TerminalTextContext(),
     ) {
-        terminal.write(renderer.lines(block, context) + "Options: ${bindings.joinToString("/") { it.label }}")
+        val lines = renderer.lines(block, context)
+        val options = if (lines.containsBindingMarkers(bindings)) {
+            emptyList()
+        } else {
+            listOf("Options: ${bindings.joinToString("/") { it.label }}")
+        }
+        terminal.write(lines + options)
     }
 
     private fun readInventorySlot(): TerminalInput<Int> =
         terminal.readKey((0 until InventorySaveSlotMax).map { 'A' + it })
             .map { it - 'A' + 1 }
+}
+
+private fun List<String>.containsBindingMarkers(bindings: List<InputBindingModel>): Boolean =
+    containsKeyMarkers(bindings.map { it.primaryChar })
+
+private fun List<String>.containsKeyMarkers(keys: List<Char>): Boolean {
+    val promptLines = filter { it.isNotBlank() }
+    return promptLines.isNotEmpty() && keys.all { key ->
+        val marker = "(${key.uppercaseChar()})"
+        promptLines.any { line -> line.contains(marker, ignoreCase = true) }
+    }
 }
 
 class TownSessionTerminalAdapter(
