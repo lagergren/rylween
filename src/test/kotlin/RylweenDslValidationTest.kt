@@ -1874,6 +1874,29 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun wildernessMovementAcceptsNumberKeysAndArrowAliases() {
+        val arrowResult = WildernessSessionTerminalAdapter(FakeTerminalPort(InputAliases.ArrowDown)).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                    .copy(position = Wilderness.xy(12, 9)),
+            ),
+        )
+        val wordAliasResult = WildernessSessionTerminalAdapter(FakeTerminalPort("UP")).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                    .copy(position = Wilderness.xy(12, 9)),
+            ),
+        )
+
+        assertTrue(arrowResult.status is TerminalRunStatus.Waiting)
+        assertEquals(GridPoint(12, 10), (arrowResult.session.party.position as WorldPosition.Wilderness).point)
+        assertEquals(199, arrowResult.session.party.resources.timeLeft)
+        assertTrue(wordAliasResult.status is TerminalRunStatus.Waiting)
+        assertEquals(GridPoint(12, 8), (wordAliasResult.session.party.position as WorldPosition.Wilderness).point)
+        assertEquals(199, wordAliasResult.session.party.resources.timeLeft)
+    }
+
+    @Test
     fun wildernessMoveCanFindAndLeaveCave() {
         val terminal = FakeTerminalPort("2", "L")
         val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(

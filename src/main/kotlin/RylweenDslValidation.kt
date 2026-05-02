@@ -260,6 +260,8 @@ private fun validateBattleText(text: BattleTextModel) {
 }
 
 fun validateWildernessSystem(wilderness: WildernessSystemModel) {
+    validateWildernessKeys(wilderness.keys)
+
     val events = wilderness.events
     checkPercent(events.caveChancePercent, "wilderness cave chance")
     checkPercent(events.quietChancePercent, "wilderness quiet chance")
@@ -280,6 +282,47 @@ fun validateWildernessSystem(wilderness: WildernessSystemModel) {
         check(entry.terrain.sourceMapCode != null) {
             "wilderness terrain transition ${entry.terrain.slug} needs a map tile code"
         }
+    }
+}
+
+private fun validateWildernessKeys(keys: WildernessKeysModel) {
+    listOf(
+        "move north" to keys.moveNorth,
+        "move south" to keys.moveSouth,
+        "move west" to keys.moveWest,
+        "move east" to keys.moveEast,
+        "pass" to keys.pass,
+        "enter" to keys.enter,
+        "quit" to keys.quit,
+        "cave enter" to keys.caveEnter,
+        "cave leave" to keys.caveLeave,
+        "out-of-moves save" to keys.outOfMovesSave,
+        "out-of-moves quit" to keys.outOfMovesQuit,
+        "quit yes" to keys.quitYes,
+        "quit no" to keys.quitNo,
+    ).forEach { (label, binding) ->
+        validateInputBinding(binding, "wilderness key $label")
+    }
+
+    checkUniqueBindings(keys.exploreKeys(), "wilderness explore")
+    checkUniqueBindings(keys.caveKeys(), "wilderness cave")
+    checkUniqueBindings(keys.outOfMovesKeys(), "wilderness out-of-moves")
+    checkUniqueBindings(keys.quitConfirmKeys(), "wilderness quit-confirm")
+    validateTextBlock(keys.commandHint, "wilderness command hint")
+}
+
+private fun validateInputBinding(binding: InputBindingModel, label: String) {
+    check(binding.primary.isNotEmpty()) { "$label has blank primary input" }
+    check(binding.label.isNotBlank()) { "$label has blank display label" }
+    check(binding.tokens.none { it.isEmpty() }) { "$label has blank input alias" }
+    val tokens = binding.tokens.flatMap { inputTokenVariants(it).toSet() }
+    check(tokens.toSet().size == tokens.size) { "$label has duplicate input aliases" }
+}
+
+private fun checkUniqueBindings(bindings: List<InputBindingModel>, label: String) {
+    val tokens = bindings.flatMap { binding -> binding.tokens.flatMap(::inputTokenVariants).toSet() }
+    check(tokens.toSet().size == tokens.size) {
+        "$label keys must be unique"
     }
 }
 

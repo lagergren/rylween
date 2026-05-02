@@ -656,14 +656,32 @@ object WildernessPromptText {
         inlineText("Do you really want", "to quit?", "")
 }
 
-fun wildernessDirectionForKey(key: Char): WildernessDirection? =
-    when (key.uppercaseChar()) {
-        '8' -> WildernessDirection.North
-        '2' -> WildernessDirection.South
-        '6' -> WildernessDirection.East
-        '4' -> WildernessDirection.West
+fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
+    listOf(moveNorth, moveSouth, moveWest, moveEast, pass, enter, quit)
+
+fun WildernessKeysModel.caveKeys(): List<InputBindingModel> =
+    listOf(caveEnter, caveLeave)
+
+fun WildernessKeysModel.outOfMovesKeys(): List<InputBindingModel> =
+    listOf(outOfMovesSave, outOfMovesQuit)
+
+fun WildernessKeysModel.quitConfirmKeys(): List<InputBindingModel> =
+    listOf(quitYes, quitNo)
+
+fun WildernessKeysModel.directionForKey(key: Char): WildernessDirection? =
+    directionForInput(key.toString())
+
+fun WildernessKeysModel.directionForInput(input: String): WildernessDirection? =
+    when {
+        moveNorth.matches(input) -> WildernessDirection.North
+        moveSouth.matches(input) -> WildernessDirection.South
+        moveEast.matches(input) -> WildernessDirection.East
+        moveWest.matches(input) -> WildernessDirection.West
         else -> null
     }
+
+fun wildernessDirectionForKey(key: Char): WildernessDirection? =
+    WildernessKeysModel().directionForKey(key)
 
 private fun WildernessSystemModel.terrainIdFor(tile: Char?): TerrainId? =
     terrainTransitions.entries.firstOrNull { it.terrain.sourceMapCode == tile }?.terrain

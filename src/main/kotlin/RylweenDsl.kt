@@ -315,6 +315,44 @@ enum class ScriptControlSignal { Continue, BreakNearestLoop, StopScript }
 enum class MemberChoiceFilter { Any, AliveOnly, DeadOnly, SpellcasterOnly }
 enum class InventorySlotChoiceFilter { Any, NonEmpty, Empty }
 
+data class InputBindingModel(
+    val primary: String,
+    val aliases: List<String> = emptyList(),
+    val label: String = primary,
+) {
+    val tokens: List<String> get() = listOf(primary) + aliases
+}
+
+object InputAliases {
+    const val ArrowUp = "\u001B[A"
+    const val ArrowDown = "\u001B[B"
+    const val ArrowRight = "\u001B[C"
+    const val ArrowLeft = "\u001B[D"
+}
+
+fun inputKey(primary: Char, vararg aliases: String, label: String = primary.toString()): InputBindingModel =
+    inputKey(primary.toString(), *aliases, label = label)
+
+fun inputKey(primary: String, vararg aliases: String, label: String = primary): InputBindingModel =
+    InputBindingModel(primary = primary, aliases = aliases.toList(), label = label)
+
+fun InputBindingModel.matches(raw: String): Boolean {
+    val accepted = tokens.flatMap(::inputTokenVariants).toSet()
+    return inputTokenVariants(raw).any { it in accepted }
+}
+
+fun inputTokenVariants(raw: String): Set<String> =
+    buildSet {
+        add(raw)
+        raw.firstOrNull()?.takeIf { it == ' ' }?.let { add(" ") }
+        val trimmed = raw.trim()
+        if (trimmed.isNotEmpty()) {
+            add(trimmed)
+            add(trimmed.uppercase())
+            add(trimmed.replace("_", "").uppercase())
+        }
+    }
+
 sealed interface Op {
     data class Screen(val text: TextBlock) : Op
     data class Emit(val text: TextId) : Op
@@ -928,8 +966,26 @@ sealed interface Trigger {
 }
 
 data class WildernessSystemModel(
+    val keys: WildernessKeysModel = WildernessKeysModel(),
     val events: WildernessEventModel = WildernessEventModel(),
     val terrainTransitions: TerrainTransitionModel = TerrainTransitionModel(),
+)
+
+data class WildernessKeysModel(
+    val moveNorth: InputBindingModel = inputKey("8", InputAliases.ArrowUp, "UP", "ARROW_UP", label = "8/Up"),
+    val moveSouth: InputBindingModel = inputKey("2", InputAliases.ArrowDown, "DOWN", "ARROW_DOWN", label = "2/Down"),
+    val moveWest: InputBindingModel = inputKey("4", InputAliases.ArrowLeft, "LEFT", "ARROW_LEFT", label = "4/Left"),
+    val moveEast: InputBindingModel = inputKey("6", InputAliases.ArrowRight, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
+    val pass: InputBindingModel = inputKey(" ", "SPACE", label = "Space"),
+    val enter: InputBindingModel = inputKey("E"),
+    val quit: InputBindingModel = inputKey("X"),
+    val caveEnter: InputBindingModel = inputKey("E"),
+    val caveLeave: InputBindingModel = inputKey("L"),
+    val outOfMovesSave: InputBindingModel = inputKey("S"),
+    val outOfMovesQuit: InputBindingModel = inputKey("Q"),
+    val quitYes: InputBindingModel = inputKey("Y"),
+    val quitNo: InputBindingModel = inputKey("N"),
+    val commandHint: TextBlock = inlineText("Commands: 8/2/4/6 or arrows move, Space pass, E enter, X quit"),
 )
 
 data class WildernessEventModel(
@@ -2490,8 +2546,13 @@ class GameBuilder {
 
 @RylNextDsl
 class WildernessSystemBuilder {
+    private var keysModel = WildernessKeysBuilder().build()
     private var eventsModel = WildernessEventBuilder().build()
     private var terrainTransitionModel = TerrainTransitionBuilder().build()
+
+    fun keys(body: WildernessKeysBuilder.() -> Unit) {
+        keysModel = WildernessKeysBuilder(keysModel).apply(body).build()
+    }
 
     fun events(body: WildernessEventBuilder.() -> Unit) {
         eventsModel = WildernessEventBuilder().apply(body).build()
@@ -2503,8 +2564,105 @@ class WildernessSystemBuilder {
 
     fun build(): WildernessSystemModel =
         WildernessSystemModel(
+            keys = keysModel,
             events = eventsModel,
             terrainTransitions = terrainTransitionModel,
+        )
+}
+
+@RylNextDsl
+class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()) {
+    private var moveNorthKey = initial.moveNorth
+    private var moveSouthKey = initial.moveSouth
+    private var moveWestKey = initial.moveWest
+    private var moveEastKey = initial.moveEast
+    var pass: InputBindingModel = initial.pass
+    var enter: InputBindingModel = initial.enter
+    var quit: InputBindingModel = initial.quit
+    private var caveEnterKey = initial.caveEnter
+    private var caveLeaveKey = initial.caveLeave
+    private var outOfMovesSaveKey = initial.outOfMovesSave
+    private var outOfMovesQuitKey = initial.outOfMovesQuit
+    private var quitYesKey = initial.quitYes
+    private var quitNoKey = initial.quitNo
+    private var commandHintText = initial.commandHint
+
+    fun movement(
+        north: InputBindingModel = moveNorthKey,
+        south: InputBindingModel = moveSouthKey,
+        west: InputBindingModel = moveWestKey,
+        east: InputBindingModel = moveEastKey,
+    ) {
+        moveNorthKey = north
+        moveSouthKey = south
+        moveWestKey = west
+        moveEastKey = east
+    }
+
+    fun movement(north: Char, south: Char, west: Char, east: Char) {
+        movement(inputKey(north), inputKey(south), inputKey(west), inputKey(east))
+    }
+
+    fun numberPadMovementWithArrows() {
+        movement(
+            north = inputKey("8", InputAliases.ArrowUp, "UP", "ARROW_UP", label = "8/Up"),
+            south = inputKey("2", InputAliases.ArrowDown, "DOWN", "ARROW_DOWN", label = "2/Down"),
+            west = inputKey("4", InputAliases.ArrowLeft, "LEFT", "ARROW_LEFT", label = "4/Left"),
+            east = inputKey("6", InputAliases.ArrowRight, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
+        )
+    }
+
+    fun cave(enter: InputBindingModel = caveEnterKey, leave: InputBindingModel = caveLeaveKey) {
+        caveEnterKey = enter
+        caveLeaveKey = leave
+    }
+
+    fun cave(enter: Char, leave: Char) {
+        cave(inputKey(enter), inputKey(leave))
+    }
+
+    fun outOfMoves(save: InputBindingModel = outOfMovesSaveKey, quit: InputBindingModel = outOfMovesQuitKey) {
+        outOfMovesSaveKey = save
+        outOfMovesQuitKey = quit
+    }
+
+    fun outOfMoves(save: Char, quit: Char) {
+        outOfMoves(inputKey(save), inputKey(quit))
+    }
+
+    fun quitConfirm(yes: InputBindingModel = quitYesKey, no: InputBindingModel = quitNoKey) {
+        quitYesKey = yes
+        quitNoKey = no
+    }
+
+    fun quitConfirm(yes: Char, no: Char) {
+        quitConfirm(inputKey(yes), inputKey(no))
+    }
+
+    fun commandHint(vararg lines: String) {
+        commandHintText = inlineText(*lines)
+    }
+
+    fun commandHint(body: StructuredTextBlockBuilder.() -> Unit) {
+        commandHintText = structuredText(body)
+    }
+
+    fun build(): WildernessKeysModel =
+        WildernessKeysModel(
+            moveNorth = moveNorthKey,
+            moveSouth = moveSouthKey,
+            moveWest = moveWestKey,
+            moveEast = moveEastKey,
+            pass = pass,
+            enter = enter,
+            quit = quit,
+            caveEnter = caveEnterKey,
+            caveLeave = caveLeaveKey,
+            outOfMovesSave = outOfMovesSaveKey,
+            outOfMovesQuit = outOfMovesQuitKey,
+            quitYes = quitYesKey,
+            quitNo = quitNoKey,
+            commandHint = commandHintText,
         )
 }
 
