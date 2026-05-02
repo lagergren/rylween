@@ -236,6 +236,13 @@ class RylweenDslValidationTest {
         assertTrue("""mark(runtimeFlagState("garth.bandits", "recovered"))""" in snapshot)
         assertTrue("""slot(16).empty()""" in snapshot)
         assertTrue("""line("Castle Ydarg has fallen.")""" in snapshot)
+
+        val parsed = parseRuntimeStateSnapshot(snapshot)
+        assertEquals(snapshot, renderRuntimeStateSnapshot(parsed))
+        assertEquals(state.id, parsed.id)
+        assertEquals(Towns.thord.inn, parsed.npcs.single().position)
+        assertEquals(Items.redPotion, parsed.parties.single().inventory.single { it.slot == 0 }.item)
+        assertEquals("Castle Ydarg has fallen.", (parsed.parties.single().journal.single() as JournalEntryState.Line).text)
     }
 
     @Test
@@ -934,6 +941,17 @@ class RylweenDslValidationTest {
         assertEquals(Maps.wilderness, grid.id)
         assertEquals(41, grid.height)
         assertEquals(78, grid.width)
+    }
+
+    @Test
+    fun compiledRuntimeSnapshotRoundTripsThroughSaveReader() {
+        val snapshot = renderRuntimeStateSnapshot(RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay })
+        val parsed = parseRuntimeStateSnapshot(snapshot)
+
+        assertEquals(snapshot, renderRuntimeStateSnapshot(parsed))
+        assertEquals(States.winningReplay, parsed.id)
+        assertEquals(RuntimeMode.GameOver, parsed.realm.currentMode)
+        assertEquals(2, parsed.parties.single().members.size)
     }
 
     @Test
