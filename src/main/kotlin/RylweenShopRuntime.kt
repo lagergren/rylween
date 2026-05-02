@@ -43,6 +43,7 @@ data class ShopSellQuoteResult(
 sealed interface ShopServiceStep {
     data class Intro(val text: TextBlock) : ShopServiceStep
     data class MainMenu(val text: TextBlock, val canBuy: Boolean, val canSell: Boolean) : ShopServiceStep
+    data class SelectCatalog(val prompt: TextBlock, val catalogs: List<ShopCatalogModel>) : ShopServiceStep
     data class BuyItem(val prompt: TextBlock, val catalogs: List<ShopCatalogModel>) : ShopServiceStep
     data class Quantity(val offer: ShopItemOfferModel, val prompt: TextBlock) : ShopServiceStep
     data class ConfirmPurchase(
@@ -87,7 +88,12 @@ data class ShopServiceSession(
         return when (choice) {
             ShopMainChoice.Buy -> {
                 val buy = checkNotNull(shop.buy) { "shop ${shop.building.slug} has no buy section" }
-                copy(step = ShopServiceStep.BuyItem(buy.prompt, buy.catalogs), lastTransaction = null, lastSellQuote = null)
+                val nextStep = if (buy.catalogs.size > 1) {
+                    ShopServiceStep.SelectCatalog(buy.prompt, buy.catalogs)
+                } else {
+                    ShopServiceStep.BuyItem(buy.prompt, buy.catalogs)
+                }
+                copy(step = nextStep, lastTransaction = null, lastSellQuote = null)
             }
             ShopMainChoice.Sell -> {
                 val sell = checkNotNull(shop.sell) { "shop ${shop.building.slug} has no sell section" }
@@ -97,10 +103,35 @@ data class ShopServiceSession(
         }
     }
 
-    fun chooseBuyItem(item: ItemId): ShopServiceSession {
-        require(step is ShopServiceStep.BuyItem) { "shop session is not choosing a buy item" }
+    fun chooseCatalog(catalog: ShopCatalogModel): ShopServiceSession {
+        val current = step as? ShopServiceStep.SelectCatalog
+            ?: error("shop session is not choosing a catalog")
+        require(catalog in current.catalogs) {
+            "shop ${shop.building.slug} catalog ${catalog.title} is not offered by this prompt"
+        }
         val buy = checkNotNull(shop.buy) { "shop ${shop.building.slug} has no buy section" }
-        val offer = buy.offerFor(item)
+        return copy(
+            step = ShopServiceStep.BuyItem(catalog.intro ?: buy.prompt, listOf(catalog)),
+            lastTransaction = null,
+            lastSellQuote = null,
+        )
+    }
+
+    fun chooseCatalog(catalogKey: Char): ShopServiceSession {
+        require(step is ShopServiceStep.SelectCatalog) { "shop session is not choosing a catalog" }
+        val buy = checkNotNull(shop.buy) { "shop ${shop.building.slug} has no buy section" }
+        if (buy.paymentKeys.decline.matches(catalogKey.toString())) {
+            return copy(step = mainMenu(), lastTransaction = null, lastSellQuote = null)
+        }
+        val catalog = step.catalogs.firstOrNull { it.key == catalogKey.uppercaseChar() }
+            ?: return copy(step = mainMenu(), lastTransaction = null, lastSellQuote = null)
+        return chooseCatalog(catalog)
+    }
+
+    fun chooseBuyItem(item: ItemId): ShopServiceSession {
+        val current = step as? ShopServiceStep.BuyItem
+            ?: error("shop session is not choosing a buy item")
+        val offer = current.catalogs.offers().firstOrNull { it.item == item }
             ?: return copy(
                 step = mainMenu(),
                 lastTransaction = ShopTransactionResult(ShopTransactionStatus.ItemNotSoldHere, party, item),
@@ -228,6 +259,7 @@ fun applyShopInput(session: ShopServiceSession, input: ShopServiceInput): ShopSe
     when (input) {
         ShopServiceInput.ContinueIntro -> session.continueIntro()
         is ShopServiceInput.Main -> session.chooseMain(input.choice)
+        is ShopServiceInput.SelectCatalog -> session.chooseCatalog(input.catalogKey)
         is ShopServiceInput.BuyItem -> session.chooseBuyItem(input.item)
         is ShopServiceInput.Quantity -> session.enterQuantity(input.quantity)
         is ShopServiceInput.ConfirmPurchase -> session.confirmPurchase(input.accept)
@@ -252,7 +284,10 @@ fun BuildingServiceModel.isOpenAt(hour: Int): Boolean {
 }
 
 fun ShopBuyModel.offers(): List<ShopItemOfferModel> =
-    catalogs.flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
+    catalogs.offers()
+
+private fun List<ShopCatalogModel>.offers(): List<ShopItemOfferModel> =
+    flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
 
 fun ShopBuyModel.offerFor(item: ItemId): ShopItemOfferModel? =
     offers().firstOrNull { it.item == item }
