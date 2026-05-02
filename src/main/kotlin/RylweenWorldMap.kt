@@ -240,6 +240,7 @@ data class WildernessSession(
     val scenes: List<SceneModel>,
     val missions: List<MissionModel> = emptyList(),
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
+    val dungeons: DungeonSystemModel = DungeonSystemModel(),
     val combat: CombatSystemModel = CombatSystemModel(null),
     val monsters: List<MonsterModel> = emptyList(),
     val formulas: List<FormulaModel> = emptyList(),
@@ -324,6 +325,12 @@ data class WildernessSession(
                     worldMap = worldMap,
                     dungeon = current.handoff.dungeon,
                     levels = current.handoff.levels,
+                    dungeons = dungeons,
+                    combat = combat,
+                    monsters = monsters,
+                    formulas = formulas,
+                    rewards = rewards,
+                    leveling = leveling,
                     spells = spells,
                     itemUses = itemUses,
                     itemRecords = itemRecords,
@@ -916,6 +923,7 @@ data class WildernessSession(
                 scenes = content.scenes,
                 missions = content.missions,
                 wilderness = content.wilderness,
+                dungeons = content.dungeons,
                 combat = content.combat,
                 monsters = content.monsters,
                 formulas = content.formulas,
@@ -1117,6 +1125,9 @@ private fun PartyState.matches(ast: BoolAst): Boolean {
     val evaluator = object : IntAstEvaluator() {
         override fun flagIs(slug: String, native: String): Boolean =
             party.flags.any { it.flag.slug == slug && it.native == native }
+
+        override fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
+            milestone in party.milestones
 
         override fun memberField(member: Int, field: String): Int {
             val record = party.members.getOrNull(member - 1) ?: return 0

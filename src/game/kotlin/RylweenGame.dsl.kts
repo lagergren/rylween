@@ -646,110 +646,115 @@ val nextRylween = rylween {
 
         event(DungeonEvents.fireShield) {
             run {
-                readScreen(
-                    "After you have bested",
-                    "the foul thing, the",
-                    "dungeon is strangely",
-                    "quiet. Upon entering",
-                    "this level, you find the",
-                    "marvelous FIRE SHIELD on",
-                    "a pedestal! You take it.",
-                    "",
-                )
-                achieve(Milestones.fireShield)
-                mark(Story.hermit.trollTooth.fireShieldAcquired)
+                whenever(!achieved(Milestones.fireShield)) {
+                    readScreen(
+                        "After you have bested",
+                        "the foul thing, the",
+                        "dungeon is strangely",
+                        "quiet. Upon entering",
+                        "this level, you find the",
+                        "marvelous FIRE SHIELD on",
+                        "a pedestal! You take it.",
+                        "",
+                    )
+                    achieve(Milestones.fireShield)
+                    mark(Story.hermit.trollTooth.fireShieldAcquired)
+                }
             }
         }
 
         event(DungeonEvents.bracelets) {
             run {
-                readScreen(
-                    "This whole chamber",
-                    "shines of a bright",
-                    "white light! On a",
-                    "table before you,",
-                    "lie the fabled",
-                    "Bracelets of Thun!",
-                    "The glow fades as",
-                    "you put them in your",
-                    "backpack.",
-                    "",
-                )
-                achieve(Milestones.braceletsOfThun)
-                mark(Story.bracelets.thun.braceletsTaken)
+                whenever(!achieved(Milestones.braceletsOfThun)) {
+                    readScreen(
+                        "This whole chamber",
+                        "shines of a bright",
+                        "white light! On a",
+                        "table before you,",
+                        "lie the fabled",
+                        "Bracelets of Thun!",
+                        "The glow fades as",
+                        "you put them in your",
+                        "backpack.",
+                        "",
+                    )
+                    achieve(Milestones.braceletsOfThun)
+                    mark(Story.bracelets.thun.braceletsTaken)
+                }
             }
         }
 
         event(DungeonEvents.nolrimTomb) {
             run {
-                readScreen(
-                    "Nolrim's body rests on",
-                    "a stone slab in this room.",
-                    "On his chest lies the",
-                    "dagger you seek. You put",
-                    "it in your backpack.",
-                    "",
-                )
-                mark(Story.masterCrown.daggerTaken)
+                whenever(!Story.masterCrown.daggerTaken) {
+                    readScreen(
+                        "Nolrim's body rests on",
+                        "a stone slab in this room.",
+                        "On his chest lies the",
+                        "dagger you seek. You put",
+                        "it in your backpack.",
+                        "",
+                    )
+                    mark(Story.masterCrown.daggerTaken)
+                }
             }
         }
 
         event(DungeonEvents.masterCrown) {
             run {
-                readScreen(
-                    "FINALLY! In the hands of",
-                    "a long dead warrior, who",
-                    "is placed like a statue",
-                    "by the east wall of this",
-                    "chamber, is the Master",
-                    "Crown. The most powerful",
-                    "object in the realm.",
-                    "It shines with an inner",
-                    "light.",
-                    "",
-                )
-                readScreen(
-                    "...but as you take it,",
-                    "THE WARRIOR COMES",
-                    "TO LIFE!!!",
-                    "",
-                )
-                encounter(Monsters.longDeadWarrior, mandatory = true)
-                achieve(Milestones.masterCrown)
-                mark(Story.masterCrown.crownTaken)
+                whenever(!achieved(Milestones.masterCrown)) {
+                    readScreen(
+                        "FINALLY! In the hands of",
+                        "a long dead warrior, who",
+                        "is placed like a statue",
+                        "by the east wall of this",
+                        "chamber, is the Master",
+                        "Crown. The most powerful",
+                        "object in the realm.",
+                        "It shines with an inner",
+                        "light.",
+                        "",
+                    )
+                    readScreen(
+                        "...but as you take it,",
+                        "THE WARRIOR COMES",
+                        "TO LIFE!!!",
+                        "",
+                    )
+                    encounter(Monsters.longDeadWarrior, mandatory = true)
+                    achieve(Milestones.masterCrown)
+                    mark(Story.masterCrown.crownTaken)
+                }
             }
         }
 
         scenario(Dungeons.randomCave) {
-            randomEvents {
-                event(DungeonEvents.gold)
-                event(DungeonEvents.weakEncounter, weight = 2)
-                event(DungeonEvents.deepEncounter)
-                event(DungeonEvents.nothingSpecial)
-                event(DungeonEvents.emptyLevel)
-                event(DungeonEvents.torches)
-            }
+            standardDungeonEvents()
         }
 
         scenario(Dungeons.fireShieldCave) {
             levels(20)
+            standardDungeonEvents()
             level(19, DungeonEvents.fireShieldGuardian)
             level(20, DungeonEvents.fireShield)
         }
 
         scenario(Dungeons.thunTemple) {
             levels(18)
+            standardDungeonEvents()
             level(18, DungeonEvents.bracelets)
         }
 
         scenario(Dungeons.reebarTomb) {
             levels(20)
+            standardDungeonEvents()
             level(12, DungeonEvents.spectrumMessage)
             level(20, DungeonEvents.nolrimTomb)
         }
 
         scenario(Dungeons.masterCrownDungeon) {
             levels(10)
+            standardDungeonEvents()
             level(10, DungeonEvents.masterCrown)
         }
     }

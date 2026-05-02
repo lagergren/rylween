@@ -965,6 +965,8 @@ private class CombatScriptRunner(
         override fun realmScalar(name: String): Int = readRealmScalar(name)
         override fun partyScalar(name: String): Int = readPartyScalar(name)
         override fun inventoryPoolCount(pool: ItemPoolId): Int = runtime.activeParty.countInventoryItems(pool)
+        override fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
+            milestone in runtime.activeParty.milestones
         override fun memberFlag(member: Int, name: String): Boolean = readMemberFlag(member, name)
         override fun monsterFlag(monster: Int, name: String): Boolean = readMonsterFlag(monster, name)
         override fun runtimeFlag(name: String): Boolean =
@@ -1352,6 +1354,7 @@ abstract class IntAstEvaluator {
             is BoolAst.And -> bool(ast.left) && bool(ast.right)
             is BoolAst.Or -> bool(ast.left) || bool(ast.right)
             is BoolAst.FlagIs -> flagIs(ast.slug, ast.nativeValue)
+            is BoolAst.MilestoneAchieved -> milestoneAchieved(ast.milestone)
             is BoolAst.MemberFlag -> memberFlag(int(ast.member), ast.name)
             is BoolAst.MonsterFlag -> monsterFlag(int(ast.monster), ast.name)
             is BoolAst.BattleFlag -> battleFlag(ast.name) != 0
@@ -1369,6 +1372,8 @@ abstract class IntAstEvaluator {
     protected open fun inventoryPoolCount(pool: ItemPoolId): Int = unsupported("inventory pool ${pool.slug}")
     protected open fun nativeInt(path: String, args: List<String>): Int = unsupported("native int $path")
     protected open fun flagIs(slug: String, native: String): Boolean = unsupported("flag $slug")
+    protected open fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
+        unsupported("milestone ${milestone.slug}")
     protected open fun memberFlag(member: Int, name: String): Boolean = unsupported("member flag $name")
     protected open fun monsterFlag(monster: Int, name: String): Boolean = unsupported("monster flag $name")
     protected open fun runtimeFlag(name: String): Boolean = unsupported("runtime flag $name")

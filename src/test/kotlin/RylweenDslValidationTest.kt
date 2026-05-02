@@ -812,6 +812,87 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun dungeonEventsClearOnlyInsideCurrentSession() {
+        val event = dungeonEvent("test.gold_once")
+        val dungeons = DungeonSystemBuilder().apply {
+            event(event) {
+                run {
+                    party.gold += 1
+                }
+            }
+            scenario(Dungeons.randomCave) {
+                level(1, event)
+            }
+        }.build()
+        val map = WorldMapGrid.fromSourceRows((1..4).map { mapRow(width = 4) })
+        val runtime = RuntimeSessionState.singleParty(testParty(), hour = 12, currentTown = null)
+
+        val first = DungeonSessionTerminalAdapter(FakeTerminalPort()).runUntilBlocked(
+            DungeonSession.start(runtime, map, Dungeons.randomCave, levels = 1, dungeons = dungeons),
+        ).session
+        val secondStart = DungeonSession.start(first.runtime, map, Dungeons.randomCave, levels = 1, dungeons = dungeons)
+
+        assertEquals(1, first.party.resources.gold)
+        assertEquals(emptyMap(), first.levelEvents)
+        assertTrue(secondStart.step is DungeonSessionStep.Event)
+    }
+
+    @Test
+    fun recurringDungeonEventsStayArmedInsideCurrentSession() {
+        val event = dungeonEvent("test.recurring_gold")
+        val dungeons = DungeonSystemBuilder().apply {
+            event(event) {
+                recurring()
+                run {
+                    party.gold += 1
+                }
+            }
+            scenario(Dungeons.randomCave) {
+                level(1, event)
+            }
+        }.build()
+        val map = WorldMapGrid.fromSourceRows((1..4).map { mapRow(width = 4) })
+        val runtime = RuntimeSessionState.singleParty(testParty(), hour = 12, currentTown = null)
+
+        val session = DungeonSessionTerminalAdapter(FakeTerminalPort()).runUntilBlocked(
+            DungeonSession.start(runtime, map, Dungeons.randomCave, levels = 1, dungeons = dungeons),
+        ).session
+
+        assertEquals(1, session.party.resources.gold)
+        assertEquals(event, session.levelEvents[1])
+    }
+
+    @Test
+    fun compiledSpecialDungeonRewardRoomsAreGuardedByPersistentStoryState() {
+        val content = RylweenCompiledGame.nextDsl
+        val fireShieldEvent = content.dungeons.events.single { it.id == DungeonEvents.fireShield }
+        val dungeons = DungeonSystemModel(
+            events = listOf(fireShieldEvent),
+            scenarios = listOf(
+                DungeonScenarioModel(
+                    dungeon = Dungeons.fireShieldCave,
+                    levelRange = 1..1,
+                    fixedLevelEvents = mapOf(1 to DungeonEvents.fireShield),
+                    randomEvents = emptyList(),
+                ),
+            ),
+        )
+        val map = WorldMapGrid.fromSourceRows((1..4).map { mapRow(width = 4) })
+        val party = testParty(
+            flags = listOf(Story.hermit.trollTooth.fireShieldAcquired),
+        ).copy(milestones = listOf(Milestones.fireShield))
+        val runtime = RuntimeSessionState.singleParty(party, hour = 12, currentTown = null)
+        val terminal = FakeTerminalPort()
+
+        val session = DungeonSessionTerminalAdapter(terminal).runUntilBlocked(
+            DungeonSession.start(runtime, map, Dungeons.fireShieldCave, levels = 1, dungeons = dungeons),
+        ).session
+
+        assertEquals(emptyMap(), session.levelEvents)
+        assertFalse(terminal.output.any { it.contains("FIRE SHIELD") })
+    }
+
+    @Test
     fun shopSessionRunsMerchantBuyDropSellAndRejectFlows() {
         val shop = testMerchantShop()
         val party = testParty(
@@ -2009,6 +2090,7 @@ class RylweenDslValidationTest {
 
         assertEquals(null, randomCave.levelRange)
         assertEquals(2, randomCave.randomEvents.single { it.event == DungeonEvents.weakEncounter }.weight)
+        assertEquals(2, fireShield.randomEvents.single { it.event == DungeonEvents.weakEncounter }.weight)
         assertEquals(DungeonEvents.fireShieldGuardian, fireShield.fixedLevelEvents[19])
         assertEquals(DungeonEvents.fireShield, fireShield.fixedLevelEvents[20])
         assertEquals(DungeonEventDisposition.Recurring, weakEncounter.disposition)
@@ -2482,7 +2564,7 @@ class RylweenDslValidationTest {
         assertEquals(Dungeons.randomCave, dungeon.session.dungeon)
         assertEquals(10, dungeon.session.maxDepth)
         assertTrue(terminal.output.any { "Entering random_cave." in it })
-        assertTrue(terminal.output.any { "You are on level 1." in it })
+        assertTrue(dungeon.session.levelEvents.containsKey(1))
     }
 
     @Test
