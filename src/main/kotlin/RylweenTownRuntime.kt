@@ -29,6 +29,7 @@ data class TownLeaveEquipmentSession(
     val step: TownLeaveEquipmentStep,
     val itemRecords: List<ItemRecordModel> = emptyList(),
     val prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
+    val readyCommands: List<EquipmentCommand> = emptyList(),
     val phase: Int = 0,
     val lastResult: EquipmentActionResult? = null,
 ) {
@@ -84,12 +85,11 @@ data class TownLeaveEquipmentSession(
     private data class NextTownLeaveStep(val phase: Int, val step: TownLeaveEquipmentStep)
 
     companion object {
-        private val readyCommands = listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)
-
         fun start(
             party: PartyState,
             itemRecords: List<ItemRecordModel> = emptyList(),
             prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
+            readyCommands: List<EquipmentCommand> = emptyList(),
         ): TownLeaveEquipmentSession {
             val first = readyCommands
                 .withIndex()
@@ -99,6 +99,7 @@ data class TownLeaveEquipmentSession(
                 phase = first?.index ?: readyCommands.size,
                 itemRecords = itemRecords,
                 prompts = prompts,
+                readyCommands = readyCommands,
                 step = first?.value?.let { TownLeaveEquipmentStep.ReadyQuestion(it, it.townLeavePrompt(prompts)) }
                     ?: TownLeaveEquipmentStep.Finished(party),
             )
@@ -197,7 +198,12 @@ data class TownSession(
         val action = townSystem.menu.firstOrNull { it.key == key.uppercaseChar() }
             ?: return copy(lastResult = null)
         if (action.endsMenu) {
-            val equipment = TownLeaveEquipmentSession.start(party, itemRecords, content.prompts.equipment)
+            val equipment = TownLeaveEquipmentSession.start(
+                party = party,
+                itemRecords = itemRecords,
+                prompts = content.prompts.equipment,
+                readyCommands = townSystem.leavePrompts,
+            )
             return if (equipment.step is TownLeaveEquipmentStep.Finished) {
                 copy(step = TownSessionStep.Finished(runtime))
             } else {

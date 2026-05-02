@@ -1656,11 +1656,13 @@ class RylweenDslValidationTest {
     fun townLeaveEquipmentPromptReadiesWeaponsThenArmor() {
         val engine = TraceEnginePort()
         val runner = TownLeaveEquipmentTraceRunner(engine)
+        val readyCommands = checkNotNull(RylweenCompiledGame.nextDsl.townSystem).leavePrompts
 
         val session = runner.run(
             TownLeaveEquipmentSession.start(
                 testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
                 compiledItemRecords(),
+                readyCommands = readyCommands,
             ),
             listOf(
                 TownLeaveEquipmentInput.ReadyAnswer(true),
@@ -1684,7 +1686,39 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townLeaveEquipmentPromptFollowsAuthoredCommandOrder() {
+        val engine = TraceEnginePort()
+        val runner = TownLeaveEquipmentTraceRunner(engine)
+        val prompts = EquipmentPromptsModel()
+
+        val session = runner.run(
+            TownLeaveEquipmentSession.start(
+                testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
+                compiledItemRecords(),
+                readyCommands = listOf(EquipmentCommand.ReadyArmor, EquipmentCommand.ReadyWeapon),
+            ),
+            listOf(
+                TownLeaveEquipmentInput.ReadyAnswer(true),
+                TownLeaveEquipmentInput.Equipment(EquipmentPromptInput.InventorySlot(2)),
+                TownLeaveEquipmentInput.Equipment(EquipmentPromptInput.Member(1)),
+                TownLeaveEquipmentInput.ReadyAnswer(true),
+                TownLeaveEquipmentInput.Equipment(EquipmentPromptInput.InventorySlot(1)),
+                TownLeaveEquipmentInput.Equipment(EquipmentPromptInput.Member(1)),
+            ),
+        )
+
+        assertTrue(session.step is TownLeaveEquipmentStep.Finished)
+        assertEquals(Items.sword, session.party.members.single().weapon)
+        assertEquals(Items.leather, session.party.members.single().armor)
+        assertEquals(
+            listOf(prompts.readyArmors, prompts.readyWeapons),
+            engine.events.filterIsInstance<EngineTraceEvent.Menu>().map { it.prompt },
+        )
+    }
+
+    @Test
     fun equipmentTerminalAdaptersRunReadyOffAndTownLeavePrompts() {
+        val readyCommands = checkNotNull(RylweenCompiledGame.nextDsl.townSystem).leavePrompts
         val readyTerminal = FakeTerminalPort("A", "1")
         val ready = EquipmentPromptTerminalAdapter(readyTerminal).run(
             EquipmentPromptSession.start(
@@ -1706,6 +1740,7 @@ class RylweenDslValidationTest {
             TownLeaveEquipmentSession.start(
                 testParty(inventoryItems = mapOf(1 to Items.sword, 2 to Items.leather)),
                 compiledItemRecords(),
+                readyCommands = readyCommands,
             ),
         )
 
@@ -1784,7 +1819,11 @@ class RylweenDslValidationTest {
             ShopServiceSession.start(testMerchantShop(), testParty(gold = 10), compiledItemRecords(), compiledRealmContent()),
         )
         val invalidTownLeave = TownLeaveEquipmentTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(
-            TownLeaveEquipmentSession.start(testParty(inventoryItems = mapOf(1 to Items.sword)), compiledItemRecords()),
+            TownLeaveEquipmentSession.start(
+                testParty(inventoryItems = mapOf(1 to Items.sword)),
+                compiledItemRecords(),
+                readyCommands = checkNotNull(RylweenCompiledGame.nextDsl.townSystem).leavePrompts,
+            ),
         )
 
         assertTrue(invalidShop.session.step is ShopServiceStep.MainMenu)
@@ -4067,6 +4106,7 @@ class RylweenDslValidationTest {
 
     private fun testTownSystem(vararg services: BuildingId): TownSystemModel =
         TownSystemBuilder().apply {
+            leavePrompts(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)
             menu {
                 services.forEach { building ->
                     when (building) {

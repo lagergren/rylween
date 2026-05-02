@@ -418,6 +418,14 @@ fun validateTownSystem(
     check(menu.any { it.action == KeyActions.leaveTown && it.endsMenu }) {
         "town entry menu needs a leave action that exits the menu"
     }
+    check(townSystem.leavePrompts.toSet().size == townSystem.leavePrompts.size) {
+        "town leave prompts contain duplicate equipment commands"
+    }
+    townSystem.leavePrompts.forEach { command ->
+        check(command in setOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)) {
+            "town leave prompt ${command.name} is not a ready command"
+        }
+    }
 
     val buildingServices = townSystem.buildingServices
     check(buildingServices.isNotEmpty()) { "town system needs building services" }
