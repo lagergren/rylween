@@ -87,6 +87,7 @@ sealed interface TextPart {
     data class RoleLocation(val role: NpcRole) : TextPart
     data class TownName(val town: TownId) : TextPart
     data class FuzzyTownLocation(val town: TownId, val radius: Int) : TextPart
+    data class LocationCoordinate(val location: LocationId) : TextPart
     object OfferedItemName : TextPart
     object OfferedItemPrice : TextPart
     object ShopPrice : TextPart
@@ -139,6 +140,12 @@ class TownTextRef(private val town: TownId) {
     fun near(radius: Int = 5): TextPart = TextPart.FuzzyTownLocation(town, radius)
 }
 fun town(town: TownRef) = TownTextRef(town.id)
+
+class LocationTextRef(private val location: LocationId) {
+    val coordinates: TextPart = TextPart.LocationCoordinate(location)
+}
+fun location(location: LocationId) = LocationTextRef(location)
+
 class ItemId private constructor(val slug: String, val sourceId: Int? = null) {
     override fun equals(other: Any?): Boolean =
         other is ItemId && slug == other.slug
@@ -395,6 +402,7 @@ sealed interface Op {
     data class Sub(val target: LValueAst, val value: IntAst) : Op
     data class AddClamped(val target: LValueAst, val value: IntAst, val max: IntAst) : Op
     data class SetFlag(val slug: String, val nativeValue: String) : Op
+    data class AppendJournal(val text: TextBlock) : Op
     data class If(val cond: BoolAst, val thenOps: List<Op>, val elseOps: List<Op>) : Op
     data class Loop(val body: List<Op>) : Op
     data class Break(
@@ -1367,6 +1375,7 @@ class PartyRef(private val script: ScriptScope) {
     val restedHours = IntSlot(script, LValueAst.PartyScalar("rested_hours"), IntAst.PartyScalar("rested_hours"))
     val memberCount = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
     val leader: MemberRef get() = member(lit(1))
+    fun member(index: Int): MemberRef = member(lit(index))
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
 }
 
@@ -1631,6 +1640,9 @@ class ScriptScope(
     fun say(body: StructuredTextBlockBuilder.() -> Unit) = screen(body)
     fun emit(id: TextId) = record(Op.Emit(id))
     fun emitIndexed(pattern: TextPattern, value: IntExpr) = record(Op.EmitIndexed(pattern, value.ast))
+    fun journal(text: TextBlock) = record(Op.AppendJournal(text))
+    fun journal(vararg lines: String) = journal(textLines(*lines))
+    fun journal(body: StructuredTextBlockBuilder.() -> Unit) = journal(structuredText(body))
     fun waitInput(reason: String? = null) = record(Op.WaitInput(reason))
     fun pause(ms: Int) = record(Op.Pause(ms))
 
@@ -4858,6 +4870,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         is TextPart.RoleLocation,
                         is TextPart.TownName,
                         is TextPart.FuzzyTownLocation,
+                        is TextPart.LocationCoordinate,
                         TextPart.OfferedItemName,
                         TextPart.OfferedItemPrice,
                         TextPart.ShopPrice,
@@ -4886,6 +4899,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                     int(op.max)
                 }
                 is Op.SetFlag -> Unit
+                is Op.AppendJournal -> text(op.text)
                 is Op.If -> {
                     bool(op.cond)
                     ops(op.thenOps)

@@ -1758,10 +1758,22 @@ val nextRylween = rylween {
             runs(Scenes.Missions.hermitDungeon)
         }
 
+        mission(Missions.koboldVillage) {
+            at(Locations.koboldVillage)
+            requires(Story.masterCrown.task1Assigned)
+            runs(Scenes.Missions.koboldVillage)
+        }
+
         mission(Missions.skullweed) {
             onTerrain(Terrain.swamp)
             requires(Story.masterCrown.task2Assigned)
             runs(Scenes.Missions.skullweed)
+        }
+
+        mission(Missions.borinMeet) {
+            at(Locations.borinCamp)
+            requires(Story.masterCrown.task3Assigned)
+            runs(Scenes.Missions.borinMeet)
         }
 
         mission(Missions.nolrimCrypt) {
@@ -1770,10 +1782,22 @@ val nextRylween = rylween {
             runs(Scenes.Missions.nolrimCrypt)
         }
 
+        mission(Missions.borinGift) {
+            at(Locations.borinCamp)
+            requires(Story.masterCrown.daggerTaken)
+            runs(Scenes.Missions.borinGift)
+        }
+
         mission(Missions.masterCrown) {
             at(Locations.masterCrownDungeon)
             requires(Story.masterCrown.crownTold)
             runs(Scenes.Missions.masterCrown)
+        }
+
+        mission(Missions.ogreCave) {
+            at(Locations.beastCave)
+            requires(Story.jazzy.ogre.accepted)
+            runs(Scenes.Missions.ogreCave)
         }
 
         mission(Missions.jazzyFoot) {
@@ -1786,6 +1810,12 @@ val nextRylween = rylween {
             at(Locations.silverKeyPit)
             requires(Story.silverKey.mapBought)
             runs(Scenes.Missions.silverKey)
+        }
+
+        mission(Missions.hobgoblinCaravan) {
+            randomStep(percent = 9)
+            requires(Story.silverKey.smithConfessed)
+            runs(Scenes.Missions.hobgoblinCaravan)
         }
 
         mission(Missions.hobgoblinCave) {
@@ -3297,6 +3327,73 @@ val nextRylween = rylween {
         }
     }
 
+    scene(Scenes.Missions.koboldVillage) {
+        native.screen.clearText()
+        menu(
+            structuredText {
+                line("The kobold village lies")
+                line("ahead. You can hear the")
+                line("noise from some kind of")
+                line("party even at a distance")
+                line("of 200 yards.")
+                line("")
+                line("(A)ttack now")
+                line("(L)eave")
+            },
+        ) {
+            option('A') {
+                native.screen.clearText()
+                screen(
+                    "You run screaming into",
+                    "a large celebration of",
+                    "some sort. There are",
+                    "about forty kobolds here.",
+                    "At first, they are very",
+                    "surprised, and you manage",
+                    "to slay many, before they",
+                    "attack...",
+                    "",
+                )
+                waitInput()
+                native.screen.clearText()
+                encounter(Monsters.koboldHorde, mandatory = true)
+                native.screen.clearText()
+                screen(
+                    "Piles of dead kobolds are",
+                    "lying all around. Still,",
+                    "they keep coming!",
+                    "",
+                )
+                waitInput()
+                encounter(Monsters.koboldHorde, mandatory = true)
+                native.screen.clearText()
+                screen(
+                    "You have annihilated most",
+                    "of the village. You pause",
+                    "to wipe the blood of your",
+                    "weapons, when suddenly,",
+                    "some ORCS rush out to",
+                    "attack you from nowhere.",
+                    "",
+                )
+                waitInput()
+                encounter(Monsters.orc, mandatory = true)
+                native.screen.redrawMap()
+                native.screen.clearText()
+                readScreen(
+                    "The entire village is",
+                    "wiped out. You snatch",
+                    "an ugly pendant from the",
+                    "head of the kobold chief",
+                    "to prove the bloody deed.",
+                    "",
+                )
+                mark(Story.masterCrown.task1Done)
+            }
+            option('L') {}
+        }
+    }
+
     scene(Scenes.Missions.skullweed) {
         native.screen.clearText()
         screen(
@@ -3309,6 +3406,74 @@ val nextRylween = rylween {
         waitInput("after skullweed pickup")
         native.screen.clearText()
         mark(Story.masterCrown.task2Done)
+    }
+
+    scene(Scenes.Missions.borinMeet) {
+        native.screen.clearText()
+        readScreen(
+            "You arrive at a village",
+            "which looks typically",
+            "dwarfish. As you approach",
+            "the village square, an",
+            "old dwarf who introduces",
+            "himself as Borin greets",
+            "you.",
+            "",
+        )
+        readScreen(
+            "You explain why you are",
+            "here, and he frowns.",
+            "- Well, he says, you",
+            "actually COULD have a",
+            "stone of that type",
+            "if you do our tribe a",
+            "favour...",
+            "",
+        )
+        readScreen(
+            "- Years have passed, and",
+            "much of our knowledge",
+            "about the making of",
+            "arms is gone. We haven't",
+            "practised it, generation",
+            "after generation, and the",
+            "arms we produce nowadays",
+            "are not as unbeatable as",
+            "they once were...",
+            "",
+        )
+        readScreen(
+            "- When our king Nolrim",
+            "died, nine hundred years",
+            "ago we buried him with his",
+            "trusty dagger Reebar. If",
+            "we had this to study",
+            "we could once again become",
+            "the greatest smiths that",
+            "there are...",
+            "",
+        )
+        readScreen(
+            "- If you go to Nolrim's",
+            "crypt, breach the traps my",
+            "ancestors set to protect",
+            "him against looters, and",
+            "return Reebar, I will not",
+            "only give you the stone,",
+            "but also lots of gold,and",
+            "some dwarven treasures.",
+            "",
+        )
+        readScreen {
+            line("- Nolrim's crypt is at")
+            line(location(Locations.nolrimCrypt).coordinates, ". Be careful, and")
+            line("fare the well.")
+            line("")
+        }
+        journal {
+            line("Nolrim's Crypt is at ", location(Locations.nolrimCrypt).coordinates, ".")
+        }
+        mark(Story.masterCrown.borinMet)
     }
 
     scene(Scenes.Missions.nolrimCrypt) {
@@ -3334,6 +3499,101 @@ val nextRylween = rylween {
             line("(E)nter")
             line("(L)eave")
         }
+    }
+
+    scene(Scenes.Missions.ogreCave) {
+        native.screen.clearText()
+        choice.enterOrLeave(
+            structuredText {
+                line("You find a the cave the")
+                line("half-orc told you about.")
+                line("As you get closer, you")
+                line("become aware of a hideous")
+                line("smell, emnating from the")
+                line("cavern depths...")
+                line("")
+                line("(E)nter")
+                line("(L)eave")
+            },
+            enter = {
+                native.screen.clearText()
+                screen(
+                    "You enter the cave.",
+                    "piles of treasure are",
+                    "thrown all around.",
+                    "You note with terror",
+                    "that some OGRES sit",
+                    "among the gold and",
+                    "and jewels! They spot",
+                    "you and run screaming",
+                    "to attack!",
+                    "",
+                )
+                waitInput()
+                encounter(Monsters.ogre, mandatory = true)
+                native.screen.redrawMap()
+                native.screen.clearText()
+                screen(
+                    "You defeat the ogres and",
+                    "start to search for the",
+                    "fabled Foot of Jazzy.",
+                    "Just as you begin to",
+                    "wonder if the half-orc",
+                    "lied to you, you hear a",
+                    "sound and quickly turn",
+                    "around. An OGRE LORD has",
+                    "quietly entered the cave!",
+                    "",
+                )
+                waitInput()
+                encounter(Monsters.ogreLord, mandatory = true)
+                native.screen.redrawMap()
+                native.screen.clearText()
+                readScreen(
+                    "You defeat the Ogre Lord.",
+                    "You take all the gold",
+                    "you find, 5645 gold coins!",
+                    "You also find a Mithril",
+                    "Mail some unfortunate",
+                    "warrior has left here.",
+                    "",
+                )
+                reward {
+                    gold(5645)
+                    items(Items.mithrilMail)
+                }
+                val noteFinder = party.member(2)
+                readScreen {
+                    line("...There is however no")
+                    line("trace of the Foot. Just")
+                    line("as you are about to give")
+                    line("up, ", partyName(noteFinder), " finds a note!")
+                    line("It is written in shaky")
+                    line("hand with a strange")
+                    line("brown ink...")
+                    line("")
+                }
+                readScreen(
+                    "'THEY SHALL NOT HAVE THE",
+                    "FOOT! I'm dying and I'll",
+                    "soon be dead, but I will",
+                    "use my last strength to",
+                    "teleport it away from",
+                    "here to the eastern peaks,",
+                    "Jazzy's regions.'",
+                    "         - Kastagir.",
+                    "",
+                )
+                readScreen(
+                    "You leave the cave.",
+                    "",
+                )
+                mark(Story.jazzy.ogre.ogresCleared)
+            },
+            leave = {
+                native.screen.clearText()
+            },
+        )
     }
 
     scene(Scenes.Missions.jazzyFoot) {
@@ -3420,6 +3680,49 @@ val nextRylween = rylween {
         }
     }
 
+    scene(Scenes.Missions.hobgoblinCaravan) {
+        native.screen.clearText()
+        readScreen(
+            "Just before you is a",
+            "caravan of hobgoblins on",
+            "white, well-bred horses.",
+            "",
+        )
+        readScreen(
+            "It is unusual that these",
+            "foul creatures have such",
+            "beautiful animals. Hoping",
+            "that they can give you a",
+            "clue about the key, you",
+            "emit a loud battle cry",
+            "and attack!",
+            "",
+        )
+        encounter(Monsters.ridingHobgoblin, mandatory = true)
+        native.screen.redrawMap()
+        native.screen.clearText()
+        readScreen {
+            line("Before you kill the last")
+            line("hobgoblin you ask him")
+            line("about the key. The foul")
+            line("creature blurts:")
+            line("- Boss has it! In ze cave!")
+            line("at home, yess, ", location(Locations.hobgoblinCave).coordinates, "...")
+            line("pleeez sirs, don't kill")
+            line("me...")
+            line("")
+        }
+        readScreen(
+            "(at this point you sever",
+            " his carotid artery).",
+            "",
+        )
+        journal {
+            line("The hobgoblin cave is at ", location(Locations.hobgoblinCave).coordinates, ".")
+        }
+        mark(Story.silverKey.caveLocated)
+    }
+
     scene(Scenes.Missions.hobgoblinCave) {
         dungeonEntrance(Dungeons.hobgoblinStronghold, levels = 22) {
             line("This is a hobgoblin cave.")
@@ -3439,7 +3742,7 @@ val nextRylween = rylween {
     // 7. Script reward: semantic items, typed placement policy, no numeric ids.
     scene(Scenes.Missions.borinGift) {
         native.screen.clearText()
-        screen(
+        readScreen(
             "Borin greets you. He",
             "can hardly believe his",
             "eyes when you show him",
@@ -3449,7 +3752,7 @@ val nextRylween = rylween {
             "hut.",
             "",
         )
-        screen(
+        readScreen(
             "Smiling, he offers you",
             "3578 gold coins and 3",
             "gems. You greedily accept",
@@ -3916,7 +4219,7 @@ check(nextDsl.monsters.count { it.tier == EncounterTiers.weak } == 10)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.wild } == 14)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.deep } == 20)
 check(nextDsl.monsters.single { it.id == Monsters.gnoll }.countMaxLevelDivisor == 2)
-check(nextDsl.scenes.size == 19)
+check(nextDsl.scenes.size == 23)
 fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
     any { op ->
         when (op) {
@@ -3929,6 +4232,21 @@ fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
                     op.defaultOps.containsEnterDungeon(dungeon, levels)
             is Op.ForEachMember -> op.body.containsEnterDungeon(dungeon, levels)
             is Op.ForEachMonster -> op.body.containsEnterDungeon(dungeon, levels)
+            else -> false
+        }
+    }
+fun List<Op>.containsEncounter(monster: MonsterId): Boolean =
+    any { op ->
+        when (op) {
+            is Op.Encounter -> op.foe == monster
+            is Op.If -> op.thenOps.containsEncounter(monster) ||
+                    op.elseOps.containsEncounter(monster)
+            is Op.Loop -> op.body.containsEncounter(monster)
+            is Op.Switch -> op.cases.any { it.body.containsEncounter(monster) }
+            is Op.Menu -> op.options.any { it.body.containsEncounter(monster) } ||
+                    op.defaultOps.containsEncounter(monster)
+            is Op.ForEachMember -> op.body.containsEncounter(monster)
+            is Op.ForEachMonster -> op.body.containsEncounter(monster)
             else -> false
         }
     }
@@ -4004,6 +4322,10 @@ check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it 
 check(nextDsl.scenes.single { it.id == Scenes.Missions.jazzyFoot }.ops.any { it == Op.AchieveMilestone(Milestones.footOfJazzy) })
 check(nextDsl.scenes.single { it.id == Scenes.Missions.erethorEntry }.ops.containsEnterDungeon(Dungeons.erethorTemple, 12))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.silverKey }.ops.containsEnterDungeon(Dungeons.silverSanctum, 20))
+check(nextDsl.scenes.single { it.id == Scenes.Missions.borinMeet }.ops.any { it is Op.AppendJournal })
+check(nextDsl.scenes.single { it.id == Scenes.Missions.hobgoblinCaravan }.ops.any { it is Op.AppendJournal })
+check(nextDsl.scenes.single { it.id == Scenes.Missions.koboldVillage }.ops.containsEncounter(Monsters.orc))
+check(nextDsl.scenes.single { it.id == Scenes.Missions.ogreCave }.ops.containsEncounter(Monsters.ogreLord))
 check(nextDsl.dialogue.size == 1)
 check(nextDsl.dialogue.single().branches.size == 2)
 check(nextDsl.dialogue.single().branches.any { branch ->
@@ -4017,12 +4339,15 @@ check(nextDsl.spells.size == 10)
 check(nextDsl.magicItems.size == 12)
 check(nextDsl.magicItems.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
 check(nextDsl.magicItems.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
-check(nextDsl.missions.size == 11)
+check(nextDsl.missions.size == 16)
 check(nextDsl.missions.single { it.id == Missions.erethorEntry }.trigger == Trigger.AtPosition(xy(6, 20)))
 check(nextDsl.missions.single { it.id == Missions.hermitDungeon }.trigger == Trigger.AtLocation(Locations.hermitDungeon))
+check(nextDsl.missions.single { it.id == Missions.koboldVillage }.trigger == Trigger.AtLocation(Locations.koboldVillage))
+check(nextDsl.missions.single { it.id == Missions.borinMeet }.trigger == Trigger.AtLocation(Locations.borinCamp))
 check(nextDsl.missions.single { it.id == Missions.skullweed }.trigger == Trigger.OnTerrain(Terrain.swamp))
 check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
 check(nextDsl.missions.single { it.id == Missions.silverKey }.trigger == Trigger.AtLocation(Locations.silverKeyPit))
+check(nextDsl.missions.single { it.id == Missions.hobgoblinCaravan }.trigger == Trigger.RandomStep(9))
 check(nextRylween.states.size == 3)
 
 val freshParty = nextRylween.states.single { it.id == States.freshReplay }.parties.single()

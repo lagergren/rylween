@@ -225,6 +225,68 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun terminalTextRendererCanInlineRuntimeLocationCoordinates() {
+        val runtime = RuntimeSessionState.singleParty(
+            party = testParty(),
+            hour = 12,
+            currentTown = null,
+        ).copy(
+            locations = listOf(LocationPlacement(Locations.nolrimCrypt, GridPoint(37, 14))),
+        )
+
+        val lines = TerminalTextRenderer().lines(
+            structuredText {
+                line("Nolrim's Crypt is at ", location(Locations.nolrimCrypt).coordinates, ".")
+            },
+            TerminalTextContext(runtime = runtime),
+        )
+
+        assertEquals(listOf("Nolrim's Crypt is at 37x14."), lines)
+    }
+
+    @Test
+    fun townServiceBridgeAppendsRenderedJournalLines() {
+        val scene = SceneModel(
+            sceneId("test.journal_append"),
+            listOf(
+                Op.AppendJournal(
+                    structuredText {
+                        line("Nolrim's Crypt is at ", location(Locations.nolrimCrypt).coordinates, ".")
+                    },
+                ),
+            ),
+        )
+        val service = BuildingServiceModel(
+            building = Buildings.church,
+            action = KeyActions.enterChurch,
+            scene = scene.id,
+            opensAt = null,
+            closesAt = null,
+            nativeServices = emptyList(),
+        )
+        val runtime = RuntimeSessionState.singleParty(
+            party = testParty(),
+            hour = 12,
+            currentTown = Towns.thord.id,
+        ).copy(
+            locations = listOf(LocationPlacement(Locations.nolrimCrypt, GridPoint(37, 14))),
+        )
+
+        val result = StatefulTownServiceBridge(FakeTerminalPort()).run(
+            service,
+            scene,
+            TownServiceContinuation.start(runtime),
+        )
+
+        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertEquals(
+            listOf(JournalEntryState.Line("Nolrim's Crypt is at 37x14.")),
+            result.party.journal,
+        )
+        assertTrue(result.events.any { it is EngineTraceEvent.AppendJournal })
+    }
+
+    @Test
     fun traceEngineRecordsReusableChoices() {
         val engine = TraceEnginePort()
         val runner = ScriptTraceRunner(engine)
@@ -2278,6 +2340,64 @@ class RylweenDslValidationTest {
         assertEquals(Missions.skullweed, result.session.lastResult?.mission)
         assertTrue(result.session.party.hasFlagState(Story.masterCrown.task2Done))
         assertTrue(terminal.output.any { "skullweed" in it.lowercase() })
+    }
+
+    @Test
+    fun wildernessMoveCanCompleteAuthoredBorinMeetMissionAndAppendJournal() {
+        val terminal = FakeTerminalPort("2", "", "", "", "", "", "")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.masterCrown.task3Assigned),
+                ).copy(position = Wilderness.xy(12, 9)),
+                locations = listOf(
+                    LocationPlacement(Locations.borinCamp, GridPoint(12, 10)),
+                    LocationPlacement(Locations.nolrimCrypt, GridPoint(37, 14)),
+                ),
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
+        assertEquals(Missions.borinMeet, result.session.lastResult?.mission)
+        assertTrue(result.session.party.hasFlagState(Story.masterCrown.borinMet))
+        assertEquals(
+            listOf(JournalEntryState.Line("Nolrim's Crypt is at 37x14.")),
+            result.session.party.journal,
+        )
+        assertTrue(terminal.output.any { "37x14. Be careful" in it })
+    }
+
+    @Test
+    fun wildernessMoveCanTriggerAuthoredKoboldVillageMissionAndWaitInBattle() {
+        val terminal = FakeTerminalPort("2", "A", "")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.masterCrown.task1Assigned),
+                ).copy(position = Wilderness.xy(12, 9)),
+                locations = listOf(LocationPlacement(Locations.koboldVillage, GridPoint(12, 10))),
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.MissionHandoff, result.session.lastResult?.status)
+        assertEquals(Missions.koboldVillage, result.session.lastResult?.mission)
+        assertTrue(result.session.step is WildernessSessionStep.Mission)
+        val mission = result.session.step
+        assertTrue(mission.continuation?.battleSession?.encounter?.monster?.id == Monsters.koboldHorde)
+        assertFalse(result.session.party.hasFlagState(Story.masterCrown.task1Done))
+        assertTrue(terminal.output.any { "kobold village" in it.lowercase() })
+        assertTrue(terminal.output.any { "ENCOUNTER!" in it })
     }
 
     @Test

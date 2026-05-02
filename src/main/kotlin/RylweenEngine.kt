@@ -26,6 +26,7 @@ sealed interface EngineTraceEvent {
     data class WaitInput(val reason: String?) : EngineTraceEvent
     data class Pause(val ms: Int) : EngineTraceEvent
     data class SetFlag(val flag: String, val state: String) : EngineTraceEvent
+    data class AppendJournal(val text: TextBlock) : EngineTraceEvent
     data class Menu(val prompt: TextBlock, val keys: List<Char>) : EngineTraceEvent
     data class AskMember(val prompt: TextBlock, val filter: MemberChoiceFilter) : EngineTraceEvent
     data class AskInventorySlot(
@@ -105,6 +106,9 @@ class ScriptTraceRunner(
             is Op.AddClamped -> ScriptControlSignal.Continue
             is Op.SetFlag -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
+            }
+            is Op.AppendJournal -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.AppendJournal(op.text))
             }
             is Op.If -> runAll(if (eval(op.cond)) op.thenOps else op.elseOps)
             is Op.Loop -> ScriptControlSignal.StopScript.also {
@@ -480,6 +484,7 @@ private class StatefulScriptServiceRunner(
     private var dungeonHandoff: WildernessDungeonHandoff? = null
     private var waiting = false
     private var opBudget = 4096
+    private val textRenderer = TerminalTextRenderer(characters = speakContent.characters)
 
     fun run(): StatefulScriptResult {
         runUntilBlockedOrFinished()
@@ -557,6 +562,7 @@ private class StatefulScriptServiceRunner(
                 advanceTop()
                 engine.trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
             }
+            is Op.AppendJournal -> appendJournal(op.text)
             is Op.If -> {
                 val branch = if (eval(op.cond)) TownServiceScriptBranch.IfThen else TownServiceScriptBranch.IfElse
                 advanceTop()
@@ -635,6 +641,14 @@ private class StatefulScriptServiceRunner(
                 engine.effect(EngineRequest(op.path, op.args))
             }
         }
+    }
+
+    private fun appendJournal(text: TextBlock) {
+        party = party.withJournalLines(
+            textRenderer.lines(text, TerminalTextContext(runtime = currentRuntime())),
+        )
+        advanceTop()
+        engine.trace(EngineTraceEvent.AppendJournal(text))
     }
 
     private fun waitInput(reason: String?) {
@@ -1075,6 +1089,8 @@ class TerminalTextRenderer(
             is TextPart.RoleLocation -> roleLocation(part.role, context.runtime) ?: "{${part.role.slug}.location}"
             is TextPart.TownName -> townName(part.town)
             is TextPart.FuzzyTownLocation -> townLocation(part.town, part.radius) ?: "${part.town.slug}.location"
+            is TextPart.LocationCoordinate -> locationCoordinate(part.location, context.runtime)
+                ?: "{${part.location.slug}.coordinates}"
             TextPart.OfferedItemName -> context.offeredItemName ?: "{item_name}"
             TextPart.OfferedItemPrice -> context.offeredItemPrice?.toString() ?: "{item_price}"
             TextPart.ShopPrice -> context.shopPrice?.toString() ?: "{price}"
@@ -1086,7 +1102,7 @@ class TerminalTextRenderer(
             is StrAst.NativeString -> when (ast.path) {
                 NativeAllowlist.partyMemberName.path -> {
                     val index = ast.args.singleOrNull()?.literalInt()
-                    index?.let { context.runtime?.activeParty?.members?.getOrNull(it)?.name } ?: "{party.name}"
+                    index?.let { context.runtime?.activeParty?.members?.getOrNull(it - 1)?.name } ?: "{party.name}"
                 }
                 NativeAllowlist.partyPronounSubject.path ->
                     renderPronoun(ast, context, PronounCase.Subject)
@@ -1100,7 +1116,7 @@ class TerminalTextRenderer(
 
     private fun renderPronoun(ast: StrAst.NativeString, context: TerminalTextContext, case: PronounCase): String {
         val index = ast.args.singleOrNull()?.literalInt()
-        val gender = index?.let { context.runtime?.activeParty?.members?.getOrNull(it)?.gender } ?: return "{pronoun}"
+        val gender = index?.let { context.runtime?.activeParty?.members?.getOrNull(it - 1)?.gender } ?: return "{pronoun}"
         return when (case) {
             PronounCase.Subject -> if (gender == Gender.Female) "she" else "he"
             PronounCase.Object -> if (gender == Gender.Female) "her" else "him"
@@ -1141,6 +1157,13 @@ class TerminalTextRenderer(
         val model = towns.firstOrNull { it.id == town } ?: return null
         return point(fuzzyPoint(model.position, town.slug, radius))
     }
+
+    private fun locationCoordinate(location: LocationId, runtime: RuntimeSessionState?): String? =
+        runtime
+            ?.locations
+            ?.firstOrNull { it.location == location }
+            ?.point
+            ?.let(::point)
 
     private fun fuzzyPoint(point: GridPoint, slug: String, radius: Int): GridPoint =
         if (radius <= 0) {
@@ -1799,6 +1822,7 @@ class TownSessionTerminalAdapter(
                 is EngineTraceEvent.WaitInput,
                 is EngineTraceEvent.Pause,
                 is EngineTraceEvent.SetFlag,
+                is EngineTraceEvent.AppendJournal,
                 is EngineTraceEvent.GrantReward,
                 is EngineTraceEvent.AchieveMilestone,
                 is EngineTraceEvent.Speak,
@@ -2027,6 +2051,7 @@ class WildernessSessionTerminalAdapter(
                 is EngineTraceEvent.WaitInput,
                 is EngineTraceEvent.Pause,
                 is EngineTraceEvent.SetFlag,
+                is EngineTraceEvent.AppendJournal,
                 is EngineTraceEvent.GrantReward,
                 is EngineTraceEvent.AchieveMilestone,
                 is EngineTraceEvent.Speak,
