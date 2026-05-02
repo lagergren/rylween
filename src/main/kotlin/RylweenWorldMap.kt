@@ -210,8 +210,8 @@ data class WildernessSession(
     val rewards: List<RewardBundleModel> = emptyList(),
     val leveling: LevelingModel? = null,
     val spells: List<SpellModel> = emptyList(),
-    val magicItems: List<MagicItemModel> = emptyList(),
-    val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    val itemUses: List<ItemUseModel> = emptyList(),
+    val itemRecords: List<ItemRecordModel> = emptyList(),
     val upkeepRules: WildernessUpkeepRules = WildernessUpkeepRules(),
     val step: WildernessSessionStep = WildernessSessionStep.TurnStart,
     val lastResult: WildernessSessionResult? = null,
@@ -524,7 +524,7 @@ data class WildernessSession(
             rewards = rewards,
             leveling = leveling,
             spells = spells,
-            magicItems = magicItems,
+            itemUses = itemUses,
         )
         return copy(
             runtime = battleSession.runtime,
@@ -696,7 +696,7 @@ data class WildernessSession(
             content: GameModel,
             runtime: RuntimeSessionState,
             worldMap: WorldMapGrid,
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = content.itemCatalog,
         ): WildernessSession =
             WildernessSession(
                 runtime = runtime.withRealm(
@@ -718,7 +718,7 @@ data class WildernessSession(
                 rewards = content.rewards,
                 leveling = content.leveling,
                 spells = content.spells,
-                magicItems = content.magicItems,
+                itemUses = content.itemUses,
                 itemRecords = itemRecords,
             )
     }

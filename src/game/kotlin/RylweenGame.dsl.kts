@@ -47,6 +47,138 @@ val nextRylween = rylween {
         encounter(Story.encounter.immune)
     }
 
+    items {
+        empty(Items.none)
+
+        weapon(Items.sword, "Sword", cost = 160, damage = 6)
+        weapon(Items.axe, "Axe", cost = 240, damage = 10)
+        weapon(Items.bow, "Bow", cost = 160, damage = 7)
+        weapon(Items.club, "Club", cost = 140, damage = 4)
+        weapon(Items.dart, "Dart", cost = 40, damage = 3)
+        weapon(Items.sling, "Sling", cost = 165, damage = 5)
+        weapon(Items.longsword, "Longsword", cost = 280, damage = 9)
+        weapon(Items.trident, "Trident", cost = 350, damage = 11)
+        weapon(Items.halbard, "Halbard", cost = 500, damage = 14)
+        weapon(Items.poleArm, "Pole arm", cost = 670, damage = 18)
+        weapon(Items.crossbow, "Crossbow", cost = 900, damage = 21)
+        weapon(Items.scythe, "Scythe", cost = 870, damage = 14)
+        weapon(Items.scimitar, "Scimitar", cost = 600, damage = 8)
+        weapon(Items.twoHandSword, "2H-Sword", cost = 1200, damage = 19)
+        weapon(Items.magicDagger, "Magic Dagger", cost = 1800, damage = 24)
+        weapon(Items.magicSword, "Magic Sword", cost = 3000, damage = 30)
+        weapon(Items.magicAxe, "Magic Axe", cost = 4000, damage = 38)
+        weapon(Items.dancingSword, "Dancing Sword", cost = 6000, damage = 50)
+        weapon(Items.deathBlade, "Death Blade", cost = 10000, damage = 68)
+
+        armor(Items.leather, "Leather", cost = 260, armorClass = 2)
+        armor(Items.chainMail, "Chain Mail", cost = 600, armorClass = 5)
+        armor(Items.plateMail, "Plate Mail", cost = 980, armorClass = 7)
+        armor(Items.ringMail, "Ring Mail", cost = 1950, armorClass = 9)
+        armor(Items.elvinCloak, "Elvin Cloak", cost = 3600, armorClass = 12)
+        armor(Items.mithrilMail, "Mithril Mail", cost = 5800, armorClass = 14)
+        armor(Items.admtMail, "Admt. Mail", cost = 9400, armorClass = 16)
+        armor(Items.protSphere, "Prot. Sphere", cost = 15000, armorClass = 20)
+        armor(Items.cloakOfGods, "Cloak of Gods", cost = 28000, armorClass = 30)
+
+        gear(Items.torch, "Torch", cost = 1)
+        gear(Items.ration, "Ration", cost = 2)
+        gear(Items.blanket, "Blanket", cost = 30)
+        gear(Items.tent, "Tent", cost = 80)
+        gear(Items.rope, "Rope", cost = 15)
+
+        potion(Items.redPotion, "Red Potion", cost = 30)
+        potion(Items.bluePotion, "Blue Potion", cost = 100)
+        potion(Items.amberPotion, "Amber Potion", cost = 500)
+
+        treasure(Items.redGem, "Red Gem", cost = 1000)
+        treasure(Items.blueGem, "Blue Gem", cost = 1200)
+        treasure(Items.greenGem, "Green Gem", cost = 1900)
+        treasure(Items.chalice, "Chalice", cost = 2340)
+        treasure(Items.pendant, "Pendant", cost = 5000)
+        treasure(Items.broche, "Broche", cost = 1234)
+        treasure(Items.crystalBowl, "Crystal Bowl", cost = 4567)
+        treasure(Items.necklace, "Necklace", cost = 987)
+        treasure(Items.donkey, "Donkey", cost = 800)
+
+        special(Items.fireshield, "Fire Shield")
+        special(Items.bracelets, "Bracelets of Thun")
+        special(Items.mastercrown, "Master Crown")
+        special(Items.jazzyfoot, "Jazzyfoot")
+        special(Items.silverkey, "Silver Key")
+
+        magicItem(Items.frostWand, "Frost Wand", cost = 1000)
+        magicItem(Items.fireWand, "Fire Wand", cost = 3000)
+        magicItem(Items.gemOfConfusion, "Gem of Confusion", cost = 1560)
+        magicItem(Items.gemOfBlindness, "Gem of Blindness", cost = 4900)
+        magicItem(Items.drumsOfDeath, "Drums of Death", cost = 4500)
+        magicItem(Items.staffOfHealing, "Staff of Healing", cost = 670)
+        magicItem(Items.blessingScroll, "Blessing Scroll", cost = 2000)
+        magicItem(Items.staffOfCuring, "Staff of Curing", cost = 4343)
+        magicItem(Items.gemOfResurrection, "Gem of Resurrection", cost = 9000)
+        magicItem(Items.kaelsAxe, "Kael's Axe", cost = 14000)
+        magicItem(Items.holyHandgrenade, "Holy Handgrenade", cost = 5600)
+        magicItem(Items.fluteOfMadness, "Flute of Madness", cost = 9000)
+
+        pool(ItemPools.battleSpoils) {
+            items(
+                Items.redPotion,
+                Items.bluePotion,
+                Items.amberPotion,
+                Items.redGem,
+                Items.blueGem,
+                Items.greenGem,
+                Items.chalice,
+                Items.pendant,
+                Items.broche,
+                Items.crystalBowl,
+                Items.necklace,
+            )
+        }
+
+        pool(ItemPools.magicItems) {
+            items(
+                Items.frostWand,
+                Items.fireWand,
+                Items.gemOfConfusion,
+                Items.gemOfBlindness,
+                Items.drumsOfDeath,
+                Items.staffOfHealing,
+                Items.blessingScroll,
+                Items.staffOfCuring,
+                Items.gemOfResurrection,
+                Items.kaelsAxe,
+                Items.holyHandgrenade,
+                Items.fluteOfMadness,
+            )
+        }
+
+        pool(ItemPools.tavernScruffySpecials) {
+            items(
+                Items.magicDagger,
+                Items.magicAxe,
+                Items.admtMail,
+                Items.amberPotion,
+                Items.greenGem,
+                Items.frostWand,
+                Items.fireWand,
+                Items.gemOfConfusion,
+                Items.gemOfBlindness,
+                Items.drumsOfDeath,
+                Items.staffOfHealing,
+                Items.blessingScroll,
+                Items.staffOfCuring,
+                Items.gemOfResurrection,
+                Items.kaelsAxe,
+                Items.holyHandgrenade,
+                Items.fluteOfMadness,
+            )
+        }
+
+        pool(ItemPools.thunAltarGems) {
+            items(Items.redGem, Items.blueGem, Items.greenGem)
+        }
+    }
+
     gameProgress {
         milestone(Milestones.fireShield) {
             showsAs(Items.fireshield)
@@ -2874,7 +3006,78 @@ val nextRylween = rylween {
         battle.partyConfused set true
     }
 
-    magicItem(Items.frostWand) {
+    itemUse(Items.redPotion) {
+        inventory()
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            val maxMembers = realm.partyMemberMax
+            val target = ask.member(
+                structuredText {
+                    line("Who? (1-", maxMembers, ")")
+                },
+                filter = MemberChoiceFilter.AliveOnly,
+            )
+
+            target.hp.addClamped(15, target.maxHp)
+            screen {
+                line(partyName(target), " recovers")
+                line("15 hit points.")
+            }
+            pause(1000)
+        }
+    }
+
+    itemUse(Items.bluePotion) {
+        inventory()
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            val maxMembers = realm.partyMemberMax
+            val target = ask.member(
+                structuredText {
+                    line("Who? (1-", maxMembers, ")")
+                },
+                filter = MemberChoiceFilter.AliveOnly,
+            )
+
+            target.hp -= 15
+            screen {
+                line(partyName(target), " is poisoned")
+                line("for 15 hit points.")
+            }
+            whenever(target.hp lte 0) {
+                target.hp set 0
+                target.dead set true
+            }
+            pause(1000)
+        }
+    }
+
+    itemUse(Items.amberPotion) {
+        inventory()
+        consume = ItemConsumePolicy.BeforeUse
+
+        effect {
+            val maxMembers = realm.partyMemberMax
+            val target = ask.member(
+                structuredText {
+                    line("Who? (1-", maxMembers, ")")
+                },
+                filter = MemberChoiceFilter.SpellcasterOnly,
+                accepting = MemberChoiceFilter.AliveOnly,
+            )
+
+            target.mp.addClamped(15, target.maxMp)
+            screen {
+                line(partyName(target), " recovers")
+                line("15 spell points.")
+            }
+            pause(1000)
+        }
+    }
+
+    itemUse(Items.frostWand) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -2901,7 +3104,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.fireWand) {
+    itemUse(Items.fireWand) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -2933,7 +3136,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.gemOfConfusion) {
+    itemUse(Items.gemOfConfusion) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -2959,7 +3162,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.gemOfBlindness) {
+    itemUse(Items.gemOfBlindness) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -2986,7 +3189,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.drumsOfDeath) {
+    itemUse(Items.drumsOfDeath) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -3009,7 +3212,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.staffOfHealing) {
+    itemUse(Items.staffOfHealing) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -3035,7 +3238,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.blessingScroll) {
+    itemUse(Items.blessingScroll) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -3062,7 +3265,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.staffOfCuring) {
+    itemUse(Items.staffOfCuring) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -3080,7 +3283,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.gemOfResurrection) {
+    itemUse(Items.gemOfResurrection) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.ScriptControlled
 
@@ -3113,7 +3316,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.kaelsAxe) {
+    itemUse(Items.kaelsAxe) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -3151,7 +3354,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.holyHandgrenade) {
+    itemUse(Items.holyHandgrenade) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -3180,7 +3383,7 @@ val nextRylween = rylween {
         }
     }
 
-    magicItem(Items.fluteOfMadness) {
+    itemUse(Items.fluteOfMadness) {
         usableIn(ItemUseContext.Combat)
         consume = ItemConsumePolicy.BeforeUse
 
@@ -4221,8 +4424,9 @@ val nextDsl = nextRylween.content
 
 check(nextDsl.flags.size == 13)
 check(nextDsl.authoredFlags.size == 13)
-check(ItemCatalog.all.size == 63)
-check(ItemCatalog.all.single { it.id == Items.redPotion }.potionEffect?.amount == 15)
+check(nextDsl.itemCatalog.size == 63)
+check(nextDsl.itemCatalog.single { it.id == Items.redPotion }.kind == ItemKind.Potion)
+check(nextDsl.itemPools.size == 4)
 check(nextDsl.progress.milestones.size == 6)
 check(nextDsl.progress.win?.required?.size == 5)
 check(nextDsl.leveling?.maxLevel == 28)
@@ -4368,7 +4572,7 @@ check(merchantShop.sell?.acceptedItems == setOf(Items.ration, Items.blanket, Ite
 check(merchantShop.sell?.rejectedItems == setOf(Items.donkey))
 val tavernScene = nextDsl.scenes.single { it.id == Scenes.Towne.tavern }
 check(tavernScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
-check(ItemPools.tavernScruffySpecials.items == listOf(
+check(nextDsl.itemPool(ItemPools.tavernScruffySpecials).items == listOf(
     Items.magicDagger,
     Items.magicAxe,
     Items.admtMail,
@@ -4416,9 +4620,11 @@ check(nextDsl.dialogue.single().branches.any { branch ->
             }
 })
 check(nextDsl.spells.size == 10)
-check(nextDsl.magicItems.size == 12)
-check(nextDsl.magicItems.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
-check(nextDsl.magicItems.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
+check(nextDsl.itemUses.size == 15)
+check(nextDsl.itemUses.count { ItemUseContext.Inventory in it.contexts } == 3)
+check(nextDsl.itemUses.single { it.id == Items.redPotion }.ops.any { it is Op.AskMember })
+check(nextDsl.itemUses.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
+check(nextDsl.itemUses.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
 check(nextDsl.missions.size == 17)
 check(nextDsl.missions.single { it.id == Missions.erethorEntry }.trigger == Trigger.AtPosition(xy(6, 20)))
 check(nextDsl.missions.single { it.id == Missions.hermitDungeon }.trigger == Trigger.AtLocation(Locations.hermitDungeon))
@@ -4448,6 +4654,6 @@ check(winningSnapshotDsl.contains("slot(16).empty()"))
 check(winningSnapshotDsl.contains("mark(runtimeFlagState(\"garth.bandits\", \"recovered\"))"))
 validateFlagCatalog(nextDsl.flags)
 validateAuthoredContent(nextDsl)
-validateGameProgress(nextDsl.progress)
+validateGameProgress(nextDsl.progress, nextDsl.itemCatalog)
 validateStates(nextRylween.states, nextDsl)
 check((nativePathsIn(nextDsl) - NativeAllowlist.byPath.keys).isEmpty())

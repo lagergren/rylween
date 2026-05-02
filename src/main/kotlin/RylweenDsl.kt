@@ -185,10 +185,7 @@ data class ItemRecordModel(
     val storage: ItemStorageKind,
     val weaponDamage: Int? = null,
     val armorClass: Int? = null,
-    val potionEffect: PotionEffectModel? = null,
 )
-enum class PotionEffectKind { HealHitPoints, PoisonHitPoints, RestoreMana }
-data class PotionEffectModel(val kind: PotionEffectKind, val amount: Int? = null)
 data class MonsterId(val slug: String)
 data class EncounterTier(val slug: String)
 data class WorldMapId(val slug: String)
@@ -446,7 +443,7 @@ data class SceneModel(val id: SceneId, val ops: List<Op>)
 data class DialogueModel(val npc: NpcId, val branches: List<DialogueBranchModel>)
 data class DialogueBranchModel(val whenState: FlagState?, val ops: List<Op>)
 data class SpellModel(val id: SpellId, val slot: Int, val baseCost: Int, val name: String, val ops: List<Op>)
-data class MagicItemModel(
+data class ItemUseModel(
     val id: ItemId,
     val contexts: Set<ItemUseContext>,
     val consume: ItemConsumePolicy,
@@ -1061,6 +1058,8 @@ data class SpeakSystemModel(
 )
 
 data class GameModel(
+    val itemCatalog: List<ItemRecordModel>,
+    val itemPools: List<ItemPoolId>,
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
@@ -1077,9 +1076,12 @@ data class GameModel(
     val scenes: List<SceneModel>,
     val dialogue: List<DialogueModel>,
     val spells: List<SpellModel>,
-    val magicItems: List<MagicItemModel>,
+    val itemUses: List<ItemUseModel>,
     val missions: List<MissionModel>,
 )
+
+fun GameModel.itemPool(pool: ItemPoolId): ItemPoolId =
+    itemPools.firstOrNull { it == pool } ?: pool
 
 sealed interface Trigger {
     data class RandomStep(val percent: Int) : Trigger
@@ -1385,6 +1387,9 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
     val hp = intField("hit_points")
     val maxHp = intField("health")
     val mp = intField("magic")
+    val maxMp = intField("magic_max")
+    val mana = mp
+    val maxMana = maxMp
     val level = intField("level")
     val wisdom = intField("wisdom")
     val charisma = intField("charisma")
@@ -2742,8 +2747,199 @@ private fun recordScript(ctx: ScriptContext, body: ScriptScope.() -> Unit): List
         }
     }
 
+data class ItemCatalogDeclaration(
+    val records: List<ItemRecordModel>,
+    val pools: List<ItemPoolId>,
+)
+
+@RylNextDsl
+class ItemPoolBuilder {
+    private val items = mutableListOf<ItemId>()
+
+    fun item(id: ItemId) {
+        items += id
+    }
+
+    fun items(vararg ids: ItemId) {
+        items += ids
+    }
+
+    internal fun build(): List<ItemId> = items.toList()
+}
+
+@RylNextDsl
+class ItemCatalogBuilder {
+    private val records = mutableListOf<ItemRecordModel>()
+    private val pools = mutableListOf<ItemPoolId>()
+
+    fun empty(id: ItemId, name: String = "-", weaponDamage: Int = 1) {
+        record(
+            id = id,
+            kind = ItemKind.Empty,
+            name = name,
+            cost = 0,
+            storage = ItemStorageKind.EmptySentinel,
+            weaponDamage = weaponDamage,
+        )
+    }
+
+    fun weapon(id: ItemId, name: String, cost: Int, damage: Int) {
+        record(id, ItemKind.Weapon, name, cost, weaponDamage = damage)
+    }
+
+    fun armor(id: ItemId, name: String, cost: Int, armorClass: Int) {
+        record(id, ItemKind.Armor, name, cost, armorClass = armorClass)
+    }
+
+    fun gear(id: ItemId, name: String, cost: Int) {
+        record(id, ItemKind.Gear, name, cost)
+    }
+
+    fun potion(id: ItemId, name: String, cost: Int) {
+        record(
+            id = id,
+            kind = ItemKind.Potion,
+            name = name,
+            cost = cost,
+        )
+    }
+
+    fun treasure(id: ItemId, name: String, cost: Int) {
+        record(id, ItemKind.Treasure, name, cost)
+    }
+
+    fun special(id: ItemId, name: String) {
+        record(id, ItemKind.Special, name, cost = 0, storage = ItemStorageKind.SpecialMilestone)
+    }
+
+    fun magicItem(id: ItemId, name: String, cost: Int) {
+        record(id, ItemKind.MagicItem, name, cost)
+    }
+
+    fun pool(id: ItemPoolId, vararg items: ItemId) {
+        pool(id, items.toList())
+    }
+
+    fun pool(id: ItemPoolId, items: List<ItemId>) {
+        pools += itemPool(id.slug, items)
+    }
+
+    fun pool(id: ItemPoolId, body: ItemPoolBuilder.() -> Unit) {
+        pool(id, ItemPoolBuilder().apply(body).build())
+    }
+
+    private fun record(
+        id: ItemId,
+        kind: ItemKind,
+        name: String,
+        cost: Int,
+        storage: ItemStorageKind = ItemStorageKind.SlottedInventory,
+        weaponDamage: Int? = null,
+        armorClass: Int? = null,
+    ) {
+        records += ItemRecordModel(id, kind, name, cost, storage, weaponDamage, armorClass)
+    }
+
+    internal fun build(): ItemCatalogDeclaration =
+        ItemCatalogDeclaration(records.toList(), pools.toList())
+}
+
+private fun RewardBundleModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): RewardBundleModel =
+    copy(loot = loot.copy(treasure = resolve(loot.treasure), magic = resolve(loot.magic)))
+
+private fun SceneModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SceneModel =
+    copy(ops = ops.resolveItemPools(resolve))
+
+private fun DialogueModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): DialogueModel =
+    copy(branches = branches.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
+
+private fun SpellModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpellModel =
+    copy(ops = ops.resolveItemPools(resolve))
+
+private fun ItemUseModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): ItemUseModel =
+    copy(ops = ops.resolveItemPools(resolve))
+
+private fun List<Op>.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<Op> =
+    map { it.resolveItemPools(resolve) }
+
+private fun List<SwitchCase>.resolveSwitchItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<SwitchCase> =
+    map { it.copy(body = it.body.resolveItemPools(resolve)) }
+
+private fun List<MenuOption>.resolveMenuItemPools(resolve: (ItemPoolId) -> ItemPoolId): List<MenuOption> =
+    map { it.copy(body = it.body.resolveItemPools(resolve)) }
+
+private fun Op.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): Op =
+    when (this) {
+        is Op.LetInt -> copy(value = value.resolveItemPools(resolve))
+        is Op.Set -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
+        is Op.Add -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
+        is Op.Sub -> copy(target = target.resolveItemPools(resolve), value = value.resolveItemPools(resolve))
+        is Op.AddClamped -> copy(
+            target = target.resolveItemPools(resolve),
+            value = value.resolveItemPools(resolve),
+            max = max.resolveItemPools(resolve),
+        )
+        is Op.If -> copy(
+            cond = cond.resolveItemPools(resolve),
+            thenOps = thenOps.resolveItemPools(resolve),
+            elseOps = elseOps.resolveItemPools(resolve),
+        )
+        is Op.Loop -> copy(body = body.resolveItemPools(resolve))
+        is Op.Switch -> copy(expr = expr.resolveItemPools(resolve), cases = cases.resolveSwitchItemPools(resolve))
+        is Op.Menu -> copy(
+            options = options.resolveMenuItemPools(resolve),
+            defaultOps = defaultOps.resolveItemPools(resolve),
+        )
+        is Op.AskMember -> copy()
+        is Op.AskInventorySlot -> copy()
+        is Op.ForEachMember -> copy(body = body.resolveItemPools(resolve))
+        is Op.ForEachMonster -> copy(body = body.resolveItemPools(resolve))
+        is Op.ConsumeInventoryPool -> copy(pool = resolve(pool), quantity = quantity.resolveItemPools(resolve))
+        is Op.GrantReward -> copy(reward = reward.resolveItemPools(resolve))
+        is Op.RandomItemOffer -> copy(offer = offer.copy(pool = resolve(offer.pool)))
+        else -> this
+    }
+
+private fun ScriptRewardModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): ScriptRewardModel =
+    copy(gold = gold?.resolveItemPools(resolve))
+
+private fun LValueAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): LValueAst =
+    when (this) {
+        is LValueAst.MemberField -> copy(member = member.resolveItemPools(resolve))
+        is LValueAst.MonsterField -> copy(monster = monster.resolveItemPools(resolve))
+        else -> this
+    }
+
+private fun IntAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): IntAst =
+    when (this) {
+        is IntAst.Binary -> copy(left = left.resolveItemPools(resolve), right = right.resolveItemPools(resolve))
+        is IntAst.If -> copy(
+            cond = cond.resolveItemPools(resolve),
+            thenValue = thenValue.resolveItemPools(resolve),
+            elseValue = elseValue.resolveItemPools(resolve),
+        )
+        is IntAst.Random -> copy(lo = lo.resolveItemPools(resolve), hi = hi.resolveItemPools(resolve))
+        is IntAst.MemberField -> copy(member = member.resolveItemPools(resolve))
+        is IntAst.MonsterField -> copy(monster = monster.resolveItemPools(resolve))
+        is IntAst.InventoryPoolCount -> copy(pool = resolve(pool))
+        else -> this
+    }
+
+private fun BoolAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): BoolAst =
+    when (this) {
+        is BoolAst.Cmp -> copy(left = left.resolveItemPools(resolve), right = right.resolveItemPools(resolve))
+        is BoolAst.Not -> copy(expr = expr.resolveItemPools(resolve))
+        is BoolAst.And -> copy(left = left.resolveItemPools(resolve), right = right.resolveItemPools(resolve))
+        is BoolAst.Or -> copy(left = left.resolveItemPools(resolve), right = right.resolveItemPools(resolve))
+        is BoolAst.MemberFlag -> copy(member = member.resolveItemPools(resolve))
+        is BoolAst.MonsterFlag -> copy(monster = monster.resolveItemPools(resolve))
+        else -> this
+    }
+
 @RylNextDsl
 class GameBuilder {
+    private val itemRecords = mutableListOf<ItemRecordModel>()
+    private val itemPools = mutableListOf<ItemPoolId>()
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
     private var levelingModel: LevelingModel? = null
@@ -2759,11 +2955,17 @@ class GameBuilder {
     private val scenes = mutableListOf<SceneModel>()
     private val dialogue = mutableListOf<DialogueModel>()
     private val spells = mutableListOf<SpellModel>()
-    private val magicItems = mutableListOf<MagicItemModel>()
+    private val itemUses = mutableListOf<ItemUseModel>()
     private val missions = mutableListOf<MissionModel>()
 
     fun flags(body: FlagContentBuilder.() -> Unit) {
         authoredFlags += FlagContentBuilder().apply(body).build()
+    }
+
+    fun items(body: ItemCatalogBuilder.() -> Unit) {
+        val declaration = ItemCatalogBuilder().apply(body).build()
+        itemRecords += declaration.records
+        itemPools += declaration.pools
     }
 
     fun gameProgress(body: GameProgressBuilder.() -> Unit) {
@@ -2826,18 +3028,24 @@ class GameBuilder {
         spells += SpellModel(id, slot, baseCost, name, recordScript(body))
     }
 
-    fun magicItem(id: ItemId, body: MagicItemUseBuilder.() -> Unit) {
-        magicItems += MagicItemUseBuilder(id).apply(body).build()
+    fun itemUse(id: ItemId, body: ItemUseBuilder.() -> Unit) {
+        itemUses += ItemUseBuilder(id).apply(body).build()
     }
 
-    fun build(): GameModel =
-        GameModel(
+    fun build(): GameModel {
+        val itemPoolBySlug = itemPools.associateBy { it.slug }
+        fun resolveItemPool(pool: ItemPoolId): ItemPoolId =
+            itemPoolBySlug[pool.slug] ?: pool
+
+        return GameModel(
+            itemCatalog = itemRecords.toList(),
+            itemPools = itemPools.toList(),
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
             progress = progressModel,
             leveling = levelingModel,
             formulas = formulasModel.toList(),
-            rewards = rewardsModel.toList(),
+            rewards = rewardsModel.map { it.resolveItemPools(::resolveItemPool) },
             combat = combatModel,
             wilderness = wildernessModel,
             speak = speakModel,
@@ -2845,12 +3053,13 @@ class GameBuilder {
             townSystem = townSystemModel,
             characters = characters.toList(),
             monsters = monsters.toList(),
-            scenes = scenes.toList(),
-            dialogue = dialogue.toList(),
-            spells = spells.toList(),
-            magicItems = magicItems.toList(),
+            scenes = scenes.map { it.resolveItemPools(::resolveItemPool) },
+            dialogue = dialogue.map { it.resolveItemPools(::resolveItemPool) },
+            spells = spells.map { it.resolveItemPools(::resolveItemPool) },
+            itemUses = itemUses.map { it.resolveItemPools(::resolveItemPool) },
             missions = missions.toList(),
         )
+    }
 
 }
 
@@ -3599,7 +3808,7 @@ class FormulaBuilder(private val id: FormulaId) {
 }
 
 @RylNextDsl
-class MagicItemUseBuilder(private val id: ItemId) {
+class ItemUseBuilder(private val id: ItemId) {
     private val contexts = mutableSetOf(ItemUseContext.Combat)
     var consume: ItemConsumePolicy = ItemConsumePolicy.BeforeUse
     private var ops = emptyList<Op>()
@@ -3609,12 +3818,18 @@ class MagicItemUseBuilder(private val id: ItemId) {
         this.contexts += contexts
     }
 
+    fun combat() = usableIn(ItemUseContext.Combat)
+
+    fun inventory() = usableIn(ItemUseContext.Inventory)
+
+    fun combatAndInventory() = usableIn(ItemUseContext.Combat, ItemUseContext.Inventory)
+
     fun effect(body: ScriptScope.() -> Unit) {
         ops = recordScript(body)
     }
 
-    fun build(): MagicItemModel =
-        MagicItemModel(id, contexts.toSet(), consume, ops)
+    fun build(): ItemUseModel =
+        ItemUseModel(id, contexts.toSet(), consume, ops)
 }
 
 @RylNextDsl
@@ -5002,7 +5217,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
         dialogue.branches.forEach { ops(it.ops) }
     }
     model.spells.forEach { ops(it.ops) }
-    model.magicItems.forEach { ops(it.ops) }
+    model.itemUses.forEach { ops(it.ops) }
     model.missions.forEach {
         it.requires?.let { bool(it) }
     }

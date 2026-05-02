@@ -149,7 +149,7 @@ data class BattleSession(
     val rewards: List<RewardBundleModel>,
     val leveling: LevelingModel?,
     val spells: List<SpellModel>,
-    val magicItems: List<MagicItemModel>,
+    val itemUses: List<ItemUseModel>,
     val tier: EncounterTier?,
     val encounter: BattleMonsterState,
     val round: BattleRoundState,
@@ -361,7 +361,7 @@ data class BattleSession(
     private fun useMagicItem(memberIndex: Int, slot: Int): BattleSession {
         val item = runtime.activeParty.inventoryItem(slot)
         val model = item?.let { itemId ->
-            magicItems.firstOrNull { use ->
+            itemUses.firstOrNull { use ->
                 use.id == itemId && ItemUseContext.Combat in use.contexts
             }
         }
@@ -770,12 +770,12 @@ data class BattleSession(
             monsters: List<MonsterModel>,
             tier: EncounterTier,
             mandatory: Boolean = false,
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = emptyList(),
             formulas: List<FormulaModel> = emptyList(),
             rewards: List<RewardBundleModel> = emptyList(),
             leveling: LevelingModel? = null,
             spells: List<SpellModel> = emptyList(),
-            magicItems: List<MagicItemModel> = emptyList(),
+            itemUses: List<ItemUseModel> = emptyList(),
         ): BattleSession {
             requireNotNull(combat.standardBattle) { "standard battle is not configured" }
             val candidates = monsters.filter { it.tier == tier }
@@ -794,7 +794,7 @@ data class BattleSession(
                 rewards = rewards,
                 leveling = leveling,
                 spells = spells,
-                magicItems = magicItems,
+                itemUses = itemUses,
             )
         }
 
@@ -804,12 +804,12 @@ data class BattleSession(
             monster: MonsterModel,
             tier: EncounterTier? = monster.tier,
             mandatory: Boolean = false,
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = emptyList(),
             formulas: List<FormulaModel> = emptyList(),
             rewards: List<RewardBundleModel> = emptyList(),
             leveling: LevelingModel? = null,
             spells: List<SpellModel> = emptyList(),
-            magicItems: List<MagicItemModel> = emptyList(),
+            itemUses: List<ItemUseModel> = emptyList(),
         ): BattleSession {
             val battle = requireNotNull(combat.standardBattle) { "standard battle is not configured" }
             val firstLevel = runtime.activeParty.members.firstOrNull().levelOrZero()
@@ -840,7 +840,7 @@ data class BattleSession(
                 rewards = rewards,
                 leveling = leveling,
                 spells = spells,
-                magicItems = magicItems,
+                itemUses = itemUses,
                 tier = tier,
                 encounter = encounter,
                 round = BattleRoundState(
@@ -1150,6 +1150,7 @@ private class CombatScriptRunner(
             "hit_points" -> member.hitPoints.current
             "health" -> member.health
             "magic" -> member.mana.current
+            "magic_max" -> member.mana.max
             "level" -> member.level
             "wisdom" -> member.wisdom
             "charisma" -> member.charisma
@@ -1166,6 +1167,10 @@ private class CombatScriptRunner(
             "hit_points" -> member.copy(hitPoints = value.coerceAtLeast(0) of member.hitPoints.max)
             "health" -> member.copy(health = value.coerceAtLeast(0), hitPoints = member.hitPoints.current of value.coerceAtLeast(0))
             "magic" -> member.copy(mana = value.coerceAtLeast(0) manaOf member.mana.max)
+            "magic_max" -> {
+                val max = value.coerceAtLeast(0)
+                member.copy(mana = member.mana.current.coerceAtMost(max) manaOf max)
+            }
             "level" -> member.copy(level = value.coerceAtLeast(1))
             "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
             "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
@@ -2208,7 +2213,7 @@ data class RandomItemOfferSession(
         fun start(
             offer: RandomItemOfferModel,
             party: PartyState,
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = emptyList(),
             selectedIndex: Int = 0,
         ): RandomItemOfferSession {
             require(offer.pool.items.isNotEmpty()) { "random item offer ${offer.pool.slug} has no items" }
@@ -2340,7 +2345,7 @@ data class RewardGrantSession(
             reward: ScriptRewardModel,
             party: PartyState,
             gold: Int = 0,
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = emptyList(),
         ): RewardGrantSession {
             val itemRecordById = itemRecords.associateBy { it.id }
             reward.items.forEach { item ->
@@ -2373,8 +2378,8 @@ data class BattleRuntimeContent(
     val rewards: List<RewardBundleModel> = emptyList(),
     val leveling: LevelingModel? = null,
     val spells: List<SpellModel> = emptyList(),
-    val magicItems: List<MagicItemModel> = emptyList(),
-    val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    val itemUses: List<ItemUseModel> = emptyList(),
+    val itemRecords: List<ItemRecordModel> = emptyList(),
 ) {
     val configured: Boolean get() = combat.standardBattle != null
 }
@@ -2567,6 +2572,7 @@ data class EquipmentPromptSession(
     val command: EquipmentCommand,
     val party: PartyState,
     val step: EquipmentPromptStep,
+    val itemRecords: List<ItemRecordModel> = emptyList(),
     val inventorySlot: Int? = null,
 ) {
     fun apply(input: EquipmentPromptInput): EquipmentPromptSession =
@@ -2585,19 +2591,23 @@ data class EquipmentPromptSession(
             is EquipmentPromptStep.ChooseMember -> {
                 val member = (input as? EquipmentPromptInput.Member)
                     ?: error("equipment session is choosing a member")
-                val result = party.applyEquipmentCommand(command, member.memberNumber, inventorySlot)
+                val result = party.applyEquipmentCommand(command, member.memberNumber, inventorySlot, itemRecords)
                 copy(party = result.party, step = EquipmentPromptStep.Finished(result))
             }
             is EquipmentPromptStep.Finished -> error("equipment session is already finished: $current")
         }
 
     companion object {
-        fun start(command: EquipmentCommand, party: PartyState): EquipmentPromptSession {
+        fun start(
+            command: EquipmentCommand,
+            party: PartyState,
+            itemRecords: List<ItemRecordModel> = emptyList(),
+        ): EquipmentPromptSession {
             val prompt = command.prompt()
             val step = prompt.inventoryFilter?.let {
                 EquipmentPromptStep.ChooseInventorySlot(EquipmentPromptText.inventory, it)
             } ?: EquipmentPromptStep.ChooseMember(EquipmentPromptText.who, prompt.memberFilter)
-            return EquipmentPromptSession(command, party, step)
+            return EquipmentPromptSession(command, party, step, itemRecords)
         }
     }
 }
@@ -2611,7 +2621,7 @@ sealed interface TownLeaveEquipmentStep {
 data class TownLeaveEquipmentSession(
     val party: PartyState,
     val step: TownLeaveEquipmentStep,
-    val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    val itemRecords: List<ItemRecordModel> = emptyList(),
     val phase: Int = 0,
     val lastResult: EquipmentActionResult? = null,
 ) {
@@ -2621,7 +2631,7 @@ data class TownLeaveEquipmentSession(
                 val answer = (input as? TownLeaveEquipmentInput.ReadyAnswer)
                     ?: error("town-leave equipment session is asking a ready question")
                 if (answer.yes) {
-                    copy(step = TownLeaveEquipmentStep.Equipment(EquipmentPromptSession.start(current.command, party)))
+                    copy(step = TownLeaveEquipmentStep.Equipment(EquipmentPromptSession.start(current.command, party, itemRecords)))
                 } else {
                     advance(party, lastResult = null)
                 }
@@ -2667,7 +2677,7 @@ data class TownLeaveEquipmentSession(
 
         fun start(
             party: PartyState,
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = emptyList(),
         ): TownLeaveEquipmentSession {
             val first = readyCommands
                 .withIndex()
@@ -2731,7 +2741,7 @@ data class TownSession(
     val runtime: RuntimeSessionState,
     val shopServices: Map<BuildingId, ShopServiceModel>,
     val serviceScenes: Map<SceneId, SceneModel>,
-    val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    val itemRecords: List<ItemRecordModel> = emptyList(),
     val step: TownSessionStep = TownSessionStep.Menu(town, availableTownActions(town, townSystem)),
     val lastResult: TownSessionResult? = null,
 ) {
@@ -2877,7 +2887,7 @@ data class TownSession(
             townSystem: TownSystemModel,
             scenes: List<SceneModel>,
             runtime: RuntimeSessionState,
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = emptyList(),
         ): TownSession =
             TownSession(
                 town = town,
@@ -2896,7 +2906,7 @@ data class TownSession(
             currentHour: Int,
             rngState: Long? = null,
             npcs: List<NpcPlacement> = emptyList(),
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = emptyList(),
         ): TownSession =
             start(
                 town = town,
@@ -2943,7 +2953,7 @@ data class ShopServiceSession(
     val step: ShopServiceStep,
     val lastTransaction: ShopTransactionResult? = null,
     val lastSellQuote: ShopSellQuoteResult? = null,
-    val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    val itemRecords: List<ItemRecordModel> = emptyList(),
 ) {
     private fun interpreter(): ShopServiceInterpreter = ShopServiceInterpreter(itemRecords)
     private fun mainMenu(): ShopServiceStep =
@@ -3073,7 +3083,7 @@ data class ShopServiceSession(
         fun start(
             shop: ShopServiceModel,
             party: PartyState,
-            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            itemRecords: List<ItemRecordModel> = emptyList(),
         ): ShopServiceSession =
             ShopServiceSession(
                 shop = shop,
@@ -3124,7 +3134,7 @@ private fun Int.floorMod(divisor: Int): Int =
     ((this % divisor) + divisor) % divisor
 
 class ShopServiceInterpreter(
-    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    itemRecords: List<ItemRecordModel> = emptyList(),
 ) {
     private val itemRecordById = itemRecords.associateBy { it.id }
 
@@ -3345,7 +3355,7 @@ fun PartyState.equipFromInventory(
     memberNumber: Int,
     slot: Int,
     kind: EquipmentKind,
-    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    itemRecords: List<ItemRecordModel> = emptyList(),
 ): EquipmentActionResult {
     val memberIndex = memberNumber - 1
     val member = members.getOrNull(memberIndex)
@@ -3430,10 +3440,11 @@ fun PartyState.applyEquipmentCommand(
     command: EquipmentCommand,
     memberNumber: Int,
     inventorySlot: Int? = null,
+    itemRecords: List<ItemRecordModel> = emptyList(),
 ): EquipmentActionResult =
     when (command) {
-        EquipmentCommand.ReadyWeapon -> equipFromInventory(memberNumber, inventorySlot ?: 0, EquipmentKind.Weapon)
-        EquipmentCommand.ReadyArmor -> equipFromInventory(memberNumber, inventorySlot ?: 0, EquipmentKind.Armor)
+        EquipmentCommand.ReadyWeapon -> equipFromInventory(memberNumber, inventorySlot ?: 0, EquipmentKind.Weapon, itemRecords)
+        EquipmentCommand.ReadyArmor -> equipFromInventory(memberNumber, inventorySlot ?: 0, EquipmentKind.Armor, itemRecords)
         EquipmentCommand.RemoveWeapon -> unequipToInventory(memberNumber, EquipmentKind.Weapon)
         EquipmentCommand.RemoveArmor -> unequipToInventory(memberNumber, EquipmentKind.Armor)
     }
@@ -3452,7 +3463,7 @@ val EquipmentActionResult.party: PartyState
 
 fun PartyState.needsTownLeaveReadyPrompt(
     command: EquipmentCommand,
-    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    itemRecords: List<ItemRecordModel> = emptyList(),
 ): Boolean =
     when (command) {
         EquipmentCommand.ReadyWeapon ->
@@ -3508,7 +3519,7 @@ fun PartyState.hasInventoryItem(item: ItemId): Boolean =
 
 fun PartyState.hasInventoryEquipment(
     kind: EquipmentKind,
-    itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+    itemRecords: List<ItemRecordModel> = emptyList(),
 ): Boolean {
     val records = itemRecords.associateBy { it.id }
     return inventory.any { slot ->
