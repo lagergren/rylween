@@ -393,6 +393,11 @@ interface TerminalPort {
     fun write(lines: List<String>)
     fun readLine(): String?
     fun readTextLine(maxLength: Int? = null): String? = readLine()
+    fun writeEngineEvent(
+        event: EngineTraceEvent,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext,
+    ): Boolean = false
 }
 
 data class TerminalTextContext(
@@ -1943,6 +1948,9 @@ private fun TerminalPort.writeScriptEvents(
 ) {
     val context = TerminalTextContext(runtime = runtime)
     events.forEach { event ->
+        if (writeEngineEvent(event, renderer, context)) {
+            return@forEach
+        }
         when (event) {
             is EngineTraceEvent.Screen -> write(renderer.lines(event.text, context))
             is EngineTraceEvent.Emit -> write(listOf("[${event.id.id}]"))
@@ -2265,6 +2273,9 @@ class TownSessionTerminalAdapter(
     private fun writeBridgeEvents(events: List<EngineTraceEvent>, runtime: RuntimeSessionState) {
         val context = TerminalTextContext(runtime = runtime)
         events.forEach { event ->
+            if (terminal.writeEngineEvent(event, renderer, context)) {
+                return@forEach
+            }
             when (event) {
                 is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
                 is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
@@ -2476,6 +2487,15 @@ class DungeonSessionTerminalAdapter(
     }
 
     private fun writeExplore(session: DungeonSession) {
+        session.dungeons.backdrop?.let { image ->
+            terminal.writeEngineEvent(
+                EngineTraceEvent.NativeEffect(
+                    EngineRequest(NativeAllowlist.screenShowImage.path, listOf(image.slug)),
+                ),
+                renderer,
+                TerminalTextContext(runtime = session.runtime),
+            )
+        }
         terminal.write(
             renderer.lines(DungeonPromptText.levelMenu(session.depth), TerminalTextContext(runtime = session.runtime)) +
                 "Options: ${dungeonChoices(session.keys).joinToString("/") { it.binding.label }}",
@@ -2533,6 +2553,15 @@ class WildernessSessionTerminalAdapter(
                 }
                 is WildernessSessionStep.CaveFound -> {
                     val keys = session.wilderness.keys
+                    step.image?.let { image ->
+                        terminal.writeEngineEvent(
+                            EngineTraceEvent.NativeEffect(
+                                EngineRequest(NativeAllowlist.screenShowImage.path, listOf(image.slug)),
+                            ),
+                            renderer,
+                            TerminalTextContext(runtime = session.runtime),
+                        )
+                    }
                     writeMenu(step.prompt, keys.caveKeys().map { it.label })
                     val choices = listOf(
                         TerminalChoice(true, keys.caveEnter),
@@ -2756,6 +2785,9 @@ class WildernessSessionTerminalAdapter(
     private fun writeBridgeEvents(events: List<EngineTraceEvent>, runtime: RuntimeSessionState) {
         val context = TerminalTextContext(runtime = runtime)
         events.forEach { event ->
+            if (terminal.writeEngineEvent(event, renderer, context)) {
+                return@forEach
+            }
             when (event) {
                 is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
                 is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
