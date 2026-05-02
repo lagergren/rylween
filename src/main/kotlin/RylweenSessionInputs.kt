@@ -50,6 +50,7 @@ sealed interface TownLeaveEquipmentInput {
 sealed interface ShopServiceInput {
     object ContinueIntro : ShopServiceInput
     data class Main(val choice: ShopMainChoice) : ShopServiceInput
+    data class SelectCatalog(val catalogKey: Char) : ShopServiceInput
     data class BuyItem(val item: ItemId) : ShopServiceInput
     data class Quantity(val quantity: Int) : ShopServiceInput
     data class ConfirmPurchase(val accept: Boolean) : ShopServiceInput

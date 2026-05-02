@@ -266,6 +266,7 @@ class ShopServiceTraceRunner(
         when (input) {
             ShopServiceInput.ContinueIntro -> continueIntro()
             is ShopServiceInput.Main -> chooseMain(input.choice)
+            is ShopServiceInput.SelectCatalog -> chooseCatalog(input.catalogKey)
             is ShopServiceInput.BuyItem -> chooseBuyItem(input.item)
             is ShopServiceInput.Quantity -> enterQuantity(input.quantity)
             is ShopServiceInput.ConfirmPurchase -> confirmPurchase(input.accept)
@@ -293,6 +294,11 @@ class ShopServiceTraceRunner(
                     if (step.canSell) add(session.shop.keys.sell.primaryChar)
                     add(session.shop.keys.leave.primaryChar)
                 },
+            )
+            is ShopServiceStep.SelectCatalog -> menu(
+                step.prompt,
+                step.catalogs.map { catalog -> catalog.key } +
+                    checkNotNull(session.shop.buy).paymentKeys.decline.primaryChar,
             )
             is ShopServiceStep.BuyItem -> menu(
                 step.prompt,
@@ -2167,6 +2173,22 @@ class ShopServiceTerminalAdapter(
                     when (val input = terminal.readChoice(choices)) {
                         is TerminalInput.Value -> session.chooseMain(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is ShopServiceStep.SelectCatalog -> {
+                    val buy = checkNotNull(session.shop.buy)
+                    val choices = step.catalogs.map { catalog -> TerminalChoice(catalog, catalog.binding) }
+                    write(step.prompt)
+                    when (val input = terminal.readChoice(choices)) {
+                        is TerminalInput.Value -> session.chooseCatalog(input.value)
+                        is TerminalInput.Rejected -> {
+                            if (buy.paymentKeys.decline.matches(input.rejection.input)) {
+                                session.chooseCatalog(buy.paymentKeys.decline.primaryChar)
+                            } else {
+                                return waiting(session, input.rejection)
+                            }
+                        }
                         TerminalInput.Unavailable -> return waiting(session)
                     }
                 }

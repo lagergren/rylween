@@ -1216,6 +1216,33 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun shopSessionSelectsCatalogBeforeMultiCatalogBuyItems() {
+        val shop = testMultiCatalogSmithShop()
+        var session = ShopServiceSession.start(
+            shop,
+            testParty(gold = 1000),
+            compiledItemRecords(),
+            compiledRealmContent(),
+        ).continueIntro()
+
+        session = session.chooseMain(ShopMainChoice.Buy)
+        val select = session.step as ShopServiceStep.SelectCatalog
+        assertEquals(listOf('A', 'W'), select.catalogs.map { it.key })
+
+        session = session.chooseCatalog(select.catalogs.single { it.key == 'A' })
+        val armor = session.step as ShopServiceStep.BuyItem
+        assertEquals(listOf("Armor"), armor.catalogs.map { it.title })
+        assertEquals(listOf(Items.leather), armor.catalogs.single().pages.single().entries.map { it.item })
+
+        session = session.chooseBuyItem(Items.leather).confirmPurchase(accept = true)
+        assertEquals(ShopTransactionStatus.Bought, session.lastTransaction?.status)
+        assertEquals(Items.leather, session.party.inventoryItem(1))
+
+        session = session.chooseMain(ShopMainChoice.Buy).chooseCatalog('N')
+        assertTrue(session.step is ShopServiceStep.MainMenu)
+    }
+
+    @Test
     fun shopSessionQuotesSmithHaggleBeforeSale() {
         val shop = testSmithShop()
         var session = ShopServiceSession.start(
@@ -1335,6 +1362,25 @@ class RylweenDslValidationTest {
         assertEquals(25, saleSession.party.resources.gold)
         assertEquals(null, saleSession.party.inventoryItem(1))
         assertTrue(saleTerminal.output.any { "Offer: 15" in it })
+    }
+
+    @Test
+    fun shopTerminalAdapterRendersSelectedCatalogOnly() {
+        val terminal = FakeTerminalPort("B", "A", "1", "P", "L")
+        val session = ShopServiceTerminalAdapter(terminal).run(
+            ShopServiceSession.start(
+                testMultiCatalogSmithShop(),
+                testParty(gold = 1000),
+                compiledItemRecords(),
+                compiledRealmContent(),
+            ),
+        )
+
+        assertTrue(session.step is ShopServiceStep.Finished)
+        assertEquals(Items.leather, session.party.inventoryItem(1))
+        assertTrue(terminal.output.any { "(A)rmor" in it })
+        assertTrue(terminal.output.any { "(1) Leather" in it })
+        assertFalse(terminal.output.any { "(1) Sword" in it })
     }
 
     @Test
@@ -3987,6 +4033,30 @@ class RylweenDslValidationTest {
                     line("Offer: ", price)
                 }
                 smithHaggle()
+            }
+        }.build()
+
+    private fun testMultiCatalogSmithShop(): ShopServiceModel =
+        ShopServiceBuilder(Buildings.smith).apply {
+            image = Images.Scene.smith
+            intro("Smith")
+            menu("(B)uy item", "(L)eave")
+            buy {
+                prompt(
+                    "Armor or Weapon?",
+                    "",
+                    "(A)rmor",
+                    "(W)eapon",
+                    "(N)othing",
+                )
+                catalog('A', "Armor") {
+                    intro("Armor list")
+                    item('1', Items.leather, label = "Leather")
+                }
+                catalog('W', "Weapons") {
+                    intro("Weapon list")
+                    item('1', Items.sword, label = "Sword")
+                }
             }
         }.build()
 
