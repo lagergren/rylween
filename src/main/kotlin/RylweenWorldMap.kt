@@ -235,25 +235,27 @@ data class WorldMapGrid(
 data class WildernessSession(
     val runtime: RuntimeSessionState,
     val worldMap: WorldMapGrid,
-    val towns: List<TownModel>,
-    val townSystem: TownSystemModel,
-    val scenes: List<SceneModel>,
-    val missions: List<MissionModel> = emptyList(),
-    val wilderness: WildernessSystemModel = WildernessSystemModel(),
-    val dungeons: DungeonSystemModel = DungeonSystemModel(),
-    val combat: CombatSystemModel = CombatSystemModel(null),
-    val monsters: List<MonsterModel> = emptyList(),
-    val formulas: List<FormulaModel> = emptyList(),
-    val rewards: List<RewardBundleModel> = emptyList(),
-    val leveling: LevelingModel? = null,
-    val spells: List<SpellModel> = emptyList(),
-    val itemUses: List<ItemUseModel> = emptyList(),
-    val itemRecords: List<ItemRecordModel> = emptyList(),
-    val realm: RealmContentModel = RealmContentModel(),
+    val content: RuntimeContent = RuntimeContent(),
     val upkeepRules: WildernessUpkeepRules = WildernessUpkeepRules(),
     val step: WildernessSessionStep = WildernessSessionStep.TurnStart,
     val lastResult: WildernessSessionResult? = null,
 ) {
+    val towns: List<TownModel> get() = content.towns
+    val townSystem: TownSystemModel
+        get() = requireNotNull(content.townSystem) { "town system is not configured" }
+    val scenes: List<SceneModel> get() = content.scenes
+    val missions: List<MissionModel> get() = content.missions
+    val wilderness: WildernessSystemModel get() = content.wilderness
+    val dungeons: DungeonSystemModel get() = content.dungeons
+    val combat: CombatSystemModel get() = content.combat
+    val monsters: List<MonsterModel> get() = content.monsters
+    val formulas: List<FormulaModel> get() = content.formulas
+    val rewards: List<RewardBundleModel> get() = content.rewards
+    val leveling: LevelingModel? get() = content.leveling
+    val spells: List<SpellModel> get() = content.spells
+    val itemUses: List<ItemUseModel> get() = content.itemUses
+    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val realm: RealmContentModel get() = content.realm
     val party: PartyState get() = runtime.activeParty
 
     fun apply(input: WildernessSessionInput): WildernessSession =
@@ -326,16 +328,7 @@ data class WildernessSession(
                     worldMap = worldMap,
                     dungeon = current.handoff.dungeon,
                     levels = current.handoff.levels,
-                    dungeons = dungeons,
-                    combat = combat,
-                    monsters = monsters,
-                    formulas = formulas,
-                    rewards = rewards,
-                    leveling = leveling,
-                    spells = spells,
-                    itemUses = itemUses,
-                    itemRecords = itemRecords,
-                    realm = realm,
+                    content = content,
                 ),
             ),
         )
@@ -571,11 +564,9 @@ data class WildernessSession(
             step = WildernessSessionStep.InventoryItemUse(
                 InventoryItemUseSession.start(
                     runtime = runtime,
-                    itemUses = itemUses,
-                    itemRecords = itemRecords,
+                    content = content,
                     allowedKinds = setOf(ItemKind.Potion),
                     choosePrompt = InventoryUsePromptText.quaff,
-                    realmContent = realm,
                 ),
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.InventoryRequested),
@@ -727,15 +718,8 @@ data class WildernessSession(
                     currentMap = worldMap.id,
                 ),
             ),
-            combat = combat,
-            monsters = monsters,
             tier = tier,
-            itemRecords = itemRecords,
-            formulas = formulas,
-            rewards = rewards,
-            leveling = leveling,
-            spells = spells,
-            itemUses = itemUses,
+            content = content,
         )
         return copy(
             runtime = battleSession.runtime,
@@ -791,10 +775,8 @@ data class WildernessSession(
             step = WildernessSessionStep.Town(
                 TownSession.start(
                     town = town,
-                    townSystem = townSystem,
-                    scenes = scenes,
                     runtime = townRuntime,
-                    itemRecords = itemRecords,
+                    content = content,
                 ),
             ),
             lastResult = WildernessSessionResult(
@@ -910,7 +892,17 @@ data class WildernessSession(
             content: GameModel,
             runtime: RuntimeSessionState,
             worldMap: WorldMapGrid,
-            itemRecords: List<ItemRecordModel> = content.itemCatalog,
+        ): WildernessSession =
+            start(
+                content = content.runtimeContent(),
+                runtime = runtime,
+                worldMap = worldMap,
+            )
+
+        fun start(
+            content: RuntimeContent,
+            runtime: RuntimeSessionState,
+            worldMap: WorldMapGrid,
         ): WildernessSession =
             WildernessSession(
                 runtime = runtime.withRealm(
@@ -921,21 +913,7 @@ data class WildernessSession(
                     ),
                 ),
                 worldMap = worldMap,
-                towns = content.towns,
-                townSystem = requireNotNull(content.townSystem) { "town system is not configured" },
-                scenes = content.scenes,
-                missions = content.missions,
-                wilderness = content.wilderness,
-                dungeons = content.dungeons,
-                combat = content.combat,
-                monsters = content.monsters,
-                formulas = content.formulas,
-                rewards = content.rewards,
-                leveling = content.leveling,
-                spells = content.spells,
-                itemUses = content.itemUses,
-                itemRecords = itemRecords,
-                realm = content.realm,
+                content = content,
             )
     }
 }

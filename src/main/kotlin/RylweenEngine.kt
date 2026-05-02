@@ -474,7 +474,7 @@ class StatefulTownServiceBridge(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort = TraceEnginePort(),
     private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
-    private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
+    private val battleContent: RuntimeContent = RuntimeContent(),
     private val worldMap: WorldMapGrid? = null,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(characters = speakContent.characters),
 ) : TownServiceBridge {
@@ -523,7 +523,7 @@ private class StatefulScriptServiceRunner(
     private val rootOps: List<Op>,
     continuation: TownServiceContinuation,
     private val speakContent: SpeakRuntimeContent,
-    private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
+    private val battleContent: RuntimeContent = RuntimeContent(),
     private val worldMap: WorldMapGrid? = null,
     private val textRenderer: TerminalTextRenderer = TerminalTextRenderer(characters = speakContent.characters),
     private val resumeModeAfterBattle: RuntimeMode? = null,
@@ -955,7 +955,7 @@ private class StatefulScriptServiceRunner(
 
     private fun runEncounter(op: Op.Encounter) {
         engine.trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
-        if (!battleContent.configured) {
+        if (!battleContent.battleConfigured) {
             advanceTop()
             return
         }
@@ -966,16 +966,10 @@ private class StatefulScriptServiceRunner(
             }
             battleSession = BattleSession.startMonster(
                 runtime = currentRuntime(),
-                combat = battleContent.combat,
                 monster = monster,
+                content = battleContent,
                 tier = op.tier ?: monster.tier,
                 mandatory = op.mandatory,
-                itemRecords = battleContent.itemRecords,
-                formulas = battleContent.formulas,
-                rewards = battleContent.rewards,
-                leveling = battleContent.leveling,
-                spells = battleContent.spells,
-                itemUses = battleContent.itemUses,
             )
             wait()
             return
@@ -1053,9 +1047,8 @@ private class StatefulScriptServiceRunner(
             RandomItemOfferSession.start(
                 op.offer,
                 party,
-                itemRecords = battleContent.itemRecords,
+                content = battleContent,
                 selectedIndex = draw.value,
-                realmContent = battleContent.realm,
             )
         }
         val result = RandomItemOfferSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
@@ -1083,8 +1076,7 @@ private class StatefulScriptServiceRunner(
             reward = op.reward,
             party = party,
             gold = op.reward.gold?.let(::eval) ?: 0,
-            itemRecords = battleContent.itemRecords,
-            realmContent = battleContent.realm,
+            content = battleContent,
         )
         val result = RewardGrantSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
@@ -1506,11 +1498,8 @@ class RylweenKotlinEngine(
     ): TownSession =
         TownSession.start(
             town = content.towns.single { it.id == town },
-            townSystem = requireNotNull(content.townSystem) { "town system is not configured" },
-            scenes = content.scenes,
             runtime = initialRuntime(party, hour, town, rngState, realizeNpcs),
-            itemRecords = itemRecords,
-            realmContent = content.realm,
+            content = content.runtimeContent(),
         )
 
     fun wildernessSession(
@@ -1524,7 +1513,6 @@ class RylweenKotlinEngine(
             content = content,
             runtime = runtime,
             worldMap = worldMap.withNpcHuts(runtime.npcs),
-            itemRecords = itemRecords,
         )
     }
 
@@ -1649,7 +1637,7 @@ private class RewardGrantSessionTraceRunner(
 private class SpeakSessionTraceRunner(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort,
-    private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
+    private val battleContent: RuntimeContent = RuntimeContent(),
 ) {
     fun runUntilBlocked(initial: SpeakSession): TerminalAdapterResult<SpeakSession> {
         var session = initial
@@ -1854,7 +1842,7 @@ class InventoryItemUseTerminalAdapter(
                         rootOps = step.use.ops,
                         continuation = step.continuation,
                         speakContent = speakContent,
-                        battleContent = BattleRuntimeContent(
+                        battleContent = RuntimeContent(
                             itemRecords = session.itemRecords,
                             realm = session.realmContent,
                         ),
@@ -1933,7 +1921,7 @@ class PriestSpellTerminalAdapter(
                         rootOps = step.spell.ops,
                         continuation = step.continuation,
                         speakContent = speakContent,
-                        battleContent = BattleRuntimeContent(itemRecords = emptyList()),
+                        battleContent = RuntimeContent(itemRecords = emptyList()),
                         worldMap = worldMap,
                         textRenderer = renderer,
                     ).run()
@@ -2270,7 +2258,7 @@ class TownSessionTerminalAdapter(
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
                     val bridge = serviceBridge ?: StatefulTownServiceBridge(
                         terminal,
-                        battleContent = BattleRuntimeContent(
+                        battleContent = RuntimeContent(
                             itemRecords = session.itemRecords,
                             realm = session.realmContent,
                         ),
@@ -2474,17 +2462,10 @@ class DungeonSessionTerminalAdapter(
                 is DungeonSessionStep.RandomEncounter -> {
                     val battle = step.session ?: BattleSession.start(
                         runtime = session.runtime,
-                        combat = session.combat,
-                        monsters = session.monsters,
                         tier = checkNotNull(step.event.randomEncounterTier) {
                             "dungeon random encounter event ${step.event.id.slug} has no tier"
                         },
-                        itemRecords = session.itemRecords,
-                        formulas = session.formulas,
-                        rewards = session.rewards,
-                        leveling = session.leveling,
-                        spells = session.spells,
-                        itemUses = session.itemUses,
+                        content = session.content,
                     )
                     val result = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(battle)
                     val updated = session.copy(step = step.copy(session = battle))
@@ -2518,7 +2499,7 @@ class DungeonSessionTerminalAdapter(
             rootOps = step.event.ops,
             continuation = continuation,
             speakContent = SpeakRuntimeContent(),
-            battleContent = BattleRuntimeContent(
+            battleContent = RuntimeContent(
                 combat = session.combat,
                 monsters = session.monsters,
                 formulas = session.formulas,
@@ -2635,7 +2616,7 @@ class WildernessSessionTerminalAdapter(
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
                     val bridge = StatefulTownServiceBridge(
                         terminal = terminal,
-                        battleContent = BattleRuntimeContent(
+                        battleContent = RuntimeContent(
                             combat = session.combat,
                             monsters = session.monsters,
                             formulas = session.formulas,

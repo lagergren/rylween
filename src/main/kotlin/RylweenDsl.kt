@@ -1140,6 +1140,37 @@ data class SpeakSystemModel(
     val textTables: SpeakTextTablesModel = SpeakTextTablesModel(),
 )
 
+/**
+ * Bundled view of [GameModel] content the reusable sessions actually consume:
+ * combat tables, monster catalog, formulas, rewards, leveling rules, spells,
+ * item-use scripts, item records, realm-level balance, dungeon/wilderness
+ * subsystem config, town list, town menu, scenes, missions, characters.
+ *
+ * Sessions and runtimes accept this as a single parameter so adding a new
+ * content kind is one builder field plus one read site, not a parameter
+ * threaded through twelve constructors.
+ */
+data class RuntimeContent(
+    val combat: CombatSystemModel = CombatSystemModel(null),
+    val monsters: List<MonsterModel> = emptyList(),
+    val formulas: List<FormulaModel> = emptyList(),
+    val rewards: List<RewardBundleModel> = emptyList(),
+    val leveling: LevelingModel? = null,
+    val spells: List<SpellModel> = emptyList(),
+    val itemUses: List<ItemUseModel> = emptyList(),
+    val itemRecords: List<ItemRecordModel> = emptyList(),
+    val realm: RealmContentModel = RealmContentModel(),
+    val dungeons: DungeonSystemModel = DungeonSystemModel(),
+    val wilderness: WildernessSystemModel = WildernessSystemModel(),
+    val towns: List<TownModel> = emptyList(),
+    val townSystem: TownSystemModel? = null,
+    val scenes: List<SceneModel> = emptyList(),
+    val missions: List<MissionModel> = emptyList(),
+    val characters: List<CharacterModel> = emptyList(),
+) {
+    val battleConfigured: Boolean get() = combat.standardBattle != null
+}
+
 data class GameModel(
     val itemCatalog: List<ItemRecordModel>,
     val itemPools: List<ItemPoolId>,
@@ -1169,6 +1200,26 @@ data class GameModel(
 
 fun GameModel.itemPool(pool: ItemPoolId): ItemPoolId =
     itemPools.firstOrNull { it == pool } ?: pool
+
+fun GameModel.runtimeContent(): RuntimeContent =
+    RuntimeContent(
+        combat = combat,
+        monsters = monsters,
+        formulas = formulas,
+        rewards = rewards,
+        leveling = leveling,
+        spells = spells,
+        itemUses = itemUses,
+        itemRecords = itemCatalog,
+        realm = realm,
+        dungeons = dungeons,
+        wilderness = wilderness,
+        towns = towns,
+        townSystem = townSystem,
+        scenes = scenes,
+        missions = missions,
+        characters = characters,
+    )
 
 sealed interface Trigger {
     data class RandomStep(val percent: Int) : Trigger

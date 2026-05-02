@@ -346,7 +346,7 @@ class RylweenDslValidationTest {
 
         val result = StatefulTownServiceBridge(
             FakeTerminalPort(),
-            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
             service,
             scene,
@@ -534,7 +534,7 @@ class RylweenDslValidationTest {
         val session = RandomItemOfferSession.start(
             testRandomItemOffer(),
             testParty(gold = 2000),
-            itemRecords = compiledItemRecords(),
+            content = RuntimeContent(itemRecords = compiledItemRecords()),
         )
         val bought = session
             .apply(RandomItemOfferInput.Buy(accept = true))
@@ -569,7 +569,7 @@ class RylweenDslValidationTest {
         val dropPrompt = RandomItemOfferSession.start(
             testRandomItemOffer(),
             fullParty,
-            itemRecords = compiledItemRecords(),
+            content = RuntimeContent(itemRecords = compiledItemRecords()),
         )
             .apply(RandomItemOfferInput.Buy(accept = true))
 
@@ -2432,7 +2432,7 @@ class RylweenDslValidationTest {
             serviceBridge = StatefulTownServiceBridge(
                 terminal,
                 speakContent = compiledSpeakContent(),
-                battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+                battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
                 renderer = compiledTextRenderer(),
             ),
         ).runUntilBlocked(
@@ -3537,7 +3537,7 @@ class RylweenDslValidationTest {
         val (service, scene) = garthRecoveredDialogueService()
         val result = StatefulTownServiceBridge(
             FakeTerminalPort(),
-            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
             service,
             scene,
@@ -3571,7 +3571,7 @@ class RylweenDslValidationTest {
         )
         val blocked = StatefulTownServiceBridge(
             FakeTerminalPort(),
-            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
             service,
             scene,
@@ -3585,7 +3585,7 @@ class RylweenDslValidationTest {
 
         val resumed = StatefulTownServiceBridge(
             FakeTerminalPort("A"),
-            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
             service,
             scene,
@@ -3615,7 +3615,7 @@ class RylweenDslValidationTest {
         val result = StatefulTownServiceBridge(
             terminal = FakeTerminalPort("1", "B"),
             speakContent = compiledSpeakContent(),
-            battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
             renderer = compiledTextRenderer(),
         ).run(
             service,
@@ -3703,13 +3703,11 @@ class RylweenDslValidationTest {
         val content = RylweenCompiledGame.nextDsl
         return TownSession.start(
             town = content.towns.single { it.id == townId },
-            townSystem = content.townSystem ?: error("compiled game town system missing"),
-            scenes = content.scenes,
             party = party,
             currentHour = currentHour,
             rngState = rngState,
             npcs = npcs,
-            itemRecords = content.itemCatalog,
+            content = content.runtimeContent(),
         )
     }
 
@@ -3746,15 +3744,8 @@ class RylweenDslValidationTest {
                 hour = 12,
                 currentTown = null,
             ),
-            combat = content.combat,
-            monsters = content.monsters,
-            itemRecords = content.itemCatalog,
-            formulas = content.formulas,
-            rewards = content.rewards,
-            leveling = content.leveling,
-            spells = content.spells,
-            itemUses = content.itemUses,
             tier = tier,
+            content = content.runtimeContent(),
         )
     }
 
@@ -3766,7 +3757,9 @@ class RylweenDslValidationTest {
         rngState: Long? = 1L,
         withCombat: Boolean = true,
     ): DungeonSession {
-        val content = RylweenCompiledGame.nextDsl
+        val content = RylweenCompiledGame.nextDsl.runtimeContent().let {
+            if (withCombat) it else it.copy(combat = CombatSystemModel(null))
+        }
         return DungeonSession.start(
             runtime = RuntimeSessionState.singleParty(
                 party = party,
@@ -3777,15 +3770,8 @@ class RylweenDslValidationTest {
             worldMap = WorldMapGrid.fromSourceRows((1..4).map { mapRow(width = 4) }),
             dungeon = dungeon,
             levels = levels,
+            content = content,
             dungeons = dungeons,
-            combat = if (withCombat) content.combat else CombatSystemModel(null),
-            monsters = content.monsters,
-            formulas = content.formulas,
-            rewards = content.rewards,
-            leveling = content.leveling,
-            spells = content.spells,
-            itemUses = content.itemUses,
-            itemRecords = content.itemCatalog,
         )
     }
 
@@ -3814,25 +3800,16 @@ class RylweenDslValidationTest {
         party: PartyState,
         monster: MonsterModel,
         tier: EncounterTier = EncounterTiers.weak,
-    ): BattleSession {
-        val content = RylweenCompiledGame.nextDsl
-        return BattleSession.start(
+    ): BattleSession =
+        BattleSession.start(
             runtime = RuntimeSessionState.singleParty(
                 party = party,
                 hour = 12,
                 currentTown = null,
             ),
-            combat = content.combat,
-            monsters = listOf(monster),
-            itemRecords = content.itemCatalog,
-            formulas = content.formulas,
-            rewards = content.rewards,
-            leveling = content.leveling,
-            spells = content.spells,
-            itemUses = content.itemUses,
             tier = tier,
+            content = RylweenCompiledGame.nextDsl.runtimeContent().copy(monsters = listOf(monster)),
         )
-    }
 
     private fun testTown(vararg services: BuildingId): TownModel =
         TownModel(
