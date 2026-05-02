@@ -63,6 +63,8 @@ val gameSourceSet = sourceSets.create("game") {
 val appSourceSet = sourceSets.create("app") {
     java.srcDir("src/app/kotlin")
     java.srcDir(generatedGameHarnessDir)
+    resources.srcDir("data")
+    resources.include("ansi/**", "tiles/**", "map.dat")
     compileClasspath += sourceSets.named("main").get().output + gameSourceSet.output
     runtimeClasspath += output + compileClasspath
 }
@@ -84,6 +86,7 @@ configurations.named(appSourceSet.implementationConfigurationName) {
 dependencies {
     testImplementation(kotlin("test"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    add(appSourceSet.implementationConfigurationName, libs.jline)
 }
 
 tasks.test {
@@ -141,6 +144,16 @@ val runKotlinGame by tasks.registering(JavaExec::class) {
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     classpath = appSourceSet.runtimeClasspath
     mainClass.set("RylweenGameTerminalMain")
+    standardInput = System.`in`
+}
+
+val runKotlinAnsi by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Boots the compiled game in the ANSI terminal runtime shell."
+
+    dependsOn(tasks.named(appSourceSet.classesTaskName))
+    classpath = appSourceSet.runtimeClasspath
+    mainClass.set("RylweenAnsiMain")
     standardInput = System.`in`
 }
 
