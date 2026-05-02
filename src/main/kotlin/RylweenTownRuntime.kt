@@ -148,6 +148,7 @@ data class TownSession(
     val shopServices: Map<BuildingId, ShopServiceModel>,
     val serviceScenes: Map<SceneId, SceneModel>,
     val itemRecords: List<ItemRecordModel> = emptyList(),
+    val realmContent: RealmContentModel = RealmContentModel(),
     val step: TownSessionStep = TownSessionStep.Menu(town, availableTownActions(town, townSystem)),
     val lastResult: TownSessionResult? = null,
 ) {
@@ -238,7 +239,7 @@ data class TownSession(
 
         return if (shop != null) {
             copy(
-                step = TownSessionStep.Shop(service, ShopServiceSession.start(shop, party, itemRecords)),
+                step = TownSessionStep.Shop(service, ShopServiceSession.start(shop, party, itemRecords, realmContent)),
                 lastResult = TownSessionResult(TownSessionResultStatus.EnteredShop, party, building),
             )
         } else {
@@ -294,6 +295,7 @@ data class TownSession(
             scenes: List<SceneModel>,
             runtime: RuntimeSessionState,
             itemRecords: List<ItemRecordModel> = emptyList(),
+            realmContent: RealmContentModel = RealmContentModel(),
         ): TownSession =
             TownSession(
                 town = town,
@@ -302,6 +304,7 @@ data class TownSession(
                 shopServices = scenes.shopServicesByBuilding(),
                 serviceScenes = scenes.associateBy { scene -> scene.id },
                 itemRecords = itemRecords,
+                realmContent = realmContent,
             )
 
         fun start(
@@ -313,6 +316,7 @@ data class TownSession(
             rngState: Long? = null,
             npcs: List<NpcPlacement> = emptyList(),
             itemRecords: List<ItemRecordModel> = emptyList(),
+            realmContent: RealmContentModel = RealmContentModel(),
         ): TownSession =
             start(
                 town = town,
@@ -326,6 +330,7 @@ data class TownSession(
                     npcs = npcs,
                 ),
                 itemRecords = itemRecords,
+                realmContent = realmContent,
             )
     }
 }

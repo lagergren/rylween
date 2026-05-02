@@ -77,6 +77,7 @@ data class DungeonSession(
     val spells: List<SpellModel> = emptyList(),
     val itemUses: List<ItemUseModel> = emptyList(),
     val itemRecords: List<ItemRecordModel> = emptyList(),
+    val realm: RealmContentModel = RealmContentModel(),
     val step: DungeonSessionStep = DungeonSessionStep.Explore,
     val lastResult: DungeonSessionResult? = null,
 ) {
@@ -264,6 +265,7 @@ data class DungeonSession(
                     itemRecords = itemRecords,
                     allowedKinds = setOf(ItemKind.Potion),
                     choosePrompt = InventoryUsePromptText.quaff,
+                    realmContent = realm,
                 ),
             ),
             lastResult = result(DungeonSessionResultStatus.InventoryRequested),
@@ -333,6 +335,7 @@ data class DungeonSession(
             spells: List<SpellModel> = emptyList(),
             itemUses: List<ItemUseModel> = emptyList(),
             itemRecords: List<ItemRecordModel> = emptyList(),
+            realm: RealmContentModel = RealmContentModel(),
         ): DungeonSession {
             val depth = levels.coerceAtLeast(1)
             val dungeonRuntime = runtime.withRealm(
@@ -358,6 +361,7 @@ data class DungeonSession(
                 spells = spells,
                 itemUses = itemUses,
                 itemRecords = itemRecords,
+                realm = realm,
                 lastResult = DungeonSessionResult(
                     DungeonSessionResultStatus.Started,
                     dungeon,

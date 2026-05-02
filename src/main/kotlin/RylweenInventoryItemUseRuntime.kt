@@ -49,6 +49,7 @@ data class InventoryItemUseSession(
     val choosePrompt: TextBlock = InventoryUsePromptText.use,
     val step: InventoryItemUseStep,
     val lastResult: InventoryItemUseResult? = null,
+    val realmContent: RealmContentModel = RealmContentModel(),
 ) {
     val party: PartyState get() = runtime.activeParty
 
@@ -192,6 +193,7 @@ data class InventoryItemUseSession(
             itemRecords: List<ItemRecordModel> = emptyList(),
             allowedKinds: Set<ItemKind>? = null,
             choosePrompt: TextBlock = InventoryUsePromptText.use,
+            realmContent: RealmContentModel = RealmContentModel(),
         ): InventoryItemUseSession {
             val choices = runtime.activeParty.inventoryItemChoices(itemRecords)
                 .filter { choice -> allowedKinds?.contains(choice.kind) ?: true }
@@ -212,6 +214,7 @@ data class InventoryItemUseSession(
                 choosePrompt = choosePrompt,
                 step = step,
                 lastResult = result.takeIf { choices.isEmpty() },
+                realmContent = realmContent,
             )
         }
     }

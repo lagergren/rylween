@@ -7,6 +7,9 @@ import kotlin.test.assertTrue
 private fun compiledItemRecords(): List<ItemRecordModel> =
     RylweenCompiledGame.nextDsl.itemCatalog
 
+private fun compiledRealmContent(): RealmContentModel =
+    RylweenCompiledGame.nextDsl.realm
+
 private fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
     any { op ->
         predicate(op) || when (op) {
@@ -601,7 +604,7 @@ class RylweenDslValidationTest {
                                 'A',
                                 Items.torch,
                                 resource = ShopResources.torches,
-                                cap = ShopQuantityCaps.torchLimit80,
+                                cap = ShopQuantityCaps.fixed(Resource.Torches, 80),
                                 tooMany = inlineText("Too many torches."),
                                 zeroQuantityDeal = ShopZeroQuantityDeal.always,
                             )
@@ -644,7 +647,7 @@ class RylweenDslValidationTest {
             gold = 100,
             inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope } + (1 to Items.redPotion),
         )
-        val interpreter = ShopServiceInterpreter(compiledItemRecords())
+        val interpreter = ShopServiceInterpreter(compiledItemRecords(), compiledRealmContent())
 
         val needsDrop = interpreter.buy(shop, fullParty, Items.blanket)
         assertEquals(ShopTransactionStatus.NeedsDropSlot, needsDrop.status)
@@ -670,13 +673,17 @@ class RylweenDslValidationTest {
             food = 100,
             inventoryItems = mapOf(1 to Items.donkey),
         )
-        val interpreter = ShopServiceInterpreter(compiledItemRecords())
+        val interpreter = ShopServiceInterpreter(compiledItemRecords(), compiledRealmContent())
 
         val boughtNoDonkeyFood = interpreter.buy(shop, noDonkeyParty, Items.ration, quantity = 999)
         val boughtDonkeyFood = interpreter.buy(shop, donkeyParty, Items.ration, quantity = 999)
         val boughtTorches = interpreter.buy(shop, testParty(gold = 10, torches = 78), Items.torch, quantity = 99)
 
-        assertEquals(150, testParty(inventoryItems = mapOf(0 to Items.donkey)).foodCapacityByDonkeys())
+        assertEquals(
+            150,
+            testParty(inventoryItems = mapOf(0 to Items.donkey))
+                .resourceCapacity(compiledItemRecords(), Resource.Food, baseCapacity = 150),
+        )
         assertEquals(ShopTransactionStatus.Bought, boughtNoDonkeyFood.status)
         assertEquals(50, boughtNoDonkeyFood.quantity)
         assertEquals(150, boughtNoDonkeyFood.party.resources.food)
@@ -699,32 +706,88 @@ class RylweenDslValidationTest {
             food = 300,
             inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.rope } + (1 to Items.donkey),
         )
-        val interpreter = ShopServiceInterpreter(compiledItemRecords())
+        val interpreter = ShopServiceInterpreter(compiledItemRecords(), compiledRealmContent())
 
         val bought = interpreter.buy(shop, fullParty, Items.blanket, dropSlot = 1)
 
         assertEquals(ShopTransactionStatus.Bought, bought.status)
         assertEquals(Items.blanket, bought.party.inventoryItem(1))
-        assertEquals(150, bought.party.foodCapacityByDonkeys())
+        assertEquals(
+            150,
+            bought.party.resourceCapacity(compiledItemRecords(), Resource.Food, baseCapacity = 150),
+        )
         assertEquals(150, bought.party.resources.food)
     }
 
     @Test
+    fun newCarrierAndShelterItemsContributePurelyFromDsl() {
+        val horse = item("horse")
+        val magicRobe = item("magic_robe")
+        val arcticBand = TemperatureBand.VeryLow
+        val records = listOf(
+            ItemRecordModel(
+                id = Items.donkey,
+                kind = ItemKind.Treasure,
+                displayName = "Donkey",
+                cost = 800,
+                storage = ItemStorageKind.SlottedInventory,
+                resourceCapacityBonus = mapOf(Resource.Food to 150),
+            ),
+            ItemRecordModel(
+                id = horse,
+                kind = ItemKind.Treasure,
+                displayName = "Horse",
+                cost = 1500,
+                storage = ItemStorageKind.SlottedInventory,
+                resourceCapacityBonus = mapOf(Resource.Food to 250),
+            ),
+            ItemRecordModel(
+                id = Items.tent,
+                kind = ItemKind.Gear,
+                displayName = "Tent",
+                cost = 80,
+                storage = ItemStorageKind.SlottedInventory,
+                campProtection = setOf(TemperatureBand.Low, TemperatureBand.VeryLow),
+            ),
+            ItemRecordModel(
+                id = magicRobe,
+                kind = ItemKind.Gear,
+                displayName = "Magic Robe",
+                cost = 4000,
+                storage = ItemStorageKind.SlottedInventory,
+                campProtection = setOf(arcticBand),
+            ),
+        )
+
+        val party = testParty(
+            food = 0,
+            inventoryItems = mapOf(1 to Items.donkey, 2 to horse, 3 to magicRobe),
+        )
+
+        assertEquals(550, party.resourceCapacity(records, Resource.Food, baseCapacity = 150))
+        val effect = party.campGearEffect(records, fallbackImage = Images.Scene.noTent)
+        assertTrue(effect.protects(arcticBand))
+        assertFalse(effect.protects(TemperatureBand.Low))
+    }
+
+    @Test
     fun campGearEffectReflectsTentAndBlanketProtection() {
-        val noGear = testParty().campGearEffect()
-        val blanket = testParty(inventoryItems = mapOf(1 to Items.blanket)).campGearEffect()
-        val tent = testParty(inventoryItems = mapOf(1 to Items.tent)).campGearEffect()
-        val reservedSlotTent = testParty(inventoryItems = mapOf(0 to Items.tent)).campGearEffect()
+        val records = compiledItemRecords()
+        val fallback = Images.Scene.noTent
+        val noGear = testParty().campGearEffect(records, fallback)
+        val blanket = testParty(inventoryItems = mapOf(1 to Items.blanket)).campGearEffect(records, fallback)
+        val tent = testParty(inventoryItems = mapOf(1 to Items.tent)).campGearEffect(records, fallback)
+        val reservedSlotTent = testParty(inventoryItems = mapOf(0 to Items.tent)).campGearEffect(records, fallback)
 
         assertEquals(Images.Scene.noTent, noGear.image)
-        assertEquals(false, noGear.protectsLowTemperature)
-        assertEquals(false, noGear.protectsVeryLowTemperature)
+        assertFalse(noGear.protects(TemperatureBand.Low))
+        assertFalse(noGear.protects(TemperatureBand.VeryLow))
         assertEquals(Images.Scene.noTent, blanket.image)
-        assertEquals(true, blanket.protectsLowTemperature)
-        assertEquals(false, blanket.protectsVeryLowTemperature)
+        assertTrue(blanket.protects(TemperatureBand.Low))
+        assertFalse(blanket.protects(TemperatureBand.VeryLow))
         assertEquals(Images.Scene.tent, tent.image)
-        assertEquals(true, tent.protectsLowTemperature)
-        assertEquals(true, tent.protectsVeryLowTemperature)
+        assertTrue(tent.protects(TemperatureBand.Low))
+        assertTrue(tent.protects(TemperatureBand.VeryLow))
         assertEquals(Images.Scene.noTent, reservedSlotTent.image)
     }
 
@@ -1036,7 +1099,7 @@ class RylweenDslValidationTest {
                     mapOf(1 to Items.blanket, 2 to Items.donkey, 3 to Items.sword),
         )
 
-        var session = ShopServiceSession.start(shop, party, compiledItemRecords()).continueIntro()
+        var session = ShopServiceSession.start(shop, party, compiledItemRecords(), compiledRealmContent()).continueIntro()
 
         session = session.chooseMain(ShopMainChoice.Buy)
             .chooseBuyItem(Items.torch)
@@ -1082,6 +1145,7 @@ class RylweenDslValidationTest {
             shop,
             testParty(gold = 0, inventoryItems = mapOf(1 to Items.sword, 2 to Items.axe)),
             compiledItemRecords(),
+            compiledRealmContent(),
         ).continueIntro()
 
         session = session.chooseMain(ShopMainChoice.Sell).chooseSellSlot(1, bargainRolls = listOf(91))
@@ -1107,7 +1171,7 @@ class RylweenDslValidationTest {
         val runner = ShopServiceTraceRunner(engine)
 
         val session = runner.run(
-            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78), compiledItemRecords()),
+            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78), compiledItemRecords(), compiledRealmContent()),
             listOf(
                 ShopServiceInput.ContinueIntro,
                 ShopServiceInput.Main(ShopMainChoice.Buy),
@@ -1125,7 +1189,7 @@ class RylweenDslValidationTest {
         assertEquals(EngineTraceEvent.Screen(shop.intro), engine.events[0])
         assertEquals(EngineTraceEvent.Menu(shop.menu, listOf('B', 'S', 'L')), engine.events[1])
         assertEquals(EngineTraceEvent.Menu(buy.prompt, listOf('A', 'B', 'C')), engine.events[2])
-        assertEquals(EngineTraceEvent.Screen((buy.offerFor(Items.torch)!!.purchase as ShopPurchaseModel.Resource).quantityPrompt), engine.events[3])
+        assertEquals(EngineTraceEvent.Screen((buy.offerFor(Items.torch)!!.purchase as ShopPurchaseModel.Bulk).quantityPrompt), engine.events[3])
         assertEquals(EngineTraceEvent.Menu(buy.payPrompt, listOf('P', 'N')), engine.events[4])
         assertEquals(
             ShopTransactionStatus.Bought,
@@ -1145,7 +1209,7 @@ class RylweenDslValidationTest {
         )
 
         val session = runner.run(
-            ShopServiceSession.start(shop, party, compiledItemRecords()),
+            ShopServiceSession.start(shop, party, compiledItemRecords(), compiledRealmContent()),
             listOf(
                 ShopServiceInput.ContinueIntro,
                 ShopServiceInput.Main(ShopMainChoice.Buy),
@@ -1172,7 +1236,7 @@ class RylweenDslValidationTest {
     fun shopTerminalAdapterRunsBuyAndSaleFlows() {
         val buyTerminal = FakeTerminalPort("B", "A", "99", "P", "L")
         val buySession = ShopServiceTerminalAdapter(buyTerminal).run(
-            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10, torches = 78), compiledItemRecords()),
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10, torches = 78), compiledItemRecords(), compiledRealmContent()),
         )
 
         assertEquals(80, buySession.party.resources.torches)
@@ -1187,6 +1251,7 @@ class RylweenDslValidationTest {
                 testMerchantShop(),
                 testParty(gold = 10, inventoryItems = mapOf(1 to Items.blanket)),
                 compiledItemRecords(),
+                compiledRealmContent(),
             ),
         )
 
@@ -1229,7 +1294,7 @@ class RylweenDslValidationTest {
         )
         val terminal = FakeTerminalPort("BUY", "TORCH", "99", "PAY", "LEAVE")
         val session = ShopServiceTerminalAdapter(terminal).run(
-            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78), compiledItemRecords()),
+            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78), compiledItemRecords(), compiledRealmContent()),
         )
 
         assertTrue(session.step is ShopServiceStep.Finished)
@@ -1245,7 +1310,7 @@ class RylweenDslValidationTest {
             gold = 10,
             inventoryItems = mapOf(1 to Items.blanket, 2 to Items.sword),
         )
-        val interpreter = ShopServiceInterpreter(compiledItemRecords())
+        val interpreter = ShopServiceInterpreter(compiledItemRecords(), compiledRealmContent())
 
         val sold = interpreter.sell(shop, party, slot = 1)
         val rejected = interpreter.sell(shop, party, slot = 2)
@@ -1470,10 +1535,10 @@ class RylweenDslValidationTest {
     @Test
     fun terminalAdaptersReturnUnfinishedSessionOnInvalidInput() {
         val invalidShop = ShopServiceTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(
-            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10), compiledItemRecords()),
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10), compiledItemRecords(), compiledRealmContent()),
         )
         val missingShopInput = ShopServiceTerminalAdapter(FakeTerminalPort()).runUntilBlocked(
-            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10), compiledItemRecords()),
+            ShopServiceSession.start(testMerchantShop(), testParty(gold = 10), compiledItemRecords(), compiledRealmContent()),
         )
         val invalidTownLeave = TownLeaveEquipmentTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(
             TownLeaveEquipmentSession.start(testParty(inventoryItems = mapOf(1 to Items.sword)), compiledItemRecords()),
@@ -3824,7 +3889,7 @@ class RylweenDslValidationTest {
                         'A',
                         Items.torch,
                         resource = ShopResources.torches,
-                        cap = ShopQuantityCaps.torchLimit80,
+                        cap = ShopQuantityCaps.fixed(Resource.Torches, 80),
                         tooMany = inlineText("Too many torches."),
                         zeroQuantityDeal = ShopZeroQuantityDeal.always,
                     )
@@ -3832,7 +3897,7 @@ class RylweenDslValidationTest {
                         'B',
                         Items.ration,
                         resource = ShopResources.food,
-                        cap = ShopQuantityCaps.foodByDonkeys,
+                        cap = ShopQuantityCaps.carryCapacity(Resource.Food),
                         tooMany = inlineText("Too much food."),
                         price = ShopPrices.leaderLevelPlus(1),
                     )

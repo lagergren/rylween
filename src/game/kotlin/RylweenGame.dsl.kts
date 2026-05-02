@@ -66,6 +66,10 @@ val nextRylween = rylween {
         region(ScreenRegions.mapWindow, x = 8, y = 6, width = 16, height = 9)
     }
 
+    realm {
+        baseResourceCapacity(Resource.Food, 150)
+    }
+
     prompts {
         pauseVerbs(
             "Smash", "Bash", "Slash", "Lunge at", "Crush",
@@ -112,8 +116,13 @@ val nextRylween = rylween {
 
         gear(Items.torch, "Torch", cost = 1)
         gear(Items.ration, "Ration", cost = 2)
-        gear(Items.blanket, "Blanket", cost = 30)
-        gear(Items.tent, "Tent", cost = 80)
+        gear(Items.blanket, "Blanket", cost = 30) {
+            campProtection { protects(TemperatureBand.Low) }
+        }
+        gear(Items.tent, "Tent", cost = 80) {
+            campImage(Images.Scene.tent)
+            campProtection { protects(TemperatureBand.Low, TemperatureBand.VeryLow) }
+        }
         gear(Items.rope, "Rope", cost = 15)
 
         potion(Items.redPotion, "Red Potion", cost = 30)
@@ -128,7 +137,9 @@ val nextRylween = rylween {
         treasure(Items.broche, "Broche", cost = 1234)
         treasure(Items.crystalBowl, "Crystal Bowl", cost = 4567)
         treasure(Items.necklace, "Necklace", cost = 987)
-        treasure(Items.donkey, "Donkey", cost = 800)
+        treasure(Items.donkey, "Donkey", cost = 800) {
+            resourceCapacityBonus(Resource.Food, 150)
+        }
 
         special(Items.fireshield, "Fire Shield")
         special(Items.bracelets, "Bracelets of Thun")
@@ -3320,7 +3331,7 @@ val nextRylween = rylween {
                         'A',
                         Items.torch,
                         resource = ShopResources.torches,
-                        cap = ShopQuantityCaps.torchLimit80,
+                        cap = ShopQuantityCaps.fixed(Resource.Torches, 80),
                         tooMany = inlineText("You can carry no", "more than 80", "torches..."),
                         label = "Torch",
                         zeroQuantityDeal = ShopZeroQuantityDeal.always,
@@ -3331,7 +3342,7 @@ val nextRylween = rylween {
                         'B',
                         Items.ration,
                         resource = ShopResources.food,
-                        cap = ShopQuantityCaps.foodByDonkeys,
+                        cap = ShopQuantityCaps.carryCapacity(Resource.Food),
                         tooMany = shopText {
                             line("You can carry no")
                             line("more than ", cap, " units!")

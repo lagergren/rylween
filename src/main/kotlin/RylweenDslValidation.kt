@@ -1107,7 +1107,7 @@ fun validateScriptRewards(
                             ShopPurchaseModel.InventoryItem -> check(record.storage == ItemStorageKind.SlottedInventory) {
                                 "shop ${shop.building.slug} inventory item ${entry.item.slug} must be slotted"
                             }
-                            is ShopPurchaseModel.Resource -> {
+                            is ShopPurchaseModel.Bulk -> {
                                 validateTextBlock(
                                     purchase.quantityPrompt,
                                     "shop ${shop.building.slug} ${entry.item.slug} quantity prompt",

@@ -249,6 +249,7 @@ data class WildernessSession(
     val spells: List<SpellModel> = emptyList(),
     val itemUses: List<ItemUseModel> = emptyList(),
     val itemRecords: List<ItemRecordModel> = emptyList(),
+    val realm: RealmContentModel = RealmContentModel(),
     val upkeepRules: WildernessUpkeepRules = WildernessUpkeepRules(),
     val step: WildernessSessionStep = WildernessSessionStep.TurnStart,
     val lastResult: WildernessSessionResult? = null,
@@ -334,6 +335,7 @@ data class WildernessSession(
                     spells = spells,
                     itemUses = itemUses,
                     itemRecords = itemRecords,
+                    realm = realm,
                 ),
             ),
         )
@@ -573,6 +575,7 @@ data class WildernessSession(
                     itemRecords = itemRecords,
                     allowedKinds = setOf(ItemKind.Potion),
                     choosePrompt = InventoryUsePromptText.quaff,
+                    realmContent = realm,
                 ),
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.InventoryRequested),
@@ -932,6 +935,7 @@ data class WildernessSession(
                 spells = content.spells,
                 itemUses = content.itemUses,
                 itemRecords = itemRecords,
+                realm = content.realm,
             )
     }
 }
