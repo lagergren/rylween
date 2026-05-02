@@ -101,6 +101,32 @@ sealed interface TextBlock {
 fun inlineText(vararg lines: String): TextBlock = TextBlock.Inline(lines.toList())
 fun structuredText(body: StructuredTextBlockBuilder.() -> Unit): TextBlock =
     StructuredTextBlockBuilder().apply(body).build()
+fun textLines(vararg lines: String): TextBlock = structuredText { lines(*lines) }
+
+interface TextLineSink {
+    fun addTextLine(line: TextLine)
+}
+
+fun TextLineSink.line(vararg parts: Any) {
+    addTextLine(TextLine(parts.map(::textPart)))
+}
+
+fun TextLineSink.lines(vararg lines: String) {
+    lines.forEach { line(it) }
+}
+
+fun <T : TextLineSink> T.lines(body: T.() -> Unit) {
+    body()
+}
+
+private fun textPart(part: Any): TextPart =
+    when (part) {
+        is TextPart -> part
+        is IntExpr -> TextPart.IntValue(part.ast)
+        is StrExpr -> TextPart.StringValue(part.ast)
+        is String -> TextPart.Literal(part)
+        else -> TextPart.Literal(part.toString())
+    }
 
 class CharacterTextRef(private val role: NpcRole) {
     val name: TextPart = TextPart.RoleName(role)
@@ -1057,6 +1083,9 @@ data class GameModel(
 
 sealed interface Trigger {
     data class RandomStep(val percent: Int) : Trigger
+    data class AtPosition(val point: GridPoint) : Trigger
+    data class AtLocation(val location: LocationId) : Trigger
+    data class OnTerrain(val terrain: TerrainId) : Trigger
 }
 
 data class WildernessSystemModel(
@@ -1590,11 +1619,12 @@ class ScriptScope(
 
     fun fresh(prefix: String): String = ctx.fresh(prefix)
 
-    fun screen(id: TextId) = record(Op.Screen(TextBlock.Ref(id)))
-    fun screen(vararg lines: String) = record(Op.Screen(TextBlock.Inline(lines.toList())))
-    fun screen(body: StructuredTextBlockBuilder.() -> Unit) =
-        record(Op.Screen(StructuredTextBlockBuilder().apply(body).build()))
+    fun screen(text: TextBlock) = record(Op.Screen(text))
+    fun screen(id: TextId) = screen(TextBlock.Ref(id))
+    fun screen(vararg lines: String) = screen(textLines(*lines))
+    fun screen(body: StructuredTextBlockBuilder.() -> Unit) = screen(structuredText(body))
 
+    fun say(text: TextBlock) = screen(text)
     fun say(id: TextId) = screen(id)
     fun say(vararg lines: String) = screen(*lines)
     fun say(body: StructuredTextBlockBuilder.() -> Unit) = screen(body)
@@ -1676,7 +1706,7 @@ class ScriptScope(
     fun menu(vararg promptLines: String, body: MenuBuilder.() -> Unit) {
         val builder = MenuBuilder(ctx)
         builder.body()
-        record(builder.build(TextBlock.Inline(promptLines.toList())))
+        record(builder.build(textLines(*promptLines)))
     }
 
     fun menu(prompt: TextBlock, body: MenuBuilder.() -> Unit) {
@@ -1795,22 +1825,14 @@ class ScriptRewardBuilder {
 }
 
 @RylNextDsl
-class RandomItemOfferTextBuilder {
+class RandomItemOfferTextBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
 
     val itemName: TextPart = TextPart.OfferedItemName
     val itemPrice: TextPart = TextPart.OfferedItemPrice
 
-    fun line(vararg parts: Any) {
-        text.line(*parts)
-    }
-
-    fun lines(vararg lines: String) {
-        text.lines(*lines)
-    }
-
-    fun lines(body: RandomItemOfferTextBuilder.() -> Unit) {
-        body()
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
     }
 
     fun build(): TextBlock = text.build()
@@ -1935,22 +1957,14 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
 }
 
 @RylNextDsl
-class ShopTextBuilder {
+class ShopTextBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
 
     val price: TextPart = TextPart.ShopPrice
     val cap: TextPart = TextPart.ShopCarryCap
 
-    fun line(vararg parts: Any) {
-        text.line(*parts)
-    }
-
-    fun lines(vararg lines: String) {
-        text.lines(*lines)
-    }
-
-    fun lines(body: ShopTextBuilder.() -> Unit) {
-        body()
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
     }
 
     fun build(): TextBlock = text.build()
@@ -3368,8 +3382,30 @@ class MissionBuilder(private val id: MissionId) {
         trigger = Trigger.RandomStep(percent)
     }
 
+    fun at(point: GridPoint) {
+        trigger = Trigger.AtPosition(point)
+    }
+
+    fun at(position: WorldPosition) {
+        val point = (position as? WorldPosition.Wilderness)?.point
+            ?: error("mission ${id.slug} position trigger must be a wilderness position")
+        at(point)
+    }
+
+    fun at(location: LocationId) {
+        trigger = Trigger.AtLocation(location)
+    }
+
+    fun onTerrain(terrain: TerrainId) {
+        trigger = Trigger.OnTerrain(terrain)
+    }
+
     fun requires(state: FlagState) {
         requires = state.ast
+    }
+
+    fun requires(cond: BoolExpr) {
+        requires = cond.ast
     }
 
     fun runs(scene: SceneId) {
@@ -3922,31 +3958,14 @@ class ChitchatPromptTextBuilder(private val subject: ChitchatSubject) {
 }
 
 @RylNextDsl
-class StructuredTextBlockBuilder {
+class StructuredTextBlockBuilder : TextLineSink {
     private val lines = mutableListOf<TextLine>()
 
-    fun line(vararg parts: Any) {
-        lines += TextLine(parts.map(::toTextPart))
-    }
-
-    fun lines(vararg lines: String) {
-        lines.forEach { line(it) }
-    }
-
-    fun lines(body: StructuredTextBlockBuilder.() -> Unit) {
-        body()
+    override fun addTextLine(line: TextLine) {
+        lines += line
     }
 
     fun build(): TextBlock = TextBlock.Structured(lines.toList())
-
-    private fun toTextPart(part: Any): TextPart =
-        when (part) {
-            is TextPart -> part
-            is IntExpr -> TextPart.IntValue(part.ast)
-            is StrExpr -> TextPart.StringValue(part.ast)
-            is String -> TextPart.Literal(part)
-            else -> TextPart.Literal(part.toString())
-        }
 }
 
 @RylNextDsl
@@ -3976,20 +3995,12 @@ class RumourTextTableBuilder(private val id: RumourTableId) {
 }
 
 @RylNextDsl
-class RumourEntryBuilder(private val id: RumourId?) {
+class RumourEntryBuilder(private val id: RumourId?) : TextLineSink {
     private val text = StructuredTextBlockBuilder()
     private val excludedStates = mutableListOf<FlagState>()
 
-    fun line(vararg parts: Any) {
-        text.line(*parts)
-    }
-
-    fun lines(vararg lines: String) {
-        text.lines(*lines)
-    }
-
-    fun lines(body: StructuredTextBlockBuilder.() -> Unit) {
-        text.body()
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
     }
 
     fun excludeWhen(vararg states: FlagState) {

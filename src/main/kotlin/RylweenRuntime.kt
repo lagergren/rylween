@@ -1455,6 +1455,7 @@ data class RuntimeSessionState(
     val realm: RealmState,
     val parties: List<PartyState>,
     val npcs: List<NpcPlacement> = emptyList(),
+    val locations: List<LocationPlacement> = emptyList(),
 ) {
     val activeParty: PartyState
         get() = parties.firstOrNull { party -> party.id == realm.activeParty }
@@ -1482,6 +1483,7 @@ data class RuntimeSessionState(
             currentTown: TownId?,
             rngState: Long? = null,
             npcs: List<NpcPlacement> = emptyList(),
+            locations: List<LocationPlacement> = emptyList(),
         ): RuntimeSessionState =
             RuntimeSessionState(
                 realm = RealmState(
@@ -1499,6 +1501,7 @@ data class RuntimeSessionState(
                 ),
                 parties = listOf(party),
                 npcs = npcs,
+                locations = locations,
             )
     }
 }

@@ -432,7 +432,10 @@ data class WildernessSession(
             return copy(step = WildernessSessionStep.TurnStart, lastResult = moved)
         }
 
-        val missionTrigger = runtime.pollWildernessMissions(missions)
+        val missionTrigger = runtime.pollWildernessMissions(
+            missions = missions,
+            currentTerrain = wilderness.terrainIdFor(toTerrain),
+        )
         missionTrigger.mission?.let { mission ->
             val scene = scenes.firstOrNull { it.id == mission.action }
             if (scene != null) {
@@ -778,7 +781,10 @@ private fun RuntimeSessionState.terrainTransition(
     )
 }
 
-private fun RuntimeSessionState.pollWildernessMissions(missions: List<MissionModel>): MissionTriggerResult {
+private fun RuntimeSessionState.pollWildernessMissions(
+    missions: List<MissionModel>,
+    currentTerrain: TerrainId?,
+): MissionTriggerResult {
     var nextRuntime = this
     missions.forEach { mission ->
         if (mission.requires?.let { nextRuntime.activeParty.matches(it) } == false) {
@@ -789,6 +795,22 @@ private fun RuntimeSessionState.pollWildernessMissions(missions: List<MissionMod
                 val draw = nextRuntime.drawRandom(0, 99)
                 nextRuntime = draw.runtime
                 if (draw.value < trigger.percent) {
+                    return MissionTriggerResult(nextRuntime, mission)
+                }
+            }
+            is Trigger.AtPosition -> {
+                if (nextRuntime.activeParty.wildernessPoint() == trigger.point) {
+                    return MissionTriggerResult(nextRuntime, mission)
+                }
+            }
+            is Trigger.AtLocation -> {
+                val point = nextRuntime.locations.firstOrNull { it.location == trigger.location }?.point
+                if (point != null && nextRuntime.activeParty.wildernessPoint() == point) {
+                    return MissionTriggerResult(nextRuntime, mission)
+                }
+            }
+            is Trigger.OnTerrain -> {
+                if (currentTerrain == trigger.terrain) {
                     return MissionTriggerResult(nextRuntime, mission)
                 }
             }

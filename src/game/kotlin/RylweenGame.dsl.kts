@@ -1733,6 +1733,24 @@ val nextRylween = rylween {
             requires(Story.garth.bandits.accepted)
             runs(Scenes.Missions.bandits)
         }
+
+        mission(Missions.trollTooth) {
+            randomStep(percent = 9)
+            requires(Story.hermit.trollTooth.accepted)
+            runs(Scenes.Missions.trollTooth)
+        }
+
+        mission(Missions.skullweed) {
+            onTerrain(Terrain.swamp)
+            requires(Story.masterCrown.task2Assigned)
+            runs(Scenes.Missions.skullweed)
+        }
+
+        mission(Missions.jazzyFoot) {
+            onTerrain(Terrain.foothills)
+            requires(Story.jazzy.ogre.ogresCleared)
+            runs(Scenes.Missions.jazzyFoot)
+        }
     }
 
     scene(Scenes.Towne.church) {
@@ -3183,6 +3201,107 @@ val nextRylween = rylween {
         mark(Story.garth.bandits.recovered)
     }
 
+    scene(Scenes.Missions.trollTooth) {
+        encounter(Monsters.troll, mandatory = true)
+        native.screen.redrawMap()
+        native.screen.clearText()
+        screen(
+            "You break off a troll",
+            "tooth to give the hermit.",
+            "After wiping the slime of",
+            "it, you put it in your",
+            "backpack.",
+            "",
+        )
+        waitInput("after troll tooth")
+        native.screen.clearText()
+        mark(Story.hermit.trollTooth.extracted)
+    }
+
+    scene(Scenes.Missions.skullweed) {
+        native.screen.clearText()
+        screen(
+            "On the ground before you",
+            "grows the skullweed plant.",
+            "You break off a few plants",
+            "and put in your backpack.",
+            "",
+        )
+        waitInput("after skullweed pickup")
+        native.screen.clearText()
+        mark(Story.masterCrown.task2Done)
+    }
+
+    scene(Scenes.Missions.jazzyFoot) {
+        native.screen.clearText()
+        screen(
+            "Something about this whole",
+            "area is weird. The air",
+            "seems to be loaded with",
+            "electricity. Suddenly you",
+            "spot an object on the",
+            "ground. It is a delicate",
+            "ivory statue in the shape",
+            "of a human foot. THIS IS",
+            "THE FOOT OF JAZZY!",
+            "",
+        )
+        waitInput("after finding the foot")
+        native.screen.clearText()
+        screen(
+            "Just as you touch it,",
+            "the sky splits open and",
+            "at the wailing of hundreds",
+            "of tortured souls, Jazzy's",
+            "minions attack you, for",
+            "the heresy they find you",
+            "guilty of...",
+            "",
+        )
+        waitInput("before Jazzy minions")
+        encounter(Monsters.wingedThing, mandatory = true)
+        native.screen.redrawMap()
+        native.screen.clearText()
+        screen(
+            "Quiet settles again, as",
+            "you destroy the foul",
+            "creatures, one by one.",
+            "You reach for the foot",
+            "again, when suddenly,",
+            "something EVEN MORE",
+            "horrible happens...",
+            "",
+        )
+        waitInput("after Jazzy minions")
+        native.screen.clearText()
+        screen(
+            "A twenty foot tall",
+            "being materializes",
+            "in front of you! You will",
+            "have to fight Jazzy,",
+            "himself!",
+            "",
+        )
+        waitInput("before Jazzy")
+        encounter(Monsters.jazzy, mandatory = true)
+        native.screen.redrawMap()
+        native.screen.clearText()
+        screen(
+            "Today, you have killed a",
+            "god. You watch silently as",
+            "the huge body starts to",
+            "melt. It fades away into",
+            "Nothingness. This time,",
+            "when you pick up the foot,",
+            "nothing happens.",
+            "",
+        )
+        waitInput("after Jazzy defeat")
+        native.screen.clearText()
+        mark(Story.jazzy.ogre.jazzyDefeated)
+        achieve(Milestones.footOfJazzy)
+    }
+
     // 7. Script reward: semantic items, typed placement policy, no numeric ids.
     scene(Scenes.Missions.borinGift) {
         native.screen.clearText()
@@ -3663,7 +3782,7 @@ check(nextDsl.monsters.count { it.tier == EncounterTiers.weak } == 10)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.wild } == 14)
 check(nextDsl.monsters.count { it.tier == EncounterTiers.deep } == 20)
 check(nextDsl.monsters.single { it.id == Monsters.gnoll }.countMaxLevelDivisor == 2)
-check(nextDsl.scenes.size == 9)
+check(nextDsl.scenes.size == 12)
 val churchScene = nextDsl.scenes.single { it.id == Scenes.Towne.church }
 val churchMenu = churchScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()
 check(churchMenu.options.map { it.key } == listOf('H', 'E', 'R', 'L'))
@@ -3733,6 +3852,7 @@ check(tavernScene.ops.any { op ->
 val tavernMenu = tavernScene.ops.filterIsInstance<Op.Loop>().single().body.filterIsInstance<Op.Menu>().single()
 check(tavernMenu.options.map { it.key } == listOf('L', 'S', 'T', 'R', 'O'))
 check(nextDsl.scenes.single { it.id == Scenes.Missions.borinGift }.ops.any { it is Op.GrantReward })
+check(nextDsl.scenes.single { it.id == Scenes.Missions.jazzyFoot }.ops.any { it == Op.AchieveMilestone(Milestones.footOfJazzy) })
 check(nextDsl.dialogue.size == 1)
 check(nextDsl.dialogue.single().branches.size == 2)
 check(nextDsl.dialogue.single().branches.any { branch ->
@@ -3746,7 +3866,9 @@ check(nextDsl.spells.size == 10)
 check(nextDsl.magicItems.size == 12)
 check(nextDsl.magicItems.single { it.id == Items.fireWand }.consume == ItemConsumePolicy.BeforeUse)
 check(nextDsl.magicItems.single { it.id == Items.gemOfResurrection }.consume == ItemConsumePolicy.ScriptControlled)
-check(nextDsl.missions.size == 1)
+check(nextDsl.missions.size == 4)
+check(nextDsl.missions.single { it.id == Missions.skullweed }.trigger == Trigger.OnTerrain(Terrain.swamp))
+check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
 check(nextRylween.states.size == 3)
 
 val freshParty = nextRylween.states.single { it.id == States.freshReplay }.parties.single()
