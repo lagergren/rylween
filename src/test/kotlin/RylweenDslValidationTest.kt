@@ -769,6 +769,35 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun dungeonSessionDescendsWithTorchesAndReturnsToWilderness() {
+        val map = WorldMapGrid.fromSourceRows((1..4).map { mapRow(width = 4) })
+        val runtime = RuntimeSessionState.singleParty(
+            party = testParty(torches = 2),
+            hour = 12,
+            currentTown = null,
+        )
+        val started = DungeonSession.start(runtime, map, Dungeons.randomCave, levels = 2)
+
+        val descended = started.apply(DungeonSessionInput.Descend)
+        val atDepthTwo = descended.apply(DungeonSessionInput.Continue)
+        val atMax = atDepthTwo.apply(DungeonSessionInput.Descend)
+        val ascended = atMax.apply(DungeonSessionInput.Continue).apply(DungeonSessionInput.Ascend)
+        val atDepthOne = ascended.apply(DungeonSessionInput.Continue)
+        val leaving = atDepthOne.apply(DungeonSessionInput.Ascend)
+        val finished = leaving.apply(DungeonSessionInput.Continue)
+
+        assertEquals(RuntimeMode.Dungeon, started.runtime.realm.currentMode)
+        assertEquals(DungeonSessionResultStatus.Descended, descended.lastResult?.status)
+        assertEquals(1, descended.party.resources.torches)
+        assertEquals(2, descended.depth)
+        assertEquals(DungeonSessionResultStatus.AtMaxDepth, atMax.lastResult?.status)
+        assertEquals(1, atMax.party.resources.torches)
+        assertEquals(DungeonSessionResultStatus.LeftDungeon, leaving.lastResult?.status)
+        assertTrue(finished.step is DungeonSessionStep.Finished)
+        assertEquals(RuntimeMode.Wilderness, finished.runtime.realm.currentMode)
+    }
+
+    @Test
     fun shopSessionRunsMerchantBuyDropSellAndRejectFlows() {
         val shop = testMerchantShop()
         val party = testParty(
@@ -1303,9 +1332,9 @@ class RylweenDslValidationTest {
 
         assertTrue(session.status is TerminalRunStatus.Finished)
         assertTrue(session.session.step is TownSessionStep.Finished)
-        assertTrue(terminal.output.any { "Service: church" in it })
         assertTrue(terminal.output.any { "Church body" in it })
-        assertTrue(terminal.output.any { "Native: screen.clear_text" in it })
+        assertTrue(terminal.output.none { "Service: church" in it })
+        assertTrue(terminal.output.none { "Native: screen.clear_text" in it })
         assertEquals(TownSessionResultStatus.NativeServiceFinished, session.session.lastResult?.status)
     }
 
@@ -2075,6 +2104,7 @@ class RylweenDslValidationTest {
                 terminal,
                 speakContent = compiledSpeakContent(),
                 battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+                renderer = compiledTextRenderer(),
             ),
         ).runUntilBlocked(
             compiledTownSession(party = testParty()),
@@ -2092,7 +2122,11 @@ class RylweenDslValidationTest {
         val result = TownSessionTerminalAdapter(
             terminal,
             renderer = compiledTextRenderer(),
-            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
+            serviceBridge = StatefulTownServiceBridge(
+                terminal,
+                speakContent = compiledSpeakContent(),
+                renderer = compiledTextRenderer(),
+            ),
         ).runUntilBlocked(
             TownSession.start(
                 town = testTown(Buildings.tavern),
@@ -2117,7 +2151,11 @@ class RylweenDslValidationTest {
         val result = TownSessionTerminalAdapter(
             terminal,
             renderer = compiledTextRenderer(),
-            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
+            serviceBridge = StatefulTownServiceBridge(
+                terminal,
+                speakContent = compiledSpeakContent(),
+                renderer = compiledTextRenderer(),
+            ),
         ).runUntilBlocked(
             TownSession.start(
                 town = testTown(Buildings.tavern),
@@ -2393,8 +2431,13 @@ class RylweenDslValidationTest {
         assertEquals(WildernessSessionResultStatus.DungeonHandoff, result.session.lastResult?.status)
         assertEquals(Dungeons.randomCave, result.session.lastResult?.dungeon)
         assertEquals(189, result.session.party.resources.timeLeft)
-        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
-        assertTrue(terminal.output.any { "Dungeon runtime is not ported yet." in it })
+        assertEquals(RuntimeMode.Dungeon, result.session.runtime.realm.currentMode)
+        val dungeon = result.session.step as? WildernessSessionStep.Dungeon
+            ?: error("expected dungeon session after cave handoff")
+        assertEquals(Dungeons.randomCave, dungeon.session.dungeon)
+        assertEquals(10, dungeon.session.maxDepth)
+        assertTrue(terminal.output.any { "Entering random_cave." in it })
+        assertTrue(terminal.output.any { "You are on level 1." in it })
     }
 
     @Test
@@ -2419,7 +2462,11 @@ class RylweenDslValidationTest {
         assertEquals(Missions.erethorEntry, result.session.lastResult?.mission)
         assertEquals(Dungeons.erethorTemple, result.session.lastResult?.dungeon)
         assertEquals(12, result.session.lastResult?.dungeonLevels)
-        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertEquals(RuntimeMode.Dungeon, result.session.runtime.realm.currentMode)
+        val dungeon = result.session.step as? WildernessSessionStep.Dungeon
+            ?: error("expected dungeon session after mission handoff")
+        assertEquals(Dungeons.erethorTemple, dungeon.session.dungeon)
+        assertEquals(12, dungeon.session.maxDepth)
         assertTrue(terminal.output.any { "Here is the temple of" in it })
         assertTrue(terminal.output.any { "Entering erethor_temple." in it })
     }
@@ -2447,7 +2494,11 @@ class RylweenDslValidationTest {
         assertEquals(Missions.silverKey, result.session.lastResult?.mission)
         assertEquals(Dungeons.silverSanctum, result.session.lastResult?.dungeon)
         assertEquals(20, result.session.lastResult?.dungeonLevels)
-        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertEquals(RuntimeMode.Dungeon, result.session.runtime.realm.currentMode)
+        val dungeon = result.session.step as? WildernessSessionStep.Dungeon
+            ?: error("expected dungeon session after mission handoff")
+        assertEquals(Dungeons.silverSanctum, dungeon.session.dungeon)
+        assertEquals(20, dungeon.session.maxDepth)
         assertTrue(terminal.output.any { "Here lies the dungeon" in it })
         assertTrue(terminal.output.any { "Entering silver_sanctum." in it })
     }
@@ -2483,6 +2534,11 @@ class RylweenDslValidationTest {
         assertEquals(Missions.thunTemple, result.session.lastResult?.mission)
         assertEquals(Dungeons.thunTemple, result.session.lastResult?.dungeon)
         assertEquals(18, result.session.lastResult?.dungeonLevels)
+        assertEquals(RuntimeMode.Dungeon, result.session.runtime.realm.currentMode)
+        val dungeon = result.session.step as? WildernessSessionStep.Dungeon
+            ?: error("expected dungeon session after mission handoff")
+        assertEquals(Dungeons.thunTemple, dungeon.session.dungeon)
+        assertEquals(18, dungeon.session.maxDepth)
         assertEquals(0, result.session.party.countInventoryItems(RylweenCompiledGame.nextDsl.itemPool(ItemPools.thunAltarGems)))
         assertEquals(Items.rope, result.session.party.inventoryItem(6))
         assertTrue(terminal.output.any { "With a resounding 'CRUNG'" in it })
@@ -3074,7 +3130,11 @@ class RylweenDslValidationTest {
         val result = WildernessSessionTerminalAdapter(
             terminal = terminal,
             renderer = compiledTextRenderer(),
-            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = compiledSpeakContent()),
+            serviceBridge = StatefulTownServiceBridge(
+                terminal,
+                speakContent = compiledSpeakContent(),
+                renderer = compiledTextRenderer(),
+            ),
         ).runUntilBlocked(
             engine.wildernessSession(state, map, rngState = null, realizeNpcs = false),
         )
@@ -3227,6 +3287,7 @@ class RylweenDslValidationTest {
             terminal = FakeTerminalPort("1", "B"),
             speakContent = compiledSpeakContent(),
             battleContent = BattleRuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
+            renderer = compiledTextRenderer(),
         ).run(
             service,
             scene,

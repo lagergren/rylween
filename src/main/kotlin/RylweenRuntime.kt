@@ -967,6 +967,11 @@ private class CombatScriptRunner(
         override fun inventoryPoolCount(pool: ItemPoolId): Int = runtime.activeParty.countInventoryItems(pool)
         override fun memberFlag(member: Int, name: String): Boolean = readMemberFlag(member, name)
         override fun monsterFlag(monster: Int, name: String): Boolean = readMonsterFlag(monster, name)
+        override fun runtimeFlag(name: String): Boolean =
+            when (name) {
+                "in_dungeon" -> runtime.realm.currentMode == RuntimeMode.Dungeon
+                else -> false
+            }
     }
 
     fun run(start: CombatScriptContinuation): CombatScriptRunResult {
@@ -1003,6 +1008,7 @@ private class CombatScriptRunner(
                         }
                     }
                 }
+                is Op.AskKey -> unsupportedCombatOp(op)
                 is Op.AskMonster -> return needMonster(start, index, op)
                 is Op.AskMember -> return needMember(start, index, op)
                 Op.ConsumeActiveItem -> start.activeInventorySlot?.let { slot ->
@@ -1025,6 +1031,8 @@ private class CombatScriptRunner(
                 is Op.Encounter,
                 is Op.EnterDungeon,
                 Op.ConsumeTorch,
+                is Op.TeleportParty,
+                is Op.DiscoverCave,
                 is Op.GrantReward,
                 is Op.RandomItemOffer,
                 is Op.ShopService,
@@ -1347,6 +1355,7 @@ abstract class IntAstEvaluator {
             is BoolAst.MemberFlag -> memberFlag(int(ast.member), ast.name)
             is BoolAst.MonsterFlag -> monsterFlag(int(ast.monster), ast.name)
             is BoolAst.BattleFlag -> battleFlag(ast.name) != 0
+            is BoolAst.RuntimeFlag -> runtimeFlag(ast.name)
         }
 
     protected open fun local(name: String): Int = unsupported("local $name")
@@ -1362,6 +1371,7 @@ abstract class IntAstEvaluator {
     protected open fun flagIs(slug: String, native: String): Boolean = unsupported("flag $slug")
     protected open fun memberFlag(member: Int, name: String): Boolean = unsupported("member flag $name")
     protected open fun monsterFlag(monster: Int, name: String): Boolean = unsupported("monster flag $name")
+    protected open fun runtimeFlag(name: String): Boolean = unsupported("runtime flag $name")
 
     private fun evalBinary(left: Int, op: String, right: Int): Int =
         when (op) {
@@ -2404,6 +2414,7 @@ data class PriestSpellResult(
     val runtime: RuntimeSessionState,
     val casterNumber: Int? = null,
     val spell: SpellId? = null,
+    val dungeonHandoff: WildernessDungeonHandoff? = null,
 )
 
 sealed interface PriestSpellStep {
@@ -2465,10 +2476,13 @@ data class PriestSpellSession(
         )
     }
 
-    fun finishScript(nextRuntime: RuntimeSessionState): PriestSpellSession {
+    fun finishScript(
+        nextRuntime: RuntimeSessionState,
+        dungeonHandoff: WildernessDungeonHandoff? = null,
+    ): PriestSpellSession {
         val current = step as? PriestSpellStep.Script
             ?: error("priest spell session is not running a script")
-        return finish(PriestSpellStatus.Cast, nextRuntime, current.casterNumber, current.spell.id)
+        return finish(PriestSpellStatus.Cast, nextRuntime, current.casterNumber, current.spell.id, dungeonHandoff)
     }
 
     private fun chooseCaster(memberNumber: Int): PriestSpellSession {
@@ -2506,7 +2520,6 @@ data class PriestSpellSession(
                 continuation = TownServiceContinuation.start(runtime).copy(
                     locals = mapOf(
                         "caster_idx" to casterNumber,
-                        "place" to place.code,
                     ),
                 ),
             ),
@@ -2527,8 +2540,9 @@ data class PriestSpellSession(
         nextRuntime: RuntimeSessionState,
         casterNumber: Int? = null,
         spell: SpellId? = null,
+        dungeonHandoff: WildernessDungeonHandoff? = null,
     ): PriestSpellSession {
-        val result = result(status, nextRuntime, casterNumber, spell)
+        val result = result(status, nextRuntime, casterNumber, spell, dungeonHandoff)
         return copy(runtime = nextRuntime, step = PriestSpellStep.Finished(result), lastResult = result)
     }
 
@@ -2537,8 +2551,9 @@ data class PriestSpellSession(
         nextRuntime: RuntimeSessionState,
         casterNumber: Int? = null,
         spell: SpellId? = null,
+        dungeonHandoff: WildernessDungeonHandoff? = null,
     ): PriestSpellResult =
-        PriestSpellResult(status, nextRuntime, casterNumber, spell)
+        PriestSpellResult(status, nextRuntime, casterNumber, spell, dungeonHandoff)
 
     private fun abortSlot(): Int =
         priestSpells.maxOfOrNull { it.slot }?.plus(1) ?: 1
