@@ -1281,6 +1281,16 @@ private fun checkPercent(value: Int, label: String) {
     check(value in 0..100) { "$label must be 0..100" }
 }
 
+private fun validateRealmContent(realm: RealmContentModel) {
+    realm.baseResourceCapacity.forEach { (resource, amount) ->
+        check(amount >= 0) { "base ${resource.name.lowercase()} capacity must be non-negative" }
+    }
+    checkPercent(realm.upkeep.manaRegenChance, "wilderness mana regen chance")
+    realm.upkeep.fatigue.forEachIndexed { index, rule ->
+        validateTextBlock(rule.text, "wilderness fatigue rule $index")
+    }
+}
+
 private fun validateTerminalPresentation(model: TerminalPresentationModel) {
     check(model.terrain.map { it.terrain }.toSet().size == model.terrain.size) {
         "duplicate terminal terrain style"
@@ -1324,6 +1334,7 @@ fun validateAuthoredContent(content: GameModel) {
     validateTextBlock(content.prompts.equipment.who, "equipment who prompt")
     validateTextBlock(content.prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
     validateTextBlock(content.prompts.equipment.readyArmors, "equipment ready-armors prompt")
+    validateRealmContent(content.realm)
     validateTerminalPresentation(content.terminal)
     validateItemCatalog(content.itemCatalog)
     check(content.itemPools.map { it.slug }.toSet().size == content.itemPools.size) {

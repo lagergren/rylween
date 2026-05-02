@@ -68,6 +68,18 @@ val nextRylween = rylween {
 
     realm {
         baseResourceCapacity(Resource.Food, 150)
+        upkeep {
+            foodCostLeaderDiv = 4
+            foodTickEvery = 5
+            starveFoodThreshold = 0
+            starveDamage = 2
+            manaRegenChance = 50
+            restedHoursCostPerTurn = 1
+            fatigueAt(0, inlineText("You begin to feel tired"))
+            fatigueAt(-4, inlineText("You are exhausted!!!"), drain = true)
+            fatigueAt(-8, inlineText("You begin to feel weak", "from lack of sleep.", ""), drain = true)
+            fatigueBelow(-8, inlineText("You faint from lack", "of well needed sleep."), drain = true)
+        }
         hunt {
             successChancePercent = 45
             timeCost = 5
@@ -5871,6 +5883,9 @@ check(nextDsl.prompts.pauseVerbs.last() == "Decapitate")
 check(nextDsl.prompts.inventoryUse.quaff == inlineText("Quaff what?"))
 check(nextDsl.prompts.equipment.readyArmors == inlineText("Do you want to ready", "some armors before", "leaving?", ""))
 check(nextDsl.prompts.town.closed(Buildings.inn) == inlineText("inn is closed."))
+check(nextDsl.realm.upkeep.foodTickEvery == 5)
+check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
+check(nextDsl.realm.upkeep.fatigue.size == 4)
 check(nextDsl.terminal.terrain.size == 10)
 check(nextDsl.terminal.terrain.single { it.terrain == Terrain.town }.glyph == "TT")
 check(nextDsl.terminal.regions.single { it.id == ScreenRegions.textWindow }.width == 26)

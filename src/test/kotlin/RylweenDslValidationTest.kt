@@ -869,6 +869,32 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledRealmAuthorsWildernessUpkeepBalance() {
+        val upkeep = compiledRealmContent().upkeep
+
+        assertEquals(4, upkeep.foodCostLeaderDiv)
+        assertEquals(5, upkeep.foodTickEvery)
+        assertEquals(0, upkeep.starveFoodThreshold)
+        assertEquals(2, upkeep.starveDamage)
+        assertEquals(50, upkeep.manaRegenChance)
+        assertEquals(1, upkeep.restedHoursCostPerTurn)
+        assertEquals(
+            listOf(
+                WildernessFatigueRule(0, inlineText("You begin to feel tired")),
+                WildernessFatigueRule(-4, inlineText("You are exhausted!!!"), drain = true),
+                WildernessFatigueRule(-8, inlineText("You begin to feel weak", "from lack of sleep.", ""), drain = true),
+                WildernessFatigueRule(
+                    -8,
+                    inlineText("You faint from lack", "of well needed sleep."),
+                    match = WildernessFatigueMatch.LessThan,
+                    drain = true,
+                ),
+            ),
+            upkeep.fatigue,
+        )
+    }
+
+    @Test
     fun compiledRealmAuthorsHuntBalanceAndNarration() {
         val hunt = checkNotNull(compiledRealmContent().hunt)
         val runtime = RuntimeSessionState.singleParty(testParty(), hour = 12, currentTown = null)
@@ -936,6 +962,7 @@ class RylweenDslValidationTest {
             worldMap = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
             content = RylweenCompiledGame.nextDsl.runtimeContent().copy(
                 realm = RylweenCompiledGame.nextDsl.realm.copy(
+                    upkeep = WildernessUpkeepRules(foodTickEvery = 0, fatigue = emptyList()),
                     hunt = checkNotNull(RylweenCompiledGame.nextDsl.realm.hunt).copy(
                         successChancePercent = 100,
                         foodMin = 10,
@@ -943,7 +970,6 @@ class RylweenDslValidationTest {
                     ),
                 ),
             ),
-            upkeepRules = WildernessUpkeepRules(foodTickEvery = 0, fatigue = emptyList()),
             step = WildernessSessionStep.Explore,
         )
 
