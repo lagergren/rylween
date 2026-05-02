@@ -76,9 +76,12 @@ private class RylweenAnsiGame(
 
     fun run(initial: WildernessSession) {
         var session = initial
+        var wasTownStep = false
         screen.bootFrame()
         while (true) {
-            session = when (val step = session.step) {
+            val step = session.step
+            val enteringTown = step is WildernessSessionStep.Town && !wasTownStep
+            session = when (step) {
                 WildernessSessionStep.TurnStart -> session.beginTurn().also(screen::renderHud)
                 is WildernessSessionStep.Messages -> {
                     screen.writeBlocks(step.blocks, session.runtime, renderer)
@@ -131,13 +134,18 @@ private class RylweenAnsiGame(
                     }
                 }
                 is WildernessSessionStep.Town -> {
-                    screen.writeText(listOf("Entering town...", ""))
+                    if (enteringTown) {
+                        screen.writeText(listOf("Entering town...", ""))
+                    }
                     val result = TownSessionTerminalAdapter(port, renderer, serviceBridge).runUntilBlocked(step.session)
                     val updated = session.replaceTownSession(result.session)
-                    when (result.status) {
+                    when (val status = result.status) {
                         TerminalRunStatus.Finished -> updated
                         TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "town step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
+                        is TerminalRunStatus.Waiting -> {
+                            if (status.rejection == null) return
+                            updated
+                        }
                     }
                 }
                 is WildernessSessionStep.Battle -> {
@@ -225,6 +233,7 @@ private class RylweenAnsiGame(
                     return
                 }
             }
+            wasTownStep = step is WildernessSessionStep.Town
         }
     }
 
