@@ -423,6 +423,7 @@ class StatefulTownServiceBridge(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort = TraceEnginePort(),
     private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
+    private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
 ) : TownServiceBridge {
     override fun run(
         service: BuildingServiceModel,
@@ -431,7 +432,7 @@ class StatefulTownServiceBridge(
     ): TownServiceBridgeResult {
         val eventStart = engine.events.size
         engine.trace(EngineTraceEvent.TownService(service, scene))
-        val result = StatefulScriptServiceRunner(terminal, engine, scene.ops, continuation, speakContent).run()
+        val result = StatefulScriptServiceRunner(terminal, engine, scene.ops, continuation, speakContent, battleContent).run()
         return TownServiceBridgeResult(
             runtime = result.runtime,
             status = result.status,
@@ -457,6 +458,7 @@ private class StatefulScriptServiceRunner(
     private val rootOps: List<Op>,
     continuation: TownServiceContinuation,
     private val speakContent: SpeakRuntimeContent,
+    private val battleContent: BattleRuntimeContent = BattleRuntimeContent(),
 ) {
     private var runtime = continuation.runtime
     private var party = continuation.party
@@ -464,6 +466,7 @@ private class StatefulScriptServiceRunner(
     private val realmInts = continuation.realmScalars.toMutableMap()
     private val stack = continuation.stack.toMutableList()
     private var speakSession = continuation.speakSession
+    private var battleSession = continuation.battleSession
     private var randomItemOfferSession = continuation.randomItemOfferSession
     private var rewardGrantSession = continuation.rewardGrantSession
     private var rejection: TerminalInputRejection? = null
@@ -599,8 +602,7 @@ private class StatefulScriptServiceRunner(
                 runScene(op)
             }
             is Op.Encounter -> {
-                advanceTop()
-                engine.trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
+                runEncounter(op)
             }
             Op.ConsumeActiveItem -> advanceTop()
             Op.ConsumeTorch -> {
@@ -742,6 +744,7 @@ private class StatefulScriptServiceRunner(
             realmScalars = realmInts.toMap(),
             stack = stack.toList(),
             speakSession = speakSession,
+            battleSession = battleSession,
             randomItemOfferSession = randomItemOfferSession,
             rewardGrantSession = rewardGrantSession,
         )
@@ -782,6 +785,49 @@ private class StatefulScriptServiceRunner(
             engine.trace(EngineTraceEvent.Screen(rumour))
         } else {
             engine.trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
+        }
+    }
+
+    private fun runEncounter(op: Op.Encounter) {
+        engine.trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
+        if (!battleContent.configured) {
+            advanceTop()
+            return
+        }
+        val current = battleSession
+        if (current == null) {
+            val monster = checkNotNull(battleContent.monsters.firstOrNull { it.id == op.foe }) {
+                "encounter references unknown monster ${op.foe.slug}"
+            }
+            battleSession = BattleSession.startMonster(
+                runtime = currentRuntime(),
+                combat = battleContent.combat,
+                monster = monster,
+                tier = op.tier ?: monster.tier,
+                mandatory = op.mandatory,
+                itemRecords = battleContent.itemRecords,
+                formulas = battleContent.formulas,
+                rewards = battleContent.rewards,
+                leveling = battleContent.leveling,
+                spells = battleContent.spells,
+                magicItems = battleContent.magicItems,
+            )
+            wait()
+            return
+        }
+
+        runtime = current.runtime
+        party = runtime.activeParty
+        if (current.step !is BattleSessionStep.Finished) {
+            wait()
+            return
+        }
+
+        battleSession = null
+        if (runtime.realm.currentMode == RuntimeMode.GameOver) {
+            stack.clear()
+        } else {
+            advanceTop()
         }
     }
 
@@ -1778,6 +1824,54 @@ class WildernessSessionTerminalAdapter(
                         TerminalInput.Unavailable -> return waiting(session)
                     }
                 }
+                is WildernessSessionStep.Mission -> {
+                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
+                    val bridge = StatefulTownServiceBridge(
+                        terminal = terminal,
+                        battleContent = BattleRuntimeContent(
+                            combat = session.combat,
+                            monsters = session.monsters,
+                            formulas = session.formulas,
+                            rewards = session.rewards,
+                            leveling = session.leveling,
+                            spells = session.spells,
+                            magicItems = session.magicItems,
+                            itemRecords = session.itemRecords,
+                        ),
+                    )
+                    val result = bridge.run(step.mission.service(), step.scene, continuation)
+                    writeBridgeEvents(result.events, result.runtime)
+                    when (result.status) {
+                        TownServiceBridgeStatus.Finished ->
+                            session.finishMission(result.runtime)
+                        TownServiceBridgeStatus.Waiting -> {
+                            val nextContinuation = checkNotNull(result.continuation) {
+                                "waiting mission bridge did not return continuation"
+                            }
+                            val battle = nextContinuation.battleSession
+                            if (battle == null) {
+                                return waiting(
+                                    session.replaceMissionContinuation(nextContinuation),
+                                    result.rejection,
+                                )
+                            }
+                            val battleResult = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(battle)
+                            val updated = session.replaceMissionContinuation(
+                                nextContinuation.copy(
+                                    runtime = battleResult.session.runtime,
+                                    battleSession = battleResult.session,
+                                ),
+                            )
+                            when (battleResult.status) {
+                                TerminalRunStatus.Finished -> updated
+                                TerminalRunStatus.StepLimitReached ->
+                                    return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                                is TerminalRunStatus.Waiting ->
+                                    return TerminalAdapterResult(updated, battleResult.status)
+                            }
+                        }
+                    }
+                }
                 is WildernessSessionStep.DungeonHandoff -> {
                     terminal.write(renderer.lines(WildernessPromptText.dungeonHandoffPending(step.handoff)))
                     session.completeDungeonHandoff()
@@ -1869,6 +1963,53 @@ class WildernessSessionTerminalAdapter(
     private fun writeMenu(block: TextBlock, labels: List<String>) {
         terminal.write(renderer.lines(block) + "Options: ${labels.joinToString("/")}")
     }
+
+    private fun writeBridgeEvents(events: List<EngineTraceEvent>, runtime: RuntimeSessionState) {
+        val context = TerminalTextContext(runtime = runtime)
+        events.forEach { event ->
+            when (event) {
+                is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
+                is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
+                is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
+                is EngineTraceEvent.Menu -> terminal.write(
+                    renderer.lines(event.prompt, context) + "Options: ${event.keys.joinToString("/")}",
+                )
+                is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
+                is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
+                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
+                is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
+                is EngineTraceEvent.NativeString ->
+                    terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
+                is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
+                is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
+                is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
+                is EngineTraceEvent.TownService -> Unit
+                is EngineTraceEvent.WaitInput,
+                is EngineTraceEvent.Pause,
+                is EngineTraceEvent.SetFlag,
+                is EngineTraceEvent.GrantReward,
+                is EngineTraceEvent.AchieveMilestone,
+                is EngineTraceEvent.Speak,
+                is EngineTraceEvent.Encounter,
+                is EngineTraceEvent.RandomItemOffer,
+                is EngineTraceEvent.ShopService,
+                is EngineTraceEvent.ShopSellQuote,
+                is EngineTraceEvent.ShopTransaction,
+                is EngineTraceEvent.EquipmentAction,
+                EngineTraceEvent.ConsumeTorch -> Unit
+            }
+        }
+    }
+
+    private fun MissionModel.service(): BuildingServiceModel =
+        BuildingServiceModel(
+            building = Buildings.none,
+            action = keyAction("mission.${id.slug}"),
+            scene = action,
+            opensAt = null,
+            closesAt = null,
+            nativeServices = emptyList(),
+        )
 
     private fun statusLine(session: WildernessSession, point: GridPoint?): String {
         val terrain = point?.let { session.worldMap.tileAt(it) } ?: ' '

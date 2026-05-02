@@ -24,6 +24,8 @@ enum class WildernessSessionResultStatus {
     NothingToEnter,
     UnknownTown,
     TerrainNarrated,
+    MissionHandoff,
+    MissionCompleted,
     CaveFound,
     CaveLeft,
     CaveNoMoves,
@@ -47,6 +49,7 @@ data class WildernessSessionResult(
     val dungeon: DungeonId? = null,
     val dungeonLevels: Int? = null,
     val encounterTier: EncounterTier? = null,
+    val mission: MissionId? = null,
 )
 
 sealed interface WildernessSessionStep {
@@ -55,6 +58,11 @@ sealed interface WildernessSessionStep {
     data class Messages(val blocks: List<TextBlock>, val next: WildernessSessionStep) : WildernessSessionStep
     data class OutOfMoves(val prompt: TextBlock) : WildernessSessionStep
     data class CaveFound(val prompt: TextBlock) : WildernessSessionStep
+    data class Mission(
+        val mission: MissionModel,
+        val scene: SceneModel,
+        val continuation: TownServiceContinuation? = null,
+    ) : WildernessSessionStep
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
     data class Battle(val session: BattleSession) : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
@@ -101,6 +109,11 @@ private data class WildernessUpkeepResult(
 private data class TerrainTransitionResult(
     val runtime: RuntimeSessionState,
     val text: TextBlock?,
+)
+
+private data class MissionTriggerResult(
+    val runtime: RuntimeSessionState,
+    val mission: MissionModel?,
 )
 
 data class WorldMapGrid(
@@ -189,6 +202,7 @@ data class WildernessSession(
     val towns: List<TownModel>,
     val townSystem: TownSystemModel,
     val scenes: List<SceneModel>,
+    val missions: List<MissionModel> = emptyList(),
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
     val combat: CombatSystemModel = CombatSystemModel(null),
     val monsters: List<MonsterModel> = emptyList(),
@@ -303,6 +317,45 @@ data class WildernessSession(
         }
     }
 
+    fun replaceMissionContinuation(continuation: TownServiceContinuation): WildernessSession {
+        val current = step as? WildernessSessionStep.Mission
+            ?: error("wilderness session is not running a mission")
+        return copy(
+            runtime = continuation.runtime,
+            step = current.copy(continuation = continuation),
+        )
+    }
+
+    fun finishMission(runtime: RuntimeSessionState): WildernessSession {
+        val current = step as? WildernessSessionStep.Mission
+            ?: error("wilderness session is not running a mission")
+        if (runtime.realm.currentMode == RuntimeMode.GameOver) {
+            return copy(
+                runtime = runtime,
+                step = WildernessSessionStep.Finished(runtime),
+                lastResult = WildernessSessionResult(
+                    WildernessSessionResultStatus.Finished,
+                    mission = current.mission.id,
+                ),
+            )
+        }
+        val nextRuntime = runtime.withRealm(
+            runtime.realm.copy(
+                currentMode = RuntimeMode.Wilderness,
+                currentTown = null,
+                currentMap = worldMap.id,
+            ),
+        )
+        return copy(
+            runtime = nextRuntime,
+            step = WildernessSessionStep.TurnStart,
+            lastResult = WildernessSessionResult(
+                WildernessSessionResultStatus.MissionCompleted,
+                mission = current.mission.id,
+            ),
+        )
+    }
+
     private fun pass(): WildernessSession =
         notice(
             WildernessPromptText.pass(),
@@ -379,7 +432,22 @@ data class WildernessSession(
             return copy(step = WildernessSessionStep.TurnStart, lastResult = moved)
         }
 
-        val eventDraw = runtime.drawRandom(0, 99)
+        val missionTrigger = runtime.pollWildernessMissions(missions)
+        missionTrigger.mission?.let { mission ->
+            val scene = scenes.firstOrNull { it.id == mission.action }
+            if (scene != null) {
+                return copy(
+                    runtime = missionTrigger.runtime,
+                    step = WildernessSessionStep.Mission(mission, scene),
+                    lastResult = moved.copy(
+                        status = WildernessSessionResultStatus.MissionHandoff,
+                        mission = mission.id,
+                    ),
+                )
+            }
+        }
+
+        val eventDraw = missionTrigger.runtime.drawRandom(0, 99)
         val eventRuntime = eventDraw.runtime
         if (eventDraw.value < events.caveChancePercent) {
             return copy(
@@ -611,6 +679,7 @@ data class WildernessSession(
                 towns = content.towns,
                 townSystem = requireNotNull(content.townSystem) { "town system is not configured" },
                 scenes = content.scenes,
+                missions = content.missions,
                 wilderness = content.wilderness,
                 combat = content.combat,
                 monsters = content.monsters,
@@ -707,6 +776,69 @@ private fun RuntimeSessionState.terrainTransition(
         runtime = draw.runtime,
         text = entry.text.takeIf { draw.value < transition.chancePercent },
     )
+}
+
+private fun RuntimeSessionState.pollWildernessMissions(missions: List<MissionModel>): MissionTriggerResult {
+    var nextRuntime = this
+    missions.forEach { mission ->
+        if (mission.requires?.let { nextRuntime.activeParty.matches(it) } == false) {
+            return@forEach
+        }
+        when (val trigger = mission.trigger) {
+            is Trigger.RandomStep -> {
+                val draw = nextRuntime.drawRandom(0, 99)
+                nextRuntime = draw.runtime
+                if (draw.value < trigger.percent) {
+                    return MissionTriggerResult(nextRuntime, mission)
+                }
+            }
+        }
+    }
+    return MissionTriggerResult(nextRuntime, null)
+}
+
+private fun PartyState.matches(ast: BoolAst): Boolean {
+    val party = this
+    val evaluator = object : IntAstEvaluator() {
+        override fun flagIs(slug: String, native: String): Boolean =
+            party.flags.any { it.flag.slug == slug && it.native == native }
+
+        override fun memberField(member: Int, field: String): Int {
+            val record = party.members.getOrNull(member - 1) ?: return 0
+            return when (field) {
+                "hit_points" -> record.hitPoints.current
+                "health" -> record.health
+                "magic" -> record.mana.current
+                "level" -> record.level
+                "wisdom" -> record.wisdom
+                "charisma" -> record.charisma
+                "class" -> record.pcClass.sourceId
+                "dead" -> if (record.dead) 1 else 0
+                else -> 0
+            }
+        }
+
+        override fun memberFlag(member: Int, name: String): Boolean {
+            val record = party.members.getOrNull(member - 1) ?: return false
+            return when (name) {
+                "dead" -> record.dead
+                "spellcaster" -> !record.dead && record.pcClass in setOf(PcClass.Mage, PcClass.Priest)
+                else -> false
+            }
+        }
+
+        override fun partyScalar(name: String): Int =
+            when (name) {
+                "gold" -> party.resources.gold
+                "torches" -> party.resources.torches
+                "food" -> party.resources.food
+                "time_left" -> party.resources.timeLeft
+                "rested_hours" -> party.resources.restedHours
+                "member_count" -> party.counters.memberCount ?: party.members.count { !it.dead }
+                else -> 0
+            }
+    }
+    return evaluator.bool(ast)
 }
 
 private fun RuntimeSessionState.applyWildernessUpkeep(rules: WildernessUpkeepRules): WildernessUpkeepResult {
