@@ -308,7 +308,7 @@ data class BattleSession(
             CombatActionKind.UseMagicItem -> copy(
                 step = BattleSessionStep.MagicItemSlot(
                     memberIndex = memberIndex,
-                    prompt = BattlePromptText.useWhat(runtime.activeParty),
+                    prompt = BattlePromptText.useWhat(runtime.activeParty, itemRecords),
                     slotKeys = inventorySlotKeys(),
                 ),
             )
@@ -591,8 +591,11 @@ data class BattleSession(
 
     private fun victoryStep(nextEncounter: BattleMonsterState): BattleSessionStep =
         applyVictory(nextEncounter).let { victory ->
+            val lootName = victory.loot?.let { item ->
+                itemRecords.firstOrNull { it.id == item }?.displayName ?: item.slug
+            }
             BattleSessionStep.Message(
-                texts = BattlePromptText.victory(victory.experience, victory.gold, victory.loot),
+                texts = BattlePromptText.victory(victory.experience, victory.gold, lootName, victory.levelGains),
                 next = BattleSessionStep.Finished(victory.runtime.asWilderness()),
             )
         }
@@ -639,8 +642,6 @@ data class BattleSession(
                     } else {
                         texts += BattlePromptText.monsterMiss(nextEncounter.monster.name, target.name)
                     }
-                } else {
-                    texts += BattlePromptText.monstersHeld()
                 }
             }
         }
@@ -726,17 +727,18 @@ data class BattleSession(
         val lootSelection = reward?.let { selectBattleLoot(runtime, it) }
         val rewardRuntime = lootSelection?.runtime ?: runtime
         val loot = lootSelection?.item
-        val partyWithRewards = rewardRuntime.activeParty
-            .withGold(rewardRuntime.activeParty.resources.gold + gold)
+        val partyBeforeLevelUp = rewardRuntime.activeParty
             .withKills(nextEncounter.count)
             .withExperienceForSurvivors(experience)
-            .withLevelUps(leveling, formulas)
+            .withGold(rewardRuntime.activeParty.resources.gold + gold)
             .let { party -> loot?.let { party.placeBattleLoot(it) } ?: party }
+        val levelUps = partyBeforeLevelUp.applyLevelUps(leveling, formulas)
         return BattleVictoryResult(
-            runtime = rewardRuntime.withActiveParty(partyWithRewards),
+            runtime = rewardRuntime.withActiveParty(levelUps.party),
             experience = experience,
             gold = gold,
             loot = loot,
+            levelGains = levelUps.gains,
         )
     }
 
@@ -772,7 +774,9 @@ data class BattleSession(
 
             val pick = runtime.drawRandom(0, candidates.lastIndex)
             val monster = candidates[pick.value]
-            val countDraw = pick.runtime.drawRandom(1, monster.count.last)
+            val firstLevel = pick.runtime.activeParty.members.firstOrNull().levelOrZero()
+            val countMax = monster.count.last + (monster.countMaxLevelDivisor?.let { firstLevel / it } ?: 0)
+            val countDraw = pick.runtime.drawRandom(1, countMax)
             val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(battle.encounterFoeCountMax)
             val hpRange = countDraw.runtime.scaledEncounterHpRange(monster, formulas)
             var hpRuntime = countDraw.runtime
@@ -839,6 +843,17 @@ data class BattleVictoryResult(
     val experience: Int,
     val gold: Int,
     val loot: ItemId?,
+    val levelGains: List<BattleLevelGain>,
+)
+
+data class BattleLevelGain(
+    val memberName: String,
+    val levels: Int,
+)
+
+private data class PartyLevelUpResult(
+    val party: PartyState,
+    val gains: List<BattleLevelGain>,
 )
 
 private sealed interface CombatScriptRunResult {
@@ -1019,7 +1034,7 @@ private class CombatScriptRunner(
                         when (part) {
                             is TextPart.Literal -> part.text
                             is TextPart.IntValue -> evaluator.int(part.value).toString()
-                            is TextPart.StringValue -> "{string}"
+                            is TextPart.StringValue -> evalString(part.value)
                             is TextPart.RoleName -> "{${part.role.slug}.name}"
                             is TextPart.RoleLocation -> "{${part.role.slug}.location}"
                             is TextPart.TownName -> part.town.slug
@@ -1033,6 +1048,37 @@ private class CombatScriptRunner(
                 },
             )
         }
+
+    private fun evalString(ast: StrAst): String =
+        when (ast) {
+            is StrAst.NativeString -> when (ast.path) {
+                NativeAllowlist.partyMemberName.path ->
+                    runtime.activeParty.members.getOrNull(evalStringArg(ast.args.single()))?.name.orEmpty()
+                NativeAllowlist.combatMonsterName.path -> encounter.monster.name
+                NativeAllowlist.partyPronounSubject.path ->
+                    pronoun(evalStringArg(ast.args.single()), PronounCase.Subject)
+                NativeAllowlist.partyPronounObject.path ->
+                    pronoun(evalStringArg(ast.args.single()), PronounCase.Object)
+                NativeAllowlist.partyPronounPossessive.path ->
+                    pronoun(evalStringArg(ast.args.single()), PronounCase.Possessive)
+                else -> "{${ast.path}}"
+            }
+        }
+
+    private fun evalStringArg(arg: NativeStringArg): Int =
+        when (arg) {
+            is NativeStringArg.IntValue -> evaluator.int(arg.value)
+            is NativeStringArg.Literal -> arg.value.toIntOrNull() ?: 0
+        }
+
+    private fun pronoun(memberIndex: Int, case: PronounCase): String {
+        val gender = runtime.activeParty.members.getOrNull(memberIndex)?.gender ?: Gender.Male
+        return when (case) {
+            PronounCase.Subject -> if (gender == Gender.Female) "she" else "he"
+            PronounCase.Object -> if (gender == Gender.Female) "her" else "him"
+            PronounCase.Possessive -> if (gender == Gender.Female) "her" else "his"
+        }
+    }
 
     private fun read(target: LValueAst): Int =
         when (target) {
@@ -1331,15 +1377,17 @@ private fun PartyMemberState.matchesCombatFilter(filter: MemberChoiceFilter): Bo
         MemberChoiceFilter.SpellcasterOnly -> !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest)
     }
 
-private fun PartyState.withLevelUps(leveling: LevelingModel?, formulas: List<FormulaModel>): PartyState {
-    leveling ?: return this
+private fun PartyState.applyLevelUps(leveling: LevelingModel?, formulas: List<FormulaModel>): PartyLevelUpResult {
+    leveling ?: return PartyLevelUpResult(this, emptyList())
     val growthByClass = leveling.classGrowth.associateBy { it.klass }
-    return copy(
+    val gains = mutableListOf<BattleLevelGain>()
+    val nextParty = copy(
         members = members.map { member ->
             val gained = ((member.level + 1)..leveling.maxLevel).count { targetLevel ->
                 member.experience >= leveling.xpThresholds.getOrElse(targetLevel) { Int.MAX_VALUE }
             }
             if (gained == 0) return@map member
+            gains += BattleLevelGain(member.name, gained)
             val growth = growthByClass[member.pcClass]
             val nextHealth = member.health + (growth?.health ?: 0) * gained
             val hpFloor = formulas.evalFormula(leveling.hitPointFloor, mapOf("health" to nextHealth))
@@ -1353,6 +1401,7 @@ private fun PartyState.withLevelUps(leveling: LevelingModel?, formulas: List<For
             )
         },
     )
+    return PartyLevelUpResult(nextParty, gains.toList())
 }
 
 private fun PartyState.placeBattleLoot(item: ItemId): PartyState =
@@ -1445,12 +1494,14 @@ object BattlePromptText {
             ),
         )
 
-    fun useWhat(party: PartyState): TextBlock =
+    fun useWhat(party: PartyState, itemRecords: List<ItemRecordModel>): TextBlock =
         combineTextBlocks(
             inlineText("Use what?", ""),
             TextBlock.Inline(
                 (1..InventorySaveSlotMax).map { slot ->
-                    val item = party.inventoryItem(slot)?.slug ?: "empty"
+                    val item = party.inventoryItem(slot)?.let { item ->
+                        itemRecords.firstOrNull { it.id == item }?.displayName ?: item.slug
+                    } ?: "empty"
                     "${'A' + slot - 1}. $item"
                 },
             ),
@@ -1507,10 +1558,10 @@ object BattlePromptText {
         inlineText("Not possible.")
 
     fun magicImmune(): TextBlock =
-        inlineText("The magic item doesn't seem", "to work on this monster!")
+        inlineText("The magic item doesn't seem", "to work on this enemy!!!")
 
     fun spellFizzle(): TextBlock =
-        inlineText("The spell fizzles!", "This monster is immune", "to ordinary magic!!!")
+        inlineText("The spell fizzles!", "this creature is immune", "to ordinary magic!!!")
 
     fun notEnoughMagic(): TextBlock =
         inlineText("Not enough magic!")
@@ -1533,7 +1584,7 @@ object BattlePromptText {
             "$targetName!",
             "And hits for",
             "$damage damage pts!!!",
-            if (killed) "$targetName DIES!!!" else "",
+            if (killed) "\u001B[31m$targetName DIES!!!\u001B[37m" else "",
         )
 
     fun monsterMiss(monsterName: String, targetName: String): TextBlock =
@@ -1542,17 +1593,17 @@ object BattlePromptText {
     fun monsterCasts(monsterName: String): TextBlock =
         inlineText("$monsterName casts")
 
-    fun monstersHeld(): TextBlock =
-        inlineText("The monsters are held.")
-
     fun partyHeld(): TextBlock =
         inlineText("PARTY IS HELD!")
 
-    fun victory(experience: Int, gold: Int, loot: ItemId?): List<TextBlock> =
+    fun victory(experience: Int, gold: Int, lootName: String?, levelGains: List<BattleLevelGain>): List<TextBlock> =
         buildList {
             add(inlineText("Thou hast bested", "thy foes.", ""))
             add(inlineText("Each survivor gets", "$experience experience pts", "and $gold gold pieces.", ""))
-            loot?.let { add(inlineText("You find a", "${it.slug}.")) }
+            lootName?.let { add(inlineText("You find a", "$it.")) }
+            levelGains.forEach { gain ->
+                add(inlineText("${gain.memberName} gains >${gain.levels}<", "experience levels."))
+            }
         }
 
     private val whatNow: TextBlock = inlineText("What now?", "")
