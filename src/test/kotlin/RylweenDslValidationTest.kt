@@ -738,6 +738,49 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun shopTerminalAdapterAcceptsAuthoredInputAliases() {
+        val base = testMerchantShop()
+        val buy = checkNotNull(base.buy)
+        val shop = base.copy(
+            keys = ShopMenuKeysModel(
+                buy = inputKey('B', "BUY"),
+                sell = inputKey('S', "SELL"),
+                leave = inputKey('L', "LEAVE"),
+            ),
+            buy = buy.copy(
+                paymentKeys = ShopPurchaseKeysModel(
+                    pay = inputKey('P', "PAY"),
+                    decline = inputKey('N', "NONE"),
+                ),
+                catalogs = buy.catalogs.map { catalog ->
+                    catalog.copy(
+                        pages = catalog.pages.map { page ->
+                            page.copy(
+                                entries = page.entries.map { entry ->
+                                    if (entry.item == Items.torch) {
+                                        entry.copy(binding = inputKey(entry.key, "TORCH"))
+                                    } else {
+                                        entry
+                                    }
+                                },
+                            )
+                        },
+                    )
+                },
+            ),
+        )
+        val terminal = FakeTerminalPort("BUY", "TORCH", "99", "PAY", "LEAVE")
+        val session = ShopServiceTerminalAdapter(terminal).run(
+            ShopServiceSession.start(shop, testParty(gold = 10, torches = 78)),
+        )
+
+        assertTrue(session.step is ShopServiceStep.Finished)
+        assertEquals(80, session.party.resources.torches)
+        assertEquals(8, session.party.resources.gold)
+        assertTrue(terminal.output.any { "Options: B/S/L" in it })
+    }
+
+    @Test
     fun shopInterpreterSellsAcceptedItemsAndRejectsWrongShopItems() {
         val shop = testMerchantShop()
         val party = testParty(
@@ -989,6 +1032,75 @@ class RylweenDslValidationTest {
         assertTrue(terminal.output.any { "Church body" in it })
         assertTrue(terminal.output.any { "Native: screen.clear_text" in it })
         assertEquals(TownSessionResultStatus.NativeServiceFinished, session.session.lastResult?.status)
+    }
+
+    @Test
+    fun townServiceBridgeAcceptsAuthoredScriptMenuAliases() {
+        val service = BuildingServiceModel(
+            building = Buildings.church,
+            action = KeyActions.enterChurch,
+            scene = sceneId("test.script_menu_alias"),
+            opensAt = null,
+            closesAt = null,
+            nativeServices = emptyList(),
+        )
+        val scene = SceneModel(
+            service.scene,
+            listOf(
+                Op.Menu(
+                    prompt = inlineText("(P)ay"),
+                    options = listOf(
+                        MenuOption(
+                            inputKey('P', "PAY"),
+                            listOf(Op.Set(LValueAst.PartyScalar("gold"), IntAst.Lit(7))),
+                        ),
+                    ),
+                    defaultOps = emptyList(),
+                ),
+            ),
+        )
+        val result = StatefulTownServiceBridge(FakeTerminalPort("PAY")).run(
+            service,
+            scene,
+            TownServiceContinuation.start(
+                RuntimeSessionState.singleParty(
+                    party = testParty(gold = 1),
+                    hour = 12,
+                    currentTown = Towns.murn.id,
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertEquals(7, result.party.resources.gold)
+    }
+
+    @Test
+    fun townTerminalAdapterAcceptsAuthoredInputAliases() {
+        val baseSystem = testTownSystem(Buildings.church)
+        val townSystem = baseSystem.copy(
+            menu = baseSystem.menu.map { action ->
+                when {
+                    action.building == Buildings.church -> action.copy(binding = inputKey(action.key, "CHURCH"))
+                    action.endsMenu -> action.copy(binding = inputKey(action.key, "LEAVE"))
+                    else -> action
+                }
+            },
+        )
+        val terminal = FakeTerminalPort("CHURCH", "LEAVE")
+        val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(
+            TownSession.start(
+                town = testTown(Buildings.church),
+                townSystem = townSystem,
+                scenes = listOf(SceneModel(Scenes.Towne.church, listOf(Op.Screen(inlineText("Church body"))))),
+                party = testParty(gold = 10),
+                currentHour = 12,
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(session.session.step is TownSessionStep.Finished)
+        assertTrue(terminal.output.any { "Church body" in it })
     }
 
     @Test
@@ -2002,6 +2114,33 @@ class RylweenDslValidationTest {
         assertTrue(result.session.step is BattleSessionStep.RoundOpening)
         assertEquals(3, result.session.encounter.hitPoints.first())
         assertEquals(89, result.session.runtime.activeParty.members.single().hitPoints.current)
+    }
+
+    @Test
+    fun battleTerminalAdapterAcceptsAuthoredInputAliases() {
+        val start = compiledBattleSession(
+            tier = EncounterTiers.wild,
+            party = testParty(food = 100, timeLeft = 200, restedHours = 14, health = 100, hitPoints = 100),
+        )
+        val battle = start.battle.copy(
+            openingKeys = BattleOpeningKeysModel(
+                fight = inputKey('F', "FIGHT"),
+                run = inputKey('R', "RUN"),
+            ),
+            actions = start.battle.actions.map { action ->
+                if (action.kind == CombatActionKind.Attack) {
+                    action.copy(binding = inputKey(action.key, "ATTACK"))
+                } else {
+                    action
+                }
+            },
+        )
+        val result = BattleSessionTerminalAdapter(FakeTerminalPort("FIGHT", "ATTACK", "A"), compiledTextRenderer())
+            .runUntilBlocked(start.copy(battle = battle))
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(BattleSessionResultStatus.FightSelected, result.session.lastResult.status)
+        assertTrue(result.session.step is BattleSessionStep.RoundOpening)
     }
 
     @Test

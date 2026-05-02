@@ -2023,9 +2023,12 @@ sealed interface RandomItemOfferStep {
         val item: ItemId,
         val itemName: String,
         val price: Int,
-        val buyKey: Char,
-        val declineKey: Char,
-    ) : RandomItemOfferStep
+        val buy: InputBindingModel,
+        val decline: InputBindingModel,
+    ) : RandomItemOfferStep {
+        val buyKey: Char get() = buy.primaryChar
+        val declineKey: Char get() = decline.primaryChar
+    }
 
     data class DropSlot(
         val prompt: TextBlock,
@@ -2181,8 +2184,8 @@ data class RandomItemOfferSession(
                     item = item,
                     itemName = record.displayName,
                     price = record.cost,
-                    buyKey = offer.buyKey,
-                    declineKey = offer.declineKey,
+                    buy = offer.buy,
+                    decline = offer.decline,
                 ),
             )
         }

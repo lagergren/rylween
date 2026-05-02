@@ -321,6 +321,9 @@ data class InputBindingModel(
     val label: String = primary,
 ) {
     val tokens: List<String> get() = listOf(primary) + aliases
+    val primaryChar: Char
+        get() = primary.singleOrNull()?.uppercaseChar()
+            ?: error("input binding primary '$primary' is not a single character")
 }
 
 object InputAliases {
@@ -330,8 +333,8 @@ object InputAliases {
     const val ArrowLeft = "\u001B[D"
 }
 
-fun inputKey(primary: Char, vararg aliases: String, label: String = primary.toString()): InputBindingModel =
-    inputKey(primary.toString(), *aliases, label = label)
+fun inputKey(primary: Char, vararg aliases: String, label: String = primary.uppercaseChar().toString()): InputBindingModel =
+    inputKey(primary.uppercaseChar().toString(), *aliases, label = label)
 
 fun inputKey(primary: String, vararg aliases: String, label: String = primary): InputBindingModel =
     InputBindingModel(primary = primary, aliases = aliases.toList(), label = label)
@@ -407,7 +410,11 @@ sealed interface Op {
 }
 
 data class SwitchCase(val match: Int?, val body: List<Op>)
-data class MenuOption(val key: Char, val body: List<Op>)
+data class MenuOption(val binding: InputBindingModel, val body: List<Op>) {
+    constructor(key: Char, body: List<Op>) : this(inputKey(key), body)
+
+    val key: Char get() = binding.primaryChar
+}
 
 data class SceneModel(val id: SceneId, val ops: List<Op>)
 data class DialogueModel(val npc: NpcId, val branches: List<DialogueBranchModel>)
@@ -442,11 +449,20 @@ data class TownModel(
 )
 
 data class TownMenuActionModel(
-    val key: Char,
+    val binding: InputBindingModel,
     val action: KeyActionId,
     val building: BuildingId?,
     val endsMenu: Boolean,
-)
+) {
+    constructor(
+        key: Char,
+        action: KeyActionId,
+        building: BuildingId?,
+        endsMenu: Boolean,
+    ) : this(inputKey(key), action, building, endsMenu)
+
+    val key: Char get() = binding.primaryChar
+}
 
 data class BuildingServiceModel(
     val building: BuildingId,
@@ -564,11 +580,26 @@ data class EncounterOpeningModel(
 )
 
 data class CombatActionModel(
-    val key: Char,
+    val binding: InputBindingModel,
     val action: KeyActionId,
     val kind: CombatActionKind,
     val requirement: CombatActionRequirement,
     val prompt: TextBlock,
+) {
+    constructor(
+        key: Char,
+        action: KeyActionId,
+        kind: CombatActionKind,
+        requirement: CombatActionRequirement,
+        prompt: TextBlock,
+    ) : this(inputKey(key), action, kind, requirement, prompt)
+
+    val key: Char get() = binding.primaryChar
+}
+
+data class BattleOpeningKeysModel(
+    val fight: InputBindingModel = inputKey('F'),
+    val run: InputBindingModel = inputKey('R'),
 )
 
 data class BattleTextModel(
@@ -681,13 +712,16 @@ data class RandomItemOfferModel(
     val declined: TextBlock,
     val application: RewardApplicationModel,
     val messages: RewardMessageModel,
-    val buyKey: Char,
-    val declineKey: Char,
+    val buy: InputBindingModel,
+    val decline: InputBindingModel,
     val brokePauseMillis: Int,
     val fullPauseMillis: Int,
     val dealPauseMillis: Int,
     val declinedPauseMillis: Int,
-)
+) {
+    val buyKey: Char get() = buy.primaryChar
+    val declineKey: Char get() = decline.primaryChar
+}
 
 enum class ShopResourceKind { Torches, Food }
 enum class ShopQuantityCap { TorchLimit80, FoodByDonkeys }
@@ -739,13 +773,24 @@ sealed interface ShopPurchaseModel {
 }
 
 data class ShopItemOfferModel(
-    val key: Char,
+    val binding: InputBindingModel,
     val item: ItemId,
     val label: String?,
     val description: TextBlock?,
     val price: ShopPriceModel,
     val purchase: ShopPurchaseModel,
-)
+) {
+    constructor(
+        key: Char,
+        item: ItemId,
+        label: String?,
+        description: TextBlock?,
+        price: ShopPriceModel,
+        purchase: ShopPurchaseModel,
+    ) : this(inputKey(key), item, label, description, price, purchase)
+
+    val key: Char get() = binding.primaryChar
+}
 
 data class ShopCatalogPageModel(
     val entries: List<ShopItemOfferModel>,
@@ -753,11 +798,20 @@ data class ShopCatalogPageModel(
 )
 
 data class ShopCatalogModel(
-    val key: Char,
+    val binding: InputBindingModel,
     val title: String,
     val intro: TextBlock?,
     val pages: List<ShopCatalogPageModel>,
-)
+) {
+    constructor(
+        key: Char,
+        title: String,
+        intro: TextBlock?,
+        pages: List<ShopCatalogPageModel>,
+    ) : this(inputKey(key), title, intro, pages)
+
+    val key: Char get() = binding.primaryChar
+}
 
 data class ShopBuyModel(
     val prompt: TextBlock,
@@ -768,6 +822,7 @@ data class ShopBuyModel(
     val unitPrice: TextBlock?,
     val singlePrice: TextBlock?,
     val payPrompt: TextBlock,
+    val paymentKeys: ShopPurchaseKeysModel,
     val inventoryApplication: RewardApplicationModel,
 )
 
@@ -781,16 +836,36 @@ data class ShopSellModel(
     val sold: TextBlock?,
     val price: ShopPriceModel,
     val bargain: ShopSellBargainPolicy,
+    val saleKeys: ShopSaleKeysModel,
 )
 
 data class ShopInterludeModel(
     val chancePercent: Int,
     val offer: TextBlock,
-    val acceptKey: Char,
-    val declineKey: Char,
+    val accept: InputBindingModel,
+    val decline: InputBindingModel,
     val accepted: List<TextBlock>,
     val declined: TextBlock,
     val runsRumourAfterAccept: Boolean,
+) {
+    val acceptKey: Char get() = accept.primaryChar
+    val declineKey: Char get() = decline.primaryChar
+}
+
+data class ShopMenuKeysModel(
+    val buy: InputBindingModel = inputKey('B'),
+    val sell: InputBindingModel = inputKey('S'),
+    val leave: InputBindingModel = inputKey('L'),
+)
+
+data class ShopPurchaseKeysModel(
+    val pay: InputBindingModel = inputKey('P'),
+    val decline: InputBindingModel = inputKey('N'),
+)
+
+data class ShopSaleKeysModel(
+    val accept: InputBindingModel = inputKey('Y'),
+    val decline: InputBindingModel = inputKey('N'),
 )
 
 data class ShopServiceModel(
@@ -799,6 +874,7 @@ data class ShopServiceModel(
     val closed: TextBlock,
     val intro: TextBlock,
     val menu: TextBlock,
+    val keys: ShopMenuKeysModel,
     val goodbye: TextBlock,
     val buy: ShopBuyModel?,
     val sell: ShopSellModel?,
@@ -823,6 +899,7 @@ enum class ItemConsumePolicy { BeforeUse, ScriptControlled, NeverConsumes }
 
 data class StandardBattleModel(
     val opening: EncounterOpeningModel,
+    val openingKeys: BattleOpeningKeysModel,
     val actions: List<CombatActionModel>,
     val playerRound: PlayerRoundModel,
     val monsterRound: MonsterRoundModel,
@@ -850,15 +927,25 @@ enum class ChitchatPromptAudience { Any, Female, Male }
 
 data class ConversationMenuActionModel(
     val topic: ConversationTopic,
-    val key: Char,
+    val binding: InputBindingModel,
     val action: KeyActionId,
-)
+) {
+    constructor(topic: ConversationTopic, key: Char, action: KeyActionId) :
+        this(topic, inputKey(key), action)
+
+    val key: Char get() = binding.primaryChar
+}
 
 data class QuestionMenuActionModel(
     val topic: QuestionTopic,
-    val key: Char,
+    val binding: InputBindingModel,
     val action: KeyActionId,
-)
+) {
+    constructor(topic: QuestionTopic, key: Char, action: KeyActionId) :
+        this(topic, inputKey(key), action)
+
+    val key: Char get() = binding.primaryChar
+}
 
 data class ConversationMenuModel(
     val actions: List<ConversationMenuActionModel>,
@@ -1733,9 +1820,19 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
         overflow = RewardOverflowPolicy.PromptDropThenPlace
     }.build()
     private var messagesModel = RewardMessageModel()
+    private var buyBinding: InputBindingModel = inputKey('B')
+    private var declineBinding: InputBindingModel = inputKey('N')
 
-    var buyKey: Char = 'B'
-    var declineKey: Char = 'N'
+    var buyKey: Char
+        get() = buyBinding.primaryChar
+        set(value) {
+            buyBinding = inputKey(value)
+        }
+    var declineKey: Char
+        get() = declineBinding.primaryChar
+        set(value) {
+            declineBinding = inputKey(value)
+        }
     var brokePauseMillis: Int = 800
     var fullPauseMillis: Int = 1000
     var dealPauseMillis: Int = 800
@@ -1755,6 +1852,11 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
 
     fun choicePrompt(body: RandomItemOfferTextBuilder.() -> Unit) {
         choicePromptText = RandomItemOfferTextBuilder().apply(body).build()
+    }
+
+    fun choiceKeys(buy: InputBindingModel = buyBinding, decline: InputBindingModel = declineBinding) {
+        buyBinding = buy
+        declineBinding = decline
     }
 
     fun broke(vararg lines: String) {
@@ -1816,8 +1918,8 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
                     "random item offer requires full/cant-carry text"
                 },
             ),
-            buyKey = buyKey.uppercaseChar(),
-            declineKey = declineKey.uppercaseChar(),
+            buy = buyBinding,
+            decline = declineBinding,
             brokePauseMillis = brokePauseMillis,
             fullPauseMillis = fullPauseMillis,
             dealPauseMillis = dealPauseMillis,
@@ -1855,6 +1957,7 @@ class ShopServiceBuilder(private val building: BuildingId) {
     private var closedText: TextBlock = inlineText("Shop Closed.")
     private var introText: TextBlock? = null
     private var menuText: TextBlock? = null
+    private var keysModel: ShopMenuKeysModel = ShopMenuKeysModel()
     private var goodbyeText: TextBlock = inlineText("Well, bye then...")
     private var buyModel: ShopBuyModel? = null
     private var sellModel: ShopSellModel? = null
@@ -1884,6 +1987,10 @@ class ShopServiceBuilder(private val building: BuildingId) {
         menuText = structuredText(body)
     }
 
+    fun keys(body: ShopMenuKeysBuilder.() -> Unit) {
+        keysModel = ShopMenuKeysBuilder(keysModel).apply(body).build()
+    }
+
     fun goodbye(vararg lines: String) {
         goodbyeText = inlineText(*lines)
     }
@@ -1911,6 +2018,7 @@ class ShopServiceBuilder(private val building: BuildingId) {
             closed = closedText,
             intro = requireNotNull(introText) { "shop ${building.slug} requires intro text" },
             menu = requireNotNull(menuText) { "shop ${building.slug} requires menu text" },
+            keys = keysModel,
             goodbye = goodbyeText,
             buy = buyModel,
             sell = sellModel,
@@ -1919,13 +2027,38 @@ class ShopServiceBuilder(private val building: BuildingId) {
 }
 
 @RylNextDsl
+class ShopMenuKeysBuilder(initial: ShopMenuKeysModel = ShopMenuKeysModel()) {
+    var buy: InputBindingModel = initial.buy
+    var sell: InputBindingModel = initial.sell
+    var leave: InputBindingModel = initial.leave
+
+    fun build(): ShopMenuKeysModel = ShopMenuKeysModel(buy, sell, leave)
+}
+
+@RylNextDsl
 class ShopInterludeBuilder(private val chancePercent: Int) {
     private var offerText: TextBlock? = null
     private val acceptedTexts = mutableListOf<TextBlock>()
     private var declinedText: TextBlock? = null
-    var acceptKey: Char = 'A'
-    var declineKey: Char = 'D'
+    private var acceptBinding: InputBindingModel = inputKey('A')
+    private var declineBinding: InputBindingModel = inputKey('D')
     var runsRumourAfterAccept: Boolean = false
+
+    var acceptKey: Char
+        get() = acceptBinding.primaryChar
+        set(value) {
+            acceptBinding = inputKey(value)
+        }
+    var declineKey: Char
+        get() = declineBinding.primaryChar
+        set(value) {
+            declineBinding = inputKey(value)
+        }
+
+    fun choiceKeys(accept: InputBindingModel = acceptBinding, decline: InputBindingModel = declineBinding) {
+        acceptBinding = accept
+        declineBinding = decline
+    }
 
     fun offer(vararg lines: String) {
         offerText = inlineText(*lines)
@@ -1955,8 +2088,8 @@ class ShopInterludeBuilder(private val chancePercent: Int) {
         ShopInterludeModel(
             chancePercent = chancePercent,
             offer = requireNotNull(offerText) { "shop interlude requires offer text" },
-            acceptKey = acceptKey.uppercaseChar(),
-            declineKey = declineKey.uppercaseChar(),
+            accept = acceptBinding,
+            decline = declineBinding,
             accepted = acceptedTexts.toList(),
             declined = requireNotNull(declinedText) { "shop interlude requires declined text" },
             runsRumourAfterAccept = runsRumourAfterAccept,
@@ -1973,6 +2106,7 @@ class ShopBuyBuilder {
     private var unitPriceText: TextBlock? = null
     private var singlePriceText: TextBlock? = null
     private var payPromptText: TextBlock = inlineText("(P)ay", "(N)one")
+    private var paymentKeysModel: ShopPurchaseKeysModel = ShopPurchaseKeysModel()
     private var applicationModel = RewardApplicationBuilder().apply {
         overflow = RewardOverflowPolicy.PromptDropThenPlace
     }.build()
@@ -2009,12 +2143,20 @@ class ShopBuyBuilder {
         payPromptText = inlineText(*lines)
     }
 
+    fun paymentKeys(body: ShopPurchaseKeysBuilder.() -> Unit) {
+        paymentKeysModel = ShopPurchaseKeysBuilder(paymentKeysModel).apply(body).build()
+    }
+
     fun exactFullInventoryReject() {
         applicationModel = applicationModel.copy(overflow = RewardOverflowPolicy.SkipIfInventoryFull)
     }
 
     fun catalog(key: Char, title: String, body: ShopCatalogBuilder.() -> Unit) {
-        catalogModels += ShopCatalogBuilder(key, title).apply(body).build()
+        catalog(inputKey(key), title, body)
+    }
+
+    fun catalog(binding: InputBindingModel, title: String, body: ShopCatalogBuilder.() -> Unit) {
+        catalogModels += ShopCatalogBuilder(binding, title).apply(body).build()
     }
 
     fun build(): ShopBuyModel =
@@ -2027,12 +2169,21 @@ class ShopBuyBuilder {
             unitPrice = unitPriceText,
             singlePrice = singlePriceText,
             payPrompt = payPromptText,
+            paymentKeys = paymentKeysModel,
             inventoryApplication = applicationModel,
         )
 }
 
 @RylNextDsl
-class ShopCatalogBuilder(private val key: Char, private val title: String) {
+class ShopPurchaseKeysBuilder(initial: ShopPurchaseKeysModel = ShopPurchaseKeysModel()) {
+    var pay: InputBindingModel = initial.pay
+    var decline: InputBindingModel = initial.decline
+
+    fun build(): ShopPurchaseKeysModel = ShopPurchaseKeysModel(pay, decline)
+}
+
+@RylNextDsl
+class ShopCatalogBuilder(private val binding: InputBindingModel, private val title: String) {
     private var introText: TextBlock? = null
     private val pages = mutableListOf<ShopCatalogPageModel>()
     private val looseEntries = mutableListOf<ShopItemOfferModel>()
@@ -2048,8 +2199,18 @@ class ShopCatalogBuilder(private val key: Char, private val title: String) {
         price: ShopPriceModel = ShopPriceModel.ItemCost,
         description: TextBlock? = null,
     ) {
+        item(inputKey(key), item, label, price, description)
+    }
+
+    fun item(
+        binding: InputBindingModel,
+        item: ItemId,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        description: TextBlock? = null,
+    ) {
         looseEntries += ShopItemOfferModel(
-            key = key.uppercaseChar(),
+            binding = binding,
             item = item,
             label = label,
             description = description,
@@ -2065,7 +2226,17 @@ class ShopCatalogBuilder(private val key: Char, private val title: String) {
         price: ShopPriceModel = ShopPriceModel.ItemCost,
         description: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        item(key, item, label, price, structuredText(description))
+        item(inputKey(key), item, label, price, structuredText(description))
+    }
+
+    fun item(
+        binding: InputBindingModel,
+        item: ItemId,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        description: StructuredTextBlockBuilder.() -> Unit,
+    ) {
+        item(binding, item, label, price, structuredText(description))
     }
 
     fun resource(
@@ -2080,8 +2251,23 @@ class ShopCatalogBuilder(private val key: Char, private val title: String) {
         quantityPrompt: TextBlock = inlineText("How many? "),
         description: TextBlock? = null,
     ) {
+        resource(inputKey(key), item, resource, cap, tooMany, label, price, zeroQuantityDeal, quantityPrompt, description)
+    }
+
+    fun resource(
+        binding: InputBindingModel,
+        item: ItemId,
+        resource: ShopResourceKind,
+        cap: ShopQuantityCap,
+        tooMany: TextBlock,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        zeroQuantityDeal: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly,
+        quantityPrompt: TextBlock = inlineText("How many? "),
+        description: TextBlock? = null,
+    ) {
         looseEntries += ShopItemOfferModel(
-            key = key.uppercaseChar(),
+            binding = binding,
             item = item,
             label = label,
             description = description,
@@ -2103,7 +2289,33 @@ class ShopCatalogBuilder(private val key: Char, private val title: String) {
         description: StructuredTextBlockBuilder.() -> Unit,
     ) {
         resource(
-            key,
+            inputKey(key),
+            item,
+            resource,
+            cap,
+            tooMany,
+            label,
+            price,
+            zeroQuantityDeal,
+            quantityPrompt,
+            structuredText(description),
+        )
+    }
+
+    fun resource(
+        binding: InputBindingModel,
+        item: ItemId,
+        resource: ShopResourceKind,
+        cap: ShopQuantityCap,
+        tooMany: TextBlock,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        zeroQuantityDeal: ShopZeroQuantityDealPolicy = ShopZeroQuantityDealPolicy.NonZeroOnly,
+        quantityPrompt: TextBlock = inlineText("How many? "),
+        description: StructuredTextBlockBuilder.() -> Unit,
+    ) {
+        resource(
+            binding,
             item,
             resource,
             cap,
@@ -2126,7 +2338,7 @@ class ShopCatalogBuilder(private val key: Char, private val title: String) {
 
     fun build(): ShopCatalogModel =
         ShopCatalogModel(
-            key = key.uppercaseChar(),
+            binding = binding,
             title = title,
             intro = introText,
             pages = pages.toList() + looseEntries.takeIf { it.isNotEmpty() }?.let {
@@ -2146,8 +2358,18 @@ class ShopCatalogPageBuilder {
         price: ShopPriceModel = ShopPriceModel.ItemCost,
         description: TextBlock? = null,
     ) {
+        item(inputKey(key), item, label, price, description)
+    }
+
+    fun item(
+        binding: InputBindingModel,
+        item: ItemId,
+        label: String? = null,
+        price: ShopPriceModel = ShopPriceModel.ItemCost,
+        description: TextBlock? = null,
+    ) {
         entries += ShopItemOfferModel(
-            key = key.uppercaseChar(),
+            binding = binding,
             item = item,
             label = label,
             description = description,
@@ -2171,6 +2393,7 @@ class ShopSellBuilder {
     private var soldText: TextBlock? = null
     var price: ShopPriceModel = ShopPriceModel.HalfItemCost
     var bargain: ShopSellBargainPolicy = ShopSellBargainPolicy.None
+    private var saleKeysModel: ShopSaleKeysModel = ShopSaleKeysModel()
 
     fun prompt(vararg lines: String) {
         promptText = inlineText(*lines)
@@ -2200,6 +2423,10 @@ class ShopSellBuilder {
         soldText = inlineText(*lines)
     }
 
+    fun saleKeys(body: ShopSaleKeysBuilder.() -> Unit) {
+        saleKeysModel = ShopSaleKeysBuilder(saleKeysModel).apply(body).build()
+    }
+
     fun smithHaggle() {
         bargain = ShopSellBargainPolicy.SmithHaggle
     }
@@ -2215,7 +2442,16 @@ class ShopSellBuilder {
             sold = soldText,
             price = price,
             bargain = bargain,
+            saleKeys = saleKeysModel,
         )
+}
+
+@RylNextDsl
+class ShopSaleKeysBuilder(initial: ShopSaleKeysModel = ShopSaleKeysModel()) {
+    var accept: InputBindingModel = initial.accept
+    var decline: InputBindingModel = initial.decline
+
+    fun build(): ShopSaleKeysModel = ShopSaleKeysModel(accept, decline)
 }
 
 class ElseBranch(
@@ -2246,7 +2482,11 @@ class MenuBuilder(private val ctx: ScriptContext) {
     private var defaultOps = emptyList<Op>()
 
     fun option(key: Char, body: ScriptScope.() -> Unit) {
-        options += MenuOption(key.uppercaseChar(), recordScript(ctx, body))
+        option(inputKey(key), body)
+    }
+
+    fun option(binding: InputBindingModel, body: ScriptScope.() -> Unit) {
+        options += MenuOption(binding, recordScript(ctx, body))
     }
 
     fun default(body: ScriptScope.() -> Unit) {
@@ -2858,31 +3098,59 @@ class TownMenuBuilder {
     private val actions = mutableListOf<TownMenuActionModel>()
 
     fun church(key: Char = 'C') {
-        service(key, Buildings.church, KeyActions.enterChurch)
+        service(inputKey(key), Buildings.church, KeyActions.enterChurch)
+    }
+
+    fun church(binding: InputBindingModel) {
+        service(binding, Buildings.church, KeyActions.enterChurch)
     }
 
     fun smith(key: Char = 'S') {
-        service(key, Buildings.smith, KeyActions.enterSmith)
+        service(inputKey(key), Buildings.smith, KeyActions.enterSmith)
+    }
+
+    fun smith(binding: InputBindingModel) {
+        service(binding, Buildings.smith, KeyActions.enterSmith)
     }
 
     fun inn(key: Char = 'I') {
-        service(key, Buildings.inn, KeyActions.enterInn)
+        service(inputKey(key), Buildings.inn, KeyActions.enterInn)
+    }
+
+    fun inn(binding: InputBindingModel) {
+        service(binding, Buildings.inn, KeyActions.enterInn)
     }
 
     fun merchant(key: Char = 'M') {
-        service(key, Buildings.merchant, KeyActions.enterMerchant)
+        service(inputKey(key), Buildings.merchant, KeyActions.enterMerchant)
+    }
+
+    fun merchant(binding: InputBindingModel) {
+        service(binding, Buildings.merchant, KeyActions.enterMerchant)
     }
 
     fun tavern(key: Char = 'T') {
-        service(key, Buildings.tavern, KeyActions.enterTavern)
+        service(inputKey(key), Buildings.tavern, KeyActions.enterTavern)
+    }
+
+    fun tavern(binding: InputBindingModel) {
+        service(binding, Buildings.tavern, KeyActions.enterTavern)
     }
 
     fun leave(key: Char = 'L', action: KeyActionId = KeyActions.leaveTown) {
-        actions += TownMenuActionModel(key, action, building = null, endsMenu = true)
+        leave(inputKey(key), action)
+    }
+
+    fun leave(binding: InputBindingModel, action: KeyActionId = KeyActions.leaveTown) {
+        actions += TownMenuActionModel(binding, action, building = null, endsMenu = true)
     }
 
     fun service(key: Char, building: BuildingId, action: KeyActionId) {
-        actions += TownMenuActionModel(key, action, building, endsMenu = false)
+        service(inputKey(key), building, action)
+    }
+
+    fun service(binding: InputBindingModel, building: BuildingId, action: KeyActionId) {
+        actions += TownMenuActionModel(binding, action, building, endsMenu = false)
     }
 
     fun build(): List<TownMenuActionModel> = actions.toList()
@@ -3324,6 +3592,7 @@ class CombatBuilder {
 @RylNextDsl
 class StandardBattleBuilder {
     private var openingModel = EncounterOpeningBuilder().build()
+    private var openingKeysModel = BattleOpeningKeysModel()
     private var actionModels = PlayerCombatActionsBuilder().build()
     private var playerRoundModel = PlayerRoundBuilder().build()
     private var monsterRoundModel = MonsterRoundBuilder().build()
@@ -3337,6 +3606,10 @@ class StandardBattleBuilder {
 
     fun opening(body: EncounterOpeningBuilder.() -> Unit) {
         openingModel = EncounterOpeningBuilder(openingModel).apply(body).build()
+    }
+
+    fun openingKeys(body: BattleOpeningKeysBuilder.() -> Unit) {
+        openingKeysModel = BattleOpeningKeysBuilder(openingKeysModel).apply(body).build()
     }
 
     fun playerActions(body: PlayerCombatActionsBuilder.() -> Unit) {
@@ -3354,6 +3627,7 @@ class StandardBattleBuilder {
     fun build(): StandardBattleModel =
         StandardBattleModel(
             opening = openingModel,
+            openingKeys = openingKeysModel,
             actions = actionModels,
             playerRound = playerRoundModel,
             monsterRound = monsterRoundModel,
@@ -3374,6 +3648,14 @@ class StandardBattleBuilder {
             EngineServiceUse(EngineService.TextFormatting, "party, monster, item, pronoun, and reward bindings"),
         )
     }
+}
+
+@RylNextDsl
+class BattleOpeningKeysBuilder(initial: BattleOpeningKeysModel = BattleOpeningKeysModel()) {
+    var fight: InputBindingModel = initial.fight
+    var run: InputBindingModel = initial.run
+
+    fun build(): BattleOpeningKeysModel = BattleOpeningKeysModel(fight, run)
 }
 
 @RylNextDsl
@@ -3765,7 +4047,11 @@ class ConversationMenuBuilder {
     private var questionActions = emptyList<QuestionMenuActionModel>()
 
     fun chitchat(key: Char = 'C', action: KeyActionId = KeyActions.speakChitchat) {
-        actions += ConversationMenuActionModel(ConversationTopic.Chitchat, key, action)
+        chitchat(inputKey(key), action)
+    }
+
+    fun chitchat(binding: InputBindingModel, action: KeyActionId = KeyActions.speakChitchat) {
+        actions += ConversationMenuActionModel(ConversationTopic.Chitchat, binding, action)
     }
 
     fun question(
@@ -3773,16 +4059,32 @@ class ConversationMenuBuilder {
         action: KeyActionId = KeyActions.speakQuestion,
         body: QuestionMenuBuilder.() -> Unit,
     ) {
-        actions += ConversationMenuActionModel(ConversationTopic.Question, key, action)
+        question(inputKey(key), action, body)
+    }
+
+    fun question(
+        binding: InputBindingModel,
+        action: KeyActionId = KeyActions.speakQuestion,
+        body: QuestionMenuBuilder.() -> Unit,
+    ) {
+        actions += ConversationMenuActionModel(ConversationTopic.Question, binding, action)
         questionActions = QuestionMenuBuilder().apply(body).build()
     }
 
     fun rumour(key: Char = 'R', action: KeyActionId = KeyActions.speakRumour) {
-        actions += ConversationMenuActionModel(ConversationTopic.Rumour, key, action)
+        rumour(inputKey(key), action)
+    }
+
+    fun rumour(binding: InputBindingModel, action: KeyActionId = KeyActions.speakRumour) {
+        actions += ConversationMenuActionModel(ConversationTopic.Rumour, binding, action)
     }
 
     fun bye(key: Char = 'B', action: KeyActionId = KeyActions.speakBye) {
-        actions += ConversationMenuActionModel(ConversationTopic.Bye, key, action)
+        bye(inputKey(key), action)
+    }
+
+    fun bye(binding: InputBindingModel, action: KeyActionId = KeyActions.speakBye) {
+        actions += ConversationMenuActionModel(ConversationTopic.Bye, binding, action)
     }
 
     fun build(): ConversationMenuModel =
@@ -3794,19 +4096,35 @@ class QuestionMenuBuilder {
     private val actions = mutableListOf<QuestionMenuActionModel>()
 
     fun lodging(key: Char = 'L', action: KeyActionId = KeyActions.questionLodging) {
-        actions += QuestionMenuActionModel(QuestionTopic.Lodging, key, action)
+        lodging(inputKey(key), action)
+    }
+
+    fun lodging(binding: InputBindingModel, action: KeyActionId = KeyActions.questionLodging) {
+        actions += QuestionMenuActionModel(QuestionTopic.Lodging, binding, action)
     }
 
     fun magic(key: Char = 'M', action: KeyActionId = KeyActions.questionMagic) {
-        actions += QuestionMenuActionModel(QuestionTopic.Magic, key, action)
+        magic(inputKey(key), action)
+    }
+
+    fun magic(binding: InputBindingModel, action: KeyActionId = KeyActions.questionMagic) {
+        actions += QuestionMenuActionModel(QuestionTopic.Magic, binding, action)
     }
 
     fun people(key: Char = 'P', action: KeyActionId = KeyActions.questionPeople) {
-        actions += QuestionMenuActionModel(QuestionTopic.People, key, action)
+        people(inputKey(key), action)
+    }
+
+    fun people(binding: InputBindingModel, action: KeyActionId = KeyActions.questionPeople) {
+        actions += QuestionMenuActionModel(QuestionTopic.People, binding, action)
     }
 
     fun nothing(key: Char = 'N', action: KeyActionId = KeyActions.questionNothing) {
-        actions += QuestionMenuActionModel(QuestionTopic.Nothing, key, action)
+        nothing(inputKey(key), action)
+    }
+
+    fun nothing(binding: InputBindingModel, action: KeyActionId = KeyActions.questionNothing) {
+        actions += QuestionMenuActionModel(QuestionTopic.Nothing, binding, action)
     }
 
     fun build(): List<QuestionMenuActionModel> = actions.toList()
@@ -3867,7 +4185,15 @@ class PlayerCombatActionsBuilder {
         action: KeyActionId = KeyActions.attack,
         prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(A)ttack") },
     ) {
-        action(key, action, CombatActionKind.Attack, CombatActionRequirement.Always, prompt)
+        action(inputKey(key), action, CombatActionKind.Attack, CombatActionRequirement.Always, prompt)
+    }
+
+    fun attack(
+        binding: InputBindingModel,
+        action: KeyActionId = KeyActions.attack,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(A)ttack") },
+    ) {
+        action(binding, action, CombatActionKind.Attack, CombatActionRequirement.Always, prompt)
     }
 
     fun defend(
@@ -3875,7 +4201,15 @@ class PlayerCombatActionsBuilder {
         action: KeyActionId = KeyActions.defend,
         prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(D)efend") },
     ) {
-        action(key, action, CombatActionKind.Defend, CombatActionRequirement.Always, prompt)
+        action(inputKey(key), action, CombatActionKind.Defend, CombatActionRequirement.Always, prompt)
+    }
+
+    fun defend(
+        binding: InputBindingModel,
+        action: KeyActionId = KeyActions.defend,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(D)efend") },
+    ) {
+        action(binding, action, CombatActionKind.Defend, CombatActionRequirement.Always, prompt)
     }
 
     fun useMagicItem(
@@ -3883,7 +4217,15 @@ class PlayerCombatActionsBuilder {
         action: KeyActionId = KeyActions.useItem,
         prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(U)se Item") },
     ) {
-        action(key, action, CombatActionKind.UseMagicItem, CombatActionRequirement.Always, prompt)
+        action(inputKey(key), action, CombatActionKind.UseMagicItem, CombatActionRequirement.Always, prompt)
+    }
+
+    fun useMagicItem(
+        binding: InputBindingModel,
+        action: KeyActionId = KeyActions.useItem,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(U)se Item") },
+    ) {
+        action(binding, action, CombatActionKind.UseMagicItem, CombatActionRequirement.Always, prompt)
     }
 
     fun battleCry(
@@ -3891,7 +4233,15 @@ class PlayerCombatActionsBuilder {
         action: KeyActionId = KeyActions.battleCry,
         prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(B)attle Cry") },
     ) {
-        action(key, action, CombatActionKind.BattleCry, CombatActionRequirement.Always, prompt)
+        action(inputKey(key), action, CombatActionKind.BattleCry, CombatActionRequirement.Always, prompt)
+    }
+
+    fun battleCry(
+        binding: InputBindingModel,
+        action: KeyActionId = KeyActions.battleCry,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(B)attle Cry") },
+    ) {
+        action(binding, action, CombatActionKind.BattleCry, CombatActionRequirement.Always, prompt)
     }
 
     fun castMageSpell(
@@ -3899,19 +4249,27 @@ class PlayerCombatActionsBuilder {
         action: KeyActionId = KeyActions.castSpell,
         prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(C)ast Spell") },
     ) {
-        action(key, action, CombatActionKind.CastMageSpell, CombatActionRequirement.Mage, prompt)
+        action(inputKey(key), action, CombatActionKind.CastMageSpell, CombatActionRequirement.Mage, prompt)
+    }
+
+    fun castMageSpell(
+        binding: InputBindingModel,
+        action: KeyActionId = KeyActions.castSpell,
+        prompt: StructuredTextBlockBuilder.() -> Unit = { lines("(C)ast Spell") },
+    ) {
+        action(binding, action, CombatActionKind.CastMageSpell, CombatActionRequirement.Mage, prompt)
     }
 
     fun build(): List<CombatActionModel> = actions.toList()
 
     private fun action(
-        key: Char,
+        binding: InputBindingModel,
         action: KeyActionId,
         kind: CombatActionKind,
         requirement: CombatActionRequirement,
         prompt: StructuredTextBlockBuilder.() -> Unit,
     ) {
-        actions += CombatActionModel(key, action, kind, requirement, structuredText(prompt))
+        actions += CombatActionModel(binding, action, kind, requirement, structuredText(prompt))
     }
 }
 
