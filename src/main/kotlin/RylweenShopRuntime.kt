@@ -69,10 +69,11 @@ data class ShopServiceSession(
     val step: ShopServiceStep,
     val lastTransaction: ShopTransactionResult? = null,
     val lastSellQuote: ShopSellQuoteResult? = null,
-    val itemRecords: List<ItemRecordModel> = emptyList(),
-    val realmContent: RealmContentModel = RealmContentModel(),
+    val content: RuntimeContent = RuntimeContent(),
 ) {
-    private fun interpreter(): ShopServiceInterpreter = ShopServiceInterpreter(itemRecords, realmContent)
+    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val realmContent: RealmContentModel get() = content.realm
+    private fun interpreter(): ShopServiceInterpreter = ShopServiceInterpreter(content)
     private fun mainMenu(): ShopServiceStep =
         ShopServiceStep.MainMenu(shop.menu, canBuy = shop.buy != null, canSell = shop.sell != null)
 
@@ -200,15 +201,25 @@ data class ShopServiceSession(
         fun start(
             shop: ShopServiceModel,
             party: PartyState,
-            itemRecords: List<ItemRecordModel> = emptyList(),
-            realmContent: RealmContentModel = RealmContentModel(),
+            content: RuntimeContent = RuntimeContent(),
         ): ShopServiceSession =
             ShopServiceSession(
                 shop = shop,
                 party = party,
                 step = ShopServiceStep.Intro(shop.intro),
-                itemRecords = itemRecords,
-                realmContent = realmContent,
+                content = content,
+            )
+
+        fun start(
+            shop: ShopServiceModel,
+            party: PartyState,
+            itemRecords: List<ItemRecordModel>,
+            realmContent: RealmContentModel = RealmContentModel(),
+        ): ShopServiceSession =
+            start(
+                shop = shop,
+                party = party,
+                content = RuntimeContent(itemRecords = itemRecords, realm = realmContent),
             )
     }
 }
@@ -247,10 +258,16 @@ fun ShopBuyModel.offerFor(item: ItemId): ShopItemOfferModel? =
     offers().firstOrNull { it.item == item }
 
 class ShopServiceInterpreter(
-    private val itemRecords: List<ItemRecordModel> = emptyList(),
-    private val realmContent: RealmContentModel = RealmContentModel(),
+    private val content: RuntimeContent = RuntimeContent(),
 ) {
-    private val itemRecordById = itemRecords.associateBy { it.id }
+    constructor(
+        itemRecords: List<ItemRecordModel>,
+        realmContent: RealmContentModel = RealmContentModel(),
+    ) : this(RuntimeContent(itemRecords = itemRecords, realm = realmContent))
+
+    private val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    private val realmContent: RealmContentModel get() = content.realm
+    private val itemRecordById = content.itemRecords.associateBy { it.id }
 
     fun buy(
         shop: ShopServiceModel,
@@ -347,8 +364,8 @@ class ShopServiceInterpreter(
             item,
             buy.inventoryApplication.overflow,
             dropSlot,
-            itemRecords = itemRecords,
-            realmContent = realmContent,
+            itemRecords = content.itemRecords,
+            realmContent = content.realm,
         )) {
             is InventoryPlacementResult.Placed -> ShopTransactionResult(
                 status = ShopTransactionStatus.Bought,

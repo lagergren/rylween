@@ -182,16 +182,7 @@ private class RylweenAnsiGame(
                     val missionBridge = StatefulTownServiceBridge(
                         port,
                         speakContent = speakContent,
-                        battleContent = BattleRuntimeContent(
-                            combat = session.combat,
-                            monsters = session.monsters,
-                            formulas = session.formulas,
-                            rewards = session.rewards,
-                            leveling = session.leveling,
-                            spells = session.spells,
-                            itemUses = session.itemUses,
-                            itemRecords = session.itemRecords,
-                        ),
+                        battleContent = session.content,
                         worldMap = session.worldMap,
                         renderer = renderer,
                     )

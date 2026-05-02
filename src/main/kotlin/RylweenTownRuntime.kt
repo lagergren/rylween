@@ -147,11 +147,12 @@ data class TownSession(
     val runtime: RuntimeSessionState,
     val shopServices: Map<BuildingId, ShopServiceModel>,
     val serviceScenes: Map<SceneId, SceneModel>,
-    val itemRecords: List<ItemRecordModel> = emptyList(),
-    val realmContent: RealmContentModel = RealmContentModel(),
+    val content: RuntimeContent = RuntimeContent(),
     val step: TownSessionStep = TownSessionStep.Menu(town, availableTownActions(town, townSystem)),
     val lastResult: TownSessionResult? = null,
 ) {
+    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val realmContent: RealmContentModel get() = content.realm
     val realm: RealmState get() = runtime.realm
     val party: PartyState get() = runtime.activeParty
     val currentHour: Int get() = runtime.realm.hour
@@ -239,7 +240,7 @@ data class TownSession(
 
         return if (shop != null) {
             copy(
-                step = TownSessionStep.Shop(service, ShopServiceSession.start(shop, party, itemRecords, realmContent)),
+                step = TownSessionStep.Shop(service, ShopServiceSession.start(shop, party, content)),
                 lastResult = TownSessionResult(TownSessionResultStatus.EnteredShop, party, building),
             )
         } else {
@@ -291,20 +292,36 @@ data class TownSession(
     companion object {
         fun start(
             town: TownModel,
-            townSystem: TownSystemModel,
-            scenes: List<SceneModel>,
             runtime: RuntimeSessionState,
-            itemRecords: List<ItemRecordModel> = emptyList(),
-            realmContent: RealmContentModel = RealmContentModel(),
+            content: RuntimeContent = RuntimeContent(),
         ): TownSession =
             TownSession(
                 town = town,
-                townSystem = townSystem,
+                townSystem = requireNotNull(content.townSystem) { "town system is not configured" },
                 runtime = runtime,
-                shopServices = scenes.shopServicesByBuilding(),
-                serviceScenes = scenes.associateBy { scene -> scene.id },
-                itemRecords = itemRecords,
-                realmContent = realmContent,
+                shopServices = content.scenes.shopServicesByBuilding(),
+                serviceScenes = content.scenes.associateBy { scene -> scene.id },
+                content = content,
+            )
+
+        fun start(
+            town: TownModel,
+            party: PartyState,
+            currentHour: Int,
+            content: RuntimeContent = RuntimeContent(),
+            rngState: Long? = null,
+            npcs: List<NpcPlacement> = emptyList(),
+        ): TownSession =
+            start(
+                town = town,
+                runtime = RuntimeSessionState.singleParty(
+                    party = party,
+                    hour = currentHour,
+                    currentTown = town.id,
+                    rngState = rngState,
+                    npcs = npcs,
+                ),
+                content = content,
             )
 
         fun start(
@@ -320,17 +337,16 @@ data class TownSession(
         ): TownSession =
             start(
                 town = town,
-                townSystem = townSystem,
-                scenes = scenes,
-                runtime = RuntimeSessionState.singleParty(
-                    party = party,
-                    hour = currentHour,
-                    currentTown = town.id,
-                    rngState = rngState,
-                    npcs = npcs,
+                party = party,
+                currentHour = currentHour,
+                rngState = rngState,
+                npcs = npcs,
+                content = RuntimeContent(
+                    townSystem = townSystem,
+                    scenes = scenes,
+                    itemRecords = itemRecords,
+                    realm = realmContent,
                 ),
-                itemRecords = itemRecords,
-                realmContent = realmContent,
             )
     }
 }

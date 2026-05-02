@@ -3,20 +3,6 @@
 // This file is backend-neutral. Battle rules come from CombatSystemModel,
 // spell/item-use scripts, formulas, rewards, monsters, and item records supplied by the game model.
 
-data class BattleRuntimeContent(
-    val combat: CombatSystemModel = CombatSystemModel(null),
-    val monsters: List<MonsterModel> = emptyList(),
-    val formulas: List<FormulaModel> = emptyList(),
-    val rewards: List<RewardBundleModel> = emptyList(),
-    val leveling: LevelingModel? = null,
-    val spells: List<SpellModel> = emptyList(),
-    val itemUses: List<ItemUseModel> = emptyList(),
-    val itemRecords: List<ItemRecordModel> = emptyList(),
-    val realm: RealmContentModel = RealmContentModel(),
-) {
-    val configured: Boolean get() = combat.standardBattle != null
-}
-
 enum class BattleOpeningChoice { Fight, Run }
 
 sealed interface BattleSessionInput {
@@ -107,18 +93,19 @@ data class CombatScriptContinuation(
 data class BattleSession(
     val runtime: RuntimeSessionState,
     val battle: StandardBattleModel,
-    val itemRecords: List<ItemRecordModel>,
-    val formulas: List<FormulaModel>,
-    val rewards: List<RewardBundleModel>,
-    val leveling: LevelingModel?,
-    val spells: List<SpellModel>,
-    val itemUses: List<ItemUseModel>,
+    val content: RuntimeContent,
     val tier: EncounterTier?,
     val encounter: BattleMonsterState,
     val round: BattleRoundState,
     val step: BattleSessionStep,
     val lastResult: BattleSessionResult,
 ) {
+    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val formulas: List<FormulaModel> get() = content.formulas
+    val rewards: List<RewardBundleModel> get() = content.rewards
+    val leveling: LevelingModel? get() = content.leveling
+    val spells: List<SpellModel> get() = content.spells
+    val itemUses: List<ItemUseModel> get() = content.itemUses
     fun apply(input: BattleSessionInput): BattleSession =
         when (val current = step) {
             is BattleSessionStep.Opening -> {
@@ -739,27 +726,22 @@ data class BattleSession(
             leveling: LevelingModel? = null,
             spells: List<SpellModel> = emptyList(),
             itemUses: List<ItemUseModel> = emptyList(),
-        ): BattleSession {
-            requireNotNull(combat.standardBattle) { "standard battle is not configured" }
-            val candidates = monsters.filter { it.tier == tier }
-            require(candidates.isNotEmpty()) { "no monsters declared for encounter tier ${tier.slug}" }
-
-            val pick = runtime.drawRandom(0, candidates.lastIndex)
-            val monster = candidates[pick.value]
-            return startMonster(
-                runtime = pick.runtime,
-                combat = combat,
-                monster = monster,
+        ): BattleSession =
+            start(
+                runtime = runtime,
                 tier = tier,
+                content = RuntimeContent(
+                    combat = combat,
+                    monsters = monsters,
+                    itemRecords = itemRecords,
+                    formulas = formulas,
+                    rewards = rewards,
+                    leveling = leveling,
+                    spells = spells,
+                    itemUses = itemUses,
+                ),
                 mandatory = mandatory,
-                itemRecords = itemRecords,
-                formulas = formulas,
-                rewards = rewards,
-                leveling = leveling,
-                spells = spells,
-                itemUses = itemUses,
             )
-        }
 
         fun startMonster(
             runtime: RuntimeSessionState,
@@ -773,13 +755,57 @@ data class BattleSession(
             leveling: LevelingModel? = null,
             spells: List<SpellModel> = emptyList(),
             itemUses: List<ItemUseModel> = emptyList(),
+        ): BattleSession =
+            startMonster(
+                runtime = runtime,
+                monster = monster,
+                content = RuntimeContent(
+                    combat = combat,
+                    itemRecords = itemRecords,
+                    formulas = formulas,
+                    rewards = rewards,
+                    leveling = leveling,
+                    spells = spells,
+                    itemUses = itemUses,
+                ),
+                tier = tier,
+                mandatory = mandatory,
+            )
+
+        fun start(
+            runtime: RuntimeSessionState,
+            tier: EncounterTier,
+            content: RuntimeContent,
+            mandatory: Boolean = false,
         ): BattleSession {
-            val battle = requireNotNull(combat.standardBattle) { "standard battle is not configured" }
+            requireNotNull(content.combat.standardBattle) { "standard battle is not configured" }
+            val candidates = content.monsters.filter { it.tier == tier }
+            require(candidates.isNotEmpty()) { "no monsters declared for encounter tier ${tier.slug}" }
+
+            val pick = runtime.drawRandom(0, candidates.lastIndex)
+            val monster = candidates[pick.value]
+            return startMonster(
+                runtime = pick.runtime,
+                monster = monster,
+                content = content,
+                tier = tier,
+                mandatory = mandatory,
+            )
+        }
+
+        fun startMonster(
+            runtime: RuntimeSessionState,
+            monster: MonsterModel,
+            content: RuntimeContent,
+            tier: EncounterTier? = monster.tier,
+            mandatory: Boolean = false,
+        ): BattleSession {
+            val battle = requireNotNull(content.combat.standardBattle) { "standard battle is not configured" }
             val firstLevel = runtime.activeParty.members.firstOrNull().levelOrZero()
             val countMax = monster.count.last + (monster.countMaxLevelDivisor?.let { firstLevel / it } ?: 0)
             val countDraw = runtime.drawRandom(1, countMax)
             val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(battle.encounterFoeCountMax)
-            val hpRange = countDraw.runtime.scaledEncounterHpRange(monster, formulas)
+            val hpRange = countDraw.runtime.scaledEncounterHpRange(monster, content.formulas)
             var hpRuntime = countDraw.runtime
             val hitPoints = buildList {
                 repeat(count) {
@@ -798,12 +824,7 @@ data class BattleSession(
             return BattleSession(
                 runtime = nextRuntime,
                 battle = battle,
-                itemRecords = itemRecords,
-                formulas = formulas,
-                rewards = rewards,
-                leveling = leveling,
-                spells = spells,
-                itemUses = itemUses,
+                content = content,
                 tier = tier,
                 encounter = encounter,
                 round = BattleRoundState(

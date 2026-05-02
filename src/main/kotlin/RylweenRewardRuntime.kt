@@ -92,9 +92,10 @@ data class RandomItemOfferSession(
     val price: Int,
     val step: RandomItemOfferStep,
     val lastResult: RandomItemOfferResult? = null,
-    val itemRecords: List<ItemRecordModel> = emptyList(),
-    val realmContent: RealmContentModel = RealmContentModel(),
+    val content: RuntimeContent = RuntimeContent(),
 ) {
+    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val realmContent: RealmContentModel get() = content.realm
     fun apply(input: RandomItemOfferInput): RandomItemOfferSession =
         when (val current = step) {
             is RandomItemOfferStep.Choice -> {
@@ -128,8 +129,8 @@ data class RandomItemOfferSession(
             item,
             offer.application.overflow,
             dropSlot,
-            itemRecords = itemRecords,
-            realmContent = realmContent,
+            itemRecords = content.itemRecords,
+            realmContent = content.realm,
         )) {
             is InventoryPlacementResult.Placed -> {
                 val updated = placed.party.copy(resources = placed.party.resources.copy(gold = placed.party.resources.gold - price))
@@ -192,13 +193,14 @@ data class RandomItemOfferSession(
         fun start(
             offer: RandomItemOfferModel,
             party: PartyState,
-            itemRecords: List<ItemRecordModel> = emptyList(),
+            content: RuntimeContent = RuntimeContent(),
             selectedIndex: Int = 0,
-            realmContent: RealmContentModel = RealmContentModel(),
         ): RandomItemOfferSession {
             require(offer.pool.items.isNotEmpty()) { "random item offer ${offer.pool.slug} has no items" }
             val item = offer.pool.items[selectedIndex.floorMod(offer.pool.items.size)]
-            val record = checkNotNull(itemRecords.associateBy { it.id }[item]) { "unknown item ${item.slug}" }
+            val record = checkNotNull(content.itemRecords.associateBy { it.id }[item]) {
+                "unknown item ${item.slug}"
+            }
             val price = offer.priceOverride ?: record.cost
             return RandomItemOfferSession(
                 offer = offer,
@@ -215,8 +217,7 @@ data class RandomItemOfferSession(
                     buy = offer.buy,
                     decline = offer.decline,
                 ),
-                itemRecords = itemRecords,
-                realmContent = realmContent,
+                content = content,
             )
         }
     }
@@ -228,9 +229,10 @@ data class RewardGrantSession(
     val pendingItems: List<ItemId>,
     val step: RewardGrantStep,
     val lastResult: RewardGrantResult? = null,
-    val itemRecords: List<ItemRecordModel> = emptyList(),
-    val realmContent: RealmContentModel = RealmContentModel(),
+    val content: RuntimeContent = RuntimeContent(),
 ) {
+    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val realmContent: RealmContentModel get() = content.realm
     fun apply(input: RewardGrantInput): RewardGrantSession =
         when (val current = step) {
             is RewardGrantStep.DropSlot -> {
@@ -261,8 +263,8 @@ data class RewardGrantSession(
             item,
             reward.application.overflow,
             dropSlot,
-            itemRecords = itemRecords,
-            realmContent = realmContent,
+            itemRecords = content.itemRecords,
+            realmContent = content.realm,
         )) {
             is InventoryPlacementResult.Placed -> {
                 val result = result(RewardGrantStatus.Granted, placed.party, item, placed.slot)
@@ -336,10 +338,9 @@ data class RewardGrantSession(
             reward: ScriptRewardModel,
             party: PartyState,
             gold: Int = 0,
-            itemRecords: List<ItemRecordModel> = emptyList(),
-            realmContent: RealmContentModel = RealmContentModel(),
+            content: RuntimeContent = RuntimeContent(),
         ): RewardGrantSession {
-            val itemRecordById = itemRecords.associateBy { it.id }
+            val itemRecordById = content.itemRecords.associateBy { it.id }
             reward.items.forEach { item ->
                 val record = checkNotNull(itemRecordById[item]) { "unknown reward item ${item.slug}" }
                 check(record.storage == ItemStorageKind.SlottedInventory) {
@@ -351,8 +352,7 @@ data class RewardGrantSession(
                 party = party.withGold(party.resources.gold + gold),
                 pendingItems = reward.items,
                 step = RewardGrantStep.Finished(RewardGrantResult(RewardGrantStatus.Granted, party)),
-                itemRecords = itemRecords,
-                realmContent = realmContent,
+                content = content,
             )
             return session.continueWith(session.party, session.pendingItems)
         }

@@ -66,21 +66,22 @@ data class DungeonSession(
     val dungeon: DungeonId,
     val maxDepth: Int,
     val depth: Int = 1,
-    val dungeons: DungeonSystemModel = DungeonSystemModel(),
     val levelEvents: Map<Int, DungeonEventId> = emptyMap(),
-    val combat: CombatSystemModel = CombatSystemModel(null),
-    val monsters: List<MonsterModel> = emptyList(),
-    val formulas: List<FormulaModel> = emptyList(),
-    val rewards: List<RewardBundleModel> = emptyList(),
-    val leveling: LevelingModel? = null,
     val keys: DungeonKeysModel = DungeonKeysModel(),
-    val spells: List<SpellModel> = emptyList(),
-    val itemUses: List<ItemUseModel> = emptyList(),
-    val itemRecords: List<ItemRecordModel> = emptyList(),
-    val realm: RealmContentModel = RealmContentModel(),
+    val content: RuntimeContent = RuntimeContent(),
     val step: DungeonSessionStep = DungeonSessionStep.Explore,
     val lastResult: DungeonSessionResult? = null,
 ) {
+    val dungeons: DungeonSystemModel get() = content.dungeons
+    val combat: CombatSystemModel get() = content.combat
+    val monsters: List<MonsterModel> get() = content.monsters
+    val formulas: List<FormulaModel> get() = content.formulas
+    val rewards: List<RewardBundleModel> get() = content.rewards
+    val leveling: LevelingModel? get() = content.leveling
+    val spells: List<SpellModel> get() = content.spells
+    val itemUses: List<ItemUseModel> get() = content.itemUses
+    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val realm: RealmContentModel get() = content.realm
     val party: PartyState get() = runtime.activeParty
 
     fun apply(input: DungeonSessionInput): DungeonSession =
@@ -261,11 +262,9 @@ data class DungeonSession(
             step = DungeonSessionStep.InventoryItemUse(
                 InventoryItemUseSession.start(
                     runtime = runtime,
-                    itemUses = itemUses,
-                    itemRecords = itemRecords,
+                    content = content,
                     allowedKinds = setOf(ItemKind.Potion),
                     choosePrompt = InventoryUsePromptText.quaff,
-                    realmContent = realm,
                 ),
             ),
             lastResult = result(DungeonSessionResultStatus.InventoryRequested),
@@ -326,16 +325,8 @@ data class DungeonSession(
             worldMap: WorldMapGrid,
             dungeon: DungeonId,
             levels: Int,
-            dungeons: DungeonSystemModel = DungeonSystemModel(),
-            combat: CombatSystemModel = CombatSystemModel(null),
-            monsters: List<MonsterModel> = emptyList(),
-            formulas: List<FormulaModel> = emptyList(),
-            rewards: List<RewardBundleModel> = emptyList(),
-            leveling: LevelingModel? = null,
-            spells: List<SpellModel> = emptyList(),
-            itemUses: List<ItemUseModel> = emptyList(),
-            itemRecords: List<ItemRecordModel> = emptyList(),
-            realm: RealmContentModel = RealmContentModel(),
+            content: RuntimeContent = RuntimeContent(),
+            dungeons: DungeonSystemModel = content.dungeons,
         ): DungeonSession {
             val depth = levels.coerceAtLeast(1)
             val dungeonRuntime = runtime.withRealm(
@@ -351,17 +342,8 @@ data class DungeonSession(
                 worldMap = worldMap,
                 dungeon = dungeon,
                 maxDepth = depth,
-                dungeons = dungeons,
                 levelEvents = plan.levelEvents,
-                combat = combat,
-                monsters = monsters,
-                formulas = formulas,
-                rewards = rewards,
-                leveling = leveling,
-                spells = spells,
-                itemUses = itemUses,
-                itemRecords = itemRecords,
-                realm = realm,
+                content = content.copy(dungeons = dungeons),
                 lastResult = DungeonSessionResult(
                     DungeonSessionResultStatus.Started,
                     dungeon,

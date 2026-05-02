@@ -43,14 +43,15 @@ sealed interface InventoryItemUseStep {
 
 data class InventoryItemUseSession(
     val runtime: RuntimeSessionState,
-    val itemUses: List<ItemUseModel>,
-    val itemRecords: List<ItemRecordModel>,
+    val content: RuntimeContent = RuntimeContent(),
     val allowedKinds: Set<ItemKind>? = null,
     val choosePrompt: TextBlock = InventoryUsePromptText.use,
     val step: InventoryItemUseStep,
     val lastResult: InventoryItemUseResult? = null,
-    val realmContent: RealmContentModel = RealmContentModel(),
 ) {
+    val itemUses: List<ItemUseModel> get() = content.itemUses
+    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val realmContent: RealmContentModel get() = content.realm
     val party: PartyState get() = runtime.activeParty
 
     fun apply(input: InventoryItemUseInput): InventoryItemUseSession =
@@ -189,13 +190,30 @@ data class InventoryItemUseSession(
     companion object {
         fun start(
             runtime: RuntimeSessionState,
-            itemUses: List<ItemUseModel> = emptyList(),
+            itemUses: List<ItemUseModel>,
             itemRecords: List<ItemRecordModel> = emptyList(),
             allowedKinds: Set<ItemKind>? = null,
             choosePrompt: TextBlock = InventoryUsePromptText.use,
             realmContent: RealmContentModel = RealmContentModel(),
+        ): InventoryItemUseSession =
+            start(
+                runtime = runtime,
+                content = RuntimeContent(
+                    itemUses = itemUses,
+                    itemRecords = itemRecords,
+                    realm = realmContent,
+                ),
+                allowedKinds = allowedKinds,
+                choosePrompt = choosePrompt,
+            )
+
+        fun start(
+            runtime: RuntimeSessionState,
+            content: RuntimeContent = RuntimeContent(),
+            allowedKinds: Set<ItemKind>? = null,
+            choosePrompt: TextBlock = InventoryUsePromptText.use,
         ): InventoryItemUseSession {
-            val choices = runtime.activeParty.inventoryItemChoices(itemRecords)
+            val choices = runtime.activeParty.inventoryItemChoices(content.itemRecords)
                 .filter { choice -> allowedKinds?.contains(choice.kind) ?: true }
             val result = InventoryItemUseResult(InventoryItemUseStatus.NoItems, runtime)
             val step = if (choices.isEmpty()) {
@@ -208,13 +226,11 @@ data class InventoryItemUseSession(
             }
             return InventoryItemUseSession(
                 runtime = runtime,
-                itemUses = itemUses,
-                itemRecords = itemRecords,
+                content = content,
                 allowedKinds = allowedKinds,
                 choosePrompt = choosePrompt,
                 step = step,
                 lastResult = result.takeIf { choices.isEmpty() },
-                realmContent = realmContent,
             )
         }
     }
