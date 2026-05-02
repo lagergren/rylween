@@ -491,6 +491,16 @@ class SceneImageRefs {
 }
 val Images = ImageRefs()
 
+class StaticScreenRefs {
+    val frame = staticScreen("frame")
+    val title = staticScreen("title")
+    val help = staticScreen("help")
+    val manual = staticScreen("manual")
+    val score = staticScreen("score")
+    val verboseScore = staticScreen("verbose_score")
+}
+val StaticScreens = StaticScreenRefs()
+
 class LayoutRefs {
     val classicTerminal = layout("classic_terminal")
 }

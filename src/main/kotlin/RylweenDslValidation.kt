@@ -1322,6 +1322,29 @@ private fun validateTerminalPresentation(model: TerminalPresentationModel) {
     }
 }
 
+private fun validateVisuals(visuals: VisualsModel) {
+    check(visuals.staticScreens.map { it.id }.toSet().size == visuals.staticScreens.size) {
+        "duplicate static screen"
+    }
+    visuals.staticScreens.forEach { screen ->
+        val sourceCount = listOf(
+            screen.image != null,
+            screen.resource != null,
+            screen.commandHelp,
+        ).count { it }
+        check(sourceCount == 1) {
+            "static screen ${screen.id.slug} must have exactly one source"
+        }
+        screen.resource?.let { resource ->
+            check(resource.isNotBlank()) { "static screen ${screen.id.slug} has blank resource" }
+            check(!resource.startsWith("/")) { "static screen ${screen.id.slug} resource must be relative" }
+            check(resource.split('/').none { it == ".." }) {
+                "static screen ${screen.id.slug} resource must stay inside packaged resources"
+            }
+        }
+    }
+}
+
 fun validateAuthoredContent(content: GameModel) {
     check(content.prompts.pauseVerbs.all { it.isNotBlank() }) {
         "pause prompt verbs must not be blank"
@@ -1345,6 +1368,7 @@ fun validateAuthoredContent(content: GameModel) {
     validateTextBlock(content.prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
     validateTextBlock(content.prompts.equipment.readyArmors, "equipment ready-armors prompt")
     validateRealmContent(content.realm)
+    validateVisuals(content.visuals)
     validateTerminalPresentation(content.terminal)
     validateItemCatalog(content.itemCatalog)
     check(content.itemPools.map { it.slug }.toSet().size == content.itemPools.size) {

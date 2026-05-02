@@ -70,7 +70,7 @@ private class RylweenAnsiGame(
     private val speakContent: SpeakRuntimeContent,
     private val log: RylweenLog,
 ) {
-    private val screen = ClassicAnsiScreen(terminal, content.terminal, content.towns)
+    private val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
     private val port = AnsiTerminalPort(terminal, screen)
     private val serviceBridge = StatefulTownServiceBridge(port, speakContent = speakContent, renderer = renderer)
 
@@ -372,6 +372,7 @@ private class AnsiTerminalPort(
 
 private class ClassicAnsiScreen(
     private val terminal: JLineAnsiTerminal,
+    private val visuals: VisualsModel,
     presentation: TerminalPresentationModel,
     private val towns: List<TownModel>,
 ) {
@@ -385,8 +386,13 @@ private class ClassicAnsiScreen(
 
     fun bootFrame() {
         terminal.writeRaw("$CSI?25l")
-        terminal.writeRaw("${CSI}2J${CSI}1;1H")
-        terminal.writeRaw(RylweenAssets.readText("ansi/screen.ans"))
+        val frame = visuals.staticScreens.singleOrNull { it.id == StaticScreens.frame }?.image
+        if (frame != null) {
+            showImage(frame)
+        } else {
+            terminal.writeRaw("${CSI}2J${CSI}1;1H")
+            terminal.writeRaw(RylweenAssets.readText("ansi/screen.ans"))
+        }
         terminal.writeRaw("$FG_WHITE$BG_BLACK")
         terminal.flush()
     }
