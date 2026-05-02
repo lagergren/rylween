@@ -3143,7 +3143,11 @@ val nextRylween = rylween {
                     line("Ok! Give ya ", price, "!")
                     line("")
                 }
-                smithHaggle()
+                bargain {
+                    bonus(rollGreaterThan = 90, addCurrentDivisor = 4)
+                    bonus(rollGreaterThan = 75, addCurrentDivisor = 6)
+                    rejectWhenRollBelow(76)
+                }
             }
         }
     }
@@ -5689,7 +5693,13 @@ check(smithShop.buy?.catalogs?.single { it.key == 'A' }?.pages?.single()?.entrie
     Items.mithrilMail,
 ))
 check(smithShop.sell?.acceptedKinds == setOf(ItemKind.Weapon, ItemKind.Armor))
-check(smithShop.sell?.bargain == ShopSellBargainPolicy.SmithHaggle)
+check(smithShop.sell?.bargain == ShopSellBargainModel(
+    bonuses = listOf(
+        ShopBargainBonusModel(rollGreaterThan = 90, addCurrentDivisor = 4),
+        ShopBargainBonusModel(rollGreaterThan = 75, addCurrentDivisor = 6),
+    ),
+    rejectRollBelow = 76,
+))
 val innScene = nextDsl.scenes.single { it.id == Scenes.Towne.inn }
 check(innScene.ops.none { it is Op.NativeCall && it.path == NativeAllowlist.townEnterService.path })
 check(innScene.ops.filterIsInstance<Op.Loop>().single().body.any { it is Op.Menu })

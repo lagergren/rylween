@@ -895,7 +895,27 @@ data class RandomItemOfferModel(
 }
 
 enum class ShopZeroQuantityDealPolicy { Always, NonZeroOnly }
-enum class ShopSellBargainPolicy { None, SmithHaggle }
+
+data class ShopBargainBonusModel(
+    val rollGreaterThan: Int,
+    val addCurrentDivisor: Int,
+) {
+    init {
+        require(rollGreaterThan in 0..100) { "shop bargain bonus threshold must be 0..100" }
+        require(addCurrentDivisor > 0) { "shop bargain bonus divisor must be positive" }
+    }
+}
+
+data class ShopSellBargainModel(
+    val bonuses: List<ShopBargainBonusModel>,
+    val rejectRollBelow: Int?,
+) {
+    init {
+        rejectRollBelow?.let { threshold ->
+            require(threshold in 0..101) { "shop bargain rejection threshold must be 0..101" }
+        }
+    }
+}
 
 sealed interface ShopQuantityCap {
     val resource: Resource
@@ -1021,7 +1041,7 @@ data class ShopSellModel(
     val offer: TextBlock,
     val sold: TextBlock?,
     val price: ShopPriceModel,
-    val bargain: ShopSellBargainPolicy,
+    val bargain: ShopSellBargainModel?,
     val saleKeys: ShopSaleKeysModel,
 )
 
@@ -2787,7 +2807,7 @@ class ShopSellBuilder {
     private var offerText: TextBlock? = null
     private var soldText: TextBlock? = null
     var price: ShopPriceModel = ShopPriceModel.HalfItemCost
-    var bargain: ShopSellBargainPolicy = ShopSellBargainPolicy.None
+    private var bargainModel: ShopSellBargainModel? = null
     private var saleKeysModel: ShopSaleKeysModel = ShopSaleKeysModel()
 
     fun prompt(vararg lines: String) {
@@ -2822,8 +2842,16 @@ class ShopSellBuilder {
         saleKeysModel = ShopSaleKeysBuilder(saleKeysModel).apply(body).build()
     }
 
+    fun bargain(body: ShopSellBargainBuilder.() -> Unit) {
+        bargainModel = ShopSellBargainBuilder().apply(body).build()
+    }
+
     fun smithHaggle() {
-        bargain = ShopSellBargainPolicy.SmithHaggle
+        bargain {
+            bonus(rollGreaterThan = 90, addCurrentDivisor = 4)
+            bonus(rollGreaterThan = 75, addCurrentDivisor = 6)
+            rejectWhenRollBelow(76)
+        }
     }
 
     fun build(): ShopSellModel =
@@ -2836,8 +2864,28 @@ class ShopSellBuilder {
             offer = requireNotNull(offerText) { "shop sell section requires offer text" },
             sold = soldText,
             price = price,
-            bargain = bargain,
+            bargain = bargainModel,
             saleKeys = saleKeysModel,
+        )
+}
+
+@RylNextDsl
+class ShopSellBargainBuilder {
+    private val bonuses = mutableListOf<ShopBargainBonusModel>()
+    private var rejectRollBelow: Int? = null
+
+    fun bonus(rollGreaterThan: Int, addCurrentDivisor: Int) {
+        bonuses += ShopBargainBonusModel(rollGreaterThan, addCurrentDivisor)
+    }
+
+    fun rejectWhenRollBelow(threshold: Int) {
+        rejectRollBelow = threshold
+    }
+
+    internal fun build(): ShopSellBargainModel =
+        ShopSellBargainModel(
+            bonuses = bonuses.toList(),
+            rejectRollBelow = rejectRollBelow,
         )
 }
 
