@@ -5,6 +5,7 @@ enum class WildernessDirection { North, South, East, West }
 sealed interface WildernessSessionInput {
     data class Move(val direction: WildernessDirection) : WildernessSessionInput
     object Enter : WildernessSessionInput
+    object UseInventory : WildernessSessionInput
     object Pass : WildernessSessionInput
     object Continue : WildernessSessionInput
     data class CaveAnswer(val enter: Boolean) : WildernessSessionInput
@@ -24,6 +25,9 @@ enum class WildernessSessionResultStatus {
     NothingToEnter,
     UnknownTown,
     TerrainNarrated,
+    InventoryRequested,
+    InventoryUsed,
+    InventoryUnavailable,
     MissionHandoff,
     MissionCompleted,
     CaveFound,
@@ -65,6 +69,7 @@ sealed interface WildernessSessionStep {
     ) : WildernessSessionStep
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
     data class Battle(val session: BattleSession) : WildernessSessionStep
+    data class InventoryItemUse(val session: InventoryItemUseSession) : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
     data class QuitConfirm(val prompt: TextBlock) : WildernessSessionStep
     data class Town(val session: TownSession) : WildernessSessionStep
@@ -222,6 +227,7 @@ data class WildernessSession(
         when (input) {
             is WildernessSessionInput.Move -> move(input.direction)
             WildernessSessionInput.Enter -> enter()
+            WildernessSessionInput.UseInventory -> useInventory()
             WildernessSessionInput.Pass -> pass()
             WildernessSessionInput.Continue -> continueNotice()
             is WildernessSessionInput.CaveAnswer -> answerCave(input.enter)
@@ -317,6 +323,33 @@ data class WildernessSession(
         }
     }
 
+    fun replaceInventoryItemUseSession(session: InventoryItemUseSession): WildernessSession {
+        require(step is WildernessSessionStep.InventoryItemUse) {
+            "wilderness session is not running inventory item use"
+        }
+        return if (session.step is InventoryItemUseStep.Finished) {
+            copy(
+                runtime = session.runtime.withRealm(
+                    session.runtime.realm.copy(
+                        currentMode = RuntimeMode.Wilderness,
+                        currentTown = null,
+                        currentMap = worldMap.id,
+                    ),
+                ),
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(
+                    status = when (session.lastResult?.status) {
+                        InventoryItemUseStatus.Used,
+                        InventoryItemUseStatus.Equipped -> WildernessSessionResultStatus.InventoryUsed
+                        else -> WildernessSessionResultStatus.InventoryUnavailable
+                    },
+                ),
+            )
+        } else {
+            copy(runtime = session.runtime, step = WildernessSessionStep.InventoryItemUse(session))
+        }
+    }
+
     fun replaceMissionContinuation(continuation: TownServiceContinuation): WildernessSession {
         val current = step as? WildernessSessionStep.Mission
             ?: error("wilderness session is not running a mission")
@@ -388,6 +421,18 @@ data class WildernessSession(
         notice(
             WildernessPromptText.pass(),
             WildernessSessionResult(WildernessSessionResultStatus.Passed),
+        )
+
+    private fun useInventory(): WildernessSession =
+        copy(
+            step = WildernessSessionStep.InventoryItemUse(
+                InventoryItemUseSession.start(
+                    runtime = runtime,
+                    itemUses = itemUses,
+                    itemRecords = itemRecords,
+                ),
+            ),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.InventoryRequested),
         )
 
     private fun move(direction: WildernessDirection): WildernessSession {
@@ -757,7 +802,7 @@ object WildernessPromptText {
 }
 
 fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
-    listOf(moveNorth, moveSouth, moveWest, moveEast, pass, enter, quit)
+    listOf(moveNorth, moveSouth, moveWest, moveEast, pass, enter, useInventory, quit)
 
 fun WildernessKeysModel.caveKeys(): List<InputBindingModel> =
     listOf(caveEnter, caveLeave)

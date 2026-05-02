@@ -1158,6 +1158,60 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun inventoryItemUseRunsPotionScriptAndConsumesAfterTarget() {
+        val content = RylweenCompiledGame.nextDsl
+        val terminal = FakeTerminalPort("A", "1")
+        val result = InventoryItemUseTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            InventoryItemUseSession.start(
+                runtime = RuntimeSessionState.singleParty(
+                    party = testParty(
+                        health = 30,
+                        hitPoints = 10,
+                        inventoryItems = mapOf(1 to Items.redPotion),
+                    ),
+                    hour = 12,
+                    currentTown = null,
+                ),
+                itemUses = content.itemUses,
+                itemRecords = content.itemCatalog,
+            ),
+        )
+
+        val party = result.session.runtime.activeParty
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(InventoryItemUseStatus.Used, result.session.lastResult?.status)
+        assertEquals(null, party.inventoryItem(1))
+        assertEquals(25, party.members.single().hitPoints.current)
+        assertTrue(terminal.output.any { "A. Red Potion" in it })
+        assertTrue(terminal.output.any { "Who? (1-4)" in it })
+        assertTrue(terminal.output.any { "Tester recovers" in it })
+    }
+
+    @Test
+    fun inventoryItemUseCanReadyWeaponFromSameMenu() {
+        val terminal = FakeTerminalPort("A", "1")
+        val result = InventoryItemUseTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            InventoryItemUseSession.start(
+                runtime = RuntimeSessionState.singleParty(
+                    party = testParty(inventoryItems = mapOf(1 to Items.sword)),
+                    hour = 12,
+                    currentTown = null,
+                ),
+                itemUses = RylweenCompiledGame.nextDsl.itemUses,
+                itemRecords = compiledItemRecords(),
+            ),
+        )
+
+        val party = result.session.runtime.activeParty
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(InventoryItemUseStatus.Equipped, result.session.lastResult?.status)
+        assertEquals(Items.sword, party.members.single().weapon)
+        assertEquals(null, party.inventoryItem(1))
+        assertTrue(terminal.output.any { "A. Sword" in it })
+        assertTrue(terminal.output.any { "Who? (1-N)" in it })
+    }
+
+    @Test
     fun terminalAdaptersReturnUnfinishedSessionOnInvalidInput() {
         val invalidShop = ShopServiceTerminalAdapter(FakeTerminalPort("X")).runUntilBlocked(
             ShopServiceSession.start(testMerchantShop(), testParty(gold = 10), compiledItemRecords()),
@@ -2234,6 +2288,31 @@ class RylweenDslValidationTest {
         assertTrue(wordAliasResult.status is TerminalRunStatus.Waiting)
         assertEquals(GridPoint(12, 8), (wordAliasResult.session.party.position as WorldPosition.Wilderness).point)
         assertEquals(199, wordAliasResult.session.party.resources.timeLeft)
+    }
+
+    @Test
+    fun wildernessInventoryCommandRunsGenericItemUseSession() {
+        val terminal = FakeTerminalPort("Q", "A", "1")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    health = 30,
+                    hitPoints = 10,
+                    inventoryItems = mapOf(1 to Items.redPotion),
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.InventoryUsed, result.session.lastResult?.status)
+        assertEquals(null, result.session.party.inventoryItem(1))
+        assertEquals(25, result.session.party.members.single().hitPoints.current)
+        assertTrue(terminal.output.any { "Q inventory" in it })
+        assertTrue(terminal.output.any { "A. Red Potion" in it })
     }
 
     @Test

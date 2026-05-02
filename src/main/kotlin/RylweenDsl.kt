@@ -1103,6 +1103,7 @@ data class WildernessKeysModel(
     val moveEast: InputBindingModel = inputKey("6", InputAliases.ArrowRight, "RIGHT", "ARROW_RIGHT", label = "6/Right"),
     val pass: InputBindingModel = inputKey(" ", "SPACE", label = "Space"),
     val enter: InputBindingModel = inputKey("E"),
+    val useInventory: InputBindingModel = inputKey("Q"),
     val quit: InputBindingModel = inputKey("X"),
     val caveEnter: InputBindingModel = inputKey("E"),
     val caveLeave: InputBindingModel = inputKey("L"),
@@ -1110,7 +1111,7 @@ data class WildernessKeysModel(
     val outOfMovesQuit: InputBindingModel = inputKey("Q"),
     val quitYes: InputBindingModel = inputKey("Y"),
     val quitNo: InputBindingModel = inputKey("N"),
-    val commandHint: TextBlock = inlineText("Commands: 8/2/4/6 or arrows move, Space pass, E enter, X quit"),
+    val commandHint: TextBlock = inlineText("Commands: 8/2/4/6 or arrows move, Space pass, E enter, Q inventory, X quit"),
 )
 
 data class WildernessEventModel(
@@ -3097,6 +3098,7 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
     private var moveEastKey = initial.moveEast
     var pass: InputBindingModel = initial.pass
     var enter: InputBindingModel = initial.enter
+    var useInventory: InputBindingModel = initial.useInventory
     var quit: InputBindingModel = initial.quit
     private var caveEnterKey = initial.caveEnter
     private var caveLeaveKey = initial.caveLeave
@@ -3174,6 +3176,7 @@ class WildernessKeysBuilder(initial: WildernessKeysModel = WildernessKeysModel()
             moveEast = moveEastKey,
             pass = pass,
             enter = enter,
+            useInventory = useInventory,
             quit = quit,
             caveEnter = caveEnterKey,
             caveLeave = caveLeaveKey,

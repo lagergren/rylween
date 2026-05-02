@@ -485,6 +485,7 @@ private class StatefulScriptServiceRunner(
     private var battleSession = continuation.battleSession
     private var randomItemOfferSession = continuation.randomItemOfferSession
     private var rewardGrantSession = continuation.rewardGrantSession
+    private val activeInventorySlot = continuation.activeInventorySlot
     private var rejection: TerminalInputRejection? = null
     private var dungeonHandoff: WildernessDungeonHandoff? = null
     private var waiting = false
@@ -526,7 +527,7 @@ private class StatefulScriptServiceRunner(
         when (op) {
             is Op.Screen -> {
                 advanceTop()
-                engine.trace(EngineTraceEvent.Screen(op.text))
+                engine.trace(EngineTraceEvent.Screen(renderText(op.text)))
             }
             is Op.Emit -> {
                 advanceTop()
@@ -625,7 +626,12 @@ private class StatefulScriptServiceRunner(
                 runEncounter(op)
             }
             is Op.EnterDungeon -> runEnterDungeon(op)
-            Op.ConsumeActiveItem -> advanceTop()
+            Op.ConsumeActiveItem -> {
+                activeInventorySlot?.let { slot ->
+                    party = party.withInventoryItem(slot, null)
+                }
+                advanceTop()
+            }
             is Op.ConsumeInventoryPool -> {
                 val quantity = eval(op.quantity)
                 party = party.consumeInventoryItems(op.pool, quantity)
@@ -655,11 +661,12 @@ private class StatefulScriptServiceRunner(
     }
 
     private fun appendJournal(text: TextBlock) {
+        val rendered = renderText(text)
         party = party.withJournalLines(
-            textRenderer.lines(text, TerminalTextContext(runtime = currentRuntime())),
+            textRenderer.lines(rendered, TerminalTextContext(runtime = currentRuntime())),
         )
         advanceTop()
-        engine.trace(EngineTraceEvent.AppendJournal(text))
+        engine.trace(EngineTraceEvent.AppendJournal(rendered))
     }
 
     private fun waitInput(reason: String?) {
@@ -674,7 +681,7 @@ private class StatefulScriptServiceRunner(
         val frame = stack.last()
         val opIndex = frame.nextIndex
         val choices = op.options.map { option -> TerminalChoice(option, option.binding) }
-        engine.trace(EngineTraceEvent.Menu(op.prompt, op.options.map { it.key }))
+        engine.trace(EngineTraceEvent.Menu(renderText(op.prompt), op.options.map { it.key }))
         when (val input = terminal.readChoice(choices)) {
             is TerminalInput.Value -> {
                 advanceTop()
@@ -695,7 +702,7 @@ private class StatefulScriptServiceRunner(
     }
 
     private fun askMember(op: Op.AskMember) {
-        engine.trace(EngineTraceEvent.AskMember(op.prompt, op.filter))
+        engine.trace(EngineTraceEvent.AskMember(renderText(op.prompt), op.filter))
         val choices = party.memberChoices(op.accepting)
         when (val input = terminal.readMemberNumber(choices)) {
             is TerminalInput.Value -> {
@@ -708,7 +715,7 @@ private class StatefulScriptServiceRunner(
     }
 
     private fun askInventorySlot(op: Op.AskInventorySlot) {
-        engine.trace(EngineTraceEvent.AskInventorySlot(op.prompt, op.firstKey, op.slots, op.filter))
+        engine.trace(EngineTraceEvent.AskInventorySlot(renderText(op.prompt), op.firstKey, op.slots, op.filter))
         val choices = party.inventorySlotChoices(op.filter, op.slots, op.firstKey)
         val keys = choices.map { it.first }
         when (val input = terminal.readKey(keys)) {
@@ -789,6 +796,7 @@ private class StatefulScriptServiceRunner(
             battleSession = battleSession,
             randomItemOfferSession = randomItemOfferSession,
             rewardGrantSession = rewardGrantSession,
+            activeInventorySlot = activeInventorySlot,
         )
 
     private fun runSpeak(op: Op.Speak) {
@@ -975,8 +983,72 @@ private class StatefulScriptServiceRunner(
         return party.members.mapIndexedNotNull { index, member ->
             val memberNumber = index + 1
             (memberNumber to block).takeIf { includeDead || !member.dead }
+            }
+        }
+
+    private fun renderText(block: TextBlock): TextBlock =
+        when (block) {
+            is TextBlock.Ref,
+            is TextBlock.Inline -> block
+            is TextBlock.Structured -> TextBlock.Inline(
+                block.lines.map { line ->
+                    line.parts.joinToString(separator = "") { part ->
+                        when (part) {
+                            is TextPart.Literal -> part.text
+                            is TextPart.IntValue -> eval(part.value).toString()
+                            is TextPart.StringValue -> evalString(part.value)
+                            is TextPart.RoleName -> "{${part.role.slug}.name}"
+                            is TextPart.RoleLocation -> "{${part.role.slug}.location}"
+                            is TextPart.TownName -> part.town.slug
+                            is TextPart.FuzzyTownLocation -> "${part.town.slug}.near"
+                            is TextPart.LocationCoordinate -> locationCoordinate(part.location)
+                            TextPart.OfferedItemName -> "{item_name}"
+                            TextPart.OfferedItemPrice -> "{item_price}"
+                            TextPart.ShopPrice -> "{price}"
+                            TextPart.ShopCarryCap -> "{cap}"
+                        }
+                    }
+                },
+            )
+        }
+
+    private fun evalString(ast: StrAst): String =
+        when (ast) {
+            is StrAst.NativeString -> when (ast.path) {
+                NativeAllowlist.partyMemberName.path ->
+                    party.members.getOrNull(evalStringArg(ast.args.single()) - 1)?.name.orEmpty()
+                NativeAllowlist.partyPronounSubject.path ->
+                    pronoun(evalStringArg(ast.args.single()), PronounCase.Subject)
+                NativeAllowlist.partyPronounObject.path ->
+                    pronoun(evalStringArg(ast.args.single()), PronounCase.Object)
+                NativeAllowlist.partyPronounPossessive.path ->
+                    pronoun(evalStringArg(ast.args.single()), PronounCase.Possessive)
+                else -> "{${ast.path}}"
+            }
+        }
+
+    private fun evalStringArg(arg: NativeStringArg): Int =
+        when (arg) {
+            is NativeStringArg.IntValue -> eval(arg.value)
+            is NativeStringArg.Literal -> arg.value.toIntOrNull() ?: 0
+        }
+
+    private fun pronoun(memberNumber: Int, case: PronounCase): String {
+        val gender = party.members.getOrNull(memberNumber - 1)?.gender ?: Gender.Male
+        return when (case) {
+            PronounCase.Subject -> if (gender == Gender.Female) "she" else "he"
+            PronounCase.Object -> if (gender == Gender.Female) "her" else "him"
+            PronounCase.Possessive -> if (gender == Gender.Female) "her" else "his"
         }
     }
+
+    private fun locationCoordinate(location: LocationId): String =
+        currentRuntime()
+            .locations
+            .firstOrNull { it.location == location }
+            ?.point
+            ?.let { "${it.x}x${it.y}" }
+            ?: "{${location.slug}.coordinates}"
 
     private val evaluator = object : IntAstEvaluator() {
         override fun local(name: String): Int = locals[name] ?: 0
@@ -1560,6 +1632,125 @@ class EquipmentPromptTerminalAdapter(
     }
 }
 
+class InventoryItemUseTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+    private val engine: TraceEnginePort = TraceEnginePort(),
+    private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
+) {
+    fun run(initial: InventoryItemUseSession): InventoryItemUseSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: InventoryItemUseSession): TerminalAdapterResult<InventoryItemUseSession> {
+        var session = initial
+        repeat(128) {
+            session = when (val step = session.step) {
+                is InventoryItemUseStep.ChooseItem -> {
+                    writeMenu(step.prompt, step.choices.map { it.key }, session.runtime)
+                    when (val input = terminal.readKey(step.choices.map { it.key })) {
+                        is TerminalInput.Value -> {
+                            val slot = checkNotNull(step.choices.firstOrNull { it.key == input.value }).slot
+                            session.apply(InventoryItemUseInput.InventorySlot(slot))
+                        }
+                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
+                        TerminalInput.Unavailable -> return waiting(session)
+                    }
+                }
+                is InventoryItemUseStep.Equipment -> {
+                    val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceEquipmentSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is InventoryItemUseStep.Script -> {
+                    val eventStart = engine.events.size
+                    val result = StatefulScriptServiceRunner(
+                        terminal = terminal,
+                        engine = engine,
+                        rootOps = step.use.ops,
+                        continuation = step.continuation,
+                        speakContent = speakContent,
+                        battleContent = BattleRuntimeContent(itemRecords = session.itemRecords),
+                    ).run()
+                    writeScriptEvents(engine.events.drop(eventStart), result.runtime)
+                    when (result.status) {
+                        TownServiceBridgeStatus.Finished ->
+                            session.finishScript(result.runtime)
+                        TownServiceBridgeStatus.Waiting ->
+                            return waiting(
+                                session.replaceScriptContinuation(
+                                    checkNotNull(result.continuation) {
+                                        "waiting inventory item-use script did not return continuation"
+                                    },
+                                ),
+                                result.rejection,
+                            )
+                    }
+                }
+                is InventoryItemUseStep.Message -> {
+                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
+                    session.apply(InventoryItemUseInput.Continue)
+                }
+                is InventoryItemUseStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun writeMenu(block: TextBlock, keys: List<Char>, runtime: RuntimeSessionState) {
+        terminal.write(
+            renderer.lines(block, TerminalTextContext(runtime = runtime)) +
+                "Options: ${keys.joinToString("/")}",
+        )
+    }
+
+    private fun writeScriptEvents(events: List<EngineTraceEvent>, runtime: RuntimeSessionState) {
+        val context = TerminalTextContext(runtime = runtime)
+        events.forEach { event ->
+            when (event) {
+                is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
+                is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
+                is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
+                is EngineTraceEvent.Menu -> terminal.write(
+                    renderer.lines(event.prompt, context) + "Options: ${event.keys.joinToString("/")}",
+                )
+                is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
+                is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
+                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
+                is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
+                is EngineTraceEvent.NativeString ->
+                    terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
+                is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
+                is EngineTraceEvent.DungeonHandoff ->
+                    terminal.write(renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context))
+                is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
+                is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
+                is EngineTraceEvent.WaitInput,
+                is EngineTraceEvent.Pause,
+                is EngineTraceEvent.SetFlag,
+                is EngineTraceEvent.AppendJournal,
+                is EngineTraceEvent.GrantReward,
+                is EngineTraceEvent.AchieveMilestone,
+                is EngineTraceEvent.Speak,
+                is EngineTraceEvent.Encounter,
+                is EngineTraceEvent.RandomItemOffer,
+                is EngineTraceEvent.ShopService,
+                is EngineTraceEvent.ShopSellQuote,
+                is EngineTraceEvent.ShopTransaction,
+                is EngineTraceEvent.EquipmentAction,
+                is EngineTraceEvent.TownService,
+                is EngineTraceEvent.ConsumeInventoryPool,
+                EngineTraceEvent.ConsumeTorch -> Unit
+            }
+        }
+    }
+}
+
 class TownLeaveEquipmentTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -1975,6 +2166,7 @@ class WildernessSessionTerminalAdapter(
                         TerminalChoice(WildernessSessionInput.Move(WildernessDirection.East), keys.moveEast),
                         TerminalChoice(WildernessSessionInput.Pass, keys.pass),
                         TerminalChoice(WildernessSessionInput.Enter, keys.enter),
+                        TerminalChoice(WildernessSessionInput.UseInventory, keys.useInventory),
                         TerminalChoice(WildernessSessionInput.Quit, keys.quit),
                     )
                     when (val input = terminal.readChoice(choices)) {
@@ -2015,6 +2207,17 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.Battle -> {
                     val result = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceBattleSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached ->
+                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
+                        is TerminalRunStatus.Waiting ->
+                            return TerminalAdapterResult(updated, result.status)
+                    }
+                }
+                is WildernessSessionStep.InventoryItemUse -> {
+                    val result = InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceInventoryItemUseSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated
                         TerminalRunStatus.StepLimitReached ->
