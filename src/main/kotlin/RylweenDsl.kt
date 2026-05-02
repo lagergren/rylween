@@ -602,6 +602,13 @@ data class BattleOpeningKeysModel(
     val run: InputBindingModel = inputKey('R'),
 )
 
+data class YesNoKeysModel(
+    val yes: InputBindingModel = inputKey('Y'),
+    val no: InputBindingModel = inputKey('N'),
+)
+
+val StandardYesNoKeys = YesNoKeysModel()
+
 data class BattleTextModel(
     val encounterBanner: TextBlock = inlineText("ENCOUNTER!", ""),
     val youFace: TextBlock = inlineText("You face"),
@@ -2538,9 +2545,18 @@ class ChoiceScope(private val script: ScriptScope) {
         yes: ScriptScope.() -> Unit,
         no: ScriptScope.() -> Unit = {},
     ) {
+        yesNo(prompt, StandardYesNoKeys, yes, no)
+    }
+
+    fun yesNo(
+        prompt: TextBlock,
+        keys: YesNoKeysModel,
+        yes: ScriptScope.() -> Unit,
+        no: ScriptScope.() -> Unit = {},
+    ) {
         script.menu(prompt) {
-            option('Y', yes)
-            option('N', no)
+            option(keys.yes, yes)
+            option(keys.no, no)
             default(no)
         }
     }
