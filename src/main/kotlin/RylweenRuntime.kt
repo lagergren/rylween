@@ -777,15 +777,44 @@ data class BattleSession(
             spells: List<SpellModel> = emptyList(),
             magicItems: List<MagicItemModel> = emptyList(),
         ): BattleSession {
-            val battle = requireNotNull(combat.standardBattle) { "standard battle is not configured" }
+            requireNotNull(combat.standardBattle) { "standard battle is not configured" }
             val candidates = monsters.filter { it.tier == tier }
             require(candidates.isNotEmpty()) { "no monsters declared for encounter tier ${tier.slug}" }
 
             val pick = runtime.drawRandom(0, candidates.lastIndex)
             val monster = candidates[pick.value]
-            val firstLevel = pick.runtime.activeParty.members.firstOrNull().levelOrZero()
+            return startMonster(
+                runtime = pick.runtime,
+                combat = combat,
+                monster = monster,
+                tier = tier,
+                mandatory = mandatory,
+                itemRecords = itemRecords,
+                formulas = formulas,
+                rewards = rewards,
+                leveling = leveling,
+                spells = spells,
+                magicItems = magicItems,
+            )
+        }
+
+        fun startMonster(
+            runtime: RuntimeSessionState,
+            combat: CombatSystemModel,
+            monster: MonsterModel,
+            tier: EncounterTier? = monster.tier,
+            mandatory: Boolean = false,
+            itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+            formulas: List<FormulaModel> = emptyList(),
+            rewards: List<RewardBundleModel> = emptyList(),
+            leveling: LevelingModel? = null,
+            spells: List<SpellModel> = emptyList(),
+            magicItems: List<MagicItemModel> = emptyList(),
+        ): BattleSession {
+            val battle = requireNotNull(combat.standardBattle) { "standard battle is not configured" }
+            val firstLevel = runtime.activeParty.members.firstOrNull().levelOrZero()
             val countMax = monster.count.last + (monster.countMaxLevelDivisor?.let { firstLevel / it } ?: 0)
-            val countDraw = pick.runtime.drawRandom(1, countMax)
+            val countDraw = runtime.drawRandom(1, countMax)
             val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(battle.encounterFoeCountMax)
             val hpRange = countDraw.runtime.scaledEncounterHpRange(monster, formulas)
             var hpRuntime = countDraw.runtime
@@ -1876,6 +1905,7 @@ data class TownServiceContinuation(
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<TownServiceScriptFrame>,
     val speakSession: SpeakSession? = null,
+    val battleSession: BattleSession? = null,
     val randomItemOfferSession: RandomItemOfferSession? = null,
     val rewardGrantSession: RewardGrantSession? = null,
 ) {
@@ -2323,6 +2353,19 @@ data class SpeakRuntimeContent(
     val characters: List<CharacterModel> = emptyList(),
     val dialogue: List<DialogueModel> = emptyList(),
 )
+
+data class BattleRuntimeContent(
+    val combat: CombatSystemModel = CombatSystemModel(null),
+    val monsters: List<MonsterModel> = emptyList(),
+    val formulas: List<FormulaModel> = emptyList(),
+    val rewards: List<RewardBundleModel> = emptyList(),
+    val leveling: LevelingModel? = null,
+    val spells: List<SpellModel> = emptyList(),
+    val magicItems: List<MagicItemModel> = emptyList(),
+    val itemRecords: List<ItemRecordModel> = ItemCatalog.all,
+) {
+    val configured: Boolean get() = combat.standardBattle != null
+}
 
 sealed interface SpeakStep {
     data class ChooseNpc(val npcs: List<CharacterModel>) : SpeakStep

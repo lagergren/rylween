@@ -2083,6 +2083,63 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun wildernessMoveCanTriggerAuthoredBanditsMissionAndWaitInBattle() {
+        val terminal = FakeTerminalPort("2")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    flags = listOf(Story.garth.bandits.accepted),
+                ).copy(position = Wilderness.xy(12, 9)),
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.MissionHandoff, result.session.lastResult?.status)
+        assertEquals(Missions.bandits, result.session.lastResult?.mission)
+        assertTrue(result.session.step is WildernessSessionStep.Mission)
+        val mission = result.session.step
+        assertTrue(mission.continuation?.battleSession?.encounter?.monster?.id == Monsters.bandit)
+        assertFalse(result.session.party.hasFlagState(Story.garth.bandits.recovered))
+        assertTrue(terminal.output.any { "bandits" in it.lowercase() })
+        assertTrue(terminal.output.any { "ENCOUNTER!" in it })
+    }
+
+    @Test
+    fun wildernessBanditsMissionResumesAfterMandatoryBattleAndMarksRecovered() {
+        val hero = testMember(
+            health = 1000,
+            hitPoints = 1000,
+            weaponSkill = 100,
+            equipment = EquipmentState(Items.deathBlade, Items.none),
+        )
+        val terminal = FakeTerminalPort("2", "F", "A", "A", "F", "A", "B")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    members = listOf(hero),
+                    flags = listOf(Story.garth.bandits.accepted),
+                ).copy(position = Wilderness.xy(12, 9)),
+                rngState = 21L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
+        assertEquals(Missions.bandits, result.session.lastResult?.mission)
+        assertTrue(result.session.party.hasFlagState(Story.garth.bandits.recovered))
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertTrue(terminal.output.any { "recovered" in it.lowercase() })
+    }
+
+    @Test
     fun battleSessionRunCanEscapeFromOpeningPrompt() {
         val terminal = FakeTerminalPort("R")
         val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(

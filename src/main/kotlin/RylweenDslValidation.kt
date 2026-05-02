@@ -1150,6 +1150,9 @@ fun validateAuthoredContent(content: GameModel) {
             check(mission.action in scenes) {
                 "mission ${mission.id.slug} references missing action scene ${mission.action.slug}"
             }
+            when (val trigger = mission.trigger) {
+                is Trigger.RandomStep -> checkPercent(trigger.percent, "mission ${mission.id.slug} random step")
+            }
         }
     }
 
