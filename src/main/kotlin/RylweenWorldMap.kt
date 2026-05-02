@@ -126,30 +126,6 @@ data class WildernessDungeonHandoff(
     val levels: Int,
 )
 
-enum class WildernessFatigueMatch { Equal, LessThan }
-
-data class WildernessFatigueRule(
-    val threshold: Int,
-    val text: TextBlock,
-    val match: WildernessFatigueMatch = WildernessFatigueMatch.Equal,
-    val drain: Boolean = false,
-)
-
-data class WildernessUpkeepRules(
-    val foodCostLeaderDiv: Int = 4,
-    val foodTickEvery: Int = 5,
-    val starveDamage: Int = 2,
-    val manaRegenChance: Int = 50,
-    val fatigue: List<WildernessFatigueRule> = StandardRylweenFatigue,
-) {
-    init {
-        require(foodTickEvery >= 0) { "food tick interval must be non-negative" }
-        require(foodCostLeaderDiv >= 0) { "food leader divisor must be non-negative" }
-        require(starveDamage >= 0) { "starve damage must be non-negative" }
-        require(manaRegenChance in 0..100) { "mana regen chance must be 0..100" }
-    }
-}
-
 private data class WildernessUpkeepResult(
     val runtime: RuntimeSessionState,
     val messages: List<TextBlock>,
@@ -250,7 +226,6 @@ data class WildernessSession(
     val runtime: RuntimeSessionState,
     val worldMap: WorldMapGrid,
     val content: RuntimeContent = RuntimeContent(),
-    val upkeepRules: WildernessUpkeepRules = WildernessUpkeepRules(),
     val step: WildernessSessionStep = WildernessSessionStep.TurnStart,
     val lastResult: WildernessSessionResult? = null,
 ) {
@@ -310,7 +285,7 @@ data class WildernessSession(
 
     fun beginTurn(): WildernessSession {
         require(step is WildernessSessionStep.TurnStart) { "wilderness session is not starting a turn" }
-        val upkeep = runtime.applyWildernessUpkeep(upkeepRules)
+        val upkeep = runtime.applyWildernessUpkeep(realm.upkeep)
         val next = when {
             upkeep.allDead -> WildernessSessionStep.Finished(
                 upkeep.runtime.withRealm(upkeep.runtime.realm.copy(currentMode = RuntimeMode.GameOver)),
@@ -1288,8 +1263,8 @@ private fun RuntimeSessionState.applyFoodAndFatigue(rules: WildernessUpkeepRules
     } else {
         party.resources.food
     }
-    val starvation = party.applyStarvation(foodAfterTick, rules.starveDamage)
-    val restedHours = party.resources.restedHours - 1
+    val starvation = party.applyStarvation(foodAfterTick, rules.starveFoodThreshold, rules.starveDamage)
+    val restedHours = party.resources.restedHours - rules.restedHoursCostPerTurn
     val fatigue = starvation.party.applyFatigue(restedHours, rules.fatigue)
     val nextParty = fatigue.party.copy(
         resources = fatigue.party.resources.copy(
@@ -1321,8 +1296,8 @@ private fun PartyState.foodTickCost(rules: WildernessUpkeepRules): Int {
 private fun PartyState.partySizeForFood(): Int =
     counters.memberCount ?: members.size
 
-private fun PartyState.applyStarvation(foodAfterTick: Int, damage: Int): PartyUpkeepMutation {
-    if (foodAfterTick > 0 || damage == 0) return PartyUpkeepMutation(this, emptyList())
+private fun PartyState.applyStarvation(foodAfterTick: Int, threshold: Int, damage: Int): PartyUpkeepMutation {
+    if (foodAfterTick > threshold || damage == 0) return PartyUpkeepMutation(this, emptyList())
     val messages = mutableListOf<TextBlock>()
     val nextMembers = members.map { member ->
         if (member.dead) {
@@ -1417,27 +1392,3 @@ private val ImpassableTerrainTiles: Set<Char> =
         Terrain.mountain.sourceMapCode,
         Terrain.water.sourceMapCode,
     ).toSet()
-
-private val StandardRylweenFatigue: List<WildernessFatigueRule> =
-    listOf(
-        WildernessFatigueRule(
-            threshold = 0,
-            text = inlineText("You begin to feel tired"),
-        ),
-        WildernessFatigueRule(
-            threshold = -4,
-            text = inlineText("You are exhausted!!!"),
-            drain = true,
-        ),
-        WildernessFatigueRule(
-            threshold = -8,
-            text = inlineText("You begin to feel weak", "from lack of sleep.", ""),
-            drain = true,
-        ),
-        WildernessFatigueRule(
-            threshold = -8,
-            match = WildernessFatigueMatch.LessThan,
-            text = inlineText("You faint from lack", "of well needed sleep."),
-            drain = true,
-        ),
-    )

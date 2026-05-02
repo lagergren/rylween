@@ -197,9 +197,43 @@ data class ItemRecordModel(
 )
 data class RealmContentModel(
     val baseResourceCapacity: Map<Resource, Int> = emptyMap(),
+    val upkeep: WildernessUpkeepRules = WildernessUpkeepRules(),
     val camp: CampRulesModel = CampRulesModel(),
     val hunt: HuntRulesModel? = null,
 )
+
+enum class WildernessFatigueMatch { Equal, LessThan }
+
+data class WildernessFatigueRule(
+    val threshold: Int,
+    val text: TextBlock,
+    val match: WildernessFatigueMatch = WildernessFatigueMatch.Equal,
+    val drain: Boolean = false,
+)
+
+/**
+ * Authored wilderness turn upkeep. The runtime owns applying a turn; designers
+ * own food cadence, starvation damage/threshold, mana recovery chance, sleep
+ * loss, and the fatigue message ladder.
+ */
+data class WildernessUpkeepRules(
+    val foodCostLeaderDiv: Int = 0,
+    val foodTickEvery: Int = 0,
+    val starveFoodThreshold: Int = 0,
+    val starveDamage: Int = 0,
+    val manaRegenChance: Int = 0,
+    val restedHoursCostPerTurn: Int = 0,
+    val fatigue: List<WildernessFatigueRule> = emptyList(),
+) {
+    init {
+        require(foodTickEvery >= 0) { "food tick interval must be non-negative" }
+        require(foodCostLeaderDiv >= 0) { "food leader divisor must be non-negative" }
+        require(starveFoodThreshold >= 0) { "starvation food threshold must be non-negative" }
+        require(starveDamage >= 0) { "starve damage must be non-negative" }
+        require(manaRegenChance in 0..100) { "mana regen chance must be 0..100" }
+        require(restedHoursCostPerTurn >= 0) { "rested-hours turn cost must be non-negative" }
+    }
+}
 
 /**
  * Authored camp / rest balance. Read by [CampSession]; every value is
@@ -3324,11 +3358,16 @@ class ItemRecordBuilder {
 @RylNextDsl
 class RealmContentBuilder {
     private val baseCapacity = mutableMapOf<Resource, Int>()
+    private var upkeep = WildernessUpkeepRules()
     private var camp = CampRulesModel()
     private var hunt: HuntRulesModel? = null
 
     fun baseResourceCapacity(resource: Resource, amount: Int) {
         baseCapacity[resource] = amount
+    }
+
+    fun upkeep(body: WildernessUpkeepRulesBuilder.() -> Unit) {
+        upkeep = WildernessUpkeepRulesBuilder(upkeep).apply(body).build()
     }
 
     fun camp(body: CampRulesBuilder.() -> Unit) {
@@ -3342,8 +3381,48 @@ class RealmContentBuilder {
     internal fun build(): RealmContentModel =
         RealmContentModel(
             baseResourceCapacity = baseCapacity.toMap(),
+            upkeep = upkeep,
             camp = camp,
             hunt = hunt,
+        )
+}
+
+@RylNextDsl
+class WildernessUpkeepRulesBuilder(initial: WildernessUpkeepRules = WildernessUpkeepRules()) {
+    var foodCostLeaderDiv: Int = initial.foodCostLeaderDiv
+    var foodTickEvery: Int = initial.foodTickEvery
+    var starveFoodThreshold: Int = initial.starveFoodThreshold
+    var starveDamage: Int = initial.starveDamage
+    var manaRegenChance: Int = initial.manaRegenChance
+    var restedHoursCostPerTurn: Int = initial.restedHoursCostPerTurn
+    private val fatigue = initial.fatigue.toMutableList()
+
+    fun fatigueAt(restedHours: Int, text: TextBlock, drain: Boolean = false) {
+        fatigue += WildernessFatigueRule(
+            threshold = restedHours,
+            text = text,
+            drain = drain,
+        )
+    }
+
+    fun fatigueBelow(restedHours: Int, text: TextBlock, drain: Boolean = false) {
+        fatigue += WildernessFatigueRule(
+            threshold = restedHours,
+            text = text,
+            match = WildernessFatigueMatch.LessThan,
+            drain = drain,
+        )
+    }
+
+    internal fun build(): WildernessUpkeepRules =
+        WildernessUpkeepRules(
+            foodCostLeaderDiv = foodCostLeaderDiv,
+            foodTickEvery = foodTickEvery,
+            starveFoodThreshold = starveFoodThreshold,
+            starveDamage = starveDamage,
+            manaRegenChance = manaRegenChance,
+            restedHoursCostPerTurn = restedHoursCostPerTurn,
+            fatigue = fatigue.toList(),
         )
 }
 
