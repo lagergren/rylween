@@ -334,6 +334,7 @@ class StatefulScriptServiceRunner(
             }
             is Op.ForEachMonster -> advanceTop()
             is Op.Speak -> runSpeak(op)
+            is Op.TellRumour -> tellRumour(op)
             is Op.RunScene -> {
                 runScene(op)
             }
@@ -610,19 +611,17 @@ class StatefulScriptServiceRunner(
 
     private fun runScene(op: Op.RunScene) {
         advanceTop()
-        val rumour = if (op.scene == sceneId("towne.rumour")) {
-            speakContent.selectStandardRumour(currentRuntime())?.also { selection ->
-                runtime = selection.runtime
-                party = runtime.activeParty
-            }?.rumour?.text
-        } else {
-            null
-        }
-        if (rumour != null) {
-            engine.trace(EngineTraceEvent.Screen(rumour))
-        } else {
-            engine.trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
-        }
+        engine.trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
+    }
+
+    private fun tellRumour(op: Op.TellRumour) {
+        advanceTop()
+        val selection = speakContent.selectRumour(op.table, currentRuntime())
+        val text = selection?.also { selected ->
+            runtime = selected.runtime
+            party = runtime.activeParty
+        }?.rumour?.text ?: speakContent.noRumourText()
+        engine.trace(EngineTraceEvent.Screen(text))
     }
 
     private fun runEncounter(op: Op.Encounter) {

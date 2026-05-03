@@ -465,7 +465,6 @@ fun rumour(slug: String): RumourId = RumourId(slug)
 class NativeOpRefs {
     val inventoryAdd: NativeOpId = nativeOp("inventory.add")
     val townEnterService: NativeOpId = nativeOp("town.enter_service")
-    val rumourRoll: NativeOpId = nativeOp("rumour.roll")
     val inputKeyUpper: NativeOpId = nativeOp("input.key_upper")
     val partyMemberName: NativeOpId = nativeOp("party.member.name")
     val combatMonsterName: NativeOpId = nativeOp("combat.monster.name")
@@ -641,6 +640,7 @@ sealed interface Op {
     data class ForEachMember(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
     data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
     data class Speak(val building: BuildingId) : Op
+    data class TellRumour(val table: RumourTableId) : Op
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : Op
     data class Encounter(val foe: MonsterId, val mandatory: Boolean, val tier: EncounterTier? = null) : Op
     data class EnterDungeon(val dungeon: DungeonId, val levels: Int) : Op
@@ -2054,7 +2054,6 @@ class NativeAllowlistRefs {
     val inventoryAdd: NativeEffectSpec = effect(NativeOps.inventoryAdd, "inventory slot mutation")
     val townEnterService: NativeEffectSpec = effect(NativeOps.townEnterService, "town building-service trampoline")
 
-    val rumourRoll: NativeIntSpec = int(NativeOps.rumourRoll, "imported rumour scene roll bridge")
     val inputKeyUpper: NativeIntSpec = int(NativeOps.inputKeyUpper, "keyboard input normalization")
 
     val partyMemberName: NativeStringSpec = string(NativeOps.partyMemberName, "party-member display name binding")
@@ -2069,7 +2068,6 @@ class NativeAllowlistRefs {
     val all: List<NativeSpec> = listOf(
         inventoryAdd,
         townEnterService,
-        rumourRoll,
         inputKeyUpper,
         partyMemberName,
         combatMonsterName,
@@ -2205,7 +2203,6 @@ class ScriptScope(
     val ask: AskScope = AskScope(this)
     val choice: ChoiceScope = ChoiceScope(this)
     val view: ViewScope = ViewScope(this)
-    val rumour: RumourScriptScope = RumourScriptScope
     val native: NativeScope = NativeScope(this)
 
     val currentCaster: MemberRef
@@ -2353,6 +2350,10 @@ class ScriptScope(
 
     fun speak(building: BuildingId) {
         record(Op.Speak(building))
+    }
+
+    fun tellRumour(table: RumourTableId = DslDefaultRumourTables.standardTown) {
+        record(Op.TellRumour(table))
     }
 
     fun encounter(monster: MonsterId, mandatory: Boolean = false, tier: EncounterTier? = null) {
@@ -3399,16 +3400,11 @@ class ViewScope(private val script: ScriptScope) {
     fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
 }
 
-object RumourScriptScope {
-    fun roll(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.rumourRoll.path, emptyList()))
-}
-
 class NativeScope(private val script: ScriptScope) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
     // plumbing, and helper calls whose implementation is genuinely engine-owned.
     // Game rules should become typed DSL verbs before they are allowed here.
     val screen: NativeScreen = NativeScreen(script)
-    val rumour: NativeRumour = NativeRumour
     val inventory: NativeInventory = NativeInventory(script)
     val town: NativeTown = NativeTown(script)
     val input: NativeInput = NativeInput(script)
@@ -3429,11 +3425,6 @@ class NativeScreen(private val script: ScriptScope) {
 
     @Deprecated("Use view.statusLine() or statusLine(); rendering is no longer a native string request.")
     fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
-}
-
-object NativeRumour {
-    @Deprecated("Use rumour.roll(); game scripts should not call native rumour helpers directly.")
-    fun roll(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.rumourRoll.path, emptyList()))
 }
 
 class NativeInventory(private val script: ScriptScope) {
@@ -6704,6 +6695,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                 is Op.ForEachMember -> ops(op.body)
                 is Op.ForEachMonster -> ops(op.body)
                 is Op.Speak -> Unit
+                is Op.TellRumour -> Unit
                 is Op.RunScene -> Unit
                 is Op.Encounter -> Unit
                 is Op.EnterDungeon -> Unit

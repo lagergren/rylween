@@ -72,6 +72,9 @@ class ScriptTraceRunner(
             is Op.Speak -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.Speak(op.building))
             }
+            is Op.TellRumour -> ScriptControlSignal.Continue.also {
+                trace(EngineTraceEvent.Rumour(op.table))
+            }
             is Op.RunScene -> ScriptControlSignal.Continue.also {
                 trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
             }

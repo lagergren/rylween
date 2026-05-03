@@ -970,6 +970,7 @@ private class CombatScriptRunner(
                 is Op.AskInventorySlot,
                 is Op.AskText,
                 is Op.Speak,
+                is Op.TellRumour,
                 is Op.RunScene,
                 is Op.Encounter,
                 is Op.EnterDungeon,
