@@ -35,19 +35,116 @@ val nextRylween = rylween {
     // text declarations, menus, and the rest of the monster/mission tables here.
 
     flags {
-        story(Story.garth.bandits)
-        story(Story.ranger.letter)
-        story(Story.fighter.priestBook)
-        story(Story.church.donationOnce)
-        story(Story.silverKey)
-        story(Story.erethor.lute)
-        story(Story.bracelets.thun)
-        story(Story.nymph.seeker)
-        story(Story.peasant.wife)
-        story(Story.jazzy.ogre)
-        story(Story.masterCrown)
-        story(Story.hermit.trollTooth)
-        encounter(Story.encounter.immune)
+        story(Story.garth.bandits) {
+            states(
+                Story.garth.bandits.none,
+                Story.garth.bandits.accepted,
+                Story.garth.bandits.recovered,
+                Story.garth.bandits.closed,
+            )
+        }
+        story(Story.ranger.letter) {
+            states(
+                Story.ranger.letter.none,
+                Story.ranger.letter.accepted,
+                Story.ranger.letter.delivered,
+            )
+        }
+        story(Story.fighter.priestBook) {
+            states(
+                Story.fighter.priestBook.none,
+                Story.fighter.priestBook.priestTold,
+                Story.fighter.priestBook.priestVisited,
+                Story.fighter.priestBook.wizardRobbed,
+                Story.fighter.priestBook.fighterGrateful,
+            )
+        }
+        story(Story.church.donationOnce) {
+            states(
+                Story.church.donationOnce.no,
+                Story.church.donationOnce.yes,
+            )
+        }
+        story(Story.silverKey) {
+            states(
+                Story.silverKey.none,
+                Story.silverKey.mapBought,
+                Story.silverKey.noteFound,
+                Story.silverKey.thiefSqueezed,
+                Story.silverKey.smithConfessed,
+                Story.silverKey.caveLocated,
+                Story.silverKey.keyTaken,
+            )
+        }
+        story(Story.erethor.lute) {
+            states(
+                Story.erethor.lute.none,
+                Story.erethor.lute.rumourTold,
+                Story.erethor.lute.luteTaken,
+                Story.erethor.lute.noteReceived,
+                Story.erethor.lute.cloakReceived,
+            )
+        }
+        story(Story.bracelets.thun) {
+            states(
+                Story.bracelets.thun.none,
+                Story.bracelets.thun.mapBought,
+                Story.bracelets.thun.braceletsTaken,
+            )
+        }
+        story(Story.nymph.seeker) {
+            states(
+                Story.nymph.seeker.none,
+                Story.nymph.seeker.told,
+                Story.nymph.seeker.wizard3tActive,
+            )
+        }
+        story(Story.peasant.wife) {
+            states(
+                Story.peasant.wife.none,
+                Story.peasant.wife.accepted,
+                Story.peasant.wife.rescued,
+                Story.peasant.wife.paid,
+            )
+        }
+        story(Story.jazzy.ogre) {
+            states(
+                Story.jazzy.ogre.none,
+                Story.jazzy.ogre.accepted,
+                Story.jazzy.ogre.ogresCleared,
+                Story.jazzy.ogre.jazzyDefeated,
+            )
+        }
+        story(Story.masterCrown) {
+            states(
+                Story.masterCrown.none,
+                Story.masterCrown.task1Assigned,
+                Story.masterCrown.task1Done,
+                Story.masterCrown.task2Assigned,
+                Story.masterCrown.task2Done,
+                Story.masterCrown.task3Assigned,
+                Story.masterCrown.borinMet,
+                Story.masterCrown.daggerTaken,
+                Story.masterCrown.borinPaid,
+                Story.masterCrown.crownTold,
+                Story.masterCrown.crownTaken,
+            )
+        }
+        story(Story.hermit.trollTooth) {
+            states(
+                Story.hermit.trollTooth.none,
+                Story.hermit.trollTooth.accepted,
+                Story.hermit.trollTooth.extracted,
+                Story.hermit.trollTooth.delivered,
+                Story.hermit.trollTooth.fireShieldAcquired,
+            )
+        }
+        encounter(Story.encounter.immune) {
+            states(
+                Story.encounter.immune.no,
+                Story.encounter.immune.yes,
+            )
+        }
     }
 
     visuals {

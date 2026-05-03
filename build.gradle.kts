@@ -62,6 +62,67 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     @org.gradle.api.tasks.TaskAction
     fun generate() {
         val source = gameSource.get().asFile.readText()
+        val sections = listOf(
+            generateFlagHandles(flagDeclarations(source)),
+            generateItemHandles(itemHandles(source)),
+            generateRefsClass(
+                className = "GameMilestoneRefs",
+                objectName = "Milestones",
+                typeName = "GameMilestoneId",
+                factoryName = "milestone",
+                names = handleNames(declarationBlock(source, "gameProgress"), "Milestones", "milestone"),
+            ),
+            generateRefsClass(
+                className = "FormulaRefs",
+                objectName = "Formulas",
+                typeName = "FormulaId",
+                factoryName = "formula",
+                names = handleNames(declarationBlock(source, "formulas"), "Formulas", "formula"),
+                slugOverrides = mapOf("levelUpHitPointFloor" to "level_up_hp_floor"),
+            ),
+            generateRefsClass(
+                className = "RewardBundleRefs",
+                objectName = "Rewards",
+                typeName = "RewardBundleId",
+                factoryName = "rewardBundle",
+                names = handleNames(declarationBlock(source, "rewards"), "Rewards", "reward"),
+            ),
+        ).joinToString(separator = "\n\n")
+
+        outputFile.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                |// Generated from src/game/kotlin/RylweenGame.dsl.kts declarations.
+                |// Do not edit directly.
+                |
+                |@file:Suppress("unused", "MemberVisibilityCanBePrivate", "PropertyName")
+                |
+                |package rylween.game
+                |
+                |import rylween.dsl.*
+                |
+                |$sections
+                """.trimMargin() + "\n",
+            )
+        }
+    }
+
+    private data class ItemHandles(
+        val itemNames: List<String>,
+        val includeNoneAlias: Boolean,
+        val poolNames: List<String>,
+    )
+
+    private data class FlagDeclaration(
+        val scope: String,
+        val path: List<String>,
+        val states: List<String>,
+    ) {
+        val pathKey: String = path.joinToString(".")
+    }
+
+    private fun itemHandles(source: String): ItemHandles {
         val itemBlock = declarationBlock(source, "items")
         val emptyItemNames = Regex("""\bempty\s*\(\s*Items\.([A-Za-z][A-Za-z0-9_]*)""")
             .findAll(itemBlock)
@@ -80,8 +141,6 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             addAll(emptyItemNames.filterNot { it == "none" || it == "blank" })
             addAll(declaredItemNames.filterNot { it == "none" || it == "blank" })
         }.distinctInOrder()
-        val includeNoneAlias = emptyItemNames.contains("none")
-
         val poolNames = Regex("""\bpool\s*\(\s*ItemPools\.([A-Za-z][A-Za-z0-9_]*)""")
             .findAll(itemBlock)
             .map { it.groupValues[1] }
@@ -95,49 +154,167 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             "No item-pool declarations found in ${gameSource.get().asFile}."
         }
 
-        val itemLines = itemNames.joinToString(separator = "\n") { name ->
+        return ItemHandles(itemNames, emptyItemNames.contains("none"), poolNames)
+    }
+
+    private fun flagDeclarations(source: String): List<FlagDeclaration> {
+        val flagsBlock = declarationBlock(source, "flags")
+        return Regex("""\b(story|encounter)\s*\(\s*Story\.([A-Za-z][A-Za-z0-9_.]*)\s*\)""")
+            .findAll(flagsBlock)
+            .map { match ->
+                val path = match.groupValues[2].split(".")
+                val pathPattern = path.joinToString("""\.""") { Regex.escape(it) }
+                val states = Regex("""\bStory\.$pathPattern\.([A-Za-z][A-Za-z0-9_]*)""")
+                    .findAll(flagsBlock)
+                    .map { it.groupValues[1] }
+                    .toList()
+                    .distinctInOrder()
+                require(states.isNotEmpty()) {
+                    "Flag Story.${path.joinToString(".")} must declare states in the flags block."
+                }
+                FlagDeclaration(match.groupValues[1], path, states)
+            }
+            .toList()
+            .distinctBy { it.pathKey }
+            .also {
+                require(it.isNotEmpty()) {
+                    "No flag declarations found in ${gameSource.get().asFile}."
+                }
+            }
+    }
+
+    private fun generateFlagHandles(flags: List<FlagDeclaration>): String {
+        val flagClasses = flags.joinToString(separator = "\n\n") { flag -> generateFlagClass(flag) }
+        val containerPrefixes = flags
+            .flatMap { flag -> (1 until flag.path.size).map { size -> flag.path.take(size) } }
+            .distinctBy { it.joinToString(".") }
+        val containers = (listOf(emptyList<String>()) + containerPrefixes)
+            .joinToString(separator = "\n\n") { prefix ->
+                generateFlagContainer(
+                    className = if (prefix.isEmpty()) "StoryFlags" else flagContainerClassName(prefix),
+                    flags = flags,
+                    prefix = prefix,
+                )
+            }
+        return """
+            |$flagClasses
+            |
+            |$containers
+            |
+            |val Story: StoryFlags = StoryFlags()
+            |val Flags: StoryFlags = Story
+        """.trimMargin()
+    }
+
+    private fun generateFlagClass(flag: FlagDeclaration): String {
+        val scopeArgument = if (flag.scope == "encounter") {
+            ", scope = FlagScope.Encounter"
+        } else {
+            ""
+        }
+        val stateLines = flag.states.joinToString(separator = "\n") { state ->
+            """    val $state: FlagState = state("${flagStateSlug(flag.pathKey, state)}")"""
+        }
+        val derivedProperties = derivedFlagProperties(flag)
+        val body = if (derivedProperties.isBlank()) {
+            stateLines
+        } else {
+            "$stateLines\n\n$derivedProperties"
+        }
+        return """
+            |class ${flagClassName(flag.path)} : FlagRef("${flagSlug(flag.path)}"$scopeArgument) {
+            |$body
+            |}
+        """.trimMargin()
+    }
+
+    private fun generateFlagContainer(
+        className: String,
+        flags: List<FlagDeclaration>,
+        prefix: List<String>,
+    ): String {
+        val children = flags
+            .filter { it.path.size > prefix.size && it.path.take(prefix.size) == prefix }
+            .map { it.path[prefix.size] }
+            .distinctInOrder()
+        val properties = children.joinToString(separator = "\n") { child ->
+            val childPrefix = prefix + child
+            val directFlag = flags.singleOrNull { it.path == childPrefix }
+            val nested = flags.any { it.path.size > childPrefix.size && it.path.take(childPrefix.size) == childPrefix }
+            require(!(directFlag != null && nested)) {
+                "Story.${childPrefix.joinToString(".")} cannot be both a flag and a flag group."
+            }
+            if (directFlag != null) {
+                val flagClass = flagClassName(directFlag.path)
+                "    val $child: $flagClass = $flagClass().declareFlag()"
+            } else {
+                val nestedClass = flagContainerClassName(childPrefix)
+                "    val $child: $nestedClass = $nestedClass()"
+            }
+        }
+        return """
+            |class $className {
+            |$properties
+            |}
+        """.trimMargin()
+    }
+
+    private fun generateItemHandles(handles: ItemHandles): String {
+        val itemLines = handles.itemNames.joinToString(separator = "\n") { name ->
             """    val $name: ItemId = item("${name.toSlug()}")"""
         }
-        val noneAlias = if (includeNoneAlias) {
+        val noneAlias = if (handles.includeNoneAlias) {
             "\n    val none: ItemId = blank"
         } else {
             ""
         }
-        val poolLines = poolNames.joinToString(separator = "\n") { name ->
+        val poolLines = handles.poolNames.joinToString(separator = "\n") { name ->
             """    val $name: ItemPoolId = itemPool("${name.toSlug()}")"""
         }
-
-        outputFile.get().asFile.apply {
-            parentFile.mkdirs()
-            writeText(
-                """
-                |// Generated from src/game/kotlin/RylweenGame.dsl.kts item declarations.
-                |// Do not edit directly.
-                |
-                |@file:Suppress("unused", "MemberVisibilityCanBePrivate")
-                |
-                |package rylween.game
-                |
-                |import rylween.dsl.ItemId
-                |import rylween.dsl.ItemPoolId
-                |import rylween.dsl.item
-                |import rylween.dsl.itemPool
-                |
-                |class ItemRefs {
-                |$itemLines$noneAlias
-                |}
-                |
-                |val Items: ItemRefs = ItemRefs()
-                |
-                |class ItemPoolRefs {
-                |$poolLines
-                |}
-                |
-                |val ItemPools: ItemPoolRefs = ItemPoolRefs()
-                """.trimMargin() + "\n",
-            )
-        }
+        return """
+            |class ItemRefs {
+            |$itemLines$noneAlias
+            |}
+            |
+            |val Items: ItemRefs = ItemRefs()
+            |
+            |class ItemPoolRefs {
+            |$poolLines
+            |}
+            |
+            |val ItemPools: ItemPoolRefs = ItemPoolRefs()
+        """.trimMargin()
     }
+
+    private fun generateRefsClass(
+        className: String,
+        objectName: String,
+        typeName: String,
+        factoryName: String,
+        names: List<String>,
+        slugOverrides: Map<String, String> = emptyMap(),
+    ): String {
+        require(names.isNotEmpty()) {
+            "No $objectName declarations found in ${gameSource.get().asFile}."
+        }
+        val lines = names.joinToString(separator = "\n") { name ->
+            """    val $name: $typeName = $factoryName("${slugOverrides[name] ?: name.toSlug()}")"""
+        }
+        return """
+            |class $className {
+            |$lines
+            |}
+            |
+            |val $objectName: $className = $className()
+        """.trimMargin()
+    }
+
+    private fun handleNames(block: String, objectName: String, callName: String): List<String> =
+        Regex("""\b${Regex.escape(callName)}\s*\(\s*${Regex.escape(objectName)}\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(block)
+            .map { it.groupValues[1] }
+            .toList()
+            .distinctInOrder()
 
     private fun declarationBlock(source: String, name: String): String {
         val match = Regex("""\b${Regex.escape(name)}\s*\{""").find(source)
@@ -163,8 +340,47 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         return filter { seen.add(it) }
     }
 
+    private fun flagClassName(path: List<String>): String =
+        "Story${path.joinToString(separator = "") { it.toUpperCamel() }}Flag"
+
+    private fun flagContainerClassName(path: List<String>): String =
+        "Story${path.joinToString(separator = "") { it.toUpperCamel() }}Flags"
+
+    private fun flagSlug(path: List<String>): String =
+        legacyFlagSlugs[path.joinToString(".")] ?: path.joinToString(".") { it.toSlug() }
+
+    private fun flagStateSlug(pathKey: String, stateName: String): String =
+        legacyFlagStateSlugs["$pathKey.$stateName"] ?: stateName.toSlug()
+
+    private fun derivedFlagProperties(flag: FlagDeclaration): String =
+        when (flag.pathKey) {
+            "silverKey" -> """
+                |    val trailStarted: BoolExpr
+                |        get() = mapBought or noteFound or thiefSqueezed or smithConfessed or caveLocated
+            """.trimMargin()
+            "masterCrown" -> """
+                |    val activeTask: BoolExpr
+                |        get() = task1Assigned or task2Assigned or task3Assigned
+            """.trimMargin()
+            else -> ""
+        }
+
     private fun String.toSlug(): String =
         replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase()
+
+    private fun String.toUpperCamel(): String =
+        replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+    private val legacyFlagSlugs = mapOf(
+        "church.donationOnce" to "church.donation.once",
+        "peasant.wife" to "peasant_wife",
+        "jazzy.ogre" to "jazzy_ogre",
+        "masterCrown" to "mastercrown",
+    )
+
+    private val legacyFlagStateSlugs = mapOf(
+        "silverKey.thiefSqueezed" to "thief2_squeezed",
+    )
 }
 
 abstract class GenerateAnsiBuildWrapperTask : org.gradle.api.DefaultTask() {
