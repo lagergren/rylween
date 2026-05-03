@@ -3809,7 +3809,12 @@ class TerminalPresentationBuilder {
     private val terrainStyles = mutableListOf<TerminalTerrainStyleModel>()
     private val screenRegions = mutableListOf<ScreenRegionModel>()
 
-    fun terrain(id: TerrainId, glyph: String, color: PaletteColorId) {
+    fun terrain(id: TerrainId, mapCode: Char? = null, glyph: String, color: PaletteColorId) {
+        mapCode?.let {
+            require(id.sourceMapCode == null || id.sourceMapCode == it) {
+                "terrain ${id.slug} map code ${id.sourceMapCode} does not match declared map code $it"
+            }
+        }
         terrainStyles += TerminalTerrainStyleModel(id, glyph, color)
     }
 

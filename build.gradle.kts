@@ -66,6 +66,36 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             generateFlagHandles(flagDeclarations(source)),
             generateItemHandles(itemHandles(source)),
             generateRefsClass(
+                className = "MapRefs",
+                objectName = "Maps",
+                typeName = "WorldMapId",
+                factoryName = "worldMap",
+                names = handleNames(source, "Maps", "worldMap"),
+            ),
+            generateRefsClass(
+                className = "MapLayerRefs",
+                objectName = "MapLayers",
+                typeName = "MapLayerId",
+                factoryName = "mapLayer",
+                names = handleNames(source, "MapLayers", "layer"),
+            ),
+            generateTerrainHandles(terrainDeclarations(source)),
+            generateImageHandles(imageHandles(source)),
+            generateRefsClass(
+                className = "StaticScreenRefs",
+                objectName = "StaticScreens",
+                typeName = "StaticScreenId",
+                factoryName = "staticScreen",
+                names = staticScreenNames(source),
+            ),
+            generateRefsClass(
+                className = "ScreenRegionRefs",
+                objectName = "ScreenRegions",
+                typeName = "ScreenRegionId",
+                factoryName = "screenRegion",
+                names = handleNames(declarationBlock(source, "terminal"), "ScreenRegions", "region"),
+            ),
+            generateRefsClass(
                 className = "GameMilestoneRefs",
                 objectName = "Milestones",
                 typeName = "GameMilestoneId",
@@ -91,6 +121,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
 
         outputFile.get().asFile.apply {
             parentFile.mkdirs()
+            parentFile.resolve("RylweenGeneratedItemCatalog.kt").takeIf { it != this }?.delete()
             writeText(
                 """
                 |// Generated from src/game/kotlin/RylweenGame.dsl.kts declarations.
@@ -121,6 +152,16 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     ) {
         val pathKey: String = path.joinToString(".")
     }
+
+    private data class TerrainDeclaration(
+        val name: String,
+        val mapCode: Char,
+    )
+
+    private data class ImageHandles(
+        val staticNames: List<String>,
+        val sceneNames: List<String>,
+    )
 
     private fun itemHandles(source: String): ItemHandles {
         val itemBlock = declarationBlock(source, "items")
@@ -286,6 +327,80 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         """.trimMargin()
     }
 
+    private fun terrainDeclarations(source: String): List<TerrainDeclaration> {
+        val terminalBlock = declarationBlock(source, "terminal")
+        return Regex("""\bterrain\s*\(\s*Terrain\.([A-Za-z][A-Za-z0-9_]*)\s*,\s*mapCode\s*=\s*'([^'\\]|\\.)'""")
+            .findAll(terminalBlock)
+            .map { TerrainDeclaration(it.groupValues[1], it.groupValues[2].parseCharLiteral()) }
+            .toList()
+            .distinctBy { it.name }
+            .also {
+                require(it.isNotEmpty()) {
+                    "No terrain declarations found in ${gameSource.get().asFile} terminal block."
+                }
+            }
+    }
+
+    private fun generateTerrainHandles(terrain: List<TerrainDeclaration>): String {
+        val lines = terrain.joinToString(separator = "\n") { entry ->
+            """    val ${entry.name}: TerrainId = terrain("${entry.name.toSlug()}", ${entry.mapCode.charLiteral()})"""
+        }
+        return """
+            |class TerrainRefs {
+            |$lines
+            |}
+            |
+            |val Terrain: TerrainRefs = TerrainRefs()
+        """.trimMargin()
+    }
+
+    private fun imageHandles(source: String): ImageHandles {
+        val staticNames = mutableListOf<String>()
+        val sceneNames = mutableListOf<String>()
+        Regex("""\bImages\.(Static|Scene|Backdrop)\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(source)
+            .forEach { match ->
+                when (match.groupValues[1]) {
+                    "Static" -> staticNames += match.groupValues[2]
+                    "Scene", "Backdrop" -> sceneNames += match.groupValues[2]
+                }
+            }
+        return ImageHandles(
+            staticNames = staticNames.distinctInOrder(),
+            sceneNames = sceneNames.distinctInOrder(),
+        ).also {
+            require(it.staticNames.isNotEmpty() || it.sceneNames.isNotEmpty()) {
+                "No image handle references found in ${gameSource.get().asFile}."
+            }
+        }
+    }
+
+    private fun generateImageHandles(handles: ImageHandles): String {
+        val staticLines = handles.staticNames.joinToString(separator = "\n") { name ->
+            """    val $name: ImageId = image("ansi.${name.toSlug()}")"""
+        }
+        val sceneLines = handles.sceneNames.joinToString(separator = "\n") { name ->
+            """    val $name: ImageId = image("${sceneImageSlug(name)}")"""
+        }
+        return """
+            |class ImageRefs {
+            |    val Static: StaticAnsiImageRefs = StaticAnsiImageRefs()
+            |    val Scene: SceneImageRefs = SceneImageRefs()
+            |    val Backdrop: SceneImageRefs = Scene
+            |}
+            |
+            |class StaticAnsiImageRefs {
+            |$staticLines
+            |}
+            |
+            |class SceneImageRefs {
+            |$sceneLines
+            |}
+            |
+            |val Images: ImageRefs = ImageRefs()
+        """.trimMargin()
+    }
+
     private fun generateRefsClass(
         className: String,
         objectName: String,
@@ -315,6 +430,15 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             .map { it.groupValues[1] }
             .toList()
             .distinctInOrder()
+
+    private fun staticScreenNames(source: String): List<String> {
+        val staticScreenBlock = declarationBlock(declarationBlock(source, "visuals"), "staticScreens")
+        return Regex("""\b(?:screen|image|resource|commandHelp)\s*\(\s*StaticScreens\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(staticScreenBlock)
+            .map { it.groupValues[1] }
+            .toList()
+            .distinctInOrder()
+    }
 
     private fun declarationBlock(source: String, name: String): String {
         val match = Regex("""\b${Regex.escape(name)}\s*\{""").find(source)
@@ -352,6 +476,9 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     private fun flagStateSlug(pathKey: String, stateName: String): String =
         legacyFlagStateSlugs["$pathKey.$stateName"] ?: stateName.toSlug()
 
+    private fun sceneImageSlug(name: String): String =
+        sceneImageSlugOverrides[name] ?: "blitgfx.${name.toSlug()}"
+
     private fun derivedFlagProperties(flag: FlagDeclaration): String =
         when (flag.pathKey) {
             "silverKey" -> """
@@ -371,6 +498,30 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     private fun String.toUpperCamel(): String =
         replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
+    private fun String.parseCharLiteral(): Char =
+        when {
+            length == 1 -> single()
+            startsWith("\\") && length == 2 -> when (this[1]) {
+                '\\' -> '\\'
+                '\'' -> '\''
+                'n' -> '\n'
+                'r' -> '\r'
+                't' -> '\t'
+                else -> error("Unsupported char escape '$this'.")
+            }
+            else -> error("Unsupported char literal '$this'.")
+        }
+
+    private fun Char.charLiteral(): String =
+        when (this) {
+            '\\' -> "'\\\\'"
+            '\'' -> "'\\''"
+            '\n' -> "'\\n'"
+            '\r' -> "'\\r'"
+            '\t' -> "'\\t'"
+            else -> "'$this'"
+        }
+
     private val legacyFlagSlugs = mapOf(
         "church.donationOnce" to "church.donation.once",
         "peasant.wife" to "peasant_wife",
@@ -380,6 +531,14 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
 
     private val legacyFlagStateSlugs = mapOf(
         "silverKey.thiefSqueezed" to "thief2_squeezed",
+    )
+
+    private val sceneImageSlugOverrides = mapOf(
+        "encounterBanner1" to "blitgfx.encounter.1",
+        "encounterBanner2" to "blitgfx.encounter.2",
+        "encounterBanner3" to "blitgfx.encounter.3",
+        "encounterBanner4" to "blitgfx.encounter.4",
+        "encounterBanner5" to "blitgfx.encounter.5",
     )
 }
 
@@ -436,7 +595,7 @@ val generatedGameHarnessDir = layout.buildDirectory.dir("generated/gameHarness/k
 val generatedGameHarnessFile = layout.buildDirectory.file("generated/gameHarness/kotlin/RylweenCompiledGame.kt")
 val generatedGameCatalogDir = layout.buildDirectory.dir("generated/gameCatalog/kotlin")
 val generatedGameCatalogFile = layout.buildDirectory.file(
-    "generated/gameCatalog/kotlin/rylween/game/RylweenGeneratedItemCatalog.kt",
+    "generated/gameCatalog/kotlin/rylween/game/RylweenGeneratedGameCatalog.kt",
 )
 
 kotlin {

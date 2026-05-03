@@ -101,32 +101,6 @@ class EncounterTierRefs {
 }
 val EncounterTiers = EncounterTierRefs()
 
-class MapRefs {
-    val wilderness = worldMap("wilderness")
-}
-val Maps = MapRefs()
-
-class MapLayerRefs {
-    val terrain = mapLayer("terrain")
-}
-val MapLayers = MapLayerRefs()
-
-class TerrainRefs {
-    val mountain = terrain("mountain", 'm')
-    val water = terrain("water", 'w')
-    val plain = terrain("plain", 's')
-    val plainland = plain
-    val town = terrain("town", '0')
-    val hut = terrain("hut", '1')
-    val foothills = terrain("foothills", 'f')
-    val desert = terrain("desert", 'd')
-    val swamp = terrain("swamp", 't')
-    val forest = terrain("forest", 'g')
-    val grass = forest
-    val castle = terrain("castle", '2')
-}
-val Terrain = TerrainRefs()
-
 class TerrainTagRefs {
     val mountain = terrainTag("mountain")
     val water = terrainTag("water")
@@ -154,87 +128,6 @@ class PaletteColorRefs {
     val white = paletteColor("white")
 }
 val PaletteColors = PaletteColorRefs()
-
-class ImageRefs {
-    val Static = StaticAnsiImageRefs()
-    val Scene = SceneImageRefs()
-
-    // Backdrop is the author-facing name for pictures rendered into the classic
-    // map window by blitgfx. Each handle maps back to data/tiles/<pic-id>.ans.
-    val Backdrop = Scene
-}
-
-class StaticAnsiImageRefs {
-    val screen = image("ansi.screen")
-    val cave = image("ansi.cave")
-    val merchant = image("ansi.merchant")
-    val guild = image("ansi.guild")
-    val cahsut = image("ansi.cahsut")
-    val wonbat = image("ansi.wonbat")
-    val death = image("ansi.death")
-    val tent = image("ansi.tent")
-    val title = image("ansi.title")
-    val inside = image("ansi.inside")
-    val castle = image("ansi.castle")
-    val smith = image("ansi.smith")
-    val notent = image("ansi.notent")
-    val tavern = image("ansi.tavern")
-    val inn = image("ansi.inn")
-    val encounter = image("ansi.enc")
-    val encounter2 = image("ansi.enc2")
-    val encounter3 = image("ansi.enc3")
-    val encounter4 = image("ansi.enc4")
-    val encounter5 = image("ansi.enc5")
-    val church = image("ansi.church")
-}
-
-class SceneImageRefs {
-    val inn = image("blitgfx.inn")                         // data/tiles/01.ans
-    val tavern = image("blitgfx.tavern")                   // data/tiles/02.ans
-    val smith = image("blitgfx.smith")                     // data/tiles/03.ans
-    val church = image("blitgfx.church")                   // data/tiles/04.ans
-    val merchant = image("blitgfx.merchant")               // data/tiles/05.ans
-    val insideCave = image("blitgfx.inside_cave")          // data/tiles/10.ans
-    val cave = image("blitgfx.cave")                       // data/tiles/11.ans
-    val death = image("blitgfx.death")                     // data/tiles/12.ans
-    val hut = image("blitgfx.hut")                         // data/tiles/13.ans
-    val ydargCastle = image("blitgfx.ydarg_castle")        // data/tiles/14.ans
-    val city = image("blitgfx.city")                       // data/tiles/15.ans
-    val battleVictory = image("blitgfx.battle_victory")    // data/tiles/16.ans
-    val tent = image("blitgfx.tent")                       // data/tiles/17.ans
-    val noTent = image("blitgfx.no_tent")                  // data/tiles/18.ans
-    val guild = image("blitgfx.guild")                     // data/tiles/19.ans
-    val encounterBanner1 = image("blitgfx.encounter.1")    // data/tiles/40.ans
-    val encounterBanner2 = image("blitgfx.encounter.2")    // data/tiles/41.ans
-    val encounterBanner3 = image("blitgfx.encounter.3")    // data/tiles/42.ans
-    val encounterBanner4 = image("blitgfx.encounter.4")    // data/tiles/43.ans
-    val encounterBanner5 = image("blitgfx.encounter.5")    // data/tiles/44.ans
-}
-val Images = ImageRefs()
-
-class StaticScreenRefs {
-    val frame = staticScreen("frame")
-    val title = staticScreen("title")
-    val help = staticScreen("help")
-    val manual = staticScreen("manual")
-    val score = staticScreen("score")
-    val verboseScore = staticScreen("verbose_score")
-}
-val StaticScreens = StaticScreenRefs()
-
-class LayoutRefs {
-    val classicTerminal = layout("classic_terminal")
-}
-val Layouts = LayoutRefs()
-
-class ScreenRegionRefs {
-    val textWindow = screenRegion("text_window")
-    val topLeft = screenRegion("top_left")
-    val statuslineTop = screenRegion("statusline_top")
-    val statuslineBottom = screenRegion("statusline_bottom")
-    val mapWindow = screenRegion("map_window")
-}
-val ScreenRegions = ScreenRegionRefs()
 
 class RoleRefs {
     val banditsQuestGiver = npcRole("bandits_quest_giver")

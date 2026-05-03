@@ -206,16 +206,16 @@ val nextRylween = rylween {
     }
 
     terminal {
-        terrain(Terrain.mountain, glyph = "/\\", color = PaletteColors.white)
-        terrain(Terrain.water, glyph = "~~", color = PaletteColors.blue)
-        terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
-        terrain(Terrain.town, glyph = "TT", color = PaletteColors.white)
-        terrain(Terrain.hut, glyph = "HH", color = PaletteColors.white)
-        terrain(Terrain.foothills, glyph = "^^", color = PaletteColors.white)
-        terrain(Terrain.desert, glyph = "::", color = PaletteColors.red)
-        terrain(Terrain.swamp, glyph = "%%", color = PaletteColors.magenta)
-        terrain(Terrain.forest, glyph = "gg", color = PaletteColors.green)
-        terrain(Terrain.castle, glyph = "CC", color = PaletteColors.white)
+        terrain(Terrain.mountain, mapCode = 'm', glyph = "/\\", color = PaletteColors.white)
+        terrain(Terrain.water, mapCode = 'w', glyph = "~~", color = PaletteColors.blue)
+        terrain(Terrain.plain, mapCode = 's', glyph = "..", color = PaletteColors.yellow)
+        terrain(Terrain.town, mapCode = '0', glyph = "TT", color = PaletteColors.white)
+        terrain(Terrain.hut, mapCode = '1', glyph = "HH", color = PaletteColors.white)
+        terrain(Terrain.foothills, mapCode = 'f', glyph = "^^", color = PaletteColors.white)
+        terrain(Terrain.desert, mapCode = 'd', glyph = "::", color = PaletteColors.red)
+        terrain(Terrain.swamp, mapCode = 't', glyph = "%%", color = PaletteColors.magenta)
+        terrain(Terrain.forest, mapCode = 'g', glyph = "gg", color = PaletteColors.green)
+        terrain(Terrain.castle, mapCode = '2', glyph = "CC", color = PaletteColors.white)
 
         region(ScreenRegions.textWindow, x = 49, y = 6, width = 26, height = 11)
         region(ScreenRegions.topLeft, x = 0, y = 0)
