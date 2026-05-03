@@ -370,19 +370,6 @@ val nextRylween = rylween {
                 "final battle!",
                 "",
             )
-            commandHelp = inlineText(
-                "8/2/4/6 = Move",
-                "T = Take off armor",
-                "P = Put down weapon",
-                "L = Leave item",
-                "W = Wield weapon",
-                "R = Ready armor",
-                "Q = Quaff potion",
-                "Z = Cast spell",
-                "V = View party",
-                "? = Help",
-                "",
-            )
             unsupportedCommand = inlineText("Not available here.", "")
             confrontationAct1(
                 inlineText(
@@ -965,36 +952,6 @@ val nextRylween = rylween {
             outOfMoves(save = inputKey("S"), quit = inputKey("Q"))
             quitConfirm(yes = inputKey("Y"), no = inputKey("N"))
             commandHint("Press ? for commands.")
-            helpPages {
-                page(
-                    "C = Camp",
-                    "E = Enter",
-                    "H = Hunt for Food",
-                    "J = View Journal",
-                    "L = Leave (Discard) Item",
-                    "P = Put down weapon",
-                    "",
-                )
-                page(
-                    "Q = Quaff Potion",
-                    "R = Ready Armor",
-                    "S = Save Game",
-                    "T = Take off armor",
-                    "V = View Party",
-                    "W = Wield Weapon",
-                    "",
-                )
-                page(
-                    "X = Quit Game (No Save)",
-                    "Z = Cast Spell",
-                    "! = Redraw Screen",
-                    "? = View this help",
-                    "    8     Move North,",
-                    "  4-+-6   West & East,",
-                    "    2     Move South",
-                    "",
-                )
-            }
         }
 
         events {

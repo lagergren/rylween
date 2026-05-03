@@ -75,11 +75,6 @@ data class YdargTextModel(
     val teleportOutside: TextBlock = inlineText("And you are outside..."),
     val giveMenu: TextBlock = inlineText("Give him what?", "", "5. Nothing"),
     val mageGrateful: TextBlock = inlineText("The mage opens the way.", ""),
-    val commandHelp: TextBlock = inlineText(
-        "8/2/4/6 = Move",
-        "T/P/L/W/R/Q/Z/V/?",
-        "",
-    ),
     val unsupportedCommand: TextBlock = inlineText("Not available here.", ""),
     val confrontationAct1: List<TextBlock> = emptyList(),
     val confrontationAct2: List<TextBlock> = emptyList(),
@@ -315,7 +310,6 @@ class YdargTextBuilder(initial: YdargTextModel = YdargTextModel()) {
     var teleportOutside: TextBlock = initial.teleportOutside
     var giveMenu: TextBlock = initial.giveMenu
     var mageGrateful: TextBlock = initial.mageGrateful
-    var commandHelp: TextBlock = initial.commandHelp
     var unsupportedCommand: TextBlock = initial.unsupportedCommand
     private val confrontationAct1 = initial.confrontationAct1.toMutableList()
     private val confrontationAct2 = initial.confrontationAct2.toMutableList()
@@ -367,7 +361,6 @@ class YdargTextBuilder(initial: YdargTextModel = YdargTextModel()) {
             teleportOutside = teleportOutside,
             giveMenu = giveMenu,
             mageGrateful = mageGrateful,
-            commandHelp = commandHelp,
             unsupportedCommand = unsupportedCommand,
             confrontationAct1 = confrontationAct1.toList(),
             confrontationAct2 = confrontationAct2.toList(),

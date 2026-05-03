@@ -1449,7 +1449,7 @@ data class WildernessKeysModel(
     val quitYes: InputBindingModel = inputKey("Y"),
     val quitNo: InputBindingModel = inputKey("N"),
     val commandHint: TextBlock = inlineText("Press ? for commands."),
-    val helpPages: List<TextBlock> = StandardWildernessHelpPages,
+    val helpPages: List<TextBlock> = emptyList(),
 )
 
 fun WildernessKeysModel.exploreKeys(): List<InputBindingModel> =
@@ -1499,58 +1499,7 @@ data class DungeonKeysModel(
     val castSpell: InputBindingModel = inputKey("Z"),
     val viewParty: InputBindingModel = inputKey("V"),
     val commandHint: TextBlock = inlineText("Press ? for commands."),
-    val helpPages: List<TextBlock> = StandardDungeonHelpPages,
-)
-
-val StandardWildernessHelpPages: List<TextBlock> = listOf(
-    inlineText(
-        "C = Camp",
-        "E = Enter",
-        "H = Hunt for Food",
-        "J = View Journal",
-        "L = Leave (Discard) Item",
-        "P = Put down weapon",
-        "",
-    ),
-    inlineText(
-        "Q = Quaff Potion",
-        "R = Ready Armor",
-        "S = Save Game",
-        "T = Take off armor",
-        "V = View Party",
-        "W = Wield Weapon",
-        "",
-    ),
-    inlineText(
-        "X = Quit Game (No Save)",
-        "Z = Cast Spell",
-        "! = Redraw Screen",
-        "? = View this help",
-        "    8     Move North,",
-        "  4-+-6   West & East,",
-        "    2     Move South",
-        "",
-    ),
-)
-
-val StandardDungeonHelpPages: List<TextBlock> = listOf(
-    inlineText(
-        "A = Ascend",
-        "D = Descend",
-        "L = Leave (Discard) Item",
-        "P = Put down weapon",
-        "Q = Quaff Potion",
-        "R = Ready Armor",
-        "",
-    ),
-    inlineText(
-        "T = Take off armor",
-        "V = View Party",
-        "W = Wield Weapon",
-        "Z = Cast Spell",
-        "? = View this help",
-        "",
-    ),
+    val helpPages: List<TextBlock> = emptyList(),
 )
 
 data class GamePromptsModel(

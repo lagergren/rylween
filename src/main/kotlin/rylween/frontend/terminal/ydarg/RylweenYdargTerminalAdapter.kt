@@ -2,7 +2,7 @@ package rylween.frontend.terminal.ydarg
 
 import rylween.dsl.*
 import rylween.frontend.terminal.*
-import rylween.runtime.WildernessDirection
+import rylween.runtime.commandBindings
 import rylween.runtime.ydarg.*
 
 class YdargSessionTerminalAdapter(
@@ -24,15 +24,13 @@ class YdargSessionTerminalAdapter(
                             TerminalTextContext(runtime = session.runtime),
                         )
                     }
-                    step.blocks.forEach { block ->
-                        terminal.write(renderer.lines(block, TerminalTextContext(runtime = session.runtime)))
-                    }
+                    terminal.writeBlocks(step.blocks, renderer, TerminalTextContext(runtime = session.runtime))
                     session.apply(YdargSessionInput.Continue)
                 }
                 YdargSessionStep.RoomEntry -> session.enterRoom()
                 YdargSessionStep.Navigate -> {
                     writeNavigation(session)
-                    when (val input = terminal.readChoice(navigationChoices(session.ydarg.keys))) {
+                    when (val input = terminal.readChoice(session.ydarg.keys.navigationCommands().terminalChoices())) {
                         is TerminalInput.Value -> session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
@@ -40,17 +38,14 @@ class YdargSessionTerminalAdapter(
                 }
                 is YdargSessionStep.TreasureOffer -> {
                     val keys = session.ydarg.keys
-                    val choices = listOf(
-                        TerminalChoice(YdargSessionInput.TakeTreasure, keys.treasureTake),
-                        TerminalChoice(YdargSessionInput.LeaveTreasure, keys.treasureLeave),
-                    )
+                    val commands = keys.treasureCommands()
                     terminal.writeBindingPrompt(
                         renderer,
                         session.treasureOfferBlock(step.item),
-                        choices.map { it.binding },
+                        commands.commandBindings(),
                         TerminalTextContext(runtime = session.runtime),
                     )
-                    when (val input = terminal.readChoice(choices)) {
+                    when (val input = terminal.readChoice(commands.terminalChoices())) {
                         is TerminalInput.Value -> session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
@@ -58,18 +53,14 @@ class YdargSessionTerminalAdapter(
                 }
                 YdargSessionStep.StairsMenu -> {
                     val keys = session.ydarg.keys
-                    val choices = listOf(
-                        TerminalChoice(YdargSessionInput.TeleportOut, keys.stairsTeleport),
-                        TerminalChoice(YdargSessionInput.GiveStairsItem, keys.stairsGive),
-                        TerminalChoice(YdargSessionInput.LeaveStairs, keys.stairsLeave),
-                    )
+                    val commands = keys.stairsCommands()
                     terminal.writeBindingPrompt(
                         renderer,
                         session.ydarg.text.stairsMenu,
-                        choices.map { it.binding },
+                        commands.commandBindings(),
                         TerminalTextContext(runtime = session.runtime),
                     )
-                    when (val input = terminal.readChoice(choices)) {
+                    when (val input = terminal.readChoice(commands.terminalChoices())) {
                         is TerminalInput.Value -> session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
@@ -114,20 +105,4 @@ class YdargSessionTerminalAdapter(
         }
     }
 
-    private fun navigationChoices(keys: YdargKeysModel): List<TerminalChoice<YdargSessionInput>> =
-        listOf(
-            TerminalChoice(YdargSessionInput.Move(WildernessDirection.North), keys.moveNorth),
-            TerminalChoice(YdargSessionInput.Move(WildernessDirection.South), keys.moveSouth),
-            TerminalChoice(YdargSessionInput.Move(WildernessDirection.West), keys.moveWest),
-            TerminalChoice(YdargSessionInput.Move(WildernessDirection.East), keys.moveEast),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.Help), keys.help),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.ViewParty), keys.viewParty),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.RemoveArmor), keys.removeArmor),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.RemoveWeapon), keys.removeWeapon),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.Drop), keys.drop),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.ReadyWeapon), keys.readyWeapon),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.ReadyArmor), keys.readyArmor),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.Quaff), keys.quaff),
-            TerminalChoice(YdargSessionInput.Command(YdargCommand.CastSpell), keys.castSpell),
-        )
 }

@@ -437,7 +437,6 @@ private fun validateYdargText(text: YdargTextModel) {
         "teleport outside" to text.teleportOutside,
         "give menu" to text.giveMenu,
         "mage grateful" to text.mageGrateful,
-        "command help" to text.commandHelp,
         "unsupported command" to text.unsupportedCommand,
     ).forEach { (label, block) -> validateTextBlock(block, "Ydarg $label") }
     listOf(
@@ -490,7 +489,6 @@ private fun validateWildernessKeys(keys: WildernessKeysModel) {
     checkUniqueBindings(keys.outOfMovesKeys(), "wilderness out-of-moves")
     checkUniqueBindings(keys.quitConfirmKeys(), "wilderness quit-confirm")
     validateTextBlock(keys.commandHint, "wilderness command hint")
-    check(keys.helpPages.isNotEmpty()) { "wilderness help pages must not be empty" }
     keys.helpPages.forEachIndexed { index, page ->
         validateTextBlock(page, "wilderness help page ${index + 1}")
     }

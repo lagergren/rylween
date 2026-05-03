@@ -307,7 +307,7 @@ data class WildernessSession(
             WildernessSessionInput.Journal ->
                 pending(WildernessPromptText.journalPending(), WildernessSessionResultStatus.JournalUnavailable)
             WildernessSessionInput.Help -> copy(
-                step = WildernessSessionStep.Messages(wilderness.keys.helpPages, WildernessSessionStep.TurnStart),
+                step = WildernessSessionStep.Messages(wilderness.keys.effectiveHelpPages(), WildernessSessionStep.TurnStart),
                 lastResult = WildernessSessionResult(WildernessSessionResultStatus.HelpShown),
             )
             WildernessSessionInput.Hunt -> hunt()

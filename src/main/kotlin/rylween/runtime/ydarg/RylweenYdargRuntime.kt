@@ -303,7 +303,7 @@ data class YdargSession(
         when (command) {
             YdargCommand.Help ->
                 copy(
-                    step = YdargSessionStep.Messages(listOf(ydarg.text.commandHelp), YdargSessionStep.Navigate),
+                    step = YdargSessionStep.Messages(ydarg.keys.navigationHelpPages(), YdargSessionStep.Navigate),
                     lastResult = YdargSessionResult(YdargSessionStatus.HelpShown, floor, point),
                 )
             YdargCommand.ViewParty ->

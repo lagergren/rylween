@@ -94,7 +94,7 @@ data class DungeonSession(
                 DungeonSessionInput.Descend -> descend()
                 DungeonSessionInput.Ascend -> ascend()
                 DungeonSessionInput.Help -> copy(
-                    step = DungeonSessionStep.Messages(keys.helpPages, DungeonSessionStep.Explore),
+                    step = DungeonSessionStep.Messages(keys.effectiveHelpPages(), DungeonSessionStep.Explore),
                     lastResult = result(DungeonSessionResultStatus.HelpShown),
                 )
                 DungeonSessionInput.Drop ->
