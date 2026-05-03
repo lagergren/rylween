@@ -90,7 +90,7 @@ class RylweenCompiledGameLedgerTest {
         check(ydarg.entry == xy(14, 30))
         check(ydarg.requiredKey == Milestones.silverKey)
         check(ydarg.confrontation.sequence == listOf(Monsters.cryptHorror, Monsters.nightGaunt, Monsters.thyraga, Monsters.liche))
-        check(nextDsl.scenes.size == 24)
+        check(nextDsl.scenes.size == 23)
 
         fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
             any { op ->

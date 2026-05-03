@@ -372,6 +372,7 @@ fun TerminalPort.writeScriptEvents(
             is EngineTraceEvent.NativeEffect -> write(listOf("Native: ${event.request.path}"))
             is EngineTraceEvent.NativeInt -> write(listOf("Native int: ${event.request.path} = ${event.result}"))
             is EngineTraceEvent.NativeString -> write(listOf("Native string: ${event.request.path} = ${event.result}"))
+            is EngineTraceEvent.Rumour -> write(listOf("Rumour: ${event.table.slug}"))
             is EngineTraceEvent.RunScene -> write(listOf("Scene: ${event.scene.slug}"))
             is EngineTraceEvent.DungeonHandoff ->
                 if (renderDungeonHandoff) {

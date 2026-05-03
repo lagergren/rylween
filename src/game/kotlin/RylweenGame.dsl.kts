@@ -4101,7 +4101,7 @@ val nextRylween = rylween {
                                 screen("A bargirl tells you:", "")
                             }
                         }
-                        run(Scenes.Towne.rumour)
+                        tellRumour()
                         waitInput("after tavern rumour")
                     }
                 }
@@ -5062,36 +5062,7 @@ val nextRylween = rylween {
         }
     }
 
-    // 4. Rumour: switch is readable, role bindings are typed handles.
-    scene(Scenes.Towne.rumour) {
-        val pick = localInt(rumour.roll())
-
-        choose(pick) {
-            case(12) {
-                bind("name1", npcName(Roles.banditsQuestGiver))
-                emit(T.Towne.Rumour.r12)
-            }
-            case(13) {
-                bind("name2", npcName(Roles.rangersQuestGiver))
-                emit(T.Towne.Rumour.r13)
-            }
-            case(25) {
-                bind("name15", npcName(Roles.crownSeer))
-                bind("loc15", npcLocation(Roles.crownSeer))
-                emit(T.Towne.Rumour.r25)
-            }
-            case(27) {
-                bind("name13", npcName(Roles.templeOfThunSeer))
-                bind("loc13", npcLocation(Roles.templeOfThunSeer))
-                emit(T.Towne.Rumour.r27)
-            }
-            default {
-                emitIndexed(T.Towne.Rumour.indexed, pick)
-            }
-        }
-    }
-
-    // 5. Mission action scene: flag states are fluent typed markers, not strings.
+    // 4. Mission action scene: flag states are fluent typed markers, not strings.
     scene(Scenes.Missions.erethorEntry) {
         dungeonEntrance(Dungeons.erethorTemple, levels = 12) {
             line("Here is the temple of")

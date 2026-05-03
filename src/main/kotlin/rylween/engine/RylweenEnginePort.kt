@@ -43,6 +43,7 @@ sealed interface EngineTraceEvent {
     data class GrantReward(val reward: ScriptRewardModel) : EngineTraceEvent
     data class AchieveMilestone(val milestone: GameMilestoneId) : EngineTraceEvent
     data class Speak(val building: BuildingId) : EngineTraceEvent
+    data class Rumour(val table: RumourTableId) : EngineTraceEvent
     data class RunScene(val scene: SceneId, val bindings: Map<String, String>) : EngineTraceEvent
     data class Encounter(val monster: MonsterId, val mandatory: Boolean, val tier: EncounterTier?) : EngineTraceEvent
     data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : EngineTraceEvent

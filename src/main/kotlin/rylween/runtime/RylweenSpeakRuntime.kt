@@ -107,7 +107,7 @@ data class SpeakSession(
 
     private fun rumour(npc: CharacterModel): SpeakSession {
         val selection = if (rumourTold) null else content.selectStandardRumour(runtime)
-        val text = selection?.rumour?.text ?: noRumourText()
+        val text = selection?.rumour?.text ?: content.noRumourText()
         return copy(
             runtime = selection?.runtime ?: runtime,
             rumourTold = true,
@@ -149,11 +149,7 @@ data class SpeakSession(
             ?.replies
             ?.firstOrNull { it.job == npc.job }
             ?.text
-            ?: noRumourText()
-
-    private fun noRumourText(): TextBlock =
-        content.speak.textTables.screens.firstOrNull { it.id == DslDefaultText.Speak.noRumour }?.text
-            ?: inlineText("- Sorry. There's", "nothing new I can", "tell you.", "")
+            ?: content.noRumourText()
 
     companion object {
         fun start(
@@ -218,8 +214,11 @@ fun SpeakRuntimeContent.firstMatchingQuestionAction(topic: QuestionTopic, job: N
     speak.questionActions.firstOrNull { it.topic == topic && it.job == job }
 
 fun SpeakRuntimeContent.standardRumours(party: PartyState): List<RumourEntryModel> =
+    rumours(DslDefaultRumourTables.standardTown, party)
+
+fun SpeakRuntimeContent.rumours(table: RumourTableId, party: PartyState): List<RumourEntryModel> =
     speak.textTables.rumourTables
-        .firstOrNull { it.id == DslDefaultRumourTables.standardTown }
+        .firstOrNull { it.id == table }
         ?.entries
         ?.filter { entry -> entry.excludedBy.none(party::hasFlagState) }
         .orEmpty()
@@ -228,11 +227,19 @@ fun SpeakRuntimeContent.firstStandardRumour(party: PartyState): TextBlock? =
     standardRumours(party).firstOrNull()?.text
 
 fun SpeakRuntimeContent.selectStandardRumour(runtime: RuntimeSessionState): RumourSelection? {
-    val entries = standardRumours(runtime.activeParty)
+    return selectRumour(DslDefaultRumourTables.standardTown, runtime)
+}
+
+fun SpeakRuntimeContent.selectRumour(table: RumourTableId, runtime: RuntimeSessionState): RumourSelection? {
+    val entries = rumours(table, runtime.activeParty)
     if (entries.isEmpty()) return null
     val draw = runtime.drawRandom(0, entries.lastIndex)
     return RumourSelection(entries[draw.value], draw.runtime)
 }
+
+fun SpeakRuntimeContent.noRumourText(): TextBlock =
+    speak.textTables.screens.firstOrNull { it.id == DslDefaultText.Speak.noRumour }?.text
+        ?: inlineText("- Sorry. There's", "nothing new I can", "tell you.", "")
 
 fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
     val visits = visitedNpcs.associateBy { it.npc } + (npc to NpcVisitState(npc = npc, visited = visited))
