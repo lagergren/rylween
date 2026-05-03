@@ -111,7 +111,7 @@ data class WildernessSessionResult(
 data class MissionPostDungeonContinuation(
     val mission: MissionModel,
     val scene: SceneModel,
-    val continuation: TownServiceContinuation,
+    val continuation: ScriptContinuation,
 )
 
 sealed interface WildernessSessionStep {
@@ -124,11 +124,11 @@ sealed interface WildernessSessionStep {
     data class Mission(
         val mission: MissionModel,
         val scene: SceneModel,
-        val continuation: TownServiceContinuation? = null,
+        val continuation: ScriptContinuation? = null,
     ) : WildernessSessionStep
     data class Hut(
         val scene: SceneModel,
-        val continuation: TownServiceContinuation? = null,
+        val continuation: ScriptContinuation? = null,
     ) : WildernessSessionStep
     data class DungeonHandoff(
         val handoff: WildernessDungeonHandoff,
@@ -678,7 +678,7 @@ data class WildernessSession(
         }
     }
 
-    fun replaceMissionContinuation(continuation: TownServiceContinuation): WildernessSession {
+    fun replaceMissionContinuation(continuation: ScriptContinuation): WildernessSession {
         val current = step as? WildernessSessionStep.Mission
             ?: error("wilderness session is not running a mission")
         return copy(
@@ -687,7 +687,7 @@ data class WildernessSession(
         )
     }
 
-    fun replaceHutContinuation(continuation: TownServiceContinuation): WildernessSession {
+    fun replaceHutContinuation(continuation: ScriptContinuation): WildernessSession {
         val current = step as? WildernessSessionStep.Hut
             ?: error("wilderness session is not running a hut")
         return copy(
@@ -744,7 +744,7 @@ data class WildernessSession(
     fun handOffMissionDungeon(
         runtime: RuntimeSessionState,
         handoff: WildernessDungeonHandoff,
-        continuation: TownServiceContinuation,
+        continuation: ScriptContinuation,
     ): WildernessSession {
         val current = step as? WildernessSessionStep.Mission
             ?: error("wilderness session is not running a mission")

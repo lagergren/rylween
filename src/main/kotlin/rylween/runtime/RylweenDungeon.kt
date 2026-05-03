@@ -57,7 +57,7 @@ sealed interface DungeonSessionStep {
     data class InventoryDrop(val session: InventoryDropSession) : DungeonSessionStep
     data class PartyView(val session: PartyViewSession) : DungeonSessionStep
     data class PriestSpell(val session: PriestSpellSession) : DungeonSessionStep
-    data class Event(val event: DungeonEventModel, val continuation: TownServiceContinuation? = null) :
+    data class Event(val event: DungeonEventModel, val continuation: ScriptContinuation? = null) :
         DungeonSessionStep
     data class RandomEncounter(val event: DungeonEventModel, val session: BattleSession? = null) : DungeonSessionStep
     data class Finished(val runtime: RuntimeSessionState) : DungeonSessionStep
@@ -217,7 +217,7 @@ data class DungeonSession(
         }
     }
 
-    fun replaceEventContinuation(continuation: TownServiceContinuation): DungeonSession {
+    fun replaceEventContinuation(continuation: ScriptContinuation): DungeonSession {
         val current = step as? DungeonSessionStep.Event
             ?: error("dungeon session is not running an event script")
         return copy(

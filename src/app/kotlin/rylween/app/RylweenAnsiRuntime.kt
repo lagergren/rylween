@@ -93,7 +93,7 @@ private class RylweenAnsiGame(
 ) {
     private val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
     private val port = AnsiTerminalPort(terminal, screen)
-    private val serviceBridge = StatefulTownServiceBridge(
+    private val serviceBridge = StatefulScriptBridge(
         port,
         speakContent = speakContent,
         battleContent = content.runtimeContent(),
@@ -203,12 +203,12 @@ private class RylweenAnsiGame(
                     }
                 }
                 is WildernessSessionStep.Hut -> {
-                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
+                    val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
                     val result = serviceBridge.run(step.scene.hutService(), step.scene, continuation)
                     port.writeScriptEvents(result.events, renderer, result.runtime)
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished -> session.finishHut(result.runtime)
-                        TownServiceBridgeStatus.Waiting -> {
+                        ScriptBridgeStatus.Finished -> session.finishHut(result.runtime)
+                        ScriptBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {
                                 "waiting hut bridge did not return continuation"
                             }
@@ -310,8 +310,8 @@ private class RylweenAnsiGame(
                     }
                 }
                 is WildernessSessionStep.Mission -> {
-                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
-                    val missionBridge = StatefulTownServiceBridge(
+                    val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
+                    val missionBridge = StatefulScriptBridge(
                         port,
                         speakContent = speakContent,
                         battleContent = session.content,
@@ -320,7 +320,7 @@ private class RylweenAnsiGame(
                     )
                     val result = missionBridge.run(step.mission.service(), step.scene, continuation)
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished ->
+                        ScriptBridgeStatus.Finished ->
                             result.dungeonHandoff?.let { handoff ->
                                 session.handOffMissionDungeon(
                                     result.runtime,
@@ -331,7 +331,7 @@ private class RylweenAnsiGame(
                                 )
                             }
                                 ?: session.finishMission(result.runtime)
-                        TownServiceBridgeStatus.Waiting -> {
+                        ScriptBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {
                                 "waiting mission bridge did not return continuation"
                             }

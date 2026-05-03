@@ -7,16 +7,16 @@ import rylween.dsl.*
 import rylween.engine.*
 import rylween.runtime.*
 
-sealed interface TownServiceBridgeStatus {
-    object Finished : TownServiceBridgeStatus
-    object Waiting : TownServiceBridgeStatus
+sealed interface ScriptBridgeStatus {
+    object Finished : ScriptBridgeStatus
+    object Waiting : ScriptBridgeStatus
 }
 
-data class TownServiceBridgeResult(
+data class ScriptBridgeResult(
     val runtime: RuntimeSessionState,
-    val status: TownServiceBridgeStatus,
+    val status: ScriptBridgeStatus,
     val events: List<EngineTraceEvent> = emptyList(),
-    val continuation: TownServiceContinuation? = null,
+    val continuation: ScriptContinuation? = null,
     val rejection: TerminalInputRejection? = null,
     val dungeonHandoff: WildernessDungeonHandoff? = null,
 ) {
@@ -24,27 +24,27 @@ data class TownServiceBridgeResult(
     val realm: RealmState get() = runtime.realm
 }
 
-interface TownServiceBridge {
+interface ScriptBridge {
     fun run(
         service: BuildingServiceModel,
         scene: SceneModel,
-        continuation: TownServiceContinuation,
-    ): TownServiceBridgeResult
+        continuation: ScriptContinuation,
+    ): ScriptBridgeResult
 }
 
-class StatefulTownServiceBridge(
+class StatefulScriptBridge(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort = TraceEnginePort(),
     private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
     private val battleContent: RuntimeContent = RuntimeContent(),
     private val worldMap: WorldMapGrid? = null,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(characters = speakContent.characters),
-) : TownServiceBridge {
+) : ScriptBridge {
     override fun run(
         service: BuildingServiceModel,
         scene: SceneModel,
-        continuation: TownServiceContinuation,
-    ): TownServiceBridgeResult {
+        continuation: ScriptContinuation,
+    ): ScriptBridgeResult {
         val eventStart = engine.events.size
         engine.trace(EngineTraceEvent.TownService(service, scene))
         val result = StatefulScriptServiceRunner(
@@ -57,7 +57,7 @@ class StatefulTownServiceBridge(
             worldMap,
             renderer,
         ).run()
-        return TownServiceBridgeResult(
+        return ScriptBridgeResult(
             runtime = result.runtime,
             status = result.status,
             events = engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
@@ -70,8 +70,8 @@ class StatefulTownServiceBridge(
 
 data class StatefulScriptResult(
     val runtime: RuntimeSessionState,
-    val status: TownServiceBridgeStatus,
-    val continuation: TownServiceContinuation? = null,
+    val status: ScriptBridgeStatus,
+    val continuation: ScriptContinuation? = null,
     val rejection: TerminalInputRejection? = null,
     val dungeonHandoff: WildernessDungeonHandoff? = null,
     val unwrittenEventStart: Int = 0,
@@ -79,101 +79,11 @@ data class StatefulScriptResult(
     val party: PartyState get() = runtime.activeParty
 }
 
-private data class RealmScalarBinding(
-    val read: RuntimeSessionState.() -> Int,
-    val write: RuntimeSessionState.(Int) -> RuntimeSessionState,
-)
-
-private val runtimeFlagReaders: Map<String, RuntimeSessionState.() -> Boolean> = mapOf(
-    "in_dungeon" to { realm.currentMode == RuntimeMode.Dungeon },
-)
-
-private val realmScalarBindings: Map<String, RealmScalarBinding> = mapOf(
-    "day" to RealmScalarBinding(
-        read = { realm.day },
-        write = { value -> withRealm(realm.copy(day = value)) },
-    ),
-    "hour" to RealmScalarBinding(
-        read = { realm.hour },
-        write = { value -> withRealm(realm.copy(hour = value.positiveMod(24))) },
-    ),
-    "minute" to RealmScalarBinding(
-        read = { realm.minute },
-        write = { value -> withRealm(realm.copy(minute = value.positiveMod(60))) },
-    ),
-    "last_played_day" to RealmScalarBinding(
-        read = { realm.lastPlayedDay },
-        write = { value -> withRealm(realm.copy(lastPlayedDay = value)) },
-    ),
-    "party_member_max" to RealmScalarBinding(
-        read = { realm.partyMemberMax },
-        write = { value -> withRealm(realm.copy(partyMemberMax = value.coerceAtLeast(0))) },
-    ),
-    "banished" to RealmScalarBinding(
-        read = { if (realm.banished) 1 else 0 },
-        write = { value -> withRealm(realm.copy(banished = value != 0)) },
-    ),
-)
-
-private val partyScalarReaders: Map<String, PartyState.() -> Int> = mapOf(
-    "gold" to { resources.gold },
-    "torches" to { resources.torches },
-    "food" to { resources.food },
-    "time_left" to { resources.timeLeft },
-    "rested_hours" to { resources.restedHours },
-    "member_count" to { counters.memberCount ?: members.count { !it.dead } },
-)
-
-private val partyScalarWriters: Map<String, PartyState.(Int) -> PartyState> = mapOf(
-    "gold" to { value -> copy(resources = resources.copy(gold = value.coerceAtLeast(0))) },
-    "torches" to { value -> copy(resources = resources.copy(torches = value.coerceAtLeast(0))) },
-    "food" to { value -> copy(resources = resources.copy(food = value.coerceAtLeast(0))) },
-    "time_left" to { value -> copy(resources = resources.copy(timeLeft = value)) },
-    "rested_hours" to { value -> copy(resources = resources.copy(restedHours = value)) },
-    "member_count" to { value -> copy(counters = counters.copy(memberCount = value.coerceAtLeast(0))) },
-)
-
-private val memberFieldReaders: Map<String, PartyMemberState.() -> Int> = mapOf(
-    "hit_points" to { hitPoints.current },
-    "health" to { health },
-    "magic" to { mana.current },
-    "magic_max" to { mana.max },
-    "level" to { level },
-    "wisdom" to { wisdom },
-    "charisma" to { charisma },
-    "class" to { pcClass.sourceId },
-    "experience" to { experience },
-    "dead" to { if (dead) 1 else 0 },
-)
-
-private val memberFieldWriters: Map<String, PartyMemberState.(Int) -> PartyMemberState> = mapOf(
-    "hit_points" to { value -> copy(hitPoints = hitPoints.copy(current = value.coerceAtLeast(0))) },
-    "health" to { value ->
-        val healthValue = value.coerceAtLeast(0)
-        copy(health = healthValue, hitPoints = hitPoints.copy(max = healthValue))
-    },
-    "magic" to { value -> copy(mana = mana.copy(current = value.coerceAtLeast(0))) },
-    "magic_max" to { value ->
-        val maxValue = value.coerceAtLeast(0)
-        copy(mana = mana.current.coerceAtMost(maxValue) manaOf maxValue)
-    },
-    "wisdom" to { value -> copy(wisdom = value.coerceAtLeast(0)) },
-    "charisma" to { value -> copy(charisma = value.coerceAtLeast(0)) },
-    "level" to { value -> copy(level = value.coerceAtLeast(1)) },
-    "experience" to { value -> copy(experience = value.coerceAtLeast(0)) },
-    "dead" to { value -> copy(dead = value != 0) },
-)
-
-private val memberFlagReaders: Map<String, PartyMemberState.() -> Boolean> = mapOf(
-    "dead" to { dead },
-    "spellcaster" to { !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest) },
-)
-
 class StatefulScriptServiceRunner(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort,
     private val rootOps: List<Op>,
-    continuation: TownServiceContinuation,
+    continuation: ScriptContinuation,
     private val speakContent: SpeakRuntimeContent,
     private val battleContent: RuntimeContent = RuntimeContent(),
     private val worldMap: WorldMapGrid? = null,
@@ -206,7 +116,7 @@ class StatefulScriptServiceRunner(
         val nextContinuation = if (waiting || dungeonHandoff != null) continuation(nextRuntime) else null
         return StatefulScriptResult(
             runtime = nextRuntime,
-            status = if (waiting) TownServiceBridgeStatus.Waiting else TownServiceBridgeStatus.Finished,
+            status = if (waiting) ScriptBridgeStatus.Waiting else ScriptBridgeStatus.Finished,
             continuation = nextContinuation,
             rejection = rejection,
             dungeonHandoff = dungeonHandoff,
@@ -231,7 +141,7 @@ class StatefulScriptServiceRunner(
         }
     }
 
-    private fun run(op: Op, frame: TownServiceScriptFrame) {
+    private fun run(op: Op, frame: ScriptFrame) {
         val opIndex = frame.nextIndex
         when (op) {
             is Op.Screen -> {
@@ -283,13 +193,13 @@ class StatefulScriptServiceRunner(
             }
             is Op.AppendJournal -> appendJournal(op.text)
             is Op.If -> {
-                val branch = if (eval(op.cond)) TownServiceScriptBranch.IfThen else TownServiceScriptBranch.IfElse
+                val branch = if (eval(op.cond)) ScriptBranch.IfThen else ScriptBranch.IfElse
                 advanceTop()
                 pushChild(frame.block.child(opIndex, branch))
             }
             is Op.Loop -> {
                 advanceTop()
-                pushChild(frame.block.child(opIndex, TownServiceScriptBranch.LoopBody), loop = true)
+                pushChild(frame.block.child(opIndex, ScriptBranch.LoopBody), loop = true)
             }
             is Op.Break -> {
                 advanceTop()
@@ -309,7 +219,7 @@ class StatefulScriptServiceRunner(
                     pushChild(
                         frame.block.child(
                             opIndex,
-                            TownServiceScriptBranch.SwitchCase,
+                            ScriptBranch.SwitchCase,
                             caseIndex = caseIndex,
                         ),
                     )
@@ -324,7 +234,7 @@ class StatefulScriptServiceRunner(
             is Op.ForEachMember -> {
                 advanceTop()
                 op.memberFrames(party, frame, opIndex).asReversed().forEach { (memberNumber, block) ->
-                    stack += TownServiceScriptFrame(
+                    stack += ScriptFrame(
                         block = block,
                         nextIndex = 0,
                         localName = op.varName,
@@ -417,7 +327,7 @@ class StatefulScriptServiceRunner(
             is TerminalInput.Value -> {
                 advanceTop()
                 pushChild(
-                    frame.block.child(opIndex, TownServiceScriptBranch.MenuOption, key = input.value.key),
+                    frame.block.child(opIndex, ScriptBranch.MenuOption, key = input.value.key),
                 )
             }
             is TerminalInput.Rejected -> {
@@ -425,7 +335,7 @@ class StatefulScriptServiceRunner(
                     wait(input.rejection)
                 } else {
                     advanceTop()
-                    pushChild(frame.block.child(opIndex, TownServiceScriptBranch.MenuDefault))
+                    pushChild(frame.block.child(opIndex, ScriptBranch.MenuDefault))
                 }
             }
             TerminalInput.Unavailable -> wait()
@@ -471,14 +381,14 @@ class StatefulScriptServiceRunner(
         }
     }
 
-    private fun askText(op: Op.AskText, frame: TownServiceScriptFrame, opIndex: Int) {
+    private fun askText(op: Op.AskText, frame: ScriptFrame, opIndex: Int) {
         engine.trace(EngineTraceEvent.AskText(renderText(op.prompt), op.accepted, op.maxLength))
         flushScriptOutput()
         val raw = terminal.readTextLine(op.maxLength) ?: return wait()
         val branch = if (op.accepts(raw)) {
-            TownServiceScriptBranch.TextAnswerMatch
+            ScriptBranch.TextAnswerMatch
         } else {
-            TownServiceScriptBranch.TextAnswerMiss
+            ScriptBranch.TextAnswerMiss
         }
         advanceTop()
         pushChild(frame.block.child(opIndex, branch))
@@ -499,9 +409,9 @@ class StatefulScriptServiceRunner(
         stack[index] = stack[index].copy(nextIndex = stack[index].nextIndex + 1)
     }
 
-    private fun pushChild(block: TownServiceScriptBlockRef, loop: Boolean = false) {
+    private fun pushChild(block: ScriptBlockRef, loop: Boolean = false) {
         if (opsFor(block).isNotEmpty() || loop) {
-            stack += TownServiceScriptFrame(block, nextIndex = 0, loop = loop)
+            stack += ScriptFrame(block, nextIndex = 0, loop = loop)
         }
     }
 
@@ -562,8 +472,8 @@ class StatefulScriptServiceRunner(
         }
     }
 
-    private fun continuation(runtime: RuntimeSessionState): TownServiceContinuation =
-        TownServiceContinuation(
+    private fun continuation(runtime: RuntimeSessionState): ScriptContinuation =
+        ScriptContinuation(
             runtime = runtime,
             locals = locals.toMap(),
             realmScalars = realmInts.toMap(),
@@ -748,23 +658,23 @@ class StatefulScriptServiceRunner(
         )
     }
 
-    private fun opsFor(block: TownServiceScriptBlockRef): List<Op> {
+    private fun opsFor(block: ScriptBlockRef): List<Op> {
         var ops = rootOps
         block.segments.forEach { segment ->
             val op = ops.getOrNull(segment.opIndex) ?: return emptyList()
             ops = when (segment.branch) {
-                TownServiceScriptBranch.IfThen -> (op as? Op.If)?.thenOps.orEmpty()
-                TownServiceScriptBranch.IfElse -> (op as? Op.If)?.elseOps.orEmpty()
-                TownServiceScriptBranch.LoopBody -> (op as? Op.Loop)?.body.orEmpty()
-                TownServiceScriptBranch.ForEachMemberBody -> (op as? Op.ForEachMember)?.body.orEmpty()
-                TownServiceScriptBranch.ForEachMonsterBody -> (op as? Op.ForEachMonster)?.body.orEmpty()
-                TownServiceScriptBranch.SwitchCase ->
+                ScriptBranch.IfThen -> (op as? Op.If)?.thenOps.orEmpty()
+                ScriptBranch.IfElse -> (op as? Op.If)?.elseOps.orEmpty()
+                ScriptBranch.LoopBody -> (op as? Op.Loop)?.body.orEmpty()
+                ScriptBranch.ForEachMemberBody -> (op as? Op.ForEachMember)?.body.orEmpty()
+                ScriptBranch.ForEachMonsterBody -> (op as? Op.ForEachMonster)?.body.orEmpty()
+                ScriptBranch.SwitchCase ->
                     (op as? Op.Switch)?.cases?.getOrNull(segment.caseIndex ?: -1)?.body.orEmpty()
-                TownServiceScriptBranch.MenuOption ->
+                ScriptBranch.MenuOption ->
                     (op as? Op.Menu)?.options?.firstOrNull { it.key == segment.key }?.body.orEmpty()
-                TownServiceScriptBranch.MenuDefault -> (op as? Op.Menu)?.defaultOps.orEmpty()
-                TownServiceScriptBranch.TextAnswerMatch -> (op as? Op.AskText)?.matchOps.orEmpty()
-                TownServiceScriptBranch.TextAnswerMiss -> (op as? Op.AskText)?.missOps.orEmpty()
+                ScriptBranch.MenuDefault -> (op as? Op.Menu)?.defaultOps.orEmpty()
+                ScriptBranch.TextAnswerMatch -> (op as? Op.AskText)?.matchOps.orEmpty()
+                ScriptBranch.TextAnswerMiss -> (op as? Op.AskText)?.missOps.orEmpty()
             }
         }
         return ops
@@ -772,10 +682,10 @@ class StatefulScriptServiceRunner(
 
     private fun Op.ForEachMember.memberFrames(
         party: PartyState,
-        frame: TownServiceScriptFrame,
+        frame: ScriptFrame,
         opIndex: Int,
-    ): List<Pair<Int, TownServiceScriptBlockRef>> {
-        val block = frame.block.child(opIndex, TownServiceScriptBranch.ForEachMemberBody)
+    ): List<Pair<Int, ScriptBlockRef>> {
+        val block = frame.block.child(opIndex, ScriptBranch.ForEachMemberBody)
         return party.members.mapIndexedNotNull { index, member ->
             val memberNumber = index + 1
             (memberNumber to block).takeIf { includeDead || !member.dead }
@@ -900,7 +810,7 @@ class StatefulScriptServiceRunner(
         override fun monsterFlag(monster: Int, name: String): Boolean =
             error("town/service scripts cannot read combat monster flags")
         override fun runtimeFlag(name: String): Boolean =
-            runtimeFlagReaders[name]?.invoke(runtime) ?: false
+            runtime.scriptRuntimeFlag(name)
     }
 
     private fun eval(ast: IntAst): Int = evaluator.int(ast)
@@ -918,8 +828,8 @@ class StatefulScriptServiceRunner(
 
     private fun set(target: LValueAst, value: Int) {
         when (target) {
-            is LValueAst.PartyScalar -> party = party.withPartyScalar(target.name, value)
-            is LValueAst.MemberField -> party = party.withMemberField(eval(target.member), target.field, value)
+            is LValueAst.PartyScalar -> party = party.withScriptPartyScalar(target.name, value)
+            is LValueAst.MemberField -> party = party.withScriptMemberField(eval(target.member), target.field, value)
             is LValueAst.RealmScalar -> setRealmScalar(target.name, value)
             is LValueAst.MonsterField -> error("town/service scripts cannot write combat monster fields")
             is LValueAst.BattleFlag -> error("town/service scripts cannot write combat battle flags")
@@ -927,235 +837,23 @@ class StatefulScriptServiceRunner(
     }
 
     private fun realmScalar(name: String): Int =
-        realmScalarBindings[name]?.read?.invoke(runtime) ?: realmInts[name] ?: 0
+        runtime.scriptRealmScalar(name, realmInts)
 
     private fun setRealmScalar(name: String, value: Int) {
-        runtime = realmScalarBindings[name]?.write?.invoke(runtime, value)
+        runtime = runtime.withScriptRealmScalar(name, value)
             ?: runtime.also { realmInts[name] = value }
     }
 
     private fun partyScalar(name: String): Int =
-        partyScalarReaders[name]?.invoke(party) ?: 0
+        party.scriptPartyScalar(name)
 
     private fun memberField(memberNumber: Int, field: String): Int {
-        val member = party.members.getOrNull(memberNumber - 1) ?: return 0
-        return memberFieldReaders[field]?.invoke(member) ?: 0
+        return party.scriptMemberField(memberNumber, field)
     }
 
     private fun memberFlag(memberNumber: Int, name: String): Boolean {
-        val member = party.members.getOrNull(memberNumber - 1) ?: return false
-        return memberFlagReaders[name]?.invoke(member) ?: false
+        return party.scriptMemberFlag(memberNumber, name)
     }
-}
-
-private class RandomItemOfferSessionTraceRunner(
-    private val terminal: TerminalPort,
-    private val engine: TraceEnginePort,
-) {
-    fun runUntilBlocked(initial: RandomItemOfferSession): TerminalAdapterResult<RandomItemOfferSession> {
-        var session = initial
-        repeat(64) {
-            session = when (val step = session.step) {
-                is RandomItemOfferStep.Choice -> {
-                    engine.trace(EngineTraceEvent.Screen(step.offerText))
-                    engine.trace(EngineTraceEvent.Menu(step.prompt, listOf(step.buyKey, step.declineKey)))
-                    val choices = listOf(
-                        TerminalChoice(true, step.buy),
-                        TerminalChoice(false, step.decline),
-                    )
-                    terminal.readChoice(choices)
-                        .sessionOrWait(session, { return it }) {
-                            session.apply(RandomItemOfferInput.Buy(it))
-                        }
-                }
-                is RandomItemOfferStep.DropSlot -> {
-                    val choices = session.party.inventorySlotChoices(
-                        InventorySlotChoiceFilter.NonEmpty,
-                        1..InventorySaveSlotMax,
-                        'A',
-                    )
-                    engine.trace(
-                        EngineTraceEvent.AskInventorySlot(
-                            prompt = step.prompt,
-                            firstKey = 'A',
-                            slots = 1..InventorySaveSlotMax,
-                            filter = InventorySlotChoiceFilter.NonEmpty,
-                        ),
-                    )
-                    terminal.readKey(choices.map { it.first })
-                        .sessionOrWait(session, { return it }) { key ->
-                            session.apply(
-                                RandomItemOfferInput.DropSlot(
-                                    checkNotNull(choices.firstOrNull { it.first == key }).second,
-                                ),
-                            )
-                        }
-                }
-                is RandomItemOfferStep.Message -> {
-                    engine.trace(EngineTraceEvent.Screen(step.text))
-                    session.apply(RandomItemOfferInput.Continue)
-                }
-                is RandomItemOfferStep.Finished -> return finished(session)
-            }
-        }
-        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
-    }
-}
-
-private class RewardGrantSessionTraceRunner(
-    private val terminal: TerminalPort,
-    private val engine: TraceEnginePort,
-) {
-    fun runUntilBlocked(initial: RewardGrantSession): TerminalAdapterResult<RewardGrantSession> {
-        var session = initial
-        repeat(128) {
-            session = when (val step = session.step) {
-                is RewardGrantStep.DropSlot -> {
-                    val choices = session.party.inventorySlotChoices(
-                        InventorySlotChoiceFilter.NonEmpty,
-                        1..InventorySaveSlotMax,
-                        'A',
-                    )
-                    engine.trace(
-                        EngineTraceEvent.AskInventorySlot(
-                            prompt = step.prompt,
-                            firstKey = 'A',
-                            slots = 1..InventorySaveSlotMax,
-                            filter = InventorySlotChoiceFilter.NonEmpty,
-                        ),
-                    )
-                    terminal.readKey(choices.map { it.first })
-                        .sessionOrWait(session, { return it }) { key ->
-                            session.apply(
-                                RewardGrantInput.DropSlot(
-                                    checkNotNull(choices.firstOrNull { it.first == key }).second,
-                                ),
-                            )
-                        }
-                }
-                is RewardGrantStep.Message -> {
-                    engine.trace(EngineTraceEvent.Screen(step.text))
-                    session.apply(RewardGrantInput.Continue)
-                }
-                is RewardGrantStep.Finished -> return finished(session)
-            }
-        }
-        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
-    }
-}
-
-private class SpeakSessionTraceRunner(
-    private val terminal: TerminalPort,
-    private val engine: TraceEnginePort,
-    private val battleContent: RuntimeContent = RuntimeContent(),
-) {
-    fun runUntilBlocked(initial: SpeakSession): TerminalAdapterResult<SpeakSession> {
-        var session = initial
-        repeat(128) {
-            session = when (val step = session.step) {
-                is SpeakStep.ChooseNpc -> {
-                    val keys = step.npcs.indices.map { index -> '1' + index }
-                    traceMenu(npcPrompt(session.content, step.npcs), keys)
-                    terminal.readKey(keys)
-                        .sessionOrWait(session, { return it }) { key ->
-                            val npc = step.npcs[key - '1']
-                            session.apply(SpeakInput.Npc(npc.id))
-                        }
-                }
-                is SpeakStep.ScriptBranch -> {
-                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
-                    val result = StatefulScriptServiceRunner(
-                        terminal = terminal,
-                        engine = engine,
-                        rootOps = step.ops,
-                        continuation = continuation,
-                        speakContent = session.content,
-                        battleContent = battleContent,
-                    ).run()
-                    val nextSession = session.copy(runtime = result.runtime)
-                    when (result.status) {
-                        TownServiceBridgeStatus.Finished ->
-                            nextSession.copy(step = step.next)
-                        TownServiceBridgeStatus.Waiting ->
-                            return waiting(
-                                nextSession.copy(
-                                    step = step.copy(
-                                        continuation = checkNotNull(result.continuation) {
-                                            "waiting dialogue branch did not return continuation"
-                                        },
-                                    ),
-                                ),
-                                result.rejection,
-                            )
-                    }
-                }
-                is SpeakStep.MainMenu -> {
-                    val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
-                    traceMenu(mainPrompt(session.content, step.npc, step.actions), step.actions.map { it.key })
-                    terminal.readChoice(choices)
-                        .sessionOrWait(session, { return it }) { action ->
-                            session.apply(SpeakInput.Main(action.topic.toMainChoice()))
-                        }
-                }
-                is SpeakStep.QuestionMenu -> {
-                    val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
-                    traceMenu(questionPrompt(step.actions), step.actions.map { it.key })
-                    terminal.readChoice(choices)
-                        .sessionOrWait(session, { return it }) { action ->
-                            session.apply(SpeakInput.Question(action.topic))
-                        }
-                }
-                is SpeakStep.Message -> {
-                    step.blocks.forEach { block -> engine.trace(EngineTraceEvent.Screen(block)) }
-                    session.apply(SpeakInput.Continue)
-                }
-                is SpeakStep.Finished -> return finished(session)
-            }
-        }
-        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
-    }
-
-    private fun traceMenu(prompt: TextBlock, keys: List<Char>) {
-        engine.trace(EngineTraceEvent.Menu(prompt, keys))
-    }
-
-    private fun npcPrompt(content: SpeakRuntimeContent, npcs: List<CharacterModel>): TextBlock =
-        combineTextBlocks(
-            content.conversationPrompts().chooseNpc,
-            inlineText(*npcs.mapIndexed { index, npc -> "${index + 1}. ${npc.name}, ${npc.job.slug}" }.toTypedArray()),
-        )
-
-    private fun mainPrompt(
-        content: SpeakRuntimeContent,
-        npc: CharacterModel,
-        actions: List<ConversationMenuActionModel>,
-    ): TextBlock =
-        combineTextBlocks(
-            content.conversationPrompts().renderMainMenu(npc.name),
-            inlineText(*actions.map { action -> action.promptLine() }.toTypedArray()),
-        )
-
-    private fun questionPrompt(actions: List<QuestionMenuActionModel>): TextBlock =
-        inlineText(*actions.map { action -> action.promptLine() }.toTypedArray())
-
-    private fun ConversationMenuActionModel.promptLine(): String =
-        bindingMenuLine(binding, label)
-
-    private fun QuestionMenuActionModel.promptLine(): String =
-        bindingMenuLine(binding, label)
-
-    private fun SpeakRuntimeContent.conversationPrompts(): ConversationPromptTextModel =
-        checkNotNull(speak.standardConversation) {
-            "standard conversation system is not configured"
-        }.prompts
-
-    private fun ConversationTopic.toMainChoice(): SpeakMainChoice =
-        when (this) {
-            ConversationTopic.Chitchat -> SpeakMainChoice.Chitchat
-            ConversationTopic.Question -> SpeakMainChoice.Question
-            ConversationTopic.Rumour -> SpeakMainChoice.Rumour
-            ConversationTopic.Bye -> SpeakMainChoice.Bye
-        }
 }
 
 private fun Op.AskText.accepts(raw: String): Boolean {
@@ -1167,17 +865,4 @@ private fun String.normalizedTextAnswer(trim: Boolean, caseSensitive: Boolean, m
     val limited = maxLength?.let { take(it) } ?: this
     val spaced = if (trim) limited.trim() else limited
     return if (caseSensitive) spaced else spaced.lowercase()
-}
-
-private fun Int.positiveMod(divisor: Int): Int =
-    ((this % divisor) + divisor) % divisor
-
-private fun PartyState.withPartyScalar(name: String, value: Int): PartyState =
-    partyScalarWriters[name]?.invoke(this, value) ?: this
-
-private fun PartyState.withMemberField(memberNumber: Int, field: String, value: Int): PartyState {
-    val index = memberNumber - 1
-    val member = members.getOrNull(index) ?: return this
-    val updated = memberFieldWriters[field]?.invoke(member, value) ?: member
-    return copy(members = members.mapIndexed { i, existing -> if (i == index) updated else existing })
 }

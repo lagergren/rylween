@@ -5,7 +5,7 @@ package rylween.runtime
 
 import rylween.dsl.*
 
-enum class TownServiceScriptBranch {
+enum class ScriptBranch {
     IfThen,
     IfElse,
     LoopBody,
@@ -18,31 +18,31 @@ enum class TownServiceScriptBranch {
     TextAnswerMiss,
 }
 
-data class TownServiceScriptSegment(
+data class ScriptSegment(
     val opIndex: Int,
-    val branch: TownServiceScriptBranch,
+    val branch: ScriptBranch,
     val caseIndex: Int? = null,
     val key: Char? = null,
 )
 
-data class TownServiceScriptBlockRef(
-    val segments: List<TownServiceScriptSegment> = emptyList(),
+data class ScriptBlockRef(
+    val segments: List<ScriptSegment> = emptyList(),
 ) {
     fun child(
         opIndex: Int,
-        branch: TownServiceScriptBranch,
+        branch: ScriptBranch,
         caseIndex: Int? = null,
         key: Char? = null,
-    ): TownServiceScriptBlockRef =
-        copy(segments = segments + TownServiceScriptSegment(opIndex, branch, caseIndex, key))
+    ): ScriptBlockRef =
+        copy(segments = segments + ScriptSegment(opIndex, branch, caseIndex, key))
 
     companion object {
-        val Root = TownServiceScriptBlockRef()
+        val Root = ScriptBlockRef()
     }
 }
 
-data class TownServiceScriptFrame(
-    val block: TownServiceScriptBlockRef,
+data class ScriptFrame(
+    val block: ScriptBlockRef,
     val nextIndex: Int,
     val loop: Boolean = false,
     val iteration: Int = 0,
@@ -50,11 +50,11 @@ data class TownServiceScriptFrame(
     val localValue: Int? = null,
 )
 
-data class TownServiceContinuation(
+data class ScriptContinuation(
     val runtime: RuntimeSessionState,
     val locals: Map<String, Int> = emptyMap(),
     val realmScalars: Map<String, Int> = emptyMap(),
-    val stack: List<TownServiceScriptFrame>,
+    val stack: List<ScriptFrame>,
     val speakSession: SpeakSession? = null,
     val battleSession: BattleSession? = null,
     val randomItemOfferSession: RandomItemOfferSession? = null,
@@ -65,13 +65,13 @@ data class TownServiceContinuation(
     val realm: RealmState get() = runtime.realm
 
     companion object {
-        fun start(runtime: RuntimeSessionState): TownServiceContinuation =
-            TownServiceContinuation(
+        fun start(runtime: RuntimeSessionState): ScriptContinuation =
+            ScriptContinuation(
                 runtime = runtime,
-                stack = listOf(TownServiceScriptFrame(TownServiceScriptBlockRef.Root, nextIndex = 0)),
+                stack = listOf(ScriptFrame(ScriptBlockRef.Root, nextIndex = 0)),
             )
 
-        fun start(party: PartyState): TownServiceContinuation =
+        fun start(party: PartyState): ScriptContinuation =
             start(RuntimeSessionState.singleParty(party, hour = 0, currentTown = null))
     }
 }
