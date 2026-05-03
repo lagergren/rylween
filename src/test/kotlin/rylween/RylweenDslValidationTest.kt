@@ -284,6 +284,95 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun runtimeSnapshotLoadReportsParseFailuresAsValidationDiagnostics() {
+        val failure = assertFailsWith<RylweenValidationException> {
+            parseRuntimeStateSnapshotForLoad(
+                source = "notRuntimeState {}",
+                content = RylweenCompiledGame.nextDsl,
+                sourceName = "save file broken.kts",
+            )
+        }
+
+        assertEquals("save file broken.kts", failure.diagnostics.single().path)
+        assertTrue("could not parse runtime snapshot" in failure.diagnostics.single().message)
+    }
+
+    @Test
+    fun runtimeSnapshotLoadValidatesAgainstCurrentContent() {
+        val state = RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay }
+        val party = state.parties.single()
+        val badState = state.copy(
+            parties = listOf(
+                party.copy(
+                    inventory = party.inventory.map { slot ->
+                        if (slot.slot == 0) slot.copy(item = item("missing.save.item")) else slot
+                    },
+                ),
+            ),
+        )
+
+        val failure = assertFailsWith<RylweenValidationException> {
+            validateRuntimeStateSnapshotForLoad(
+                state = badState,
+                content = RylweenCompiledGame.nextDsl,
+                sourceName = "save file bad-content.kts",
+            )
+        }
+
+        assertTrue(
+            failure.diagnostics.any {
+                it.path == "save file bad-content.kts" &&
+                    "inventory references unknown item missing.save.item" in it.message
+            },
+        )
+    }
+
+    @Test
+    fun startupStateSelectionReportsUnknownStateNames() {
+        val failure = assertFailsWith<RylweenValidationException> {
+            selectStartupState(
+                game = RylweenCompiledGame.nextRylween,
+                content = RylweenCompiledGame.nextDsl,
+                state = stateId("missing-startup-state"),
+                target = RuntimeStartupTarget.Wilderness,
+            )
+        }
+
+        assertEquals("startup.state", failure.diagnostics.single().path)
+        assertTrue("unknown state missing-startup-state" in failure.diagnostics.single().message)
+        assertTrue(States.freshReplay.slug in failure.diagnostics.single().message)
+    }
+
+    @Test
+    fun startupTownSelectionReportsUnknownTownNames() {
+        val failure = assertFailsWith<RylweenValidationException> {
+            requireStartupTown(RylweenCompiledGame.nextDsl, town("missing-startup-town"))
+        }
+
+        assertEquals("startup.town", failure.diagnostics.single().path)
+        assertTrue("unknown town missing-startup-town" in failure.diagnostics.single().message)
+        assertTrue(Towns.thord.id.slug in failure.diagnostics.single().message)
+    }
+
+    @Test
+    fun wildernessStartupRejectsUnsupportedRuntimeModes() {
+        val baseState = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val state = baseState.copy(realm = baseState.realm.copy(currentMode = RuntimeMode.Dungeon))
+
+        val failure = assertFailsWith<RylweenValidationException> {
+            validateStartupState(
+                state = state,
+                content = RylweenCompiledGame.nextDsl,
+                target = RuntimeStartupTarget.Wilderness,
+                sourceName = "startup.state.bad-mode",
+            )
+        }
+
+        assertEquals("startup.state.bad-mode", failure.diagnostics.single().path)
+        assertTrue("can only resume Wilderness states" in failure.diagnostics.single().message)
+    }
+
+    @Test
     fun traceEngineSeparatesViewCommandsFromNativeBoundaryRequests() {
         val keyRequest = EngineRequest(NativeAllowlist.inputKeyUpper.path)
         val engine = TraceEnginePort(ints = mapOf(keyRequest to 82))

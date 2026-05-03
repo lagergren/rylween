@@ -10,7 +10,7 @@ import rylween.runtime.*
 import rylween.save.FileRuntimeSavePort
 import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
-import rylween.save.parseRuntimeStateSnapshot
+import rylween.save.loadRuntimeStateSnapshot
 
 import org.jline.terminal.Attributes
 import org.jline.terminal.Terminal
@@ -45,30 +45,37 @@ private data class AnsiRuntimeConfig(
 
 object RylweenAnsiMain {
     @JvmStatic
-    fun main(args: Array<String>) {
+    fun main(args: Array<String>): Unit = runRylweenCli {
         val config = parseAnsiConfig(args.toList())
+        val game = RylweenCompiledGame.nextRylween
+        val content = RylweenCompiledGame.nextDsl
+        val state = config.loadFile
+            ?.let {
+                validateStartupState(
+                    state = loadRuntimeStateSnapshot(it, content),
+                    content = content,
+                    target = RuntimeStartupTarget.Wilderness,
+                    sourceName = "save file ${it.path}",
+                )
+            }
+            ?: selectStartupState(game, content, config.state, RuntimeStartupTarget.Wilderness)
+        val bootState = config.hour?.let { state.copy(realm = state.realm.copy(hour = it)) } ?: state
+        val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
+            ?: content.worldMapGrid(Maps.wilderness)
+            ?: error("missing authored wilderness map")
+        val engine = RylweenKotlinEngine(
+            content = content,
+            npcPlacementConfig = NpcPlacementRealizerConfig(
+                wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
+            ),
+        )
+        val session = engine.wildernessSession(
+            state = bootState,
+            worldMap = worldMap,
+            rngState = config.seed ?: bootState.realm.rngState,
+        )
         RylweenLog.open().use { log ->
             JLineAnsiTerminal.open(log).use { terminal ->
-                val game = RylweenCompiledGame.nextRylween
-                val content = RylweenCompiledGame.nextDsl
-                val state = config.loadFile?.let { parseRuntimeStateSnapshot(it.readText()) }
-                    ?: (game.states.singleOrNull { it.id == config.state }
-                        ?: error("unknown state ${config.state.slug}"))
-                val bootState = config.hour?.let { state.copy(realm = state.realm.copy(hour = it)) } ?: state
-                val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
-                    ?: content.worldMapGrid(Maps.wilderness)
-                    ?: error("missing authored wilderness map")
-                val engine = RylweenKotlinEngine(
-                    content = content,
-                    npcPlacementConfig = NpcPlacementRealizerConfig(
-                        wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
-                    ),
-                )
-                val session = engine.wildernessSession(
-                    state = bootState,
-                    worldMap = worldMap,
-                    rngState = config.seed ?: bootState.realm.rngState,
-                )
                 log.info("ansi", "boot state=${bootState.id.slug} seed=${config.seed ?: bootState.realm.rngState}")
                 RylweenAnsiGame(
                     terminal = terminal,
