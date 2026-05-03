@@ -129,48 +129,6 @@ class PaletteColorRefs {
 }
 val PaletteColors = PaletteColorRefs()
 
-class RoleRefs {
-    val banditsQuestGiver = npcRole("bandits_quest_giver")
-    val rangersQuestGiver = npcRole("rangers_quest_giver")
-    val crownSeer = npcRole("crown_seer")
-    val templeOfThunSeer = npcRole("temple_of_thun_seer")
-    val masterThief = npcRole("master_thief")
-    val fighterIntro = npcRole("fighter_intro")
-    val priestWithBook = npcRole("priest_with_book")
-    val silverKeyVendor = npcRole("silver_key_vendor")
-    val jazzyOgreTrader = npcRole("jazzy_ogre_trader")
-    val wizardRobbed = npcRole("wizard_robbed")
-    val erethorLuteBard = npcRole("erethor_lute_bard")
-    val rangerBrother = npcRole("ranger_brother")
-    val peasantHusband = npcRole("peasant_husband")
-    val minstrelCloak = npcRole("minstrel_cloak")
-    val wizardThreeTasks = npcRole("wizard_three_tasks")
-    val silverKeySmith = npcRole("silver_key_smith")
-    val hermitTrollTooth = npcRole("hermit_troll_tooth")
-
-    val all = listOf(
-        banditsQuestGiver,
-        rangersQuestGiver,
-        crownSeer,
-        templeOfThunSeer,
-        masterThief,
-        fighterIntro,
-        priestWithBook,
-        silverKeyVendor,
-        jazzyOgreTrader,
-        wizardRobbed,
-        erethorLuteBard,
-        rangerBrother,
-        peasantHusband,
-        minstrelCloak,
-        wizardThreeTasks,
-        silverKeySmith,
-        hermitTrollTooth,
-    )
-}
-val NpcRoles = RoleRefs()
-val Roles = NpcRoles
-
 class SceneRefs {
     val Towne = TowneSceneRefs()
     val Battle = BattleSceneRefs()
@@ -355,65 +313,6 @@ class KeyActionRefs {
 }
 val KeyActions = KeyActionRefs()
 
-class NpcJobRefs {
-    val merchant = npcJob("merchant")
-    val ranger = npcJob("ranger")
-    val fighter = npcJob("fighter")
-    val wizard = npcJob("wizard")
-    val priest = npcJob("priest")
-    val thief = npcJob("thief")
-    val peasant = npcJob("peasant")
-    val bard = npcJob("bard")
-    val drifter = npcJob("drifter")
-    val halfOrc = npcJob("half_orc")
-    val halfElf = npcJob("half_elf")
-    val smith = npcJob("smith")
-    val bargirl = npcJob("bargirl")
-    val innkeeper = npcJob("innkeeper")
-    val tavernkeeper = npcJob("tavernkeeper")
-    val hermit = npcJob("hermit")
-
-    val all = listOf(
-        merchant,
-        ranger,
-        fighter,
-        wizard,
-        priest,
-        thief,
-        peasant,
-        bard,
-        drifter,
-        halfOrc,
-        halfElf,
-        smith,
-        bargirl,
-        innkeeper,
-        tavernkeeper,
-        hermit,
-    )
-}
-val NpcJobs = NpcJobRefs()
-
-class RumourTableRefs {
-    val standardTown = rumourTable("standard_town")
-}
-val RumourTables = RumourTableRefs()
-
-class RumourHandleRefs {
-    val banditsQuestGiver = rumour("bandits_quest_giver")
-    val rangerQuestGiver = rumour("ranger_quest_giver")
-    val crownSeer = rumour("crown_seer")
-    val templeOfThunSeer = rumour("temple_of_thun_seer")
-
-    val all = listOf(
-        banditsQuestGiver,
-        rangerQuestGiver,
-        crownSeer,
-        templeOfThunSeer,
-    )
-}
-val Rumours = RumourHandleRefs()
-
 class StateRefs {
     val freshReplay = stateId("fresh-replay")
     val nearWinningReplay = stateId("near-winning-replay")
@@ -425,62 +324,6 @@ class PartyRefs {
     val replay = partyId("replay")
 }
 val Parties = PartyRefs()
-
-class NpcRefs {
-    val garth = npc("garth")
-    val nrimTo = npc("nrim_to")
-    val areth = npc("areth")
-    val nevaak = npc("nevaak")
-    val gorm = npc("gorm")
-    val bernak = npc("bernak")
-    val matias = npc("matias")
-    val tybalt = npc("tybalt")
-    val romeo = npc("romeo")
-    val werra = npc("werra")
-    val arenjun = npc("arenjun")
-    val oskar = npc("oskar")
-    val harry = npc("harry")
-    val marraga = npc("marraga")
-    val broth = npc("broth")
-    val ebond = npc("ebond")
-    val bolph = npc("bolph")
-    val gotharp = npc("gotharp")
-    val ron = npc("ron")
-    val kaal = npc("kaal")
-    val daniel = npc("daniel")
-    val leander = npc("leander")
-    val ithienn = npc("ithienn")
-    val azaaza = npc("azaaza")
-    val hassan = npc("hassan")
-    val luqas = npc("luqas")
-    val darth = npc("darth")
-    val yog = npc("yog")
-    val niklas = npc("niklas")
-    val tokawa = npc("tokawa")
-    val miyaki = npc("miyaki")
-    val dargoth = npc("dargoth")
-    val marcus = npc("marcus")
-    val deanna = npc("deanna")
-    val jeanne = npc("jeanne")
-    val alex = npc("alex")
-    val galdon = npc("galdon")
-    val kosch = npc("kosch")
-    val ufarsin = npc("ufarsin")
-}
-val Npcs = NpcRefs()
-
-class LocationRefs {
-    val hermitDungeon = location("hermit_dungeon")
-    val thunTemple = location("thun_temple")
-    val koboldVillage = location("kobold_village")
-    val borinCamp = location("borin_camp")
-    val nolrimCrypt = location("nolrim_crypt")
-    val masterCrownDungeon = location("master_crown_dungeon")
-    val beastCave = location("beast_cave")
-    val silverKeyPit = location("silver_key_pit")
-    val hobgoblinCave = location("hobgoblin_cave")
-}
-val Locations = LocationRefs()
 
 class DungeonRefs {
     val randomCave = dungeon("random_cave")
@@ -535,36 +378,6 @@ class CombatLootTableRefs {
     val default = LootTables.standardBattle
 }
 val CombatLootTables = CombatLootTableRefs()
-
-class BuildingRefs {
-    val none = building("none")
-    val inn = building("inn")
-    val tavern = building("tavern")
-    val church = building("church")
-    val smith = building("smith")
-    val merchant = building("merchant")
-    val hut = building("hut")
-    val lodge = building("lodge")
-
-    val all = listOf(none, inn, tavern, church, smith, merchant, hut, lodge)
-}
-val Buildings = BuildingRefs()
-
-class TownRef(override val id: TownId) : TownHandle {
-    val inn: WorldPosition get() = WorldPosition.Town(id, Buildings.inn)
-    val tavern: WorldPosition get() = WorldPosition.Town(id, Buildings.tavern)
-    val church: WorldPosition get() = WorldPosition.Town(id, Buildings.church)
-    val smith: WorldPosition get() = WorldPosition.Town(id, Buildings.smith)
-    val merchant: WorldPosition get() = WorldPosition.Town(id, Buildings.merchant)
-}
-
-class TownRefs {
-    val thord = TownRef(town("thord"))
-    val ollk = TownRef(town("ollk"))
-    val wilor = TownRef(town("wilor"))
-    val murn = TownRef(town("murn"))
-}
-val Towns = TownRefs()
 
 class TextRefs {
     val Title = TitleTextRefs()
