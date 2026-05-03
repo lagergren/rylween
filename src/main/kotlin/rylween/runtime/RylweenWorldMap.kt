@@ -103,6 +103,12 @@ data class WildernessSessionResult(
     val mission: MissionId? = null,
 )
 
+data class MissionPostDungeonContinuation(
+    val mission: MissionModel,
+    val scene: SceneModel,
+    val continuation: TownServiceContinuation,
+)
+
 sealed interface WildernessSessionStep {
     object TurnStart : WildernessSessionStep
     object Explore : WildernessSessionStep
@@ -118,8 +124,14 @@ sealed interface WildernessSessionStep {
         val scene: SceneModel,
         val continuation: TownServiceContinuation? = null,
     ) : WildernessSessionStep
-    data class DungeonHandoff(val handoff: WildernessDungeonHandoff) : WildernessSessionStep
-    data class Dungeon(val session: DungeonSession) : WildernessSessionStep
+    data class DungeonHandoff(
+        val handoff: WildernessDungeonHandoff,
+        val postDungeon: MissionPostDungeonContinuation? = null,
+    ) : WildernessSessionStep
+    data class Dungeon(
+        val session: DungeonSession,
+        val postDungeon: MissionPostDungeonContinuation? = null,
+    ) : WildernessSessionStep
     data class Ydarg(val session: YdargSession) : WildernessSessionStep
     data class Battle(val session: BattleSession) : WildernessSessionStep
     data class Camp(val session: CampSession) : WildernessSessionStep
@@ -376,20 +388,54 @@ data class WildernessSession(
                     levels = current.handoff.levels,
                     content = content,
                 ),
+                postDungeon = current.postDungeon,
             ),
         )
     }
 
     fun replaceDungeonSession(session: DungeonSession): WildernessSession {
-        require(step is WildernessSessionStep.Dungeon) { "wilderness session is not running a dungeon session" }
+        val current = step as? WildernessSessionStep.Dungeon
+            ?: error("wilderness session is not running a dungeon session")
         return if (session.step is DungeonSessionStep.Finished) {
-            val finishedRuntime = session.runtime.withRealm(
-                session.runtime.realm.copy(
-                    currentMode = RuntimeMode.Wilderness,
-                    currentTown = null,
-                    currentMap = worldMap.id,
-                ),
-            )
+            val finishedRuntime = if (session.runtime.realm.currentMode == RuntimeMode.GameOver) {
+                session.runtime
+            } else {
+                session.runtime.withRealm(
+                    session.runtime.realm.copy(
+                        currentMode = RuntimeMode.Wilderness,
+                        currentTown = null,
+                        currentMap = worldMap.id,
+                    ),
+                )
+            }
+            if (finishedRuntime.realm.currentMode == RuntimeMode.GameOver) {
+                return copy(
+                    runtime = finishedRuntime,
+                    step = WildernessSessionStep.Finished(finishedRuntime),
+                    lastResult = WildernessSessionResult(
+                        WildernessSessionResultStatus.Finished,
+                        dungeon = session.dungeon,
+                        dungeonLevels = session.maxDepth,
+                    ),
+                )
+            }
+            val postDungeon = current.postDungeon
+            if (postDungeon != null) {
+                return copy(
+                    runtime = finishedRuntime,
+                    step = WildernessSessionStep.Mission(
+                        mission = postDungeon.mission,
+                        scene = postDungeon.scene,
+                        continuation = postDungeon.continuation.copy(runtime = finishedRuntime),
+                    ),
+                    lastResult = WildernessSessionResult(
+                        WildernessSessionResultStatus.LeftDungeon,
+                        dungeon = session.dungeon,
+                        dungeonLevels = session.maxDepth,
+                        mission = postDungeon.mission.id,
+                    ),
+                )
+            }
             copy(
                 runtime = finishedRuntime,
                 step = WildernessSessionStep.TurnStart,
@@ -400,7 +446,7 @@ data class WildernessSession(
                 ),
             )
         } else {
-            copy(runtime = session.runtime, step = WildernessSessionStep.Dungeon(session))
+            copy(runtime = session.runtime, step = current.copy(session = session))
         }
     }
 
@@ -625,6 +671,7 @@ data class WildernessSession(
     fun handOffMissionDungeon(
         runtime: RuntimeSessionState,
         handoff: WildernessDungeonHandoff,
+        continuation: TownServiceContinuation,
     ): WildernessSession {
         val current = step as? WildernessSessionStep.Mission
             ?: error("wilderness session is not running a mission")
@@ -637,7 +684,14 @@ data class WildernessSession(
         )
         return copy(
             runtime = nextRuntime,
-            step = WildernessSessionStep.DungeonHandoff(handoff),
+            step = WildernessSessionStep.DungeonHandoff(
+                handoff = handoff,
+                postDungeon = MissionPostDungeonContinuation(
+                    mission = current.mission,
+                    scene = current.scene,
+                    continuation = continuation.copy(runtime = nextRuntime),
+                ),
+            ),
             lastResult = WildernessSessionResult(
                 WildernessSessionResultStatus.DungeonHandoff,
                 from = lastResult?.from,
