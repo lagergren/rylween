@@ -1,35 +1,49 @@
 package rylween.save
 
 import rylween.dsl.*
+import rylween.runtime.RuntimeModeSnapshot
+import rylween.runtime.RuntimeSnapshotModel
+import rylween.runtime.YdargSavedStep
+import rylween.runtime.YdargSessionSnapshot
 
 fun renderRuntimeStateSnapshot(state: StateModel): String {
     check(state.kind == StateKind.RuntimeSnapshot) {
         "only runtime snapshots can be emitted as exact save DSL"
     }
-    return RuntimeStateSnapshotWriter().render(state)
+    return renderRuntimeStateSnapshot(RuntimeSnapshotModel(state))
+}
+
+fun renderRuntimeStateSnapshot(snapshot: RuntimeSnapshotModel): String {
+    check(snapshot.state.kind == StateKind.RuntimeSnapshot) {
+        "only runtime snapshots can be emitted as exact save DSL"
+    }
+    return RuntimeStateSnapshotWriter().render(snapshot)
 }
 
 fun parseRuntimeStateSnapshot(source: String): StateModel =
+    parseRuntimeSnapshot(source).state
+
+fun parseRuntimeSnapshot(source: String): RuntimeSnapshotModel =
     RuntimeStateSnapshotParser(source).parseSingle()
 
 private class RuntimeStateSnapshotParser(source: String) {
     private val lexer = RuntimeSnapshotLexer(source)
     private var token: SnapshotToken = lexer.next()
 
-    fun parseSingle(): StateModel {
+    fun parseSingle(): RuntimeSnapshotModel {
         val states = parseAll()
         check(states.size == 1) { "expected exactly one runtimeState block, found ${states.size}" }
         return states.single()
     }
 
-    fun parseAll(): List<StateModel> =
+    fun parseAll(): List<RuntimeSnapshotModel> =
         buildList {
             while (token !is SnapshotToken.End) {
                 add(parseState())
             }
         }
 
-    private fun parseState(): StateModel {
+    private fun parseState(): RuntimeSnapshotModel {
         expectIdent("runtimeState")
         expectSymbol('(')
         val id = parseStateId()
@@ -38,12 +52,19 @@ private class RuntimeStateSnapshotParser(source: String) {
         val realm = parseRealm()
         val locations = parseLocations()
         val npcs = parseNpcs()
-        val parties = buildList {
-            while (!matchSymbol('}')) {
-                add(parseParty())
+        val parties = mutableListOf<PartyState>()
+        var mode: RuntimeModeSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "party" -> parties += parsePartyAfterKeyword()
+                "sessions" -> mode = parseSessionsBody()
+                else -> unexpected("runtimeState field $field")
             }
         }
-        return StateModel(id, StateKind.RuntimeSnapshot, realm, locations, npcs, parties)
+        return RuntimeSnapshotModel(
+            state = StateModel(id, StateKind.RuntimeSnapshot, realm, locations, npcs, parties),
+            mode = mode,
+        )
     }
 
     private fun parseRealm(): RealmState {
@@ -133,8 +154,72 @@ private class RuntimeStateSnapshotParser(source: String) {
         }
     }
 
-    private fun parseParty(): PartyState {
-        expectIdent("party")
+    private fun parseSessionsBody(): RuntimeModeSnapshot? {
+        expectSymbol('{')
+        var mode: RuntimeModeSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "ydarg" -> {
+                    check(mode == null) { "runtime snapshot has multiple active session blocks" }
+                    mode = RuntimeModeSnapshot.YdargCastle(parseYdargSessionBody())
+                }
+                else -> unexpected("sessions field $field")
+            }
+        }
+        return mode
+    }
+
+    private fun parseYdargSessionBody(): YdargSessionSnapshot {
+        expectSymbol('{')
+        var floor = 1
+        var point = GridPoint(1, 1)
+        var step = YdargSavedStep.Navigate
+        var treasureItem: ItemId? = null
+        var rooms = emptyMap<GridPoint, YdargRoomEvent>()
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "floor" -> floor = parseAssignedInt()
+                "point" -> {
+                    expectSymbol('=')
+                    point = parsePoint()
+                }
+                "step" -> {
+                    expectSymbol('=')
+                    step = parseEnum("YdargSavedStep")
+                }
+                "treasureItem" -> {
+                    expectSymbol('=')
+                    treasureItem = parseNullable(::parseItemId)
+                }
+                "rooms" -> rooms = parseYdargRoomsBody()
+                else -> unexpected("Ydarg session field $field")
+            }
+        }
+        return YdargSessionSnapshot(
+            floor = floor,
+            point = point,
+            rooms = rooms,
+            step = step,
+            treasureItem = treasureItem,
+        )
+    }
+
+    private fun parseYdargRoomsBody(): Map<GridPoint, YdargRoomEvent> {
+        expectSymbol('{')
+        return buildMap {
+            while (!matchSymbol('}')) {
+                expectIdent("room")
+                expectSymbol('(')
+                val point = parsePoint()
+                expectSymbol(',')
+                val event = parseEnum<YdargRoomEvent>("YdargRoomEvent")
+                expectSymbol(')')
+                put(point, event)
+            }
+        }
+    }
+
+    private fun parsePartyAfterKeyword(): PartyState {
         expectSymbol('(')
         val id = parsePartyId()
         expectSymbol(')')
@@ -701,13 +786,15 @@ private class RuntimeStateSnapshotWriter {
     private val out = StringBuilder()
     private var indent = 0
 
-    fun render(state: StateModel): String {
+    fun render(snapshot: RuntimeSnapshotModel): String {
+        val state = snapshot.state
         line("runtimeState(${stateId(state.id)}) {")
         indented {
             realm(state.realm)
             locations(state.locations)
             npcs(state.npcs)
             state.parties.forEach(::party)
+            snapshot.mode?.let(::sessions)
         }
         line("}")
         return out.toString()
@@ -751,6 +838,36 @@ private class RuntimeStateSnapshotWriter {
             npcs.sortedBy { it.npc.slug }.forEach {
                 line("${npcId(it.npc)} at ${position(it.position)}")
             }
+        }
+        line("}")
+    }
+
+    private fun sessions(mode: RuntimeModeSnapshot) {
+        line("sessions {")
+        indented {
+            when (mode) {
+                is RuntimeModeSnapshot.YdargCastle -> ydarg(mode.session)
+            }
+        }
+        line("}")
+    }
+
+    private fun ydarg(session: YdargSessionSnapshot) {
+        line("ydarg {")
+        indented {
+            assignment("floor", session.floor)
+            line("point = ${point(session.point)}")
+            line("step = YdargSavedStep.${session.step.name}")
+            line("treasureItem = ${session.treasureItem?.let(::itemId) ?: "null"}")
+            line("rooms {")
+            indented {
+                session.rooms.entries
+                    .sortedWith(compareBy({ it.key.x }, { it.key.y }))
+                    .forEach { (roomPoint, event) ->
+                        line("room(${point(roomPoint)}, YdargRoomEvent.${event.name})")
+                    }
+            }
+            line("}")
         }
         line("}")
     }

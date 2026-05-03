@@ -10,7 +10,7 @@ import rylween.runtime.*
 import rylween.save.FileRuntimeSavePort
 import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
-import rylween.save.loadRuntimeStateSnapshot
+import rylween.save.loadRuntimeSnapshot
 
 import org.jline.terminal.Attributes
 import org.jline.terminal.Terminal
@@ -60,17 +60,20 @@ object RylweenAnsiMain {
             }
             return@runRylweenCli
         }
-        val state = config.loadFile
+        val snapshot = config.loadFile
             ?.let {
-                validateStartupState(
-                    state = loadRuntimeStateSnapshot(it, content),
-                    content = content,
-                    target = RuntimeStartupTarget.Wilderness,
-                    sourceName = "save file ${it.path}",
-                )
+                loadRuntimeSnapshot(it, content)
             }
-            ?: selectStartupState(game, content, config.state, RuntimeStartupTarget.Wilderness)
-        val bootState = config.hour?.let { state.copy(realm = state.realm.copy(hour = it)) } ?: state
+            ?: RuntimeSnapshotModel(selectStartupState(game, content, config.state, RuntimeStartupTarget.Wilderness))
+        validateStartupState(
+            snapshot.state,
+            content,
+            RuntimeStartupTarget.Wilderness,
+            config.loadFile?.let { "save file ${it.path}" } ?: "startup.state.${snapshot.state.id.slug}",
+        )
+        val bootSnapshot = config.hour
+            ?.let { hour -> snapshot.copy(state = snapshot.state.copy(realm = snapshot.state.realm.copy(hour = hour))) }
+            ?: snapshot
         val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
             ?: content.worldMapGrid(Maps.wilderness)
             ?: error("missing authored wilderness map")
@@ -81,13 +84,16 @@ object RylweenAnsiMain {
             ),
         )
         val session = engine.wildernessSession(
-            state = bootState,
+            snapshot = bootSnapshot,
             worldMap = worldMap,
-            rngState = config.seed ?: bootState.realm.rngState,
+            rngState = config.seed ?: bootSnapshot.state.realm.rngState,
         )
         RylweenLog.open().use { log ->
             JLineAnsiTerminal.open(log).use { terminal ->
-                log.info("ansi", "boot state=${bootState.id.slug} seed=${config.seed ?: bootState.realm.rngState}")
+                log.info(
+                    "ansi",
+                    "boot state=${bootSnapshot.state.id.slug} seed=${config.seed ?: bootSnapshot.state.realm.rngState}",
+                )
                 RylweenAnsiGame(
                     terminal = terminal,
                     content = content,
@@ -197,7 +203,7 @@ private class RylweenAnsiGame(
                     }
                 }
                 is WildernessSessionStep.Ydarg -> {
-                    val result = YdargSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val result = YdargSessionTerminalAdapter(port, renderer, savePort).runUntilBlocked(step.session)
                     val updated = session.replaceYdargSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated

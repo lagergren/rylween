@@ -539,6 +539,7 @@ private fun validateYdargKeys(keys: YdargKeysModel) {
         "move south" to keys.moveSouth,
         "move west" to keys.moveWest,
         "move east" to keys.moveEast,
+        "save" to keys.save,
         "help" to keys.help,
         "view party" to keys.viewParty,
         "remove armor" to keys.removeArmor,

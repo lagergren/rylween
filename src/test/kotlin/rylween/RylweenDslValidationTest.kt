@@ -330,6 +330,64 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun runtimeSnapshotEmitterRoundTripsYdargSessionBlock() {
+        val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val snapshot = RuntimeSnapshotModel(
+            state = base.copy(
+                kind = StateKind.RuntimeSnapshot,
+                realm = base.realm.copy(
+                    currentMode = RuntimeMode.YdargCastle,
+                    rngState = 1234L,
+                ),
+            ),
+            mode = RuntimeModeSnapshot.YdargCastle(
+                YdargSessionSnapshot(
+                    floor = 2,
+                    point = GridPoint(3, 4),
+                    rooms = mapOf(
+                        GridPoint(1, 1) to YdargRoomEvent.Empty,
+                        GridPoint(3, 4) to YdargRoomEvent.Treasure,
+                    ),
+                    step = YdargSavedStep.TreasureOffer,
+                    treasureItem = Items.redGem,
+                ),
+            ),
+        )
+
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        val parsed = parseRuntimeSnapshot(rendered)
+
+        assertTrue("sessions {" in rendered)
+        assertTrue("ydarg {" in rendered)
+        assertTrue("step = YdargSavedStep.TreasureOffer" in rendered)
+        assertTrue("""treasureItem = item("red_gem")""" in rendered)
+        assertEquals(snapshot.state.realm, parsed.state.realm)
+        assertEquals(snapshot.mode, parsed.mode)
+        assertEquals(rendered, renderRuntimeStateSnapshot(parsed))
+    }
+
+    @Test
+    fun fileRuntimeSavePortRejectsLossyYdargSaveWithoutSessionSnapshot() {
+        val file = File.createTempFile("rylween-save-", ".kts")
+        val baseRuntime = RuntimeSessionState.singleParty(
+            party = testParty(milestones = listOf(Milestones.silverKey)),
+            hour = 12,
+            currentTown = null,
+            rngState = 1L,
+        )
+        val runtime = baseRuntime.withRealm(baseRuntime.realm.copy(currentMode = RuntimeMode.YdargCastle))
+
+        try {
+            val outcome = FileRuntimeSavePort(file, stateId("test-save")).save(runtime)
+
+            assertFalse(outcome.saved)
+            assertTrue(checkNotNull(outcome.error).contains("YdargCastle runtime save requires Ydarg session snapshot"))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
     fun runtimeSnapshotLoadReportsParseFailuresAsValidationDiagnostics() {
         val failure = assertFailsWith<RylweenValidationException> {
             parseRuntimeStateSnapshotForLoad(
@@ -415,7 +473,7 @@ class RylweenDslValidationTest {
         }
 
         assertEquals("startup.state.bad-mode", failure.diagnostics.single().path)
-        assertTrue("can only resume Wilderness states" in failure.diagnostics.single().message)
+        assertTrue("can only resume Wilderness or YdargCastle states" in failure.diagnostics.single().message)
     }
 
     @Test
@@ -4054,6 +4112,80 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun ydargSaveCommandPersistsAndResumesCastleSession() {
+        val content = RylweenCompiledGame.nextDsl
+        val party = testParty(
+            food = 100,
+            timeLeft = 200,
+            restedHours = 14,
+            milestones = listOf(Milestones.silverKey),
+        ).let { party ->
+            party.copy(counters = party.counters.copy(attackedToday = listOf(PartyAttackRecord(party.id, false))))
+        }
+        val started = YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = party,
+                hour = 12,
+                currentTown = null,
+                rngState = 1L,
+            ),
+            content = content.runtimeContent(),
+        ).copy(
+            rooms = mapOf(
+                GridPoint(1, 1) to YdargRoomEvent.Empty,
+                GridPoint(2, 1) to YdargRoomEvent.Pitfall,
+            ),
+            step = YdargSessionStep.Navigate,
+            floor = 2,
+            point = GridPoint(2, 1),
+        )
+        var saved: RuntimeSnapshotModel? = null
+        val savePort = object : RuntimeSavePort {
+            override fun save(runtime: RuntimeSessionState): RuntimeSaveOutcome =
+                error("Ydarg save must include session state")
+
+            override fun save(request: RuntimeSaveRequest): RuntimeSaveOutcome {
+                saved = RuntimeSnapshotModel(
+                    state = request.runtime.toRuntimeStateSnapshot(stateId("ydarg-save")),
+                    mode = request.mode,
+                )
+                return RuntimeSaveOutcome(saved = true, target = "memory")
+            }
+        }
+
+        runCompiledYdargScenario(
+            name = "ydarg-save-command-round-trips-session",
+            inputs = listOf("S"),
+            savePort = savePort,
+            start = { started },
+            checkpoints = listOf(
+                checkpoint("save request includes Ydarg floor, point, rooms, and resume step") {
+                    val snapshot = checkNotNull(saved)
+                    val rendered = renderRuntimeStateSnapshot(snapshot)
+                    val parsed = parseRuntimeSnapshotForLoad(rendered, content)
+                    val resumed = RylweenKotlinEngine(content).wildernessSession(
+                        snapshot = parsed,
+                        worldMap = checkNotNull(content.worldMapGrid(Maps.wilderness)),
+                        realizeNpcs = false,
+                    )
+                    val resumedYdarg = (resumed.step as WildernessSessionStep.Ydarg).session
+
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(YdargSessionStatus.Saved, result.session.lastResult?.status)
+                    assertOutputContains("Saving position...")
+                    assertOutputContains("Done.")
+                    assertEquals(RuntimeMode.YdargCastle, parsed.state.realm.currentMode)
+                    assertTrue(parsed.mode is RuntimeModeSnapshot.YdargCastle)
+                    assertEquals(2, resumedYdarg.floor)
+                    assertEquals(GridPoint(2, 1), resumedYdarg.point)
+                    assertEquals(YdargRoomEvent.Pitfall, resumedYdarg.rooms[GridPoint(2, 1)])
+                    assertTrue(resumedYdarg.step is YdargSessionStep.Navigate)
+                },
+            ),
+        )
+    }
+
+    @Test
     fun ydargTreasureRoomRunsThroughScenarioHarness() {
         val content = RylweenCompiledGame.nextDsl
         val started = YdargSession.start(
@@ -5549,6 +5681,7 @@ class RylweenDslValidationTest {
         name: String,
         inputs: List<String>,
         seed: Long? = null,
+        savePort: RuntimeSavePort? = null,
         start: () -> YdargSession,
         checkpoints: List<TerminalScenarioCheckpoint<YdargSession>> = emptyList(),
     ): TerminalScenarioRun<YdargSession> =
@@ -5558,7 +5691,7 @@ class RylweenDslValidationTest {
             inputs = inputs,
             start = start,
             drive = { terminal, session ->
-                YdargSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(session)
+                YdargSessionTerminalAdapter(terminal, compiledTextRenderer(), savePort).runUntilBlocked(session)
             },
             checkpoints = checkpoints,
         ).run()

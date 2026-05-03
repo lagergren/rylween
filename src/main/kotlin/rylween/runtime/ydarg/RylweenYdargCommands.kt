@@ -12,6 +12,7 @@ fun YdargKeysModel.navigationCommands(): List<InputCommand<YdargSessionInput>> =
         InputCommand(YdargSessionInput.Move(WildernessDirection.South), moveSouth, "Move South"),
         InputCommand(YdargSessionInput.Move(WildernessDirection.West), moveWest, "Move West"),
         InputCommand(YdargSessionInput.Move(WildernessDirection.East), moveEast, "Move East"),
+        InputCommand(YdargSessionInput.Command(YdargCommand.Save), save, "Save Game"),
         InputCommand(YdargSessionInput.Command(YdargCommand.Help), help, "View Help"),
         InputCommand(YdargSessionInput.Command(YdargCommand.ViewParty), viewParty, "View Party"),
         InputCommand(YdargSessionInput.Command(YdargCommand.RemoveArmor), removeArmor, "Take off Armor"),
