@@ -151,6 +151,13 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 names = handleNames(source, "MapLayers", "layer"),
             ),
             generateTerrainHandles(terrainDeclarations(source)),
+            generateRefsClass(
+                className = "PaletteColorRefs",
+                objectName = "PaletteColors",
+                typeName = "PaletteColorId",
+                factoryName = "paletteColor",
+                names = paletteColorNames(source),
+            ),
             generateImageHandles(imageHandles(source)),
             generateRefsClass(
                 className = "StaticScreenRefs",
@@ -243,6 +250,22 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 typeName = "DungeonEventId",
                 factoryName = "dungeonEvent",
                 names = dungeonEventNames,
+            ),
+            generateRefsClass(
+                className = "StateRefs",
+                objectName = "States",
+                typeName = "StateId",
+                factoryName = "stateId",
+                names = stateNames(source),
+                slugOverrides = stateNames(source).associateWith { it.toKebab() },
+            ),
+            generateRefsClass(
+                className = "PartyRefs",
+                objectName = "Parties",
+                typeName = "PartyId",
+                factoryName = "partyId",
+                names = partyNames(source),
+                slugOverrides = partyNames(source).associateWith { it.toKebab() },
             ),
             generateRefsClass(
                 className = "GameMilestoneRefs",
@@ -516,6 +539,11 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         """.trimMargin()
     }
 
+    private fun paletteColorNames(source: String): List<String> {
+        val terminalColors = listOf("black", "red", "green", "yellow", "blue", "magenta", "cyan", "white")
+        return orderedNames((handleNames(source, "PaletteColors") + terminalColors).distinctInOrder(), terminalColors)
+    }
+
     private fun imageHandles(source: String): ImageHandles {
         val staticNames = mutableListOf<String>()
         val sceneNames = mutableListOf<String>()
@@ -759,6 +787,16 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         return (literalNames + handleNames).distinctInOrder()
     }
 
+    private fun stateNames(source: String): List<String> =
+        Regex("""\b(?:stateFixture|runtimeState)\s*\(\s*States\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(source)
+            .map { it.groupValues[1] }
+            .toList()
+            .distinctInOrder()
+
+    private fun partyNames(source: String): List<String> =
+        handleNames(source, "Parties")
+
     private fun handleNames(block: String, objectName: String, callName: String): List<String> =
         Regex("""\b${Regex.escape(callName)}\s*\(\s*${Regex.escape(objectName)}\.([A-Za-z][A-Za-z0-9_]*)""")
             .findAll(block)
@@ -842,6 +880,9 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
 
     private fun String.toSlug(): String =
         replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase()
+
+    private fun String.toKebab(): String =
+        toSlug().replace('_', '-')
 
     private fun String.toUpperCamel(): String =
         replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
