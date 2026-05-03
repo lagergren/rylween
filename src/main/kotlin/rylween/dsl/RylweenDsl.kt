@@ -67,7 +67,7 @@ open class FlagState internal constructor(
     override val ast: BoolAst = BoolAst.FlagIs(flag.slug, native)
 }
 
-val declaredFlags = mutableListOf<FlagRef>()
+val declaredFlags: MutableList<FlagRef> = mutableListOf()
 
 fun <F : FlagRef> F.declareFlag(): F = also { declaredFlags += it }
 
@@ -184,7 +184,7 @@ class CharacterTextRef(private val role: NpcRole) {
     val name: TextPart = TextPart.RoleName(role)
     val location: TextPart = TextPart.RoleLocation(role)
 }
-fun character(role: NpcRole) = CharacterTextRef(role)
+fun character(role: NpcRole): CharacterTextRef = CharacterTextRef(role)
 
 class TownTextRef(private val town: TownId) {
     val name: TextPart = TextPart.TownName(town)
@@ -195,12 +195,12 @@ interface TownHandle {
     val id: TownId
 }
 
-fun town(town: TownHandle) = TownTextRef(town.id)
+fun town(town: TownHandle): TownTextRef = TownTextRef(town.id)
 
 class LocationTextRef(private val location: LocationId) {
     val coordinates: TextPart = TextPart.LocationCoordinate(location)
 }
-fun location(location: LocationId) = LocationTextRef(location)
+fun location(location: LocationId): LocationTextRef = LocationTextRef(location)
 
 class ItemId private constructor(val slug: String) {
     override fun equals(other: Any?): Boolean =
@@ -422,61 +422,61 @@ data class StaticScreenModel(
     val commandHelp: Boolean = false,
 )
 
-fun text(id: String) = TextId(id)
-fun textPattern(pattern: String) = TextPattern(pattern)
-fun item(slug: String) = ItemId.authored(slug)
-fun itemPool(slug: String, items: List<ItemId> = emptyList()) = ItemPoolId.authored(slug, items)
-fun monster(slug: String) = MonsterId(slug)
-fun encounterTier(slug: String) = EncounterTier(slug)
-fun worldMap(slug: String) = WorldMapId(slug)
-fun mapLayer(slug: String) = MapLayerId(slug)
-fun terrain(slug: String, sourceMapCode: Char? = null) = TerrainId(slug, sourceMapCode)
-fun terrainTag(slug: String) = TerrainTagId(slug)
-fun image(slug: String) = ImageId(slug)
-fun staticScreen(slug: String) = StaticScreenId(slug)
-fun palette(slug: String) = PaletteId(slug)
-fun paletteColor(slug: String) = PaletteColorId(slug)
-fun layout(slug: String) = LayoutId(slug)
-fun screenRegion(slug: String) = ScreenRegionId(slug)
-fun sceneId(slug: String) = SceneId(slug)
-fun spellId(slug: String) = SpellId(slug)
-fun missionId(slug: String) = MissionId(slug)
-fun npcRole(slug: String) = NpcRole(slug)
-fun npcJob(slug: String) = NpcJobId(slug)
-fun nativeOp(slug: String) = NativeOpId(slug)
-fun stateId(slug: String) = StateId(slug)
-fun partyId(slug: String) = PartyId(slug)
-fun npc(slug: String) = NpcId(slug)
-fun location(slug: String) = LocationId(slug)
-fun town(slug: String) = TownId(slug)
-fun building(slug: String) = BuildingId(slug)
-fun formula(slug: String) = FormulaId(slug)
-fun keyAction(slug: String) = KeyActionId(slug)
-fun dungeon(slug: String) = DungeonId(slug)
-fun dungeonEvent(slug: String) = DungeonEventId(slug)
-fun milestone(slug: String) = GameMilestoneId(slug)
-fun lootTable(slug: String) = LootTableId(slug)
-fun rewardBundle(slug: String) = RewardBundleId(slug)
-fun rumourTable(slug: String) = RumourTableId(slug)
-fun rumour(slug: String) = RumourId(slug)
+fun text(id: String): TextId = TextId(id)
+fun textPattern(pattern: String): TextPattern = TextPattern(pattern)
+fun item(slug: String): ItemId = ItemId.authored(slug)
+fun itemPool(slug: String, items: List<ItemId> = emptyList()): ItemPoolId = ItemPoolId.authored(slug, items)
+fun monster(slug: String): MonsterId = MonsterId(slug)
+fun encounterTier(slug: String): EncounterTier = EncounterTier(slug)
+fun worldMap(slug: String): WorldMapId = WorldMapId(slug)
+fun mapLayer(slug: String): MapLayerId = MapLayerId(slug)
+fun terrain(slug: String, sourceMapCode: Char? = null): TerrainId = TerrainId(slug, sourceMapCode)
+fun terrainTag(slug: String): TerrainTagId = TerrainTagId(slug)
+fun image(slug: String): ImageId = ImageId(slug)
+fun staticScreen(slug: String): StaticScreenId = StaticScreenId(slug)
+fun palette(slug: String): PaletteId = PaletteId(slug)
+fun paletteColor(slug: String): PaletteColorId = PaletteColorId(slug)
+fun layout(slug: String): LayoutId = LayoutId(slug)
+fun screenRegion(slug: String): ScreenRegionId = ScreenRegionId(slug)
+fun sceneId(slug: String): SceneId = SceneId(slug)
+fun spellId(slug: String): SpellId = SpellId(slug)
+fun missionId(slug: String): MissionId = MissionId(slug)
+fun npcRole(slug: String): NpcRole = NpcRole(slug)
+fun npcJob(slug: String): NpcJobId = NpcJobId(slug)
+fun nativeOp(slug: String): NativeOpId = NativeOpId(slug)
+fun stateId(slug: String): StateId = StateId(slug)
+fun partyId(slug: String): PartyId = PartyId(slug)
+fun npc(slug: String): NpcId = NpcId(slug)
+fun location(slug: String): LocationId = LocationId(slug)
+fun town(slug: String): TownId = TownId(slug)
+fun building(slug: String): BuildingId = BuildingId(slug)
+fun formula(slug: String): FormulaId = FormulaId(slug)
+fun keyAction(slug: String): KeyActionId = KeyActionId(slug)
+fun dungeon(slug: String): DungeonId = DungeonId(slug)
+fun dungeonEvent(slug: String): DungeonEventId = DungeonEventId(slug)
+fun milestone(slug: String): GameMilestoneId = GameMilestoneId(slug)
+fun lootTable(slug: String): LootTableId = LootTableId(slug)
+fun rewardBundle(slug: String): RewardBundleId = RewardBundleId(slug)
+fun rumourTable(slug: String): RumourTableId = RumourTableId(slug)
+fun rumour(slug: String): RumourId = RumourId(slug)
 
 // Engine-native operation handles are part of the reusable runtime boundary,
 // not game content.
 class NativeOpRefs {
-    val inventoryAdd = nativeOp("inventory.add")
-    val townEnterService = nativeOp("town.enter_service")
-    val rumourRoll = nativeOp("rumour.roll")
-    val inputKeyUpper = nativeOp("input.key_upper")
-    val partyMemberName = nativeOp("party.member.name")
-    val combatMonsterName = nativeOp("combat.monster.name")
-    val partyPronounSubject = nativeOp("party.member.pronoun.subject")
-    val partyPronounObject = nativeOp("party.member.pronoun.object")
-    val partyPronounPossessive = nativeOp("party.member.pronoun.possessive")
-    val townNpcName = nativeOp("town.npc.name")
-    val npcRoleName = nativeOp("npc.role.name")
-    val npcRoleLocation = nativeOp("npc.role.location")
+    val inventoryAdd: NativeOpId = nativeOp("inventory.add")
+    val townEnterService: NativeOpId = nativeOp("town.enter_service")
+    val rumourRoll: NativeOpId = nativeOp("rumour.roll")
+    val inputKeyUpper: NativeOpId = nativeOp("input.key_upper")
+    val partyMemberName: NativeOpId = nativeOp("party.member.name")
+    val combatMonsterName: NativeOpId = nativeOp("combat.monster.name")
+    val partyPronounSubject: NativeOpId = nativeOp("party.member.pronoun.subject")
+    val partyPronounObject: NativeOpId = nativeOp("party.member.pronoun.object")
+    val partyPronounPossessive: NativeOpId = nativeOp("party.member.pronoun.possessive")
+    val townNpcName: NativeOpId = nativeOp("town.npc.name")
+    val npcRoleName: NativeOpId = nativeOp("npc.role.name")
+    val npcRoleLocation: NativeOpId = nativeOp("npc.role.location")
 }
-val NativeOps = NativeOpRefs()
+val NativeOps: NativeOpRefs = NativeOpRefs()
 
 
 // =============================================================================
@@ -554,10 +554,10 @@ data class InputBindingModel(
 }
 
 object InputAliases {
-    const val ArrowUp = "\u001B[A"
-    const val ArrowDown = "\u001B[B"
-    const val ArrowRight = "\u001B[C"
-    const val ArrowLeft = "\u001B[D"
+    const val ArrowUp: String = "\u001B[A"
+    const val ArrowDown: String = "\u001B[B"
+    const val ArrowRight: String = "\u001B[C"
+    const val ArrowLeft: String = "\u001B[D"
 }
 
 fun inputKey(primary: Char, vararg aliases: String, label: String = primary.uppercaseChar().toString()): InputBindingModel =
@@ -890,7 +890,7 @@ data class YesNoKeysModel(
     val no: InputBindingModel = inputKey('N'),
 )
 
-val StandardYesNoKeys = YesNoKeysModel()
+val StandardYesNoKeys: YesNoKeysModel = YesNoKeysModel()
 
 data class BattleTextModel(
     val encounterBanner: TextBlock = inlineText("ENCOUNTER!", ""),
@@ -1085,7 +1085,7 @@ class ShopPriceRefs {
     fun itemCostPlusLeaderLevelTimes(multiplier: Int): ShopPriceModel =
         ShopPriceModel.ItemCostPlusLeaderLevelTimes(multiplier)
 }
-val ShopPrices = ShopPriceRefs()
+val ShopPrices: ShopPriceRefs = ShopPriceRefs()
 
 sealed interface ShopPurchaseModel {
     object InventoryItem : ShopPurchaseModel
@@ -1725,7 +1725,7 @@ enum class RuntimeMode { TitleMenu, Wilderness, Town, Dungeon, Battle, YdargCast
 enum class Facing { North, East, South, West }
 enum class StateKind { AuthoredFixture, RuntimeSnapshot }
 
-const val InventorySaveSlotMax = 16
+const val InventorySaveSlotMax: Int = 16
 
 data class HitPoints(val current: Int, val max: Int)
 infix fun Int.of(max: Int): HitPoints = HitPoints(this, max)
@@ -1900,28 +1900,28 @@ class IntSlot(
     private val lvalue: LValueAst,
     override val ast: IntAst,
 ) : IntExpr() {
-    infix fun set(value: IntExpr) = script.record(Op.Set(lvalue, value.ast))
-    infix fun set(value: Int) = set(lit(value))
-    operator fun plusAssign(value: IntExpr) = script.record(Op.Add(lvalue, value.ast))
-    operator fun plusAssign(value: Int) = plusAssign(lit(value))
-    operator fun minusAssign(value: IntExpr) = script.record(Op.Sub(lvalue, value.ast))
-    operator fun minusAssign(value: Int) = minusAssign(lit(value))
-    operator fun timesAssign(value: IntExpr) = script.record(Op.Set(lvalue, (this * value).ast))
-    operator fun timesAssign(value: Int) = timesAssign(lit(value))
-    operator fun divAssign(value: IntExpr) = script.record(Op.Set(lvalue, (this / value).ast))
-    operator fun divAssign(value: Int) = divAssign(lit(value))
-    fun addClamped(value: IntExpr, max: IntExpr) = script.record(Op.AddClamped(lvalue, value.ast, max.ast))
-    fun addClamped(value: Int, max: IntExpr) = addClamped(lit(value), max)
+    infix fun set(value: IntExpr): Unit = script.record(Op.Set(lvalue, value.ast))
+    infix fun set(value: Int): Unit = set(lit(value))
+    operator fun plusAssign(value: IntExpr): Unit = script.record(Op.Add(lvalue, value.ast))
+    operator fun plusAssign(value: Int): Unit = plusAssign(lit(value))
+    operator fun minusAssign(value: IntExpr): Unit = script.record(Op.Sub(lvalue, value.ast))
+    operator fun minusAssign(value: Int): Unit = minusAssign(lit(value))
+    operator fun timesAssign(value: IntExpr): Unit = script.record(Op.Set(lvalue, (this * value).ast))
+    operator fun timesAssign(value: Int): Unit = timesAssign(lit(value))
+    operator fun divAssign(value: IntExpr): Unit = script.record(Op.Set(lvalue, (this / value).ast))
+    operator fun divAssign(value: Int): Unit = divAssign(lit(value))
+    fun addClamped(value: IntExpr, max: IntExpr): Unit = script.record(Op.AddClamped(lvalue, value.ast, max.ast))
+    fun addClamped(value: Int, max: IntExpr): Unit = addClamped(lit(value), max)
 }
 
 class RealmRef(private val script: ScriptScope) {
-    val hour = IntSlot(script, LValueAst.RealmScalar("hour"), IntAst.RealmScalar("hour"))
-    val partyMemberMax = IntSlot(
+    val hour: IntSlot = IntSlot(script, LValueAst.RealmScalar("hour"), IntAst.RealmScalar("hour"))
+    val partyMemberMax: IntSlot = IntSlot(
         script,
         LValueAst.RealmScalar("party_member_max"),
         IntAst.RealmScalar("party_member_max"),
     )
-    val banished = BoolSlot(
+    val banished: BoolSlot = BoolSlot(
         script,
         LValueAst.RealmScalar("banished"),
         BoolAst.Cmp(IntAst.RealmScalar("banished"), "ne", IntAst.Lit(0)),
@@ -1940,17 +1940,17 @@ class BoolSlot(
     private val read: BoolAst,
 ) : BoolExpr() {
     override val ast: BoolAst = read
-    infix fun set(value: Boolean) = script.record(Op.Set(lvalue, IntAst.Lit(if (value) 1 else 0)))
+    infix fun set(value: Boolean): Unit = script.record(Op.Set(lvalue, IntAst.Lit(if (value) 1 else 0)))
 }
 
 class PartyRef(private val script: ScriptScope) {
-    val gold = IntSlot(script, LValueAst.PartyScalar("gold"), IntAst.PartyScalar("gold"))
-    val torches = IntSlot(script, LValueAst.PartyScalar("torches"), IntAst.PartyScalar("torches"))
-    val food = IntSlot(script, LValueAst.PartyScalar("food"), IntAst.PartyScalar("food"))
-    val timeLeft = IntSlot(script, LValueAst.PartyScalar("time_left"), IntAst.PartyScalar("time_left"))
-    val restedHours = IntSlot(script, LValueAst.PartyScalar("rested_hours"), IntAst.PartyScalar("rested_hours"))
-    val memberCount = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
-    val inventory = PartyInventoryRef(script)
+    val gold: IntSlot = IntSlot(script, LValueAst.PartyScalar("gold"), IntAst.PartyScalar("gold"))
+    val torches: IntSlot = IntSlot(script, LValueAst.PartyScalar("torches"), IntAst.PartyScalar("torches"))
+    val food: IntSlot = IntSlot(script, LValueAst.PartyScalar("food"), IntAst.PartyScalar("food"))
+    val timeLeft: IntSlot = IntSlot(script, LValueAst.PartyScalar("time_left"), IntAst.PartyScalar("time_left"))
+    val restedHours: IntSlot = IntSlot(script, LValueAst.PartyScalar("rested_hours"), IntAst.PartyScalar("rested_hours"))
+    val memberCount: IntSlot = IntSlot(script, LValueAst.PartyScalar("member_count"), IntAst.PartyScalar("member_count"))
+    val inventory: PartyInventoryRef = PartyInventoryRef(script)
     val leader: MemberRef get() = member(lit(1))
     fun member(index: Int): MemberRef = member(lit(index))
     fun member(index: IntExpr): MemberRef = MemberRef(script, index)
@@ -1966,7 +1966,7 @@ class PartyInventoryRef(private val script: ScriptScope) {
         script.record(Op.ConsumeInventoryPool(pool, quantity.ast))
     }
 
-    fun consume(pool: ItemPoolId, quantity: Int) = consume(pool, lit(quantity))
+    fun consume(pool: ItemPoolId, quantity: Int): Unit = consume(pool, lit(quantity))
 
     fun clear(slot: InventorySlotRef) {
         script.record(Op.ClearInventorySlot(slot.index.ast))
@@ -1974,19 +1974,19 @@ class PartyInventoryRef(private val script: ScriptScope) {
 }
 
 class MemberRef(private val script: ScriptScope, val index: IntExpr) {
-    val hp = intField("hit_points")
-    val maxHp = intField("health")
-    val mp = intField("magic")
-    val maxMp = intField("magic_max")
-    val mana = mp
-    val maxMana = maxMp
-    val level = intField("level")
-    val experience = intField("experience")
-    val wisdom = intField("wisdom")
-    val charisma = intField("charisma")
-    val weaponSkill = intField("weapon_skill")
-    val pcClass = intField("class")
-    val dead = BoolSlot(
+    val hp: IntSlot = intField("hit_points")
+    val maxHp: IntSlot = intField("health")
+    val mp: IntSlot = intField("magic")
+    val maxMp: IntSlot = intField("magic_max")
+    val mana: IntSlot = mp
+    val maxMana: IntSlot = maxMp
+    val level: IntSlot = intField("level")
+    val experience: IntSlot = intField("experience")
+    val wisdom: IntSlot = intField("wisdom")
+    val charisma: IntSlot = intField("charisma")
+    val weaponSkill: IntSlot = intField("weapon_skill")
+    val pcClass: IntSlot = intField("class")
+    val dead: BoolSlot = BoolSlot(
         script,
         LValueAst.MemberField(index.ast, "dead"),
         BoolAst.MemberFlag(index.ast, "dead"),
@@ -2003,8 +2003,8 @@ class MemberRef(private val script: ScriptScope, val index: IntExpr) {
 }
 
 class MonsterRef(private val script: ScriptScope, val index: IntExpr) {
-    val hp = IntSlot(script, LValueAst.MonsterField(index.ast, "hit_points"), IntAst.MonsterField(index.ast, "hit_points"))
-    val dead = BoolSlot(
+    val hp: IntSlot = IntSlot(script, LValueAst.MonsterField(index.ast, "hit_points"), IntAst.MonsterField(index.ast, "hit_points"))
+    val dead: BoolSlot = BoolSlot(
         script,
         LValueAst.MonsterField(index.ast, "dead"),
         BoolAst.MonsterFlag(index.ast, "dead"),
@@ -2012,18 +2012,18 @@ class MonsterRef(private val script: ScriptScope, val index: IntExpr) {
 }
 
 class BattleRef(private val script: ScriptScope) {
-    val monsterWeaponSkill = IntSlot(
+    val monsterWeaponSkill: IntSlot = IntSlot(
         script,
         LValueAst.BattleFlag("monster_weapon_skill"),
         IntAst.BattleFlag("monster_weapon_skill"),
     )
     val encounterHitPointMax: IntExpr = Expr(IntAst.BattleFlag("encounter_hit_point_max"))
-    val monsterConfused = boolFlag("monster_confused")
-    val monstersHeld = boolFlag("monsters_held")
-    val antimagic = boolFlag("antimagic")
-    val partyHeld = boolFlag("party_held")
-    val partyConfused = boolFlag("party_confused")
-    val actionRetry = boolFlag("action_retry")
+    val monsterConfused: BoolSlot = boolFlag("monster_confused")
+    val monstersHeld: BoolSlot = boolFlag("monsters_held")
+    val antimagic: BoolSlot = boolFlag("antimagic")
+    val partyHeld: BoolSlot = boolFlag("party_held")
+    val partyConfused: BoolSlot = boolFlag("party_confused")
+    val actionRetry: BoolSlot = boolFlag("action_retry")
 
     fun firstAliveMonster(): MonsterRef =
         MonsterRef(script, script.localInt(Expr(IntAst.BattleQuery("first_alive_monster")), "monster"))
@@ -2051,20 +2051,20 @@ class NativeIntSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
 class NativeStringSpec(id: NativeOpId, reason: String) : NativeSpec(id, reason)
 
 class NativeAllowlistRefs {
-    val inventoryAdd = effect(NativeOps.inventoryAdd, "inventory slot mutation")
-    val townEnterService = effect(NativeOps.townEnterService, "town building-service trampoline")
+    val inventoryAdd: NativeEffectSpec = effect(NativeOps.inventoryAdd, "inventory slot mutation")
+    val townEnterService: NativeEffectSpec = effect(NativeOps.townEnterService, "town building-service trampoline")
 
-    val rumourRoll = int(NativeOps.rumourRoll, "imported rumour scene roll bridge")
-    val inputKeyUpper = int(NativeOps.inputKeyUpper, "keyboard input normalization")
+    val rumourRoll: NativeIntSpec = int(NativeOps.rumourRoll, "imported rumour scene roll bridge")
+    val inputKeyUpper: NativeIntSpec = int(NativeOps.inputKeyUpper, "keyboard input normalization")
 
-    val partyMemberName = string(NativeOps.partyMemberName, "party-member display name binding")
-    val combatMonsterName = string(NativeOps.combatMonsterName, "combat monster display name binding")
-    val partyPronounSubject = string(NativeOps.partyPronounSubject, "party-member pronoun binding")
-    val partyPronounObject = string(NativeOps.partyPronounObject, "party-member pronoun binding")
-    val partyPronounPossessive = string(NativeOps.partyPronounPossessive, "party-member pronoun binding")
-    val townNpcName = string(NativeOps.townNpcName, "current-town NPC display name binding")
-    val npcRoleName = string(NativeOps.npcRoleName, "role-resolved NPC name binding")
-    val npcRoleLocation = string(NativeOps.npcRoleLocation, "role-resolved NPC location binding")
+    val partyMemberName: NativeStringSpec = string(NativeOps.partyMemberName, "party-member display name binding")
+    val combatMonsterName: NativeStringSpec = string(NativeOps.combatMonsterName, "combat monster display name binding")
+    val partyPronounSubject: NativeStringSpec = string(NativeOps.partyPronounSubject, "party-member pronoun binding")
+    val partyPronounObject: NativeStringSpec = string(NativeOps.partyPronounObject, "party-member pronoun binding")
+    val partyPronounPossessive: NativeStringSpec = string(NativeOps.partyPronounPossessive, "party-member pronoun binding")
+    val townNpcName: NativeStringSpec = string(NativeOps.townNpcName, "current-town NPC display name binding")
+    val npcRoleName: NativeStringSpec = string(NativeOps.npcRoleName, "role-resolved NPC name binding")
+    val npcRoleLocation: NativeStringSpec = string(NativeOps.npcRoleLocation, "role-resolved NPC location binding")
 
     val all: List<NativeSpec> = listOf(
         inventoryAdd,
@@ -2091,7 +2091,7 @@ class NativeAllowlistRefs {
     private fun int(id: NativeOpId, reason: String) = NativeIntSpec(id, reason)
     private fun string(id: NativeOpId, reason: String) = NativeStringSpec(id, reason)
 }
-val NativeAllowlist = NativeAllowlistRefs()
+val NativeAllowlist: NativeAllowlistRefs = NativeAllowlistRefs()
 
 fun partyName(member: MemberRef): StrExpr =
     Str(StrAst.NativeString(NativeAllowlist.partyMemberName.path, listOf(NativeStringArg.IntValue(member.index.ast))))
@@ -2198,15 +2198,15 @@ class ScriptScope(
     private val ctx: ScriptContext,
     private val ops: MutableList<Op>,
 ) {
-    val realm = RealmRef(this)
-    val context = RuntimeContextRef()
-    val party = PartyRef(this)
-    val battle = BattleRef(this)
-    val ask = AskScope(this)
-    val choice = ChoiceScope(this)
-    val view = ViewScope(this)
+    val realm: RealmRef = RealmRef(this)
+    val context: RuntimeContextRef = RuntimeContextRef()
+    val party: PartyRef = PartyRef(this)
+    val battle: BattleRef = BattleRef(this)
+    val ask: AskScope = AskScope(this)
+    val choice: ChoiceScope = ChoiceScope(this)
+    val view: ViewScope = ViewScope(this)
     val rumour: RumourScriptScope = RumourScriptScope
-    val native = NativeScope(this)
+    val native: NativeScope = NativeScope(this)
 
     val currentCaster: MemberRef
         get() = party.member(v("caster_idx"))
@@ -2217,29 +2217,29 @@ class ScriptScope(
 
     fun fresh(prefix: String): String = ctx.fresh(prefix)
 
-    fun screen(text: TextBlock) = record(Op.Screen(text))
-    fun screen(id: TextId) = screen(TextBlock.Ref(id))
-    fun screen(vararg lines: String) = screen(textLines(*lines))
-    fun screen(body: StructuredTextBlockBuilder.() -> Unit) = screen(structuredText(body))
+    fun screen(text: TextBlock): Unit = record(Op.Screen(text))
+    fun screen(id: TextId): Unit = screen(TextBlock.Ref(id))
+    fun screen(vararg lines: String): Unit = screen(textLines(*lines))
+    fun screen(body: StructuredTextBlockBuilder.() -> Unit): Unit = screen(structuredText(body))
 
-    fun say(text: TextBlock) = screen(text)
-    fun say(id: TextId) = screen(id)
-    fun say(vararg lines: String) = screen(*lines)
-    fun say(body: StructuredTextBlockBuilder.() -> Unit) = screen(body)
-    fun emit(id: TextId) = record(Op.Emit(id))
-    fun emitIndexed(pattern: TextPattern, value: IntExpr) = record(Op.EmitIndexed(pattern, value.ast))
-    fun journal(text: TextBlock) = record(Op.AppendJournal(text))
-    fun journal(vararg lines: String) = journal(textLines(*lines))
-    fun journal(body: StructuredTextBlockBuilder.() -> Unit) = journal(structuredText(body))
-    fun waitInput(reason: String? = null) = record(Op.WaitInput(reason))
-    fun pause(ms: Int) = record(Op.Pause(ms))
+    fun say(text: TextBlock): Unit = screen(text)
+    fun say(id: TextId): Unit = screen(id)
+    fun say(vararg lines: String): Unit = screen(*lines)
+    fun say(body: StructuredTextBlockBuilder.() -> Unit): Unit = screen(body)
+    fun emit(id: TextId): Unit = record(Op.Emit(id))
+    fun emitIndexed(pattern: TextPattern, value: IntExpr): Unit = record(Op.EmitIndexed(pattern, value.ast))
+    fun journal(text: TextBlock): Unit = record(Op.AppendJournal(text))
+    fun journal(vararg lines: String): Unit = journal(textLines(*lines))
+    fun journal(body: StructuredTextBlockBuilder.() -> Unit): Unit = journal(structuredText(body))
+    fun waitInput(reason: String? = null): Unit = record(Op.WaitInput(reason))
+    fun pause(ms: Int): Unit = record(Op.Pause(ms))
 
-    fun clearText() = view.clearText()
-    fun clearMapWindow() = view.clearMapWindow()
-    fun renderMap() = view.renderMap()
-    fun showBackdrop(image: ImageId) = view.showBackdrop(image)
-    fun showImage(image: ImageId) = view.showImage(image)
-    fun statusLine() = view.statusLine()
+    fun clearText(): Unit = view.clearText()
+    fun clearMapWindow(): Unit = view.clearMapWindow()
+    fun renderMap(): Unit = view.renderMap()
+    fun showBackdrop(image: ImageId): Unit = view.showBackdrop(image)
+    fun showImage(image: ImageId): Unit = view.showImage(image)
+    fun statusLine(): Unit = view.statusLine()
 
     fun let(name: String, value: IntExpr): IntExpr {
         record(Op.LetInt(name, value.ast))
@@ -2260,19 +2260,19 @@ class ScriptScope(
         record(Op.LetInt(name, value.ast))
     }
 
-    infix fun LocalIntRef.set(value: Int) = set(lit(value))
+    infix fun LocalIntRef.set(value: Int): Unit = set(lit(value))
 
     operator fun LocalIntRef.plusAssign(value: IntExpr) {
         record(Op.LetInt(name, (this + value).ast))
     }
 
-    operator fun LocalIntRef.plusAssign(value: Int) = plusAssign(lit(value))
+    operator fun LocalIntRef.plusAssign(value: Int): Unit = plusAssign(lit(value))
 
     operator fun LocalIntRef.minusAssign(value: IntExpr) {
         record(Op.LetInt(name, (this - value).ast))
     }
 
-    operator fun LocalIntRef.minusAssign(value: Int) = minusAssign(lit(value))
+    operator fun LocalIntRef.minusAssign(value: Int): Unit = minusAssign(lit(value))
 
     fun bind(name: String, value: StrExpr) {
         record(Op.BindText(name, value.ast))
@@ -2292,8 +2292,8 @@ class ScriptScope(
     @Deprecated("Use whenever(...) in author-facing script blocks.")
     fun when_(cond: BoolExpr, then: ScriptScope.() -> Unit): ElseBranch = whenever(cond, then)
 
-    fun stop(reason: String? = null) = record(Op.Stop(reason))
-    fun breakLoop(reason: String? = null) = record(Op.Break(reason))
+    fun stop(reason: String? = null): Unit = record(Op.Stop(reason))
+    fun breakLoop(reason: String? = null): Unit = record(Op.Break(reason))
 
     fun loop(body: ScriptScope.() -> Unit) {
         record(Op.Loop(capture(body)))
@@ -2345,7 +2345,7 @@ class ScriptScope(
         }
     }
 
-    fun healLivingMembers(amount: Int) = healLivingMembers(lit(amount))
+    fun healLivingMembers(amount: Int): Unit = healLivingMembers(lit(amount))
 
     fun run(scene: SceneId, vararg bindings: Pair<String, Any>) {
         record(Op.RunScene(scene, bindings.associate { it.first to render(it.second) }))
@@ -2387,9 +2387,9 @@ class ScriptScope(
         discoverCave(lit(levels), dungeon, lit(moveCost))
     }
 
-    fun consumeActiveItem() = record(Op.ConsumeActiveItem)
+    fun consumeActiveItem(): Unit = record(Op.ConsumeActiveItem)
 
-    fun consumeTorch() = record(Op.ConsumeTorch)
+    fun consumeTorch(): Unit = record(Op.ConsumeTorch)
 
     fun reward(body: ScriptRewardBuilder.() -> Unit) {
         record(Op.GrantReward(ScriptRewardBuilder().apply(body).build()))
@@ -3160,7 +3160,7 @@ class ElseBranch(
 
 @RylNextDsl
 class SwitchBuilder(private val ctx: ScriptContext) {
-    val cases = mutableListOf<SwitchCase>()
+    val cases: MutableList<SwitchCase> = mutableListOf()
 
     fun case(value: Int, body: ScriptScope.() -> Unit) {
         cases += SwitchCase(value, recordScript(ctx, body))
@@ -3390,13 +3390,13 @@ class ChoiceScope(private val script: ScriptScope) {
 data class InventorySlotRef(val index: IntExpr)
 
 class ViewScope(private val script: ScriptScope) {
-    fun clearText() = script.record(Op.View(ViewCommand.ClearText))
-    fun clearMapWindow() = script.record(Op.View(ViewCommand.ClearMapWindow))
-    fun renderMap() = script.record(Op.View(ViewCommand.RenderMap))
-    fun redrawMap() = renderMap()
-    fun showBackdrop(image: ImageId) = showImage(image)
-    fun showImage(image: ImageId) = script.record(Op.View(ViewCommand.ShowImage(image)))
-    fun statusLine() = script.record(Op.View(ViewCommand.StatusLine))
+    fun clearText(): Unit = script.record(Op.View(ViewCommand.ClearText))
+    fun clearMapWindow(): Unit = script.record(Op.View(ViewCommand.ClearMapWindow))
+    fun renderMap(): Unit = script.record(Op.View(ViewCommand.RenderMap))
+    fun redrawMap(): Unit = renderMap()
+    fun showBackdrop(image: ImageId): Unit = showImage(image)
+    fun showImage(image: ImageId): Unit = script.record(Op.View(ViewCommand.ShowImage(image)))
+    fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
 }
 
 object RumourScriptScope {
@@ -3407,28 +3407,28 @@ class NativeScope(private val script: ScriptScope) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
     // plumbing, and helper calls whose implementation is genuinely engine-owned.
     // Game rules should become typed DSL verbs before they are allowed here.
-    val screen = NativeScreen(script)
+    val screen: NativeScreen = NativeScreen(script)
     val rumour: NativeRumour = NativeRumour
-    val inventory = NativeInventory(script)
-    val town = NativeTown(script)
-    val input = NativeInput(script)
+    val inventory: NativeInventory = NativeInventory(script)
+    val town: NativeTown = NativeTown(script)
+    val input: NativeInput = NativeInput(script)
 }
 
 class NativeScreen(private val script: ScriptScope) {
     @Deprecated("Use view.clearText() or clearText(); rendering is no longer a native string request.")
-    fun clearText() = script.record(Op.View(ViewCommand.ClearText))
+    fun clearText(): Unit = script.record(Op.View(ViewCommand.ClearText))
 
     @Deprecated("Use view.clearMapWindow() or clearMapWindow(); rendering is no longer a native string request.")
-    fun clearMapWindow() = script.record(Op.View(ViewCommand.ClearMapWindow))
+    fun clearMapWindow(): Unit = script.record(Op.View(ViewCommand.ClearMapWindow))
 
     @Deprecated("Use view.renderMap() or renderMap(); rendering is no longer a native string request.")
-    fun redrawMap() = script.record(Op.View(ViewCommand.RenderMap))
+    fun redrawMap(): Unit = script.record(Op.View(ViewCommand.RenderMap))
 
     @Deprecated("Use view.showBackdrop(...) or showBackdrop(...); rendering is no longer a native string request.")
-    fun showImage(image: ImageId) = script.record(Op.View(ViewCommand.ShowImage(image)))
+    fun showImage(image: ImageId): Unit = script.record(Op.View(ViewCommand.ShowImage(image)))
 
     @Deprecated("Use view.statusLine() or statusLine(); rendering is no longer a native string request.")
-    fun statusLine() = script.record(Op.View(ViewCommand.StatusLine))
+    fun statusLine(): Unit = script.record(Op.View(ViewCommand.StatusLine))
 }
 
 object NativeRumour {
@@ -3437,12 +3437,12 @@ object NativeRumour {
 }
 
 class NativeInventory(private val script: ScriptScope) {
-    fun add(itemId: IntExpr) =
+    fun add(itemId: IntExpr): Unit =
         script.record(Op.NativeCall(NativeAllowlist.inventoryAdd.path, listOf(render(itemId))))
 }
 
 class NativeTown(private val script: ScriptScope) {
-    fun enterService(building: BuildingId) =
+    fun enterService(building: BuildingId): Unit =
         script.record(Op.NativeCall(NativeAllowlist.townEnterService.path, listOf(render(building))))
 }
 
@@ -5338,11 +5338,11 @@ class ItemUseBuilder(private val id: ItemId) {
         this.contexts += contexts
     }
 
-    fun combat() = usableIn(ItemUseContext.Combat)
+    fun combat(): Unit = usableIn(ItemUseContext.Combat)
 
-    fun inventory() = usableIn(ItemUseContext.Inventory)
+    fun inventory(): Unit = usableIn(ItemUseContext.Inventory)
 
-    fun combatAndInventory() = usableIn(ItemUseContext.Combat, ItemUseContext.Inventory)
+    fun combatAndInventory(): Unit = usableIn(ItemUseContext.Combat, ItemUseContext.Inventory)
 
     fun effect(body: ScriptScope.() -> Unit) {
         ops = recordScript(body)
@@ -6781,7 +6781,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
     }
     model.spells.forEach { ops(it.ops) }
     model.itemUses.forEach { ops(it.ops) }
-    model.missions.forEach {
+    model.missions.forEach { it ->
         it.requires?.let { bool(it) }
     }
     return paths

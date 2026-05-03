@@ -623,10 +623,9 @@ class DungeonSessionTerminalAdapter(
                             val continuation = checkNotNull(result.continuation) {
                                 "waiting dungeon event did not return continuation"
                             }
-                            val battle = continuation.battleSession
-                            if (battle == null) {
-                                return waiting(session.replaceEventContinuation(continuation), result.rejection)
-                            }
+                            val battle = continuation.battleSession ?: return waiting(
+                                session.replaceEventContinuation(continuation), result.rejection
+                            )
                             val battleResult = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(battle)
                             val updated = session.replaceEventContinuation(
                                 continuation.copy(
