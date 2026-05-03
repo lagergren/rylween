@@ -410,7 +410,7 @@ private class RylweenAnsiGame(
         return when (val token = terminal.readKeyToken()) {
             null -> session.copy(step = WildernessSessionStep.Finished(session.runtime))
             else -> {
-                val input = session.wilderness.keys.exploreInput(token)
+                val input = session.exploreCommands().inputForToken(token)
                 if (session.wilderness.keys.redraw.matches(token)) {
                     screen.bootFrame()
                     screen.renderHud(session)

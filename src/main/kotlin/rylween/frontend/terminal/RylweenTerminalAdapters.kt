@@ -1094,8 +1094,7 @@ class WildernessSessionTerminalAdapter(
                 }
                 WildernessSessionStep.Explore -> {
                     writeExplore(session)
-                    val keys = session.wilderness.keys
-                    val choices = keys.exploreCommands().terminalChoices()
+                    val choices = session.exploreCommands().terminalChoices()
                     terminal.readChoice(choices)
                         .sessionOrWait(session, { return it }) { session.apply(it) }
                 }

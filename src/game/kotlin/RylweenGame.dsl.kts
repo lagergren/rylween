@@ -158,6 +158,20 @@ val nextRylween = rylween {
         }
     }
 
+    secrets {
+        player("Marcus Lagergren") {
+            addTimeLeft('/', amount = 50, refreshStatus = true)
+            setInventory('(', slot = 12, item = Items.drumsOfDeath)
+            setInventory(')', slot = 11, item = Items.gemOfResurrection)
+            setInventory('&', slot = 10, item = Items.kaelsAxe)
+            setInventory('*', slot = 9, item = Items.holyHandgrenade)
+            addGold('+', amount = 1000, refreshStatus = true)
+        }
+        player("Karl Skagerberg") {
+            spawnEncounterEvery(everySteps = 101, monster = Monsters.skagerbergKiller)
+        }
+    }
+
     worldMap(Maps.wilderness) {
         layer(MapLayers.terrain) {
             rows(

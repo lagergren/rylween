@@ -533,6 +533,55 @@ fun validateYdargSystem(
     validateYdargText(ydarg.text)
 }
 
+fun validateSecretSystem(
+    secrets: SecretSystemModel,
+    itemCatalog: List<ItemRecordModel>,
+    monsters: List<MonsterModel>,
+) {
+    val playerNames = secrets.players.map { it.playerName }
+    check(playerNames.toSet().size == playerNames.size) { "duplicate secret player name" }
+
+    val itemIds = itemCatalog.map { it.id }.toSet()
+    val monsterIds = monsters.map { it.id }.toSet()
+    secrets.players.forEach { player ->
+        check(player.playerName.isNotBlank()) { "secret player name is blank" }
+        player.stepTrigger?.let { trigger ->
+            check(trigger.everySteps > 0) {
+                "secret player ${player.playerName} step trigger must be positive"
+            }
+            validateSecretAction(trigger.action, "secret player ${player.playerName} step trigger", itemIds, monsterIds)
+        }
+        player.keyActions.forEach { keyAction ->
+            validateInputChoiceBinding(keyAction.binding, "secret player ${player.playerName} key")
+            validateSecretAction(keyAction.action, "secret player ${player.playerName} key", itemIds, monsterIds)
+        }
+        checkUniqueBindings(
+            player.keyActions.map { it.binding },
+            "secret player ${player.playerName}",
+        )
+    }
+}
+
+private fun validateSecretAction(
+    action: SecretActionModel,
+    label: String,
+    itemIds: Set<ItemId>,
+    monsterIds: Set<MonsterId>,
+) {
+    when (action) {
+        is SecretActionModel.AddGold -> check(action.amount >= 0) { "$label adds negative gold" }
+        is SecretActionModel.AddTimeLeft -> check(action.amount >= 0) { "$label adds negative time left" }
+        is SecretActionModel.SetInventory -> {
+            check(action.slot in 1..InventorySaveSlotMax) {
+                "$label inventory slot must be in 1..$InventorySaveSlotMax"
+            }
+            check(action.item in itemIds) { "$label references missing item ${action.item.slug}" }
+        }
+        is SecretActionModel.SpawnEncounter ->
+            check(action.monster in monsterIds) { "$label references missing monster ${action.monster.slug}" }
+    }
+}
+
 private fun validateYdargKeys(keys: YdargKeysModel) {
     val navigate = listOf(
         "move north" to keys.moveNorth,
@@ -2010,6 +2059,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("ydarg") {
             validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters)
         }
+        captureValidation("secrets") { validateSecretSystem(content.secrets, content.itemCatalog, content.monsters) }
         captureValidation("towns") { validateTowns(content.towns) }
         captureValidation("townSystem") { validateTownSystem(content.townSystem, content.towns, content.scenes) }
         captureValidation("characters") { validateCharacters(content.characters, content.towns) }

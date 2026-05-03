@@ -36,6 +36,7 @@ sealed interface WildernessSessionInput {
     object Quit : WildernessSessionInput
     data class QuitAnswer(val yes: Boolean) : WildernessSessionInput
     data class OutOfMovesAnswer(val save: Boolean) : WildernessSessionInput
+    data class SecretKey(val action: SecretActionModel) : WildernessSessionInput
 }
 
 enum class WildernessSessionResultStatus {
@@ -93,6 +94,7 @@ enum class WildernessSessionResultStatus {
     QuitCancelled,
     OutOfMovesSaveAndQuit,
     OutOfMovesQuitNoSave,
+    SecretApplied,
     Finished,
 }
 
@@ -336,10 +338,12 @@ data class WildernessSession(
     val progress: GameProgressModel get() = content.progress
     val realm: RealmContentModel get() = content.realm
     val prompts: WildernessPromptsModel get() = content.prompts.wilderness
+    val secrets: SecretSystemModel get() = content.secrets
     val party: PartyState get() = runtime.activeParty
 
     fun apply(input: WildernessSessionInput): WildernessSession =
         when (input) {
+            is WildernessSessionInput.SecretKey -> applySecretAction(input.action)
             is WildernessSessionInput.Move -> move(input.direction)
             WildernessSessionInput.Pass -> pass()
             WildernessSessionInput.Save -> requestSave(quitAfterSave = false)
@@ -372,6 +376,9 @@ data class WildernessSession(
             is WildernessSessionInput.OutOfMovesAnswer -> answerOutOfMoves(input.save)
         }
 
+    fun exploreCommands(): List<InputCommand<WildernessSessionInput>> =
+        wilderness.keys.exploreCommands() + secrets.keyCommandsFor(party)
+
     fun beginTurn(): WildernessSession {
         require(step is WildernessSessionStep.TurnStart) { "wilderness session is not starting a turn" }
         val upkeep = runtime.applyWildernessUpkeep(realm.upkeep)
@@ -400,6 +407,19 @@ data class WildernessSession(
             ?: error("wilderness session is not showing messages")
         return copy(step = current.next)
     }
+
+    private fun applySecretAction(action: SecretActionModel): WildernessSession =
+        when (action) {
+            is SecretActionModel.SpawnEncounter -> startSecretEncounter(action.monster)
+            else -> {
+                val applied = runtime.applySecretAction(action)
+                copy(
+                    runtime = applied.runtime,
+                    step = if (applied.refreshStatus) WildernessSessionStep.Explore else step,
+                    lastResult = WildernessSessionResult(WildernessSessionResultStatus.SecretApplied),
+                )
+            }
+        }
 
     fun completeSave(saved: Boolean): WildernessSession {
         val current = step as? WildernessSessionStep.Save
@@ -1044,6 +1064,12 @@ data class WildernessSession(
             }
         }
 
+        when (val secretAction = secrets.stepTriggerFor(missionTrigger.runtime)?.action) {
+            is SecretActionModel.SpawnEncounter ->
+                return startSecretEncounter(secretAction.monster, missionTrigger.runtime, moved)
+            else -> Unit
+        }
+
         val eventDraw = missionTrigger.runtime.drawRandom(0, 99)
         val eventRuntime = eventDraw.runtime
         if (eventDraw.value < events.caveChancePercent) {
@@ -1094,6 +1120,37 @@ data class WildernessSession(
                 to = to,
                 terrain = toTerrain,
                 encounterTier = tier,
+            ),
+        )
+    }
+
+    private fun startSecretEncounter(
+        monster: MonsterId,
+        encounterRuntime: RuntimeSessionState = runtime,
+        result: WildernessSessionResult? = lastResult,
+    ): WildernessSession {
+        val monsterModel = requireNotNull(monsters.firstOrNull { it.id == monster }) {
+            "secret encounter references missing monster ${monster.slug}"
+        }
+        val battleRuntime = encounterRuntime.withRealm(
+            encounterRuntime.realm.copy(
+                currentMode = RuntimeMode.Battle,
+                currentTown = null,
+                currentMap = worldMap.id,
+            ),
+        )
+        val battleSession = BattleSession.startMonster(
+            runtime = battleRuntime,
+            monster = monsterModel,
+            content = content,
+            mandatory = true,
+        )
+        return copy(
+            runtime = battleSession.runtime,
+            step = WildernessSessionStep.Battle(battleSession),
+            lastResult = (result ?: WildernessSessionResult(WildernessSessionResultStatus.EncounterHandoff)).copy(
+                status = WildernessSessionResultStatus.EncounterHandoff,
+                encounterTier = monsterModel.tier,
             ),
         )
     }
