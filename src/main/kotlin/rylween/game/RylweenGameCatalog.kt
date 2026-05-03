@@ -1,8 +1,8 @@
-// RylweenGameCatalog.kt -- current Rylween game handles and catalog records.
+// RylweenGameCatalog.kt -- transitional current-game handles.
 //
 // This is ordinary Kotlin source for now, not generated metadata. It is kept in
-// main only because the app, tests, and current game script helpers still need
-// named current-game handles until generated/declaration-derived handles exist.
+// main only for handle families that have not yet moved to generated,
+// declaration-derived current-game handles.
 
 @file:Suppress(
     "unused",
@@ -186,102 +186,6 @@ class StoryFlags {
 val Story = StoryFlags()
 val Flags = Story
 
-
-// -----------------------------------------------------------------------------
-// Current game item handles.
-// -----------------------------------------------------------------------------
-
-class ItemRefs {
-    // Weapons.
-    val blank = item("blank")
-    val none = blank
-    val sword = item("sword")
-    val axe = item("axe")
-    val bow = item("bow")
-    val club = item("club")
-    val dart = item("dart")
-    val sling = item("sling")
-    val longsword = item("longsword")
-    val trident = item("trident")
-    val halbard = item("halbard")
-    val poleArm = item("pole_arm")
-    val crossbow = item("crossbow")
-    val scythe = item("scythe")
-    val scimitar = item("scimitar")
-    val twoHandSword = item("two_hand_sword")
-    val magicDagger = item("magic_dagger")
-    val magicSword = item("magic_sword")
-    val magicAxe = item("magic_axe")
-    val dancingSword = item("dancing_sword")
-    val deathBlade = item("death_blade")
-
-    // Armor.
-    val leather = item("leather")
-    val chainMail = item("chain_mail")
-    val plateMail = item("plate_mail")
-    val ringMail = item("ring_mail")
-    val elvinCloak = item("elvin_cloak")
-    val mithrilMail = item("mithril_mail")
-    val admtMail = item("admt_mail")
-    val protSphere = item("prot_sphere")
-    val cloakOfGods = item("cloak_of_gods")
-
-    // Gear.
-    val torch = item("torch")
-    val ration = item("ration")
-    val blanket = item("blanket")
-    val tent = item("tent")
-    val rope = item("rope")
-
-    // Potions.
-    val redPotion = item("red_potion")
-    val bluePotion = item("blue_potion")
-    val amberPotion = item("amber_potion")
-
-    // Treasures.
-    val redGem = item("red_gem")
-    val blueGem = item("blue_gem")
-    val greenGem = item("green_gem")
-    val chalice = item("chalice")
-    val pendant = item("pendant")
-    val broche = item("broche")
-    val crystalBowl = item("crystal_bowl")
-    val necklace = item("necklace")
-    val donkey = item("donkey")
-
-    // Flag-backed special items project from milestones and do not occupy slots.
-    val fireshield = item("fireshield")
-    val bracelets = item("bracelets")
-    val mastercrown = item("mastercrown")
-    val jazzyfoot = item("jazzyfoot")
-    val silverkey = item("silverkey")
-
-    // Magic items.
-    val frostWand = item("frost_wand")
-    val fireWand = item("fire_wand")
-    val gemOfConfusion = item("gem_of_confusion")
-    val gemOfBlindness = item("gem_of_blindness")
-    val drumsOfDeath = item("drums_of_death")
-    val staffOfHealing = item("staff_of_healing")
-    val blessingScroll = item("blessing_scroll")
-    val staffOfCuring = item("staff_of_curing")
-    val gemOfResurrection = item("gem_of_resurrection")
-    val kaelsAxe = item("kaels_axe")
-    val holyHandgrenade = item("holy_handgrenade")
-    val fluteOfMadness = item("flute_of_madness")
-}
-val Items = ItemRefs()
-
-class ItemPoolRefs {
-    val battleSpoils = itemPool("battle_spoils")
-    val magicItems = itemPool("magic_items")
-    val tavernScruffySpecials = itemPool("tavern_scruffy_specials")
-    val thunAltarGems = itemPool("thun_altar_gems")
-    val dungeonWeaponFinds = itemPool("dungeon_weapon_finds")
-    val dungeonPotionGemFinds = itemPool("dungeon_potion_gem_finds")
-    val dungeonTreasureFinds = itemPool("dungeon_treasure_finds")
-}
-val ItemPools = ItemPoolRefs()
 
 // -----------------------------------------------------------------------------
 // Current game-state milestone handles.

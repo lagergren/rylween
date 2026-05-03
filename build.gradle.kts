@@ -52,6 +52,121 @@ abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
     }
 }
 
+abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
+    @get:org.gradle.api.tasks.InputFile
+    abstract val gameSource: org.gradle.api.file.RegularFileProperty
+
+    @get:org.gradle.api.tasks.OutputFile
+    abstract val outputFile: org.gradle.api.file.RegularFileProperty
+
+    @org.gradle.api.tasks.TaskAction
+    fun generate() {
+        val source = gameSource.get().asFile.readText()
+        val itemBlock = declarationBlock(source, "items")
+        val emptyItemNames = Regex("""\bempty\s*\(\s*Items\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(itemBlock)
+            .map { it.groupValues[1] }
+            .toList()
+        val declaredItemNames = Regex(
+            """\b(?:weapon|armor|gear|potion|treasure|special|magicItem)\s*\(\s*Items\.([A-Za-z][A-Za-z0-9_]*)""",
+        )
+            .findAll(itemBlock)
+            .map { it.groupValues[1] }
+            .toList()
+        val itemNames = buildList {
+            if (emptyItemNames.any { it == "none" || it == "blank" }) {
+                add("blank")
+            }
+            addAll(emptyItemNames.filterNot { it == "none" || it == "blank" })
+            addAll(declaredItemNames.filterNot { it == "none" || it == "blank" })
+        }.distinctInOrder()
+        val includeNoneAlias = emptyItemNames.contains("none")
+
+        val poolNames = Regex("""\bpool\s*\(\s*ItemPools\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(itemBlock)
+            .map { it.groupValues[1] }
+            .toList()
+            .distinctInOrder()
+
+        require(itemNames.isNotEmpty()) {
+            "No item declarations found in ${gameSource.get().asFile}."
+        }
+        require(poolNames.isNotEmpty()) {
+            "No item-pool declarations found in ${gameSource.get().asFile}."
+        }
+
+        val itemLines = itemNames.joinToString(separator = "\n") { name ->
+            """    val $name: ItemId = item("${name.toSlug()}")"""
+        }
+        val noneAlias = if (includeNoneAlias) {
+            "\n    val none: ItemId = blank"
+        } else {
+            ""
+        }
+        val poolLines = poolNames.joinToString(separator = "\n") { name ->
+            """    val $name: ItemPoolId = itemPool("${name.toSlug()}")"""
+        }
+
+        outputFile.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                |// Generated from src/game/kotlin/RylweenGame.dsl.kts item declarations.
+                |// Do not edit directly.
+                |
+                |@file:Suppress("unused", "MemberVisibilityCanBePrivate")
+                |
+                |package rylween.game
+                |
+                |import rylween.dsl.ItemId
+                |import rylween.dsl.ItemPoolId
+                |import rylween.dsl.item
+                |import rylween.dsl.itemPool
+                |
+                |class ItemRefs {
+                |$itemLines$noneAlias
+                |}
+                |
+                |val Items: ItemRefs = ItemRefs()
+                |
+                |class ItemPoolRefs {
+                |$poolLines
+                |}
+                |
+                |val ItemPools: ItemPoolRefs = ItemPoolRefs()
+                """.trimMargin() + "\n",
+            )
+        }
+    }
+
+    private fun declarationBlock(source: String, name: String): String {
+        val match = Regex("""\b${Regex.escape(name)}\s*\{""").find(source)
+            ?: error("Could not find $name declaration block.")
+        val openBrace = match.range.last
+        var depth = 0
+        for (index in openBrace until source.length) {
+            when (source[index]) {
+                '{' -> depth += 1
+                '}' -> {
+                    depth -= 1
+                    if (depth == 0) {
+                        return source.substring(openBrace + 1, index)
+                    }
+                }
+            }
+        }
+        error("Unclosed $name declaration block.")
+    }
+
+    private fun List<String>.distinctInOrder(): List<String> {
+        val seen = linkedSetOf<String>()
+        return filter { seen.add(it) }
+    }
+
+    private fun String.toSlug(): String =
+        replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase()
+}
+
 abstract class GenerateAnsiBuildWrapperTask : org.gradle.api.DefaultTask() {
     @get:org.gradle.api.tasks.OutputFile
     abstract val outputFile: org.gradle.api.file.RegularFileProperty
@@ -103,6 +218,10 @@ repositories {
 
 val generatedGameHarnessDir = layout.buildDirectory.dir("generated/gameHarness/kotlin")
 val generatedGameHarnessFile = layout.buildDirectory.file("generated/gameHarness/kotlin/RylweenCompiledGame.kt")
+val generatedGameCatalogDir = layout.buildDirectory.dir("generated/gameCatalog/kotlin")
+val generatedGameCatalogFile = layout.buildDirectory.file(
+    "generated/gameCatalog/kotlin/rylween/game/RylweenGeneratedItemCatalog.kt",
+)
 
 kotlin {
     jvmToolchain(25)
@@ -110,6 +229,7 @@ kotlin {
 
 val gameSourceSet = sourceSets.create("game") {
     java.srcDir("src/game/kotlin")
+    java.srcDir(generatedGameCatalogDir)
     compileClasspath += sourceSets.named("main").get().output
     runtimeClasspath += output + compileClasspath
 }
@@ -155,6 +275,14 @@ val generateCompiledGameHarness by tasks.registering(GenerateCompiledGameHarness
     outputFile.set(generatedGameHarnessFile)
 }
 
+val generateGameCatalogHandles by tasks.registering(GenerateGameCatalogHandlesTask::class) {
+    group = "generation"
+    description = "Generates current-game item and item-pool handles from the game DSL declarations."
+
+    gameSource.set(layout.projectDirectory.file("src/game/kotlin/RylweenGame.dsl.kts"))
+    outputFile.set(generatedGameCatalogFile)
+}
+
 val kotlinCompiler by configurations.creating
 val gameDslRuntime by configurations.creating
 
@@ -174,6 +302,10 @@ tasks.jar {
 tasks.named("compileTestKotlin") {
     dependsOn(generateCompiledGameHarness)
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
+}
+
+tasks.named("compileGameKotlin") {
+    dependsOn(generateGameCatalogHandles)
 }
 
 tasks.named("compileAppKotlin") {
