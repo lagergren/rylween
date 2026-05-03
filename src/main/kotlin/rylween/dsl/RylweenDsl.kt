@@ -419,11 +419,14 @@ data class VisualsModel(
     val staticScreens: List<StaticScreenModel> = emptyList(),
 )
 
+enum class StaticScreenRuntimeReport { Score, VerboseScore }
+
 data class StaticScreenModel(
     val id: StaticScreenId,
     val image: ImageId? = null,
     val resource: String? = null,
     val commandHelp: Boolean = false,
+    val runtimeReport: StaticScreenRuntimeReport? = null,
 )
 
 fun text(id: String): TextId = TextId(id)
@@ -4238,6 +4241,7 @@ class StaticScreenBuilder(private val id: StaticScreenId) {
     private var imageModel: ImageId? = null
     private var resourcePath: String? = null
     private var usesCommandHelp = false
+    private var runtimeReportValue: StaticScreenRuntimeReport? = null
 
     fun image(image: ImageId) {
         imageModel = image
@@ -4251,12 +4255,21 @@ class StaticScreenBuilder(private val id: StaticScreenId) {
         usesCommandHelp = true
     }
 
+    fun scoreReport(): Unit {
+        runtimeReportValue = StaticScreenRuntimeReport.Score
+    }
+
+    fun verboseScoreReport(): Unit {
+        runtimeReportValue = StaticScreenRuntimeReport.VerboseScore
+    }
+
     fun build(): StaticScreenModel =
         StaticScreenModel(
             id = id,
             image = imageModel,
             resource = resourcePath,
             commandHelp = usesCommandHelp,
+            runtimeReport = runtimeReportValue,
         )
 }
 

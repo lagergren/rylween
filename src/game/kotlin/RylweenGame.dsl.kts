@@ -153,8 +153,8 @@ val nextRylween = rylween {
             image(StaticScreens.title, Images.Static.title)
             commandHelp(StaticScreens.help)
             resource(StaticScreens.manual, "rylween.doc")
-            resource(StaticScreens.score, "score.txt")
-            resource(StaticScreens.verboseScore, "vscore.txt")
+            screen(StaticScreens.score) { scoreReport() }
+            screen(StaticScreens.verboseScore) { verboseScoreReport() }
         }
     }
 

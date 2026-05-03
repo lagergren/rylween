@@ -20,7 +20,14 @@ fun GameModel.renderTerminalStaticScreen(
 ): TerminalStaticScreen? {
     require(maxLinesPerPage > 0) { "maxLinesPerPage must be positive" }
     val screen = visuals.staticScreens.singleOrNull { it.id == id } ?: return null
-    val pages = when {
+    val runtimePages = context.runtime?.let { runtime ->
+        screen.runtimeReport?.renderRuntimeStaticScreenPages(
+            content = this,
+            runtime = runtime,
+            maxLinesPerPage = maxLinesPerPage,
+        )
+    }
+    val pages = runtimePages ?: when {
         screen.commandHelp -> wilderness.keys.effectiveHelpPages(maxLinesPerPage)
             .map { page -> renderer.lines(page, context) }
         screen.resource != null -> resourceText(screen.resource).documentPages(maxLinesPerPage)

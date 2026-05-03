@@ -15,12 +15,7 @@ class RylweenKotlinEngine(
         rngState: Long? = state.realm.rngState,
         realizeNpcs: Boolean = true,
     ): RuntimeSessionState {
-        val runtime = RuntimeSessionState(
-            realm = state.realm.copy(rngState = rngState),
-            parties = state.parties,
-            npcs = state.npcs,
-            locations = state.locations,
-        )
+        val runtime = state.toRuntimeSessionState(rngState)
         return if (realizeNpcs) {
             runtime.realizeNpcPlacements(content.characters, content.towns, npcPlacementConfig)
         } else {

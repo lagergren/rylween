@@ -53,7 +53,7 @@ object RylweenAnsiMain {
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
         val renderer = content.terminalTextRenderer()
-        config.staticScreen?.let { screenId ->
+        config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
             RylweenLog.open().use { log ->
                 JLineAnsiTerminal.open(log).use { terminal ->
                     ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
@@ -76,6 +76,20 @@ object RylweenAnsiMain {
         val bootSnapshot = config.hour
             ?.let { hour -> snapshot.copy(state = snapshot.state.copy(realm = snapshot.state.realm.copy(hour = hour))) }
             ?: snapshot
+        config.staticScreen?.let { screenId ->
+            RylweenLog.open().use { log ->
+                JLineAnsiTerminal.open(log).use { terminal ->
+                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
+                        .showStaticScreen(
+                            content = content,
+                            screenId = screenId,
+                            renderer = renderer,
+                            context = TerminalTextContext(runtime = bootSnapshot.state.toRuntimeSessionState()),
+                        )
+                }
+            }
+            return@runRylweenCli
+        }
         val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
             ?: content.worldMapGrid(Maps.wilderness)
             ?: error("missing authored wilderness map")
@@ -572,11 +586,17 @@ private class ClassicAnsiScreen(
         renderHud(session)
     }
 
-    fun showStaticScreen(content: GameModel, screenId: StaticScreenId, renderer: TerminalTextRenderer) {
+    fun showStaticScreen(
+        content: GameModel,
+        screenId: StaticScreenId,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext = TerminalTextContext(),
+    ) {
         val rendered = content.renderTerminalStaticScreen(
             id = screenId,
             renderer = renderer,
             resourceText = RylweenAppAssets::readText,
+            context = context,
         ) ?: error("unknown static screen ${screenId.slug}")
         rendered.image?.let(::showImage)
         if (rendered.pages.isEmpty()) {

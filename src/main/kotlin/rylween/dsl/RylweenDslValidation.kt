@@ -1775,6 +1775,7 @@ private fun validateVisuals(visuals: VisualsModel) {
             screen.image != null,
             screen.resource != null,
             screen.commandHelp,
+            screen.runtimeReport != null,
         ).count { it }
         check(sourceCount == 1) {
             "static screen ${screen.id.slug} must have exactly one source"
