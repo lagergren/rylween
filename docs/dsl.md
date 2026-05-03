@@ -1,5 +1,11 @@
 # Rylween scripting DSL — single-doc reference
 
+Status: legacy C/JSON5 scripting reference. This document remains useful when
+auditing the original port inputs, but it is no longer the target authoring
+surface. Current game authoring lives in `src/game/kotlin/RylweenGame.dsl.kts`
+through the typed Kotlin DSL, and current migration status lives in
+`dsl-improvements.md`.
+
 Authoritative reference for the script DSL as it stands after §22.F.
 The C header `src/script.h` is the in-source companion; this doc
 covers the same surface in one place plus worked examples and the

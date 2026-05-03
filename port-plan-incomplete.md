@@ -1,5 +1,11 @@
 # Rylween Port Plan — Active and Reference Sections
 
+Status: legacy C-port tracker and reference. The remaining entries below are
+kept for auditability against the original JSON5/C implementation, not as the
+primary Kotlin DSL work queue. Current typed Kotlin DSL/runtime migration
+status is tracked in `dsl-improvements.md`; completed historical C lifts remain
+in `port-plan-complete.md`.
+
 This file collects every section of `port-plan.md` that is in-progress, planned, or pure reference / vision material. Completed lifts live in `port-plan-complete.md`; the cross-section index lives in the master `port-plan.md`. Section numbers and `§N` cross-references are preserved verbatim — sections appear in their original §-order regardless of which file they live in.
 
 ## Top of queue (status snapshot, 2026-04-30 #21)
