@@ -20,6 +20,7 @@ private data class TerminalConfig(
     val loadFile: File? = null,
     val saveFile: File = File("build/rylween-save.kts"),
     val saveState: StateId = stateId("saved-game"),
+    val staticScreen: StaticScreenId? = null,
 )
 
 private class StdioTerminalPort : TerminalPort {
@@ -37,6 +38,11 @@ fun main(args: Array<String>): Unit = runRylweenCli {
     val config = parseTerminalConfig(args.toList(), ::printTownUsage)
     val game = RylweenCompiledGame.nextRylween
     val content = RylweenCompiledGame.nextDsl
+    val terminal = StdioTerminalPort()
+    config.staticScreen?.let { screenId ->
+        terminal.writeStaticScreen(content, screenId)
+        return@runRylweenCli
+    }
     val town = requireStartupTown(content, config.town)
     val state = config.loadFile
         ?.let {
@@ -50,7 +56,6 @@ fun main(args: Array<String>): Unit = runRylweenCli {
         ?: selectStartupState(game, content, config.state, RuntimeStartupTarget.Town)
     val party = state.parties.firstOrNull { it.id == state.realm.activeParty }
         ?: error("state ${state.id.slug} is missing active party ${state.realm.activeParty.slug}")
-    val terminal = StdioTerminalPort()
     val engine = RylweenKotlinEngine(
         content = content,
         npcPlacementConfig = NpcPlacementRealizerConfig(
@@ -119,6 +124,11 @@ object RylweenGameTerminalMain {
         val config = parseTerminalConfig(args.toList(), ::printGameUsage)
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
+        val terminal = StdioTerminalPort()
+        config.staticScreen?.let { screenId ->
+            terminal.writeStaticScreen(content, screenId)
+            return@runRylweenCli
+        }
         val baseState = config.loadFile
             ?.let {
                 validateStartupState(
@@ -130,7 +140,6 @@ object RylweenGameTerminalMain {
             }
             ?: selectStartupState(game, content, config.state, RuntimeStartupTarget.Wilderness)
         val state = config.hour?.let { baseState.copy(realm = baseState.realm.copy(hour = it)) } ?: baseState
-        val terminal = StdioTerminalPort()
         val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
             ?: content.worldMapGrid(Maps.wilderness)
             ?: error("missing authored wilderness map")
@@ -195,6 +204,26 @@ object RylweenGameTerminalMain {
     }
 }
 
+private fun TerminalPort.writeStaticScreen(content: GameModel, screenId: StaticScreenId) {
+    val rendered = content.renderTerminalStaticScreen(
+        id = screenId,
+        renderer = content.terminalTextRenderer(),
+        resourceText = RylweenAppAssets::readText,
+    ) ?: error("unknown static screen ${screenId.slug}")
+    rendered.image?.let { image ->
+        val asset = AnsiImageAssets.resolve(image)
+        if (asset == null) {
+            write(listOf("[image: ${image.slug}]"))
+        } else {
+            write(RylweenAppAssets.readText(asset.resource).lineSequence().toList())
+        }
+    }
+    rendered.pages.forEachIndexed { index, page ->
+        if (index > 0 || rendered.image != null) write(listOf(""))
+        write(page)
+    }
+}
+
 private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): TerminalConfig {
     var config = TerminalConfig()
     var index = 0
@@ -226,6 +255,10 @@ private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): Ter
             }
             "--save" -> {
                 config = config.copy(saveFile = File(args.valueAfter(index, arg)))
+                index += 2
+            }
+            "--screen" -> {
+                config = config.copy(staticScreen = staticScreenArg(args.valueAfter(index, arg)))
                 index += 2
             }
             "--help", "-h" -> {
@@ -270,6 +303,7 @@ private fun printTownUsage() {
         |  --map    map file for wilderness NPC placement, defaults to authored wilderness map
         |  --load   runtime snapshot file to boot instead of --state
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
+        |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
         """.trimMargin(),
     )
 }
@@ -286,6 +320,7 @@ private fun printGameUsage() {
         |  --map    map file for wilderness movement and NPC hut projection, defaults to authored wilderness map
         |  --load   runtime snapshot file to boot instead of --state
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
+        |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
         """.trimMargin(),
     )
 }
