@@ -360,7 +360,7 @@ class RylweenDslValidationTest {
         )
         val service = BuildingServiceModel(
             building = Buildings.church,
-            action = KeyActions.enterChurch,
+            action = keyAction("enter_church"),
             scene = scene.id,
             opensAt = null,
             closesAt = null,
@@ -2016,7 +2016,7 @@ class RylweenDslValidationTest {
     fun townServiceBridgeAcceptsAuthoredScriptMenuAliases() {
         val service = BuildingServiceModel(
             building = Buildings.church,
-            action = KeyActions.enterChurch,
+            action = keyAction("enter_church"),
             scene = sceneId("test.script_menu_alias"),
             opensAt = null,
             closesAt = null,
@@ -2406,7 +2406,7 @@ class RylweenDslValidationTest {
         }.build().scenes.single()
         val service = BuildingServiceModel(
             building = Buildings.tavern,
-            action = KeyActions.enterTavern,
+            action = keyAction("enter_tavern"),
             scene = scene.id,
             opensAt = null,
             closesAt = null,
@@ -4264,7 +4264,7 @@ class RylweenDslValidationTest {
     fun compiledGameSpeakRunsGarthDialogueBranchBeforeConversationMenu() {
         val service = BuildingServiceModel(
             building = Buildings.inn,
-            action = KeyActions.enterInn,
+            action = keyAction("enter_inn"),
             scene = sceneId("test.speak_garth"),
             opensAt = null,
             closesAt = null,
@@ -4311,7 +4311,7 @@ class RylweenDslValidationTest {
         val scene = SceneModel(sceneId("test.${npc.slug}.${state.native}"), branch.ops)
         val service = BuildingServiceModel(
             building = Buildings.inn,
-            action = KeyActions.enterInn,
+            action = keyAction("enter_inn"),
             scene = scene.id,
             opensAt = null,
             closesAt = null,

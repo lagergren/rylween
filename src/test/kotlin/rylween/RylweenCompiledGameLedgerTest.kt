@@ -67,7 +67,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.towns.single { it.id == Towns.wilor.id }.kind == TownKind.City)
         check(townSystem.menu.map { it.key } == listOf('C', 'S', 'I', 'M', 'T', 'L'))
         check(townSystem.menu.single { it.key == 'C' }.building == Buildings.church)
-        check(townSystem.menu.single { it.action == KeyActions.leaveTown }.endsMenu)
+        check(townSystem.menu.single { it.action == keyAction("leave_town") }.endsMenu)
         check(townSystem.leavePrompts == listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor))
         check(townSystem.buildingServices.size == 5)
         check(townSystem.buildingServices.single { it.building == Buildings.merchant }.opensAt == 6)
