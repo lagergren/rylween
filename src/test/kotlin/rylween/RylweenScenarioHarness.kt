@@ -5,6 +5,8 @@ import rylween.frontend.terminal.TerminalAdapterResult
 import rylween.frontend.terminal.TerminalPort
 import rylween.frontend.terminal.TerminalTextContext
 import rylween.frontend.terminal.TerminalTextRenderer
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ScenarioTerminalPort(vararg inputs: String) : TerminalPort {
     private val queue = ArrayDeque(inputs.toList())
@@ -79,3 +81,24 @@ data class TerminalScenarioRun<S>(
 
 fun <S> checkpoint(name: String, verify: TerminalScenarioRun<S>.() -> Unit): TerminalScenarioCheckpoint<S> =
     TerminalScenarioCheckpoint(name, verify)
+
+fun <S> TerminalScenarioRun<S>.assertOutputContains(fragment: String) {
+    assertTrue(
+        terminal.output.any { fragment in it },
+        "scenario '$name' output did not contain '$fragment'",
+    )
+}
+
+fun <S> TerminalScenarioRun<S>.assertOutputDoesNotContain(fragment: String) {
+    assertFalse(
+        terminal.output.any { fragment in it },
+        "scenario '$name' output unexpectedly contained '$fragment'",
+    )
+}
+
+fun <S> TerminalScenarioRun<S>.assertImageShown(imageSlug: String) {
+    assertTrue(
+        imageSlug in terminal.imageSlugs,
+        "scenario '$name' did not show image '$imageSlug'",
+    )
+}

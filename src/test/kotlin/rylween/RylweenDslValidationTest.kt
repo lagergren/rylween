@@ -3656,56 +3656,65 @@ class RylweenDslValidationTest {
     @Test
     fun wildernessSaveCommandWritesRuntimeSnapshotThroughPort() {
         var savedSnapshot: StateModel? = null
-        val terminal = FakeTerminalPort("S")
-        val result = WildernessSessionTerminalAdapter(
-            terminal = terminal,
-            renderer = compiledTextRenderer(),
+        runCompiledWildernessScenario(
+            name = "wilderness-save-command-snapshot",
+            inputs = listOf("S"),
+            seed = 1L,
             savePort = RuntimeSavePort { runtime ->
                 savedSnapshot = runtime.toRuntimeStateSnapshot(stateId("test-save"))
                 RuntimeSaveOutcome(saved = true, target = "memory")
             },
-        ).runUntilBlocked(
-            compiledWildernessSession(
-                party = testParty(food = 100, timeLeft = 200, restedHours = 14),
-                rngState = 1L,
+            start = {
+                compiledWildernessSession(
+                    party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+                    rngState = 1L,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("snapshot round-trips and save text renders") {
+                    val snapshot = checkNotNull(savedSnapshot)
+                    val rendered = renderRuntimeStateSnapshot(snapshot)
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertTrue(result.session.step is WildernessSessionStep.Explore)
+                    assertEquals(WildernessSessionResultStatus.Saved, result.session.lastResult?.status)
+                    assertEquals(rendered, renderRuntimeStateSnapshot(parseRuntimeStateSnapshot(rendered)))
+                    assertOutputContains("Saving position...")
+                    assertOutputContains("Done.")
+                    assertOutputDoesNotContain("not wired")
+                    assertOutputDoesNotContain("not ported")
+                },
             ),
         )
-
-        val snapshot = checkNotNull(savedSnapshot)
-        val rendered = renderRuntimeStateSnapshot(snapshot)
-        assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertTrue(result.session.step is WildernessSessionStep.Explore)
-        assertEquals(WildernessSessionResultStatus.Saved, result.session.lastResult?.status)
-        assertEquals(rendered, renderRuntimeStateSnapshot(parseRuntimeStateSnapshot(rendered)))
-        assertTrue(terminal.output.any { "Saving position..." in it })
-        assertTrue(terminal.output.any { "Done." in it })
-        assertFalse(terminal.output.any { "not wired" in it || "not ported" in it })
     }
 
     @Test
     fun wildernessOutOfMovesSaveWritesSnapshotAndQuits() {
         var saved = false
-        val terminal = FakeTerminalPort("S")
-        val result = WildernessSessionTerminalAdapter(
-            terminal = terminal,
-            renderer = compiledTextRenderer(),
+        runCompiledWildernessScenario(
+            name = "wilderness-out-of-moves-save-and-quit",
+            inputs = listOf("S"),
+            seed = 1L,
             savePort = RuntimeSavePort { runtime ->
                 renderRuntimeStateSnapshot(runtime.toRuntimeStateSnapshot(stateId("test-save")))
                 saved = true
                 RuntimeSaveOutcome(saved = true, target = "memory")
             },
-        ).runUntilBlocked(
-            compiledWildernessSession(
-                party = testParty(food = 100, timeLeft = 0, restedHours = 14),
-                rngState = 1L,
+            start = {
+                compiledWildernessSession(
+                    party = testParty(food = 100, timeLeft = 0, restedHours = 14),
+                    rngState = 1L,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("snapshot is saved before quit") {
+                    assertTrue(saved)
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(WildernessSessionResultStatus.OutOfMovesSaveAndQuit, result.session.lastResult?.status)
+                    assertOutputContains("Saving position...")
+                    assertOutputContains("Done.")
+                },
             ),
         )
-
-        assertTrue(saved)
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(WildernessSessionResultStatus.OutOfMovesSaveAndQuit, result.session.lastResult?.status)
-        assertTrue(terminal.output.any { "Saving position..." in it })
-        assertTrue(terminal.output.any { "Done." in it })
     }
 
     @Test
@@ -3796,57 +3805,68 @@ class RylweenDslValidationTest {
 
     @Test
     fun wildernessCastleEntryWithoutSilverKeyRunsAuthoredYdargGate() {
-        val terminal = RecordingTerminalPort("E")
         val map = WorldMapGrid.fromSourceRows(
             List(30) { y ->
                 if (y == 29) mapRow(14 to '2', width = 20) else mapRow(width = 20)
             },
         )
-
-        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            compiledWildernessSession(
-                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
-                    .copy(position = Wilderness.xy(14, 30)),
-                worldMap = map,
+        runCompiledWildernessScenario(
+            name = "ydarg-gate-without-silver-key",
+            inputs = listOf("E"),
+            start = {
+                compiledWildernessSession(
+                    party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                        .copy(position = Wilderness.xy(14, 30)),
+                    worldMap = map,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("authored gate text and backdrop render") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(WildernessSessionResultStatus.LeftYdarg, result.session.lastResult?.status)
+                    assertImageShown(Images.Backdrop.ydargCastle.slug)
+                    assertOutputContains("guardian of the gate.")
+                    assertOutputContains("remain sealed.")
+                    assertOutputDoesNotContain("Castle entry is not ported yet.")
+                },
             ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertEquals(WildernessSessionResultStatus.LeftYdarg, result.session.lastResult?.status)
-        assertTrue(terminal.imageSlugs.contains(Images.Backdrop.ydargCastle.slug))
-        assertTrue(terminal.output.any { "guardian of the gate." in it })
-        assertTrue(terminal.output.any { "remain sealed." in it })
-        assertFalse(terminal.output.any { "Castle entry is not ported yet." in it })
     }
 
     @Test
     fun wildernessCastleEntryWithSilverKeyHandsOffToYdargSession() {
-        val terminal = RecordingTerminalPort("E")
         val map = WorldMapGrid.fromSourceRows(
             List(30) { y ->
                 if (y == 29) mapRow(14 to '2', width = 20) else mapRow(width = 20)
             },
         )
-
-        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            compiledWildernessSession(
-                party = testParty(
-                    food = 100,
-                    timeLeft = 200,
-                    restedHours = 14,
-                    milestones = listOf(Milestones.silverKey),
-                ).copy(position = Wilderness.xy(14, 30)),
-                worldMap = map,
-                rngState = 1L,
+        runCompiledWildernessScenario(
+            name = "ydarg-entry-with-silver-key",
+            inputs = listOf("E"),
+            seed = 1L,
+            start = {
+                compiledWildernessSession(
+                    party = testParty(
+                        food = 100,
+                        timeLeft = 200,
+                        restedHours = 14,
+                        milestones = listOf(Milestones.silverKey),
+                    ).copy(position = Wilderness.xy(14, 30)),
+                    worldMap = map,
+                    rngState = 1L,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("hands off to Ydarg battle opening") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertTrue(result.session.step is WildernessSessionStep.Ydarg)
+                    assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
+                    assertOutputContains("resounding KRASH")
+                    assertOutputContains("You are spotted by")
+                    assertOutputDoesNotContain("Castle entry is not ported yet.")
+                },
             ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertTrue(result.session.step is WildernessSessionStep.Ydarg)
-        assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
-        assertTrue(terminal.output.any { "resounding KRASH" in it })
-        assertTrue(terminal.output.any { "You are spotted by" in it })
-        assertFalse(terminal.output.any { "Castle entry is not ported yet." in it })
     }
 
     @Test
@@ -4442,36 +4462,46 @@ class RylweenDslValidationTest {
 
     @Test
     fun battleSessionRunCanEscapeFromOpeningPrompt() {
-        val terminal = FakeTerminalPort("R")
-        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            compiledBattleSession(tier = EncounterTiers.weak),
+        runCompiledBattleScenario(
+            name = "battle-run-escape",
+            inputs = listOf("R"),
+            start = { compiledBattleSession(tier = EncounterTiers.weak) },
+            checkpoints = listOf(
+                checkpoint("run returns to wilderness") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(BattleSessionResultStatus.RunEscaped, result.session.lastResult.status)
+                    assertEquals(Monsters.kobold, result.session.lastResult.monster)
+                    assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+                    assertOutputContains("2 Kobolds")
+                    assertOutputContains("Coward. You won't get")
+                },
+            ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(BattleSessionResultStatus.RunEscaped, result.session.lastResult.status)
-        assertEquals(Monsters.kobold, result.session.lastResult.monster)
-        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
-        assertTrue(terminal.output.any { "2 Kobolds" in it })
-        assertTrue(terminal.output.any { "Coward. You won't get" in it })
     }
 
     @Test
     fun battleSessionFightRunsFirstPlayerAttackAndMonsterRound() {
-        val terminal = FakeTerminalPort("F", "A", "A")
-        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            compiledBattleSession(
-                tier = EncounterTiers.wild,
-                party = testParty(food = 100, timeLeft = 200, restedHours = 14, health = 100, hitPoints = 100),
+        runCompiledBattleScenario(
+            name = "battle-first-attack-and-monster-round",
+            inputs = listOf("F", "A", "A"),
+            start = {
+                compiledBattleSession(
+                    tier = EncounterTiers.wild,
+                    party = testParty(food = 100, timeLeft = 200, restedHours = 14, health = 100, hitPoints = 100),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("first round reaches next opening") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(BattleSessionResultStatus.FightSelected, result.session.lastResult.status)
+                    assertEquals(Monsters.stirge, result.session.lastResult.monster)
+                    assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
+                    assertTrue(result.session.step is BattleSessionStep.RoundOpening)
+                    assertEquals(3, result.session.encounter.hitPoints.first())
+                    assertEquals(89, result.session.runtime.activeParty.members.single().hitPoints.current)
+                },
             ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertEquals(BattleSessionResultStatus.FightSelected, result.session.lastResult.status)
-        assertEquals(Monsters.stirge, result.session.lastResult.monster)
-        assertEquals(RuntimeMode.Battle, result.session.runtime.realm.currentMode)
-        assertTrue(result.session.step is BattleSessionStep.RoundOpening)
-        assertEquals(3, result.session.encounter.hitPoints.first())
-        assertEquals(89, result.session.runtime.activeParty.members.single().hitPoints.current)
     }
 
     @Test
@@ -4600,56 +4630,62 @@ class RylweenDslValidationTest {
     @Test
     fun battleSessionVictoryAppliesStandardRewardsAndLoot() {
         val content = RylweenCompiledGame.nextDsl
-        val terminal = FakeTerminalPort("F", "A", "A")
-        val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            BattleSession.start(
-                runtime = RuntimeSessionState.singleParty(
-                    party = testParty(
-                        food = 100,
-                        timeLeft = 200,
-                        restedHours = 14,
-                        members = listOf(
-                            testMember(
-                                weaponSkill = 100,
-                                equipment = EquipmentState(Items.deathBlade, Items.none),
+        runCompiledBattleScenario(
+            name = "battle-victory-rewards-and-loot",
+            inputs = listOf("F", "A", "A"),
+            start = {
+                BattleSession.start(
+                    runtime = RuntimeSessionState.singleParty(
+                        party = testParty(
+                            food = 100,
+                            timeLeft = 200,
+                            restedHours = 14,
+                            members = listOf(
+                                testMember(
+                                    weaponSkill = 100,
+                                    equipment = EquipmentState(Items.deathBlade, Items.none),
+                                ),
                             ),
                         ),
+                        hour = 12,
+                        currentTown = null,
                     ),
-                    hour = 12,
-                    currentTown = null,
-                ),
-                combat = content.combat,
-                monsters = listOf(
-                    MonsterModel(
-                        id = Monsters.bandit,
-                        name = "Bandit",
-                        count = 1..1,
-                        countMaxLevelDivisor = null,
-                        hitPoints = 1..99,
-                        weaponSkill = 50,
-                        spellPower = 0,
-                        tier = EncounterTiers.weak,
-                        immune = false,
+                    combat = content.combat,
+                    monsters = listOf(
+                        MonsterModel(
+                            id = Monsters.bandit,
+                            name = "Bandit",
+                            count = 1..1,
+                            countMaxLevelDivisor = null,
+                            hitPoints = 1..99,
+                            weaponSkill = 50,
+                            spellPower = 0,
+                            tier = EncounterTiers.weak,
+                            immune = false,
+                        ),
                     ),
-                ),
-                formulas = content.formulas,
-                rewards = content.rewards,
-                itemRecords = content.itemCatalog,
-                leveling = content.leveling,
-                spells = content.spells,
-                itemUses = content.itemUses,
-                tier = EncounterTiers.weak,
+                    formulas = content.formulas,
+                    rewards = content.rewards,
+                    itemRecords = content.itemCatalog,
+                    leveling = content.leveling,
+                    spells = content.spells,
+                    itemUses = content.itemUses,
+                    tier = EncounterTiers.weak,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("standard rewards and loot apply") {
+                    val party = result.session.runtime.activeParty
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(BattleSessionResultStatus.Victory, result.session.lastResult.status)
+                    assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+                    assertEquals(1, party.counters.kills)
+                    assertEquals(168, party.resources.gold)
+                    assertEquals(300, party.members.single().experience)
+                    assertEquals(Items.redPotion, party.inventoryItem(1))
+                },
             ),
         )
-
-        val party = result.session.runtime.activeParty
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(BattleSessionResultStatus.Victory, result.session.lastResult.status)
-        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
-        assertEquals(1, party.counters.kills)
-        assertEquals(168, party.resources.gold)
-        assertEquals(300, party.members.single().experience)
-        assertEquals(Items.redPotion, party.inventoryItem(1))
     }
 
     @Test
@@ -5120,6 +5156,47 @@ class RylweenDslValidationTest {
             checkpoints = checkpoints + checkpoint("dungeon session keeps requested depth metadata") {
                 assertEquals(levels, result.session.maxDepth)
             },
+        ).run()
+
+    private fun runCompiledWildernessScenario(
+        name: String,
+        inputs: List<String>,
+        seed: Long? = null,
+        start: () -> WildernessSession,
+        savePort: RuntimeSavePort? = null,
+        checkpoints: List<TerminalScenarioCheckpoint<WildernessSession>> = emptyList(),
+    ): TerminalScenarioRun<WildernessSession> =
+        TerminalScenario(
+            name = name,
+            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = seed),
+            inputs = inputs,
+            start = start,
+            drive = { terminal, session ->
+                WildernessSessionTerminalAdapter(
+                    terminal = terminal,
+                    renderer = compiledTextRenderer(),
+                    savePort = savePort,
+                ).runUntilBlocked(session)
+            },
+            checkpoints = checkpoints,
+        ).run()
+
+    private fun runCompiledBattleScenario(
+        name: String,
+        inputs: List<String>,
+        seed: Long? = null,
+        start: () -> BattleSession,
+        checkpoints: List<TerminalScenarioCheckpoint<BattleSession>> = emptyList(),
+    ): TerminalScenarioRun<BattleSession> =
+        TerminalScenario(
+            name = name,
+            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = seed),
+            inputs = inputs,
+            start = start,
+            drive = { terminal, session ->
+                BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(session)
+            },
+            checkpoints = checkpoints,
         ).run()
 
     private fun runCompiledMissionScenario(
