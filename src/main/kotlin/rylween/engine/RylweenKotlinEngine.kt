@@ -4,6 +4,7 @@ package rylween.engine
 
 import rylween.dsl.*
 import rylween.runtime.*
+import rylween.runtime.ydarg.toYdargSession
 
 class RylweenKotlinEngine(
     private val content: GameModel,
@@ -72,6 +73,33 @@ class RylweenKotlinEngine(
             runtime = runtime,
             worldMap = worldMap.withNpcHuts(runtime.npcs),
         )
+    }
+
+    fun wildernessSession(
+        snapshot: RuntimeSnapshotModel,
+        worldMap: WorldMapGrid,
+        rngState: Long? = snapshot.state.realm.rngState,
+        realizeNpcs: Boolean = true,
+    ): WildernessSession {
+        val runtime = initialRuntime(snapshot.state, rngState, realizeNpcs)
+        val map = worldMap.withNpcHuts(runtime.npcs)
+        val base = WildernessSession.start(
+            content = content.runtimeContent(),
+            runtime = runtime,
+            worldMap = map,
+        )
+        return when (val mode = snapshot.mode) {
+            null -> {
+                require(snapshot.state.realm.currentMode == RuntimeMode.Wilderness) {
+                    "wilderness session startup for ${snapshot.state.realm.currentMode.name} requires mode snapshot"
+                }
+                base
+            }
+            is RuntimeModeSnapshot.YdargCastle -> {
+                val ydarg = mode.toYdargSession(runtime, content.runtimeContent())
+                base.copy(runtime = ydarg.runtime, step = WildernessSessionStep.Ydarg(ydarg))
+            }
+        }
     }
 
     fun speakContent(): SpeakRuntimeContent =

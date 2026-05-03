@@ -9,6 +9,9 @@ enum class YdargSessionStatus {
     AlreadyCleared,
     Moved,
     Blocked,
+    SaveRequested,
+    Saved,
+    SaveFailed,
     HelpShown,
     ViewPartyRequested,
     ViewPartyShown,
@@ -50,6 +53,7 @@ data class YdargSessionResult(
 )
 
 enum class YdargCommand {
+    Save,
     Help,
     ViewParty,
     RemoveArmor,
@@ -85,6 +89,7 @@ sealed interface YdargSessionStep {
         val next: YdargSessionStep,
         val image: ImageId? = null,
     ) : YdargSessionStep
+    data class Save(val next: YdargSessionStep) : YdargSessionStep
     object RoomEntry : YdargSessionStep
     object Navigate : YdargSessionStep
     data class TreasureOffer(val item: ItemId) : YdargSessionStep
@@ -123,6 +128,8 @@ data class YdargSession(
                     step = current.next,
                 )
             }
+            is YdargSessionStep.Save ->
+                error("Ydarg save step is advanced by completeSave()")
             YdargSessionStep.RoomEntry ->
                 error("Ydarg room entry is advanced by enterRoom()")
             YdargSessionStep.Navigate -> when (input) {
@@ -323,6 +330,11 @@ data class YdargSession(
 
     private fun command(command: YdargCommand): YdargSession =
         when (command) {
+            YdargCommand.Save ->
+                copy(
+                    step = YdargSessionStep.Save(YdargSessionStep.Navigate),
+                    lastResult = YdargSessionResult(YdargSessionStatus.SaveRequested, floor, point),
+                )
             YdargCommand.Help ->
                 copy(
                     step = YdargSessionStep.Messages(ydarg.keys.navigationHelpPages(), YdargSessionStep.Navigate),
@@ -348,6 +360,19 @@ data class YdargSession(
             YdargCommand.Quaff -> quaff()
             YdargCommand.CastSpell -> castSpell()
         }
+
+    fun completeSave(saved: Boolean): YdargSession {
+        val current = step as? YdargSessionStep.Save
+            ?: error("Ydarg session is not saving")
+        return copy(
+            step = current.next,
+            lastResult = YdargSessionResult(
+                if (saved) YdargSessionStatus.Saved else YdargSessionStatus.SaveFailed,
+                floor,
+                point,
+            ),
+        )
+    }
 
     fun replacePartyViewSession(session: PartyViewSession): YdargSession {
         require(step is YdargSessionStep.PartyView) { "Ydarg session is not running party view" }
@@ -763,6 +788,57 @@ data class YdargSession(
         val rooms: Map<GridPoint, YdargRoomEvent>,
     )
 }
+
+fun YdargSession.toYdargSnapshot(): RuntimeModeSnapshot.YdargCastle =
+    RuntimeModeSnapshot.YdargCastle(
+        YdargSessionSnapshot(
+            floor = floor,
+            point = point,
+            rooms = rooms,
+            step = savedStep(),
+            treasureItem = (snapshotStep() as? YdargSessionStep.TreasureOffer)?.item,
+        ),
+    )
+
+fun RuntimeModeSnapshot.YdargCastle.toYdargSession(
+    runtime: RuntimeSessionState,
+    content: RuntimeContent,
+): YdargSession {
+    val ydarg = requireNotNull(content.ydarg) { "Ydarg content is not configured" }
+    return YdargSession(
+        runtime = runtime.asYdarg(),
+        content = content,
+        ydarg = ydarg,
+        rooms = session.rooms,
+        floor = session.floor,
+        point = session.point,
+        step = session.toStep(),
+    )
+}
+
+private fun YdargSession.savedStep(): YdargSavedStep =
+    when (snapshotStep()) {
+        YdargSessionStep.RoomEntry -> YdargSavedStep.RoomEntry
+        YdargSessionStep.Navigate -> YdargSavedStep.Navigate
+        is YdargSessionStep.TreasureOffer -> YdargSavedStep.TreasureOffer
+        YdargSessionStep.StairsMenu -> YdargSavedStep.StairsMenu
+        YdargSessionStep.StairGive -> YdargSavedStep.StairGive
+        else -> error("cannot save Ydarg while ${step.javaClass.simpleName} is active")
+    }
+
+private fun YdargSession.snapshotStep(): YdargSessionStep =
+    (step as? YdargSessionStep.Save)?.next ?: step
+
+private fun YdargSessionSnapshot.toStep(): YdargSessionStep =
+    when (step) {
+        YdargSavedStep.RoomEntry -> YdargSessionStep.RoomEntry
+        YdargSavedStep.Navigate -> YdargSessionStep.Navigate
+        YdargSavedStep.TreasureOffer -> YdargSessionStep.TreasureOffer(
+            checkNotNull(treasureItem) { "Ydarg treasure-offer snapshot requires treasureItem" },
+        )
+        YdargSavedStep.StairsMenu -> YdargSessionStep.StairsMenu
+        YdargSavedStep.StairGive -> YdargSessionStep.StairGive
+    }
 
 private fun RuntimeSessionState.asYdarg(): RuntimeSessionState =
     withRealm(

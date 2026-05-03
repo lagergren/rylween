@@ -4,10 +4,14 @@ import rylween.dsl.*
 import rylween.frontend.terminal.*
 import rylween.runtime.commandBindings
 import rylween.runtime.ydarg.*
+import rylween.save.RuntimeSaveOutcome
+import rylween.save.RuntimeSavePort
+import rylween.save.RuntimeSaveRequest
 
 class YdargSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+    private val savePort: RuntimeSavePort? = null,
 ) {
     fun run(initial: YdargSession): YdargSession =
         runUntilBlocked(initial).session
@@ -26,6 +30,15 @@ class YdargSessionTerminalAdapter(
                     }
                     terminal.writeBlocks(step.blocks, renderer, TerminalTextContext(runtime = session.runtime))
                     session.apply(YdargSessionInput.Continue)
+                }
+                is YdargSessionStep.Save -> {
+                    val outcome = saveRuntime(session)
+                    terminal.writeBlocks(
+                        listOf(if (outcome.saved) session.content.prompts.save.done else session.content.prompts.save.failed),
+                        renderer,
+                        TerminalTextContext(runtime = session.runtime),
+                    )
+                    session.completeSave(outcome.saved)
                 }
                 YdargSessionStep.RoomEntry -> session.enterRoom()
                 YdargSessionStep.Navigate -> {
@@ -128,6 +141,20 @@ class YdargSessionTerminalAdapter(
             }
         }
         return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun saveRuntime(session: YdargSession): RuntimeSaveOutcome {
+        terminal.writeBlocks(
+            listOf(session.content.prompts.save.saving),
+            renderer,
+            TerminalTextContext(runtime = session.runtime),
+        )
+        val port = savePort ?: return RuntimeSaveOutcome(saved = false, error = "no save port configured")
+        return runCatching {
+            port.save(RuntimeSaveRequest(session.runtime, session.toYdargSnapshot()))
+        }.getOrElse { error ->
+            RuntimeSaveOutcome(saved = false, error = error.message)
+        }
     }
 
     private fun writeNavigation(session: YdargSession) {

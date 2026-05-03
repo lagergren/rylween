@@ -1055,7 +1055,7 @@ class WildernessSessionTerminalAdapter(
                     runChildOrBlock(
                         session,
                         step.session,
-                        { YdargSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        { YdargSessionTerminalAdapter(terminal, renderer, savePort).runUntilBlocked(it) },
                         WildernessSession::replaceYdargSession,
                     ) { return it }
                 }
