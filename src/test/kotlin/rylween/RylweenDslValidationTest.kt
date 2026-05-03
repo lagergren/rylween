@@ -1365,8 +1365,10 @@ class RylweenDslValidationTest {
         assertEquals(Images.Static.title, screens.getValue(StaticScreens.title).image)
         assertTrue(help.commandHelp)
         assertEquals("rylween.doc", screens.getValue(StaticScreens.manual).resource)
-        assertEquals("score.txt", screens.getValue(StaticScreens.score).resource)
-        assertEquals("vscore.txt", screens.getValue(StaticScreens.verboseScore).resource)
+        assertEquals(null, screens.getValue(StaticScreens.score).resource)
+        assertEquals(null, screens.getValue(StaticScreens.verboseScore).resource)
+        assertEquals(StaticScreenRuntimeReport.Score, screens.getValue(StaticScreens.score).runtimeReport)
+        assertEquals(StaticScreenRuntimeReport.VerboseScore, screens.getValue(StaticScreens.verboseScore).runtimeReport)
         assertTrue(RylweenCompiledGame.nextDsl.wilderness.keys.helpPages.isEmpty())
         assertEquals(3, RylweenCompiledGame.nextDsl.wilderness.keys.effectiveHelpPages().size)
     }
@@ -1393,10 +1395,61 @@ class RylweenDslValidationTest {
                 maxLinesPerPage = 2,
             ),
         )
+        val lowParty = testParty(
+            members = listOf(
+                testMember(name = "Low Lead", pcClass = PcClass.Thief, level = 2, experience = 100),
+            ),
+        ).copy(
+            id = partyId("low"),
+            name = "Low Party",
+            counters = testParty().counters.copy(kills = 1),
+        )
+        val highParty = testParty(
+            milestones = listOf(Milestones.fireShield, Milestones.braceletsOfThun),
+            members = listOf(
+                testMember(name = "Alice", pcClass = PcClass.Mage, level = 5, experience = 500),
+                testMember(name = "Bran", pcClass = PcClass.Priest, level = 3, experience = 300),
+            ),
+        ).copy(
+            id = partyId("high"),
+            name = "High Party",
+            counters = testParty().counters.copy(kills = 7),
+        )
+        val runtime = RuntimeSessionState.singleParty(lowParty, hour = 12, currentTown = null)
+            .copy(parties = listOf(lowParty, highParty))
+        val score = checkNotNull(
+            content.renderTerminalStaticScreen(
+                id = StaticScreens.score,
+                renderer = renderer,
+                resourceText = { error("score should render from runtime state") },
+                context = TerminalTextContext(runtime = runtime),
+            ),
+        )
+        val verboseScore = checkNotNull(
+            content.renderTerminalStaticScreen(
+                id = StaticScreens.verboseScore,
+                renderer = renderer,
+                resourceText = { error("verbose score should render from runtime state") },
+                context = TerminalTextContext(runtime = runtime),
+            ),
+        )
 
         assertEquals(null, help.image)
         assertTrue(help.pages.flatten().any { line -> line.contains("View Help") })
         assertEquals(listOf(listOf("first", "second"), listOf("third")), manual.pages)
+        val scoreLines = score.pages.flatten()
+        val highIndex = scoreLines.indexOfFirst { it.contains("High Party") }
+        val lowIndex = scoreLines.indexOfFirst { it.contains("Low Party") }
+        val verboseScoreLines = verboseScore.pages.flatten()
+        assertTrue(highIndex >= 0)
+        assertTrue(lowIndex >= 0)
+        assertTrue(highIndex < lowIndex)
+        assertTrue(scoreLines.any { line -> line.contains("High Party") && line.contains("400") })
+        assertTrue(verboseScoreLines.any { line -> line == "  Leader             : Alice" })
+        assertTrue(verboseScoreLines.any { line -> line == "  Classes            : Mage, Priest" })
+        assertTrue(verboseScoreLines.any { line -> line.trim() == "Confirmed Kills    : 7" })
+        assertTrue(verboseScoreLines.any { line -> line.trim() == "Fire Shield" })
+        assertTrue(verboseScoreLines.any { line -> line.trim() == "Bracelets of Thun" })
     }
 
     @Test

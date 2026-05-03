@@ -42,11 +42,10 @@ fun main(args: Array<String>): Unit = runRylweenCli {
     val game = RylweenCompiledGame.nextRylween
     val content = RylweenCompiledGame.nextDsl
     val terminal = StdioTerminalPort()
-    config.staticScreen?.let { screenId ->
+    config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
         terminal.writeStaticScreen(content, screenId)
         return@runRylweenCli
     }
-    val town = requireStartupTown(content, config.town)
     val state = config.loadFile
         ?.let {
             validateStartupState(
@@ -57,6 +56,14 @@ fun main(args: Array<String>): Unit = runRylweenCli {
             )
         }
         ?: selectStartupState(game, content, config.state, RuntimeStartupTarget.Town)
+    val bootState = config.hour
+        ?.let { hour -> state.copy(realm = state.realm.copy(hour = hour)) }
+        ?: state
+    config.staticScreen?.let { screenId ->
+        terminal.writeStaticScreen(content, screenId, TerminalTextContext(runtime = bootState.toRuntimeSessionState()))
+        return@runRylweenCli
+    }
+    val town = requireStartupTown(content, config.town)
     val party = state.parties.firstOrNull { it.id == state.realm.activeParty }
         ?: error("state ${state.id.slug} is missing active party ${state.realm.activeParty.slug}")
     val engine = RylweenKotlinEngine(
@@ -128,7 +135,7 @@ object RylweenGameTerminalMain {
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
         val terminal = StdioTerminalPort()
-        config.staticScreen?.let { screenId ->
+        config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
             terminal.writeStaticScreen(content, screenId)
             return@runRylweenCli
         }
@@ -146,6 +153,14 @@ object RylweenGameTerminalMain {
         val bootSnapshot = config.hour
             ?.let { hour -> snapshot.copy(state = snapshot.state.copy(realm = snapshot.state.realm.copy(hour = hour))) }
             ?: snapshot
+        config.staticScreen?.let { screenId ->
+            terminal.writeStaticScreen(
+                content,
+                screenId,
+                TerminalTextContext(runtime = bootSnapshot.state.toRuntimeSessionState()),
+            )
+            return@runRylweenCli
+        }
         val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
             ?: content.worldMapGrid(Maps.wilderness)
             ?: error("missing authored wilderness map")
@@ -210,11 +225,16 @@ object RylweenGameTerminalMain {
     }
 }
 
-private fun TerminalPort.writeStaticScreen(content: GameModel, screenId: StaticScreenId) {
+private fun TerminalPort.writeStaticScreen(
+    content: GameModel,
+    screenId: StaticScreenId,
+    context: TerminalTextContext = TerminalTextContext(),
+) {
     val rendered = content.renderTerminalStaticScreen(
         id = screenId,
         renderer = content.terminalTextRenderer(),
         resourceText = RylweenAppAssets::readText,
+        context = context,
     ) ?: error("unknown static screen ${screenId.slug}")
     rendered.image?.let { image ->
         val asset = AnsiImageAssets.resolve(image)
