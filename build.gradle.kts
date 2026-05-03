@@ -62,6 +62,8 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     @org.gradle.api.tasks.TaskAction
     fun generate() {
         val source = gameSource.get().asFile.readText()
+        val buildingNames = buildingNames(source)
+        val townNames = townNames(source)
         val sections = listOf(
             generateFlagHandles(flagDeclarations(source)),
             generateItemHandles(itemHandles(source)),
@@ -94,6 +96,61 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 typeName = "ScreenRegionId",
                 factoryName = "screenRegion",
                 names = handleNames(declarationBlock(source, "terminal"), "ScreenRegions", "region"),
+            ),
+            generateRefsClass(
+                className = "BuildingRefs",
+                objectName = "Buildings",
+                typeName = "BuildingId",
+                factoryName = "building",
+                names = buildingNames,
+                allList = true,
+            ),
+            generateTownHandles(townNames, buildingNames),
+            generateRefsClass(
+                className = "NpcJobRefs",
+                objectName = "NpcJobs",
+                typeName = "NpcJobId",
+                factoryName = "npcJob",
+                names = handleNames(source, "NpcJobs"),
+                allList = true,
+            ),
+            generateRefsClass(
+                className = "RoleRefs",
+                objectName = "NpcRoles",
+                typeName = "NpcRole",
+                factoryName = "npcRole",
+                names = handleNames(source, "Roles"),
+                allList = true,
+                alias = "Roles",
+            ),
+            generateRefsClass(
+                className = "RumourTableRefs",
+                objectName = "RumourTables",
+                typeName = "RumourTableId",
+                factoryName = "rumourTable",
+                names = handleNames(source, "RumourTables"),
+            ),
+            generateRefsClass(
+                className = "RumourHandleRefs",
+                objectName = "Rumours",
+                typeName = "RumourId",
+                factoryName = "rumour",
+                names = handleNames(source, "Rumours"),
+                allList = true,
+            ),
+            generateRefsClass(
+                className = "NpcRefs",
+                objectName = "Npcs",
+                typeName = "NpcId",
+                factoryName = "npc",
+                names = handleNames(source, "Npcs"),
+            ),
+            generateRefsClass(
+                className = "LocationRefs",
+                objectName = "Locations",
+                typeName = "LocationId",
+                factoryName = "location",
+                names = handleNames(source, "Locations"),
             ),
             generateRefsClass(
                 className = "GameMilestoneRefs",
@@ -408,6 +465,8 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         factoryName: String,
         names: List<String>,
         slugOverrides: Map<String, String> = emptyMap(),
+        allList: Boolean = false,
+        alias: String? = null,
     ): String {
         require(names.isNotEmpty()) {
             "No $objectName declarations found in ${gameSource.get().asFile}."
@@ -415,17 +474,92 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         val lines = names.joinToString(separator = "\n") { name ->
             """    val $name: $typeName = $factoryName("${slugOverrides[name] ?: name.toSlug()}")"""
         }
+        val allBlock = if (allList) {
+            val allLines = names.joinToString(separator = "\n") { name -> "        $name," }
+            """
+
+                |    val all: List<$typeName> = listOf(
+                |$allLines
+                |    )
+            """.trimMargin()
+        } else {
+            ""
+        }
+        val aliasLine = alias?.let { "\nval $it: $className = $objectName" } ?: ""
         return """
             |class $className {
-            |$lines
+            |$lines$allBlock
             |}
             |
-            |val $objectName: $className = $className()
+            |val $objectName: $className = $className()$aliasLine
         """.trimMargin()
+    }
+
+    private fun generateTownHandles(townNames: List<String>, buildingNames: List<String>): String {
+        require(townNames.isNotEmpty()) {
+            "No Towns declarations found in ${gameSource.get().asFile}."
+        }
+        val positionBuildings = buildingNames.filterNot { it == "none" }
+        require(positionBuildings.isNotEmpty()) {
+            "No town-position buildings found in ${gameSource.get().asFile}."
+        }
+        val buildingLines = positionBuildings.joinToString(separator = "\n") { building ->
+            """    val $building: WorldPosition get() = WorldPosition.Town(id, Buildings.$building)"""
+        }
+        val townLines = townNames.joinToString(separator = "\n") { town ->
+            """    val $town: TownRef = TownRef(town("${town.toSlug()}"))"""
+        }
+        return """
+            |class TownRef(override val id: TownId) : TownHandle {
+            |$buildingLines
+            |}
+            |
+            |class TownRefs {
+            |$townLines
+            |}
+            |
+            |val Towns: TownRefs = TownRefs()
+        """.trimMargin()
+    }
+
+    private fun buildingNames(source: String): List<String> {
+        val townAndSystemBlocks = declarationBlock(source, "towns") + "\n" + declarationBlock(source, "townSystem")
+        val explicitNames = handleNames(source, "Buildings")
+        val townPositionNames = Regex("""\bTowns\.[A-Za-z][A-Za-z0-9_]*\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(source)
+            .map { it.groupValues[1] }
+            .toList()
+        val defaultServiceNames = listOf("merchant", "inn", "tavern", "smith", "church").filter { service ->
+            Regex("""\b${Regex.escape(service)}\s*(?:\(|\{)""").containsMatchIn(townAndSystemBlocks)
+        }
+        return orderedNames(
+            (explicitNames + townPositionNames + defaultServiceNames).distinctInOrder(),
+            listOf("none", "inn", "tavern", "church", "smith", "merchant", "hut", "lodge"),
+        )
+    }
+
+    private fun townNames(source: String): List<String> {
+        val townsBlock = declarationBlock(source, "towns")
+        val literalNames = Regex("""\btown\s*\(\s*"([A-Za-z][A-Za-z0-9_]*)"""")
+            .findAll(townsBlock)
+            .map { it.groupValues[1] }
+            .toList()
+        val handleNames = Regex("""\btown\s*\(\s*Towns\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(townsBlock)
+            .map { it.groupValues[1] }
+            .toList()
+        return (literalNames + handleNames).distinctInOrder()
     }
 
     private fun handleNames(block: String, objectName: String, callName: String): List<String> =
         Regex("""\b${Regex.escape(callName)}\s*\(\s*${Regex.escape(objectName)}\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(block)
+            .map { it.groupValues[1] }
+            .toList()
+            .distinctInOrder()
+
+    private fun handleNames(block: String, objectName: String): List<String> =
+        Regex("""\b${Regex.escape(objectName)}\.([A-Za-z][A-Za-z0-9_]*)""")
             .findAll(block)
             .map { it.groupValues[1] }
             .toList()
@@ -463,6 +597,9 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         val seen = linkedSetOf<String>()
         return filter { seen.add(it) }
     }
+
+    private fun orderedNames(names: List<String>, preferredOrder: List<String>): List<String> =
+        (preferredOrder.filter { it in names } + names.filterNot { it in preferredOrder }).distinctInOrder()
 
     private fun flagClassName(path: List<String>): String =
         "Story${path.joinToString(separator = "") { it.toUpperCamel() }}Flag"
