@@ -3797,6 +3797,101 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun authoredKoboldVillageMissionResumesThroughAllBattlesAndCompletes() {
+        val run = runCompiledMissionScene(
+            Missions.koboldVillage,
+            "A",
+            "",
+            "F",
+            "A",
+            "A",
+            "",
+            "F",
+            "A",
+            "A",
+            "",
+            "F",
+            "A",
+            "A",
+            "",
+        )
+
+        assertCompletedMission(run.result, Missions.koboldVillage)
+        assertTrue(run.result.session.party.hasFlagState(Story.masterCrown.task1Done))
+        assertTrue(run.terminal.output.any { "ugly pendant" in it })
+    }
+
+    @Test
+    fun authoredOgreCaveMissionResumesThroughBattlesRewardAndCompletion() {
+        val run = runCompiledMissionScene(
+            Missions.ogreCave,
+            "E",
+            "",
+            "F",
+            "A",
+            "A",
+            "",
+            "F",
+            "A",
+            "A",
+            "",
+            "",
+            "",
+            "",
+        )
+
+        assertCompletedMission(run.result, Missions.ogreCave)
+        assertTrue(run.result.session.party.hasFlagState(Story.jazzy.ogre.ogresCleared))
+        assertEquals(5645, run.result.session.party.resources.gold)
+        assertTrue(run.result.session.party.inventory.any { it.item == Items.mithrilMail })
+        assertTrue(run.terminal.output.any { "Kastagir" in it })
+    }
+
+    @Test
+    fun authoredJazzyFootMissionResumesThroughMinionsAndJazzy() {
+        val run = runCompiledMissionScene(
+            Missions.jazzyFoot,
+            "",
+            "",
+            "F",
+            "A",
+            "A",
+            "",
+            "",
+            "F",
+            "A",
+            "A",
+            "",
+        )
+
+        assertCompletedMission(run.result, Missions.jazzyFoot)
+        assertTrue(run.result.session.party.hasFlagState(Story.jazzy.ogre.jazzyDefeated))
+        assertTrue(Milestones.footOfJazzy in run.result.session.party.milestones)
+        assertTrue(run.terminal.output.any { "Today, you have killed" in it })
+    }
+
+    @Test
+    fun authoredHobgoblinCaravanMissionResumesThroughBattleAndJournal() {
+        val run = runCompiledMissionScene(
+            Missions.hobgoblinCaravan,
+            "",
+            "",
+            "F",
+            "A",
+            "A",
+            "",
+            "",
+        )
+
+        assertCompletedMission(run.result, Missions.hobgoblinCaravan)
+        assertTrue(run.result.session.party.hasFlagState(Story.silverKey.caveLocated))
+        assertEquals(
+            listOf(JournalEntryState.Line("The hobgoblin cave is at 46x13.")),
+            run.result.session.party.journal,
+        )
+    }
+
+    @Test
     fun battleSessionRunCanEscapeFromOpeningPrompt() {
         val terminal = FakeTerminalPort("R")
         val result = BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
@@ -4455,6 +4550,109 @@ class RylweenDslValidationTest {
             rngState = rngState,
             realizeNpcs = false,
         )
+    }
+
+    private data class MissionSceneRun(
+        val terminal: FakeTerminalPort,
+        val result: TerminalAdapterResult<WildernessSession>,
+    )
+
+    private fun runCompiledMissionScene(
+        missionId: MissionId,
+        vararg inputs: String,
+    ): MissionSceneRun {
+        val game = RylweenCompiledGame.nextDsl
+        val mission = game.missions.single { it.id == missionId }
+        val scene = game.scenes.single { it.id == mission.action }
+        val terminal = FakeTerminalPort(*inputs)
+        val runtime = RuntimeSessionState.singleParty(
+            party = decisiveMissionParty(),
+            hour = 12,
+            currentTown = null,
+            locations = gameLocationPlacements(),
+        ).asWilderness()
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            WildernessSession(
+                runtime = runtime,
+                worldMap = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
+                content = game.runtimeContent().withTinyMissionMonsters(
+                    Monsters.koboldHorde,
+                    Monsters.orc,
+                    Monsters.ogre,
+                    Monsters.ogreLord,
+                    Monsters.wingedThing,
+                    Monsters.jazzy,
+                    Monsters.ridingHobgoblin,
+                ),
+                step = WildernessSessionStep.Mission(mission, scene),
+            ),
+        )
+        return MissionSceneRun(terminal, result)
+    }
+
+    private fun RuntimeContent.withTinyMissionMonsters(vararg ids: MonsterId): RuntimeContent {
+        val tinyIds = ids.toSet()
+        return copy(
+            formulas = formulas.map { formula ->
+                when (formula.id) {
+                    Formulas.rewardGoldParty,
+                    Formulas.rewardXpPerSurvivor -> formula.copy(value = IntAst.Lit(0))
+                    else -> formula
+                }
+            },
+            monsters = monsters.map { monster ->
+                if (monster.id in tinyIds) {
+                    monster.copy(
+                        count = 1..1,
+                        hitPoints = 1..1,
+                        weaponSkill = 0,
+                        spellPower = 0,
+                        immune = false,
+                    )
+                } else {
+                    monster
+                }
+            },
+        )
+    }
+
+    private fun decisiveMissionParty(): PartyState =
+        testParty(
+            food = 100,
+            timeLeft = 200,
+            restedHours = 14,
+            members = listOf(
+                testMember(
+                    level = 28,
+                    health = 5000,
+                    hitPoints = 5000,
+                    weaponSkill = 100,
+                    equipment = EquipmentState(Items.deathBlade, Items.admtMail),
+                ),
+            ),
+        )
+
+    private fun gameLocationPlacements(): List<LocationPlacement> =
+        RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }.locations
+
+    private fun RuntimeSessionState.asWilderness(): RuntimeSessionState =
+        withRealm(
+            realm.copy(
+                currentMode = RuntimeMode.Wilderness,
+                currentTown = null,
+                currentMap = DslDefaultMaps.wilderness,
+            ),
+        )
+
+    private fun assertCompletedMission(
+        result: TerminalAdapterResult<WildernessSession>,
+        mission: MissionId,
+    ) {
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
+        assertEquals(mission, result.session.lastResult?.mission)
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
     }
 
     private fun compiledBattleSession(
