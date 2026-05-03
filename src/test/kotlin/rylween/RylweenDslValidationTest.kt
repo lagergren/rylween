@@ -1140,7 +1140,8 @@ class RylweenDslValidationTest {
             hour = 12,
             currentTown = null,
         )
-        val started = DungeonSession.start(runtime, map, Dungeons.randomCave, levels = 2)
+        val content = RuntimeContent(prompts = RylweenCompiledGame.nextDsl.prompts)
+        val started = DungeonSession.start(runtime, map, Dungeons.randomCave, levels = 2, content = content)
 
         val descended = started.apply(DungeonSessionInput.Descend)
         val atDepthTwo = descended.apply(DungeonSessionInput.Continue)
@@ -1154,9 +1155,13 @@ class RylweenDslValidationTest {
         assertEquals(DungeonSessionResultStatus.Descended, descended.lastResult?.status)
         assertEquals(1, descended.party.resources.torches)
         assertEquals(2, descended.depth)
+        val descentMessages = descended.step as DungeonSessionStep.Messages
+        assertEquals(content.prompts.dungeon.renderEnterLevel(2), descentMessages.blocks.single())
         assertEquals(DungeonSessionResultStatus.AtMaxDepth, atMax.lastResult?.status)
         assertEquals(1, atMax.party.resources.torches)
         assertEquals(DungeonSessionResultStatus.LeftDungeon, leaving.lastResult?.status)
+        val leavingMessages = leaving.step as DungeonSessionStep.Messages
+        assertEquals(content.prompts.dungeon.leaveCavern, leavingMessages.blocks.single())
         assertTrue(finished.step is DungeonSessionStep.Finished)
         assertEquals(RuntimeMode.Wilderness, finished.runtime.realm.currentMode)
     }
@@ -3285,7 +3290,7 @@ class RylweenDslValidationTest {
             ?: error("expected dungeon session after cave handoff")
         assertEquals(Dungeons.randomCave, dungeon.session.dungeon)
         assertEquals(10, dungeon.session.maxDepth)
-        assertTrue(terminal.output.any { "Entering random_cave." in it })
+        assertDungeonHandoffOutput(terminal.output, Dungeons.randomCave, 10)
         assertTrue(dungeon.session.levelEvents.containsKey(1))
     }
 
@@ -3399,7 +3404,7 @@ class RylweenDslValidationTest {
         assertEquals(Dungeons.erethorTemple, dungeon.session.dungeon)
         assertEquals(12, dungeon.session.maxDepth)
         assertTrue(terminal.output.any { "Here is the temple of" in it })
-        assertTrue(terminal.output.any { "Entering erethor_temple." in it })
+        assertDungeonHandoffOutput(terminal.output, Dungeons.erethorTemple, 12)
     }
 
     @Test
@@ -3431,7 +3436,7 @@ class RylweenDslValidationTest {
         assertEquals(Dungeons.silverSanctum, dungeon.session.dungeon)
         assertEquals(20, dungeon.session.maxDepth)
         assertTrue(terminal.output.any { "Here lies the dungeon" in it })
-        assertTrue(terminal.output.any { "Entering silver_sanctum." in it })
+        assertDungeonHandoffOutput(terminal.output, Dungeons.silverSanctum, 20)
     }
 
     @Test
@@ -3473,7 +3478,7 @@ class RylweenDslValidationTest {
         assertEquals(0, result.session.party.countInventoryItems(RylweenCompiledGame.nextDsl.itemPool(ItemPools.thunAltarGems)))
         assertEquals(Items.rope, result.session.party.inventoryItem(6))
         assertTrue(terminal.output.any { "With a resounding 'CRUNG'" in it })
-        assertTrue(terminal.output.any { "Entering thun_temple." in it })
+        assertDungeonHandoffOutput(terminal.output, Dungeons.thunTemple, 18)
     }
 
     @Test
@@ -4325,8 +4330,21 @@ class RylweenDslValidationTest {
 
     private fun compiledTextRenderer(): TerminalTextRenderer =
         RylweenCompiledGame.nextDsl.let { content ->
-            TerminalTextRenderer(towns = content.towns, characters = content.characters, prompts = content.prompts)
+            TerminalTextRenderer(
+                towns = content.towns,
+                characters = content.characters,
+                dungeons = content.dungeons,
+                prompts = content.prompts,
+            )
         }
+
+    private fun assertDungeonHandoffOutput(output: List<String>, dungeon: DungeonId, levels: Int) {
+        val content = RylweenCompiledGame.nextDsl
+        val handoffLines = compiledTextRenderer().lines(
+            content.prompts.wilderness.renderDungeonHandoff(content.dungeons.displayName(dungeon), levels),
+        )
+        assertTrue(handoffLines.all { line -> line in output })
+    }
 
     private fun compiledRuntimeWithRealizedNpcs(rngState: Long): RuntimeSessionState {
         val content = RylweenCompiledGame.nextDsl

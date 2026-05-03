@@ -294,18 +294,20 @@ data class WildernessSession(
     val itemUses: List<ItemUseModel> get() = content.itemUses
     val itemRecords: List<ItemRecordModel> get() = content.itemRecords
     val realm: RealmContentModel get() = content.realm
+    val prompts: WildernessPromptsModel get() = content.prompts.wilderness
     val party: PartyState get() = runtime.activeParty
 
     fun apply(input: WildernessSessionInput): WildernessSession =
         when (input) {
             is WildernessSessionInput.Move -> move(input.direction)
             WildernessSessionInput.Pass -> pass()
-            WildernessSessionInput.Save -> pending(WildernessPromptText.savePending(), WildernessSessionResultStatus.SaveUnavailable)
+            WildernessSessionInput.Save ->
+                pending(RuntimeUnavailableText.savePending(), WildernessSessionResultStatus.SaveUnavailable)
             WildernessSessionInput.ReadyWeapon -> equipment(EquipmentCommand.ReadyWeapon)
             WildernessSessionInput.ReadyArmor -> equipment(EquipmentCommand.ReadyArmor)
             WildernessSessionInput.Redraw -> copy(lastResult = WildernessSessionResult(WildernessSessionResultStatus.RedrawRequested))
             WildernessSessionInput.Journal ->
-                pending(WildernessPromptText.journalPending(), WildernessSessionResultStatus.JournalUnavailable)
+                pending(RuntimeUnavailableText.journalPending(), WildernessSessionResultStatus.JournalUnavailable)
             WildernessSessionInput.Help -> copy(
                 step = WildernessSessionStep.Messages(wilderness.keys.effectiveHelpPages(), WildernessSessionStep.TurnStart),
                 lastResult = WildernessSessionResult(WildernessSessionResultStatus.HelpShown),
@@ -314,11 +316,12 @@ data class WildernessSession(
             is WildernessSessionInput.HuntMember -> applyHuntInput(HuntSessionInput.Member(input.memberNumber))
             WildernessSessionInput.HuntContinue -> applyHuntInput(HuntSessionInput.Continue)
             WildernessSessionInput.ViewParty ->
-                pending(WildernessPromptText.viewPartyPending(), WildernessSessionResultStatus.ViewPartyUnavailable)
+                pending(RuntimeUnavailableText.viewPartyPending(), WildernessSessionResultStatus.ViewPartyUnavailable)
             WildernessSessionInput.RemoveArmor -> equipment(EquipmentCommand.RemoveArmor)
             WildernessSessionInput.RemoveWeapon -> equipment(EquipmentCommand.RemoveWeapon)
             WildernessSessionInput.Enter -> enter()
-            WildernessSessionInput.Drop -> pending(WildernessPromptText.dropPending(), WildernessSessionResultStatus.DropUnavailable)
+            WildernessSessionInput.Drop ->
+                pending(RuntimeUnavailableText.dropPending(), WildernessSessionResultStatus.DropUnavailable)
             WildernessSessionInput.Camp -> camp()
             is WildernessSessionInput.CampGuardAnswer -> applyCampInput(CampSessionInput.GuardAnswer(input.yes))
             is WildernessSessionInput.CampGuardMember -> applyCampInput(CampSessionInput.GuardMember(input.memberNumber))
@@ -340,7 +343,7 @@ data class WildernessSession(
                 upkeep.runtime.withRealm(upkeep.runtime.realm.copy(currentMode = RuntimeMode.GameOver)),
             )
             upkeep.runtime.activeParty.resources.timeLeft <= 0 ->
-                WildernessSessionStep.OutOfMoves(WildernessPromptText.outOfMoves())
+                WildernessSessionStep.OutOfMoves(prompts.outOfMoves)
             else -> WildernessSessionStep.Explore
         }
         return copy(
@@ -649,7 +652,7 @@ data class WildernessSession(
 
     private fun pass(): WildernessSession =
         notice(
-            WildernessPromptText.pass(),
+            prompts.pass,
             WildernessSessionResult(WildernessSessionResultStatus.Passed),
         )
 
@@ -674,7 +677,7 @@ data class WildernessSession(
 
     private fun hunt(): WildernessSession {
         val rules = realm.hunt ?: return pending(
-            WildernessPromptText.huntPending(),
+            RuntimeUnavailableText.huntPending(),
             WildernessSessionResultStatus.HuntUnavailable,
         )
         return copy(step = WildernessSessionStep.Hunt(HuntSession.start(runtime, rules)))
@@ -770,12 +773,12 @@ data class WildernessSession(
     private fun move(direction: WildernessDirection): WildernessSession {
         val from = party.wildernessPoint()
             ?: return notice(
-                WildernessPromptText.notInWilderness(),
+                prompts.notInWilderness,
                 WildernessSessionResult(WildernessSessionResultStatus.NotInWilderness),
             )
         if (party.resources.timeLeft <= 0) {
             return notice(
-                WildernessPromptText.noMoves(),
+                prompts.noMoves,
                 WildernessSessionResult(WildernessSessionResultStatus.NoMoves, from = from),
             )
         }
@@ -912,7 +915,7 @@ data class WildernessSession(
     private fun enter(): WildernessSession {
         val point = party.wildernessPoint()
             ?: return notice(
-                WildernessPromptText.notInWilderness(),
+                prompts.notInWilderness,
                 WildernessSessionResult(WildernessSessionResultStatus.NotInWilderness),
             )
         return when {
@@ -920,7 +923,7 @@ data class WildernessSession(
             worldMap.isHut(point) -> enterHut(point)
             worldMap.isCastle(point) -> enterCastle(point)
             else -> notice(
-                WildernessPromptText.nothingToEnter(),
+                prompts.nothingToEnter,
                 WildernessSessionResult(WildernessSessionResultStatus.NothingToEnter, from = point),
             )
         }
@@ -929,7 +932,7 @@ data class WildernessSession(
     private fun enterTown(point: GridPoint): WildernessSession {
         val town = towns.firstOrNull { it.position == point }
             ?: return notice(
-                WildernessPromptText.unknownTown(),
+                RuntimeUnavailableText.unknownTown(),
                 WildernessSessionResult(WildernessSessionResultStatus.UnknownTown, from = point),
             )
         val townRuntime = runtime.withRealm(
@@ -959,7 +962,7 @@ data class WildernessSession(
     private fun enterHut(point: GridPoint): WildernessSession {
         val scene = scenes.firstOrNull { it.id == DslDefaultScenes.Towne.hut }
             ?: return notice(
-                WildernessPromptText.hutPending(),
+                RuntimeUnavailableText.hutSceneMissing(),
                 WildernessSessionResult(WildernessSessionResultStatus.EnteredHut, from = point),
             )
         return copy(
@@ -970,12 +973,12 @@ data class WildernessSession(
 
     private fun enterCastle(point: GridPoint): WildernessSession {
         val ydarg = content.ydarg ?: return notice(
-            WildernessPromptText.castlePending(),
+            RuntimeUnavailableText.castlePending(),
             WildernessSessionResult(WildernessSessionResultStatus.EnteredCastle, from = point),
         )
         if (point != ydarg.entry) {
             return notice(
-                WildernessPromptText.castlePending(),
+                RuntimeUnavailableText.castlePending(),
                 WildernessSessionResult(WildernessSessionResultStatus.EnteredCastle, from = point),
             )
         }
@@ -1045,7 +1048,7 @@ data class WildernessSession(
 
     private fun requestQuit(): WildernessSession =
         copy(
-            step = WildernessSessionStep.QuitConfirm(WildernessPromptText.quitConfirm()),
+            step = WildernessSessionStep.QuitConfirm(prompts.quitConfirm),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.QuitRequested),
         )
 
@@ -1122,54 +1125,6 @@ data class WildernessSession(
                 content = content,
             )
     }
-}
-
-object WildernessPromptText {
-    fun pass(): TextBlock =
-        inlineText("Time passes...")
-
-    fun noMoves(): TextBlock =
-        inlineText("No moves left.")
-
-    fun outOfMoves(): TextBlock =
-        inlineText("You are out of moves", "for today.", "", "(S)ave and Quit", "(Q)uit (no save)")
-
-    fun notInWilderness(): TextBlock =
-        inlineText("The active party is not in the wilderness.")
-
-    fun nothingToEnter(): TextBlock =
-        inlineText("There is nothing to enter here.")
-
-    fun unknownTown(): TextBlock =
-        inlineText("This town has no town declaration yet.")
-
-    fun hutPending(): TextBlock =
-        inlineText("Hut entry is not ported yet.")
-
-    fun castlePending(): TextBlock =
-        inlineText("Castle entry is not ported yet.")
-
-    fun dungeonHandoffPending(handoff: WildernessDungeonHandoff): TextBlock =
-        inlineText("Entering ${handoff.dungeon.slug}.", "Levels: ${handoff.levels}")
-
-    fun quitConfirm(): TextBlock =
-        inlineText("Do you really want", "to quit?", "")
-
-    fun savePending(): TextBlock =
-        inlineText("Save is not wired", "in the Kotlin runtime yet.")
-
-    fun journalPending(): TextBlock =
-        inlineText("Journal viewing is not", "ported yet.")
-
-    fun huntPending(): TextBlock =
-        inlineText("Hunting is not", "ported yet.")
-
-    fun viewPartyPending(): TextBlock =
-        inlineText("Party viewing is not", "ported yet.")
-
-    fun dropPending(): TextBlock =
-        inlineText("Dropping items is not", "ported yet.")
-
 }
 
 fun WildernessKeysModel.directionForInput(input: String): WildernessDirection? =

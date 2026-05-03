@@ -707,7 +707,7 @@ class DungeonSessionTerminalAdapter(
         }
         terminal.write(
             renderer.bindingPromptLines(
-                DungeonPromptText.levelMenu(session.depth),
+                session.prompts.renderLevelMenu(session.depth),
                 session.keys.exploreCommands().commandBindings(),
                 TerminalTextContext(runtime = session.runtime),
             ),
@@ -821,7 +821,10 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.DungeonHandoff -> {
                     terminal.write(
                         renderer.lines(
-                            WildernessPromptText.dungeonHandoffPending(step.handoff),
+                            session.prompts.renderDungeonHandoff(
+                                session.dungeons.displayName(step.handoff.dungeon),
+                                step.handoff.levels,
+                            ),
                             TerminalTextContext(runtime = session.runtime),
                         ),
                     )

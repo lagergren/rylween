@@ -102,6 +102,9 @@ sealed interface TextPart {
     object HuntMemberSubjectPronoun : TextPart
     object HuntFoodGained : TextPart
     object PartyMemberMax : TextPart
+    object WildernessDungeonName : TextPart
+    object WildernessDungeonLevels : TextPart
+    object DungeonDepth : TextPart
 }
 data class TextLine(val parts: List<TextPart>)
 sealed interface TextBlock {
@@ -665,6 +668,7 @@ data class DungeonRandomEventModel(
 
 data class DungeonScenarioModel(
     val dungeon: DungeonId,
+    val name: String? = null,
     val levelRange: IntRange?,
     val fixedLevelEvents: Map<Int, DungeonEventId>,
     val randomEvents: List<DungeonRandomEventModel>,
@@ -674,7 +678,13 @@ data class DungeonSystemModel(
     val events: List<DungeonEventModel> = emptyList(),
     val scenarios: List<DungeonScenarioModel> = emptyList(),
     val backdrop: ImageId? = null,
-)
+) {
+    fun displayName(dungeon: DungeonId): String =
+        scenarios
+            .firstOrNull { it.dungeon == dungeon }
+            ?.name
+            ?: dungeon.slug.replace('_', ' ')
+}
 
 sealed interface CharacterPlacementModel {
     data class Fixed(val position: WorldPosition) : CharacterPlacementModel
@@ -1521,6 +1531,8 @@ data class GamePromptsModel(
     val inventoryUse: InventoryUsePromptsModel = InventoryUsePromptsModel(),
     val equipment: EquipmentPromptsModel = EquipmentPromptsModel(),
     val town: TownPromptsModel = TownPromptsModel(),
+    val wilderness: WildernessPromptsModel = WildernessPromptsModel(),
+    val dungeon: DungeonPromptsModel = DungeonPromptsModel(),
 )
 
 data class PriestSpellPromptsModel(
@@ -1584,6 +1596,66 @@ data class TownPromptsModel(
     fun closed(building: BuildingId): TextBlock =
         inlineText("${building.slug}$closedSuffix")
 }
+
+data class WildernessPromptsModel(
+    val pass: TextBlock = missingPrompt("wilderness.pass"),
+    val noMoves: TextBlock = missingPrompt("wilderness.no_moves"),
+    val outOfMoves: TextBlock = missingPrompt("wilderness.out_of_moves"),
+    val notInWilderness: TextBlock = missingPrompt("wilderness.not_in_wilderness"),
+    val nothingToEnter: TextBlock = missingPrompt("wilderness.nothing_to_enter"),
+    val quitConfirm: TextBlock = missingPrompt("wilderness.quit_confirm"),
+    val dungeonHandoff: TextBlock = missingPrompt("wilderness.dungeon_handoff"),
+) {
+    fun renderDungeonHandoff(dungeonName: String, levels: Int): TextBlock =
+        dungeonHandoff.resolvePromptValues(
+            PromptTextValues(
+                wildernessDungeonName = dungeonName,
+                wildernessDungeonLevels = levels,
+            ),
+        )
+}
+
+data class DungeonPromptsModel(
+    val levelMenu: TextBlock = missingPrompt("dungeon.level_menu"),
+    val enterLevel: TextBlock = missingPrompt("dungeon.enter_level"),
+    val atMaxDepth: TextBlock = missingPrompt("dungeon.at_max_depth"),
+    val noTorches: TextBlock = missingPrompt("dungeon.no_torches"),
+    val leaveCavern: TextBlock = missingPrompt("dungeon.leave_cavern"),
+) {
+    fun renderLevelMenu(depth: Int): TextBlock =
+        levelMenu.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
+
+    fun renderEnterLevel(depth: Int): TextBlock =
+        enterLevel.resolvePromptValues(PromptTextValues(dungeonDepth = depth))
+}
+
+private fun missingPrompt(name: String): TextBlock =
+    inlineText("[missing prompt: $name]")
+
+private data class PromptTextValues(
+    val wildernessDungeonName: String? = null,
+    val wildernessDungeonLevels: Int? = null,
+    val dungeonDepth: Int? = null,
+)
+
+private fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
+    when (this) {
+        is TextBlock.Inline,
+        is TextBlock.Ref -> this
+        is TextBlock.Structured -> TextBlock.Structured(
+            lines.map { line ->
+                TextLine(line.parts.map { part -> part.resolvePromptValue(values) })
+            },
+        )
+    }
+
+private fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
+    when (this) {
+        TextPart.WildernessDungeonName -> TextPart.Literal(values.wildernessDungeonName ?: "{dungeon}")
+        TextPart.WildernessDungeonLevels -> TextPart.Literal(values.wildernessDungeonLevels?.toString() ?: "{levels}")
+        TextPart.DungeonDepth -> TextPart.Literal(values.dungeonDepth?.toString() ?: "{level}")
+        else -> this
+    }
 
 
 data class WildernessEventModel(
@@ -4108,6 +4180,8 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
     private var inventoryUse = initial.inventoryUse
     private var equipment = initial.equipment
     private var town = initial.town
+    private var wilderness = initial.wilderness
+    private var dungeon = initial.dungeon
 
     fun pauseVerbs(vararg verbs: String) {
         pauseVerbList = verbs.toList()
@@ -4133,6 +4207,14 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
         town = TownPromptsBuilder(town).apply(body).build()
     }
 
+    fun wilderness(body: WildernessPromptsBuilder.() -> Unit) {
+        wilderness = WildernessPromptsBuilder(wilderness).apply(body).build()
+    }
+
+    fun dungeon(body: DungeonPromptsBuilder.() -> Unit) {
+        dungeon = DungeonPromptsBuilder(dungeon).apply(body).build()
+    }
+
     fun build(): GamePromptsModel =
         GamePromptsModel(
             pauseVerbs = pauseVerbList,
@@ -4141,6 +4223,8 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
             inventoryUse = inventoryUse,
             equipment = equipment,
             town = town,
+            wilderness = wilderness,
+            dungeon = dungeon,
         )
 }
 
@@ -4222,6 +4306,85 @@ class TownPromptsBuilder(initial: TownPromptsModel = TownPromptsModel()) {
             missingServiceSuffix = missingServiceSuffix,
             closedSuffix = closedSuffix,
         )
+}
+
+@RylNextDsl
+class WildernessPromptsBuilder(initial: WildernessPromptsModel = WildernessPromptsModel()) {
+    var pass: TextBlock = initial.pass
+    var noMoves: TextBlock = initial.noMoves
+    var outOfMoves: TextBlock = initial.outOfMoves
+    var notInWilderness: TextBlock = initial.notInWilderness
+    var nothingToEnter: TextBlock = initial.nothingToEnter
+    var quitConfirm: TextBlock = initial.quitConfirm
+    private var dungeonHandoffText: TextBlock = initial.dungeonHandoff
+
+    fun dungeonHandoff(body: WildernessDungeonHandoffPromptBuilder.() -> Unit) {
+        dungeonHandoffText = WildernessDungeonHandoffPromptBuilder().apply(body).build()
+    }
+
+    fun build(): WildernessPromptsModel =
+        WildernessPromptsModel(
+            pass = pass,
+            noMoves = noMoves,
+            outOfMoves = outOfMoves,
+            notInWilderness = notInWilderness,
+            nothingToEnter = nothingToEnter,
+            quitConfirm = quitConfirm,
+            dungeonHandoff = dungeonHandoffText,
+        )
+}
+
+@RylNextDsl
+class DungeonPromptsBuilder(initial: DungeonPromptsModel = DungeonPromptsModel()) {
+    private var levelMenuText: TextBlock = initial.levelMenu
+    private var enterLevelText: TextBlock = initial.enterLevel
+    var atMaxDepth: TextBlock = initial.atMaxDepth
+    var noTorches: TextBlock = initial.noTorches
+    var leaveCavern: TextBlock = initial.leaveCavern
+
+    fun levelMenu(body: DungeonLevelPromptBuilder.() -> Unit) {
+        levelMenuText = DungeonLevelPromptBuilder().apply(body).build()
+    }
+
+    fun enterLevel(body: DungeonLevelPromptBuilder.() -> Unit) {
+        enterLevelText = DungeonLevelPromptBuilder().apply(body).build()
+    }
+
+    fun build(): DungeonPromptsModel =
+        DungeonPromptsModel(
+            levelMenu = levelMenuText,
+            enterLevel = enterLevelText,
+            atMaxDepth = atMaxDepth,
+            noTorches = noTorches,
+            leaveCavern = leaveCavern,
+        )
+}
+
+@RylNextDsl
+class WildernessDungeonHandoffPromptBuilder : TextLineSink {
+    private val text = StructuredTextBlockBuilder()
+
+    val dungeonName: TextPart = TextPart.WildernessDungeonName
+    val levels: TextPart = TextPart.WildernessDungeonLevels
+
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
+    }
+
+    fun build(): TextBlock = text.build()
+}
+
+@RylNextDsl
+class DungeonLevelPromptBuilder : TextLineSink {
+    private val text = StructuredTextBlockBuilder()
+
+    val level: TextPart = TextPart.DungeonDepth
+
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
+    }
+
+    fun build(): TextBlock = text.build()
 }
 
 @RylNextDsl
@@ -4450,9 +4613,14 @@ class DungeonEventBuilder(private val id: DungeonEventId) {
 
 @RylNextDsl
 class DungeonScenarioBuilder(private val dungeon: DungeonId) {
+    private var name: String? = null
     private var levelRange: IntRange? = null
     private val fixedLevelEvents = linkedMapOf<Int, DungeonEventId>()
     private val randomEvents = mutableListOf<DungeonRandomEventModel>()
+
+    fun name(value: String) {
+        name = value
+    }
 
     fun levels(count: Int) {
         levelRange = count..count
@@ -4473,6 +4641,7 @@ class DungeonScenarioBuilder(private val dungeon: DungeonId) {
     fun build(): DungeonScenarioModel =
         DungeonScenarioModel(
             dungeon = dungeon,
+            name = name,
             levelRange = levelRange,
             fixedLevelEvents = fixedLevelEvents.toMap(),
             randomEvents = randomEvents.toList(),
@@ -6442,7 +6611,10 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         TextPart.HuntMemberName,
                         TextPart.HuntMemberSubjectPronoun,
                         TextPart.HuntFoodGained,
-                        TextPart.PartyMemberMax -> Unit
+                        TextPart.PartyMemberMax,
+                        TextPart.WildernessDungeonName,
+                        TextPart.WildernessDungeonLevels,
+                        TextPart.DungeonDepth -> Unit
                     }
                 }
             }

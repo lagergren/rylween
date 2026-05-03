@@ -290,6 +290,9 @@ fun validateDungeonSystem(dungeons: DungeonSystemModel) {
     }
     dungeons.scenarios.forEach { scenario ->
         check(scenario.dungeon.slug.isNotBlank()) { "dungeon scenario references blank dungeon" }
+        scenario.name?.let { name ->
+            check(name.isNotBlank()) { "dungeon scenario ${scenario.dungeon.slug} has blank display name" }
+        }
         scenario.levelRange?.let { range ->
             check(range.first > 0 && range.last >= range.first) {
                 "dungeon scenario ${scenario.dungeon.slug} has invalid level range"
@@ -709,7 +712,10 @@ private fun validateTextBlock(
             TextPart.HuntMemberName,
             TextPart.HuntMemberSubjectPronoun,
             TextPart.HuntFoodGained,
-            TextPart.PartyMemberMax -> Unit
+            TextPart.PartyMemberMax,
+            TextPart.WildernessDungeonName,
+            TextPart.WildernessDungeonLevels,
+            TextPart.DungeonDepth -> Unit
         }
     }
 
@@ -1549,6 +1555,18 @@ fun validateAuthoredContent(content: GameModel) {
     validateTextBlock(content.prompts.equipment.who, "equipment who prompt")
     validateTextBlock(content.prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
     validateTextBlock(content.prompts.equipment.readyArmors, "equipment ready-armors prompt")
+    validateTextBlock(content.prompts.wilderness.pass, "wilderness pass prompt")
+    validateTextBlock(content.prompts.wilderness.noMoves, "wilderness no-moves prompt")
+    validateTextBlock(content.prompts.wilderness.outOfMoves, "wilderness out-of-moves prompt")
+    validateTextBlock(content.prompts.wilderness.notInWilderness, "wilderness not-in-wilderness prompt")
+    validateTextBlock(content.prompts.wilderness.nothingToEnter, "wilderness nothing-to-enter prompt")
+    validateTextBlock(content.prompts.wilderness.quitConfirm, "wilderness quit-confirm prompt")
+    validateTextBlock(content.prompts.wilderness.dungeonHandoff, "wilderness dungeon-handoff prompt")
+    validateTextBlock(content.prompts.dungeon.levelMenu, "dungeon level-menu prompt")
+    validateTextBlock(content.prompts.dungeon.enterLevel, "dungeon enter-level prompt")
+    validateTextBlock(content.prompts.dungeon.atMaxDepth, "dungeon at-max-depth prompt")
+    validateTextBlock(content.prompts.dungeon.noTorches, "dungeon no-torches prompt")
+    validateTextBlock(content.prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
     validateRealmContent(content.realm)
     validateVisuals(content.visuals)
     validateTerminalPresentation(content.terminal)

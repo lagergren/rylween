@@ -86,6 +86,7 @@ data class DungeonSession(
     val itemUses: List<ItemUseModel> get() = content.itemUses
     val itemRecords: List<ItemRecordModel> get() = content.itemRecords
     val realm: RealmContentModel get() = content.realm
+    val prompts: DungeonPromptsModel get() = content.prompts.dungeon
     val party: PartyState get() = runtime.activeParty
 
     fun apply(input: DungeonSessionInput): DungeonSession =
@@ -98,7 +99,7 @@ data class DungeonSession(
                     lastResult = result(DungeonSessionResultStatus.HelpShown),
                 )
                 DungeonSessionInput.Drop ->
-                    notice(DungeonPromptText.dropPending(), DungeonSessionResultStatus.DropUnavailable)
+                    notice(RuntimeUnavailableText.dungeonDropPending(), DungeonSessionResultStatus.DropUnavailable)
                 DungeonSessionInput.RemoveArmor -> equipment(EquipmentCommand.RemoveArmor)
                 DungeonSessionInput.RemoveWeapon -> equipment(EquipmentCommand.RemoveWeapon)
                 DungeonSessionInput.ReadyWeapon -> equipment(EquipmentCommand.ReadyWeapon)
@@ -106,7 +107,7 @@ data class DungeonSession(
                 DungeonSessionInput.Quaff -> quaff()
                 DungeonSessionInput.CastSpell -> castSpell()
                 DungeonSessionInput.ViewParty ->
-                    notice(DungeonPromptText.viewPartyPending(), DungeonSessionResultStatus.ViewPartyUnavailable)
+                    notice(RuntimeUnavailableText.dungeonViewPartyPending(), DungeonSessionResultStatus.ViewPartyUnavailable)
                 DungeonSessionInput.Continue -> this
             }
             is DungeonSessionStep.Messages -> {
@@ -222,15 +223,15 @@ data class DungeonSession(
                 runtime = runtime.withActiveParty(descent.party),
                 depth = depth + 1,
                 step = DungeonSessionStep.Messages(
-                    listOf(DungeonPromptText.enterLevel(depth + 1)),
+                    listOf(prompts.renderEnterLevel(depth + 1)),
                     nextEventStep(depth + 1),
                 ),
                 lastResult = result(DungeonSessionResultStatus.Descended),
             )
             is DungeonDescentResult.NoTorches ->
-                notice(DungeonPromptText.noTorches(), DungeonSessionResultStatus.NoTorches)
+                notice(prompts.noTorches, DungeonSessionResultStatus.NoTorches)
             is DungeonDescentResult.AtMaxDepth ->
-                notice(DungeonPromptText.atMaxDepth(), DungeonSessionResultStatus.AtMaxDepth)
+                notice(prompts.atMaxDepth, DungeonSessionResultStatus.AtMaxDepth)
         }
 
     private fun ascend(): DungeonSession =
@@ -245,7 +246,7 @@ data class DungeonSession(
             copy(
                 runtime = nextRuntime,
                 step = DungeonSessionStep.Messages(
-                    listOf(DungeonPromptText.leaveCavern()),
+                    listOf(prompts.leaveCavern),
                     DungeonSessionStep.Finished(nextRuntime),
                 ),
                 lastResult = result(DungeonSessionResultStatus.LeftDungeon),
@@ -254,7 +255,7 @@ data class DungeonSession(
             copy(
                 depth = depth - 1,
                 step = DungeonSessionStep.Messages(
-                    listOf(DungeonPromptText.enterLevel(depth - 1)),
+                    listOf(prompts.renderEnterLevel(depth - 1)),
                     nextEventStep(depth - 1),
                 ),
                 lastResult = result(DungeonSessionResultStatus.Ascended),
@@ -399,27 +400,4 @@ private fun List<DungeonRandomEventModel>.drawEvent(runtime: RuntimeSessionState
         draw.value <= running
     }.event
     return DungeonRandomEventDraw(draw.runtime, event)
-}
-
-object DungeonPromptText {
-    fun levelMenu(depth: Int): TextBlock =
-        inlineText("You are on level $depth.", "", "(D) Descend", "(A) Ascend", "")
-
-    fun enterLevel(depth: Int): TextBlock =
-        inlineText("You enter level $depth.")
-
-    fun atMaxDepth(): TextBlock =
-        inlineText("The cave doesn't", "go deeper.")
-
-    fun noTorches(): TextBlock =
-        inlineText("You have used your last", "torch. You can't go", "any further.", "")
-
-    fun leaveCavern(): TextBlock =
-        inlineText("You leave the", "hideous cavern!", "")
-
-    fun viewPartyPending(): TextBlock =
-        inlineText("Dungeon party view is", "not ported yet.")
-
-    fun dropPending(): TextBlock =
-        inlineText("Dropping items is not", "ported yet.")
 }
