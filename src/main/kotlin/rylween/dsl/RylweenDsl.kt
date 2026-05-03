@@ -1383,11 +1383,54 @@ data class SpeakSystemModel(
     val questionActions: List<QuestionActionScriptModel> = emptyList(),
 )
 
+data class SecretSystemModel(
+    val players: List<SecretPlayerModel> = emptyList(),
+)
+
+data class SecretPlayerModel(
+    val playerName: String,
+    val keyActions: List<SecretKeyActionModel> = emptyList(),
+    val stepTrigger: SecretStepTriggerModel? = null,
+)
+
+data class SecretKeyActionModel(
+    val binding: InputBindingModel,
+    val action: SecretActionModel,
+)
+
+data class SecretStepTriggerModel(
+    val everySteps: Int,
+    val action: SecretActionModel,
+)
+
+sealed interface SecretActionModel {
+    data class AddTimeLeft(
+        val amount: Int,
+        val refreshStatus: Boolean = false,
+    ) : SecretActionModel
+
+    data class AddGold(
+        val amount: Int,
+        val refreshStatus: Boolean = false,
+    ) : SecretActionModel
+
+    data class SetInventory(
+        val slot: Int,
+        val item: ItemId,
+    ) : SecretActionModel
+
+    data class SpawnEncounter(
+        val monster: MonsterId,
+    ) : SecretActionModel
+}
+
 /**
  * Bundled view of [GameModel] content the reusable sessions actually consume:
  * combat tables, monster catalog, formulas, rewards, leveling rules, spells,
  * item-use scripts, item records, realm-level balance, dungeon/wilderness
  * subsystem config, town list, town menu, scenes, missions, characters.
+ * Optional debug/secret hooks are included here as content-gated runtime
+ * behavior rather than frontend globals.
  *
  * Sessions and runtimes accept this as a single parameter so adding a new
  * content kind is one builder field plus one read site, not a parameter
@@ -1415,6 +1458,7 @@ data class RuntimeContent(
     val characters: List<CharacterModel> = emptyList(),
     val speak: SpeakSystemModel = SpeakSystemModel(null),
     val dialogue: List<DialogueModel> = emptyList(),
+    val secrets: SecretSystemModel = SecretSystemModel(),
 ) {
     val battleConfigured: Boolean get() = combat.standardBattle != null
 }
@@ -1447,6 +1491,7 @@ data class GameModel(
     val spells: List<SpellModel>,
     val itemUses: List<ItemUseModel>,
     val missions: List<MissionModel>,
+    val secrets: SecretSystemModel = SecretSystemModel(),
 )
 
 fun GameModel.itemPool(pool: ItemPoolId): ItemPoolId =
@@ -1475,6 +1520,7 @@ fun GameModel.runtimeContent(): RuntimeContent =
         characters = characters,
         speak = speak,
         dialogue = dialogue,
+        secrets = secrets,
     )
 
 sealed interface Trigger {
@@ -4032,6 +4078,7 @@ class GameBuilder {
     private val spells = mutableListOf<SpellModel>()
     private val itemUses = mutableListOf<ItemUseModel>()
     private val missions = mutableListOf<MissionModel>()
+    private var secretsModel = SecretSystemModel()
 
     fun flags(body: FlagContentBuilder.() -> Unit) {
         authoredFlags += FlagContentBuilder().apply(body).build()
@@ -4085,6 +4132,10 @@ class GameBuilder {
 
     fun wilderness(body: WildernessSystemBuilder.() -> Unit) {
         wildernessModel = WildernessSystemBuilder().apply(body).build()
+    }
+
+    fun secrets(body: SecretSystemBuilder.() -> Unit) {
+        secretsModel = SecretSystemBuilder(secretsModel).apply(body).build()
     }
 
     fun dungeons(body: DungeonSystemBuilder.() -> Unit) {
@@ -4168,9 +4219,55 @@ class GameBuilder {
             spells = spells.map { it.resolveItemPools(::resolveItemPool) },
             itemUses = itemUses.map { it.resolveItemPools(::resolveItemPool) },
             missions = missions.toList(),
+            secrets = secretsModel,
         )
     }
 
+}
+
+@RylNextDsl
+class SecretSystemBuilder(initial: SecretSystemModel = SecretSystemModel()) {
+    private val players = initial.players.toMutableList()
+
+    fun player(name: String, body: SecretPlayerBuilder.() -> Unit) {
+        players += SecretPlayerBuilder(name).apply(body).build()
+    }
+
+    fun build(): SecretSystemModel =
+        SecretSystemModel(players = players.toList())
+}
+
+@RylNextDsl
+class SecretPlayerBuilder(private val name: String) {
+    private val keyActions = mutableListOf<SecretKeyActionModel>()
+    private var stepTrigger: SecretStepTriggerModel? = null
+
+    fun addTimeLeft(key: Char, amount: Int, refreshStatus: Boolean = false) {
+        onKey(key, SecretActionModel.AddTimeLeft(amount, refreshStatus))
+    }
+
+    fun addGold(key: Char, amount: Int, refreshStatus: Boolean = false) {
+        onKey(key, SecretActionModel.AddGold(amount, refreshStatus))
+    }
+
+    fun setInventory(key: Char, slot: Int, item: ItemId) {
+        onKey(key, SecretActionModel.SetInventory(slot, item))
+    }
+
+    fun spawnEncounterEvery(everySteps: Int, monster: MonsterId) {
+        stepTrigger = SecretStepTriggerModel(everySteps, SecretActionModel.SpawnEncounter(monster))
+    }
+
+    private fun onKey(key: Char, action: SecretActionModel) {
+        keyActions += SecretKeyActionModel(inputKey(key, label = key.toString()), action)
+    }
+
+    fun build(): SecretPlayerModel =
+        SecretPlayerModel(
+            playerName = name,
+            keyActions = keyActions.toList(),
+            stepTrigger = stepTrigger,
+        )
 }
 
 @RylNextDsl
