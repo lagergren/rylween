@@ -106,6 +106,7 @@ fun GameModel.terminalTextRenderer(references: Map<String, List<String>> = empty
         references = references,
         towns = towns,
         characters = characters,
+        dungeons = dungeons,
         prompts = prompts,
     )
 
@@ -113,6 +114,7 @@ class TerminalTextRenderer(
     private val references: Map<String, List<String>> = emptyMap(),
     private val towns: List<TownModel> = emptyList(),
     private val characters: List<CharacterModel> = emptyList(),
+    private val dungeons: DungeonSystemModel = DungeonSystemModel(),
     private val prompts: GamePromptsModel = GamePromptsModel(),
 ) {
     private val worldText = TerminalWorldTextResolver(towns, characters)
@@ -167,6 +169,9 @@ class TerminalTextRenderer(
         return rendered + options
     }
 
+    fun dungeonHandoffPrompt(handoff: WildernessDungeonHandoff): TextBlock =
+        prompts.wilderness.renderDungeonHandoff(dungeons.displayName(handoff.dungeon), handoff.levels)
+
     private fun render(part: TextPart, context: TerminalTextContext): String =
         when (part) {
             is TextPart.Literal -> part.text
@@ -188,6 +193,9 @@ class TerminalTextRenderer(
             TextPart.HuntMemberSubjectPronoun -> huntMemberSubjectPronoun(context) ?: "{pro_sub}"
             TextPart.HuntFoodGained -> context.huntFoodGained?.toString() ?: "{fdplus}"
             TextPart.PartyMemberMax -> context.runtime?.realm?.partyMemberMax?.toString() ?: "{party_max}"
+            TextPart.WildernessDungeonName -> "{dungeon}"
+            TextPart.WildernessDungeonLevels -> "{levels}"
+            TextPart.DungeonDepth -> "{level}"
         }
 
     fun pausePrompt(verbIndex: Int? = null): TextBlock {
@@ -367,7 +375,7 @@ fun TerminalPort.writeScriptEvents(
             is EngineTraceEvent.RunScene -> write(listOf("Scene: ${event.scene.slug}"))
             is EngineTraceEvent.DungeonHandoff ->
                 if (renderDungeonHandoff) {
-                    write(renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context))
+                    write(renderer.lines(renderer.dungeonHandoffPrompt(event.handoff), context))
                 }
             is EngineTraceEvent.TeleportParty,
             is EngineTraceEvent.DiscoverCave -> Unit

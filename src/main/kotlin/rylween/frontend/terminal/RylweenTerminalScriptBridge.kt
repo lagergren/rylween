@@ -812,6 +812,9 @@ class StatefulScriptServiceRunner(
                             TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
                             TextPart.HuntFoodGained -> "{fdplus}"
                             TextPart.PartyMemberMax -> "{party_max}"
+                            TextPart.WildernessDungeonName -> "{dungeon}"
+                            TextPart.WildernessDungeonLevels -> "{levels}"
+                            TextPart.DungeonDepth -> "{level}"
                         }
                     }
                 },

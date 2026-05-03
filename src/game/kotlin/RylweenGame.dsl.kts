@@ -530,6 +530,33 @@ val nextRylween = rylween {
             missingServiceSuffix = " service is not implemented yet."
             closedSuffix = " is closed."
         }
+        wilderness {
+            pass = inlineText("Time passes...")
+            noMoves = inlineText("No moves left.")
+            outOfMoves = inlineText("You are out of moves", "for today.", "", "(S)ave and Quit", "(Q)uit (no save)")
+            notInWilderness = inlineText("The active party is not in the wilderness.")
+            nothingToEnter = inlineText("There is nothing to enter here.")
+            quitConfirm = inlineText("Do you really want", "to quit?", "")
+            dungeonHandoff {
+                line("Entering ", dungeonName, ".")
+                line("Levels: ", levels)
+            }
+        }
+        dungeon {
+            levelMenu {
+                line("You are on level ", level, ".")
+                line("")
+                line("(D) Descend")
+                line("(A) Ascend")
+                line("")
+            }
+            enterLevel {
+                line("You enter level ", level, ".")
+            }
+            atMaxDepth = inlineText("The cave doesn't", "go deeper.")
+            noTorches = inlineText("You have used your last", "torch. You can't go", "any further.", "")
+            leaveCavern = inlineText("You leave the", "hideous cavern!", "")
+        }
     }
 
     items {
@@ -1690,10 +1717,12 @@ val nextRylween = rylween {
         }
 
         scenario(Dungeons.randomCave) {
+            name("Random Cave")
             standardDungeonEvents()
         }
 
         scenario(Dungeons.fireShieldCave) {
+            name("Fire Shield Cave")
             levels(20)
             standardDungeonEvents()
             level(19, DungeonEvents.fireShieldGuardian)
@@ -1701,6 +1730,7 @@ val nextRylween = rylween {
         }
 
         scenario(Dungeons.thunTemple) {
+            name("Thun Temple")
             levels(18)
             standardDungeonEvents()
             level(4, DungeonEvents.thunRiddle1)
@@ -1710,6 +1740,7 @@ val nextRylween = rylween {
         }
 
         scenario(Dungeons.reebarTomb) {
+            name("Reebar Tomb")
             levels(20)
             standardDungeonEvents()
             level(12, DungeonEvents.spectrumMessage)
@@ -1724,18 +1755,21 @@ val nextRylween = rylween {
         }
 
         scenario(Dungeons.masterCrownDungeon) {
+            name("Master Crown Dungeon")
             levels(10)
             standardDungeonEvents()
             level(10, DungeonEvents.masterCrown)
         }
 
         scenario(Dungeons.silverSanctum) {
+            name("Silver Sanctum")
             levels(20)
             standardDungeonEvents()
             level(20, DungeonEvents.silverSanctum)
         }
 
         scenario(Dungeons.hobgoblinStronghold) {
+            name("Hobgoblin Stronghold")
             levels(22)
             standardDungeonEvents()
             level(3, DungeonEvents.hobgoblinPatrol)
@@ -1750,6 +1784,7 @@ val nextRylween = rylween {
         }
 
         scenario(Dungeons.ogreCave) {
+            name("Ogre Cave")
             levels(7)
             standardDungeonEvents()
             level(6, DungeonEvents.orcNest)
@@ -1757,6 +1792,7 @@ val nextRylween = rylween {
         }
 
         scenario(Dungeons.erethorTemple) {
+            name("Erethor Temple")
             levels(12)
             standardDungeonEvents()
             level(3, DungeonEvents.erethorPriests)

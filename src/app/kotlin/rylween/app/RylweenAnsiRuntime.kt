@@ -136,7 +136,14 @@ private class RylweenAnsiGame(
                     }
                 }
                 is WildernessSessionStep.DungeonHandoff -> {
-                    screen.writeBlock(WildernessPromptText.dungeonHandoffPending(step.handoff), session.runtime, renderer)
+                    screen.writeBlock(
+                        session.prompts.renderDungeonHandoff(
+                            session.dungeons.displayName(step.handoff.dungeon),
+                            step.handoff.levels,
+                        ),
+                        session.runtime,
+                        renderer,
+                    )
                     waitForReturn()
                     session.startDungeonFromHandoff()
                 }
