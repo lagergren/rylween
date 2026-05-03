@@ -126,7 +126,7 @@ sealed interface TownSessionStep {
     data class NativeService(
         val service: BuildingServiceModel,
         val scene: SceneModel,
-        val continuation: TownServiceContinuation? = null,
+        val continuation: ScriptContinuation? = null,
     ) : TownSessionStep
     data class LeaveEquipment(
         val session: TownLeaveEquipmentSession,
@@ -188,7 +188,7 @@ data class TownSession(
         }
     }
 
-    fun replaceNativeServiceContinuation(continuation: TownServiceContinuation): TownSession {
+    fun replaceNativeServiceContinuation(continuation: ScriptContinuation): TownSession {
         val current = step as? TownSessionStep.NativeService
             ?: error("town session is not running a native service")
         return copy(

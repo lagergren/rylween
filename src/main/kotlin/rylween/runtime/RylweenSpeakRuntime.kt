@@ -18,7 +18,7 @@ sealed interface SpeakStep {
         val npc: CharacterModel,
         val ops: List<Op>,
         val next: SpeakStep,
-        val continuation: TownServiceContinuation? = null,
+        val continuation: ScriptContinuation? = null,
     ) : SpeakStep
     data class MainMenu(val npc: CharacterModel, val actions: List<ConversationMenuActionModel>) : SpeakStep
     data class QuestionMenu(val npc: CharacterModel, val actions: List<QuestionMenuActionModel>) : SpeakStep

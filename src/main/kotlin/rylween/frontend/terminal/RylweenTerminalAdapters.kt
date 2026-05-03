@@ -199,9 +199,9 @@ class InventoryItemUseTerminalAdapter(
                         result.runtime,
                     )
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished ->
+                        ScriptBridgeStatus.Finished ->
                             session.finishScript(result.runtime)
-                        TownServiceBridgeStatus.Waiting ->
+                        ScriptBridgeStatus.Waiting ->
                             return waiting(
                                 session.replaceScriptContinuation(
                                     checkNotNull(result.continuation) {
@@ -419,8 +419,8 @@ class PriestSpellTerminalAdapter(
                         result.runtime,
                     )
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished -> session.finishScript(result.runtime, result.dungeonHandoff)
-                        TownServiceBridgeStatus.Waiting ->
+                        ScriptBridgeStatus.Finished -> session.finishScript(result.runtime, result.dungeonHandoff)
+                        ScriptBridgeStatus.Waiting ->
                             return waiting(
                                 session.replaceScriptContinuation(
                                     checkNotNull(result.continuation) {
@@ -650,7 +650,7 @@ class ShopServiceTerminalAdapter(
 class TownSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
-    private val serviceBridge: TownServiceBridge? = null,
+    private val serviceBridge: ScriptBridge? = null,
 ) {
     fun run(initial: TownSession): TownSession =
         runUntilBlocked(initial).session
@@ -688,8 +688,8 @@ class TownSessionTerminalAdapter(
                     ) { return it }
                 }
                 is TownSessionStep.NativeService -> {
-                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
-                    val bridge = serviceBridge ?: StatefulTownServiceBridge(
+                    val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
+                    val bridge = serviceBridge ?: StatefulScriptBridge(
                         terminal,
                         speakContent = session.content.speakRuntimeContent(),
                         battleContent = session.content,
@@ -703,9 +703,9 @@ class TownSessionTerminalAdapter(
                         renderTownService = true,
                     )
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished ->
+                        ScriptBridgeStatus.Finished ->
                             session.apply(TownSessionInput.FinishNativeService(result.runtime))
-                        TownServiceBridgeStatus.Waiting ->
+                        ScriptBridgeStatus.Waiting ->
                             return waiting(
                                 session.replaceNativeServiceContinuation(
                                     checkNotNull(result.continuation) { "waiting service bridge did not return continuation" },
@@ -815,8 +815,8 @@ class DungeonSessionTerminalAdapter(
                     val result = runEventScript(session, step)
                     terminal.writeScriptEvents(result.events, renderer, result.runtime)
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished -> session.finishEvent(result.runtime)
-                        TownServiceBridgeStatus.Waiting -> {
+                        ScriptBridgeStatus.Finished -> session.finishEvent(result.runtime)
+                        ScriptBridgeStatus.Waiting -> {
                             val continuation = checkNotNull(result.continuation) {
                                 "waiting dungeon event did not return continuation"
                             }
@@ -856,10 +856,10 @@ class DungeonSessionTerminalAdapter(
     private fun runEventScript(
         session: DungeonSession,
         step: DungeonSessionStep.Event,
-    ): TownServiceBridgeResult {
+    ): ScriptBridgeResult {
         val engine = TraceEnginePort()
         val eventStart = engine.events.size
-        val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime).copy(
+        val continuation = step.continuation ?: ScriptContinuation.start(session.runtime).copy(
             locals = mapOf("dungeon_level" to session.depth),
         )
         val result = StatefulScriptServiceRunner(
@@ -884,7 +884,7 @@ class DungeonSessionTerminalAdapter(
             textRenderer = renderer,
             resumeModeAfterBattle = RuntimeMode.Dungeon,
         ).run()
-        return TownServiceBridgeResult(
+        return ScriptBridgeResult(
             runtime = result.runtime,
             status = result.status,
             events = engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
@@ -915,7 +915,7 @@ class DungeonSessionTerminalAdapter(
 class WildernessSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
-    private val serviceBridge: TownServiceBridge? = null,
+    private val serviceBridge: ScriptBridge? = null,
     private val savePort: RuntimeSavePort? = null,
 ) {
     fun run(initial: WildernessSession): WildernessSession =
@@ -961,8 +961,8 @@ class WildernessSessionTerminalAdapter(
                         .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is WildernessSessionStep.Mission -> {
-                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
-                    val bridge = StatefulTownServiceBridge(
+                    val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
+                    val bridge = StatefulScriptBridge(
                         terminal = terminal,
                         speakContent = session.content.speakRuntimeContent(),
                         battleContent = session.content,
@@ -977,7 +977,7 @@ class WildernessSessionTerminalAdapter(
                         renderDungeonHandoff = false,
                     )
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished ->
+                        ScriptBridgeStatus.Finished ->
                             result.dungeonHandoff?.let { handoff ->
                                 session.handOffMissionDungeon(
                                     result.runtime,
@@ -987,7 +987,7 @@ class WildernessSessionTerminalAdapter(
                                     },
                                 )
                             } ?: session.finishMission(result.runtime)
-                        TownServiceBridgeStatus.Waiting -> {
+                        ScriptBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {
                                 "waiting mission bridge did not return continuation"
                             }
@@ -1008,8 +1008,8 @@ class WildernessSessionTerminalAdapter(
                     }
                 }
                 is WildernessSessionStep.Hut -> {
-                    val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
-                    val bridge = serviceBridge ?: StatefulTownServiceBridge(
+                    val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
+                    val bridge = serviceBridge ?: StatefulScriptBridge(
                         terminal = terminal,
                         speakContent = session.content.speakRuntimeContent(),
                         battleContent = session.content,
@@ -1019,8 +1019,8 @@ class WildernessSessionTerminalAdapter(
                     val result = bridge.run(step.scene.hutService(), step.scene, continuation)
                     terminal.writeScriptEvents(result.events, renderer, result.runtime)
                     when (result.status) {
-                        TownServiceBridgeStatus.Finished -> session.finishHut(result.runtime)
-                        TownServiceBridgeStatus.Waiting -> {
+                        ScriptBridgeStatus.Finished -> session.finishHut(result.runtime)
+                        ScriptBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {
                                 "waiting hut bridge did not return continuation"
                             }

@@ -40,7 +40,7 @@ sealed interface PriestSpellStep {
     data class Script(
         val spell: SpellModel,
         val casterNumber: Int,
-        val continuation: TownServiceContinuation,
+        val continuation: ScriptContinuation,
     ) : PriestSpellStep
     data class Message(val text: TextBlock, val next: PriestSpellStep) : PriestSpellStep
     data class Finished(val result: PriestSpellResult) : PriestSpellStep {
@@ -81,7 +81,7 @@ data class PriestSpellSession(
             is PriestSpellStep.Finished -> error("priest spell session is already finished: $current")
         }
 
-    fun replaceScriptContinuation(continuation: TownServiceContinuation): PriestSpellSession {
+    fun replaceScriptContinuation(continuation: ScriptContinuation): PriestSpellSession {
         val current = step as? PriestSpellStep.Script
             ?: error("priest spell session is not running a script")
         return copy(
@@ -131,7 +131,7 @@ data class PriestSpellSession(
             step = PriestSpellStep.Script(
                 spell = spell,
                 casterNumber = casterNumber,
-                continuation = TownServiceContinuation.start(runtime).copy(
+                continuation = ScriptContinuation.start(runtime).copy(
                     locals = mapOf(
                         "caster_idx" to casterNumber,
                     ),

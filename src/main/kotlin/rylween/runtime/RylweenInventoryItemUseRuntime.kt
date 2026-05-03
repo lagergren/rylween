@@ -36,7 +36,7 @@ sealed interface InventoryItemUseStep {
         val use: ItemUseModel,
         val slot: Int,
         val item: ItemId,
-        val continuation: TownServiceContinuation,
+        val continuation: ScriptContinuation,
     ) : InventoryItemUseStep
     data class Equipment(val session: EquipmentPromptSession, val item: ItemId, val slot: Int) : InventoryItemUseStep
     data class Message(val text: TextBlock, val next: InventoryItemUseStep) : InventoryItemUseStep
@@ -96,7 +96,7 @@ data class InventoryItemUseSession(
             copy(runtime = runtime.withActiveParty(session.party), step = current.copy(session = session))
         }
 
-    fun replaceScriptContinuation(continuation: TownServiceContinuation): InventoryItemUseSession {
+    fun replaceScriptContinuation(continuation: ScriptContinuation): InventoryItemUseSession {
         val current = step as? InventoryItemUseStep.Script
             ?: error("inventory item-use session is not running a script")
         return copy(
@@ -147,7 +147,7 @@ data class InventoryItemUseSession(
                 use = use,
                 slot = slot,
                 item = item,
-                continuation = TownServiceContinuation.start(nextRuntime).copy(
+                continuation = ScriptContinuation.start(nextRuntime).copy(
                     locals = mapOf("inv_slot" to slot),
                     activeInventorySlot = slot,
                 ),

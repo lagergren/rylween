@@ -400,16 +400,16 @@ class RylweenDslValidationTest {
             locations = listOf(LocationPlacement(Locations.nolrimCrypt, GridPoint(37, 14))),
         )
 
-        val result = StatefulTownServiceBridge(
+        val result = StatefulScriptBridge(
             FakeTerminalPort(),
             battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
             service,
             scene,
-            TownServiceContinuation.start(runtime),
+            ScriptContinuation.start(runtime),
         )
 
-        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertTrue(result.status is ScriptBridgeStatus.Finished)
         assertEquals(
             listOf(JournalEntryState.Line("Nolrim's Crypt is at 37x14.")),
             result.party.journal,
@@ -1438,7 +1438,7 @@ class RylweenDslValidationTest {
         val result = TownSessionTerminalAdapter(
             terminal,
             renderer = compiledTextRenderer(),
-            serviceBridge = StatefulTownServiceBridge(
+            serviceBridge = StatefulScriptBridge(
                 terminal,
                 renderer = compiledTextRenderer(),
             ),
@@ -2131,10 +2131,10 @@ class RylweenDslValidationTest {
                 ),
             ),
         )
-        val result = StatefulTownServiceBridge(FakeTerminalPort("PAY")).run(
+        val result = StatefulScriptBridge(FakeTerminalPort("PAY")).run(
             service,
             scene,
-            TownServiceContinuation.start(
+            ScriptContinuation.start(
                 RuntimeSessionState.singleParty(
                     party = testParty(gold = 1),
                     hour = 12,
@@ -2143,7 +2143,7 @@ class RylweenDslValidationTest {
             ),
         )
 
-        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertTrue(result.status is ScriptBridgeStatus.Finished)
         assertEquals(7, result.party.resources.gold)
     }
 
@@ -2447,7 +2447,7 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort("I", "N", "N", "N", "C", "1", "C", "B", "L", "L")
         val session = TownSessionTerminalAdapter(
             terminal,
-            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = testSpeakContent()),
+            serviceBridge = StatefulScriptBridge(terminal, speakContent = testSpeakContent()),
         ).runUntilBlocked(
             TownSession.start(
                 town = testTown(Buildings.inn),
@@ -2471,7 +2471,7 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort("T", "S", "1", "Q", "P", "B", "L", "L")
         val session = TownSessionTerminalAdapter(
             terminal,
-            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = testSpeakContent()),
+            serviceBridge = StatefulScriptBridge(terminal, speakContent = testSpeakContent()),
         ).runUntilBlocked(
             TownSession.start(
                 town = testTown(Buildings.tavern),
@@ -2506,7 +2506,7 @@ class RylweenDslValidationTest {
             closesAt = null,
             nativeServices = emptyList(),
         )
-        val result = StatefulTownServiceBridge(
+        val result = StatefulScriptBridge(
             terminal,
             speakContent = compiledSpeakContent(),
             battleContent = content.runtimeContent(),
@@ -2514,7 +2514,7 @@ class RylweenDslValidationTest {
         ).run(
             service,
             scene,
-            TownServiceContinuation.start(
+            ScriptContinuation.start(
                 RuntimeSessionState.singleParty(
                     party = testParty(gold = 200, level = 2, hitPoints = 5, health = 10),
                     hour = 12,
@@ -2525,7 +2525,7 @@ class RylweenDslValidationTest {
 
         terminal.writeScriptEvents(result.events, renderer, result.runtime)
 
-        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertTrue(result.status is ScriptBridgeStatus.Finished)
         assertEquals(100, result.party.resources.gold)
         assertEquals(4, result.party.members.single().hitPoints.current)
         assertTrue(terminal.output.any { "1. Deanna, bargirl" in it })
@@ -2538,7 +2538,7 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort("T", "R", "", "L", "L")
         val session = TownSessionTerminalAdapter(
             terminal,
-            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = testSpeakContent()),
+            serviceBridge = StatefulScriptBridge(terminal, speakContent = testSpeakContent()),
         ).runUntilBlocked(
             TownSession.start(
                 town = testTown(Buildings.tavern),
@@ -2559,7 +2559,7 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort("T", "R", "", "L", "L")
         val session = TownSessionTerminalAdapter(
             terminal,
-            serviceBridge = StatefulTownServiceBridge(terminal, speakContent = testSpeakContent()),
+            serviceBridge = StatefulScriptBridge(terminal, speakContent = testSpeakContent()),
         ).runUntilBlocked(
             TownSession.start(
                 town = testTown(Buildings.tavern),
@@ -3028,7 +3028,7 @@ class RylweenDslValidationTest {
         val terminal = FakeTerminalPort("T", "N", "R", "", "R", "", "R", "", "R", "", "R", "", "L", "L")
         val result = TownSessionTerminalAdapter(
             terminal,
-            serviceBridge = StatefulTownServiceBridge(
+            serviceBridge = StatefulScriptBridge(
                 terminal,
                 speakContent = compiledSpeakContent(),
                 battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
@@ -3050,7 +3050,7 @@ class RylweenDslValidationTest {
         val result = TownSessionTerminalAdapter(
             terminal,
             renderer = compiledTextRenderer(),
-            serviceBridge = StatefulTownServiceBridge(
+            serviceBridge = StatefulScriptBridge(
                 terminal,
                 speakContent = compiledSpeakContent(),
                 renderer = compiledTextRenderer(),
@@ -3079,7 +3079,7 @@ class RylweenDslValidationTest {
         val result = TownSessionTerminalAdapter(
             terminal,
             renderer = compiledTextRenderer(),
-            serviceBridge = StatefulTownServiceBridge(
+            serviceBridge = StatefulScriptBridge(
                 terminal,
                 speakContent = compiledSpeakContent(),
                 renderer = compiledTextRenderer(),
@@ -4411,7 +4411,7 @@ class RylweenDslValidationTest {
         val result = WildernessSessionTerminalAdapter(
             terminal = terminal,
             renderer = compiledTextRenderer(),
-            serviceBridge = StatefulTownServiceBridge(
+            serviceBridge = StatefulScriptBridge(
                 terminal,
                 speakContent = compiledSpeakContent(),
                 renderer = compiledTextRenderer(),
@@ -4487,13 +4487,13 @@ class RylweenDslValidationTest {
     @Test
     fun compiledGameGarthRewardBranchAppliesAuthoredRewardAndFlag() {
         val (service, scene) = garthRecoveredDialogueService()
-        val result = StatefulTownServiceBridge(
+        val result = StatefulScriptBridge(
             FakeTerminalPort(),
             battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
             service,
             scene,
-            TownServiceContinuation.start(
+            ScriptContinuation.start(
                 RuntimeSessionState.singleParty(
                     party = testParty(gold = 10, flags = listOf(Story.garth.bandits.recovered)),
                     hour = 12,
@@ -4502,7 +4502,7 @@ class RylweenDslValidationTest {
             ),
         )
 
-        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertTrue(result.status is ScriptBridgeStatus.Finished)
         assertEquals(2010, result.party.resources.gold)
         assertEquals(Items.redGem, result.party.inventoryItem(1))
         assertTrue(result.party.hasFlagState(Story.garth.bandits.closed))
@@ -4521,21 +4521,21 @@ class RylweenDslValidationTest {
             hour = 12,
             currentTown = Towns.thord.id,
         )
-        val blocked = StatefulTownServiceBridge(
+        val blocked = StatefulScriptBridge(
             FakeTerminalPort(),
             battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
             service,
             scene,
-            TownServiceContinuation.start(runtime),
+            ScriptContinuation.start(runtime),
         )
 
-        assertTrue(blocked.status is TownServiceBridgeStatus.Waiting)
+        assertTrue(blocked.status is ScriptBridgeStatus.Waiting)
         assertEquals(2010, blocked.party.resources.gold)
         assertEquals(Items.rope, blocked.party.inventoryItem(1))
         assertTrue(blocked.continuation?.rewardGrantSession?.step is RewardGrantStep.DropSlot)
 
-        val resumed = StatefulTownServiceBridge(
+        val resumed = StatefulScriptBridge(
             FakeTerminalPort("A"),
             battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
         ).run(
@@ -4544,7 +4544,7 @@ class RylweenDslValidationTest {
             checkNotNull(blocked.continuation),
         )
 
-        assertTrue(resumed.status is TownServiceBridgeStatus.Finished)
+        assertTrue(resumed.status is ScriptBridgeStatus.Finished)
         assertEquals(2010, resumed.party.resources.gold)
         assertEquals(Items.redGem, resumed.party.inventoryItem(1))
         assertTrue(resumed.party.hasFlagState(Story.garth.bandits.closed))
@@ -4556,14 +4556,14 @@ class RylweenDslValidationTest {
     @Test
     fun compiledGameSilverKeyVendorDialogueBuysAuthoredMap() {
         val (service, scene) = dialogueBranchService(Npcs.bernak, Story.silverKey.none)
-        val result = StatefulTownServiceBridge(
+        val result = StatefulScriptBridge(
             FakeTerminalPort("B"),
             battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
             renderer = compiledTextRenderer(),
         ).run(
             service,
             scene,
-            TownServiceContinuation.start(
+            ScriptContinuation.start(
                 RuntimeSessionState.singleParty(
                     party = testParty(gold = 50000),
                     hour = 12,
@@ -4572,7 +4572,7 @@ class RylweenDslValidationTest {
             ),
         )
 
-        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertTrue(result.status is ScriptBridgeStatus.Finished)
         assertEquals(0, result.party.resources.gold)
         assertTrue(result.party.hasFlagState(Story.silverKey.mapBought))
         assertEquals(listOf(JournalEntryState.Line("The Pit of the Silver Key is at 45x13.")), result.party.journal)
@@ -4581,14 +4581,14 @@ class RylweenDslValidationTest {
     @Test
     fun compiledGameJazzyOgreTradeConsumesValuableItemAndMarksQuest() {
         val (service, scene) = dialogueBranchService(Npcs.leander, Story.jazzy.ogre.none)
-        val result = StatefulTownServiceBridge(
+        val result = StatefulScriptBridge(
             FakeTerminalPort("A", ""),
             battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
             renderer = compiledTextRenderer(),
         ).run(
             service,
             scene,
-            TownServiceContinuation.start(
+            ScriptContinuation.start(
                 RuntimeSessionState.singleParty(
                     party = testParty(inventoryItems = mapOf(1 to Items.redGem)),
                     hour = 12,
@@ -4597,7 +4597,7 @@ class RylweenDslValidationTest {
             ),
         )
 
-        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertTrue(result.status is ScriptBridgeStatus.Finished)
         assertTrue(result.party.hasFlagState(Story.jazzy.ogre.accepted))
         assertEquals(null, result.party.inventoryItem(1))
         assertEquals(listOf(JournalEntryState.Line("The 'Beast Cave' is at 11x23.")), result.party.journal)
@@ -4614,7 +4614,7 @@ class RylweenDslValidationTest {
             nativeServices = emptyList(),
         )
         val scene = SceneModel(service.scene, listOf(Op.Speak(Buildings.inn)))
-        val result = StatefulTownServiceBridge(
+        val result = StatefulScriptBridge(
             terminal = FakeTerminalPort("1", "B"),
             speakContent = compiledSpeakContent(),
             battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
@@ -4622,7 +4622,7 @@ class RylweenDslValidationTest {
         ).run(
             service,
             scene,
-            TownServiceContinuation.start(
+            ScriptContinuation.start(
                 RuntimeSessionState.singleParty(
                     party = testParty(gold = 10, flags = listOf(Story.garth.bandits.recovered)),
                     hour = 12,
@@ -4631,7 +4631,7 @@ class RylweenDslValidationTest {
             ),
         )
 
-        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertTrue(result.status is ScriptBridgeStatus.Finished)
         assertEquals(2010, result.party.resources.gold)
         assertEquals(Items.redGem, result.party.inventoryItem(1))
         assertTrue(result.party.hasFlagState(Story.garth.bandits.closed))

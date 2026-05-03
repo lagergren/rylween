@@ -58,7 +58,7 @@ fun main(args: Array<String>) {
     val adapter = TownSessionTerminalAdapter(
         terminal = terminal,
         renderer = content.terminalTextRenderer(),
-        serviceBridge = StatefulTownServiceBridge(
+        serviceBridge = StatefulScriptBridge(
             terminal,
             speakContent = engine.speakContent(),
             battleContent = content.runtimeContent(),
@@ -133,7 +133,7 @@ object RylweenGameTerminalMain {
         val adapter = WildernessSessionTerminalAdapter(
             terminal = terminal,
             renderer = content.terminalTextRenderer(),
-            serviceBridge = StatefulTownServiceBridge(
+            serviceBridge = StatefulScriptBridge(
                 terminal,
                 speakContent = engine.speakContent(),
                 battleContent = content.runtimeContent(),
