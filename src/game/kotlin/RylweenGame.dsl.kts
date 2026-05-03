@@ -620,6 +620,11 @@ val nextRylween = rylween {
             readyWeapons = inlineText("Do you want to ready", "some weapons before", "leaving?", "")
             readyArmors = inlineText("Do you want to ready", "some armors before", "leaving?", "")
         }
+        save {
+            saving = inlineText("Saving position...")
+            done = inlineText("Done.")
+            failed = inlineText("Save failed.")
+        }
         town {
             unavailableSuffix = " is not available here."
             missingServiceSuffix = " service is not implemented yet."

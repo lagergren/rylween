@@ -13,9 +13,6 @@ object RuntimeUnavailableText {
     fun castlePending(): TextBlock =
         inlineText("Castle entry is not ported yet.")
 
-    fun savePending(): TextBlock =
-        inlineText("Save is not wired", "in the Kotlin runtime yet.")
-
     fun huntPending(): TextBlock =
         inlineText("Hunting is not", "ported yet.")
 

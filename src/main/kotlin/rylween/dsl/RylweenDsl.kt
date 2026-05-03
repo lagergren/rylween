@@ -1557,10 +1557,17 @@ data class GamePromptsModel(
     val priest: PriestSpellPromptsModel = PriestSpellPromptsModel(),
     val inventoryUse: InventoryUsePromptsModel = InventoryUsePromptsModel(),
     val equipment: EquipmentPromptsModel = EquipmentPromptsModel(),
+    val save: SavePromptsModel = SavePromptsModel(),
     val town: TownPromptsModel = TownPromptsModel(),
     val wilderness: WildernessPromptsModel = WildernessPromptsModel(),
     val dungeon: DungeonPromptsModel = DungeonPromptsModel(),
     val party: PartyPromptsModel = PartyPromptsModel(),
+)
+
+data class SavePromptsModel(
+    val saving: TextBlock = missingPrompt("save.saving"),
+    val done: TextBlock = missingPrompt("save.done"),
+    val failed: TextBlock = missingPrompt("save.failed"),
 )
 
 data class PriestSpellPromptsModel(
@@ -4227,6 +4234,7 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
     private var priest = initial.priest
     private var inventoryUse = initial.inventoryUse
     private var equipment = initial.equipment
+    private var save = initial.save
     private var town = initial.town
     private var wilderness = initial.wilderness
     private var dungeon = initial.dungeon
@@ -4252,6 +4260,10 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
         equipment = EquipmentPromptsBuilder(equipment).apply(body).build()
     }
 
+    fun save(body: SavePromptsBuilder.() -> Unit) {
+        save = SavePromptsBuilder(save).apply(body).build()
+    }
+
     fun town(body: TownPromptsBuilder.() -> Unit) {
         town = TownPromptsBuilder(town).apply(body).build()
     }
@@ -4275,6 +4287,7 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
             priest = priest,
             inventoryUse = inventoryUse,
             equipment = equipment,
+            save = save,
             town = town,
             wilderness = wilderness,
             dungeon = dungeon,
@@ -4345,6 +4358,20 @@ class EquipmentPromptsBuilder(initial: EquipmentPromptsModel = EquipmentPromptsM
             who = who,
             readyWeapons = readyWeapons,
             readyArmors = readyArmors,
+        )
+}
+
+@RylNextDsl
+class SavePromptsBuilder(initial: SavePromptsModel = SavePromptsModel()) {
+    var saving: TextBlock = initial.saving
+    var done: TextBlock = initial.done
+    var failed: TextBlock = initial.failed
+
+    fun build(): SavePromptsModel =
+        SavePromptsModel(
+            saving = saving,
+            done = done,
+            failed = failed,
         )
 }
 

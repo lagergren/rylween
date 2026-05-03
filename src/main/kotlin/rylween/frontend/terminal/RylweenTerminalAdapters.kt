@@ -7,6 +7,8 @@ import rylween.dsl.*
 import rylween.engine.*
 import rylween.frontend.terminal.ydarg.YdargSessionTerminalAdapter
 import rylween.runtime.*
+import rylween.save.RuntimeSaveOutcome
+import rylween.save.RuntimeSavePort
 
 private fun TerminalPort.writeKeyMenu(
     renderer: TerminalTextRenderer,
@@ -885,6 +887,7 @@ class WildernessSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
     private val serviceBridge: TownServiceBridge? = null,
+    private val savePort: RuntimeSavePort? = null,
 ) {
     fun run(initial: WildernessSession): WildernessSession =
         runUntilBlocked(initial).session
@@ -897,6 +900,15 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.Messages -> {
                     terminal.writeBlocks(step.blocks, renderer, TerminalTextContext(runtime = session.runtime))
                     session.continueMessages()
+                }
+                is WildernessSessionStep.Save -> {
+                    val outcome = saveRuntime(session)
+                    terminal.writeBlocks(
+                        listOf(if (outcome.saved) session.content.prompts.save.done else session.content.prompts.save.failed),
+                        renderer,
+                        TerminalTextContext(runtime = session.runtime),
+                    )
+                    session.completeSave(outcome.saved)
                 }
                 is WildernessSessionStep.OutOfMoves -> {
                     val keys = session.wilderness.keys
@@ -1090,6 +1102,17 @@ class WildernessSessionTerminalAdapter(
             }
         }
         return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun saveRuntime(session: WildernessSession): RuntimeSaveOutcome {
+        terminal.writeBlocks(
+            listOf(session.content.prompts.save.saving),
+            renderer,
+            TerminalTextContext(runtime = session.runtime),
+        )
+        val port = savePort ?: return RuntimeSaveOutcome(saved = false, error = "no save port configured")
+        return runCatching { port.save(session.runtime) }
+            .getOrElse { error -> RuntimeSaveOutcome(saved = false, error = error.message) }
     }
 
     private fun writeExplore(session: WildernessSession) {

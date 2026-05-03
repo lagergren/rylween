@@ -7,6 +7,10 @@ import rylween.frontend.terminal.ydarg.YdargSessionTerminalAdapter
 import rylween.game.*
 import rylween.game.RylweenCompiledGame
 import rylween.runtime.*
+import rylween.save.FileRuntimeSavePort
+import rylween.save.RuntimeSaveOutcome
+import rylween.save.RuntimeSavePort
+import rylween.save.parseRuntimeStateSnapshot
 
 import org.jline.terminal.Attributes
 import org.jline.terminal.Terminal
@@ -34,6 +38,9 @@ private data class AnsiRuntimeConfig(
     val seed: Long? = null,
     val hour: Int? = null,
     val mapFile: File? = null,
+    val loadFile: File? = null,
+    val saveFile: File = File("build/rylween-save.kts"),
+    val saveState: StateId = stateId("saved-game"),
 )
 
 object RylweenAnsiMain {
@@ -44,8 +51,9 @@ object RylweenAnsiMain {
             JLineAnsiTerminal.open(log).use { terminal ->
                 val game = RylweenCompiledGame.nextRylween
                 val content = RylweenCompiledGame.nextDsl
-                val state = game.states.singleOrNull { it.id == config.state }
-                    ?: error("unknown state ${config.state.slug}")
+                val state = config.loadFile?.let { parseRuntimeStateSnapshot(it.readText()) }
+                    ?: (game.states.singleOrNull { it.id == config.state }
+                        ?: error("unknown state ${config.state.slug}"))
                 val bootState = config.hour?.let { state.copy(realm = state.realm.copy(hour = it)) } ?: state
                 val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
                     ?: content.worldMapGrid(Maps.wilderness)
@@ -67,6 +75,7 @@ object RylweenAnsiMain {
                     content = content,
                     renderer = content.terminalTextRenderer(),
                     speakContent = engine.speakContent(),
+                    savePort = FileRuntimeSavePort(config.saveFile, config.saveState),
                     log = log,
                 ).run(session)
             }
@@ -79,6 +88,7 @@ private class RylweenAnsiGame(
     private val content: GameModel,
     private val renderer: TerminalTextRenderer,
     private val speakContent: SpeakRuntimeContent,
+    private val savePort: RuntimeSavePort,
     private val log: RylweenLog,
 ) {
     private val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
@@ -103,6 +113,18 @@ private class RylweenAnsiGame(
                     screen.writeBlocks(step.blocks, session.runtime, renderer)
                     waitForReturn()
                     session.continueMessages()
+                }
+                is WildernessSessionStep.Save -> {
+                    screen.writeBlock(content.prompts.save.saving, session.runtime, renderer)
+                    val outcome = runCatching { savePort.save(session.runtime) }
+                        .getOrElse { error -> RuntimeSaveOutcome(saved = false, error = error.message) }
+                    screen.writeBlock(
+                        if (outcome.saved) content.prompts.save.done else content.prompts.save.failed,
+                        session.runtime,
+                        renderer,
+                    )
+                    terminal.pause(400)
+                    session.completeSave(outcome.saved)
                 }
                 WildernessSessionStep.Explore -> explore(session)
                 is WildernessSessionStep.Notice -> {
@@ -673,7 +695,8 @@ private class ClassicAnsiScreen(
 private fun WildernessSessionResultStatus.statusLine(): List<String> =
     when (this) {
         WildernessSessionResultStatus.Blocked -> listOf("Blocked.")
-        WildernessSessionResultStatus.SaveUnavailable -> listOf("Save not wired yet.")
+        WildernessSessionResultStatus.Saved -> emptyList()
+        WildernessSessionResultStatus.SaveFailed -> emptyList()
         WildernessSessionResultStatus.HuntUnavailable -> listOf("Hunt is unavailable.")
         WildernessSessionResultStatus.JournalShown -> emptyList()
         WildernessSessionResultStatus.ViewPartyShown -> emptyList()
@@ -1011,6 +1034,14 @@ private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
                 config = config.copy(mapFile = File(args.valueAfter(index, arg)))
                 index += 2
             }
+            "--load" -> {
+                config = config.copy(loadFile = File(args.valueAfter(index, arg)))
+                index += 2
+            }
+            "--save" -> {
+                config = config.copy(saveFile = File(args.valueAfter(index, arg)))
+                index += 2
+            }
             "--help", "-h" -> {
                 printAnsiUsage()
                 kotlin.system.exitProcess(0)
@@ -1034,6 +1065,8 @@ private fun printAnsiUsage() {
         |  --seed   runtime RNG state, defaults to the selected state seed
         |  --hour   0..23, overrides the selected state hour
         |  --map    file path override; defaults to authored wilderness map
+        |  --load   runtime snapshot file to boot instead of --state
+        |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         |
         |Logging:
         |  RYL_LOG=stderr

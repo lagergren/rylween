@@ -6,6 +6,8 @@ import rylween.frontend.terminal.*
 import rylween.game.*
 import rylween.game.RylweenCompiledGame
 import rylween.runtime.*
+import rylween.save.FileRuntimeSavePort
+import rylween.save.parseRuntimeStateSnapshot
 
 import java.io.File
 
@@ -15,6 +17,9 @@ private data class TerminalConfig(
     val seed: Long? = null,
     val state: StateId = States.freshReplay,
     val mapFile: File? = null,
+    val loadFile: File? = null,
+    val saveFile: File = File("build/rylween-save.kts"),
+    val saveState: StateId = stateId("saved-game"),
 )
 
 private class StdioTerminalPort : TerminalPort {
@@ -32,8 +37,9 @@ fun main(args: Array<String>) {
     val config = parseTerminalConfig(args.toList(), ::printTownUsage)
     val game = RylweenCompiledGame.nextRylween
     val content = RylweenCompiledGame.nextDsl
-    val state = game.states.singleOrNull { it.id == config.state }
-        ?: error("unknown state ${config.state.slug}")
+    val state = config.loadFile?.let { parseRuntimeStateSnapshot(it.readText()) }
+        ?: (game.states.singleOrNull { it.id == config.state }
+            ?: error("unknown state ${config.state.slug}"))
     val party = state.parties.firstOrNull { it.id == state.realm.activeParty }
         ?: error("state ${state.id.slug} is missing active party ${state.realm.activeParty.slug}")
     val terminal = StdioTerminalPort()
@@ -105,8 +111,9 @@ object RylweenGameTerminalMain {
         val config = parseTerminalConfig(args.toList(), ::printGameUsage)
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
-        val baseState = game.states.singleOrNull { it.id == config.state }
-            ?: error("unknown state ${config.state.slug}")
+        val baseState = config.loadFile?.let { parseRuntimeStateSnapshot(it.readText()) }
+            ?: (game.states.singleOrNull { it.id == config.state }
+                ?: error("unknown state ${config.state.slug}"))
         val state = config.hour?.let { baseState.copy(realm = baseState.realm.copy(hour = it)) } ?: baseState
         val terminal = StdioTerminalPort()
         val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
@@ -131,6 +138,7 @@ object RylweenGameTerminalMain {
                 speakContent = engine.speakContent(),
                 battleContent = content.runtimeContent(),
             ),
+            savePort = FileRuntimeSavePort(config.saveFile, config.saveState),
         )
 
         terminal.write(
@@ -197,6 +205,14 @@ private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): Ter
                 config = config.copy(mapFile = File(args.valueAfter(index, arg)))
                 index += 2
             }
+            "--load" -> {
+                config = config.copy(loadFile = File(args.valueAfter(index, arg)))
+                index += 2
+            }
+            "--save" -> {
+                config = config.copy(saveFile = File(args.valueAfter(index, arg)))
+                index += 2
+            }
             "--help", "-h" -> {
                 printUsage()
                 kotlin.system.exitProcess(0)
@@ -237,6 +253,8 @@ private fun printTownUsage() {
         |  --seed   runtime RNG state; omitted means deterministic fixture placement/events
         |  --state  state slug, defaults to fresh-replay
         |  --map    map file for wilderness NPC placement, defaults to authored wilderness map
+        |  --load   runtime snapshot file to boot instead of --state
+        |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         """.trimMargin(),
     )
 }
@@ -251,6 +269,8 @@ private fun printGameUsage() {
         |  --seed   runtime RNG state; omitted means deterministic fixture placement/events
         |  --hour   0..23, overrides the selected state hour
         |  --map    map file for wilderness movement and NPC hut projection, defaults to authored wilderness map
+        |  --load   runtime snapshot file to boot instead of --state
+        |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         """.trimMargin(),
     )
 }

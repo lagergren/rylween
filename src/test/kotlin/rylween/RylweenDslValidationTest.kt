@@ -258,6 +258,32 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun fileRuntimeSavePortWritesParseableSnapshot() {
+        val file = File.createTempFile("rylween-save-", ".kts")
+        try {
+            val runtime = RuntimeSessionState.singleParty(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+                hour = 12,
+                currentTown = null,
+                rngState = 99L,
+                locations = listOf(LocationPlacement(Locations.silverKeyPit, xy(45, 13))),
+            )
+
+            val outcome = FileRuntimeSavePort(file, stateId("test-save")).save(runtime)
+
+            assertTrue(outcome.saved, outcome.error.orEmpty())
+            val parsed = parseRuntimeStateSnapshot(file.readText())
+            assertEquals(stateId("test-save"), parsed.id)
+            assertEquals(99L, parsed.realm.rngState)
+            assertEquals(runtime.activeParty.id, parsed.realm.activeParty)
+            assertEquals(runtime.activeParty.resources.food, parsed.parties.single().resources.food)
+            assertEquals(xy(45, 13), parsed.locations.single().point)
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
     fun traceEngineSeparatesViewCommandsFromNativeBoundaryRequests() {
         val keyRequest = EngineRequest(NativeAllowlist.inputKeyUpper.path)
         val engine = TraceEnginePort(ints = mapOf(keyRequest to 82))
@@ -3298,6 +3324,61 @@ class RylweenDslValidationTest {
         assertTrue(terminal.output.any { "TRAVELLER'S JOURNAL" in it })
         assertTrue(terminal.output.any { "- Nolrim's Crypt is at 37x14." in it })
         assertFalse(terminal.output.any { "not wired" in it || "not ported" in it })
+    }
+
+    @Test
+    fun wildernessSaveCommandWritesRuntimeSnapshotThroughPort() {
+        var savedSnapshot: StateModel? = null
+        val terminal = FakeTerminalPort("S")
+        val result = WildernessSessionTerminalAdapter(
+            terminal = terminal,
+            renderer = compiledTextRenderer(),
+            savePort = RuntimeSavePort { runtime ->
+                savedSnapshot = runtime.toRuntimeStateSnapshot(stateId("test-save"))
+                RuntimeSaveOutcome(saved = true, target = "memory")
+            },
+        ).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+                rngState = 1L,
+            ),
+        )
+
+        val snapshot = checkNotNull(savedSnapshot)
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.Saved, result.session.lastResult?.status)
+        assertEquals(rendered, renderRuntimeStateSnapshot(parseRuntimeStateSnapshot(rendered)))
+        assertTrue(terminal.output.any { "Saving position..." in it })
+        assertTrue(terminal.output.any { "Done." in it })
+        assertFalse(terminal.output.any { "not wired" in it || "not ported" in it })
+    }
+
+    @Test
+    fun wildernessOutOfMovesSaveWritesSnapshotAndQuits() {
+        var saved = false
+        val terminal = FakeTerminalPort("S")
+        val result = WildernessSessionTerminalAdapter(
+            terminal = terminal,
+            renderer = compiledTextRenderer(),
+            savePort = RuntimeSavePort { runtime ->
+                renderRuntimeStateSnapshot(runtime.toRuntimeStateSnapshot(stateId("test-save")))
+                saved = true
+                RuntimeSaveOutcome(saved = true, target = "memory")
+            },
+        ).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 0, restedHours = 14),
+                rngState = 1L,
+            ),
+        )
+
+        assertTrue(saved)
+        assertTrue(result.status is TerminalRunStatus.Finished)
+        assertEquals(WildernessSessionResultStatus.OutOfMovesSaveAndQuit, result.session.lastResult?.status)
+        assertTrue(terminal.output.any { "Saving position..." in it })
+        assertTrue(terminal.output.any { "Done." in it })
     }
 
     @Test
