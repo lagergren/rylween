@@ -52,6 +52,48 @@ abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
     }
 }
 
+abstract class GenerateAnsiBuildWrapperTask : org.gradle.api.DefaultTask() {
+    @get:org.gradle.api.tasks.OutputFile
+    abstract val outputFile: org.gradle.api.file.RegularFileProperty
+
+    @org.gradle.api.tasks.TaskAction
+    fun generate() {
+        val output = outputFile.get().asFile
+        output.parentFile.mkdirs()
+        output.writeText(
+            """
+            |#!/usr/bin/env bash
+            |set -euo pipefail
+            |
+            |SCRIPT_DIR="$(cd "$(dirname "${'$'}{BASH_SOURCE[0]}")" && pwd -P)"
+            |APP_HOME="$(cd "${'$'}SCRIPT_DIR/.." && pwd -P)"
+            |PROJECT_DIR="$(cd "${'$'}APP_HOME/../../.." && pwd -P)"
+            |
+            |build=false
+            |args=()
+            |for arg in "${'$'}@"; do
+            |  if [[ "${'$'}arg" == "--build" ]]; then
+            |    build=true
+            |  else
+            |    args+=("${'$'}arg")
+            |  fi
+            |done
+            |
+            |if [[ "${'$'}build" == true ]]; then
+            |  if [[ ! -x "${'$'}PROJECT_DIR/gradlew" ]]; then
+            |    echo "rylween: cannot find Gradle wrapper at ${'$'}PROJECT_DIR/gradlew" >&2
+            |    exit 1
+            |  fi
+            |  (cd "${'$'}PROJECT_DIR" && ./gradlew installKotlinAnsi --console=plain)
+            |fi
+            |
+            |exec "${'$'}APP_HOME/bin/rylween-app" "${'$'}{args[@]}"
+            """.trimMargin() + "\n",
+        )
+        output.setExecutable(true, false)
+    }
+}
+
 group = "org.rylween"
 version = "0.1.0-SNAPSHOT"
 
@@ -175,16 +217,24 @@ val kotlinAnsiJar by tasks.registering(Jar::class) {
 }
 
 val kotlinAnsiRuntimeJars = appSourceSet.runtimeClasspath.filter { it.isFile && it.extension == "jar" }
+val kotlinAnsiWrapper = layout.buildDirectory.file("scripts/kotlinAnsiWrapper/rylween")
 
 val kotlinAnsiStartScripts by tasks.registering(CreateStartScripts::class) {
     group = "application"
     description = "Generates direct start scripts for the ANSI runtime."
 
     dependsOn(kotlinAnsiJar)
-    applicationName = "rylween"
+    applicationName = "rylween-app"
     mainClass.set("rylween.app.RylweenAnsiMain")
-    outputDir = layout.buildDirectory.dir("scripts/kotlinAnsi").get().asFile
+    outputDir = layout.buildDirectory.dir("scripts/kotlinAnsiApp").get().asFile
     classpath = files(kotlinAnsiJar) + kotlinAnsiRuntimeJars
+}
+
+val kotlinAnsiBuildWrapper by tasks.registering(GenerateAnsiBuildWrapperTask::class) {
+    group = "application"
+    description = "Generates the ANSI runtime wrapper with an optional --build refresh."
+
+    outputFile.set(kotlinAnsiWrapper)
 }
 
 val installKotlinAnsi by tasks.registering(Sync::class) {
@@ -192,8 +242,15 @@ val installKotlinAnsi by tasks.registering(Sync::class) {
     description = "Installs the direct ANSI runtime launcher outside Gradle's interactive console."
 
     dependsOn(kotlinAnsiStartScripts)
+    dependsOn(kotlinAnsiBuildWrapper)
     into(layout.buildDirectory.dir("install/rylween-kotlin"))
     from(kotlinAnsiStartScripts) {
+        into("bin")
+        filePermissions {
+            unix("rwxr-xr-x")
+        }
+    }
+    from(kotlinAnsiWrapper) {
         into("bin")
         filePermissions {
             unix("rwxr-xr-x")

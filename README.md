@@ -25,6 +25,7 @@ Build the direct ANSI launcher first:
 ```sh
 ./gradlew installKotlinAnsi --console=plain
 build/install/rylween-kotlin/bin/rylween --state fresh-replay --seed 1
+build/install/rylween-kotlin/bin/rylween --build --state fresh-replay --seed 1
 ```
 
 The generated `build/install/rylween-kotlin/bin/rylween` script is the closest
@@ -32,7 +33,9 @@ current equivalent to `rylween.exe`. Use that for interactive ANSI play; it runs
 outside Gradle so Gradle progress output and key echo do not share the game
 screen. It loads the compiled DSL game, packaged `ansi/**` resources, the
 authored wilderness map, the classic screen frame, text/status/map regions, and
-the terminal terrain glyph table.
+the terminal terrain glyph table. Pass `--build` to the wrapper when you want it
+to refresh the installed runtime with `./gradlew installKotlinAnsi --console=plain`
+before launching.
 
 The line-oriented shells are still useful for testing:
 
