@@ -30,11 +30,8 @@ class YdargSessionTerminalAdapter(
                 YdargSessionStep.RoomEntry -> session.enterRoom()
                 YdargSessionStep.Navigate -> {
                     writeNavigation(session)
-                    when (val input = terminal.readChoice(session.ydarg.keys.navigationCommands().terminalChoices())) {
-                        is TerminalInput.Value -> session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(session.ydarg.keys.navigationCommands().terminalChoices())
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is YdargSessionStep.TreasureOffer -> {
                     val keys = session.ydarg.keys
@@ -45,11 +42,8 @@ class YdargSessionTerminalAdapter(
                         commands.commandBindings(),
                         TerminalTextContext(runtime = session.runtime),
                     )
-                    when (val input = terminal.readChoice(commands.terminalChoices())) {
-                        is TerminalInput.Value -> session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(commands.terminalChoices())
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 YdargSessionStep.StairsMenu -> {
                     val keys = session.ydarg.keys
@@ -60,11 +54,8 @@ class YdargSessionTerminalAdapter(
                         commands.commandBindings(),
                         TerminalTextContext(runtime = session.runtime),
                     )
-                    when (val input = terminal.readChoice(commands.terminalChoices())) {
-                        is TerminalInput.Value -> session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(commands.terminalChoices())
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 YdargSessionStep.StairGive -> {
                     val choices = (1..5).map { digit ->
@@ -76,45 +67,62 @@ class YdargSessionTerminalAdapter(
                         choices.map { it.binding },
                         TerminalTextContext(runtime = session.runtime),
                     )
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is YdargSessionStep.Battle -> {
-                    val result = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceBattleSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        YdargSession::replaceBattleSession,
+                    ) { return it }
                 }
                 is YdargSessionStep.PartyView -> {
-                    val result = PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
-                    val updated = session.replacePartyViewSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(it, session.runtime) },
+                        YdargSession::replacePartyViewSession,
+                    ) { return it }
                 }
                 is YdargSessionStep.InventoryDrop -> {
-                    val result = InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceInventoryDropSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        YdargSession::replaceInventoryDropSession,
+                    ) { return it }
                 }
                 is YdargSessionStep.Equipment -> {
-                    val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceEquipmentSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        YdargSession::replaceEquipmentSession,
+                    ) { return it }
                 }
                 is YdargSessionStep.InventoryItemUse -> {
-                    val result = InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceInventoryItemUseSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        YdargSession::replaceInventoryItemUseSession,
+                    ) { return it }
                 }
                 is YdargSessionStep.PriestSpell -> {
-                    val result = PriestSpellTerminalAdapter(
-                        terminal = terminal,
-                        renderer = renderer,
-                        content = session.content,
-                    ).runUntilBlocked(step.session)
-                    val updated = session.replacePriestSpellSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        {
+                            PriestSpellTerminalAdapter(
+                                terminal = terminal,
+                                renderer = renderer,
+                                content = session.content,
+                            ).runUntilBlocked(it)
+                        },
+                        YdargSession::replacePriestSpellSession,
+                    ) { return it }
                 }
                 is YdargSessionStep.Finished -> return finished(session)
             }

@@ -11,7 +11,6 @@ enum class TownSessionResultStatus {
     EnteredNativeService,
     ServiceNotOffered,
     ServiceClosed,
-    MissingService,
     ShopFinished,
     NativeServiceFinished,
 }
@@ -223,16 +222,12 @@ data class TownSession(
             )
         }
 
-        val service = townSystem.buildingServices.firstOrNull { it.building == building }
-            ?: return notice(
-                content.prompts.town.missingService(building),
-                TownSessionResult(TownSessionResultStatus.MissingService, party, building),
-            )
-        val scene = serviceScenes[service.scene]
-            ?: return notice(
-                content.prompts.town.missingService(building),
-                TownSessionResult(TownSessionResultStatus.MissingService, party, building),
-            )
+        val service = requireNotNull(townSystem.buildingServices.firstOrNull { it.building == building }) {
+            "town ${town.id.slug} offers ${building.slug} but no building service is declared"
+        }
+        val scene = requireNotNull(serviceScenes[service.scene]) {
+            "town service ${building.slug} references missing scene ${service.scene.slug}"
+        }
         val shop = shopServices[building]
         if (!service.isOpenAt(currentHour)) {
             return notice(

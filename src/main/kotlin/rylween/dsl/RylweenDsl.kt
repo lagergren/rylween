@@ -105,6 +105,7 @@ sealed interface TextPart {
     object WildernessDungeonName : TextPart
     object WildernessDungeonLevels : TextPart
     object DungeonDepth : TextPart
+    object ConversationNpcName : TextPart
 }
 
 fun TextPart.fallbackText(): String =
@@ -129,6 +130,7 @@ fun TextPart.fallbackText(): String =
         TextPart.WildernessDungeonName -> "{dungeon}"
         TextPart.WildernessDungeonLevels -> "{levels}"
         TextPart.DungeonDepth -> "{level}"
+        TextPart.ConversationNpcName -> "{npc_name}"
     }
 
 data class TextLine(val parts: List<TextPart>)
@@ -1257,6 +1259,7 @@ data class ConversationMenuActionModel(
     val topic: ConversationTopic,
     val binding: InputBindingModel,
     val action: KeyActionId,
+    val label: String = topic.defaultLabel(),
 ) {
     constructor(topic: ConversationTopic, key: Char, action: KeyActionId) :
         this(topic, inputKey(key), action)
@@ -1268,6 +1271,7 @@ data class QuestionMenuActionModel(
     val topic: QuestionTopic,
     val binding: InputBindingModel,
     val action: KeyActionId,
+    val label: String = topic.defaultLabel(),
 ) {
     constructor(topic: QuestionTopic, key: Char, action: KeyActionId) :
         this(topic, inputKey(key), action)
@@ -1289,6 +1293,18 @@ data class ConversationRumourModel(
     val usage: RumourUsagePolicy,
     val source: RumourSourcePolicy,
 )
+
+data class ConversationPromptTextModel(
+    val chooseNpc: TextBlock = inlineText("Speak with whom?", ""),
+    val mainMenu: TextBlock = structuredText {
+        line("Chatting with")
+        line(TextPart.ConversationNpcName, ":")
+        line("")
+    },
+) {
+    fun renderMainMenu(npcName: String): TextBlock =
+        mainMenu.resolvePromptValues(PromptTextValues(conversationNpcName = npcName))
+}
 
 data class ReusableScreenTextModel(
     val id: TextId,
@@ -1353,6 +1369,7 @@ data class StandardConversationModel(
     val menu: ConversationMenuModel,
     val chitchat: ChitchatModel,
     val rumour: ConversationRumourModel,
+    val prompts: ConversationPromptTextModel,
     val nativeServices: List<EngineServiceUse>,
 )
 
@@ -1619,14 +1636,10 @@ data class EquipmentPromptsModel(
 
 data class TownPromptsModel(
     val unavailableSuffix: String = " is not available here.",
-    val missingServiceSuffix: String = " service is not implemented yet.",
     val closedSuffix: String = " is closed.",
 ) {
     fun unavailable(building: BuildingId): TextBlock =
         inlineText("${building.slug}$unavailableSuffix")
-
-    fun missingService(building: BuildingId): TextBlock =
-        inlineText("${building.slug}$missingServiceSuffix")
 
     fun closed(building: BuildingId): TextBlock =
         inlineText("${building.slug}$closedSuffix")
@@ -1688,6 +1701,7 @@ private data class PromptTextValues(
     val wildernessDungeonLevels: Int? = null,
     val dungeonDepth: Int? = null,
     val selectedItemName: String? = null,
+    val conversationNpcName: String? = null,
 )
 
 private fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
@@ -1707,7 +1721,24 @@ private fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
         TextPart.WildernessDungeonLevels -> TextPart.Literal(values.wildernessDungeonLevels?.toString() ?: fallbackText())
         TextPart.DungeonDepth -> TextPart.Literal(values.dungeonDepth?.toString() ?: fallbackText())
         TextPart.SelectedItemName -> TextPart.Literal(values.selectedItemName ?: fallbackText())
+        TextPart.ConversationNpcName -> TextPart.Literal(values.conversationNpcName ?: fallbackText())
         else -> this
+    }
+
+private fun ConversationTopic.defaultLabel(): String =
+    when (this) {
+        ConversationTopic.Chitchat -> "Chitchat"
+        ConversationTopic.Question -> "Question"
+        ConversationTopic.Rumour -> "Rumors"
+        ConversationTopic.Bye -> "Bye"
+    }
+
+private fun QuestionTopic.defaultLabel(): String =
+    when (this) {
+        QuestionTopic.Lodging -> "Lodging"
+        QuestionTopic.Magic -> "Magic"
+        QuestionTopic.People -> "People"
+        QuestionTopic.Nothing -> "Nothing"
     }
 
 
@@ -4378,13 +4409,11 @@ class SavePromptsBuilder(initial: SavePromptsModel = SavePromptsModel()) {
 @RylNextDsl
 class TownPromptsBuilder(initial: TownPromptsModel = TownPromptsModel()) {
     var unavailableSuffix: String = initial.unavailableSuffix
-    var missingServiceSuffix: String = initial.missingServiceSuffix
     var closedSuffix: String = initial.closedSuffix
 
     fun build(): TownPromptsModel =
         TownPromptsModel(
             unavailableSuffix = unavailableSuffix,
-            missingServiceSuffix = missingServiceSuffix,
             closedSuffix = closedSuffix,
         )
 }
@@ -5902,6 +5931,7 @@ class StandardConversationBuilder {
     }.build()
     private var chitchatModel = ChitchatBuilder().build()
     private var rumourModel = ConversationRumourBuilder().build()
+    private var promptsModel = ConversationPromptTextBuilder().build()
 
     fun menu(body: ConversationMenuBuilder.() -> Unit) {
         menuModel = ConversationMenuBuilder().apply(body).build()
@@ -5915,6 +5945,10 @@ class StandardConversationBuilder {
         rumourModel = ConversationRumourBuilder(rumourModel).apply(body).build()
     }
 
+    fun prompts(body: ConversationPromptTextBuilder.() -> Unit) {
+        promptsModel = ConversationPromptTextBuilder(promptsModel).apply(body).build()
+    }
+
     fun build(): StandardConversationModel =
         StandardConversationModel(
             npcSelection = npcSelection,
@@ -5924,6 +5958,7 @@ class StandardConversationBuilder {
             menu = menuModel,
             chitchat = chitchatModel,
             rumour = rumourModel,
+            prompts = promptsModel,
             nativeServices = defaultNativeServices,
         )
 
@@ -5937,6 +5972,35 @@ class StandardConversationBuilder {
             EngineServiceUse(EngineService.TextFormatting, "NPC names, jobs, locations, and role-bound text placeholders"),
         )
     }
+}
+
+@RylNextDsl
+class ConversationPromptTextBuilder(initial: ConversationPromptTextModel = ConversationPromptTextModel()) {
+    var chooseNpc: TextBlock = initial.chooseNpc
+    private var mainMenuText: TextBlock = initial.mainMenu
+
+    fun mainMenu(body: ConversationMainMenuPromptBuilder.() -> Unit) {
+        mainMenuText = ConversationMainMenuPromptBuilder().apply(body).build()
+    }
+
+    fun build(): ConversationPromptTextModel =
+        ConversationPromptTextModel(
+            chooseNpc = chooseNpc,
+            mainMenu = mainMenuText,
+        )
+}
+
+@RylNextDsl
+class ConversationMainMenuPromptBuilder : TextLineSink {
+    private val text = StructuredTextBlockBuilder()
+
+    val npcName: TextPart = TextPart.ConversationNpcName
+
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
+    }
+
+    fun build(): TextBlock = text.build()
 }
 
 @RylNextDsl
@@ -6735,7 +6799,8 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         TextPart.PartyMemberMax,
                         TextPart.WildernessDungeonName,
                         TextPart.WildernessDungeonLevels,
-                        TextPart.DungeonDepth -> Unit
+                        TextPart.DungeonDepth,
+                        TextPart.ConversationNpcName -> Unit
                     }
                 }
             }

@@ -102,6 +102,29 @@ internal inline fun <S> continueOrBlock(
         is TerminalRunStatus.Waiting -> stop(TerminalAdapterResult(updated, status))
     }
 
+internal inline fun <P, C> runChildOrBlock(
+    parent: P,
+    child: C,
+    run: (C) -> TerminalAdapterResult<C>,
+    replace: (P, C) -> P,
+    stop: (TerminalAdapterResult<P>) -> Nothing,
+): P {
+    val result = run(child)
+    val updated = replace(parent, result.session)
+    return continueOrBlock(updated, result.status, stop)
+}
+
+internal fun bindingMenuLine(binding: InputBindingModel, label: String): String {
+    val marker = binding.primaryChar.uppercaseChar()
+    val cleanLabel = label.trim()
+    val suffix = if (cleanLabel.firstOrNull()?.uppercaseChar() == marker) {
+        cleanLabel.drop(1)
+    } else {
+        " $cleanLabel"
+    }
+    return "($marker)$suffix"
+}
+
 fun GameModel.terminalTextRenderer(references: Map<String, List<String>> = emptyMap()): TerminalTextRenderer =
     TerminalTextRenderer(
         references = references,
@@ -197,7 +220,8 @@ class TerminalTextRenderer(
             TextPart.PartyMemberMax -> context.runtime?.realm?.partyMemberMax?.toString() ?: part.fallbackText()
             TextPart.WildernessDungeonName,
             TextPart.WildernessDungeonLevels,
-            TextPart.DungeonDepth -> part.fallbackText()
+            TextPart.DungeonDepth,
+            TextPart.ConversationNpcName -> part.fallbackText()
         }
 
     fun pausePrompt(verbIndex: Int? = null): TextBlock {

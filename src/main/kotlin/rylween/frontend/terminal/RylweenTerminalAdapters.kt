@@ -57,9 +57,12 @@ class CampSessionTerminalAdapter(
                     session.apply(CampSessionInput.Continue)
                 }
                 is CampSessionStep.Ambush -> {
-                    val battleResult = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceAmbushSession(battleResult.session)
-                    continueOrBlock(updated, battleResult.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        CampSession::replaceAmbushSession,
+                    ) { return it }
                 }
                 is CampSessionStep.Finished -> return finished(session)
             }
@@ -167,11 +170,14 @@ class InventoryItemUseTerminalAdapter(
                             val slot = checkNotNull(step.choices.firstOrNull { it.key == key }).slot
                             session.apply(InventoryItemUseInput.InventorySlot(slot))
                         }
-                    }
+                }
                 is InventoryItemUseStep.Equipment -> {
-                    val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceEquipmentSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        InventoryItemUseSession::replaceEquipmentSession,
+                    ) { return it }
                 }
                 is InventoryItemUseStep.Script -> {
                     val eventStart = engine.events.size
@@ -666,14 +672,20 @@ class TownSessionTerminalAdapter(
                     session.continueNotice()
                 }
                 is TownSessionStep.Shop -> {
-                    val result = ShopServiceTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceShopSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { ShopServiceTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        TownSession::replaceShopSession,
+                    ) { return it }
                 }
                 is TownSessionStep.LeaveEquipment -> {
-                    val result = TownLeaveEquipmentTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceLeaveEquipmentSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { TownLeaveEquipmentTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        TownSession::replaceLeaveEquipmentSession,
+                    ) { return it }
                 }
                 is TownSessionStep.NativeService -> {
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
@@ -753,34 +765,51 @@ class DungeonSessionTerminalAdapter(
                     session.apply(DungeonSessionInput.Continue)
                 }
                 is DungeonSessionStep.Equipment -> {
-                    val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceEquipmentSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        DungeonSession::replaceEquipmentSession,
+                    ) { return it }
                 }
                 is DungeonSessionStep.InventoryItemUse -> {
-                    val result = InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceInventoryItemUseSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        DungeonSession::replaceInventoryItemUseSession,
+                    ) { return it }
                 }
                 is DungeonSessionStep.InventoryDrop -> {
-                    val result = InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceInventoryDropSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        DungeonSession::replaceInventoryDropSession,
+                    ) { return it }
                 }
                 is DungeonSessionStep.PartyView -> {
-                    val result = PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
-                    val updated = session.replacePartyViewSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(it, session.runtime) },
+                        DungeonSession::replacePartyViewSession,
+                    ) { return it }
                 }
                 is DungeonSessionStep.PriestSpell -> {
-                    val result = PriestSpellTerminalAdapter(
-                        terminal = terminal,
-                        renderer = renderer,
-                        content = session.content,
-                        worldMap = session.worldMap,
-                    ).runUntilBlocked(step.session)
-                    val updated = session.replacePriestSpellSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        {
+                            PriestSpellTerminalAdapter(
+                                terminal = terminal,
+                                renderer = renderer,
+                                content = session.content,
+                                worldMap = session.worldMap,
+                            ).runUntilBlocked(it)
+                        },
+                        DungeonSession::replacePriestSpellSession,
+                    ) { return it }
                 }
                 is DungeonSessionStep.Event -> {
                     val result = runEventScript(session, step)
@@ -1015,14 +1044,20 @@ class WildernessSessionTerminalAdapter(
                     session.startDungeonFromHandoff()
                 }
                 is WildernessSessionStep.Dungeon -> {
-                    val result = DungeonSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceDungeonSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { DungeonSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        WildernessSession::replaceDungeonSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.Ydarg -> {
-                    val result = YdargSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceYdargSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { YdargSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        WildernessSession::replaceYdargSession,
+                    ) { return it }
                 }
                 WildernessSessionStep.Explore -> {
                     writeExplore(session)
@@ -1043,60 +1078,91 @@ class WildernessSessionTerminalAdapter(
                         .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is WildernessSessionStep.Town -> {
-                    val result = TownSessionTerminalAdapter(terminal, renderer, serviceBridge).runUntilBlocked(step.session)
-                    val updated = session.replaceTownSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { TownSessionTerminalAdapter(terminal, renderer, serviceBridge).runUntilBlocked(it) },
+                        WildernessSession::replaceTownSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.Battle -> {
-                    val result = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceBattleSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        WildernessSession::replaceBattleSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.Camp -> {
-                    val result = CampSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceCampSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { CampSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        WildernessSession::replaceCampSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.Hunt -> {
-                    val result = HuntSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceHuntSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { HuntSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        WildernessSession::replaceHuntSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.InventoryItemUse -> {
-                    val result = InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceInventoryItemUseSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        WildernessSession::replaceInventoryItemUseSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.InventoryDrop -> {
-                    val result = InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceInventoryDropSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        WildernessSession::replaceInventoryDropSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.PartyView -> {
-                    val result = PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
-                    val updated = session.replacePartyViewSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(it, session.runtime) },
+                        WildernessSession::replacePartyViewSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.PartyJournal -> {
-                    val result = PartyJournalTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
-                    val updated = session.replacePartyJournalSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { PartyJournalTerminalAdapter(terminal, renderer).runUntilBlocked(it, session.runtime) },
+                        WildernessSession::replacePartyJournalSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.Equipment -> {
-                    val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
-                    val updated = session.replaceEquipmentSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        { EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        WildernessSession::replaceEquipmentSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.PriestSpell -> {
-                    val result = PriestSpellTerminalAdapter(
-                        terminal,
-                        renderer,
-                        content = session.content,
-                        worldMap = session.worldMap,
-                    )
-                        .runUntilBlocked(step.session)
-                    val updated = session.replacePriestSpellSession(result.session)
-                    continueOrBlock(updated, result.status) { return it }
+                    runChildOrBlock(
+                        session,
+                        step.session,
+                        {
+                            PriestSpellTerminalAdapter(
+                                terminal,
+                                renderer,
+                                content = session.content,
+                                worldMap = session.worldMap,
+                            ).runUntilBlocked(it)
+                        },
+                        WildernessSession::replacePriestSpellSession,
+                    ) { return it }
                 }
                 is WildernessSessionStep.Finished -> return finished(session)
             }

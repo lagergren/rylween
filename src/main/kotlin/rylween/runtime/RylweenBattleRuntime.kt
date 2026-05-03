@@ -1059,7 +1059,8 @@ private class CombatScriptRunner(
                             TextPart.PartyMemberMax,
                             TextPart.WildernessDungeonName,
                             TextPart.WildernessDungeonLevels,
-                            TextPart.DungeonDepth -> part.fallbackText()
+                            TextPart.DungeonDepth,
+                            TextPart.ConversationNpcName -> part.fallbackText()
                         }
                     }
                 },
