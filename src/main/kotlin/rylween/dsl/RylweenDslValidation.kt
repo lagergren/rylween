@@ -36,6 +36,11 @@ private class FlagStateIndex(flags: List<FlagRef>) {
     private val bySlug: Map<String, FlagRef> = flags.associateBy { it.slug }
     private val states: Set<Pair<String, String>> =
         flags.flatMap { flag -> flag.states.map { state -> flag.slug to state.native } }.toSet()
+    private val stateByKey: Map<Pair<String, String>, FlagState> =
+        flags.flatMap { flag -> flag.states.map { state -> (flag.slug to state.native) to state } }.toMap()
+    private val orderByKey: Map<Pair<String, String>, Int> =
+        flags.flatMap { flag -> flag.states.mapIndexed { index, state -> (flag.slug to state.native) to index } }
+            .toMap()
 
     fun contains(state: FlagState): Boolean =
         state.flag.slug to state.native in states
@@ -45,6 +50,15 @@ private class FlagStateIndex(flags: List<FlagRef>) {
 
     fun flag(slug: String): FlagRef? =
         bySlug[slug]
+
+    fun state(slug: String, native: String): FlagState? =
+        stateByKey[slug to native]
+
+    fun order(state: FlagState): Int? =
+        orderByKey[state.flag.slug to state.native]
+
+    fun order(slug: String, native: String): Int? =
+        orderByKey[slug to native]
 }
 
 private fun FlagStateIndex.requireKnown(state: FlagState, label: String) {
@@ -1671,6 +1685,113 @@ private fun validateFlagReferences(ast: BoolAst, label: String, flagStates: Flag
     bool(ast)
 }
 
+private fun validateFlagTransitions(content: GameModel, flagStates: FlagStateIndex) {
+    val scenesById = content.scenes.associateBy { it.id }
+
+    fun combineStates(
+        left: Map<String, FlagState>,
+        right: Map<String, FlagState>,
+    ): Map<String, FlagState> {
+        val conflicts = left.keys.intersect(right.keys).filter { left[it]?.native != right[it]?.native }
+        return if (conflicts.isEmpty()) left + right else emptyMap()
+    }
+
+    fun statesRequiredBy(ast: BoolAst?): Map<String, FlagState> {
+        ast ?: return emptyMap()
+        return when (ast) {
+            is BoolAst.FlagIs -> {
+                val state = flagStates.state(ast.slug, ast.nativeValue)
+                if (state == null) emptyMap() else mapOf(ast.slug to state)
+            }
+            is BoolAst.And -> combineStates(statesRequiredBy(ast.left), statesRequiredBy(ast.right))
+            else -> emptyMap()
+        }
+    }
+
+    fun validateTransition(
+        slug: String,
+        native: String,
+        context: Map<String, FlagState>,
+        label: String,
+    ) {
+        flagStates.requireKnown(slug, native, label)
+        val source = context[slug] ?: return
+        if (source.native == native) return
+
+        val sourceOrder = checkNotNull(flagStates.order(source)) {
+            "flag transition source ${source.flag.slug}.${source.native} is not declared"
+        }
+        val targetOrder = checkNotNull(flagStates.order(slug, native)) {
+            "flag transition target $slug.$native is not declared"
+        }
+        check(targetOrder >= sourceOrder) {
+            "$label moves ${source.flag.slug} backward from ${source.native} to $native"
+        }
+    }
+
+    fun visitOps(
+        ops: List<Op>,
+        context: Map<String, FlagState>,
+        label: String,
+    ) {
+        ops.forEach { op ->
+            when (op) {
+                is Op.SetFlag -> validateTransition(op.slug, op.nativeValue, context, label)
+                is Op.If -> {
+                    visitOps(op.thenOps, combineStates(context, statesRequiredBy(op.cond)), "$label if-then")
+                    visitOps(op.elseOps, context, "$label if-else")
+                }
+                is Op.Loop -> visitOps(op.body, context, "$label loop")
+                is Op.Switch -> op.cases.forEachIndexed { index, case ->
+                    visitOps(case.body, context, "$label switch case ${index + 1}")
+                }
+                is Op.Menu -> {
+                    op.options.forEach { option ->
+                        visitOps(option.body, context, "$label menu ${option.key}")
+                    }
+                    visitOps(op.defaultOps, context, "$label menu default")
+                }
+                is Op.AskText -> {
+                    visitOps(op.matchOps, context, "$label text-answer match")
+                    visitOps(op.missOps, context, "$label text-answer miss")
+                }
+                is Op.ForEachMember -> visitOps(op.body, context, "$label member loop")
+                is Op.ForEachMonster -> visitOps(op.body, context, "$label monster loop")
+                else -> Unit
+            }
+        }
+    }
+
+    content.scenes.forEach { scene ->
+        visitOps(scene.ops, emptyMap(), "scene ${scene.id.slug}")
+    }
+    content.dungeons.events.forEach { event ->
+        visitOps(event.ops, emptyMap(), "dungeon event ${event.id.slug}")
+    }
+    content.dialogue.forEach { dialogue ->
+        dialogue.branches.forEach { branch ->
+            val context = branch.whenState?.let { mapOf(it.flag.slug to it) }.orEmpty()
+            val label = branch.whenState
+                ?.let { "dialogue ${dialogue.npc.slug} when ${it.flag.slug}.${it.native}" }
+                ?: "dialogue ${dialogue.npc.slug} default"
+            visitOps(branch.ops, context, label)
+        }
+    }
+    content.speak.questionActions.forEach { action ->
+        visitOps(action.ops, emptyMap(), "speak ${action.topic} ${action.job.slug}")
+    }
+    content.spells.forEach { spell ->
+        visitOps(spell.ops, emptyMap(), "spell ${spell.id.slug}")
+    }
+    content.itemUses.forEach { itemUse ->
+        visitOps(itemUse.ops, emptyMap(), "item use ${itemUse.id.slug}")
+    }
+    content.missions.forEach { mission ->
+        val scene = scenesById[mission.action] ?: return@forEach
+        visitOps(scene.ops, statesRequiredBy(mission.requires), "mission ${mission.id.slug}")
+    }
+}
+
 fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagnostic> {
     val flagStates = FlagStateIndex(content.flags)
     return buildList {
@@ -1684,6 +1805,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("items.pools") { validateItemPools(content.itemPools, content.itemCatalog) }
         captureValidation("progress") { validateGameProgress(content.progress, content.itemCatalog) }
         captureValidation("flags.authored") { validateAuthoredFlags(content, flagStates) }
+        captureValidation("flags.transitions") { validateFlagTransitions(content, flagStates) }
         captureValidation("monsters") { validateMonsters(content.monsters) }
         captureValidation("missions") { validateMissions(content, flagStates) }
         captureValidation("formulas") { validateFormulas(content.formulas) }

@@ -2914,6 +2914,39 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun validationRejectsBackwardFlagTransitions() {
+        val flow = object : FlagRef("test.transition.${System.nanoTime()}") {
+            val none = state("none")
+            val accepted = state("accepted")
+        }.declareFlag()
+        val action = sceneId("bad.transition")
+        val content = GameBuilder().apply {
+            flags {
+                story(flow)
+            }
+            scene(action) {
+                mark(flow.none)
+            }
+            missions {
+                mission(missionId("bad.transition")) {
+                    randomStep(1)
+                    requires(flow.accepted)
+                    runs(action)
+                }
+            }
+        }.build()
+
+        val diagnostics = collectAuthoredContentDiagnostics(content)
+
+        assertTrue(
+            diagnostics.any {
+                it.path == "flags.transitions" &&
+                    "moves ${flow.slug} backward from accepted to none" in it.message
+            },
+        )
+    }
+
+    @Test
     fun compiledGameHarnessExposesNextRylweenToRuntimeTests() {
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
