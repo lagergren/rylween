@@ -83,7 +83,12 @@ private class RylweenAnsiGame(
 ) {
     private val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
     private val port = AnsiTerminalPort(terminal, screen)
-    private val serviceBridge = StatefulTownServiceBridge(port, speakContent = speakContent, renderer = renderer)
+    private val serviceBridge = StatefulTownServiceBridge(
+        port,
+        speakContent = speakContent,
+        battleContent = content.runtimeContent(),
+        renderer = renderer,
+    )
 
     fun run(initial: WildernessSession) {
         var session = initial

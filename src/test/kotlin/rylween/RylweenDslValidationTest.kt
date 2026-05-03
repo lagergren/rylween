@@ -2853,6 +2853,9 @@ class RylweenDslValidationTest {
 
         assertTrue(result.status is TerminalRunStatus.Finished)
         assertEquals(7, result.session.party.members.single().charisma)
+        assertTrue(terminal.output.any { "Niklas, the keeper" in it })
+        assertTrue(terminal.output.any { "Who wants to tell" in it })
+        assertTrue(terminal.output.any { "a story? (1-4)" in it })
         assertTrue(terminal.output.any { "Most of the crowd" in it })
         assertTrue(terminal.output.any { "beg you to stop." in it })
     }

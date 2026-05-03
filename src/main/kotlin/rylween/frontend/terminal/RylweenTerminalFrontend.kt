@@ -115,6 +115,8 @@ class TerminalTextRenderer(
     private val characters: List<CharacterModel> = emptyList(),
     private val prompts: GamePromptsModel = GamePromptsModel(),
 ) {
+    private val worldText = TerminalWorldTextResolver(towns, characters)
+
     fun lines(block: TextBlock, context: TerminalTextContext = TerminalTextContext()): List<String> =
         when (block) {
             is TextBlock.Inline -> block.lines
@@ -170,10 +172,12 @@ class TerminalTextRenderer(
             is TextPart.Literal -> part.text
             is TextPart.IntValue -> render(part.value)
             is TextPart.StringValue -> render(part.value, context)
-            is TextPart.RoleName -> characterFor(part.role)?.name ?: "{${part.role.slug}.name}"
-            is TextPart.RoleLocation -> roleLocation(part.role, context.runtime) ?: "{${part.role.slug}.location}"
-            is TextPart.TownName -> townName(part.town)
-            is TextPart.FuzzyTownLocation -> townLocation(part.town, part.radius) ?: "${part.town.slug}.location"
+            is TextPart.RoleName -> worldText.roleName(part.role) ?: "{${part.role.slug}.name}"
+            is TextPart.RoleLocation -> worldText.roleLocation(part.role, context.runtime)
+                ?: "{${part.role.slug}.location}"
+            is TextPart.TownName -> worldText.townName(part.town)
+            is TextPart.FuzzyTownLocation -> worldText.townLocation(part.town, part.radius)
+                ?: "${part.town.slug}.location"
             is TextPart.LocationCoordinate -> locationCoordinate(part.location, context.runtime)
                 ?: "{${part.location.slug}.coordinates}"
             TextPart.OfferedItemName -> context.offeredItemName ?: "{item_name}"
@@ -210,6 +214,18 @@ class TerminalTextRenderer(
                     renderPronoun(ast, context, PronounCase.Object)
                 NativeAllowlist.partyPronounPossessive.path ->
                     renderPronoun(ast, context, PronounCase.Possessive)
+                NativeAllowlist.townNpcName.path -> {
+                    val job = ast.args.singleOrNull()?.literalString()?.let(::NpcJobId)
+                    job?.let { worldText.townNpcName(it, context.runtime) } ?: "{town.npc.name}"
+                }
+                NativeAllowlist.npcRoleName.path -> {
+                    val role = ast.args.singleOrNull()?.literalString()?.let(::NpcRole)
+                    role?.let(worldText::roleName) ?: "{npc.role.name}"
+                }
+                NativeAllowlist.npcRoleLocation.path -> {
+                    val role = ast.args.singleOrNull()?.literalString()?.let(::NpcRole)
+                    role?.let { worldText.roleLocation(it, context.runtime) } ?: "{npc.role.location}"
+                }
                 else -> "{${ast.path}}"
             }
         }
@@ -234,40 +250,70 @@ class TerminalTextRenderer(
             is NativeStringArg.Literal -> value.toIntOrNull()
         }
 
-    private fun characterFor(role: NpcRole): CharacterModel? =
-        characters.firstOrNull { role in it.roles }
-
-    private fun roleLocation(role: NpcRole, runtime: RuntimeSessionState?): String? {
-        val character = characterFor(role) ?: return null
-        val placement = runtime
-            ?.npcs
-            ?.firstOrNull { it.npc == character.id }
-            ?.position
-            ?: (character.placement as? CharacterPlacementModel.Fixed)?.position
-            ?: return null
-        return position(placement)
-    }
-
-    private fun position(position: WorldPosition): String =
-        when (position) {
-            is WorldPosition.Town -> "in ${townName(position.town)}"
-            is WorldPosition.Wilderness -> "at ${point(position.point)}"
+    private fun NativeStringArg.literalString(): String? =
+        when (this) {
+            is NativeStringArg.IntValue -> (value as? IntAst.Lit)?.value?.toString()
+            is NativeStringArg.Literal -> value
         }
-
-    private fun townName(town: TownId): String =
-        towns.firstOrNull { it.id == town }?.name ?: town.slug
-
-    private fun townLocation(town: TownId, radius: Int): String? {
-        val model = towns.firstOrNull { it.id == town } ?: return null
-        return point(fuzzyPoint(model.position, town.slug, radius))
-    }
 
     private fun locationCoordinate(location: LocationId, runtime: RuntimeSessionState?): String? =
         runtime
             ?.locations
             ?.firstOrNull { it.location == location }
             ?.point
-            ?.let(::point)
+            ?.let { TerminalWorldTextResolver.point(it) }
+
+    private fun render(ast: IntAst): String =
+        when (ast) {
+            is IntAst.Lit -> ast.value.toString()
+            else -> "{int}"
+        }
+}
+
+internal class TerminalWorldTextResolver(
+    private val towns: List<TownModel> = emptyList(),
+    private val characters: List<CharacterModel> = emptyList(),
+) {
+    fun townNpcName(job: NpcJobId, runtime: RuntimeSessionState?): String? {
+        val town = runtime?.realm?.currentTown ?: return null
+        return characters.firstOrNull { character ->
+            character.job == job && position(character, runtime).let { position ->
+                position is WorldPosition.Town && position.town == town
+            }
+        }?.name
+    }
+
+    fun roleName(role: NpcRole): String? =
+        characterFor(role)?.name
+
+    fun roleLocation(role: NpcRole, runtime: RuntimeSessionState?): String? {
+        val character = characterFor(role) ?: return null
+        return position(character, runtime)?.let(::position)
+    }
+
+    fun townName(town: TownId): String =
+        towns.firstOrNull { it.id == town }?.name ?: town.slug
+
+    fun townLocation(town: TownId, radius: Int): String? {
+        val model = towns.firstOrNull { it.id == town } ?: return null
+        return point(fuzzyPoint(model.position, town.slug, radius))
+    }
+
+    private fun characterFor(role: NpcRole): CharacterModel? =
+        characters.firstOrNull { role in it.roles }
+
+    private fun position(character: CharacterModel, runtime: RuntimeSessionState?): WorldPosition? =
+        runtime
+            ?.npcs
+            ?.firstOrNull { it.npc == character.id }
+            ?.position
+            ?: (character.placement as? CharacterPlacementModel.Fixed)?.position
+
+    private fun position(position: WorldPosition): String =
+        when (position) {
+            is WorldPosition.Town -> "in ${townName(position.town)}"
+            is WorldPosition.Wilderness -> "at ${point(position.point)}"
+        }
 
     private fun fuzzyPoint(point: GridPoint, slug: String, radius: Int): GridPoint =
         if (radius <= 0) {
@@ -285,19 +331,17 @@ class TerminalTextRenderer(
         return Math.floorMod(hash, span) - radius
     }
 
-    private fun point(point: GridPoint): String = "${point.x}x${point.y}"
-
-    private fun render(ast: IntAst): String =
-        when (ast) {
-            is IntAst.Lit -> ast.value.toString()
-            else -> "{int}"
-        }
+    companion object {
+        fun point(point: GridPoint): String = "${point.x}x${point.y}"
+    }
 }
 
 fun TerminalPort.writeScriptEvents(
     events: List<EngineTraceEvent>,
     renderer: TerminalTextRenderer,
     runtime: RuntimeSessionState,
+    renderDungeonHandoff: Boolean = true,
+    renderTownService: Boolean = false,
 ) {
     val context = TerminalTextContext(runtime = runtime)
     events.forEach { event ->
@@ -322,11 +366,17 @@ fun TerminalPort.writeScriptEvents(
             is EngineTraceEvent.NativeString -> write(listOf("Native string: ${event.request.path} = ${event.result}"))
             is EngineTraceEvent.RunScene -> write(listOf("Scene: ${event.scene.slug}"))
             is EngineTraceEvent.DungeonHandoff ->
-                write(renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context))
+                if (renderDungeonHandoff) {
+                    write(renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context))
+                }
             is EngineTraceEvent.TeleportParty,
             is EngineTraceEvent.DiscoverCave -> Unit
             is EngineTraceEvent.Stop -> write(listOf(event.reason ?: "Stop"))
             is EngineTraceEvent.Break -> write(listOf(event.reason ?: "Break"))
+            is EngineTraceEvent.TownService ->
+                if (renderTownService) {
+                    write(listOf("Service: ${event.service.building.slug}"))
+                }
             is EngineTraceEvent.WaitInput,
             is EngineTraceEvent.Pause,
             is EngineTraceEvent.SetFlag,
@@ -340,7 +390,6 @@ fun TerminalPort.writeScriptEvents(
             is EngineTraceEvent.ShopSellQuote,
             is EngineTraceEvent.ShopTransaction,
             is EngineTraceEvent.EquipmentAction,
-            is EngineTraceEvent.TownService,
             is EngineTraceEvent.ConsumeInventoryPool,
             EngineTraceEvent.ConsumeTorch -> Unit
         }
@@ -387,6 +436,17 @@ fun <T, R> TerminalInput<T>.map(transform: (T) -> R): TerminalInput<R> =
         is TerminalInput.Value -> TerminalInput.Value(transform(value))
         is TerminalInput.Rejected -> this
         TerminalInput.Unavailable -> TerminalInput.Unavailable
+    }
+
+internal inline fun <S, T> TerminalInput<T>.sessionOrWait(
+    current: S,
+    stop: (TerminalAdapterResult<S>) -> Nothing,
+    update: (T) -> S,
+): S =
+    when (this) {
+        is TerminalInput.Value -> update(value)
+        is TerminalInput.Rejected -> stop(waiting(current, rejection))
+        TerminalInput.Unavailable -> stop(waiting(current))
     }
 
 fun TerminalPort.readKey(allowed: List<Char>): TerminalInput<Char> {
