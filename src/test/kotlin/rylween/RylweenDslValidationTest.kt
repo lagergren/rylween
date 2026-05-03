@@ -3278,6 +3278,29 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun wildernessJournalCommandShowsAuthoredPartyJournal() {
+        val terminal = FakeTerminalPort("J", "")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                ).copy(
+                    journal = listOf(JournalEntryState.Line("Nolrim's Crypt is at 37x14.")),
+                ),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.JournalShown, result.session.lastResult?.status)
+        assertTrue(terminal.output.any { "TRAVELLER'S JOURNAL" in it })
+        assertTrue(terminal.output.any { "- Nolrim's Crypt is at 37x14." in it })
+        assertFalse(terminal.output.any { "not wired" in it || "not ported" in it })
+    }
+
+    @Test
     fun wildernessCastSpellKeyRejectsNonPriest() {
         val terminal = FakeTerminalPort("Z", "1")
         val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(

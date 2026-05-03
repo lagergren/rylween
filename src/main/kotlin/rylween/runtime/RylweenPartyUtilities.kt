@@ -133,6 +133,49 @@ data class PartyViewSession(
         copy(step = PartyViewStep.Finished(result), lastResult = result)
 }
 
+enum class PartyJournalStatus {
+    Started,
+    Empty,
+    Shown,
+}
+
+data class PartyJournalResult(
+    val status: PartyJournalStatus,
+)
+
+sealed interface PartyJournalInput {
+    object Continue : PartyJournalInput
+}
+
+sealed interface PartyJournalStep {
+    data class Show(val entries: List<JournalEntryState>) : PartyJournalStep
+    data class Finished(val result: PartyJournalResult) : PartyJournalStep
+}
+
+data class PartyJournalSession(
+    val party: PartyState,
+    val prompts: PartyPromptsModel = PartyPromptsModel(),
+    val step: PartyJournalStep = party.journal
+        .takeIf { it.isNotEmpty() }
+        ?.let(PartyJournalStep::Show)
+        ?: PartyJournalStep.Finished(PartyJournalResult(PartyJournalStatus.Empty)),
+    val lastResult: PartyJournalResult = when (step) {
+        is PartyJournalStep.Show -> PartyJournalResult(PartyJournalStatus.Started)
+        is PartyJournalStep.Finished -> step.result
+    },
+) {
+    fun apply(input: PartyJournalInput): PartyJournalSession =
+        when (val current = step) {
+            is PartyJournalStep.Show -> when (input) {
+                PartyJournalInput.Continue -> finish(PartyJournalResult(PartyJournalStatus.Shown))
+            }
+            is PartyJournalStep.Finished -> error("party journal is already finished: $current")
+        }
+
+    private fun finish(result: PartyJournalResult): PartyJournalSession =
+        copy(step = PartyJournalStep.Finished(result), lastResult = result)
+}
+
 sealed interface InventoryDropInput {
     data class Slot(val slot: Int) : InventoryDropInput
     object Abort : InventoryDropInput

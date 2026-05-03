@@ -1568,6 +1568,7 @@ fun validateAuthoredContent(content: GameModel) {
     validateTextBlock(content.prompts.dungeon.noTorches, "dungeon no-torches prompt")
     validateTextBlock(content.prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
     validateTextBlock(content.prompts.party.viewWho, "party view-who prompt")
+    validateTextBlock(content.prompts.party.journalHeader, "party journal-header prompt")
     validateTextBlock(content.prompts.party.dropPrompt, "party drop prompt")
     validateTextBlock(content.prompts.party.dropEmptySlot, "party drop-empty-slot prompt")
     validateTextBlock(content.prompts.party.dropAborted, "party drop-aborted prompt")

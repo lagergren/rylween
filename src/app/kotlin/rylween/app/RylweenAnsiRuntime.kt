@@ -251,6 +251,18 @@ private class RylweenAnsiGame(
                         is TerminalRunStatus.Waiting -> updated
                     }
                 }
+                is WildernessSessionStep.PartyJournal -> {
+                    val result = PartyJournalTerminalAdapter(port, renderer).runUntilBlocked(step.session, session.runtime)
+                    val updated = session.replacePartyJournalSession(result.session)
+                    when (val status = result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "party journal step limit reached") }
+                        is TerminalRunStatus.Waiting -> {
+                            if (status.rejection == null) return
+                            updated
+                        }
+                    }
+                }
                 is WildernessSessionStep.Equipment -> {
                     val result = EquipmentPromptTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceEquipmentSession(result.session)
@@ -662,8 +674,8 @@ private fun WildernessSessionResultStatus.statusLine(): List<String> =
     when (this) {
         WildernessSessionResultStatus.Blocked -> listOf("Blocked.")
         WildernessSessionResultStatus.SaveUnavailable -> listOf("Save not wired yet.")
-        WildernessSessionResultStatus.JournalUnavailable -> listOf("Journal not wired yet.")
         WildernessSessionResultStatus.HuntUnavailable -> listOf("Hunt is unavailable.")
+        WildernessSessionResultStatus.JournalShown -> emptyList()
         WildernessSessionResultStatus.ViewPartyShown -> emptyList()
         WildernessSessionResultStatus.DropUsed -> listOf("Inventory updated.")
         WildernessSessionResultStatus.Camped -> emptyList()
