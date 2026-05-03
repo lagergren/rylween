@@ -85,13 +85,7 @@ class YdargSessionTerminalAdapter(
                 is YdargSessionStep.Battle -> {
                     val result = BattleSessionTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceBattleSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached ->
-                            return TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached)
-                        is TerminalRunStatus.Waiting ->
-                            return TerminalAdapterResult(updated, result.status)
-                    }
+                    continueOrBlock(updated, result.status) { return it }
                 }
                 is YdargSessionStep.Finished -> return finished(session)
             }

@@ -78,12 +78,16 @@ data class SpeakSession(
             is SpeakStep.QuestionMenu -> {
                 val question = (input as? SpeakInput.Question)
                     ?: error("speak session is at the question menu")
-                if (question.topic == QuestionTopic.Nothing) {
-                    copy(step = mainMenu(current.npc))
-                } else if (question.topic == QuestionTopic.Lodging && current.npc.job == DslDefaultNpcJobs.bargirl) {
-                    bargirlLodging(current.npc)
-                } else {
-                    copy(step = message(questionReply(question.topic, current.npc), mainMenu(current.npc)))
+                when (question.topic) {
+                    QuestionTopic.Nothing -> {
+                        copy(step = mainMenu(current.npc))
+                    }
+                    QuestionTopic.Lodging if current.npc.job == DslDefaultNpcJobs.bargirl -> {
+                        bargirlLodging(current.npc)
+                    }
+                    else -> {
+                        copy(step = message(questionReply(question.topic, current.npc), mainMenu(current.npc)))
+                    }
                 }
             }
             is SpeakStep.LodgingOffer -> {
@@ -287,7 +291,7 @@ fun SpeakRuntimeContent.selectStandardRumour(runtime: RuntimeSessionState): Rumo
 }
 
 fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
-    val visits = visitedNpcs.associateBy { it.npc } + (npc to NpcVisitState(npc, visited))
+    val visits = visitedNpcs.associateBy { it.npc } + (npc to NpcVisitState(npc = npc, visited = visited))
     return copy(visitedNpcs = visits.values.sortedBy { it.npc.slug })
 }
 

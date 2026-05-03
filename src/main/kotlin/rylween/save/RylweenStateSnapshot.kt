@@ -1,7 +1,6 @@
 package rylween.save
 
 import rylween.dsl.*
-import rylween.runtime.*
 
 fun renderRuntimeStateSnapshot(state: StateModel): String {
     check(state.kind == StateKind.RuntimeSnapshot) {
@@ -10,16 +9,8 @@ fun renderRuntimeStateSnapshot(state: StateModel): String {
     return RuntimeStateSnapshotWriter().render(state)
 }
 
-fun renderRuntimeStateSnapshots(states: List<StateModel>): String =
-    states
-        .filter { it.kind == StateKind.RuntimeSnapshot }
-        .joinToString(separator = "\n") { renderRuntimeStateSnapshot(it) }
-
 fun parseRuntimeStateSnapshot(source: String): StateModel =
     RuntimeStateSnapshotParser(source).parseSingle()
-
-fun parseRuntimeStateSnapshots(source: String): List<StateModel> =
-    RuntimeStateSnapshotParser(source).parseAll()
 
 private class RuntimeStateSnapshotParser(source: String) {
     private val lexer = RuntimeSnapshotLexer(source)
@@ -153,7 +144,13 @@ private class RuntimeStateSnapshotParser(source: String) {
         var position: WorldPosition = Wilderness.xy(0, 0)
         var facing: Facing? = null
         var resources = PartyResources(0, 0, 0, 0, 0)
-        var counters = PartyCounters(null, 0, false, false, emptyList())
+        var counters = PartyCounters(
+            memberCount = null,
+            kills = 0,
+            waitingMail = false,
+            attacked = false,
+            attackedToday = emptyList(),
+        )
         var flags = emptyList<FlagState>()
         var milestones = emptyList<GameMilestoneId>()
         var inventory = emptyList<InventorySlotState>()
@@ -241,7 +238,7 @@ private class RuntimeStateSnapshotParser(source: String) {
                 expectSymbol('=')
                 val attacked = parseBoolean()
                 expectSymbol(')')
-                add(PartyAttackRecord(party, attacked))
+                add(PartyAttackRecord(party = party, attacked = attacked))
             }
         }
     }
@@ -406,12 +403,12 @@ private class RuntimeStateSnapshotParser(source: String) {
                 when (val action = expectIdentifier()) {
                     "visited" -> {
                         expectSymbol('(')
-                        add(NpcVisitState(parseNpcId(), true))
+                        add(NpcVisitState(npc = parseNpcId(), visited = true))
                         expectSymbol(')')
                     }
                     "notVisited" -> {
                         expectSymbol('(')
-                        add(NpcVisitState(parseNpcId(), false))
+                        add(NpcVisitState(npc = parseNpcId(), visited = false))
                         expectSymbol(')')
                     }
                     else -> unexpected("NPC visit action $action")

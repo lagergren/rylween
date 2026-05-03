@@ -9,6 +9,9 @@
     "MemberVisibilityCanBePrivate",
     "RedundantVisibilityModifier",
     "UNUSED_PARAMETER",
+    "CanBeParameter",
+    "KotlinExplicitApi",
+    "PropertyName",
 )
 
 package rylween.game

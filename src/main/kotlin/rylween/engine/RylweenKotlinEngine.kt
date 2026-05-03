@@ -7,10 +7,9 @@ import rylween.runtime.*
 
 class RylweenKotlinEngine(
     private val content: GameModel,
-    private val itemRecords: List<ItemRecordModel> = content.itemCatalog,
     private val npcPlacementConfig: NpcPlacementRealizerConfig = NpcPlacementRealizerConfig(),
 ) {
-    fun initialRuntime(
+    private fun initialRuntime(
         state: StateModel,
         rngState: Long? = state.realm.rngState,
         realizeNpcs: Boolean = true,
@@ -28,7 +27,7 @@ class RylweenKotlinEngine(
         }
     }
 
-    fun initialRuntime(
+    private fun initialRuntime(
         party: PartyState,
         hour: Int,
         currentTown: TownId?,
