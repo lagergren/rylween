@@ -38,9 +38,7 @@ class CampSessionTerminalAdapter(
                     }
                 }
                 is CampSessionStep.Messages -> {
-                    step.blocks.forEach { block ->
-                        terminal.write(renderer.lines(block, TerminalTextContext(runtime = session.runtime)))
-                    }
+                    terminal.writeBlocks(step.blocks, renderer, TerminalTextContext(runtime = session.runtime))
                     session.apply(CampSessionInput.Continue)
                 }
                 is CampSessionStep.Ambush -> {
@@ -91,9 +89,7 @@ class HuntSessionTerminalAdapter(
                         huntMemberNumber = step.memberNumber,
                         huntFoodGained = step.foodGained,
                     )
-                    step.blocks.forEach { block ->
-                        terminal.write(renderer.lines(block, context))
-                    }
+                    terminal.writeBlocks(step.blocks, renderer, context)
                     session.apply(HuntSessionInput.Continue)
                 }
                 is HuntSessionStep.Finished -> return finished(session)
@@ -720,7 +716,7 @@ class DungeonSessionTerminalAdapter(
             session = when (val step = session.step) {
                 DungeonSessionStep.Explore -> {
                     writeExplore(session)
-                    val choices = dungeonChoices(session.keys)
+                    val choices = session.keys.exploreCommands().terminalChoices()
                     when (val input = terminal.readChoice(choices)) {
                         is TerminalInput.Value -> session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
@@ -728,7 +724,7 @@ class DungeonSessionTerminalAdapter(
                     }
                 }
                 is DungeonSessionStep.Messages -> {
-                    terminal.write(step.blocks.flatMap { renderer.lines(it, TerminalTextContext(runtime = session.runtime)) })
+                    terminal.writeBlocks(step.blocks, renderer, TerminalTextContext(runtime = session.runtime))
                     session.apply(DungeonSessionInput.Continue)
                 }
                 is DungeonSessionStep.Notice -> {
@@ -875,26 +871,11 @@ class DungeonSessionTerminalAdapter(
         terminal.write(
             renderer.bindingPromptLines(
                 DungeonPromptText.levelMenu(session.depth),
-                dungeonChoices(session.keys).map { it.binding },
+                session.keys.exploreCommands().commandBindings(),
                 TerminalTextContext(runtime = session.runtime),
             ),
         )
     }
-
-    private fun dungeonChoices(keys: DungeonKeysModel): List<TerminalChoice<DungeonSessionInput>> =
-        listOf(
-            TerminalChoice(DungeonSessionInput.Descend, keys.descend),
-            TerminalChoice(DungeonSessionInput.Ascend, keys.ascend),
-            TerminalChoice(DungeonSessionInput.Help, keys.help),
-            TerminalChoice(DungeonSessionInput.Drop, keys.drop),
-            TerminalChoice(DungeonSessionInput.RemoveArmor, keys.removeArmor),
-            TerminalChoice(DungeonSessionInput.RemoveWeapon, keys.removeWeapon),
-            TerminalChoice(DungeonSessionInput.ReadyWeapon, keys.readyWeapon),
-            TerminalChoice(DungeonSessionInput.ReadyArmor, keys.readyArmor),
-            TerminalChoice(DungeonSessionInput.Quaff, keys.quaff),
-            TerminalChoice(DungeonSessionInput.CastSpell, keys.castSpell),
-            TerminalChoice(DungeonSessionInput.ViewParty, keys.viewParty),
-        )
 }
 
 class WildernessSessionTerminalAdapter(
@@ -911,21 +892,16 @@ class WildernessSessionTerminalAdapter(
             session = when (val step = session.step) {
                 WildernessSessionStep.TurnStart -> session.beginTurn()
                 is WildernessSessionStep.Messages -> {
-                    step.blocks.forEach { block ->
-                        terminal.write(renderer.lines(block, TerminalTextContext(runtime = session.runtime)))
-                    }
+                    terminal.writeBlocks(step.blocks, renderer, TerminalTextContext(runtime = session.runtime))
                     session.continueMessages()
                 }
                 is WildernessSessionStep.OutOfMoves -> {
                     val keys = session.wilderness.keys
-                    writeBindingMenu(step.prompt, keys.outOfMovesKeys())
-                    val choices = listOf(
-                        TerminalChoice(true, keys.outOfMovesSave),
-                        TerminalChoice(false, keys.outOfMovesQuit),
-                    )
-                    when (val input = terminal.readChoice(choices)) {
+                    val commands = keys.outOfMovesCommands()
+                    writeBindingMenu(step.prompt, commands.commandBindings())
+                    when (val input = terminal.readChoice(commands.terminalChoices())) {
                         is TerminalInput.Value ->
-                            session.apply(WildernessSessionInput.OutOfMovesAnswer(input.value))
+                            session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -939,14 +915,11 @@ class WildernessSessionTerminalAdapter(
                             TerminalTextContext(runtime = session.runtime),
                         )
                     }
-                    writeBindingMenu(step.prompt, keys.caveKeys())
-                    val choices = listOf(
-                        TerminalChoice(true, keys.caveEnter),
-                        TerminalChoice(false, keys.caveLeave),
-                    )
-                    when (val input = terminal.readChoice(choices)) {
+                    val commands = keys.caveCommands()
+                    writeBindingMenu(step.prompt, commands.commandBindings())
+                    when (val input = terminal.readChoice(commands.terminalChoices())) {
                         is TerminalInput.Value ->
-                            session.apply(WildernessSessionInput.CaveAnswer(input.value))
+                            session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }
@@ -1053,29 +1026,7 @@ class WildernessSessionTerminalAdapter(
                 WildernessSessionStep.Explore -> {
                     writeExplore(session)
                     val keys = session.wilderness.keys
-                    val choices: List<TerminalChoice<WildernessSessionInput>> = listOf(
-                        TerminalChoice(WildernessSessionInput.Move(WildernessDirection.North), keys.moveNorth),
-                        TerminalChoice(WildernessSessionInput.Move(WildernessDirection.South), keys.moveSouth),
-                        TerminalChoice(WildernessSessionInput.Move(WildernessDirection.West), keys.moveWest),
-                        TerminalChoice(WildernessSessionInput.Move(WildernessDirection.East), keys.moveEast),
-                        TerminalChoice(WildernessSessionInput.Pass, keys.pass),
-                        TerminalChoice(WildernessSessionInput.Save, keys.save),
-                        TerminalChoice(WildernessSessionInput.ReadyWeapon, keys.readyWeapon),
-                        TerminalChoice(WildernessSessionInput.ReadyArmor, keys.readyArmor),
-                        TerminalChoice(WildernessSessionInput.Redraw, keys.redraw),
-                        TerminalChoice(WildernessSessionInput.Journal, keys.journal),
-                        TerminalChoice(WildernessSessionInput.Help, keys.help),
-                        TerminalChoice(WildernessSessionInput.Hunt, keys.hunt),
-                        TerminalChoice(WildernessSessionInput.ViewParty, keys.viewParty),
-                        TerminalChoice(WildernessSessionInput.RemoveArmor, keys.removeArmor),
-                        TerminalChoice(WildernessSessionInput.RemoveWeapon, keys.removeWeapon),
-                        TerminalChoice(WildernessSessionInput.Enter, keys.enter),
-                        TerminalChoice(WildernessSessionInput.Drop, keys.drop),
-                        TerminalChoice(WildernessSessionInput.Camp, keys.camp),
-                        TerminalChoice(WildernessSessionInput.CastSpell, keys.castSpell),
-                        TerminalChoice(WildernessSessionInput.Quaff, keys.quaff),
-                        TerminalChoice(WildernessSessionInput.Quit, keys.quit),
-                    )
+                    val choices = keys.exploreCommands().terminalChoices()
                     when (val input = terminal.readChoice(choices)) {
                         is TerminalInput.Value -> session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
@@ -1088,14 +1039,11 @@ class WildernessSessionTerminalAdapter(
                 }
                 is WildernessSessionStep.QuitConfirm -> {
                     val keys = session.wilderness.keys
-                    writeBindingMenu(step.prompt, keys.quitConfirmKeys())
-                    val choices = listOf(
-                        TerminalChoice(true, keys.quitYes),
-                        TerminalChoice(false, keys.quitNo),
-                    )
-                    when (val input = terminal.readChoice(choices)) {
+                    val commands = keys.quitConfirmCommands()
+                    writeBindingMenu(step.prompt, commands.commandBindings())
+                    when (val input = terminal.readChoice(commands.terminalChoices())) {
                         is TerminalInput.Value ->
-                            session.apply(WildernessSessionInput.QuitAnswer(input.value))
+                            session.apply(input.value)
                         is TerminalInput.Rejected -> return waiting(session, input.rejection)
                         TerminalInput.Unavailable -> return waiting(session)
                     }

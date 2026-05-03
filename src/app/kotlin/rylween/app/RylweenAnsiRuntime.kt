@@ -338,38 +338,20 @@ private fun MissionModel.service(): BuildingServiceModel =
         nativeServices = emptyList(),
     )
 
-private fun WildernessKeysModel.exploreInput(token: String): WildernessSessionInput? =
-    when {
-        moveNorth.matches(token) -> WildernessSessionInput.Move(WildernessDirection.North)
-        moveSouth.matches(token) -> WildernessSessionInput.Move(WildernessDirection.South)
-        moveWest.matches(token) -> WildernessSessionInput.Move(WildernessDirection.West)
-        moveEast.matches(token) -> WildernessSessionInput.Move(WildernessDirection.East)
-        pass.matches(token) -> WildernessSessionInput.Pass
-        save.matches(token) -> WildernessSessionInput.Save
-        readyWeapon.matches(token) -> WildernessSessionInput.ReadyWeapon
-        readyArmor.matches(token) -> WildernessSessionInput.ReadyArmor
-        redraw.matches(token) -> WildernessSessionInput.Redraw
-        journal.matches(token) -> WildernessSessionInput.Journal
-        help.matches(token) -> WildernessSessionInput.Help
-        hunt.matches(token) -> WildernessSessionInput.Hunt
-        viewParty.matches(token) -> WildernessSessionInput.ViewParty
-        removeArmor.matches(token) -> WildernessSessionInput.RemoveArmor
-        removeWeapon.matches(token) -> WildernessSessionInput.RemoveWeapon
-        enter.matches(token) -> WildernessSessionInput.Enter
-        drop.matches(token) -> WildernessSessionInput.Drop
-        camp.matches(token) -> WildernessSessionInput.Camp
-        castSpell.matches(token) -> WildernessSessionInput.CastSpell
-        quaff.matches(token) -> WildernessSessionInput.Quaff
-        quit.matches(token) -> WildernessSessionInput.Quit
-        else -> null
-    }
-
 private class AnsiTerminalPort(
     private val terminal: JLineAnsiTerminal,
     private val screen: ClassicAnsiScreen,
 ) : TerminalPort {
     override fun write(lines: List<String>) {
         screen.writeText(lines)
+    }
+
+    override fun writeBlocks(
+        blocks: List<TextBlock>,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext,
+    ) {
+        screen.writeBlocks(blocks, renderer, context, pauseAfterLast = true)
     }
 
     override fun readLine(): String? =
@@ -475,7 +457,7 @@ private class ClassicAnsiScreen(
 
     fun writeHelp(session: WildernessSession, renderer: TerminalTextRenderer) {
         val context = TerminalTextContext(runtime = session.runtime)
-        session.wilderness.keys.helpPages.forEach { page ->
+        session.wilderness.keys.effectiveHelpPages().forEach { page ->
             writeText(renderer.lines(page, context))
             terminal.readKeyToken()
         }
@@ -483,7 +465,25 @@ private class ClassicAnsiScreen(
     }
 
     fun writeBlocks(blocks: List<TextBlock>, runtime: RuntimeSessionState, renderer: TerminalTextRenderer) {
-        writeText(blocks.flatMap { renderer.lines(it, TerminalTextContext(runtime = runtime)) })
+        writeBlocks(blocks, renderer, TerminalTextContext(runtime = runtime), pauseAfterLast = false)
+    }
+
+    fun writeBlocks(
+        blocks: List<TextBlock>,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext,
+        pauseAfterLast: Boolean,
+    ) {
+        if (blocks.isEmpty()) {
+            writeText(emptyList())
+            return
+        }
+        blocks.forEachIndexed { index, block ->
+            writeText(renderer.lines(block, context))
+            if (pauseAfterLast || index < blocks.lastIndex) {
+                terminal.readKeyToken()
+            }
+        }
     }
 
     fun writeBlock(block: TextBlock, runtime: RuntimeSessionState, renderer: TerminalTextRenderer) {

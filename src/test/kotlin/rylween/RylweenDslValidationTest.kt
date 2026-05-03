@@ -951,7 +951,34 @@ class RylweenDslValidationTest {
         assertEquals("rylween.doc", screens.getValue(StaticScreens.manual).resource)
         assertEquals("score.txt", screens.getValue(StaticScreens.score).resource)
         assertEquals("vscore.txt", screens.getValue(StaticScreens.verboseScore).resource)
-        assertEquals(3, RylweenCompiledGame.nextDsl.wilderness.keys.helpPages.size)
+        assertTrue(RylweenCompiledGame.nextDsl.wilderness.keys.helpPages.isEmpty())
+        assertEquals(3, RylweenCompiledGame.nextDsl.wilderness.keys.effectiveHelpPages().size)
+    }
+
+    @Test
+    fun compiledGameGeneratesCommandHelpFromBindings() {
+        val renderer = RylweenCompiledGame.nextDsl.terminalTextRenderer()
+        val wildernessPages = RylweenCompiledGame.nextDsl.wilderness.keys.effectiveHelpPages()
+        val wildernessLines = wildernessPages.flatMap { page -> renderer.lines(page) }
+        val dungeonPages = DungeonKeysModel().effectiveHelpPages()
+        val dungeonLines = dungeonPages.flatMap { page -> renderer.lines(page) }
+        val ydargPages = checkNotNull(RylweenCompiledGame.nextDsl.ydarg).keys.navigationHelpPages()
+        val ydargLines = ydargPages.flatMap { page -> renderer.lines(page) }
+        val textWindowWidth = checkNotNull(
+            RylweenCompiledGame.nextDsl.terminal.regions.single { region ->
+                region.id == ScreenRegions.textWindow
+            }.width,
+        )
+
+        assertTrue(wildernessPages.all { page -> renderer.lines(page).size <= 7 })
+        assertTrue(dungeonPages.all { page -> renderer.lines(page).size <= 7 })
+        assertTrue(ydargPages.all { page -> renderer.lines(page).size <= 7 })
+        assertTrue((wildernessLines + dungeonLines + ydargLines).all { line -> line.length <= textWindowWidth })
+        assertTrue("C = Camp" in wildernessLines)
+        assertTrue("8/Up = Move North" in wildernessLines)
+        assertTrue("D = Descend" in dungeonLines)
+        assertTrue("8 = Move North" in ydargLines)
+        assertTrue("? = View Help" in ydargLines)
     }
 
     @Test

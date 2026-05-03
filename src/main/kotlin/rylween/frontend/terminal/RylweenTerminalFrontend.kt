@@ -9,6 +9,14 @@ import rylween.runtime.*
 
 interface TerminalPort {
     fun write(lines: List<String>)
+    fun writeBlocks(
+        blocks: List<TextBlock>,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext,
+    ) {
+        write(blocks.flatMap { block -> renderer.lines(block, context) })
+    }
+
     fun readLine(): String?
     fun readTextLine(maxLength: Int? = null): String? = readLine()
     fun readReturn(): Boolean? = readLine()?.let { true }
@@ -360,6 +368,9 @@ data class TerminalChoice<out T>(
     val value: T,
     val binding: InputBindingModel,
 )
+
+fun <T> List<InputCommand<T>>.terminalChoices(): List<TerminalChoice<T>> =
+    map { command -> TerminalChoice(command.input, command.binding) }
 
 fun InputBindingModel.promptValue(): Int =
     primary.singleOrNull()?.let { char ->
