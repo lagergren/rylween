@@ -4428,6 +4428,39 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun ydargNavigationEmitsAnsiBoundaryViewsAndAuthoredMoveText() {
+        val started = YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = ydargCastleParty(),
+                hour = 12,
+                currentTown = null,
+                rngState = 1L,
+            ),
+            content = RylweenCompiledGame.nextDsl.runtimeContent(),
+        ).copy(
+            rooms = mapOf(GridPoint(2, 1) to YdargRoomEvent.Empty),
+            step = YdargSessionStep.Navigate,
+        )
+
+        runCompiledYdargScenario(
+            name = "ydarg-navigation-ansi-boundary-and-move-text",
+            inputs = listOf("6"),
+            start = { started },
+            checkpoints = listOf(
+                checkpoint("navigation restores castle backdrop, status, and authored move text") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(YdargSessionStatus.Moved, result.session.lastResult?.status)
+                    assertEquals(GridPoint(2, 1), result.session.point)
+                    assertImageShown(Images.Backdrop.ydargCastle.slug)
+                    assertViewCommand(ViewCommand.StatusLine)
+                    assertOutputContains("East.")
+                    assertOutputContains("You are at 2x1.")
+                },
+            ),
+        )
+    }
+
+    @Test
     fun ydargSaveCommandPersistsAndResumesCastleSession() {
         val content = RylweenCompiledGame.nextDsl
         val party = testParty(

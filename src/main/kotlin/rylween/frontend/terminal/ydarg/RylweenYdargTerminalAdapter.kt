@@ -158,8 +158,13 @@ class YdargSessionTerminalAdapter(
     }
 
     private fun writeNavigation(session: YdargSession) {
+        val context = TerminalTextContext(runtime = session.runtime)
+        session.ydarg.image?.let { image ->
+            terminal.writeViewCommand(ViewCommand.ShowImage(image), renderer, context)
+        }
+        terminal.writeViewCommand(ViewCommand.StatusLine, renderer, context)
         session.navigationBlocks().forEach { block ->
-            terminal.write(renderer.lines(block, TerminalTextContext(runtime = session.runtime)))
+            terminal.write(renderer.lines(block, context))
         }
     }
 

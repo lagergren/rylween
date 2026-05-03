@@ -684,14 +684,12 @@ data class YdargSession(
     }
 
     private fun directionText(direction: WildernessDirection): TextBlock =
-        inlineText(
-            when (direction) {
-                WildernessDirection.North -> "North."
-                WildernessDirection.South -> "South."
-                WildernessDirection.East -> "East."
-                WildernessDirection.West -> "West."
-            },
-        )
+        when (direction) {
+            WildernessDirection.North -> ydarg.text.moveNorth
+            WildernessDirection.South -> ydarg.text.moveSouth
+            WildernessDirection.East -> ydarg.text.moveEast
+            WildernessDirection.West -> ydarg.text.moveWest
+        }
 
     private fun floorName(floor: Int): String =
         when (floor) {

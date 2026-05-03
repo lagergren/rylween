@@ -499,7 +499,7 @@ private class AnsiTerminalPort(
             ViewCommand.ClearMapWindow -> true.also { screen.clearMapWindow() }
             ViewCommand.RenderMap -> true.also { screen.redrawMap() }
             is ViewCommand.ShowImage -> true.also { screen.showImage(command.image) }
-            ViewCommand.StatusLine -> true.also { screen.renderStatus() }
+            ViewCommand.StatusLine -> true.also { screen.renderStatusFor(context.runtime) }
         }
     }
 }
@@ -554,6 +554,14 @@ private class ClassicAnsiScreen(
 
     fun renderStatus() {
         lastWildernessSession?.let { renderStatus(it.runtime) }
+    }
+
+    fun renderStatusFor(runtime: RuntimeSessionState?) {
+        if (runtime != null) {
+            renderStatus(runtime)
+        } else {
+            renderStatus()
+        }
     }
 
     fun showImage(image: ImageId) {

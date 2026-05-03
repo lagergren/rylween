@@ -444,6 +444,10 @@ val nextRylween = rylween {
             treasureMenu = inlineText("(T)ake it", "(L)eave it")
             treasureFull = inlineText("You can't carry more.")
             treasureTaken = inlineText("", "Ok.")
+            moveNorth = inlineText("North.")
+            moveSouth = inlineText("South.")
+            moveEast = inlineText("East.")
+            moveWest = inlineText("West.")
             stairsIntro = inlineText("You stand before the", "stairs to the next level.", "")
             stairsMageOffer = inlineText(
                 "A mage imprisoned in a",
