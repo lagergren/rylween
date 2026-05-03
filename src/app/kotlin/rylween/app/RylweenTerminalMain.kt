@@ -9,6 +9,8 @@ import rylween.runtime.*
 import rylween.save.FileRuntimeSavePort
 import rylween.save.loadRuntimeSnapshot
 import rylween.save.loadRuntimeStateSnapshot
+import rylween.save.runtimeSaveSlotFile
+import rylween.save.runtimeSaveSlotStateId
 
 import java.io.File
 
@@ -257,8 +259,20 @@ private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): Ter
                 config = config.copy(loadFile = File(args.valueAfter(index, arg)))
                 index += 2
             }
+            "--load-slot" -> {
+                config = config.copy(loadFile = runtimeSaveSlotFile(args.valueAfter(index, arg)))
+                index += 2
+            }
             "--save" -> {
                 config = config.copy(saveFile = File(args.valueAfter(index, arg)))
+                index += 2
+            }
+            "--save-slot" -> {
+                val slot = args.valueAfter(index, arg)
+                config = config.copy(
+                    saveFile = runtimeSaveSlotFile(slot),
+                    saveState = runtimeSaveSlotStateId(slot),
+                )
                 index += 2
             }
             "--screen" -> {
@@ -306,7 +320,9 @@ private fun printTownUsage() {
         |  --state  state slug, defaults to fresh-replay
         |  --map    map file for wilderness NPC placement, defaults to authored wilderness map
         |  --load   runtime snapshot file to boot instead of --state
+        |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
+        |  --save-slot named runtime snapshot target under build/saves
         |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
         """.trimMargin(),
     )
@@ -323,7 +339,9 @@ private fun printGameUsage() {
         |  --hour   0..23, overrides the selected state hour
         |  --map    map file for wilderness movement and NPC hut projection, defaults to authored wilderness map
         |  --load   runtime snapshot file to boot instead of --state
+        |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
+        |  --save-slot named runtime snapshot target under build/saves
         |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
         """.trimMargin(),
     )

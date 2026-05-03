@@ -337,6 +337,17 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun runtimeSaveSlotPolicyMapsSafeNamesToSaveFiles() {
+        assertEquals(File("build/saves/main-1.kts"), runtimeSaveSlotFile("main-1"))
+        assertEquals(File("custom/backup_A.kts"), runtimeSaveSlotFile("backup_A", File("custom")))
+        assertEquals(stateId("save-main-1"), runtimeSaveSlotStateId("main-1"))
+
+        assertFailsWith<IllegalArgumentException> { runtimeSaveSlotFile("../main") }
+        assertFailsWith<IllegalArgumentException> { runtimeSaveSlotFile("_hidden") }
+        assertFailsWith<IllegalArgumentException> { runtimeSaveSlotFile("") }
+    }
+
+    @Test
     fun runtimeSnapshotLoadRejectsMismatchedContentHash() {
         val content = RylweenCompiledGame.nextDsl
         val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay }
