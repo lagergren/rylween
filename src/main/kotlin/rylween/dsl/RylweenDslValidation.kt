@@ -440,7 +440,6 @@ private fun validateYdargText(text: YdargTextModel) {
         "teleport outside" to text.teleportOutside,
         "give menu" to text.giveMenu,
         "mage grateful" to text.mageGrateful,
-        "unsupported command" to text.unsupportedCommand,
     ).forEach { (label, block) -> validateTextBlock(block, "Ydarg $label") }
     listOf(
         "act1" to text.confrontationAct1,
@@ -707,6 +706,7 @@ private fun validateTextBlock(
             }
             TextPart.OfferedItemName,
             TextPart.OfferedItemPrice,
+            TextPart.SelectedItemName,
             TextPart.ShopPrice,
             TextPart.ShopCarryCap,
             TextPart.HuntMemberName,
@@ -1567,6 +1567,12 @@ fun validateAuthoredContent(content: GameModel) {
     validateTextBlock(content.prompts.dungeon.atMaxDepth, "dungeon at-max-depth prompt")
     validateTextBlock(content.prompts.dungeon.noTorches, "dungeon no-torches prompt")
     validateTextBlock(content.prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
+    validateTextBlock(content.prompts.party.viewWho, "party view-who prompt")
+    validateTextBlock(content.prompts.party.dropPrompt, "party drop prompt")
+    validateTextBlock(content.prompts.party.dropEmptySlot, "party drop-empty-slot prompt")
+    validateTextBlock(content.prompts.party.dropAborted, "party drop-aborted prompt")
+    validateTextBlock(content.prompts.party.dropDropped, "party drop-dropped prompt")
+    validateTextBlock(content.prompts.party.dropCapacityReduced, "party drop-capacity-reduced prompt")
     validateRealmContent(content.realm)
     validateVisuals(content.visuals)
     validateTerminalPresentation(content.terminal)

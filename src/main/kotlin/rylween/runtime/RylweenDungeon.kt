@@ -25,8 +25,10 @@ enum class DungeonSessionResultStatus {
     NoTorches,
     AtMaxDepth,
     HelpShown,
-    DropUnavailable,
-    ViewPartyUnavailable,
+    DropRequested,
+    DropUsed,
+    ViewPartyRequested,
+    ViewPartyShown,
     EquipmentRequested,
     EquipmentUsed,
     EquipmentUnavailable,
@@ -52,6 +54,8 @@ sealed interface DungeonSessionStep {
     data class Notice(val text: TextBlock, val next: DungeonSessionStep = Explore) : DungeonSessionStep
     data class Equipment(val session: EquipmentPromptSession) : DungeonSessionStep
     data class InventoryItemUse(val session: InventoryItemUseSession) : DungeonSessionStep
+    data class InventoryDrop(val session: InventoryDropSession) : DungeonSessionStep
+    data class PartyView(val session: PartyViewSession) : DungeonSessionStep
     data class PriestSpell(val session: PriestSpellSession) : DungeonSessionStep
     data class Event(val event: DungeonEventModel, val continuation: TownServiceContinuation? = null) :
         DungeonSessionStep
@@ -85,6 +89,7 @@ data class DungeonSession(
     val spells: List<SpellModel> get() = content.spells
     val itemUses: List<ItemUseModel> get() = content.itemUses
     val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val progress: GameProgressModel get() = content.progress
     val realm: RealmContentModel get() = content.realm
     val prompts: DungeonPromptsModel get() = content.prompts.dungeon
     val party: PartyState get() = runtime.activeParty
@@ -98,16 +103,14 @@ data class DungeonSession(
                     step = DungeonSessionStep.Messages(keys.effectiveHelpPages(), DungeonSessionStep.Explore),
                     lastResult = result(DungeonSessionResultStatus.HelpShown),
                 )
-                DungeonSessionInput.Drop ->
-                    notice(RuntimeUnavailableText.dungeonDropPending(), DungeonSessionResultStatus.DropUnavailable)
+                DungeonSessionInput.Drop -> drop()
                 DungeonSessionInput.RemoveArmor -> equipment(EquipmentCommand.RemoveArmor)
                 DungeonSessionInput.RemoveWeapon -> equipment(EquipmentCommand.RemoveWeapon)
                 DungeonSessionInput.ReadyWeapon -> equipment(EquipmentCommand.ReadyWeapon)
                 DungeonSessionInput.ReadyArmor -> equipment(EquipmentCommand.ReadyArmor)
                 DungeonSessionInput.Quaff -> quaff()
                 DungeonSessionInput.CastSpell -> castSpell()
-                DungeonSessionInput.ViewParty ->
-                    notice(RuntimeUnavailableText.dungeonViewPartyPending(), DungeonSessionResultStatus.ViewPartyUnavailable)
+                DungeonSessionInput.ViewParty -> viewParty()
                 DungeonSessionInput.Continue -> this
             }
             is DungeonSessionStep.Messages -> {
@@ -120,6 +123,8 @@ data class DungeonSession(
             }
             is DungeonSessionStep.Equipment,
             is DungeonSessionStep.InventoryItemUse,
+            is DungeonSessionStep.InventoryDrop,
+            is DungeonSessionStep.PartyView,
             is DungeonSessionStep.PriestSpell,
             is DungeonSessionStep.Event,
             is DungeonSessionStep.RandomEncounter -> error("nested dungeon session must be driven by its own adapter")
@@ -164,6 +169,38 @@ data class DungeonSession(
             copy(runtime = session.runtime, step = DungeonSessionStep.Explore, lastResult = result(status))
         } else {
             copy(runtime = session.runtime, step = DungeonSessionStep.InventoryItemUse(session))
+        }
+    }
+
+    fun replaceInventoryDropSession(session: InventoryDropSession): DungeonSession {
+        require(step is DungeonSessionStep.InventoryDrop) { "dungeon session is not running inventory drop" }
+        return if (session.step is InventoryDropStep.Finished) {
+            val status = session.lastResult.status.toParentStatus(
+                dropped = DungeonSessionResultStatus.DropUsed,
+                unavailable = DungeonSessionResultStatus.InventoryUnavailable,
+            )
+            copy(
+                runtime = runtime.withActiveParty(session.party),
+                step = DungeonSessionStep.Explore,
+                lastResult = result(status),
+            )
+        } else {
+            copy(
+                runtime = runtime.withActiveParty(session.party),
+                step = DungeonSessionStep.InventoryDrop(session),
+            )
+        }
+    }
+
+    fun replacePartyViewSession(session: PartyViewSession): DungeonSession {
+        require(step is DungeonSessionStep.PartyView) { "dungeon session is not running party view" }
+        return if (session.step is PartyViewStep.Finished) {
+            copy(
+                step = DungeonSessionStep.Explore,
+                lastResult = result(DungeonSessionResultStatus.ViewPartyShown),
+            )
+        } else {
+            copy(step = DungeonSessionStep.PartyView(session))
         }
     }
 
@@ -273,6 +310,32 @@ data class DungeonSession(
                 ),
             ),
             lastResult = result(DungeonSessionResultStatus.InventoryRequested),
+        )
+
+    private fun drop(): DungeonSession =
+        copy(
+            step = DungeonSessionStep.InventoryDrop(
+                InventoryDropSession(
+                    party = party,
+                    itemRecords = itemRecords,
+                    realm = realm,
+                    prompts = content.prompts.party,
+                ),
+            ),
+            lastResult = result(DungeonSessionResultStatus.DropRequested),
+        )
+
+    private fun viewParty(): DungeonSession =
+        copy(
+            step = DungeonSessionStep.PartyView(
+                PartyViewSession(
+                    party = party,
+                    itemRecords = itemRecords,
+                    progress = progress,
+                    prompts = content.prompts.party,
+                ),
+            ),
+            lastResult = result(DungeonSessionResultStatus.ViewPartyRequested),
         )
 
     private fun castSpell(): DungeonSession =

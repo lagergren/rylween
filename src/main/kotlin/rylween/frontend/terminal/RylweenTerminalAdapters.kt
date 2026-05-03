@@ -215,6 +215,113 @@ class InventoryItemUseTerminalAdapter(
     }
 }
 
+class PartyViewTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun runUntilBlocked(
+        initial: PartyViewSession,
+        runtime: RuntimeSessionState? = null,
+    ): TerminalAdapterResult<PartyViewSession> {
+        var session = initial
+        repeat(16) {
+            session = when (val step = session.step) {
+                PartyViewStep.ChooseMember -> {
+                    terminal.write(partyOverviewLines(session.viewModel()))
+                    terminal.write(renderer.lines(session.prompts.viewWho, TerminalTextContext(runtime = runtime)))
+                    terminal.readChoice(partyViewChoices(session.party))
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
+                }
+                is PartyViewStep.MemberDetails -> {
+                    terminal.write(memberDetailLines(session.viewModel(), step.memberNumbers))
+                    session.apply(PartyViewInput.Continue)
+                }
+                is PartyViewStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+}
+
+class InventoryDropTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun runUntilBlocked(initial: InventoryDropSession): TerminalAdapterResult<InventoryDropSession> {
+        var session = initial
+        repeat(16) {
+            session = when (val step = session.step) {
+                InventoryDropStep.ChooseSlot -> {
+                    terminal.write(inventoryLines(session.viewModel()))
+                    terminal.write(renderer.lines(session.prompts.dropPrompt))
+                    terminal.readChoice(inventoryDropChoices())
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
+                }
+                is InventoryDropStep.Messages -> {
+                    terminal.writeBlocks(step.blocks, renderer, TerminalTextContext())
+                    session.apply(InventoryDropInput.Continue)
+                }
+                is InventoryDropStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+}
+
+private fun partyViewChoices(party: PartyState): List<TerminalChoice<PartyViewInput>> =
+    party.members.indices.map { index ->
+        val key = (index + 1).digitToChar()
+        TerminalChoice(PartyViewInput.Member(index + 1), inputKey(key, label = key.toString()))
+    } + listOf(
+        TerminalChoice(PartyViewInput.Quit, inputKey("Q")),
+        TerminalChoice(PartyViewInput.All, inputKey("A")),
+    )
+
+private fun inventoryDropChoices(): List<TerminalChoice<InventoryDropInput>> =
+    (1..InventorySaveSlotMax).map { slot ->
+        val key = 'A' + slot - 1
+        TerminalChoice(InventoryDropInput.Slot(slot), inputKey(key, label = key.toString()))
+    } + TerminalChoice(InventoryDropInput.Abort, inputKey("Q"))
+
+private fun partyOverviewLines(model: PartyViewModel): List<String> =
+    buildList {
+        add("Torches: ${model.resources.torches}  Rations: ${model.resources.food}  Gold: ${model.resources.gold}")
+        if (model.specials.isNotEmpty()) {
+            addAll(model.specials.map { special -> "Special: ${special.itemName}" })
+        }
+        add("")
+        addAll(inventoryLines(model))
+        add("")
+    }
+
+private fun inventoryLines(model: PartyViewModel): List<String> =
+    model.inventory.chunked(2).map { pair ->
+        pair.joinToString("  ") { slot ->
+            "${slot.key}. ${slot.itemName.take(12).padEnd(12)}"
+        }
+    }
+
+private fun memberDetailLines(
+    model: PartyViewModel,
+    memberNumbers: List<Int>,
+): List<String> =
+    memberNumbers.flatMap { number ->
+        val view = model.members.firstOrNull { it.number == number } ?: return@flatMap emptyList()
+        val member = view.member
+        listOf(
+            "${view.number}. ${member.name}",
+            "${member.race.name} ${member.pcClass.name}",
+            "Skill ${member.weaponSkill}  HP ${member.hitPoints.current}/${member.hitPoints.max}",
+            "Health ${member.health}  Wisdom ${member.wisdom}",
+            "Charisma ${member.charisma}  Magic ${member.mana.current}/${member.mana.max}",
+            "Level ${member.level}  XP ${member.experience}",
+            "Weapon: ${view.weaponName}",
+            "Armor: ${view.armorName}",
+            "Status: ${if (member.dead) "Dead" else "Alive"}",
+            "",
+        )
+    }
+
 class PriestSpellTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -606,6 +713,16 @@ class DungeonSessionTerminalAdapter(
                     val updated = session.replaceInventoryItemUseSession(result.session)
                     continueOrBlock(updated, result.status) { return it }
                 }
+                is DungeonSessionStep.InventoryDrop -> {
+                    val result = InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceInventoryDropSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
+                is DungeonSessionStep.PartyView -> {
+                    val result = PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
+                    val updated = session.replacePartyViewSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
                 is DungeonSessionStep.PriestSpell -> {
                     val result = PriestSpellTerminalAdapter(
                         terminal = terminal,
@@ -683,6 +800,7 @@ class DungeonSessionTerminalAdapter(
                 itemUses = session.itemUses,
                 itemRecords = session.itemRecords,
                 realm = session.realm,
+                progress = session.progress,
             ),
             worldMap = session.worldMap,
             textRenderer = renderer,
@@ -888,6 +1006,16 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.InventoryItemUse -> {
                     val result = InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceInventoryItemUseSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
+                is WildernessSessionStep.InventoryDrop -> {
+                    val result = InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceInventoryDropSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
+                is WildernessSessionStep.PartyView -> {
+                    val result = PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
+                    val updated = session.replacePartyViewSession(result.session)
                     continueOrBlock(updated, result.status) { return it }
                 }
                 is WildernessSessionStep.Equipment -> {

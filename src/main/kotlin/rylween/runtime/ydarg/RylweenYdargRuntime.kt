@@ -10,8 +10,19 @@ enum class YdargSessionStatus {
     Moved,
     Blocked,
     HelpShown,
-    ViewParty,
-    UnsupportedCommand,
+    ViewPartyRequested,
+    ViewPartyShown,
+    DropRequested,
+    DropUsed,
+    EquipmentRequested,
+    EquipmentUsed,
+    EquipmentUnavailable,
+    InventoryRequested,
+    InventoryUsed,
+    InventoryUnavailable,
+    CastSpellRequested,
+    CastSpellUsed,
+    CastSpellUnavailable,
     MonsterEncounter,
     Pitfall,
     TreasureFound,
@@ -83,6 +94,11 @@ sealed interface YdargSessionStep {
         val session: BattleSession,
         val continuation: YdargBattleContinuation,
     ) : YdargSessionStep
+    data class PartyView(val session: PartyViewSession) : YdargSessionStep
+    data class InventoryDrop(val session: InventoryDropSession) : YdargSessionStep
+    data class Equipment(val session: EquipmentPromptSession) : YdargSessionStep
+    data class InventoryItemUse(val session: InventoryItemUseSession) : YdargSessionStep
+    data class PriestSpell(val session: PriestSpellSession) : YdargSessionStep
     data class Finished(val runtime: RuntimeSessionState) : YdargSessionStep
 }
 
@@ -135,6 +151,12 @@ data class YdargSession(
             }
             is YdargSessionStep.Battle ->
                 error("Ydarg battle is advanced by replaceBattleSession()")
+            is YdargSessionStep.PartyView,
+            is YdargSessionStep.InventoryDrop,
+            is YdargSessionStep.Equipment,
+            is YdargSessionStep.InventoryItemUse,
+            is YdargSessionStep.PriestSpell ->
+                error("Ydarg child session is advanced by its terminal adapter")
             is YdargSessionStep.Finished ->
                 error("Ydarg session is already finished: $current")
         }
@@ -308,21 +330,154 @@ data class YdargSession(
                 )
             YdargCommand.ViewParty ->
                 copy(
-                    step = YdargSessionStep.Messages(listOf(partyOverview()), YdargSessionStep.Navigate),
-                    lastResult = YdargSessionResult(YdargSessionStatus.ViewParty, floor, point),
+                    step = YdargSessionStep.PartyView(
+                        PartyViewSession(
+                            party = party,
+                            itemRecords = content.itemRecords,
+                            progress = content.progress,
+                            prompts = content.prompts.party,
+                        ),
+                    ),
+                    lastResult = YdargSessionResult(YdargSessionStatus.ViewPartyRequested, floor, point),
                 )
-            YdargCommand.RemoveArmor,
-            YdargCommand.RemoveWeapon,
-            YdargCommand.Drop,
-            YdargCommand.ReadyWeapon,
-            YdargCommand.ReadyArmor,
-            YdargCommand.Quaff,
-            YdargCommand.CastSpell ->
-                copy(
-                    step = YdargSessionStep.Messages(listOf(ydarg.text.unsupportedCommand), YdargSessionStep.Navigate),
-                    lastResult = YdargSessionResult(YdargSessionStatus.UnsupportedCommand, floor, point),
-                )
+            YdargCommand.RemoveArmor -> equipment(EquipmentCommand.RemoveArmor)
+            YdargCommand.RemoveWeapon -> equipment(EquipmentCommand.RemoveWeapon)
+            YdargCommand.Drop -> drop()
+            YdargCommand.ReadyWeapon -> equipment(EquipmentCommand.ReadyWeapon)
+            YdargCommand.ReadyArmor -> equipment(EquipmentCommand.ReadyArmor)
+            YdargCommand.Quaff -> quaff()
+            YdargCommand.CastSpell -> castSpell()
         }
+
+    fun replacePartyViewSession(session: PartyViewSession): YdargSession {
+        require(step is YdargSessionStep.PartyView) { "Ydarg session is not running party view" }
+        return if (session.step is PartyViewStep.Finished) {
+            copy(
+                step = YdargSessionStep.Navigate,
+                lastResult = YdargSessionResult(YdargSessionStatus.ViewPartyShown, floor, point),
+            )
+        } else {
+            copy(step = YdargSessionStep.PartyView(session))
+        }
+    }
+
+    fun replaceInventoryDropSession(session: InventoryDropSession): YdargSession {
+        require(step is YdargSessionStep.InventoryDrop) { "Ydarg session is not running inventory drop" }
+        return if (session.step is InventoryDropStep.Finished) {
+            val status = session.lastResult.status.toParentStatus(
+                dropped = YdargSessionStatus.DropUsed,
+                unavailable = YdargSessionStatus.InventoryUnavailable,
+            )
+            copy(
+                runtime = runtime.withActiveParty(session.party),
+                step = YdargSessionStep.Navigate,
+                lastResult = YdargSessionResult(status, floor, point),
+            )
+        } else {
+            copy(runtime = runtime.withActiveParty(session.party), step = YdargSessionStep.InventoryDrop(session))
+        }
+    }
+
+    fun replaceEquipmentSession(session: EquipmentPromptSession): YdargSession {
+        require(step is YdargSessionStep.Equipment) { "Ydarg session is not running equipment prompts" }
+        val status = when ((session.step as? EquipmentPromptStep.Finished)?.result) {
+            is EquipmentActionResult.Equipped,
+            is EquipmentActionResult.Unequipped -> YdargSessionStatus.EquipmentUsed
+            null -> null
+            else -> YdargSessionStatus.EquipmentUnavailable
+        }
+        return if (status != null) {
+            copy(
+                runtime = runtime.withActiveParty(session.party),
+                step = YdargSessionStep.Navigate,
+                lastResult = YdargSessionResult(status, floor, point),
+            )
+        } else {
+            copy(runtime = runtime.withActiveParty(session.party), step = YdargSessionStep.Equipment(session))
+        }
+    }
+
+    fun replaceInventoryItemUseSession(session: InventoryItemUseSession): YdargSession {
+        require(step is YdargSessionStep.InventoryItemUse) { "Ydarg session is not running inventory item use" }
+        return if (session.step is InventoryItemUseStep.Finished) {
+            val status = when (session.lastResult?.status) {
+                InventoryItemUseStatus.Used,
+                InventoryItemUseStatus.Equipped -> YdargSessionStatus.InventoryUsed
+                else -> YdargSessionStatus.InventoryUnavailable
+            }
+            copy(
+                runtime = session.runtime,
+                step = YdargSessionStep.Navigate,
+                lastResult = YdargSessionResult(status, floor, point),
+            )
+        } else {
+            copy(runtime = session.runtime, step = YdargSessionStep.InventoryItemUse(session))
+        }
+    }
+
+    fun replacePriestSpellSession(session: PriestSpellSession): YdargSession {
+        require(step is YdargSessionStep.PriestSpell) { "Ydarg session is not running priest spell casting" }
+        return if (session.step is PriestSpellStep.Finished) {
+            val status = when (session.lastResult?.status) {
+                PriestSpellStatus.Cast -> YdargSessionStatus.CastSpellUsed
+                else -> YdargSessionStatus.CastSpellUnavailable
+            }
+            copy(
+                runtime = session.runtime,
+                step = YdargSessionStep.Navigate,
+                lastResult = YdargSessionResult(status, floor, point),
+            )
+        } else {
+            copy(runtime = session.runtime, step = YdargSessionStep.PriestSpell(session))
+        }
+    }
+
+    private fun equipment(command: EquipmentCommand): YdargSession =
+        copy(
+            step = YdargSessionStep.Equipment(
+                EquipmentPromptSession.start(command, party, content.itemRecords, content.prompts.equipment),
+            ),
+            lastResult = YdargSessionResult(YdargSessionStatus.EquipmentRequested, floor, point),
+        )
+
+    private fun drop(): YdargSession =
+        copy(
+            step = YdargSessionStep.InventoryDrop(
+                InventoryDropSession(
+                    party = party,
+                    itemRecords = content.itemRecords,
+                    realm = content.realm,
+                    prompts = content.prompts.party,
+                ),
+            ),
+            lastResult = YdargSessionResult(YdargSessionStatus.DropRequested, floor, point),
+        )
+
+    private fun quaff(): YdargSession =
+        copy(
+            step = YdargSessionStep.InventoryItemUse(
+                InventoryItemUseSession.start(
+                    runtime = runtime,
+                    content = content,
+                    allowedKinds = setOf(ItemKind.Potion),
+                    choosePrompt = content.prompts.inventoryUse.quaff,
+                ),
+            ),
+            lastResult = YdargSessionResult(YdargSessionStatus.InventoryRequested, floor, point),
+        )
+
+    private fun castSpell(): YdargSession =
+        copy(
+            step = YdargSessionStep.PriestSpell(
+                PriestSpellSession.start(
+                    runtime = runtime,
+                    spells = content.spells,
+                    place = PriestSpellPlace.Dungeon,
+                    prompts = content.prompts.priest,
+                ),
+            ),
+            lastResult = YdargSessionResult(YdargSessionStatus.CastSpellRequested, floor, point),
+        )
 
     private fun leaveStairs(): YdargSession =
         copy(
@@ -488,16 +643,6 @@ data class YdargSession(
                     )
                 }
             },
-        )
-
-    private fun partyOverview(): TextBlock =
-        inlineText(
-            *party.members.flatMapIndexed { index, member ->
-                listOf(
-                    "${index + 1}. ${member.name}",
-                    "HP ${member.hitPoints.current}/${member.hitPoints.max}  ${if (member.dead) "Dead" else member.pcClass.name}",
-                )
-            }.plus("").toTypedArray(),
         )
 
     private fun compassBlock(): TextBlock {

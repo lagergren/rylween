@@ -803,6 +803,7 @@ class StatefulScriptServiceRunner(
                             is TextPart.LocationCoordinate -> locationCoordinate(part.location) ?: part.fallbackText()
                             TextPart.OfferedItemName,
                             TextPart.OfferedItemPrice,
+                            TextPart.SelectedItemName,
                             TextPart.ShopPrice,
                             TextPart.ShopCarryCap,
                             TextPart.HuntMemberName,

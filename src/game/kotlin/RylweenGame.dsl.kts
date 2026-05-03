@@ -466,7 +466,6 @@ val nextRylween = rylween {
                 "final battle!",
                 "",
             )
-            unsupportedCommand = inlineText("Not available here.", "")
             confrontationAct1(
                 inlineText(
                     "The last trapdoor",
@@ -625,6 +624,17 @@ val nextRylween = rylween {
             unavailableSuffix = " is not available here."
             missingServiceSuffix = " service is not implemented yet."
             closedSuffix = " is closed."
+        }
+        party {
+            viewWho = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") }
+            dropPrompt = inlineText("Drop what?")
+            dropEmptySlot = inlineText("Nothing to drop.")
+            dropAborted = inlineText("Aborted.")
+            dropped {
+                line("You drop the")
+                line(itemName, ".")
+            }
+            dropCapacityReduced = inlineText("You are forced to", "leave some of your", "food behind...")
         }
         wilderness {
             pass = inlineText("Time passes...")

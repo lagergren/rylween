@@ -58,8 +58,10 @@ enum class WildernessSessionResultStatus {
     HuntFailed,
     HuntNotRanger,
     HuntTooFewMoves,
-    ViewPartyUnavailable,
-    DropUnavailable,
+    ViewPartyRequested,
+    ViewPartyShown,
+    DropRequested,
+    DropUsed,
     CampUnavailable,
     Camped,
     NotTired,
@@ -137,6 +139,8 @@ sealed interface WildernessSessionStep {
     data class Camp(val session: CampSession) : WildernessSessionStep
     data class Hunt(val session: HuntSession) : WildernessSessionStep
     data class InventoryItemUse(val session: InventoryItemUseSession) : WildernessSessionStep
+    data class InventoryDrop(val session: InventoryDropSession) : WildernessSessionStep
+    data class PartyView(val session: PartyViewSession) : WildernessSessionStep
     data class Equipment(val session: EquipmentPromptSession) : WildernessSessionStep
     data class PriestSpell(val session: PriestSpellSession) : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
@@ -305,6 +309,7 @@ data class WildernessSession(
     val spells: List<SpellModel> get() = content.spells
     val itemUses: List<ItemUseModel> get() = content.itemUses
     val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    val progress: GameProgressModel get() = content.progress
     val realm: RealmContentModel get() = content.realm
     val prompts: WildernessPromptsModel get() = content.prompts.wilderness
     val party: PartyState get() = runtime.activeParty
@@ -327,13 +332,11 @@ data class WildernessSession(
             WildernessSessionInput.Hunt -> hunt()
             is WildernessSessionInput.HuntMember -> applyHuntInput(HuntSessionInput.Member(input.memberNumber))
             WildernessSessionInput.HuntContinue -> applyHuntInput(HuntSessionInput.Continue)
-            WildernessSessionInput.ViewParty ->
-                pending(RuntimeUnavailableText.viewPartyPending(), WildernessSessionResultStatus.ViewPartyUnavailable)
+            WildernessSessionInput.ViewParty -> viewParty()
             WildernessSessionInput.RemoveArmor -> equipment(EquipmentCommand.RemoveArmor)
             WildernessSessionInput.RemoveWeapon -> equipment(EquipmentCommand.RemoveWeapon)
             WildernessSessionInput.Enter -> enter()
-            WildernessSessionInput.Drop ->
-                pending(RuntimeUnavailableText.dropPending(), WildernessSessionResultStatus.DropUnavailable)
+            WildernessSessionInput.Drop -> drop()
             WildernessSessionInput.Camp -> camp()
             is WildernessSessionInput.CampGuardAnswer -> applyCampInput(CampSessionInput.GuardAnswer(input.yes))
             is WildernessSessionInput.CampGuardMember -> applyCampInput(CampSessionInput.GuardMember(input.memberNumber))
@@ -548,6 +551,39 @@ data class WildernessSession(
         }
     }
 
+    fun replaceInventoryDropSession(session: InventoryDropSession): WildernessSession {
+        require(step is WildernessSessionStep.InventoryDrop) {
+            "wilderness session is not running inventory drop"
+        }
+        return if (session.step is InventoryDropStep.Finished) {
+            val status = session.lastResult.status.toParentStatus(
+                dropped = WildernessSessionResultStatus.DropUsed,
+                unavailable = WildernessSessionResultStatus.InventoryUnavailable,
+            )
+            copy(
+                runtime = runtime.withActiveParty(session.party),
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(status),
+            )
+        } else {
+            copy(runtime = runtime.withActiveParty(session.party), step = WildernessSessionStep.InventoryDrop(session))
+        }
+    }
+
+    fun replacePartyViewSession(session: PartyViewSession): WildernessSession {
+        require(step is WildernessSessionStep.PartyView) {
+            "wilderness session is not running party view"
+        }
+        return if (session.step is PartyViewStep.Finished) {
+            copy(
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.ViewPartyShown),
+            )
+        } else {
+            copy(step = WildernessSessionStep.PartyView(session))
+        }
+    }
+
     fun replaceEquipmentSession(session: EquipmentPromptSession): WildernessSession {
         require(step is WildernessSessionStep.Equipment) {
             "wilderness session is not running equipment prompts"
@@ -721,6 +757,32 @@ data class WildernessSession(
                 ),
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.InventoryRequested),
+        )
+
+    private fun drop(): WildernessSession =
+        copy(
+            step = WildernessSessionStep.InventoryDrop(
+                InventoryDropSession(
+                    party = party,
+                    itemRecords = itemRecords,
+                    realm = realm,
+                    prompts = content.prompts.party,
+                ),
+            ),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.DropRequested),
+        )
+
+    private fun viewParty(): WildernessSession =
+        copy(
+            step = WildernessSessionStep.PartyView(
+                PartyViewSession(
+                    party = party,
+                    itemRecords = itemRecords,
+                    progress = progress,
+                    prompts = content.prompts.party,
+                ),
+            ),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.ViewPartyRequested),
         )
 
     private fun camp(): WildernessSession =

@@ -95,6 +95,7 @@ sealed interface TextPart {
     data class LocationCoordinate(val location: LocationId) : TextPart
     object OfferedItemName : TextPart
     object OfferedItemPrice : TextPart
+    object SelectedItemName : TextPart
     object ShopPrice : TextPart
     object ShopCarryCap : TextPart
     object HuntMemberName : TextPart
@@ -118,6 +119,7 @@ fun TextPart.fallbackText(): String =
         is TextPart.LocationCoordinate -> "{${location.slug}.coordinates}"
         TextPart.OfferedItemName -> "{item_name}"
         TextPart.OfferedItemPrice -> "{item_price}"
+        TextPart.SelectedItemName -> "{selected_item_name}"
         TextPart.ShopPrice -> "{price}"
         TextPart.ShopCarryCap -> "{cap}"
         TextPart.HuntMemberName -> "{who_name}"
@@ -1381,6 +1383,7 @@ data class RuntimeContent(
     val itemRecords: List<ItemRecordModel> = emptyList(),
     val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel = GamePromptsModel(),
+    val progress: GameProgressModel = GameProgressModel(emptyList(), null),
     val dungeons: DungeonSystemModel = DungeonSystemModel(),
     val ydarg: YdargContentModel? = null,
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
@@ -1440,6 +1443,7 @@ fun GameModel.runtimeContent(): RuntimeContent =
         itemRecords = itemCatalog,
         realm = realm,
         prompts = prompts,
+        progress = progress,
         dungeons = dungeons,
         ydarg = ydarg,
         wilderness = wilderness,
@@ -1556,6 +1560,7 @@ data class GamePromptsModel(
     val town: TownPromptsModel = TownPromptsModel(),
     val wilderness: WildernessPromptsModel = WildernessPromptsModel(),
     val dungeon: DungeonPromptsModel = DungeonPromptsModel(),
+    val party: PartyPromptsModel = PartyPromptsModel(),
 )
 
 data class PriestSpellPromptsModel(
@@ -1620,6 +1625,21 @@ data class TownPromptsModel(
         inlineText("${building.slug}$closedSuffix")
 }
 
+data class PartyPromptsModel(
+    val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") },
+    val dropPrompt: TextBlock = inlineText("Drop what?"),
+    val dropEmptySlot: TextBlock = inlineText("Nothing to drop."),
+    val dropAborted: TextBlock = inlineText("Aborted."),
+    val dropDropped: TextBlock = structuredText {
+        line("You drop the")
+        line(TextPart.SelectedItemName, ".")
+    },
+    val dropCapacityReduced: TextBlock = inlineText("You are forced to", "leave some of your", "food behind..."),
+) {
+    fun renderDropped(itemName: String): TextBlock =
+        dropDropped.resolvePromptValues(PromptTextValues(selectedItemName = itemName))
+}
+
 data class WildernessPromptsModel(
     val pass: TextBlock = missingPrompt("wilderness.pass"),
     val noMoves: TextBlock = missingPrompt("wilderness.no_moves"),
@@ -1659,6 +1679,7 @@ private data class PromptTextValues(
     val wildernessDungeonName: String? = null,
     val wildernessDungeonLevels: Int? = null,
     val dungeonDepth: Int? = null,
+    val selectedItemName: String? = null,
 )
 
 private fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
@@ -1677,6 +1698,7 @@ private fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
         TextPart.WildernessDungeonName -> TextPart.Literal(values.wildernessDungeonName ?: fallbackText())
         TextPart.WildernessDungeonLevels -> TextPart.Literal(values.wildernessDungeonLevels?.toString() ?: fallbackText())
         TextPart.DungeonDepth -> TextPart.Literal(values.dungeonDepth?.toString() ?: fallbackText())
+        TextPart.SelectedItemName -> TextPart.Literal(values.selectedItemName ?: fallbackText())
         else -> this
     }
 
@@ -4207,6 +4229,7 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
     private var town = initial.town
     private var wilderness = initial.wilderness
     private var dungeon = initial.dungeon
+    private var party = initial.party
 
     fun pauseVerbs(vararg verbs: String) {
         pauseVerbList = verbs.toList()
@@ -4240,6 +4263,10 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
         dungeon = DungeonPromptsBuilder(dungeon).apply(body).build()
     }
 
+    fun party(body: PartyPromptsBuilder.() -> Unit) {
+        party = PartyPromptsBuilder(party).apply(body).build()
+    }
+
     fun build(): GamePromptsModel =
         GamePromptsModel(
             pauseVerbs = pauseVerbList,
@@ -4250,6 +4277,7 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
             town = town,
             wilderness = wilderness,
             dungeon = dungeon,
+            party = party,
         )
 }
 
@@ -4334,6 +4362,30 @@ class TownPromptsBuilder(initial: TownPromptsModel = TownPromptsModel()) {
 }
 
 @RylNextDsl
+class PartyPromptsBuilder(initial: PartyPromptsModel = PartyPromptsModel()) {
+    var viewWho: TextBlock = initial.viewWho
+    var dropPrompt: TextBlock = initial.dropPrompt
+    var dropEmptySlot: TextBlock = initial.dropEmptySlot
+    var dropAborted: TextBlock = initial.dropAborted
+    private var dropDroppedText: TextBlock = initial.dropDropped
+    var dropCapacityReduced: TextBlock = initial.dropCapacityReduced
+
+    fun dropped(body: SelectedItemPromptBuilder.() -> Unit) {
+        dropDroppedText = SelectedItemPromptBuilder().apply(body).build()
+    }
+
+    fun build(): PartyPromptsModel =
+        PartyPromptsModel(
+            viewWho = viewWho,
+            dropPrompt = dropPrompt,
+            dropEmptySlot = dropEmptySlot,
+            dropAborted = dropAborted,
+            dropDropped = dropDroppedText,
+            dropCapacityReduced = dropCapacityReduced,
+        )
+}
+
+@RylNextDsl
 class WildernessPromptsBuilder(initial: WildernessPromptsModel = WildernessPromptsModel()) {
     var pass: TextBlock = initial.pass
     var noMoves: TextBlock = initial.noMoves
@@ -4404,6 +4456,19 @@ class DungeonLevelPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
 
     val level: TextPart = TextPart.DungeonDepth
+
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
+    }
+
+    fun build(): TextBlock = text.build()
+}
+
+@RylNextDsl
+class SelectedItemPromptBuilder : TextLineSink {
+    private val text = StructuredTextBlockBuilder()
+
+    val itemName: TextPart = TextPart.SelectedItemName
 
     override fun addTextLine(line: TextLine) {
         text.addTextLine(line)
@@ -6631,6 +6696,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         is TextPart.LocationCoordinate,
                         TextPart.OfferedItemName,
                         TextPart.OfferedItemPrice,
+                        TextPart.SelectedItemName,
                         TextPart.ShopPrice,
                         TextPart.ShopCarryCap,
                         TextPart.HuntMemberName,

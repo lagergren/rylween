@@ -87,6 +87,35 @@ class YdargSessionTerminalAdapter(
                     val updated = session.replaceBattleSession(result.session)
                     continueOrBlock(updated, result.status) { return it }
                 }
+                is YdargSessionStep.PartyView -> {
+                    val result = PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
+                    val updated = session.replacePartyViewSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
+                is YdargSessionStep.InventoryDrop -> {
+                    val result = InventoryDropTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceInventoryDropSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
+                is YdargSessionStep.Equipment -> {
+                    val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceEquipmentSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
+                is YdargSessionStep.InventoryItemUse -> {
+                    val result = InventoryItemUseTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceInventoryItemUseSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
+                is YdargSessionStep.PriestSpell -> {
+                    val result = PriestSpellTerminalAdapter(
+                        terminal = terminal,
+                        renderer = renderer,
+                        content = session.content,
+                    ).runUntilBlocked(step.session)
+                    val updated = session.replacePriestSpellSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
                 is YdargSessionStep.Finished -> return finished(session)
             }
         }

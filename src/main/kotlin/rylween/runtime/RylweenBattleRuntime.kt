@@ -1050,6 +1050,7 @@ private class CombatScriptRunner(
                             is TextPart.LocationCoordinate,
                             TextPart.OfferedItemName,
                             TextPart.OfferedItemPrice,
+                            TextPart.SelectedItemName,
                             TextPart.ShopPrice,
                             TextPart.ShopCarryCap,
                             TextPart.HuntMemberName,
