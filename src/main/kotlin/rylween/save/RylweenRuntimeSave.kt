@@ -4,6 +4,7 @@ import rylween.dsl.StateId
 import rylween.dsl.StateKind
 import rylween.dsl.StateModel
 import rylween.dsl.RuntimeMode
+import rylween.dsl.GameModel
 import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.RuntimeSessionState
@@ -44,6 +45,7 @@ fun RuntimeSessionState.toRuntimeStateSnapshot(id: StateId): StateModel =
 class FileRuntimeSavePort(
     private val file: File,
     private val snapshotId: StateId,
+    private val content: GameModel? = null,
 ) : RuntimeSavePort {
     override fun save(runtime: RuntimeSessionState): RuntimeSaveOutcome =
         save(RuntimeSaveRequest(runtime))
@@ -54,6 +56,7 @@ class FileRuntimeSavePort(
             val snapshot = RuntimeSnapshotModel(
                 state = request.runtime.toRuntimeStateSnapshot(snapshotId),
                 mode = request.mode,
+                metadata = content?.runtimeSnapshotMetadata(),
             )
             val rendered = renderRuntimeStateSnapshot(snapshot)
             file.parentFile?.mkdirs()

@@ -99,7 +99,7 @@ object RylweenAnsiMain {
                     content = content,
                     renderer = renderer,
                     speakContent = engine.speakContent(),
-                    savePort = FileRuntimeSavePort(config.saveFile, config.saveState),
+                    savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content),
                     log = log,
                 ).run(session)
             }
