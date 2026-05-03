@@ -1,5 +1,64 @@
 package rylween.dsl
 
+data class ValidationDiagnostic(
+    val path: String,
+    val message: String,
+) {
+    override fun toString(): String =
+        if (path.isBlank()) message else "$path: $message"
+}
+
+class RylweenValidationException(
+    val diagnostics: List<ValidationDiagnostic>,
+) : IllegalStateException(
+    diagnostics.joinToString(separator = "\n") { it.toString() },
+)
+
+private inline fun MutableList<ValidationDiagnostic>.captureValidation(path: String, block: () -> Unit) {
+    try {
+        block()
+    } catch (error: RylweenValidationException) {
+        error.diagnostics.forEach { diagnostic ->
+            add(
+                if (diagnostic.path.isBlank()) {
+                    diagnostic.copy(path = path)
+                } else {
+                    diagnostic.copy(path = "$path.${diagnostic.path}")
+                },
+            )
+        }
+    } catch (error: IllegalStateException) {
+        add(ValidationDiagnostic(path, error.message ?: error::class.simpleName.orEmpty()))
+    }
+}
+
+private class FlagStateIndex(flags: List<FlagRef>) {
+    private val bySlug: Map<String, FlagRef> = flags.associateBy { it.slug }
+    private val states: Set<Pair<String, String>> =
+        flags.flatMap { flag -> flag.states.map { state -> flag.slug to state.native } }.toSet()
+
+    fun contains(state: FlagState): Boolean =
+        state.flag.slug to state.native in states
+
+    fun contains(slug: String, native: String): Boolean =
+        slug to native in states
+
+    fun flag(slug: String): FlagRef? =
+        bySlug[slug]
+}
+
+private fun FlagStateIndex.requireKnown(state: FlagState, label: String) {
+    check(contains(state)) {
+        "$label references unknown story state ${state.flag.slug}.${state.native}"
+    }
+}
+
+private fun FlagStateIndex.requireKnown(slug: String, native: String, label: String) {
+    check(contains(slug, native)) {
+        "$label references unknown story state $slug.$native"
+    }
+}
+
 fun validateFlagCatalog(flags: List<FlagRef>) {
     check(flags.map { it.slug }.toSet().size == flags.size) { "duplicate flag slug" }
 
@@ -745,8 +804,10 @@ fun validateSpeakSystem(
     speak: SpeakSystemModel,
     characters: List<CharacterModel> = emptyList(),
     towns: List<TownModel> = emptyList(),
+    flags: List<FlagRef>? = null,
 ) {
-    validateSpeakTextTables(speak.textTables, characters, towns)
+    val flagStates = flags?.let(::FlagStateIndex)
+    validateSpeakTextTables(speak.textTables, characters, towns, flagStates)
     validateSpeakQuestionActions(speak.questionActions, characters)
 
     speak.standardConversation?.let { conversation ->
@@ -857,6 +918,7 @@ private fun validateSpeakTextTables(
     tables: SpeakTextTablesModel,
     characters: List<CharacterModel>,
     towns: List<TownModel>,
+    flagStates: FlagStateIndex? = null,
 ) {
     val knownRoles = characters.flatMap { it.roles }.toSet()
     val knownTowns = towns.map { it.id }.toSet()
@@ -920,6 +982,7 @@ private fun validateSpeakTextTables(
                 check(state.flag.scope == FlagScope.Party) {
                     "rumour $label exclusion ${state.flag.slug}.${state.native} must be a party state"
                 }
+                flagStates?.requireKnown(state, "rumour $label exclusion")
             }
             validateTextBlock(entry.text, "rumour table ${table.id.slug}.$label", knownRoles, knownTowns)
         }
@@ -996,7 +1059,12 @@ fun validateItemUses(
     }
 }
 
-fun validateDialogue(dialogue: List<DialogueModel>, characters: List<CharacterModel> = emptyList()) {
+fun validateDialogue(
+    dialogue: List<DialogueModel>,
+    characters: List<CharacterModel> = emptyList(),
+    flags: List<FlagRef>? = null,
+) {
+    val flagStates = flags?.let(::FlagStateIndex)
     check(dialogue.map { it.npc }.toSet().size == dialogue.size) { "duplicate authored NPC dialogue" }
     val characterIds = characters.map { it.id }.toSet()
 
@@ -1022,6 +1090,7 @@ fun validateDialogue(dialogue: List<DialogueModel>, characters: List<CharacterMo
                 check(state.flag.scope == FlagScope.Party) {
                     "dialogue for ${npcDialogue.npc.slug} uses non-party state ${state.flag.slug}.${state.native}"
                 }
+                flagStates?.requireKnown(state, "dialogue for ${npcDialogue.npc.slug}")
             }
             check(branch.ops.isNotEmpty()) {
                 "dialogue for ${npcDialogue.npc.slug} has an empty branch"
@@ -1048,8 +1117,12 @@ private fun List<Op>.containsConsumeActiveItem(): Boolean =
 fun validateScriptRewards(
     content: GameModel,
     itemRecords: List<ItemRecordModel>,
+    flags: List<FlagRef>? = null,
 ) {
     val itemRecordById = itemRecords.associateBy { it.id }
+    val flagStates = flags?.let(::FlagStateIndex)
+    val knownRoles = content.characters.flatMap { it.roles }.toSet()
+    val knownTowns = content.towns.map { it.id }.toSet()
 
     fun validateSlottedItemPool(pool: ItemPoolId, label: String) {
         validateItemPool(pool, itemRecords)
@@ -1108,7 +1181,8 @@ fun validateScriptRewards(
                 validateBoolExpression(ast.left, label)
                 validateBoolExpression(ast.right, label)
             }
-            is BoolAst.FlagIs -> Unit
+            is BoolAst.FlagIs ->
+                flagStates?.requireKnown(ast.slug, ast.nativeValue, "$label condition")
             is BoolAst.MilestoneAchieved ->
                 check(ast.milestone.slug.isNotBlank()) { "$label references blank milestone" }
             is BoolAst.MemberFlag -> validateIntExpression(ast.member, label)
@@ -1332,7 +1406,7 @@ fun validateScriptRewards(
         fun visitOps(items: List<Op>, loopDepth: Int) {
             items.forEach { op ->
                 when (op) {
-                    is Op.Screen -> validateTextBlock(op.text, "screen")
+                    is Op.Screen -> validateTextBlock(op.text, "screen", knownRoles, knownTowns)
                     is Op.EmitIndexed -> validateIntExpression(op.value, "indexed text emit")
                     is Op.LetInt -> validateIntExpression(op.value, "local int")
                     is Op.Set -> validateIntExpression(op.value, "state assignment")
@@ -1342,7 +1416,7 @@ fun validateScriptRewards(
                         validateIntExpression(op.value, "state clamped add")
                         validateIntExpression(op.max, "state clamped add max")
                     }
-                    is Op.AppendJournal -> validateTextBlock(op.text, "journal append")
+                    is Op.AppendJournal -> validateTextBlock(op.text, "journal append", knownRoles, knownTowns)
                     is Op.Menu -> {
                         validateTextBlock(op.prompt, "menu prompt")
                         op.options.forEach { option ->
@@ -1382,6 +1456,7 @@ fun validateScriptRewards(
                     is Op.GrantReward -> validateReward(op.reward)
                     is Op.RandomItemOffer -> validateRandomItemOffer(op.offer)
                     is Op.ShopService -> validateShop(op.shop)
+                    is Op.SetFlag -> flagStates?.requireKnown(op.slug, op.nativeValue, "script state change")
                     is Op.ConsumeInventoryPool -> {
                         validateSlottedItemPool(op.pool, "consume inventory")
                         validateIntExpression(op.quantity, "consume inventory quantity")
@@ -1536,74 +1611,186 @@ private fun validateWorldMaps(worldMaps: List<WorldMapModel>, terminal: Terminal
     }
 }
 
+private fun validateFlagReferences(ast: BoolAst, label: String, flagStates: FlagStateIndex) {
+    lateinit var bool: (BoolAst) -> Unit
+    lateinit var int: (IntAst) -> Unit
+
+    int = fun(value: IntAst) {
+        when (value) {
+            is IntAst.Lit,
+            is IntAst.Var,
+            is IntAst.BattleFlag,
+            is IntAst.BattleQuery,
+            is IntAst.RealmScalar,
+            is IntAst.PartyScalar,
+            is IntAst.InventoryPoolCount,
+            is IntAst.NativeInt -> Unit
+            is IntAst.Binary -> {
+                int(value.left)
+                int(value.right)
+            }
+            is IntAst.If -> {
+                bool(value.cond)
+                int(value.thenValue)
+                int(value.elseValue)
+            }
+            is IntAst.Random -> {
+                int(value.lo)
+                int(value.hi)
+            }
+            is IntAst.MemberField -> int(value.member)
+            is IntAst.MonsterField -> int(value.monster)
+            is IntAst.InventorySlotCost -> int(value.slot)
+        }
+    }
+
+    bool = fun(value: BoolAst) {
+        when (value) {
+            is BoolAst.Cmp -> {
+                int(value.left)
+                int(value.right)
+            }
+            is BoolAst.Not -> bool(value.expr)
+            is BoolAst.And -> {
+                bool(value.left)
+                bool(value.right)
+            }
+            is BoolAst.Or -> {
+                bool(value.left)
+                bool(value.right)
+            }
+            is BoolAst.FlagIs -> flagStates.requireKnown(value.slug, value.nativeValue, label)
+            is BoolAst.MilestoneAchieved -> Unit
+            is BoolAst.MemberFlag -> int(value.member)
+            is BoolAst.MonsterFlag -> int(value.monster)
+            is BoolAst.BattleFlag,
+            is BoolAst.RuntimeFlag -> Unit
+        }
+    }
+
+    bool(ast)
+}
+
+fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagnostic> {
+    val flagStates = FlagStateIndex(content.flags)
+    return buildList {
+        captureValidation("flags.catalog") { validateFlagCatalog(content.flags) }
+        captureValidation("prompts") { validateGamePrompts(content.prompts) }
+        captureValidation("realm") { validateRealmContent(content.realm) }
+        captureValidation("visuals") { validateVisuals(content.visuals) }
+        captureValidation("terminal") { validateTerminalPresentation(content.terminal) }
+        captureValidation("worldMaps") { validateWorldMaps(content.worldMaps, content.terminal) }
+        captureValidation("items.catalog") { validateItemCatalog(content.itemCatalog) }
+        captureValidation("items.pools") { validateItemPools(content.itemPools, content.itemCatalog) }
+        captureValidation("progress") { validateGameProgress(content.progress, content.itemCatalog) }
+        captureValidation("flags.authored") { validateAuthoredFlags(content, flagStates) }
+        captureValidation("monsters") { validateMonsters(content.monsters) }
+        captureValidation("missions") { validateMissions(content, flagStates) }
+        captureValidation("formulas") { validateFormulas(content.formulas) }
+        captureValidation("leveling") { validateLeveling(content.leveling, content.formulas) }
+        captureValidation("rewards") { validateRewardBundles(content.rewards, content.formulas, content.itemCatalog) }
+        captureValidation("combat") { validateCombatSystem(content.combat, content.rewards) }
+        captureValidation("wilderness") { validateWildernessSystem(content.wilderness) }
+        captureValidation("dungeons") { validateDungeonSystem(content.dungeons) }
+        captureValidation("ydarg") {
+            validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters)
+        }
+        captureValidation("towns") { validateTowns(content.towns) }
+        captureValidation("townSystem") { validateTownSystem(content.townSystem, content.towns, content.scenes) }
+        captureValidation("characters") { validateCharacters(content.characters, content.towns) }
+        captureValidation("speak") { validateSpeakSystem(content.speak, content.characters, content.towns, content.flags) }
+        captureValidation("itemUses") { validateItemUses(content.itemUses, content.itemCatalog) }
+        captureValidation("dialogue") { validateDialogue(content.dialogue, content.characters, content.flags) }
+        captureValidation("scripts") { validateScriptRewards(content, content.itemCatalog, content.flags) }
+    }
+}
+
 fun validateAuthoredContent(content: GameModel) {
-    check(content.prompts.pauseVerbs.all { it.isNotBlank() }) {
+    val diagnostics = collectAuthoredContentDiagnostics(content)
+    if (diagnostics.isNotEmpty()) {
+        throw RylweenValidationException(diagnostics)
+    }
+}
+
+private fun validateGamePrompts(prompts: GamePromptsModel) {
+    check(prompts.pauseVerbs.all { it.isNotBlank() }) {
         "pause prompt verbs must not be blank"
     }
-    check(content.prompts.returnKeyName.isNotBlank()) {
+    check(prompts.returnKeyName.isNotBlank()) {
         "pause prompt return key name must not be blank"
     }
-    validateTextBlock(content.prompts.priest.who, "priest who prompt")
-    validateTextBlock(content.prompts.priest.mageCombatOnly, "priest mage-combat-only prompt")
-    validateTextBlock(content.prompts.priest.wrongClass, "priest wrong-class prompt")
-    validateTextBlock(content.prompts.priest.dead, "priest dead prompt")
-    validateTextBlock(content.prompts.priest.invalidCaster, "priest invalid-caster prompt")
-    validateTextBlock(content.prompts.priest.invalidSpell, "priest invalid-spell prompt")
-    validateTextBlock(content.prompts.priest.noSpells, "priest no-spells prompt")
-    validateTextBlock(content.prompts.inventoryUse.use, "inventory use prompt")
-    validateTextBlock(content.prompts.inventoryUse.quaff, "inventory quaff prompt")
-    validateTextBlock(content.prompts.inventoryUse.noItems, "inventory no-items prompt")
-    validateTextBlock(content.prompts.inventoryUse.noItem, "inventory no-item prompt")
-    validateTextBlock(content.prompts.equipment.inventory, "equipment inventory prompt")
-    validateTextBlock(content.prompts.equipment.who, "equipment who prompt")
-    validateTextBlock(content.prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
-    validateTextBlock(content.prompts.equipment.readyArmors, "equipment ready-armors prompt")
-    validateTextBlock(content.prompts.save.saving, "save saving prompt")
-    validateTextBlock(content.prompts.save.done, "save done prompt")
-    validateTextBlock(content.prompts.save.failed, "save failed prompt")
-    validateTextBlock(content.prompts.wilderness.pass, "wilderness pass prompt")
-    validateTextBlock(content.prompts.wilderness.noMoves, "wilderness no-moves prompt")
-    validateTextBlock(content.prompts.wilderness.outOfMoves, "wilderness out-of-moves prompt")
-    validateTextBlock(content.prompts.wilderness.notInWilderness, "wilderness not-in-wilderness prompt")
-    validateTextBlock(content.prompts.wilderness.nothingToEnter, "wilderness nothing-to-enter prompt")
-    validateTextBlock(content.prompts.wilderness.quitConfirm, "wilderness quit-confirm prompt")
-    validateTextBlock(content.prompts.wilderness.dungeonHandoff, "wilderness dungeon-handoff prompt")
-    validateTextBlock(content.prompts.dungeon.levelMenu, "dungeon level-menu prompt")
-    validateTextBlock(content.prompts.dungeon.enterLevel, "dungeon enter-level prompt")
-    validateTextBlock(content.prompts.dungeon.atMaxDepth, "dungeon at-max-depth prompt")
-    validateTextBlock(content.prompts.dungeon.noTorches, "dungeon no-torches prompt")
-    validateTextBlock(content.prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
-    validateTextBlock(content.prompts.party.viewWho, "party view-who prompt")
-    validateTextBlock(content.prompts.party.journalHeader, "party journal-header prompt")
-    validateTextBlock(content.prompts.party.dropPrompt, "party drop prompt")
-    validateTextBlock(content.prompts.party.dropEmptySlot, "party drop-empty-slot prompt")
-    validateTextBlock(content.prompts.party.dropAborted, "party drop-aborted prompt")
-    validateTextBlock(content.prompts.party.dropDropped, "party drop-dropped prompt")
-    validateTextBlock(content.prompts.party.dropCapacityReduced, "party drop-capacity-reduced prompt")
-    validateRealmContent(content.realm)
-    validateVisuals(content.visuals)
-    validateTerminalPresentation(content.terminal)
-    validateWorldMaps(content.worldMaps, content.terminal)
-    validateItemCatalog(content.itemCatalog)
-    check(content.itemPools.map { it.slug }.toSet().size == content.itemPools.size) {
+    validateTextBlock(prompts.priest.who, "priest who prompt")
+    validateTextBlock(prompts.priest.mageCombatOnly, "priest mage-combat-only prompt")
+    validateTextBlock(prompts.priest.wrongClass, "priest wrong-class prompt")
+    validateTextBlock(prompts.priest.dead, "priest dead prompt")
+    validateTextBlock(prompts.priest.invalidCaster, "priest invalid-caster prompt")
+    validateTextBlock(prompts.priest.invalidSpell, "priest invalid-spell prompt")
+    validateTextBlock(prompts.priest.noSpells, "priest no-spells prompt")
+    validateTextBlock(prompts.inventoryUse.use, "inventory use prompt")
+    validateTextBlock(prompts.inventoryUse.quaff, "inventory quaff prompt")
+    validateTextBlock(prompts.inventoryUse.noItems, "inventory no-items prompt")
+    validateTextBlock(prompts.inventoryUse.noItem, "inventory no-item prompt")
+    validateTextBlock(prompts.equipment.inventory, "equipment inventory prompt")
+    validateTextBlock(prompts.equipment.who, "equipment who prompt")
+    validateTextBlock(prompts.equipment.readyWeapons, "equipment ready-weapons prompt")
+    validateTextBlock(prompts.equipment.readyArmors, "equipment ready-armors prompt")
+    validateTextBlock(prompts.save.saving, "save saving prompt")
+    validateTextBlock(prompts.save.done, "save done prompt")
+    validateTextBlock(prompts.save.failed, "save failed prompt")
+    validateTextBlock(prompts.wilderness.pass, "wilderness pass prompt")
+    validateTextBlock(prompts.wilderness.noMoves, "wilderness no-moves prompt")
+    validateTextBlock(prompts.wilderness.outOfMoves, "wilderness out-of-moves prompt")
+    validateTextBlock(prompts.wilderness.notInWilderness, "wilderness not-in-wilderness prompt")
+    validateTextBlock(prompts.wilderness.nothingToEnter, "wilderness nothing-to-enter prompt")
+    validateTextBlock(prompts.wilderness.quitConfirm, "wilderness quit-confirm prompt")
+    validateTextBlock(prompts.wilderness.dungeonHandoff, "wilderness dungeon-handoff prompt")
+    validateTextBlock(prompts.dungeon.levelMenu, "dungeon level-menu prompt")
+    validateTextBlock(prompts.dungeon.enterLevel, "dungeon enter-level prompt")
+    validateTextBlock(prompts.dungeon.atMaxDepth, "dungeon at-max-depth prompt")
+    validateTextBlock(prompts.dungeon.noTorches, "dungeon no-torches prompt")
+    validateTextBlock(prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
+    validateTextBlock(prompts.party.viewWho, "party view-who prompt")
+    validateTextBlock(prompts.party.journalHeader, "party journal-header prompt")
+    validateTextBlock(prompts.party.dropPrompt, "party drop prompt")
+    validateTextBlock(prompts.party.dropEmptySlot, "party drop-empty-slot prompt")
+    validateTextBlock(prompts.party.dropAborted, "party drop-aborted prompt")
+    validateTextBlock(prompts.party.dropDropped, "party drop-dropped prompt")
+    validateTextBlock(prompts.party.dropCapacityReduced, "party drop-capacity-reduced prompt")
+}
+
+private fun validateItemPools(itemPools: List<ItemPoolId>, itemCatalog: List<ItemRecordModel>) {
+    check(itemPools.map { it.slug }.toSet().size == itemPools.size) {
         "duplicate item pool"
     }
-    content.itemPools.forEach { validateItemPool(it, content.itemCatalog) }
-    validateGameProgress(content.progress, content.itemCatalog)
+    itemPools.forEach { validateItemPool(it, itemCatalog) }
+}
 
+private fun validateAuthoredFlags(content: GameModel, flagStates: FlagStateIndex) {
+    val declaredFlags = content.flags.toSet()
     check(content.authoredFlags.map { it.ref.slug }.toSet().size == content.authoredFlags.size) {
         "duplicate authored flag"
     }
     content.authoredFlags.forEach { flag ->
+        check(flag.ref in declaredFlags || flagStates.flag(flag.ref.slug) != null) {
+            "authored flag ${flag.ref.slug} was not declared"
+        }
         check(flag.states.all { it.flag == flag.ref }) {
             "authored flag ${flag.ref.slug} includes a state from another flag"
         }
+        check(flag.states.isNotEmpty()) {
+            "authored flag ${flag.ref.slug} must expose at least one state"
+        }
+        flag.states.forEach { state ->
+            flagStates.requireKnown(state, "authored flag ${flag.ref.slug}")
+        }
     }
+}
 
-    check(content.monsters.map { it.id }.toSet().size == content.monsters.size) {
+private fun validateMonsters(monsters: List<MonsterModel>) {
+    check(monsters.map { it.id }.toSet().size == monsters.size) {
         "duplicate authored monster"
     }
-    content.monsters.forEach { monster ->
+    monsters.forEach { monster ->
         check(monster.name.isNotBlank()) { "monster ${monster.id.slug} requires a display name" }
         check(monster.count.first > 0 && monster.count.last >= monster.count.first) {
             "monster ${monster.id.slug} has invalid count range"
@@ -1615,42 +1802,35 @@ fun validateAuthoredContent(content: GameModel) {
             "monster ${monster.id.slug} has invalid hit point range"
         }
     }
+}
 
+private fun validateMissions(content: GameModel, flagStates: FlagStateIndex) {
     check(content.missions.map { it.id }.toSet().size == content.missions.size) {
         "duplicate authored mission"
     }
-    content.scenes.map { it.id }.toSet().let { scenes ->
-        content.missions.forEach { mission ->
-            check(mission.action in scenes) {
-                "mission ${mission.id.slug} references missing action scene ${mission.action.slug}"
-            }
-            when (val trigger = mission.trigger) {
-                is Trigger.RandomStep -> checkPercent(trigger.percent, "mission ${mission.id.slug} random step")
-                is Trigger.AtPosition -> {
-                    check(trigger.point.x >= 0 && trigger.point.y >= 0) {
-                        "mission ${mission.id.slug} position trigger must use non-negative world coordinates"
-                    }
+    val scenes = content.scenes.map { it.id }.toSet()
+    content.missions.forEach { mission ->
+        check(mission.action in scenes) {
+            "mission ${mission.id.slug} references missing action scene ${mission.action.slug}"
+        }
+        mission.requires?.let { requirement ->
+            validateFlagReferences(requirement, "mission ${mission.id.slug} requirement", flagStates)
+        }
+        when (val trigger = mission.trigger) {
+            is Trigger.RandomStep -> checkPercent(trigger.percent, "mission ${mission.id.slug} random step")
+            is Trigger.AtPosition -> {
+                check(trigger.point.x >= 0 && trigger.point.y >= 0) {
+                    "mission ${mission.id.slug} position trigger must use non-negative world coordinates"
                 }
-                is Trigger.AtLocation,
-                is Trigger.OnTerrain -> Unit
+            }
+            is Trigger.AtLocation -> check(trigger.location.slug.isNotBlank()) {
+                "mission ${mission.id.slug} location trigger references blank location"
+            }
+            is Trigger.OnTerrain -> check(trigger.terrain.slug.isNotBlank()) {
+                "mission ${mission.id.slug} terrain trigger references blank terrain"
             }
         }
     }
-
-    validateFormulas(content.formulas)
-    validateLeveling(content.leveling, content.formulas)
-    validateRewardBundles(content.rewards, content.formulas, content.itemCatalog)
-    validateCombatSystem(content.combat, content.rewards)
-    validateWildernessSystem(content.wilderness)
-    validateDungeonSystem(content.dungeons)
-    validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters)
-    validateTowns(content.towns)
-    validateTownSystem(content.townSystem, content.towns, content.scenes)
-    validateCharacters(content.characters, content.towns)
-    validateSpeakSystem(content.speak, content.characters, content.towns)
-    validateItemUses(content.itemUses, content.itemCatalog)
-    validateDialogue(content.dialogue, content.characters)
-    validateScriptRewards(content, content.itemCatalog)
 }
 
 fun specialInventoryItems(content: GameModel, party: PartyState): List<ItemId> =
@@ -1671,6 +1851,10 @@ fun isWinningConfiguration(content: GameModel, party: PartyState): Boolean =
 fun validateStates(states: List<StateModel>, content: GameModel? = null) {
     check(states.map { it.id }.toSet().size == states.size) { "duplicate state id" }
 
+    val itemIds = content?.itemCatalog?.map { it.id }?.toSet().orEmpty()
+    val milestoneIds = content?.progress?.milestones?.map { it.id }?.toSet().orEmpty()
+    val flagStates = content?.flags?.let(::FlagStateIndex)
+    val npcIds = content?.characters?.map { it.id }?.toSet().orEmpty()
     val specialItems = content
         ?.progress
         ?.milestones
@@ -1692,6 +1876,13 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
                 "state ${state.id.slug}: lastTerrain ${terrain.slug} needs a map tile code"
             }
         }
+        if (content != null) {
+            state.npcs.forEach { placement ->
+                check(placement.npc in npcIds) {
+                    "state ${state.id.slug}: NPC placement references unknown NPC ${placement.npc.slug}"
+                }
+            }
+        }
 
         state.parties.forEach { party ->
             val slots = party.inventory.map { it.slot }
@@ -1707,11 +1898,35 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
             check(party.milestones.toSet().size == party.milestones.size) {
                 "party ${party.id.slug}: duplicate game milestone"
             }
+            if (content != null) {
+                party.milestones.forEach { milestone ->
+                    check(milestone in milestoneIds) {
+                        "party ${party.id.slug}: unknown milestone ${milestone.slug}"
+                    }
+                }
+            }
             check(party.flags.map { it.flag }.toSet().size == party.flags.size) {
                 "party ${party.id.slug}: duplicate party flag state"
             }
+            flagStates?.let { statesByFlag ->
+                party.flags.forEach { state ->
+                    statesByFlag.requireKnown(state, "party ${party.id.slug}")
+                }
+            }
             check(party.visitedNpcs.map { it.npc }.toSet().size == party.visitedNpcs.size) {
                 "party ${party.id.slug}: duplicate NPC visit record"
+            }
+            if (content != null) {
+                party.visitedNpcs.forEach { visit ->
+                    check(visit.npc in npcIds) {
+                        "party ${party.id.slug}: visit record references unknown NPC ${visit.npc.slug}"
+                    }
+                }
+                party.inventory.mapNotNull { it.item }.forEach { item ->
+                    check(item in itemIds) {
+                        "party ${party.id.slug}: inventory references unknown item ${item.slug}"
+                    }
+                }
             }
             check(party.inventory.none { it.item in specialItems }) {
                 val special = party.inventory.first { it.item in specialItems }.item
