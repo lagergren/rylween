@@ -2864,6 +2864,56 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun validationAggregatesAuthorFacingContentDiagnostics() {
+        val content = GameBuilder().apply {
+            terminal {
+                terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
+            }
+            visuals {
+                staticScreens {
+                    image(StaticScreens.title, Images.Static.title)
+                    resource(StaticScreens.title, "score.txt")
+                }
+            }
+            worldMap(Maps.wilderness) {
+                layer(MapLayers.terrain) { rows("sx") }
+            }
+        }.build()
+
+        val diagnostics = collectAuthoredContentDiagnostics(content)
+
+        assertTrue(diagnostics.any { it.path == "visuals" && "duplicate static screen" in it.message })
+        assertTrue(diagnostics.any { it.path == "worldMaps" && "unknown tile 'x'" in it.message })
+        val failure = assertFailsWith<RylweenValidationException> {
+            validateAuthoredContent(content)
+        }
+        assertEquals(diagnostics, failure.diagnostics)
+    }
+
+    @Test
+    fun validationRejectsUnknownStoryStatesInMissionsAndScripts() {
+        val unknown = runtimeFlagState("missing.story", "bad")
+        val action = sceneId("bad.flag")
+        val content = GameBuilder().apply {
+            scene(action) {
+                mark(unknown)
+            }
+            missions {
+                mission(missionId("bad.flag")) {
+                    randomStep(1)
+                    requires(unknown)
+                    runs(action)
+                }
+            }
+        }.build()
+
+        val diagnostics = collectAuthoredContentDiagnostics(content)
+
+        assertTrue(diagnostics.any { it.path == "missions" && "missing.story.bad" in it.message })
+        assertTrue(diagnostics.any { it.path == "scripts" && "missing.story.bad" in it.message })
+    }
+
+    @Test
     fun compiledGameHarnessExposesNextRylweenToRuntimeTests() {
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
