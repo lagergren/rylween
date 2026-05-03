@@ -1013,22 +1013,8 @@ class RumourRefs {
 }
 
 class SpeakRefs {
-    val Lodge = SpeakLodgeRefs()
     val noNpc = text("speak.no_npc")
-    val recognizePre = text("speak.recognize_pre")
-    val recognizeHe = text("speak.recognize_he")
-    val recognizeShe = text("speak.recognize_she")
-    val tellsYouPre = text("speak.tells_you_pre")
-    val chatting = text("speak.chatting")
-    val menu = text("speak.menu")
     val noRumour = text("speak.no_rumour")
-    val question = text("speak.question")
-}
-
-class SpeakLodgeRefs {
-    val bargirlOffer = text("speak.lodge.jbargirl.offer")
-    val bargirlBroke = text("speak.lodge.jbargirl.broke")
-    val bargirlSpent = text("speak.lodge.jbargirl.spent")
 }
 
 class BattleRefs {

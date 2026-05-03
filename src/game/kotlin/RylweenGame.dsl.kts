@@ -1803,38 +1803,8 @@ val nextRylween = rylween {
             screen(T.Speak.noNpc) {
                 lines("Noone is here!")
             }
-            screen(T.Speak.recognizePre) {
-                lines("{npc_name} nods as")
-            }
-            screen(T.Speak.recognizeHe) {
-                lines("he recognizes you.")
-            }
-            screen(T.Speak.recognizeShe) {
-                lines("she recognizes you.")
-            }
-            screen(T.Speak.tellsYouPre) {
-                lines("{npc_name} tells you:", "")
-            }
-            screen(T.Speak.chatting) {
-                lines("Chatting with", "{npc_name}:", "")
-            }
-            screen(T.Speak.menu) {
-                lines("(C)hitchat", "(Q)uestion", "(R)umors", "(B)ye")
-            }
-            screen(T.Speak.question) {
-                lines("(L)odging", "(M)agic", "(P)eople", "(N)othing")
-            }
             screen(T.Speak.noRumour) {
                 lines("- Sorry. There's", "nothing new I can", "tell you.", "")
-            }
-            screen(T.Speak.Lodge.bargirlOffer) {
-                lines("- Would you like to,", "  spend an hour", "  upstairs for {price}", "  gold coins?", "")
-            }
-            screen(T.Speak.Lodge.bargirlBroke) {
-                lines("- No money, eh?", "  don't bother", "  to come back!")
-            }
-            screen(T.Speak.Lodge.bargirlSpent) {
-                lines("You spend a very", "exhausting hour", "upstairs.", "(PERVERT!) ;-)", "")
             }
 
             chitchatPrompt(ChitchatSubject.Well) {
@@ -2152,8 +2122,6 @@ val nextRylween = rylween {
                 job(NpcJobs.smith) {
                     lines("- Well, sleeping at the", "inn is often nicer than", "in the Wilderness.")
                 }
-                // Bargirl lodging is an interactive service branch; its shared
-                // screens are declared above under T.Speak.Lodge.
                 job(NpcJobs.innkeeper) {
                     lines("- Well. My inn is the", "best in the realm!")
                 }
@@ -2292,6 +2260,34 @@ val nextRylween = rylween {
                     }
                 }
             }
+        }
+
+        questionAction(QuestionTopic.Lodging, NpcJobs.bargirl) {
+            val price = localInt(party.leader.level * 50, "bargirl_lodging_price")
+            choice.yesNo(
+                structuredText {
+                    line("- Would you like to,")
+                    line("  spend an hour")
+                    line("  upstairs for ", price)
+                    line("  gold coins?")
+                    line("")
+                    line("(Y)es")
+                    line("(N)o")
+                },
+                yes = {
+                    whenever(party.gold lt price) {
+                        screen("- No money, eh?", "  don't bother", "  to come back!")
+                    } otherwise {
+                        party.gold -= price
+                        forEachMember {
+                            whenever(it.hp gt 1) {
+                                it.hp -= 1
+                            }
+                        }
+                        screen("You spend a very", "exhausting hour", "upstairs.", "(PERVERT!) ;-)", "")
+                    }
+                },
+            )
         }
     }
 
@@ -6596,7 +6592,10 @@ check(nextDsl.speak.standardConversation?.menu?.actions?.map { it.key } == listO
 check(nextDsl.speak.standardConversation?.menu?.questions?.map { it.key } == listOf('L', 'M', 'P', 'N'))
 check(nextDsl.speak.standardConversation?.branchSelection == DialogueBranchSelection.FirstMatchingStateThenDefault)
 check(nextDsl.speak.standardConversation?.rumour?.usage == RumourUsagePolicy.OncePerConversationThenFallback)
-check(nextDsl.speak.textTables.screens.size == 12)
+check(nextDsl.speak.textTables.screens.size == 2)
+check(nextDsl.speak.questionActions.size == 1)
+check(nextDsl.speak.questionActions.single().topic == QuestionTopic.Lodging)
+check(nextDsl.speak.questionActions.single().job == NpcJobs.bargirl)
 check(nextDsl.speak.textTables.chitchatPrompts.size == 3)
 check(nextDsl.speak.textTables.chitchatReplies.size == 3)
 check(nextDsl.speak.textTables.questionReplies.size == 3)

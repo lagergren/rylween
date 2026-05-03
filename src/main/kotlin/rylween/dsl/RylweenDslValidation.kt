@@ -740,6 +740,7 @@ fun validateSpeakSystem(
     towns: List<TownModel> = emptyList(),
 ) {
     validateSpeakTextTables(speak.textTables, characters, towns)
+    validateSpeakQuestionActions(speak.questionActions, characters)
 
     speak.standardConversation?.let { conversation ->
         check(conversation.npcSelection == ConversationNpcSelection.BuildingListOrWildernessLocation) {
@@ -821,6 +822,24 @@ fun validateSpeakSystem(
             check(service in services) {
                 "standard conversation missing native service $service"
             }
+        }
+    }
+}
+
+private fun validateSpeakQuestionActions(
+    actions: List<QuestionActionScriptModel>,
+    characters: List<CharacterModel>,
+) {
+    val knownJobs = characters.map { it.job }.toSet()
+    check(actions.map { it.topic to it.job }.toSet().size == actions.size) {
+        "duplicate speak question action"
+    }
+    actions.forEach { action ->
+        check(action.job in knownJobs) {
+            "speak question action ${action.topic} references unknown NPC job ${action.job.slug}"
+        }
+        check(action.ops.isNotEmpty()) {
+            "speak question action ${action.topic} for ${action.job.slug} has an empty body"
         }
     }
 }
@@ -1403,6 +1422,7 @@ fun validateScriptRewards(
     content.dialogue.forEach { dialogue ->
         dialogue.branches.forEach { visit(it.ops) }
     }
+    content.speak.questionActions.forEach { visit(it.ops) }
     content.spells.forEach { visit(it.ops) }
     content.itemUses.forEach { visit(it.ops) }
 }

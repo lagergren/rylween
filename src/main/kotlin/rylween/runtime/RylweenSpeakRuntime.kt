@@ -14,21 +14,14 @@ data class SpeakRuntimeContent(
 
 sealed interface SpeakStep {
     data class ChooseNpc(val npcs: List<CharacterModel>) : SpeakStep
-    data class DialogueBranch(
+    data class ScriptBranch(
         val npc: CharacterModel,
-        val branch: DialogueBranchModel,
+        val ops: List<Op>,
         val next: SpeakStep,
         val continuation: TownServiceContinuation? = null,
     ) : SpeakStep
     data class MainMenu(val npc: CharacterModel, val actions: List<ConversationMenuActionModel>) : SpeakStep
     data class QuestionMenu(val npc: CharacterModel, val actions: List<QuestionMenuActionModel>) : SpeakStep
-    data class LodgingOffer(
-        val npc: CharacterModel,
-        val price: Int,
-        val offer: TextBlock,
-        val yes: InputBindingModel = inputKey('Y'),
-        val no: InputBindingModel = inputKey('N'),
-    ) : SpeakStep
     data class Message(val blocks: List<TextBlock>, val next: SpeakStep) : SpeakStep
     data class Finished(val runtime: RuntimeSessionState) : SpeakStep {
         val party: PartyState get() = runtime.activeParty
@@ -61,10 +54,10 @@ data class SpeakSession(
                 copy(
                     runtime = nextRuntime,
                     selectedNpc = character,
-                    step = branch?.let { SpeakStep.DialogueBranch(character, it, next = menu) } ?: menu,
+                    step = branch?.let { SpeakStep.ScriptBranch(character, it.ops, next = menu) } ?: menu,
                 )
             }
-            is SpeakStep.DialogueBranch -> error("speak session is running a dialogue branch")
+            is SpeakStep.ScriptBranch -> error("speak session is running an authored script branch")
             is SpeakStep.MainMenu -> {
                 val choice = (input as? SpeakInput.Main)
                     ?: error("speak session is at the main conversation menu")
@@ -82,18 +75,15 @@ data class SpeakSession(
                     QuestionTopic.Nothing -> {
                         copy(step = mainMenu(current.npc))
                     }
-                    QuestionTopic.Lodging if current.npc.job == DslDefaultNpcJobs.bargirl -> {
-                        bargirlLodging(current.npc)
-                    }
                     else -> {
-                        copy(step = message(questionReply(question.topic, current.npc), mainMenu(current.npc)))
+                        val action = content.firstMatchingQuestionAction(question.topic, current.npc.job)
+                        copy(
+                            step = action
+                                ?.let { SpeakStep.ScriptBranch(current.npc, it.ops, mainMenu(current.npc)) }
+                                ?: message(questionReply(question.topic, current.npc), mainMenu(current.npc)),
+                        )
                     }
                 }
-            }
-            is SpeakStep.LodgingOffer -> {
-                val answer = (input as? SpeakInput.LodgingAnswer)
-                    ?: error("speak session is offering lodging")
-                answerBargirlLodging(current, answer.yes)
             }
             is SpeakStep.Message -> {
                 require(input is SpeakInput.Continue) { "speak session is showing message text" }
@@ -123,33 +113,6 @@ data class SpeakSession(
             rumourTold = true,
             step = message(text, mainMenu(npc)),
             )
-    }
-
-    private fun bargirlLodging(npc: CharacterModel): SpeakSession {
-        val price = (runtime.activeParty.members.firstOrNull()?.level ?: 1) * 50
-        return copy(step = SpeakStep.LodgingOffer(npc, price, lodgeScreen(DslDefaultText.Speak.Lodge.bargirlOffer).replace("{price}", price.toString())))
-    }
-
-    private fun answerBargirlLodging(offer: SpeakStep.LodgingOffer, yes: Boolean): SpeakSession {
-        if (!yes) return copy(step = mainMenu(offer.npc))
-        val party = runtime.activeParty
-        if (party.resources.gold < offer.price) {
-            return copy(step = message(lodgeScreen(DslDefaultText.Speak.Lodge.bargirlBroke), mainMenu(offer.npc)))
-        }
-        val nextParty = party.copy(
-            resources = party.resources.copy(gold = party.resources.gold - offer.price),
-            members = party.members.map { member ->
-                if (member.hitPoints.current > 1) {
-                    member.copy(hitPoints = (member.hitPoints.current - 1) of member.hitPoints.max)
-                } else {
-                    member
-                }
-            },
-        )
-        return copy(
-            runtime = runtime.withActiveParty(nextParty),
-            step = message(lodgeScreen(DslDefaultText.Speak.Lodge.bargirlSpent), mainMenu(offer.npc)),
-        )
     }
 
     private fun mainMenu(npc: CharacterModel): SpeakStep.MainMenu =
@@ -191,9 +154,6 @@ data class SpeakSession(
     private fun noRumourText(): TextBlock =
         content.speak.textTables.screens.firstOrNull { it.id == DslDefaultText.Speak.noRumour }?.text
             ?: inlineText("- Sorry. There's", "nothing new I can", "tell you.", "")
-
-    private fun lodgeScreen(id: TextId): TextBlock =
-        content.speak.textTables.screens.firstOrNull { it.id == id }?.text ?: inlineText("")
 
     companion object {
         fun start(
@@ -247,31 +207,15 @@ fun RuntimeContent.speakRuntimeContent(): SpeakRuntimeContent =
         dialogue = dialogue,
     )
 
-private fun TextBlock.replace(target: String, replacement: String): TextBlock =
-    when (this) {
-        is TextBlock.Ref -> this
-        is TextBlock.Inline -> TextBlock.Inline(lines.map { it.replace(target, replacement) })
-        is TextBlock.Structured -> TextBlock.Structured(
-            lines.map { line ->
-                TextLine(
-                    line.parts.map { part ->
-                        if (part is TextPart.Literal) {
-                            part.copy(text = part.text.replace(target, replacement))
-                        } else {
-                            part
-                        }
-                    },
-                )
-            },
-        )
-    }
-
 fun SpeakRuntimeContent.firstMatchingDialogueBranch(npc: NpcId, party: PartyState): DialogueBranchModel? {
     val branches = dialogue.firstOrNull { it.npc == npc }?.branches.orEmpty()
     return branches.firstOrNull { branch ->
         branch.whenState?.let(party::hasFlagState) == true
     } ?: branches.firstOrNull { it.whenState == null }
 }
+
+fun SpeakRuntimeContent.firstMatchingQuestionAction(topic: QuestionTopic, job: NpcJobId): QuestionActionScriptModel? =
+    speak.questionActions.firstOrNull { it.topic == topic && it.job == job }
 
 fun SpeakRuntimeContent.standardRumours(party: PartyState): List<RumourEntryModel> =
     speak.textTables.rumourTables

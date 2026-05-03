@@ -1296,6 +1296,12 @@ data class RumourTextTableModel(
     val entries: List<RumourEntryModel>,
 )
 
+data class QuestionActionScriptModel(
+    val topic: QuestionTopic,
+    val job: NpcJobId,
+    val ops: List<Op>,
+)
+
 data class SpeakTextTablesModel(
     val screens: List<ReusableScreenTextModel> = emptyList(),
     val chitchatPrompts: List<ChitchatPromptTextModel> = emptyList(),
@@ -1318,6 +1324,7 @@ data class StandardConversationModel(
 data class SpeakSystemModel(
     val standardConversation: StandardConversationModel?,
     val textTables: SpeakTextTablesModel = SpeakTextTablesModel(),
+    val questionActions: List<QuestionActionScriptModel> = emptyList(),
 )
 
 /**
@@ -3730,6 +3737,9 @@ private fun SceneModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): Sc
 private fun DialogueModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): DialogueModel =
     copy(branches = branches.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
 
+private fun SpeakSystemModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpeakSystemModel =
+    copy(questionActions = questionActions.map { it.copy(ops = it.ops.resolveItemPools(resolve)) })
+
 private fun SpellModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): SpellModel =
     copy(ops = ops.resolveItemPools(resolve))
 
@@ -3985,7 +3995,7 @@ class GameBuilder {
             wilderness = wildernessModel,
             dungeons = dungeonsModel.resolveItemPools(::resolveItemPool),
             ydarg = ydargModel,
-            speak = speakModel,
+            speak = speakModel.resolveItemPools(::resolveItemPool),
             towns = towns.toList(),
             townSystem = townSystemModel,
             characters = characters.toList(),
@@ -5441,6 +5451,7 @@ class BattleTextBuilder(initial: BattleTextModel? = null) {
 class SpeakBuilder {
     private var standardConversationModel: StandardConversationModel? = null
     private var textTablesModel = SpeakTextTablesModel()
+    private val questionActions = mutableListOf<QuestionActionScriptModel>()
 
     fun standardConversation(body: StandardConversationBuilder.() -> Unit) {
         standardConversationModel = StandardConversationBuilder().apply(body).build()
@@ -5450,7 +5461,16 @@ class SpeakBuilder {
         textTablesModel = SpeakTextTablesBuilder().apply(body).build()
     }
 
-    fun build(): SpeakSystemModel = SpeakSystemModel(standardConversationModel, textTablesModel)
+    fun questionAction(topic: QuestionTopic, job: NpcJobId, body: ScriptScope.() -> Unit) {
+        questionActions += QuestionActionScriptModel(topic, job, recordScript(body))
+    }
+
+    fun build(): SpeakSystemModel =
+        SpeakSystemModel(
+            standardConversation = standardConversationModel,
+            textTables = textTablesModel,
+            questionActions = questionActions.toList(),
+        )
 }
 
 @RylNextDsl

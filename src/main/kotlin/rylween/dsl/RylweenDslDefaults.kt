@@ -106,12 +106,6 @@ internal object DslDefaultText {
     object Speak {
         val noNpc = text("speak.no_npc")
         val noRumour = text("speak.no_rumour")
-
-        object Lodge {
-            val bargirlOffer = text("speak.lodge.jbargirl.offer")
-            val bargirlBroke = text("speak.lodge.jbargirl.broke")
-            val bargirlSpent = text("speak.lodge.jbargirl.spent")
-        }
     }
 }
 
