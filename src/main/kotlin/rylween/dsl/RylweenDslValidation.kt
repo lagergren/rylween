@@ -14,6 +14,15 @@ class RylweenValidationException(
     diagnostics.joinToString(separator = "\n") { it.toString() },
 )
 
+fun RylweenValidationException.withDiagnosticPathPrefix(prefix: String): RylweenValidationException =
+    RylweenValidationException(
+        diagnostics.map { diagnostic ->
+            diagnostic.copy(
+                path = if (diagnostic.path.isBlank()) prefix else "$prefix.${diagnostic.path}",
+            )
+        },
+    )
+
 private inline fun MutableList<ValidationDiagnostic>.captureValidation(path: String, block: () -> Unit) {
     try {
         block()

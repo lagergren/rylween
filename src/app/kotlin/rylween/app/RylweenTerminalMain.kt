@@ -7,7 +7,7 @@ import rylween.game.*
 import rylween.game.RylweenCompiledGame
 import rylween.runtime.*
 import rylween.save.FileRuntimeSavePort
-import rylween.save.parseRuntimeStateSnapshot
+import rylween.save.loadRuntimeStateSnapshot
 
 import java.io.File
 
@@ -33,13 +33,21 @@ private class StdioTerminalPort : TerminalPort {
     }
 }
 
-fun main(args: Array<String>) {
+fun main(args: Array<String>): Unit = runRylweenCli {
     val config = parseTerminalConfig(args.toList(), ::printTownUsage)
     val game = RylweenCompiledGame.nextRylween
     val content = RylweenCompiledGame.nextDsl
-    val state = config.loadFile?.let { parseRuntimeStateSnapshot(it.readText()) }
-        ?: (game.states.singleOrNull { it.id == config.state }
-            ?: error("unknown state ${config.state.slug}"))
+    val town = requireStartupTown(content, config.town)
+    val state = config.loadFile
+        ?.let {
+            validateStartupState(
+                state = loadRuntimeStateSnapshot(it, content),
+                content = content,
+                target = RuntimeStartupTarget.Town,
+                sourceName = "save file ${it.path}",
+            )
+        }
+        ?: selectStartupState(game, content, config.state, RuntimeStartupTarget.Town)
     val party = state.parties.firstOrNull { it.id == state.realm.activeParty }
         ?: error("state ${state.id.slug} is missing active party ${state.realm.activeParty.slug}")
     val terminal = StdioTerminalPort()
@@ -51,7 +59,7 @@ fun main(args: Array<String>) {
     )
     var session = engine.townSession(
         party = party,
-        town = config.town,
+        town = town.id,
         hour = config.hour ?: state.realm.hour,
         rngState = config.seed ?: state.realm.rngState,
     )
@@ -69,7 +77,7 @@ fun main(args: Array<String>) {
         listOf(
             "Rylween Kotlin town runtime",
             "State: ${state.id.slug}",
-            "Town: ${content.towns.single { it.id == config.town }.name}",
+            "Town: ${town.name}",
             "Ctrl-D exits.",
             "",
         ),
@@ -107,13 +115,20 @@ fun main(args: Array<String>) {
 
 object RylweenGameTerminalMain {
     @JvmStatic
-    fun main(args: Array<String>) {
+    fun main(args: Array<String>): Unit = runRylweenCli {
         val config = parseTerminalConfig(args.toList(), ::printGameUsage)
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
-        val baseState = config.loadFile?.let { parseRuntimeStateSnapshot(it.readText()) }
-            ?: (game.states.singleOrNull { it.id == config.state }
-                ?: error("unknown state ${config.state.slug}"))
+        val baseState = config.loadFile
+            ?.let {
+                validateStartupState(
+                    state = loadRuntimeStateSnapshot(it, content),
+                    content = content,
+                    target = RuntimeStartupTarget.Wilderness,
+                    sourceName = "save file ${it.path}",
+                )
+            }
+            ?: selectStartupState(game, content, config.state, RuntimeStartupTarget.Wilderness)
         val state = config.hour?.let { baseState.copy(realm = baseState.realm.copy(hour = it)) } ?: baseState
         val terminal = StdioTerminalPort()
         val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
