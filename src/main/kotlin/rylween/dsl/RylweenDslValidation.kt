@@ -473,10 +473,12 @@ fun validateYdargSystem(
     itemCatalog: List<ItemRecordModel>,
     progress: GameProgressModel,
     monsters: List<MonsterModel>,
+    worldMaps: List<WorldMapModel> = emptyList(),
 ) {
     if (ydarg == null) return
 
     check(ydarg.entry.x >= 0 && ydarg.entry.y >= 0) { "Ydarg entry must use non-negative world coordinates" }
+    validateYdargEntryTile(ydarg, worldMaps)
     check(ydarg.mapSize > 1) { "Ydarg map size must be greater than one" }
     check(ydarg.roomTypeMax >= 3) { "Ydarg room type max must allow monster, pitfall, and treasure rooms" }
     check(ydarg.roomEvents.keys.all { it in 1..ydarg.roomTypeMax }) {
@@ -531,6 +533,20 @@ fun validateYdargSystem(
 
     validateYdargKeys(ydarg.keys)
     validateYdargText(ydarg.text)
+}
+
+private fun validateYdargEntryTile(ydarg: YdargContentModel, worldMaps: List<WorldMapModel>) {
+    if (worldMaps.isEmpty()) return
+    val worldMap = worldMaps.singleOrNull { map -> map.id == DslDefaultMaps.wilderness } ?: return
+    val terrainRows = worldMap.layers.singleOrNull { layer -> layer.id == DslDefaultMapLayers.terrain }?.rows
+        ?: return
+    val row = if (ydarg.entry.y > 0) terrainRows.getOrNull(ydarg.entry.y - 1) else null
+    val tile = row?.getOrNull(ydarg.entry.x)
+    val castleTile = DslDefaultTerrain.castle.sourceMapCode
+    check(tile == castleTile) {
+        "Ydarg entry ${ydarg.entry.x}x${ydarg.entry.y} must point at castle tile '$castleTile' " +
+            "on world map ${worldMap.id.slug}"
+    }
 }
 
 fun validateSecretSystem(
@@ -2057,7 +2073,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("wilderness") { validateWildernessSystem(content.wilderness, terrainBindings) }
         captureValidation("dungeons") { validateDungeonSystem(content.dungeons, content.monsters) }
         captureValidation("ydarg") {
-            validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters)
+            validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters, content.worldMaps)
         }
         captureValidation("secrets") { validateSecretSystem(content.secrets, content.itemCatalog, content.monsters) }
         captureValidation("towns") { validateTowns(content.towns) }

@@ -1214,8 +1214,10 @@ data class WildernessSession(
         val ydarg = requireNotNull(content.ydarg) {
             "wilderness castle tile at ${point.x}x${point.y} requires authored Ydarg content"
         }
-        require(point == ydarg.entry) {
-            "wilderness castle tile at ${point.x}x${point.y} does not match Ydarg entry ${ydarg.entry.x}x${ydarg.entry.y}"
+        if (point != ydarg.entry) {
+            return copy(
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.NothingToEnter, from = point),
+            )
         }
         val castleRuntime = runtime.withRealm(
             runtime.realm.copy(
