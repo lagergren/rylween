@@ -49,7 +49,9 @@ enum class WildernessSessionResultStatus {
     NothingToEnter,
     UnknownTown,
     TerrainNarrated,
-    SaveUnavailable,
+    SaveRequested,
+    Saved,
+    SaveFailed,
     RedrawRequested,
     JournalRequested,
     JournalShown,
@@ -116,6 +118,7 @@ sealed interface WildernessSessionStep {
     object TurnStart : WildernessSessionStep
     object Explore : WildernessSessionStep
     data class Messages(val blocks: List<TextBlock>, val next: WildernessSessionStep) : WildernessSessionStep
+    data class Save(val quitAfterSave: Boolean) : WildernessSessionStep
     data class OutOfMoves(val prompt: TextBlock) : WildernessSessionStep
     data class CaveFound(val prompt: TextBlock, val image: ImageId?) : WildernessSessionStep
     data class Mission(
@@ -320,8 +323,7 @@ data class WildernessSession(
         when (input) {
             is WildernessSessionInput.Move -> move(input.direction)
             WildernessSessionInput.Pass -> pass()
-            WildernessSessionInput.Save ->
-                pending(RuntimeUnavailableText.savePending(), WildernessSessionResultStatus.SaveUnavailable)
+            WildernessSessionInput.Save -> requestSave(quitAfterSave = false)
             WildernessSessionInput.ReadyWeapon -> equipment(EquipmentCommand.ReadyWeapon)
             WildernessSessionInput.ReadyArmor -> equipment(EquipmentCommand.ReadyArmor)
             WildernessSessionInput.Redraw -> copy(lastResult = WildernessSessionResult(WildernessSessionResultStatus.RedrawRequested))
@@ -378,6 +380,26 @@ data class WildernessSession(
         val current = step as? WildernessSessionStep.Messages
             ?: error("wilderness session is not showing messages")
         return copy(step = current.next)
+    }
+
+    fun completeSave(saved: Boolean): WildernessSession {
+        val current = step as? WildernessSessionStep.Save
+            ?: error("wilderness session is not saving")
+        return when {
+            saved && current.quitAfterSave -> finish(WildernessSessionResultStatus.OutOfMovesSaveAndQuit)
+            saved -> copy(
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.Saved),
+            )
+            current.quitAfterSave -> copy(
+                step = WildernessSessionStep.OutOfMoves(prompts.outOfMoves),
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.SaveFailed),
+            )
+            else -> copy(
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.SaveFailed),
+            )
+        }
     }
 
     fun startDungeonFromHandoff(): WildernessSession {
@@ -1212,14 +1234,18 @@ data class WildernessSession(
 
     private fun answerOutOfMoves(save: Boolean): WildernessSession {
         require(step is WildernessSessionStep.OutOfMoves) { "wilderness session is not waiting for out-of-moves input" }
-        return finish(
-            if (save) {
-                WildernessSessionResultStatus.OutOfMovesSaveAndQuit
-            } else {
-                WildernessSessionResultStatus.OutOfMovesQuitNoSave
-            },
-        )
+        return if (save) {
+            requestSave(quitAfterSave = true)
+        } else {
+            finish(WildernessSessionResultStatus.OutOfMovesQuitNoSave)
+        }
     }
+
+    private fun requestSave(quitAfterSave: Boolean): WildernessSession =
+        copy(
+            step = WildernessSessionStep.Save(quitAfterSave),
+            lastResult = WildernessSessionResult(WildernessSessionResultStatus.SaveRequested),
+        )
 
     private fun finish(status: WildernessSessionResultStatus = WildernessSessionResultStatus.Finished): WildernessSession {
         val nextRuntime = runtime.withRealm(
