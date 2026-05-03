@@ -6352,6 +6352,7 @@ val nextRylween = rylween {
 
         locations {
             Locations.silverKeyPit at xy(45, 13)
+            Locations.hobgoblinCave at xy(46, 13)
             Locations.beastCave at xy(11, 23)
         }
 
@@ -6447,6 +6448,7 @@ val nextRylween = rylween {
 
         locations {
             Locations.silverKeyPit at xy(45, 13)
+            Locations.hobgoblinCave at xy(46, 13)
             Locations.beastCave at xy(11, 23)
         }
 
@@ -6556,6 +6558,7 @@ val nextRylween = rylween {
 
         locations {
             Locations.silverKeyPit at xy(45, 13)
+            Locations.hobgoblinCave at xy(46, 13)
             Locations.beastCave at xy(11, 23)
         }
 
