@@ -42,7 +42,6 @@ sealed interface SpeakInput {
     data class Npc(val npc: NpcId) : SpeakInput
     data class Main(val choice: SpeakMainChoice) : SpeakInput
     data class Question(val topic: QuestionTopic) : SpeakInput
-    data class LodgingAnswer(val yes: Boolean) : SpeakInput
     object Continue : SpeakInput
 }
 

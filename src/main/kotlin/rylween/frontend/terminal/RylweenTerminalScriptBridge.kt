@@ -1061,12 +1061,12 @@ private class SpeakSessionTraceRunner(
                             session.apply(SpeakInput.Npc(npc.id))
                         }
                 }
-                is SpeakStep.DialogueBranch -> {
+                is SpeakStep.ScriptBranch -> {
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
                     val result = StatefulScriptServiceRunner(
                         terminal = terminal,
                         engine = engine,
-                        rootOps = step.branch.ops,
+                        rootOps = step.ops,
                         continuation = continuation,
                         speakContent = session.content,
                         battleContent = battleContent,
@@ -1090,7 +1090,7 @@ private class SpeakSessionTraceRunner(
                 }
                 is SpeakStep.MainMenu -> {
                     val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
-                    traceMenu(mainPrompt(step.npc), step.actions.map { it.key })
+                    traceMenu(mainPrompt(step.npc, step.actions), step.actions.map { it.key })
                     terminal.readChoice(choices)
                         .sessionOrWait(session, { return it }) { action ->
                             session.apply(SpeakInput.Main(action.topic.toMainChoice()))
@@ -1098,22 +1098,10 @@ private class SpeakSessionTraceRunner(
                 }
                 is SpeakStep.QuestionMenu -> {
                     val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
-                    traceMenu(questionPrompt(), step.actions.map { it.key })
+                    traceMenu(questionPrompt(step.actions), step.actions.map { it.key })
                     terminal.readChoice(choices)
                         .sessionOrWait(session, { return it }) { action ->
                             session.apply(SpeakInput.Question(action.topic))
-                        }
-                }
-                is SpeakStep.LodgingOffer -> {
-                    engine.trace(EngineTraceEvent.Screen(step.offer))
-                    traceMenu(inlineText("(Y)es", "(N)o"), listOf(step.yes.primaryChar, step.no.primaryChar))
-                    val choices = listOf(
-                        TerminalChoice(true, step.yes),
-                        TerminalChoice(false, step.no),
-                    )
-                    terminal.readChoice(choices)
-                        .sessionOrWait(session, { return it }) {
-                            session.apply(SpeakInput.LodgingAnswer(it))
                         }
                 }
                 is SpeakStep.Message -> {
@@ -1138,11 +1126,38 @@ private class SpeakSessionTraceRunner(
                 ).toTypedArray(),
         )
 
-    private fun mainPrompt(npc: CharacterModel): TextBlock =
-        inlineText("Chatting with", "${npc.name}:", "", "(C)hitchat", "(Q)uestion", "(R)umors", "(B)ye")
+    private fun mainPrompt(npc: CharacterModel, actions: List<ConversationMenuActionModel>): TextBlock =
+        inlineText(
+            *(
+                listOf("Chatting with", "${npc.name}:", "") +
+                    actions.map { action -> action.promptLine() }
+                ).toTypedArray(),
+        )
 
-    private fun questionPrompt(): TextBlock =
-        inlineText("(L)odging", "(M)agic", "(P)eople", "(N)othing")
+    private fun questionPrompt(actions: List<QuestionMenuActionModel>): TextBlock =
+        inlineText(*actions.map { action -> action.promptLine() }.toTypedArray())
+
+    private fun ConversationMenuActionModel.promptLine(): String =
+        "(${key})${topic.promptLabelSuffix()}"
+
+    private fun QuestionMenuActionModel.promptLine(): String =
+        "(${key})${topic.promptLabelSuffix()}"
+
+    private fun ConversationTopic.promptLabelSuffix(): String =
+        when (this) {
+            ConversationTopic.Chitchat -> "hitchat"
+            ConversationTopic.Question -> "uestion"
+            ConversationTopic.Rumour -> "umors"
+            ConversationTopic.Bye -> "ye"
+        }
+
+    private fun QuestionTopic.promptLabelSuffix(): String =
+        when (this) {
+            QuestionTopic.Lodging -> "odging"
+            QuestionTopic.Magic -> "agic"
+            QuestionTopic.People -> "eople"
+            QuestionTopic.Nothing -> "othing"
+        }
 
     private fun ConversationTopic.toMainChoice(): SpeakMainChoice =
         when (this) {

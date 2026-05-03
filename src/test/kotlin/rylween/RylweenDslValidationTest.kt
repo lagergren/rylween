@@ -2389,6 +2389,51 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledGameSpeakRunsAuthoredBargirlLodgingQuestionAction() {
+        val content = RylweenCompiledGame.nextDsl
+        val renderer = compiledTextRenderer()
+        val terminal = FakeTerminalPort("1", "Q", "L", "Y", "B")
+        val scene = GameBuilder().apply {
+            scene(sceneId("test.bargirl_lodging")) {
+                speak(Buildings.tavern)
+            }
+        }.build().scenes.single()
+        val service = BuildingServiceModel(
+            building = Buildings.tavern,
+            action = KeyActions.enterTavern,
+            scene = scene.id,
+            opensAt = null,
+            closesAt = null,
+            nativeServices = emptyList(),
+        )
+        val result = StatefulTownServiceBridge(
+            terminal,
+            speakContent = compiledSpeakContent(),
+            battleContent = content.runtimeContent(),
+            renderer = renderer,
+        ).run(
+            service,
+            scene,
+            TownServiceContinuation.start(
+                RuntimeSessionState.singleParty(
+                    party = testParty(gold = 200, level = 2, hitPoints = 5, health = 10),
+                    hour = 12,
+                    currentTown = Towns.thord.id,
+                ),
+            ),
+        )
+
+        terminal.writeScriptEvents(result.events, renderer, result.runtime)
+
+        assertTrue(result.status is TownServiceBridgeStatus.Finished)
+        assertEquals(100, result.party.resources.gold)
+        assertEquals(4, result.party.members.single().hitPoints.current)
+        assertTrue(terminal.output.any { "1. Deanna, bargirl" in it })
+        assertTrue(terminal.output.any { "  upstairs for 100" in it })
+        assertTrue(terminal.output.any { "You spend a very" in it })
+    }
+
+    @Test
     fun townTerminalAdapterRunsTavernRumourThroughStandardRumourTableExclusions() {
         val terminal = FakeTerminalPort("T", "R", "", "L", "L")
         val session = TownSessionTerminalAdapter(
@@ -3010,6 +3055,26 @@ class RylweenDslValidationTest {
 
         assertEquals('1', withHut.tileAt(GridPoint(12, 11)))
         assertFalse(GridPoint(12, 11) in withHut.passableNpcPoints())
+    }
+
+    @Test
+    fun wildernessHutEntryRunsAuthoredSceneSpeakForWildernessNpc() {
+        val hut = Wilderness.xy(12, 11)
+        val terminal = FakeTerminalPort("E", "T", "1", "B", "L")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(food = 100, timeLeft = 200, restedHours = 14).copy(position = hut),
+                npcs = listOf(NpcPlacement(Npcs.marcus, hut)),
+                worldMap = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.EnteredHut, result.session.lastResult?.status)
+        assertTrue(terminal.output.any { "You enter the hut." in it })
+        assertTrue(terminal.output.any { "Speak with whom?" in it })
+        assertTrue(terminal.output.any { "1. Marcus, hermit" in it })
+        assertTrue(result.session.party.visitedNpcs.any { it.npc == Npcs.marcus && it.visited })
     }
 
     @Test
@@ -4308,6 +4373,7 @@ class RylweenDslValidationTest {
         hour: Int? = null,
         rngState: Long? = null,
         locations: List<LocationPlacement>? = null,
+        npcs: List<NpcPlacement>? = null,
         worldMap: WorldMapGrid = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
     ): WildernessSession {
         val content = RylweenCompiledGame.nextDsl
@@ -4316,6 +4382,7 @@ class RylweenDslValidationTest {
             realm = hour?.let { baseState.realm.copy(hour = it) } ?: baseState.realm,
             locations = locations ?: baseState.locations,
             parties = party?.let { listOf(it.copy(id = baseState.realm.activeParty)) } ?: baseState.parties,
+            npcs = npcs ?: baseState.npcs,
         )
         return RylweenKotlinEngine(content).wildernessSession(
             state = state,
