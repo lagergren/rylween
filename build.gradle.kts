@@ -59,9 +59,12 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     @get:org.gradle.api.tasks.OutputFile
     abstract val outputFile: org.gradle.api.file.RegularFileProperty
 
+    private var activeSource: String = ""
+
     @org.gradle.api.tasks.TaskAction
     fun generate() {
         val source = gameSource.get().asFile.readText()
+        activeSource = source
         val buildingNames = buildingNames(source)
         val townNames = townNames(source)
         val missionNames = handleNames(source, "Missions", "mission")
@@ -119,7 +122,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 objectName = "Monsters",
                 typeName = "MonsterId",
                 factoryName = "monster",
-                names = handleNames(declarationBlock(source, "monsters"), "Monsters", "monster"),
+                names = handleNames(declarationSlice(source, "monsters"), "Monsters", "monster"),
             ),
             generateRefsClass(
                 className = "EncounterTierRefs",
@@ -171,7 +174,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 objectName = "ScreenRegions",
                 typeName = "ScreenRegionId",
                 factoryName = "screenRegion",
-                names = handleNames(declarationBlock(source, "terminal"), "ScreenRegions", "region"),
+                names = handleNames(declarationSlice(source, "terminal"), "ScreenRegions", "region"),
             ),
             generateSceneHandles(sceneHandles(source)),
             generateRefsClass(
@@ -272,14 +275,14 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 objectName = "Milestones",
                 typeName = "GameMilestoneId",
                 factoryName = "milestone",
-                names = handleNames(declarationBlock(source, "gameProgress"), "Milestones", "milestone"),
+                names = handleNames(declarationSlice(source, "gameProgress"), "Milestones", "milestone"),
             ),
             generateRefsClass(
                 className = "FormulaRefs",
                 objectName = "Formulas",
                 typeName = "FormulaId",
                 factoryName = "formula",
-                names = handleNames(declarationBlock(source, "formulas"), "Formulas", "formula"),
+                names = handleNames(declarationSlice(source, "formulas"), "Formulas", "formula"),
                 slugOverrides = mapOf("levelUpHitPointFloor" to "level_up_hp_floor"),
             ),
             generateRefsClass(
@@ -287,7 +290,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 objectName = "Rewards",
                 typeName = "RewardBundleId",
                 factoryName = "rewardBundle",
-                names = handleNames(declarationBlock(source, "rewards"), "Rewards", "reward"),
+                names = handleNames(declarationSlice(source, "rewards"), "Rewards", "reward"),
             ),
             generateTextHandles(textHandles(source)),
         ).joinToString(separator = "\n\n")
@@ -318,10 +321,32 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         val poolNames: List<String>,
     )
 
+    private data class SourceSlice(
+        val fullSource: String,
+        val text: String,
+        val startOffset: Int,
+    )
+
+    private data class SourceHandle(
+        val name: String,
+        val offset: Int,
+    )
+
+    private data class SourceDiagnostic(
+        val offset: Int,
+        val message: String,
+    )
+
+    private data class SourceLocation(
+        val line: Int,
+        val column: Int,
+    )
+
     private data class FlagDeclaration(
         val scope: String,
         val path: List<String>,
         val states: List<String>,
+        val offset: Int,
     ) {
         val pathKey: String = path.joinToString(".")
     }
@@ -359,65 +384,123 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     private data class TextLeaf(
         val id: String,
         val isPattern: Boolean,
+        val offset: Int,
     )
 
     private fun itemHandles(source: String): ItemHandles {
-        val itemBlock = declarationBlock(source, "items")
+        val itemBlock = declarationSlice(source, "items")
         val emptyItemNames = Regex("""\bempty\s*\(\s*Items\.([A-Za-z][A-Za-z0-9_]*)""")
-            .findAll(itemBlock)
-            .map { it.groupValues[1] }
+            .findAll(itemBlock.text)
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = itemBlock.startOffset + match.groupOffset(1),
+                )
+            }
             .toList()
-        val declaredItemNames = Regex(
+        val declaredItemHandles = Regex(
             """\b(?:weapon|armor|gear|potion|treasure|special|magicItem)\s*\(\s*Items\.([A-Za-z][A-Za-z0-9_]*)""",
         )
-            .findAll(itemBlock)
-            .map { it.groupValues[1] }
+            .findAll(itemBlock.text)
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = itemBlock.startOffset + match.groupOffset(1),
+                )
+            }
             .toList()
+        val itemDeclarationHandles = buildList {
+            addAll(
+                emptyItemNames.map { handle ->
+                    handle.copy(name = if (handle.name == "none" || handle.name == "blank") "blank" else handle.name)
+                },
+            )
+            addAll(declaredItemHandles.filterNot { it.name == "none" || it.name == "blank" })
+        }
+        validateNoDuplicateDeclarations(source, "item", itemDeclarationHandles)
+        validateNoCatalogIdCollisions(source, "item", itemDeclarationHandles)
         val itemNames = buildList {
-            if (emptyItemNames.any { it == "none" || it == "blank" }) {
+            if (emptyItemNames.any { it.name == "none" || it.name == "blank" }) {
                 add("blank")
             }
-            addAll(emptyItemNames.filterNot { it == "none" || it == "blank" })
-            addAll(declaredItemNames.filterNot { it == "none" || it == "blank" })
+            addAll(emptyItemNames.map { it.name }.filterNot { it == "none" || it == "blank" })
+            addAll(declaredItemHandles.map { it.name }.filterNot { it == "none" || it == "blank" })
         }.distinctInOrder()
-        val poolNames = Regex("""\bpool\s*\(\s*ItemPools\.([A-Za-z][A-Za-z0-9_]*)""")
-            .findAll(itemBlock)
-            .map { it.groupValues[1] }
+        val poolHandles = Regex("""\bpool\s*\(\s*ItemPools\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(itemBlock.text)
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = itemBlock.startOffset + match.groupOffset(1),
+                )
+            }
             .toList()
-            .distinctInOrder()
+        validateNoDuplicateDeclarations(source, "item pool", poolHandles)
+        validateNoCatalogIdCollisions(source, "item pool", poolHandles)
+        val poolNames = poolHandles.distinctNamesInOrder()
 
-        require(itemNames.isNotEmpty()) {
-            "No item declarations found in ${gameSource.get().asFile}."
+        if (itemNames.isEmpty()) {
+            sourceFailure(source, itemBlock.startOffset, "The items block must declare at least one item.")
         }
-        require(poolNames.isNotEmpty()) {
-            "No item-pool declarations found in ${gameSource.get().asFile}."
+        if (poolNames.isEmpty()) {
+            sourceFailure(source, itemBlock.startOffset, "The items block must declare at least one item pool.")
         }
 
-        return ItemHandles(itemNames, emptyItemNames.contains("none"), poolNames)
+        return ItemHandles(itemNames, emptyItemNames.any { it.name == "none" }, poolNames)
     }
 
     private fun flagDeclarations(source: String): List<FlagDeclaration> {
-        val flagsBlock = declarationBlock(source, "flags")
-        return Regex("""\b(story|encounter)\s*\(\s*Story\.([A-Za-z][A-Za-z0-9_.]*)\s*\)""")
-            .findAll(flagsBlock)
+        val flagsBlock = declarationSlice(source, "flags")
+        val flagMatches = Regex("""\b(story|encounter)\s*\(\s*Story\.([A-Za-z][A-Za-z0-9_.]*)\s*\)""")
+            .findAll(flagsBlock.text)
+            .toList()
+        val flagHandles = flagMatches.map { match ->
+            SourceHandle(
+                name = match.groupValues[2],
+                offset = flagsBlock.startOffset + match.groupOffset(2),
+            )
+        }
+        validateNoDuplicateDeclarations(source, "story flag", flagHandles)
+        validateNoCatalogIdCollisions(source, "story flag", flagHandles) { pathKey ->
+            legacyFlagSlugs[pathKey] ?: pathKey.split(".").joinToString(".") { it.toSlug() }
+        }
+        return flagMatches
             .map { match ->
                 val path = match.groupValues[2].split(".")
                 val pathPattern = path.joinToString("""\.""") { Regex.escape(it) }
-                val states = Regex("""\bStory\.$pathPattern\.([A-Za-z][A-Za-z0-9_]*)""")
-                    .findAll(flagsBlock)
-                    .map { it.groupValues[1] }
+                val stateHandles = Regex("""\bStory\.$pathPattern\.([A-Za-z][A-Za-z0-9_]*)""")
+                    .findAll(flagsBlock.text)
+                    .map { stateMatch ->
+                        SourceHandle(
+                            name = stateMatch.groupValues[1],
+                            offset = flagsBlock.startOffset + stateMatch.groupOffset(1),
+                        )
+                    }
                     .toList()
-                    .distinctInOrder()
-                require(states.isNotEmpty()) {
-                    "Flag Story.${path.joinToString(".")} must declare states in the flags block."
+                validateNoDuplicateDeclarations(source, "state for Story.${path.joinToString(".")}", stateHandles)
+                validateNoCatalogIdCollisions(source, "state for Story.${path.joinToString(".")}", stateHandles) { state ->
+                    flagStateSlug(path.joinToString("."), state)
                 }
-                FlagDeclaration(match.groupValues[1], path, states)
+                val states = stateHandles.distinctNamesInOrder()
+                if (states.isEmpty()) {
+                    sourceFailure(
+                        source,
+                        flagsBlock.startOffset + match.groupOffset(2),
+                        "Story.${path.joinToString(".")} must declare at least one state.",
+                    )
+                }
+                FlagDeclaration(
+                    scope = match.groupValues[1],
+                    path = path,
+                    states = states,
+                    offset = flagsBlock.startOffset + match.groupOffset(2),
+                )
             }
             .toList()
             .distinctBy { it.pathKey }
             .also {
-                require(it.isNotEmpty()) {
-                    "No flag declarations found in ${gameSource.get().asFile}."
+                if (it.isEmpty()) {
+                    sourceFailure(source, flagsBlock.startOffset, "The flags block must declare at least one story flag.")
                 }
             }
     }
@@ -480,8 +563,12 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             val childPrefix = prefix + child
             val directFlag = flags.singleOrNull { it.path == childPrefix }
             val nested = flags.any { it.path.size > childPrefix.size && it.path.take(childPrefix.size) == childPrefix }
-            require(!(directFlag != null && nested)) {
-                "Story.${childPrefix.joinToString(".")} cannot be both a flag and a flag group."
+            if (directFlag != null && nested) {
+                sourceFailure(
+                    activeSource,
+                    directFlag.offset,
+                    "Story.${childPrefix.joinToString(".")} cannot be both a flag and a flag group.",
+                )
             }
             if (directFlag != null) {
                 val flagClass = flagClassName(directFlag.path)
@@ -526,15 +613,51 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     }
 
     private fun terrainDeclarations(source: String): List<TerrainDeclaration> {
-        val terminalBlock = declarationBlock(source, "terminal")
-        return Regex("""\bterrain\s*\(\s*Terrain\.([A-Za-z][A-Za-z0-9_]*)\s*,\s*mapCode\s*=\s*'([^'\\]|\\.)'""")
-            .findAll(terminalBlock)
-            .map { TerrainDeclaration(it.groupValues[1], it.groupValues[2].parseCharLiteral()) }
+        val terminalBlock = declarationSlice(source, "terminal")
+        val terrainMatches = Regex("""\bterrain\s*\(\s*Terrain\.([A-Za-z][A-Za-z0-9_]*)\s*,\s*mapCode\s*=\s*'([^'\\]|\\.)'""")
+            .findAll(terminalBlock.text)
+            .toList()
+        val terrainHandles = terrainMatches.map { match ->
+            SourceHandle(
+                name = match.groupValues[1],
+                offset = terminalBlock.startOffset + match.groupOffset(1),
+            )
+        }
+        validateNoDuplicateDeclarations(source, "terrain", terrainHandles)
+        validateNoCatalogIdCollisions(source, "terrain", terrainHandles)
+        val mapCodeDiagnostics = terrainMatches
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[2],
+                    offset = terminalBlock.startOffset + match.groupOffset(2),
+                )
+            }
+            .groupBy { it.name }
+            .flatMap { (mapCode, declarations) ->
+                val first = declarations.first()
+                val firstLocation = source.sourceLocation(first.offset)
+                declarations.drop(1).map { duplicate ->
+                    SourceDiagnostic(
+                        duplicate.offset,
+                        "terrain map code '$mapCode' is used more than once; first use is at line ${firstLocation.line}.",
+                    )
+                }
+            }
+        if (mapCodeDiagnostics.isNotEmpty()) {
+            sourceFailures(source, mapCodeDiagnostics)
+        }
+        return terrainMatches
+            .map { match ->
+                TerrainDeclaration(
+                    match.groupValues[1],
+                    match.groupValues[2].parseCharLiteral(source, terminalBlock.startOffset + match.groupOffset(2)),
+                )
+            }
             .toList()
             .distinctBy { it.name }
             .also {
-                require(it.isNotEmpty()) {
-                    "No terrain declarations found in ${gameSource.get().asFile} terminal block."
+                if (it.isEmpty()) {
+                    sourceFailure(source, terminalBlock.startOffset, "The terminal block must declare at least one terrain tile.")
                 }
             }
     }
@@ -558,22 +681,25 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     }
 
     private fun imageHandles(source: String): ImageHandles {
-        val staticNames = mutableListOf<String>()
-        val sceneNames = mutableListOf<String>()
-        Regex("""\bImages\.(Static|Scene|Backdrop)\.([A-Za-z][A-Za-z0-9_]*)""")
+        val handles = Regex("""\bImages\.(Static|Scene|Backdrop)\.([A-Za-z][A-Za-z0-9_]*)""")
             .findAll(source)
-            .forEach { match ->
-                when (match.groupValues[1]) {
-                    "Static" -> staticNames += match.groupValues[2]
-                    "Scene", "Backdrop" -> sceneNames += match.groupValues[2]
-                }
+            .map { match ->
+                match.groupValues[1] to SourceHandle(
+                    name = match.groupValues[2],
+                    offset = match.groupOffset(2),
+                )
             }
+            .toList()
+        val staticHandles = handles.filter { it.first == "Static" }.map { it.second }
+        val sceneHandles = handles.filter { it.first == "Scene" || it.first == "Backdrop" }.map { it.second }
+        validateNoCatalogIdCollisions(source, "static image", staticHandles)
+        validateNoCatalogIdCollisions(source, "scene image", sceneHandles) { name -> sceneImageSlug(name) }
         return ImageHandles(
-            staticNames = staticNames.distinctInOrder(),
-            sceneNames = sceneNames.distinctInOrder(),
+            staticNames = staticHandles.distinctNamesInOrder(),
+            sceneNames = sceneHandles.distinctNamesInOrder(),
         ).also {
-            require(it.staticNames.isNotEmpty() || it.sceneNames.isNotEmpty()) {
-                "No image handle references found in ${gameSource.get().asFile}."
+            if (it.staticNames.isEmpty() && it.sceneNames.isEmpty()) {
+                sourceFailure(source, 0, "The game source must reference at least one image handle.")
             }
         }
     }
@@ -605,20 +731,27 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     }
 
     private fun spellHandles(source: String): SpellHandles {
-        fun nestedSpellNames(group: String): List<String> =
-            Regex("""\bspell\s*\(\s*Spells\.${Regex.escape(group)}\.([A-Za-z][A-Za-z0-9_]*)""")
+        fun nestedSpellNames(group: String): List<String> {
+            val handles = Regex("""\bspell\s*\(\s*Spells\.${Regex.escape(group)}\.([A-Za-z][A-Za-z0-9_]*)""")
                 .findAll(source)
-                .map { it.groupValues[1] }
+                .map { match ->
+                    SourceHandle(
+                        name = match.groupValues[1],
+                        offset = match.groupOffset(1),
+                    )
+                }
                 .toList()
-                .distinctInOrder()
+            validateNoCatalogIdCollisions(source, "$group spell", handles)
+            return handles.distinctNamesInOrder()
+        }
 
         return SpellHandles(
             mageNames = nestedSpellNames("Mage"),
             priestNames = nestedSpellNames("Priest"),
             monsterNames = nestedSpellNames("Monster"),
         ).also {
-            require(it.mageNames.isNotEmpty() || it.priestNames.isNotEmpty() || it.monsterNames.isNotEmpty()) {
-                "No spell declarations found in ${gameSource.get().asFile}."
+            if (it.mageNames.isEmpty() && it.priestNames.isEmpty() && it.monsterNames.isEmpty()) {
+                sourceFailure(source, 0, "The game source must declare at least one spell.")
             }
         }
     }
@@ -657,27 +790,63 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     }
 
     private fun sceneHandles(source: String): List<SceneGroupHandles> {
-        val groupedNames = Regex("""\bScenes\.([A-Z][A-Za-z0-9_]*)\.([A-Za-z][A-Za-z0-9_]*)""")
+        val sceneReferences = Regex("""\bScenes\.([A-Z][A-Za-z0-9_]*)\.([A-Za-z][A-Za-z0-9_]*)""")
             .findAll(source)
-            .groupBy(
-                keySelector = { it.groupValues[1] },
-                valueTransform = { it.groupValues[2] },
+            .map { match ->
+                match.groupValues[1] to SourceHandle(
+                    name = match.groupValues[2],
+                    offset = match.groupOffset(2),
+                )
+            }
+            .toList()
+        val knownGroups = setOf("Towne", "Battle", "Missions", "Terrain", "Dungeon", "Ydarg")
+        val unknownGroupDiagnostics = sceneReferences
+            .filterNot { (group, _) -> group in knownGroups }
+            .map { (group, handle) ->
+                SourceDiagnostic(
+                    handle.offset,
+                    "scene group '$group' is not declared; use one of ${knownGroups.joinToString()}.",
+                )
+            }
+        if (unknownGroupDiagnostics.isNotEmpty()) {
+            sourceFailures(source, unknownGroupDiagnostics)
+        }
+        val flatSceneMatch = Regex("""\bScenes\.([a-z][A-Za-z0-9_]*)""").find(source)
+        if (flatSceneMatch != null) {
+            sourceFailure(
+                source,
+                flatSceneMatch.groupOffset(1),
+                "scene handles must use grouped names such as Scenes.Towne.rumour.",
             )
-            .mapValues { (_, names) -> names.distinctInOrder() }
-        require(Regex("""\bScenes\.[a-z][A-Za-z0-9_]*""").find(source) == null) {
-            "Scene handles must use grouped names such as Scenes.Towne.rumour."
+        }
+        val groupedNames = sceneReferences
+            .filter { (group, _) -> group in knownGroups }
+            .groupBy(
+                keySelector = { it.first },
+                valueTransform = { it.second },
+            )
+            .mapValues { (_, handles) -> handles.distinctNamesInOrder() }
+        fun group(groupName: String, className: String, slugPrefix: String): SceneGroupHandles {
+            val handles = groupedNames[groupName].orEmpty()
+            val sourceHandles = sceneReferences
+                .filter { it.first == groupName }
+                .map { it.second }
+            validateNoCatalogIdCollisions(source, "scene in Scenes.$groupName", sourceHandles) { name ->
+                sceneSlug(SceneGroupHandles(groupName, className, slugPrefix, emptyList()), name)
+            }
+            return SceneGroupHandles(groupName, className, slugPrefix, handles)
         }
         return listOf(
-            SceneGroupHandles("Towne", "TowneSceneRefs", "towne", groupedNames["Towne"].orEmpty()),
-            SceneGroupHandles("Battle", "BattleSceneRefs", "battle", groupedNames["Battle"].orEmpty()),
-            SceneGroupHandles("Missions", "MissionSceneRefs", "missions", groupedNames["Missions"].orEmpty()),
-            SceneGroupHandles("Terrain", "TerrainSceneRefs", "terrain", groupedNames["Terrain"].orEmpty()),
-            SceneGroupHandles("Dungeon", "DungeonSceneRefs", "dungeon", groupedNames["Dungeon"].orEmpty()),
-            SceneGroupHandles("Ydarg", "YdargSceneRefs", "ydarg", groupedNames["Ydarg"].orEmpty()),
+            group("Towne", "TowneSceneRefs", "towne"),
+            group("Battle", "BattleSceneRefs", "battle"),
+            group("Missions", "MissionSceneRefs", "missions"),
+            group("Terrain", "TerrainSceneRefs", "terrain"),
+            group("Dungeon", "DungeonSceneRefs", "dungeon"),
+            group("Ydarg", "YdargSceneRefs", "ydarg"),
         ).filter { it.names.isNotEmpty() }
             .also {
-                require(it.isNotEmpty()) {
-                    "No scene handle references found in ${gameSource.get().asFile}."
+                if (it.isEmpty()) {
+                    sourceFailure(source, 0, "The game source must reference at least one scene handle.")
                 }
             }
     }
@@ -709,51 +878,91 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
 
     private fun textHandles(source: String): TextNode {
         val root = TextNode(emptyList())
-        val textPaths = Regex("""\b(?:T|Texts)\.([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+)""")
+        val textHandles = Regex("""\b(?:T|Texts)\.([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+)""")
             .findAll(source)
-            .map { it.groupValues[1].split(".") }
-            .toList()
-            .distinctBy { it.joinToString(".") }
-        require(textPaths.isNotEmpty()) {
-            "No text handle references found in ${gameSource.get().asFile}."
-        }
-        textPaths.forEach { path ->
-            val node = path.fold(root) { parent, part ->
-                parent.children.getOrPut(part) { TextNode(parent.path + part) }
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = match.groupOffset(1),
+                )
             }
-            val key = path.joinToString(".")
-            node.leaf = textPatternOverrides[key]?.let { TextLeaf(it, isPattern = true) }
-                ?: TextLeaf(textId(path), isPattern = false)
+            .toList()
+            .distinctBy { it.name }
+        if (textHandles.isEmpty()) {
+            sourceFailure(source, 0, "The game source must reference at least one text handle.")
+        }
+        validateNoCatalogIdCollisions(source, "text handle", textHandles) { pathKey ->
+            textId(pathKey.split("."))
+        }
+        val diagnostics = buildList {
+            textHandles.forEach { handle ->
+                val path = handle.name.split(".")
+                var node = root
+                path.forEachIndexed { index, part ->
+                    if (node.leaf != null) {
+                        val leafLocation = source.sourceLocation(node.leaf!!.offset)
+                        add(
+                            SourceDiagnostic(
+                                handle.offset,
+                                "text path T.${handle.name} uses T.${node.path.joinToString(".")} as a group, " +
+                                    "but that path is already a text leaf at line ${leafLocation.line}.",
+                            ),
+                        )
+                    }
+                    node = node.children.getOrPut(part) { TextNode(node.path + part) }
+                    if (index == path.lastIndex && node.children.isNotEmpty()) {
+                        add(
+                            SourceDiagnostic(
+                                handle.offset,
+                                "text path T.${handle.name} is both a text leaf and a text group.",
+                            ),
+                        )
+                    }
+                }
+                val key = path.joinToString(".")
+                val patternOverride = textPatternOverrides[key]
+                node.leaf = TextLeaf(
+                    id = patternOverride ?: textId(path),
+                    isPattern = patternOverride != null,
+                    offset = handle.offset,
+                )
+            }
+        }
+        if (diagnostics.isNotEmpty()) {
+            sourceFailures(source, diagnostics)
         }
         return root
     }
 
     private fun generateTextHandles(root: TextNode): String {
-        val classes = mutableListOf<String>()
-        fun emitClass(node: TextNode, className: String) {
-            val lines = node.children.values.joinToString(separator = "\n") { child ->
-                val leaf = child.leaf
-                if (leaf != null && child.children.isEmpty()) {
-                    if (leaf.isPattern) {
-                        """    val ${child.path.last()}: TextPattern = textPattern("${leaf.id}")"""
+        val classes = buildList {
+            fun emitClass(node: TextNode, className: String) {
+                val lines = node.children.values.joinToString(separator = "\n") { child ->
+                    val leaf = child.leaf
+                    if (leaf != null && child.children.isEmpty()) {
+                        if (leaf.isPattern) {
+                            """    val ${child.path.last()}: TextPattern = textPattern("${leaf.id}")"""
+                        } else {
+                            """    val ${child.path.last()}: TextId = text("${leaf.id}")"""
+                        }
                     } else {
-                        """    val ${child.path.last()}: TextId = text("${leaf.id}")"""
+                        val childClassName = textClassName(child.path)
+                        """    val ${child.path.last()}: $childClassName = $childClassName()"""
                     }
-                } else {
-                    val childClassName = textClassName(child.path)
-                    """    val ${child.path.last()}: $childClassName = $childClassName()"""
                 }
+                add(
+                    """
+                    |class $className {
+                    |$lines
+                    |}
+                    """.trimMargin(),
+                )
+                node.children.values
+                    .filterNot { it.leaf != null && it.children.isEmpty() }
+                    .forEach { child -> emitClass(child, textClassName(child.path)) }
             }
-            classes += """
-                |class $className {
-                |$lines
-                |}
-            """.trimMargin()
-            node.children.values
-                .filterNot { it.leaf != null && it.children.isEmpty() }
-                .forEach { child -> emitClass(child, textClassName(child.path)) }
+            emitClass(root, "TextRefs")
         }
-        emitClass(root, "TextRefs")
         return """
             |${classes.joinToString(separator = "\n\n")}
             |
@@ -772,8 +981,8 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         allList: Boolean = false,
         alias: String? = null,
     ): String {
-        require(names.isNotEmpty()) {
-            "No $objectName declarations found in ${gameSource.get().asFile}."
+        if (names.isEmpty()) {
+            sourceFailure(activeSource, 0, "No $objectName handles were found in the game source.")
         }
         val lines = names.joinToString(separator = "\n") { name ->
             """    val $name: $typeName = $factoryName("${slugOverrides[name] ?: name.toSlug()}")"""
@@ -800,12 +1009,12 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     }
 
     private fun generateTownHandles(townNames: List<String>, buildingNames: List<String>): String {
-        require(townNames.isNotEmpty()) {
-            "No Towns declarations found in ${gameSource.get().asFile}."
+        if (townNames.isEmpty()) {
+            sourceFailure(activeSource, 0, "No town declarations were found in the towns block.")
         }
         val positionBuildings = buildingNames.filterNot { it == "none" }
-        require(positionBuildings.isNotEmpty()) {
-            "No town-position buildings found in ${gameSource.get().asFile}."
+        if (positionBuildings.isEmpty()) {
+            sourceFailure(activeSource, 0, "No town-position buildings were found.")
         }
         val buildingLines = positionBuildings.joinToString(separator = "\n") { building ->
             """    val $building: WorldPosition get() = WorldPosition.Town(id, Buildings.$building)"""
@@ -829,87 +1038,246 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     private fun buildingNames(source: String): List<String> {
         val townAndSystemBlocks = declarationBlock(source, "towns") + "\n" + declarationBlock(source, "townSystem")
         val explicitNames = handleNames(source, "Buildings")
-        val townPositionNames = Regex("""\bTowns\.[A-Za-z][A-Za-z0-9_]*\.([A-Za-z][A-Za-z0-9_]*)""")
+        val townPositionHandles = Regex("""\bTowns\.[A-Za-z][A-Za-z0-9_]*\.([A-Za-z][A-Za-z0-9_]*)""")
             .findAll(source)
-            .map { it.groupValues[1] }
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = match.groupOffset(1),
+                )
+            }
             .toList()
+        validateNoCatalogIdCollisions(source, "town building", townPositionHandles)
         val defaultServiceNames = listOf("merchant", "inn", "tavern", "smith", "church").filter { service ->
             Regex("""\b${Regex.escape(service)}\s*(?:\(|\{)""").containsMatchIn(townAndSystemBlocks)
         }
         return orderedNames(
-            (explicitNames + townPositionNames + defaultServiceNames).distinctInOrder(),
+            (explicitNames + townPositionHandles.distinctNamesInOrder() + defaultServiceNames).distinctInOrder(),
             listOf("none", "inn", "tavern", "church", "smith", "merchant", "hut", "lodge"),
         )
     }
 
     private fun townNames(source: String): List<String> {
-        val townsBlock = declarationBlock(source, "towns")
-        val literalNames = Regex("""\btown\s*\(\s*"([A-Za-z][A-Za-z0-9_]*)"""")
-            .findAll(townsBlock)
-            .map { it.groupValues[1] }
+        val townsBlock = declarationSlice(source, "towns")
+        val literalHandles = Regex("""\btown\s*\(\s*"([A-Za-z][A-Za-z0-9_]*)"""")
+            .findAll(townsBlock.text)
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = townsBlock.startOffset + match.groupOffset(1),
+                )
+            }
             .toList()
-        val handleNames = Regex("""\btown\s*\(\s*Towns\.([A-Za-z][A-Za-z0-9_]*)""")
-            .findAll(townsBlock)
-            .map { it.groupValues[1] }
+        val townHandles = Regex("""\btown\s*\(\s*Towns\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(townsBlock.text)
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = townsBlock.startOffset + match.groupOffset(1),
+                )
+            }
             .toList()
-        return (literalNames + handleNames).distinctInOrder()
+        val declarations = literalHandles + townHandles
+        validateNoDuplicateDeclarations(source, "town", declarations)
+        validateNoCatalogIdCollisions(source, "town", declarations)
+        return declarations.distinctNamesInOrder()
     }
 
-    private fun stateNames(source: String): List<String> =
-        Regex("""\b(?:stateFixture|runtimeState)\s*\(\s*States\.([A-Za-z][A-Za-z0-9_]*)""")
+    private fun stateNames(source: String): List<String> {
+        val handles = Regex("""\b(?:stateFixture|runtimeState)\s*\(\s*States\.([A-Za-z][A-Za-z0-9_]*)""")
             .findAll(source)
-            .map { it.groupValues[1] }
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = match.groupOffset(1),
+                )
+            }
             .toList()
-            .distinctInOrder()
+        validateNoCatalogIdCollisions(source, "runtime state", handles) { it.toKebab() }
+        return handles.distinctNamesInOrder()
+    }
 
     private fun partyNames(source: String): List<String> =
         handleNames(source, "Parties")
 
-    private fun handleNames(block: String, objectName: String, callName: String): List<String> =
-        Regex("""\b${Regex.escape(callName)}\s*\(\s*${Regex.escape(objectName)}\.([A-Za-z][A-Za-z0-9_]*)""")
-            .findAll(block)
-            .map { it.groupValues[1] }
-            .toList()
-            .distinctInOrder()
+    private fun handleNames(source: String, objectName: String, callName: String): List<String> =
+        handleNames(sourceSlice(source), objectName, callName)
 
-    private fun handleNames(block: String, objectName: String): List<String> =
-        Regex("""\b${Regex.escape(objectName)}\.([A-Za-z][A-Za-z0-9_]*)""")
-            .findAll(block)
-            .map { it.groupValues[1] }
+    private fun handleNames(slice: SourceSlice, objectName: String, callName: String): List<String> {
+        val handles = Regex(
+            """\b${Regex.escape(callName)}\s*\(\s*${Regex.escape(objectName)}\.([A-Za-z][A-Za-z0-9_]*)""",
+        )
+            .findAll(slice.text)
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = slice.startOffset + match.groupOffset(1),
+                )
+            }
             .toList()
-            .distinctInOrder()
-
-    private fun staticScreenNames(source: String): List<String> {
-        val staticScreenBlock = declarationBlock(declarationBlock(source, "visuals"), "staticScreens")
-        return Regex("""\b(?:screen|image|resource|commandHelp)\s*\(\s*StaticScreens\.([A-Za-z][A-Za-z0-9_]*)""")
-            .findAll(staticScreenBlock)
-            .map { it.groupValues[1] }
-            .toList()
-            .distinctInOrder()
+        validateNoCatalogIdCollisions(slice.fullSource, objectName, handles)
+        return handles.distinctNamesInOrder()
     }
 
-    private fun declarationBlock(source: String, name: String): String {
-        val match = Regex("""\b${Regex.escape(name)}\s*\{""").find(source)
-            ?: error("Could not find $name declaration block.")
+    private fun handleNames(source: String, objectName: String): List<String> =
+        handleNames(sourceSlice(source), objectName)
+
+    private fun handleNames(slice: SourceSlice, objectName: String): List<String> {
+        val handles = Regex("""\b${Regex.escape(objectName)}\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(slice.text)
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = slice.startOffset + match.groupOffset(1),
+                )
+            }
+            .toList()
+        validateNoCatalogIdCollisions(slice.fullSource, objectName, handles)
+        return handles.distinctNamesInOrder()
+    }
+
+    private fun staticScreenNames(source: String): List<String> {
+        val visuals = declarationSlice(sourceSlice(source), "visuals")
+        val staticScreens = declarationSlice(visuals, "staticScreens")
+        val handles = Regex("""\b(?:screen|image|resource|commandHelp)\s*\(\s*StaticScreens\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(staticScreens.text)
+            .map { match ->
+                SourceHandle(
+                    name = match.groupValues[1],
+                    offset = staticScreens.startOffset + match.groupOffset(1),
+                )
+            }
+            .toList()
+        validateNoDuplicateDeclarations(source, "static screen", handles)
+        validateNoCatalogIdCollisions(source, "static screen", handles)
+        return handles.distinctNamesInOrder()
+    }
+
+    private fun sourceSlice(source: String): SourceSlice =
+        SourceSlice(fullSource = source, text = source, startOffset = 0)
+
+    private fun declarationBlock(source: String, name: String): String =
+        declarationSlice(sourceSlice(source), name).text
+
+    private fun declarationSlice(source: String, name: String): SourceSlice =
+        declarationSlice(sourceSlice(source), name)
+
+    private fun declarationSlice(slice: SourceSlice, name: String): SourceSlice {
+        val match = Regex("""\b${Regex.escape(name)}\s*\{""").find(slice.text)
+            ?: sourceFailure(
+                slice.fullSource,
+                slice.startOffset,
+                "Could not find the '$name' declaration block in the game source.",
+            )
         val openBrace = match.range.last
         var depth = 0
-        for (index in openBrace until source.length) {
-            when (source[index]) {
+        for (index in openBrace until slice.text.length) {
+            when (slice.text[index]) {
                 '{' -> depth += 1
                 '}' -> {
                     depth -= 1
                     if (depth == 0) {
-                        return source.substring(openBrace + 1, index)
+                        return SourceSlice(
+                            fullSource = slice.fullSource,
+                            text = slice.text.substring(openBrace + 1, index),
+                            startOffset = slice.startOffset + openBrace + 1,
+                        )
                     }
                 }
             }
         }
-        error("Unclosed $name declaration block.")
+        sourceFailure(
+            slice.fullSource,
+            slice.startOffset + match.range.first,
+            "The '$name' declaration block is not closed.",
+        )
     }
 
     private fun List<String>.distinctInOrder(): List<String> {
         val seen = linkedSetOf<String>()
         return filter { seen.add(it) }
+    }
+
+    private fun List<SourceHandle>.distinctNamesInOrder(): List<String> {
+        val seen = linkedSetOf<String>()
+        return mapNotNull { handle -> handle.name.takeIf { seen.add(it) } }
+    }
+
+    private fun MatchResult.groupOffset(index: Int): Int =
+        groups[index]?.range?.first ?: range.first
+
+    private fun sourceFailure(source: String, offset: Int, message: String): Nothing =
+        sourceFailures(source, listOf(SourceDiagnostic(offset, message)))
+
+    private fun sourceFailures(source: String, diagnostics: List<SourceDiagnostic>): Nothing {
+        val file = gameSource.get().asFile.relativeToOrSelf(project.projectDir).path
+        val details = diagnostics.joinToString(separator = "\n") { diagnostic ->
+            val location = source.sourceLocation(diagnostic.offset)
+            "$file:${location.line}:${location.column}: ${diagnostic.message}"
+        }
+        throw org.gradle.api.GradleException(
+            "Game catalog handle generation failed:\n$details",
+        )
+    }
+
+    private fun String.sourceLocation(offset: Int): SourceLocation {
+        val boundedOffset = offset.coerceIn(0, length)
+        var line = 1
+        var lineStart = 0
+        for (index in 0 until boundedOffset) {
+            if (this[index] == '\n') {
+                line += 1
+                lineStart = index + 1
+            }
+        }
+        return SourceLocation(line, boundedOffset - lineStart + 1)
+    }
+
+    private fun validateNoDuplicateDeclarations(
+        source: String,
+        concept: String,
+        handles: List<SourceHandle>,
+    ) {
+        val diagnostics = handles
+            .groupBy { it.name }
+            .flatMap { (name, declarations) ->
+                val first = declarations.first()
+                val firstLocation = source.sourceLocation(first.offset)
+                declarations.drop(1).map { duplicate ->
+                    SourceDiagnostic(
+                        duplicate.offset,
+                        "$concept '$name' is declared more than once; first declaration is at line ${firstLocation.line}.",
+                    )
+                }
+            }
+        if (diagnostics.isNotEmpty()) {
+            sourceFailures(source, diagnostics)
+        }
+    }
+
+    private fun validateNoCatalogIdCollisions(
+        source: String,
+        concept: String,
+        handles: List<SourceHandle>,
+        idOf: (String) -> String = { it.toSlug() },
+    ) {
+        val diagnostics = handles
+            .distinctBy { it.name }
+            .groupBy { idOf(it.name) }
+            .flatMap { (catalogId, declarations) ->
+                val first = declarations.first()
+                val firstLocation = source.sourceLocation(first.offset)
+                declarations.drop(1).map { colliding ->
+                    SourceDiagnostic(
+                        colliding.offset,
+                        "$concept '${colliding.name}' normalizes to catalog id '$catalogId', " +
+                            "which is already used by '${first.name}' at line ${firstLocation.line}.",
+                    )
+                }
+            }
+        if (diagnostics.isNotEmpty()) {
+            sourceFailures(source, diagnostics)
+        }
     }
 
     private fun orderedNames(names: List<String>, preferredOrder: List<String>): List<String> =
@@ -967,7 +1335,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     private fun String.toUpperCamel(): String =
         replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
-    private fun String.parseCharLiteral(): Char =
+    private fun String.parseCharLiteral(source: String, offset: Int): Char =
         when {
             length == 1 -> single()
             startsWith("\\") && length == 2 -> when (this[1]) {
@@ -976,9 +1344,9 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 'n' -> '\n'
                 'r' -> '\r'
                 't' -> '\t'
-                else -> error("Unsupported char escape '$this'.")
+                else -> sourceFailure(source, offset, "Unsupported terrain map-code escape '$this'.")
             }
-            else -> error("Unsupported char literal '$this'.")
+            else -> sourceFailure(source, offset, "Unsupported terrain map-code literal '$this'.")
         }
 
     private fun Char.charLiteral(): String =
