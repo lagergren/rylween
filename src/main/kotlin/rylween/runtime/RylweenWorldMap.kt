@@ -1390,40 +1390,14 @@ private fun PartyState.matches(ast: BoolAst): Boolean {
         override fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
             milestone in party.milestones
 
-        override fun memberField(member: Int, field: String): Int {
-            val record = party.members.getOrNull(member - 1) ?: return 0
-            return when (field) {
-                "hit_points" -> record.hitPoints.current
-                "health" -> record.health
-                "magic" -> record.mana.current
-                "level" -> record.level
-                "wisdom" -> record.wisdom
-                "charisma" -> record.charisma
-                "class" -> record.pcClass.sourceId
-                "dead" -> if (record.dead) 1 else 0
-                else -> 0
-            }
-        }
+        override fun memberField(member: Int, field: String): Int =
+            party.scriptMemberField(member, field)
 
-        override fun memberFlag(member: Int, name: String): Boolean {
-            val record = party.members.getOrNull(member - 1) ?: return false
-            return when (name) {
-                "dead" -> record.dead
-                "spellcaster" -> !record.dead && record.pcClass in setOf(PcClass.Mage, PcClass.Priest)
-                else -> false
-            }
-        }
+        override fun memberFlag(member: Int, name: String): Boolean =
+            party.scriptMemberFlag(member, name)
 
         override fun partyScalar(name: String): Int =
-            when (name) {
-                "gold" -> party.resources.gold
-                "torches" -> party.resources.torches
-                "food" -> party.resources.food
-                "time_left" -> party.resources.timeLeft
-                "rested_hours" -> party.resources.restedHours
-                "member_count" -> party.counters.memberCount ?: party.members.count { !it.dead }
-                else -> 0
-            }
+            party.scriptPartyScalar(name)
 
         override fun inventoryPoolCount(pool: ItemPoolId): Int =
             party.countInventoryItems(pool)

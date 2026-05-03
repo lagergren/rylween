@@ -887,6 +887,67 @@ private class CombatScriptRunner(
     private var locals = emptyMap<String, Int>()
     private val texts = mutableListOf<TextBlock>()
 
+    private val monsterFieldReaders: Map<String, (Int) -> Int> = mapOf(
+        "hit_points" to { index -> encounter.hitPoints.getOrElse(index) { 0 } },
+        "dead" to { index -> if (encounter.hitPoints.getOrElse(index) { 0 } <= 0) 1 else 0 },
+    )
+
+    private val monsterFieldWriters: Map<String, (Int, Int) -> Unit> = mapOf(
+        "hit_points" to { index, value ->
+            encounter = encounter.copy(
+                hitPoints = encounter.hitPoints.mapIndexed { monster, hp ->
+                    if (monster == index) value.coerceAtLeast(0) else hp
+                },
+            )
+        },
+        "dead" to { index, value ->
+            if (value != 0) {
+                encounter = encounter.copy(
+                    hitPoints = encounter.hitPoints.mapIndexed { monster, hp ->
+                        if (monster == index) 0 else hp
+                    },
+                )
+            }
+        },
+    )
+
+    private val battleFlagReaders: Map<String, () -> Int> = mapOf(
+        "monster_weapon_skill" to { round.monsterWeaponSkill },
+        "encounter_hit_point_max" to { encounter.hitPointMax },
+        "monster_confused" to { if (round.monsterConfused) 1 else 0 },
+        "monsters_held" to { if (round.monstersHeld) 1 else 0 },
+        "antimagic" to { if (round.antimagic) 1 else 0 },
+        "party_held" to { if (round.partyHeld) 1 else 0 },
+        "party_confused" to { if (round.partyConfused) 1 else 0 },
+        "action_retry" to { if (round.actionRetry) 1 else 0 },
+    )
+
+    private val battleFlagWriters: Map<String, (Int) -> Unit> = mapOf(
+        "monster_weapon_skill" to { value -> round = round.copy(monsterWeaponSkill = value.coerceAtLeast(0)) },
+        "monster_confused" to { value -> round = round.copy(monsterConfused = value != 0) },
+        "monsters_held" to { value -> round = round.copy(monstersHeld = value != 0) },
+        "antimagic" to { value -> round = round.copy(antimagic = value != 0) },
+        "party_held" to { value -> round = round.copy(partyHeld = value != 0) },
+        "party_confused" to { value -> round = round.copy(partyConfused = value != 0) },
+        "action_retry" to { value -> round = round.copy(actionRetry = value != 0) },
+    )
+
+    private val battleQueryReaders: Map<String, () -> Int> = mapOf(
+        "first_alive_monster" to { encounter.hitPoints.indexOfFirst { it > 0 } },
+        "random_alive_member" to {
+            val draw = runtime.drawAliveMemberIndex()
+            runtime = draw.runtime
+            draw.value
+        },
+    )
+
+    private val monsterFlagReaders: Map<String, (Int) -> Boolean> = mapOf(
+        "dead" to { index -> encounter.hitPoints.getOrElse(index) { 0 } <= 0 },
+    )
+
+    private val battlePartyScalars: Set<String> = setOf("gold")
+    private val battleRealmScalars: Set<String> = setOf("party_member_max")
+
     private val evaluator = object : IntAstEvaluator() {
         override fun local(name: String): Int = locals[name] ?: 0
         override fun random(lo: Int, hi: Int): Int {
@@ -905,11 +966,7 @@ private class CombatScriptRunner(
             milestone in runtime.activeParty.milestones
         override fun memberFlag(member: Int, name: String): Boolean = readMemberFlag(member, name)
         override fun monsterFlag(monster: Int, name: String): Boolean = readMonsterFlag(monster, name)
-        override fun runtimeFlag(name: String): Boolean =
-            when (name) {
-                "in_dungeon" -> runtime.realm.currentMode == RuntimeMode.Dungeon
-                else -> false
-            }
+        override fun runtimeFlag(name: String): Boolean = runtime.scriptRuntimeFlag(name)
     }
 
     fun run(start: CombatScriptContinuation): CombatScriptRunResult {
@@ -1115,40 +1172,13 @@ private class CombatScriptRunner(
 
     private fun readMemberField(index: Int, field: String): Int {
         val member = runtime.activeParty.members.getOrNull(index) ?: return 0
-        return when (field) {
-            "hit_points" -> member.hitPoints.current
-            "health" -> member.health
-            "magic" -> member.mana.current
-            "magic_max" -> member.mana.max
-            "level" -> member.level
-            "wisdom" -> member.wisdom
-            "charisma" -> member.charisma
-            "weapon_skill" -> member.weaponSkill
-            "class" -> member.pcClass.sourceId
-            "experience" -> member.experience
-            "dead" -> if (member.dead) 1 else 0
-            else -> error("unknown battle member field $field")
-        }
+        return member.scriptMemberFieldOrNull(field) ?: error("unknown battle member field $field")
     }
 
     private fun writeMemberField(index: Int, field: String, value: Int) {
         val member = runtime.activeParty.members.getOrNull(index) ?: return
-        val next = when (field) {
-            "hit_points" -> member.copy(hitPoints = value.coerceAtLeast(0) of member.hitPoints.max)
-            "health" -> member.copy(health = value.coerceAtLeast(0), hitPoints = member.hitPoints.current of value.coerceAtLeast(0))
-            "magic" -> member.copy(mana = value.coerceAtLeast(0) manaOf member.mana.max)
-            "magic_max" -> {
-                val max = value.coerceAtLeast(0)
-                member.copy(mana = member.mana.current.coerceAtMost(max) manaOf max)
-            }
-            "level" -> member.copy(level = value.coerceAtLeast(1))
-            "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
-            "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
-            "weapon_skill" -> member.copy(weaponSkill = value.coerceAtLeast(0))
-            "experience" -> member.copy(experience = value.coerceAtLeast(0))
-            "dead" -> member.copy(dead = value != 0)
-            else -> error("unknown battle member field $field")
-        }
+        val next = member.withScriptMemberFieldOrNull(field, value)
+            ?: error("unknown battle member field $field")
         val updated = runtime.withActiveMember(index, next)
         runtime = if (field == "dead") {
             updated.withActiveParty(updated.activeParty.withLivingCount())
@@ -1158,101 +1188,56 @@ private class CombatScriptRunner(
     }
 
     private fun readMonsterField(index: Int, field: String): Int =
-        when (field) {
-            "hit_points" -> encounter.hitPoints.getOrElse(index) { 0 }
-            "dead" -> if (encounter.hitPoints.getOrElse(index) { 0 } <= 0) 1 else 0
-            else -> error("unknown battle monster field $field")
-        }
+        monsterFieldReaders[field]?.invoke(index) ?: error("unknown battle monster field $field")
 
     private fun writeMonsterField(index: Int, field: String, value: Int) {
-        when (field) {
-            "hit_points" -> encounter = encounter.copy(
-                hitPoints = encounter.hitPoints.mapIndexed { monster, hp ->
-                    if (monster == index) value.coerceAtLeast(0) else hp
-                },
-            )
-            "dead" -> if (value != 0) {
-                encounter = encounter.copy(
-                    hitPoints = encounter.hitPoints.mapIndexed { monster, hp ->
-                        if (monster == index) 0 else hp
-                    },
-                )
-            }
-            else -> error("unknown battle monster field $field")
-        }
+        val writer = monsterFieldWriters[field] ?: error("unknown battle monster field $field")
+        writer(index, value)
     }
 
     private fun readBattleFlag(name: String): Int =
-        when (name) {
-            "monster_weapon_skill" -> round.monsterWeaponSkill
-            "encounter_hit_point_max" -> encounter.hitPointMax
-            "monster_confused" -> if (round.monsterConfused) 1 else 0
-            "monsters_held" -> if (round.monstersHeld) 1 else 0
-            "antimagic" -> if (round.antimagic) 1 else 0
-            "party_held" -> if (round.partyHeld) 1 else 0
-            "party_confused" -> if (round.partyConfused) 1 else 0
-            "action_retry" -> if (round.actionRetry) 1 else 0
-            else -> error("unknown battle flag $name")
-        }
+        battleFlagReaders[name]?.invoke() ?: error("unknown battle flag $name")
 
     private fun writeBattleFlag(name: String, value: Int) {
-        round = when (name) {
-            "monster_weapon_skill" -> round.copy(monsterWeaponSkill = value.coerceAtLeast(0))
-            "monster_confused" -> round.copy(monsterConfused = value != 0)
-            "monsters_held" -> round.copy(monstersHeld = value != 0)
-            "antimagic" -> round.copy(antimagic = value != 0)
-            "party_held" -> round.copy(partyHeld = value != 0)
-            "party_confused" -> round.copy(partyConfused = value != 0)
-            "action_retry" -> round.copy(actionRetry = value != 0)
-            "encounter_hit_point_max" -> error("encounter hit point max is read-only")
+        val writer = battleFlagWriters[name] ?: when {
+            name in battleFlagReaders -> error("battle flag $name is read-only")
             else -> error("unknown battle flag $name")
         }
+        writer(value)
     }
 
     private fun readBattleQuery(name: String): Int =
-        when (name) {
-            "first_alive_monster" -> encounter.hitPoints.indexOfFirst { it > 0 }
-            "random_alive_member" -> {
-                val draw = runtime.drawAliveMemberIndex()
-                runtime = draw.runtime
-                draw.value
-            }
-            else -> error("unknown battle query $name")
-        }
+        battleQueryReaders[name]?.invoke() ?: error("unknown battle query $name")
 
-    private fun readMemberFlag(index: Int, name: String): Boolean =
-        when (name) {
-            "dead" -> runtime.activeParty.members.getOrNull(index)?.dead ?: true
-            "spellcaster" -> runtime.activeParty.members.getOrNull(index)
-                ?.let { !it.dead && it.pcClass in setOf(PcClass.Mage, PcClass.Priest) }
-                ?: false
-            else -> error("unknown battle member flag $name")
+    private fun readMemberFlag(index: Int, name: String): Boolean {
+        if (!scriptMemberFlagKnown(name)) {
+            error("unknown battle member flag $name")
         }
+        return runtime.activeParty.members.getOrNull(index)?.scriptMemberFlagOrNull(name)
+            ?: (name == "dead")
+    }
 
     private fun readMonsterFlag(index: Int, name: String): Boolean =
-        when (name) {
-            "dead" -> encounter.hitPoints.getOrElse(index) { 0 } <= 0
-            else -> error("unknown battle monster flag $name")
-        }
+        monsterFlagReaders[name]?.invoke(index) ?: error("unknown battle monster flag $name")
 
     private fun readPartyScalar(name: String): Int =
-        when (name) {
-            "gold" -> runtime.activeParty.resources.gold
-            else -> error("combat scripts cannot read party scalar $name yet")
-        }
+        runtime.activeParty.scriptPartyScalarOrNull(name)
+            ?.takeIf { name in battlePartyScalars }
+            ?: error("combat scripts cannot read party scalar $name yet")
 
     private fun writePartyScalar(name: String, value: Int) {
-        when (name) {
-            "gold" -> runtime = runtime.withActiveParty(runtime.activeParty.withGold(value))
-            else -> error("combat scripts cannot write party scalar $name yet")
+        if (name !in battlePartyScalars) {
+            error("combat scripts cannot write party scalar $name yet")
         }
+        val party = runtime.activeParty.withScriptPartyScalarOrNull(name, value)
+            ?: error("combat scripts cannot write party scalar $name yet")
+        runtime = runtime.withActiveParty(party)
     }
 
     private fun readRealmScalar(name: String): Int =
-        when (name) {
-            "party_member_max" -> runtime.realm.partyMemberMax
-            else -> error("combat scripts cannot read realm scalar $name yet")
-        }
+        runtime.scriptRealmScalarOrNull(name)
+            ?.takeIf { name in battleRealmScalars }
+            ?: error("combat scripts cannot read realm scalar $name yet")
 
     private fun writeRealmScalar(name: String, value: Int): Unit =
         error("combat scripts cannot write realm scalar $name to $value yet")
