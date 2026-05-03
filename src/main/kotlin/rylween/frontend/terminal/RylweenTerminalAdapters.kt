@@ -220,6 +220,7 @@ class PriestSpellTerminalAdapter(
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
     private val engine: TraceEnginePort = TraceEnginePort(),
     private val speakContent: SpeakRuntimeContent = SpeakRuntimeContent(),
+    private val content: RuntimeContent = RuntimeContent(),
     private val worldMap: WorldMapGrid? = null,
 ) {
     fun runUntilBlocked(initial: PriestSpellSession): TerminalAdapterResult<PriestSpellSession> {
@@ -246,7 +247,7 @@ class PriestSpellTerminalAdapter(
                         rootOps = step.spell.ops,
                         continuation = step.continuation,
                         speakContent = speakContent,
-                        battleContent = RuntimeContent(itemRecords = emptyList()),
+                        battleContent = content,
                         worldMap = worldMap,
                         textRenderer = renderer,
                     ).run()
@@ -609,6 +610,7 @@ class DungeonSessionTerminalAdapter(
                     val result = PriestSpellTerminalAdapter(
                         terminal = terminal,
                         renderer = renderer,
+                        content = session.content,
                         worldMap = session.worldMap,
                     ).runUntilBlocked(step.session)
                     val updated = session.replacePriestSpellSession(result.session)
@@ -894,7 +896,12 @@ class WildernessSessionTerminalAdapter(
                     continueOrBlock(updated, result.status) { return it }
                 }
                 is WildernessSessionStep.PriestSpell -> {
-                    val result = PriestSpellTerminalAdapter(terminal, renderer, worldMap = session.worldMap)
+                    val result = PriestSpellTerminalAdapter(
+                        terminal,
+                        renderer,
+                        content = session.content,
+                        worldMap = session.worldMap,
+                    )
                         .runUntilBlocked(step.session)
                     val updated = session.replacePriestSpellSession(result.session)
                     continueOrBlock(updated, result.status) { return it }

@@ -243,7 +243,12 @@ private class RylweenAnsiGame(
                     }
                 }
                 is WildernessSessionStep.PriestSpell -> {
-                    val result = PriestSpellTerminalAdapter(port, renderer, worldMap = session.worldMap)
+                    val result = PriestSpellTerminalAdapter(
+                        port,
+                        renderer,
+                        content = session.content,
+                        worldMap = session.worldMap,
+                    )
                         .runUntilBlocked(step.session)
                     val updated = session.replacePriestSpellSession(result.session)
                     when (result.status) {
