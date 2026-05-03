@@ -3,6 +3,7 @@ package rylween
 import rylween.dsl.*
 import rylween.game.*
 import rylween.save.*
+import java.io.File
 import kotlin.test.Test
 
 class RylweenCompiledGameLedgerTest {
@@ -342,5 +343,46 @@ class RylweenCompiledGameLedgerTest {
         validateGameProgress(nextDsl.progress, nextDsl.itemCatalog)
         validateStates(nextRylween.states, nextDsl)
         check((nativePathsIn(nextDsl) - NativeAllowlist.byPath.keys).isEmpty())
+    }
+
+    @Test
+    fun kotlinRuntimeKeepsLegacyReplayKnobsOutOfGameCode() {
+        val legacyReplayKnobs = listOf(
+            "RYL_STARTING_GOLD",
+            "RYL_STAT_ROLL_MIN",
+            "RYL_STAT_ROLL_MAX",
+            "RYL_FORCE_ENCOUNTER",
+            "RYL_FORCE_ENCOUNTER_NOC",
+            "RYL_FORCE_PARTY_LV",
+            "RYL_FORCE_DEAD_SLOT",
+            "RYL_FORCE_POS",
+            "RYL_FORCE_YDARG_GRANTS",
+            "RYL_FORCE_YDARG_EASY_ROOMS",
+            "RYL_FORCE_PARTY_WP",
+            "RYL_FORCE_PARTY_HP_FULL",
+            "RYL_REPLAY_RUMOUR",
+            "RYL_PARTY_MEMBER_MAX",
+            "RYL_FAKE_EPOCH",
+            "RYL_FAKE_SEED",
+            "RYL_NO_DELAY",
+            "RYL_SNAPSHOT",
+        )
+        val offenders = listOf("src/main/kotlin", "src/app/kotlin", "src/game/kotlin")
+            .flatMap { root ->
+                File(root)
+                    .walkTopDown()
+                    .filter { file -> file.isFile && file.extension in setOf("kt", "kts") }
+                    .flatMap { file ->
+                        val text = file.readText()
+                        legacyReplayKnobs
+                            .filter { knob -> knob in text }
+                            .map { knob -> "${file.invariantSeparatorsPath}: $knob" }
+                    }
+            }
+
+        check(offenders.isEmpty()) {
+            "legacy replay env knobs must stay in the C replay harness or Kotlin tests, not Kotlin game/runtime code: " +
+                offenders.joinToString()
+        }
     }
 }

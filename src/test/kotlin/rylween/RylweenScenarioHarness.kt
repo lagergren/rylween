@@ -1,5 +1,6 @@
 package rylween
 
+import rylween.dsl.StateId
 import rylween.dsl.ViewCommand
 import rylween.frontend.terminal.TerminalAdapterResult
 import rylween.frontend.terminal.TerminalPort
@@ -44,7 +45,7 @@ data class TerminalScenarioCheckpoint<S>(
 )
 
 data class ScenarioFixture(
-    val startState: String? = null,
+    val startState: StateId? = null,
     val seed: Long? = null,
     val notes: List<String> = emptyList(),
 )
