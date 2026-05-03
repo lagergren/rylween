@@ -4238,7 +4238,7 @@ val nextRylween = rylween {
     // Battle magic: the reusable battle runner owns turn order, menus,
     // casting cost, magic immunity, rewards, and monster AI. These blocks
     // declare this game's spell and combat-item effects.
-    spell(Spells.mageFrost, slot = 1, baseCost = 8, name = "Frost Finger") {
+    spell(Spells.Mage.frost, slot = 1, baseCost = 8, name = "Frost Finger") {
         val caster = currentCaster
         val target = ask.monsterAlive(T.Battle.Prompt.monster)
         val damage = localInt(caster.level * random(2..8))

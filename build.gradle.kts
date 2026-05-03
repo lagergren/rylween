@@ -68,6 +68,28 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             generateFlagHandles(flagDeclarations(source)),
             generateItemHandles(itemHandles(source)),
             generateRefsClass(
+                className = "MonsterIds",
+                objectName = "Monsters",
+                typeName = "MonsterId",
+                factoryName = "monster",
+                names = handleNames(declarationBlock(source, "monsters"), "Monsters", "monster"),
+            ),
+            generateRefsClass(
+                className = "EncounterTierRefs",
+                objectName = "EncounterTiers",
+                typeName = "EncounterTier",
+                factoryName = "encounterTier",
+                names = orderedNames(handleNames(source, "EncounterTiers"), listOf("weak", "wild", "deep")),
+            ),
+            generateSpellHandles(spellHandles(source)),
+            generateRefsClass(
+                className = "LootTableRefs",
+                objectName = "LootTables",
+                typeName = "LootTableId",
+                factoryName = "lootTable",
+                names = handleNames(source, "LootTables", "lootTable"),
+            ),
+            generateRefsClass(
                 className = "MapRefs",
                 objectName = "Maps",
                 typeName = "WorldMapId",
@@ -218,6 +240,12 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     private data class ImageHandles(
         val staticNames: List<String>,
         val sceneNames: List<String>,
+    )
+
+    private data class SpellHandles(
+        val mageNames: List<String>,
+        val priestNames: List<String>,
+        val monsterNames: List<String>,
     )
 
     private fun itemHandles(source: String): ItemHandles {
@@ -455,6 +483,58 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             |}
             |
             |val Images: ImageRefs = ImageRefs()
+        """.trimMargin()
+    }
+
+    private fun spellHandles(source: String): SpellHandles {
+        fun nestedSpellNames(group: String): List<String> =
+            Regex("""\bspell\s*\(\s*Spells\.${Regex.escape(group)}\.([A-Za-z][A-Za-z0-9_]*)""")
+                .findAll(source)
+                .map { it.groupValues[1] }
+                .toList()
+                .distinctInOrder()
+
+        return SpellHandles(
+            mageNames = nestedSpellNames("Mage"),
+            priestNames = nestedSpellNames("Priest"),
+            monsterNames = nestedSpellNames("Monster"),
+        ).also {
+            require(it.mageNames.isNotEmpty() || it.priestNames.isNotEmpty() || it.monsterNames.isNotEmpty()) {
+                "No spell declarations found in ${gameSource.get().asFile}."
+            }
+        }
+    }
+
+    private fun generateSpellHandles(handles: SpellHandles): String {
+        val mageLines = handles.mageNames.joinToString(separator = "\n") { name ->
+            """    val $name: SpellId = spellId("mage.${name.toSlug()}")"""
+        }
+        val priestLines = handles.priestNames.joinToString(separator = "\n") { name ->
+            """    val $name: SpellId = spellId("priest.${name.toSlug()}")"""
+        }
+        val monsterLines = handles.monsterNames.joinToString(separator = "\n") { name ->
+            """    val $name: SpellId = spellId("monster.${name.toSlug()}")"""
+        }
+        return """
+            |class SpellRefs {
+            |    val Mage: MageSpellRefs = MageSpellRefs()
+            |    val Priest: PriestSpellRefs = PriestSpellRefs()
+            |    val Monster: MonsterSpellRefs = MonsterSpellRefs()
+            |}
+            |
+            |class MageSpellRefs {
+            |$mageLines
+            |}
+            |
+            |class PriestSpellRefs {
+            |$priestLines
+            |}
+            |
+            |class MonsterSpellRefs {
+            |$monsterLines
+            |}
+            |
+            |val Spells: SpellRefs = SpellRefs()
         """.trimMargin()
     }
 
