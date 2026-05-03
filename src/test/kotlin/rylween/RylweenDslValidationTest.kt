@@ -1366,6 +1366,47 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun dungeonUtilityCommandsUseSharedPartyViewAndDropSessions() {
+        val party = testParty(
+            torches = 1,
+            food = 999,
+            inventoryItems = mapOf(1 to Items.donkey),
+            milestones = listOf(Milestones.fireShield),
+        )
+        val dropTerminal = FakeTerminalPort("L", "A")
+        val dropResult = DungeonSessionTerminalAdapter(dropTerminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.randomCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+                party = party,
+            ),
+        )
+
+        assertTrue(dropResult.status is TerminalRunStatus.Waiting)
+        assertEquals(DungeonSessionResultStatus.DropUsed, dropResult.session.lastResult?.status)
+        assertEquals(null, dropResult.session.party.inventoryItem(1))
+        assertTrue(dropResult.session.party.resources.food < 999)
+        assertTrue(dropTerminal.output.any { "You drop the" in it })
+        assertTrue(dropTerminal.output.any { "leave some of your" in it })
+
+        val viewTerminal = FakeTerminalPort("V", "A")
+        val viewResult = DungeonSessionTerminalAdapter(viewTerminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.randomCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+                party = party,
+            ),
+        )
+
+        assertTrue(viewResult.status is TerminalRunStatus.Waiting)
+        assertEquals(DungeonSessionResultStatus.ViewPartyShown, viewResult.session.lastResult?.status)
+        assertTrue(viewTerminal.output.any { "Special: Fire Shield" in it })
+        assertTrue(viewTerminal.output.any { party.members.first().name in it })
+    }
+
+    @Test
     fun terminalEventHookReceivesAuthoredAnsiScreenImages() {
         val terminal = RecordingTerminalPort("C", "L", "L")
         val result = TownSessionTerminalAdapter(
@@ -3402,6 +3443,36 @@ class RylweenDslValidationTest {
         assertEquals(GridPoint(1, 1), result.point)
         assertFalse(Milestones.fireShield in result.party.milestones)
         assertTrue(result.step is YdargSessionStep.Messages)
+    }
+
+    @Test
+    fun ydargNavigationUsesSharedPartyUtilitySessions() {
+        val content = RylweenCompiledGame.nextDsl
+        val party = testParty(
+            food = 999,
+            timeLeft = 200,
+            restedHours = 14,
+            inventoryItems = mapOf(1 to Items.donkey),
+            milestones = listOf(Milestones.silverKey),
+        )
+        val started = YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(party = party, hour = 12, currentTown = null),
+            content = content.runtimeContent(),
+        ).copy(step = YdargSessionStep.Navigate)
+        val dropTerminal = FakeTerminalPort("L", "A")
+        val dropResult = YdargSessionTerminalAdapter(dropTerminal, compiledTextRenderer()).runUntilBlocked(started)
+
+        assertTrue(dropResult.status is TerminalRunStatus.Waiting)
+        assertEquals(YdargSessionStatus.DropUsed, dropResult.session.lastResult?.status)
+        assertEquals(null, dropResult.session.party.inventoryItem(1))
+        assertTrue(dropResult.session.party.resources.food < 999)
+
+        val viewTerminal = FakeTerminalPort("V", "Q")
+        val viewResult = YdargSessionTerminalAdapter(viewTerminal, compiledTextRenderer()).runUntilBlocked(started)
+
+        assertTrue(viewResult.status is TerminalRunStatus.Waiting)
+        assertEquals(YdargSessionStatus.ViewPartyShown, viewResult.session.lastResult?.status)
+        assertTrue(viewTerminal.output.any { "Torches:" in it })
     }
 
     @Test

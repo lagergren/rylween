@@ -233,6 +233,24 @@ private class RylweenAnsiGame(
                         is TerminalRunStatus.Waiting -> updated
                     }
                 }
+                is WildernessSessionStep.InventoryDrop -> {
+                    val result = InventoryDropTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val updated = session.replaceInventoryDropSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "inventory drop step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
+                is WildernessSessionStep.PartyView -> {
+                    val result = PartyViewTerminalAdapter(port, renderer).runUntilBlocked(step.session, session.runtime)
+                    val updated = session.replacePartyViewSession(result.session)
+                    when (result.status) {
+                        TerminalRunStatus.Finished -> updated
+                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "party view step limit reached") }
+                        is TerminalRunStatus.Waiting -> updated
+                    }
+                }
                 is WildernessSessionStep.Equipment -> {
                     val result = EquipmentPromptTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceEquipmentSession(result.session)
@@ -641,8 +659,13 @@ private class ClassicAnsiScreen(
 }
 
 private fun WildernessSessionResultStatus.statusLine(): List<String> =
-    RuntimeUnavailableText.wildernessStatusLine(this) ?: when (this) {
+    when (this) {
         WildernessSessionResultStatus.Blocked -> listOf("Blocked.")
+        WildernessSessionResultStatus.SaveUnavailable -> listOf("Save not wired yet.")
+        WildernessSessionResultStatus.JournalUnavailable -> listOf("Journal not wired yet.")
+        WildernessSessionResultStatus.HuntUnavailable -> listOf("Hunt is unavailable.")
+        WildernessSessionResultStatus.ViewPartyShown -> emptyList()
+        WildernessSessionResultStatus.DropUsed -> listOf("Inventory updated.")
         WildernessSessionResultStatus.Camped -> emptyList()
         WildernessSessionResultStatus.NotTired -> emptyList()
         WildernessSessionResultStatus.CampNotEnoughFood -> listOf("Not enough food.")

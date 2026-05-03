@@ -69,6 +69,7 @@ data class TerminalTextContext(
     val shopCarryCap: Int? = null,
     val offeredItemName: String? = null,
     val offeredItemPrice: Int? = null,
+    val selectedItemName: String? = null,
     val runtime: RuntimeSessionState? = null,
     val huntMemberNumber: Int? = null,
     val huntFoodGained: Int? = null,
@@ -187,6 +188,7 @@ class TerminalTextRenderer(
                 ?: part.fallbackText()
             TextPart.OfferedItemName -> context.offeredItemName ?: part.fallbackText()
             TextPart.OfferedItemPrice -> context.offeredItemPrice?.toString() ?: part.fallbackText()
+            TextPart.SelectedItemName -> context.selectedItemName ?: part.fallbackText()
             TextPart.ShopPrice -> context.shopPrice?.toString() ?: part.fallbackText()
             TextPart.ShopCarryCap -> context.shopCarryCap?.toString() ?: part.fallbackText()
             TextPart.HuntMemberName -> huntMember(context)?.name ?: part.fallbackText()
