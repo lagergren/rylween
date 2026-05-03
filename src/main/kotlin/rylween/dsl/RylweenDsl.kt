@@ -1564,6 +1564,7 @@ data class DungeonKeysModel(
     val quaff: InputBindingModel = inputKey("Q"),
     val castSpell: InputBindingModel = inputKey("Z"),
     val viewParty: InputBindingModel = inputKey("V"),
+    val save: InputBindingModel = inputKey("S"),
     val commandHint: TextBlock = inlineText("Press ? for commands."),
     val helpPages: List<TextBlock> = emptyList(),
 )

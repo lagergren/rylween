@@ -9,6 +9,7 @@ import rylween.frontend.terminal.ydarg.YdargSessionTerminalAdapter
 import rylween.runtime.*
 import rylween.save.RuntimeSaveOutcome
 import rylween.save.RuntimeSavePort
+import rylween.save.RuntimeSaveRequest
 
 private fun TerminalPort.writeKeyMenu(
     renderer: TerminalTextRenderer,
@@ -745,6 +746,8 @@ class TownSessionTerminalAdapter(
 class DungeonSessionTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+    private val savePort: RuntimeSavePort? = null,
+    private val postDungeon: MissionPostDungeonContinuation? = null,
 ) {
     fun runUntilBlocked(initial: DungeonSession): TerminalAdapterResult<DungeonSession> {
         var session = initial
@@ -763,6 +766,15 @@ class DungeonSessionTerminalAdapter(
                 is DungeonSessionStep.Notice -> {
                     terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
                     session.apply(DungeonSessionInput.Continue)
+                }
+                is DungeonSessionStep.Save -> {
+                    val outcome = saveRuntime(session)
+                    terminal.writeBlocks(
+                        listOf(if (outcome.saved) session.content.prompts.save.done else session.content.prompts.save.failed),
+                        renderer,
+                        TerminalTextContext(runtime = session.runtime),
+                    )
+                    session.completeSave(outcome.saved)
                 }
                 is DungeonSessionStep.Equipment -> {
                     runChildOrBlock(
@@ -892,6 +904,20 @@ class DungeonSessionTerminalAdapter(
             rejection = result.rejection,
             dungeonHandoff = result.dungeonHandoff,
         )
+    }
+
+    private fun saveRuntime(session: DungeonSession): RuntimeSaveOutcome {
+        terminal.writeBlocks(
+            listOf(session.content.prompts.save.saving),
+            renderer,
+            TerminalTextContext(runtime = session.runtime),
+        )
+        val port = savePort ?: return RuntimeSaveOutcome(saved = false, error = "no save port configured")
+        return runCatching {
+            port.save(RuntimeSaveRequest(session.runtime, session.toDungeonSnapshot(postDungeon)))
+        }.getOrElse { error ->
+            RuntimeSaveOutcome(saved = false, error = error.message)
+        }
     }
 
     private fun writeExplore(session: DungeonSession) {
@@ -1047,7 +1073,14 @@ class WildernessSessionTerminalAdapter(
                     runChildOrBlock(
                         session,
                         step.session,
-                        { DungeonSessionTerminalAdapter(terminal, renderer).runUntilBlocked(it) },
+                        {
+                            DungeonSessionTerminalAdapter(
+                                terminal = terminal,
+                                renderer = renderer,
+                                savePort = savePort,
+                                postDungeon = step.postDungeon,
+                            ).runUntilBlocked(it)
+                        },
                         WildernessSession::replaceDungeonSession,
                     ) { return it }
                 }

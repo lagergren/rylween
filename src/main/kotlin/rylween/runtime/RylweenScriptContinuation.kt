@@ -75,3 +75,34 @@ data class ScriptContinuation(
             start(RuntimeSessionState.singleParty(party, hour = 0, currentTown = null))
     }
 }
+
+data class ScriptContinuationSnapshot(
+    val locals: Map<String, Int> = emptyMap(),
+    val realmScalars: Map<String, Int> = emptyMap(),
+    val stack: List<ScriptFrame>,
+    val activeInventorySlot: Int? = null,
+)
+
+fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
+    require(speakSession == null) { "script continuation with active speak session cannot be saved yet" }
+    require(battleSession == null) { "script continuation with active battle session cannot be saved yet" }
+    require(randomItemOfferSession == null) {
+        "script continuation with active random-item offer session cannot be saved yet"
+    }
+    require(rewardGrantSession == null) { "script continuation with active reward grant session cannot be saved yet" }
+    return ScriptContinuationSnapshot(
+        locals = locals,
+        realmScalars = realmScalars,
+        stack = stack,
+        activeInventorySlot = activeInventorySlot,
+    )
+}
+
+fun ScriptContinuationSnapshot.toContinuation(runtime: RuntimeSessionState): ScriptContinuation =
+    ScriptContinuation(
+        runtime = runtime,
+        locals = locals,
+        realmScalars = realmScalars,
+        stack = stack,
+        activeInventorySlot = activeInventorySlot,
+    )

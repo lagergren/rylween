@@ -194,7 +194,12 @@ private class RylweenAnsiGame(
                     session.startDungeonFromHandoff()
                 }
                 is WildernessSessionStep.Dungeon -> {
-                    val result = DungeonSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
+                    val result = DungeonSessionTerminalAdapter(
+                        terminal = port,
+                        renderer = renderer,
+                        savePort = savePort,
+                        postDungeon = step.postDungeon,
+                    ).runUntilBlocked(step.session)
                     val updated = session.replaceDungeonSession(result.session)
                     when (result.status) {
                         TerminalRunStatus.Finished -> updated

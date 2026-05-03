@@ -114,6 +114,25 @@ data class MissionPostDungeonContinuation(
     val continuation: ScriptContinuation,
 )
 
+fun MissionPostDungeonContinuation.toSnapshot(): MissionPostDungeonSnapshot =
+    MissionPostDungeonSnapshot(
+        mission = mission.id,
+        scene = scene.id,
+        continuation = continuation.toSnapshot(),
+    )
+
+fun MissionPostDungeonSnapshot.toMissionPostDungeonContinuation(
+    runtime: RuntimeSessionState,
+    content: RuntimeContent,
+): MissionPostDungeonContinuation =
+    MissionPostDungeonContinuation(
+        mission = content.missions.singleOrNull { it.id == mission }
+            ?: error("runtime snapshot post-dungeon mission ${mission.slug} is not authored"),
+        scene = content.scenes.singleOrNull { it.id == scene }
+            ?: error("runtime snapshot post-dungeon scene ${scene.slug} is not authored"),
+        continuation = continuation.toContinuation(runtime),
+    )
+
 sealed interface WildernessSessionStep {
     object TurnStart : WildernessSessionStep
     object Explore : WildernessSessionStep

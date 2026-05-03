@@ -54,12 +54,12 @@ fun validateStartupState(
 
     if (
         target == RuntimeStartupTarget.Wilderness &&
-        state.realm.currentMode !in setOf(RuntimeMode.Wilderness, RuntimeMode.YdargCastle)
+        state.realm.currentMode !in setOf(RuntimeMode.Wilderness, RuntimeMode.Dungeon, RuntimeMode.YdargCastle)
     ) {
         throw startupFailure(
             sourceName,
             "wilderness startup can only resume ${RuntimeMode.Wilderness.name} or " +
-                "${RuntimeMode.YdargCastle.name} states for now; " +
+                "${RuntimeMode.Dungeon.name} or ${RuntimeMode.YdargCastle.name} states for now; " +
                 "state ${state.id.slug} is ${state.realm.currentMode.name}",
         )
     }
