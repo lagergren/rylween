@@ -613,7 +613,7 @@ data class BattleSession(
             return copy(
                 runtime = gameOver,
                 round = nextRound,
-                step = BattleSessionStep.Finished(gameOver),
+                step = messageStep(texts, BattleSessionStep.Finished(gameOver)),
                 lastResult = result(BattleSessionResultStatus.PartyDefeated),
             )
         }

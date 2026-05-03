@@ -260,24 +260,70 @@ class RylweenDslValidationTest {
     @Test
     fun fileRuntimeSavePortWritesParseableSnapshot() {
         val file = File.createTempFile("rylween-save-", ".kts")
+        val freshReplay = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val sourceParty = freshReplay.parties.single()
+        val saveParty = sourceParty.copy(
+            resources = sourceParty.resources.copy(
+                food = 100,
+                timeLeft = 200,
+                restedHours = 14,
+            ),
+            counters = sourceParty.counters.copy(
+                memberCount = sourceParty.members.count { !it.dead },
+                attackedToday = listOf(PartyAttackRecord(freshReplay.realm.activeParty, false)),
+            ),
+            visitedNpcs = freshReplay.npcs
+                .distinctBy { it.npc }
+                .map { NpcVisitState(it.npc, false) },
+            inventory = (0..InventorySaveSlotMax).map { slot ->
+                sourceParty.inventory.firstOrNull { it.slot == slot } ?: InventorySlotState(slot, null)
+            },
+        )
         try {
-            val runtime = RuntimeSessionState.singleParty(
-                party = testParty(food = 100, timeLeft = 200, restedHours = 14),
-                hour = 12,
-                currentTown = null,
-                rngState = 99L,
-                locations = listOf(LocationPlacement(Locations.silverKeyPit, xy(45, 13))),
+            runCompiledWildernessScenario(
+                name = "wilderness-file-save-load-round-trip",
+                inputs = listOf("S"),
+                seed = 99L,
+                savePort = FileRuntimeSavePort(file, stateId("test-save")),
+                start = {
+                    compiledWildernessSession(
+                        party = saveParty,
+                        rngState = 99L,
+                        locations = listOf(LocationPlacement(Locations.silverKeyPit, xy(45, 13))),
+                    )
+                },
+                checkpoints = listOf(
+                    checkpoint("saved file validates and boots as wilderness") {
+                        val loaded = loadRuntimeStateSnapshot(
+                            file = file,
+                            content = RylweenCompiledGame.nextDsl,
+                            sourceName = "scenario save file",
+                        )
+                        val startup = validateStartupState(
+                            state = loaded,
+                            content = RylweenCompiledGame.nextDsl,
+                            target = RuntimeStartupTarget.Wilderness,
+                            sourceName = "scenario save startup",
+                        )
+                        val session = RylweenKotlinEngine(RylweenCompiledGame.nextDsl).wildernessSession(
+                            state = startup,
+                            worldMap = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
+                            realizeNpcs = false,
+                        )
+
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertEquals(WildernessSessionResultStatus.Saved, result.session.lastResult?.status)
+                        assertEquals(stateId("test-save"), loaded.id)
+                        assertEquals(99L, loaded.realm.rngState)
+                        assertEquals(result.session.party.id, loaded.realm.activeParty)
+                        assertEquals(saveParty.resources.food - 2, loaded.parties.single().resources.food)
+                        assertEquals(xy(45, 13), loaded.locations.single().point)
+                        assertEquals(RuntimeMode.Wilderness, session.runtime.realm.currentMode)
+                        assertOutputContains("Saving position...")
+                        assertOutputContains("Done.")
+                    },
+                ),
             )
-
-            val outcome = FileRuntimeSavePort(file, stateId("test-save")).save(runtime)
-
-            assertTrue(outcome.saved, outcome.error.orEmpty())
-            val parsed = parseRuntimeStateSnapshot(file.readText())
-            assertEquals(stateId("test-save"), parsed.id)
-            assertEquals(99L, parsed.realm.rngState)
-            assertEquals(runtime.activeParty.id, parsed.realm.activeParty)
-            assertEquals(runtime.activeParty.resources.food, parsed.parties.single().resources.food)
-            assertEquals(xy(45, 13), parsed.locations.single().point)
         } finally {
             file.delete()
         }
@@ -1539,43 +1585,64 @@ class RylweenDslValidationTest {
 
     @Test
     fun terminalEventHookReceivesAuthoredAnsiScreenImages() {
-        val terminal = RecordingTerminalPort("C", "L", "L")
-        val result = TownSessionTerminalAdapter(
-            terminal,
-            renderer = compiledTextRenderer(),
-            serviceBridge = StatefulScriptBridge(
-                terminal,
-                renderer = compiledTextRenderer(),
+        runCompiledTownScenario(
+            name = "town-service-view-events-church-image",
+            inputs = listOf("C", "L", "L"),
+            party = testParty(gold = 10),
+            serviceBridge = { terminal ->
+                StatefulScriptBridge(
+                    terminal,
+                    battleContent = RylweenCompiledGame.nextDsl.runtimeContent(),
+                    renderer = compiledTextRenderer(),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("church scene emits image and clear-map commands") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertImageShown(Images.Scene.church.slug)
+                    assertViewCommand(ViewCommand.ClearMapWindow)
+                },
             ),
-        ).runUntilBlocked(compiledTownSession(party = testParty(gold = 10)))
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertTrue(Images.Scene.church.slug in terminal.imageSlugs)
-        assertTrue(ViewCommand.ClearMapWindow in terminal.viewCommands)
+        )
     }
 
     @Test
     fun terminalEventHookReceivesCaveAndDungeonBackdropImages() {
-        val caveTerminal = RecordingTerminalPort("2", "L")
-        WildernessSessionTerminalAdapter(caveTerminal, compiledTextRenderer()).runUntilBlocked(
-            compiledWildernessSession(
-                party = testParty(food = 100, timeLeft = 200, restedHours = 14)
-                    .copy(position = Wilderness.xy(12, 9)),
-                rngState = 21L,
+        runCompiledWildernessScenario(
+            name = "wilderness-cave-discovery-view-event",
+            inputs = listOf("2", "L"),
+            seed = 21L,
+            start = {
+                compiledWildernessSession(
+                    party = testParty(food = 100, timeLeft = 200, restedHours = 14)
+                        .copy(position = Wilderness.xy(12, 9)),
+                    rngState = 21L,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("cave discovery emits authored backdrop") {
+                    assertImageShown(Images.Backdrop.cave.slug)
+                },
             ),
         )
 
-        val dungeonTerminal = RecordingTerminalPort()
-        DungeonSessionTerminalAdapter(dungeonTerminal, compiledTextRenderer()).runUntilBlocked(
-            compiledDungeonSession(
-                dungeon = Dungeons.randomCave,
-                levels = 1,
-                dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+        runDungeonScenario(
+            name = "dungeon-entry-view-event",
+            inputs = emptyList(),
+            levels = 1,
+            session = {
+                compiledDungeonSession(
+                    dungeon = Dungeons.randomCave,
+                    levels = 1,
+                    dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("dungeon entry emits authored backdrop") {
+                    assertImageShown(Images.Backdrop.insideCave.slug)
+                },
             ),
         )
-
-        assertTrue(Images.Backdrop.cave.slug in caveTerminal.imageSlugs)
-        assertTrue(Images.Backdrop.insideCave.slug in dungeonTerminal.imageSlugs)
     }
 
     @Test
@@ -3929,20 +3996,173 @@ class RylweenDslValidationTest {
             runtime = RuntimeSessionState.singleParty(party = party, hour = 12, currentTown = null),
             content = content.runtimeContent(),
         ).copy(step = YdargSessionStep.Navigate)
-        val dropTerminal = FakeTerminalPort("L", "A")
-        val dropResult = YdargSessionTerminalAdapter(dropTerminal, compiledTextRenderer()).runUntilBlocked(started)
 
-        assertTrue(dropResult.status is TerminalRunStatus.Waiting)
-        assertEquals(YdargSessionStatus.DropUsed, dropResult.session.lastResult?.status)
-        assertEquals(null, dropResult.session.party.inventoryItem(1))
-        assertTrue(dropResult.session.party.resources.food < 999)
+        runCompiledYdargScenario(
+            name = "ydarg-navigation-drop-uses-shared-inventory-session",
+            inputs = listOf("L", "A"),
+            start = { started },
+            checkpoints = listOf(
+                checkpoint("drop removes item and reapplies capacity") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(YdargSessionStatus.DropUsed, result.session.lastResult?.status)
+                    assertEquals(null, result.session.party.inventoryItem(1))
+                    assertTrue(result.session.party.resources.food < 999)
+                },
+            ),
+        )
 
-        val viewTerminal = FakeTerminalPort("V", "Q")
-        val viewResult = YdargSessionTerminalAdapter(viewTerminal, compiledTextRenderer()).runUntilBlocked(started)
+        runCompiledYdargScenario(
+            name = "ydarg-navigation-view-uses-shared-party-session",
+            inputs = listOf("V", "Q"),
+            start = { started },
+            checkpoints = listOf(
+                checkpoint("party view renders inside Ydarg navigation") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(YdargSessionStatus.ViewPartyShown, result.session.lastResult?.status)
+                    assertOutputContains("Torches:")
+                },
+            ),
+        )
+    }
 
-        assertTrue(viewResult.status is TerminalRunStatus.Waiting)
-        assertEquals(YdargSessionStatus.ViewPartyShown, viewResult.session.lastResult?.status)
-        assertTrue(viewTerminal.output.any { "Torches:" in it })
+    @Test
+    fun ydargTreasureRoomRunsThroughScenarioHarness() {
+        val content = RylweenCompiledGame.nextDsl
+        val started = YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    milestones = listOf(Milestones.silverKey),
+                ),
+                hour = 12,
+                currentTown = null,
+                rngState = 1L,
+            ),
+            content = content.runtimeContent(),
+        ).copy(
+            rooms = mapOf(GridPoint(1, 1) to YdargRoomEvent.Treasure),
+            step = YdargSessionStep.RoomEntry,
+            floor = 1,
+            point = GridPoint(1, 1),
+        )
+
+        runCompiledYdargScenario(
+            name = "ydarg-treasure-room-take-item",
+            inputs = listOf("T"),
+            seed = 1L,
+            start = { started },
+            checkpoints = listOf(
+                checkpoint("treasure prompt grants authored item") {
+                    val item = checkNotNull(result.session.lastResult?.item)
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(YdargSessionStatus.TreasureTaken, result.session.lastResult.status)
+                    assertEquals(item, result.session.party.inventoryItem(1))
+                    assertOutputContains("You find a")
+                    assertOutputContains("Ok.")
+                },
+            ),
+        )
+    }
+
+    @Test
+    fun ydargPitfallRoomRunsThroughScenarioHarness() {
+        val content = RylweenCompiledGame.nextDsl
+        val started = YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    health = 60,
+                    hitPoints = 60,
+                    milestones = listOf(Milestones.silverKey),
+                ),
+                hour = 12,
+                currentTown = null,
+                rngState = 1L,
+            ),
+            content = content.runtimeContent(),
+        ).copy(
+            rooms = mapOf(GridPoint(1, 1) to YdargRoomEvent.Pitfall),
+            step = YdargSessionStep.RoomEntry,
+            floor = 1,
+            point = GridPoint(1, 1),
+        )
+
+        runCompiledYdargScenario(
+            name = "ydarg-pitfall-room-damages-party",
+            inputs = emptyList(),
+            seed = 1L,
+            start = { started },
+            checkpoints = listOf(
+                checkpoint("pitfall text and damage apply") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(YdargSessionStatus.Pitfall, result.session.lastResult?.status)
+                    assertEquals(50, result.session.party.members.single().hitPoints.current)
+                    assertOutputContains("trap!!!")
+                },
+            ),
+        )
+    }
+
+    @Test
+    fun ydargFinalConfrontationRunsThroughScenarioHarness() {
+        val content = RylweenCompiledGame.nextDsl.runtimeContent().withTinyMissionMonsters(
+            Monsters.cryptHorror,
+            Monsters.nightGaunt,
+            Monsters.thyraga,
+            Monsters.liche,
+            Monsters.baronYdarg,
+        )
+        val party = decisiveMissionParty().copy(
+            milestones = listOf(
+                Milestones.silverKey,
+                Milestones.fireShield,
+                Milestones.masterCrown,
+                Milestones.footOfJazzy,
+                Milestones.braceletsOfThun,
+            ),
+        )
+        val started = YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = party,
+                hour = 12,
+                currentTown = null,
+                rngState = 1L,
+            ),
+            content = content,
+        ).copy(
+            step = YdargSessionStep.StairGive,
+            floor = 4,
+            point = GridPoint(5, 5),
+        )
+
+        runCompiledYdargScenario(
+            name = "ydarg-final-confrontation-victory",
+            inputs = listOf(
+                "4",
+                "F", "A", "A",
+                "F", "A", "A",
+                "F", "A", "A",
+                "F", "A", "A",
+                "F", "A", "A",
+            ),
+            seed = 1L,
+            start = { started },
+            checkpoints = listOf(
+                checkpoint("victory milestone and ending text apply") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(YdargSessionStatus.Victory, result.session.lastResult?.status)
+                    assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+                    assertTrue(Milestones.ydargVictory in result.session.party.milestones)
+                    assertFalse(Milestones.braceletsOfThun in result.session.party.milestones)
+                    assertOutputContains("CONGRATULATIONS!")
+                    assertOutputContains("You have banished Ydarg")
+                },
+            ),
+        )
     }
 
     @Test
@@ -4518,6 +4738,45 @@ class RylweenDslValidationTest {
                     assertTrue(result.session.step is BattleSessionStep.RoundOpening)
                     assertEquals(3, result.session.encounter.hitPoints.first())
                     assertEquals(89, result.session.runtime.activeParty.members.single().hitPoints.current)
+                },
+            ),
+        )
+    }
+
+    @Test
+    fun battleSessionPartyDefeatRunsThroughScenarioHarness() {
+        runCompiledBattleScenario(
+            name = "battle-party-defeat",
+            inputs = listOf("F", "D"),
+            start = {
+                customBattleSession(
+                    party = testParty(
+                        food = 100,
+                        timeLeft = 200,
+                        restedHours = 14,
+                        health = 1,
+                        hitPoints = 1,
+                    ),
+                    monster = MonsterModel(
+                        id = Monsters.bandit,
+                        name = "Executioner",
+                        count = 1..1,
+                        countMaxLevelDivisor = null,
+                        hitPoints = 300..300,
+                        weaponSkill = 100,
+                        spellPower = 0,
+                        tier = EncounterTiers.weak,
+                        immune = false,
+                    ),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("monster round can finish game over") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(BattleSessionResultStatus.PartyDefeated, result.session.lastResult.status)
+                    assertEquals(RuntimeMode.GameOver, result.session.runtime.realm.currentMode)
+                    assertTrue(result.session.runtime.activeParty.members.single().dead)
+                    assertOutputContains("DIES!!!")
                 },
             ),
         )
@@ -5254,6 +5513,24 @@ class RylweenDslValidationTest {
             start = start,
             drive = { terminal, session ->
                 BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(session)
+            },
+            checkpoints = checkpoints,
+        ).run()
+
+    private fun runCompiledYdargScenario(
+        name: String,
+        inputs: List<String>,
+        seed: Long? = null,
+        start: () -> YdargSession,
+        checkpoints: List<TerminalScenarioCheckpoint<YdargSession>> = emptyList(),
+    ): TerminalScenarioRun<YdargSession> =
+        TerminalScenario(
+            name = name,
+            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = seed),
+            inputs = inputs,
+            start = start,
+            drive = { terminal, session ->
+                YdargSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(session)
             },
             checkpoints = checkpoints,
         ).run()
@@ -6213,22 +6490,5 @@ class RylweenDslValidationTest {
 
         override fun readLine(): String? =
             queue.removeFirstOrNull()
-    }
-
-    private class RecordingTerminalPort(vararg inputs: String) : FakeTerminalPort(*inputs) {
-        val imageSlugs = mutableListOf<String>()
-        val viewCommands = mutableListOf<ViewCommand>()
-
-        override fun writeViewCommand(
-            command: ViewCommand,
-            renderer: TerminalTextRenderer,
-            context: TerminalTextContext,
-        ): Boolean {
-            viewCommands += command
-            if (command is ViewCommand.ShowImage) {
-                imageSlugs += command.image.slug
-            }
-            return true
-        }
     }
 }
