@@ -3238,137 +3238,156 @@ class RylweenDslValidationTest {
 
     @Test
     fun compiledGameTownRunsAuthoredMerchantTorchPurchase() {
-        val terminal = FakeTerminalPort("M", "B", "A", "99", "P", "L", "L")
-        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
-            compiledTownSession(party = testParty(gold = 10, torches = 78)),
+        runCompiledTownScenario(
+            name = "town-merchant-torch-purchase",
+            inputs = listOf("M", "B", "A", "99", "P", "L", "L"),
+            party = testParty(gold = 10, torches = 78),
+            checkpoints = listOf(
+                checkpoint("torch purchase mutates resources") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(80, result.session.party.resources.torches)
+                    assertEquals(8, result.session.party.resources.gold)
+                    assertOutputContains("(A) Torch")
+                    assertOutputContains("Deal!")
+                },
+            ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(80, result.session.party.resources.torches)
-        assertEquals(8, result.session.party.resources.gold)
-        assertTrue(terminal.output.any { "(A) Torch" in it })
-        assertTrue(terminal.output.any { "Deal!" in it })
     }
 
     @Test
     fun compiledGameTownRunsAuthoredSmithSale() {
-        val terminal = FakeTerminalPort("S", "S", "A", "Y", "L", "L")
-        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
-            compiledTownSession(party = testParty(inventoryItems = mapOf(1 to Items.sword))),
+        runCompiledTownScenario(
+            name = "town-smith-sell-sword",
+            inputs = listOf("S", "S", "A", "Y", "L", "L"),
+            party = testParty(inventoryItems = mapOf(1 to Items.sword)),
+            checkpoints = listOf(
+                checkpoint("sale removes item and pays gold") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(null, result.session.party.inventoryItem(1))
+                    assertEquals(80, result.session.party.resources.gold)
+                    assertOutputContains("Ok! Give ya 80!")
+                },
+            ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(null, result.session.party.inventoryItem(1))
-        assertEquals(80, result.session.party.resources.gold)
-        assertTrue(terminal.output.any { "Ok! Give ya 80!" in it })
     }
 
     @Test
     fun compiledGameTownRunsAuthoredTavernScruffyOffer() {
-        val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
-        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
-            compiledTownSession(party = testParty(gold = 2000)),
+        runCompiledTownScenario(
+            name = "town-tavern-scruffy-offer",
+            inputs = listOf("T", "B", "L", "L", "N"),
+            party = testParty(gold = 2000),
+            checkpoints = listOf(
+                checkpoint("scruffy purchase grants selected item") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(200, result.session.party.resources.gold)
+                    assertEquals(Items.magicDagger, result.session.party.inventoryItem(1))
+                    assertOutputContains("  Magic Dagger")
+                },
+            ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(200, result.session.party.resources.gold)
-        assertEquals(Items.magicDagger, result.session.party.inventoryItem(1))
-        assertTrue(terminal.output.any { "  Magic Dagger" in it })
     }
 
     @Test
     fun compiledGameTownRunsAuthoredTavernScruffyOfferWithSeededSelection() {
-        val terminal = FakeTerminalPort("T", "B", "L", "L", "N")
-        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
-            compiledTownSession(party = testParty(gold = 2000), rngState = 126L),
+        runCompiledTownScenario(
+            name = "town-tavern-scruffy-offer-seeded-selection",
+            inputs = listOf("T", "B", "L", "L", "N"),
+            party = testParty(gold = 2000),
+            rngState = 126L,
+            checkpoints = listOf(
+                checkpoint("seed selects green gem and advances rng") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(100, result.session.party.resources.gold)
+                    assertEquals(Items.greenGem, result.session.party.inventoryItem(1))
+                    assertEquals(141898022896021606L, result.session.runtime.realm.rngState)
+                    assertOutputContains("  Green Gem")
+                },
+            ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(100, result.session.party.resources.gold)
-        assertEquals(Items.greenGem, result.session.party.inventoryItem(1))
-        assertEquals(141898022896021606L, result.session.runtime.realm.rngState)
-        assertTrue(terminal.output.any { "  Green Gem" in it })
     }
 
     @Test
     fun compiledGameTownRunsAuthoredTavernDrinkOrder() {
-        val terminal = FakeTerminalPort("T", "N", "O", "A", "L", "L")
-        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
-            compiledTownSession(
-                party = testParty(
-                    gold = 10,
-                    members = listOf(
-                        testMember(name = "Alive", hitPoints = 1, health = 10),
-                        testMember(name = "Dead", hitPoints = 0, health = 10, dead = true),
-                    ),
+        runCompiledTownScenario(
+            name = "town-tavern-drink-order",
+            inputs = listOf("T", "N", "O", "A", "L", "L"),
+            party = testParty(
+                gold = 10,
+                members = listOf(
+                    testMember(name = "Alive", hitPoints = 1, health = 10),
+                    testMember(name = "Dead", hitPoints = 0, health = 10, dead = true),
                 ),
             ),
+            checkpoints = listOf(
+                checkpoint("drink heals living members only") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(8, result.session.party.resources.gold)
+                    assertEquals(listOf(3, 2), result.session.party.members.map { it.hitPoints.current })
+                    assertEquals(listOf(false, true), result.session.party.members.map { it.dead })
+                    assertOutputContains("AAH! (your health")
+                },
+            ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(8, result.session.party.resources.gold)
-        assertEquals(listOf(3, 2), result.session.party.members.map { it.hitPoints.current })
-        assertEquals(listOf(false, true), result.session.party.members.map { it.dead })
-        assertTrue(terminal.output.any { "AAH! (your health" in it })
     }
 
     @Test
     fun compiledGameTownRunsAuthoredTavernTravellerStory() {
-        val terminal = FakeTerminalPort("T", "N", "T", "1", "T", "", "L", "L")
-        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
-            compiledTownSession(
-                party = testParty(
-                    members = listOf(testMember(name = "Borin", charisma = 10)),
-                ),
+        runCompiledTownScenario(
+            name = "town-tavern-traveller-story",
+            inputs = listOf("T", "N", "T", "1", "T", "", "L", "L"),
+            party = testParty(
+                members = listOf(testMember(name = "Borin", charisma = 10)),
+            ),
+            checkpoints = listOf(
+                checkpoint("story prompt and result are rendered") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(7, result.session.party.members.single().charisma)
+                    assertOutputContains("Niklas, the keeper")
+                    assertOutputContains("Who wants to tell")
+                    assertOutputContains("a story? (1-4)")
+                    assertOutputContains("Most of the crowd")
+                    assertOutputContains("beg you to stop.")
+                },
             ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(7, result.session.party.members.single().charisma)
-        assertTrue(terminal.output.any { "Niklas, the keeper" in it })
-        assertTrue(terminal.output.any { "Who wants to tell" in it })
-        assertTrue(terminal.output.any { "a story? (1-4)" in it })
-        assertTrue(terminal.output.any { "Most of the crowd" in it })
-        assertTrue(terminal.output.any { "beg you to stop." in it })
     }
 
     @Test
     fun compiledGameTownRunsAuthoredTavernTravellerStoryWithSeededScore() {
-        val terminal = FakeTerminalPort("T", "T", "1", "T", "", "L", "L")
-        val result = TownSessionTerminalAdapter(terminal).runUntilBlocked(
-            compiledTownSession(
-                party = testParty(
-                    members = listOf(testMember(name = "Borin", charisma = 10)),
-                ),
-                rngState = 4L,
+        runCompiledTownScenario(
+            name = "town-tavern-traveller-story-seeded-score",
+            inputs = listOf("T", "T", "1", "T", "", "L", "L"),
+            party = testParty(
+                members = listOf(testMember(name = "Borin", charisma = 10)),
+            ),
+            rngState = 4L,
+            checkpoints = listOf(
+                checkpoint("story score uses seeded rng") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(9, result.session.party.members.single().charisma)
+                    assertEquals(13512173405898766L, result.session.runtime.realm.rngState)
+                    assertOutputContains("The mob is bored.")
+                },
             ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(9, result.session.party.members.single().charisma)
-        assertEquals(4504699139039237L, result.session.runtime.realm.rngState)
-        assertTrue(terminal.output.any { "The mob is bored." in it })
     }
 
     @Test
     fun compiledGameTownRunsAuthoredTavernRumourQuietLimit() {
-        val terminal = FakeTerminalPort("T", "N", "R", "", "R", "", "R", "", "R", "", "R", "", "L", "L")
-        val result = TownSessionTerminalAdapter(
-            terminal,
-            serviceBridge = StatefulScriptBridge(
-                terminal,
-                speakContent = compiledSpeakContent(),
-                battleContent = RuntimeContent(itemRecords = RylweenCompiledGame.nextDsl.itemCatalog),
-                renderer = compiledTextRenderer(),
+        runCompiledTownScenario(
+            name = "town-tavern-rumour-quiet-limit",
+            inputs = listOf("T", "N", "R", "", "R", "", "R", "", "R", "", "R", "", "L", "L"),
+            party = testParty(),
+            checkpoints = listOf(
+                checkpoint("quiet limit text is rendered") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertOutputContains("After listening a while")
+                    assertOutputContains("The tavern has suddenly")
+                    assertOutputContains("become very quiet.")
+                },
             ),
-        ).runUntilBlocked(
-            compiledTownSession(party = testParty()),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertTrue(terminal.output.any { "After listening a while" in it })
-        assertTrue(terminal.output.any { "The tavern has suddenly" in it })
-        assertTrue(terminal.output.any { "become very quiet." in it })
     }
 
     @Test
@@ -4790,26 +4809,30 @@ class RylweenDslValidationTest {
             (1..11).map { y -> if (y == 11) mapRow(12 to '0') else mapRow() },
         )
         val engine = RylweenKotlinEngine(content)
-        val terminal = FakeTerminalPort("2", "2", "E", "L", "X", "Y")
-        val result = WildernessSessionTerminalAdapter(
-            terminal = terminal,
-            renderer = compiledTextRenderer(),
-            serviceBridge = StatefulScriptBridge(
-                terminal,
-                speakContent = compiledSpeakContent(),
-                renderer = compiledTextRenderer(),
+        runCompiledWildernessScenario(
+            name = "wilderness-enter-thord-town-and-leave",
+            inputs = listOf("2", "2", "E", "L", "X", "Y"),
+            start = { engine.wildernessSession(state, map, rngState = null, realizeNpcs = false) },
+            serviceBridge = { terminal ->
+                StatefulScriptBridge(
+                    terminal,
+                    speakContent = compiledSpeakContent(),
+                    battleContent = content.runtimeContent(),
+                    renderer = compiledTextRenderer(),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("town session returns to wilderness shell") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(GridPoint(12, 11), (result.session.party.position as WorldPosition.Wilderness).point)
+                    assertEquals(198, result.session.party.resources.timeLeft)
+                    assertEquals(98, result.session.party.resources.food)
+                    assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+                    assertEquals(null, result.session.runtime.realm.currentTown)
+                    assertOutputContains("Thord")
+                },
             ),
-        ).runUntilBlocked(
-            engine.wildernessSession(state, map, rngState = null, realizeNpcs = false),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Finished)
-        assertEquals(GridPoint(12, 11), (result.session.party.position as WorldPosition.Wilderness).point)
-        assertEquals(198, result.session.party.resources.timeLeft)
-        assertEquals(98, result.session.party.resources.food)
-        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
-        assertEquals(null, result.session.runtime.realm.currentTown)
-        assertTrue(terminal.output.any { "Thord" in it })
     }
 
     @Test
@@ -5113,6 +5136,40 @@ class RylweenDslValidationTest {
         )
     }
 
+    private fun runCompiledTownScenario(
+        name: String,
+        inputs: List<String>,
+        party: PartyState,
+        townId: TownId = Towns.thord.id,
+        currentHour: Int = 12,
+        rngState: Long? = null,
+        npcs: List<NpcPlacement> = emptyList(),
+        serviceBridge: ((ScenarioTerminalPort) -> ScriptBridge)? = null,
+        checkpoints: List<TerminalScenarioCheckpoint<TownSession>> = emptyList(),
+    ): TerminalScenarioRun<TownSession> =
+        TerminalScenario(
+            name = name,
+            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = rngState),
+            inputs = inputs,
+            start = {
+                compiledTownSession(
+                    party = party,
+                    townId = townId,
+                    currentHour = currentHour,
+                    rngState = rngState,
+                    npcs = npcs,
+                )
+            },
+            drive = { terminal, session ->
+                TownSessionTerminalAdapter(
+                    terminal = terminal,
+                    renderer = compiledTextRenderer(),
+                    serviceBridge = serviceBridge?.invoke(terminal),
+                ).runUntilBlocked(session)
+            },
+            checkpoints = checkpoints,
+        ).run()
+
     private fun compiledWildernessSession(
         party: PartyState? = null,
         hour: Int? = null,
@@ -5164,6 +5221,7 @@ class RylweenDslValidationTest {
         seed: Long? = null,
         start: () -> WildernessSession,
         savePort: RuntimeSavePort? = null,
+        serviceBridge: ((ScenarioTerminalPort) -> ScriptBridge)? = null,
         checkpoints: List<TerminalScenarioCheckpoint<WildernessSession>> = emptyList(),
     ): TerminalScenarioRun<WildernessSession> =
         TerminalScenario(
@@ -5175,6 +5233,7 @@ class RylweenDslValidationTest {
                 WildernessSessionTerminalAdapter(
                     terminal = terminal,
                     renderer = compiledTextRenderer(),
+                    serviceBridge = serviceBridge?.invoke(terminal),
                     savePort = savePort,
                 ).runUntilBlocked(session)
             },
