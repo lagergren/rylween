@@ -3372,6 +3372,37 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun validationRejectsYdargEntryOffCastleTile() {
+        val content = RylweenCompiledGame.nextDsl
+        val wildernessMap = content.worldMaps.single { it.id == Maps.wilderness }
+        val brokenMap = wildernessMap.copy(
+            layers = wildernessMap.layers.map { layer ->
+                if (layer.id == MapLayers.terrain) {
+                    layer.copy(
+                        rows = layer.rows.mapIndexed { index, row ->
+                            if (index == 29) row.replaceRange(14, 15, "s") else row
+                        },
+                    )
+                } else {
+                    layer
+                }
+            },
+        )
+        val diagnostics = collectAuthoredContentDiagnostics(
+            content.copy(
+                worldMaps = content.worldMaps.map { map -> if (map.id == Maps.wilderness) brokenMap else map },
+            ),
+        )
+
+        assertTrue(
+            diagnostics.any {
+                it.path == "ydarg" &&
+                    "Ydarg entry 14x30 must point at castle tile '2'" in it.message
+            },
+        )
+    }
+
+    @Test
     fun validationRejectsUnboundTerrainReferences() {
         val missingTerrain = terrain("missing_terrain", 'x')
         val scene = sceneId("bad.terrain")
@@ -4250,6 +4281,41 @@ class RylweenDslValidationTest {
                     assertOutputContains("guardian of the gate.")
                     assertOutputContains("remain sealed.")
                     assertOutputDoesNotContain("Castle entry is not ported yet.")
+                },
+            ),
+        )
+    }
+
+    @Test
+    fun wildernessCastleEntryAfterYdargVictoryShowsRuinsAndReturns() {
+        val map = WorldMapGrid.fromSourceRows(
+            List(30) { y ->
+                if (y == 29) mapRow(14 to '2', width = 20) else mapRow(width = 20)
+            },
+        )
+        runCompiledWildernessScenario(
+            name = "ydarg-gate-after-victory",
+            inputs = listOf("E"),
+            start = {
+                compiledWildernessSession(
+                    party = testParty(
+                        food = 100,
+                        timeLeft = 200,
+                        restedHours = 14,
+                        milestones = listOf(Milestones.silverKey, Milestones.ydargVictory),
+                    ).copy(position = Wilderness.xy(14, 30)),
+                    worldMap = map,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("cleared castle renders ruins and returns to wilderness") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(WildernessSessionResultStatus.LeftYdarg, result.session.lastResult?.status)
+                    assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+                    assertImageShown(Images.Backdrop.ydargCastle.slug)
+                    assertOutputContains("nothing but a ruin.")
+                    assertOutputContains("You have nothing else")
+                    assertOutputDoesNotContain("guardian of the gate.")
                 },
             ),
         )
