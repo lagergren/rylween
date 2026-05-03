@@ -14,6 +14,7 @@ sealed interface DungeonSessionInput {
     object Quaff : DungeonSessionInput
     object CastSpell : DungeonSessionInput
     object ViewParty : DungeonSessionInput
+    object Save : DungeonSessionInput
     object Continue : DungeonSessionInput
 }
 
@@ -39,6 +40,9 @@ enum class DungeonSessionResultStatus {
     CastSpellUsed,
     CastSpellUnavailable,
     EventCompleted,
+    SaveRequested,
+    Saved,
+    SaveFailed,
 }
 
 data class DungeonSessionResult(
@@ -60,6 +64,7 @@ sealed interface DungeonSessionStep {
     data class Event(val event: DungeonEventModel, val continuation: ScriptContinuation? = null) :
         DungeonSessionStep
     data class RandomEncounter(val event: DungeonEventModel, val session: BattleSession? = null) : DungeonSessionStep
+    data class Save(val next: DungeonSessionStep) : DungeonSessionStep
     data class Finished(val runtime: RuntimeSessionState) : DungeonSessionStep
 }
 
@@ -111,8 +116,10 @@ data class DungeonSession(
                 DungeonSessionInput.Quaff -> quaff()
                 DungeonSessionInput.CastSpell -> castSpell()
                 DungeonSessionInput.ViewParty -> viewParty()
+                DungeonSessionInput.Save -> requestSave()
                 DungeonSessionInput.Continue -> this
             }
+            is DungeonSessionStep.Save -> error("dungeon save step is advanced by completeSave()")
             is DungeonSessionStep.Messages -> {
                 require(input is DungeonSessionInput.Continue) { "dungeon session is showing messages" }
                 continueMessages()
@@ -351,6 +358,17 @@ data class DungeonSession(
             lastResult = result(DungeonSessionResultStatus.CastSpellRequested),
         )
 
+    fun completeSave(saved: Boolean): DungeonSession {
+        val current = step as? DungeonSessionStep.Save
+            ?: error("dungeon session is not saving")
+        return copy(
+            step = current.next,
+            lastResult = result(
+                if (saved) DungeonSessionResultStatus.Saved else DungeonSessionResultStatus.SaveFailed,
+            ),
+        )
+    }
+
     private fun equipment(command: EquipmentCommand): DungeonSession =
         copy(
             step = DungeonSessionStep.Equipment(
@@ -361,6 +379,12 @@ data class DungeonSession(
 
     private fun notice(text: TextBlock, status: DungeonSessionResultStatus): DungeonSession =
         copy(step = DungeonSessionStep.Notice(text, DungeonSessionStep.Explore), lastResult = result(status))
+
+    private fun requestSave(): DungeonSession =
+        copy(
+            step = DungeonSessionStep.Save(DungeonSessionStep.Explore),
+            lastResult = result(DungeonSessionResultStatus.SaveRequested),
+        )
 
     private fun result(status: DungeonSessionResultStatus): DungeonSessionResult =
         DungeonSessionResult(status, dungeon, depth, maxDepth)
@@ -464,3 +488,62 @@ private fun List<DungeonRandomEventModel>.drawEvent(runtime: RuntimeSessionState
     }.event
     return DungeonRandomEventDraw(draw.runtime, event)
 }
+
+fun DungeonSession.toDungeonSnapshot(
+    postDungeon: MissionPostDungeonContinuation? = null,
+): RuntimeModeSnapshot.Dungeon =
+    RuntimeModeSnapshot.Dungeon(
+        session = DungeonSessionSnapshot(
+            dungeon = dungeon,
+            maxDepth = maxDepth,
+            depth = depth,
+            levelEvents = levelEvents,
+            step = savedStep(),
+        ),
+        postDungeon = postDungeon?.toSnapshot(),
+    )
+
+fun RuntimeModeSnapshot.Dungeon.toDungeonSession(
+    runtime: RuntimeSessionState,
+    content: RuntimeContent,
+    worldMap: WorldMapGrid,
+): DungeonSession =
+    DungeonSession(
+        runtime = runtime.asDungeon(worldMap),
+        worldMap = worldMap,
+        dungeon = session.dungeon,
+        maxDepth = session.maxDepth,
+        depth = session.depth,
+        levelEvents = session.levelEvents,
+        content = content,
+        step = session.toStep(),
+        lastResult = DungeonSessionResult(
+            DungeonSessionResultStatus.Started,
+            session.dungeon,
+            session.depth,
+            session.maxDepth,
+        ),
+    )
+
+private fun DungeonSession.savedStep(): DungeonSavedStep =
+    when (snapshotStep()) {
+        DungeonSessionStep.Explore -> DungeonSavedStep.Explore
+        else -> error("cannot save dungeon while ${step.javaClass.simpleName} is active")
+    }
+
+private fun DungeonSession.snapshotStep(): DungeonSessionStep =
+    (step as? DungeonSessionStep.Save)?.next ?: step
+
+private fun DungeonSessionSnapshot.toStep(): DungeonSessionStep =
+    when (step) {
+        DungeonSavedStep.Explore -> DungeonSessionStep.Explore
+    }
+
+private fun RuntimeSessionState.asDungeon(worldMap: WorldMapGrid): RuntimeSessionState =
+    withRealm(
+        realm.copy(
+            currentMode = RuntimeMode.Dungeon,
+            currentTown = null,
+            currentMap = worldMap.id,
+        ),
+    )

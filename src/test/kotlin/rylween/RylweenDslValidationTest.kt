@@ -367,6 +367,78 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun runtimeSnapshotEmitterRoundTripsDungeonSessionBlock() {
+        val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val snapshot = RuntimeSnapshotModel(
+            state = base.copy(
+                kind = StateKind.RuntimeSnapshot,
+                realm = base.realm.copy(
+                    currentMode = RuntimeMode.Dungeon,
+                    rngState = 1234L,
+                ),
+            ),
+            mode = RuntimeModeSnapshot.Dungeon(
+                session = DungeonSessionSnapshot(
+                    dungeon = Dungeons.thunTemple,
+                    maxDepth = 18,
+                    depth = 4,
+                    levelEvents = mapOf(4 to DungeonEvents.thunRiddle1),
+                ),
+                postDungeon = MissionPostDungeonSnapshot(
+                    mission = Missions.thunTemple,
+                    scene = Scenes.Missions.thunTemple,
+                    continuation = ScriptContinuationSnapshot(
+                        locals = mapOf("dungeon_level" to 4),
+                        stack = listOf(
+                            ScriptFrame(
+                                block = ScriptBlockRef.Root,
+                                nextIndex = 1,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        val parsed = parseRuntimeSnapshot(rendered)
+
+        assertTrue("dungeon {" in rendered)
+        assertTrue("""dungeon = dungeon("thun_temple")""" in rendered)
+        assertTrue("""level(4, dungeonEvent("thun_riddle1"))""" in rendered)
+        assertTrue("postDungeon {" in rendered)
+        assertEquals(snapshot.state.realm, parsed.state.realm)
+        assertEquals(snapshot.mode, parsed.mode)
+        assertEquals(rendered, renderRuntimeStateSnapshot(parsed))
+    }
+
+    @Test
+    fun fileRuntimeSavePortRejectsLossyDungeonSaveWithoutSessionSnapshot() {
+        val file = File.createTempFile("rylween-save-", ".kts")
+        val baseRuntime = RuntimeSessionState.singleParty(
+            party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+            hour = 12,
+            currentTown = null,
+            rngState = 1L,
+        )
+        val runtime = baseRuntime.withRealm(
+            baseRuntime.realm.copy(
+                currentMap = Maps.wilderness,
+                currentMode = RuntimeMode.Dungeon,
+                currentTown = null,
+            ),
+        )
+        try {
+            val outcome = FileRuntimeSavePort(file, stateId("dungeon-save")).save(runtime)
+
+            assertFalse(outcome.saved)
+            assertTrue("Dungeon runtime save requires dungeon session snapshot" in checkNotNull(outcome.error))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
     fun fileRuntimeSavePortRejectsLossyYdargSaveWithoutSessionSnapshot() {
         val file = File.createTempFile("rylween-save-", ".kts")
         val baseRuntime = RuntimeSessionState.singleParty(
@@ -461,7 +533,7 @@ class RylweenDslValidationTest {
     @Test
     fun wildernessStartupRejectsUnsupportedRuntimeModes() {
         val baseState = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
-        val state = baseState.copy(realm = baseState.realm.copy(currentMode = RuntimeMode.Dungeon))
+        val state = baseState.copy(realm = baseState.realm.copy(currentMode = RuntimeMode.Battle))
 
         val failure = assertFailsWith<RylweenValidationException> {
             validateStartupState(
@@ -473,7 +545,7 @@ class RylweenDslValidationTest {
         }
 
         assertEquals("startup.state.bad-mode", failure.diagnostics.single().path)
-        assertTrue("can only resume Wilderness or YdargCastle states" in failure.diagnostics.single().message)
+        assertTrue("can only resume Wilderness or Dungeon or YdargCastle states" in failure.diagnostics.single().message)
     }
 
     @Test
@@ -1225,6 +1297,7 @@ class RylweenDslValidationTest {
         assertTrue("C = Camp" in wildernessLines)
         assertTrue("8/Up = Move North" in wildernessLines)
         assertTrue("D = Descend" in dungeonLines)
+        assertTrue("S = Save Game" in dungeonLines)
         assertTrue("8 = Move North" in ydargLines)
         assertTrue("? = View Help" in ydargLines)
     }
@@ -4474,6 +4547,95 @@ class RylweenDslValidationTest {
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
         assertTrue(result.session.party.hasFlagState(Story.masterCrown.task1Done))
         assertTrue(terminal.output.any { "You leave the" in it })
+    }
+
+    @Test
+    fun dungeonSavePersistsPostDungeonMissionContinuation() {
+        val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow(width = 20) })
+        val scene = GameBuilder().apply {
+            scene(Scenes.Missions.thunTemple) {
+                enterDungeon(Dungeons.thunTemple, levels = 1)
+                mark(Story.masterCrown.task1Done)
+            }
+        }.build().scenes.single()
+        val mission = MissionModel(
+            id = Missions.thunTemple,
+            trigger = Trigger.AtPosition(xy(12, 10)),
+            requires = null,
+            action = scene.id,
+        )
+        val content = RylweenCompiledGame.nextDsl.runtimeContent().copy(
+            dungeons = DungeonSystemBuilder().apply {
+                scenario(Dungeons.thunTemple) {
+                    name("Test Temple")
+                    levels(1)
+                }
+            }.build(),
+            missions = listOf(mission),
+            scenes = listOf(scene),
+        )
+        val party = testParty(food = 100, timeLeft = 200, restedHours = 14).let { source ->
+            source.copy(
+                counters = source.counters.copy(
+                    attackedToday = listOf(PartyAttackRecord(source.id, false)),
+                ),
+            )
+        }
+        val started = WildernessSession(
+            runtime = RuntimeSessionState.singleParty(
+                party = party,
+                hour = 12,
+                currentTown = null,
+                rngState = 7L,
+            ),
+            worldMap = map,
+            content = content,
+            step = WildernessSessionStep.Mission(mission, scene),
+        )
+        var saved: RuntimeSnapshotModel? = null
+        val savePort = object : RuntimeSavePort {
+            override fun save(runtime: RuntimeSessionState): RuntimeSaveOutcome =
+                error("dungeon save must include session state")
+
+            override fun save(request: RuntimeSaveRequest): RuntimeSaveOutcome {
+                saved = RuntimeSnapshotModel(
+                    state = request.runtime.toRuntimeStateSnapshot(stateId("dungeon-save")),
+                    mode = request.mode,
+                )
+                return RuntimeSaveOutcome(saved = true, target = "memory")
+            }
+        }
+
+        val savedRun = WildernessSessionTerminalAdapter(
+            terminal = FakeTerminalPort("S"),
+            renderer = compiledTextRenderer(),
+            savePort = savePort,
+        ).runUntilBlocked(started)
+        val snapshot = checkNotNull(saved)
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        val gameContent = RylweenCompiledGame.nextDsl.copy(
+            dungeons = content.dungeons,
+            missions = content.missions,
+            scenes = content.scenes,
+        )
+        val parsed = parseRuntimeSnapshotForLoad(rendered, gameContent)
+        val resumed = RylweenKotlinEngine(gameContent).wildernessSession(
+            snapshot = parsed,
+            worldMap = map,
+            realizeNpcs = false,
+        )
+        val finished = WildernessSessionTerminalAdapter(
+            terminal = FakeTerminalPort("A"),
+            renderer = compiledTextRenderer(),
+        ).runUntilBlocked(resumed)
+
+        assertTrue(savedRun.status is TerminalRunStatus.Waiting)
+        assertEquals(RuntimeMode.Dungeon, parsed.state.realm.currentMode)
+        assertTrue(parsed.mode is RuntimeModeSnapshot.Dungeon)
+        assertTrue((resumed.step as WildernessSessionStep.Dungeon).postDungeon != null)
+        assertTrue(finished.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, finished.session.lastResult?.status)
+        assertTrue(finished.session.party.hasFlagState(Story.masterCrown.task1Done))
     }
 
     @Test

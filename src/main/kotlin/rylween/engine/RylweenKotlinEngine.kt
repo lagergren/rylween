@@ -99,6 +99,20 @@ class RylweenKotlinEngine(
                 val ydarg = mode.toYdargSession(runtime, content.runtimeContent())
                 base.copy(runtime = ydarg.runtime, step = WildernessSessionStep.Ydarg(ydarg))
             }
+            is RuntimeModeSnapshot.Dungeon -> {
+                val runtimeContent = content.runtimeContent()
+                val dungeon = mode.toDungeonSession(runtime, runtimeContent, map)
+                base.copy(
+                    runtime = dungeon.runtime,
+                    step = WildernessSessionStep.Dungeon(
+                        session = dungeon,
+                        postDungeon = mode.postDungeon?.toMissionPostDungeonContinuation(
+                            runtime = dungeon.runtime,
+                            content = runtimeContent,
+                        ),
+                    ),
+                )
+            }
         }
     }
 

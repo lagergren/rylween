@@ -1,7 +1,11 @@
 package rylween.runtime
 
 import rylween.dsl.GridPoint
+import rylween.dsl.DungeonEventId
+import rylween.dsl.DungeonId
 import rylween.dsl.ItemId
+import rylween.dsl.MissionId
+import rylween.dsl.SceneId
 import rylween.dsl.StateModel
 import rylween.dsl.YdargRoomEvent
 
@@ -12,6 +16,10 @@ data class RuntimeSnapshotModel(
 
 sealed interface RuntimeModeSnapshot {
     data class YdargCastle(val session: YdargSessionSnapshot) : RuntimeModeSnapshot
+    data class Dungeon(
+        val session: DungeonSessionSnapshot,
+        val postDungeon: MissionPostDungeonSnapshot? = null,
+    ) : RuntimeModeSnapshot
 }
 
 data class YdargSessionSnapshot(
@@ -29,3 +37,21 @@ enum class YdargSavedStep {
     StairsMenu,
     StairGive,
 }
+
+data class DungeonSessionSnapshot(
+    val dungeon: DungeonId,
+    val maxDepth: Int,
+    val depth: Int,
+    val levelEvents: Map<Int, DungeonEventId>,
+    val step: DungeonSavedStep = DungeonSavedStep.Explore,
+)
+
+enum class DungeonSavedStep {
+    Explore,
+}
+
+data class MissionPostDungeonSnapshot(
+    val mission: MissionId,
+    val scene: SceneId,
+    val continuation: ScriptContinuationSnapshot,
+)

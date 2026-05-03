@@ -16,6 +16,7 @@ fun DungeonKeysModel.exploreCommands(): List<InputCommand<DungeonSessionInput>> 
         InputCommand(DungeonSessionInput.Quaff, quaff, "Quaff Potion"),
         InputCommand(DungeonSessionInput.CastSpell, castSpell, "Cast Spell"),
         InputCommand(DungeonSessionInput.ViewParty, viewParty, "View Party"),
+        InputCommand(DungeonSessionInput.Save, save, "Save Game"),
     )
 
 fun DungeonKeysModel.effectiveHelpPages(maxLinesPerPage: Int = 7): List<TextBlock> =

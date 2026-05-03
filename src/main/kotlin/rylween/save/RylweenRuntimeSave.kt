@@ -50,7 +50,7 @@ class FileRuntimeSavePort(
 
     override fun save(request: RuntimeSaveRequest): RuntimeSaveOutcome =
         runCatching {
-            checkYdargSnapshot(request)
+            checkModeSnapshot(request)
             val snapshot = RuntimeSnapshotModel(
                 state = request.runtime.toRuntimeStateSnapshot(snapshotId),
                 mode = request.mode,
@@ -65,12 +65,19 @@ class FileRuntimeSavePort(
             RuntimeSaveOutcome(saved = false, target = file.path, error = error.message)
         }
 
-    private fun checkYdargSnapshot(request: RuntimeSaveRequest) {
-        if (
-            request.runtime.realm.currentMode == RuntimeMode.YdargCastle &&
-            request.mode !is RuntimeModeSnapshot.YdargCastle
-        ) {
-            error("YdargCastle runtime save requires Ydarg session snapshot")
+    private fun checkModeSnapshot(request: RuntimeSaveRequest) {
+        when (request.runtime.realm.currentMode) {
+            RuntimeMode.YdargCastle -> {
+                if (request.mode !is RuntimeModeSnapshot.YdargCastle) {
+                    error("YdargCastle runtime save requires Ydarg session snapshot")
+                }
+            }
+            RuntimeMode.Dungeon -> {
+                if (request.mode !is RuntimeModeSnapshot.Dungeon) {
+                    error("Dungeon runtime save requires dungeon session snapshot")
+                }
+            }
+            else -> Unit
         }
     }
 

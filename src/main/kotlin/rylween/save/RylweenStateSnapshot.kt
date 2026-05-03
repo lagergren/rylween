@@ -1,8 +1,16 @@
 package rylween.save
 
 import rylween.dsl.*
+import rylween.runtime.DungeonSavedStep
+import rylween.runtime.DungeonSessionSnapshot
+import rylween.runtime.MissionPostDungeonSnapshot
 import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotModel
+import rylween.runtime.ScriptBlockRef
+import rylween.runtime.ScriptBranch
+import rylween.runtime.ScriptContinuationSnapshot
+import rylween.runtime.ScriptFrame
+import rylween.runtime.ScriptSegment
 import rylween.runtime.YdargSavedStep
 import rylween.runtime.YdargSessionSnapshot
 
@@ -163,6 +171,10 @@ private class RuntimeStateSnapshotParser(source: String) {
                     check(mode == null) { "runtime snapshot has multiple active session blocks" }
                     mode = RuntimeModeSnapshot.YdargCastle(parseYdargSessionBody())
                 }
+                "dungeon" -> {
+                    check(mode == null) { "runtime snapshot has multiple active session blocks" }
+                    mode = parseDungeonSessionBody()
+                }
                 else -> unexpected("sessions field $field")
             }
         }
@@ -217,6 +229,209 @@ private class RuntimeStateSnapshotParser(source: String) {
                 put(point, event)
             }
         }
+    }
+
+    private fun parseDungeonSessionBody(): RuntimeModeSnapshot.Dungeon {
+        expectSymbol('{')
+        var dungeon: DungeonId? = null
+        var maxDepth = 1
+        var depth = 1
+        var step = DungeonSavedStep.Explore
+        var levelEvents = emptyMap<Int, DungeonEventId>()
+        var postDungeon: MissionPostDungeonSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "dungeon" -> {
+                    expectSymbol('=')
+                    dungeon = parseDungeonId()
+                }
+                "maxDepth" -> maxDepth = parseAssignedInt()
+                "depth" -> depth = parseAssignedInt()
+                "step" -> {
+                    expectSymbol('=')
+                    step = parseEnum("DungeonSavedStep")
+                }
+                "levelEvents" -> levelEvents = parseDungeonLevelEventsBody()
+                "postDungeon" -> postDungeon = parseMissionPostDungeonBody()
+                else -> unexpected("Dungeon session field $field")
+            }
+        }
+        return RuntimeModeSnapshot.Dungeon(
+            session = DungeonSessionSnapshot(
+                dungeon = checkNotNull(dungeon) { "Dungeon session requires dungeon" },
+                maxDepth = maxDepth,
+                depth = depth,
+                levelEvents = levelEvents,
+                step = step,
+            ),
+            postDungeon = postDungeon,
+        )
+    }
+
+    private fun parseDungeonLevelEventsBody(): Map<Int, DungeonEventId> {
+        expectSymbol('{')
+        return buildMap {
+            while (!matchSymbol('}')) {
+                expectIdent("level")
+                expectSymbol('(')
+                val level = parseInt()
+                expectSymbol(',')
+                val event = parseDungeonEventId()
+                expectSymbol(')')
+                put(level, event)
+            }
+        }
+    }
+
+    private fun parseMissionPostDungeonBody(): MissionPostDungeonSnapshot {
+        expectSymbol('{')
+        var mission: MissionId? = null
+        var scene: SceneId? = null
+        var continuation: ScriptContinuationSnapshot? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "mission" -> {
+                    expectSymbol('=')
+                    mission = parseMissionId()
+                }
+                "scene" -> {
+                    expectSymbol('=')
+                    scene = parseSceneId()
+                }
+                "continuation" -> continuation = parseScriptContinuationBody()
+                else -> unexpected("postDungeon field $field")
+            }
+        }
+        return MissionPostDungeonSnapshot(
+            mission = checkNotNull(mission) { "postDungeon requires mission" },
+            scene = checkNotNull(scene) { "postDungeon requires scene" },
+            continuation = checkNotNull(continuation) { "postDungeon requires continuation" },
+        )
+    }
+
+    private fun parseScriptContinuationBody(): ScriptContinuationSnapshot {
+        expectSymbol('{')
+        var locals = emptyMap<String, Int>()
+        var realmScalars = emptyMap<String, Int>()
+        var stack = emptyList<ScriptFrame>()
+        var activeInventorySlot: Int? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "activeInventorySlot" -> {
+                    expectSymbol('=')
+                    activeInventorySlot = parseNullable(::parseInt)
+                }
+                "locals" -> locals = parseNamedIntMapBody()
+                "realmScalars" -> realmScalars = parseNamedIntMapBody()
+                "stack" -> stack = parseScriptStackBody()
+                else -> unexpected("script continuation field $field")
+            }
+        }
+        return ScriptContinuationSnapshot(
+            locals = locals,
+            realmScalars = realmScalars,
+            stack = stack,
+            activeInventorySlot = activeInventorySlot,
+        )
+    }
+
+    private fun parseNamedIntMapBody(): Map<String, Int> {
+        expectSymbol('{')
+        return buildMap {
+            while (!matchSymbol('}')) {
+                expectIdent("value")
+                expectSymbol('(')
+                val key = parseString()
+                expectSymbol(',')
+                val value = parseInt()
+                expectSymbol(')')
+                put(key, value)
+            }
+        }
+    }
+
+    private fun parseScriptStackBody(): List<ScriptFrame> {
+        expectSymbol('{')
+        return buildList {
+            while (!matchSymbol('}')) {
+                expectIdent("frame")
+                add(parseScriptFrameBody())
+            }
+        }
+    }
+
+    private fun parseScriptFrameBody(): ScriptFrame {
+        expectSymbol('{')
+        var block = ScriptBlockRef.Root
+        var nextIndex = 0
+        var loop = false
+        var iteration = 0
+        var localName: String? = null
+        var localValue: Int? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "block" -> block = parseScriptBlockBody()
+                "nextIndex" -> nextIndex = parseAssignedInt()
+                "loop" -> loop = parseAssignedBoolean()
+                "iteration" -> iteration = parseAssignedInt()
+                "localName" -> {
+                    expectSymbol('=')
+                    localName = parseNullable(::parseString)
+                }
+                "localValue" -> {
+                    expectSymbol('=')
+                    localValue = parseNullable(::parseInt)
+                }
+                else -> unexpected("script frame field $field")
+            }
+        }
+        return ScriptFrame(
+            block = block,
+            nextIndex = nextIndex,
+            loop = loop,
+            iteration = iteration,
+            localName = localName,
+            localValue = localValue,
+        )
+    }
+
+    private fun parseScriptBlockBody(): ScriptBlockRef {
+        expectSymbol('{')
+        return ScriptBlockRef(
+            buildList {
+                while (!matchSymbol('}')) {
+                    expectIdent("segment")
+                    add(parseScriptSegmentBody())
+                }
+            },
+        )
+    }
+
+    private fun parseScriptSegmentBody(): ScriptSegment {
+        expectSymbol('{')
+        var opIndex = 0
+        var branch = ScriptBranch.IfThen
+        var caseIndex: Int? = null
+        var key: Char? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "opIndex" -> opIndex = parseAssignedInt()
+                "branch" -> {
+                    expectSymbol('=')
+                    branch = parseEnum("ScriptBranch")
+                }
+                "caseIndex" -> {
+                    expectSymbol('=')
+                    caseIndex = parseNullable(::parseInt)
+                }
+                "key" -> {
+                    expectSymbol('=')
+                    key = parseNullable(::parseChar)
+                }
+                else -> unexpected("script segment field $field")
+            }
+        }
+        return ScriptSegment(opIndex, branch, caseIndex, key)
     }
 
     private fun parsePartyAfterKeyword(): PartyState {
@@ -566,6 +781,10 @@ private class RuntimeStateSnapshotParser(source: String) {
     private fun parseItemId(): ItemId = parseStringCall("item", ::item)
     private fun parseMilestoneId(): GameMilestoneId = parseStringCall("milestone", ::milestone)
     private fun parseTextId(): TextId = parseStringCall("text", ::text)
+    private fun parseSceneId(): SceneId = parseStringCall("scene", ::sceneId)
+    private fun parseMissionId(): MissionId = parseStringCall("mission", ::missionId)
+    private fun parseDungeonId(): DungeonId = parseStringCall("dungeon", ::dungeon)
+    private fun parseDungeonEventId(): DungeonEventId = parseStringCall("dungeonEvent", ::dungeonEvent)
 
     private fun parseTerrainId(): TerrainId {
         expectIdent("terrain")
@@ -847,6 +1066,7 @@ private class RuntimeStateSnapshotWriter {
         indented {
             when (mode) {
                 is RuntimeModeSnapshot.YdargCastle -> ydarg(mode.session)
+                is RuntimeModeSnapshot.Dungeon -> dungeon(mode)
             }
         }
         line("}")
@@ -868,6 +1088,95 @@ private class RuntimeStateSnapshotWriter {
                     }
             }
             line("}")
+        }
+        line("}")
+    }
+
+    private fun dungeon(mode: RuntimeModeSnapshot.Dungeon) {
+        val session = mode.session
+        line("dungeon {")
+        indented {
+            line("dungeon = ${dungeonId(session.dungeon)}")
+            assignment("maxDepth", session.maxDepth)
+            assignment("depth", session.depth)
+            line("step = DungeonSavedStep.${session.step.name}")
+            line("levelEvents {")
+            indented {
+                session.levelEvents.entries
+                    .sortedBy { it.key }
+                    .forEach { (level, event) ->
+                        line("level($level, ${dungeonEventId(event)})")
+                    }
+            }
+            line("}")
+            mode.postDungeon?.let(::postDungeon)
+        }
+        line("}")
+    }
+
+    private fun postDungeon(postDungeon: MissionPostDungeonSnapshot) {
+        line("postDungeon {")
+        indented {
+            line("mission = ${missionId(postDungeon.mission)}")
+            line("scene = ${sceneId(postDungeon.scene)}")
+            scriptContinuation(postDungeon.continuation)
+        }
+        line("}")
+    }
+
+    private fun scriptContinuation(continuation: ScriptContinuationSnapshot) {
+        line("continuation {")
+        indented {
+            line("activeInventorySlot = ${continuation.activeInventorySlot ?: "null"}")
+            namedIntMap("locals", continuation.locals)
+            namedIntMap("realmScalars", continuation.realmScalars)
+            line("stack {")
+            indented {
+                continuation.stack.forEach(::scriptFrame)
+            }
+            line("}")
+        }
+        line("}")
+    }
+
+    private fun namedIntMap(name: String, values: Map<String, Int>) {
+        line("$name {")
+        indented {
+            values.entries.sortedBy { it.key }.forEach { (key, value) ->
+                line("value(${quote(key)}, $value)")
+            }
+        }
+        line("}")
+    }
+
+    private fun scriptFrame(frame: ScriptFrame) {
+        line("frame {")
+        indented {
+            scriptBlock(frame.block)
+            assignment("nextIndex", frame.nextIndex)
+            assignment("loop", frame.loop)
+            assignment("iteration", frame.iteration)
+            line("localName = ${frame.localName?.let(::quote) ?: "null"}")
+            line("localValue = ${frame.localValue ?: "null"}")
+        }
+        line("}")
+    }
+
+    private fun scriptBlock(block: ScriptBlockRef) {
+        line("block {")
+        indented {
+            block.segments.forEach(::scriptSegment)
+        }
+        line("}")
+    }
+
+    private fun scriptSegment(segment: ScriptSegment) {
+        line("segment {")
+        indented {
+            assignment("opIndex", segment.opIndex)
+            line("branch = ScriptBranch.${segment.branch.name}")
+            line("caseIndex = ${segment.caseIndex ?: "null"}")
+            line("key = ${segment.key?.let(::charLiteral) ?: "null"}")
         }
         line("}")
     }
@@ -1032,6 +1341,10 @@ private class RuntimeStateSnapshotWriter {
     private fun itemId(id: ItemId): String = "item(${quote(id.slug)})"
     private fun milestoneId(id: GameMilestoneId): String = "milestone(${quote(id.slug)})"
     private fun textId(id: TextId): String = "text(${quote(id.id)})"
+    private fun sceneId(id: SceneId): String = "scene(${quote(id.slug)})"
+    private fun missionId(id: MissionId): String = "mission(${quote(id.slug)})"
+    private fun dungeonId(id: DungeonId): String = "dungeon(${quote(id.slug)})"
+    private fun dungeonEventId(id: DungeonEventId): String = "dungeonEvent(${quote(id.slug)})"
 
     private fun assignment(name: String, value: Int) = line("$name = $value")
     private fun assignment(name: String, value: Boolean) = line("$name = $value")
