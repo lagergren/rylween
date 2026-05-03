@@ -56,9 +56,21 @@ data class BattleSessionResult(
 )
 
 sealed interface BattleSessionStep {
-    data class Opening(val prompt: TextBlock) : BattleSessionStep
+    val viewCommands: List<ViewCommand> get() = emptyList()
+
+    data class Opening(val prompt: TextBlock, val image: ImageId? = null) : BattleSessionStep {
+        override val viewCommands: List<ViewCommand>
+            get() = image?.let { listOf(ViewCommand.ClearText, ViewCommand.ClearMapWindow, ViewCommand.ShowImage(it)) }
+                .orEmpty()
+    }
+
     data class RoundOpening(val prompt: TextBlock) : BattleSessionStep
-    data class Message(val texts: List<TextBlock>, val next: BattleSessionStep) : BattleSessionStep
+    data class Message(
+        val texts: List<TextBlock>,
+        val next: BattleSessionStep,
+        override val viewCommands: List<ViewCommand> = emptyList(),
+    ) : BattleSessionStep
+
     data class PlayerAction(val memberIndex: Int, val prompt: TextBlock, val actions: List<CombatActionModel>) :
         BattleSessionStep
     data class MonsterTarget(val memberIndex: Int, val prompt: TextBlock, val targetKeys: List<Char>) :
@@ -559,6 +571,9 @@ data class BattleSession(
                     victory.levelGains,
                 ),
                 next = BattleSessionStep.Finished(victory.runtime.asWilderness()),
+                viewCommands = battle.victoryImage
+                    ?.let { listOf(ViewCommand.ClearMapWindow, ViewCommand.ShowImage(it), ViewCommand.ClearText) }
+                    .orEmpty(),
             )
         }
 
@@ -768,7 +783,10 @@ data class BattleSession(
             val battle = requireNotNull(content.combat.standardBattle) { "standard battle is not configured" }
             val firstLevel = runtime.activeParty.members.firstOrNull().levelOrZero()
             val countMax = monster.count.last + (monster.countMaxLevelDivisor?.let { firstLevel / it } ?: 0)
-            val countDraw = runtime.drawRandom(1, countMax)
+            val bannerDraw = battle.opening.banners.takeIf { it.isNotEmpty() }
+                ?.let { banners -> runtime.drawRandom(0, banners.lastIndex) }
+            val bannerImage = bannerDraw?.value?.let { battle.opening.banners[it] }
+            val countDraw = (bannerDraw?.runtime ?: runtime).drawRandom(1, countMax)
             val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(battle.encounterFoeCountMax)
             val hpRange = countDraw.runtime.scaledEncounterHpRange(monster, content.formulas)
             var hpRuntime = countDraw.runtime
@@ -797,7 +815,7 @@ data class BattleSession(
                     defendCount = 0,
                     monsterWeaponSkill = monster.weaponSkill + nextRuntime.activeParty.members.firstOrNull().levelOrZero(),
                 ),
-                step = BattleSessionStep.Opening(BattlePromptText.opening(battle.text, encounter)),
+                step = BattleSessionStep.Opening(BattlePromptText.opening(battle.text, encounter), bannerImage),
                 lastResult = BattleSessionResult(BattleSessionResultStatus.EncounterStarted, monster.id, tier),
             )
         }

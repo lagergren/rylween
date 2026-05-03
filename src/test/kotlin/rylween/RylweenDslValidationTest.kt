@@ -5157,6 +5157,7 @@ class RylweenDslValidationTest {
                     assertEquals(BattleSessionResultStatus.RunEscaped, result.session.lastResult.status)
                     assertEquals(Monsters.kobold, result.session.lastResult.monster)
                     assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+                    assertImageShown(Images.Backdrop.encounterBanner1.slug)
                     assertOutputContains("2 Kobolds")
                     assertOutputContains("Coward. You won't get")
                 },
@@ -5403,6 +5404,7 @@ class RylweenDslValidationTest {
                     assertTrue(result.status is TerminalRunStatus.Finished)
                     assertEquals(BattleSessionResultStatus.Victory, result.session.lastResult.status)
                     assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+                    assertImageShown(Images.Backdrop.battleVictory.slug)
                     assertEquals(1, party.counters.kills)
                     assertEquals(168, party.resources.gold)
                     assertEquals(300, party.members.single().experience)

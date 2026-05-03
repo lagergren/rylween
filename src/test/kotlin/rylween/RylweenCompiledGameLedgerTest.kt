@@ -37,6 +37,7 @@ class RylweenCompiledGameLedgerTest {
         check(standardBattle.playerRound.defend.cap == 250)
         check(standardBattle.monsterRound.melee.damageDivisor == 6)
         check(standardBattle.encounterFoeCountMax == 8)
+        check(standardBattle.victoryImage == Images.Backdrop.battleVictory)
         check(standardBattle.rewards == Rewards.standardBattle)
         check(standardConversation.menu.actions.map { it.key } == listOf('C', 'Q', 'R', 'B'))
         check(standardConversation.menu.questions.map { it.key } == listOf('L', 'M', 'P', 'N'))

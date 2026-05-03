@@ -1263,6 +1263,7 @@ class BattleSessionTerminalAdapter(
         repeat(64) {
             session = when (val step = session.step) {
                 is BattleSessionStep.Opening -> {
+                    writeStepViewCommands(step, session.runtime)
                     readOpening(step.prompt, session.battle.openingKeys)
                         .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.Opening(it)) }
                 }
@@ -1271,6 +1272,7 @@ class BattleSessionTerminalAdapter(
                         .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.Opening(it)) }
                 }
                 is BattleSessionStep.Message -> {
+                    writeStepViewCommands(step, session.runtime)
                     step.texts.forEach { text ->
                         terminal.write(renderer.lines(text, TerminalTextContext(runtime = session.runtime)))
                     }
@@ -1329,5 +1331,12 @@ class BattleSessionTerminalAdapter(
     private fun readKeyOffset(prompt: TextBlock, keys: List<Char>, offset: Char): TerminalInput<Int> {
         terminal.writeKeyMenu(renderer, prompt, keys)
         return terminal.readKey(keys).map { key -> key - offset }
+    }
+
+    private fun writeStepViewCommands(step: BattleSessionStep, runtime: RuntimeSessionState) {
+        val context = TerminalTextContext(runtime = runtime)
+        step.viewCommands.forEach { command ->
+            terminal.writeViewCommand(command, renderer, context)
+        }
     }
 }
