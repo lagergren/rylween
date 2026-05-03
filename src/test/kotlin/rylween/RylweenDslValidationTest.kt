@@ -1118,6 +1118,34 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledGameRendersStaticScreensThroughTerminalBoundary() {
+        val content = RylweenCompiledGame.nextDsl
+        val renderer = content.terminalTextRenderer()
+        val help = checkNotNull(
+            content.renderTerminalStaticScreen(
+                id = StaticScreens.help,
+                renderer = renderer,
+                resourceText = { error("help should not read packaged resources") },
+            ),
+        )
+        val manual = checkNotNull(
+            content.renderTerminalStaticScreen(
+                id = StaticScreens.manual,
+                renderer = renderer,
+                resourceText = { path ->
+                    assertEquals("rylween.doc", path)
+                    "first\nsecond\nthird"
+                },
+                maxLinesPerPage = 2,
+            ),
+        )
+
+        assertEquals(null, help.image)
+        assertTrue(help.pages.flatten().any { line -> line.contains("View Help") })
+        assertEquals(listOf(listOf("first", "second"), listOf("third")), manual.pages)
+    }
+
+    @Test
     fun compiledGameGeneratesCommandHelpFromBindings() {
         val renderer = RylweenCompiledGame.nextDsl.terminalTextRenderer()
         val wildernessPages = RylweenCompiledGame.nextDsl.wilderness.keys.effectiveHelpPages()

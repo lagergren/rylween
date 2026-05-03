@@ -41,6 +41,7 @@ private data class AnsiRuntimeConfig(
     val loadFile: File? = null,
     val saveFile: File = File("build/rylween-save.kts"),
     val saveState: StateId = stateId("saved-game"),
+    val staticScreen: StaticScreenId? = null,
 )
 
 object RylweenAnsiMain {
@@ -49,6 +50,16 @@ object RylweenAnsiMain {
         val config = parseAnsiConfig(args.toList())
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
+        val renderer = content.terminalTextRenderer()
+        config.staticScreen?.let { screenId ->
+            RylweenLog.open().use { log ->
+                JLineAnsiTerminal.open(log).use { terminal ->
+                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
+                        .showStaticScreen(content, screenId, renderer)
+                }
+            }
+            return@runRylweenCli
+        }
         val state = config.loadFile
             ?.let {
                 validateStartupState(
@@ -80,7 +91,7 @@ object RylweenAnsiMain {
                 RylweenAnsiGame(
                     terminal = terminal,
                     content = content,
-                    renderer = content.terminalTextRenderer(),
+                    renderer = renderer,
                     speakContent = engine.speakContent(),
                     savePort = FileRuntimeSavePort(config.saveFile, config.saveState),
                     log = log,
@@ -487,7 +498,7 @@ private class ClassicAnsiScreen(
             showImage(frame)
         } else {
             terminal.writeRaw("${CSI}2J${CSI}1;1H")
-            terminal.writeRaw(RylweenAssets.readText("ansi/screen.ans"))
+            terminal.writeRaw(RylweenAppAssets.readText("ansi/screen.ans"))
         }
         terminal.writeRaw("$FG_WHITE$BG_BLACK")
         terminal.flush()
@@ -526,7 +537,7 @@ private class ClassicAnsiScreen(
         when (val asset = AnsiImageAssets.resolve(slug)) {
             is AnsiImageAsset.FullScreen -> {
                 terminal.writeRaw("${CSI}2J${CSI}1;1H")
-                terminal.writeRaw(RylweenAssets.readText(asset.resource))
+                terminal.writeRaw(RylweenAppAssets.readText(asset.resource))
             }
             is AnsiImageAsset.MapWindow -> {
                 clearRegion(mapWindow)
@@ -546,6 +557,23 @@ private class ClassicAnsiScreen(
             terminal.readKeyToken()
         }
         renderHud(session)
+    }
+
+    fun showStaticScreen(content: GameModel, screenId: StaticScreenId, renderer: TerminalTextRenderer) {
+        val rendered = content.renderTerminalStaticScreen(
+            id = screenId,
+            renderer = renderer,
+            resourceText = RylweenAppAssets::readText,
+        ) ?: error("unknown static screen ${screenId.slug}")
+        rendered.image?.let(::showImage)
+        if (rendered.pages.isEmpty()) {
+            terminal.readKeyToken()
+            return
+        }
+        rendered.pages.forEach { page ->
+            writeFullScreenText(page)
+            terminal.readKeyToken()
+        }
     }
 
     fun writeBlocks(blocks: List<TextBlock>, runtime: RuntimeSessionState, renderer: TerminalTextRenderer) {
@@ -579,6 +607,15 @@ private class ClassicAnsiScreen(
         lines.take(textWindow.height ?: lines.size).forEachIndexed { index, line ->
             gotoTextRow(index)
             terminal.writeRaw(line.take(textWindow.width ?: line.length))
+        }
+        terminal.flush()
+    }
+
+    private fun writeFullScreenText(lines: List<String>) {
+        terminal.writeRaw("${CSI}2J${CSI}1;1H")
+        lines.take(24).forEachIndexed { index, line ->
+            terminal.writeRaw("${CSI}${index + 1};1H")
+            terminal.writeRaw(line.take(79))
         }
         terminal.flush()
     }
@@ -658,7 +695,7 @@ private class ClassicAnsiScreen(
     }
 
     private fun renderAnsiAt(resource: String, x: Int, y: Int) {
-        RylweenAssets.readText(resource)
+        RylweenAppAssets.readText(resource)
             .lineSequence()
             .map { it.trimEnd('\r') }
             .forEachIndexed { row, line ->
@@ -721,44 +758,6 @@ private fun WildernessSessionResultStatus.statusLine(): List<String> =
     }
 
 private data class TerrainGlyph(val glyph: String, val ansiColor: Int)
-
-private sealed interface AnsiImageAsset {
-    val resource: String
-
-    data class FullScreen(override val resource: String) : AnsiImageAsset
-    data class MapWindow(override val resource: String) : AnsiImageAsset
-}
-
-private object AnsiImageAssets {
-    private val mapWindowImages = mapOf(
-        "blitgfx.inn" to "tiles/01.ans",
-        "blitgfx.tavern" to "tiles/02.ans",
-        "blitgfx.smith" to "tiles/03.ans",
-        "blitgfx.church" to "tiles/04.ans",
-        "blitgfx.merchant" to "tiles/05.ans",
-        "blitgfx.inside_cave" to "tiles/10.ans",
-        "blitgfx.cave" to "tiles/11.ans",
-        "blitgfx.death" to "tiles/12.ans",
-        "blitgfx.hut" to "tiles/13.ans",
-        "blitgfx.ydarg_castle" to "tiles/14.ans",
-        "blitgfx.city" to "tiles/15.ans",
-        "blitgfx.battle_victory" to "tiles/16.ans",
-        "blitgfx.tent" to "tiles/17.ans",
-        "blitgfx.no_tent" to "tiles/18.ans",
-        "blitgfx.guild" to "tiles/19.ans",
-        "blitgfx.encounter.1" to "tiles/40.ans",
-        "blitgfx.encounter.2" to "tiles/41.ans",
-        "blitgfx.encounter.3" to "tiles/42.ans",
-        "blitgfx.encounter.4" to "tiles/43.ans",
-        "blitgfx.encounter.5" to "tiles/44.ans",
-    )
-
-    fun resolve(slug: String): AnsiImageAsset? =
-        when {
-            slug.startsWith("ansi.") -> AnsiImageAsset.FullScreen("ansi/${slug.removePrefix("ansi.")}.ans")
-            else -> mapWindowImages[slug]?.let(AnsiImageAsset::MapWindow)
-        }
-}
 
 private class TerrainGlyphs(styles: List<TerminalTerrainStyleModel>) {
     private val byTerrainCode = styles.mapNotNull { style ->
@@ -889,18 +888,6 @@ private class JLineAnsiTerminal private constructor(
             return JLineAnsiTerminal(terminal, saved, log)
         }
     }
-}
-
-private object RylweenAssets {
-    fun readText(path: String): String =
-        stream(path).readBytes().toString(StandardCharsets.UTF_8)
-
-    fun readLines(path: String): List<String> =
-        readText(path).lineSequence().filter { it.isNotEmpty() }.toList()
-
-    private fun stream(path: String) =
-        Thread.currentThread().contextClassLoader.getResourceAsStream(path)
-            ?: error("missing app resource $path")
 }
 
 private class RylweenLog private constructor(private val sinks: List<LogSink>) : Closeable {
@@ -1049,6 +1036,10 @@ private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
                 config = config.copy(saveFile = File(args.valueAfter(index, arg)))
                 index += 2
             }
+            "--screen" -> {
+                config = config.copy(staticScreen = staticScreenArg(args.valueAfter(index, arg)))
+                index += 2
+            }
             "--help", "-h" -> {
                 printAnsiUsage()
                 kotlin.system.exitProcess(0)
@@ -1074,6 +1065,7 @@ private fun printAnsiUsage() {
         |  --map    file path override; defaults to authored wilderness map
         |  --load   runtime snapshot file to boot instead of --state
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
+        |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
         |
         |Logging:
         |  RYL_LOG=stderr
