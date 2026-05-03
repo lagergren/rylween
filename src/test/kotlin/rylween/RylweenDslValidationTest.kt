@@ -5909,7 +5909,7 @@ class RylweenDslValidationTest {
     ): TerminalScenarioRun<TownSession> =
         TerminalScenario(
             name = name,
-            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = rngState),
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = rngState),
             inputs = inputs,
             start = {
                 compiledTownSession(
@@ -5964,7 +5964,7 @@ class RylweenDslValidationTest {
     ): TerminalScenarioRun<DungeonSession> =
         TerminalScenario(
             name = name,
-            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = seed),
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = seed),
             inputs = inputs,
             start = session,
             drive = { terminal, start ->
@@ -5986,7 +5986,7 @@ class RylweenDslValidationTest {
     ): TerminalScenarioRun<WildernessSession> =
         TerminalScenario(
             name = name,
-            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = seed),
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = seed),
             inputs = inputs,
             start = start,
             drive = { terminal, session ->
@@ -6009,7 +6009,7 @@ class RylweenDslValidationTest {
     ): TerminalScenarioRun<BattleSession> =
         TerminalScenario(
             name = name,
-            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = seed),
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = seed),
             inputs = inputs,
             start = start,
             drive = { terminal, session ->
@@ -6028,7 +6028,7 @@ class RylweenDslValidationTest {
     ): TerminalScenarioRun<YdargSession> =
         TerminalScenario(
             name = name,
-            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = seed),
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = seed),
             inputs = inputs,
             start = start,
             drive = { terminal, session ->
@@ -6048,7 +6048,7 @@ class RylweenDslValidationTest {
         val scene = game.scenes.single { it.id == mission.action }
         return TerminalScenario(
             name = name,
-            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = null),
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = null),
             inputs = inputs,
             start = {
                 val runtime = RuntimeSessionState.singleParty(
