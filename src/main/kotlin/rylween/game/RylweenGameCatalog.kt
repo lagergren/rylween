@@ -22,85 +22,6 @@ import rylween.dsl.*
 // Current combat, map, visual, layout, text, scene, and native handles.
 // -----------------------------------------------------------------------------
 
-class MonsterIds {
-    val kobold = monster("kobold")
-    val orc = monster("orc")
-    val troll = monster("troll")
-    val warrior = monster("warrior")
-    val goblin = monster("goblin")
-    val wildDog = monster("wild_dog")
-    val knight = monster("knight")
-    val bandit = monster("bandit")
-    val hobgoblin = monster("hobgoblin")
-    val zombie = monster("zombie")
-    val guardian = monster("guardian")
-    val norker = monster("norker")
-    val voodooLord = monster("voodoo_lord")
-    val archdevil = monster("archdevil")
-    val koboldHorde = monster("kobold_horde")
-    val rainbowDemon = monster("rainbow_demon")
-    val longDeadWarrior = monster("long_dead_warrior")
-    val ogre = monster("ogre")
-    val ogreLord = monster("ogre_lord")
-    val wingedThing = monster("winged_thing")
-    val jazzy = monster("jazzy")
-    val ridingHobgoblin = monster("riding_hobgoblin")
-    val hobgoblinChief = monster("hobgoblin_chief")
-    val hobgoblinSkeleton = monster("hobgoblin_skeleton")
-    val undeadHobgoblin = monster("undead_hobgoblin")
-    val cryptHorror = monster("crypt_horror")
-    val nightGaunt = monster("night_gaunt")
-    val thyraga = monster("thyraga")
-    val liche = monster("liche")
-    val baronYdarg = monster("baron_ydarg")
-    val gnoll = monster("gnoll")
-    val erethorPriest = monster("erethor_priest")
-    val erethor = monster("erethor")
-    val wanderMage = monster("wander_mage")
-    val stirge = monster("stirge")
-    val hillGiant = monster("hill_giant")
-    val wizard = monster("wizard")
-    val druid = monster("druid")
-    val sabreToothTiger = monster("sabre_tooth_tiger")
-    val headHunter = monster("head_hunter")
-    val skeleton = monster("skeleton")
-    val vampireBat = monster("vampire_bat")
-    val giantSnake = monster("giant_snake")
-    val ghoul = monster("ghoul")
-    val spider = monster("spider")
-    val hugeLizard = monster("huge_lizard")
-    val dryder = monster("dryder")
-    val xvart = monster("xvart")
-    val jellyCube = monster("jelly_cube")
-    val troglodyte = monster("troglodyte")
-    val bugbear = monster("bugbear")
-    val drowElf = monster("drow_elf")
-    val phantom = monster("phantom")
-    val worg = monster("worg")
-    val rustMonster = monster("rust_monster")
-    val owlbear = monster("owlbear")
-    val werewolf = monster("werewolf")
-    val hookHorror = monster("hook_horror")
-    val minotaur = monster("minotaur")
-    val imp = monster("imp")
-    val svirfneblin = monster("svirfneblin")
-    val yeti = monster("yeti")
-    val wight = monster("wight")
-    val wraith = monster("wraith")
-    val basilisk = monster("basilisk")
-    val wyvern = monster("wyvern")
-    val tunnelWorm = monster("tunnel_worm")
-    val skagerbergKiller = monster("skagerberg_killer")
-}
-val Monsters = MonsterIds()
-
-class EncounterTierRefs {
-    val weak = encounterTier("weak")
-    val wild = encounterTier("wild")
-    val deep = encounterTier("deep")
-}
-val EncounterTiers = EncounterTierRefs()
-
 class TerrainTagRefs {
     val mountain = terrainTag("mountain")
     val water = terrainTag("water")
@@ -214,42 +135,6 @@ class YdargSceneRefs {
     val ruin = sceneId("ydarg.ruin")
 }
 val Scenes = SceneRefs()
-
-class SpellRefs {
-    val Mage = MageSpellRefs()
-    val Priest = PriestSpellRefs()
-    val Monster = MonsterSpellRefs()
-
-    val mageFrost = Mage.frost
-}
-
-class MageSpellRefs {
-    val frost = spellId("mage.frost")
-    val fire = spellId("mage.fire")
-    val confusion = spellId("mage.confusion")
-    val death = spellId("mage.death")
-    val hold = spellId("mage.hold")
-    val antimagic = spellId("mage.antimagic")
-}
-
-class PriestSpellRefs {
-    val heal = spellId("priest.heal")
-    val restoration = spellId("priest.restoration")
-    val rebirth = spellId("priest.rebirth")
-    val banish = spellId("priest.banish")
-    val revelation = spellId("priest.revelation")
-    val teleport = spellId("priest.teleport")
-    val earthquake = spellId("priest.earthquake")
-}
-
-class MonsterSpellRefs {
-    val frost = spellId("monster.frost")
-    val fire = spellId("monster.fire")
-    val hold = spellId("monster.hold")
-    val confusion = spellId("monster.confusion")
-    val melee = spellId("monster.melee")
-}
-val Spells = SpellRefs()
 
 class MissionRefs {
     val erethorEntry = missionId("missions.erethor_entry")
@@ -368,16 +253,6 @@ class DungeonEventRefs {
     val luteChamber = dungeonEvent("lute_chamber")
 }
 val DungeonEvents = DungeonEventRefs()
-
-class LootTableRefs {
-    val standardBattle = lootTable("standard_battle")
-}
-val LootTables = LootTableRefs()
-
-class CombatLootTableRefs {
-    val default = LootTables.standardBattle
-}
-val CombatLootTables = CombatLootTableRefs()
 
 class TextRefs {
     val Title = TitleTextRefs()
