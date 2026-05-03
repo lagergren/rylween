@@ -628,14 +628,8 @@ private class ClassicAnsiScreen(
 }
 
 private fun WildernessSessionResultStatus.statusLine(): List<String> =
-    when (this) {
+    RuntimeUnavailableText.wildernessStatusLine(this) ?: when (this) {
         WildernessSessionResultStatus.Blocked -> listOf("Blocked.")
-        WildernessSessionResultStatus.SaveUnavailable -> listOf("Save not wired yet.")
-        WildernessSessionResultStatus.JournalUnavailable -> listOf("Journal not ported yet.")
-        WildernessSessionResultStatus.HuntUnavailable -> listOf("Hunt not ported yet.")
-        WildernessSessionResultStatus.ViewPartyUnavailable -> listOf("Party view not ported yet.")
-        WildernessSessionResultStatus.DropUnavailable -> listOf("Drop not ported yet.")
-        WildernessSessionResultStatus.CampUnavailable -> listOf("Camp not ported yet.")
         WildernessSessionResultStatus.Camped -> emptyList()
         WildernessSessionResultStatus.NotTired -> emptyList()
         WildernessSessionResultStatus.CampNotEnoughFood -> listOf("Not enough food.")

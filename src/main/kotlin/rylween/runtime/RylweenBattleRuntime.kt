@@ -1042,22 +1042,22 @@ private class CombatScriptRunner(
                             is TextPart.Literal -> part.text
                             is TextPart.IntValue -> evaluator.int(part.value).toString()
                             is TextPart.StringValue -> evalString(part.value)
-                            is TextPart.RoleName -> "{${part.role.slug}.name}"
-                            is TextPart.RoleLocation -> "{${part.role.slug}.location}"
-                            is TextPart.TownName -> part.town.slug
-                            is TextPart.FuzzyTownLocation -> "${part.town.slug}.near"
-                            is TextPart.LocationCoordinate -> "${part.location.slug}.coordinates"
-                            TextPart.OfferedItemName -> "{item_name}"
-                            TextPart.OfferedItemPrice -> "{item_price}"
-                            TextPart.ShopPrice -> "{price}"
-                            TextPart.ShopCarryCap -> "{cap}"
-                            TextPart.HuntMemberName -> "{who_name}"
-                            TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
-                            TextPart.HuntFoodGained -> "{fdplus}"
-                            TextPart.PartyMemberMax -> "{party_max}"
-                            TextPart.WildernessDungeonName -> "{dungeon}"
-                            TextPart.WildernessDungeonLevels -> "{levels}"
-                            TextPart.DungeonDepth -> "{level}"
+                            is TextPart.RoleName,
+                            is TextPart.RoleLocation,
+                            is TextPart.TownName,
+                            is TextPart.FuzzyTownLocation,
+                            is TextPart.LocationCoordinate,
+                            TextPart.OfferedItemName,
+                            TextPart.OfferedItemPrice,
+                            TextPart.ShopPrice,
+                            TextPart.ShopCarryCap,
+                            TextPart.HuntMemberName,
+                            TextPart.HuntMemberSubjectPronoun,
+                            TextPart.HuntFoodGained,
+                            TextPart.PartyMemberMax,
+                            TextPart.WildernessDungeonName,
+                            TextPart.WildernessDungeonLevels,
+                            TextPart.DungeonDepth -> part.fallbackText()
                         }
                     }
                 },
