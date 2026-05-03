@@ -12,12 +12,6 @@ package rylween.game
 
 import rylween.dsl.*
 
-val MissionRefs.thunTemple: MissionId
-    get() = missionId("missions.thun_temple")
-
-val MissionSceneRefs.thunTemple: SceneId
-    get() = sceneId("missions.thun_temple")
-
 fun ScriptScope.dungeonEntrance(
     dungeon: DungeonId,
     levels: Int,
