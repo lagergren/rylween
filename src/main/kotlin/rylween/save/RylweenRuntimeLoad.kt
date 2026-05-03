@@ -63,6 +63,7 @@ fun validateRuntimeStateSnapshotForLoad(
     } catch (error: IllegalStateException) {
         throw runtimeLoadFailure(sourceName, error.message ?: "runtime snapshot is not valid")
     }
+    validateSnapshotMetadata(snapshot, content, sourceName)
     validateModeSnapshot(snapshot, content, sourceName)
     return snapshot
 }
@@ -73,6 +74,21 @@ private fun parseRuntimeSnapshotWithDiagnostics(source: String, sourceName: Stri
     } catch (error: RuntimeException) {
         throw runtimeLoadFailure(sourceName, "could not parse runtime snapshot: ${error.message ?: error::class.simpleName}")
     }
+
+private fun validateSnapshotMetadata(snapshot: RuntimeSnapshotModel, content: GameModel, sourceName: String) {
+    val metadata = snapshot.metadata ?: return
+    if (metadata.formatVersion != RuntimeSnapshotFormatVersion) {
+        throw runtimeLoadFailure(
+            sourceName,
+            "runtime snapshot format version ${metadata.formatVersion} is not supported; " +
+                "expected $RuntimeSnapshotFormatVersion",
+        )
+    }
+    val expectedHash = content.runtimeContentHash()
+    if (metadata.contentHash != null && metadata.contentHash != expectedHash) {
+        throw runtimeLoadFailure(sourceName, "runtime snapshot content hash does not match this game build")
+    }
+}
 
 private fun validateModeSnapshot(snapshot: RuntimeSnapshotModel, content: GameModel, sourceName: String) {
     when (snapshot.state.realm.currentMode) {

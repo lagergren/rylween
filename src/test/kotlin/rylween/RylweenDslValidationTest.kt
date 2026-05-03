@@ -260,6 +260,7 @@ class RylweenDslValidationTest {
     @Test
     fun fileRuntimeSavePortWritesParseableSnapshot() {
         val file = File.createTempFile("rylween-save-", ".kts")
+        val content = RylweenCompiledGame.nextDsl
         val freshReplay = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
         val sourceParty = freshReplay.parties.single()
         val saveParty = sourceParty.copy(
@@ -284,7 +285,7 @@ class RylweenDslValidationTest {
                 name = "wilderness-file-save-load-round-trip",
                 inputs = listOf("S"),
                 seed = 99L,
-                savePort = FileRuntimeSavePort(file, stateId("test-save")),
+                savePort = FileRuntimeSavePort(file, stateId("test-save"), content),
                 start = {
                     compiledWildernessSession(
                         party = saveParty,
@@ -296,16 +297,21 @@ class RylweenDslValidationTest {
                     checkpoint("saved file validates and boots as wilderness") {
                         val loaded = loadRuntimeStateSnapshot(
                             file = file,
-                            content = RylweenCompiledGame.nextDsl,
+                            content = content,
+                            sourceName = "scenario save file",
+                        )
+                        val loadedSnapshot = loadRuntimeSnapshot(
+                            file = file,
+                            content = content,
                             sourceName = "scenario save file",
                         )
                         val startup = validateStartupState(
                             state = loaded,
-                            content = RylweenCompiledGame.nextDsl,
+                            content = content,
                             target = RuntimeStartupTarget.Wilderness,
                             sourceName = "scenario save startup",
                         )
-                        val session = RylweenKotlinEngine(RylweenCompiledGame.nextDsl).wildernessSession(
+                        val session = RylweenKotlinEngine(content).wildernessSession(
                             state = startup,
                             worldMap = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
                             realizeNpcs = false,
@@ -314,6 +320,7 @@ class RylweenDslValidationTest {
                         assertTrue(result.status is TerminalRunStatus.Waiting)
                         assertEquals(WildernessSessionResultStatus.Saved, result.session.lastResult?.status)
                         assertEquals(stateId("test-save"), loaded.id)
+                        assertEquals(content.runtimeSnapshotMetadata(), loadedSnapshot.metadata)
                         assertEquals(99L, loaded.realm.rngState)
                         assertEquals(result.session.party.id, loaded.realm.activeParty)
                         assertEquals(saveParty.resources.food - 2, loaded.parties.single().resources.food)
@@ -327,6 +334,53 @@ class RylweenDslValidationTest {
         } finally {
             file.delete()
         }
+    }
+
+    @Test
+    fun runtimeSnapshotLoadRejectsMismatchedContentHash() {
+        val content = RylweenCompiledGame.nextDsl
+        val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay }
+        val snapshot = RuntimeSnapshotModel(
+            state = base.copy(
+                kind = StateKind.RuntimeSnapshot,
+                realm = base.realm.copy(rngState = 1234L),
+            ),
+            metadata = content.runtimeSnapshotMetadata(),
+        )
+        val rendered = renderRuntimeStateSnapshot(snapshot)
+        val changedContent = content.copy(
+            worldMaps = content.worldMaps + content.worldMaps.first().copy(id = worldMap("compatibility_test_extra")),
+        )
+
+        val failure = assertFailsWith<RylweenValidationException> {
+            parseRuntimeSnapshotForLoad(rendered, changedContent, sourceName = "mismatched save")
+        }
+
+        assertEquals("mismatched save", failure.diagnostics.single().path)
+        assertTrue("content hash does not match" in failure.diagnostics.single().message)
+    }
+
+    @Test
+    fun runtimeSnapshotLoadRejectsUnsupportedSnapshotFormatVersion() {
+        val content = RylweenCompiledGame.nextDsl
+        val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay }
+        val snapshot = RuntimeSnapshotModel(
+            state = base.copy(
+                kind = StateKind.RuntimeSnapshot,
+                realm = base.realm.copy(rngState = 1234L),
+            ),
+            metadata = RuntimeSnapshotMetadata(
+                formatVersion = RuntimeSnapshotFormatVersion + 1,
+                contentHash = content.runtimeContentHash(),
+            ),
+        )
+
+        val failure = assertFailsWith<RylweenValidationException> {
+            parseRuntimeSnapshotForLoad(renderRuntimeStateSnapshot(snapshot), content, sourceName = "future save")
+        }
+
+        assertEquals("future save", failure.diagnostics.single().path)
+        assertTrue("format version" in failure.diagnostics.single().message)
     }
 
     @Test

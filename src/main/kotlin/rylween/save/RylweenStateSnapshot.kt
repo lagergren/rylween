@@ -4,6 +4,7 @@ import rylween.dsl.*
 import rylween.runtime.DungeonSavedStep
 import rylween.runtime.DungeonSessionSnapshot
 import rylween.runtime.MissionPostDungeonSnapshot
+import rylween.runtime.RuntimeSnapshotMetadata
 import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.ScriptBlockRef
@@ -57,6 +58,7 @@ private class RuntimeStateSnapshotParser(source: String) {
         val id = parseStateId()
         expectSymbol(')')
         expectSymbol('{')
+        val metadata = if (matchIdent("metadata")) parseMetadataBody() else null
         val realm = parseRealm()
         val locations = parseLocations()
         val npcs = parseNpcs()
@@ -72,7 +74,25 @@ private class RuntimeStateSnapshotParser(source: String) {
         return RuntimeSnapshotModel(
             state = StateModel(id, StateKind.RuntimeSnapshot, realm, locations, npcs, parties),
             mode = mode,
+            metadata = metadata,
         )
+    }
+
+    private fun parseMetadataBody(): RuntimeSnapshotMetadata {
+        expectSymbol('{')
+        var formatVersion = RuntimeSnapshotFormatVersion
+        var contentHash: String? = null
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "formatVersion" -> formatVersion = parseAssignedInt()
+                "contentHash" -> {
+                    expectSymbol('=')
+                    contentHash = parseNullable(::parseString)
+                }
+                else -> unexpected("metadata field $field")
+            }
+        }
+        return RuntimeSnapshotMetadata(formatVersion, contentHash)
     }
 
     private fun parseRealm(): RealmState {
@@ -1009,6 +1029,7 @@ private class RuntimeStateSnapshotWriter {
         val state = snapshot.state
         line("runtimeState(${stateId(state.id)}) {")
         indented {
+            snapshot.metadata?.let(::metadata)
             realm(state.realm)
             locations(state.locations)
             npcs(state.npcs)
@@ -1017,6 +1038,15 @@ private class RuntimeStateSnapshotWriter {
         }
         line("}")
         return out.toString()
+    }
+
+    private fun metadata(metadata: RuntimeSnapshotMetadata) {
+        line("metadata {")
+        indented {
+            assignment("formatVersion", metadata.formatVersion)
+            line("contentHash = ${metadata.contentHash?.let(::quote) ?: "null"}")
+        }
+        line("}")
     }
 
     private fun realm(realm: RealmState) {

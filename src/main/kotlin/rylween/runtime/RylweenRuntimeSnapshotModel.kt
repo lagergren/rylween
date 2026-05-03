@@ -12,6 +12,12 @@ import rylween.dsl.YdargRoomEvent
 data class RuntimeSnapshotModel(
     val state: StateModel,
     val mode: RuntimeModeSnapshot? = null,
+    val metadata: RuntimeSnapshotMetadata? = null,
+)
+
+data class RuntimeSnapshotMetadata(
+    val formatVersion: Int,
+    val contentHash: String? = null,
 )
 
 sealed interface RuntimeModeSnapshot {

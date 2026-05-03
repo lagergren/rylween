@@ -166,7 +166,7 @@ object RylweenGameTerminalMain {
                 speakContent = engine.speakContent(),
                 battleContent = content.runtimeContent(),
             ),
-            savePort = FileRuntimeSavePort(config.saveFile, config.saveState),
+            savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content),
         )
 
         terminal.write(
