@@ -1627,6 +1627,7 @@ data class TownPromptsModel(
 
 data class PartyPromptsModel(
     val viewWho: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") },
+    val journalHeader: TextBlock = missingPrompt("party.journal_header"),
     val dropPrompt: TextBlock = inlineText("Drop what?"),
     val dropEmptySlot: TextBlock = inlineText("Nothing to drop."),
     val dropAborted: TextBlock = inlineText("Aborted."),
@@ -4364,6 +4365,7 @@ class TownPromptsBuilder(initial: TownPromptsModel = TownPromptsModel()) {
 @RylNextDsl
 class PartyPromptsBuilder(initial: PartyPromptsModel = PartyPromptsModel()) {
     var viewWho: TextBlock = initial.viewWho
+    var journalHeader: TextBlock = initial.journalHeader
     var dropPrompt: TextBlock = initial.dropPrompt
     var dropEmptySlot: TextBlock = initial.dropEmptySlot
     var dropAborted: TextBlock = initial.dropAborted
@@ -4377,6 +4379,7 @@ class PartyPromptsBuilder(initial: PartyPromptsModel = PartyPromptsModel()) {
     fun build(): PartyPromptsModel =
         PartyPromptsModel(
             viewWho = viewWho,
+            journalHeader = journalHeader,
             dropPrompt = dropPrompt,
             dropEmptySlot = dropEmptySlot,
             dropAborted = dropAborted,

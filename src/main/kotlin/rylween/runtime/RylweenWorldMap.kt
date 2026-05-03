@@ -51,7 +51,8 @@ enum class WildernessSessionResultStatus {
     TerrainNarrated,
     SaveUnavailable,
     RedrawRequested,
-    JournalUnavailable,
+    JournalRequested,
+    JournalShown,
     HelpShown,
     HuntUnavailable,
     HuntSucceeded,
@@ -141,6 +142,7 @@ sealed interface WildernessSessionStep {
     data class InventoryItemUse(val session: InventoryItemUseSession) : WildernessSessionStep
     data class InventoryDrop(val session: InventoryDropSession) : WildernessSessionStep
     data class PartyView(val session: PartyViewSession) : WildernessSessionStep
+    data class PartyJournal(val session: PartyJournalSession) : WildernessSessionStep
     data class Equipment(val session: EquipmentPromptSession) : WildernessSessionStep
     data class PriestSpell(val session: PriestSpellSession) : WildernessSessionStep
     data class Notice(val text: TextBlock, val next: WildernessSessionStep = Explore) : WildernessSessionStep
@@ -323,8 +325,7 @@ data class WildernessSession(
             WildernessSessionInput.ReadyWeapon -> equipment(EquipmentCommand.ReadyWeapon)
             WildernessSessionInput.ReadyArmor -> equipment(EquipmentCommand.ReadyArmor)
             WildernessSessionInput.Redraw -> copy(lastResult = WildernessSessionResult(WildernessSessionResultStatus.RedrawRequested))
-            WildernessSessionInput.Journal ->
-                pending(RuntimeUnavailableText.journalPending(), WildernessSessionResultStatus.JournalUnavailable)
+            WildernessSessionInput.Journal -> journal()
             WildernessSessionInput.Help -> copy(
                 step = WildernessSessionStep.Messages(wilderness.keys.effectiveHelpPages(), WildernessSessionStep.TurnStart),
                 lastResult = WildernessSessionResult(WildernessSessionResultStatus.HelpShown),
@@ -584,6 +585,20 @@ data class WildernessSession(
         }
     }
 
+    fun replacePartyJournalSession(session: PartyJournalSession): WildernessSession {
+        require(step is WildernessSessionStep.PartyJournal) {
+            "wilderness session is not showing the party journal"
+        }
+        return if (session.step is PartyJournalStep.Finished) {
+            copy(
+                step = WildernessSessionStep.TurnStart,
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.JournalShown),
+            )
+        } else {
+            copy(step = WildernessSessionStep.PartyJournal(session))
+        }
+    }
+
     fun replaceEquipmentSession(session: EquipmentPromptSession): WildernessSession {
         require(step is WildernessSessionStep.Equipment) {
             "wilderness session is not running equipment prompts"
@@ -784,6 +799,21 @@ data class WildernessSession(
             ),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.ViewPartyRequested),
         )
+
+    private fun journal(): WildernessSession {
+        val session = PartyJournalSession(
+            party = party,
+            prompts = content.prompts.party,
+        )
+        return if (session.step is PartyJournalStep.Finished) {
+            copy(lastResult = WildernessSessionResult(WildernessSessionResultStatus.JournalShown))
+        } else {
+            copy(
+                step = WildernessSessionStep.PartyJournal(session),
+                lastResult = WildernessSessionResult(WildernessSessionResultStatus.JournalRequested),
+            )
+        }
+    }
 
     private fun camp(): WildernessSession =
         copy(

@@ -243,6 +243,30 @@ class PartyViewTerminalAdapter(
     }
 }
 
+class PartyJournalTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun runUntilBlocked(
+        initial: PartyJournalSession,
+        runtime: RuntimeSessionState? = null,
+    ): TerminalAdapterResult<PartyJournalSession> {
+        var session = initial
+        repeat(4) {
+            session = when (val step = session.step) {
+                is PartyJournalStep.Show -> {
+                    terminal.write(journalLines(session.prompts, step.entries, renderer, runtime))
+                    terminal.readReturn()
+                        ?: return waiting(session)
+                    session.apply(PartyJournalInput.Continue)
+                }
+                is PartyJournalStep.Finished -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+}
+
 class InventoryDropTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
@@ -320,6 +344,29 @@ private fun memberDetailLines(
             "Status: ${if (member.dead) "Dead" else "Alive"}",
             "",
         )
+    }
+
+private fun journalLines(
+    prompts: PartyPromptsModel,
+    entries: List<JournalEntryState>,
+    renderer: TerminalTextRenderer,
+    runtime: RuntimeSessionState?,
+): List<String> {
+    val context = TerminalTextContext(runtime = runtime)
+    return renderer.lines(prompts.journalHeader, context) +
+        entries.flatMap { entry -> journalEntryLines(entry, renderer, context) }
+}
+
+private fun journalEntryLines(
+    entry: JournalEntryState,
+    renderer: TerminalTextRenderer,
+    context: TerminalTextContext,
+): List<String> =
+    when (entry) {
+        is JournalEntryState.Line -> listOf("- ${entry.text}")
+        is JournalEntryState.Text -> renderer.lines(TextBlock.Ref(entry.id), context).mapIndexed { index, line ->
+            if (index == 0) "- $line" else "  $line"
+        }
     }
 
 class PriestSpellTerminalAdapter(
@@ -1016,6 +1063,11 @@ class WildernessSessionTerminalAdapter(
                 is WildernessSessionStep.PartyView -> {
                     val result = PartyViewTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
                     val updated = session.replacePartyViewSession(result.session)
+                    continueOrBlock(updated, result.status) { return it }
+                }
+                is WildernessSessionStep.PartyJournal -> {
+                    val result = PartyJournalTerminalAdapter(terminal, renderer).runUntilBlocked(step.session, session.runtime)
+                    val updated = session.replacePartyJournalSession(result.session)
                     continueOrBlock(updated, result.status) { return it }
                 }
                 is WildernessSessionStep.Equipment -> {
