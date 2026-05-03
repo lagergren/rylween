@@ -1365,92 +1365,108 @@ class RylweenDslValidationTest {
 
     @Test
     fun compiledDungeonPlaythroughSolvesThunRiddlesAndTakesBracelets() {
-        val terminal = FakeTerminalPort(
-            "",
-            "water",
-            "",
-            "D",
-            "",
-            "night",
-            "",
-            "D",
-            "",
-            "a well",
-            "",
-            "D",
-            "",
-        )
-        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            compiledDungeonSession(
-                dungeon = Dungeons.thunTemple,
-                levels = 4,
-                dungeons = fixedCompiledDungeon(
-                    Dungeons.thunTemple,
-                    1 to DungeonEvents.thunRiddle1,
-                    2 to DungeonEvents.thunRiddle2,
-                    3 to DungeonEvents.thunRiddle3,
-                    4 to DungeonEvents.bracelets,
-                ),
-                party = testParty(torches = 4),
+        runDungeonScenario(
+            name = "thun-riddles-bracelets",
+            inputs = listOf(
+                "",
+                "water",
+                "",
+                "D",
+                "",
+                "night",
+                "",
+                "D",
+                "",
+                "a well",
+                "",
+                "D",
+                "",
+            ),
+            levels = 4,
+            session = {
+                compiledDungeonSession(
+                    dungeon = Dungeons.thunTemple,
+                    levels = 4,
+                    dungeons = fixedCompiledDungeon(
+                        Dungeons.thunTemple,
+                        1 to DungeonEvents.thunRiddle1,
+                        2 to DungeonEvents.thunRiddle2,
+                        3 to DungeonEvents.thunRiddle3,
+                        4 to DungeonEvents.bracelets,
+                    ),
+                    party = testParty(torches = 4),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("bracelets reward and flag are applied") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+                    assertTrue(result.session.party.milestones.contains(Milestones.braceletsOfThun))
+                    assertTrue(result.session.party.hasFlagState(Story.bracelets.thun.braceletsTaken))
+                    assertTrue(terminal.output.any { "Bracelets of Thun" in it })
+                },
             ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
-        assertTrue(result.session.party.milestones.contains(Milestones.braceletsOfThun))
-        assertTrue(result.session.party.hasFlagState(Story.bracelets.thun.braceletsTaken))
-        assertTrue(terminal.output.any { "Bracelets of Thun" in it })
     }
 
     @Test
     fun compiledDungeonPlaythroughUsesDungeonLevelContextForColourRiddle() {
-        val terminal = FakeTerminalPort(
-            *(
-                List(12) { "D" } +
-                    listOf("", "", "7", "")
-                ).toTypedArray(),
-        )
-        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            compiledDungeonSession(
-                dungeon = Dungeons.reebarTomb,
-                levels = 13,
-                dungeons = fixedCompiledDungeon(
-                    Dungeons.reebarTomb,
-                    13 to DungeonEvents.colourRiddle,
-                ),
-                party = testParty(torches = 12),
+        runDungeonScenario(
+            name = "reebar-colour-riddle-level-context",
+            inputs = List(12) { "D" } + listOf("", "", "7", ""),
+            levels = 13,
+            session = {
+                compiledDungeonSession(
+                    dungeon = Dungeons.reebarTomb,
+                    levels = 13,
+                    dungeons = fixedCompiledDungeon(
+                        Dungeons.reebarTomb,
+                        13 to DungeonEvents.colourRiddle,
+                    ),
+                    party = testParty(torches = 12),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("colour riddle sees dungeon depth") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(13, result.session.depth)
+                    assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+                    assertTrue(result.session.step is DungeonSessionStep.Explore)
+                    assertTrue(terminal.output.any { "ANTECHAMBER #1" in it })
+                    assertTrue(terminal.output.any { "You feel a slight" in it })
+                },
             ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertEquals(13, result.session.depth)
-        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
-        assertTrue(result.session.step is DungeonSessionStep.Explore)
-        assertTrue(terminal.output.any { "ANTECHAMBER #1" in it })
-        assertTrue(terminal.output.any { "You feel a slight" in it })
     }
 
     @Test
     fun compiledDungeonPlaythroughCanTakeSilverKeyAfterPassword() {
-        val terminal = FakeTerminalPort("", "RISH EKKIN", "", "")
-        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            compiledDungeonSession(
-                dungeon = Dungeons.hobgoblinStronghold,
-                levels = 1,
-                dungeons = fixedCompiledDungeon(
-                    Dungeons.hobgoblinStronghold,
-                    1 to DungeonEvents.hobgoblinChief,
-                ),
-                party = testParty(),
-                withCombat = false,
+        runDungeonScenario(
+            name = "hobgoblin-password-silver-key",
+            inputs = listOf("", "RISH EKKIN", "", ""),
+            levels = 1,
+            session = {
+                compiledDungeonSession(
+                    dungeon = Dungeons.hobgoblinStronghold,
+                    levels = 1,
+                    dungeons = fixedCompiledDungeon(
+                        Dungeons.hobgoblinStronghold,
+                        1 to DungeonEvents.hobgoblinChief,
+                    ),
+                    party = testParty(),
+                    withCombat = false,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("password grants silver key") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+                    assertTrue(result.session.party.milestones.contains(Milestones.silverKey))
+                    assertTrue(result.session.party.hasFlagState(Story.silverKey.keyTaken))
+                    assertTrue(terminal.output.any { "Silver Key" in it })
+                },
             ),
         )
-
-        assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
-        assertTrue(result.session.party.milestones.contains(Milestones.silverKey))
-        assertTrue(result.session.party.hasFlagState(Story.silverKey.keyTaken))
-        assertTrue(terminal.output.any { "Silver Key" in it })
     }
 
     @Test
@@ -4311,96 +4327,116 @@ class RylweenDslValidationTest {
 
     @Test
     fun authoredKoboldVillageMissionResumesThroughAllBattlesAndCompletes() {
-        val run = runCompiledMissionScene(
-            Missions.koboldVillage,
-            "A",
-            "",
-            "F",
-            "A",
-            "A",
-            "",
-            "F",
-            "A",
-            "A",
-            "",
-            "F",
-            "A",
-            "A",
-            "",
+        runCompiledMissionScenario(
+            name = "kobold-village-completion",
+            missionId = Missions.koboldVillage,
+            inputs = listOf(
+                "A",
+                "",
+                "F",
+                "A",
+                "A",
+                "",
+                "F",
+                "A",
+                "A",
+                "",
+                "F",
+                "A",
+                "A",
+                "",
+            ),
+            checkpoints = listOf(
+                checkpoint("quest flag and pendant reward") {
+                    assertTrue(result.session.party.hasFlagState(Story.masterCrown.task1Done))
+                    assertTrue(terminal.output.any { "ugly pendant" in it })
+                },
+            ),
         )
-
-        assertCompletedMission(run.result, Missions.koboldVillage)
-        assertTrue(run.result.session.party.hasFlagState(Story.masterCrown.task1Done))
-        assertTrue(run.terminal.output.any { "ugly pendant" in it })
     }
 
     @Test
     fun authoredOgreCaveMissionResumesThroughBattlesRewardAndCompletion() {
-        val run = runCompiledMissionScene(
-            Missions.ogreCave,
-            "E",
-            "",
-            "F",
-            "A",
-            "A",
-            "",
-            "F",
-            "A",
-            "A",
-            "",
-            "",
-            "",
-            "",
+        runCompiledMissionScenario(
+            name = "ogre-cave-reward-completion",
+            missionId = Missions.ogreCave,
+            inputs = listOf(
+                "E",
+                "",
+                "F",
+                "A",
+                "A",
+                "",
+                "F",
+                "A",
+                "A",
+                "",
+                "",
+                "",
+                "",
+            ),
+            checkpoints = listOf(
+                checkpoint("reward and completion state") {
+                    assertTrue(result.session.party.hasFlagState(Story.jazzy.ogre.ogresCleared))
+                    assertEquals(5645, result.session.party.resources.gold)
+                    assertTrue(result.session.party.inventory.any { it.item == Items.mithrilMail })
+                    assertTrue(terminal.output.any { "Kastagir" in it })
+                },
+            ),
         )
-
-        assertCompletedMission(run.result, Missions.ogreCave)
-        assertTrue(run.result.session.party.hasFlagState(Story.jazzy.ogre.ogresCleared))
-        assertEquals(5645, run.result.session.party.resources.gold)
-        assertTrue(run.result.session.party.inventory.any { it.item == Items.mithrilMail })
-        assertTrue(run.terminal.output.any { "Kastagir" in it })
     }
 
     @Test
     fun authoredJazzyFootMissionResumesThroughMinionsAndJazzy() {
-        val run = runCompiledMissionScene(
-            Missions.jazzyFoot,
-            "",
-            "",
-            "F",
-            "A",
-            "A",
-            "",
-            "",
-            "F",
-            "A",
-            "A",
-            "",
+        runCompiledMissionScenario(
+            name = "jazzy-foot-minions-and-jazzy",
+            missionId = Missions.jazzyFoot,
+            inputs = listOf(
+                "",
+                "",
+                "F",
+                "A",
+                "A",
+                "",
+                "",
+                "F",
+                "A",
+                "A",
+                "",
+            ),
+            checkpoints = listOf(
+                checkpoint("jazzy milestone and kill narration") {
+                    assertTrue(result.session.party.hasFlagState(Story.jazzy.ogre.jazzyDefeated))
+                    assertTrue(Milestones.footOfJazzy in result.session.party.milestones)
+                    assertTrue(terminal.output.any { "Today, you have killed" in it })
+                },
+            ),
         )
-
-        assertCompletedMission(run.result, Missions.jazzyFoot)
-        assertTrue(run.result.session.party.hasFlagState(Story.jazzy.ogre.jazzyDefeated))
-        assertTrue(Milestones.footOfJazzy in run.result.session.party.milestones)
-        assertTrue(run.terminal.output.any { "Today, you have killed" in it })
     }
 
     @Test
     fun authoredHobgoblinCaravanMissionResumesThroughBattleAndJournal() {
-        val run = runCompiledMissionScene(
-            Missions.hobgoblinCaravan,
-            "",
-            "",
-            "F",
-            "A",
-            "A",
-            "",
-            "",
-        )
-
-        assertCompletedMission(run.result, Missions.hobgoblinCaravan)
-        assertTrue(run.result.session.party.hasFlagState(Story.silverKey.caveLocated))
-        assertEquals(
-            listOf(JournalEntryState.Line("The hobgoblin cave is at 46x13.")),
-            run.result.session.party.journal,
+        runCompiledMissionScenario(
+            name = "hobgoblin-caravan-battle-journal",
+            missionId = Missions.hobgoblinCaravan,
+            inputs = listOf(
+                "",
+                "",
+                "F",
+                "A",
+                "A",
+                "",
+                "",
+            ),
+            checkpoints = listOf(
+                checkpoint("journal points at cave") {
+                    assertTrue(result.session.party.hasFlagState(Story.silverKey.caveLocated))
+                    assertEquals(
+                        listOf(JournalEntryState.Line("The hobgoblin cave is at 46x13.")),
+                        result.session.party.journal,
+                    )
+                },
+            ),
         )
     }
 
@@ -5065,42 +5101,69 @@ class RylweenDslValidationTest {
         )
     }
 
-    private data class MissionSceneRun(
-        val terminal: FakeTerminalPort,
-        val result: TerminalAdapterResult<WildernessSession>,
-    )
+    private fun runDungeonScenario(
+        name: String,
+        inputs: List<String>,
+        levels: Int,
+        seed: Long? = 1L,
+        session: () -> DungeonSession,
+        checkpoints: List<TerminalScenarioCheckpoint<DungeonSession>> = emptyList(),
+    ): TerminalScenarioRun<DungeonSession> =
+        TerminalScenario(
+            name = name,
+            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = seed),
+            inputs = inputs,
+            start = session,
+            drive = { terminal, start ->
+                DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(start)
+            },
+            checkpoints = checkpoints + checkpoint("dungeon session keeps requested depth metadata") {
+                assertEquals(levels, result.session.maxDepth)
+            },
+        ).run()
 
-    private fun runCompiledMissionScene(
+    private fun runCompiledMissionScenario(
+        name: String,
         missionId: MissionId,
-        vararg inputs: String,
-    ): MissionSceneRun {
+        inputs: List<String>,
+        checkpoints: List<TerminalScenarioCheckpoint<WildernessSession>> = emptyList(),
+    ): TerminalScenarioRun<WildernessSession> {
         val game = RylweenCompiledGame.nextDsl
         val mission = game.missions.single { it.id == missionId }
         val scene = game.scenes.single { it.id == mission.action }
-        val terminal = FakeTerminalPort(*inputs)
-        val runtime = RuntimeSessionState.singleParty(
-            party = decisiveMissionParty(),
-            hour = 12,
-            currentTown = null,
-            locations = gameLocationPlacements(),
-        ).asWilderness()
-        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
-            WildernessSession(
-                runtime = runtime,
-                worldMap = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
-                content = game.runtimeContent().withTinyMissionMonsters(
-                    Monsters.koboldHorde,
-                    Monsters.orc,
-                    Monsters.ogre,
-                    Monsters.ogreLord,
-                    Monsters.wingedThing,
-                    Monsters.jazzy,
-                    Monsters.ridingHobgoblin,
-                ),
-                step = WildernessSessionStep.Mission(mission, scene),
-            ),
-        )
-        return MissionSceneRun(terminal, result)
+        return TerminalScenario(
+            name = name,
+            fixture = ScenarioFixture(startState = States.freshReplay.slug, seed = null),
+            inputs = inputs,
+            start = {
+                val runtime = RuntimeSessionState.singleParty(
+                    party = decisiveMissionParty(),
+                    hour = 12,
+                    currentTown = null,
+                    locations = gameLocationPlacements(),
+                ).asWilderness()
+                WildernessSession(
+                    runtime = runtime,
+                    worldMap = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
+                    content = game.runtimeContent().withTinyMissionMonsters(
+                        Monsters.koboldHorde,
+                        Monsters.orc,
+                        Monsters.ogre,
+                        Monsters.ogreLord,
+                        Monsters.wingedThing,
+                        Monsters.jazzy,
+                        Monsters.ridingHobgoblin,
+                    ),
+                    step = WildernessSessionStep.Mission(mission, scene),
+                )
+            },
+            drive = { terminal, start ->
+                WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(start)
+            },
+            checkpoints = checkpoints + checkpoint("mission returns to wilderness explore") {
+                assertCompletedMission(result, missionId)
+            },
+        ).run()
     }
 
     private fun RuntimeContent.withTinyMissionMonsters(vararg ids: MonsterId): RuntimeContent {
