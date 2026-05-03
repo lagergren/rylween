@@ -795,7 +795,8 @@ class RylweenDslValidationTest {
         )
 
         assertEquals(550, party.resourceCapacity(records, Resource.Food, baseCapacity = 150))
-        val effect = party.campGearEffect(records, fallbackImage = Images.Scene.noTent)
+        val fallback = image("blitgfx.no_tent")
+        val effect = party.campGearEffect(records, fallbackImage = fallback)
         assertTrue(effect.protects(arcticBand))
         assertFalse(effect.protects(TemperatureBand.Low))
     }
@@ -803,22 +804,22 @@ class RylweenDslValidationTest {
     @Test
     fun campGearEffectReflectsTentAndBlanketProtection() {
         val records = compiledItemRecords()
-        val fallback = Images.Scene.noTent
+        val fallback = image("blitgfx.no_tent")
         val noGear = testParty().campGearEffect(records, fallback)
         val blanket = testParty(inventoryItems = mapOf(1 to Items.blanket)).campGearEffect(records, fallback)
         val tent = testParty(inventoryItems = mapOf(1 to Items.tent)).campGearEffect(records, fallback)
         val reservedSlotTent = testParty(inventoryItems = mapOf(0 to Items.tent)).campGearEffect(records, fallback)
 
-        assertEquals(Images.Scene.noTent, noGear.image)
+        assertEquals(fallback, noGear.image)
         assertFalse(noGear.protects(TemperatureBand.Low))
         assertFalse(noGear.protects(TemperatureBand.VeryLow))
-        assertEquals(Images.Scene.noTent, blanket.image)
+        assertEquals(fallback, blanket.image)
         assertTrue(blanket.protects(TemperatureBand.Low))
         assertFalse(blanket.protects(TemperatureBand.VeryLow))
         assertEquals(Images.Scene.tent, tent.image)
         assertTrue(tent.protects(TemperatureBand.Low))
         assertTrue(tent.protects(TemperatureBand.VeryLow))
-        assertEquals(Images.Scene.noTent, reservedSlotTent.image)
+        assertEquals(fallback, reservedSlotTent.image)
     }
 
     @Test
