@@ -2928,6 +2928,81 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun validationRejectsMissingDungeonScenarioHandoffs() {
+        val missingDungeon = dungeon("missing_scenario")
+        val action = sceneId("bad.dungeon_handoff")
+        val content = GameBuilder().apply {
+            scene(action) {
+                enterDungeon(missingDungeon, levels = 3)
+            }
+            missions {
+                mission(missionId("bad.dungeon_handoff")) {
+                    randomStep(1)
+                    runs(action)
+                }
+            }
+        }.build()
+
+        val diagnostics = collectAuthoredContentDiagnostics(content)
+
+        assertTrue(
+            diagnostics.any {
+                it.path == "scripts" &&
+                    "missing dungeon scenario" in it.message &&
+                    missingDungeon.slug in it.message
+            },
+        )
+    }
+
+    @Test
+    fun validationRejectsDungeonEncounterTiersWithoutAuthoredMonsters() {
+        val tier = encounterTier("missing_encounter_tier")
+        val event = dungeonEvent("bad.random_encounter")
+        val content = GameBuilder().apply {
+            dungeons {
+                event(event) {
+                    randomEncounter(tier)
+                }
+                scenario(dungeon("bad_cave")) {
+                    randomEvents {
+                        event(event)
+                    }
+                }
+            }
+        }.build()
+
+        val diagnostics = collectAuthoredContentDiagnostics(content)
+
+        assertTrue(
+            diagnostics.any {
+                it.path == "dungeons" &&
+                    "has no authored monsters" in it.message &&
+                    tier.slug in it.message
+            },
+        )
+    }
+
+    @Test
+    fun validationRejectsScriptReferencesToMissingRuntimeContent() {
+        val missingMonster = monster("missing_script_monster")
+        val content = GameBuilder().apply {
+            scene(sceneId("bad.script_refs")) {
+                encounter(missingMonster, mandatory = true)
+            }
+        }.build()
+
+        val diagnostics = collectAuthoredContentDiagnostics(content)
+
+        assertTrue(
+            diagnostics.any {
+                it.path == "scripts" &&
+                    "unknown monster" in it.message &&
+                    missingMonster.slug in it.message
+            },
+        )
+    }
+
+    @Test
     fun validationAggregatesAuthorFacingContentDiagnostics() {
         val content = GameBuilder().apply {
             terminal {
