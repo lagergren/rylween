@@ -797,24 +797,24 @@ class StatefulScriptServiceRunner(
                             is TextPart.IntValue -> eval(part.value).toString()
                             is TextPart.StringValue -> evalString(part.value)
                             is TextPart.RoleName -> worldText.roleName(part.role)
-                                ?: "{${part.role.slug}.name}"
+                                ?: part.fallbackText()
                             is TextPart.RoleLocation -> worldText.roleLocation(part.role, currentRuntime())
-                                ?: "{${part.role.slug}.location}"
+                                ?: part.fallbackText()
                             is TextPart.TownName -> worldText.townName(part.town)
                             is TextPart.FuzzyTownLocation -> worldText.townLocation(part.town, part.radius)
-                                ?: "${part.town.slug}.near"
-                            is TextPart.LocationCoordinate -> locationCoordinate(part.location)
-                            TextPart.OfferedItemName -> "{item_name}"
-                            TextPart.OfferedItemPrice -> "{item_price}"
-                            TextPart.ShopPrice -> "{price}"
-                            TextPart.ShopCarryCap -> "{cap}"
-                            TextPart.HuntMemberName -> "{who_name}"
-                            TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
-                            TextPart.HuntFoodGained -> "{fdplus}"
-                            TextPart.PartyMemberMax -> "{party_max}"
-                            TextPart.WildernessDungeonName -> "{dungeon}"
-                            TextPart.WildernessDungeonLevels -> "{levels}"
-                            TextPart.DungeonDepth -> "{level}"
+                                ?: part.fallbackText()
+                            is TextPart.LocationCoordinate -> locationCoordinate(part.location) ?: part.fallbackText()
+                            TextPart.OfferedItemName,
+                            TextPart.OfferedItemPrice,
+                            TextPart.ShopPrice,
+                            TextPart.ShopCarryCap,
+                            TextPart.HuntMemberName,
+                            TextPart.HuntMemberSubjectPronoun,
+                            TextPart.HuntFoodGained,
+                            TextPart.PartyMemberMax,
+                            TextPart.WildernessDungeonName,
+                            TextPart.WildernessDungeonLevels,
+                            TextPart.DungeonDepth -> part.fallbackText()
                         }
                     }
                 },
@@ -865,13 +865,12 @@ class StatefulScriptServiceRunner(
         return gender.pronoun(case)
     }
 
-    private fun locationCoordinate(location: LocationId): String =
+    private fun locationCoordinate(location: LocationId): String? =
         currentRuntime()
             .locations
             .firstOrNull { it.location == location }
             ?.point
             ?.let { "${it.x}x${it.y}" }
-            ?: "{${location.slug}.coordinates}"
 
     private val evaluator = object : IntAstEvaluator() {
         override fun local(name: String): Int = locals[name] ?: 0

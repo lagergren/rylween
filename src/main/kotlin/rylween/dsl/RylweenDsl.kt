@@ -106,6 +106,30 @@ sealed interface TextPart {
     object WildernessDungeonLevels : TextPart
     object DungeonDepth : TextPart
 }
+
+fun TextPart.fallbackText(): String =
+    when (this) {
+        is TextPart.Literal -> text
+        is TextPart.IntValue -> "{int}"
+        is TextPart.StringValue -> "{string}"
+        is TextPart.RoleName -> "{${role.slug}.name}"
+        is TextPart.RoleLocation -> "{${role.slug}.location}"
+        is TextPart.TownName -> town.slug
+        is TextPart.FuzzyTownLocation -> "${town.slug}.near"
+        is TextPart.LocationCoordinate -> "{${location.slug}.coordinates}"
+        TextPart.OfferedItemName -> "{item_name}"
+        TextPart.OfferedItemPrice -> "{item_price}"
+        TextPart.ShopPrice -> "{price}"
+        TextPart.ShopCarryCap -> "{cap}"
+        TextPart.HuntMemberName -> "{who_name}"
+        TextPart.HuntMemberSubjectPronoun -> "{pro_sub}"
+        TextPart.HuntFoodGained -> "{fdplus}"
+        TextPart.PartyMemberMax -> "{party_max}"
+        TextPart.WildernessDungeonName -> "{dungeon}"
+        TextPart.WildernessDungeonLevels -> "{levels}"
+        TextPart.DungeonDepth -> "{level}"
+    }
+
 data class TextLine(val parts: List<TextPart>)
 sealed interface TextBlock {
     data class Ref(val id: TextId) : TextBlock
@@ -1651,9 +1675,9 @@ private fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
 
 private fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
     when (this) {
-        TextPart.WildernessDungeonName -> TextPart.Literal(values.wildernessDungeonName ?: "{dungeon}")
-        TextPart.WildernessDungeonLevels -> TextPart.Literal(values.wildernessDungeonLevels?.toString() ?: "{levels}")
-        TextPart.DungeonDepth -> TextPart.Literal(values.dungeonDepth?.toString() ?: "{level}")
+        TextPart.WildernessDungeonName -> TextPart.Literal(values.wildernessDungeonName ?: fallbackText())
+        TextPart.WildernessDungeonLevels -> TextPart.Literal(values.wildernessDungeonLevels?.toString() ?: fallbackText())
+        TextPart.DungeonDepth -> TextPart.Literal(values.dungeonDepth?.toString() ?: fallbackText())
         else -> this
     }
 
@@ -2182,6 +2206,7 @@ class ScriptScope(
     val ask = AskScope(this)
     val choice = ChoiceScope(this)
     val view = ViewScope(this)
+    val rumour: RumourScriptScope = RumourScriptScope
     val native = NativeScope(this)
 
     val currentCaster: MemberRef
@@ -3375,12 +3400,16 @@ class ViewScope(private val script: ScriptScope) {
     fun statusLine() = script.record(Op.View(ViewCommand.StatusLine))
 }
 
+object RumourScriptScope {
+    fun roll(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.rumourRoll.path, emptyList()))
+}
+
 class NativeScope(private val script: ScriptScope) {
     // Native is deliberately narrow: rendering, keyboard input, inventory slot
     // plumbing, and helper calls whose implementation is genuinely engine-owned.
     // Game rules should become typed DSL verbs before they are allowed here.
     val screen = NativeScreen(script)
-    val rumour = NativeRumour(script)
+    val rumour: NativeRumour = NativeRumour
     val inventory = NativeInventory(script)
     val town = NativeTown(script)
     val input = NativeInput(script)
@@ -3403,7 +3432,8 @@ class NativeScreen(private val script: ScriptScope) {
     fun statusLine() = script.record(Op.View(ViewCommand.StatusLine))
 }
 
-class NativeRumour(private val script: ScriptScope) {
+object NativeRumour {
+    @Deprecated("Use rumour.roll(); game scripts should not call native rumour helpers directly.")
     fun roll(): IntExpr = Expr(IntAst.NativeInt(NativeAllowlist.rumourRoll.path, emptyList()))
 }
 

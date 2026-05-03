@@ -177,25 +177,25 @@ class TerminalTextRenderer(
             is TextPart.Literal -> part.text
             is TextPart.IntValue -> render(part.value)
             is TextPart.StringValue -> render(part.value, context)
-            is TextPart.RoleName -> worldText.roleName(part.role) ?: "{${part.role.slug}.name}"
+            is TextPart.RoleName -> worldText.roleName(part.role) ?: part.fallbackText()
             is TextPart.RoleLocation -> worldText.roleLocation(part.role, context.runtime)
-                ?: "{${part.role.slug}.location}"
+                ?: part.fallbackText()
             is TextPart.TownName -> worldText.townName(part.town)
             is TextPart.FuzzyTownLocation -> worldText.townLocation(part.town, part.radius)
-                ?: "${part.town.slug}.location"
+                ?: part.fallbackText()
             is TextPart.LocationCoordinate -> locationCoordinate(part.location, context.runtime)
-                ?: "{${part.location.slug}.coordinates}"
-            TextPart.OfferedItemName -> context.offeredItemName ?: "{item_name}"
-            TextPart.OfferedItemPrice -> context.offeredItemPrice?.toString() ?: "{item_price}"
-            TextPart.ShopPrice -> context.shopPrice?.toString() ?: "{price}"
-            TextPart.ShopCarryCap -> context.shopCarryCap?.toString() ?: "{cap}"
-            TextPart.HuntMemberName -> huntMember(context)?.name ?: "{who_name}"
-            TextPart.HuntMemberSubjectPronoun -> huntMemberSubjectPronoun(context) ?: "{pro_sub}"
-            TextPart.HuntFoodGained -> context.huntFoodGained?.toString() ?: "{fdplus}"
-            TextPart.PartyMemberMax -> context.runtime?.realm?.partyMemberMax?.toString() ?: "{party_max}"
-            TextPart.WildernessDungeonName -> "{dungeon}"
-            TextPart.WildernessDungeonLevels -> "{levels}"
-            TextPart.DungeonDepth -> "{level}"
+                ?: part.fallbackText()
+            TextPart.OfferedItemName -> context.offeredItemName ?: part.fallbackText()
+            TextPart.OfferedItemPrice -> context.offeredItemPrice?.toString() ?: part.fallbackText()
+            TextPart.ShopPrice -> context.shopPrice?.toString() ?: part.fallbackText()
+            TextPart.ShopCarryCap -> context.shopCarryCap?.toString() ?: part.fallbackText()
+            TextPart.HuntMemberName -> huntMember(context)?.name ?: part.fallbackText()
+            TextPart.HuntMemberSubjectPronoun -> huntMemberSubjectPronoun(context) ?: part.fallbackText()
+            TextPart.HuntFoodGained -> context.huntFoodGained?.toString() ?: part.fallbackText()
+            TextPart.PartyMemberMax -> context.runtime?.realm?.partyMemberMax?.toString() ?: part.fallbackText()
+            TextPart.WildernessDungeonName,
+            TextPart.WildernessDungeonLevels,
+            TextPart.DungeonDepth -> part.fallbackText()
         }
 
     fun pausePrompt(verbIndex: Int? = null): TextBlock {
