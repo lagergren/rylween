@@ -2424,7 +2424,7 @@ val nextRylween = rylween {
     }
 
     towns {
-        town("thord") {
+        town(Towns.thord) {
             name = "Thord"
             position = xy(12, 11)
             taxPercent = 7
@@ -2438,7 +2438,7 @@ val nextRylween = rylween {
             }
         }
 
-        town("ollk") {
+        town(Towns.ollk) {
             name = "Ollk"
             position = xy(48, 12)
             taxPercent = 10
@@ -2451,7 +2451,7 @@ val nextRylween = rylween {
             }
         }
 
-        town("wilor") {
+        town(Towns.wilor) {
             name = "Wilor"
             position = xy(43, 20)
             taxPercent = 9
@@ -2465,7 +2465,7 @@ val nextRylween = rylween {
             }
         }
 
-        town("murn") {
+        town(Towns.murn) {
             name = "Murn"
             position = xy(55, 29)
             taxPercent = 8
