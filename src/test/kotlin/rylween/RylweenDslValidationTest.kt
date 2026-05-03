@@ -1339,6 +1339,33 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun dungeonPriestRevelationCanFindAndTakeAuthoredItem() {
+        val terminal = FakeTerminalPort("Z", "1", "5", "T")
+        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.randomCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+                party = testParty(
+                    pcClass = PcClass.Priest,
+                    level = 1,
+                    wisdom = 100,
+                    mana = 100,
+                ),
+                rngState = 1L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is DungeonSessionStep.Explore)
+        assertEquals(DungeonSessionResultStatus.CastSpellUsed, result.session.lastResult?.status)
+        assertEquals(59, result.session.party.members.single().mana.current)
+        assertTrue(result.session.party.inventory.any { it.item != null })
+        assertTrue(terminal.output.any { "Something special is" in it })
+        assertTrue(terminal.output.any { "You find a" in it })
+    }
+
+    @Test
     fun terminalEventHookReceivesAuthoredAnsiScreenImages() {
         val terminal = RecordingTerminalPort("C", "L", "L")
         val result = TownSessionTerminalAdapter(
