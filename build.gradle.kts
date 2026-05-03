@@ -64,6 +64,53 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         val source = gameSource.get().asFile.readText()
         val buildingNames = buildingNames(source)
         val townNames = townNames(source)
+        val missionNames = handleNames(source, "Missions", "mission")
+        val dungeonNames = orderedNames(
+            handleNames(source, "Dungeons"),
+            listOf(
+                "randomCave",
+                "fireShieldCave",
+                "thunTemple",
+                "reebarTomb",
+                "masterCrownDungeon",
+                "silverSanctum",
+                "hobgoblinStronghold",
+                "ogreCave",
+                "erethorTemple",
+            ),
+        )
+        val dungeonEventNames = orderedNames(
+            handleNames(source, "DungeonEvents"),
+            listOf(
+                "findObject",
+                "nothingSpecial",
+                "emptyLevel",
+                "spectrumMessage",
+                "gold",
+                "goldChest",
+                "torches",
+                "weakEncounter",
+                "deepEncounter",
+                "thunRiddle1",
+                "thunRiddle2",
+                "thunRiddle3",
+                "colourRiddle",
+                "fireShieldGuardian",
+                "fireShield",
+                "bracelets",
+                "nolrimTomb",
+                "masterCrown",
+                "silverSanctum",
+                "hobgoblinPatrol",
+                "royalGuard1",
+                "royalGuard2",
+                "hobgoblinChief",
+                "orcNest",
+                "tammysPrison",
+                "erethorPriests",
+                "luteChamber",
+            ),
+        )
         val sections = listOf(
             generateFlagHandles(flagDeclarations(source)),
             generateItemHandles(itemHandles(source)),
@@ -119,6 +166,15 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 factoryName = "screenRegion",
                 names = handleNames(declarationBlock(source, "terminal"), "ScreenRegions", "region"),
             ),
+            generateSceneHandles(sceneHandles(source)),
+            generateRefsClass(
+                className = "MissionRefs",
+                objectName = "Missions",
+                typeName = "MissionId",
+                factoryName = "missionId",
+                names = missionNames,
+                slugOverrides = missionNames.associateWith { "missions.${it.toSlug()}" },
+            ),
             generateRefsClass(
                 className = "BuildingRefs",
                 objectName = "Buildings",
@@ -173,6 +229,20 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 typeName = "LocationId",
                 factoryName = "location",
                 names = handleNames(source, "Locations"),
+            ),
+            generateRefsClass(
+                className = "DungeonRefs",
+                objectName = "Dungeons",
+                typeName = "DungeonId",
+                factoryName = "dungeon",
+                names = dungeonNames,
+            ),
+            generateRefsClass(
+                className = "DungeonEventRefs",
+                objectName = "DungeonEvents",
+                typeName = "DungeonEventId",
+                factoryName = "dungeonEvent",
+                names = dungeonEventNames,
             ),
             generateRefsClass(
                 className = "GameMilestoneRefs",
@@ -246,6 +316,13 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         val mageNames: List<String>,
         val priestNames: List<String>,
         val monsterNames: List<String>,
+    )
+
+    private data class SceneGroupHandles(
+        val groupName: String,
+        val className: String,
+        val slugPrefix: String,
+        val names: List<String>,
     )
 
     private fun itemHandles(source: String): ItemHandles {
@@ -538,6 +615,57 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         """.trimMargin()
     }
 
+    private fun sceneHandles(source: String): List<SceneGroupHandles> {
+        val groupedNames = Regex("""\bScenes\.([A-Z][A-Za-z0-9_]*)\.([A-Za-z][A-Za-z0-9_]*)""")
+            .findAll(source)
+            .groupBy(
+                keySelector = { it.groupValues[1] },
+                valueTransform = { it.groupValues[2] },
+            )
+            .mapValues { (_, names) -> names.distinctInOrder() }
+        require(Regex("""\bScenes\.[a-z][A-Za-z0-9_]*""").find(source) == null) {
+            "Scene handles must use grouped names such as Scenes.Towne.rumour."
+        }
+        return listOf(
+            SceneGroupHandles("Towne", "TowneSceneRefs", "towne", groupedNames["Towne"].orEmpty()),
+            SceneGroupHandles("Battle", "BattleSceneRefs", "battle", groupedNames["Battle"].orEmpty()),
+            SceneGroupHandles("Missions", "MissionSceneRefs", "missions", groupedNames["Missions"].orEmpty()),
+            SceneGroupHandles("Terrain", "TerrainSceneRefs", "terrain", groupedNames["Terrain"].orEmpty()),
+            SceneGroupHandles("Dungeon", "DungeonSceneRefs", "dungeon", groupedNames["Dungeon"].orEmpty()),
+            SceneGroupHandles("Ydarg", "YdargSceneRefs", "ydarg", groupedNames["Ydarg"].orEmpty()),
+        ).filter { it.names.isNotEmpty() }
+            .also {
+                require(it.isNotEmpty()) {
+                    "No scene handle references found in ${gameSource.get().asFile}."
+                }
+            }
+    }
+
+    private fun generateSceneHandles(groups: List<SceneGroupHandles>): String {
+        val groupProperties = groups.joinToString(separator = "\n") { group ->
+            """    val ${group.groupName}: ${group.className} = ${group.className}()"""
+        }
+        val groupClasses = groups.joinToString(separator = "\n\n") { group ->
+            val lines = group.names.joinToString(separator = "\n") { name ->
+                """    val $name: SceneId = sceneId("${sceneSlug(group, name)}")"""
+            }
+            """
+                |class ${group.className} {
+                |$lines
+                |}
+            """.trimMargin()
+        }
+        return """
+            |class SceneRefs {
+            |$groupProperties
+            |}
+            |
+            |$groupClasses
+            |
+            |val Scenes: SceneRefs = SceneRefs()
+        """.trimMargin()
+    }
+
     private fun generateRefsClass(
         className: String,
         objectName: String,
@@ -696,6 +824,9 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     private fun sceneImageSlug(name: String): String =
         sceneImageSlugOverrides[name] ?: "blitgfx.${name.toSlug()}"
 
+    private fun sceneSlug(group: SceneGroupHandles, name: String): String =
+        legacySceneSlugs["${group.groupName}.$name"] ?: "${group.slugPrefix}.${name.toSlug()}"
+
     private fun derivedFlagProperties(flag: FlagDeclaration): String =
         when (flag.pathKey) {
             "silverKey" -> """
@@ -756,6 +887,10 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         "encounterBanner3" to "blitgfx.encounter.3",
         "encounterBanner4" to "blitgfx.encounter.4",
         "encounterBanner5" to "blitgfx.encounter.5",
+    )
+
+    private val legacySceneSlugs = mapOf(
+        "Battle.monsterMelee" to "battle.monster.melee",
     )
 }
 

@@ -5061,7 +5061,7 @@ class RylweenDslValidationTest {
                         }
                         option('R') {
                             clearText()
-                            run(Scenes.rumour)
+                            run(Scenes.Towne.rumour)
                             waitInput("after tavern rumour")
                         }
                         option('L') {

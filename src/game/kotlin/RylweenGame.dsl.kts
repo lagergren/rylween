@@ -4101,7 +4101,7 @@ val nextRylween = rylween {
                                 screen("A bargirl tells you:", "")
                             }
                         }
-                        run(Scenes.rumour)
+                        run(Scenes.Towne.rumour)
                         waitInput("after tavern rumour")
                     }
                 }
@@ -5063,7 +5063,7 @@ val nextRylween = rylween {
     }
 
     // 4. Rumour: switch is readable, role bindings are typed handles.
-    scene(Scenes.rumour) {
+    scene(Scenes.Towne.rumour) {
         val pick = localInt(rumour.roll())
 
         choose(pick) {
