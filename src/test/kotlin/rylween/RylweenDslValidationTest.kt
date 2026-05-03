@@ -2864,6 +2864,70 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun validationRejectsUnboundTerrainReferences() {
+        val missingTerrain = terrain("missing_terrain", 'x')
+        val scene = sceneId("bad.terrain")
+        val content = GameBuilder().apply {
+            terminal {
+                terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
+            }
+            worldMap(Maps.wilderness) {
+                layer(MapLayers.terrain) { rows("ss") }
+            }
+            wilderness {
+                terrainTransitions {
+                    terrain(missingTerrain) { line("Bad transition.") }
+                }
+            }
+            scene(scene) {
+                screen(inlineText("Bad terrain mission."))
+            }
+            missions {
+                mission(missionId("bad.terrain")) {
+                    onTerrain(missingTerrain)
+                    runs(scene)
+                }
+            }
+        }.build()
+
+        val diagnostics = collectAuthoredContentDiagnostics(content)
+
+        assertTrue(
+            diagnostics.any {
+                it.path == "wilderness" &&
+                    "terminal { terrain(...) } does not declare" in it.message &&
+                    missingTerrain.slug in it.message
+            },
+        )
+        assertTrue(
+            diagnostics.any {
+                it.path == "missions" &&
+                    "terminal { terrain(...) } does not declare" in it.message &&
+                    missingTerrain.slug in it.message
+            },
+        )
+    }
+
+    @Test
+    fun validationRejectsRuntimeTextBindingsOutsideTheirRenderingContext() {
+        val content = GameBuilder().apply {
+            scene(sceneId("bad.text.binding")) {
+                screen(structuredText { line(TextPart.ShopPrice) })
+            }
+        }.build()
+
+        val diagnostics = collectAuthoredContentDiagnostics(content)
+
+        assertTrue(
+            diagnostics.any {
+                it.path == "scripts" &&
+                    "runtime text binding {price}" in it.message &&
+                    "not rendered with that binding" in it.message
+            },
+        )
+    }
+
+    @Test
     fun validationAggregatesAuthorFacingContentDiagnostics() {
         val content = GameBuilder().apply {
             terminal {

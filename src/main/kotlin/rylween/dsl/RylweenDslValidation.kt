@@ -61,6 +61,64 @@ private class FlagStateIndex(flags: List<FlagRef>) {
         orderByKey[slug to native]
 }
 
+private class TerrainBindingIndex(
+    terminal: TerminalPresentationModel,
+    worldMaps: List<WorldMapModel>,
+) {
+    private val stylesBySlug: Map<String, TerminalTerrainStyleModel> =
+        terminal.terrain.associateBy { it.terrain.slug }
+    private val mapCodes: Set<Char> =
+        worldMaps
+            .flatMap { map -> map.layers }
+            .filter { layer -> layer.id == DslDefaultMapLayers.terrain }
+            .flatMap { layer -> layer.rows.flatMap { row -> row.toList() } }
+            .toSet()
+
+    fun requireStyled(terrain: TerrainId, label: String) {
+        check(terrain.slug.isNotBlank()) { "$label references blank terrain" }
+        val style = stylesBySlug[terrain.slug]
+        check(style != null) {
+            "$label references terrain ${terrain.slug}, but terminal { terrain(...) } does not declare it"
+        }
+        terrain.sourceMapCode?.let { sourceMapCode ->
+            check(style.terrain.sourceMapCode == sourceMapCode) {
+                "$label references terrain ${terrain.slug} with map tile '$sourceMapCode', " +
+                    "but terminal terrain declares '${style.terrain.sourceMapCode}'"
+            }
+        }
+    }
+
+    fun requireMapReachable(terrain: TerrainId, label: String) {
+        requireStyled(terrain, label)
+        terrain.sourceMapCode?.let { sourceMapCode ->
+            check(sourceMapCode in mapCodes) {
+                "$label references terrain ${terrain.slug} tile '$sourceMapCode', but no authored world map uses it"
+            }
+        }
+    }
+}
+
+private val EmptyTextBindings: Set<TextPart> = emptySet()
+private val HuntTextBindings: Set<TextPart> = setOf(
+    TextPart.HuntMemberName,
+    TextPart.HuntMemberSubjectPronoun,
+    TextPart.HuntFoodGained,
+    TextPart.PartyMemberMax,
+)
+private val RandomItemOfferTextBindings: Set<TextPart> = setOf(
+    TextPart.OfferedItemName,
+    TextPart.OfferedItemPrice,
+)
+private val SelectedItemTextBindings: Set<TextPart> = setOf(TextPart.SelectedItemName)
+private val ShopPriceTextBindings: Set<TextPart> = setOf(TextPart.ShopPrice)
+private val ShopCapacityTextBindings: Set<TextPart> = setOf(TextPart.ShopCarryCap)
+private val WildernessDungeonHandoffTextBindings: Set<TextPart> = setOf(
+    TextPart.WildernessDungeonName,
+    TextPart.WildernessDungeonLevels,
+)
+private val DungeonDepthTextBindings: Set<TextPart> = setOf(TextPart.DungeonDepth)
+private val ConversationTextBindings: Set<TextPart> = setOf(TextPart.ConversationNpcName)
+
 private fun FlagStateIndex.requireKnown(state: FlagState, label: String) {
     check(contains(state)) {
         "$label references unknown story state ${state.flag.slug}.${state.native}"
@@ -317,7 +375,7 @@ private fun validateBattleText(text: BattleTextModel) {
     }
 }
 
-fun validateWildernessSystem(wilderness: WildernessSystemModel) {
+private fun validateWildernessSystem(wilderness: WildernessSystemModel, terrainBindings: TerrainBindingIndex) {
     validateWildernessKeys(wilderness.keys)
 
     val events = wilderness.events
@@ -337,9 +395,11 @@ fun validateWildernessSystem(wilderness: WildernessSystemModel) {
     val terrains = transition.entries.map { it.terrain }
     check(terrains.toSet().size == terrains.size) { "wilderness terrain transitions have duplicate terrain entries" }
     transition.entries.forEach { entry ->
+        terrainBindings.requireStyled(entry.terrain, "wilderness terrain transition")
         check(entry.terrain.sourceMapCode != null) {
             "wilderness terrain transition ${entry.terrain.slug} needs a map tile code"
         }
+        validateTextBlock(entry.text, "wilderness terrain transition ${entry.terrain.slug}")
     }
 }
 
@@ -743,6 +803,7 @@ private fun validateTextBlock(
     label: String,
     knownRoles: Set<NpcRole>? = null,
     knownTowns: Set<TownId>? = null,
+    allowedRuntimeBindings: Set<TextPart> = EmptyTextBindings,
 ) {
     fun validatePart(part: TextPart) {
         when (part) {
@@ -789,7 +850,9 @@ private fun validateTextBlock(
             TextPart.WildernessDungeonName,
             TextPart.WildernessDungeonLevels,
             TextPart.DungeonDepth,
-            TextPart.ConversationNpcName -> Unit
+            TextPart.ConversationNpcName -> check(part in allowedRuntimeBindings) {
+                "$label uses runtime text binding ${part.fallbackText()}, but this text is not rendered with that binding"
+            }
         }
     }
 
@@ -889,7 +952,11 @@ fun validateSpeakSystem(
             "standard conversation rumours must use the standard town rumour source"
         }
         validateTextBlock(conversation.prompts.chooseNpc, "speak choose-npc prompt")
-        validateTextBlock(conversation.prompts.mainMenu, "speak main-menu prompt")
+        validateTextBlock(
+            conversation.prompts.mainMenu,
+            "speak main-menu prompt",
+            allowedRuntimeBindings = ConversationTextBindings,
+        )
 
         val services = conversation.nativeServices.map { it.service }
         check(services.toSet().size == services.size) {
@@ -1233,7 +1300,11 @@ fun validateScriptRewards(
 
     fun validateRandomItemOffer(offer: RandomItemOfferModel) {
         validateSlottedItemPool(offer.pool, "random item offer")
-        validateTextBlock(offer.offer, "random item offer ${offer.pool.slug} offer")
+        validateTextBlock(
+            offer.offer,
+            "random item offer ${offer.pool.slug} offer",
+            allowedRuntimeBindings = RandomItemOfferTextBindings,
+        )
         validateTextBlock(offer.choicePrompt, "random item offer ${offer.pool.slug} choice prompt")
         validateTextBlock(offer.broke, "random item offer ${offer.pool.slug} broke")
         check(offer.application.regularItems == RewardItemPlacement.FirstFreeInventorySlot) {
@@ -1317,8 +1388,20 @@ fun validateScriptRewards(
             validateTextBlock(buy.tooExpensive, "shop ${shop.building.slug} too-expensive")
             validateTextBlock(buy.cantCarry, "shop ${shop.building.slug} cant-carry")
             validateTextBlock(buy.deal, "shop ${shop.building.slug} deal")
-            buy.unitPrice?.let { validateTextBlock(it, "shop ${shop.building.slug} unit-price") }
-            buy.singlePrice?.let { validateTextBlock(it, "shop ${shop.building.slug} single-price") }
+            buy.unitPrice?.let {
+                validateTextBlock(
+                    it,
+                    "shop ${shop.building.slug} unit-price",
+                    allowedRuntimeBindings = ShopPriceTextBindings,
+                )
+            }
+            buy.singlePrice?.let {
+                validateTextBlock(
+                    it,
+                    "shop ${shop.building.slug} single-price",
+                    allowedRuntimeBindings = ShopPriceTextBindings,
+                )
+            }
             validateTextBlock(buy.payPrompt, "shop ${shop.building.slug} pay prompt")
             validateInputChoiceBinding(buy.paymentKeys.pay, "shop ${shop.building.slug} pay key")
             validateInputChoiceBinding(buy.paymentKeys.decline, "shop ${shop.building.slug} decline-purchase key")
@@ -1379,6 +1462,7 @@ fun validateScriptRewards(
                                 validateTextBlock(
                                     purchase.tooMany,
                                     "shop ${shop.building.slug} ${entry.item.slug} too-many",
+                                    allowedRuntimeBindings = ShopCapacityTextBindings,
                                 )
                             }
                         }
@@ -1390,7 +1474,11 @@ fun validateScriptRewards(
         shop.sell?.let { sell ->
             validateTextBlock(sell.prompt, "shop ${shop.building.slug} sell prompt")
             validateTextBlock(sell.wrongKind, "shop ${shop.building.slug} wrong-kind")
-            validateTextBlock(sell.offer, "shop ${shop.building.slug} sell offer")
+            validateTextBlock(
+                sell.offer,
+                "shop ${shop.building.slug} sell offer",
+                allowedRuntimeBindings = ShopPriceTextBindings,
+            )
             sell.sold?.let { validateTextBlock(it, "shop ${shop.building.slug} sold") }
             validateShopPrice(sell.price, "shop ${shop.building.slug} sell")
             validateInputChoiceBinding(sell.saleKeys.accept, "shop ${shop.building.slug} sale accept key")
@@ -1552,17 +1640,63 @@ private fun validateRealmContent(realm: RealmContentModel) {
     realm.upkeep.fatigue.forEachIndexed { index, rule ->
         validateTextBlock(rule.text, "wilderness fatigue rule $index")
     }
+    validateCampRules(realm.camp)
+    realm.hunt?.let(::validateHuntRules)
+}
+
+private fun validateCampRules(camp: CampRulesModel) {
+    check(camp.healthGain >= 0) { "camp health gain must be non-negative" }
+    check(camp.foodCostPerMember >= 0) { "camp food cost must be non-negative" }
+    check(camp.hoursAdvanced >= 0) { "camp hours advanced must be non-negative" }
+    check(camp.hoursRestedReset >= 0) { "camp rested-hours reset must be non-negative" }
+    checkPercent(camp.ambushChancePercent, "camp ambush chance")
+    listOf(
+        "not tired" to camp.notTired,
+        "not enough food" to camp.notEnoughFood,
+        "guard prompt" to camp.guardPrompt,
+        "guard member prompt" to camp.guardMemberPrompt,
+        "guard member dead" to camp.guardMemberDead,
+        "stands guard" to camp.standsGuard,
+        "sleeping" to camp.sleeping,
+        "rested" to camp.rested,
+        "ambush" to camp.ambush,
+        "surprise kill" to camp.surpriseKill,
+    ).forEach { (label, block) ->
+        validateTextBlock(block, "camp $label")
+    }
+    camp.temperatureMessage.forEach { (band, block) ->
+        validateTextBlock(block, "camp ${band.name.lowercase()} temperature message")
+    }
+    camp.noShelterMessage.forEach { (band, block) ->
+        validateTextBlock(block, "camp ${band.name.lowercase()} no-shelter message")
+    }
+}
+
+private fun validateHuntRules(hunt: HuntRulesModel) {
+    validateTextBlock(hunt.whoPrompt, "hunt who prompt", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(hunt.dead, "hunt dead")
+    validateTextBlock(hunt.notRanger, "hunt not-ranger", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(hunt.tooFewMoves, "hunt too-few-moves")
+    validateTextBlock(hunt.tries, "hunt tries", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(hunt.succeeds, "hunt succeeds", allowedRuntimeBindings = HuntTextBindings)
+    validateTextBlock(hunt.fails, "hunt fails", allowedRuntimeBindings = HuntTextBindings)
 }
 
 private fun validateTerminalPresentation(model: TerminalPresentationModel) {
     check(model.terrain.map { it.terrain }.toSet().size == model.terrain.size) {
         "duplicate terminal terrain style"
     }
+    val sourceMapCodes = model.terrain.mapNotNull { it.terrain.sourceMapCode }
+    check(sourceMapCodes.toSet().size == sourceMapCodes.size) {
+        "duplicate terminal terrain map tile code"
+    }
     model.terrain.forEach { style ->
+        check(style.terrain.slug.isNotBlank()) { "terminal terrain has blank id" }
         check(style.terrain.sourceMapCode != null) {
             "terminal terrain ${style.terrain.slug} has no source map code"
         }
         check(style.glyph.isNotEmpty()) { "terminal terrain ${style.terrain.slug} has blank glyph" }
+        check(style.color.slug.isNotBlank()) { "terminal terrain ${style.terrain.slug} has blank color" }
     }
 
     check(model.regions.map { it.id }.toSet().size == model.regions.size) {
@@ -1794,6 +1928,7 @@ private fun validateFlagTransitions(content: GameModel, flagStates: FlagStateInd
 
 fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagnostic> {
     val flagStates = FlagStateIndex(content.flags)
+    val terrainBindings = TerrainBindingIndex(content.terminal, content.worldMaps)
     return buildList {
         captureValidation("flags.catalog") { validateFlagCatalog(content.flags) }
         captureValidation("prompts") { validateGamePrompts(content.prompts) }
@@ -1807,12 +1942,12 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("flags.authored") { validateAuthoredFlags(content, flagStates) }
         captureValidation("flags.transitions") { validateFlagTransitions(content, flagStates) }
         captureValidation("monsters") { validateMonsters(content.monsters) }
-        captureValidation("missions") { validateMissions(content, flagStates) }
+        captureValidation("missions") { validateMissions(content, flagStates, terrainBindings) }
         captureValidation("formulas") { validateFormulas(content.formulas) }
         captureValidation("leveling") { validateLeveling(content.leveling, content.formulas) }
         captureValidation("rewards") { validateRewardBundles(content.rewards, content.formulas, content.itemCatalog) }
         captureValidation("combat") { validateCombatSystem(content.combat, content.rewards) }
-        captureValidation("wilderness") { validateWildernessSystem(content.wilderness) }
+        captureValidation("wilderness") { validateWildernessSystem(content.wilderness, terrainBindings) }
         captureValidation("dungeons") { validateDungeonSystem(content.dungeons) }
         captureValidation("ydarg") {
             validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters)
@@ -1841,7 +1976,7 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     check(prompts.returnKeyName.isNotBlank()) {
         "pause prompt return key name must not be blank"
     }
-    validateTextBlock(prompts.priest.who, "priest who prompt")
+    validateTextBlock(prompts.priest.who, "priest who prompt", allowedRuntimeBindings = HuntTextBindings)
     validateTextBlock(prompts.priest.mageCombatOnly, "priest mage-combat-only prompt")
     validateTextBlock(prompts.priest.wrongClass, "priest wrong-class prompt")
     validateTextBlock(prompts.priest.dead, "priest dead prompt")
@@ -1865,18 +2000,22 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.wilderness.notInWilderness, "wilderness not-in-wilderness prompt")
     validateTextBlock(prompts.wilderness.nothingToEnter, "wilderness nothing-to-enter prompt")
     validateTextBlock(prompts.wilderness.quitConfirm, "wilderness quit-confirm prompt")
-    validateTextBlock(prompts.wilderness.dungeonHandoff, "wilderness dungeon-handoff prompt")
-    validateTextBlock(prompts.dungeon.levelMenu, "dungeon level-menu prompt")
-    validateTextBlock(prompts.dungeon.enterLevel, "dungeon enter-level prompt")
+    validateTextBlock(
+        prompts.wilderness.dungeonHandoff,
+        "wilderness dungeon-handoff prompt",
+        allowedRuntimeBindings = WildernessDungeonHandoffTextBindings,
+    )
+    validateTextBlock(prompts.dungeon.levelMenu, "dungeon level-menu prompt", allowedRuntimeBindings = DungeonDepthTextBindings)
+    validateTextBlock(prompts.dungeon.enterLevel, "dungeon enter-level prompt", allowedRuntimeBindings = DungeonDepthTextBindings)
     validateTextBlock(prompts.dungeon.atMaxDepth, "dungeon at-max-depth prompt")
     validateTextBlock(prompts.dungeon.noTorches, "dungeon no-torches prompt")
     validateTextBlock(prompts.dungeon.leaveCavern, "dungeon leave-cavern prompt")
-    validateTextBlock(prompts.party.viewWho, "party view-who prompt")
+    validateTextBlock(prompts.party.viewWho, "party view-who prompt", allowedRuntimeBindings = HuntTextBindings)
     validateTextBlock(prompts.party.journalHeader, "party journal-header prompt")
     validateTextBlock(prompts.party.dropPrompt, "party drop prompt")
     validateTextBlock(prompts.party.dropEmptySlot, "party drop-empty-slot prompt")
     validateTextBlock(prompts.party.dropAborted, "party drop-aborted prompt")
-    validateTextBlock(prompts.party.dropDropped, "party drop-dropped prompt")
+    validateTextBlock(prompts.party.dropDropped, "party drop-dropped prompt", allowedRuntimeBindings = SelectedItemTextBindings)
     validateTextBlock(prompts.party.dropCapacityReduced, "party drop-capacity-reduced prompt")
 }
 
@@ -1926,7 +2065,11 @@ private fun validateMonsters(monsters: List<MonsterModel>) {
     }
 }
 
-private fun validateMissions(content: GameModel, flagStates: FlagStateIndex) {
+private fun validateMissions(
+    content: GameModel,
+    flagStates: FlagStateIndex,
+    terrainBindings: TerrainBindingIndex,
+) {
     check(content.missions.map { it.id }.toSet().size == content.missions.size) {
         "duplicate authored mission"
     }
@@ -1948,9 +2091,10 @@ private fun validateMissions(content: GameModel, flagStates: FlagStateIndex) {
             is Trigger.AtLocation -> check(trigger.location.slug.isNotBlank()) {
                 "mission ${mission.id.slug} location trigger references blank location"
             }
-            is Trigger.OnTerrain -> check(trigger.terrain.slug.isNotBlank()) {
-                "mission ${mission.id.slug} terrain trigger references blank terrain"
-            }
+            is Trigger.OnTerrain -> terrainBindings.requireMapReachable(
+                trigger.terrain,
+                "mission ${mission.id.slug} terrain trigger",
+            )
         }
     }
 }
@@ -1977,6 +2121,8 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
     val milestoneIds = content?.progress?.milestones?.map { it.id }?.toSet().orEmpty()
     val flagStates = content?.flags?.let(::FlagStateIndex)
     val npcIds = content?.characters?.map { it.id }?.toSet().orEmpty()
+    val mapIds = content?.worldMaps?.map { it.id }?.toSet().orEmpty()
+    val terrainBindings = content?.let { TerrainBindingIndex(it.terminal, it.worldMaps) }
     val specialItems = content
         ?.progress
         ?.milestones
@@ -1993,10 +2139,16 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
         check(state.realm.hour in 0..24) { "state ${state.id.slug}: realm hour must be 0..24" }
         check(state.realm.minute in 0..59) { "state ${state.id.slug}: realm minute must be 0..59" }
         check(state.realm.partyMemberMax > 0) { "state ${state.id.slug}: partyMemberMax must be positive" }
-        state.realm.lastTerrain?.let { terrain ->
-            check(terrain.sourceMapCode != null) {
-                "state ${state.id.slug}: lastTerrain ${terrain.slug} needs a map tile code"
+        if (content != null) {
+            check(state.realm.currentMap in mapIds) {
+                "state ${state.id.slug}: current map ${state.realm.currentMap.slug} is not declared"
             }
+        }
+        state.realm.lastTerrain?.let { terrain ->
+            terrainBindings?.requireStyled(terrain, "state ${state.id.slug}: lastTerrain")
+                ?: check(terrain.sourceMapCode != null) {
+                    "state ${state.id.slug}: lastTerrain ${terrain.slug} needs a map tile code"
+                }
         }
         if (content != null) {
             state.npcs.forEach { placement ->
