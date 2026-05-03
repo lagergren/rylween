@@ -1,9 +1,8 @@
-// Runtime scalar/member bindings used by terminal-driven authored script execution.
+// Shared scalar/member bindings used by authored script expression evaluators.
 
-package rylween.frontend.terminal
+package rylween.runtime
 
 import rylween.dsl.*
-import rylween.runtime.*
 
 private data class RealmScalarBinding(
     val read: RuntimeSessionState.() -> Int,
@@ -67,6 +66,7 @@ private val memberFieldReaders: Map<String, PartyMemberState.() -> Int> = mapOf(
     "level" to { level },
     "wisdom" to { wisdom },
     "charisma" to { charisma },
+    "weapon_skill" to { weaponSkill },
     "class" to { pcClass.sourceId },
     "experience" to { experience },
     "dead" to { if (dead) 1 else 0 },
@@ -85,6 +85,7 @@ private val memberFieldWriters: Map<String, PartyMemberState.(Int) -> PartyMembe
     },
     "wisdom" to { value -> copy(wisdom = value.coerceAtLeast(0)) },
     "charisma" to { value -> copy(charisma = value.coerceAtLeast(0)) },
+    "weapon_skill" to { value -> copy(weaponSkill = value.coerceAtLeast(0)) },
     "level" to { value -> copy(level = value.coerceAtLeast(1)) },
     "experience" to { value -> copy(experience = value.coerceAtLeast(0)) },
     "dead" to { value -> copy(dead = value != 0) },
@@ -95,37 +96,65 @@ private val memberFlagReaders: Map<String, PartyMemberState.() -> Boolean> = map
     "spellcaster" to { !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest) },
 )
 
+internal fun scriptMemberFieldKnown(field: String): Boolean =
+    field in memberFieldReaders
+
+internal fun scriptMemberFlagKnown(name: String): Boolean =
+    name in memberFlagReaders
+
 internal fun RuntimeSessionState.scriptRuntimeFlag(name: String): Boolean =
     runtimeFlagReaders[name]?.invoke(this) ?: false
 
 internal fun RuntimeSessionState.scriptRealmScalar(name: String, locals: Map<String, Int>): Int =
-    realmScalarBindings[name]?.read?.invoke(this) ?: locals[name] ?: 0
+    scriptRealmScalarOrNull(name) ?: locals[name] ?: 0
+
+internal fun RuntimeSessionState.scriptRealmScalarOrNull(name: String): Int? =
+    realmScalarBindings[name]?.read?.invoke(this)
 
 internal fun RuntimeSessionState.withScriptRealmScalar(name: String, value: Int): RuntimeSessionState? =
     realmScalarBindings[name]?.write?.invoke(this, value)
 
 internal fun PartyState.scriptPartyScalar(name: String): Int =
-    partyScalarReaders[name]?.invoke(this) ?: 0
+    scriptPartyScalarOrNull(name) ?: 0
 
-internal fun PartyState.scriptMemberField(memberNumber: Int, field: String): Int {
-    val member = members.getOrNull(memberNumber - 1) ?: return 0
-    return memberFieldReaders[field]?.invoke(member) ?: 0
-}
-
-internal fun PartyState.scriptMemberFlag(memberNumber: Int, name: String): Boolean {
-    val member = members.getOrNull(memberNumber - 1) ?: return false
-    return memberFlagReaders[name]?.invoke(member) ?: false
-}
+internal fun PartyState.scriptPartyScalarOrNull(name: String): Int? =
+    partyScalarReaders[name]?.invoke(this)
 
 internal fun PartyState.withScriptPartyScalar(name: String, value: Int): PartyState =
-    partyScalarWriters[name]?.invoke(this, value) ?: this
+    withScriptPartyScalarOrNull(name, value) ?: this
 
-internal fun PartyState.withScriptMemberField(memberNumber: Int, field: String, value: Int): PartyState {
-    val index = memberNumber - 1
-    val member = members.getOrNull(index) ?: return this
-    val updated = memberFieldWriters[field]?.invoke(member, value) ?: member
-    return copy(members = members.mapIndexed { i, existing -> if (i == index) updated else existing })
+internal fun PartyState.withScriptPartyScalarOrNull(name: String, value: Int): PartyState? =
+    partyScalarWriters[name]?.invoke(this, value)
+
+internal fun PartyState.scriptMemberField(memberNumber: Int, field: String): Int =
+    scriptMemberIndexField(memberNumber - 1, field)
+
+internal fun PartyState.scriptMemberIndexField(memberIndex: Int, field: String): Int =
+    members.getOrNull(memberIndex)?.scriptMemberFieldOrNull(field) ?: 0
+
+internal fun PartyMemberState.scriptMemberFieldOrNull(field: String): Int? =
+    memberFieldReaders[field]?.invoke(this)
+
+internal fun PartyState.scriptMemberFlag(memberNumber: Int, name: String): Boolean =
+    scriptMemberIndexFlag(memberNumber - 1, name)
+
+internal fun PartyState.scriptMemberIndexFlag(memberIndex: Int, name: String): Boolean =
+    members.getOrNull(memberIndex)?.scriptMemberFlagOrNull(name) ?: false
+
+internal fun PartyMemberState.scriptMemberFlagOrNull(name: String): Boolean? =
+    memberFlagReaders[name]?.invoke(this)
+
+internal fun PartyState.withScriptMemberField(memberNumber: Int, field: String, value: Int): PartyState =
+    withScriptMemberIndexField(memberNumber - 1, field, value)
+
+internal fun PartyState.withScriptMemberIndexField(memberIndex: Int, field: String, value: Int): PartyState {
+    val member = members.getOrNull(memberIndex) ?: return this
+    val updated = member.withScriptMemberFieldOrNull(field, value) ?: member
+    return copy(members = members.mapIndexed { index, existing -> if (index == memberIndex) updated else existing })
 }
+
+internal fun PartyMemberState.withScriptMemberFieldOrNull(field: String, value: Int): PartyMemberState? =
+    memberFieldWriters[field]?.invoke(this, value)
 
 private fun Int.positiveMod(divisor: Int): Int =
     ((this % divisor) + divisor) % divisor
