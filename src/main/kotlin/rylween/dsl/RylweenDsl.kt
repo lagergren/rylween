@@ -1,10 +1,10 @@
 // RylweenDsl.kt -- Kotlin implementation for the Rylween authoring DSL.
 //
 // This file is implementation/compiler scaffolding: typed handles, immutable
-// models, builders, and recorded script ASTs. Current-game catalog scaffolding
-// lives in RylweenGameCatalog.kt until the game DSL/content compiler derives
-// those handles from declarations. Game-specific content belongs in
-// RylweenGame.dsl.kts, with reusable game-script helpers in
+// models, builders, and recorded script ASTs. Current-game handles are
+// generated from RylweenGame.dsl.kts by the Gradle content-generation task.
+// Game-specific content belongs in RylweenGame.dsl.kts, with reusable
+// game-script helpers in
 // RylweenGameScripts.kt. Validation helpers live in RylweenDslValidation.kt.
 //
 // Validate the game source with:
@@ -24,9 +24,8 @@
 //      under `native.*`.
 //   6. Kotlin implementation code should be idiomatic Kotlin.
 //   7. Game-specific declarations should read like game data, not Kotlin
-//      programming. RylweenGameCatalog.kt is migration scaffolding; a real
-//      content compiler should derive handles and catalogs from the author's
-//      declarations.
+//      programming. Generated handles and catalogs should derive from the
+//      author's declarations.
 
 @file:Suppress(
     "unused",
