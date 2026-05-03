@@ -79,6 +79,96 @@ data class StatefulScriptResult(
     val party: PartyState get() = runtime.activeParty
 }
 
+private data class RealmScalarBinding(
+    val read: RuntimeSessionState.() -> Int,
+    val write: RuntimeSessionState.(Int) -> RuntimeSessionState,
+)
+
+private val runtimeFlagReaders: Map<String, RuntimeSessionState.() -> Boolean> = mapOf(
+    "in_dungeon" to { realm.currentMode == RuntimeMode.Dungeon },
+)
+
+private val realmScalarBindings: Map<String, RealmScalarBinding> = mapOf(
+    "day" to RealmScalarBinding(
+        read = { realm.day },
+        write = { value -> withRealm(realm.copy(day = value)) },
+    ),
+    "hour" to RealmScalarBinding(
+        read = { realm.hour },
+        write = { value -> withRealm(realm.copy(hour = value.positiveMod(24))) },
+    ),
+    "minute" to RealmScalarBinding(
+        read = { realm.minute },
+        write = { value -> withRealm(realm.copy(minute = value.positiveMod(60))) },
+    ),
+    "last_played_day" to RealmScalarBinding(
+        read = { realm.lastPlayedDay },
+        write = { value -> withRealm(realm.copy(lastPlayedDay = value)) },
+    ),
+    "party_member_max" to RealmScalarBinding(
+        read = { realm.partyMemberMax },
+        write = { value -> withRealm(realm.copy(partyMemberMax = value.coerceAtLeast(0))) },
+    ),
+    "banished" to RealmScalarBinding(
+        read = { if (realm.banished) 1 else 0 },
+        write = { value -> withRealm(realm.copy(banished = value != 0)) },
+    ),
+)
+
+private val partyScalarReaders: Map<String, PartyState.() -> Int> = mapOf(
+    "gold" to { resources.gold },
+    "torches" to { resources.torches },
+    "food" to { resources.food },
+    "time_left" to { resources.timeLeft },
+    "rested_hours" to { resources.restedHours },
+    "member_count" to { counters.memberCount ?: members.count { !it.dead } },
+)
+
+private val partyScalarWriters: Map<String, PartyState.(Int) -> PartyState> = mapOf(
+    "gold" to { value -> copy(resources = resources.copy(gold = value.coerceAtLeast(0))) },
+    "torches" to { value -> copy(resources = resources.copy(torches = value.coerceAtLeast(0))) },
+    "food" to { value -> copy(resources = resources.copy(food = value.coerceAtLeast(0))) },
+    "time_left" to { value -> copy(resources = resources.copy(timeLeft = value)) },
+    "rested_hours" to { value -> copy(resources = resources.copy(restedHours = value)) },
+    "member_count" to { value -> copy(counters = counters.copy(memberCount = value.coerceAtLeast(0))) },
+)
+
+private val memberFieldReaders: Map<String, PartyMemberState.() -> Int> = mapOf(
+    "hit_points" to { hitPoints.current },
+    "health" to { health },
+    "magic" to { mana.current },
+    "magic_max" to { mana.max },
+    "level" to { level },
+    "wisdom" to { wisdom },
+    "charisma" to { charisma },
+    "class" to { pcClass.sourceId },
+    "experience" to { experience },
+    "dead" to { if (dead) 1 else 0 },
+)
+
+private val memberFieldWriters: Map<String, PartyMemberState.(Int) -> PartyMemberState> = mapOf(
+    "hit_points" to { value -> copy(hitPoints = hitPoints.copy(current = value.coerceAtLeast(0))) },
+    "health" to { value ->
+        val healthValue = value.coerceAtLeast(0)
+        copy(health = healthValue, hitPoints = hitPoints.copy(max = healthValue))
+    },
+    "magic" to { value -> copy(mana = mana.copy(current = value.coerceAtLeast(0))) },
+    "magic_max" to { value ->
+        val maxValue = value.coerceAtLeast(0)
+        copy(mana = mana.current.coerceAtMost(maxValue) manaOf maxValue)
+    },
+    "wisdom" to { value -> copy(wisdom = value.coerceAtLeast(0)) },
+    "charisma" to { value -> copy(charisma = value.coerceAtLeast(0)) },
+    "level" to { value -> copy(level = value.coerceAtLeast(1)) },
+    "experience" to { value -> copy(experience = value.coerceAtLeast(0)) },
+    "dead" to { value -> copy(dead = value != 0) },
+)
+
+private val memberFlagReaders: Map<String, PartyMemberState.() -> Boolean> = mapOf(
+    "dead" to { dead },
+    "spellcaster" to { !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest) },
+)
+
 class StatefulScriptServiceRunner(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort,
@@ -100,6 +190,10 @@ class StatefulScriptServiceRunner(
     private var randomItemOfferSession = continuation.randomItemOfferSession
     private var rewardGrantSession = continuation.rewardGrantSession
     private val activeInventorySlot = continuation.activeInventorySlot
+    private val worldText = TerminalWorldTextResolver(
+        towns = battleContent.towns,
+        characters = speakContent.characters.ifEmpty { battleContent.characters },
+    )
     private var rejection: TerminalInputRejection? = null
     private var dungeonHandoff: WildernessDungeonHandoff? = null
     private var waiting = false
@@ -341,12 +435,16 @@ class StatefulScriptServiceRunner(
         engine.trace(EngineTraceEvent.AskKey(renderText(op.prompt), op.bindings))
         val choices = op.bindings.map { binding -> TerminalChoice(binding.promptValue(), binding) }
         flushScriptOutput()
-        when (val input = terminal.readChoice(choices)) {
-            is TerminalInput.Value -> {
-                locals[op.varName] = input.value
-                advanceTop()
-            }
-            is TerminalInput.Rejected -> wait(input.rejection)
+        terminal.readChoice(choices).scriptOrWait { value ->
+            locals[op.varName] = value
+            advanceTop()
+        }
+    }
+
+    private inline fun <T> TerminalInput<T>.scriptOrWait(onValue: (T) -> Unit) {
+        when (this) {
+            is TerminalInput.Value -> onValue(value)
+            is TerminalInput.Rejected -> wait(rejection)
             TerminalInput.Unavailable -> wait()
         }
     }
@@ -355,13 +453,9 @@ class StatefulScriptServiceRunner(
         engine.trace(EngineTraceEvent.AskMember(renderText(op.prompt), op.filter))
         val choices = party.memberChoices(op.accepting)
         flushScriptOutput()
-        when (val input = terminal.readMemberNumber(choices)) {
-            is TerminalInput.Value -> {
-                locals[op.varName] = input.value
-                advanceTop()
-            }
-            is TerminalInput.Rejected -> wait(input.rejection)
-            TerminalInput.Unavailable -> wait()
+        terminal.readMemberNumber(choices).scriptOrWait { value ->
+            locals[op.varName] = value
+            advanceTop()
         }
     }
 
@@ -370,13 +464,9 @@ class StatefulScriptServiceRunner(
         val choices = party.inventorySlotChoices(op.filter, op.slots, op.firstKey)
         val keys = choices.map { it.first }
         flushScriptOutput()
-        when (val input = terminal.readKey(keys)) {
-            is TerminalInput.Value -> {
-                locals[op.varName] = checkNotNull(choices.firstOrNull { it.first == input.value }).second
-                advanceTop()
-            }
-            is TerminalInput.Rejected -> wait(input.rejection)
-            TerminalInput.Unavailable -> wait()
+        terminal.readKey(keys).scriptOrWait { key ->
+            locals[op.varName] = checkNotNull(choices.firstOrNull { it.first == key }).second
+            advanceTop()
         }
     }
 
@@ -706,10 +796,13 @@ class StatefulScriptServiceRunner(
                             is TextPart.Literal -> part.text
                             is TextPart.IntValue -> eval(part.value).toString()
                             is TextPart.StringValue -> evalString(part.value)
-                            is TextPart.RoleName -> "{${part.role.slug}.name}"
-                            is TextPart.RoleLocation -> "{${part.role.slug}.location}"
-                            is TextPart.TownName -> part.town.slug
-                            is TextPart.FuzzyTownLocation -> "${part.town.slug}.near"
+                            is TextPart.RoleName -> worldText.roleName(part.role)
+                                ?: "{${part.role.slug}.name}"
+                            is TextPart.RoleLocation -> worldText.roleLocation(part.role, currentRuntime())
+                                ?: "{${part.role.slug}.location}"
+                            is TextPart.TownName -> worldText.townName(part.town)
+                            is TextPart.FuzzyTownLocation -> worldText.townLocation(part.town, part.radius)
+                                ?: "${part.town.slug}.near"
                             is TextPart.LocationCoordinate -> locationCoordinate(part.location)
                             TextPart.OfferedItemName -> "{item_name}"
                             TextPart.OfferedItemPrice -> "{item_price}"
@@ -729,21 +822,39 @@ class StatefulScriptServiceRunner(
         when (ast) {
             is StrAst.NativeString -> when (ast.path) {
                 NativeAllowlist.partyMemberName.path ->
-                    party.members.getOrNull(evalStringArg(ast.args.single()) - 1)?.name.orEmpty()
+                    party.members.getOrNull(evalStringIntArg(ast.args.single()) - 1)?.name.orEmpty()
                 NativeAllowlist.partyPronounSubject.path ->
-                    pronoun(evalStringArg(ast.args.single()), PronounCase.Subject)
+                    pronoun(evalStringIntArg(ast.args.single()), PronounCase.Subject)
                 NativeAllowlist.partyPronounObject.path ->
-                    pronoun(evalStringArg(ast.args.single()), PronounCase.Object)
+                    pronoun(evalStringIntArg(ast.args.single()), PronounCase.Object)
                 NativeAllowlist.partyPronounPossessive.path ->
-                    pronoun(evalStringArg(ast.args.single()), PronounCase.Possessive)
+                    pronoun(evalStringIntArg(ast.args.single()), PronounCase.Possessive)
+                NativeAllowlist.townNpcName.path -> {
+                    val job = ast.args.singleOrNull()?.let(::evalStringLiteralArg)?.let(::NpcJobId)
+                    job?.let { worldText.townNpcName(it, currentRuntime()) } ?: "{town.npc.name}"
+                }
+                NativeAllowlist.npcRoleName.path -> {
+                    val role = ast.args.singleOrNull()?.let(::evalStringLiteralArg)?.let(::NpcRole)
+                    role?.let(worldText::roleName) ?: "{npc.role.name}"
+                }
+                NativeAllowlist.npcRoleLocation.path -> {
+                    val role = ast.args.singleOrNull()?.let(::evalStringLiteralArg)?.let(::NpcRole)
+                    role?.let { worldText.roleLocation(it, currentRuntime()) } ?: "{npc.role.location}"
+                }
                 else -> "{${ast.path}}"
             }
         }
 
-    private fun evalStringArg(arg: NativeStringArg): Int =
+    private fun evalStringIntArg(arg: NativeStringArg): Int =
         when (arg) {
             is NativeStringArg.IntValue -> eval(arg.value)
             is NativeStringArg.Literal -> arg.value.toIntOrNull() ?: 0
+        }
+
+    private fun evalStringLiteralArg(arg: NativeStringArg): String =
+        when (arg) {
+            is NativeStringArg.IntValue -> eval(arg.value).toString()
+            is NativeStringArg.Literal -> arg.value
         }
 
     private fun pronoun(memberNumber: Int, case: PronounCase): String {
@@ -788,10 +899,7 @@ class StatefulScriptServiceRunner(
         override fun monsterFlag(monster: Int, name: String): Boolean =
             error("town/service scripts cannot read combat monster flags")
         override fun runtimeFlag(name: String): Boolean =
-            when (name) {
-                "in_dungeon" -> runtime.realm.currentMode == RuntimeMode.Dungeon
-                else -> false
-            }
+            runtimeFlagReaders[name]?.invoke(runtime) ?: false
     }
 
     private fun eval(ast: IntAst): Int = evaluator.int(ast)
@@ -818,63 +926,24 @@ class StatefulScriptServiceRunner(
     }
 
     private fun realmScalar(name: String): Int =
-        when (name) {
-            "day" -> runtime.realm.day
-            "hour" -> runtime.realm.hour
-            "minute" -> runtime.realm.minute
-            "last_played_day" -> runtime.realm.lastPlayedDay
-            "party_member_max" -> runtime.realm.partyMemberMax
-            "banished" -> if (runtime.realm.banished) 1 else 0
-            else -> realmInts[name] ?: 0
-        }
+        realmScalarBindings[name]?.read?.invoke(runtime) ?: realmInts[name] ?: 0
 
     private fun setRealmScalar(name: String, value: Int) {
-        runtime = when (name) {
-            "day" -> runtime.withRealm(runtime.realm.copy(day = value))
-            "hour" -> runtime.withRealm(runtime.realm.copy(hour = value.positiveMod(24)))
-            "minute" -> runtime.withRealm(runtime.realm.copy(minute = value.positiveMod(60)))
-            "last_played_day" -> runtime.withRealm(runtime.realm.copy(lastPlayedDay = value))
-            "party_member_max" -> runtime.withRealm(runtime.realm.copy(partyMemberMax = value.coerceAtLeast(0)))
-            "banished" -> runtime.withRealm(runtime.realm.copy(banished = value != 0))
-            else -> runtime.also { realmInts[name] = value }
-        }
+        runtime = realmScalarBindings[name]?.write?.invoke(runtime, value)
+            ?: runtime.also { realmInts[name] = value }
     }
 
     private fun partyScalar(name: String): Int =
-        when (name) {
-            "gold" -> party.resources.gold
-            "torches" -> party.resources.torches
-            "food" -> party.resources.food
-            "time_left" -> party.resources.timeLeft
-            "rested_hours" -> party.resources.restedHours
-            "member_count" -> party.counters.memberCount ?: party.members.count { !it.dead }
-            else -> 0
-        }
+        partyScalarReaders[name]?.invoke(party) ?: 0
 
     private fun memberField(memberNumber: Int, field: String): Int {
         val member = party.members.getOrNull(memberNumber - 1) ?: return 0
-        return when (field) {
-            "hit_points" -> member.hitPoints.current
-            "health" -> member.health
-            "magic" -> member.mana.current
-            "magic_max" -> member.mana.max
-            "level" -> member.level
-            "wisdom" -> member.wisdom
-            "charisma" -> member.charisma
-            "class" -> member.pcClass.sourceId
-            "experience" -> member.experience
-            "dead" -> if (member.dead) 1 else 0
-            else -> 0
-        }
+        return memberFieldReaders[field]?.invoke(member) ?: 0
     }
 
     private fun memberFlag(memberNumber: Int, name: String): Boolean {
         val member = party.members.getOrNull(memberNumber - 1) ?: return false
-        return when (name) {
-            "dead" -> member.dead
-            "spellcaster" -> !member.dead && member.pcClass in setOf(PcClass.Mage, PcClass.Priest)
-            else -> false
-        }
+        return memberFlagReaders[name]?.invoke(member) ?: false
     }
 }
 
@@ -893,12 +962,10 @@ private class RandomItemOfferSessionTraceRunner(
                         TerminalChoice(true, step.buy),
                         TerminalChoice(false, step.decline),
                     )
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value ->
-                            session.apply(RandomItemOfferInput.Buy(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(RandomItemOfferInput.Buy(it))
+                        }
                 }
                 is RandomItemOfferStep.DropSlot -> {
                     val choices = session.party.inventorySlotChoices(
@@ -914,16 +981,14 @@ private class RandomItemOfferSessionTraceRunner(
                             filter = InventorySlotChoiceFilter.NonEmpty,
                         ),
                     )
-                    when (val input = terminal.readKey(choices.map { it.first })) {
-                        is TerminalInput.Value ->
+                    terminal.readKey(choices.map { it.first })
+                        .sessionOrWait(session, { return it }) { key ->
                             session.apply(
                                 RandomItemOfferInput.DropSlot(
-                                    checkNotNull(choices.firstOrNull { it.first == input.value }).second,
+                                    checkNotNull(choices.firstOrNull { it.first == key }).second,
                                 ),
                             )
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                        }
                 }
                 is RandomItemOfferStep.Message -> {
                     engine.trace(EngineTraceEvent.Screen(step.text))
@@ -958,16 +1023,14 @@ private class RewardGrantSessionTraceRunner(
                             filter = InventorySlotChoiceFilter.NonEmpty,
                         ),
                     )
-                    when (val input = terminal.readKey(choices.map { it.first })) {
-                        is TerminalInput.Value ->
+                    terminal.readKey(choices.map { it.first })
+                        .sessionOrWait(session, { return it }) { key ->
                             session.apply(
                                 RewardGrantInput.DropSlot(
-                                    checkNotNull(choices.firstOrNull { it.first == input.value }).second,
+                                    checkNotNull(choices.firstOrNull { it.first == key }).second,
                                 ),
                             )
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                        }
                 }
                 is RewardGrantStep.Message -> {
                     engine.trace(EngineTraceEvent.Screen(step.text))
@@ -992,14 +1055,11 @@ private class SpeakSessionTraceRunner(
                 is SpeakStep.ChooseNpc -> {
                     val keys = step.npcs.indices.map { index -> '1' + index }
                     traceMenu(npcPrompt(step.npcs), keys)
-                    when (val input = terminal.readKey(keys)) {
-                        is TerminalInput.Value -> {
-                            val npc = step.npcs[input.value - '1']
+                    terminal.readKey(keys)
+                        .sessionOrWait(session, { return it }) { key ->
+                            val npc = step.npcs[key - '1']
                             session.apply(SpeakInput.Npc(npc.id))
                         }
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
                 }
                 is SpeakStep.DialogueBranch -> {
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
@@ -1031,26 +1091,18 @@ private class SpeakSessionTraceRunner(
                 is SpeakStep.MainMenu -> {
                     val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
                     traceMenu(mainPrompt(step.npc), step.actions.map { it.key })
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> {
-                            val action = input.value
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { action ->
                             session.apply(SpeakInput.Main(action.topic.toMainChoice()))
                         }
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
                 }
                 is SpeakStep.QuestionMenu -> {
                     val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
                     traceMenu(questionPrompt(), step.actions.map { it.key })
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> {
-                            val action = input.value
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { action ->
                             session.apply(SpeakInput.Question(action.topic))
                         }
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
                 }
                 is SpeakStep.LodgingOffer -> {
                     engine.trace(EngineTraceEvent.Screen(step.offer))
@@ -1059,11 +1111,10 @@ private class SpeakSessionTraceRunner(
                         TerminalChoice(true, step.yes),
                         TerminalChoice(false, step.no),
                     )
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(SpeakInput.LodgingAnswer(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(SpeakInput.LodgingAnswer(it))
+                        }
                 }
                 is SpeakStep.Message -> {
                     step.blocks.forEach { block -> engine.trace(EngineTraceEvent.Screen(block)) }
@@ -1117,33 +1168,11 @@ private fun Int.positiveMod(divisor: Int): Int =
     ((this % divisor) + divisor) % divisor
 
 private fun PartyState.withPartyScalar(name: String, value: Int): PartyState =
-    when (name) {
-        "gold" -> copy(resources = resources.copy(gold = value.coerceAtLeast(0)))
-        "torches" -> copy(resources = resources.copy(torches = value.coerceAtLeast(0)))
-        "food" -> copy(resources = resources.copy(food = value.coerceAtLeast(0)))
-        "time_left" -> copy(resources = resources.copy(timeLeft = value))
-        "rested_hours" -> copy(resources = resources.copy(restedHours = value))
-        "member_count" -> copy(counters = counters.copy(memberCount = value.coerceAtLeast(0)))
-        else -> this
-    }
+    partyScalarWriters[name]?.invoke(this, value) ?: this
 
 private fun PartyState.withMemberField(memberNumber: Int, field: String, value: Int): PartyState {
     val index = memberNumber - 1
     val member = members.getOrNull(index) ?: return this
-    val updated = when (field) {
-        "hit_points" -> member.copy(hitPoints = member.hitPoints.copy(current = value.coerceAtLeast(0)))
-        "health" -> member.copy(
-            health = value.coerceAtLeast(0),
-            hitPoints = member.hitPoints.copy(max = value.coerceAtLeast(0)),
-        )
-        "magic" -> member.copy(mana = member.mana.copy(current = value.coerceAtLeast(0)))
-        "magic_max" -> member.copy(mana = member.mana.current.coerceAtMost(value.coerceAtLeast(0)) manaOf value.coerceAtLeast(0))
-        "wisdom" -> member.copy(wisdom = value.coerceAtLeast(0))
-        "charisma" -> member.copy(charisma = value.coerceAtLeast(0))
-        "level" -> member.copy(level = value.coerceAtLeast(1))
-        "experience" -> member.copy(experience = value.coerceAtLeast(0))
-        "dead" -> member.copy(dead = value != 0)
-        else -> member
-    }
+    val updated = memberFieldWriters[field]?.invoke(member, value) ?: member
     return copy(members = members.mapIndexed { i, existing -> if (i == index) updated else existing })
 }

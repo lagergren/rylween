@@ -41,20 +41,14 @@ class CampSessionTerminalAdapter(
                 is CampSessionStep.GuardChoice -> {
                     terminal.writeKeyMenu(renderer, step.prompt, listOf('Y', 'N'))
                     val choices = listOf(TerminalChoice(true, inputKey("Y")), TerminalChoice(false, inputKey("N")))
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(CampSessionInput.GuardAnswer(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { session.apply(CampSessionInput.GuardAnswer(it)) }
                 }
                 is CampSessionStep.GuardMember -> {
                     val keys = session.party.members.indices.map { (it + 1).digitToChar() }
                     terminal.writeKeyMenu(renderer, step.prompt, keys)
-                    when (val input = terminal.readMemberNumber(session.party.members.indices.map { it + 1 })) {
-                        is TerminalInput.Value -> session.apply(CampSessionInput.GuardMember(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readMemberNumber(session.party.members.indices.map { it + 1 })
+                        .sessionOrWait(session, { return it }) { session.apply(CampSessionInput.GuardMember(it)) }
                 }
                 is CampSessionStep.Messages -> {
                     terminal.writeBlocks(step.blocks, renderer, TerminalTextContext(runtime = session.runtime))
@@ -86,11 +80,8 @@ class HuntSessionTerminalAdapter(
                 is HuntSessionStep.ChooseMember -> {
                     val choices = session.memberChoices()
                     terminal.writeKeyMenu(renderer, step.prompt, choices.map { it.digitToChar() }, session.runtime)
-                    when (val input = terminal.readMemberNumber(choices)) {
-                        is TerminalInput.Value -> session.apply(HuntSessionInput.Member(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readMemberNumber(choices)
+                        .sessionOrWait(session, { return it }) { session.apply(HuntSessionInput.Member(it)) }
                 }
                 is HuntSessionStep.Messages -> {
                     val context = TerminalTextContext(
@@ -119,20 +110,14 @@ class EquipmentPromptTerminalAdapter(
         var session = initial
         repeat(64) {
             session = when (val step = session.step) {
-                is EquipmentPromptStep.ChooseInventorySlot -> when (
-                    val input = readInventorySlot(session.party, step.prompt, step.filter)
-                ) {
-                    is TerminalInput.Value -> session.apply(EquipmentPromptInput.InventorySlot(input.value))
-                    is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                    TerminalInput.Unavailable -> return waiting(session)
-                }
-                is EquipmentPromptStep.ChooseMember -> when (
-                    val input = readMember(session.party, step.prompt, step.filter)
-                ) {
-                    is TerminalInput.Value -> session.apply(EquipmentPromptInput.Member(input.value))
-                    is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                    TerminalInput.Unavailable -> return waiting(session)
-                }
+                is EquipmentPromptStep.ChooseInventorySlot ->
+                    readInventorySlot(session.party, step.prompt, step.filter)
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(EquipmentPromptInput.InventorySlot(it))
+                        }
+                is EquipmentPromptStep.ChooseMember ->
+                    readMember(session.party, step.prompt, step.filter)
+                        .sessionOrWait(session, { return it }) { session.apply(EquipmentPromptInput.Member(it)) }
                 is EquipmentPromptStep.Finished -> return finished(session)
             }
         }
@@ -175,15 +160,12 @@ class InventoryItemUseTerminalAdapter(
             session = when (val step = session.step) {
                 is InventoryItemUseStep.ChooseItem -> {
                     terminal.writeKeyMenu(renderer, step.prompt, step.choices.map { it.key }, session.runtime)
-                    when (val input = terminal.readKey(step.choices.map { it.key })) {
-                        is TerminalInput.Value -> {
-                            val slot = checkNotNull(step.choices.firstOrNull { it.key == input.value }).slot
+                    terminal.readKey(step.choices.map { it.key })
+                        .sessionOrWait(session, { return it }) { key ->
+                            val slot = checkNotNull(step.choices.firstOrNull { it.key == key }).slot
                             session.apply(InventoryItemUseInput.InventorySlot(slot))
                         }
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
                     }
-                }
                 is InventoryItemUseStep.Equipment -> {
                     val result = EquipmentPromptTerminalAdapter(terminal, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceEquipmentSession(result.session)
@@ -246,19 +228,15 @@ class PriestSpellTerminalAdapter(
             session = when (val step = session.step) {
                 is PriestSpellStep.ChooseCaster -> {
                     terminal.writeKeyMenu(renderer, step.prompt, step.casterKeys, session.runtime)
-                    when (val input = terminal.readMemberNumber(step.casterKeys.map { it.digitToInt() })) {
-                        is TerminalInput.Value -> session.apply(PriestSpellInput.Caster(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readMemberNumber(step.casterKeys.map { it.digitToInt() })
+                        .sessionOrWait(session, { return it }) { session.apply(PriestSpellInput.Caster(it)) }
                 }
                 is PriestSpellStep.ChooseSpell -> {
                     terminal.writeKeyMenu(renderer, step.prompt, step.spellKeys, session.runtime)
-                    when (val input = terminal.readKey(step.spellKeys)) {
-                        is TerminalInput.Value -> session.apply(PriestSpellInput.SpellSlot(input.value.digitToInt()))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readKey(step.spellKeys)
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(PriestSpellInput.SpellSlot(it.digitToInt()))
+                        }
                 }
                 is PriestSpellStep.Script -> {
                     val eventStart = engine.events.size
@@ -314,18 +292,16 @@ class TownLeaveEquipmentTerminalAdapter(
             session = when (val step = session.step) {
                 is TownLeaveEquipmentStep.ReadyQuestion -> {
                     terminal.writeKeyMenu(renderer, step.prompt, yesNoKeys())
-                    when (val input = terminal.readYesNo()) {
-                        is TerminalInput.Value ->
-                            session.apply(TownLeaveEquipmentInput.ReadyAnswer(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readYesNo()
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(TownLeaveEquipmentInput.ReadyAnswer(it))
+                        }
                 }
-                is TownLeaveEquipmentStep.Equipment -> when (val input = readEquipmentInput(step.session)) {
-                    is TerminalInput.Value -> session.apply(TownLeaveEquipmentInput.Equipment(input.value))
-                    is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                    TerminalInput.Unavailable -> return waiting(session)
-                }
+                is TownLeaveEquipmentStep.Equipment ->
+                    readEquipmentInput(step.session)
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(TownLeaveEquipmentInput.Equipment(it))
+                        }
                 is TownLeaveEquipmentStep.Finished -> return finished(session)
             }
         }
@@ -370,11 +346,8 @@ class ShopServiceTerminalAdapter(
                         add(TerminalChoice(ShopMainChoice.Leave, session.shop.keys.leave))
                     }
                     terminal.writeBindingMenu(renderer, step.text, choices.map { it.binding })
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.chooseMain(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { session.chooseMain(it) }
                 }
                 is ShopServiceStep.SelectCatalog -> {
                     val buy = checkNotNull(session.shop.buy)
@@ -395,20 +368,15 @@ class ShopServiceTerminalAdapter(
                 is ShopServiceStep.BuyItem -> {
                     val entries = step.catalogs.flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
                     terminal.write(renderer.lines(step.prompt) + entries.map { "(${it.key}) ${it.label ?: it.item.slug}" })
-                    val entry = when (val input = terminal.readChoice(entries.map { TerminalChoice(it, it.binding) })) {
-                        is TerminalInput.Value -> input.value
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
-                    session.withFeedback { chooseBuyItem(entry.item) }
+                    terminal.readChoice(entries.map { TerminalChoice(it, it.binding) })
+                        .sessionOrWait(session, { return it }) { entry ->
+                            session.withFeedback { chooseBuyItem(entry.item) }
+                        }
                 }
                 is ShopServiceStep.Quantity -> {
                     write(step.prompt)
-                    when (val input = terminal.readInt()) {
-                        is TerminalInput.Value -> session.enterQuantity(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readInt()
+                        .sessionOrWait(session, { return it }) { session.enterQuantity(it) }
                 }
                 is ShopServiceStep.ConfirmPurchase -> {
                     val buy = checkNotNull(session.shop.buy)
@@ -424,27 +392,24 @@ class ShopServiceTerminalAdapter(
                         TerminalChoice(false, buy.paymentKeys.decline),
                     )
                     terminal.writeBindingMenu(renderer, step.prompt, choices.map { it.binding })
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.withFeedback { confirmPurchase(input.value) }
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) {
+                            session.withFeedback { confirmPurchase(it) }
+                        }
                 }
                 is ShopServiceStep.DropSlot -> {
                     write(step.prompt)
-                    when (val input = readInventorySlot()) {
-                        is TerminalInput.Value -> session.withFeedback { chooseDropSlot(input.value) }
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readInventorySlot()
+                        .sessionOrWait(session, { return it }) {
+                            session.withFeedback { chooseDropSlot(it) }
+                        }
                 }
                 is ShopServiceStep.SellSlot -> {
                     write(step.prompt)
-                    when (val input = readInventorySlot()) {
-                        is TerminalInput.Value -> session.withFeedback { chooseSellSlot(input.value) }
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readInventorySlot()
+                        .sessionOrWait(session, { return it }) {
+                            session.withFeedback { chooseSellSlot(it) }
+                        }
                 }
                 is ShopServiceStep.ConfirmSale -> {
                     val keys = checkNotNull(session.shop.sell).saleKeys
@@ -458,11 +423,10 @@ class ShopServiceTerminalAdapter(
                         choices.map { it.binding },
                         TerminalTextContext(shopPrice = step.quote.price),
                     )
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.withFeedback { confirmSale(input.value) }
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) {
+                            session.withFeedback { confirmSale(it) }
+                        }
                 }
                 is ShopServiceStep.Finished -> {
                     write(step.text)
@@ -535,11 +499,10 @@ class TownSessionTerminalAdapter(
                 is TownSessionStep.Menu -> {
                     val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
                     writeTownMenu(step)
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(TownSessionInput.MenuKey(input.value.key))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(TownSessionInput.MenuKey(it.key))
+                        }
                 }
                 is TownSessionStep.Notice -> {
                     terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
@@ -559,14 +522,17 @@ class TownSessionTerminalAdapter(
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
                     val bridge = serviceBridge ?: StatefulTownServiceBridge(
                         terminal,
-                        battleContent = RuntimeContent(
-                            itemRecords = session.itemRecords,
-                            realm = session.realmContent,
-                        ),
+                        speakContent = session.content.speakRuntimeContent(),
+                        battleContent = session.content,
                         renderer = renderer,
                     )
                     val result = bridge.run(step.service, step.scene, continuation)
-                    writeBridgeEvents(result.events, result.runtime)
+                    terminal.writeScriptEvents(
+                        result.events,
+                        renderer,
+                        result.runtime,
+                        renderTownService = true,
+                    )
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
                             session.apply(TownSessionInput.FinishNativeService(result.runtime))
@@ -605,57 +571,6 @@ class TownSessionTerminalAdapter(
         )
     }
 
-    private fun writeBridgeEvents(events: List<EngineTraceEvent>, runtime: RuntimeSessionState) {
-        val context = TerminalTextContext(runtime = runtime)
-        events.forEach { event ->
-            if (terminal.writeEngineEvent(event, renderer, context)) {
-                return@forEach
-            }
-            if (terminal.writePauseEvent(event, renderer, context)) {
-                return@forEach
-            }
-            when (event) {
-                is EngineTraceEvent.View -> Unit
-                is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
-                is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
-                is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
-                is EngineTraceEvent.Menu -> terminal.writeKeyPrompt(renderer, event.prompt, event.keys, context)
-                is EngineTraceEvent.AskKey -> terminal.writeBindingPrompt(renderer, event.prompt, event.bindings, context)
-                is EngineTraceEvent.AskText -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
-                is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
-                is EngineTraceEvent.NativeString ->
-                    terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
-                is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
-                is EngineTraceEvent.DungeonHandoff ->
-                    terminal.write(
-                        renderer.lines(WildernessPromptText.dungeonHandoffPending(event.handoff), context),
-                    )
-                is EngineTraceEvent.TeleportParty,
-                is EngineTraceEvent.DiscoverCave -> Unit
-                is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
-                is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
-                is EngineTraceEvent.TownService -> terminal.write(listOf("Service: ${event.service.building.slug}"))
-                is EngineTraceEvent.WaitInput,
-                is EngineTraceEvent.Pause,
-                is EngineTraceEvent.SetFlag,
-                is EngineTraceEvent.AppendJournal,
-                is EngineTraceEvent.GrantReward,
-                is EngineTraceEvent.AchieveMilestone,
-                is EngineTraceEvent.Speak,
-                is EngineTraceEvent.Encounter,
-                is EngineTraceEvent.RandomItemOffer,
-                is EngineTraceEvent.ShopService,
-                is EngineTraceEvent.ShopSellQuote,
-                is EngineTraceEvent.ShopTransaction,
-                is EngineTraceEvent.EquipmentAction,
-                is EngineTraceEvent.ConsumeInventoryPool,
-                EngineTraceEvent.ConsumeTorch -> Unit
-            }
-        }
-    }
 }
 
 class DungeonSessionTerminalAdapter(
@@ -669,11 +584,8 @@ class DungeonSessionTerminalAdapter(
                 DungeonSessionStep.Explore -> {
                     writeExplore(session)
                     val choices = session.keys.exploreCommands().terminalChoices()
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is DungeonSessionStep.Messages -> {
                     terminal.writeBlocks(step.blocks, renderer, TerminalTextContext(runtime = session.runtime))
@@ -824,12 +736,8 @@ class WildernessSessionTerminalAdapter(
                     val keys = session.wilderness.keys
                     val commands = keys.outOfMovesCommands()
                     terminal.writeBindingMenu(renderer, step.prompt, commands.commandBindings())
-                    when (val input = terminal.readChoice(commands.terminalChoices())) {
-                        is TerminalInput.Value ->
-                            session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(commands.terminalChoices())
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is WildernessSessionStep.CaveFound -> {
                     val keys = session.wilderness.keys
@@ -842,12 +750,8 @@ class WildernessSessionTerminalAdapter(
                     }
                     val commands = keys.caveCommands()
                     terminal.writeBindingMenu(renderer, step.prompt, commands.commandBindings())
-                    when (val input = terminal.readChoice(commands.terminalChoices())) {
-                        is TerminalInput.Value ->
-                            session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(commands.terminalChoices())
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is WildernessSessionStep.Mission -> {
                     val continuation = step.continuation ?: TownServiceContinuation.start(session.runtime)
@@ -859,7 +763,12 @@ class WildernessSessionTerminalAdapter(
                         renderer = renderer,
                     )
                     val result = bridge.run(step.mission.service(), step.scene, continuation)
-                    writeBridgeEvents(result.events, result.runtime)
+                    terminal.writeScriptEvents(
+                        result.events,
+                        renderer,
+                        result.runtime,
+                        renderDungeonHandoff = false,
+                    )
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
                             result.dungeonHandoff?.let { handoff ->
@@ -895,7 +804,7 @@ class WildernessSessionTerminalAdapter(
                         renderer = renderer,
                     )
                     val result = bridge.run(step.scene.hutService(), step.scene, continuation)
-                    writeBridgeEvents(result.events, result.runtime)
+                    terminal.writeScriptEvents(result.events, renderer, result.runtime)
                     when (result.status) {
                         TownServiceBridgeStatus.Finished -> session.finishHut(result.runtime)
                         TownServiceBridgeStatus.Waiting -> {
@@ -932,11 +841,8 @@ class WildernessSessionTerminalAdapter(
                     writeExplore(session)
                     val keys = session.wilderness.keys
                     val choices = keys.exploreCommands().terminalChoices()
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is WildernessSessionStep.Notice -> {
                     terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
@@ -946,12 +852,8 @@ class WildernessSessionTerminalAdapter(
                     val keys = session.wilderness.keys
                     val commands = keys.quitConfirmCommands()
                     terminal.writeBindingMenu(renderer, step.prompt, commands.commandBindings())
-                    when (val input = terminal.readChoice(commands.terminalChoices())) {
-                        is TerminalInput.Value ->
-                            session.apply(input.value)
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(commands.terminalChoices())
+                        .sessionOrWait(session, { return it }) { session.apply(it) }
                 }
                 is WildernessSessionStep.Town -> {
                     val result = TownSessionTerminalAdapter(terminal, renderer, serviceBridge).runUntilBlocked(step.session)
@@ -1015,55 +917,6 @@ class WildernessSessionTerminalAdapter(
         terminal.write(lines)
     }
 
-    private fun writeBridgeEvents(events: List<EngineTraceEvent>, runtime: RuntimeSessionState) {
-        val context = TerminalTextContext(runtime = runtime)
-        events.forEach { event ->
-            if (terminal.writeEngineEvent(event, renderer, context)) {
-                return@forEach
-            }
-            if (terminal.writePauseEvent(event, renderer, context)) {
-                return@forEach
-            }
-            when (event) {
-                is EngineTraceEvent.View -> Unit
-                is EngineTraceEvent.Screen -> terminal.write(renderer.lines(event.text, context))
-                is EngineTraceEvent.Emit -> terminal.write(listOf("[${event.id.id}]"))
-                is EngineTraceEvent.EmitIndexed -> terminal.write(listOf("[${event.pattern.pattern}: ${event.value}]"))
-                is EngineTraceEvent.Menu -> terminal.writeKeyPrompt(renderer, event.prompt, event.keys, context)
-                is EngineTraceEvent.AskKey -> terminal.writeBindingPrompt(renderer, event.prompt, event.bindings, context)
-                is EngineTraceEvent.AskText -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.AskMember -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.AskInventorySlot -> terminal.write(renderer.lines(event.prompt, context))
-                is EngineTraceEvent.NativeEffect -> terminal.write(listOf("Native: ${event.request.path}"))
-                is EngineTraceEvent.NativeInt -> terminal.write(listOf("Native int: ${event.request.path} = ${event.result}"))
-                is EngineTraceEvent.NativeString ->
-                    terminal.write(listOf("Native string: ${event.request.path} = ${event.result}"))
-                is EngineTraceEvent.RunScene -> terminal.write(listOf("Scene: ${event.scene.slug}"))
-                is EngineTraceEvent.DungeonHandoff -> Unit
-                is EngineTraceEvent.TeleportParty,
-                is EngineTraceEvent.DiscoverCave -> Unit
-                is EngineTraceEvent.Stop -> terminal.write(listOf(event.reason ?: "Stop"))
-                is EngineTraceEvent.Break -> terminal.write(listOf(event.reason ?: "Break"))
-                is EngineTraceEvent.TownService -> Unit
-                is EngineTraceEvent.WaitInput,
-                is EngineTraceEvent.Pause,
-                is EngineTraceEvent.SetFlag,
-                is EngineTraceEvent.AppendJournal,
-                is EngineTraceEvent.GrantReward,
-                is EngineTraceEvent.AchieveMilestone,
-                is EngineTraceEvent.Speak,
-                is EngineTraceEvent.Encounter,
-                is EngineTraceEvent.RandomItemOffer,
-                is EngineTraceEvent.ShopService,
-                is EngineTraceEvent.ShopSellQuote,
-                is EngineTraceEvent.ShopTransaction,
-                is EngineTraceEvent.EquipmentAction,
-                is EngineTraceEvent.ConsumeInventoryPool,
-                EngineTraceEvent.ConsumeTorch -> Unit
-            }
-        }
-    }
-
     private fun MissionModel.service(): BuildingServiceModel =
         BuildingServiceModel(
             building = DslDefaultBuildings.none,
@@ -1093,22 +946,12 @@ class BattleSessionTerminalAdapter(
         repeat(64) {
             session = when (val step = session.step) {
                 is BattleSessionStep.Opening -> {
-                    val choices = battleOpeningChoices(session.battle.openingKeys)
-                    terminal.writeBindingMenu(renderer, step.prompt, choices.map { it.binding })
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(BattleSessionInput.Opening(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readOpening(step.prompt, session.battle.openingKeys)
+                        .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.Opening(it)) }
                 }
                 is BattleSessionStep.RoundOpening -> {
-                    val choices = battleOpeningChoices(session.battle.openingKeys)
-                    terminal.writeBindingMenu(renderer, step.prompt, choices.map { it.binding })
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(BattleSessionInput.Opening(input.value))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readOpening(step.prompt, session.battle.openingKeys)
+                        .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.Opening(it)) }
                 }
                 is BattleSessionStep.Message -> {
                     step.texts.forEach { text ->
@@ -1119,53 +962,30 @@ class BattleSessionTerminalAdapter(
                 is BattleSessionStep.PlayerAction -> {
                     val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
                     terminal.writeBindingMenu(renderer, step.prompt, choices.map { it.binding })
-                    when (val input = terminal.readChoice(choices)) {
-                        is TerminalInput.Value -> session.apply(
-                            BattleSessionInput.PlayerAction(input.value.kind),
-                        )
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(BattleSessionInput.PlayerAction(it.kind))
+                        }
                 }
                 is BattleSessionStep.MonsterTarget -> {
-                    terminal.writeKeyMenu(renderer, step.prompt, step.targetKeys)
-                    when (val input = terminal.readKey(step.targetKeys)) {
-                        is TerminalInput.Value -> session.apply(BattleSessionInput.TargetMonster(input.value - 'A'))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readKeyOffset(step.prompt, step.targetKeys, 'A')
+                        .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.TargetMonster(it)) }
                 }
                 is BattleSessionStep.ScriptMonsterTarget -> {
-                    terminal.writeKeyMenu(renderer, step.prompt, step.targetKeys)
-                    when (val input = terminal.readKey(step.targetKeys)) {
-                        is TerminalInput.Value -> session.apply(BattleSessionInput.TargetMonster(input.value - 'A'))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readKeyOffset(step.prompt, step.targetKeys, 'A')
+                        .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.TargetMonster(it)) }
                 }
                 is BattleSessionStep.MemberTarget -> {
-                    terminal.writeKeyMenu(renderer, step.prompt, step.targetKeys)
-                    when (val input = terminal.readKey(step.targetKeys)) {
-                        is TerminalInput.Value -> session.apply(BattleSessionInput.TargetMember(input.value - '1'))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readKeyOffset(step.prompt, step.targetKeys, '1')
+                        .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.TargetMember(it)) }
                 }
                 is BattleSessionStep.MagicItemSlot -> {
-                    terminal.writeKeyMenu(renderer, step.prompt, step.slotKeys)
-                    when (val input = terminal.readKey(step.slotKeys)) {
-                        is TerminalInput.Value -> session.apply(BattleSessionInput.InventorySlot(input.value - 'A' + 1))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readKeyOffset(step.prompt, step.slotKeys, 'A' - 1)
+                        .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.InventorySlot(it)) }
                 }
                 is BattleSessionStep.SpellChoice -> {
-                    terminal.writeKeyMenu(renderer, step.prompt, step.spellKeys)
-                    when (val input = terminal.readKey(step.spellKeys)) {
-                        is TerminalInput.Value -> session.apply(BattleSessionInput.SpellSlot(input.value - '0'))
-                        is TerminalInput.Rejected -> return waiting(session, input.rejection)
-                        TerminalInput.Unavailable -> return waiting(session)
-                    }
+                    readKeyOffset(step.prompt, step.spellKeys, '0')
+                        .sessionOrWait(session, { return it }) { session.apply(BattleSessionInput.SpellSlot(it)) }
                 }
                 BattleSessionStep.MonsterRound -> session.apply(BattleSessionInput.Continue)
                 is BattleSessionStep.Finished -> return finished(session)
@@ -1179,4 +999,18 @@ class BattleSessionTerminalAdapter(
             TerminalChoice(BattleOpeningChoice.Fight, keys.fight),
             TerminalChoice(BattleOpeningChoice.Run, keys.run),
         )
+
+    private fun readOpening(
+        prompt: TextBlock,
+        keys: BattleOpeningKeysModel,
+    ): TerminalInput<BattleOpeningChoice> {
+        val choices = battleOpeningChoices(keys)
+        terminal.writeBindingMenu(renderer, prompt, choices.map { it.binding })
+        return terminal.readChoice(choices)
+    }
+
+    private fun readKeyOffset(prompt: TextBlock, keys: List<Char>, offset: Char): TerminalInput<Int> {
+        terminal.writeKeyMenu(renderer, prompt, keys)
+        return terminal.readKey(keys).map { key -> key - offset }
+    }
 }
