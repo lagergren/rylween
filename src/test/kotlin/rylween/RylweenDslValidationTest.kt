@@ -439,6 +439,65 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun fileRuntimeSavePortRejectsUnsupportedActiveModesBeforeWriting() {
+        val baseRuntime = RuntimeSessionState.singleParty(
+            party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+            hour = 12,
+            currentTown = null,
+            rngState = 1L,
+        )
+        listOf(
+            RuntimeMode.TitleMenu,
+            RuntimeMode.Town,
+            RuntimeMode.Battle,
+            RuntimeMode.GameOver,
+        ).forEach { mode ->
+            val file = File.createTempFile("rylween-save-", ".kts")
+            file.delete()
+            try {
+                val runtime = baseRuntime.withRealm(baseRuntime.realm.copy(currentMode = mode))
+                val outcome = FileRuntimeSavePort(file, stateId("unsupported-save")).save(runtime)
+
+                assertFalse(outcome.saved)
+                assertFalse(file.exists())
+                assertTrue("Runtime mode ${mode.name} is not file-saveable yet" in checkNotNull(outcome.error))
+            } finally {
+                file.delete()
+            }
+        }
+    }
+
+    @Test
+    fun fileRuntimeSavePortRejectsMismatchedWildernessSessionSnapshot() {
+        val file = File.createTempFile("rylween-save-", ".kts")
+        val runtime = RuntimeSessionState.singleParty(
+            party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+            hour = 12,
+            currentTown = null,
+            rngState = 1L,
+        ).let { source -> source.withRealm(source.realm.copy(currentMode = RuntimeMode.Wilderness)) }
+        try {
+            val outcome = FileRuntimeSavePort(file, stateId("bad-wilderness-save")).save(
+                RuntimeSaveRequest(
+                    runtime = runtime,
+                    mode = RuntimeModeSnapshot.YdargCastle(
+                        YdargSessionSnapshot(
+                            floor = 1,
+                            point = GridPoint(1, 1),
+                            rooms = emptyMap(),
+                        ),
+                    ),
+                ),
+            )
+
+            assertFalse(outcome.saved)
+            assertTrue("Wilderness runtime save must not include a session snapshot" in checkNotNull(outcome.error))
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
     fun fileRuntimeSavePortRejectsLossyYdargSaveWithoutSessionSnapshot() {
         val file = File.createTempFile("rylween-save-", ".kts")
         val baseRuntime = RuntimeSessionState.singleParty(

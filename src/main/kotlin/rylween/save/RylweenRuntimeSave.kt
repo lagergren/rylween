@@ -67,6 +67,11 @@ class FileRuntimeSavePort(
 
     private fun checkModeSnapshot(request: RuntimeSaveRequest) {
         when (request.runtime.realm.currentMode) {
+            RuntimeMode.Wilderness -> {
+                if (request.mode != null) {
+                    error("Wilderness runtime save must not include a session snapshot")
+                }
+            }
             RuntimeMode.YdargCastle -> {
                 if (request.mode !is RuntimeModeSnapshot.YdargCastle) {
                     error("YdargCastle runtime save requires Ydarg session snapshot")
@@ -77,7 +82,10 @@ class FileRuntimeSavePort(
                     error("Dungeon runtime save requires dungeon session snapshot")
                 }
             }
-            else -> Unit
+            else -> error(
+                "Runtime mode ${request.runtime.realm.currentMode.name} is not file-saveable yet; " +
+                    "return to wilderness before saving",
+            )
         }
     }
 
