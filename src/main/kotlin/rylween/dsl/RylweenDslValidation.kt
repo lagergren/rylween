@@ -715,7 +715,8 @@ private fun validateTextBlock(
             TextPart.PartyMemberMax,
             TextPart.WildernessDungeonName,
             TextPart.WildernessDungeonLevels,
-            TextPart.DungeonDepth -> Unit
+            TextPart.DungeonDepth,
+            TextPart.ConversationNpcName -> Unit
         }
     }
 
@@ -812,6 +813,8 @@ fun validateSpeakSystem(
         check(conversation.rumour.source == RumourSourcePolicy.StandardTownRumours) {
             "standard conversation rumours must use the standard town rumour source"
         }
+        validateTextBlock(conversation.prompts.chooseNpc, "speak choose-npc prompt")
+        validateTextBlock(conversation.prompts.mainMenu, "speak main-menu prompt")
 
         val services = conversation.nativeServices.map { it.service }
         check(services.toSet().size == services.size) {

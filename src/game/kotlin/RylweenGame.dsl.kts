@@ -627,7 +627,6 @@ val nextRylween = rylween {
         }
         town {
             unavailableSuffix = " is not available here."
-            missingServiceSuffix = " service is not implemented yet."
             closedSuffix = " is closed."
         }
         party {

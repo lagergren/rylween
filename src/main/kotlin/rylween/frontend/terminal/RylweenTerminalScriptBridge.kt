@@ -812,7 +812,8 @@ class StatefulScriptServiceRunner(
                             TextPart.PartyMemberMax,
                             TextPart.WildernessDungeonName,
                             TextPart.WildernessDungeonLevels,
-                            TextPart.DungeonDepth -> part.fallbackText()
+                            TextPart.DungeonDepth,
+                            TextPart.ConversationNpcName -> part.fallbackText()
                         }
                     }
                 },
@@ -1054,7 +1055,7 @@ private class SpeakSessionTraceRunner(
             session = when (val step = session.step) {
                 is SpeakStep.ChooseNpc -> {
                     val keys = step.npcs.indices.map { index -> '1' + index }
-                    traceMenu(npcPrompt(step.npcs), keys)
+                    traceMenu(npcPrompt(session.content, step.npcs), keys)
                     terminal.readKey(keys)
                         .sessionOrWait(session, { return it }) { key ->
                             val npc = step.npcs[key - '1']
@@ -1090,7 +1091,7 @@ private class SpeakSessionTraceRunner(
                 }
                 is SpeakStep.MainMenu -> {
                     val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
-                    traceMenu(mainPrompt(step.npc, step.actions), step.actions.map { it.key })
+                    traceMenu(mainPrompt(session.content, step.npc, step.actions), step.actions.map { it.key })
                     terminal.readChoice(choices)
                         .sessionOrWait(session, { return it }) { action ->
                             session.apply(SpeakInput.Main(action.topic.toMainChoice()))
@@ -1118,46 +1119,35 @@ private class SpeakSessionTraceRunner(
         engine.trace(EngineTraceEvent.Menu(prompt, keys))
     }
 
-    private fun npcPrompt(npcs: List<CharacterModel>): TextBlock =
-        inlineText(
-            *(
-                listOf("Speak with whom?", "") +
-                    npcs.mapIndexed { index, npc -> "${index + 1}. ${npc.name}, ${npc.job.slug}" }
-                ).toTypedArray(),
+    private fun npcPrompt(content: SpeakRuntimeContent, npcs: List<CharacterModel>): TextBlock =
+        combineTextBlocks(
+            content.conversationPrompts().chooseNpc,
+            inlineText(*npcs.mapIndexed { index, npc -> "${index + 1}. ${npc.name}, ${npc.job.slug}" }.toTypedArray()),
         )
 
-    private fun mainPrompt(npc: CharacterModel, actions: List<ConversationMenuActionModel>): TextBlock =
-        inlineText(
-            *(
-                listOf("Chatting with", "${npc.name}:", "") +
-                    actions.map { action -> action.promptLine() }
-                ).toTypedArray(),
+    private fun mainPrompt(
+        content: SpeakRuntimeContent,
+        npc: CharacterModel,
+        actions: List<ConversationMenuActionModel>,
+    ): TextBlock =
+        combineTextBlocks(
+            content.conversationPrompts().renderMainMenu(npc.name),
+            inlineText(*actions.map { action -> action.promptLine() }.toTypedArray()),
         )
 
     private fun questionPrompt(actions: List<QuestionMenuActionModel>): TextBlock =
         inlineText(*actions.map { action -> action.promptLine() }.toTypedArray())
 
     private fun ConversationMenuActionModel.promptLine(): String =
-        "(${key})${topic.promptLabelSuffix()}"
+        bindingMenuLine(binding, label)
 
     private fun QuestionMenuActionModel.promptLine(): String =
-        "(${key})${topic.promptLabelSuffix()}"
+        bindingMenuLine(binding, label)
 
-    private fun ConversationTopic.promptLabelSuffix(): String =
-        when (this) {
-            ConversationTopic.Chitchat -> "hitchat"
-            ConversationTopic.Question -> "uestion"
-            ConversationTopic.Rumour -> "umors"
-            ConversationTopic.Bye -> "ye"
-        }
-
-    private fun QuestionTopic.promptLabelSuffix(): String =
-        when (this) {
-            QuestionTopic.Lodging -> "odging"
-            QuestionTopic.Magic -> "agic"
-            QuestionTopic.People -> "eople"
-            QuestionTopic.Nothing -> "othing"
-        }
+    private fun SpeakRuntimeContent.conversationPrompts(): ConversationPromptTextModel =
+        checkNotNull(speak.standardConversation) {
+            "standard conversation system is not configured"
+        }.prompts
 
     private fun ConversationTopic.toMainChoice(): SpeakMainChoice =
         when (this) {

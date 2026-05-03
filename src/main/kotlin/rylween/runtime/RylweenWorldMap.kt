@@ -844,10 +844,9 @@ data class WildernessSession(
         )
 
     private fun hunt(): WildernessSession {
-        val rules = realm.hunt ?: return pending(
-            RuntimeUnavailableText.huntPending(),
-            WildernessSessionResultStatus.HuntUnavailable,
-        )
+        val rules = requireNotNull(realm.hunt) {
+            "wilderness hunt command requires authored hunt rules"
+        }
         return copy(step = WildernessSessionStep.Hunt(HuntSession.start(runtime, rules)))
     }
 
@@ -1098,11 +1097,9 @@ data class WildernessSession(
     }
 
     private fun enterTown(point: GridPoint): WildernessSession {
-        val town = towns.firstOrNull { it.position == point }
-            ?: return notice(
-                RuntimeUnavailableText.unknownTown(),
-                WildernessSessionResult(WildernessSessionResultStatus.UnknownTown, from = point),
-            )
+        val town = requireNotNull(towns.firstOrNull { it.position == point }) {
+            "wilderness town tile at ${point.x}x${point.y} has no town declaration"
+        }
         val townRuntime = runtime.withRealm(
             runtime.realm.copy(
                 currentMode = RuntimeMode.Town,
@@ -1128,11 +1125,9 @@ data class WildernessSession(
     }
 
     private fun enterHut(point: GridPoint): WildernessSession {
-        val scene = scenes.firstOrNull { it.id == DslDefaultScenes.Towne.hut }
-            ?: return notice(
-                RuntimeUnavailableText.hutSceneMissing(),
-                WildernessSessionResult(WildernessSessionResultStatus.EnteredHut, from = point),
-            )
+        val scene = requireNotNull(scenes.firstOrNull { it.id == DslDefaultScenes.Towne.hut }) {
+            "wilderness hut tile at ${point.x}x${point.y} requires an authored hut scene"
+        }
         return copy(
             step = WildernessSessionStep.Hut(scene),
             lastResult = WildernessSessionResult(WildernessSessionResultStatus.EnteredHut, from = point),
@@ -1140,15 +1135,11 @@ data class WildernessSession(
     }
 
     private fun enterCastle(point: GridPoint): WildernessSession {
-        val ydarg = content.ydarg ?: return notice(
-            RuntimeUnavailableText.castlePending(),
-            WildernessSessionResult(WildernessSessionResultStatus.EnteredCastle, from = point),
-        )
-        if (point != ydarg.entry) {
-            return notice(
-                RuntimeUnavailableText.castlePending(),
-                WildernessSessionResult(WildernessSessionResultStatus.EnteredCastle, from = point),
-            )
+        val ydarg = requireNotNull(content.ydarg) {
+            "wilderness castle tile at ${point.x}x${point.y} requires authored Ydarg content"
+        }
+        require(point == ydarg.entry) {
+            "wilderness castle tile at ${point.x}x${point.y} does not match Ydarg entry ${ydarg.entry.x}x${ydarg.entry.y}"
         }
         val castleRuntime = runtime.withRealm(
             runtime.realm.copy(
@@ -1264,9 +1255,6 @@ data class WildernessSession(
 
     private fun notice(text: TextBlock, result: WildernessSessionResult): WildernessSession =
         copy(step = WildernessSessionStep.Notice(text, WildernessSessionStep.TurnStart), lastResult = result)
-
-    private fun pending(text: TextBlock, status: WildernessSessionResultStatus): WildernessSession =
-        notice(text, WildernessSessionResult(status))
 
     companion object {
         fun start(
