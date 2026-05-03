@@ -203,7 +203,7 @@ class StatefulScriptServiceRunner(
     fun run(): StatefulScriptResult {
         runUntilBlockedOrFinished()
         val nextRuntime = currentRuntime()
-        val nextContinuation = if (waiting) continuation(nextRuntime) else null
+        val nextContinuation = if (waiting || dungeonHandoff != null) continuation(nextRuntime) else null
         return StatefulScriptResult(
             runtime = nextRuntime,
             status = if (waiting) TownServiceBridgeStatus.Waiting else TownServiceBridgeStatus.Finished,
@@ -215,7 +215,7 @@ class StatefulScriptServiceRunner(
     }
 
     private fun runUntilBlockedOrFinished() {
-        while (stack.isNotEmpty() && !waiting) {
+        while (stack.isNotEmpty() && !waiting && dungeonHandoff == null) {
             if (--opBudget <= 0) {
                 stack.clear()
                 return
@@ -675,7 +675,6 @@ class StatefulScriptServiceRunner(
         dungeonHandoff = handoff
         advanceTop()
         engine.trace(EngineTraceEvent.DungeonHandoff(handoff))
-        stack.clear()
     }
 
     private fun runTeleportParty(op: Op.TeleportParty) {
@@ -707,7 +706,6 @@ class StatefulScriptServiceRunner(
         advanceTop()
         engine.trace(EngineTraceEvent.DiscoverCave(handoff, moveCost))
         engine.trace(EngineTraceEvent.DungeonHandoff(handoff))
-        stack.clear()
     }
 
     private fun runRandomItemOffer(op: Op.RandomItemOffer) {

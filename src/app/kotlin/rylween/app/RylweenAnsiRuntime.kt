@@ -264,7 +264,15 @@ private class RylweenAnsiGame(
                     val result = missionBridge.run(step.mission.service(), step.scene, continuation)
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
-                            result.dungeonHandoff?.let { session.handOffMissionDungeon(result.runtime, it) }
+                            result.dungeonHandoff?.let { handoff ->
+                                session.handOffMissionDungeon(
+                                    result.runtime,
+                                    handoff,
+                                    checkNotNull(result.continuation) {
+                                        "mission dungeon handoff did not return post-dungeon continuation"
+                                    },
+                                )
+                            }
                                 ?: session.finishMission(result.runtime)
                         TownServiceBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {

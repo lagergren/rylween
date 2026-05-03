@@ -771,7 +771,13 @@ class WildernessSessionTerminalAdapter(
                     when (result.status) {
                         TownServiceBridgeStatus.Finished ->
                             result.dungeonHandoff?.let { handoff ->
-                                session.handOffMissionDungeon(result.runtime, handoff)
+                                session.handOffMissionDungeon(
+                                    result.runtime,
+                                    handoff,
+                                    checkNotNull(result.continuation) {
+                                        "mission dungeon handoff did not return post-dungeon continuation"
+                                    },
+                                )
                             } ?: session.finishMission(result.runtime)
                         TownServiceBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {

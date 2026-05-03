@@ -3483,6 +3483,52 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun wildernessMissionResumesScriptAfterLeavingEnteredDungeon() {
+        val terminal = FakeTerminalPort("A")
+        val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow(width = 20) })
+        val scene = GameBuilder().apply {
+            scene(Scenes.Missions.thunTemple) {
+                enterDungeon(Dungeons.thunTemple, levels = 1)
+                mark(Story.masterCrown.task1Done)
+            }
+        }.build().scenes.single()
+        val mission = MissionModel(
+            id = Missions.thunTemple,
+            trigger = Trigger.AtPosition(xy(12, 10)),
+            requires = null,
+            action = scene.id,
+        )
+        val content = RylweenCompiledGame.nextDsl.runtimeContent().copy(
+            dungeons = DungeonSystemBuilder().apply {
+                scenario(Dungeons.thunTemple) {
+                    name("Test Temple")
+                    levels(1)
+                }
+            }.build(),
+        )
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            WildernessSession(
+                runtime = RuntimeSessionState.singleParty(
+                    party = testParty(food = 100, timeLeft = 200, restedHours = 14),
+                    hour = 12,
+                    currentTown = null,
+                ),
+                worldMap = map,
+                content = content,
+                step = WildernessSessionStep.Mission(mission, scene),
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
+        assertEquals(Missions.thunTemple, result.session.lastResult?.mission)
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertTrue(result.session.party.hasFlagState(Story.masterCrown.task1Done))
+        assertTrue(terminal.output.any { "You leave the" in it })
+    }
+
+    @Test
     fun wildernessMoveToThunTempleWithoutFiveGemsDoesNotSpendOrEnter() {
         val terminal = FakeTerminalPort("2", "", "", "Y", "")
         val map = WorldMapGrid.fromSourceRows((1..12).map { mapRow(width = 20) })
