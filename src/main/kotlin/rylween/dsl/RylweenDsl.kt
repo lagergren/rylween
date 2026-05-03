@@ -1236,6 +1236,7 @@ data class StandardBattleModel(
     val text: BattleTextModel,
     val rewards: RewardBundleId,
     val encounterFoeCountMax: Int,
+    val victoryImage: ImageId?,
     val nativeServices: List<EngineServiceUse>,
 )
 
@@ -5542,6 +5543,7 @@ class StandardBattleBuilder {
     private var textModel = BattleTextBuilder().build()
     var rewards: RewardBundleId = DslDefaultRewards.standardBattle
     var encounterFoeCountMax: Int = 8
+    private var victoryImage: ImageId? = null
 
     fun text(body: BattleTextBuilder.() -> Unit) {
         textModel = BattleTextBuilder(textModel).apply(body).build()
@@ -5567,6 +5569,10 @@ class StandardBattleBuilder {
         monsterRoundModel = MonsterRoundBuilder(monsterRoundModel).apply(body).build()
     }
 
+    fun victoryImage(image: ImageId?) {
+        victoryImage = image
+    }
+
     fun build(): StandardBattleModel =
         StandardBattleModel(
             opening = openingModel,
@@ -5577,6 +5583,7 @@ class StandardBattleBuilder {
             text = textModel,
             rewards = rewards,
             encounterFoeCountMax = encounterFoeCountMax,
+            victoryImage = victoryImage,
             nativeServices = defaultNativeServices,
         )
 

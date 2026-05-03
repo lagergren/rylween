@@ -990,6 +990,7 @@ val nextRylween = rylween {
     combat {
         standardBattle {
             encounterFoeCountMax = 8
+            victoryImage(Images.Backdrop.battleVictory)
 
             opening {
                 fleeChancePercent = 95
