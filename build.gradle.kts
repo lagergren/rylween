@@ -289,6 +289,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 factoryName = "rewardBundle",
                 names = handleNames(declarationBlock(source, "rewards"), "Rewards", "reward"),
             ),
+            generateTextHandles(textHandles(source)),
         ).joinToString(separator = "\n\n")
 
         outputFile.get().asFile.apply {
@@ -346,6 +347,18 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         val className: String,
         val slugPrefix: String,
         val names: List<String>,
+    )
+
+    private class TextNode(
+        val path: List<String>,
+    ) {
+        val children: LinkedHashMap<String, TextNode> = linkedMapOf()
+        var leaf: TextLeaf? = null
+    }
+
+    private data class TextLeaf(
+        val id: String,
+        val isPattern: Boolean,
     )
 
     private fun itemHandles(source: String): ItemHandles {
@@ -694,6 +707,61 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
         """.trimMargin()
     }
 
+    private fun textHandles(source: String): TextNode {
+        val root = TextNode(emptyList())
+        val textPaths = Regex("""\b(?:T|Texts)\.([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+)""")
+            .findAll(source)
+            .map { it.groupValues[1].split(".") }
+            .toList()
+            .distinctBy { it.joinToString(".") }
+        require(textPaths.isNotEmpty()) {
+            "No text handle references found in ${gameSource.get().asFile}."
+        }
+        textPaths.forEach { path ->
+            val node = path.fold(root) { parent, part ->
+                parent.children.getOrPut(part) { TextNode(parent.path + part) }
+            }
+            val key = path.joinToString(".")
+            node.leaf = textPatternOverrides[key]?.let { TextLeaf(it, isPattern = true) }
+                ?: TextLeaf(textId(path), isPattern = false)
+        }
+        return root
+    }
+
+    private fun generateTextHandles(root: TextNode): String {
+        val classes = mutableListOf<String>()
+        fun emitClass(node: TextNode, className: String) {
+            val lines = node.children.values.joinToString(separator = "\n") { child ->
+                val leaf = child.leaf
+                if (leaf != null && child.children.isEmpty()) {
+                    if (leaf.isPattern) {
+                        """    val ${child.path.last()}: TextPattern = textPattern("${leaf.id}")"""
+                    } else {
+                        """    val ${child.path.last()}: TextId = text("${leaf.id}")"""
+                    }
+                } else {
+                    val childClassName = textClassName(child.path)
+                    """    val ${child.path.last()}: $childClassName = $childClassName()"""
+                }
+            }
+            classes += """
+                |class $className {
+                |$lines
+                |}
+            """.trimMargin()
+            node.children.values
+                .filterNot { it.leaf != null && it.children.isEmpty() }
+                .forEach { child -> emitClass(child, textClassName(child.path)) }
+        }
+        emitClass(root, "TextRefs")
+        return """
+            |${classes.joinToString(separator = "\n\n")}
+            |
+            |val Texts: TextRefs = TextRefs()
+            |val T: TextRefs = Texts
+        """.trimMargin()
+    }
+
     private fun generateRefsClass(
         className: String,
         objectName: String,
@@ -865,6 +933,18 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     private fun sceneSlug(group: SceneGroupHandles, name: String): String =
         legacySceneSlugs["${group.groupName}.$name"] ?: "${group.slugPrefix}.${name.toSlug()}"
 
+    private fun textId(path: List<String>): String =
+        textIdOverrides[path.joinToString(".")]
+            ?: path.joinToString(separator = ".") { part ->
+                when (part) {
+                    "MissionsText" -> "missions"
+                    else -> part.toSlug()
+                }
+            }
+
+    private fun textClassName(path: List<String>): String =
+        "${path.joinToString(separator = "") { it.toUpperCamel() }}TextRefs"
+
     private fun derivedFlagProperties(flag: FlagDeclaration): String =
         when (flag.pathKey) {
             "silverKey" -> """
@@ -932,6 +1012,14 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
 
     private val legacySceneSlugs = mapOf(
         "Battle.monsterMelee" to "battle.monster.melee",
+    )
+
+    private val textIdOverrides = mapOf(
+        "Battle.Prompt.monster" to "battle.prompt.who",
+    )
+
+    private val textPatternOverrides = mapOf(
+        "Towne.Rumour.indexed" to "towne.rumour.r{}",
     )
 }
 
