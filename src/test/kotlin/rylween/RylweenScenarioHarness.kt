@@ -102,3 +102,10 @@ fun <S> TerminalScenarioRun<S>.assertImageShown(imageSlug: String) {
         "scenario '$name' did not show image '$imageSlug'",
     )
 }
+
+fun <S> TerminalScenarioRun<S>.assertViewCommand(command: ViewCommand) {
+    assertTrue(
+        command in terminal.viewCommands,
+        "scenario '$name' did not emit view command '$command'",
+    )
+}
