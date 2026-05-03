@@ -4503,32 +4503,11 @@ class RylweenDslValidationTest {
 
     @Test
     fun ydargTreasureRoomRunsThroughScenarioHarness() {
-        val content = RylweenCompiledGame.nextDsl
-        val started = YdargSession.start(
-            runtime = RuntimeSessionState.singleParty(
-                party = testParty(
-                    food = 100,
-                    timeLeft = 200,
-                    restedHours = 14,
-                    milestones = listOf(Milestones.silverKey),
-                ),
-                hour = 12,
-                currentTown = null,
-                rngState = 1L,
-            ),
-            content = content.runtimeContent(),
-        ).copy(
-            rooms = mapOf(GridPoint(1, 1) to YdargRoomEvent.Treasure),
-            step = YdargSessionStep.RoomEntry,
-            floor = 1,
-            point = GridPoint(1, 1),
-        )
-
         runCompiledYdargScenario(
             name = "ydarg-treasure-room-take-item",
             inputs = listOf("T"),
             seed = 1L,
-            start = { started },
+            start = { ydargRoomSession(YdargRoomEvent.Treasure) },
             checkpoints = listOf(
                 checkpoint("treasure prompt grants authored item") {
                     val item = checkNotNull(result.session.lastResult?.item)
@@ -4543,41 +4522,141 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun ydargPitfallRoomRunsThroughScenarioHarness() {
-        val content = RylweenCompiledGame.nextDsl
-        val started = YdargSession.start(
-            runtime = RuntimeSessionState.singleParty(
-                party = testParty(
-                    food = 100,
-                    timeLeft = 200,
-                    restedHours = 14,
-                    health = 60,
-                    hitPoints = 60,
-                    milestones = listOf(Milestones.silverKey),
-                ),
-                hour = 12,
-                currentTown = null,
-                rngState = 1L,
+    fun ydargTreasureRoomCanLeaveItemOrReportFullInventory() {
+        runCompiledYdargScenario(
+            name = "ydarg-treasure-room-leave-item",
+            inputs = listOf("L"),
+            seed = 1L,
+            start = { ydargRoomSession(YdargRoomEvent.Treasure) },
+            checkpoints = listOf(
+                checkpoint("leave keeps inventory unchanged and returns to navigation") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(YdargSessionStatus.TreasureLeft, result.session.lastResult?.status)
+                    assertEquals(YdargSessionStep.Navigate, result.session.step)
+                    assertTrue(
+                        (1..InventorySaveSlotMax).all { slot -> result.session.party.inventoryItem(slot) == null },
+                    )
+                    assertOutputContains("You find a")
+                    assertOutputContains("(L)eave it")
+                },
             ),
-            content = content.runtimeContent(),
-        ).copy(
-            rooms = mapOf(GridPoint(1, 1) to YdargRoomEvent.Pitfall),
-            step = YdargSessionStep.RoomEntry,
-            floor = 1,
-            point = GridPoint(1, 1),
         )
 
+        runCompiledYdargScenario(
+            name = "ydarg-treasure-room-full-inventory",
+            inputs = listOf("T"),
+            seed = 1L,
+            start = {
+                ydargRoomSession(
+                    YdargRoomEvent.Treasure,
+                    party = ydargCastleParty(
+                        inventoryItems = (1..InventorySaveSlotMax).associateWith { Items.redPotion },
+                    ),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("full inventory reports authored refusal text") {
+                    assertTrue(result.status is TerminalRunStatus.Waiting)
+                    assertEquals(YdargSessionStatus.TreasureInventoryFull, result.session.lastResult?.status)
+                    assertEquals(YdargSessionStep.Navigate, result.session.step)
+                    assertEquals(null, result.session.party.firstFreeInventorySlot())
+                    assertOutputContains("You can't carry more.")
+                },
+            ),
+        )
+    }
+
+    @Test
+    fun ydargPitfallRoomRunsThroughScenarioHarness() {
         runCompiledYdargScenario(
             name = "ydarg-pitfall-room-damages-party",
             inputs = emptyList(),
             seed = 1L,
-            start = { started },
+            start = {
+                ydargRoomSession(YdargRoomEvent.Pitfall, party = ydargCastleParty(health = 60, hitPoints = 60))
+            },
             checkpoints = listOf(
                 checkpoint("pitfall text and damage apply") {
                     assertTrue(result.status is TerminalRunStatus.Waiting)
                     assertEquals(YdargSessionStatus.Pitfall, result.session.lastResult?.status)
                     assertEquals(50, result.session.party.members.single().hitPoints.current)
                     assertOutputContains("trap!!!")
+                },
+            ),
+        )
+    }
+
+    @Test
+    fun ydargPitfallThiefCanDisarmOrFail() {
+        fun runThiefPitfallScenario(name: String, wisdom: Int, expectedHp: Int, expectedText: String) {
+            runCompiledYdargScenario(
+                name = name,
+                inputs = emptyList(),
+                seed = 1L,
+                start = {
+                    ydargRoomSession(
+                        YdargRoomEvent.Pitfall,
+                        party = ydargCastleParty(
+                            members = listOf(
+                                testMember(
+                                    name = "Risha",
+                                    pcClass = PcClass.Thief,
+                                    health = 60,
+                                    hitPoints = 60,
+                                    wisdom = wisdom,
+                                ),
+                            ),
+                        ),
+                    )
+                },
+                checkpoints = listOf(
+                    checkpoint("thief disarm branch matches authored outcome") {
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertEquals(YdargSessionStatus.Pitfall, result.session.lastResult?.status)
+                        assertEquals(expectedHp, result.session.party.members.single().hitPoints.current)
+                        assertOutputContains("Risha")
+                        assertOutputContains("tries to")
+                        assertOutputContains(expectedText)
+                    },
+                ),
+            )
+        }
+
+        runThiefPitfallScenario(
+            name = "ydarg-pitfall-thief-disarms",
+            wisdom = 100,
+            expectedHp = 60,
+            expectedText = "AND SUCCEEDS!",
+        )
+        runThiefPitfallScenario(
+            name = "ydarg-pitfall-thief-fails",
+            wisdom = 0,
+            expectedHp = 50,
+            expectedText = "BUT FAILS!",
+        )
+    }
+
+    @Test
+    fun ydargFinalConfrontationDefeatRunsThroughScenarioHarness() {
+        val content = RylweenCompiledGame.nextDsl.runtimeContent().withLethalMissionMonsters(Monsters.cryptHorror)
+        val party = ydargCastleParty(
+            health = 1,
+            hitPoints = 1,
+            milestones = ydargConfrontationMilestones(),
+        )
+
+        runCompiledYdargScenario(
+            name = "ydarg-final-confrontation-party-defeat",
+            inputs = listOf("4", "F", "D"),
+            seed = 1L,
+            start = { ydargFinalConfrontationSession(content, party) },
+            checkpoints = listOf(
+                checkpoint("defeat from nested battle ends in game over") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(YdargSessionStatus.PartyDefeated, result.session.lastResult?.status)
+                    assertEquals(RuntimeMode.GameOver, result.session.runtime.realm.currentMode)
+                    assertTrue(result.session.party.members.single().dead)
+                    assertOutputContains("DIES!!!")
                 },
             ),
         )
@@ -4593,26 +4672,7 @@ class RylweenDslValidationTest {
             Monsters.baronYdarg,
         )
         val party = decisiveMissionParty().copy(
-            milestones = listOf(
-                Milestones.silverKey,
-                Milestones.fireShield,
-                Milestones.masterCrown,
-                Milestones.footOfJazzy,
-                Milestones.braceletsOfThun,
-            ),
-        )
-        val started = YdargSession.start(
-            runtime = RuntimeSessionState.singleParty(
-                party = party,
-                hour = 12,
-                currentTown = null,
-                rngState = 1L,
-            ),
-            content = content,
-        ).copy(
-            step = YdargSessionStep.StairGive,
-            floor = 4,
-            point = GridPoint(5, 5),
+            milestones = ydargConfrontationMilestones(),
         )
 
         runCompiledYdargScenario(
@@ -4626,7 +4686,7 @@ class RylweenDslValidationTest {
                 "F", "A", "A",
             ),
             seed = 1L,
-            start = { started },
+            start = { ydargFinalConfrontationSession(content, party) },
             checkpoints = listOf(
                 checkpoint("victory milestone and ending text apply") {
                     assertTrue(result.status is TerminalRunStatus.Finished)
@@ -6172,6 +6232,91 @@ class RylweenDslValidationTest {
             },
         )
     }
+
+    private fun RuntimeContent.withLethalMissionMonsters(vararg ids: MonsterId): RuntimeContent {
+        val lethalIds = ids.toSet()
+        return copy(
+            monsters = monsters.map { monster ->
+                if (monster.id in lethalIds) {
+                    monster.copy(
+                        count = 1..1,
+                        countMaxLevelDivisor = null,
+                        hitPoints = 300..300,
+                        weaponSkill = 100,
+                        spellPower = 0,
+                        immune = false,
+                    )
+                } else {
+                    monster
+                }
+            },
+        )
+    }
+
+    private fun ydargCastleParty(
+        health: Int = 10,
+        hitPoints: Int = 10,
+        inventoryItems: Map<Int, ItemId> = emptyMap(),
+        milestones: List<GameMilestoneId> = listOf(Milestones.silverKey),
+        members: List<PartyMemberState>? = null,
+    ): PartyState =
+        testParty(
+            food = 100,
+            timeLeft = 200,
+            restedHours = 14,
+            health = health,
+            hitPoints = hitPoints,
+            inventoryItems = inventoryItems,
+            milestones = milestones,
+            members = members ?: listOf(testMember(health = health, hitPoints = hitPoints)),
+        )
+
+    private fun ydargRoomSession(
+        room: YdargRoomEvent,
+        party: PartyState = ydargCastleParty(),
+        content: RuntimeContent = RylweenCompiledGame.nextDsl.runtimeContent(),
+        rngState: Long = 1L,
+        floor: Int = 1,
+        point: GridPoint = GridPoint(1, 1),
+    ): YdargSession =
+        YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = party,
+                hour = 12,
+                currentTown = null,
+                rngState = rngState,
+            ),
+            content = content,
+        ).copy(
+            rooms = mapOf(point to room),
+            step = YdargSessionStep.RoomEntry,
+            floor = floor,
+            point = point,
+        )
+
+    private fun ydargConfrontationMilestones(): List<GameMilestoneId> =
+        listOf(
+            Milestones.silverKey,
+            Milestones.fireShield,
+            Milestones.masterCrown,
+            Milestones.footOfJazzy,
+            Milestones.braceletsOfThun,
+        )
+
+    private fun ydargFinalConfrontationSession(content: RuntimeContent, party: PartyState): YdargSession =
+        YdargSession.start(
+            runtime = RuntimeSessionState.singleParty(
+                party = party,
+                hour = 12,
+                currentTown = null,
+                rngState = 1L,
+            ),
+            content = content,
+        ).copy(
+            step = YdargSessionStep.StairGive,
+            floor = 4,
+            point = GridPoint(5, 5),
+        )
 
     private fun decisiveMissionParty(): PartyState =
         testParty(
