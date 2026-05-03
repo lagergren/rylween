@@ -447,7 +447,6 @@ data class BattleSession(
             initialRuntime = runtime,
             initialEncounter = encounter,
             initialRound = round,
-            itemRecords = itemRecords,
         ).run(script)
         val base = copy(runtime = result.runtime, encounter = result.encounter, round = result.round)
         return when (result) {
@@ -665,7 +664,7 @@ data class BattleSession(
                 "attacker_idx" to monsterIndex,
             ),
         )
-        return when (val result = CombatScriptRunner(pick.runtime, encounter, round, itemRecords).run(script)) {
+        return when (val result = CombatScriptRunner(pick.runtime, encounter, round).run(script)) {
             is CombatScriptRunResult.Done -> BattleScriptEffect(
                 runtime = result.runtime,
                 encounter = result.encounter,
@@ -705,15 +704,6 @@ data class BattleSession(
         )
     }
 
-    private fun finish(status: BattleSessionResultStatus): BattleSession {
-        val nextRuntime = runtime.asWilderness()
-        return copy(
-            runtime = nextRuntime,
-            step = BattleSessionStep.Finished(nextRuntime),
-            lastResult = result(status),
-        )
-    }
-
     private fun result(status: BattleSessionResultStatus): BattleSessionResult =
         BattleSessionResult(status, encounter.monster.id, tier)
 
@@ -744,35 +734,6 @@ data class BattleSession(
                     spells = spells,
                     itemUses = itemUses,
                 ),
-                mandatory = mandatory,
-            )
-
-        fun startMonster(
-            runtime: RuntimeSessionState,
-            combat: CombatSystemModel,
-            monster: MonsterModel,
-            tier: EncounterTier? = monster.tier,
-            mandatory: Boolean = false,
-            itemRecords: List<ItemRecordModel> = emptyList(),
-            formulas: List<FormulaModel> = emptyList(),
-            rewards: List<RewardBundleModel> = emptyList(),
-            leveling: LevelingModel? = null,
-            spells: List<SpellModel> = emptyList(),
-            itemUses: List<ItemUseModel> = emptyList(),
-        ): BattleSession =
-            startMonster(
-                runtime = runtime,
-                monster = monster,
-                content = RuntimeContent(
-                    combat = combat,
-                    itemRecords = itemRecords,
-                    formulas = formulas,
-                    rewards = rewards,
-                    leveling = leveling,
-                    spells = spells,
-                    itemUses = itemUses,
-                ),
-                tier = tier,
                 mandatory = mandatory,
             )
 
@@ -919,7 +880,6 @@ private class CombatScriptRunner(
     initialRuntime: RuntimeSessionState,
     initialEncounter: BattleMonsterState,
     initialRound: BattleRoundState,
-    private val itemRecords: List<ItemRecordModel>,
 ) {
     private var runtime = initialRuntime
     private var encounter = initialEncounter
@@ -1125,11 +1085,7 @@ private class CombatScriptRunner(
 
     private fun pronoun(memberIndex: Int, case: PronounCase): String {
         val gender = runtime.activeParty.members.getOrNull(memberIndex)?.gender ?: Gender.Male
-        return when (case) {
-            PronounCase.Subject -> if (gender == Gender.Female) "she" else "he"
-            PronounCase.Object -> if (gender == Gender.Female) "her" else "him"
-            PronounCase.Possessive -> if (gender == Gender.Female) "her" else "his"
-        }
+        return gender.pronoun(case)
     }
 
     private fun read(target: LValueAst): Int =
@@ -1293,7 +1249,7 @@ private class CombatScriptRunner(
         }
 
     private fun writeRealmScalar(name: String, value: Int): Unit =
-        error("combat scripts cannot write realm scalar $name yet")
+        error("combat scripts cannot write realm scalar $name to $value yet")
 
     private fun unsupportedCombatOp(op: Op): Nothing =
         error("combat script op ${op::class.simpleName} is not supported by BattleSession yet")

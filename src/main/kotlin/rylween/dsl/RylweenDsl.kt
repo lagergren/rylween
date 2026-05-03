@@ -33,6 +33,11 @@
     "MemberVisibilityCanBePrivate",
     "RedundantVisibilityModifier",
     "UNUSED_PARAMETER",
+    "CanBeParameter",
+    "ConstPropertyName",
+    "FunctionName",
+    "KotlinExplicitApi",
+    "PropertyName",
 )
 
 package rylween.dsl
@@ -259,7 +264,7 @@ data class WildernessUpkeepRules(
 }
 
 /**
- * Authored camp / rest balance. Read by [CampSession]; every value is
+ * Authored camp / rest balance. Read by the camp runtime; every value is
  * data so a different game can change healing, food cost, temperature
  * bands, or shelter rules without touching the runtime. Damage applies
  * to members not protected by an item with [TemperatureBand] coverage
@@ -2001,6 +2006,13 @@ fun pronoun(member: MemberRef, case: PronounCase): StrExpr {
     return Str(StrAst.NativeString(native.path, listOf(NativeStringArg.IntValue(member.index.ast))))
 }
 
+fun Gender.pronoun(case: PronounCase): String =
+    when (case) {
+        PronounCase.Subject -> if (this == Gender.Female) "she" else "he"
+        PronounCase.Object -> if (this == Gender.Female) "her" else "him"
+        PronounCase.Possessive -> if (this == Gender.Female) "her" else "his"
+    }
+
 fun townNpcName(job: NpcJobId): StrExpr =
     Str(StrAst.NativeString(NativeAllowlist.townNpcName.path, listOf(NativeStringArg.Literal(render(job)))))
 
@@ -2241,7 +2253,7 @@ class ScriptScope(
     }
 
     fun encounter(monster: MonsterId, mandatory: Boolean = false, tier: EncounterTier? = null) {
-        record(Op.Encounter(monster, mandatory, tier))
+        record(Op.Encounter(foe = monster, mandatory = mandatory, tier = tier))
     }
 
     fun enterDungeon(dungeon: DungeonId, levels: Int) {
@@ -2893,8 +2905,8 @@ class ShopCatalogBuilder(private val binding: InputBindingModel, private val tit
             binding = binding,
             title = title,
             intro = introText,
-            pages = pages.toList() + looseEntries.takeIf { it.isNotEmpty() }?.let {
-                listOf(ShopCatalogPageModel(it.toList(), footer = null))
+            pages = pages.toList() + looseEntries.takeIf { entries -> entries.isNotEmpty() }?.let { entries ->
+                listOf(ShopCatalogPageModel(entries.toList(), footer = null))
             }.orEmpty(),
         )
 }
@@ -6043,7 +6055,13 @@ class PartyStateBuilder(private val id: PartyId) {
     var position: WorldPosition = Wilderness.xy(0, 0)
     var facing: Facing? = null
     private var resourcesState = PartyResources(0, 0, 0, 0, 0)
-    private var countersState = PartyCounters(null, 0, false, false, emptyList())
+    private var countersState = PartyCounters(
+        memberCount = null,
+        kills = 0,
+        waitingMail = false,
+        attacked = false,
+        attackedToday = emptyList(),
+    )
     private val flags = mutableListOf<FlagState>()
     private val milestones = mutableListOf<GameMilestoneId>()
     private val inventory = mutableListOf<InventorySlotState>()
@@ -6076,7 +6094,7 @@ class PartyStateBuilder(private val id: PartyId) {
     }
 
     fun visited(vararg npcs: NpcId) {
-        npcs.forEach { visitedNpcs[it] = NpcVisitState(it, true) }
+        npcs.forEach { npc -> visitedNpcs[npc] = NpcVisitState(npc = npc, visited = true) }
     }
 
     fun npcVisits(body: NpcVisitBuilder.() -> Unit) {
@@ -6145,15 +6163,15 @@ class AttackTodayBuilder {
     private val records = mutableMapOf<PartyId, PartyAttackRecord>()
 
     fun party(party: PartyId, attacked: Boolean) {
-        records[party] = PartyAttackRecord(party, attacked)
+        records[party] = PartyAttackRecord(party = party, attacked = attacked)
     }
 
     fun attacked(party: PartyId) {
-        party(party, true)
+        party(party, attacked = true)
     }
 
     fun clear(party: PartyId) {
-        party(party, false)
+        party(party, attacked = false)
     }
 
     fun build(): List<PartyAttackRecord> = records.values.sortedBy { it.party.slug }
@@ -6186,11 +6204,11 @@ class NpcVisitBuilder {
     private val visits = mutableMapOf<NpcId, NpcVisitState>()
 
     fun visited(npc: NpcId) {
-        visits[npc] = NpcVisitState(npc, true)
+        visits[npc] = NpcVisitState(npc = npc, visited = true)
     }
 
     fun notVisited(npc: NpcId) {
-        visits[npc] = NpcVisitState(npc, false)
+        visits[npc] = NpcVisitState(npc = npc, visited = false)
     }
 
     fun build(): List<NpcVisitState> = visits.values.sortedBy { it.npc.slug }

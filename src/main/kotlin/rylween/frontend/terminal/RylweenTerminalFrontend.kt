@@ -90,6 +90,17 @@ data class TerminalAdapterResult<S>(
     val status: TerminalRunStatus,
 )
 
+internal inline fun <S> continueOrBlock(
+    updated: S,
+    status: TerminalRunStatus,
+    stop: (TerminalAdapterResult<S>) -> Nothing,
+): S =
+    when (status) {
+        TerminalRunStatus.Finished -> updated
+        TerminalRunStatus.StepLimitReached -> stop(TerminalAdapterResult(updated, TerminalRunStatus.StepLimitReached))
+        is TerminalRunStatus.Waiting -> stop(TerminalAdapterResult(updated, status))
+    }
+
 fun GameModel.terminalTextRenderer(references: Map<String, List<String>> = emptyMap()): TerminalTextRenderer =
     TerminalTextRenderer(
         references = references,
@@ -206,11 +217,7 @@ class TerminalTextRenderer(
     private fun renderPronoun(ast: StrAst.NativeString, context: TerminalTextContext, case: PronounCase): String {
         val index = ast.args.singleOrNull()?.literalInt()
         val gender = index?.let { context.runtime?.activeParty?.members?.getOrNull(it - 1)?.gender } ?: return "{pronoun}"
-        return when (case) {
-            PronounCase.Subject -> if (gender == Gender.Female) "she" else "he"
-            PronounCase.Object -> if (gender == Gender.Female) "her" else "him"
-            PronounCase.Possessive -> if (gender == Gender.Female) "her" else "his"
-        }
+        return gender.pronoun(case)
     }
 
     private fun huntMember(context: TerminalTextContext): PartyMemberState? {
@@ -219,9 +226,7 @@ class TerminalTextRenderer(
     }
 
     private fun huntMemberSubjectPronoun(context: TerminalTextContext): String? =
-        huntMember(context)?.gender?.let { gender ->
-            if (gender == Gender.Female) "she" else "he"
-        }
+        huntMember(context)?.gender?.pronoun(PronounCase.Subject)
 
     private fun NativeStringArg.literalInt(): Int? =
         when (this) {

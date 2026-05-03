@@ -180,7 +180,7 @@ data class WorldMapGrid(
     fun isCastle(point: GridPoint): Boolean =
         tileAt(point) == DslDefaultTerrain.castle.sourceMapCode
 
-    fun isSettlement(point: GridPoint): Boolean =
+    private fun isSettlement(point: GridPoint): Boolean =
         isTown(point) || isHut(point) || isCastle(point)
 
     fun isNpcPlacementTerrain(point: GridPoint): Boolean =
@@ -1170,12 +1170,7 @@ object WildernessPromptText {
     fun dropPending(): TextBlock =
         inlineText("Dropping items is not", "ported yet.")
 
-    fun campPending(): TextBlock =
-        inlineText("Camp is not ported yet.")
 }
-
-fun WildernessKeysModel.directionForKey(key: Char): WildernessDirection? =
-    directionForInput(key.toString())
 
 fun WildernessKeysModel.directionForInput(input: String): WildernessDirection? =
     when {
@@ -1185,9 +1180,6 @@ fun WildernessKeysModel.directionForInput(input: String): WildernessDirection? =
         moveWest.matches(input) -> WildernessDirection.West
         else -> null
     }
-
-fun wildernessDirectionForKey(key: Char): WildernessDirection? =
-    WildernessKeysModel().directionForKey(key)
 
 fun RuntimeSessionState.teleportParty(
     directionKey: Int,

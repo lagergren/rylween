@@ -32,25 +32,6 @@ interface TownServiceBridge {
     ): TownServiceBridgeResult
 }
 
-class TraceTownServiceBridge(
-    private val engine: TraceEnginePort = TraceEnginePort(),
-) : TownServiceBridge {
-    override fun run(
-        service: BuildingServiceModel,
-        scene: SceneModel,
-        continuation: TownServiceContinuation,
-    ): TownServiceBridgeResult {
-        val eventStart = engine.events.size
-        engine.trace(EngineTraceEvent.TownService(service, scene))
-        ScriptTraceRunner(engine).run(scene.ops)
-        return TownServiceBridgeResult(
-            runtime = continuation.runtime,
-            status = TownServiceBridgeStatus.Finished,
-            events = engine.events.drop(eventStart),
-        )
-    }
-}
-
 class StatefulTownServiceBridge(
     private val terminal: TerminalPort,
     private val engine: TraceEnginePort = TraceEnginePort(),
@@ -503,26 +484,38 @@ class StatefulScriptServiceRunner(
             activeInventorySlot = activeInventorySlot,
         )
 
+    private inline fun <S> handleChildResult(
+        result: TerminalAdapterResult<S>,
+        clear: () -> Unit,
+        keepWaiting: (S) -> Unit,
+    ) {
+        when (result.status) {
+            TerminalRunStatus.Finished -> {
+                clear()
+                advanceTop()
+            }
+            TerminalRunStatus.StepLimitReached -> {
+                clear()
+                stack.clear()
+            }
+            is TerminalRunStatus.Waiting -> {
+                keepWaiting(result.session)
+                wait(result.status.rejection)
+            }
+        }
+    }
+
     private fun runSpeak(op: Op.Speak) {
         engine.trace(EngineTraceEvent.Speak(op.building))
         val initial = speakSession ?: SpeakSession.start(speakContent, currentRuntime(), op.building)
         val result = SpeakSessionTraceRunner(terminal, engine, battleContent).runUntilBlocked(initial)
         runtime = result.session.runtime
         party = runtime.activeParty
-        when (result.status) {
-            TerminalRunStatus.Finished -> {
-                speakSession = null
-                advanceTop()
-            }
-            TerminalRunStatus.StepLimitReached -> {
-                speakSession = null
-                stack.clear()
-            }
-            is TerminalRunStatus.Waiting -> {
-                speakSession = result.session
-                wait(result.status.rejection)
-            }
-        }
+        handleChildResult(
+            result = result,
+            clear = { speakSession = null },
+            keepWaiting = { waitingSession -> speakSession = waitingSession },
+        )
     }
 
     private fun runScene(op: Op.RunScene) {
@@ -643,20 +636,11 @@ class StatefulScriptServiceRunner(
         val result = RandomItemOfferSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
         runtime = runtime.withActiveParty(party)
-        when (result.status) {
-            TerminalRunStatus.Finished -> {
-                randomItemOfferSession = null
-                advanceTop()
-            }
-            TerminalRunStatus.StepLimitReached -> {
-                randomItemOfferSession = null
-                stack.clear()
-            }
-            is TerminalRunStatus.Waiting -> {
-                randomItemOfferSession = result.session
-                wait(result.status.rejection)
-            }
-        }
+        handleChildResult(
+            result = result,
+            clear = { randomItemOfferSession = null },
+            keepWaiting = { waitingSession -> randomItemOfferSession = waitingSession },
+        )
     }
 
     private fun runGrantReward(op: Op.GrantReward) {
@@ -670,20 +654,11 @@ class StatefulScriptServiceRunner(
         val result = RewardGrantSessionTraceRunner(terminal, engine).runUntilBlocked(initial)
         party = result.session.party
         runtime = runtime.withActiveParty(party)
-        when (result.status) {
-            TerminalRunStatus.Finished -> {
-                rewardGrantSession = null
-                advanceTop()
-            }
-            TerminalRunStatus.StepLimitReached -> {
-                rewardGrantSession = null
-                stack.clear()
-            }
-            is TerminalRunStatus.Waiting -> {
-                rewardGrantSession = result.session
-                wait(result.status.rejection)
-            }
-        }
+        handleChildResult(
+            result = result,
+            clear = { rewardGrantSession = null },
+            keepWaiting = { waitingSession -> rewardGrantSession = waitingSession },
+        )
     }
 
     private fun opsFor(block: TownServiceScriptBlockRef): List<Op> {
@@ -773,11 +748,7 @@ class StatefulScriptServiceRunner(
 
     private fun pronoun(memberNumber: Int, case: PronounCase): String {
         val gender = party.members.getOrNull(memberNumber - 1)?.gender ?: Gender.Male
-        return when (case) {
-            PronounCase.Subject -> if (gender == Gender.Female) "she" else "he"
-            PronounCase.Object -> if (gender == Gender.Female) "her" else "him"
-            PronounCase.Possessive -> if (gender == Gender.Female) "her" else "his"
-        }
+        return gender.pronoun(case)
     }
 
     private fun locationCoordinate(location: LocationId): String =
@@ -1130,26 +1101,6 @@ private class SpeakSessionTraceRunner(
             ConversationTopic.Bye -> SpeakMainChoice.Bye
         }
 }
-
-private fun evalBinary(left: Int, op: String, right: Int): Int =
-    when (op) {
-        "add" -> left + right
-        "sub" -> left - right
-        "mul" -> left * right
-        "div" -> if (right == 0) 0 else left / right
-        else -> 0
-    }
-
-private fun compare(left: Int, op: String, right: Int): Boolean =
-    when (op) {
-        "eq" -> left == right
-        "ne" -> left != right
-        "lt" -> left < right
-        "lte" -> left <= right
-        "gt" -> left > right
-        "gte" -> left >= right
-        else -> false
-    }
 
 private fun Op.AskText.accepts(raw: String): Boolean {
     val input = raw.normalizedTextAnswer(trim, caseSensitive, maxLength)

@@ -278,13 +278,11 @@ data class TownSession(
     }
 
     private fun finishShop(session: ShopServiceSession, building: BuildingId): TownSession =
-        runtime.withActiveParty(session.party).let { nextRuntime ->
-            copy(
-                runtime = nextRuntime,
-                step = menuStep(),
-                lastResult = TownSessionResult(TownSessionResultStatus.ShopFinished, session.party, building),
-            )
-        }
+        copy(
+            runtime = runtime.withActiveParty(session.party),
+            step = menuStep(),
+            lastResult = TownSessionResult(TownSessionResultStatus.ShopFinished, session.party, building),
+        )
 
     private fun notice(text: TextBlock, result: TownSessionResult): TownSession =
         copy(step = TownSessionStep.Notice(text, menuStep()), lastResult = result)

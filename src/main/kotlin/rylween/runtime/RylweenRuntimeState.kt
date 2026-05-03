@@ -78,7 +78,7 @@ interface RylweenRandomPort {
 }
 
 object ReferenceRylweenRandom : RylweenRandomPort {
-    private const val Multiplier: Long = 0x2545F4914F6CDD1DL
+    private const val MULTIPLIER: Long = 0x2545F4914F6CDD1DL
 
     override fun draw(seed: Long, lo: Int, hi: Int): RylweenRandomDraw {
         require(lo <= hi) { "random range must be ascending: $lo..$hi" }
@@ -86,7 +86,7 @@ object ReferenceRylweenRandom : RylweenRandomPort {
         state = state xor (state ushr 12)
         state = state xor (state shl 25)
         state = state xor (state ushr 27)
-        val mixed = state * Multiplier
+        val mixed = state * MULTIPLIER
         val span = hi.toLong() - lo.toLong() + 1L
         val offset = java.lang.Long.remainderUnsigned(mixed, span)
         return RylweenRandomDraw((lo.toLong() + offset).toInt(), state)
