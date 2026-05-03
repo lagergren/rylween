@@ -403,15 +403,21 @@ private fun validateWildernessSystem(wilderness: WildernessSystemModel, terrainB
     }
 }
 
-fun validateDungeonSystem(dungeons: DungeonSystemModel) {
+fun validateDungeonSystem(dungeons: DungeonSystemModel, monsters: List<MonsterModel>? = null) {
     check(dungeons.events.map { it.id }.toSet().size == dungeons.events.size) {
         "duplicate dungeon event"
     }
     val eventIds = dungeons.events.map { it.id }.toSet()
+    val encounterTiers = monsters?.mapNotNull { it.tier }?.toSet()
     dungeons.events.forEach { event ->
         check(event.id.slug.isNotBlank()) { "dungeon event references blank id" }
         event.randomEncounterTier?.let { tier ->
             check(tier.slug.isNotBlank()) { "dungeon event ${event.id.slug} references blank encounter tier" }
+            encounterTiers?.let { tiers ->
+                check(tier in tiers) {
+                    "dungeon event ${event.id.slug} random encounter tier ${tier.slug} has no authored monsters"
+                }
+            }
         }
         check(event.ops.isNotEmpty() || event.randomEncounterTier != null) {
             "dungeon event ${event.id.slug} must declare script or random encounter"
@@ -1204,6 +1210,11 @@ fun validateScriptRewards(
     val flagStates = flags?.let(::FlagStateIndex)
     val knownRoles = content.characters.flatMap { it.roles }.toSet()
     val knownTowns = content.towns.map { it.id }.toSet()
+    val knownScenes = content.scenes.map { it.id }.toSet()
+    val knownMonsters = content.monsters.map { it.id }.toSet()
+    val knownEncounterTiers = content.monsters.mapNotNull { it.tier }.toSet()
+    val knownMilestones = content.progress.milestones.map { it.id }.toSet()
+    val dungeonScenarios = content.dungeons.scenarios.associateBy { it.dungeon }
 
     fun validateSlottedItemPool(pool: ItemPoolId, label: String) {
         validateItemPool(pool, itemRecords)
@@ -1264,8 +1275,12 @@ fun validateScriptRewards(
             }
             is BoolAst.FlagIs ->
                 flagStates?.requireKnown(ast.slug, ast.nativeValue, "$label condition")
-            is BoolAst.MilestoneAchieved ->
+            is BoolAst.MilestoneAchieved -> {
                 check(ast.milestone.slug.isNotBlank()) { "$label references blank milestone" }
+                check(ast.milestone in knownMilestones) {
+                    "$label references unknown milestone ${ast.milestone.slug}"
+                }
+            }
             is BoolAst.MemberFlag -> validateIntExpression(ast.member, label)
             is BoolAst.MonsterFlag -> validateIntExpression(ast.monster, label)
             is BoolAst.BattleFlag -> Unit
@@ -1504,6 +1519,24 @@ fun validateScriptRewards(
         }
     }
 
+    fun requireEncounterTier(tier: EncounterTier, label: String) {
+        check(tier.slug.isNotBlank()) { "$label references blank encounter tier" }
+        check(tier in knownEncounterTiers) { "$label tier ${tier.slug} has no authored monsters" }
+    }
+
+    fun requireDungeonScenario(dungeon: DungeonId, label: String, levels: Int? = null) {
+        check(dungeon.slug.isNotBlank()) { "$label references blank dungeon" }
+        val scenario = dungeonScenarios[dungeon]
+        check(scenario != null) { "$label references missing dungeon scenario ${dungeon.slug}" }
+        levels?.let { requested ->
+            scenario.levelRange?.let { range ->
+                check(requested <= range.last) {
+                    "$label requests $requested levels, but dungeon ${dungeon.slug} only declares through level ${range.last}"
+                }
+            }
+        }
+    }
+
     fun visit(ops: List<Op>) {
         fun visitOps(items: List<Op>, loopDepth: Int) {
             items.forEach { op ->
@@ -1568,17 +1601,19 @@ fun validateScriptRewards(
                     }
                     is Op.ClearInventorySlot -> validateIntExpression(op.slot, "clear inventory slot")
                     is Op.EnterDungeon -> {
-                        check(op.dungeon.slug.isNotBlank()) { "script dungeon handoff references blank dungeon" }
                         check(op.levels > 0) { "script dungeon handoff must use positive level count" }
+                        requireDungeonScenario(op.dungeon, "script dungeon handoff", op.levels)
                     }
                     is Op.TeleportParty -> {
                         validateIntExpression(op.directionKey, "teleport direction key")
                         validateIntExpression(op.distance, "teleport distance")
                     }
                     is Op.DiscoverCave -> {
-                        check(op.dungeon.slug.isNotBlank()) { "discover cave references blank dungeon" }
                         validateIntExpression(op.levels, "discover cave level count")
                         validateIntExpression(op.moveCost, "discover cave move cost")
+                        val literalLevels = (op.levels as? IntAst.Lit)?.value
+                        literalLevels?.let { check(it > 0) { "discover cave level count must be positive" } }
+                        requireDungeonScenario(op.dungeon, "discover cave", literalLevels)
                     }
                     is Op.If -> {
                         validateBoolExpression(op.cond, "script condition")
@@ -1592,6 +1627,18 @@ fun validateScriptRewards(
                     is Op.Switch -> {
                         validateIntExpression(op.expr, "script switch")
                         op.cases.forEach { visitOps(it.body, loopDepth) }
+                    }
+                    is Op.RunScene -> check(op.scene in knownScenes) {
+                        "script run references missing scene ${op.scene.slug}"
+                    }
+                    is Op.Encounter -> {
+                        check(op.foe in knownMonsters) {
+                            "script encounter references unknown monster ${op.foe.slug}"
+                        }
+                        op.tier?.let { tier -> requireEncounterTier(tier, "script encounter ${op.foe.slug}") }
+                    }
+                    is Op.AchieveMilestone -> check(op.milestone in knownMilestones) {
+                        "script achieve references unknown milestone ${op.milestone.slug}"
                     }
                     is Op.ForEachMember -> visitOps(op.body, loopDepth)
                     is Op.ForEachMonster -> visitOps(op.body, loopDepth)
@@ -1948,7 +1995,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("rewards") { validateRewardBundles(content.rewards, content.formulas, content.itemCatalog) }
         captureValidation("combat") { validateCombatSystem(content.combat, content.rewards) }
         captureValidation("wilderness") { validateWildernessSystem(content.wilderness, terrainBindings) }
-        captureValidation("dungeons") { validateDungeonSystem(content.dungeons) }
+        captureValidation("dungeons") { validateDungeonSystem(content.dungeons, content.monsters) }
         captureValidation("ydarg") {
             validateYdargSystem(content.ydarg, content.itemCatalog, content.progress, content.monsters)
         }
