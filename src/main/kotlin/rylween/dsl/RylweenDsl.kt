@@ -249,6 +249,7 @@ data class ItemRecordModel(
     val storage: ItemStorageKind,
     val weaponDamage: Int? = null,
     val armorClass: Int? = null,
+    val equippableBy: Set<PcClass> = emptySet(),
     val campImage: ImageId? = null,
     val campProtection: Set<TemperatureBand> = emptySet(),
     val resourceCapacityBonus: Map<Resource, Int> = emptyMap(),
@@ -3683,8 +3684,13 @@ class CampProtectionBuilder {
 @RylNextDsl
 class ItemRecordBuilder {
     private var image: ImageId? = null
+    private var classes: Set<PcClass> = emptySet()
     private var protection: Set<TemperatureBand> = emptySet()
     private val capacityBonuses = mutableMapOf<Resource, Int>()
+
+    fun equippableBy(vararg classes: PcClass) {
+        this.classes = classes.toSet()
+    }
 
     fun campImage(image: ImageId) {
         this.image = image
@@ -3698,6 +3704,7 @@ class ItemRecordBuilder {
         capacityBonuses[resource] = amount
     }
 
+    internal fun equippableByValue(): Set<PcClass> = classes
     internal fun campImageValue(): ImageId? = image
     internal fun campProtectionValue(): Set<TemperatureBand> = protection
     internal fun resourceCapacityBonusValue(): Map<Resource, Int> = capacityBonuses.toMap()
@@ -3894,8 +3901,16 @@ class ItemCatalogBuilder {
         record(id, ItemKind.Weapon, name, cost, weaponDamage = damage)
     }
 
+    fun weapon(id: ItemId, name: String, cost: Int, damage: Int, body: ItemRecordBuilder.() -> Unit) {
+        customizable(id, ItemKind.Weapon, name, cost, body, weaponDamage = damage)
+    }
+
     fun armor(id: ItemId, name: String, cost: Int, armorClass: Int) {
         record(id, ItemKind.Armor, name, cost, armorClass = armorClass)
+    }
+
+    fun armor(id: ItemId, name: String, cost: Int, armorClass: Int, body: ItemRecordBuilder.() -> Unit) {
+        customizable(id, ItemKind.Armor, name, cost, body, armorClass = armorClass)
     }
 
     fun gear(id: ItemId, name: String, cost: Int) {
@@ -3929,6 +3944,8 @@ class ItemCatalogBuilder {
         name: String,
         cost: Int,
         body: ItemRecordBuilder.() -> Unit,
+        weaponDamage: Int? = null,
+        armorClass: Int? = null,
     ) {
         val builder = ItemRecordBuilder().apply(body)
         record(
@@ -3936,6 +3953,9 @@ class ItemCatalogBuilder {
             kind = kind,
             name = name,
             cost = cost,
+            weaponDamage = weaponDamage,
+            armorClass = armorClass,
+            equippableBy = builder.equippableByValue(),
             campImage = builder.campImageValue(),
             campProtection = builder.campProtectionValue(),
             resourceCapacityBonus = builder.resourceCapacityBonusValue(),
@@ -3970,6 +3990,7 @@ class ItemCatalogBuilder {
         storage: ItemStorageKind = ItemStorageKind.SlottedInventory,
         weaponDamage: Int? = null,
         armorClass: Int? = null,
+        equippableBy: Set<PcClass> = emptySet(),
         campImage: ImageId? = null,
         campProtection: Set<TemperatureBand> = emptySet(),
         resourceCapacityBonus: Map<Resource, Int> = emptyMap(),
@@ -3982,6 +4003,7 @@ class ItemCatalogBuilder {
             storage = storage,
             weaponDamage = weaponDamage,
             armorClass = armorClass,
+            equippableBy = equippableBy,
             campImage = campImage,
             campProtection = campProtection,
             resourceCapacityBonus = resourceCapacityBonus,

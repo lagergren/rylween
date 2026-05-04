@@ -23,6 +23,16 @@ private fun compiledItemRecords(): List<ItemRecordModel> =
 private fun compiledRealmContent(): RealmContentModel =
     RylweenCompiledGame.nextDsl.realm
 
+private fun restrictedEquipmentRecords(): List<ItemRecordModel> =
+    ItemCatalogBuilder().apply {
+        weapon(Items.sword, "Sword", cost = 160, damage = 6) {
+            equippableBy(PcClass.Fighter, PcClass.Ranger)
+        }
+        armor(Items.leather, "Leather", cost = 260, armorClass = 2) {
+            equippableBy(PcClass.Thief)
+        }
+    }.build().records
+
 private fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
     any { op ->
         predicate(op) || when (op) {
@@ -2669,6 +2679,79 @@ class RylweenDslValidationTest {
         assertEquals(Items.sword, equippedAxe.party.inventoryItem(2))
         assertEquals(Items.none, unequipped.party.members.single().weapon)
         assertEquals(Items.axe, unequipped.party.inventoryItem(1))
+    }
+
+    @Test
+    fun equipmentRestrictionsAreAuthoredOnWeaponAndArmorRecords() {
+        val records = restrictedEquipmentRecords()
+
+        validateItemCatalog(records)
+
+        assertEquals(setOf(PcClass.Fighter, PcClass.Ranger), records.single { it.id == Items.sword }.equippableBy)
+        assertEquals(setOf(PcClass.Thief), records.single { it.id == Items.leather }.equippableBy)
+        assertTrue(
+            compiledItemRecords()
+                .filter { it.kind == ItemKind.Weapon || it.kind == ItemKind.Armor }
+                .all { it.equippableBy.isEmpty() },
+        )
+    }
+
+    @Test
+    fun equipmentActionsRejectAuthoredWrongClassRestrictions() {
+        val records = restrictedEquipmentRecords()
+        val mageParty = testParty(pcClass = PcClass.Mage, inventoryItems = mapOf(1 to Items.sword))
+        val fighterParty = testParty(pcClass = PcClass.Fighter, inventoryItems = mapOf(1 to Items.sword))
+
+        val rejected = mageParty.equipFromInventory(
+            memberNumber = 1,
+            slot = 1,
+            kind = EquipmentKind.Weapon,
+            itemRecords = records,
+        )
+        val equipped = fighterParty.equipFromInventory(
+            memberNumber = 1,
+            slot = 1,
+            kind = EquipmentKind.Weapon,
+            itemRecords = records,
+        ) as EquipmentActionResult.Equipped
+
+        assertTrue(rejected is EquipmentActionResult.WrongClass)
+        assertEquals(Items.sword, rejected.party.inventoryItem(1))
+        assertEquals(Items.none, rejected.party.members.single().weapon)
+        assertEquals(Items.sword, equipped.party.members.single().weapon)
+        assertEquals(null, equipped.party.inventoryItem(1))
+    }
+
+    @Test
+    fun townLeaveEquipmentPromptSkipsRestrictedEquipmentWhenNoLivingMemberCanReadyIt() {
+        val blocked = TownLeaveEquipmentSession.start(
+            party = testParty(pcClass = PcClass.Mage, inventoryItems = mapOf(1 to Items.sword)),
+            itemRecords = restrictedEquipmentRecords(),
+            readyCommands = listOf(EquipmentCommand.ReadyWeapon),
+        )
+        val allowed = TownLeaveEquipmentSession.start(
+            party = testParty(pcClass = PcClass.Ranger, inventoryItems = mapOf(1 to Items.sword)),
+            itemRecords = restrictedEquipmentRecords(),
+            readyCommands = listOf(EquipmentCommand.ReadyWeapon),
+        )
+
+        assertTrue(blocked.step is TownLeaveEquipmentStep.Finished)
+        assertTrue(allowed.step is TownLeaveEquipmentStep.ReadyQuestion)
+    }
+
+    @Test
+    fun itemValidationRejectsClassRestrictionsOnNonEquipmentRecords() {
+        val records = ItemCatalogBuilder().apply {
+            gear(Items.blanket, "Blanket", cost = 30) {
+                equippableBy(PcClass.Fighter)
+            }
+        }.build().records
+
+        val failure = assertFailsWith<IllegalStateException> {
+            validateItemCatalog(records)
+        }
+
+        assertTrue("can restrict equipment classes only when it is a weapon or armor" in failure.message.orEmpty())
     }
 
     @Test

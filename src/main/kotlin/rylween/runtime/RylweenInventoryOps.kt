@@ -19,6 +19,13 @@ sealed interface EquipmentActionResult {
     data class DeadMember(val party: PartyState, val memberNumber: Int) : EquipmentActionResult
     data class InvalidInventorySlot(val party: PartyState, val slot: Int) : EquipmentActionResult
     data class WrongItemKind(val party: PartyState, val slot: Int, val item: ItemId?) : EquipmentActionResult
+    data class WrongClass(
+        val party: PartyState,
+        val memberNumber: Int,
+        val slot: Int,
+        val item: ItemId,
+        val pcClass: PcClass,
+    ) : EquipmentActionResult
     data class NothingEquipped(val party: PartyState, val memberNumber: Int, val kind: EquipmentKind) : EquipmentActionResult
     data class InventoryFull(val party: PartyState) : EquipmentActionResult
 }
@@ -49,6 +56,7 @@ val EquipmentActionResult.party: PartyState
         is EquipmentActionResult.DeadMember -> party
         is EquipmentActionResult.InvalidInventorySlot -> party
         is EquipmentActionResult.WrongItemKind -> party
+        is EquipmentActionResult.WrongClass -> party
         is EquipmentActionResult.NothingEquipped -> party
         is EquipmentActionResult.InventoryFull -> party
     }
@@ -97,6 +105,9 @@ fun PartyState.equipFromInventory(
         ?: return EquipmentActionResult.WrongItemKind(this, slot, item)
     if (!record.matches(kind)) {
         return EquipmentActionResult.WrongItemKind(this, slot, item)
+    }
+    if (!record.canEquip(member.pcClass)) {
+        return EquipmentActionResult.WrongClass(this, memberNumber, slot, item, member.pcClass)
     }
 
     val oldEquipped = member.equipment.item(kind)
@@ -147,9 +158,9 @@ fun PartyState.needsTownLeaveReadyPrompt(
 ): Boolean =
     when (command) {
         EquipmentCommand.ReadyWeapon ->
-            hasInventoryEquipment(EquipmentKind.Weapon, itemRecords) && hasLivingMemberWithout(EquipmentKind.Weapon)
+            hasReadyableInventoryEquipment(EquipmentKind.Weapon, itemRecords)
         EquipmentCommand.ReadyArmor ->
-            hasInventoryEquipment(EquipmentKind.Armor, itemRecords) && hasLivingMemberWithout(EquipmentKind.Armor)
+            hasReadyableInventoryEquipment(EquipmentKind.Armor, itemRecords)
         EquipmentCommand.RemoveWeapon,
         EquipmentCommand.RemoveArmor -> false
     }
@@ -229,18 +240,25 @@ fun PartyState.clampResourcesToCapacity(
 fun PartyState.hasInventoryItem(item: ItemId): Boolean =
     inventory.any { it.slot in 1..InventorySaveSlotMax && it.item == item }
 
-fun PartyState.hasInventoryEquipment(
+private fun PartyState.hasReadyableInventoryEquipment(
     kind: EquipmentKind,
-    itemRecords: List<ItemRecordModel> = emptyList(),
+    itemRecords: List<ItemRecordModel>,
 ): Boolean {
+    val candidateClasses = members
+        .asSequence()
+        .filter { member -> !member.dead && member.equipment.item(kind) == DslDefaultItems.none }
+        .map { it.pcClass }
+        .toSet()
+    if (candidateClasses.isEmpty()) return false
+
     val records = itemRecords.associateBy { it.id }
     return inventory.any { slot ->
-        slot.slot in 1..InventorySaveSlotMax && slot.item?.let { records[it]?.matches(kind) } == true
+        slot.slot in 1..InventorySaveSlotMax && slot.item?.let { item ->
+            val record = records[item]
+            record?.matches(kind) == true && candidateClasses.any(record::canEquip)
+        } == true
     }
 }
-
-fun PartyState.hasLivingMemberWithout(kind: EquipmentKind): Boolean =
-    members.any { member -> !member.dead && member.equipment.item(kind) == DslDefaultItems.none }
 
 fun PartyState.campGearEffect(
     itemRecords: List<ItemRecordModel>,
@@ -298,6 +316,9 @@ private fun ItemRecordModel.matches(kind: EquipmentKind): Boolean =
         EquipmentKind.Weapon -> this.kind == ItemKind.Weapon
         EquipmentKind.Armor -> this.kind == ItemKind.Armor
     }
+
+private fun ItemRecordModel.canEquip(pcClass: PcClass): Boolean =
+    equippableBy.isEmpty() || pcClass in equippableBy
 
 private fun EquipmentState.item(kind: EquipmentKind): ItemId =
     when (kind) {
