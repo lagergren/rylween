@@ -497,7 +497,6 @@ private class ExternalBundleArtifactWriter {
         )
 
     private fun commandsJson(game: GameModel): JsonValue =
-        DungeonKeysModel().let { dungeonKeys ->
         jsonObject(
             "wilderness" to commandListJson(
                 "moveNorth" to game.wilderness.keys.moveNorth,
@@ -535,18 +534,18 @@ private class ExternalBundleArtifactWriter {
                 "no" to game.wilderness.keys.quitNo,
             ),
             "dungeon" to commandListJson(
-                "descend" to dungeonKeys.descend,
-                "ascend" to dungeonKeys.ascend,
-                "help" to dungeonKeys.help,
-                "drop" to dungeonKeys.drop,
-                "removeArmor" to dungeonKeys.removeArmor,
-                "removeWeapon" to dungeonKeys.removeWeapon,
-                "readyWeapon" to dungeonKeys.readyWeapon,
-                "readyArmor" to dungeonKeys.readyArmor,
-                "quaff" to dungeonKeys.quaff,
-                "castSpell" to dungeonKeys.castSpell,
-                "viewParty" to dungeonKeys.viewParty,
-                "save" to dungeonKeys.save,
+                "descend" to game.dungeons.keys.descend,
+                "ascend" to game.dungeons.keys.ascend,
+                "help" to game.dungeons.keys.help,
+                "drop" to game.dungeons.keys.drop,
+                "removeArmor" to game.dungeons.keys.removeArmor,
+                "removeWeapon" to game.dungeons.keys.removeWeapon,
+                "readyWeapon" to game.dungeons.keys.readyWeapon,
+                "readyArmor" to game.dungeons.keys.readyArmor,
+                "quaff" to game.dungeons.keys.quaff,
+                "castSpell" to game.dungeons.keys.castSpell,
+                "viewParty" to game.dungeons.keys.viewParty,
+                "save" to game.dungeons.keys.save,
             ),
             "ydarg.navigation" to game.ydarg?.keys?.let { keys ->
                 commandListJson(
@@ -613,7 +612,6 @@ private class ExternalBundleArtifactWriter {
                 )
             }.orJsonNull(),
         )
-        }
 
     private fun wildernessJson(wilderness: WildernessSystemModel): JsonValue =
         jsonObject(
@@ -646,14 +644,12 @@ private class ExternalBundleArtifactWriter {
         )
 
     private fun dungeonRuntimeJson(dungeons: DungeonSystemModel): JsonValue =
-        DungeonKeysModel().let { keys ->
         jsonObject(
-            "commandHint" to textBlockJson(keys.commandHint),
-            "helpPages" to JsonArray(keys.helpPages.map(::textBlockJson)),
+            "commandHint" to textBlockJson(dungeons.keys.commandHint),
+            "helpPages" to JsonArray(dungeons.keys.helpPages.map(::textBlockJson)),
             "eventCount" to JsonNumber(dungeons.events.size.toString()),
             "scenarioCount" to JsonNumber(dungeons.scenarios.size.toString()),
         )
-        }
 
     private fun townRuntimeJson(town: TownSystemModel?): JsonValue =
         town?.let {

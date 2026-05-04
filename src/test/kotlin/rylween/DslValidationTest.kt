@@ -1699,7 +1699,7 @@ class RylweenDslValidationTest {
         val renderer = RylweenCompiledGame.nextDsl.terminalTextRenderer()
         val wildernessPages = RylweenCompiledGame.nextDsl.wilderness.keys.effectiveHelpPages()
         val wildernessLines = wildernessPages.flatMap { page -> renderer.lines(page) }
-        val dungeonPages = DungeonKeysModel().effectiveHelpPages()
+        val dungeonPages = RylweenCompiledGame.nextDsl.dungeons.keys.effectiveHelpPages()
         val dungeonLines = dungeonPages.flatMap { page -> renderer.lines(page) }
         val ydargPages = checkNotNull(RylweenCompiledGame.nextDsl.ydarg).keys.navigationHelpPages()
         val ydargLines = ydargPages.flatMap { page -> renderer.lines(page) }
@@ -2145,6 +2145,23 @@ class RylweenDslValidationTest {
 
         assertEquals(emptyMap(), session.levelEvents)
         assertFalse(terminal.output.any { it.contains("FIRE SHIELD") })
+    }
+
+    @Test
+    fun dungeonSessionsUseAuthoredDungeonKeys() {
+        val dungeons = DungeonSystemBuilder().apply {
+            keys {
+                descend = inputKey("X")
+                commandHint("Custom dungeon help.")
+            }
+        }.build()
+        val runtime = RuntimeSessionState.singleParty(testParty(torches = 1), hour = 12, currentTown = null)
+        val map = WorldMapGrid.fromSourceRows((1..4).map { mapRow(width = 4) })
+
+        val session = DungeonSession.start(runtime, map, Dungeons.randomCave, levels = 1, dungeons = dungeons)
+
+        assertEquals('X', session.keys.descend.primaryChar)
+        assertEquals(inlineText("Custom dungeon help."), session.keys.commandHint)
     }
 
     @Test

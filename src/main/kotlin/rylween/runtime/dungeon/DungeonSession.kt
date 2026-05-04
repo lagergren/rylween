@@ -439,6 +439,7 @@ data class DungeonSession(
                 dungeon = dungeon,
                 maxDepth = depth,
                 levelEvents = plan.levelEvents,
+                keys = dungeons.keys,
                 content = content.copy(dungeons = dungeons),
                 lastResult = DungeonSessionResult(
                     DungeonSessionResultStatus.Started,
@@ -522,6 +523,7 @@ fun RuntimeModeSnapshot.Dungeon.toDungeonSession(
         maxDepth = session.maxDepth,
         depth = session.depth,
         levelEvents = session.levelEvents,
+        keys = content.dungeons.keys,
         content = content,
         step = session.toStep(),
         lastResult = DungeonSessionResult(
