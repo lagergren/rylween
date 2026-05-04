@@ -47,6 +47,7 @@ class StatefulScriptBridge(
     ): ScriptBridgeResult {
         val eventStart = engine.events.size
         engine.trace(EngineTraceEvent.TownService(service, scene))
+        val root = battleContent.scriptRootForScene(scene.id)
         val result = StatefulScriptServiceRunner(
             terminal,
             engine,
@@ -56,6 +57,7 @@ class StatefulScriptBridge(
             battleContent,
             worldMap,
             renderer,
+            scriptRoot = root,
         ).run()
         return ScriptBridgeResult(
             runtime = result.runtime,
@@ -89,17 +91,19 @@ class StatefulScriptServiceRunner(
     private val worldMap: WorldMapGrid? = null,
     private val textRenderer: TerminalTextRenderer = TerminalTextRenderer(characters = speakContent.characters),
     private val resumeModeAfterBattle: RuntimeMode? = null,
+    private val scriptRoot: ScriptRootRef = continuation.root,
 ) {
-    private var runtime = continuation.runtime
-    private var party = continuation.party
-    private val locals = continuation.locals.toMutableMap()
-    private val realmInts = continuation.realmScalars.toMutableMap()
-    private val stack = continuation.stack.toMutableList()
-    private var speakSession = continuation.speakSession
-    private var battleSession = continuation.battleSession
-    private var randomItemOfferSession = continuation.randomItemOfferSession
-    private var rewardGrantSession = continuation.rewardGrantSession
-    private val activeInventorySlot = continuation.activeInventorySlot
+    private val initialContinuation = continuation.withRoot(scriptRoot)
+    private var runtime = initialContinuation.runtime
+    private var party = initialContinuation.party
+    private val locals = initialContinuation.locals.toMutableMap()
+    private val realmInts = initialContinuation.realmScalars.toMutableMap()
+    private val stack = initialContinuation.stack.toMutableList()
+    private var speakSession = initialContinuation.speakSession
+    private var battleSession = initialContinuation.battleSession
+    private var randomItemOfferSession = initialContinuation.randomItemOfferSession
+    private var rewardGrantSession = initialContinuation.rewardGrantSession
+    private val activeInventorySlot = initialContinuation.activeInventorySlot
     private val worldText = TerminalWorldTextResolver(
         towns = battleContent.towns,
         characters = speakContent.characters.ifEmpty { battleContent.characters },
@@ -475,6 +479,7 @@ class StatefulScriptServiceRunner(
     private fun continuation(runtime: RuntimeSessionState): ScriptContinuation =
         ScriptContinuation(
             runtime = runtime,
+            root = initialContinuation.root,
             locals = locals.toMap(),
             realmScalars = realmInts.toMap(),
             stack = stack.toList(),

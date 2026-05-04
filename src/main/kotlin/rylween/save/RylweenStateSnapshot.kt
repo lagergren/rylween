@@ -11,6 +11,8 @@ import rylween.runtime.ScriptBlockRef
 import rylween.runtime.ScriptBranch
 import rylween.runtime.ScriptContinuationSnapshot
 import rylween.runtime.ScriptFrame
+import rylween.runtime.ScriptRootKind
+import rylween.runtime.ScriptRootRef
 import rylween.runtime.ScriptSegment
 import rylween.runtime.YdargSavedStep
 import rylween.runtime.YdargSessionSnapshot
@@ -346,6 +348,7 @@ private class RuntimeStateSnapshotParser(source: String) {
 
     private fun parseScriptContinuationBody(): ScriptContinuationSnapshot {
         expectSymbol('{')
+        var root = ScriptRootRef.Unspecified
         var locals = emptyMap<String, Int>()
         var realmScalars = emptyMap<String, Int>()
         var stack = emptyList<ScriptFrame>()
@@ -358,16 +361,40 @@ private class RuntimeStateSnapshotParser(source: String) {
                 }
                 "locals" -> locals = parseNamedIntMapBody()
                 "realmScalars" -> realmScalars = parseNamedIntMapBody()
+                "root" -> root = parseScriptRootBody()
                 "stack" -> stack = parseScriptStackBody()
                 else -> unexpected("script continuation field $field")
             }
         }
         return ScriptContinuationSnapshot(
+            root = root,
             locals = locals,
             realmScalars = realmScalars,
             stack = stack,
             activeInventorySlot = activeInventorySlot,
         )
+    }
+
+    private fun parseScriptRootBody(): ScriptRootRef {
+        expectSymbol('{')
+        var kind = ScriptRootKind.Unspecified
+        var denseId: Int? = null
+        var slug = ""
+        while (!matchSymbol('}')) {
+            when (val field = expectIdentifier()) {
+                "kind" -> {
+                    expectSymbol('=')
+                    kind = parseEnum("ScriptRootKind")
+                }
+                "denseId" -> {
+                    expectSymbol('=')
+                    denseId = parseNullable(::parseInt)
+                }
+                "slug" -> slug = parseAssignedString()
+                else -> unexpected("script root field $field")
+            }
+        }
+        return ScriptRootRef(kind = kind, denseId = denseId, slug = slug)
     }
 
     private fun parseNamedIntMapBody(): Map<String, Int> {
@@ -1174,6 +1201,7 @@ private class RuntimeStateSnapshotWriter {
     private fun scriptContinuation(continuation: ScriptContinuationSnapshot) {
         line("continuation {")
         indented {
+            scriptRoot(continuation.root)
             line("activeInventorySlot = ${continuation.activeInventorySlot ?: "null"}")
             namedIntMap("locals", continuation.locals)
             namedIntMap("realmScalars", continuation.realmScalars)
@@ -1182,6 +1210,16 @@ private class RuntimeStateSnapshotWriter {
                 continuation.stack.forEach(::scriptFrame)
             }
             line("}")
+        }
+        line("}")
+    }
+
+    private fun scriptRoot(root: ScriptRootRef) {
+        line("root {")
+        indented {
+            line("kind = ScriptRootKind.${root.kind.name}")
+            line("denseId = ${root.denseId ?: "null"}")
+            line("slug = ${quote(root.slug)}")
         }
         line("}")
     }

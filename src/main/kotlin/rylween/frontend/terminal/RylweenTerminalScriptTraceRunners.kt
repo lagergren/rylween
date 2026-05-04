@@ -121,7 +121,8 @@ internal class SpeakSessionTraceRunner(
                         }
                 }
                 is SpeakStep.ScriptBranch -> {
-                    val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
+                    val root = battleContent.scriptRootCatalog().rootFor(step.root)
+                    val continuation = step.continuation ?: ScriptContinuation.start(session.runtime, root)
                     val result = StatefulScriptServiceRunner(
                         terminal = terminal,
                         engine = engine,
@@ -129,6 +130,7 @@ internal class SpeakSessionTraceRunner(
                         continuation = continuation,
                         speakContent = session.content,
                         battleContent = battleContent,
+                        scriptRoot = root,
                     ).run()
                     val nextSession = session.copy(runtime = result.runtime)
                     when (result.status) {

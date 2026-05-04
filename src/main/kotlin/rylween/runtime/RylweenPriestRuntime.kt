@@ -131,7 +131,7 @@ data class PriestSpellSession(
             step = PriestSpellStep.Script(
                 spell = spell,
                 casterNumber = casterNumber,
-                continuation = ScriptContinuation.start(runtime).copy(
+                continuation = ScriptContinuation.start(runtime, ScriptRootRef.spell(spell.id)).copy(
                     locals = mapOf(
                         "caster_idx" to casterNumber,
                     ),

@@ -17,6 +17,7 @@ sealed interface SpeakStep {
     data class ScriptBranch(
         val npc: CharacterModel,
         val ops: List<Op>,
+        val root: ScriptRootRef,
         val next: SpeakStep,
         val continuation: ScriptContinuation? = null,
     ) : SpeakStep
@@ -54,7 +55,14 @@ data class SpeakSession(
                 copy(
                     runtime = nextRuntime,
                     selectedNpc = character,
-                    step = branch?.let { SpeakStep.ScriptBranch(character, it.ops, next = menu) } ?: menu,
+                    step = branch?.let {
+                        SpeakStep.ScriptBranch(
+                            npc = character,
+                            ops = it.ops,
+                            root = content.scriptRootForDialogueBranch(character.id, it),
+                            next = menu,
+                        )
+                    } ?: menu,
                 )
             }
             is SpeakStep.ScriptBranch -> error("speak session is running an authored script branch")
@@ -79,7 +87,14 @@ data class SpeakSession(
                         val action = content.firstMatchingQuestionAction(question.topic, current.npc.job)
                         copy(
                             step = action
-                                ?.let { SpeakStep.ScriptBranch(current.npc, it.ops, mainMenu(current.npc)) }
+                                ?.let {
+                                    SpeakStep.ScriptBranch(
+                                        npc = current.npc,
+                                        ops = it.ops,
+                                        root = content.scriptRootForQuestionAction(it),
+                                        next = mainMenu(current.npc),
+                                    )
+                                }
                                 ?: message(questionReply(question.topic, current.npc), mainMenu(current.npc)),
                         )
                     }
