@@ -1,6 +1,10 @@
 # Adventurers of Rylween
 Old code archive and potential ports for Adventurers of Rylween, a MUD style games for BBSes that I wrote in 1992-1993.
 
+The current runnable port is the Kotlin DSL/runtime under `src/main`,
+`src/game`, and `src/app`. The historical C/JSON5 port and its replay
+fixtures live under `legacy/c-json5` for reference and parity checks.
+
 ## Terminal compatibility
 
 The game streams ANSI escape codes (colour, cursor positioning) and uses

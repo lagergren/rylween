@@ -1,8 +1,0 @@
-// Gear shard — ids 31–35. Mundane adventuring kit; no damage / ac.
-{
-  torch:   { id: 31, name: 'Torch',   cost: 1 },
-  ration:  { id: 32, name: 'Ration',  cost: 2 },
-  blanket: { id: 33, name: 'Blanket', cost: 30 },
-  tent:    { id: 34, name: 'Tent',    cost: 80 },
-  rope:    { id: 35, name: 'Rope',    cost: 15 },
-}
