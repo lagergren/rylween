@@ -251,7 +251,7 @@ data class DungeonSession(
         }
         return copy(
             runtime = nextRuntime.asDungeonRuntime(),
-            levelEvents = if (event.disposition == DungeonEventDisposition.ClearAfterRun) {
+            levelEvents = if (event.clearsAfterRun(nextRuntime)) {
                 levelEvents - depth
             } else {
                 levelEvents
@@ -448,6 +448,10 @@ data class DungeonSession(
         }
     }
 }
+
+private fun DungeonEventModel.clearsAfterRun(runtime: RuntimeSessionState): Boolean =
+    disposition == DungeonEventDisposition.ClearAfterRun ||
+        clearWhenFlag?.let { runtime.activeParty.hasFlagState(it) } == true
 
 private fun DungeonSystemModel.planLevelEvents(
     runtime: RuntimeSessionState,
