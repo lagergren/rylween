@@ -147,7 +147,7 @@ data class InventoryItemUseSession(
                 use = use,
                 slot = slot,
                 item = item,
-                continuation = ScriptContinuation.start(nextRuntime).copy(
+                continuation = ScriptContinuation.start(nextRuntime, ScriptRootRef.itemUse(use.id)).copy(
                     locals = mapOf("inv_slot" to slot),
                     activeInventorySlot = slot,
                 ),

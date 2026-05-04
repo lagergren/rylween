@@ -318,6 +318,7 @@ class InventoryItemUseTerminalAdapter(
                             realm = session.realmContent,
                         ),
                         textRenderer = renderer,
+                        scriptRoot = ScriptRootRef.itemUse(step.use.id),
                     ).run()
                     terminal.writeScriptEvents(
                         engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
@@ -538,6 +539,7 @@ class PriestSpellTerminalAdapter(
                         battleContent = content,
                         worldMap = worldMap,
                         textRenderer = renderer,
+                        scriptRoot = content.scriptRootForSpell(step.spell.id),
                     ).run()
                     terminal.writeScriptEvents(
                         engine.events.drop(result.unwrittenEventStart.coerceAtLeast(eventStart)),
@@ -1044,6 +1046,7 @@ class DungeonSessionTerminalAdapter(
             worldMap = session.worldMap,
             textRenderer = renderer,
             resumeModeAfterBattle = RuntimeMode.Dungeon,
+            scriptRoot = session.content.scriptRootForDungeonEvent(step.event.id),
         ).run()
         return ScriptBridgeResult(
             runtime = result.runtime,

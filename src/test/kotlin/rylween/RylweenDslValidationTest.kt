@@ -469,6 +469,7 @@ class RylweenDslValidationTest {
     @Test
     fun runtimeSnapshotEmitterRoundTripsDungeonSessionBlock() {
         val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val root = RylweenCompiledGame.nextDsl.runtimeContent().scriptRootForScene(Scenes.Missions.thunTemple)
         val snapshot = RuntimeSnapshotModel(
             state = base.copy(
                 kind = StateKind.RuntimeSnapshot,
@@ -488,6 +489,7 @@ class RylweenDslValidationTest {
                     mission = Missions.thunTemple,
                     scene = Scenes.Missions.thunTemple,
                     continuation = ScriptContinuationSnapshot(
+                        root = root,
                         locals = mapOf("dungeon_level" to 4),
                         stack = listOf(
                             ScriptFrame(
@@ -507,6 +509,8 @@ class RylweenDslValidationTest {
         assertTrue("""dungeon = dungeon("thun_temple")""" in rendered)
         assertTrue("""level(4, dungeonEvent("thun_riddle1"))""" in rendered)
         assertTrue("postDungeon {" in rendered)
+        assertTrue("kind = ScriptRootKind.Scene" in rendered)
+        assertTrue("slug = \"missions.thun_temple\"" in rendered)
         assertEquals(snapshot.state.realm, parsed.state.realm)
         assertEquals(snapshot.mode, parsed.mode)
         assertEquals(rendered, renderRuntimeStateSnapshot(parsed))
@@ -1631,6 +1635,23 @@ class RylweenDslValidationTest {
         assertEquals(listOf("") + terrainRows, grid.rows)
         assertEquals(41, grid.height)
         assertEquals(78, grid.width)
+    }
+
+    @Test
+    fun compiledGameBuildsDenseScriptRootCatalog() {
+        val catalog = RylweenCompiledGame.nextDsl.runtimeContent().scriptRootCatalog()
+        val sceneRoot = catalog.rootFor(ScriptRootRef.scene(Scenes.Missions.thunTemple))
+        val eventRoot = catalog.rootFor(ScriptRootRef.dungeonEvent(DungeonEvents.thunRiddle1))
+
+        assertTrue(catalog.roots.isNotEmpty())
+        assertTrue(catalog.roots.all { root -> root.denseId != null && root.denseId > 0 })
+        assertEquals(catalog.roots.size, catalog.roots.map { root -> root.denseId }.toSet().size)
+        assertEquals(ScriptRootKind.Scene, sceneRoot.kind)
+        assertEquals("missions.thun_temple", sceneRoot.slug)
+        assertTrue(checkNotNull(sceneRoot.denseId) > 0)
+        assertEquals(ScriptRootKind.DungeonEvent, eventRoot.kind)
+        assertEquals("thun_riddle1", eventRoot.slug)
+        assertTrue(checkNotNull(eventRoot.denseId) > 0)
     }
 
     @Test
@@ -6754,6 +6775,7 @@ class RylweenDslValidationTest {
         assertTrue(blocked.status is ScriptBridgeStatus.Waiting)
         assertEquals(2010, blocked.party.resources.gold)
         assertEquals(Items.rope, blocked.party.inventoryItem(1))
+        assertEquals(ScriptRootRef.scene(scene.id), blocked.continuation?.root)
         assertTrue(blocked.continuation?.rewardGrantSession?.step is RewardGrantStep.DropSlot)
 
         val resumed = StatefulScriptBridge(

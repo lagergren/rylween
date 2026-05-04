@@ -5,6 +5,125 @@ package rylween.runtime
 
 import rylween.dsl.*
 
+enum class ScriptRootKind {
+    Unspecified,
+    Scene,
+    DungeonEvent,
+    Spell,
+    ItemUse,
+    DialogueBranch,
+    QuestionAction,
+}
+
+data class ScriptRootRef(
+    val kind: ScriptRootKind,
+    val denseId: Int? = null,
+    val slug: String = "",
+) {
+    init {
+        if (kind == ScriptRootKind.Unspecified) {
+            require(denseId == null) { "unspecified script root cannot have a dense id" }
+            require(slug.isEmpty()) { "unspecified script root cannot have a slug" }
+        } else {
+            require(slug.isNotBlank()) { "script root ${kind.name} requires a diagnostic slug" }
+            require(denseId == null || denseId > 0) { "script root dense id must be positive" }
+        }
+    }
+
+    val isSpecified: Boolean get() = kind != ScriptRootKind.Unspecified
+
+    fun sameRoot(other: ScriptRootRef): Boolean =
+        kind == other.kind && slug == other.slug
+
+    companion object {
+        val Unspecified = ScriptRootRef(ScriptRootKind.Unspecified)
+
+        fun scene(id: SceneId, denseId: Int? = null): ScriptRootRef =
+            ScriptRootRef(ScriptRootKind.Scene, denseId, id.slug)
+
+        fun dungeonEvent(id: DungeonEventId, denseId: Int? = null): ScriptRootRef =
+            ScriptRootRef(ScriptRootKind.DungeonEvent, denseId, id.slug)
+
+        fun spell(id: SpellId, denseId: Int? = null): ScriptRootRef =
+            ScriptRootRef(ScriptRootKind.Spell, denseId, id.slug)
+
+        fun itemUse(id: ItemId, denseId: Int? = null): ScriptRootRef =
+            ScriptRootRef(ScriptRootKind.ItemUse, denseId, id.slug)
+
+        fun dialogueBranch(npc: NpcId, branch: DialogueBranchModel, denseId: Int? = null): ScriptRootRef =
+            ScriptRootRef(
+                ScriptRootKind.DialogueBranch,
+                denseId,
+                listOfNotNull(
+                    "dialogue",
+                    npc.slug,
+                    branch.whenState?.let { state -> "${state.flag.slug}.${state.native}" } ?: "default",
+                ).joinToString("."),
+            )
+
+        fun questionAction(action: QuestionActionScriptModel, denseId: Int? = null): ScriptRootRef =
+            ScriptRootRef(
+                ScriptRootKind.QuestionAction,
+                denseId,
+                "question.${action.topic.name.lowercase()}.${action.job.slug}",
+            )
+    }
+}
+
+data class ScriptRootCatalog(
+    val roots: List<ScriptRootRef>,
+) {
+    init {
+        require(roots.map { it.kind to it.slug }.toSet().size == roots.size) {
+            "script roots must have unique kind/slug pairs"
+        }
+        require(roots.mapNotNull { it.denseId }.toSet().size == roots.mapNotNull { it.denseId }.size) {
+            "script roots must have unique dense ids"
+        }
+    }
+
+    fun rootFor(fallback: ScriptRootRef): ScriptRootRef =
+        roots.firstOrNull { root -> root.sameRoot(fallback) } ?: fallback
+}
+
+fun RuntimeContent.scriptRootCatalog(): ScriptRootCatalog =
+    ScriptRootCatalog(
+        buildList {
+            fun addDense(root: ScriptRootRef) {
+                add(root.copy(denseId = size + 1))
+            }
+
+            scenes.forEach { scene -> addDense(ScriptRootRef.scene(scene.id)) }
+            dungeons.events.forEach { event -> addDense(ScriptRootRef.dungeonEvent(event.id)) }
+            spells.forEach { spell -> addDense(ScriptRootRef.spell(spell.id)) }
+            itemUses.forEach { use -> addDense(ScriptRootRef.itemUse(use.id)) }
+            dialogue.forEach { npcDialogue ->
+                npcDialogue.branches.forEach { branch ->
+                    addDense(ScriptRootRef.dialogueBranch(npcDialogue.npc, branch))
+                }
+            }
+            speak.questionActions.forEach { action -> addDense(ScriptRootRef.questionAction(action)) }
+        },
+    )
+
+fun RuntimeContent.scriptRootForScene(id: SceneId): ScriptRootRef =
+    scriptRootCatalog().rootFor(ScriptRootRef.scene(id))
+
+fun RuntimeContent.scriptRootForDungeonEvent(id: DungeonEventId): ScriptRootRef =
+    scriptRootCatalog().rootFor(ScriptRootRef.dungeonEvent(id))
+
+fun RuntimeContent.scriptRootForSpell(id: SpellId): ScriptRootRef =
+    scriptRootCatalog().rootFor(ScriptRootRef.spell(id))
+
+fun RuntimeContent.scriptRootForItemUse(id: ItemId): ScriptRootRef =
+    scriptRootCatalog().rootFor(ScriptRootRef.itemUse(id))
+
+fun SpeakRuntimeContent.scriptRootForDialogueBranch(npc: NpcId, branch: DialogueBranchModel): ScriptRootRef =
+    ScriptRootRef.dialogueBranch(npc, branch)
+
+fun SpeakRuntimeContent.scriptRootForQuestionAction(action: QuestionActionScriptModel): ScriptRootRef =
+    ScriptRootRef.questionAction(action)
+
 enum class ScriptBranch {
     IfThen,
     IfElse,
@@ -52,6 +171,7 @@ data class ScriptFrame(
 
 data class ScriptContinuation(
     val runtime: RuntimeSessionState,
+    val root: ScriptRootRef = ScriptRootRef.Unspecified,
     val locals: Map<String, Int> = emptyMap(),
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<ScriptFrame>,
@@ -64,19 +184,40 @@ data class ScriptContinuation(
     val party: PartyState get() = runtime.activeParty
     val realm: RealmState get() = runtime.realm
 
+    fun withRoot(root: ScriptRootRef): ScriptContinuation {
+        if (!root.isSpecified) return this
+        if (!this.root.isSpecified) return copy(root = root)
+        require(this.root.sameRoot(root)) {
+            "script continuation root ${this.root.kind}.${this.root.slug} cannot resume as ${root.kind}.${root.slug}"
+        }
+        return if (this.root.denseId == null && root.denseId != null) {
+            copy(root = root)
+        } else {
+            this
+        }
+    }
+
     companion object {
-        fun start(runtime: RuntimeSessionState): ScriptContinuation =
+        fun start(
+            runtime: RuntimeSessionState,
+            root: ScriptRootRef = ScriptRootRef.Unspecified,
+        ): ScriptContinuation =
             ScriptContinuation(
                 runtime = runtime,
+                root = root,
                 stack = listOf(ScriptFrame(ScriptBlockRef.Root, nextIndex = 0)),
             )
 
-        fun start(party: PartyState): ScriptContinuation =
-            start(RuntimeSessionState.singleParty(party, hour = 0, currentTown = null))
+        fun start(
+            party: PartyState,
+            root: ScriptRootRef = ScriptRootRef.Unspecified,
+        ): ScriptContinuation =
+            start(RuntimeSessionState.singleParty(party, hour = 0, currentTown = null), root)
     }
 }
 
 data class ScriptContinuationSnapshot(
+    val root: ScriptRootRef = ScriptRootRef.Unspecified,
     val locals: Map<String, Int> = emptyMap(),
     val realmScalars: Map<String, Int> = emptyMap(),
     val stack: List<ScriptFrame>,
@@ -91,6 +232,7 @@ fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
     }
     require(rewardGrantSession == null) { "script continuation with active reward grant session cannot be saved yet" }
     return ScriptContinuationSnapshot(
+        root = root,
         locals = locals,
         realmScalars = realmScalars,
         stack = stack,
@@ -101,6 +243,7 @@ fun ScriptContinuation.toSnapshot(): ScriptContinuationSnapshot {
 fun ScriptContinuationSnapshot.toContinuation(runtime: RuntimeSessionState): ScriptContinuation =
     ScriptContinuation(
         runtime = runtime,
+        root = root,
         locals = locals,
         realmScalars = realmScalars,
         stack = stack,
