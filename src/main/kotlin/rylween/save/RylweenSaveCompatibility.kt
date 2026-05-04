@@ -14,6 +14,8 @@ fun GameModel.runtimeSnapshotMetadata(): RuntimeSnapshotMetadata =
     RuntimeSnapshotMetadata(
         formatVersion = RuntimeSnapshotFormatVersion,
         contentHash = runtimeContentHash(),
+        universeId = metadata.universe.compatibilityId,
+        universeVersion = metadata.universe.version,
     )
 
 fun GameModel.runtimeContentHash(): String {

@@ -18,6 +18,8 @@ data class RuntimeSnapshotModel(
 data class RuntimeSnapshotMetadata(
     val formatVersion: Int,
     val contentHash: String? = null,
+    val universeId: String? = null,
+    val universeVersion: String? = null,
 )
 
 sealed interface RuntimeModeSnapshot {

@@ -372,6 +372,31 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun runtimeSnapshotLoadRejectsMismatchedUniverse() {
+        val content = RylweenCompiledGame.nextDsl
+        val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay }
+        val snapshot = RuntimeSnapshotModel(
+            state = base.copy(
+                kind = StateKind.RuntimeSnapshot,
+                realm = base.realm.copy(rngState = 1234L),
+            ),
+            metadata = content.runtimeSnapshotMetadata(),
+        )
+        val otherUniverse = content.copy(
+            metadata = content.metadata.copy(
+                universe = content.metadata.universe.copy(compatibilityId = "other-game"),
+            ),
+        )
+
+        val failure = assertFailsWith<RylweenValidationException> {
+            parseRuntimeSnapshotForLoad(renderRuntimeStateSnapshot(snapshot), otherUniverse, sourceName = "wrong universe")
+        }
+
+        assertEquals("wrong universe", failure.diagnostics.single().path)
+        assertTrue("does not match this game universe" in failure.diagnostics.single().message)
+    }
+
+    @Test
     fun runtimeSnapshotLoadRejectsUnsupportedSnapshotFormatVersion() {
         val content = RylweenCompiledGame.nextDsl
         val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay }
@@ -3362,12 +3387,25 @@ class RylweenDslValidationTest {
                 layer(MapLayers.terrain) { rows("sx") }
             }
         }.build()
+        val wrongSize = GameBuilder().apply {
+            terminal {
+                terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
+            }
+            worldMap(Maps.wilderness) {
+                size = cells(width = 3, height = 1)
+                storageCapacity = 3
+                layer(MapLayers.terrain) { rows("ss") }
+            }
+        }.build()
 
         assertFailsWith<IllegalStateException> {
             validateAuthoredContent(duplicate)
         }
         assertFailsWith<IllegalStateException> {
             validateAuthoredContent(unknownTile)
+        }
+        assertFailsWith<IllegalStateException> {
+            validateAuthoredContent(wrongSize)
         }
     }
 

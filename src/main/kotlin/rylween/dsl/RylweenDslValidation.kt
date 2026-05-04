@@ -1873,6 +1873,22 @@ private fun validateWorldMaps(worldMaps: List<WorldMapModel>, terminal: Terminal
         check(terrainLayer.rows.isNotEmpty()) { "world map ${map.id.slug} terrain layer has no rows" }
         val width = terrainLayer.rows.first().length
         check(width > 0) { "world map ${map.id.slug} terrain layer has blank first row" }
+        val height = terrainLayer.rows.size
+        map.size?.let { size ->
+            check(size.width > 0 && size.height > 0) {
+                "world map ${map.id.slug} size must be positive"
+            }
+            check(size.width == width && size.height == height) {
+                "world map ${map.id.slug} declares size ${size.width}x${size.height}, " +
+                    "but terrain layer is ${width}x$height"
+            }
+        }
+        map.storageCapacity?.let { capacity ->
+            check(capacity >= 0) { "world map ${map.id.slug} storage capacity must be non-negative" }
+            check(capacity >= width * height) {
+                "world map ${map.id.slug} storage capacity $capacity is smaller than terrain layer ${width * height}"
+            }
+        }
         terrainLayer.rows.forEachIndexed { index, row ->
             check(row.length == width) {
                 "world map ${map.id.slug} terrain row ${index + 1} width ${row.length} differs from $width"
@@ -2057,6 +2073,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
     val flagStates = FlagStateIndex(content.flags)
     val terrainBindings = TerrainBindingIndex(content.terminal, content.worldMaps)
     return buildList {
+        captureValidation("metadata") { validateGameMetadata(content.metadata) }
         captureValidation("flags.catalog") { validateFlagCatalog(content.flags) }
         captureValidation("prompts") { validateGamePrompts(content.prompts) }
         captureValidation("realm") { validateRealmContent(content.realm) }
@@ -2088,6 +2105,12 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("dialogue") { validateDialogue(content.dialogue, content.characters, content.flags) }
         captureValidation("scripts") { validateScriptRewards(content, content.itemCatalog, content.flags) }
     }
+}
+
+private fun validateGameMetadata(metadata: GameMetadataModel) {
+    check(metadata.universe.name.isNotBlank()) { "universe name must not be blank" }
+    check(metadata.universe.version.isNotBlank()) { "universe version must not be blank" }
+    check(metadata.universe.compatibilityId.isNotBlank()) { "universe compatibility id must not be blank" }
 }
 
 fun validateAuthoredContent(content: GameModel) {

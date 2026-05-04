@@ -84,6 +84,21 @@ private fun validateSnapshotMetadata(snapshot: RuntimeSnapshotModel, content: Ga
                 "expected $RuntimeSnapshotFormatVersion",
         )
     }
+    val universe = content.metadata.universe
+    if (metadata.universeId != null && metadata.universeId != universe.compatibilityId) {
+        throw runtimeLoadFailure(
+            sourceName,
+            "runtime snapshot universe ${metadata.universeId} does not match this game universe " +
+                universe.compatibilityId,
+        )
+    }
+    if (metadata.universeVersion != null && metadata.universeVersion != universe.version) {
+        throw runtimeLoadFailure(
+            sourceName,
+            "runtime snapshot universe version ${metadata.universeVersion} does not match this game version " +
+                universe.version,
+        )
+    }
     val expectedHash = content.runtimeContentHash()
     if (metadata.contentHash != null && metadata.contentHash != expectedHash) {
         throw runtimeLoadFailure(sourceName, "runtime snapshot content hash does not match this game build")
