@@ -82,9 +82,19 @@ private class RuntimeStateSnapshotParser(source: String) {
         expectSymbol('{')
         var formatVersion = RuntimeSnapshotFormatVersion
         var contentHash: String? = null
+        var universeId: String? = null
+        var universeVersion: String? = null
         while (!matchSymbol('}')) {
             when (val field = expectIdentifier()) {
                 "formatVersion" -> formatVersion = parseAssignedInt()
+                "universeId" -> {
+                    expectSymbol('=')
+                    universeId = parseNullable(::parseString)
+                }
+                "universeVersion" -> {
+                    expectSymbol('=')
+                    universeVersion = parseNullable(::parseString)
+                }
                 "contentHash" -> {
                     expectSymbol('=')
                     contentHash = parseNullable(::parseString)
@@ -92,7 +102,12 @@ private class RuntimeStateSnapshotParser(source: String) {
                 else -> unexpected("metadata field $field")
             }
         }
-        return RuntimeSnapshotMetadata(formatVersion, contentHash)
+        return RuntimeSnapshotMetadata(
+            formatVersion = formatVersion,
+            contentHash = contentHash,
+            universeId = universeId,
+            universeVersion = universeVersion,
+        )
     }
 
     private fun parseRealm(): RealmState {
@@ -1044,6 +1059,8 @@ private class RuntimeStateSnapshotWriter {
         line("metadata {")
         indented {
             assignment("formatVersion", metadata.formatVersion)
+            line("universeId = ${metadata.universeId?.let(::quote) ?: "null"}")
+            line("universeVersion = ${metadata.universeVersion?.let(::quote) ?: "null"}")
             line("contentHash = ${metadata.contentHash?.let(::quote) ?: "null"}")
         }
         line("}")

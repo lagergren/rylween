@@ -386,6 +386,23 @@ data class RewardBundleId(val slug: String)
 data class RumourTableId(val slug: String)
 data class RumourId(val slug: String)
 
+private fun String.compatibilityId(): String =
+    lowercase()
+        .map { char -> if (char.isLetterOrDigit()) char else '-' }
+        .joinToString("")
+        .trim('-')
+        .replace(Regex("-+"), "-")
+
+data class GameMetadataModel(
+    val universe: GameUniverseModel = GameUniverseModel(),
+)
+
+data class GameUniverseModel(
+    val name: String = "Rylween",
+    val version: String = "kotlin-dsl",
+    val compatibilityId: String = name.compatibilityId(),
+)
+
 data class TerminalTerrainStyleModel(
     val terrain: TerrainId,
     val glyph: String,
@@ -405,8 +422,13 @@ data class TerminalPresentationModel(
     val regions: List<ScreenRegionModel> = emptyList(),
 )
 
+data class GridSize(val width: Int, val height: Int)
+fun cells(width: Int, height: Int): GridSize = GridSize(width, height)
+
 data class WorldMapModel(
     val id: WorldMapId,
+    val size: GridSize? = null,
+    val storageCapacity: Int? = null,
     val layers: List<WorldMapLayerModel>,
 )
 
@@ -1464,6 +1486,7 @@ data class RuntimeContent(
 }
 
 data class GameModel(
+    val metadata: GameMetadataModel = GameMetadataModel(),
     val itemCatalog: List<ItemRecordModel>,
     val itemPools: List<ItemPoolId>,
     val realm: RealmContentModel = RealmContentModel(),
@@ -3937,6 +3960,18 @@ class TerminalPresentationBuilder {
         )
 }
 
+@RylNextDsl
+class GameMetadataBuilder(initial: GameMetadataModel = GameMetadataModel()) {
+    private var universeModel = initial.universe
+
+    fun universe(name: String, version: String) {
+        universeModel = GameUniverseModel(name = name, version = version)
+    }
+
+    internal fun build(): GameMetadataModel =
+        GameMetadataModel(universe = universeModel)
+}
+
 private fun RewardBundleModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): RewardBundleModel =
     copy(loot = loot.copy(treasure = resolve(loot.treasure), magic = resolve(loot.magic)))
 
@@ -4052,6 +4087,7 @@ private fun BoolAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): BoolA
 
 @RylNextDsl
 class GameBuilder {
+    private var metadataModel = GameMetadataModel()
     private val itemRecords = mutableListOf<ItemRecordModel>()
     private val itemPools = mutableListOf<ItemPoolId>()
     private var realmModel = RealmContentModel()
@@ -4079,6 +4115,10 @@ class GameBuilder {
     private val itemUses = mutableListOf<ItemUseModel>()
     private val missions = mutableListOf<MissionModel>()
     private var secretsModel = SecretSystemModel()
+
+    fun metadata(body: GameMetadataBuilder.() -> Unit) {
+        metadataModel = GameMetadataBuilder(metadataModel).apply(body).build()
+    }
 
     fun flags(body: FlagContentBuilder.() -> Unit) {
         authoredFlags += FlagContentBuilder().apply(body).build()
@@ -4192,6 +4232,7 @@ class GameBuilder {
             itemPoolBySlug[pool.slug] ?: pool
 
         return GameModel(
+            metadata = metadataModel,
             itemCatalog = itemRecords.toList(),
             itemPools = itemPools.toList(),
             realm = realmModel,
@@ -4273,13 +4314,20 @@ class SecretPlayerBuilder(private val name: String) {
 @RylNextDsl
 class WorldMapBuilder(private val id: WorldMapId) {
     private val layerModels = mutableListOf<WorldMapLayerModel>()
+    var size: GridSize? = null
+    var storageCapacity: Int? = null
 
     fun layer(id: MapLayerId, body: WorldMapLayerBuilder.() -> Unit) {
         layerModels += WorldMapLayerBuilder(id).apply(body).build()
     }
 
     fun build(): WorldMapModel =
-        WorldMapModel(id = id, layers = layerModels.toList())
+        WorldMapModel(
+            id = id,
+            size = size,
+            storageCapacity = storageCapacity,
+            layers = layerModels.toList(),
+        )
 }
 
 @RylNextDsl

@@ -34,6 +34,10 @@ val nextRylween = rylween {
     // passes should fill in visuals, layouts, terrain, maps, items, spells,
     // text declarations, menus, and the rest of the monster/mission tables here.
 
+    metadata {
+        universe("Rylween", version = "kotlin-dsl")
+    }
+
     flags {
         story(Story.garth.bandits) {
             states(
@@ -173,6 +177,9 @@ val nextRylween = rylween {
     }
 
     worldMap(Maps.wilderness) {
+        size = cells(width = 78, height = 40)
+        storageCapacity = 3120
+
         layer(MapLayers.terrain) {
             rows(
                 "mmmmmmmmmmmmmmmmmmmmmmmmmmwmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
