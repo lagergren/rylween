@@ -5,6 +5,9 @@ import rylween.dsl.StateKind
 import rylween.dsl.StateModel
 import rylween.dsl.RuntimeMode
 import rylween.dsl.GameModel
+import rylween.dsl.NpcVisitState
+import rylween.dsl.PartyAttackRecord
+import rylween.dsl.PartyState
 import rylween.runtime.RuntimeModeSnapshot
 import rylween.runtime.RuntimeSnapshotModel
 import rylween.runtime.RuntimeSessionState
@@ -39,8 +42,25 @@ fun RuntimeSessionState.toRuntimeStateSnapshot(id: StateId): StateModel =
         realm = realm,
         locations = locations,
         npcs = npcs,
-        parties = parties,
+        parties = parties.map { party -> party.toRuntimeSnapshotParty(this) },
     )
+
+private fun PartyState.toRuntimeSnapshotParty(runtime: RuntimeSessionState): PartyState {
+    val partyIds = runtime.parties.map { it.id }
+    val attackedTodayByParty = counters.attackedToday.associateBy { it.party }
+    val npcIds = runtime.npcs.map { it.npc }
+    val visitedByNpc = visitedNpcs.associateBy { it.npc }
+    return copy(
+        counters = counters.copy(
+            attackedToday = partyIds.map { partyId ->
+                attackedTodayByParty[partyId] ?: PartyAttackRecord(partyId, attacked = false)
+            },
+        ),
+        visitedNpcs = npcIds.map { npc ->
+            visitedByNpc[npc] ?: NpcVisitState(npc = npc, visited = false)
+        },
+    )
+}
 
 class FileRuntimeSavePort(
     private val file: File,
