@@ -237,7 +237,7 @@ private fun TerminalPort.writeStaticScreen(
         context = context,
     ) ?: error("unknown static screen ${screenId.slug}")
     rendered.image?.let { image ->
-        val asset = AnsiImageAssets.resolve(image)
+        val asset = AnsiImageAssets.resolve(content.visuals, image)
         if (asset == null) {
             write(listOf("[image: ${image.slug}]"))
         } else {

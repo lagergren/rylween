@@ -71,9 +71,12 @@ private class FlagStateIndex(flags: List<FlagRef>) {
 }
 
 private class TerrainBindingIndex(
+    terrain: TerrainCatalogModel,
     terminal: TerminalPresentationModel,
     worldMaps: List<WorldMapModel>,
 ) {
+    private val terrainBySlug: Map<String, TerrainSemanticsModel> =
+        terrain.terrain.associateBy { it.id.slug }
     private val stylesBySlug: Map<String, TerminalTerrainStyleModel> =
         terminal.terrain.associateBy { it.terrain.slug }
     private val mapCodes: Set<Char> =
@@ -85,23 +88,27 @@ private class TerrainBindingIndex(
 
     fun requireStyled(terrain: TerrainId, label: String) {
         check(terrain.slug.isNotBlank()) { "$label references blank terrain" }
+        val semantics = terrainBySlug[terrain.slug]
+        check(semantics != null) {
+            "$label references terrain ${terrain.slug}, but terrain { ... } does not declare it"
+        }
         val style = stylesBySlug[terrain.slug]
         check(style != null) {
             "$label references terrain ${terrain.slug}, but terminal { terrain(...) } does not declare it"
         }
-        terrain.sourceMapCode?.let { sourceMapCode ->
-            check(style.terrain.sourceMapCode == sourceMapCode) {
-                "$label references terrain ${terrain.slug} with map tile '$sourceMapCode', " +
-                    "but terminal terrain declares '${style.terrain.sourceMapCode}'"
+        terrain.sourceMapCode?.let { referencedCode ->
+            check(semantics.mapCode == referencedCode) {
+                "$label references terrain ${terrain.slug} with map tile '$referencedCode', " +
+                    "but terrain declaration uses '${semantics.mapCode}'"
             }
         }
     }
 
     fun requireMapReachable(terrain: TerrainId, label: String) {
         requireStyled(terrain, label)
-        terrain.sourceMapCode?.let { sourceMapCode ->
-            check(sourceMapCode in mapCodes) {
-                "$label references terrain ${terrain.slug} tile '$sourceMapCode', but no authored world map uses it"
+        terrainBySlug[terrain.slug]?.let { semantics ->
+            check(semantics.mapCode in mapCodes) {
+                "$label references terrain ${terrain.slug} tile '${semantics.mapCode}', but no authored world map uses it"
             }
         }
     }
@@ -1808,7 +1815,7 @@ private fun validateHuntRules(hunt: HuntRulesModel) {
     validateTextBlock(hunt.fails, "hunt fails", allowedRuntimeBindings = HuntTextBindings)
 }
 
-private fun validateTerminalPresentation(model: TerminalPresentationModel) {
+private fun validateTerminalPresentation(model: TerminalPresentationModel, terrain: TerrainCatalogModel) {
     check(model.terrain.map { it.terrain }.toSet().size == model.terrain.size) {
         "duplicate terminal terrain style"
     }
@@ -1821,14 +1828,41 @@ private fun validateTerminalPresentation(model: TerminalPresentationModel) {
         check(style.terrain.sourceMapCode != null) {
             "terminal terrain ${style.terrain.slug} has no source map code"
         }
+        check(terrain.terrain.any { it.id.slug == style.terrain.slug }) {
+            "terminal terrain ${style.terrain.slug} is not declared in terrain { ... }"
+        }
         check(style.glyph.isNotEmpty()) { "terminal terrain ${style.terrain.slug} has blank glyph" }
         check(style.color.slug.isNotBlank()) { "terminal terrain ${style.terrain.slug} has blank color" }
     }
+}
 
-    check(model.regions.map { it.id }.toSet().size == model.regions.size) {
-        "duplicate terminal screen region"
+private fun validateTerrainCatalog(model: TerrainCatalogModel) {
+    check(model.terrain.map { it.id }.toSet().size == model.terrain.size) {
+        "duplicate terrain declaration"
     }
-    model.regions.forEach { region ->
+    check(model.terrain.map { it.mapCode }.toSet().size == model.terrain.size) {
+        "duplicate terrain map tile code"
+    }
+    model.terrain.forEach { terrain ->
+        check(terrain.id.slug.isNotBlank()) { "terrain has blank id" }
+        check(terrain.id.sourceMapCode == null || terrain.id.sourceMapCode == terrain.mapCode) {
+            "terrain ${terrain.id.slug} handle map tile '${terrain.id.sourceMapCode}' does not match declaration '${terrain.mapCode}'"
+        }
+        check(terrain.movementCost >= 0) { "terrain ${terrain.id.slug} movement cost must be non-negative" }
+        check(terrain.passable || terrain.movementCost == 0) {
+            "blocked terrain ${terrain.id.slug} must have movement cost 0"
+        }
+        check(terrain.settlement == null || !terrain.allowsNpcPlacement) {
+            "settlement terrain ${terrain.id.slug} cannot allow random NPC placement"
+        }
+    }
+}
+
+private fun validateLayouts(layouts: LayoutModel) {
+    check(layouts.regions.map { it.id }.toSet().size == layouts.regions.size) {
+        "duplicate screen region"
+    }
+    layouts.regions.forEach { region ->
         check(region.x >= 0 && region.y >= 0) { "screen region ${region.id.slug} has negative coordinates" }
         region.width?.let { check(it > 0) { "screen region ${region.id.slug} has non-positive width" } }
         region.height?.let { check(it > 0) { "screen region ${region.id.slug} has non-positive height" } }
@@ -1836,9 +1870,17 @@ private fun validateTerminalPresentation(model: TerminalPresentationModel) {
 }
 
 private fun validateVisuals(visuals: VisualsModel) {
+    check(visuals.images.map { it.id }.toSet().size == visuals.images.size) {
+        "duplicate visual image asset"
+    }
+    visuals.images.forEach { image ->
+        check(image.id.slug.isNotBlank()) { "visual image has blank id" }
+        validateRelativeResource(image.resource, "visual image ${image.id.slug}")
+    }
     check(visuals.staticScreens.map { it.id }.toSet().size == visuals.staticScreens.size) {
         "duplicate static screen"
     }
+    val imageIds = visuals.images.map { it.id }.toSet()
     visuals.staticScreens.forEach { screen ->
         val sourceCount = listOf(
             screen.image != null,
@@ -1849,21 +1891,125 @@ private fun validateVisuals(visuals: VisualsModel) {
         check(sourceCount == 1) {
             "static screen ${screen.id.slug} must have exactly one source"
         }
+        screen.image?.let { image ->
+            check(image in imageIds) { "static screen ${screen.id.slug} references undeclared image ${image.slug}" }
+        }
         screen.resource?.let { resource ->
-            check(resource.isNotBlank()) { "static screen ${screen.id.slug} has blank resource" }
-            check(!resource.startsWith("/")) { "static screen ${screen.id.slug} resource must be relative" }
-            check(resource.split('/').none { it == ".." }) {
-                "static screen ${screen.id.slug} resource must stay inside packaged resources"
-            }
+            validateRelativeResource(resource, "static screen ${screen.id.slug}")
         }
     }
 }
 
-private fun validateWorldMaps(worldMaps: List<WorldMapModel>, terminal: TerminalPresentationModel) {
+private fun validateRelativeResource(resource: String, label: String) {
+    check(resource.isNotBlank()) { "$label has blank resource" }
+    check(!resource.startsWith("/")) { "$label resource must be relative" }
+    check(resource.split('/').none { it == ".." }) {
+        "$label resource must stay inside packaged resources"
+    }
+}
+
+private fun validateImageReferences(content: GameModel) {
+    val declared = content.visuals.images.map { it.id }.toSet()
+    val references = buildList<Pair<ImageId, String>> {
+        content.visuals.staticScreens.forEach { screen ->
+            screen.image?.let { add(it to "static screen ${screen.id.slug}") }
+        }
+        content.itemCatalog.forEach { item ->
+            item.campImage?.let { add(it to "item ${item.id.slug} camp image") }
+        }
+        content.wilderness.events.caveImage?.let { add(it to "wilderness cave image") }
+        content.dungeons.backdrop?.let { add(it to "dungeon backdrop") }
+        content.ydarg?.image?.let { add(it to "Ydarg backdrop") }
+        content.combat.standardBattle?.let { battle ->
+            battle.opening.banners.forEach { add(it to "battle opening banner") }
+            battle.victoryImage?.let { add(it to "battle victory image") }
+        }
+        content.scenes.forEach { scene -> addAll(scene.ops.imageReferences("scene ${scene.id.slug}")) }
+        content.dungeons.events.forEach { event -> addAll(event.ops.imageReferences("dungeon event ${event.id.slug}")) }
+        content.dialogue.forEach { dialogue ->
+            dialogue.branches.forEach { branch ->
+                addAll(branch.ops.imageReferences("dialogue ${dialogue.npc.slug}"))
+            }
+        }
+        content.spells.forEach { spell -> addAll(spell.ops.imageReferences("spell ${spell.id.slug}")) }
+        content.itemUses.forEach { itemUse -> addAll(itemUse.ops.imageReferences("item use ${itemUse.id.slug}")) }
+    }
+    references.forEach { (image, label) ->
+        check(image in declared) { "$label references undeclared image ${image.slug}" }
+    }
+}
+
+private fun List<Op>.imageReferences(label: String): List<Pair<ImageId, String>> =
+    buildList {
+        fun visit(ops: List<Op>, nestedLabel: String) {
+            ops.forEach { op ->
+                when (op) {
+                    is Op.View -> {
+                        val image = (op.command as? ViewCommand.ShowImage)?.image
+                        if (image != null) add(image to nestedLabel)
+                    }
+                    is Op.If -> {
+                        visit(op.thenOps, nestedLabel)
+                        visit(op.elseOps, nestedLabel)
+                    }
+                    is Op.Loop -> visit(op.body, nestedLabel)
+                    is Op.Switch -> op.cases.forEach { visit(it.body, nestedLabel) }
+                    is Op.Menu -> {
+                        op.options.forEach { option -> visit(option.body, nestedLabel) }
+                        visit(op.defaultOps, nestedLabel)
+                    }
+                    is Op.AskText -> {
+                        visit(op.matchOps, nestedLabel)
+                        visit(op.missOps, nestedLabel)
+                    }
+                    is Op.ForEachMember -> visit(op.body, nestedLabel)
+                    is Op.ForEachMonster -> visit(op.body, nestedLabel)
+                    is Op.ShopService -> add(op.shop.image to "$nestedLabel shop")
+                    is Op.Screen,
+                    is Op.Emit,
+                    is Op.EmitIndexed,
+                    is Op.WaitInput,
+                    is Op.Pause,
+                    is Op.LetInt,
+                    is Op.BindText,
+                    is Op.Set,
+                    is Op.Add,
+                    is Op.Sub,
+                    is Op.AddClamped,
+                    is Op.SetFlag,
+                    is Op.AppendJournal,
+                    is Op.Break,
+                    is Op.Stop,
+                    is Op.AskKey,
+                    is Op.AskMember,
+                    is Op.AskInventorySlot,
+                    is Op.AskMonster,
+                    is Op.Speak,
+                    is Op.TellRumour,
+                    is Op.RunScene,
+                    is Op.Encounter,
+                    is Op.EnterDungeon,
+                    Op.ConsumeActiveItem,
+                    is Op.ClearInventorySlot,
+                    is Op.ConsumeInventoryPool,
+                    Op.ConsumeTorch,
+                    is Op.TeleportParty,
+                    is Op.DiscoverCave,
+                    is Op.GrantReward,
+                    is Op.RandomItemOffer,
+                    is Op.AchieveMilestone,
+                    is Op.NativeCall -> Unit
+                }
+            }
+        }
+        visit(this@imageReferences, label)
+    }
+
+private fun validateWorldMaps(worldMaps: List<WorldMapModel>, terrain: TerrainCatalogModel) {
     check(worldMaps.map { it.id }.toSet().size == worldMaps.size) {
         "duplicate world map"
     }
-    val terrainCodes = terminal.terrain.mapNotNull { it.terrain.sourceMapCode }.toSet()
+    val terrainCodes = terrain.terrain.map { it.mapCode }.toSet()
     worldMaps.forEach { map ->
         check(map.layers.map { it.id }.toSet().size == map.layers.size) {
             "world map ${map.id.slug} has duplicate layers"
@@ -2071,15 +2217,19 @@ private fun validateFlagTransitions(content: GameModel, flagStates: FlagStateInd
 
 fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagnostic> {
     val flagStates = FlagStateIndex(content.flags)
-    val terrainBindings = TerrainBindingIndex(content.terminal, content.worldMaps)
+    val terrainBindings = TerrainBindingIndex(content.terrain, content.terminal, content.worldMaps)
     return buildList {
         captureValidation("metadata") { validateGameMetadata(content.metadata) }
+        captureValidation("limits") { validateGameLimits(content.limits, content.worldMaps, content.layouts) }
         captureValidation("flags.catalog") { validateFlagCatalog(content.flags) }
         captureValidation("prompts") { validateGamePrompts(content.prompts) }
         captureValidation("realm") { validateRealmContent(content.realm) }
         captureValidation("visuals") { validateVisuals(content.visuals) }
-        captureValidation("terminal") { validateTerminalPresentation(content.terminal) }
-        captureValidation("worldMaps") { validateWorldMaps(content.worldMaps, content.terminal) }
+        captureValidation("visuals.references") { validateImageReferences(content) }
+        captureValidation("terrain") { validateTerrainCatalog(content.terrain) }
+        captureValidation("terminal") { validateTerminalPresentation(content.terminal, content.terrain) }
+        captureValidation("layouts") { validateLayouts(content.layouts) }
+        captureValidation("worldMaps") { validateWorldMaps(content.worldMaps, content.terrain) }
         captureValidation("items.catalog") { validateItemCatalog(content.itemCatalog) }
         captureValidation("items.pools") { validateItemPools(content.itemPools, content.itemCatalog) }
         captureValidation("progress") { validateGameProgress(content.progress, content.itemCatalog) }
@@ -2111,6 +2261,39 @@ private fun validateGameMetadata(metadata: GameMetadataModel) {
     check(metadata.universe.name.isNotBlank()) { "universe name must not be blank" }
     check(metadata.universe.version.isNotBlank()) { "universe version must not be blank" }
     check(metadata.universe.compatibilityId.isNotBlank()) { "universe compatibility id must not be blank" }
+}
+
+private fun validateGameLimits(limits: GameLimitsModel, worldMaps: List<WorldMapModel>, layouts: LayoutModel) {
+    limits.maxWorldMaps?.let { max ->
+        check(max > 0) { "max world maps must be positive" }
+        check(worldMaps.size <= max) { "declares ${worldMaps.size} world maps, but limit is $max" }
+    }
+    limits.maxMapCells?.let { max ->
+        check(max > 0) { "max map cells must be positive" }
+        worldMaps.forEach { map ->
+            val rows = map.layers.singleOrNull { it.id == DslDefaultMapLayers.terrain }?.rows.orEmpty()
+            val cells = rows.size * (rows.firstOrNull()?.length ?: 0)
+            check(cells <= max) { "world map ${map.id.slug} uses $cells cells, but limit is $max" }
+        }
+    }
+    limits.screenSize?.let { screen ->
+        check(screen.width > 0 && screen.height > 0) { "screen size must be positive" }
+        layouts.regions.forEach { region ->
+            check(region.x < screen.width && region.y < screen.height) {
+                "screen region ${region.id.slug} starts outside screen ${screen.width}x${screen.height}"
+            }
+            region.width?.let { width ->
+                check(region.x + width <= screen.width) {
+                    "screen region ${region.id.slug} exceeds screen width ${screen.width}"
+                }
+            }
+            region.height?.let { height ->
+                check(region.y + height <= screen.height) {
+                    "screen region ${region.id.slug} exceeds screen height ${screen.height}"
+                }
+            }
+        }
+    }
 }
 
 fun validateAuthoredContent(content: GameModel) {
@@ -2273,7 +2456,7 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
     val flagStates = content?.flags?.let(::FlagStateIndex)
     val npcIds = content?.characters?.map { it.id }?.toSet().orEmpty()
     val mapIds = content?.worldMaps?.map { it.id }?.toSet().orEmpty()
-    val terrainBindings = content?.let { TerrainBindingIndex(it.terminal, it.worldMaps) }
+    val terrainBindings = content?.let { TerrainBindingIndex(it.terrain, it.terminal, it.worldMaps) }
     val specialItems = content
         ?.progress
         ?.milestones

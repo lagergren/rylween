@@ -199,6 +199,7 @@ private data class MissionTriggerResult(
 data class WorldMapGrid(
     val id: WorldMapId,
     val rows: List<String>,
+    val terrain: TerrainCatalogModel = TerrainCatalogModel(),
 ) {
     init {
         require(rows.isNotEmpty()) { "world map requires at least one row" }
@@ -211,22 +212,25 @@ data class WorldMapGrid(
         rows.getOrNull(point.y)?.getOrNull(point.x)
 
     fun isPassable(point: GridPoint): Boolean =
-        tileAt(point)?.isImpassableTerrain() == false
+        tileAt(point)?.let { tile -> terrain.byMapCode(tile)?.passable } == true
 
     fun isTown(point: GridPoint): Boolean =
-        tileAt(point) == DslDefaultTerrain.town.sourceMapCode
+        settlementAt(point) == TerrainSettlement.Town
 
     fun isHut(point: GridPoint): Boolean =
-        tileAt(point) == DslDefaultTerrain.hut.sourceMapCode
+        settlementAt(point) == TerrainSettlement.Hut
 
     fun isCastle(point: GridPoint): Boolean =
-        tileAt(point) == DslDefaultTerrain.castle.sourceMapCode
+        settlementAt(point) == TerrainSettlement.Castle
+
+    private fun settlementAt(point: GridPoint): TerrainSettlement? =
+        tileAt(point)?.let(terrain::byMapCode)?.settlement
 
     private fun isSettlement(point: GridPoint): Boolean =
         isTown(point) || isHut(point) || isCastle(point)
 
     fun isNpcPlacementTerrain(point: GridPoint): Boolean =
-        isPassable(point) && !isSettlement(point)
+        tileAt(point)?.let { tile -> terrain.byMapCode(tile)?.allowsNpcPlacement } == true
 
     fun passableNpcPoints(): Set<GridPoint> =
         rows.flatMapIndexed { y, row ->
@@ -275,6 +279,7 @@ data class WorldMapGrid(
             WorldMapGrid(
                 id = DslDefaultMaps.wilderness,
                 rows = listOf("") + rows.map { it.trimEnd('\r', '\n') },
+                terrain = TerrainCatalogModel(),
             )
 
         fun loadReferenceMapDat(file: File): WorldMapGrid =
@@ -295,12 +300,12 @@ data class WorldMapViewportCell(
 )
 
 fun GameModel.worldMapGrid(id: WorldMapId): WorldMapGrid? =
-    worldMaps.firstOrNull { it.id == id }?.toGrid()
+    worldMaps.firstOrNull { it.id == id }?.toGrid(terrain)
 
-fun WorldMapModel.toGrid(): WorldMapGrid {
+fun WorldMapModel.toGrid(terrain: TerrainCatalogModel = TerrainCatalogModel()): WorldMapGrid {
     val terrainRows = layers.singleOrNull { it.id == DslDefaultMapLayers.terrain }?.rows
         ?: error("world map ${id.slug} has no terrain layer")
-    return WorldMapGrid(id = id, rows = listOf("") + terrainRows)
+    return WorldMapGrid(id = id, rows = listOf("") + terrainRows, terrain = terrain)
 }
 
 fun SceneModel.hutService(): BuildingServiceModel =
@@ -1635,16 +1640,9 @@ private fun teleportDistance(value: Int): Int =
     }
 
 private fun WorldMapGrid.isTeleportOpen(point: GridPoint): Boolean =
-    tileAt(point)?.let { it != DslDefaultTerrain.mountain.sourceMapCode } == true
+    tileAt(point)
+        ?.let(terrain::byMapCode)
+        ?.let { it.id != DslDefaultTerrain.mountain } == true
 
 private fun Int.positiveMod(divisor: Int): Int =
     ((this % divisor) + divisor) % divisor
-
-private fun Char.isImpassableTerrain(): Boolean =
-    this in ImpassableTerrainTiles
-
-private val ImpassableTerrainTiles: Set<Char> =
-    listOfNotNull(
-        DslDefaultTerrain.mountain.sourceMapCode,
-        DslDefaultTerrain.water.sourceMapCode,
-    ).toSet()

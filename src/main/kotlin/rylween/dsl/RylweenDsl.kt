@@ -403,6 +403,47 @@ data class GameUniverseModel(
     val compatibilityId: String = name.compatibilityId(),
 )
 
+data class GameLimitsModel(
+    val maxWorldMaps: Int? = null,
+    val maxMapCells: Int? = null,
+    val screenSize: GridSize? = null,
+)
+
+enum class TerrainSettlement { Town, Hut, Castle }
+
+data class TerrainCatalogModel(
+    val terrain: List<TerrainSemanticsModel> = referenceDefaults(),
+) {
+    fun byMapCode(tile: Char): TerrainSemanticsModel? =
+        terrain.firstOrNull { it.mapCode == tile }
+
+    companion object {
+        fun referenceDefaults(): List<TerrainSemanticsModel> =
+            listOf(
+                TerrainSemanticsModel(terrain("mountain", 'm'), mapCode = 'm', passable = false, movementCost = 0),
+                TerrainSemanticsModel(terrain("water", 'w'), mapCode = 'w', passable = false, movementCost = 0),
+                TerrainSemanticsModel(terrain("plain", 's'), mapCode = 's'),
+                TerrainSemanticsModel(terrain("town", '0'), mapCode = '0', allowsNpcPlacement = false, settlement = TerrainSettlement.Town),
+                TerrainSemanticsModel(terrain("hut", '1'), mapCode = '1', allowsNpcPlacement = false, settlement = TerrainSettlement.Hut),
+                TerrainSemanticsModel(terrain("foothills", 'f'), mapCode = 'f'),
+                TerrainSemanticsModel(terrain("desert", 'd'), mapCode = 'd'),
+                TerrainSemanticsModel(terrain("swamp", 't'), mapCode = 't'),
+                TerrainSemanticsModel(terrain("forest", 'g'), mapCode = 'g'),
+                TerrainSemanticsModel(terrain("castle", '2'), mapCode = '2', allowsNpcPlacement = false, settlement = TerrainSettlement.Castle),
+            )
+    }
+}
+
+data class TerrainSemanticsModel(
+    val id: TerrainId,
+    val mapCode: Char,
+    val passable: Boolean = true,
+    val movementCost: Int = 1,
+    val allowsNpcPlacement: Boolean = passable,
+    val settlement: TerrainSettlement? = null,
+    val tags: Set<TerrainTagId> = emptySet(),
+)
+
 data class TerminalTerrainStyleModel(
     val terrain: TerrainId,
     val glyph: String,
@@ -419,11 +460,14 @@ data class ScreenRegionModel(
 
 data class TerminalPresentationModel(
     val terrain: List<TerminalTerrainStyleModel> = emptyList(),
-    val regions: List<ScreenRegionModel> = emptyList(),
 )
 
 data class GridSize(val width: Int, val height: Int)
 fun cells(width: Int, height: Int): GridSize = GridSize(width, height)
+
+data class LayoutModel(
+    val regions: List<ScreenRegionModel> = emptyList(),
+)
 
 data class WorldMapModel(
     val id: WorldMapId,
@@ -438,7 +482,18 @@ data class WorldMapLayerModel(
 )
 
 data class VisualsModel(
+    val images: List<ImageAssetModel> = emptyList(),
     val staticScreens: List<StaticScreenModel> = emptyList(),
+)
+
+enum class ImageAssetKind { Ansi, Bitmap }
+enum class ImagePlacement { FullScreen, MapWindow }
+
+data class ImageAssetModel(
+    val id: ImageId,
+    val kind: ImageAssetKind,
+    val resource: String,
+    val placement: ImagePlacement,
 )
 
 enum class StaticScreenRuntimeReport { Score, VerboseScore }
@@ -1487,13 +1542,16 @@ data class RuntimeContent(
 
 data class GameModel(
     val metadata: GameMetadataModel = GameMetadataModel(),
+    val limits: GameLimitsModel = GameLimitsModel(),
     val itemCatalog: List<ItemRecordModel>,
     val itemPools: List<ItemPoolId>,
     val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel,
     val visuals: VisualsModel,
     val worldMaps: List<WorldMapModel>,
+    val terrain: TerrainCatalogModel,
     val terminal: TerminalPresentationModel,
+    val layouts: LayoutModel,
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
@@ -3932,16 +3990,18 @@ class ItemCatalogBuilder {
 @RylNextDsl
 class TerminalPresentationBuilder {
     private val terrainStyles = mutableListOf<TerminalTerrainStyleModel>()
-    private val screenRegions = mutableListOf<ScreenRegionModel>()
 
-    fun terrain(id: TerrainId, mapCode: Char? = null, glyph: String, color: PaletteColorId) {
-        mapCode?.let {
-            require(id.sourceMapCode == null || id.sourceMapCode == it) {
-                "terrain ${id.slug} map code ${id.sourceMapCode} does not match declared map code $it"
-            }
-        }
+    fun terrain(id: TerrainId, glyph: String, color: PaletteColorId) {
         terrainStyles += TerminalTerrainStyleModel(id, glyph, color)
     }
+
+    fun build(): TerminalPresentationModel =
+        TerminalPresentationModel(terrain = terrainStyles.toList())
+}
+
+@RylNextDsl
+class LayoutBuilder(initial: LayoutModel = LayoutModel()) {
+    private val screenRegions = initial.regions.toMutableList()
 
     fun region(
         id: ScreenRegionId,
@@ -3953,11 +4013,8 @@ class TerminalPresentationBuilder {
         screenRegions += ScreenRegionModel(id, x, y, width, height)
     }
 
-    fun build(): TerminalPresentationModel =
-        TerminalPresentationModel(
-            terrain = terrainStyles.toList(),
-            regions = screenRegions.toList(),
-        )
+    fun build(): LayoutModel =
+        LayoutModel(regions = screenRegions.toList())
 }
 
 @RylNextDsl
@@ -3970,6 +4027,70 @@ class GameMetadataBuilder(initial: GameMetadataModel = GameMetadataModel()) {
 
     internal fun build(): GameMetadataModel =
         GameMetadataModel(universe = universeModel)
+}
+
+@RylNextDsl
+class GameLimitsBuilder(initial: GameLimitsModel = GameLimitsModel()) {
+    var maxWorldMaps: Int? = initial.maxWorldMaps
+    var maxMapCells: Int? = initial.maxMapCells
+    var screenSize: GridSize? = initial.screenSize
+
+    internal fun build(): GameLimitsModel =
+        GameLimitsModel(
+            maxWorldMaps = maxWorldMaps,
+            maxMapCells = maxMapCells,
+            screenSize = screenSize,
+        )
+}
+
+@RylNextDsl
+class TerrainCatalogBuilder(initial: TerrainCatalogModel = TerrainCatalogModel()) {
+    private val terrainModels = initial.terrain.toMutableList()
+
+    fun terrain(id: TerrainId, mapCode: Char? = id.sourceMapCode, body: TerrainSemanticsBuilder.() -> Unit = {}) {
+        val tile = requireNotNull(mapCode) { "terrain ${id.slug} requires a map code" }
+        terrainModels += TerrainSemanticsBuilder(id, tile).apply(body).build()
+    }
+
+    fun build(): TerrainCatalogModel =
+        TerrainCatalogModel(terrain = terrainModels.toList())
+}
+
+@RylNextDsl
+class TerrainSemanticsBuilder(private val id: TerrainId, private val mapCode: Char) {
+    var passable: Boolean = true
+    var movementCost: Int = 1
+    var allowsNpcPlacement: Boolean? = null
+    private var settlementModel: TerrainSettlement? = null
+    private val tagModels = mutableSetOf<TerrainTagId>()
+
+    fun blocksMovement() {
+        passable = false
+        movementCost = 0
+        allowsNpcPlacement = false
+    }
+
+    fun settlement(kind: TerrainSettlement) {
+        settlementModel = kind
+        allowsNpcPlacement = false
+    }
+
+    fun tags(vararg tags: TerrainTagId) {
+        tagModels += tags
+    }
+
+    fun build(): TerrainSemanticsModel {
+        val placement = allowsNpcPlacement ?: (passable && settlementModel == null)
+        return TerrainSemanticsModel(
+            id = id,
+            mapCode = mapCode,
+            passable = passable,
+            movementCost = movementCost,
+            allowsNpcPlacement = placement,
+            settlement = settlementModel,
+            tags = tagModels.toSet(),
+        )
+    }
 }
 
 private fun RewardBundleModel.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): RewardBundleModel =
@@ -4088,13 +4209,16 @@ private fun BoolAst.resolveItemPools(resolve: (ItemPoolId) -> ItemPoolId): BoolA
 @RylNextDsl
 class GameBuilder {
     private var metadataModel = GameMetadataModel()
+    private var limitsModel = GameLimitsModel()
     private val itemRecords = mutableListOf<ItemRecordModel>()
     private val itemPools = mutableListOf<ItemPoolId>()
     private var realmModel = RealmContentModel()
     private var promptsModel = GamePromptsModel()
     private var visualsModel = VisualsModel()
     private val worldMaps = mutableListOf<WorldMapModel>()
+    private var terrainModel = TerrainCatalogModel()
     private var terminalPresentationModel = TerminalPresentationModel()
+    private var layoutModel = LayoutModel()
     private val authoredFlags = mutableListOf<FlagContentModel>()
     private var progressModel = GameProgressModel(emptyList(), null)
     private var levelingModel: LevelingModel? = null
@@ -4118,6 +4242,10 @@ class GameBuilder {
 
     fun metadata(body: GameMetadataBuilder.() -> Unit) {
         metadataModel = GameMetadataBuilder(metadataModel).apply(body).build()
+    }
+
+    fun limits(body: GameLimitsBuilder.() -> Unit) {
+        limitsModel = GameLimitsBuilder(limitsModel).apply(body).build()
     }
 
     fun flags(body: FlagContentBuilder.() -> Unit) {
@@ -4146,8 +4274,16 @@ class GameBuilder {
         worldMaps += WorldMapBuilder(id).apply(body).build()
     }
 
+    fun terrain(body: TerrainCatalogBuilder.() -> Unit) {
+        terrainModel = TerrainCatalogBuilder(TerrainCatalogModel(emptyList())).apply(body).build()
+    }
+
     fun terminal(body: TerminalPresentationBuilder.() -> Unit) {
         terminalPresentationModel = TerminalPresentationBuilder().apply(body).build()
+    }
+
+    fun layouts(body: LayoutBuilder.() -> Unit) {
+        layoutModel = LayoutBuilder(layoutModel).apply(body).build()
     }
 
     fun gameProgress(body: GameProgressBuilder.() -> Unit) {
@@ -4233,13 +4369,16 @@ class GameBuilder {
 
         return GameModel(
             metadata = metadataModel,
+            limits = limitsModel,
             itemCatalog = itemRecords.toList(),
             itemPools = itemPools.toList(),
             realm = realmModel,
             prompts = promptsModel,
             visuals = visualsModel,
             worldMaps = worldMaps.toList(),
+            terrain = terrainModel,
             terminal = terminalPresentationModel,
+            layouts = layoutModel,
             flags = declaredFlags.toList(),
             authoredFlags = authoredFlags.toList(),
             progress = progressModel,
@@ -4348,14 +4487,47 @@ class WorldMapLayerBuilder(private val id: MapLayerId) {
 
 @RylNextDsl
 class VisualsBuilder(initial: VisualsModel = VisualsModel()) {
+    private val imageModels = initial.images.toMutableList()
     private val staticScreenModels = initial.staticScreens.toMutableList()
+
+    fun images(body: ImageAssetsBuilder.() -> Unit) {
+        imageModels += ImageAssetsBuilder().apply(body).build()
+    }
 
     fun staticScreens(body: StaticScreensBuilder.() -> Unit) {
         staticScreenModels += StaticScreensBuilder().apply(body).build()
     }
 
     fun build(): VisualsModel =
-        VisualsModel(staticScreens = staticScreenModels.toList())
+        VisualsModel(
+            images = imageModels.toList(),
+            staticScreens = staticScreenModels.toList(),
+        )
+}
+
+@RylNextDsl
+class ImageAssetsBuilder {
+    private val images = mutableListOf<ImageAssetModel>()
+
+    fun ansi(id: ImageId, resource: String, placement: ImagePlacement) {
+        images += ImageAssetModel(
+            id = id,
+            kind = ImageAssetKind.Ansi,
+            resource = resource,
+            placement = placement,
+        )
+    }
+
+    fun bitmap(id: ImageId, resource: String, placement: ImagePlacement) {
+        images += ImageAssetModel(
+            id = id,
+            kind = ImageAssetKind.Bitmap,
+            resource = resource,
+            placement = placement,
+        )
+    }
+
+    fun build(): List<ImageAssetModel> = images.toList()
 }
 
 @RylNextDsl

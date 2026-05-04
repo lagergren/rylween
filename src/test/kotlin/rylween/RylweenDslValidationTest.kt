@@ -1487,7 +1487,7 @@ class RylweenDslValidationTest {
         val ydargPages = checkNotNull(RylweenCompiledGame.nextDsl.ydarg).keys.navigationHelpPages()
         val ydargLines = ydargPages.flatMap { page -> renderer.lines(page) }
         val textWindowWidth = checkNotNull(
-            RylweenCompiledGame.nextDsl.terminal.regions.single { region ->
+            RylweenCompiledGame.nextDsl.layouts.regions.single { region ->
                 region.id == ScreenRegions.textWindow
             }.width,
         )
@@ -3472,14 +3472,14 @@ class RylweenDslValidationTest {
         assertTrue(
             diagnostics.any {
                 it.path == "wilderness" &&
-                    "terminal { terrain(...) } does not declare" in it.message &&
+                    "terrain { ... } does not declare" in it.message &&
                     missingTerrain.slug in it.message
             },
         )
         assertTrue(
             diagnostics.any {
                 it.path == "missions" &&
-                    "terminal { terrain(...) } does not declare" in it.message &&
+                    "terrain { ... } does not declare" in it.message &&
                     missingTerrain.slug in it.message
             },
         )
