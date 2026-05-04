@@ -12,6 +12,51 @@ package rylween.game
 
 import rylween.dsl.*
 
+private val standardBattleTargetPromptText = textLines("Who?", "")
+private val standardBattleKilledText = textLines("...KILLED!")
+
+private val banditsApproachText = textLines(
+    "You come across the",
+    "camp of the bandits.",
+    "One of them spots you",
+    "and they attack!",
+    "",
+)
+private val banditsCargoRecoveredLines = listOf(
+    "You find the cargo",
+    "the merchant wanted",
+    "you to bring him.",
+    "",
+)
+private val banditsCargoRecoveredText = textLines(*banditsCargoRecoveredLines.toTypedArray())
+
+fun BattleTextBuilder.targetMonsterPrompt() {
+    targetPrompt(standardBattleTargetPromptText)
+}
+
+fun BattleTextBuilder.monsterKilledLine() {
+    killed(standardBattleKilledText)
+}
+
+fun ScriptScope.askAliveBattleMonster(): MonsterRef =
+    ask.monsterAlive(standardBattleTargetPromptText)
+
+fun ScriptScope.showBattleKilled() {
+    screen(standardBattleKilledText)
+}
+
+fun ScriptScope.readBanditsApproach() {
+    readScreen(banditsApproachText)
+}
+
+fun ScriptScope.readBanditsCargoRecovered() {
+    readScreen(banditsCargoRecoveredText)
+}
+
+fun JournalBuilder.banditsCargoRecovered() {
+    banditsCargoRecoveredLines.filter(String::isNotBlank).forEach(::line)
+}
+
 fun ScriptScope.dungeonEntrance(
     dungeon: DungeonId,
     levels: Int,
