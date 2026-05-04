@@ -89,6 +89,59 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.monsters.count { it.tier == EncounterTiers.wild } == 14)
         check(nextDsl.monsters.count { it.tier == EncounterTiers.deep } == 20)
         check(nextDsl.monsters.single { it.id == Monsters.gnoll }.countMaxLevelDivisor == 2)
+        check(nextDsl.monsters.filter { it.tier == EncounterTiers.weak }.map { it.id } == listOf(
+            Monsters.kobold,
+            Monsters.orc,
+            Monsters.troll,
+            Monsters.warrior,
+            Monsters.goblin,
+            Monsters.wildDog,
+            Monsters.knight,
+            Monsters.bandit,
+            Monsters.hobgoblin,
+            Monsters.zombie,
+        ))
+        check(nextDsl.monsters.filter { it.tier == EncounterTiers.wild }.map { it.id } == listOf(
+            Monsters.stirge,
+            Monsters.wanderMage,
+            Monsters.hillGiant,
+            Monsters.wizard,
+            Monsters.druid,
+            Monsters.sabreToothTiger,
+            Monsters.headHunter,
+            Monsters.skeleton,
+            Monsters.vampireBat,
+            Monsters.giantSnake,
+            Monsters.ghoul,
+            Monsters.spider,
+            Monsters.hugeLizard,
+            Monsters.dryder,
+        ))
+        check(nextDsl.monsters.filter { it.tier == EncounterTiers.deep }.map { it.id } == listOf(
+            Monsters.xvart,
+            Monsters.jellyCube,
+            Monsters.troglodyte,
+            Monsters.bugbear,
+            Monsters.drowElf,
+            Monsters.phantom,
+            Monsters.worg,
+            Monsters.rustMonster,
+            Monsters.owlbear,
+            Monsters.werewolf,
+            Monsters.hookHorror,
+            Monsters.minotaur,
+            Monsters.imp,
+            Monsters.svirfneblin,
+            Monsters.yeti,
+            Monsters.wight,
+            Monsters.wraith,
+            Monsters.basilisk,
+            Monsters.wyvern,
+            Monsters.tunnelWorm,
+        ))
+        check(nextDsl.monsters.single { it.id == Monsters.jazzy }.immune)
+        check(nextDsl.monsters.single { it.id == Monsters.baronYdarg }.immune)
+        check(nextDsl.monsters.single { it.id == Monsters.skagerbergKiller }.immune)
         check(ydarg.entry == xy(14, 30))
         check(ydarg.requiredKey == Milestones.silverKey)
         check(ydarg.confrontation.sequence == listOf(Monsters.cryptHorror, Monsters.nightGaunt, Monsters.thyraga, Monsters.liche))
@@ -108,6 +161,61 @@ class RylweenCompiledGameLedgerTest {
                     else -> false
                 }
             }
+
+        val spellsById = nextDsl.spells.associateBy { it.id }
+        fun requireSpell(id: SpellId, slot: Int, baseCost: Int, name: String) {
+            val spell = checkNotNull(spellsById[id])
+            check(spell.slot == slot)
+            check(spell.baseCost == baseCost)
+            check(spell.name == name)
+            check(spell.ops.isNotEmpty())
+            check(!spell.ops.anyNested { it is Op.NativeCall })
+        }
+
+        check(nextDsl.spells.filter { it.id.slug.startsWith("mage.") }.map { it.id } == listOf(
+            Spells.Mage.frost,
+            Spells.Mage.fire,
+            Spells.Mage.confusion,
+            Spells.Mage.death,
+            Spells.Mage.hold,
+            Spells.Mage.antimagic,
+        ))
+        requireSpell(Spells.Mage.frost, slot = 1, baseCost = 8, name = "Frost Finger")
+        requireSpell(Spells.Mage.fire, slot = 2, baseCost = 25, name = "Fire Cloud")
+        requireSpell(Spells.Mage.confusion, slot = 3, baseCost = 17, name = "Confusion")
+        requireSpell(Spells.Mage.death, slot = 4, baseCost = 78, name = "Death Strike")
+        requireSpell(Spells.Mage.hold, slot = 5, baseCost = 43, name = "Hold Enemies")
+        requireSpell(Spells.Mage.antimagic, slot = 6, baseCost = 28, name = "Anti Magic")
+
+        check(nextDsl.spells.filter { it.id.slug.startsWith("monster.") }.map { it.id } == listOf(
+            Spells.Monster.frost,
+            Spells.Monster.fire,
+            Spells.Monster.hold,
+            Spells.Monster.confusion,
+        ))
+        requireSpell(Spells.Monster.frost, slot = 1, baseCost = 0, name = "Frost Finger")
+        requireSpell(Spells.Monster.fire, slot = 2, baseCost = 0, name = "Cloud of Fire")
+        requireSpell(Spells.Monster.hold, slot = 3, baseCost = 0, name = "Hold Creature")
+        requireSpell(Spells.Monster.confusion, slot = 4, baseCost = 0, name = "Confusion")
+
+        check(nextDsl.spells.filter { it.id.slug.startsWith("priest.") }.map { it.id } == listOf(
+            Spells.Priest.heal,
+            Spells.Priest.restoration,
+            Spells.Priest.rebirth,
+            Spells.Priest.banish,
+            Spells.Priest.revelation,
+            Spells.Priest.teleport,
+            Spells.Priest.earthquake,
+        ))
+        requireSpell(Spells.Priest.heal, slot = 1, baseCost = 8, name = "Healing")
+        requireSpell(Spells.Priest.restoration, slot = 2, baseCost = 20, name = "Restoration")
+        requireSpell(Spells.Priest.rebirth, slot = 3, baseCost = 90, name = "Rebirth")
+        requireSpell(Spells.Priest.banish, slot = 4, baseCost = 85, name = "Banish Evil")
+        requireSpell(Spells.Priest.revelation, slot = 5, baseCost = 40, name = "Revelation")
+        requireSpell(Spells.Priest.teleport, slot = 6, baseCost = 35, name = "Teleport")
+        requireSpell(Spells.Priest.earthquake, slot = 7, baseCost = 55, name = "Earthquake")
+        check(checkNotNull(spellsById[Spells.Priest.teleport]).ops.anyNested { it is Op.TeleportParty })
+        check(checkNotNull(spellsById[Spells.Priest.earthquake]).ops.anyNested { it is Op.DiscoverCave })
 
         fun List<Op>.containsEnterDungeon(dungeon: DungeonId, levels: Int): Boolean =
             anyNested { op ->
