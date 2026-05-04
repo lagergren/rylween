@@ -142,15 +142,10 @@ object RylweenRuntimeHostContract {
         )
 
     val kotlinAnsi: RuntimeHostSurface =
-        RuntimeHostSurface(
-            id = "kotlin-ansi",
-            status = RuntimeHostStatus.PlayableRuntime,
-            artifactSource = RuntimeHostArtifactSource.J1JsonBundle,
-            scriptExecution = RuntimeScriptExecutionStrategy.KotlinAuthoredOpInterpreter,
-            requirements = RuntimeHostRequirement.entries.toSet(),
-            viewCommands = RuntimeViewCommandKind.entries.toSet(),
-            conformanceSuites = RuntimeConformanceSuite.entries.toSet(),
-        )
+        playableKotlinHost("kotlin-ansi")
+
+    val kotlinHeadless: RuntimeHostSurface =
+        playableKotlinHost("kotlin-headless")
 
     val nativeJsonBundleReader: RuntimeHostSurface =
         RuntimeHostSurface(
@@ -162,6 +157,17 @@ object RylweenRuntimeHostContract {
                 RuntimeHostRequirement.ReadJ1Bundle,
                 RuntimeHostRequirement.VerifyJ1BundleHash,
             ),
+        )
+
+    private fun playableKotlinHost(id: String): RuntimeHostSurface =
+        RuntimeHostSurface(
+            id = id,
+            status = RuntimeHostStatus.PlayableRuntime,
+            artifactSource = RuntimeHostArtifactSource.J1JsonBundle,
+            scriptExecution = RuntimeScriptExecutionStrategy.KotlinAuthoredOpInterpreter,
+            requirements = RuntimeHostRequirement.entries.toSet(),
+            viewCommands = RuntimeViewCommandKind.entries.toSet(),
+            conformanceSuites = RuntimeConformanceSuite.entries.toSet(),
         )
 }
 
