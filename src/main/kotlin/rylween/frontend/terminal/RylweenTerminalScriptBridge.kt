@@ -723,7 +723,10 @@ class StatefulScriptServiceRunner(
                             TextPart.WildernessDungeonName,
                             TextPart.WildernessDungeonLevels,
                             TextPart.DungeonDepth,
-                            TextPart.ConversationNpcName -> part.fallbackText()
+                            TextPart.ConversationNpcName,
+                            TextPart.CurrentTownName,
+                            TextPart.TownTaxPercent,
+                            TextPart.TownTaxAmount -> part.fallbackText()
                         }
                     }
                 },

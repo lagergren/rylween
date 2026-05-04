@@ -106,6 +106,9 @@ sealed interface TextPart {
     object WildernessDungeonLevels : TextPart
     object DungeonDepth : TextPart
     object ConversationNpcName : TextPart
+    object CurrentTownName : TextPart
+    object TownTaxPercent : TextPart
+    object TownTaxAmount : TextPart
 }
 
 fun TextPart.fallbackText(): String =
@@ -131,6 +134,9 @@ fun TextPart.fallbackText(): String =
         TextPart.WildernessDungeonLevels -> "{levels}"
         TextPart.DungeonDepth -> "{level}"
         TextPart.ConversationNpcName -> "{npc_name}"
+        TextPart.CurrentTownName -> "{town}"
+        TextPart.TownTaxPercent -> "{pct}"
+        TextPart.TownTaxAmount -> "{amount}"
     }
 
 data class TextLine(val parts: List<TextPart>)
@@ -845,7 +851,14 @@ data class TownSystemModel(
     val menu: List<TownMenuActionModel>,
     val buildingServices: List<BuildingServiceModel>,
     val leavePrompts: List<EquipmentCommand>,
+    val entryTax: TownEntryTaxModel,
     val nativeServices: List<EngineServiceUse>,
+)
+
+data class TownEntryTaxModel(
+    val minimumLeaderLevel: Int = 5,
+    val pay: InputBindingModel = inputKey("P", label = "Pay to Enter"),
+    val leave: InputBindingModel = inputKey("L", label = "Leave"),
 )
 
 data class CharacterModel(
@@ -1153,6 +1166,12 @@ object HuntText {
     val memberSubjectPronoun: TextPart = TextPart.HuntMemberSubjectPronoun
     val foodGained: TextPart = TextPart.HuntFoodGained
     val partyMemberMax: TextPart = TextPart.PartyMemberMax
+}
+
+object TownText {
+    val name: TextPart = TextPart.CurrentTownName
+    val taxPercent: TextPart = TextPart.TownTaxPercent
+    val taxAmount: TextPart = TextPart.TownTaxAmount
 }
 
 sealed interface ShopPriceModel {
@@ -1771,12 +1790,27 @@ data class EquipmentPromptsModel(
 data class TownPromptsModel(
     val unavailableSuffix: String = " is not available here.",
     val closedSuffix: String = " is closed.",
+    val entryWelcome: TextBlock = missingPrompt("town.entry_welcome"),
+    val entryTax: TextBlock = missingPrompt("town.entry_tax"),
+    val entryTaxThanks: TextBlock = missingPrompt("town.entry_tax_thanks"),
 ) {
     fun unavailable(building: BuildingId): TextBlock =
         inlineText("${building.slug}$unavailableSuffix")
 
     fun closed(building: BuildingId): TextBlock =
         inlineText("${building.slug}$closedSuffix")
+
+    fun renderEntryTaxPrompt(townName: String, taxPercent: Int, taxAmount: Int): TextBlock {
+        val values = PromptTextValues(
+            currentTownName = townName,
+            townTaxPercent = taxPercent,
+            townTaxAmount = taxAmount,
+        )
+        return combineTextBlocks(
+            entryWelcome.resolvePromptValues(values),
+            entryTax.resolvePromptValues(values),
+        )
+    }
 }
 
 data class PartyPromptsModel(
@@ -1836,6 +1870,9 @@ private data class PromptTextValues(
     val dungeonDepth: Int? = null,
     val selectedItemName: String? = null,
     val conversationNpcName: String? = null,
+    val currentTownName: String? = null,
+    val townTaxPercent: Int? = null,
+    val townTaxAmount: Int? = null,
 )
 
 private fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
@@ -1856,6 +1893,9 @@ private fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
         TextPart.DungeonDepth -> TextPart.Literal(values.dungeonDepth?.toString() ?: fallbackText())
         TextPart.SelectedItemName -> TextPart.Literal(values.selectedItemName ?: fallbackText())
         TextPart.ConversationNpcName -> TextPart.Literal(values.conversationNpcName ?: fallbackText())
+        TextPart.CurrentTownName -> TextPart.Literal(values.currentTownName ?: fallbackText())
+        TextPart.TownTaxPercent -> TextPart.Literal(values.townTaxPercent?.toString() ?: fallbackText())
+        TextPart.TownTaxAmount -> TextPart.Literal(values.townTaxAmount?.toString() ?: fallbackText())
         else -> this
     }
 
@@ -4769,11 +4809,17 @@ class SavePromptsBuilder(initial: SavePromptsModel = SavePromptsModel()) {
 class TownPromptsBuilder(initial: TownPromptsModel = TownPromptsModel()) {
     var unavailableSuffix: String = initial.unavailableSuffix
     var closedSuffix: String = initial.closedSuffix
+    var entryWelcome: TextBlock = initial.entryWelcome
+    var entryTax: TextBlock = initial.entryTax
+    var entryTaxThanks: TextBlock = initial.entryTaxThanks
 
     fun build(): TownPromptsModel =
         TownPromptsModel(
             unavailableSuffix = unavailableSuffix,
             closedSuffix = closedSuffix,
+            entryWelcome = entryWelcome,
+            entryTax = entryTax,
+            entryTaxThanks = entryTaxThanks,
         )
 }
 
@@ -5340,6 +5386,7 @@ class TownSystemBuilder {
     private var menuModel = TownMenuBuilder().build()
     private var buildingServiceModels = BuildingServiceCatalogBuilder().build()
     private var leavePromptCommands: List<EquipmentCommand> = emptyList()
+    private var entryTaxModel: TownEntryTaxModel = TownEntryTaxModel()
 
     fun menu(body: TownMenuBuilder.() -> Unit) {
         menuModel = TownMenuBuilder().apply(body).build()
@@ -5353,6 +5400,10 @@ class TownSystemBuilder {
         leavePromptCommands = commands.toList()
     }
 
+    fun entryTax(body: TownEntryTaxBuilder.() -> Unit) {
+        entryTaxModel = TownEntryTaxBuilder(entryTaxModel).apply(body).build()
+    }
+
     fun buildingServices(body: BuildingServiceCatalogBuilder.() -> Unit) {
         buildingServiceModels = BuildingServiceCatalogBuilder().apply(body).build()
     }
@@ -5362,6 +5413,7 @@ class TownSystemBuilder {
             menu = menuModel,
             buildingServices = buildingServiceModels,
             leavePrompts = leavePromptCommands,
+            entryTax = entryTaxModel,
             nativeServices = listOf(
                 EngineServiceUse(EngineService.KeyboardInput, "town menu command selection"),
                 EngineServiceUse(EngineService.Rendering, "town entry art, text panes, and status refresh"),
@@ -5372,6 +5424,20 @@ class TownSystemBuilder {
                 EngineServiceUse(EngineService.NpcStateStorage, "building NPC lookup and town conversations"),
                 EngineServiceUse(EngineService.TextFormatting, "town, building, NPC, item, price, and tax bindings"),
             ),
+        )
+}
+
+@RylNextDsl
+class TownEntryTaxBuilder(initial: TownEntryTaxModel = TownEntryTaxModel()) {
+    var minimumLeaderLevel: Int = initial.minimumLeaderLevel
+    var pay: InputBindingModel = initial.pay
+    var leave: InputBindingModel = initial.leave
+
+    fun build(): TownEntryTaxModel =
+        TownEntryTaxModel(
+            minimumLeaderLevel = minimumLeaderLevel,
+            pay = pay,
+            leave = leave,
         )
 }
 
@@ -7174,7 +7240,10 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         TextPart.WildernessDungeonName,
                         TextPart.WildernessDungeonLevels,
                         TextPart.DungeonDepth,
-                        TextPart.ConversationNpcName -> Unit
+                        TextPart.ConversationNpcName,
+                        TextPart.CurrentTownName,
+                        TextPart.TownTaxPercent,
+                        TextPart.TownTaxAmount -> Unit
                     }
                 }
             }

@@ -660,6 +660,21 @@ class TownSessionTerminalAdapter(
         var session = initial
         repeat(512) {
             session = when (val step = session.step) {
+                is TownSessionStep.EntryTax -> {
+                    terminal.writeBindingMenu(renderer, step.taxPrompt(), listOf(step.pay, step.leave))
+                    val choices = listOf(
+                        TerminalChoice(true, step.pay),
+                        TerminalChoice(false, step.leave),
+                    )
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) {
+                            session.apply(TownSessionInput.EntryTax(it))
+                        }
+                }
+                is TownSessionStep.EntryTaxThanks -> {
+                    terminal.write(renderer.lines(step.text, TerminalTextContext(runtime = session.runtime)))
+                    session.continueEntryTaxThanks()
+                }
                 is TownSessionStep.Menu -> {
                     val choices = step.actions.map { action -> TerminalChoice(action, action.binding) }
                     writeTownMenu(step)
@@ -742,6 +757,15 @@ class TownSessionTerminalAdapter(
     }
 
 }
+
+private fun TownSessionStep.EntryTax.taxPrompt(): TextBlock =
+    combineTextBlocks(
+        prompt,
+        inlineText(
+            bindingMenuLine(pay, pay.label),
+            bindingMenuLine(leave, leave.label),
+        ),
+    )
 
 class DungeonSessionTerminalAdapter(
     private val terminal: TerminalPort,

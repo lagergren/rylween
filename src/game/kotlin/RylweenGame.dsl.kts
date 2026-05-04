@@ -696,6 +696,17 @@ val nextRylween = rylween {
         town {
             unavailableSuffix = " is not available here."
             closedSuffix = " is closed."
+            entryWelcome = structuredText {
+                line("Welcome to ", TownText.name)
+            }
+            entryTax = structuredText {
+                line("Our current tax rate")
+                line("is ", TownText.taxPercent, "% - In order to")
+                line("enter, we must request")
+                line("you pay ", TownText.taxAmount, " au.")
+                line("")
+            }
+            entryTaxThanks = inlineText("Thank you!")
         }
         party {
             viewWho = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") }
@@ -2572,6 +2583,11 @@ val nextRylween = rylween {
 
     townSystem {
         leavePrompts(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor)
+        entryTax {
+            minimumLeaderLevel = 5
+            pay = inputKey("P", label = "Pay to Enter")
+            leave = inputKey("L", label = "Leave")
+        }
         menu {
             church()
             smith()
