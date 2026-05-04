@@ -8,6 +8,129 @@ typedef struct {
     uint32_t id;
 } HandleRef;
 
+enum {
+    SMOKE_INVALID_STRING_ID = 0U,
+    SMOKE_VERSION = 1U,
+    SMOKE_FALSE = 0U,
+    SMOKE_TRUE = 1U
+};
+
+typedef enum {
+    OPERAND_INTEGER = 0U,
+    OPERAND_BOOLEAN = 1U,
+    OPERAND_CHARACTER = 2U,
+    OPERAND_STRING_ID = 3U,
+    OPERAND_STRING_ID_LIST = 4U,
+    OPERAND_HANDLE = 5U,
+    OPERAND_HANDLE_LIST = 6U,
+    OPERAND_TEXT_BLOCK = 7U,
+    OPERAND_INT_EXPR = 8U,
+    OPERAND_BOOL_EXPR = 9U,
+    OPERAND_STRING_EXPR = 10U,
+    OPERAND_LVALUE = 11U,
+    OPERAND_VIEW_COMMAND = 12U,
+    OPERAND_INSTRUCTIONS = 13U,
+    OPERAND_SWITCH_CASES = 14U,
+    OPERAND_MENU_OPTIONS = 15U,
+    OPERAND_INPUT_BINDINGS = 16U,
+    OPERAND_TEXT_ANSWER = 17U,
+    OPERAND_REWARD = 18U,
+    OPERAND_RANDOM_ITEM_OFFER = 19U,
+    OPERAND_SHOP_SERVICE = 20U,
+    OPERAND_ENUM_NAME = 21U
+} OperandTag;
+
+typedef enum {
+    TEXT_BLOCK_REF = 0U,
+    TEXT_BLOCK_INLINE = 1U,
+    TEXT_BLOCK_STRUCTURED = 2U
+} TextBlockTag;
+
+typedef enum {
+    TEXT_PART_LITERAL = 0U,
+    TEXT_PART_INT_VALUE = 1U,
+    TEXT_PART_STRING_VALUE = 2U,
+    TEXT_PART_ROLE_NAME = 3U,
+    TEXT_PART_ROLE_LOCATION = 4U,
+    TEXT_PART_TOWN_NAME = 5U,
+    TEXT_PART_FUZZY_TOWN_LOCATION = 6U,
+    TEXT_PART_LOCATION_COORDINATE = 7U,
+    TEXT_PART_RUNTIME = 8U
+} TextPartTag;
+
+typedef enum {
+    VIEW_CLEAR_TEXT = 0U,
+    VIEW_CLEAR_MAP_WINDOW = 1U,
+    VIEW_RENDER_MAP = 2U,
+    VIEW_STATUS_LINE = 3U,
+    VIEW_SHOW_IMAGE = 4U
+} ViewCommandTag;
+
+typedef enum {
+    INT_EXPR_LITERAL = 0U,
+    INT_EXPR_LOCAL = 1U,
+    INT_EXPR_BINARY = 2U,
+    INT_EXPR_IF = 3U,
+    INT_EXPR_RANDOM = 4U,
+    INT_EXPR_MEMBER_FIELD = 5U,
+    INT_EXPR_MONSTER_FIELD = 6U,
+    INT_EXPR_BATTLE_FLAG = 7U,
+    INT_EXPR_BATTLE_QUERY = 8U,
+    INT_EXPR_REALM_SCALAR = 9U,
+    INT_EXPR_PARTY_SCALAR = 10U,
+    INT_EXPR_INVENTORY_POOL_COUNT = 11U,
+    INT_EXPR_INVENTORY_SLOT_COST = 12U,
+    INT_EXPR_NATIVE_INT = 13U
+} IntExprTag;
+
+typedef enum {
+    BOOL_EXPR_CMP = 0U,
+    BOOL_EXPR_NOT = 1U,
+    BOOL_EXPR_AND = 2U,
+    BOOL_EXPR_OR = 3U,
+    BOOL_EXPR_FLAG_IS = 4U,
+    BOOL_EXPR_MILESTONE_ACHIEVED = 5U,
+    BOOL_EXPR_MEMBER_FLAG = 6U,
+    BOOL_EXPR_MONSTER_FLAG = 7U,
+    BOOL_EXPR_BATTLE_FLAG = 8U,
+    BOOL_EXPR_RUNTIME_FLAG = 9U
+} BoolExprTag;
+
+typedef enum {
+    STRING_EXPR_NATIVE_STRING = 0U
+} StringExprTag;
+
+typedef enum {
+    NATIVE_STRING_ARG_LITERAL = 0U,
+    NATIVE_STRING_ARG_INT_VALUE = 1U
+} NativeStringArgTag;
+
+typedef enum {
+    LVALUE_REALM_SCALAR = 0U,
+    LVALUE_PARTY_SCALAR = 1U,
+    LVALUE_MEMBER_FIELD = 2U,
+    LVALUE_MONSTER_FIELD = 3U,
+    LVALUE_BATTLE_FLAG = 4U
+} LValueTag;
+
+typedef enum {
+    SHOP_PRICE_ITEM_COST = 0U,
+    SHOP_PRICE_HALF_ITEM_COST = 1U,
+    SHOP_PRICE_FIXED = 2U,
+    SHOP_PRICE_LEADER_LEVEL_PLUS = 3U,
+    SHOP_PRICE_ITEM_COST_PLUS_LEADER_LEVEL_TIMES = 4U
+} ShopPriceTag;
+
+typedef enum {
+    SHOP_PURCHASE_INVENTORY_ITEM = 0U,
+    SHOP_PURCHASE_BULK = 1U
+} ShopPurchaseTag;
+
+typedef enum {
+    SHOP_QUANTITY_CAP_FIXED_AMOUNT = 0U,
+    SHOP_QUANTITY_CAP_CARRY_CAPACITY = 1U
+} ShopQuantityCapTag;
+
 typedef struct {
     uint8_t *data;
     size_t size;
@@ -45,9 +168,17 @@ static uint32_t read_u32(Reader *reader) {
 
 static void read_bool(Reader *reader) {
     uint32_t value = read_u32(reader);
-    if (value > 1U) {
+    if (value != SMOKE_FALSE && value != SMOKE_TRUE) {
         fail_at(reader, "boolean value is not 0/1");
     }
+}
+
+static int read_optional_present(Reader *reader) {
+    uint32_t present = read_u32(reader);
+    if (present != SMOKE_FALSE && present != SMOKE_TRUE) {
+        fail_at(reader, "optional marker is not 0/1");
+    }
+    return present == SMOKE_TRUE;
 }
 
 static void skip_bytes(Reader *reader, uint32_t count) {
@@ -61,7 +192,7 @@ static void read_inline_string(Reader *reader) {
 
 static void read_string_ref(Reader *reader) {
     uint32_t id = read_u32(reader);
-    if (id == 0U || id > reader->string_count) {
+    if (id == SMOKE_INVALID_STRING_ID || id > reader->string_count) {
         fail_at(reader, "string id is out of range");
     }
 }
@@ -115,41 +246,25 @@ static void parse_handle_ref_list(Reader *reader) {
 }
 
 static void parse_optional_int(Reader *reader) {
-    uint32_t present = read_u32(reader);
-    if (present > 1U) {
-        fail_at(reader, "optional marker is not 0/1");
-    }
-    if (present) {
+    if (read_optional_present(reader)) {
         (void)read_u32(reader);
     }
 }
 
 static void parse_optional_string_ref(Reader *reader) {
-    uint32_t present = read_u32(reader);
-    if (present > 1U) {
-        fail_at(reader, "optional marker is not 0/1");
-    }
-    if (present) {
+    if (read_optional_present(reader)) {
         read_string_ref(reader);
     }
 }
 
 static void parse_optional_text_block(Reader *reader) {
-    uint32_t present = read_u32(reader);
-    if (present > 1U) {
-        fail_at(reader, "optional marker is not 0/1");
-    }
-    if (present) {
+    if (read_optional_present(reader)) {
         parse_text_block(reader);
     }
 }
 
 static void parse_optional_int_expr(Reader *reader) {
-    uint32_t present = read_u32(reader);
-    if (present > 1U) {
-        fail_at(reader, "optional marker is not 0/1");
-    }
-    if (present) {
+    if (read_optional_present(reader)) {
         parse_int_expr(reader);
     }
 }
@@ -172,20 +287,20 @@ static void parse_reward_messages(Reader *reader) {
 static void parse_text_part(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0: read_string_ref(reader); break;
-        case 1: parse_int_expr(reader); break;
-        case 2: parse_string_expr(reader); break;
-        case 3:
-        case 4:
-        case 5:
-        case 7:
+        case TEXT_PART_LITERAL: read_string_ref(reader); break;
+        case TEXT_PART_INT_VALUE: parse_int_expr(reader); break;
+        case TEXT_PART_STRING_VALUE: parse_string_expr(reader); break;
+        case TEXT_PART_ROLE_NAME:
+        case TEXT_PART_ROLE_LOCATION:
+        case TEXT_PART_TOWN_NAME:
+        case TEXT_PART_LOCATION_COORDINATE:
             (void)read_handle_ref(reader);
             break;
-        case 6:
+        case TEXT_PART_FUZZY_TOWN_LOCATION:
             (void)read_handle_ref(reader);
             (void)read_u32(reader);
             break;
-        case 8: {
+        case TEXT_PART_RUNTIME: {
             uint32_t runtime_part = read_u32(reader);
             if (runtime_part >= reader->runtime_text_part_count) {
                 fail_at(reader, "runtime text part is out of range");
@@ -207,13 +322,13 @@ static void parse_text_line(Reader *reader) {
 static void parse_text_block(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
+        case TEXT_BLOCK_REF:
             (void)read_handle_ref(reader);
             break;
-        case 1:
+        case TEXT_BLOCK_INLINE:
             parse_string_id_list(reader);
             break;
-        case 2: {
+        case TEXT_BLOCK_STRUCTURED: {
             uint32_t count = read_u32(reader);
             for (uint32_t i = 0; i < count; ++i) {
                 parse_text_line(reader);
@@ -228,12 +343,12 @@ static void parse_text_block(Reader *reader) {
 static void parse_view_command(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
-        case 1:
-        case 2:
-        case 3:
+        case VIEW_CLEAR_TEXT:
+        case VIEW_CLEAR_MAP_WINDOW:
+        case VIEW_RENDER_MAP:
+        case VIEW_STATUS_LINE:
             break;
-        case 4:
+        case VIEW_SHOW_IMAGE:
             (void)read_handle_ref(reader);
             break;
         default:
@@ -244,42 +359,42 @@ static void parse_view_command(Reader *reader) {
 static void parse_int_expr(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
+        case INT_EXPR_LITERAL:
             (void)read_u32(reader);
             break;
-        case 1:
-        case 7:
-        case 8:
-        case 9:
-        case 10:
+        case INT_EXPR_LOCAL:
+        case INT_EXPR_BATTLE_FLAG:
+        case INT_EXPR_BATTLE_QUERY:
+        case INT_EXPR_REALM_SCALAR:
+        case INT_EXPR_PARTY_SCALAR:
             read_string_ref(reader);
             break;
-        case 2:
+        case INT_EXPR_BINARY:
             parse_int_expr(reader);
             parse_enum_name(reader);
             parse_int_expr(reader);
             break;
-        case 3:
+        case INT_EXPR_IF:
             parse_bool_expr(reader);
             parse_int_expr(reader);
             parse_int_expr(reader);
             break;
-        case 4:
+        case INT_EXPR_RANDOM:
             parse_int_expr(reader);
             parse_int_expr(reader);
             break;
-        case 5:
-        case 6:
+        case INT_EXPR_MEMBER_FIELD:
+        case INT_EXPR_MONSTER_FIELD:
             parse_int_expr(reader);
             read_string_ref(reader);
             break;
-        case 11:
+        case INT_EXPR_INVENTORY_POOL_COUNT:
             (void)read_handle_ref(reader);
             break;
-        case 12:
+        case INT_EXPR_INVENTORY_SLOT_COST:
             parse_int_expr(reader);
             break;
-        case 13:
+        case INT_EXPR_NATIVE_INT:
             read_string_ref(reader);
             parse_string_id_list(reader);
             break;
@@ -291,33 +406,33 @@ static void parse_int_expr(Reader *reader) {
 static void parse_bool_expr(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
+        case BOOL_EXPR_CMP:
             parse_int_expr(reader);
             parse_enum_name(reader);
             parse_int_expr(reader);
             break;
-        case 1:
+        case BOOL_EXPR_NOT:
             parse_bool_expr(reader);
             break;
-        case 2:
-        case 3:
+        case BOOL_EXPR_AND:
+        case BOOL_EXPR_OR:
             parse_bool_expr(reader);
             parse_bool_expr(reader);
             break;
-        case 4:
+        case BOOL_EXPR_FLAG_IS:
             (void)read_handle_ref(reader);
             (void)read_handle_ref(reader);
             break;
-        case 5:
+        case BOOL_EXPR_MILESTONE_ACHIEVED:
             (void)read_handle_ref(reader);
             break;
-        case 6:
-        case 7:
+        case BOOL_EXPR_MEMBER_FLAG:
+        case BOOL_EXPR_MONSTER_FLAG:
             parse_int_expr(reader);
             read_string_ref(reader);
             break;
-        case 8:
-        case 9:
+        case BOOL_EXPR_BATTLE_FLAG:
+        case BOOL_EXPR_RUNTIME_FLAG:
             read_string_ref(reader);
             break;
         default:
@@ -328,10 +443,10 @@ static void parse_bool_expr(Reader *reader) {
 static void parse_native_string_arg(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
+        case NATIVE_STRING_ARG_LITERAL:
             read_string_ref(reader);
             break;
-        case 1:
+        case NATIVE_STRING_ARG_INT_VALUE:
             parse_int_expr(reader);
             break;
         default:
@@ -341,7 +456,7 @@ static void parse_native_string_arg(Reader *reader) {
 
 static void parse_string_expr(Reader *reader) {
     uint32_t tag = read_u32(reader);
-    if (tag != 0U) {
+    if (tag != STRING_EXPR_NATIVE_STRING) {
         fail_at(reader, "unknown string expr tag");
     }
     read_string_ref(reader);
@@ -354,13 +469,13 @@ static void parse_string_expr(Reader *reader) {
 static void parse_lvalue(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
-        case 1:
-        case 4:
+        case LVALUE_REALM_SCALAR:
+        case LVALUE_PARTY_SCALAR:
+        case LVALUE_BATTLE_FLAG:
             read_string_ref(reader);
             break;
-        case 2:
-        case 3:
+        case LVALUE_MEMBER_FIELD:
+        case LVALUE_MONSTER_FIELD:
             parse_int_expr(reader);
             read_string_ref(reader);
             break;
@@ -435,12 +550,12 @@ static void parse_random_item_offer(Reader *reader) {
 static void parse_shop_price(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
-        case 1:
+        case SHOP_PRICE_ITEM_COST:
+        case SHOP_PRICE_HALF_ITEM_COST:
             break;
-        case 2:
-        case 3:
-        case 4:
+        case SHOP_PRICE_FIXED:
+        case SHOP_PRICE_LEADER_LEVEL_PLUS:
+        case SHOP_PRICE_ITEM_COST_PLUS_LEADER_LEVEL_TIMES:
             (void)read_u32(reader);
             break;
         default:
@@ -451,11 +566,11 @@ static void parse_shop_price(Reader *reader) {
 static void parse_shop_quantity_cap(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
+        case SHOP_QUANTITY_CAP_FIXED_AMOUNT:
             parse_enum_name(reader);
             (void)read_u32(reader);
             break;
-        case 1:
+        case SHOP_QUANTITY_CAP_CARRY_CAPACITY:
             parse_enum_name(reader);
             break;
         default:
@@ -466,9 +581,9 @@ static void parse_shop_quantity_cap(Reader *reader) {
 static void parse_shop_purchase(Reader *reader) {
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
+        case SHOP_PURCHASE_INVENTORY_ITEM:
             break;
-        case 1:
+        case SHOP_PURCHASE_BULK:
             parse_enum_name(reader);
             parse_text_block(reader);
             parse_shop_quantity_cap(reader);
@@ -534,11 +649,7 @@ static void parse_shop_bargain(Reader *reader) {
 }
 
 static void parse_optional_shop_bargain(Reader *reader) {
-    uint32_t present = read_u32(reader);
-    if (present > 1U) {
-        fail_at(reader, "optional marker is not 0/1");
-    }
-    if (present) {
+    if (read_optional_present(reader)) {
         parse_shop_bargain(reader);
     }
 }
@@ -574,31 +685,19 @@ static void parse_shop_interlude(Reader *reader) {
 }
 
 static void parse_optional_shop_buy(Reader *reader) {
-    uint32_t present = read_u32(reader);
-    if (present > 1U) {
-        fail_at(reader, "optional marker is not 0/1");
-    }
-    if (present) {
+    if (read_optional_present(reader)) {
         parse_shop_buy(reader);
     }
 }
 
 static void parse_optional_shop_sell(Reader *reader) {
-    uint32_t present = read_u32(reader);
-    if (present > 1U) {
-        fail_at(reader, "optional marker is not 0/1");
-    }
-    if (present) {
+    if (read_optional_present(reader)) {
         parse_shop_sell(reader);
     }
 }
 
 static void parse_optional_shop_interlude(Reader *reader) {
-    uint32_t present = read_u32(reader);
-    if (present > 1U) {
-        fail_at(reader, "optional marker is not 0/1");
-    }
-    if (present) {
+    if (read_optional_present(reader)) {
         parse_shop_interlude(reader);
     }
 }
@@ -622,70 +721,70 @@ static void parse_operand(Reader *reader) {
     ++reader->operand_count;
     uint32_t tag = read_u32(reader);
     switch (tag) {
-        case 0:
+        case OPERAND_INTEGER:
             (void)read_u32(reader);
             break;
-        case 1:
+        case OPERAND_BOOLEAN:
             read_bool(reader);
             break;
-        case 2:
+        case OPERAND_CHARACTER:
             (void)read_u32(reader);
             break;
-        case 3:
+        case OPERAND_STRING_ID:
             read_string_ref(reader);
             break;
-        case 4:
+        case OPERAND_STRING_ID_LIST:
             parse_string_id_list(reader);
             break;
-        case 5:
+        case OPERAND_HANDLE:
             (void)read_handle_ref(reader);
             break;
-        case 6:
+        case OPERAND_HANDLE_LIST:
             parse_handle_ref_list(reader);
             break;
-        case 7:
+        case OPERAND_TEXT_BLOCK:
             parse_text_block(reader);
             break;
-        case 8:
+        case OPERAND_INT_EXPR:
             parse_int_expr(reader);
             break;
-        case 9:
+        case OPERAND_BOOL_EXPR:
             parse_bool_expr(reader);
             break;
-        case 10:
+        case OPERAND_STRING_EXPR:
             parse_string_expr(reader);
             break;
-        case 11:
+        case OPERAND_LVALUE:
             parse_lvalue(reader);
             break;
-        case 12:
+        case OPERAND_VIEW_COMMAND:
             parse_view_command(reader);
             break;
-        case 13:
+        case OPERAND_INSTRUCTIONS:
             parse_instructions(reader);
             break;
-        case 14:
+        case OPERAND_SWITCH_CASES:
             parse_switch_cases(reader);
             break;
-        case 15:
+        case OPERAND_MENU_OPTIONS:
             parse_menu_options(reader);
             break;
-        case 16:
+        case OPERAND_INPUT_BINDINGS:
             parse_input_bindings(reader);
             break;
-        case 17:
+        case OPERAND_TEXT_ANSWER:
             parse_text_answer(reader);
             break;
-        case 18:
+        case OPERAND_REWARD:
             parse_script_reward(reader);
             break;
-        case 19:
+        case OPERAND_RANDOM_ITEM_OFFER:
             parse_random_item_offer(reader);
             break;
-        case 20:
+        case OPERAND_SHOP_SERVICE:
             parse_shop_service(reader);
             break;
-        case 21:
+        case OPERAND_ENUM_NAME:
             read_inline_string(reader);
             break;
         default:
@@ -756,7 +855,7 @@ int main(int argc, char **argv) {
     reader.pos += sizeof(magic) - 1;
 
     uint32_t version = read_u32(&reader);
-    if (version != 1U) {
+    if (version != SMOKE_VERSION) {
         fail_at(&reader, "unsupported artifact version");
     }
     reader.handle_kind_count = read_u32(&reader);

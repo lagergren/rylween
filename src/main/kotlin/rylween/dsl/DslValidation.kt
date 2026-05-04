@@ -1977,7 +1977,7 @@ private fun validateRelativeResource(resource: String, label: String) {
 
 private fun validateImageReferences(content: GameModel) {
     val declared = content.visuals.images.map { it.id }.toSet()
-    val references = buildList<Pair<ImageId, String>> {
+    val references = buildList {
         content.visuals.staticScreens.forEach { screen ->
             screen.image?.let { add(it to "static screen ${screen.id.slug}") }
         }
