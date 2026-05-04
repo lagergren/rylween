@@ -24,6 +24,7 @@ private data class TerminalConfig(
     val saveFile: File = File("build/rylween-save.kts"),
     val saveState: StateId = stateId("saved-game"),
     val staticScreen: StaticScreenId? = null,
+    val newGame: Boolean = false,
 )
 
 private class StdioTerminalPort : TerminalPort {
@@ -39,6 +40,7 @@ private class StdioTerminalPort : TerminalPort {
 
 fun main(args: Array<String>): Unit = runRylweenCli {
     val config = parseTerminalConfig(args.toList(), ::printTownUsage)
+    require(!config.newGame) { "--new is only supported by runKotlinGame" }
     val game = RylweenCompiledGame.nextRylween
     val content = RylweenCompiledGame.nextDsl
     val terminal = StdioTerminalPort()
@@ -170,10 +172,14 @@ object RylweenGameTerminalMain {
                 wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
             ),
         )
-        var session = engine.wildernessSession(
+        var session = bootWildernessSession(
+            engine = engine,
+            terminal = terminal,
+            renderer = content.terminalTextRenderer(),
             snapshot = bootSnapshot,
             worldMap = worldMap,
             rngState = config.seed ?: bootSnapshot.state.realm.rngState,
+            newGame = config.newGame,
         )
         val adapter = WildernessSessionTerminalAdapter(
             terminal = terminal,
@@ -299,6 +305,10 @@ private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): Ter
                 config = config.copy(staticScreen = staticScreenArg(args.valueAfter(index, arg)))
                 index += 2
             }
+            "--new", "--new-game" -> {
+                config = config.copy(newGame = true)
+                index += 1
+            }
             "--help", "-h" -> {
                 printUsage()
                 kotlin.system.exitProcess(0)
@@ -362,6 +372,7 @@ private fun printGameUsage() {
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         |  --save-slot named runtime snapshot target under build/saves
+        |  --new    create a fresh party through the authored character-creation flow
         |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
         """.trimMargin(),
     )

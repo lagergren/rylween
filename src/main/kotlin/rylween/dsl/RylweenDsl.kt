@@ -109,6 +109,12 @@ sealed interface TextPart {
     object CurrentTownName : TextPart
     object TownTaxPercent : TextPart
     object TownTaxAmount : TextPart
+    object CreationMemberNumber : TextPart
+    object CreationMemberName : TextPart
+    object CreationWeaponSkill : TextPart
+    object CreationHealth : TextPart
+    object CreationWisdom : TextPart
+    object CreationCharisma : TextPart
 }
 
 fun TextPart.fallbackText(): String =
@@ -137,6 +143,12 @@ fun TextPart.fallbackText(): String =
         TextPart.CurrentTownName -> "{town}"
         TextPart.TownTaxPercent -> "{pct}"
         TextPart.TownTaxAmount -> "{amount}"
+        TextPart.CreationMemberNumber -> "{char_num}"
+        TextPart.CreationMemberName -> "{name}"
+        TextPart.CreationWeaponSkill -> "{weapon_skill}"
+        TextPart.CreationHealth -> "{health}"
+        TextPart.CreationWisdom -> "{wisdom}"
+        TextPart.CreationCharisma -> "{charisma}"
     }
 
 data class TextLine(val parts: List<TextPart>)
@@ -1790,6 +1802,7 @@ data class GamePromptsModel(
     val wilderness: WildernessPromptsModel = WildernessPromptsModel(),
     val dungeon: DungeonPromptsModel = DungeonPromptsModel(),
     val party: PartyPromptsModel = PartyPromptsModel(),
+    val characterCreation: CharacterCreationPromptsModel = CharacterCreationPromptsModel(),
 )
 
 data class SavePromptsModel(
@@ -1797,6 +1810,46 @@ data class SavePromptsModel(
     val done: TextBlock = missingPrompt("save.done"),
     val failed: TextBlock = missingPrompt("save.failed"),
 )
+
+data class CharacterCreationPromptsModel(
+    val header: TextBlock = missingPrompt("character_creation.header"),
+    val partyName: TextBlock = missingPrompt("character_creation.party_name"),
+    val statsPage: TextBlock = missingPrompt("character_creation.stats_page"),
+    val reroll: TextBlock = missingPrompt("character_creation.reroll"),
+    val memberName: TextBlock = missingPrompt("character_creation.member_name"),
+    val gender: TextBlock = missingPrompt("character_creation.gender"),
+    val genderMaleLabel: String = "Male",
+    val genderFemaleLabel: String = "Female",
+    val race: TextBlock = missingPrompt("character_creation.race"),
+    val classMenu: TextBlock = missingPrompt("character_creation.class_menu"),
+    val saving: TextBlock = missingPrompt("character_creation.saving"),
+) {
+    fun renderStatsPage(
+        memberNumber: Int,
+        weaponSkill: Int,
+        health: Int,
+        wisdom: Int,
+        charisma: Int,
+    ): TextBlock =
+        statsPage.resolvePromptValues(
+            PromptTextValues(
+                creationMemberNumber = memberNumber,
+                creationWeaponSkill = weaponSkill,
+                creationHealth = health,
+                creationWisdom = wisdom,
+                creationCharisma = charisma,
+            ),
+        )
+
+    fun renderMemberName(memberNumber: Int): TextBlock =
+        memberName.resolvePromptValues(PromptTextValues(creationMemberNumber = memberNumber))
+
+    fun renderGender(memberName: String): TextBlock =
+        gender.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
+
+    fun renderRace(memberName: String): TextBlock =
+        race.resolvePromptValues(PromptTextValues(creationMemberName = memberName))
+}
 
 data class PriestSpellPromptsModel(
     val who: TextBlock = structuredText { line("Who? (1-", HuntText.partyMemberMax, ")") },
@@ -1931,6 +1984,12 @@ private data class PromptTextValues(
     val currentTownName: String? = null,
     val townTaxPercent: Int? = null,
     val townTaxAmount: Int? = null,
+    val creationMemberNumber: Int? = null,
+    val creationMemberName: String? = null,
+    val creationWeaponSkill: Int? = null,
+    val creationHealth: Int? = null,
+    val creationWisdom: Int? = null,
+    val creationCharisma: Int? = null,
 )
 
 private fun TextBlock.resolvePromptValues(values: PromptTextValues): TextBlock =
@@ -1954,6 +2013,12 @@ private fun TextPart.resolvePromptValue(values: PromptTextValues): TextPart =
         TextPart.CurrentTownName -> TextPart.Literal(values.currentTownName ?: fallbackText())
         TextPart.TownTaxPercent -> TextPart.Literal(values.townTaxPercent?.toString() ?: fallbackText())
         TextPart.TownTaxAmount -> TextPart.Literal(values.townTaxAmount?.toString() ?: fallbackText())
+        TextPart.CreationMemberNumber -> TextPart.Literal(values.creationMemberNumber?.toString() ?: fallbackText())
+        TextPart.CreationMemberName -> TextPart.Literal(values.creationMemberName ?: fallbackText())
+        TextPart.CreationWeaponSkill -> TextPart.Literal(values.creationWeaponSkill?.toString() ?: fallbackText())
+        TextPart.CreationHealth -> TextPart.Literal(values.creationHealth?.toString() ?: fallbackText())
+        TextPart.CreationWisdom -> TextPart.Literal(values.creationWisdom?.toString() ?: fallbackText())
+        TextPart.CreationCharisma -> TextPart.Literal(values.creationCharisma?.toString() ?: fallbackText())
         else -> this
     }
 
@@ -4733,6 +4798,7 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
     private var wilderness = initial.wilderness
     private var dungeon = initial.dungeon
     private var party = initial.party
+    private var characterCreation = initial.characterCreation
 
     fun pauseVerbs(vararg verbs: String) {
         pauseVerbList = verbs.toList()
@@ -4774,6 +4840,10 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
         party = PartyPromptsBuilder(party).apply(body).build()
     }
 
+    fun characterCreation(body: CharacterCreationPromptsBuilder.() -> Unit) {
+        characterCreation = CharacterCreationPromptsBuilder(characterCreation).apply(body).build()
+    }
+
     fun build(): GamePromptsModel =
         GamePromptsModel(
             pauseVerbs = pauseVerbList,
@@ -4786,6 +4856,7 @@ class GamePromptsBuilder(initial: GamePromptsModel = GamePromptsModel()) {
             wilderness = wilderness,
             dungeon = dungeon,
             party = party,
+            characterCreation = characterCreation,
         )
 }
 
@@ -4866,6 +4937,52 @@ class SavePromptsBuilder(initial: SavePromptsModel = SavePromptsModel()) {
             saving = saving,
             done = done,
             failed = failed,
+        )
+}
+
+@RylNextDsl
+class CharacterCreationPromptsBuilder(initial: CharacterCreationPromptsModel = CharacterCreationPromptsModel()) {
+    var header: TextBlock = initial.header
+    var partyName: TextBlock = initial.partyName
+    private var statsPageText: TextBlock = initial.statsPage
+    var reroll: TextBlock = initial.reroll
+    private var memberNameText: TextBlock = initial.memberName
+    private var genderText: TextBlock = initial.gender
+    var genderMaleLabel: String = initial.genderMaleLabel
+    var genderFemaleLabel: String = initial.genderFemaleLabel
+    private var raceText: TextBlock = initial.race
+    var classMenu: TextBlock = initial.classMenu
+    var saving: TextBlock = initial.saving
+
+    fun statsPage(body: CharacterCreationStatsPromptBuilder.() -> Unit) {
+        statsPageText = CharacterCreationStatsPromptBuilder().apply(body).build()
+    }
+
+    fun memberName(body: CharacterCreationMemberNumberPromptBuilder.() -> Unit) {
+        memberNameText = CharacterCreationMemberNumberPromptBuilder().apply(body).build()
+    }
+
+    fun gender(body: CharacterCreationMemberNamePromptBuilder.() -> Unit) {
+        genderText = CharacterCreationMemberNamePromptBuilder().apply(body).build()
+    }
+
+    fun race(body: CharacterCreationMemberNamePromptBuilder.() -> Unit) {
+        raceText = CharacterCreationMemberNamePromptBuilder().apply(body).build()
+    }
+
+    fun build(): CharacterCreationPromptsModel =
+        CharacterCreationPromptsModel(
+            header = header,
+            partyName = partyName,
+            statsPage = statsPageText,
+            reroll = reroll,
+            memberName = memberNameText,
+            gender = genderText,
+            genderMaleLabel = genderMaleLabel,
+            genderFemaleLabel = genderFemaleLabel,
+            race = raceText,
+            classMenu = classMenu,
+            saving = saving,
         )
 }
 
@@ -4997,6 +5114,49 @@ class SelectedItemPromptBuilder : TextLineSink {
     private val text = StructuredTextBlockBuilder()
 
     val itemName: TextPart = TextPart.SelectedItemName
+
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
+    }
+
+    fun build(): TextBlock = text.build()
+}
+
+@RylNextDsl
+class CharacterCreationStatsPromptBuilder : TextLineSink {
+    private val text = StructuredTextBlockBuilder()
+
+    val memberNumber: TextPart = TextPart.CreationMemberNumber
+    val weaponSkill: TextPart = TextPart.CreationWeaponSkill
+    val health: TextPart = TextPart.CreationHealth
+    val wisdom: TextPart = TextPart.CreationWisdom
+    val charisma: TextPart = TextPart.CreationCharisma
+
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
+    }
+
+    fun build(): TextBlock = text.build()
+}
+
+@RylNextDsl
+class CharacterCreationMemberNumberPromptBuilder : TextLineSink {
+    private val text = StructuredTextBlockBuilder()
+
+    val memberNumber: TextPart = TextPart.CreationMemberNumber
+
+    override fun addTextLine(line: TextLine) {
+        text.addTextLine(line)
+    }
+
+    fun build(): TextBlock = text.build()
+}
+
+@RylNextDsl
+class CharacterCreationMemberNamePromptBuilder : TextLineSink {
+    private val text = StructuredTextBlockBuilder()
+
+    val memberName: TextPart = TextPart.CreationMemberName
 
     override fun addTextLine(line: TextLine) {
         text.addTextLine(line)
@@ -7387,7 +7547,13 @@ fun nativePathsIn(model: GameModel): Set<String> {
                         TextPart.ConversationNpcName,
                         TextPart.CurrentTownName,
                         TextPart.TownTaxPercent,
-                        TextPart.TownTaxAmount -> Unit
+                        TextPart.TownTaxAmount,
+                        TextPart.CreationMemberNumber,
+                        TextPart.CreationMemberName,
+                        TextPart.CreationWeaponSkill,
+                        TextPart.CreationHealth,
+                        TextPart.CreationWisdom,
+                        TextPart.CreationCharisma -> Unit
                     }
                 }
             }

@@ -56,6 +56,38 @@ class RylweenKotlinEngine(
             content = content.runtimeContent(),
         )
 
+    fun characterCreationSession(
+        state: StateModel,
+        partyId: PartyId = state.realm.activeParty,
+        playerName: String = "Player",
+        rngState: Long? = state.realm.rngState,
+        random: RylweenRandomPort = ReferenceRylweenRandom,
+    ): CharacterCreationSession =
+        CharacterCreationSession.start(
+            partyId = partyId,
+            playerName = playerName,
+            baseRealm = state.realm.copy(rngState = rngState),
+            content = content.runtimeContent(),
+            random = random,
+        )
+
+    fun wildernessSession(
+        runtime: RuntimeSessionState,
+        worldMap: WorldMapGrid,
+        realizeNpcs: Boolean = true,
+    ): WildernessSession {
+        val realized = if (realizeNpcs) {
+            runtime.realizeNpcPlacements(content.characters, content.towns, npcPlacementConfig)
+        } else {
+            runtime
+        }
+        return WildernessSession.start(
+            content = content.runtimeContent(),
+            runtime = realized,
+            worldMap = worldMap.withNpcHuts(realized.npcs),
+        )
+    }
+
     fun wildernessSession(
         state: StateModel,
         worldMap: WorldMapGrid,

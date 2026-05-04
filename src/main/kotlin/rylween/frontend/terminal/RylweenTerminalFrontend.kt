@@ -224,7 +224,13 @@ class TerminalTextRenderer(
             TextPart.ConversationNpcName,
             TextPart.CurrentTownName,
             TextPart.TownTaxPercent,
-            TextPart.TownTaxAmount -> part.fallbackText()
+            TextPart.TownTaxAmount,
+            TextPart.CreationMemberNumber,
+            TextPart.CreationMemberName,
+            TextPart.CreationWeaponSkill,
+            TextPart.CreationHealth,
+            TextPart.CreationWisdom,
+            TextPart.CreationCharisma -> part.fallbackText()
         }
 
     fun pausePrompt(verbIndex: Int? = null): TextBlock {

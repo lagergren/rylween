@@ -693,6 +693,41 @@ val nextRylween = rylween {
             done = inlineText("Done.")
             failed = inlineText("Save failed.")
         }
+        characterCreation {
+            header = inlineText("Party Creation", "")
+            partyName = inlineText("What is the name of your", "party?", "")
+            statsPage {
+                line("Stats for char: ", memberNumber)
+                line("")
+                line("Weapon Skill : ", weaponSkill)
+                line("Health       : ", health)
+                line("Wisdom       : ", wisdom)
+                line("Charisma     : ", charisma)
+                line("")
+            }
+            reroll = inlineText("Reroll (y/N) ")
+            memberName {
+                line("Give Character ", memberNumber, " a name!")
+            }
+            gender {
+                line("What gender is")
+                line(memberName, "?")
+                line("")
+            }
+            genderMaleLabel = "Male"
+            genderFemaleLabel = "Female"
+            race {
+                line("What race is")
+                line(memberName, "?")
+                line("")
+            }
+            classMenu = inlineText(
+                "Pick a class for this",
+                "character...",
+                "",
+            )
+            saving = inlineText("Saving...")
+        }
         town {
             unavailableSuffix = " is not available here."
             closedSuffix = " is closed."
