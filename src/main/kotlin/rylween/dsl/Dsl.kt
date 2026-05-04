@@ -805,6 +805,7 @@ data class DungeonSystemModel(
     val events: List<DungeonEventModel> = emptyList(),
     val scenarios: List<DungeonScenarioModel> = emptyList(),
     val backdrop: ImageId? = null,
+    val keys: DungeonKeysModel = DungeonKeysModel(),
 ) {
     fun displayName(dungeon: DungeonId): String =
         scenarios
@@ -5345,9 +5346,14 @@ class DungeonSystemBuilder {
     private val events = mutableListOf<DungeonEventModel>()
     private val scenarios = mutableListOf<DungeonScenarioModel>()
     private var backdrop: ImageId? = null
+    private var keys = DungeonKeysModel()
 
     fun backdrop(image: ImageId?) {
         backdrop = image
+    }
+
+    fun keys(body: DungeonKeysBuilder.() -> Unit) {
+        keys = DungeonKeysBuilder(keys).apply(body).build()
     }
 
     fun event(id: DungeonEventId, body: DungeonEventBuilder.() -> Unit) {
@@ -5359,7 +5365,60 @@ class DungeonSystemBuilder {
     }
 
     fun build(): DungeonSystemModel =
-        DungeonSystemModel(events.toList(), scenarios.toList(), backdrop)
+        DungeonSystemModel(
+            events = events.toList(),
+            scenarios = scenarios.toList(),
+            backdrop = backdrop,
+            keys = keys,
+        )
+}
+
+@RylNextDsl
+class DungeonKeysBuilder(initial: DungeonKeysModel = DungeonKeysModel()) {
+    var descend: InputBindingModel = initial.descend
+    var ascend: InputBindingModel = initial.ascend
+    var help: InputBindingModel = initial.help
+    var drop: InputBindingModel = initial.drop
+    var removeArmor: InputBindingModel = initial.removeArmor
+    var removeWeapon: InputBindingModel = initial.removeWeapon
+    var readyWeapon: InputBindingModel = initial.readyWeapon
+    var readyArmor: InputBindingModel = initial.readyArmor
+    var quaff: InputBindingModel = initial.quaff
+    var castSpell: InputBindingModel = initial.castSpell
+    var viewParty: InputBindingModel = initial.viewParty
+    var save: InputBindingModel = initial.save
+    private var commandHintText = initial.commandHint
+    private var helpPageText = initial.helpPages
+
+    fun commandHint(vararg lines: String) {
+        commandHintText = inlineText(*lines)
+    }
+
+    fun commandHint(body: StructuredTextBlockBuilder.() -> Unit) {
+        commandHintText = structuredText(body)
+    }
+
+    fun helpPages(body: WildernessHelpPagesBuilder.() -> Unit) {
+        helpPageText = WildernessHelpPagesBuilder().apply(body).build()
+    }
+
+    fun build(): DungeonKeysModel =
+        DungeonKeysModel(
+            descend = descend,
+            ascend = ascend,
+            help = help,
+            drop = drop,
+            removeArmor = removeArmor,
+            removeWeapon = removeWeapon,
+            readyWeapon = readyWeapon,
+            readyArmor = readyArmor,
+            quaff = quaff,
+            castSpell = castSpell,
+            viewParty = viewParty,
+            save = save,
+            commandHint = commandHintText,
+            helpPages = helpPageText,
+        )
 }
 
 @RylNextDsl

@@ -1351,6 +1351,22 @@ val nextRylween: RylweenModel = rylween {
     }
 
     dungeons {
+        keys {
+            descend = inputKey("D")
+            ascend = inputKey("A")
+            help = inputKey("?")
+            drop = inputKey("L")
+            removeArmor = inputKey("T")
+            removeWeapon = inputKey("P")
+            readyWeapon = inputKey("W")
+            readyArmor = inputKey("R")
+            quaff = inputKey("Q")
+            castSpell = inputKey("Z")
+            viewParty = inputKey("V")
+            save = inputKey("S")
+            commandHint("Press ? for commands.")
+        }
+
         backdrop(Images.Backdrop.insideCave)
 
         event(DungeonEvents.nothingSpecial) {
