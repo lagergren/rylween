@@ -515,7 +515,7 @@ data class ImageAssetModel(
     val placement: ImagePlacement,
 )
 
-enum class StaticScreenRuntimeReport { Score, VerboseScore }
+enum class StaticScreenRuntimeReport { Score, VerboseScore, HallOfHeroes }
 
 data class StaticScreenModel(
     val id: StaticScreenId,
@@ -4774,6 +4774,10 @@ class StaticScreenBuilder(private val id: StaticScreenId) {
 
     fun verboseScoreReport(): Unit {
         runtimeReportValue = StaticScreenRuntimeReport.VerboseScore
+    }
+
+    fun hallOfHeroesReport(): Unit {
+        runtimeReportValue = StaticScreenRuntimeReport.HallOfHeroes
     }
 
     fun build(): StaticScreenModel =

@@ -247,8 +247,7 @@ data class InventoryDropSession(
         ).viewModel()
 
     private fun drop(slot: Int): InventoryDropSession {
-        val outcome = party.dropInventorySlot(slot, itemRecords, realm)
-        return when (outcome) {
+        return when (val outcome = party.dropInventorySlot(slot, itemRecords, realm)) {
             is InventoryDropOutcome.Dropped -> {
                 val result = InventoryDropResult(
                     status = InventoryDropStatus.Dropped,

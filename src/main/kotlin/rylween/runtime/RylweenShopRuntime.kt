@@ -283,7 +283,7 @@ fun BuildingServiceModel.isOpenAt(hour: Int): Boolean {
     return if (opensAt <= closesAt) {
         current in opensAt..closesAt
     } else {
-        current >= opensAt || current <= closesAt
+        current !in (closesAt + 1)..<opensAt
     }
 }
 

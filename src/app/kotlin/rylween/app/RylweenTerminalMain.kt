@@ -47,16 +47,17 @@ fun main(args: Array<String>): Unit = runRylweenCli {
         terminal.writeStaticScreen(content, screenId)
         return@runRylweenCli
     }
+    val startupTarget = if (config.staticScreen != null) RuntimeStartupTarget.StaticScreen else RuntimeStartupTarget.Town
     val state = config.loadFile
         ?.let {
             validateStartupState(
                 state = loadRuntimeStateSnapshot(it, content),
                 content = content,
-                target = RuntimeStartupTarget.Town,
+                target = startupTarget,
                 sourceName = "save file ${it.path}",
             )
         }
-        ?: selectStartupState(game, content, config.state, RuntimeStartupTarget.Town)
+        ?: selectStartupState(game, content, config.state, startupTarget)
     val bootState = config.hour
         ?.let { hour -> state.copy(realm = state.realm.copy(hour = hour)) }
         ?: state
@@ -140,15 +141,20 @@ object RylweenGameTerminalMain {
             terminal.writeStaticScreen(content, screenId)
             return@runRylweenCli
         }
+        val startupTarget = if (config.staticScreen != null) {
+            RuntimeStartupTarget.StaticScreen
+        } else {
+            RuntimeStartupTarget.Wilderness
+        }
         val snapshot = config.loadFile
             ?.let {
                 loadRuntimeSnapshot(it, content)
             }
-            ?: RuntimeSnapshotModel(selectStartupState(game, content, config.state, RuntimeStartupTarget.Wilderness))
+            ?: RuntimeSnapshotModel(selectStartupState(game, content, config.state, startupTarget))
         validateStartupState(
             snapshot.state,
             content,
-            RuntimeStartupTarget.Wilderness,
+            startupTarget,
             config.loadFile?.let { "save file ${it.path}" } ?: "startup.state.${snapshot.state.id.slug}",
         )
         val bootSnapshot = config.hour
@@ -345,7 +351,7 @@ private fun printTownUsage() {
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         |  --save-slot named runtime snapshot target under build/saves
-        |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
+        |  --screen title, help, manual, score, vscore, or heroes; displays the authored static screen and exits
         """.trimMargin(),
     )
 }
@@ -364,7 +370,7 @@ private fun printGameUsage() {
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         |  --save-slot named runtime snapshot target under build/saves
         |  --new    create a fresh party through the authored character-creation flow
-        |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
+        |  --screen title, help, manual, score, vscore, or heroes; displays the authored static screen and exits
         """.trimMargin(),
     )
 }

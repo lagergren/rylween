@@ -63,11 +63,10 @@ data class TerminalScenario<S>(
         val result = drive(terminal, start())
         return TerminalScenarioRun(name, fixture, terminal, result).also { run ->
             checkpoints.forEach { checkpoint ->
-                try {
-                    checkpoint.verify(run)
-                } catch (error: AssertionError) {
-                    throw AssertionError("scenario '$name' checkpoint '${checkpoint.name}' failed", error)
-                }
+                runCatching { checkpoint.verify(run) }
+                    .getOrElse { error ->
+                        throw AssertionError("scenario '$name' checkpoint '${checkpoint.name}' failed", error)
+                    }
             }
         }
     }
@@ -80,8 +79,52 @@ data class TerminalScenarioRun<S>(
     val result: TerminalAdapterResult<S>,
 )
 
+data class HeadlessScenarioStep<S>(
+    val name: String,
+    val apply: (S) -> S,
+)
+
+data class HeadlessScenarioCheckpoint<S>(
+    val name: String,
+    val verify: HeadlessScenarioRun<S>.() -> Unit,
+)
+
+data class HeadlessScenario<S>(
+    val name: String,
+    val fixture: ScenarioFixture = ScenarioFixture(),
+    val start: () -> S,
+    val steps: List<HeadlessScenarioStep<S>>,
+    val checkpoints: List<HeadlessScenarioCheckpoint<S>> = emptyList(),
+) {
+    fun run(): HeadlessScenarioRun<S> {
+        val history = steps.map { it.name }
+        val result = steps.fold(start()) { session, step -> step.apply(session) }
+        return HeadlessScenarioRun(name, fixture, history, result).also { run ->
+            checkpoints.forEach { checkpoint ->
+                runCatching { checkpoint.verify(run) }
+                    .getOrElse { error ->
+                        throw AssertionError("scenario '$name' checkpoint '${checkpoint.name}' failed", error)
+                    }
+            }
+        }
+    }
+}
+
+data class HeadlessScenarioRun<S>(
+    val name: String,
+    val fixture: ScenarioFixture,
+    val steps: List<String>,
+    val result: S,
+)
+
 fun <S> checkpoint(name: String, verify: TerminalScenarioRun<S>.() -> Unit): TerminalScenarioCheckpoint<S> =
     TerminalScenarioCheckpoint(name, verify)
+
+fun <S> headlessStep(name: String, apply: (S) -> S): HeadlessScenarioStep<S> =
+    HeadlessScenarioStep(name, apply)
+
+fun <S> headlessCheckpoint(name: String, verify: HeadlessScenarioRun<S>.() -> Unit): HeadlessScenarioCheckpoint<S> =
+    HeadlessScenarioCheckpoint(name, verify)
 
 fun <S> TerminalScenarioRun<S>.assertOutputContains(fragment: String) {
     assertTrue(

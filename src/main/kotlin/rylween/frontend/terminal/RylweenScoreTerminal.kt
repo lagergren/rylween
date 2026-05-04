@@ -4,11 +4,14 @@ import rylween.dsl.GameModel
 import rylween.dsl.PcClass
 import rylween.dsl.StaticScreenId
 import rylween.dsl.StaticScreenRuntimeReport
+import rylween.runtime.HallOfHeroesReport
 import rylween.runtime.RuntimeSessionState
 import rylween.runtime.ScoreReport
+import rylween.runtime.hallOfHeroesReport
 import rylween.runtime.scoreReport
 
 private const val ScoreHeader: String = "ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES"
+private const val HallOfHeroesHeader: String = "ADVENTURERS OF RYLWEEN - HALL OF NATIONAL HEROES"
 private const val ScoreWidth: Int = 76
 
 fun GameModel.staticScreenRequiresRuntimeState(id: StaticScreenId): Boolean =
@@ -22,6 +25,9 @@ internal fun StaticScreenRuntimeReport.renderRuntimeStaticScreenPages(
     when (this) {
         StaticScreenRuntimeReport.Score -> runtime.scoreReport(content).summaryScoreLines().chunked(maxLinesPerPage)
         StaticScreenRuntimeReport.VerboseScore -> runtime.scoreReport(content).verboseScoreLines().chunked(maxLinesPerPage)
+        StaticScreenRuntimeReport.HallOfHeroes -> runtime.hallOfHeroesReport(content)
+            .hallOfHeroesLines()
+            .chunked(maxLinesPerPage)
     }
 
 private fun ScoreReport.summaryScoreLines(): List<String> =
@@ -65,10 +71,27 @@ private fun ScoreReport.verboseScoreLines(): List<String> =
         }
     }
 
+private fun HallOfHeroesReport.hallOfHeroesLines(): List<String> =
+    buildList {
+        addAll(framedHeaderLines(HallOfHeroesHeader))
+        add("")
+        if (entries.isEmpty()) {
+            add("  No party has defeated Baron Ydarg yet.")
+        } else {
+            entries.forEach { entry ->
+                add("  ${entry.partyName} defeated Baron Ydarg")
+            }
+        }
+        add("")
+    }
+
 private fun scoreHeaderLines(): List<String> =
+    framedHeaderLines(ScoreHeader)
+
+private fun framedHeaderLines(title: String): List<String> =
     listOf(
         " +${"=".repeat(ScoreWidth - 2)}+",
-        " I${ScoreHeader.centered(ScoreWidth - 2)}I",
+        " I${title.centered(ScoreWidth - 2)}I",
         " +${"=".repeat(ScoreWidth - 2)}+",
     )
 

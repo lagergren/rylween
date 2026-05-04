@@ -36,7 +36,7 @@ data class ScriptRootRef(
         kind == other.kind && slug == other.slug
 
     companion object {
-        val Unspecified = ScriptRootRef(ScriptRootKind.Unspecified)
+        val Unspecified: ScriptRootRef = ScriptRootRef(ScriptRootKind.Unspecified)
 
         fun scene(id: SceneId, denseId: Int? = null): ScriptRootRef =
             ScriptRootRef(ScriptRootKind.Scene, denseId, id.slug)
@@ -156,7 +156,7 @@ data class ScriptBlockRef(
         copy(segments = segments + ScriptSegment(opIndex, branch, caseIndex, key))
 
     companion object {
-        val Root = ScriptBlockRef()
+        val Root: ScriptBlockRef = ScriptBlockRef()
     }
 }
 
