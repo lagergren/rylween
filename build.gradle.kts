@@ -174,7 +174,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 objectName = "ScreenRegions",
                 typeName = "ScreenRegionId",
                 factoryName = "screenRegion",
-                names = handleNames(declarationSlice(source, "terminal"), "ScreenRegions", "region"),
+                names = handleNames(declarationSlice(source, "layouts"), "ScreenRegions", "region"),
             ),
             generateSceneHandles(sceneHandles(source)),
             generateRefsClass(
@@ -613,7 +613,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     }
 
     private fun terrainDeclarations(source: String): List<TerrainDeclaration> {
-        val terminalBlock = declarationSlice(source, "terminal")
+        val terminalBlock = declarationSlice(source, "terrain")
         val terrainMatches = Regex("""\bterrain\s*\(\s*Terrain\.([A-Za-z][A-Za-z0-9_]*)\s*,\s*mapCode\s*=\s*'([^'\\]|\\.)'""")
             .findAll(terminalBlock.text)
             .toList()

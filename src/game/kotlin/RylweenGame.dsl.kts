@@ -38,6 +38,12 @@ val nextRylween = rylween {
         universe("Rylween", version = "kotlin-dsl")
     }
 
+    limits {
+        maxWorldMaps = 1
+        maxMapCells = 3120
+        screenSize = cells(width = 80, height = 24)
+    }
+
     flags {
         story(Story.garth.bandits) {
             states(
@@ -152,6 +158,28 @@ val nextRylween = rylween {
     }
 
     visuals {
+        images {
+            ansi(Images.Static.screen, resource = "ansi/screen.ans", placement = ImagePlacement.FullScreen)
+            ansi(Images.Static.title, resource = "ansi/title.ans", placement = ImagePlacement.FullScreen)
+
+            ansi(Images.Scene.ydargCastle, resource = "tiles/14.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.tent, resource = "tiles/17.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.battleVictory, resource = "tiles/16.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.encounterBanner1, resource = "tiles/40.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.encounterBanner2, resource = "tiles/41.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.encounterBanner3, resource = "tiles/42.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.encounterBanner4, resource = "tiles/43.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.encounterBanner5, resource = "tiles/44.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.cave, resource = "tiles/11.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.insideCave, resource = "tiles/10.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.church, resource = "tiles/04.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.smith, resource = "tiles/03.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.inn, resource = "tiles/01.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.merchant, resource = "tiles/05.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.tavern, resource = "tiles/02.ans", placement = ImagePlacement.MapWindow)
+            ansi(Images.Scene.hut, resource = "tiles/13.ans", placement = ImagePlacement.MapWindow)
+        }
+
         staticScreens {
             image(StaticScreens.frame, Images.Static.screen)
             image(StaticScreens.title, Images.Static.title)
@@ -160,6 +188,19 @@ val nextRylween = rylween {
             screen(StaticScreens.score) { scoreReport() }
             screen(StaticScreens.verboseScore) { verboseScoreReport() }
         }
+    }
+
+    terrain {
+        terrain(Terrain.mountain, mapCode = 'm') { blocksMovement() }
+        terrain(Terrain.water, mapCode = 'w') { blocksMovement() }
+        terrain(Terrain.plain, mapCode = 's')
+        terrain(Terrain.town, mapCode = '0') { settlement(TerrainSettlement.Town) }
+        terrain(Terrain.hut, mapCode = '1') { settlement(TerrainSettlement.Hut) }
+        terrain(Terrain.foothills, mapCode = 'f')
+        terrain(Terrain.desert, mapCode = 'd')
+        terrain(Terrain.swamp, mapCode = 't')
+        terrain(Terrain.forest, mapCode = 'g')
+        terrain(Terrain.castle, mapCode = '2') { settlement(TerrainSettlement.Castle) }
     }
 
     secrets {
@@ -227,17 +268,19 @@ val nextRylween = rylween {
     }
 
     terminal {
-        terrain(Terrain.mountain, mapCode = 'm', glyph = "/\\", color = PaletteColors.white)
-        terrain(Terrain.water, mapCode = 'w', glyph = "~~", color = PaletteColors.blue)
-        terrain(Terrain.plain, mapCode = 's', glyph = "..", color = PaletteColors.yellow)
-        terrain(Terrain.town, mapCode = '0', glyph = "TT", color = PaletteColors.white)
-        terrain(Terrain.hut, mapCode = '1', glyph = "HH", color = PaletteColors.white)
-        terrain(Terrain.foothills, mapCode = 'f', glyph = "^^", color = PaletteColors.white)
-        terrain(Terrain.desert, mapCode = 'd', glyph = "::", color = PaletteColors.red)
-        terrain(Terrain.swamp, mapCode = 't', glyph = "%%", color = PaletteColors.magenta)
-        terrain(Terrain.forest, mapCode = 'g', glyph = "gg", color = PaletteColors.green)
-        terrain(Terrain.castle, mapCode = '2', glyph = "CC", color = PaletteColors.white)
+        terrain(Terrain.mountain, glyph = "/\\", color = PaletteColors.white)
+        terrain(Terrain.water, glyph = "~~", color = PaletteColors.blue)
+        terrain(Terrain.plain, glyph = "..", color = PaletteColors.yellow)
+        terrain(Terrain.town, glyph = "TT", color = PaletteColors.white)
+        terrain(Terrain.hut, glyph = "HH", color = PaletteColors.white)
+        terrain(Terrain.foothills, glyph = "^^", color = PaletteColors.white)
+        terrain(Terrain.desert, glyph = "::", color = PaletteColors.red)
+        terrain(Terrain.swamp, glyph = "%%", color = PaletteColors.magenta)
+        terrain(Terrain.forest, glyph = "gg", color = PaletteColors.green)
+        terrain(Terrain.castle, glyph = "CC", color = PaletteColors.white)
+    }
 
+    layouts {
         region(ScreenRegions.textWindow, x = 49, y = 6, width = 26, height = 11)
         region(ScreenRegions.topLeft, x = 0, y = 0)
         region(ScreenRegions.statuslineTop, x = 3, y = 21)

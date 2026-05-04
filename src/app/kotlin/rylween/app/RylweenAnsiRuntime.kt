@@ -56,7 +56,7 @@ object RylweenAnsiMain {
         config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
             RylweenLog.open().use { log ->
                 JLineAnsiTerminal.open(log).use { terminal ->
-                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
+                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
                         .showStaticScreen(content, screenId, renderer)
                 }
             }
@@ -79,7 +79,7 @@ object RylweenAnsiMain {
         config.staticScreen?.let { screenId ->
             RylweenLog.open().use { log ->
                 JLineAnsiTerminal.open(log).use { terminal ->
-                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
+                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
                         .showStaticScreen(
                             content = content,
                             screenId = screenId,
@@ -131,7 +131,7 @@ private class RylweenAnsiGame(
     private val savePort: RuntimeSavePort,
     private val log: RylweenLog,
 ) {
-    private val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.towns)
+    private val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
     private val port = AnsiTerminalPort(terminal, screen)
     private val serviceBridge = StatefulScriptBridge(
         port,
@@ -508,9 +508,10 @@ private class ClassicAnsiScreen(
     private val terminal: JLineAnsiTerminal,
     private val visuals: VisualsModel,
     presentation: TerminalPresentationModel,
+    layout: LayoutModel,
     private val towns: List<TownModel>,
 ) {
-    private val regions = presentation.regions.associateBy { it.id }
+    private val regions = layout.regions.associateBy { it.id }
     private val terrain = TerrainGlyphs(presentation.terrain)
     private val textWindow = regions.getValue(ScreenRegions.textWindow)
     private val mapWindow = regions.getValue(ScreenRegions.mapWindow)
@@ -525,7 +526,6 @@ private class ClassicAnsiScreen(
             showImage(frame)
         } else {
             terminal.writeRaw("${CSI}2J${CSI}1;1H")
-            terminal.writeRaw(RylweenAppAssets.readText("ansi/screen.ans"))
         }
         terminal.writeRaw("$FG_WHITE$BG_BLACK")
         terminal.flush()
@@ -565,11 +565,7 @@ private class ClassicAnsiScreen(
     }
 
     fun showImage(image: ImageId) {
-        showImageSlug(image.slug)
-    }
-
-    fun showImageSlug(slug: String) {
-        when (val asset = AnsiImageAssets.resolve(slug)) {
+        when (val asset = AnsiImageAssets.resolve(visuals, image)) {
             is AnsiImageAsset.FullScreen -> {
                 terminal.writeRaw("${CSI}2J${CSI}1;1H")
                 terminal.writeRaw(RylweenAppAssets.readText(asset.resource))
