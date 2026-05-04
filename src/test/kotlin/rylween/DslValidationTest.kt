@@ -370,6 +370,45 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun fileRuntimeSavePortCompletesRuntimeSnapshotBookkeeping() {
+        val file = File.createTempFile("rylween-save-", ".kts")
+        val content = RylweenCompiledGame.nextDsl
+        val party = testParty().copy(
+            id = partyId("created"),
+            counters = PartyCounters(
+                memberCount = 1,
+                kills = 0,
+                waitingMail = false,
+                attacked = false,
+                attackedToday = emptyList(),
+            ),
+            visitedNpcs = emptyList(),
+        )
+        val runtime = RuntimeSessionState(
+            realm = creationBaseRealm(rngState = 1L).copy(
+                activeParty = party.id,
+                currentMode = RuntimeMode.Wilderness,
+                currentMap = Maps.wilderness,
+                currentTown = null,
+            ),
+            parties = listOf(party),
+            npcs = listOf(NpcPlacement(Npcs.garth, Towns.thord.inn)),
+        )
+
+        try {
+            val outcome = FileRuntimeSavePort(file, stateId("created-save"), content).save(runtime)
+            assertTrue(outcome.saved, outcome.error)
+
+            val loaded = loadRuntimeStateSnapshot(file, content)
+            val savedParty = loaded.parties.single()
+            assertEquals(listOf(PartyAttackRecord(party.id, attacked = false)), savedParty.counters.attackedToday)
+            assertEquals(listOf(NpcVisitState(Npcs.garth, visited = false)), savedParty.visitedNpcs)
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
     fun runtimeSaveSlotPolicyMapsSafeNamesToSaveFiles() {
         assertEquals(File("build/saves/main-1.kts"), runtimeSaveSlotFile("main-1"))
         assertEquals(File("custom/backup_A.kts"), runtimeSaveSlotFile("backup_A", File("custom")))
