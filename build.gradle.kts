@@ -4,17 +4,17 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
 }
 
-abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
-    @get:org.gradle.api.tasks.InputFile
-    abstract val gameSource: org.gradle.api.file.RegularFileProperty
+abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
+    @get:InputFile
+    abstract val gameSource: RegularFileProperty
 
-    @get:org.gradle.api.tasks.Input
-    abstract val sourceLabel: org.gradle.api.provider.Property<String>
+    @get:Input
+    abstract val sourceLabel: Property<String>
 
-    @get:org.gradle.api.tasks.OutputFile
-    abstract val outputFile: org.gradle.api.file.RegularFileProperty
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
 
-    @org.gradle.api.tasks.TaskAction
+    @TaskAction
     fun generate() {
         val sourcePath = sourceLabel.get()
         val gameLines = gameSource.get().asFile.readLines()
@@ -61,19 +61,19 @@ abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
     }
 }
 
-abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
-    @get:org.gradle.api.tasks.InputFile
-    abstract val gameSource: org.gradle.api.file.RegularFileProperty
+abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
+    @get:InputFile
+    abstract val gameSource: RegularFileProperty
 
-    @get:org.gradle.api.tasks.Input
-    abstract val sourceLabel: org.gradle.api.provider.Property<String>
+    @get:Input
+    abstract val sourceLabel: Property<String>
 
-    @get:org.gradle.api.tasks.OutputFile
-    abstract val outputFile: org.gradle.api.file.RegularFileProperty
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
 
     private var activeSource: String = ""
 
-    @org.gradle.api.tasks.TaskAction
+    @TaskAction
     fun generate() {
         val sourcePath = sourceLabel.get()
         val source = gameSource.get().asFile.readText()
@@ -913,7 +913,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
                 var node = root
                 path.forEachIndexed { index, part ->
                     if (node.leaf != null) {
-                        val leafLocation = source.sourceLocation(node.leaf!!.offset)
+                        val leafLocation = source.sourceLocation((node.leaf ?: return@forEachIndexed).offset)
                         add(
                             SourceDiagnostic(
                                 handle.offset,
@@ -1228,7 +1228,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             val location = source.sourceLocation(diagnostic.offset)
             "$file:${location.line}:${location.column}: ${diagnostic.message}"
         }
-        throw org.gradle.api.GradleException(
+        throw GradleException(
             "Game catalog handle generation failed:\n$details",
         )
     }
@@ -1404,42 +1404,42 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     )
 }
 
-abstract class GenerateAnsiBuildWrapperTask : org.gradle.api.DefaultTask() {
-    @get:org.gradle.api.tasks.OutputFile
-    abstract val outputFile: org.gradle.api.file.RegularFileProperty
+abstract class GenerateAnsiBuildWrapperTask : DefaultTask() {
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
 
-    @org.gradle.api.tasks.TaskAction
+    @TaskAction
     fun generate() {
         val output = outputFile.get().asFile
         output.parentFile.mkdirs()
         output.writeText(
-            """
+            $$"""
             |#!/usr/bin/env bash
             |set -euo pipefail
             |
-            |SCRIPT_DIR="$(cd "$(dirname "${'$'}{BASH_SOURCE[0]}")" && pwd -P)"
-            |APP_HOME="$(cd "${'$'}SCRIPT_DIR/.." && pwd -P)"
-            |PROJECT_DIR="$(cd "${'$'}APP_HOME/../../.." && pwd -P)"
+            |SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+            |APP_HOME="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+            |PROJECT_DIR="$(cd "$APP_HOME/../../.." && pwd -P)"
             |
             |build=false
             |args=()
-            |for arg in "${'$'}@"; do
-            |  if [[ "${'$'}arg" == "--build" ]]; then
+            |for arg in "$@"; do
+            |  if [[ "$arg" == "--build" ]]; then
             |    build=true
             |  else
-            |    args+=("${'$'}arg")
+            |    args+=("$arg")
             |  fi
             |done
             |
-            |if [[ "${'$'}build" == true ]]; then
-            |  if [[ ! -x "${'$'}PROJECT_DIR/gradlew" ]]; then
-            |    echo "rylween: cannot find Gradle wrapper at ${'$'}PROJECT_DIR/gradlew" >&2
+            |if [[ "$build" == true ]]; then
+            |  if [[ ! -x "$PROJECT_DIR/gradlew" ]]; then
+            |    echo "rylween: cannot find Gradle wrapper at $PROJECT_DIR/gradlew" >&2
             |    exit 1
             |  fi
-            |  (cd "${'$'}PROJECT_DIR" && ./gradlew installKotlinAnsi --console=plain)
+            |  (cd "$PROJECT_DIR" && ./gradlew installKotlinAnsi --console=plain)
             |fi
             |
-            |exec "${'$'}APP_HOME/bin/rylween-app" "${'$'}{args[@]}"
+            |exec "$APP_HOME/bin/rylween-app" "${args[@]}"
             """.trimMargin() + "\n",
         )
         output.setExecutable(true, false)
@@ -1453,20 +1453,20 @@ repositories {
     mavenCentral()
 }
 
-val generatedGameHarnessDir = layout.buildDirectory.dir("generated/gameHarness/kotlin")
-val generatedGameHarnessFile = layout.buildDirectory.file("generated/gameHarness/kotlin/rylween/game/RylweenCompiledGame.kt")
-val generatedGameCatalogDir = layout.buildDirectory.dir("generated/gameCatalog/kotlin")
-val generatedGameCatalogFile = layout.buildDirectory.file(
+val generatedGameHarnessDir: Provider<Directory> = layout.buildDirectory.dir("generated/gameHarness/kotlin")
+val generatedGameHarnessFile: Provider<RegularFile> = layout.buildDirectory.file("generated/gameHarness/kotlin/rylween/game/RylweenCompiledGame.kt")
+val generatedGameCatalogDir: Provider<Directory> = layout.buildDirectory.dir("generated/gameCatalog/kotlin")
+val generatedGameCatalogFile: Provider<RegularFile> = layout.buildDirectory.file(
     "generated/gameCatalog/kotlin/rylween/game/RylweenGeneratedGameCatalog.kt",
 )
-val gameDslSourceFile = layout.projectDirectory.file("src/game/dsl/RylweenGame.dsl.kts")
-val gameDslSourceLabel = gameDslSourceFile.asFile.relativeTo(projectDir).invariantSeparatorsPath
+val gameDslSourceFile: RegularFile = layout.projectDirectory.file("src/game/dsl/RylweenGame.dsl.kts")
+val gameDslSourceLabel: String = gameDslSourceFile.asFile.relativeTo(projectDir).invariantSeparatorsPath
 
 kotlin {
     jvmToolchain(25)
 }
 
-val gameSourceSet = sourceSets.create("game") {
+val gameSourceSet: SourceSet = sourceSets.create("game") {
     java.srcDir("src/game/kotlin")
     java.srcDir(generatedGameHarnessDir)
     java.srcDir(generatedGameCatalogDir)
@@ -1474,7 +1474,7 @@ val gameSourceSet = sourceSets.create("game") {
     runtimeClasspath += output + compileClasspath
 }
 
-val appSourceSet = sourceSets.create("app") {
+val appSourceSet: SourceSet = sourceSets.create("app") {
     java.srcDir("src/app/kotlin")
     resources.srcDir("data")
     resources.include("ansi/**", "tiles/**", "rylween.doc", "score.txt", "vscore.txt")
@@ -1505,7 +1505,7 @@ tasks.test {
     useJUnitPlatform()
 }
 
-val generateCompiledGameHarness by tasks.registering(GenerateCompiledGameHarnessTask::class) {
+val generateCompiledGameHarness: TaskProvider<GenerateCompiledGameHarnessTask> by tasks.registering(GenerateCompiledGameHarnessTask::class) {
     group = "generation"
     description = "Generates a test harness that compiles the game DSL as Kotlin and exposes nextRylween."
 
@@ -1514,7 +1514,7 @@ val generateCompiledGameHarness by tasks.registering(GenerateCompiledGameHarness
     outputFile.set(generatedGameHarnessFile)
 }
 
-val generateGameCatalogHandles by tasks.registering(GenerateGameCatalogHandlesTask::class) {
+val generateGameCatalogHandles: TaskProvider<GenerateGameCatalogHandlesTask> by tasks.registering(GenerateGameCatalogHandlesTask::class) {
     group = "generation"
     description = "Generates current-game item and item-pool handles from the game DSL declarations."
 
@@ -1523,8 +1523,8 @@ val generateGameCatalogHandles by tasks.registering(GenerateGameCatalogHandlesTa
     outputFile.set(generatedGameCatalogFile)
 }
 
-val kotlinCompiler by configurations.creating
-val gameDslRuntime by configurations.creating
+val kotlinCompiler: Configuration by configurations.creating
+val gameDslRuntime: Configuration by configurations.creating
 
 dependencies {
     val kotlinVersion = libs.versions.kotlin.get()
@@ -1553,7 +1553,7 @@ tasks.named("compileAppKotlin") {
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
 }
 
-val runKotlinTown by tasks.registering(JavaExec::class) {
+val runKotlinTown: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Boots the compiled game in the pure Kotlin terminal town runner."
 
@@ -1563,7 +1563,7 @@ val runKotlinTown by tasks.registering(JavaExec::class) {
     standardInput = System.`in`
 }
 
-val runKotlinGame by tasks.registering(JavaExec::class) {
+val runKotlinGame: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Boots the compiled game in the pure Kotlin terminal wilderness runner."
 
@@ -1573,16 +1573,16 @@ val runKotlinGame by tasks.registering(JavaExec::class) {
     standardInput = System.`in`
 }
 
-val nativeSmokeBundle = layout.buildDirectory.file("compiled/rylween-native-smoke.rsmoke")
-val nativeSmokeSource = layout.projectDirectory.file("src/native/compiled-smoke/rylween_bundle_smoke.c")
-val nativeSmokeExecutable = layout.buildDirectory.file("native/compiled-smoke/rylween-bundle-smoke")
-val nativeSmokeBundlePath = nativeSmokeBundle.get().asFile.path
-val nativeSmokeSourcePath = nativeSmokeSource.asFile.path
-val nativeSmokeExecutableFile = nativeSmokeExecutable.get().asFile
-val nativeSmokeExecutablePath = nativeSmokeExecutableFile.path
+val nativeSmokeBundle: Provider<RegularFile> = layout.buildDirectory.file("compiled/rylween-native-smoke.rsmoke")
+val nativeSmokeSource: RegularFile = layout.projectDirectory.file("src/native/compiled-smoke/rylween_bundle_smoke.c")
+val nativeSmokeExecutable: Provider<RegularFile> = layout.buildDirectory.file("native/compiled-smoke/rylween-bundle-smoke")
+val nativeSmokeBundlePath: String = nativeSmokeBundle.get().asFile.path
+val nativeSmokeSourcePath: String = nativeSmokeSource.asFile.path
+val nativeSmokeExecutableFile: File = nativeSmokeExecutable.get().asFile
+val nativeSmokeExecutablePath: String = nativeSmokeExecutableFile.path
 nativeSmokeExecutableFile.parentFile.mkdirs()
 
-val emitNativeSmokeBundle by tasks.registering(JavaExec::class) {
+val emitNativeSmokeBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Emits the deterministic compiled-content/script artifact consumed by the native smoke loader."
 
@@ -1594,7 +1594,7 @@ val emitNativeSmokeBundle by tasks.registering(JavaExec::class) {
     outputs.file(nativeSmokeBundle)
 }
 
-val compileNativeSmokeLoader by tasks.registering(Exec::class) {
+val compileNativeSmokeLoader: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "verification"
     description = "Compiles the minimal C loader for the compiled VM smoke artifact."
 
@@ -1613,7 +1613,7 @@ val compileNativeSmokeLoader by tasks.registering(Exec::class) {
     )
 }
 
-val checkNativeSmokeBundle by tasks.registering(Exec::class) {
+val checkNativeSmokeBundle: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "verification"
     description = "Runs the C loader over the emitted compiled VM smoke artifact."
 
@@ -1627,7 +1627,7 @@ val checkNativeSmokeBundle by tasks.registering(Exec::class) {
     )
 }
 
-val kotlinAnsiJar by tasks.registering(Jar::class) {
+val kotlinAnsiJar: TaskProvider<Jar> by tasks.registering(Jar::class) {
     group = "build"
     description = "Packages the compiled Kotlin DSL game and ANSI app resources into one launcher jar."
 
@@ -1642,10 +1642,10 @@ val kotlinAnsiJar by tasks.registering(Jar::class) {
     }
 }
 
-val kotlinAnsiRuntimeJars = appSourceSet.runtimeClasspath.filter { it.isFile && it.extension == "jar" }
-val kotlinAnsiWrapper = layout.buildDirectory.file("scripts/kotlinAnsiWrapper/rylween")
+val kotlinAnsiRuntimeJars: FileCollection = appSourceSet.runtimeClasspath.filter { it.isFile && it.extension == "jar" }
+val kotlinAnsiWrapper: Provider<RegularFile> = layout.buildDirectory.file("scripts/kotlinAnsiWrapper/rylween")
 
-val kotlinAnsiStartScripts by tasks.registering(CreateStartScripts::class) {
+val kotlinAnsiStartScripts: TaskProvider<CreateStartScripts> by tasks.registering(CreateStartScripts::class) {
     group = "application"
     description = "Generates direct start scripts for the ANSI runtime."
 
@@ -1656,14 +1656,14 @@ val kotlinAnsiStartScripts by tasks.registering(CreateStartScripts::class) {
     classpath = files(kotlinAnsiJar) + kotlinAnsiRuntimeJars
 }
 
-val kotlinAnsiBuildWrapper by tasks.registering(GenerateAnsiBuildWrapperTask::class) {
+val kotlinAnsiBuildWrapper: TaskProvider<GenerateAnsiBuildWrapperTask> by tasks.registering(GenerateAnsiBuildWrapperTask::class) {
     group = "application"
     description = "Generates the ANSI runtime wrapper with an optional --build refresh."
 
     outputFile.set(kotlinAnsiWrapper)
 }
 
-val installKotlinAnsi by tasks.registering(Sync::class) {
+val installKotlinAnsi: TaskProvider<Sync> by tasks.registering(Sync::class) {
     group = "application"
     description = "Installs the direct ANSI runtime launcher outside Gradle's interactive console."
 
@@ -1687,7 +1687,7 @@ val installKotlinAnsi by tasks.registering(Sync::class) {
     }
 }
 
-val validateGameDsl by tasks.registering(JavaExec::class) {
+val validateGameDsl: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Compiles and executes the game Kotlin DSL source against the built DSL jar."
 

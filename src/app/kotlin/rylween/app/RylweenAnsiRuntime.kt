@@ -2,29 +2,19 @@
 
 package rylween.app
 
+import org.jline.terminal.Attributes
+import org.jline.terminal.Terminal
+import org.jline.terminal.TerminalBuilder
+import org.jline.utils.NonBlockingReader
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.frontend.terminal.*
 import rylween.frontend.terminal.ydarg.YdargSessionTerminalAdapter
 import rylween.game.*
-import rylween.game.RylweenCompiledGame
 import rylween.runtime.*
-import rylween.runtime.battle.*
-import rylween.runtime.dungeon.*
-import rylween.runtime.party.*
-import rylween.runtime.town.*
+import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.wilderness.*
-import rylween.save.FileRuntimeSavePort
-import rylween.save.RuntimeSaveOutcome
-import rylween.save.RuntimeSavePort
-import rylween.save.loadRuntimeSnapshot
-import rylween.save.runtimeSaveSlotFile
-import rylween.save.runtimeSaveSlotStateId
-
-import org.jline.terminal.Attributes
-import org.jline.terminal.Terminal
-import org.jline.terminal.TerminalBuilder
-import org.jline.utils.NonBlockingReader
+import rylween.save.*
 import java.io.Closeable
 import java.io.File
 import java.net.InetSocketAddress
@@ -37,6 +27,7 @@ import kotlin.system.exitProcess
 private const val ESC = "\u001B"
 private const val CSI = "$ESC["
 private const val RESET = "${CSI}0m"
+@Suppress("unused")
 private const val FG_BLACK = "${CSI}30m"
 private const val FG_GREEN = "${CSI}32m"
 private const val FG_WHITE = "${CSI}37m"
@@ -289,7 +280,7 @@ private fun readTitleMenuAction(
             "D" -> return TitleMenuAction.Documentation
             "X" -> return TitleMenuAction.Exit
             else -> {
-                screen.writeText(listOf("Invalid input.", "Key: ${token.orEmpty()}", ""))
+                screen.writeText(listOf("Invalid input.", "Key: $token", ""))
                 terminal.readKeyToken()
                 screen.writeText(titleMenuLines(hasSavedGame))
             }
@@ -299,7 +290,7 @@ private fun readTitleMenuAction(
 
 private fun readYesNoKey(terminal: JLineAnsiTerminal, screen: ClassicAnsiScreen): Boolean? {
     while (true) {
-        when (val token = terminal.readKeyToken()?.uppercase()) {
+        when (terminal.readKeyToken()?.uppercase()) {
             null -> return null
             "Y" -> return true
             "N" -> return false
@@ -1068,7 +1059,7 @@ private class ClassicAnsiScreen(
             else -> "${CSI}33mOK    "
         }
         val top = buildString {
-            append("$FG_GREEN")
+            append(FG_GREEN)
             append(timeLabel(runtime.realm.hour))
             append("ST: ")
             append(status)
@@ -1310,7 +1301,7 @@ private class JLineAnsiTerminal private constructor(
     override fun close() {
         writeRaw("$RESET${CSI}?25h")
         flush()
-        terminal.setAttributes(savedAttributes)
+        terminal.attributes = savedAttributes
         terminal.close()
         log.info("terminal", "closed")
     }
