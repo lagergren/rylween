@@ -1,5 +1,6 @@
 package rylween
 
+import rylween.compiled.*
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.frontend.terminal.*
@@ -45,6 +46,23 @@ private fun List<Op>.anyNested(predicate: (Op) -> Boolean): Boolean =
             is Op.ForEachMember -> op.body.anyNested(predicate)
             is Op.ForEachMonster -> op.body.anyNested(predicate)
             else -> false
+        }
+    }
+
+private fun List<CompiledInstruction>.anyCompiledNested(predicate: (CompiledInstruction) -> Boolean): Boolean =
+    any { instruction ->
+        predicate(instruction) || instruction.operands.any { operand ->
+            when (operand) {
+                is CompiledOperand.Instructions -> operand.instructions.anyCompiledNested(predicate)
+                is CompiledOperand.SwitchCases -> operand.cases.any { case -> case.body.anyCompiledNested(predicate) }
+                is CompiledOperand.MenuOptions -> operand.options.any { option ->
+                    option.body.anyCompiledNested(predicate)
+                }
+                is CompiledOperand.TextAnswer ->
+                    operand.answer.matchOps.anyCompiledNested(predicate) ||
+                        operand.answer.missOps.anyCompiledNested(predicate)
+                else -> false
+            }
         }
     }
 
@@ -1652,6 +1670,50 @@ class RylweenDslValidationTest {
         assertEquals(ScriptRootKind.DungeonEvent, eventRoot.kind)
         assertEquals("thun_riddle1", eventRoot.slug)
         assertTrue(checkNotNull(eventRoot.denseId) > 0)
+    }
+
+    @Test
+    fun compiledGameBundleExposesNativeContentStateAndScriptTables() {
+        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+        val loaded = bundle.loadCompiledGame()
+        val strings = bundle.content.strings
+        val handles = bundle.content.handles
+        val thunSceneRoot = bundle.content.scripts.root(ScriptRootRef.scene(Scenes.Missions.thunTemple))
+
+        assertEquals("Rylween", loaded.content.string(bundle.content.universe.nameString))
+        assertTrue(bundle.content.items.any { item ->
+            strings.value(item.displayNameString) == "Red Gem"
+        })
+        assertTrue(bundle.content.flags.isNotEmpty())
+        assertTrue(bundle.content.formulas.isNotEmpty())
+        assertTrue(bundle.content.rewards.isNotEmpty())
+        assertTrue(bundle.content.spells.any { spell -> spell.scriptRoot.kind == CompiledHandleKind.ScriptRoot })
+        assertTrue(bundle.content.itemUses.any { use -> use.scriptRoot.kind == CompiledHandleKind.ScriptRoot })
+        assertTrue(bundle.content.dungeonEvents.any { event ->
+            event.scriptRoot.kind == CompiledHandleKind.ScriptRoot &&
+                event.randomEncounterTier?.kind == CompiledHandleKind.EncounterTier
+        })
+        assertTrue(bundle.content.dungeonScenarios.any { scenario -> scenario.randomEvents.isNotEmpty() })
+        assertTrue(bundle.content.worldMaps.any { map ->
+            map.id == handles.ref(CompiledHandleKind.WorldMap, checkNotNull(strings.idOf(Maps.wilderness.slug)))
+        })
+        assertEquals(handles.handles.size, handles.handles.map { handle -> handle.denseId }.toSet().size)
+        assertTrue(handles.hashEntries.isNotEmpty())
+        assertTrue(strings.hashEntries.isNotEmpty())
+        assertEquals(
+            handles.ref(CompiledHandleKind.WorldMap, checkNotNull(strings.idOf(Maps.wilderness.slug))),
+            loaded.content.resolveHandle(CompiledHandleKind.WorldMap, Maps.wilderness.slug),
+        )
+        assertTrue(bundle.content.scripts.roots.all { program -> program.rootHandle.kind == CompiledHandleKind.ScriptRoot })
+        assertTrue(bundle.content.scripts.roots.any { program -> program.instructions.isNotEmpty() })
+        assertEquals(thunSceneRoot, loaded.content.script(checkNotNull(thunSceneRoot).rootHandle))
+        assertTrue(checkNotNull(thunSceneRoot).instructions.anyCompiledNested { instruction ->
+            instruction.opcode == CompiledOpcode.EnterDungeon
+        })
+        assertTrue(bundle.states.any { state ->
+            state.state == handles.ref(CompiledHandleKind.State, checkNotNull(strings.idOf(States.freshReplay.slug))) &&
+                state.realm.currentMode == RuntimeMode.Wilderness
+        })
     }
 
     @Test
