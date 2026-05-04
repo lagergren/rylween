@@ -1904,6 +1904,357 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun dungeonFindObjectFullInventoryDoesNotPromptForDropSlot() {
+        val inventory = fullInventory()
+        val terminal = FakeTerminalPort("T")
+        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.randomCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(
+                    Dungeons.randomCave,
+                    1 to DungeonEvents.findObject,
+                ),
+                party = testParty(inventoryItems = inventory),
+                rngState = 1L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is DungeonSessionStep.Explore)
+        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+        assertInventorySlots(inventory, result.session.party)
+        assertTrue(terminal.output.any { "You can't carry more." in it })
+    }
+
+    @Test
+    fun dungeonFindObjectLeavePathIsSilent() {
+        val terminal = FakeTerminalPort("L")
+        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.randomCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(
+                    Dungeons.randomCave,
+                    1 to DungeonEvents.findObject,
+                ),
+                rngState = 1L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is DungeonSessionStep.Explore)
+        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+        assertFalse(terminal.output.any { "You leave it." in it })
+    }
+
+    @Test
+    fun dungeonPriestRevelationFullInventoryDoesNotPromptForDropSlot() {
+        val inventory = fullInventory()
+        val terminal = FakeTerminalPort("Z", "1", "5", "T")
+        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.randomCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+                party = testParty(
+                    pcClass = PcClass.Priest,
+                    level = 1,
+                    wisdom = 100,
+                    mana = 100,
+                    inventoryItems = inventory,
+                ),
+                rngState = 1L,
+            ),
+        )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is DungeonSessionStep.Explore)
+        assertEquals(DungeonSessionResultStatus.CastSpellUsed, result.session.lastResult?.status)
+        assertEquals(59, result.session.party.members.single().mana.current)
+        assertInventorySlots(inventory, result.session.party)
+        assertTrue(terminal.output.any { "You can't carry more." in it })
+    }
+
+    @Test
+    fun compiledDungeonFixedEventBodiesSmokeThroughTerminalPlaythroughs() {
+        val fourMemberParty = testParty(
+            torches = 1,
+            members = listOf(
+                testMember("Alfa"),
+                testMember("Beta", gender = Gender.Female),
+                testMember("Gamma"),
+                testMember("Delta", gender = Gender.Female),
+            ),
+        )
+        val cases = listOf(
+            DungeonEventSmokeCase(
+                name = "nothing-special",
+                dungeon = Dungeons.randomCave,
+                event = DungeonEvents.nothingSpecial,
+                inputs = listOf(""),
+                outputFragments = listOf("You find nothing"),
+            ),
+            DungeonEventSmokeCase(
+                name = "empty-level",
+                dungeon = Dungeons.randomCave,
+                event = DungeonEvents.emptyLevel,
+                inputs = listOf(""),
+                outputFragments = listOf("This level is empty."),
+            ),
+            DungeonEventSmokeCase(
+                name = "spectrum-message",
+                dungeon = Dungeons.reebarTomb,
+                event = DungeonEvents.spectrumMessage,
+                inputs = listOf(""),
+                outputFragments = listOf("'M U R T C E P S'"),
+                recurring = true,
+            ),
+            DungeonEventSmokeCase(
+                name = "gold",
+                dungeon = Dungeons.randomCave,
+                event = DungeonEvents.gold,
+                inputs = listOf(""),
+                outputFragments = listOf("gold pieces."),
+                recurring = true,
+                verify = {
+                    assertTrue(result.session.party.resources.gold > 0)
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "torches",
+                dungeon = Dungeons.randomCave,
+                event = DungeonEvents.torches,
+                inputs = listOf(""),
+                outputFragments = listOf("torches."),
+                recurring = true,
+                verify = {
+                    assertTrue(result.session.party.resources.torches > 1)
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "gold-chest",
+                dungeon = Dungeons.randomCave,
+                event = DungeonEvents.goldChest,
+                inputs = listOf("O", "", ""),
+                outputFragments = listOf("You find a chest!", "The chest contained"),
+                recurring = true,
+                verify = {
+                    assertTrue(result.session.party.resources.gold >= 320)
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "fire-shield-guardian",
+                dungeon = Dungeons.fireShieldCave,
+                event = DungeonEvents.fireShieldGuardian,
+                inputs = listOf(""),
+                outputFragments = listOf("something HIDEOUS"),
+            ),
+            DungeonEventSmokeCase(
+                name = "fire-shield",
+                dungeon = Dungeons.fireShieldCave,
+                event = DungeonEvents.fireShield,
+                inputs = listOf(""),
+                outputFragments = listOf("marvelous FIRE SHIELD"),
+                verify = {
+                    assertTrue(Milestones.fireShield in result.session.party.milestones)
+                    assertTrue(result.session.party.hasFlagState(Story.hermit.trollTooth.fireShieldAcquired))
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "bracelets",
+                dungeon = Dungeons.thunTemple,
+                event = DungeonEvents.bracelets,
+                inputs = listOf(""),
+                outputFragments = listOf("Bracelets of Thun"),
+                verify = {
+                    assertTrue(Milestones.braceletsOfThun in result.session.party.milestones)
+                    assertTrue(result.session.party.hasFlagState(Story.bracelets.thun.braceletsTaken))
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "nolrim-tomb",
+                dungeon = Dungeons.reebarTomb,
+                event = DungeonEvents.nolrimTomb,
+                inputs = listOf(""),
+                outputFragments = listOf("Nolrim's body rests"),
+                verify = {
+                    assertTrue(result.session.party.hasFlagState(Story.masterCrown.daggerTaken))
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "master-crown",
+                dungeon = Dungeons.masterCrownDungeon,
+                event = DungeonEvents.masterCrown,
+                inputs = listOf("", ""),
+                outputFragments = listOf("FINALLY!", "TO LIFE!!!"),
+                verify = {
+                    assertTrue(Milestones.masterCrown in result.session.party.milestones)
+                    assertTrue(result.session.party.hasFlagState(Story.masterCrown.crownTaken))
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "silver-sanctum",
+                dungeon = Dungeons.silverSanctum,
+                event = DungeonEvents.silverSanctum,
+                inputs = listOf("", "", "", ""),
+                outputFragments = listOf("This room shines like", "Guild Master"),
+                verify = {
+                    assertTrue(result.session.party.hasFlagState(Story.silverKey.noteFound))
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "hobgoblin-patrol",
+                dungeon = Dungeons.hobgoblinStronghold,
+                event = DungeonEvents.hobgoblinPatrol,
+                inputs = listOf("", ""),
+                outputFragments = listOf("hobgoblin", "patrol"),
+                recurring = true,
+            ),
+            DungeonEventSmokeCase(
+                name = "royal-guard1",
+                dungeon = Dungeons.hobgoblinStronghold,
+                event = DungeonEvents.royalGuard1,
+                inputs = listOf(""),
+                outputFragments = listOf("hobgoblin", "skeletons"),
+            ),
+            DungeonEventSmokeCase(
+                name = "royal-guard2",
+                dungeon = Dungeons.hobgoblinStronghold,
+                event = DungeonEvents.royalGuard2,
+                inputs = listOf(""),
+                outputFragments = listOf("undead", "hobgoblins"),
+            ),
+            DungeonEventSmokeCase(
+                name = "orc-nest",
+                dungeon = Dungeons.ogreCave,
+                event = DungeonEvents.orcNest,
+                inputs = listOf("", "", ""),
+                outputFragments = listOf("Some orcs watch", "You have slain the orcs."),
+            ),
+            DungeonEventSmokeCase(
+                name = "tammys-prison-rescue",
+                dungeon = Dungeons.ogreCave,
+                event = DungeonEvents.tammysPrison,
+                inputs = listOf(""),
+                outputFragments = listOf("The peasant's wife is in"),
+                party = testParty(
+                    torches = 1,
+                    flags = listOf(Story.peasant.wife.accepted),
+                ),
+                verify = {
+                    assertTrue(result.session.party.hasFlagState(Story.peasant.wife.rescued))
+                },
+            ),
+            DungeonEventSmokeCase(
+                name = "erethor-priests",
+                dungeon = Dungeons.erethorTemple,
+                event = DungeonEvents.erethorPriests,
+                inputs = listOf(""),
+                outputFragments = listOf("some priests"),
+                recurring = true,
+            ),
+            DungeonEventSmokeCase(
+                name = "lute-chamber",
+                dungeon = Dungeons.erethorTemple,
+                event = DungeonEvents.luteChamber,
+                inputs = List(11) { "" },
+                outputFragments = listOf("altar chamber", "Lute on a pedestal"),
+                party = fourMemberParty,
+                verify = {
+                    assertTrue(result.session.party.hasFlagState(Story.erethor.lute.luteTaken))
+                },
+            ),
+        )
+
+        cases.forEach { case ->
+            runDungeonScenario(
+                name = "dungeon-event-${case.name}",
+                inputs = case.inputs,
+                levels = 1,
+                session = {
+                    compiledDungeonSession(
+                        dungeon = case.dungeon,
+                        levels = 1,
+                        dungeons = fixedCompiledDungeon(case.dungeon, 1 to case.event),
+                        party = case.party ?: testParty(torches = 1),
+                        withCombat = false,
+                    )
+                },
+                checkpoints = listOf(
+                    checkpoint("event body finishes with expected output and state") {
+                        assertTrue(result.status is TerminalRunStatus.Waiting)
+                        assertTrue(result.session.step is DungeonSessionStep.Explore)
+                        assertEquals(DungeonSessionResultStatus.EventCompleted, result.session.lastResult?.status)
+                        case.outputFragments.forEach { assertOutputContains(it) }
+                        if (case.recurring) {
+                            assertEquals(case.event, result.session.levelEvents[1])
+                        } else {
+                            assertFalse(result.session.levelEvents.containsKey(1))
+                        }
+                        case.verify(this)
+                    },
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun tammysPrisonStaysArmedUntilRescueThenClears() {
+        val waiting = DungeonSessionTerminalAdapter(FakeTerminalPort(), compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.ogreCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(Dungeons.ogreCave, 1 to DungeonEvents.tammysPrison),
+                party = testParty(torches = 1),
+                withCombat = false,
+            ),
+        ).session
+
+        val rescued = DungeonSessionTerminalAdapter(FakeTerminalPort(""), compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.ogreCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(Dungeons.ogreCave, 1 to DungeonEvents.tammysPrison),
+                party = testParty(
+                    torches = 1,
+                    flags = listOf(Story.peasant.wife.accepted),
+                ),
+                withCombat = false,
+            ),
+        ).session
+
+        assertEquals(DungeonEvents.tammysPrison, waiting.levelEvents[1])
+        assertFalse(waiting.party.hasFlagState(Story.peasant.wife.rescued))
+        assertFalse(rescued.levelEvents.containsKey(1))
+        assertTrue(rescued.party.hasFlagState(Story.peasant.wife.rescued))
+    }
+
+    @Test
+    fun compiledDungeonRandomEncounterEventsStartAuthoredBattleTiers() {
+        listOf(
+            DungeonEvents.weakEncounter to EncounterTiers.weak,
+            DungeonEvents.deepEncounter to EncounterTiers.deep,
+        ).forEach { (event, tier) ->
+            val result = DungeonSessionTerminalAdapter(FakeTerminalPort(), compiledTextRenderer()).runUntilBlocked(
+                compiledDungeonSession(
+                    dungeon = Dungeons.randomCave,
+                    levels = 1,
+                    dungeons = fixedCompiledDungeon(Dungeons.randomCave, 1 to event),
+                    party = testParty(torches = 1),
+                ),
+            )
+
+            val step = result.session.step as? DungeonSessionStep.RandomEncounter
+                ?: error("expected random encounter step for ${event.slug}")
+            assertTrue(result.status is TerminalRunStatus.Waiting)
+            assertEquals(event, step.event.id)
+            assertEquals(tier, step.session?.tier)
+            assertEquals(RuntimeMode.Battle, step.session?.runtime?.realm?.currentMode)
+        }
+    }
+
+    @Test
     fun dungeonUtilityCommandsUseSharedPartyViewAndDropSessions() {
         val party = testParty(
             torches = 1,
@@ -3679,18 +4030,113 @@ class RylweenDslValidationTest {
     @Test
     fun compiledGameDeclaresFirstDungeonEventScenarios() {
         val dungeons = RylweenCompiledGame.nextDsl.dungeons
-        val randomCave = dungeons.scenarios.single { it.dungeon == Dungeons.randomCave }
-        val fireShield = dungeons.scenarios.single { it.dungeon == Dungeons.fireShieldCave }
         val fireShieldEvent = dungeons.events.single { it.id == DungeonEvents.fireShield }
         val weakEncounter = dungeons.events.single { it.id == DungeonEvents.weakEncounter }
 
-        assertEquals(null, randomCave.levelRange)
-        assertEquals(2, randomCave.randomEvents.single { it.event == DungeonEvents.weakEncounter }.weight)
-        assertEquals(2, fireShield.randomEvents.single { it.event == DungeonEvents.weakEncounter }.weight)
-        assertEquals(DungeonEvents.fireShieldGuardian, fireShield.fixedLevelEvents[19])
-        assertEquals(DungeonEvents.fireShield, fireShield.fixedLevelEvents[20])
+        assertEquals(
+            setOf(
+                Dungeons.randomCave,
+                Dungeons.fireShieldCave,
+                Dungeons.thunTemple,
+                Dungeons.reebarTomb,
+                Dungeons.masterCrownDungeon,
+                Dungeons.silverSanctum,
+                Dungeons.hobgoblinStronghold,
+                Dungeons.ogreCave,
+                Dungeons.erethorTemple,
+            ),
+            dungeons.scenarios.map { it.dungeon }.toSet(),
+        )
+        assertCompiledDungeonScenario(dungeons, Dungeons.randomCave, levels = null, fixed = emptyMap())
+        assertCompiledDungeonScenario(
+            dungeons,
+            Dungeons.fireShieldCave,
+            levels = 20,
+            fixed = mapOf(
+                19 to DungeonEvents.fireShieldGuardian,
+                20 to DungeonEvents.fireShield,
+            ),
+        )
+        assertCompiledDungeonScenario(
+            dungeons,
+            Dungeons.thunTemple,
+            levels = 18,
+            fixed = mapOf(
+                4 to DungeonEvents.thunRiddle1,
+                8 to DungeonEvents.thunRiddle2,
+                12 to DungeonEvents.thunRiddle3,
+                18 to DungeonEvents.bracelets,
+            ),
+        )
+        assertCompiledDungeonScenario(
+            dungeons,
+            Dungeons.reebarTomb,
+            levels = 20,
+            fixed = mapOf(
+                12 to DungeonEvents.spectrumMessage,
+                13 to DungeonEvents.colourRiddle,
+                14 to DungeonEvents.colourRiddle,
+                15 to DungeonEvents.colourRiddle,
+                16 to DungeonEvents.colourRiddle,
+                17 to DungeonEvents.colourRiddle,
+                18 to DungeonEvents.colourRiddle,
+                19 to DungeonEvents.colourRiddle,
+                20 to DungeonEvents.nolrimTomb,
+            ),
+        )
+        assertCompiledDungeonScenario(
+            dungeons,
+            Dungeons.masterCrownDungeon,
+            levels = 10,
+            fixed = mapOf(10 to DungeonEvents.masterCrown),
+        )
+        assertCompiledDungeonScenario(
+            dungeons,
+            Dungeons.silverSanctum,
+            levels = 20,
+            fixed = mapOf(20 to DungeonEvents.silverSanctum),
+        )
+        assertCompiledDungeonScenario(
+            dungeons,
+            Dungeons.hobgoblinStronghold,
+            levels = 22,
+            fixed = mapOf(
+                3 to DungeonEvents.hobgoblinPatrol,
+                6 to DungeonEvents.hobgoblinPatrol,
+                9 to DungeonEvents.hobgoblinPatrol,
+                14 to DungeonEvents.hobgoblinPatrol,
+                17 to DungeonEvents.hobgoblinPatrol,
+                19 to DungeonEvents.hobgoblinPatrol,
+                20 to DungeonEvents.royalGuard1,
+                21 to DungeonEvents.royalGuard2,
+                22 to DungeonEvents.hobgoblinChief,
+            ),
+        )
+        assertCompiledDungeonScenario(
+            dungeons,
+            Dungeons.ogreCave,
+            levels = 7,
+            fixed = mapOf(
+                6 to DungeonEvents.orcNest,
+                7 to DungeonEvents.tammysPrison,
+            ),
+        )
+        assertCompiledDungeonScenario(
+            dungeons,
+            Dungeons.erethorTemple,
+            levels = 12,
+            fixed = mapOf(
+                3 to DungeonEvents.erethorPriests,
+                7 to DungeonEvents.erethorPriests,
+                12 to DungeonEvents.luteChamber,
+            ),
+        )
         assertEquals(DungeonEventDisposition.Recurring, weakEncounter.disposition)
         assertEquals(EncounterTiers.weak, weakEncounter.randomEncounterTier)
+        assertEquals(
+            Story.peasant.wife.rescued,
+            dungeons.events.single { it.id == DungeonEvents.tammysPrison }.clearWhenFlag,
+        )
         assertTrue(fireShieldEvent.ops.anyNested { op ->
             op is Op.AchieveMilestone && op.milestone == Milestones.fireShield
         })
@@ -6490,6 +6936,48 @@ class RylweenDslValidationTest {
             ),
         )
     }
+
+    private fun fullInventory(item: ItemId = Items.rope): Map<Int, ItemId> =
+        (1..InventorySaveSlotMax).associateWith { item }
+
+    private fun assertInventorySlots(expected: Map<Int, ItemId>, party: PartyState) {
+        assertEquals(expected, expected.keys.associateWith { party.inventoryItem(it) })
+    }
+
+    private fun assertCompiledDungeonScenario(
+        dungeons: DungeonSystemModel,
+        dungeon: DungeonId,
+        levels: Int?,
+        fixed: Map<Int, DungeonEventId>,
+    ) {
+        val scenario = dungeons.scenarios.single { it.dungeon == dungeon }
+        assertEquals(levels?.let { it..it }, scenario.levelRange)
+        assertEquals(fixed, scenario.fixedLevelEvents)
+        assertEquals(
+            mapOf(
+                DungeonEvents.findObject to 1,
+                DungeonEvents.gold to 1,
+                DungeonEvents.weakEncounter to 2,
+                DungeonEvents.deepEncounter to 1,
+                DungeonEvents.nothingSpecial to 1,
+                DungeonEvents.emptyLevel to 1,
+                DungeonEvents.goldChest to 1,
+                DungeonEvents.torches to 1,
+            ),
+            scenario.randomEvents.associate { it.event to it.weight },
+        )
+    }
+
+    private data class DungeonEventSmokeCase(
+        val name: String,
+        val dungeon: DungeonId,
+        val event: DungeonEventId,
+        val inputs: List<String>,
+        val outputFragments: List<String>,
+        val party: PartyState? = null,
+        val recurring: Boolean = false,
+        val verify: TerminalScenarioRun<DungeonSession>.() -> Unit = {},
+    )
 
     private fun customBattleSession(
         party: PartyState,

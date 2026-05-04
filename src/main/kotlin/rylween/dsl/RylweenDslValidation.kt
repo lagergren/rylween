@@ -427,6 +427,11 @@ fun validateDungeonSystem(dungeons: DungeonSystemModel, monsters: List<MonsterMo
     val encounterTiers = monsters?.mapNotNull { it.tier }?.toSet()
     dungeons.events.forEach { event ->
         check(event.id.slug.isNotBlank()) { "dungeon event references blank id" }
+        event.clearWhenFlag?.let { flag ->
+            check(flag.flag.slug.isNotBlank() && flag.native.isNotBlank()) {
+                "dungeon event ${event.id.slug} has invalid conditional clear flag"
+            }
+        }
         event.randomEncounterTier?.let { tier ->
             check(tier.slug.isNotBlank()) { "dungeon event ${event.id.slug} references blank encounter tier" }
             encounterTiers?.let { tiers ->
@@ -1422,7 +1427,7 @@ fun validateScriptRewards(
             }
         }
         validateTextBlock(offer.deal, "random item offer ${offer.pool.slug} deal")
-        validateTextBlock(offer.declined, "random item offer ${offer.pool.slug} declined")
+        offer.declined?.let { validateTextBlock(it, "random item offer ${offer.pool.slug} declined") }
         offer.priceOverride?.let { price ->
             check(price >= 0) { "random item offer ${offer.pool.slug} price override must be non-negative" }
         }

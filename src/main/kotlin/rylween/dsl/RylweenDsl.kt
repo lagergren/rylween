@@ -766,6 +766,7 @@ data class DungeonEventModel(
     val disposition: DungeonEventDisposition,
     val ops: List<Op>,
     val randomEncounterTier: EncounterTier? = null,
+    val clearWhenFlag: FlagState? = null,
 )
 
 data class DungeonRandomEventModel(
@@ -1083,7 +1084,7 @@ data class RandomItemOfferModel(
     val choicePrompt: TextBlock,
     val broke: TextBlock,
     val deal: TextBlock,
-    val declined: TextBlock,
+    val declined: TextBlock?,
     val application: RewardApplicationModel,
     val messages: RewardMessageModel,
     val buy: InputBindingModel,
@@ -2748,6 +2749,10 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
         messagesModel = messagesModel.copy(pickedUp = pickedUp)
     }
 
+    fun exactFullInventoryReject() {
+        applicationModel = applicationModel.copy(overflow = RewardOverflowPolicy.SkipIfInventoryFull)
+    }
+
     fun promptDrop(pickedUp: String) {
         promptDrop(inlineText(pickedUp))
     }
@@ -2779,7 +2784,7 @@ class RandomItemOfferBuilder(private val pool: ItemPoolId) {
             choicePrompt = choicePromptText,
             broke = requireNotNull(brokeText) { "random item offer requires broke text" },
             deal = requireNotNull(dealText) { "random item offer requires deal text" },
-            declined = requireNotNull(declinedText) { "random item offer requires declined text" },
+            declined = declinedText,
             application = applicationModel,
             messages = messagesModel.copy(
                 cantCarry = requireNotNull(messagesModel.cantCarry) {
@@ -5065,14 +5070,22 @@ class DungeonSystemBuilder {
 class DungeonEventBuilder(private val id: DungeonEventId) {
     private var disposition = DungeonEventDisposition.ClearAfterRun
     private var randomEncounterTier: EncounterTier? = null
+    private var clearWhenFlag: FlagState? = null
     private val ops = mutableListOf<Op>()
 
     fun recurring() {
         disposition = DungeonEventDisposition.Recurring
+        clearWhenFlag = null
+    }
+
+    fun recurringUntil(flag: FlagState) {
+        disposition = DungeonEventDisposition.Recurring
+        clearWhenFlag = flag
     }
 
     fun clearsAfterRun() {
         disposition = DungeonEventDisposition.ClearAfterRun
+        clearWhenFlag = null
     }
 
     fun randomEncounter(tier: EncounterTier) {
@@ -5089,6 +5102,7 @@ class DungeonEventBuilder(private val id: DungeonEventId) {
             disposition = disposition,
             ops = ops.toList(),
             randomEncounterTier = randomEncounterTier,
+            clearWhenFlag = clearWhenFlag,
         )
 }
 
@@ -7218,7 +7232,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                     op.offer.messages.cantCarry?.let(::text)
                     op.offer.messages.pickedUp?.let(::text)
                     text(op.offer.deal)
-                    text(op.offer.declined)
+                    op.offer.declined?.let(::text)
                 }
                 is Op.ShopService -> {
                     text(op.shop.closed)

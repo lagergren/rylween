@@ -126,7 +126,9 @@ data class RandomItemOfferSession(
         }
 
     private fun decline(): RandomItemOfferSession =
-        finish(RandomItemOfferStatus.Declined, party, offer.declined)
+        offer.declined?.let { message ->
+            finish(RandomItemOfferStatus.Declined, party, message)
+        } ?: finishSilently(RandomItemOfferStatus.Declined, party)
 
     private fun place(dropSlot: Int?): RandomItemOfferSession =
         when (val placed = party.placeInventoryItem(
@@ -182,6 +184,19 @@ data class RandomItemOfferSession(
         return copy(
             party = nextParty,
             step = RandomItemOfferStep.Message(message, RandomItemOfferStep.Finished(result), result),
+            lastResult = result,
+        )
+    }
+
+    private fun finishSilently(
+        status: RandomItemOfferStatus,
+        nextParty: PartyState,
+        slot: Int? = null,
+    ): RandomItemOfferSession {
+        val result = result(status, nextParty, slot)
+        return copy(
+            party = nextParty,
+            step = RandomItemOfferStep.Finished(result),
             lastResult = result,
         )
     }

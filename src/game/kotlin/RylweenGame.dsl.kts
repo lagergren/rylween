@@ -1278,6 +1278,7 @@ val nextRylween = rylween {
         }
 
         event(DungeonEvents.spectrumMessage) {
+            recurring()
             run {
                 readScreen(
                     "A message on the wall",
@@ -1793,7 +1794,7 @@ val nextRylween = rylween {
         }
 
         event(DungeonEvents.tammysPrison) {
-            recurring()
+            recurringUntil(Story.peasant.wife.rescued)
             run {
                 whenever(Story.peasant.wife.accepted and !Story.peasant.wife.rescued) {
                     readScreen(

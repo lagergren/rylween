@@ -59,14 +59,14 @@ fun ScriptScope.offerDungeonFind(pool: ItemPoolId) {
         choicePrompt("(T)ake it", "(L)eave it")
         broke("No gold changes hands.")
         full("You can't carry more.")
-        promptDrop("Ok.")
+        exactFullInventoryReject()
         deal("", "Ok.")
-        declined("You leave it.")
     }
 }
 
 fun ScriptScope.findDungeonObject() {
-    whenever(chance(80)) {
+    val roll = localInt(random(0..4))
+    whenever(roll gt 0) {
         choose(random(0..2)) {
             case(0) { offerDungeonFind(ItemPools.dungeonWeaponFinds) }
             case(1) { offerDungeonFind(ItemPools.dungeonPotionGemFinds) }
