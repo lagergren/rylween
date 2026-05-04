@@ -70,6 +70,16 @@ sealed interface TownSessionInput {
     data class FinishNativeService(val runtime: RuntimeSessionState) : TownSessionInput
 }
 
+sealed interface CharacterCreationInput {
+    data class PartyName(val name: String) : CharacterCreationInput
+    data class RerollStats(val reroll: Boolean) : CharacterCreationInput
+    data class MemberName(val name: String) : CharacterCreationInput
+    data class GenderChoice(val gender: Gender) : CharacterCreationInput
+    data class RaceChoice(val race: Race) : CharacterCreationInput
+    data class ClassChoice(val pcClass: PcClass) : CharacterCreationInput
+    object Continue : CharacterCreationInput
+}
+
 internal fun Int.digitKey(): Char {
     require(this in 0..9) { "single-key numeric choice must be 0..9: $this" }
     return ('0'.code + this).toChar()

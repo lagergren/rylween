@@ -1041,6 +1041,70 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun characterCreationSessionAllocatesAuthoredFreshPartyState() {
+        var session = CharacterCreationSession.start(
+            partyId = Parties.replay,
+            playerName = "Player",
+            baseRealm = creationBaseRealm(rngState = null),
+            content = RylweenCompiledGame.nextDsl.runtimeContent(),
+        ).apply(CharacterCreationInput.PartyName("seekers"))
+
+        repeat(4) { index ->
+            session = acceptCreatedThief(session, name = "hero${index + 1}")
+        }
+
+        val finished = session.step as CharacterCreationStep.Finished
+        val runtime = finished.runtime
+        val party = runtime.activeParty
+        assertEquals(CharacterCreationStatus.Finished, session.lastResult?.status)
+        assertEquals(RuntimeMode.Wilderness, runtime.realm.currentMode)
+        assertEquals(Maps.wilderness, runtime.realm.currentMap)
+        assertEquals(4, runtime.realm.partyMemberMax)
+        assertEquals(Wilderness.xy(12, 9), party.position)
+        assertEquals(Facing.North, party.facing)
+        assertEquals("Seekers", party.name)
+        assertEquals(PartyResources(gold = 1000, torches = 5, food = 100, timeLeft = 200, restedHours = 14), party.resources)
+        assertEquals((0..InventorySaveSlotMax).toList(), party.inventory.map { it.slot })
+        assertTrue(party.inventory.all { it.item == null })
+        assertEquals(listOf("Hero1", "Hero2", "Hero3", "Hero4"), party.members.map { it.name })
+        assertTrue(party.members.all { it.pcClass == PcClass.Thief && it.race == Race.Elf && it.gender == Gender.Female })
+        assertTrue(party.members.all { member ->
+            member.weaponSkill == 15 &&
+                member.health == 15 &&
+                member.hitPoints == (15 of 15) &&
+                member.wisdom == 15 &&
+                member.mana == (0 manaOf 15) &&
+                member.charisma == 15 &&
+                member.level == 1 &&
+                member.experience == 0 &&
+                !member.dead
+        })
+    }
+
+    @Test
+    fun characterCreationSessionRejectsAuthoredClassStatGateAndRerollsSlot() {
+        val session = CharacterCreationSession.start(
+            partyId = Parties.replay,
+            playerName = "Player",
+            baseRealm = creationBaseRealm(rngState = null),
+            content = RylweenCompiledGame.nextDsl.runtimeContent(),
+        )
+            .apply(CharacterCreationInput.PartyName("seekers"))
+            .apply(CharacterCreationInput.RerollStats(reroll = false))
+            .apply(CharacterCreationInput.MemberName("bran"))
+            .apply(CharacterCreationInput.GenderChoice(Gender.Male))
+            .apply(CharacterCreationInput.RaceChoice(Race.Human))
+            .apply(CharacterCreationInput.ClassChoice(PcClass.Fighter))
+
+        val rejected = session.step as CharacterCreationStep.ClassRejected
+        assertEquals(CharacterCreationStatus.ClassRejected, session.lastResult?.status)
+        assertEquals(inlineText("Weap. skill must be > 50."), rejected.text)
+        assertEquals(1, rejected.next.memberNumber)
+        assertEquals(CharacterCreationStats(weaponSkill = 15, health = 15, wisdom = 15, charisma = 15), rejected.next.stats)
+        assertTrue(session.apply(CharacterCreationInput.Continue).step is CharacterCreationStep.Stats)
+    }
+
+    @Test
     fun randomItemOfferSessionPromptsDropSlotOnInventoryOverflow() {
         val fullParty = testParty(
             gold = 2000,
@@ -8055,6 +8119,29 @@ class RylweenDslValidationTest {
             visitedNpcs = emptyList(),
             journal = emptyList(),
         )
+
+    private fun creationBaseRealm(rngState: Long?): RealmState =
+        RealmState(
+            day = 0,
+            hour = 9,
+            minute = 0,
+            rngState = rngState,
+            activeParty = Parties.replay,
+            currentMap = Maps.wilderness,
+            currentMode = RuntimeMode.TitleMenu,
+            currentTown = null,
+            banished = false,
+            lastPlayedDay = 0,
+            partyMemberMax = 4,
+        )
+
+    private fun acceptCreatedThief(session: CharacterCreationSession, name: String): CharacterCreationSession =
+        session
+            .apply(CharacterCreationInput.RerollStats(reroll = false))
+            .apply(CharacterCreationInput.MemberName(name))
+            .apply(CharacterCreationInput.GenderChoice(Gender.Female))
+            .apply(CharacterCreationInput.RaceChoice(Race.Elf))
+            .apply(CharacterCreationInput.ClassChoice(PcClass.Thief))
 
     private open class FakeTerminalPort(vararg inputs: String) : TerminalPort {
         private val queue = ArrayDeque(inputs.toList())

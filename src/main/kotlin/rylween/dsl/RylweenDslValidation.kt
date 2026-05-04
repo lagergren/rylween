@@ -1799,6 +1799,36 @@ private fun validateRealmContent(realm: RealmContentModel) {
     realm.hunt?.let(::validateHuntRules)
 }
 
+private fun validateCharacterCreation(model: CharacterCreationModel?, worldMaps: List<WorldMapModel>) {
+    if (model == null) return
+
+    check(model.races.isNotEmpty()) { "character creation needs at least one race option" }
+    check(model.races.map { it.race }.toSet().size == model.races.size) {
+        "character creation has duplicate race options"
+    }
+    model.races.forEach { option ->
+        check(option.label.isNotBlank()) { "character creation race ${option.race.name} has blank label" }
+    }
+
+    check(model.classes.isNotEmpty()) { "character creation needs at least one class option" }
+    check(model.classes.map { it.klass }.toSet().size == model.classes.size) {
+        "character creation has duplicate class options"
+    }
+    model.classes.forEach { option ->
+        check(option.label.isNotBlank()) { "character creation class ${option.klass.name} has blank label" }
+        option.failureText?.let { validateTextBlock(it, "character creation ${option.klass.name} failure text") }
+    }
+
+    check(model.start.resources.gold >= 0) { "character creation starting gold must be non-negative" }
+    check(model.start.resources.torches >= 0) { "character creation starting torches must be non-negative" }
+    check(model.start.resources.food >= 0) { "character creation starting food must be non-negative" }
+    check(model.start.resources.timeLeft >= 0) { "character creation starting time left must be non-negative" }
+    check(model.start.resources.restedHours >= 0) { "character creation starting rested hours must be non-negative" }
+    check(model.start.map in worldMaps.map { it.id }.toSet()) {
+        "character creation start map ${model.start.map.slug} is not declared"
+    }
+}
+
 private fun validateCampRules(camp: CampRulesModel) {
     check(camp.healthGain >= 0) { "camp health gain must be non-negative" }
     check(camp.foodCostPerMember >= 0) { "camp food cost must be non-negative" }
@@ -2255,6 +2285,7 @@ fun collectAuthoredContentDiagnostics(content: GameModel): List<ValidationDiagno
         captureValidation("items.catalog") { validateItemCatalog(content.itemCatalog) }
         captureValidation("items.pools") { validateItemPools(content.itemPools, content.itemCatalog) }
         captureValidation("progress") { validateGameProgress(content.progress, content.itemCatalog) }
+        captureValidation("characterCreation") { validateCharacterCreation(content.characterCreation, content.worldMaps) }
         captureValidation("flags.authored") { validateAuthoredFlags(content, flagStates) }
         captureValidation("flags.transitions") { validateFlagTransitions(content, flagStates) }
         captureValidation("monsters") { validateMonsters(content.monsters) }
