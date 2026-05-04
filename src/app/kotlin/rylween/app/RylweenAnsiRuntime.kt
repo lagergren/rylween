@@ -39,7 +39,6 @@ private data class AnsiRuntimeConfig(
     val state: StateId = States.freshReplay,
     val seed: Long? = null,
     val hour: Int? = null,
-    val mapFile: File? = null,
     val loadFile: File? = null,
     val saveFile: File = File("build/rylween-save.kts"),
     val saveState: StateId = stateId("saved-game"),
@@ -91,8 +90,7 @@ object RylweenAnsiMain {
             }
             return@runRylweenCli
         }
-        val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
-            ?: content.worldMapGrid(Maps.wilderness)
+        val worldMap = content.worldMapGrid(Maps.wilderness)
             ?: error("missing authored wilderness map")
         val engine = RylweenKotlinEngine(
             content = content,
@@ -1168,10 +1166,6 @@ private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
                 config = config.copy(hour = args.valueAfter(index, arg).toInt().mod(24))
                 index += 2
             }
-            "--map" -> {
-                config = config.copy(mapFile = File(args.valueAfter(index, arg)))
-                index += 2
-            }
             "--load" -> {
                 config = config.copy(loadFile = File(args.valueAfter(index, arg)))
                 index += 2
@@ -1222,7 +1216,6 @@ private fun printAnsiUsage() {
         |  --state  state slug, defaults to fresh-replay
         |  --seed   runtime RNG state, defaults to the selected state seed
         |  --hour   0..23, overrides the selected state hour
-        |  --map    file path override; defaults to authored wilderness map
         |  --load   runtime snapshot file to boot instead of --state
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts

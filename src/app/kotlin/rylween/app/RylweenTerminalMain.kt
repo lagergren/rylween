@@ -19,7 +19,6 @@ private data class TerminalConfig(
     val hour: Int? = null,
     val seed: Long? = null,
     val state: StateId = States.freshReplay,
-    val mapFile: File? = null,
     val loadFile: File? = null,
     val saveFile: File = File("build/rylween-save.kts"),
     val saveState: StateId = stateId("saved-game"),
@@ -71,7 +70,7 @@ fun main(args: Array<String>): Unit = runRylweenCli {
     val engine = RylweenKotlinEngine(
         content = content,
         npcPlacementConfig = NpcPlacementRealizerConfig(
-            wilderness = wildernessPlacementPolicy(config.mapFile, content),
+            wilderness = wildernessPlacementPolicy(content),
         ),
     )
     var session = engine.townSession(
@@ -163,8 +162,7 @@ object RylweenGameTerminalMain {
             )
             return@runRylweenCli
         }
-        val worldMap = config.mapFile?.let(WorldMapGrid::loadReferenceMapDat)
-            ?: content.worldMapGrid(Maps.wilderness)
+        val worldMap = content.worldMapGrid(Maps.wilderness)
             ?: error("missing authored wilderness map")
         val engine = RylweenKotlinEngine(
             content = content,
@@ -277,10 +275,6 @@ private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): Ter
                 config = config.copy(state = stateId(args.valueAfter(index, arg)))
                 index += 2
             }
-            "--map" -> {
-                config = config.copy(mapFile = File(args.valueAfter(index, arg)))
-                index += 2
-            }
             "--load" -> {
                 config = config.copy(loadFile = File(args.valueAfter(index, arg)))
                 index += 2
@@ -331,10 +325,9 @@ private fun townArg(value: String): TownId =
         else -> town(value)
     }
 
-private fun wildernessPlacementPolicy(mapFile: File?, content: GameModel): WildernessNpcPlacementPolicy =
+private fun wildernessPlacementPolicy(content: GameModel): WildernessNpcPlacementPolicy =
     WildernessNpcPlacementPolicy(
-        allowedPoints = (mapFile?.let(WorldMapGrid::loadReferenceMapDat)
-            ?: content.worldMapGrid(Maps.wilderness))
+        allowedPoints = content.worldMapGrid(Maps.wilderness)
             ?.passableNpcPoints(),
     )
 
@@ -348,7 +341,6 @@ private fun printTownUsage() {
         |  --hour   0..23, defaults to the selected state hour
         |  --seed   runtime RNG state; omitted means deterministic fixture placement/events
         |  --state  state slug, defaults to fresh-replay
-        |  --map    map file for wilderness NPC placement, defaults to authored wilderness map
         |  --load   runtime snapshot file to boot instead of --state
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
@@ -367,7 +359,6 @@ private fun printGameUsage() {
         |  --state  state slug, defaults to fresh-replay
         |  --seed   runtime RNG state; omitted means deterministic fixture placement/events
         |  --hour   0..23, overrides the selected state hour
-        |  --map    map file for wilderness movement and NPC hut projection, defaults to authored wilderness map
         |  --load   runtime snapshot file to boot instead of --state
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
