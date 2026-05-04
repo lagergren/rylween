@@ -744,7 +744,8 @@ val nextRylween: RylweenModel = rylween {
             viewWho = structuredText { line("Who? (1-", HuntText.partyMemberMax, "/Q/A)") }
             journalHeader = inlineText(
                 "",
-                "============================= TRAVELLER'S JOURNAL ==============================",
+                "TRAVELLER'S JOURNAL",
+                "===================",
                 "",
             )
             dropPrompt = inlineText("Drop what?")
