@@ -3024,6 +3024,55 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun townEntryTaxPreambleUsesAuthoredTownRateAndBindings() {
+        val content = RylweenCompiledGame.nextDsl
+        val town = content.towns.single { it.id == Towns.thord.id }
+        val terminal = FakeTerminalPort("P", "L")
+        val session = TownSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            TownSession.start(
+                town = town,
+                party = testParty(gold = 1000, level = 5),
+                currentHour = 12,
+                content = content.runtimeContent(),
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(session.session.step is TownSessionStep.Finished)
+        assertEquals(TownSessionResultStatus.EntryTaxPaid, session.session.lastResult?.status)
+        assertEquals(930, session.session.party.resources.gold)
+        assertTrue(terminal.output.any { "Welcome to Thord" in it })
+        assertTrue(terminal.output.any { "is 7% - In order to" in it })
+        assertTrue(terminal.output.any { "you pay 70 au." in it })
+        assertTrue(terminal.output.any { "(P)ay to Enter" in it })
+        assertTrue(terminal.output.any { "(L)eave" in it })
+        assertFalse(terminal.output.any { it.startsWith("Options:") && "Pay to Enter" in it })
+    }
+
+    @Test
+    fun townEntryTaxCanBeDeclinedBeforeEnteringMenu() {
+        val content = RylweenCompiledGame.nextDsl
+        val town = content.towns.single { it.id == Towns.thord.id }
+        val terminal = FakeTerminalPort("L")
+        val session = TownSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            TownSession.start(
+                town = town,
+                party = testParty(gold = 1000, level = 5),
+                currentHour = 12,
+                content = content.runtimeContent(),
+            ),
+        )
+
+        assertTrue(session.status is TerminalRunStatus.Finished)
+        assertTrue(session.session.step is TownSessionStep.Finished)
+        assertEquals(TownSessionResultStatus.EntryTaxDeclined, session.session.lastResult?.status)
+        assertEquals(1000, session.session.party.resources.gold)
+        assertTrue(terminal.output.any { "Welcome to Thord" in it })
+        assertFalse(terminal.output.any { "Thank you!" in it })
+        assertFalse(terminal.output.any { "Village of Thord" in it })
+    }
+
+    @Test
     fun townTerminalAdapterRunsLeaveEquipmentPromptBeforeExit() {
         val terminal = FakeTerminalPort("L", "Y", "A", "1", "Y", "B", "1")
         val session = TownSessionTerminalAdapter(terminal).runUntilBlocked(

@@ -134,6 +134,11 @@ private val WildernessDungeonHandoffTextBindings: Set<TextPart> = setOf(
 )
 private val DungeonDepthTextBindings: Set<TextPart> = setOf(TextPart.DungeonDepth)
 private val ConversationTextBindings: Set<TextPart> = setOf(TextPart.ConversationNpcName)
+private val TownEntryTaxTextBindings: Set<TextPart> = setOf(
+    TextPart.CurrentTownName,
+    TextPart.TownTaxPercent,
+    TextPart.TownTaxAmount,
+)
 
 private fun FlagStateIndex.requireKnown(state: FlagState, label: String) {
     check(contains(state)) {
@@ -796,6 +801,12 @@ fun validateTownSystem(
             "town leave prompt ${command.name} is not a ready command"
         }
     }
+    check(townSystem.entryTax.minimumLeaderLevel >= 0) {
+        "town entry tax minimum leader level must be non-negative"
+    }
+    validateInputChoiceBinding(townSystem.entryTax.pay, "town entry tax pay key")
+    validateInputChoiceBinding(townSystem.entryTax.leave, "town entry tax leave key")
+    checkUniqueBindings(listOf(townSystem.entryTax.pay, townSystem.entryTax.leave), "town entry tax")
 
     val buildingServices = townSystem.buildingServices
     check(buildingServices.isNotEmpty()) { "town system needs building services" }
@@ -950,7 +961,10 @@ private fun validateTextBlock(
             TextPart.WildernessDungeonName,
             TextPart.WildernessDungeonLevels,
             TextPart.DungeonDepth,
-            TextPart.ConversationNpcName -> check(part in allowedRuntimeBindings) {
+            TextPart.ConversationNpcName,
+            TextPart.CurrentTownName,
+            TextPart.TownTaxPercent,
+            TextPart.TownTaxAmount -> check(part in allowedRuntimeBindings) {
                 "$label uses runtime text binding ${part.fallbackText()}, but this text is not rendered with that binding"
             }
         }
@@ -2336,6 +2350,9 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.save.saving, "save saving prompt")
     validateTextBlock(prompts.save.done, "save done prompt")
     validateTextBlock(prompts.save.failed, "save failed prompt")
+    validateTextBlock(prompts.town.entryWelcome, "town entry welcome prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
+    validateTextBlock(prompts.town.entryTax, "town entry tax prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
+    validateTextBlock(prompts.town.entryTaxThanks, "town entry tax thanks prompt")
     validateTextBlock(prompts.wilderness.pass, "wilderness pass prompt")
     validateTextBlock(prompts.wilderness.noMoves, "wilderness no-moves prompt")
     validateTextBlock(prompts.wilderness.outOfMoves, "wilderness out-of-moves prompt")

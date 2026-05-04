@@ -63,6 +63,7 @@ sealed interface ShopServiceInput {
 }
 
 sealed interface TownSessionInput {
+    data class EntryTax(val pay: Boolean) : TownSessionInput
     data class MenuKey(val key: Char) : TownSessionInput
     data class Shop(val input: ShopServiceInput) : TownSessionInput
     data class Equipment(val input: TownLeaveEquipmentInput) : TownSessionInput

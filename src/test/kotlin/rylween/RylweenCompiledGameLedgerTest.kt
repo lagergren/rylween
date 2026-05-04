@@ -65,15 +65,68 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.dialogue.single { it.npc == Npcs.leander }.branches.single().whenState == Story.jazzy.ogre.none)
         check(nextDsl.dialogue.single { it.npc == Npcs.ithienn }.branches.size == 4)
         check(nextDsl.towns.size == 4)
+        val townsById = nextDsl.towns.associateBy { it.id }
+        fun townServices(town: TownHandle): List<BuildingId> =
+            townsById.getValue(town.id).services.map { it.building }
+        check(townsById.getValue(Towns.thord.id).let {
+            it.name == "Thord" && it.position == xy(12, 11) && it.taxPercent == 7 && it.kind == TownKind.Village
+        })
+        check(townsById.getValue(Towns.ollk.id).let {
+            it.name == "Ollk" && it.position == xy(48, 12) && it.taxPercent == 10 && it.kind == TownKind.Village
+        })
+        check(townsById.getValue(Towns.wilor.id).let {
+            it.name == "Wilor" && it.position == xy(43, 20) && it.taxPercent == 9 && it.kind == TownKind.City
+        })
+        check(townsById.getValue(Towns.murn.id).let {
+            it.name == "Murn" && it.position == xy(55, 29) && it.taxPercent == 8 && it.kind == TownKind.Village
+        })
+        check(townServices(Towns.thord) == listOf(
+            Buildings.merchant,
+            Buildings.inn,
+            Buildings.tavern,
+            Buildings.smith,
+            Buildings.church,
+        ))
+        check(townServices(Towns.ollk) == listOf(Buildings.merchant, Buildings.inn, Buildings.tavern, Buildings.smith))
+        check(townServices(Towns.wilor) == listOf(
+            Buildings.merchant,
+            Buildings.inn,
+            Buildings.tavern,
+            Buildings.smith,
+            Buildings.church,
+        ))
+        check(townServices(Towns.murn) == listOf(Buildings.merchant, Buildings.inn, Buildings.tavern, Buildings.smith))
         check(nextDsl.towns.single { it.id == Towns.murn.id }.position == xy(55, 29))
         check(nextDsl.towns.single { it.id == Towns.wilor.id }.kind == TownKind.City)
         check(townSystem.menu.map { it.key } == listOf('C', 'S', 'I', 'M', 'T', 'L'))
         check(townSystem.menu.single { it.key == 'C' }.building == Buildings.church)
         check(townSystem.menu.single { it.action == keyAction("leave_town") }.endsMenu)
         check(townSystem.leavePrompts == listOf(EquipmentCommand.ReadyWeapon, EquipmentCommand.ReadyArmor))
-        check(townSystem.buildingServices.size == 5)
-        check(townSystem.buildingServices.single { it.building == Buildings.merchant }.opensAt == 6)
-        check(townSystem.buildingServices.single { it.building == Buildings.tavern }.closesAt == 1)
+        check(townSystem.entryTax.minimumLeaderLevel == 5)
+        check(townSystem.entryTax.pay.primary == "P")
+        check(townSystem.entryTax.pay.label == "Pay to Enter")
+        check(townSystem.entryTax.leave.primary == "L")
+        check(townSystem.buildingServices.map { it.building } == listOf(
+            Buildings.church,
+            Buildings.smith,
+            Buildings.inn,
+            Buildings.merchant,
+            Buildings.tavern,
+        ))
+        check(townSystem.buildingServices.associate { it.building to it.scene } == mapOf(
+            Buildings.church to Scenes.Towne.church,
+            Buildings.smith to Scenes.Towne.smith,
+            Buildings.inn to Scenes.Towne.inn,
+            Buildings.merchant to Scenes.Towne.merchant,
+            Buildings.tavern to Scenes.Towne.tavern,
+        ))
+        check(townSystem.buildingServices.associate { it.building to (it.opensAt to it.closesAt) } == mapOf(
+            Buildings.church to (null to null),
+            Buildings.smith to (6 to 18),
+            Buildings.inn to (null to null),
+            Buildings.merchant to (6 to 18),
+            Buildings.tavern to (6 to 1),
+        ))
         check(nextDsl.wilderness.keys.moveNorth.matches("8"))
         check(nextDsl.wilderness.keys.moveNorth.matches("UP"))
         check(nextDsl.wilderness.keys.moveNorth.matches(InputAliases.ArrowUp))
@@ -409,6 +462,20 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.realm.upkeep.foodTickEvery == 5)
         check(nextDsl.realm.upkeep.restedHoursCostPerTurn == 1)
         check(nextDsl.realm.upkeep.fatigue.size == 4)
+        check(nextDsl.realm.hunt?.let {
+            it.successChancePercent == 45 && it.timeCost == 5 && it.foodMin == 10 && it.foodMax == 19
+        } == true)
+        check(nextDsl.realm.camp.healthGain == 15)
+        check(nextDsl.realm.camp.foodCostPerMember == 4)
+        check(nextDsl.realm.camp.hoursAdvanced == 8)
+        check(nextDsl.realm.camp.hoursRestedReset == 14)
+        check(nextDsl.realm.camp.temperatureBands == listOf(
+            TemperatureBandRange(TemperatureBand.Low, 6 until 10),
+            TemperatureBandRange(TemperatureBand.VeryLow, 10..15),
+        ))
+        check(nextDsl.realm.camp.temperatureDamage == mapOf(TemperatureBand.Low to 5, TemperatureBand.VeryLow to 5))
+        check(nextDsl.realm.camp.ambushChancePercent == 19)
+        check(nextDsl.realm.camp.ambushTier == EncounterTiers.weak)
         check(nextDsl.limits.maxWorldMaps == 1)
         check(nextDsl.limits.maxMapCells == 3120)
         check(nextDsl.limits.screenSize == cells(width = 80, height = 24))

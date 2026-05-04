@@ -7,6 +7,8 @@ package rylween.runtime
 import rylween.dsl.*
 
 enum class TownSessionResultStatus {
+    EntryTaxPaid,
+    EntryTaxDeclined,
     EnteredShop,
     EnteredNativeService,
     ServiceNotOffered,
@@ -111,6 +113,16 @@ data class TownLeaveEquipmentSession(
 }
 
 sealed interface TownSessionStep {
+    data class EntryTax(
+        val prompt: TextBlock,
+        val amount: Int,
+        val pay: InputBindingModel,
+        val leave: InputBindingModel,
+    ) : TownSessionStep
+    data class EntryTaxThanks(
+        val text: TextBlock,
+        val next: Menu,
+    ) : TownSessionStep
     data class Menu(
         val town: TownModel,
         val actions: List<TownMenuActionModel>,
@@ -156,11 +168,18 @@ data class TownSession(
 
     fun apply(input: TownSessionInput): TownSession =
         when (input) {
+            is TownSessionInput.EntryTax -> applyEntryTax(input.pay)
             is TownSessionInput.MenuKey -> chooseMenu(input.key)
             is TownSessionInput.Shop -> applyShop(input.input)
             is TownSessionInput.Equipment -> applyEquipment(input.input)
             is TownSessionInput.FinishNativeService -> finishNative(input.runtime)
         }
+
+    fun continueEntryTaxThanks(): TownSession {
+        val current = step as? TownSessionStep.EntryTaxThanks
+            ?: error("town session is not showing the entry-tax thanks prompt")
+        return copy(step = current.next)
+    }
 
     fun continueNotice(): TownSession {
         val current = step as? TownSessionStep.Notice
@@ -194,6 +213,24 @@ data class TownSession(
         return copy(
             runtime = continuation.runtime,
             step = current.copy(continuation = continuation),
+        )
+    }
+
+    private fun applyEntryTax(pay: Boolean): TownSession {
+        val current = step as? TownSessionStep.EntryTax
+            ?: error("town session is not asking for entry tax")
+        if (!pay) {
+            return copy(
+                step = TownSessionStep.Finished(runtime),
+                lastResult = TownSessionResult(TownSessionResultStatus.EntryTaxDeclined, party),
+            )
+        }
+
+        val nextRuntime = runtime.withActiveParty(party.withGold(party.resources.gold - current.amount))
+        return copy(
+            runtime = nextRuntime,
+            step = TownSessionStep.EntryTaxThanks(content.prompts.town.entryTaxThanks, menuStep()),
+            lastResult = TownSessionResult(TownSessionResultStatus.EntryTaxPaid, nextRuntime.activeParty),
         )
     }
 
@@ -285,6 +322,22 @@ data class TownSession(
     private fun menuStep(): TownSessionStep.Menu =
         TownSessionStep.Menu(town, availableTownActions(town, townSystem))
 
+    private fun withEntryTaxPromptIfNeeded(): TownSession {
+        val tax = townSystem.entryTax
+        val leaderLevel = party.members.firstOrNull()?.level ?: 0
+        if (leaderLevel < tax.minimumLeaderLevel) return this
+
+        val amount = (party.resources.gold * town.taxPercent) / 100
+        return copy(
+            step = TownSessionStep.EntryTax(
+                prompt = content.prompts.town.renderEntryTaxPrompt(town.name, town.taxPercent, amount),
+                amount = amount,
+                pay = tax.pay,
+                leave = tax.leave,
+            ),
+        )
+    }
+
     companion object {
         fun start(
             town: TownModel,
@@ -298,7 +351,7 @@ data class TownSession(
                 shopServices = content.scenes.shopServicesByBuilding(),
                 serviceScenes = content.scenes.associateBy { scene -> scene.id },
                 content = content,
-            )
+            ).withEntryTaxPromptIfNeeded()
 
         fun start(
             town: TownModel,
