@@ -7,6 +7,7 @@ import rylween.compiled.inspectExternalBundleArtifact
 import rylween.compiled.loadCompiledGame
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalBundleArtifact
+import rylween.compiled.readExternalRuntimeGame
 import rylween.compiled.writeExternalBundleArtifact
 import rylween.compiled.toCompiledGameBundle
 import rylween.compiled.writeNativeSmokeArtifact
@@ -28,9 +29,9 @@ object RylweenExternalBundleArtifactMain {
     @JvmStatic
     fun main(args: Array<String>): Unit = runRylweenCli {
         val output = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.json")
-        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
-        bundle.loadCompiledGame()
-        bundle.writeExternalBundleArtifact(output)
+        val game = RylweenCompiledGame.nextRylween
+        game.toCompiledGameBundle().loadCompiledGame()
+        game.writeExternalBundleArtifact(output)
         println("Wrote external compiled bundle: ${output.path}")
     }
 }
@@ -41,11 +42,13 @@ object RylweenExternalBundleCheckMain {
         val input = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.json")
         val summary = input.readExternalBundleArtifact()
         val materialized = input.readExternalCompiledGameBundle()
+        val runtimeGame = input.readExternalRuntimeGame()
         println(
             "compiled bundle ok: strings=${summary.section(ExternalBundleSectionId.Strings).rowCount} " +
                 "handles=${summary.section(ExternalBundleSectionId.Handles).rowCount} " +
                 "scripts=${materialized.content.scripts.roots.size} " +
-                "states=${materialized.states.size}",
+                "states=${materialized.states.size} " +
+                "runtimeStates=${runtimeGame.states.size}",
         )
     }
 }

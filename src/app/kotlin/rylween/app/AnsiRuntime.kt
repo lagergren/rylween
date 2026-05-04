@@ -6,8 +6,8 @@ import org.jline.terminal.Attributes
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
 import org.jline.utils.NonBlockingReader
+import rylween.compiled.readExternalRuntimeGame
 import rylween.compiled.readVerifiedExternalBundleArtifact
-import rylween.compiled.toCompiledGameBundle
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.frontend.terminal.*
@@ -51,10 +51,10 @@ object RylweenAnsiMain {
     @JvmStatic
     fun main(args: Array<String>): Unit = runRylweenCli {
         val config = parseAnsiConfig(args.toList())
-        val game = RylweenCompiledGame.nextRylween
-        val content = RylweenCompiledGame.nextDsl
         val bundleFile = config.bundleFile
-        val bundleSummary = bundleFile?.readVerifiedExternalBundleArtifact(game.toCompiledGameBundle())
+        val game = bundleFile?.readExternalRuntimeGame() ?: RylweenCompiledGame.nextRylween
+        val content = game.content
+        val bundleSummary = bundleFile?.readVerifiedExternalBundleArtifact(game)
         val renderer = content.terminalTextRenderer()
         val worldMap = content.worldMapGrid(Maps.wilderness)
             ?: error("missing authored wilderness map")

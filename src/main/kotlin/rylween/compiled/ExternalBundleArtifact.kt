@@ -1,5 +1,6 @@
 package rylween.compiled
 
+import rylween.dsl.*
 import java.io.File
 import java.lang.reflect.Array
 import java.lang.reflect.Modifier
@@ -13,12 +14,12 @@ import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.typeOf
 
 private const val ExternalBundleFormat = "rylween.compiled.bundle"
-private const val ExternalBundleVersion = 1
+private const val ExternalBundleVersion = 2
 
-fun CompiledGameBundle.toExternalBundleArtifact(): ByteArray =
+fun RylweenModel.toExternalBundleArtifact(): ByteArray =
     ExternalBundleArtifactWriter().write(this)
 
-fun CompiledGameBundle.writeExternalBundleArtifact(file: File) {
+fun RylweenModel.writeExternalBundleArtifact(file: File) {
     file.parentFile?.mkdirs()
     file.writeBytes(toExternalBundleArtifact())
 }
@@ -32,13 +33,12 @@ fun File.readExternalBundleArtifact(): ExternalBundleArtifactSummary =
 /**
  * Artifact startup drift guard used by the current ANSI `--bundle` flag.
  *
- * This deliberately does not make the ANSI runtime artifact-backed by itself:
- * the launcher reads the JSON bundle, checks its hash and section summaries
- * against the generated JVM `CompiledGameBundle`, and then the existing runtime
- * still boots from generated game objects. J1a is only closed when the launcher
- * builds the runtime-facing content/session facade from the loaded artifact.
+ * The launcher reads the JSON bundle into a runtime facade and verifies that
+ * re-emitting that loaded model would produce the same hash and section summary.
+ * This catches corrupt or nondeterministic bundle files before any runtime
+ * session is started.
  */
-fun File.readVerifiedExternalBundleArtifact(expected: CompiledGameBundle): ExternalBundleArtifactSummary {
+fun File.readVerifiedExternalBundleArtifact(expected: RylweenModel): ExternalBundleArtifactSummary {
     val actual = readExternalBundleArtifact()
     val expectedSummary = expected.toExternalBundleArtifact().readExternalBundleArtifact()
     if (actual.bundleContentHash != expectedSummary.bundleContentHash) {
@@ -58,14 +58,31 @@ fun File.readVerifiedExternalBundleArtifact(expected: CompiledGameBundle): Exter
  *
  * This is the next boundary after the summary/drift guard: the file is no
  * longer only inspectable, it materializes the same `CompiledGameBundle` shape
- * that `CompiledBundleLoader` validates. The current Kotlin ANSI runtime still
- * needs a later facade step before it can replace generated `GameModel` content.
+ * that `CompiledBundleLoader` validates.
  */
 fun ByteArray.readExternalCompiledGameBundle(): CompiledGameBundle =
-    ExternalBundleArtifactMaterializer(decodeToString()).read()
+    ExternalBundleArtifactMaterializer(decodeToString()).readCompiledBundle()
 
 fun File.readExternalCompiledGameBundle(): CompiledGameBundle =
     readBytes().readExternalCompiledGameBundle()
+
+/**
+ * Reads the J1 strict JSON artifact into the runtime-facing Kotlin game model.
+ *
+ * The `runtimeFacade` section carries the complete data graph the current
+ * Kotlin session/runtime layer consumes: prompts, terminal presentation,
+ * realm/upkeep balance, authored content, Ydarg castle content, and start
+ * states. The loader recompiles that facade back into `CompiledGameBundle` and
+ * requires it to match the normalized compiled sections, so the facade cannot
+ * silently drift from the dense table bundle. This is deliberately still a
+ * Kotlin runtime facade, not the final stable row schema a non-Kotlin runtime
+ * would implement directly.
+ */
+fun ByteArray.readExternalRuntimeGame(): RylweenModel =
+    ExternalBundleArtifactMaterializer(decodeToString()).readRuntimeGame()
+
+fun File.readExternalRuntimeGame(): RylweenModel =
+    readBytes().readExternalRuntimeGame()
 
 fun ByteArray.inspectExternalBundleArtifact(): String =
     readExternalBundleArtifact().renderExternalBundleInspection()
@@ -137,12 +154,13 @@ enum class ExternalBundleSectionId(val jsonName: String) {
     DungeonEvents("dungeonEvents"),
     DungeonScenarios("dungeonScenarios"),
     Scripts("scripts"),
+    RuntimeFacade("runtimeFacade"),
     States("states"),
 }
 
 private class ExternalBundleArtifactWriter {
-    fun write(bundle: CompiledGameBundle): ByteArray {
-        val sections = bundle.sectionsJson()
+    fun write(game: RylweenModel): ByteArray {
+        val sections = game.toCompiledGameBundle().sectionsJson(game)
         val root = jsonObject(
             "format" to JsonString(ExternalBundleFormat),
             "schemaVersion" to JsonNumber(ExternalBundleVersion.toString()),
@@ -153,7 +171,7 @@ private class ExternalBundleArtifactWriter {
         return (root.render(pretty = true) + "\n").toByteArray(Charsets.UTF_8)
     }
 
-    private fun CompiledGameBundle.sectionsJson(): JsonObject =
+    private fun CompiledGameBundle.sectionsJson(game: RylweenModel): JsonObject =
         with(content) {
             jsonObject(
                 ExternalBundleSectionId.Universe.jsonName to universeJson(universe, strings),
@@ -200,6 +218,7 @@ private class ExternalBundleArtifactWriter {
                 ExternalBundleSectionId.Scripts.jsonName to compiledJson(
                     scripts.roots.sortedWith(compareBy({ it.rootHandle.kind.ordinal }, { it.rootHandle.id })),
                 ),
+                ExternalBundleSectionId.RuntimeFacade.jsonName to compiledJson(game),
                 ExternalBundleSectionId.States.jsonName to compiledJson(
                     states.sortedWith(compareBy({ it.state.kind.ordinal }, { it.state.id })),
                 ),
@@ -286,8 +305,22 @@ private class ExternalBundleArtifactMaterializer(
 ) {
     private val decoder = ExternalBundleObjectDecoder()
 
-    fun read(): CompiledGameBundle {
+    fun readCompiledBundle(): CompiledGameBundle =
+        readCompiledBundle(readExternalBundleEnvelope(source).sections)
+
+    fun readRuntimeGame(): RylweenModel {
         val sections = readExternalBundleEnvelope(source).sections
+        val runtimeGame = decoder.decode<RylweenModel>(sections.required(ExternalBundleSectionId.RuntimeFacade.jsonName))
+        val compiledFromSections = readCompiledBundle(sections)
+        val compiledFromRuntimeFacade = runtimeGame.toCompiledGameBundle()
+        require(compiledFromRuntimeFacade == compiledFromSections) {
+            "runtime facade does not match compiled bundle sections: " +
+                compiledFromRuntimeFacade.firstDifference(compiledFromSections)
+        }
+        return runtimeGame
+    }
+
+    private fun readCompiledBundle(sections: JsonObject): CompiledGameBundle {
         val strings = readStrings(sections.requiredArray(ExternalBundleSectionId.Strings.jsonName))
         val handles = readHandles(sections.requiredArray(ExternalBundleSectionId.Handles.jsonName))
         val content = CompiledContentBundle(
@@ -368,6 +401,8 @@ private class ExternalBundleArtifactMaterializer(
 }
 
 private class ExternalBundleObjectDecoder {
+    private val flags = linkedMapOf<Pair<String, FlagScope>, DecodedFlagRef>()
+
     inline fun <reified T : Any> decode(value: JsonValue): T =
         decode(value, typeOf<T>()) as T
 
@@ -385,12 +420,38 @@ private class ExternalBundleObjectDecoder {
             Float::class -> value.asNumber("float").toFloat()
             Double::class -> value.asNumber("double").toDouble()
             IntRange::class -> value.asIntRange()
+            FlagRef::class -> decodeFlagRef(value)
+            FlagState::class -> decodeFlagState(value)
             List::class -> value.asArray("list").values.map { item -> decode(item, type.singleArgument("list")) }
             Set::class -> value.asArray("set").values.map { item -> decode(item, type.singleArgument("set")) }.toSet()
             Map::class -> decodeMap(value, type)
             is KClass<*> -> decodeClass(value, classifier)
             else -> error("unsupported compiled JSON target type $type")
         }
+    }
+
+    private fun decodeFlagRef(value: JsonValue): FlagRef {
+        val obj = value.asObject("flag ref")
+        val slug = obj.requiredString("slug")
+        val scope = obj.optionalString("scope")?.let { enumValueOf<FlagScope>(it) } ?: FlagScope.Party
+        val states = obj.optionalArray("states")
+            ?.values
+            ?.map { state -> state.asString("flag state native") }
+            .orEmpty()
+        return flagRef(slug, scope, states)
+    }
+
+    private fun decodeFlagState(value: JsonValue): FlagState {
+        val obj = value.asObject("flag state")
+        val slug = obj.requiredString("flag")
+        val scope = obj.optionalString("scope")?.let { enumValueOf<FlagScope>(it) } ?: FlagScope.Party
+        return flagRef(slug, scope, listOf(obj.requiredString("native"))).value(obj.requiredString("native"))
+    }
+
+    private fun flagRef(slug: String, scope: FlagScope, stateNatives: List<String>): DecodedFlagRef {
+        val ref = flags.getOrPut(slug to scope) { DecodedFlagRef(slug, scope) }
+        stateNatives.forEach(ref::value)
+        return ref
     }
 
     private fun decodeMap(value: JsonValue, type: KType): Map<Any?, Any?> {
@@ -448,6 +509,64 @@ private class ExternalBundleObjectDecoder {
         arguments.getOrNull(index)?.type ?: error("missing $owner type argument for $this")
 }
 
+private fun CompiledGameBundle.firstDifference(other: CompiledGameBundle): String =
+    when {
+        content.universe != other.content.universe -> "universe"
+        content.limits != other.content.limits -> "limits"
+        content.strings != other.content.strings -> "strings"
+        content.handles != other.content.handles -> "handles"
+        content.flags != other.content.flags -> "flags"
+        content.items != other.content.items -> "items"
+        content.itemPools != other.content.itemPools -> "itemPools"
+        content.formulas != other.content.formulas -> "formulas"
+        content.rewards != other.content.rewards -> "rewards"
+        content.terrain != other.content.terrain -> "terrain"
+        content.worldMaps != other.content.worldMaps -> "worldMaps"
+        content.images != other.content.images -> "images"
+        content.staticScreens != other.content.staticScreens -> "staticScreens"
+        content.screenRegions != other.content.screenRegions -> "screenRegions"
+        content.towns != other.content.towns -> "towns"
+        content.buildingServices != other.content.buildingServices -> "buildingServices"
+        content.characters != other.content.characters -> "characters"
+        content.monsters != other.content.monsters -> "monsters"
+        content.missions != other.content.missions -> "missions"
+        content.spells != other.content.spells -> "spells"
+        content.itemUses != other.content.itemUses -> "itemUses"
+        content.dungeonEvents != other.content.dungeonEvents -> "dungeonEvents"
+        content.dungeonScenarios != other.content.dungeonScenarios -> "dungeonScenarios"
+        content.scripts != other.content.scripts -> content.scripts.firstDifference(other.content.scripts)
+        states != other.states -> "states"
+        else -> "unknown"
+    }
+
+private fun CompiledScriptBundle.firstDifference(other: CompiledScriptBundle): String {
+    if (roots.size != other.roots.size) return "scripts size ${roots.size} != ${other.roots.size}"
+    roots.zip(other.roots).forEachIndexed { index, (left, right) ->
+        if (left != right) {
+            return when {
+                left.root != right.root -> "script[$index] root ${left.root} != ${right.root}"
+                left.rootHandle != right.rootHandle -> "script[$index] handle ${left.rootHandle} != ${right.rootHandle}"
+                left.instructions.size != right.instructions.size ->
+                    "script[$index] ${left.root.slug} instruction size ${left.instructions.size} != ${right.instructions.size}"
+                else -> {
+                    val opIndex = left.instructions.zip(right.instructions).indexOfFirst { (l, r) -> l != r }
+                    "script[$index] ${left.root.slug} instruction[$opIndex] " +
+                        "${left.instructions.getOrNull(opIndex)} != ${right.instructions.getOrNull(opIndex)}"
+                }
+            }
+        }
+    }
+    return "scripts"
+}
+
+private class DecodedFlagRef(
+    slug: String,
+    scope: FlagScope,
+) : FlagRef(slug, scope) {
+    fun value(native: String): FlagState =
+        states.firstOrNull { state -> state.native == native } ?: state(native)
+}
+
 private sealed interface JsonValue {
     fun render(pretty: Boolean): String =
         buildString {
@@ -474,6 +593,18 @@ private fun compiledJson(value: Any?, visiting: MutableSet<Any>): JsonValue =
         is String -> JsonString(value)
         is Char -> JsonString(value.toString())
         is Boolean -> JsonBoolean(value)
+        is FlagRef -> jsonObject(
+            "_type" to JsonString("FlagRef"),
+            "slug" to JsonString(value.slug),
+            "scope" to JsonString(value.scope.name),
+            "states" to JsonArray(value.states.map { state -> JsonString(state.native) }),
+        )
+        is FlagState -> jsonObject(
+            "_type" to JsonString("FlagState"),
+            "flag" to JsonString(value.flag.slug),
+            "scope" to JsonString(value.flag.scope.name),
+            "native" to JsonString(value.native),
+        )
         is Byte,
         is Short,
         is Int,
@@ -828,6 +959,9 @@ private fun JsonObject.requiredObject(name: String): JsonObject =
 
 private fun JsonObject.requiredArray(name: String): JsonArray =
     required(name) as? JsonArray ?: error("expected array for $name")
+
+private fun JsonObject.optionalArray(name: String): JsonArray? =
+    optional(name) as? JsonArray
 
 private fun JsonObject.requiredString(name: String): String =
     required(name).asString(name)
