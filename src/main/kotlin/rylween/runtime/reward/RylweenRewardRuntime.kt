@@ -2,7 +2,9 @@
 // rewards) and offering a single random item for sale (e.g. tavern scruffy
 // dealer, free dungeon finds via priceOverride).
 
-package rylween.runtime
+package rylween.runtime.reward
+
+import rylween.runtime.*
 
 import rylween.dsl.*
 

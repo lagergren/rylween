@@ -1,10 +1,14 @@
-package rylween.runtime
+package rylween.runtime.wilderness
+
+import rylween.runtime.*
+import rylween.runtime.battle.*
+import rylween.runtime.dungeon.*
+import rylween.runtime.party.*
+import rylween.runtime.town.*
 
 import rylween.dsl.*
 import rylween.runtime.ydarg.YdargSession
 import rylween.runtime.ydarg.YdargSessionStep
-
-enum class WildernessDirection { North, South, East, West }
 
 sealed interface WildernessSessionInput {
     data class Move(val direction: WildernessDirection) : WildernessSessionInput
@@ -596,11 +600,10 @@ data class WildernessSession(
                 ),
                 step = WildernessSessionStep.TurnStart,
                 lastResult = WildernessSessionResult(
-                    status = when (session.lastResult?.status) {
-                        InventoryItemUseStatus.Used,
-                        InventoryItemUseStatus.Equipped -> WildernessSessionResultStatus.InventoryUsed
-                        else -> WildernessSessionResultStatus.InventoryUnavailable
-                    },
+                    status = session.lastResult?.status.toParentStatus(
+                        used = WildernessSessionResultStatus.InventoryUsed,
+                        unavailable = WildernessSessionResultStatus.InventoryUnavailable,
+                    ),
                 ),
             )
         } else {
@@ -660,11 +663,10 @@ data class WildernessSession(
             "wilderness session is not running equipment prompts"
         }
         return if (session.step is EquipmentPromptStep.Finished) {
-            val status = when (session.step.result) {
-                is EquipmentActionResult.Equipped,
-                is EquipmentActionResult.Unequipped -> WildernessSessionResultStatus.EquipmentUsed
-                else -> WildernessSessionResultStatus.EquipmentUnavailable
-            }
+            val status = session.step.result.toParentStatus(
+                used = WildernessSessionResultStatus.EquipmentUsed,
+                unavailable = WildernessSessionResultStatus.EquipmentUnavailable,
+            )
             copy(
                 runtime = runtime.withActiveParty(session.party),
                 step = WildernessSessionStep.TurnStart,
@@ -692,10 +694,10 @@ data class WildernessSession(
                     ),
                 )
             }
-            val status = when (session.lastResult?.status) {
-                PriestSpellStatus.Cast -> WildernessSessionResultStatus.CastSpellUsed
-                else -> WildernessSessionResultStatus.CastSpellUnavailable
-            }
+            val status = session.lastResult?.status.toParentStatus(
+                cast = WildernessSessionResultStatus.CastSpellUsed,
+                unavailable = WildernessSessionResultStatus.CastSpellUnavailable,
+            )
             copy(
                 runtime = session.runtime.withRealm(
                     session.runtime.realm.copy(
@@ -1584,25 +1586,6 @@ private fun WildernessFatigueRule.matches(restedHours: Int): Boolean =
         WildernessFatigueMatch.Equal -> restedHours == threshold
         WildernessFatigueMatch.LessThan -> restedHours < threshold
     }
-
-fun WildernessDirection.delta(): GridPoint =
-    when (this) {
-        WildernessDirection.North -> GridPoint(0, -1)
-        WildernessDirection.South -> GridPoint(0, 1)
-        WildernessDirection.East -> GridPoint(1, 0)
-        WildernessDirection.West -> GridPoint(-1, 0)
-    }
-
-fun WildernessDirection.facing(): Facing =
-    when (this) {
-        WildernessDirection.North -> Facing.North
-        WildernessDirection.South -> Facing.South
-        WildernessDirection.East -> Facing.East
-        WildernessDirection.West -> Facing.West
-    }
-
-operator fun GridPoint.plus(other: GridPoint): GridPoint =
-    GridPoint(x + other.x, y + other.y)
 
 private fun teleportDirection(key: Int): WildernessDirection? =
     when (key) {

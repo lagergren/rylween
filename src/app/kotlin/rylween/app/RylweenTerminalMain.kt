@@ -8,6 +8,8 @@ import rylween.frontend.terminal.*
 import rylween.game.*
 import rylween.game.RylweenCompiledGame
 import rylween.runtime.*
+import rylween.runtime.town.*
+import rylween.runtime.wilderness.*
 import rylween.save.FileRuntimeSavePort
 import rylween.save.loadRuntimeSnapshot
 import rylween.save.loadRuntimeStateSnapshot

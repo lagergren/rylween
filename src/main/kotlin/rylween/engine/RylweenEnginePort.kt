@@ -6,6 +6,9 @@ package rylween.engine
 
 import rylween.dsl.*
 import rylween.runtime.*
+import rylween.runtime.town.ShopSellQuoteResult
+import rylween.runtime.town.ShopTransactionResult
+import rylween.runtime.wilderness.WildernessDungeonHandoff
 
 data class EngineRequest(
     val path: String,

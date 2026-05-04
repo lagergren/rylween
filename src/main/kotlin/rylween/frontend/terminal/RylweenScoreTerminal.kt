@@ -4,11 +4,11 @@ import rylween.dsl.GameModel
 import rylween.dsl.PcClass
 import rylween.dsl.StaticScreenId
 import rylween.dsl.StaticScreenRuntimeReport
-import rylween.runtime.HallOfHeroesReport
 import rylween.runtime.RuntimeSessionState
-import rylween.runtime.ScoreReport
-import rylween.runtime.hallOfHeroesReport
-import rylween.runtime.scoreReport
+import rylween.runtime.score.HallOfHeroesReport
+import rylween.runtime.score.ScoreReport
+import rylween.runtime.score.hallOfHeroesReport
+import rylween.runtime.score.scoreReport
 
 private const val ScoreHeader: String = "ADVENTURERS OF RYLWEEN - PARTY STATUS AND SCORES"
 private const val HallOfHeroesHeader: String = "ADVENTURERS OF RYLWEEN - HALL OF NATIONAL HEROES"

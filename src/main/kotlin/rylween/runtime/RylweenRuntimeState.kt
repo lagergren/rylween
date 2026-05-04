@@ -63,6 +63,14 @@ data class RuntimeSessionState(
     }
 }
 
+fun StateModel.toRuntimeSessionState(rngState: Long? = realm.rngState): RuntimeSessionState =
+    RuntimeSessionState(
+        realm = realm.copy(rngState = rngState),
+        parties = parties,
+        npcs = npcs,
+        locations = locations,
+    )
+
 data class RylweenRandomDraw(
     val value: Int,
     val nextSeed: Long,

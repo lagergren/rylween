@@ -6,6 +6,17 @@ package rylween.frontend.terminal
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.runtime.*
+import rylween.runtime.battle.BattleSession
+import rylween.runtime.battle.BattleSessionStep
+import rylween.runtime.reward.RandomItemOfferSession
+import rylween.runtime.reward.RewardGrantSession
+import rylween.runtime.town.SpeakRuntimeContent
+import rylween.runtime.town.SpeakSession
+import rylween.runtime.town.noRumourText
+import rylween.runtime.town.selectRumour
+import rylween.runtime.wilderness.WildernessDungeonHandoff
+import rylween.runtime.wilderness.WorldMapGrid
+import rylween.runtime.wilderness.teleportParty
 
 sealed interface ScriptBridgeStatus {
     object Finished : ScriptBridgeStatus

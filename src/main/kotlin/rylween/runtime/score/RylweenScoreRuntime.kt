@@ -1,4 +1,6 @@
-package rylween.runtime
+package rylween.runtime.score
+
+import rylween.runtime.*
 
 import rylween.dsl.GameMilestoneId
 import rylween.dsl.GameModel
@@ -8,7 +10,6 @@ import rylween.dsl.PartyState
 import rylween.dsl.PartyMemberState
 import rylween.dsl.PcClass
 import rylween.dsl.SourceSpecialField
-import rylween.dsl.StateModel
 
 data class ScorePowerItem(
     val milestone: GameMilestoneId,
@@ -37,14 +38,6 @@ data class HallOfHeroesEntry(
 data class HallOfHeroesReport(
     val entries: List<HallOfHeroesEntry>,
 )
-
-fun StateModel.toRuntimeSessionState(rngState: Long? = realm.rngState): RuntimeSessionState =
-    RuntimeSessionState(
-        realm = realm.copy(rngState = rngState),
-        parties = parties,
-        npcs = npcs,
-        locations = locations,
-    )
 
 fun RuntimeSessionState.scoreReport(content: GameModel): ScoreReport {
     val itemRecords = content.itemCatalog.associateBy(ItemRecordModel::id)

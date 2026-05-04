@@ -5,11 +5,11 @@ import rylween.frontend.terminal.CharacterCreationTerminalAdapter
 import rylween.frontend.terminal.TerminalPort
 import rylween.frontend.terminal.TerminalRunStatus
 import rylween.frontend.terminal.TerminalTextRenderer
-import rylween.runtime.CharacterCreationStep
 import rylween.runtime.RuntimeSnapshotModel
-import rylween.runtime.WildernessSession
-import rylween.runtime.WorldMapGrid
 import rylween.runtime.toRuntimeSessionState
+import rylween.runtime.town.CharacterCreationStep
+import rylween.runtime.wilderness.WildernessSession
+import rylween.runtime.wilderness.WorldMapGrid
 
 internal fun bootWildernessSession(
     engine: RylweenKotlinEngine,

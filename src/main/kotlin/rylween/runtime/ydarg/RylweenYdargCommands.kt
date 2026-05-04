@@ -3,15 +3,17 @@ package rylween.runtime.ydarg
 import rylween.dsl.TextBlock
 import rylween.dsl.YdargKeysModel
 import rylween.runtime.InputCommand
-import rylween.runtime.WildernessDirection
+import rylween.runtime.cardinalDirectionCommands
 import rylween.runtime.generatedHelpPages
 
 fun YdargKeysModel.navigationCommands(): List<InputCommand<YdargSessionInput>> =
-    listOf(
-        InputCommand(YdargSessionInput.Move(WildernessDirection.North), moveNorth, "Move North"),
-        InputCommand(YdargSessionInput.Move(WildernessDirection.South), moveSouth, "Move South"),
-        InputCommand(YdargSessionInput.Move(WildernessDirection.West), moveWest, "Move West"),
-        InputCommand(YdargSessionInput.Move(WildernessDirection.East), moveEast, "Move East"),
+    cardinalDirectionCommands(
+        moveNorth = moveNorth,
+        moveSouth = moveSouth,
+        moveWest = moveWest,
+        moveEast = moveEast,
+        input = YdargSessionInput::Move,
+    ) + listOf(
         InputCommand(YdargSessionInput.Command(YdargCommand.Save), save, "Save Game"),
         InputCommand(YdargSessionInput.Command(YdargCommand.Help), help, "View Help"),
         InputCommand(YdargSessionInput.Command(YdargCommand.ViewParty), viewParty, "View Party"),

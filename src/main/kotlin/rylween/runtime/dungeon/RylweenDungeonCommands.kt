@@ -1,4 +1,6 @@
-package rylween.runtime
+package rylween.runtime.dungeon
+
+import rylween.runtime.*
 
 import rylween.dsl.DungeonKeysModel
 import rylween.dsl.TextBlock

@@ -8,6 +8,7 @@ import kotlin.test.assertTrue
 import rylween.dsl.*
 import rylween.game.*
 import rylween.runtime.*
+import rylween.runtime.wilderness.*
 
 class RylweenSecretRuntimeTest {
     @Test
