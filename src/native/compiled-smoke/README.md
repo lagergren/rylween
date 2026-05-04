@@ -56,18 +56,22 @@ is to catch schema/API boundary outages: bad magic/version, bad enum ranges, bad
 string ids, bad handle refs, malformed nested operands, and unsupported VM
 operand shapes.
 
-J1 is active, but not complete. Kotlin now emits, reads, hashes, inspects,
-materializes, and boots from the strict JSON artifact. Schema version 3 also
-contains `runtimeSystems`, a stable non-reflective section for the first
-runtime-facing systems a non-Kotlin loader should consume directly: realm
-balance, reusable prompts, terminal/layout/static presentation, command
-bindings, wilderness events, town/speak runtime boundaries, and Ydarg as a
-`castles[]` entry. The native C reader validates schema version, section order,
-canonical `sections` SHA-256, core row counts, and the `runtimeSystems`
-command/prompt/castle contract. The remaining J1 closeout is:
+J1 is closed for the current artifact-backed runtime target. Kotlin emits,
+reads, hashes, inspects, materializes, and boots from the strict JSON artifact.
+Schema version 3 also contains `runtimeSystems`, a stable non-reflective section
+for the first runtime-facing systems a non-Kotlin loader should consume
+directly: realm balance, reusable prompts, terminal/layout/static presentation,
+command bindings, wilderness events, town/speak runtime boundaries, and Ydarg as
+a `castles[]` entry. The native C reader validates schema version, section
+order, canonical `sections` SHA-256, core row counts, and the `runtimeSystems`
+command/prompt/castle contract.
 
-- stable direct row schemas for any additional systems a real non-Kotlin runtime
-  needs beyond `runtimeSystems`
+The Kotlin `runtimeFacade` remains intentionally Kotlin-shaped because it is the
+complete model consumed by the Kotlin ANSI and headless hosts. Do not duplicate
+that whole object graph into another "stable" section speculatively. Add a new
+schema-versioned direct section only when a real non-Kotlin playable runtime
+needs data that is not already represented by `runtimeSystems` or the typed
+compiled table sections.
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
 tests should reuse the same kind of playthrough/scenario inputs as the Kotlin
