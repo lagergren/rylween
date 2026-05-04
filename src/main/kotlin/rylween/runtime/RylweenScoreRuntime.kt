@@ -30,6 +30,14 @@ data class ScoreReport(
     val entries: List<ScoreReportEntry>,
 )
 
+data class HallOfHeroesEntry(
+    val partyName: String,
+)
+
+data class HallOfHeroesReport(
+    val entries: List<HallOfHeroesEntry>,
+)
+
 fun StateModel.toRuntimeSessionState(rngState: Long? = realm.rngState): RuntimeSessionState =
     RuntimeSessionState(
         realm = realm.copy(rngState = rngState),
@@ -43,7 +51,7 @@ fun RuntimeSessionState.scoreReport(content: GameModel): ScoreReport {
     val powerItems = content.scorePowerItems(itemRecords)
     val sorted = parties
         .withIndex()
-        .sortedWith(compareByDescending<IndexedValue<PartyState>> { entry -> entry.value.averageExperience() })
+        .sortedWith(compareByDescending { entry -> entry.value.averageExperience() })
         .map(IndexedValue<PartyState>::value)
     return ScoreReport(
         entries = sorted.mapIndexed { index, party ->
@@ -59,6 +67,15 @@ fun RuntimeSessionState.scoreReport(content: GameModel): ScoreReport {
             )
         },
     )
+}
+
+fun RuntimeSessionState.hallOfHeroesReport(content: GameModel): HallOfHeroesReport {
+    val completion = content.progress.win?.completedBy ?: return HallOfHeroesReport(emptyList())
+    val entries = parties
+        .filter { party -> completion in party.milestones }
+        .sortedWith(compareBy<PartyState> { party -> party.name.lowercase() }.thenBy { party -> party.id.slug })
+        .map { party -> HallOfHeroesEntry(partyName = party.name) }
+    return HallOfHeroesReport(entries)
 }
 
 private fun GameModel.scorePowerItems(records: Map<ItemId, ItemRecordModel>): List<ScorePowerItem> =

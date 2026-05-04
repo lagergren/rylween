@@ -376,6 +376,49 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun cleanStartupSnapshotCreatesWorldThroughCharacterCreation() {
+        val game = RylweenCompiledGame.nextRylween
+        val content = RylweenCompiledGame.nextDsl
+        val snapshot = createInitialWorldSnapshot(game, content, States.freshReplay, rngState = null)
+        val engine = RylweenKotlinEngine(
+            content,
+            NpcPlacementRealizerConfig(
+                wilderness = WildernessNpcPlacementPolicy(
+                    allowedPoints = content.worldMapGrid(Maps.wilderness)?.passableNpcPoints(),
+                ),
+            ),
+        )
+
+        assertTrue(snapshot.state.parties.isEmpty())
+        assertTrue(snapshot.state.npcs.isEmpty())
+        assertEquals(RuntimeMode.Wilderness, snapshot.state.realm.currentMode)
+        assertEquals(4, snapshot.state.realm.partyMemberMax)
+
+        var creation = engine
+            .characterCreationSession(snapshot.state, partyId("created"), playerName = "Player", rngState = null)
+            .apply(CharacterCreationInput.PartyName("Created Party"))
+        listOf("A", "B", "C", "D").forEach { name ->
+            creation = acceptCreatedThief(creation, name)
+        }
+        val created = when (val step = creation.step) {
+            is CharacterCreationStep.Finished -> step.runtime
+            else -> error("character creation did not finish: $step")
+        }
+        val baseRuntime = snapshot.state.toRuntimeSessionState()
+        val session = engine.wildernessSession(
+            runtime = created.copy(
+                locations = baseRuntime.locations,
+                npcs = baseRuntime.npcs,
+            ),
+            worldMap = checkNotNull(content.worldMapGrid(Maps.wilderness)),
+        )
+
+        assertEquals("Created Party", session.runtime.parties.single().name)
+        assertEquals(content.characters.size, session.runtime.npcs.size)
+        assertEquals(snapshot.state.locations.size, session.runtime.locations.size)
+    }
+
+    @Test
     fun runtimeSnapshotLoadRejectsMismatchedContentHash() {
         val content = RylweenCompiledGame.nextDsl
         val base = RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay }
@@ -727,6 +770,20 @@ class RylweenDslValidationTest {
 
         assertEquals("startup.state.bad-mode", failure.diagnostics.single().path)
         assertTrue("can only resume Wilderness or Dungeon or YdargCastle states" in failure.diagnostics.single().message)
+    }
+
+    @Test
+    fun staticScreenStartupAllowsGameOverRuntimeReports() {
+        val state = RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay }
+
+        val startup = validateStartupState(
+            state = state,
+            content = RylweenCompiledGame.nextDsl,
+            target = RuntimeStartupTarget.StaticScreen,
+            sourceName = "startup.state.winning-replay",
+        )
+
+        assertEquals(RuntimeMode.GameOver, startup.realm.currentMode)
     }
 
     @Test
@@ -1520,15 +1577,17 @@ class RylweenDslValidationTest {
         val screens = RylweenCompiledGame.nextDsl.visuals.staticScreens.associateBy { it.id }
         val help = screens.getValue(StaticScreens.help)
 
-        assertEquals(6, screens.size)
+        assertEquals(7, screens.size)
         assertEquals(Images.Static.screen, screens.getValue(StaticScreens.frame).image)
         assertEquals(Images.Static.title, screens.getValue(StaticScreens.title).image)
         assertTrue(help.commandHelp)
         assertEquals("rylween.doc", screens.getValue(StaticScreens.manual).resource)
         assertEquals(null, screens.getValue(StaticScreens.score).resource)
         assertEquals(null, screens.getValue(StaticScreens.verboseScore).resource)
+        assertEquals(null, screens.getValue(StaticScreens.heroes).resource)
         assertEquals(StaticScreenRuntimeReport.Score, screens.getValue(StaticScreens.score).runtimeReport)
         assertEquals(StaticScreenRuntimeReport.VerboseScore, screens.getValue(StaticScreens.verboseScore).runtimeReport)
+        assertEquals(StaticScreenRuntimeReport.HallOfHeroes, screens.getValue(StaticScreens.heroes).runtimeReport)
         assertTrue(RylweenCompiledGame.nextDsl.wilderness.keys.helpPages.isEmpty())
         assertEquals(3, RylweenCompiledGame.nextDsl.wilderness.keys.effectiveHelpPages().size)
     }
@@ -1575,8 +1634,14 @@ class RylweenDslValidationTest {
             name = "High Party",
             counters = testParty().counters.copy(kills = 7),
         )
+        val winningParty = testParty(
+            milestones = listOf(Milestones.ydargVictory),
+        ).copy(
+            id = partyId("winning"),
+            name = "Winning Party",
+        )
         val runtime = RuntimeSessionState.singleParty(lowParty, hour = 12, currentTown = null)
-            .copy(parties = listOf(lowParty, highParty))
+            .copy(parties = listOf(lowParty, highParty, winningParty))
         val score = checkNotNull(
             content.renderTerminalStaticScreen(
                 id = StaticScreens.score,
@@ -1590,6 +1655,14 @@ class RylweenDslValidationTest {
                 id = StaticScreens.verboseScore,
                 renderer = renderer,
                 resourceText = { error("verbose score should render from runtime state") },
+                context = TerminalTextContext(runtime = runtime),
+            ),
+        )
+        val heroes = checkNotNull(
+            content.renderTerminalStaticScreen(
+                id = StaticScreens.heroes,
+                renderer = renderer,
+                resourceText = { error("heroes should render from runtime state") },
                 context = TerminalTextContext(runtime = runtime),
             ),
         )
@@ -1610,6 +1683,10 @@ class RylweenDslValidationTest {
         assertTrue(verboseScoreLines.any { line -> line.trim() == "Confirmed Kills    : 7" })
         assertTrue(verboseScoreLines.any { line -> line.trim() == "Fire Shield" })
         assertTrue(verboseScoreLines.any { line -> line.trim() == "Bracelets of Thun" })
+        val heroLines = heroes.pages.flatten()
+        assertTrue(heroLines.any { line -> line.contains("HALL OF NATIONAL HEROES") })
+        assertTrue(heroLines.any { line -> line == "  Winning Party defeated Baron Ydarg" })
+        assertFalse(heroLines.any { line -> line.contains("High Party defeated Baron Ydarg") })
     }
 
     @Test
@@ -6731,6 +6808,109 @@ class RylweenDslValidationTest {
                 },
             ),
         )
+    }
+
+    @Test
+    fun headlessScenarioHarnessDrivesWildernessTownHandoff() {
+        val content = RylweenCompiledGame.nextDsl
+        val state = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val map = WorldMapGrid.fromSourceRows(
+            (1..11).map { y -> if (y == 11) mapRow(12 to '0') else mapRow() },
+        )
+
+        HeadlessScenario(
+            name = "headless-wilderness-enter-thord-town",
+            fixture = ScenarioFixture(startState = States.freshReplay),
+            start = { RylweenKotlinEngine(content).wildernessSession(state, map, rngState = null, realizeNpcs = false) },
+            steps = listOf(
+                headlessStep("start first turn") { it.beginTurn() },
+                headlessStep("move south") { it.apply(WildernessSessionInput.Move(WildernessDirection.South)) },
+                headlessStep("start second turn") { it.beginTurn() },
+                headlessStep("move south onto town") { it.apply(WildernessSessionInput.Move(WildernessDirection.South)) },
+                headlessStep("start town-entry turn") { it.beginTurn() },
+                headlessStep("enter town") { it.apply(WildernessSessionInput.Enter) },
+            ),
+            checkpoints = listOf(
+                headlessCheckpoint("semantic inputs reach town session without terminal rendering") {
+                    assertTrue(result.step is WildernessSessionStep.Town)
+                    assertEquals(WildernessSessionResultStatus.EnteredTown, result.lastResult?.status)
+                    assertEquals(Towns.thord.id, result.lastResult?.town)
+                    assertEquals(RuntimeMode.Town, result.runtime.realm.currentMode)
+                    assertEquals(Towns.thord.id, result.runtime.realm.currentTown)
+                    assertEquals(GridPoint(12, 11), result.party.wildernessPoint())
+                },
+            ),
+        ).run()
+    }
+
+    @Test
+    fun headlessScenarioHarnessDrivesDungeonNavigation() {
+        HeadlessScenario(
+            name = "headless-dungeon-descend-ascend-leave",
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = 1L),
+            start = {
+                compiledDungeonSession(
+                    dungeon = Dungeons.randomCave,
+                    levels = 2,
+                    dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+                    party = testParty(torches = 2),
+                )
+            },
+            steps = listOf(
+                headlessStep("descend") { it.apply(DungeonSessionInput.Descend) },
+                headlessStep("continue descent message") { it.apply(DungeonSessionInput.Continue) },
+                headlessStep("ascend") { it.apply(DungeonSessionInput.Ascend) },
+                headlessStep("continue ascent message") { it.apply(DungeonSessionInput.Continue) },
+                headlessStep("leave dungeon") { it.apply(DungeonSessionInput.Ascend) },
+                headlessStep("finish leave message") { it.apply(DungeonSessionInput.Continue) },
+            ),
+            checkpoints = listOf(
+                headlessCheckpoint("semantic dungeon inputs finish without terminal adapter") {
+                    assertTrue(result.step is DungeonSessionStep.Finished)
+                    assertEquals(DungeonSessionResultStatus.LeftDungeon, result.lastResult?.status)
+                    assertEquals(RuntimeMode.Wilderness, result.runtime.realm.currentMode)
+                    assertEquals(1, result.depth)
+                    assertEquals(2, result.maxDepth)
+                },
+            ),
+        ).run()
+    }
+
+    @Test
+    fun headlessScenarioHarnessDrivesYdargNavigation() {
+        HeadlessScenario(
+            name = "headless-ydarg-move-into-empty-room",
+            fixture = ScenarioFixture(startState = States.freshReplay, seed = 1L),
+            start = {
+                YdargSession.start(
+                    runtime = RuntimeSessionState.singleParty(
+                        party = ydargCastleParty(),
+                        hour = 12,
+                        currentTown = null,
+                        rngState = 1L,
+                    ),
+                    content = RylweenCompiledGame.nextDsl.runtimeContent(),
+                ).copy(
+                    rooms = emptyMap(),
+                    floor = 1,
+                    point = GridPoint(1, 1),
+                    step = YdargSessionStep.Navigate,
+                )
+            },
+            steps = listOf(
+                headlessStep("move east") { it.apply(YdargSessionInput.Move(WildernessDirection.East)) },
+                headlessStep("continue move message") { it.apply(YdargSessionInput.Continue) },
+                headlessStep("enter empty room") { it.enterRoom() },
+            ),
+            checkpoints = listOf(
+                headlessCheckpoint("semantic Ydarg inputs return to navigation") {
+                    assertEquals(YdargSessionStep.Navigate, result.step)
+                    assertEquals(YdargSessionStatus.Moved, result.lastResult?.status)
+                    assertEquals(GridPoint(2, 1), result.point)
+                    assertEquals(RuntimeMode.YdargCastle, result.runtime.realm.currentMode)
+                },
+            ),
+        ).run()
     }
 
     @Test

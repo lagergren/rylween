@@ -38,6 +38,7 @@ internal object AnsiImageAssets {
 internal fun staticScreenArg(value: String): StaticScreenId {
     return when (val slug = value.lowercase().replace('-', '_')) {
         "vscore", "verbose", "verbose_score" -> staticScreen("verbose_score")
+        "hall", "hall_of_heroes", "heroes" -> staticScreen("heroes")
         else -> staticScreen(slug)
     }
 }

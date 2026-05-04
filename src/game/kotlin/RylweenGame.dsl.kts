@@ -16,7 +16,7 @@ import rylween.game.*
 // 06. Full-game authoring area
 // =============================================================================
 //
-// This section should eventually contain the whole game in the order below:
+// This section contains the authored current game in the order below:
 //
 //   content:
 //     metadata, limits, handles, visuals, layouts, terrain, maps, items,
@@ -25,15 +25,11 @@ import rylween.game.*
 //   states:
 //     authored start states first, then exact runtime-save-shaped fixtures.
 //
-// New migration passes should add real content here incrementally instead of
-// creating another full transcription file.
+// Add new game content here; reusable DSL/runtime implementation belongs in the
+// packages named above, not in this game-authoring file.
 
 val nextRylween = rylween {
     content {
-    // Content tables are still skeletal. The next
-    // passes should fill in visuals, layouts, terrain, maps, items, spells,
-    // text declarations, menus, and the rest of the monster/mission tables here.
-
     metadata {
         universe("Rylween", version = "kotlin-dsl")
     }
@@ -187,6 +183,7 @@ val nextRylween = rylween {
             resource(StaticScreens.manual, "rylween.doc")
             screen(StaticScreens.score) { scoreReport() }
             screen(StaticScreens.verboseScore) { verboseScoreReport() }
+            screen(StaticScreens.heroes) { hallOfHeroesReport() }
         }
     }
 

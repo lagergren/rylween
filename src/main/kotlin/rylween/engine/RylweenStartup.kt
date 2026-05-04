@@ -5,16 +5,20 @@ import rylween.dsl.RuntimeMode
 import rylween.dsl.RylweenModel
 import rylween.dsl.RylweenValidationException
 import rylween.dsl.StateId
+import rylween.dsl.StateKind
 import rylween.dsl.StateModel
 import rylween.dsl.TownId
 import rylween.dsl.TownModel
+import rylween.dsl.partyId
 import rylween.dsl.ValidationDiagnostic
 import rylween.dsl.validateStates
 import rylween.dsl.withDiagnosticPathPrefix
+import rylween.runtime.RuntimeSnapshotModel
 
 enum class RuntimeStartupTarget {
     Wilderness,
     Town,
+    StaticScreen,
 }
 
 fun selectStartupState(
@@ -36,6 +40,32 @@ fun selectStartupState(
             },
         )
     return validateStartupState(selected, content, target, "startup.state.${state.slug}")
+}
+
+fun createInitialWorldSnapshot(
+    game: RylweenModel,
+    content: GameModel,
+    template: StateId,
+    rngState: Long? = null,
+): RuntimeSnapshotModel {
+    val base = selectStartupState(game, content, template, RuntimeStartupTarget.Wilderness)
+    val creation = content.characterCreation
+        ?: throw startupFailure("startup.characterCreation", "game content has no character-creation rules")
+    return RuntimeSnapshotModel(
+        state = base.copy(
+            kind = StateKind.RuntimeSnapshot,
+            realm = base.realm.copy(
+                rngState = rngState ?: base.realm.rngState,
+                activeParty = partyId("pending"),
+                currentMap = creation.start.map,
+                currentMode = RuntimeMode.Wilderness,
+                currentTown = null,
+                partyMemberMax = creation.start.partyMemberMax,
+            ),
+            npcs = emptyList(),
+            parties = emptyList(),
+        ),
+    )
 }
 
 fun validateStartupState(

@@ -36,12 +36,12 @@ private const val BG_BLACK = "${CSI}40m"
 private const val BG_BLUE = "${CSI}44m"
 
 private data class AnsiRuntimeConfig(
-    val state: StateId = States.freshReplay,
+    val state: StateId? = null,
     val seed: Long? = null,
     val hour: Int? = null,
     val loadFile: File? = null,
-    val saveFile: File = File("build/rylween-save.kts"),
-    val saveState: StateId = stateId("saved-game"),
+    val saveFile: File = runtimeSaveSlotFile("main"),
+    val saveState: StateId = runtimeSaveSlotStateId("main"),
     val staticScreen: StaticScreenId? = null,
     val newGame: Boolean = false,
 )
@@ -53,6 +53,14 @@ object RylweenAnsiMain {
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
         val renderer = content.terminalTextRenderer()
+        val worldMap = content.worldMapGrid(Maps.wilderness)
+            ?: error("missing authored wilderness map")
+        val engine = RylweenKotlinEngine(
+            content = content,
+            npcPlacementConfig = NpcPlacementRealizerConfig(
+                wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
+            ),
+        )
         config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
             RylweenLog.open().use { log ->
                 JLineAnsiTerminal.open(log).use { terminal ->
@@ -62,21 +70,11 @@ object RylweenAnsiMain {
             }
             return@runRylweenCli
         }
-        val snapshot = config.loadFile
-            ?.let {
-                loadRuntimeSnapshot(it, content)
-            }
-            ?: RuntimeSnapshotModel(selectStartupState(game, content, config.state, RuntimeStartupTarget.Wilderness))
-        validateStartupState(
-            snapshot.state,
-            content,
-            RuntimeStartupTarget.Wilderness,
-            config.loadFile?.let { "save file ${it.path}" } ?: "startup.state.${snapshot.state.id.slug}",
-        )
-        val bootSnapshot = config.hour
-            ?.let { hour -> snapshot.copy(state = snapshot.state.copy(realm = snapshot.state.realm.copy(hour = hour))) }
-            ?: snapshot
         config.staticScreen?.let { screenId ->
+            val bootSnapshot = applyConfiguredHour(
+                config,
+                loadConfiguredOrSavedSnapshot(game, content, config, RuntimeStartupTarget.StaticScreen),
+            )
             RylweenLog.open().use { log ->
                 JLineAnsiTerminal.open(log).use { terminal ->
                     ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
@@ -90,55 +88,345 @@ object RylweenAnsiMain {
             }
             return@runRylweenCli
         }
-        val worldMap = content.worldMapGrid(Maps.wilderness)
-            ?: error("missing authored wilderness map")
-        val engine = RylweenKotlinEngine(
-            content = content,
-            npcPlacementConfig = NpcPlacementRealizerConfig(
-                wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
-            ),
-        )
+
         RylweenLog.open().use { log ->
             JLineAnsiTerminal.open(log).use { terminal ->
-                log.info(
-                    "ansi",
-                    "boot state=${bootSnapshot.state.id.slug} seed=${config.seed ?: bootSnapshot.state.realm.rngState} " +
-                        "new=${config.newGame}",
-                )
-                val creationPort = if (config.newGame) {
-                    val creationScreen = ClassicAnsiScreen(
-                        terminal,
-                        content.visuals,
-                        content.terminal,
-                        content.layouts,
-                        content.towns,
+                if (config.newGame || config.loadFile != null || config.state != null) {
+                    val snapshot = if (config.newGame && config.loadFile == null && config.state == null) {
+                        createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
+                    } else {
+                        loadConfiguredSnapshot(game, content, config)
+                    }
+                    val session = bootAnsiWildernessSession(
+                        config = config,
+                        content = content,
+                        renderer = renderer,
+                        engine = engine,
+                        terminal = terminal,
+                        log = log,
+                        snapshot = applyConfiguredHour(config, snapshot),
+                        worldMap = worldMap,
+                        newGame = config.newGame,
                     )
-                    creationScreen.bootFrame()
-                    AnsiTerminalPort(terminal, creationScreen)
+                    val savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content)
+                    if (config.newGame) saveInitialRuntime(savePort, session.runtime, log)
+                    runAnsiWilderness(
+                        terminal = terminal,
+                        content = content,
+                        renderer = renderer,
+                        engine = engine,
+                        savePort = savePort,
+                        log = log,
+                        session = session,
+                    )
                 } else {
-                    null
+                    runAnsiTitleMenu(
+                        config = config,
+                        game = game,
+                        content = content,
+                        renderer = renderer,
+                        engine = engine,
+                        terminal = terminal,
+                        log = log,
+                        worldMap = worldMap,
+                    )
                 }
-                val session = bootWildernessSession(
-                    engine = engine,
-                    terminal = creationPort,
-                    renderer = renderer,
-                    snapshot = bootSnapshot,
-                    worldMap = worldMap,
-                    rngState = config.seed ?: bootSnapshot.state.realm.rngState,
-                    newGame = config.newGame,
-                )
-                RylweenAnsiGame(
-                    terminal = terminal,
-                    content = content,
-                    renderer = renderer,
-                    speakContent = engine.speakContent(),
-                    savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content),
-                    log = log,
-                ).run(session)
             }
         }
     }
 }
+
+private enum class TitleMenuAction {
+    NewParty,
+    Continue,
+    Terminate,
+    Scores,
+    Heroes,
+    Documentation,
+    Exit,
+}
+
+private fun runAnsiTitleMenu(
+    config: AnsiRuntimeConfig,
+    game: RylweenModel,
+    content: GameModel,
+    renderer: TerminalTextRenderer,
+    engine: RylweenKotlinEngine,
+    terminal: JLineAnsiTerminal,
+    log: RylweenLog,
+    worldMap: WorldMapGrid,
+) {
+    val screen = ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
+    screen.showStaticScreen(content, StaticScreens.title, renderer)
+    val savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content)
+    while (true) {
+        val snapshot = applyConfiguredHour(config, loadSavedOrInitialSnapshot(game, content, config))
+        val hasSavedGame = config.saveFile.exists() && snapshot.state.parties.isNotEmpty()
+        screen.bootFrame()
+        screen.writeText(titleMenuLines(hasSavedGame))
+        when (readTitleMenuAction(terminal, screen, hasSavedGame)) {
+            null,
+            TitleMenuAction.Exit -> return
+            TitleMenuAction.NewParty -> {
+                val clean = applyConfiguredHour(
+                    config,
+                    createInitialWorldSnapshot(game, content, States.freshReplay, config.seed),
+                )
+                val session = bootAnsiWildernessSession(
+                    config = config,
+                    content = content,
+                    renderer = renderer,
+                    engine = engine,
+                    terminal = terminal,
+                    log = log,
+                    snapshot = clean,
+                    worldMap = worldMap,
+                    newGame = true,
+                )
+                saveInitialRuntime(savePort, session.runtime, log)
+                runAnsiWilderness(terminal, content, renderer, engine, savePort, log, session)
+                return
+            }
+            TitleMenuAction.Continue -> {
+                val session = bootAnsiWildernessSession(
+                    config = config,
+                    content = content,
+                    renderer = renderer,
+                    engine = engine,
+                    terminal = terminal,
+                    log = log,
+                    snapshot = snapshot,
+                    worldMap = worldMap,
+                    newGame = false,
+                )
+                runAnsiWilderness(terminal, content, renderer, engine, savePort, log, session)
+                return
+            }
+            TitleMenuAction.Terminate -> {
+                screen.writeText(listOf("Terminate saved party?", "", "(Y)es", "(N)o"))
+                if (readYesNoKey(terminal, screen) == true) {
+                    val deleted = runCatching { !config.saveFile.exists() || config.saveFile.delete() }
+                        .getOrDefault(false)
+                    if (deleted) {
+                        log.audit("title", "deleted saved world ${config.saveFile.path}")
+                        screen.writeText(listOf("Saved party terminated.", ""))
+                    } else {
+                        screen.writeText(listOf("Could not delete saved party.", config.saveFile.path))
+                    }
+                    terminal.readKeyToken()
+                }
+            }
+            TitleMenuAction.Scores -> {
+                screen.showStaticScreen(
+                    content = content,
+                    screenId = StaticScreens.score,
+                    renderer = renderer,
+                    context = TerminalTextContext(runtime = snapshot.state.toRuntimeSessionState()),
+                )
+                screen.bootFrame()
+                screen.writeText(listOf("View verbose scores?", "", "(Y)es", "(N)o"))
+                if (readYesNoKey(terminal, screen) == true) {
+                    screen.showStaticScreen(
+                        content = content,
+                        screenId = StaticScreens.verboseScore,
+                        renderer = renderer,
+                        context = TerminalTextContext(runtime = snapshot.state.toRuntimeSessionState()),
+                    )
+                }
+            }
+            TitleMenuAction.Heroes -> {
+                screen.showStaticScreen(
+                    content = content,
+                    screenId = StaticScreens.heroes,
+                    renderer = renderer,
+                    context = TerminalTextContext(runtime = snapshot.state.toRuntimeSessionState()),
+                )
+            }
+            TitleMenuAction.Documentation -> {
+                screen.showStaticScreen(content, StaticScreens.manual, renderer)
+            }
+        }
+    }
+}
+
+private fun titleMenuLines(hasSavedGame: Boolean): List<String> =
+    buildList {
+        add("Rylween")
+        add("")
+        if (hasSavedGame) {
+            add("C. Continue Saved Game")
+            add("T. Terminate Party")
+        } else {
+            add("N. Create New Party")
+        }
+        add("S. View Current Scores")
+        add("H. View Hall of Fame")
+        add("D. View Documentation")
+        add("X. Exit")
+    }
+
+private fun readTitleMenuAction(
+    terminal: JLineAnsiTerminal,
+    screen: ClassicAnsiScreen,
+    hasSavedGame: Boolean,
+): TitleMenuAction? {
+    while (true) {
+        when (val token = terminal.readKeyToken()?.uppercase()) {
+            null -> return null
+            "N" if !hasSavedGame -> return TitleMenuAction.NewParty
+            "C" if hasSavedGame -> return TitleMenuAction.Continue
+            "T" if hasSavedGame -> return TitleMenuAction.Terminate
+            "S" -> return TitleMenuAction.Scores
+            "H" -> return TitleMenuAction.Heroes
+            "D" -> return TitleMenuAction.Documentation
+            "X" -> return TitleMenuAction.Exit
+            else -> {
+                screen.writeText(listOf("Invalid input.", "Key: ${token.orEmpty()}", ""))
+                terminal.readKeyToken()
+                screen.writeText(titleMenuLines(hasSavedGame))
+            }
+        }
+    }
+}
+
+private fun readYesNoKey(terminal: JLineAnsiTerminal, screen: ClassicAnsiScreen): Boolean? {
+    while (true) {
+        when (val token = terminal.readKeyToken()?.uppercase()) {
+            null -> return null
+            "Y" -> return true
+            "N" -> return false
+            else -> {
+                screen.writeText(listOf("Invalid input.", "Expected Y or N.", ""))
+                terminal.readKeyToken()
+            }
+        }
+    }
+}
+
+private fun bootAnsiWildernessSession(
+    config: AnsiRuntimeConfig,
+    content: GameModel,
+    renderer: TerminalTextRenderer,
+    engine: RylweenKotlinEngine,
+    terminal: JLineAnsiTerminal,
+    log: RylweenLog,
+    snapshot: RuntimeSnapshotModel,
+    worldMap: WorldMapGrid,
+    newGame: Boolean,
+): WildernessSession {
+    log.info(
+        "ansi",
+        "boot state=${snapshot.state.id.slug} seed=${config.seed ?: snapshot.state.realm.rngState} new=$newGame",
+    )
+    val creationPort = if (newGame) {
+        val creationScreen = ClassicAnsiScreen(
+            terminal,
+            content.visuals,
+            content.terminal,
+            content.layouts,
+            content.towns,
+        )
+        creationScreen.bootFrame()
+        AnsiTerminalPort(terminal, creationScreen)
+    } else {
+        null
+    }
+    return bootWildernessSession(
+        engine = engine,
+        terminal = creationPort,
+        renderer = renderer,
+        snapshot = snapshot,
+        worldMap = worldMap,
+        rngState = config.seed ?: snapshot.state.realm.rngState,
+        newGame = newGame,
+    )
+}
+
+private fun runAnsiWilderness(
+    terminal: JLineAnsiTerminal,
+    content: GameModel,
+    renderer: TerminalTextRenderer,
+    engine: RylweenKotlinEngine,
+    savePort: RuntimeSavePort,
+    log: RylweenLog,
+    session: WildernessSession,
+) {
+    RylweenAnsiGame(
+        terminal = terminal,
+        content = content,
+        renderer = renderer,
+        speakContent = engine.speakContent(),
+        savePort = savePort,
+        log = log,
+    ).run(session)
+}
+
+private fun saveInitialRuntime(savePort: RuntimeSavePort, runtime: RuntimeSessionState, log: RylweenLog) {
+    val outcome = runCatching { savePort.save(runtime) }
+        .getOrElse { error -> RuntimeSaveOutcome(saved = false, error = error.message) }
+    if (outcome.saved) {
+        log.audit("title", "saved new world ${outcome.target.orEmpty()}")
+    } else {
+        log.warn("title", "initial save failed: ${outcome.error ?: "unknown error"}")
+    }
+}
+
+private fun loadConfiguredSnapshot(
+    game: RylweenModel,
+    content: GameModel,
+    config: AnsiRuntimeConfig,
+    target: RuntimeStartupTarget = RuntimeStartupTarget.Wilderness,
+): RuntimeSnapshotModel =
+    config.loadFile
+        ?.let { file ->
+            loadRuntimeSnapshot(file, content).also { snapshot ->
+                validateStartupState(snapshot.state, content, target, "save file ${file.path}")
+            }
+        }
+        ?: RuntimeSnapshotModel(
+            selectStartupState(
+                game = game,
+                content = content,
+                state = checkNotNull(config.state) { "no startup state configured" },
+                target = target,
+            ),
+        )
+
+private fun loadConfiguredOrSavedSnapshot(
+    game: RylweenModel,
+    content: GameModel,
+    config: AnsiRuntimeConfig,
+    target: RuntimeStartupTarget = RuntimeStartupTarget.Wilderness,
+): RuntimeSnapshotModel =
+    if (config.loadFile != null || config.state != null) {
+        loadConfiguredSnapshot(game, content, config, target)
+    } else {
+        loadSavedOrInitialSnapshot(game, content, config, target)
+    }
+
+private fun loadSavedOrInitialSnapshot(
+    game: RylweenModel,
+    content: GameModel,
+    config: AnsiRuntimeConfig,
+    target: RuntimeStartupTarget = RuntimeStartupTarget.Wilderness,
+): RuntimeSnapshotModel =
+    if (config.saveFile.exists()) {
+        loadRuntimeSnapshot(config.saveFile, content).also { snapshot ->
+            validateStartupState(
+                snapshot.state,
+                content,
+                target,
+                "save file ${config.saveFile.path}",
+            )
+        }
+    } else {
+        createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
+    }
+
+private fun applyConfiguredHour(config: AnsiRuntimeConfig, snapshot: RuntimeSnapshotModel): RuntimeSnapshotModel =
+    config.hour
+        ?.let { hour -> snapshot.copy(state = snapshot.state.copy(realm = snapshot.state.realm.copy(hour = hour))) }
+        ?: snapshot
 
 private class RylweenAnsiGame(
     private val terminal: JLineAnsiTerminal,
@@ -1210,18 +1498,18 @@ private fun List<String>.valueAfter(index: Int, option: String): String =
 private fun printAnsiUsage() {
     println(
         """
-        |Usage: build/install/rylween-kotlin/bin/rylween --state fresh-replay --seed 1
+        |Usage: build/install/rylween-kotlin/bin/rylween
         |
         |Options:
-        |  --state  state slug, defaults to fresh-replay
+        |  --state  state slug; skips the title menu and boots a fixture/runtime state
         |  --seed   runtime RNG state, defaults to the selected state seed
         |  --hour   0..23, overrides the selected state hour
         |  --load   runtime snapshot file to boot instead of --state
         |  --load-slot named runtime snapshot under build/saves
-        |  --save   runtime snapshot target, defaults to build/rylween-save.kts
+        |  --save   runtime snapshot target, defaults to build/saves/main.kts
         |  --save-slot named runtime snapshot target under build/saves
         |  --new    create a fresh party through the authored character-creation flow
-        |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
+        |  --screen title, help, manual, score, vscore, or heroes; displays the authored static screen and exits
         |
         |Logging:
         |  RYL_LOG=stderr
