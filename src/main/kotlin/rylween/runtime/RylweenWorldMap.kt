@@ -4,8 +4,6 @@ import rylween.dsl.*
 import rylween.runtime.ydarg.YdargSession
 import rylween.runtime.ydarg.YdargSessionStep
 
-import java.io.File
-
 enum class WildernessDirection { North, South, East, West }
 
 sealed interface WildernessSessionInput {
@@ -281,9 +279,6 @@ data class WorldMapGrid(
                 rows = listOf("") + rows.map { it.trimEnd('\r', '\n') },
                 terrain = TerrainCatalogModel(),
             )
-
-        fun loadReferenceMapDat(file: File): WorldMapGrid =
-            fromSourceRows(file.readLines())
     }
 }
 

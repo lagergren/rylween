@@ -1620,7 +1620,7 @@ class RylweenDslValidationTest {
     @Test
     fun compiledGameAuthorsWildernessMapRows() {
         val grid = checkNotNull(RylweenCompiledGame.nextDsl.worldMapGrid(Maps.wilderness))
-        val reference = WorldMapGrid.loadReferenceMapDat(File("data/map.dat"))
+        val reference = loadReferenceMapDat(File("data/map.dat"))
 
         assertEquals(reference.rows, grid.rows)
         assertEquals(Maps.wilderness, grid.id)
@@ -8181,6 +8181,9 @@ class RylweenDslValidationTest {
             .apply(CharacterCreationInput.GenderChoice(Gender.Female))
             .apply(CharacterCreationInput.RaceChoice(Race.Elf))
             .apply(CharacterCreationInput.ClassChoice(PcClass.Thief))
+
+    private fun loadReferenceMapDat(file: File): WorldMapGrid =
+        WorldMapGrid.fromSourceRows(file.readLines())
 
     private open class FakeTerminalPort(vararg inputs: String) : TerminalPort {
         private val queue = ArrayDeque(inputs.toList())
