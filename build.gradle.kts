@@ -1573,6 +1573,60 @@ val runKotlinGame by tasks.registering(JavaExec::class) {
     standardInput = System.`in`
 }
 
+val nativeSmokeBundle = layout.buildDirectory.file("compiled/rylween-native-smoke.rsmoke")
+val nativeSmokeSource = layout.projectDirectory.file("src/native/compiled-smoke/rylween_bundle_smoke.c")
+val nativeSmokeExecutable = layout.buildDirectory.file("native/compiled-smoke/rylween-bundle-smoke")
+val nativeSmokeBundlePath = nativeSmokeBundle.get().asFile.path
+val nativeSmokeSourcePath = nativeSmokeSource.asFile.path
+val nativeSmokeExecutableFile = nativeSmokeExecutable.get().asFile
+val nativeSmokeExecutablePath = nativeSmokeExecutableFile.path
+nativeSmokeExecutableFile.parentFile.mkdirs()
+
+val emitNativeSmokeBundle by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Emits the deterministic compiled-content/script artifact consumed by the native smoke loader."
+
+    dependsOn(tasks.named(appSourceSet.classesTaskName))
+    classpath = appSourceSet.runtimeClasspath
+    mainClass.set("rylween.app.RylweenCompiledBundleArtifactMain")
+    args(nativeSmokeBundlePath)
+    inputs.files(appSourceSet.runtimeClasspath)
+    outputs.file(nativeSmokeBundle)
+}
+
+val compileNativeSmokeLoader by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Compiles the minimal C loader for the compiled VM smoke artifact."
+
+    inputs.file(nativeSmokeSource)
+    outputs.file(nativeSmokeExecutable)
+    commandLine(
+        "cc",
+        "-std=c17",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pedantic",
+        "-o",
+        nativeSmokeExecutablePath,
+        nativeSmokeSourcePath,
+    )
+}
+
+val checkNativeSmokeBundle by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs the C loader over the emitted compiled VM smoke artifact."
+
+    dependsOn(emitNativeSmokeBundle)
+    dependsOn(compileNativeSmokeLoader)
+    inputs.file(nativeSmokeBundle)
+    inputs.file(nativeSmokeExecutable)
+    commandLine(
+        nativeSmokeExecutablePath,
+        nativeSmokeBundlePath,
+    )
+}
+
 val kotlinAnsiJar by tasks.registering(Jar::class) {
     group = "build"
     description = "Packages the compiled Kotlin DSL game and ANSI app resources into one launcher jar."
@@ -1656,4 +1710,5 @@ val validateGameDsl by tasks.registering(JavaExec::class) {
 tasks.check {
     dependsOn(validateGameDsl)
     dependsOn(tasks.named(appSourceSet.classesTaskName))
+    dependsOn(checkNativeSmokeBundle)
 }

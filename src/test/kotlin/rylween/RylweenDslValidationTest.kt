@@ -1794,6 +1794,19 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun nativeSmokeArtifactIsDeterministicAndContainsCompiledVmTables() {
+        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+        val artifact = bundle.toNativeSmokeArtifact()
+        val repeated = bundle.toNativeSmokeArtifact()
+
+        assertEquals(artifact.toList(), repeated.toList())
+        assertEquals("RYLSMOKE", artifact.copyOfRange(0, 8).decodeToString())
+        assertTrue(artifact.size > 1024)
+        assertTrue(bundle.content.scripts.roots.isNotEmpty())
+        assertTrue(bundle.content.handles.handles.isNotEmpty())
+    }
+
+    @Test
     fun compiledRuntimeSnapshotRoundTripsThroughSaveReader() {
         val snapshot = renderRuntimeStateSnapshot(RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay })
         val parsed = parseRuntimeStateSnapshot(snapshot)
