@@ -3,7 +3,7 @@
 // This file should contain game declarations: flags, progress milestones,
 // monsters, missions, scripts, and states. DSL implementation code belongs in
 // src/main/kotlin/rylween; reusable current-game script helpers belong in
-// src/game/kotlin/rylween/game/RylweenGameScripts.kt.
+// src/game/kotlin/rylween/game/GameScripts.kt.
 //
 // Validate with:
 //

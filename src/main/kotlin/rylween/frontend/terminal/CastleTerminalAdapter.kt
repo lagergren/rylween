@@ -1,7 +1,6 @@
-package rylween.frontend.terminal.ydarg
+package rylween.frontend.terminal
 
 import rylween.dsl.*
-import rylween.frontend.terminal.*
 import rylween.runtime.commandBindings
 import rylween.runtime.ydarg.*
 import rylween.save.RuntimeSaveOutcome

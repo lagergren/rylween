@@ -1,4 +1,4 @@
-// RylweenGameScripts.kt -- reusable script helpers for this Rylween game.
+// GameScripts.kt -- reusable script helpers for this Rylween game.
 //
 // This layer is game-specific authoring support. It can contain reusable
 // scripted behavior for the current game world, but it must not become DSL

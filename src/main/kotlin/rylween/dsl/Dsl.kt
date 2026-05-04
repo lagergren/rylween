@@ -1,11 +1,11 @@
-// RylweenDsl.kt -- Kotlin implementation for the Rylween authoring DSL.
+// Kotlin implementation for the Rylween authoring DSL.
 //
 // This file is implementation/compiler scaffolding: typed handles, immutable
 // models, builders, and recorded script ASTs. Current-game handles are
 // generated from RylweenGame.dsl.kts by the Gradle content-generation task.
 // Game-specific content belongs in RylweenGame.dsl.kts, with reusable
-// game-script helpers in
-// RylweenGameScripts.kt. Validation helpers live in RylweenDslValidation.kt.
+// game-script helpers in GameScripts.kt. Validation helpers live in
+// DslValidation.kt.
 //
 // Validate the game source with:
 //

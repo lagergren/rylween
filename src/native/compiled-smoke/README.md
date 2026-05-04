@@ -5,7 +5,7 @@ the Kotlin-authored game. It is intentionally a smoke artifact, not the final
 all-content native game bundle.
 
 The producer is `CompiledGameBundle.writeNativeSmokeArtifact(...)` in
-`src/main/kotlin/rylween/compiled/RylweenNativeSmokeArtifact.kt`. The current C
+`src/main/kotlin/rylween/compiled/NativeSmokeArtifact.kt`. The current C
 reader is `rylween_bundle_smoke.c`. Gradle wires both through:
 
 ```sh

@@ -5,7 +5,6 @@ package rylween.frontend.terminal
 
 import rylween.dsl.*
 import rylween.engine.*
-import rylween.frontend.terminal.ydarg.YdargSessionTerminalAdapter
 import rylween.runtime.*
 import rylween.runtime.battle.*
 import rylween.runtime.dungeon.*
