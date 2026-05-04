@@ -1,26 +1,30 @@
+@file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
+
 package rylween.app
 
 import rylween.dsl.RylweenValidationException
+import java.io.IOException
+import kotlin.system.exitProcess
 
 internal inline fun runRylweenCli(block: () -> Unit) {
-    try {
-        block()
-    } catch (error: RylweenValidationException) {
-        System.err.println("Rylween startup failed:")
-        error.diagnostics.forEach { diagnostic ->
-            System.err.println("- $diagnostic")
+    runCatching(block).getOrElse { error ->
+        when (error) {
+            is RylweenValidationException -> {
+                System.err.println("Rylween startup failed:")
+                error.diagnostics.forEach { diagnostic ->
+                    System.err.println("- $diagnostic")
+                }
+                exitProcess(1)
+            }
+            is IllegalArgumentException,
+            is IllegalStateException,
+            is IOException -> printStartupFailure(error)
+            else -> throw error
         }
-        kotlin.system.exitProcess(1)
-    } catch (error: IllegalArgumentException) {
-        printStartupFailure(error)
-    } catch (error: IllegalStateException) {
-        printStartupFailure(error)
-    } catch (error: java.io.IOException) {
-        printStartupFailure(error)
     }
 }
 
-private fun printStartupFailure(error: Exception): Nothing {
+private fun printStartupFailure(error: Throwable): Nothing {
     System.err.println("Rylween startup failed: ${error.message ?: error::class.simpleName}")
-    kotlin.system.exitProcess(1)
+    exitProcess(1)
 }

@@ -1,3 +1,5 @@
+@file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
+
 package rylween.app
 
 import rylween.dsl.*
@@ -13,6 +15,7 @@ import rylween.save.runtimeSaveSlotFile
 import rylween.save.runtimeSaveSlotStateId
 
 import java.io.File
+import kotlin.system.exitProcess
 
 private data class TerminalConfig(
     val town: TownId = Towns.thord.id,
@@ -33,7 +36,7 @@ private class StdioTerminalPort : TerminalPort {
 
     override fun readLine(): String? {
         print("> ")
-        return kotlin.io.readlnOrNull()
+        return readlnOrNull()
     }
 }
 
@@ -74,7 +77,7 @@ fun main(args: Array<String>): Unit = runRylweenCli {
             wilderness = wildernessPlacementPolicy(content),
         ),
     )
-    var session = engine.townSession(
+    val session = engine.townSession(
         party = party,
         town = town.id,
         hour = config.hour ?: state.realm.hour,
@@ -100,34 +103,7 @@ fun main(args: Array<String>): Unit = runRylweenCli {
         ),
     )
 
-    while (true) {
-        val result = adapter.runUntilBlocked(session)
-        session = result.session
-        when (val status = result.status) {
-            TerminalRunStatus.Finished -> {
-                terminal.write(listOf("", "Town session finished."))
-                return
-            }
-            TerminalRunStatus.StepLimitReached -> {
-                terminal.write(listOf("", "Step limit reached."))
-                return
-            }
-            is TerminalRunStatus.Waiting -> {
-                val rejection = status.rejection
-                if (rejection == null) {
-                    terminal.write(listOf("", "Input unavailable."))
-                    return
-                }
-                terminal.write(
-                    listOf(
-                        "Invalid input '${rejection.input}'.",
-                        "Expected: ${rejection.expected.joinToString(", ")}",
-                        "",
-                    ),
-                )
-            }
-        }
-    }
+    terminal.runAdapterLoop(session, "Town session finished.", adapter::runUntilBlocked)
 }
 
 object RylweenGameTerminalMain {
@@ -176,7 +152,7 @@ object RylweenGameTerminalMain {
                 wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
             ),
         )
-        var session = bootWildernessSession(
+        val session = bootWildernessSession(
             engine = engine,
             terminal = terminal,
             renderer = content.terminalTextRenderer(),
@@ -204,35 +180,48 @@ object RylweenGameTerminalMain {
             ),
         )
 
-        while (true) {
-            val result = adapter.runUntilBlocked(session)
-            session = result.session
-            when (val status = result.status) {
-                TerminalRunStatus.Finished -> {
-                    terminal.write(listOf("", "Wilderness session finished."))
-                    return
-                }
-                TerminalRunStatus.StepLimitReached -> {
-                    terminal.write(listOf("", "Step limit reached."))
-                    return
-                }
-                is TerminalRunStatus.Waiting -> {
-                    val rejection = status.rejection
-                    if (rejection == null) {
-                        terminal.write(listOf("", "Input unavailable."))
-                        return
-                    }
-                    terminal.write(
-                        listOf(
-                            "Invalid input '${rejection.input}'.",
-                            "Expected: ${rejection.expected.joinToString(", ")}",
-                            "",
-                        ),
-                    )
-                }
+        terminal.runAdapterLoop(session, "Wilderness session finished.", adapter::runUntilBlocked)
+    }
+}
+
+private fun <S> TerminalPort.runAdapterLoop(
+    initial: S,
+    finishedMessage: String,
+    runUntilBlocked: (S) -> TerminalAdapterResult<S>,
+) {
+    var session = initial
+    while (true) {
+        val result = runUntilBlocked(session)
+        session = result.session
+        when (val status = result.status) {
+            TerminalRunStatus.Finished -> {
+                write(listOf("", finishedMessage))
+                return
+            }
+            TerminalRunStatus.StepLimitReached -> {
+                write(listOf("", "Step limit reached."))
+                return
+            }
+            is TerminalRunStatus.Waiting -> {
+                if (!writeRejection(status.rejection)) return
             }
         }
     }
+}
+
+private fun TerminalPort.writeRejection(rejection: TerminalInputRejection?): Boolean {
+    if (rejection == null) {
+        write(listOf("", "Input unavailable."))
+        return false
+    }
+    write(
+        listOf(
+            "Invalid input '${rejection.input}'.",
+            "Expected: ${rejection.expected.joinToString(", ")}",
+            "",
+        ),
+    )
+    return true
 }
 
 private fun TerminalPort.writeStaticScreen(
@@ -311,7 +300,7 @@ private fun parseTerminalConfig(args: List<String>, printUsage: () -> Unit): Ter
             }
             "--help", "-h" -> {
                 printUsage()
-                kotlin.system.exitProcess(0)
+                exitProcess(0)
             }
             else -> error("unknown argument $arg")
         }

@@ -8,11 +8,15 @@ abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
     @get:org.gradle.api.tasks.InputFile
     abstract val gameSource: org.gradle.api.file.RegularFileProperty
 
+    @get:org.gradle.api.tasks.Input
+    abstract val sourceLabel: org.gradle.api.provider.Property<String>
+
     @get:org.gradle.api.tasks.OutputFile
     abstract val outputFile: org.gradle.api.file.RegularFileProperty
 
     @org.gradle.api.tasks.TaskAction
     fun generate() {
+        val sourcePath = sourceLabel.get()
         val gameLines = gameSource.get().asFile.readLines()
         val importLines = gameLines.filter { it.trimStart().startsWith("import ") }
         val bodyLines = gameLines.filterNot { it.trimStart().startsWith("import ") }
@@ -22,11 +26,16 @@ abstract class GenerateCompiledGameHarnessTask : org.gradle.api.DefaultTask() {
             .distinct()
             .joinToString(separator = "\n")
             .let { if (it.isBlank()) "" else "$it\n\n" }
-        outputFile.get().asFile.apply {
+        val output = outputFile.get().asFile
+        output.parentFile.parentFile?.parentFile
+            ?.resolve(output.name)
+            ?.takeIf { it != output }
+            ?.delete()
+        output.apply {
             parentFile.mkdirs()
             writeText(
                 """
-                |// Generated from src/game/kotlin/RylweenGame.dsl.kts.
+                |// Generated from $sourcePath.
                 |// Do not edit directly.
 
                 |@file:Suppress("UNNECESSARY_SAFE_CALL")
@@ -56,6 +65,9 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
     @get:org.gradle.api.tasks.InputFile
     abstract val gameSource: org.gradle.api.file.RegularFileProperty
 
+    @get:org.gradle.api.tasks.Input
+    abstract val sourceLabel: org.gradle.api.provider.Property<String>
+
     @get:org.gradle.api.tasks.OutputFile
     abstract val outputFile: org.gradle.api.file.RegularFileProperty
 
@@ -63,6 +75,7 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
 
     @org.gradle.api.tasks.TaskAction
     fun generate() {
+        val sourcePath = sourceLabel.get()
         val source = gameSource.get().asFile.readText()
         activeSource = source
         val buildingNames = buildingNames(source)
@@ -300,10 +313,10 @@ abstract class GenerateGameCatalogHandlesTask : org.gradle.api.DefaultTask() {
             parentFile.resolve("RylweenGeneratedItemCatalog.kt").takeIf { it != this }?.delete()
             writeText(
                 """
-                |// Generated from src/game/kotlin/RylweenGame.dsl.kts declarations.
+                |// Generated from $sourcePath declarations.
                 |// Do not edit directly.
                 |
-                |@file:Suppress("unused", "MemberVisibilityCanBePrivate", "PropertyName")
+                |@file:Suppress("unused", "MemberVisibilityCanBePrivate", "PropertyName", "KotlinExplicitApi")
                 |
                 |package rylween.game
                 |
@@ -1441,11 +1454,13 @@ repositories {
 }
 
 val generatedGameHarnessDir = layout.buildDirectory.dir("generated/gameHarness/kotlin")
-val generatedGameHarnessFile = layout.buildDirectory.file("generated/gameHarness/kotlin/RylweenCompiledGame.kt")
+val generatedGameHarnessFile = layout.buildDirectory.file("generated/gameHarness/kotlin/rylween/game/RylweenCompiledGame.kt")
 val generatedGameCatalogDir = layout.buildDirectory.dir("generated/gameCatalog/kotlin")
 val generatedGameCatalogFile = layout.buildDirectory.file(
     "generated/gameCatalog/kotlin/rylween/game/RylweenGeneratedGameCatalog.kt",
 )
+val gameDslSourceFile = layout.projectDirectory.file("src/game/dsl/RylweenGame.dsl.kts")
+val gameDslSourceLabel = gameDslSourceFile.asFile.relativeTo(projectDir).invariantSeparatorsPath
 
 kotlin {
     jvmToolchain(25)
@@ -1453,6 +1468,7 @@ kotlin {
 
 val gameSourceSet = sourceSets.create("game") {
     java.srcDir("src/game/kotlin")
+    java.srcDir(generatedGameHarnessDir)
     java.srcDir(generatedGameCatalogDir)
     compileClasspath += sourceSets.named("main").get().output
     runtimeClasspath += output + compileClasspath
@@ -1460,7 +1476,6 @@ val gameSourceSet = sourceSets.create("game") {
 
 val appSourceSet = sourceSets.create("app") {
     java.srcDir("src/app/kotlin")
-    java.srcDir(generatedGameHarnessDir)
     resources.srcDir("data")
     resources.include("ansi/**", "tiles/**", "rylween.doc", "score.txt", "vscore.txt")
     compileClasspath += sourceSets.named("main").get().output + gameSourceSet.output
@@ -1468,7 +1483,6 @@ val appSourceSet = sourceSets.create("app") {
 }
 
 sourceSets.named("test") {
-    java.srcDir(generatedGameHarnessDir)
     compileClasspath += gameSourceSet.output
     runtimeClasspath += gameSourceSet.output
 }
@@ -1495,7 +1509,8 @@ val generateCompiledGameHarness by tasks.registering(GenerateCompiledGameHarness
     group = "generation"
     description = "Generates a test harness that compiles the game DSL as Kotlin and exposes nextRylween."
 
-    gameSource.set(layout.projectDirectory.file("src/game/kotlin/RylweenGame.dsl.kts"))
+    gameSource.set(gameDslSourceFile)
+    sourceLabel.set(gameDslSourceLabel)
     outputFile.set(generatedGameHarnessFile)
 }
 
@@ -1503,7 +1518,8 @@ val generateGameCatalogHandles by tasks.registering(GenerateGameCatalogHandlesTa
     group = "generation"
     description = "Generates current-game item and item-pool handles from the game DSL declarations."
 
-    gameSource.set(layout.projectDirectory.file("src/game/kotlin/RylweenGame.dsl.kts"))
+    gameSource.set(gameDslSourceFile)
+    sourceLabel.set(gameDslSourceLabel)
     outputFile.set(generatedGameCatalogFile)
 }
 
@@ -1530,10 +1546,10 @@ tasks.named("compileTestKotlin") {
 
 tasks.named("compileGameKotlin") {
     dependsOn(generateGameCatalogHandles)
+    dependsOn(generateCompiledGameHarness)
 }
 
 tasks.named("compileAppKotlin") {
-    dependsOn(generateCompiledGameHarness)
     dependsOn(tasks.named(gameSourceSet.classesTaskName))
 }
 
@@ -1633,7 +1649,7 @@ val validateGameDsl by tasks.registering(JavaExec::class) {
         "-classpath",
         gameDslClasspath.asPath,
         "-script",
-        layout.projectDirectory.file("src/game/kotlin/RylweenGame.dsl.kts").asFile.absolutePath,
+        gameDslSourceFile.asFile.absolutePath,
     )
 }
 

@@ -138,13 +138,13 @@ data class DungeonSession(
             is DungeonSessionStep.Finished -> error("dungeon session is already finished")
         }
 
-    fun continueMessages(): DungeonSession {
+    private fun continueMessages(): DungeonSession {
         val current = step as? DungeonSessionStep.Messages
             ?: error("dungeon session is not showing messages")
         return copy(step = current.next)
     }
 
-    fun continueNotice(): DungeonSession {
+    private fun continueNotice(): DungeonSession {
         val current = step as? DungeonSessionStep.Notice
             ?: error("dungeon session is not showing a notice")
         return copy(step = current.next)

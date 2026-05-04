@@ -1,3 +1,5 @@
+@file:Suppress("unused", "MemberVisibilityCanBePrivate", "CanBeParameter", "KotlinExplicitApi")
+
 package rylween.dsl
 
 enum class YdargRoomEvent { Empty, Monster, Pitfall, Treasure }

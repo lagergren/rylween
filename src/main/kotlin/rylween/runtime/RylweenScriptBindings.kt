@@ -96,9 +96,6 @@ private val memberFlagReaders: Map<String, PartyMemberState.() -> Boolean> = map
     "spellcaster" to { !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest) },
 )
 
-internal fun scriptMemberFieldKnown(field: String): Boolean =
-    field in memberFieldReaders
-
 internal fun scriptMemberFlagKnown(name: String): Boolean =
     name in memberFlagReaders
 

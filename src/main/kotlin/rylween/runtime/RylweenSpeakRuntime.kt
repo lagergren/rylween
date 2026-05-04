@@ -238,9 +238,6 @@ fun SpeakRuntimeContent.rumours(table: RumourTableId, party: PartyState): List<R
         ?.filter { entry -> entry.excludedBy.none(party::hasFlagState) }
         .orEmpty()
 
-fun SpeakRuntimeContent.firstStandardRumour(party: PartyState): TextBlock? =
-    standardRumours(party).firstOrNull()?.text
-
 fun SpeakRuntimeContent.selectStandardRumour(runtime: RuntimeSessionState): RumourSelection? {
     return selectRumour(DslDefaultRumourTables.standardTown, runtime)
 }

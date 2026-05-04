@@ -7,7 +7,6 @@ package rylween.runtime
 import rylween.dsl.*
 
 enum class RandomItemOfferStatus {
-    Offered,
     Bought,
     Declined,
     NotEnoughGold,
@@ -98,8 +97,6 @@ data class RandomItemOfferSession(
     val lastResult: RandomItemOfferResult? = null,
     val content: RuntimeContent = RuntimeContent(),
 ) {
-    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
-    val realmContent: RealmContentModel get() = content.realm
     fun apply(input: RandomItemOfferInput): RandomItemOfferSession =
         when (val current = step) {
             is RandomItemOfferStep.Choice -> {
@@ -250,8 +247,6 @@ data class RewardGrantSession(
     val lastResult: RewardGrantResult? = null,
     val content: RuntimeContent = RuntimeContent(),
 ) {
-    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
-    val realmContent: RealmContentModel get() = content.realm
     fun apply(input: RewardGrantInput): RewardGrantSession =
         when (val current = step) {
             is RewardGrantStep.DropSlot -> {
@@ -264,10 +259,10 @@ data class RewardGrantSession(
                 continueWith(party, pendingItems)
             }
             is RewardGrantStep.Finished -> error("reward grant is already finished: $current")
-        }
+    }
 
     private fun continueWith(nextParty: PartyState, items: List<ItemId>): RewardGrantSession {
-        val item = items.firstOrNull() ?: return finish(RewardGrantStatus.Granted, nextParty)
+        val item = items.firstOrNull() ?: return finish(nextParty)
         return place(nextParty, item, dropSlot = null, pendingItems = items)
     }
 
@@ -334,8 +329,8 @@ data class RewardGrantSession(
         }
     }
 
-    private fun finish(status: RewardGrantStatus, nextParty: PartyState): RewardGrantSession {
-        val result = result(status, nextParty)
+    private fun finish(nextParty: PartyState): RewardGrantSession {
+        val result = result(RewardGrantStatus.Granted, nextParty)
         return copy(
             party = nextParty,
             pendingItems = emptyList(),

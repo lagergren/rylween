@@ -593,7 +593,7 @@ data class YdargSession(
             )
         }
         val baron = requireNotNull(ydarg.confrontation.baron) { "Ydarg confrontation baron is missing" }
-        val battle = startMonsterBattle(runtime, baron, mandatory = true)
+        val battle = startMandatoryMonsterBattle(runtime, baron)
         return copy(
             runtime = battle.runtime,
             step = YdargSessionStep.Messages(
@@ -626,16 +626,16 @@ data class YdargSession(
     }
 
     private fun startConfrontationBattle(runtime: RuntimeSessionState, index: Int): BattleSession =
-        startMonsterBattle(runtime, ydarg.confrontation.sequence[index], mandatory = true)
+        startMandatoryMonsterBattle(runtime, ydarg.confrontation.sequence[index])
 
-    private fun startMonsterBattle(runtime: RuntimeSessionState, monsterId: MonsterId, mandatory: Boolean): BattleSession {
+    private fun startMandatoryMonsterBattle(runtime: RuntimeSessionState, monsterId: MonsterId): BattleSession {
         val monster = content.monsters.firstOrNull { it.id == monsterId }
             ?: error("Ydarg references missing monster ${monsterId.slug}")
         return BattleSession.startMonster(
             runtime = runtime,
             monster = monster,
             content = content,
-            mandatory = mandatory,
+            mandatory = true,
         )
     }
 
@@ -664,7 +664,7 @@ data class YdargSession(
                     val nextHp = (member.hitPoints.current - damage).coerceAtLeast(0)
                     member.copy(
                         hitPoints = nextHp of member.hitPoints.max,
-                        dead = member.dead || nextHp == 0,
+                        dead = nextHp == 0,
                     )
                 }
             },

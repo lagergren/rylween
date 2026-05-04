@@ -55,15 +55,6 @@ fun TerminalPort.writeBindingPrompt(
     write(renderer.bindingPromptLines(block, bindings, context))
 }
 
-fun TerminalPort.writeLabelPrompt(
-    renderer: TerminalTextRenderer,
-    block: TextBlock,
-    labels: List<String>,
-    context: TerminalTextContext = TerminalTextContext(),
-) {
-    write(renderer.choicePromptLines(block, labels, markerKeys = emptyList(), context))
-}
-
 data class TerminalTextContext(
     val shopPrice: Int? = null,
     val shopCarryCap: Int? = null,

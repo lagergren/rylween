@@ -165,5 +165,4 @@ class YdargSessionTerminalAdapter(
             terminal.write(renderer.lines(block, context))
         }
     }
-
 }

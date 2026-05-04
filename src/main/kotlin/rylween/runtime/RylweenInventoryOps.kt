@@ -237,9 +237,6 @@ fun PartyState.clampResourcesToCapacity(
     return if (resources.food <= cap) this else copy(resources = resources.copy(food = cap))
 }
 
-fun PartyState.hasInventoryItem(item: ItemId): Boolean =
-    inventory.any { it.slot in 1..InventorySaveSlotMax && it.item == item }
-
 private fun PartyState.hasReadyableInventoryEquipment(
     kind: EquipmentKind,
     itemRecords: List<ItemRecordModel>,
@@ -277,9 +274,6 @@ fun PartyState.campGearEffect(
 
 fun PartyState.withGold(gold: Int): PartyState =
     copy(resources = resources.copy(gold = gold.coerceAtLeast(0)))
-
-fun PartyState.countInventoryItem(item: ItemId): Int =
-    inventory.count { it.slot in 1..InventorySaveSlotMax && it.item == item }
 
 fun PartyState.countInventoryItems(pool: ItemPoolId): Int {
     val pooledItems = pool.items.toSet()

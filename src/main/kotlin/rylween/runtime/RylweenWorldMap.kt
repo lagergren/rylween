@@ -46,7 +46,6 @@ enum class WildernessSessionResultStatus {
     EnteredHut,
     EnteredCastle,
     NothingToEnter,
-    UnknownTown,
     TerrainNarrated,
     SaveRequested,
     Saved,
@@ -64,7 +63,6 @@ enum class WildernessSessionResultStatus {
     ViewPartyShown,
     DropRequested,
     DropUsed,
-    CampUnavailable,
     Camped,
     NotTired,
     CampNotEnoughFood,
@@ -224,9 +222,6 @@ data class WorldMapGrid(
     private fun settlementAt(point: GridPoint): TerrainSettlement? =
         tileAt(point)?.let(terrain::byMapCode)?.settlement
 
-    private fun isSettlement(point: GridPoint): Boolean =
-        isTown(point) || isHut(point) || isCastle(point)
-
     fun isNpcPlacementTerrain(point: GridPoint): Boolean =
         tileAt(point)?.let { tile -> terrain.byMapCode(tile)?.allowsNpcPlacement } == true
 
@@ -334,7 +329,7 @@ data class WildernessSession(
     val leveling: LevelingModel? get() = content.leveling
     val spells: List<SpellModel> get() = content.spells
     val itemUses: List<ItemUseModel> get() = content.itemUses
-    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    private val itemRecords: List<ItemRecordModel> get() = content.itemRecords
     val progress: GameProgressModel get() = content.progress
     val realm: RealmContentModel get() = content.realm
     val prompts: WildernessPromptsModel get() = content.prompts.wilderness
@@ -1364,15 +1359,6 @@ data class WildernessSession(
             )
     }
 }
-
-fun WildernessKeysModel.directionForInput(input: String): WildernessDirection? =
-    when {
-        moveNorth.matches(input) -> WildernessDirection.North
-        moveSouth.matches(input) -> WildernessDirection.South
-        moveEast.matches(input) -> WildernessDirection.East
-        moveWest.matches(input) -> WildernessDirection.West
-        else -> null
-    }
 
 fun RuntimeSessionState.teleportParty(
     directionKey: Int,
