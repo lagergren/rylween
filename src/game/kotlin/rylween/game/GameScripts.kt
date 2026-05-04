@@ -12,49 +12,59 @@ package rylween.game
 
 import rylween.dsl.*
 
-private val standardBattleTargetPromptText = textLines("Who?", "")
-private val standardBattleKilledText = textLines("...KILLED!")
+private fun TextLineSink.standardBattleTargetPromptLines() {
+    line("Who?")
+    line("")
+}
 
-private val banditsApproachText = textLines(
-    "You come across the",
-    "camp of the bandits.",
-    "One of them spots you",
-    "and they attack!",
-    "",
-)
-private val banditsCargoRecoveredLines = listOf(
-    "You find the cargo",
-    "the merchant wanted",
-    "you to bring him.",
-    "",
-)
-private val banditsCargoRecoveredText = textLines(*banditsCargoRecoveredLines.toTypedArray())
+private fun TextLineSink.standardBattleKilledLines() {
+    line("...KILLED!")
+}
+
+private fun banditsCargoRecoveredLines(write: (String) -> Unit) {
+    write("You find the cargo")
+    write("the merchant wanted")
+    write("you to bring him.")
+    write("")
+}
 
 fun BattleTextBuilder.targetMonsterPrompt() {
-    targetPrompt(standardBattleTargetPromptText)
+    targetPrompt { standardBattleTargetPromptLines() }
 }
 
 fun BattleTextBuilder.monsterKilledLine() {
-    killed(standardBattleKilledText)
+    killed { standardBattleKilledLines() }
 }
 
 fun ScriptScope.askAliveBattleMonster(): MonsterRef =
-    ask.monsterAlive(standardBattleTargetPromptText)
+    ask.monsterAlive(structuredText { standardBattleTargetPromptLines() })
 
 fun ScriptScope.showBattleKilled() {
-    screen(standardBattleKilledText)
+    screen { standardBattleKilledLines() }
 }
 
 fun ScriptScope.readBanditsApproach() {
-    readScreen(banditsApproachText)
+    readScreen(
+        "You come across the",
+        "camp of the bandits.",
+        "One of them spots you",
+        "and they attack!",
+        "",
+    )
 }
 
 fun ScriptScope.readBanditsCargoRecovered() {
-    readScreen(banditsCargoRecoveredText)
+    readScreen {
+        banditsCargoRecoveredLines(::line)
+    }
 }
 
 fun JournalBuilder.banditsCargoRecovered() {
-    banditsCargoRecoveredLines.filter(String::isNotBlank).forEach(::line)
+    banditsCargoRecoveredLines { entry ->
+        if (entry.isNotBlank()) {
+            line(entry)
+        }
+    }
 }
 
 fun ScriptScope.dungeonEntrance(
