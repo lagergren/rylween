@@ -1524,6 +1524,7 @@ configurations.named(appSourceSet.implementationConfigurationName) {
 }
 
 dependencies {
+    implementation(kotlin("reflect"))
     testImplementation(kotlin("test"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     add(appSourceSet.implementationConfigurationName, libs.jline)

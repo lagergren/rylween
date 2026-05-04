@@ -1840,10 +1840,18 @@ class RylweenDslValidationTest {
         assertTrue("bundleContentHash: ${summary.bundleContentHash}" in inspection)
         assertTrue("strings: rows=${bundle.content.strings.entries.size}" in inspection)
 
+        val materialized = artifact.readExternalCompiledGameBundle()
+        assertEquals(bundle, materialized)
+        assertEquals(
+            bundle.loadCompiledGame().content.resolveHandle(CompiledHandleKind.WorldMap, Maps.wilderness.slug),
+            materialized.loadCompiledGame().content.resolveHandle(CompiledHandleKind.WorldMap, Maps.wilderness.slug),
+        )
+
         val file = File.createTempFile("rylween-bundle-", ".json")
         try {
             file.writeBytes(artifact)
             assertEquals(summary, file.readVerifiedExternalBundleArtifact(bundle))
+            assertEquals(bundle, file.readExternalCompiledGameBundle())
         } finally {
             file.delete()
         }

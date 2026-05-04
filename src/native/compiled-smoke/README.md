@@ -36,11 +36,14 @@ add it, prefer reusing or moving the legacy C JSON5 parser from
 ## Current Runtime Status
 
 The Kotlin ANSI runtime accepts `--bundle <file>` and validates that the J1 JSON
-artifact matches the current compiled game before booting. After that gate it
+artifact matches the current compiled game before booting. Kotlin can now also
+materialize that JSON back into a typed `CompiledGameBundle` and validate it
+through `CompiledBundleLoader`. After the ANSI `--bundle` gate, though, gameplay
 still uses the generated `RylweenCompiledGame.nextDsl` and
 `RylweenCompiledGame.nextRylween` objects, then runs the backend-neutral Kotlin
 session state machines and authored `Op` interpreter. That is a launcher
-integration/drift guard, not the final JSON-materialized runtime facade.
+integration/drift guard plus a compiled-bundle load proof, not the final
+JSON-materialized runtime facade and not a compiled-VM execution path.
 
 `CompiledGameBundle.loadCompiledGame()` is a Kotlin in-memory loader/validator:
 it validates cross-table references and builds string, handle, and script lookup
@@ -52,12 +55,13 @@ is to catch schema/API boundary outages: bad magic/version, bad enum ranges, bad
 string ids, bad handle refs, malformed nested operands, and unsupported VM
 operand shapes.
 
-J1 is active, but not complete. Kotlin now emits, reads, hashes, and inspects
-the same strict JSON external artifact. The remaining J1 closeout is:
+J1 is active, but not complete. Kotlin now emits, reads, hashes, inspects, and
+materializes the same strict JSON external artifact as `CompiledGameBundle`.
+The remaining J1 closeout is:
 
-- stable typed row schemas/materializers for every section payload
+- stable typed row schemas for non-Kotlin loaders instead of relying on Kotlin
+  reflective field names as the only description
 - runtime-facing content/session materialization from loaded JSON
-- round-trip validation that loaded rows agree with `loadCompiledGame()`
 - a C/native JSON reader for the same artifact
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
@@ -65,6 +69,12 @@ tests should reuse the same kind of playthrough/scenario inputs as the Kotlin
 scenario harness so native behavior is compared against the Kotlin runtime, not
 only against structural loading. This J0 smoke format only proves that the
 current typed operation surface can be parsed.
+
+J3 is the host/view conformance task. The JSON bundle is not a whole executable
+game: every playable runtime still needs input, rendering, resources, RNG/time,
+persistence, session/state mutation, and either the Kotlin authored-op
+interpreter or the J2 compiled-op VM. The current C code is not playable; it is
+only a schema/API smoke reader.
 
 ## J1 JSON Artifact
 

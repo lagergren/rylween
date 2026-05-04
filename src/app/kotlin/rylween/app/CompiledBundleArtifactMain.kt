@@ -5,6 +5,7 @@ package rylween.app
 import rylween.compiled.ExternalBundleSectionId
 import rylween.compiled.inspectExternalBundleArtifact
 import rylween.compiled.loadCompiledGame
+import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalBundleArtifact
 import rylween.compiled.writeExternalBundleArtifact
 import rylween.compiled.toCompiledGameBundle
@@ -39,11 +40,12 @@ object RylweenExternalBundleCheckMain {
     fun main(args: Array<String>): Unit = runRylweenCli {
         val input = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.json")
         val summary = input.readExternalBundleArtifact()
+        val materialized = input.readExternalCompiledGameBundle()
         println(
             "compiled bundle ok: strings=${summary.section(ExternalBundleSectionId.Strings).rowCount} " +
                 "handles=${summary.section(ExternalBundleSectionId.Handles).rowCount} " +
-                "scripts=${summary.section(ExternalBundleSectionId.Scripts).rowCount} " +
-                "states=${summary.section(ExternalBundleSectionId.States).rowCount}",
+                "scripts=${materialized.content.scripts.roots.size} " +
+                "states=${materialized.states.size}",
         )
     }
 }
