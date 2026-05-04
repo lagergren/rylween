@@ -1839,6 +1839,14 @@ class RylweenDslValidationTest {
         assertTrue(summary.sections.all { section -> section.byteLength > 0 })
         assertTrue("bundleContentHash: ${summary.bundleContentHash}" in inspection)
         assertTrue("strings: rows=${bundle.content.strings.entries.size}" in inspection)
+
+        val file = File.createTempFile("rylween-bundle-", ".json")
+        try {
+            file.writeBytes(artifact)
+            assertEquals(summary, file.readVerifiedExternalBundleArtifact(bundle))
+        } finally {
+            file.delete()
+        }
     }
 
     @Test

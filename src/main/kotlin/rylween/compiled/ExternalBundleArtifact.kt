@@ -23,6 +23,21 @@ fun ByteArray.readExternalBundleArtifact(): ExternalBundleArtifactSummary =
 fun File.readExternalBundleArtifact(): ExternalBundleArtifactSummary =
     readBytes().readExternalBundleArtifact()
 
+fun File.readVerifiedExternalBundleArtifact(expected: CompiledGameBundle): ExternalBundleArtifactSummary {
+    val actual = readExternalBundleArtifact()
+    val expectedSummary = expected.toExternalBundleArtifact().readExternalBundleArtifact()
+    if (actual.bundleContentHash != expectedSummary.bundleContentHash) {
+        error(
+            "compiled bundle artifact ${path} does not match current compiled game content: " +
+                "expected ${expectedSummary.bundleContentHash}, found ${actual.bundleContentHash}",
+        )
+    }
+    if (actual.sections != expectedSummary.sections) {
+        error("compiled bundle artifact ${path} section summaries do not match current compiled game content")
+    }
+    return actual
+}
+
 fun ByteArray.inspectExternalBundleArtifact(): String =
     readExternalBundleArtifact().renderExternalBundleInspection()
 
