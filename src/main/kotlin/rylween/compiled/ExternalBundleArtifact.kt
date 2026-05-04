@@ -14,7 +14,7 @@ import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.typeOf
 
 private const val ExternalBundleFormat = "rylween.compiled.bundle"
-private const val ExternalBundleVersion = 2
+private const val ExternalBundleVersion = 3
 
 fun RylweenModel.toExternalBundleArtifact(): ByteArray =
     ExternalBundleArtifactWriter().write(this)
@@ -84,6 +84,19 @@ fun ByteArray.readExternalRuntimeGame(): RylweenModel =
 fun File.readExternalRuntimeGame(): RylweenModel =
     readBytes().readExternalRuntimeGame()
 
+/**
+ * Reads and validates the stable, non-reflective runtime-system section.
+ *
+ * This is the part of the JSON artifact meant to grow into a direct non-Kotlin
+ * runtime contract. It is intentionally separate from `runtimeFacade`, which is
+ * complete for the Kotlin runtime but follows Kotlin model shapes.
+ */
+fun ByteArray.readExternalRuntimeSystemsSummary(): ExternalRuntimeSystemsSummary =
+    ExternalRuntimeSystemsReader(decodeToString()).read()
+
+fun File.readExternalRuntimeSystemsSummary(): ExternalRuntimeSystemsSummary =
+    readBytes().readExternalRuntimeSystemsSummary()
+
 fun ByteArray.inspectExternalBundleArtifact(): String =
     readExternalBundleArtifact().renderExternalBundleInspection()
 
@@ -129,6 +142,13 @@ data class ExternalBundleSectionSummary(
         checksum.toUInt().toString(radix = 16).padStart(length = 8, padChar = '0')
 }
 
+data class ExternalRuntimeSystemsSummary(
+    val schemaVersion: Int,
+    val commandGroups: List<String>,
+    val promptGroups: List<String>,
+    val castles: List<String>,
+)
+
 enum class ExternalBundleSectionId(val jsonName: String) {
     Universe("universe"),
     Limits("limits"),
@@ -154,6 +174,7 @@ enum class ExternalBundleSectionId(val jsonName: String) {
     DungeonEvents("dungeonEvents"),
     DungeonScenarios("dungeonScenarios"),
     Scripts("scripts"),
+    RuntimeSystems("runtimeSystems"),
     RuntimeFacade("runtimeFacade"),
     States("states"),
 }
@@ -218,6 +239,7 @@ private class ExternalBundleArtifactWriter {
                 ExternalBundleSectionId.Scripts.jsonName to compiledJson(
                     scripts.roots.sortedWith(compareBy({ it.rootHandle.kind.ordinal }, { it.rootHandle.id })),
                 ),
+                ExternalBundleSectionId.RuntimeSystems.jsonName to runtimeSystemsJson(game.content),
                 ExternalBundleSectionId.RuntimeFacade.jsonName to compiledJson(game),
                 ExternalBundleSectionId.States.jsonName to compiledJson(
                     states.sortedWith(compareBy({ it.state.kind.ordinal }, { it.state.id })),
@@ -234,6 +256,841 @@ private class ExternalBundleArtifactWriter {
             "version" to JsonString(strings.value(universe.versionString)),
             "compatibilityId" to JsonString(strings.value(universe.compatibilityIdString)),
         )
+
+    private fun runtimeSystemsJson(game: GameModel): JsonValue =
+        jsonObject(
+            "schemaVersion" to JsonNumber("1"),
+            "realm" to realmJson(game.realm),
+            "prompts" to promptsJson(game.prompts),
+            "presentation" to presentationJson(game),
+            "commands" to commandsJson(game),
+            "wilderness" to wildernessJson(game.wilderness),
+            "dungeon" to dungeonRuntimeJson(game.dungeons),
+            "town" to townRuntimeJson(game.townSystem),
+            "speak" to speakRuntimeJson(game.speak),
+            "castles" to JsonArray(listOfNotNull(game.ydarg?.let(::ydargCastleJson))),
+        )
+
+    private fun realmJson(realm: RealmContentModel): JsonValue =
+        jsonObject(
+            "baseResourceCapacity" to JsonArray(
+                realm.baseResourceCapacity.entries.sortedBy { it.key.name }.map { (resource, capacity) ->
+                    jsonObject("resource" to JsonString(resource.name), "capacity" to JsonNumber(capacity.toString()))
+                },
+            ),
+            "upkeep" to upkeepJson(realm.upkeep),
+            "camp" to campJson(realm.camp),
+            "hunt" to realm.hunt?.let(::huntJson).orJsonNull(),
+        )
+
+    private fun upkeepJson(upkeep: WildernessUpkeepRules): JsonValue =
+        jsonObject(
+            "foodCostLeaderDiv" to JsonNumber(upkeep.foodCostLeaderDiv.toString()),
+            "foodTickEvery" to JsonNumber(upkeep.foodTickEvery.toString()),
+            "starveFoodThreshold" to JsonNumber(upkeep.starveFoodThreshold.toString()),
+            "starveDamage" to JsonNumber(upkeep.starveDamage.toString()),
+            "manaRegenChance" to JsonNumber(upkeep.manaRegenChance.toString()),
+            "restedHoursCostPerTurn" to JsonNumber(upkeep.restedHoursCostPerTurn.toString()),
+            "fatigue" to JsonArray(
+                upkeep.fatigue.map { rule ->
+                    jsonObject(
+                        "threshold" to JsonNumber(rule.threshold.toString()),
+                        "match" to JsonString(rule.match.name),
+                        "drain" to JsonBoolean(rule.drain),
+                        "text" to textBlockJson(rule.text),
+                    )
+                },
+            ),
+        )
+
+    private fun campJson(camp: CampRulesModel): JsonValue =
+        jsonObject(
+            "healthGain" to JsonNumber(camp.healthGain.toString()),
+            "foodCostPerMember" to JsonNumber(camp.foodCostPerMember.toString()),
+            "hoursAdvanced" to JsonNumber(camp.hoursAdvanced.toString()),
+            "hoursRestedReset" to JsonNumber(camp.hoursRestedReset.toString()),
+            "temperatureMax" to JsonNumber(camp.temperatureMax.toString()),
+            "temperatureBands" to JsonArray(
+                camp.temperatureBands.map { range ->
+                    jsonObject(
+                        "band" to JsonString(range.band.name),
+                        "first" to JsonNumber(range.range.first.toString()),
+                        "last" to JsonNumber(range.range.last.toString()),
+                    )
+                },
+            ),
+            "temperatureDamage" to temperatureIntMapJson(camp.temperatureDamage),
+            "ambushChancePercent" to JsonNumber(camp.ambushChancePercent.toString()),
+            "ambushTier" to camp.ambushTier?.let { JsonString(it.slug) }.orJsonNull(),
+            "text" to jsonObject(
+                "notTired" to textBlockJson(camp.notTired),
+                "notEnoughFood" to textBlockJson(camp.notEnoughFood),
+                "guardPrompt" to textBlockJson(camp.guardPrompt),
+                "guardMemberPrompt" to textBlockJson(camp.guardMemberPrompt),
+                "guardMemberDead" to textBlockJson(camp.guardMemberDead),
+                "standsGuard" to textBlockJson(camp.standsGuard),
+                "sleeping" to textBlockJson(camp.sleeping),
+                "rested" to textBlockJson(camp.rested),
+                "ambush" to textBlockJson(camp.ambush),
+                "surpriseKill" to textBlockJson(camp.surpriseKill),
+                "temperatureMessage" to temperatureTextMapJson(camp.temperatureMessage),
+                "noShelterMessage" to temperatureTextMapJson(camp.noShelterMessage),
+            ),
+        )
+
+    private fun huntJson(hunt: HuntRulesModel): JsonValue =
+        jsonObject(
+            "successChancePercent" to JsonNumber(hunt.successChancePercent.toString()),
+            "timeCost" to JsonNumber(hunt.timeCost.toString()),
+            "foodMin" to JsonNumber(hunt.foodMin.toString()),
+            "foodMax" to JsonNumber(hunt.foodMax.toString()),
+            "text" to jsonObject(
+                "whoPrompt" to textBlockJson(hunt.whoPrompt),
+                "dead" to textBlockJson(hunt.dead),
+                "notRanger" to textBlockJson(hunt.notRanger),
+                "tooFewMoves" to textBlockJson(hunt.tooFewMoves),
+                "tries" to textBlockJson(hunt.tries),
+                "succeeds" to textBlockJson(hunt.succeeds),
+                "fails" to textBlockJson(hunt.fails),
+            ),
+        )
+
+    private fun promptsJson(prompts: GamePromptsModel): JsonValue =
+        jsonObject(
+            "pauseVerbs" to stringArray(prompts.pauseVerbs),
+            "returnKeyName" to JsonString(prompts.returnKeyName),
+            "groups" to JsonArray(
+                listOf(
+                    promptGroupJson(
+                        "save",
+                        textField("saving", prompts.save.saving),
+                        textField("done", prompts.save.done),
+                        textField("failed", prompts.save.failed),
+                    ),
+                    promptGroupJson(
+                        "characterCreation",
+                        textField("header", prompts.characterCreation.header),
+                        textField("partyName", prompts.characterCreation.partyName),
+                        textField("statsPage", prompts.characterCreation.statsPage),
+                        textField("reroll", prompts.characterCreation.reroll),
+                        textField("memberName", prompts.characterCreation.memberName),
+                        textField("gender", prompts.characterCreation.gender),
+                        stringField("genderMaleLabel", prompts.characterCreation.genderMaleLabel),
+                        stringField("genderFemaleLabel", prompts.characterCreation.genderFemaleLabel),
+                        textField("race", prompts.characterCreation.race),
+                        textField("classMenu", prompts.characterCreation.classMenu),
+                        textField("saving", prompts.characterCreation.saving),
+                    ),
+                    promptGroupJson(
+                        "priest",
+                        textField("who", prompts.priest.who),
+                        textField("mageCombatOnly", prompts.priest.mageCombatOnly),
+                        textField("wrongClass", prompts.priest.wrongClass),
+                        textField("dead", prompts.priest.dead),
+                        textField("invalidCaster", prompts.priest.invalidCaster),
+                        textField("invalidSpell", prompts.priest.invalidSpell),
+                        textField("noSpells", prompts.priest.noSpells),
+                    ),
+                    promptGroupJson(
+                        "inventoryUse",
+                        textField("use", prompts.inventoryUse.use),
+                        textField("quaff", prompts.inventoryUse.quaff),
+                        textField("noItems", prompts.inventoryUse.noItems),
+                        textField("noItem", prompts.inventoryUse.noItem),
+                        stringField("invalidSlotFirstPrefix", prompts.inventoryUse.invalidSlotFirstPrefix),
+                        stringField("invalidSlotFirstSuffix", prompts.inventoryUse.invalidSlotFirstSuffix),
+                        stringField("invalidSlotSecond", prompts.inventoryUse.invalidSlotSecond),
+                        stringField("notUsableFirst", prompts.inventoryUse.notUsableFirst),
+                        stringField("notUsableSecondPrefix", prompts.inventoryUse.notUsableSecondPrefix),
+                        stringField("notUsableSecondSuffix", prompts.inventoryUse.notUsableSecondSuffix),
+                    ),
+                    promptGroupJson(
+                        "equipment",
+                        textField("inventory", prompts.equipment.inventory),
+                        textField("who", prompts.equipment.who),
+                        textField("readyWeapons", prompts.equipment.readyWeapons),
+                        textField("readyArmors", prompts.equipment.readyArmors),
+                    ),
+                    promptGroupJson(
+                        "town",
+                        stringField("unavailableSuffix", prompts.town.unavailableSuffix),
+                        stringField("closedSuffix", prompts.town.closedSuffix),
+                        textField("entryWelcome", prompts.town.entryWelcome),
+                        textField("entryTax", prompts.town.entryTax),
+                        textField("entryTaxThanks", prompts.town.entryTaxThanks),
+                    ),
+                    promptGroupJson(
+                        "party",
+                        textField("viewWho", prompts.party.viewWho),
+                        textField("journalHeader", prompts.party.journalHeader),
+                        textField("dropPrompt", prompts.party.dropPrompt),
+                        textField("dropEmptySlot", prompts.party.dropEmptySlot),
+                        textField("dropAborted", prompts.party.dropAborted),
+                        textField("dropDropped", prompts.party.dropDropped),
+                        textField("dropCapacityReduced", prompts.party.dropCapacityReduced),
+                    ),
+                    promptGroupJson(
+                        "wilderness",
+                        textField("pass", prompts.wilderness.pass),
+                        textField("noMoves", prompts.wilderness.noMoves),
+                        textField("outOfMoves", prompts.wilderness.outOfMoves),
+                        textField("notInWilderness", prompts.wilderness.notInWilderness),
+                        textField("nothingToEnter", prompts.wilderness.nothingToEnter),
+                        textField("quitConfirm", prompts.wilderness.quitConfirm),
+                        textField("dungeonHandoff", prompts.wilderness.dungeonHandoff),
+                    ),
+                    promptGroupJson(
+                        "dungeon",
+                        textField("levelMenu", prompts.dungeon.levelMenu),
+                        textField("enterLevel", prompts.dungeon.enterLevel),
+                        textField("atMaxDepth", prompts.dungeon.atMaxDepth),
+                        textField("noTorches", prompts.dungeon.noTorches),
+                        textField("leaveCavern", prompts.dungeon.leaveCavern),
+                    ),
+                ),
+            ),
+        )
+
+    private fun presentationJson(game: GameModel): JsonValue =
+        jsonObject(
+            "terminalTerrain" to JsonArray(
+                game.terminal.terrain.sortedBy { it.terrain.slug }.map { style ->
+                    jsonObject(
+                        "terrain" to JsonString(style.terrain.slug),
+                        "glyph" to JsonString(style.glyph),
+                        "color" to JsonString(style.color.slug),
+                    )
+                },
+            ),
+            "regions" to JsonArray(
+                game.layouts.regions.sortedBy { it.id.slug }.map { region ->
+                    jsonObject(
+                        "id" to JsonString(region.id.slug),
+                        "x" to JsonNumber(region.x.toString()),
+                        "y" to JsonNumber(region.y.toString()),
+                        "width" to region.width?.let { JsonNumber(it.toString()) }.orJsonNull(),
+                        "height" to region.height?.let { JsonNumber(it.toString()) }.orJsonNull(),
+                    )
+                },
+            ),
+            "images" to JsonArray(
+                game.visuals.images.sortedBy { it.id.slug }.map { image ->
+                    jsonObject(
+                        "id" to JsonString(image.id.slug),
+                        "kind" to JsonString(image.kind.name),
+                        "resource" to JsonString(image.resource),
+                        "placement" to JsonString(image.placement.name),
+                    )
+                },
+            ),
+            "staticScreens" to JsonArray(
+                game.visuals.staticScreens.sortedBy { it.id.slug }.map { screen ->
+                    jsonObject(
+                        "id" to JsonString(screen.id.slug),
+                        "image" to screen.image?.let { JsonString(it.slug) }.orJsonNull(),
+                        "resource" to screen.resource?.let(::JsonString).orJsonNull(),
+                        "commandHelp" to JsonBoolean(screen.commandHelp),
+                        "runtimeReport" to screen.runtimeReport?.let { JsonString(it.name) }.orJsonNull(),
+                    )
+                },
+            ),
+        )
+
+    private fun commandsJson(game: GameModel): JsonValue =
+        DungeonKeysModel().let { dungeonKeys ->
+        jsonObject(
+            "wilderness" to commandListJson(
+                "moveNorth" to game.wilderness.keys.moveNorth,
+                "moveSouth" to game.wilderness.keys.moveSouth,
+                "moveWest" to game.wilderness.keys.moveWest,
+                "moveEast" to game.wilderness.keys.moveEast,
+                "pass" to game.wilderness.keys.pass,
+                "save" to game.wilderness.keys.save,
+                "readyWeapon" to game.wilderness.keys.readyWeapon,
+                "readyArmor" to game.wilderness.keys.readyArmor,
+                "redraw" to game.wilderness.keys.redraw,
+                "journal" to game.wilderness.keys.journal,
+                "help" to game.wilderness.keys.help,
+                "hunt" to game.wilderness.keys.hunt,
+                "viewParty" to game.wilderness.keys.viewParty,
+                "removeArmor" to game.wilderness.keys.removeArmor,
+                "removeWeapon" to game.wilderness.keys.removeWeapon,
+                "enter" to game.wilderness.keys.enter,
+                "drop" to game.wilderness.keys.drop,
+                "camp" to game.wilderness.keys.camp,
+                "castSpell" to game.wilderness.keys.castSpell,
+                "quaff" to game.wilderness.keys.quaff,
+                "quit" to game.wilderness.keys.quit,
+            ),
+            "wilderness.cave" to commandListJson(
+                "enter" to game.wilderness.keys.caveEnter,
+                "leave" to game.wilderness.keys.caveLeave,
+            ),
+            "wilderness.outOfMoves" to commandListJson(
+                "save" to game.wilderness.keys.outOfMovesSave,
+                "quit" to game.wilderness.keys.outOfMovesQuit,
+            ),
+            "wilderness.quitConfirm" to commandListJson(
+                "yes" to game.wilderness.keys.quitYes,
+                "no" to game.wilderness.keys.quitNo,
+            ),
+            "dungeon" to commandListJson(
+                "descend" to dungeonKeys.descend,
+                "ascend" to dungeonKeys.ascend,
+                "help" to dungeonKeys.help,
+                "drop" to dungeonKeys.drop,
+                "removeArmor" to dungeonKeys.removeArmor,
+                "removeWeapon" to dungeonKeys.removeWeapon,
+                "readyWeapon" to dungeonKeys.readyWeapon,
+                "readyArmor" to dungeonKeys.readyArmor,
+                "quaff" to dungeonKeys.quaff,
+                "castSpell" to dungeonKeys.castSpell,
+                "viewParty" to dungeonKeys.viewParty,
+                "save" to dungeonKeys.save,
+            ),
+            "ydarg.navigation" to game.ydarg?.keys?.let { keys ->
+                commandListJson(
+                    "moveNorth" to keys.moveNorth,
+                    "moveSouth" to keys.moveSouth,
+                    "moveWest" to keys.moveWest,
+                    "moveEast" to keys.moveEast,
+                    "save" to keys.save,
+                    "help" to keys.help,
+                    "viewParty" to keys.viewParty,
+                    "removeArmor" to keys.removeArmor,
+                    "removeWeapon" to keys.removeWeapon,
+                    "drop" to keys.drop,
+                    "readyWeapon" to keys.readyWeapon,
+                    "readyArmor" to keys.readyArmor,
+                    "quaff" to keys.quaff,
+                    "castSpell" to keys.castSpell,
+                )
+            }.orJsonNull(),
+            "ydarg.treasure" to game.ydarg?.keys?.let { keys ->
+                commandListJson("take" to keys.treasureTake, "leave" to keys.treasureLeave)
+            }.orJsonNull(),
+            "ydarg.stairs" to game.ydarg?.keys?.let { keys ->
+                commandListJson(
+                    "teleportOut" to keys.stairsTeleport,
+                    "giveItem" to keys.stairsGive,
+                    "leave" to keys.stairsLeave,
+                )
+            }.orJsonNull(),
+            "town" to game.townSystem?.menu?.let { menu ->
+                JsonArray(
+                    menu.map { action ->
+                        jsonObject(
+                            "action" to JsonString(action.action.slug),
+                            "building" to action.building?.let { JsonString(it.slug) }.orJsonNull(),
+                            "endsMenu" to JsonBoolean(action.endsMenu),
+                            "binding" to bindingJson(action.binding),
+                        )
+                    },
+                )
+            }.orJsonNull(),
+            "speak" to game.speak.standardConversation?.menu?.actions?.let { actions ->
+                JsonArray(
+                    actions.map { action ->
+                        jsonObject(
+                            "topic" to JsonString(action.topic.name),
+                            "action" to JsonString(action.action.slug),
+                            "label" to JsonString(action.label),
+                            "binding" to bindingJson(action.binding),
+                        )
+                    },
+                )
+            }.orJsonNull(),
+            "speak.questions" to game.speak.standardConversation?.menu?.questions?.let { questions ->
+                JsonArray(
+                    questions.map { action ->
+                        jsonObject(
+                            "topic" to JsonString(action.topic.name),
+                            "action" to JsonString(action.action.slug),
+                            "label" to JsonString(action.label),
+                            "binding" to bindingJson(action.binding),
+                        )
+                    },
+                )
+            }.orJsonNull(),
+        )
+        }
+
+    private fun wildernessJson(wilderness: WildernessSystemModel): JsonValue =
+        jsonObject(
+            "commandHint" to textBlockJson(wilderness.keys.commandHint),
+            "helpPages" to JsonArray(wilderness.keys.helpPages.map(::textBlockJson)),
+            "events" to jsonObject(
+                "caveChancePercent" to JsonNumber(wilderness.events.caveChancePercent.toString()),
+                "quietChancePercent" to JsonNumber(wilderness.events.quietChancePercent.toString()),
+                "encounterSplitPercent" to JsonNumber(wilderness.events.encounterSplitPercent.toString()),
+                "easyEncounterTier" to JsonString(wilderness.events.easyEncounterTier.slug),
+                "hardEncounterTier" to JsonString(wilderness.events.hardEncounterTier.slug),
+                "caveDungeon" to JsonString(wilderness.events.caveDungeon.slug),
+                "caveDepthRange" to intRangeJson(wilderness.events.caveDepthRange),
+                "caveEntryCost" to JsonNumber(wilderness.events.caveEntryCost.toString()),
+                "caveImage" to wilderness.events.caveImage?.let { JsonString(it.slug) }.orJsonNull(),
+                "caveFoundPrompt" to textBlockJson(wilderness.events.caveFoundPrompt),
+                "caveNoMoves" to textBlockJson(wilderness.events.caveNoMoves),
+            ),
+            "terrainTransitions" to jsonObject(
+                "chancePercent" to JsonNumber(wilderness.terrainTransitions.chancePercent.toString()),
+                "entries" to JsonArray(
+                    wilderness.terrainTransitions.entries.map { entry ->
+                        jsonObject(
+                            "terrain" to JsonString(entry.terrain.slug),
+                            "text" to textBlockJson(entry.text),
+                        )
+                    },
+                ),
+            ),
+        )
+
+    private fun dungeonRuntimeJson(dungeons: DungeonSystemModel): JsonValue =
+        DungeonKeysModel().let { keys ->
+        jsonObject(
+            "commandHint" to textBlockJson(keys.commandHint),
+            "helpPages" to JsonArray(keys.helpPages.map(::textBlockJson)),
+            "eventCount" to JsonNumber(dungeons.events.size.toString()),
+            "scenarioCount" to JsonNumber(dungeons.scenarios.size.toString()),
+        )
+        }
+
+    private fun townRuntimeJson(town: TownSystemModel?): JsonValue =
+        town?.let {
+            jsonObject(
+                "leavePrompts" to JsonArray(it.leavePrompts.map { command -> JsonString(command.name) }),
+                "entryTax" to jsonObject(
+                    "minimumLeaderLevel" to JsonNumber(it.entryTax.minimumLeaderLevel.toString()),
+                    "pay" to bindingJson(it.entryTax.pay),
+                    "leave" to bindingJson(it.entryTax.leave),
+                ),
+                "services" to JsonArray(
+                    it.buildingServices.sortedBy { service -> service.building.slug }.map { service ->
+                        jsonObject(
+                            "building" to JsonString(service.building.slug),
+                            "action" to JsonString(service.action.slug),
+                            "scene" to JsonString(service.scene.slug),
+                            "opensAt" to service.opensAt?.let { hour -> JsonNumber(hour.toString()) }.orJsonNull(),
+                            "closesAt" to service.closesAt?.let { hour -> JsonNumber(hour.toString()) }.orJsonNull(),
+                            "nativeServices" to nativeServicesJson(service.nativeServices),
+                        )
+                    },
+                ),
+                "nativeServices" to nativeServicesJson(it.nativeServices),
+            )
+        }.orJsonNull()
+
+    private fun speakRuntimeJson(speak: SpeakSystemModel): JsonValue =
+        jsonObject(
+            "standardConversation" to speak.standardConversation?.let(::standardConversationJson).orJsonNull(),
+            "textTables" to speakTextTablesJson(speak.textTables),
+            "questionActions" to JsonArray(
+                speak.questionActions.map { action ->
+                    jsonObject(
+                        "topic" to JsonString(action.topic.name),
+                        "job" to JsonString(action.job.slug),
+                        "scriptRoot" to JsonString("question.${action.topic.name.lowercase()}.${action.job.slug}"),
+                    )
+                },
+            ),
+        )
+
+    private fun standardConversationJson(conversation: StandardConversationModel): JsonValue =
+        jsonObject(
+            "npcSelection" to JsonString(conversation.npcSelection.name),
+            "visitPolicy" to JsonString(conversation.visitPolicy.name),
+            "branchSelection" to JsonString(conversation.branchSelection.name),
+            "missionHints" to JsonString(conversation.missionHints.name),
+            "chitchat" to jsonObject(
+                "subjects" to JsonArray(conversation.chitchat.subjects.map { JsonString(it.name) }),
+                "replies" to JsonString(conversation.chitchat.replies.name),
+            ),
+            "rumour" to jsonObject(
+                "usage" to JsonString(conversation.rumour.usage.name),
+                "source" to JsonString(conversation.rumour.source.name),
+            ),
+            "prompts" to jsonObject(
+                "chooseNpc" to textBlockJson(conversation.prompts.chooseNpc),
+                "mainMenu" to textBlockJson(conversation.prompts.mainMenu),
+            ),
+            "nativeServices" to nativeServicesJson(conversation.nativeServices),
+        )
+
+    private fun speakTextTablesJson(tables: SpeakTextTablesModel): JsonValue =
+        jsonObject(
+            "screens" to JsonArray(
+                tables.screens.map { screen ->
+                    jsonObject("id" to JsonString(screen.id.id), "text" to textBlockJson(screen.text))
+                },
+            ),
+            "chitchatPrompts" to JsonArray(
+                tables.chitchatPrompts.map { prompt ->
+                    jsonObject(
+                        "subject" to JsonString(prompt.subject.name),
+                        "variants" to JsonArray(
+                            prompt.variants.map { variant ->
+                                jsonObject(
+                                    "audience" to JsonString(variant.audience.name),
+                                    "text" to textBlockJson(variant.text),
+                                )
+                            },
+                        ),
+                    )
+                },
+            ),
+            "chitchatReplies" to JsonArray(
+                tables.chitchatReplies.map { reply ->
+                    jsonObject(
+                        "subject" to JsonString(reply.subject.name),
+                        "replies" to jobTextsJson(reply.replies),
+                    )
+                },
+            ),
+            "questionReplies" to JsonArray(
+                tables.questionReplies.map { reply ->
+                    jsonObject(
+                        "topic" to JsonString(reply.topic.name),
+                        "replies" to jobTextsJson(reply.replies),
+                    )
+                },
+            ),
+            "rumourTables" to JsonArray(
+                tables.rumourTables.map { table ->
+                    jsonObject(
+                        "id" to JsonString(table.id.slug),
+                        "entries" to JsonArray(
+                            table.entries.map { entry ->
+                                jsonObject(
+                                    "id" to entry.id?.let { JsonString(it.slug) }.orJsonNull(),
+                                    "text" to textBlockJson(entry.text),
+                                    "excludedBy" to JsonArray(entry.excludedBy.map(::flagStateJson)),
+                                )
+                            },
+                        ),
+                    )
+                },
+            ),
+        )
+
+    private fun ydargCastleJson(ydarg: YdargContentModel): JsonValue =
+        jsonObject(
+            "id" to JsonString("ydarg"),
+            "kind" to JsonString("gridCastle"),
+            "entry" to gridPointJson(ydarg.entry),
+            "image" to ydarg.image?.let { JsonString(it.slug) }.orJsonNull(),
+            "requiredKey" to JsonString(ydarg.requiredKey.slug),
+            "victoryMilestone" to JsonString(ydarg.victoryMilestone.slug),
+            "mapSize" to JsonNumber(ydarg.mapSize.toString()),
+            "roomTypeMax" to JsonNumber(ydarg.roomTypeMax.toString()),
+            "roomEvents" to JsonArray(
+                ydarg.roomEvents.entries.sortedBy { it.key }.map { (roll, event) ->
+                    jsonObject("roll" to JsonNumber(roll.toString()), "event" to JsonString(event.name))
+                },
+            ),
+            "monsterTier" to JsonString(ydarg.monsterTier.slug),
+            "treasure" to jsonObject(
+                "gateMax" to JsonNumber(ydarg.treasure.gateMax.toString()),
+                "regularKinds" to JsonArray(
+                    ydarg.treasure.regularKinds.map { items -> JsonArray(items.map { JsonString(it.slug) }) },
+                ),
+                "magic" to JsonArray(ydarg.treasure.magic.map { JsonString(it.slug) }),
+            ),
+            "pitfall" to jsonObject(
+                "damageDivisor" to JsonNumber(ydarg.pitfall.damageDivisor.toString()),
+                "trapTypes" to JsonArray(ydarg.pitfall.trapTypes.map(::textBlockJson)),
+            ),
+            "stairs" to jsonObject(
+                "floorCount" to JsonNumber(ydarg.stairs.floorCount.toString()),
+                "items" to JsonArray(
+                    ydarg.stairs.items.sortedBy { it.digit }.map { item ->
+                        jsonObject(
+                            "digit" to JsonNumber(item.digit.toString()),
+                            "milestone" to JsonString(item.milestone.slug),
+                            "itemName" to JsonString(item.itemName),
+                            "reject" to textBlockJson(item.reject),
+                        )
+                    },
+                ),
+            ),
+            "confrontation" to jsonObject(
+                "sequence" to JsonArray(ydarg.confrontation.sequence.map { JsonString(it.slug) }),
+                "baron" to ydarg.confrontation.baron?.let { JsonString(it.slug) }.orJsonNull(),
+            ),
+            "text" to ydargTextJson(ydarg.text),
+        )
+
+    private fun ydargTextJson(text: YdargTextModel): JsonValue =
+        jsonObject(
+            "ruin" to textBlockJson(text.ruin),
+            "approach" to textBlockJson(text.approach),
+            "jaaraForm" to textBlockJson(text.jaaraForm),
+            "jaaraSpeech" to textBlockJson(text.jaaraSpeech),
+            "noKey" to textBlockJson(text.noKey),
+            "keyAccepted" to textBlockJson(text.keyAccepted),
+            "enter" to textBlockJson(text.enter),
+            "doorSlams" to textBlockJson(text.doorSlams),
+            "roomMonster" to textBlockJson(text.roomMonster),
+            "trapTriesDisarmSuffix" to textBlockJson(text.trapTriesDisarmSuffix),
+            "trapDisarmSucceed" to textBlockJson(text.trapDisarmSucceed),
+            "trapDisarmFail" to textBlockJson(text.trapDisarmFail),
+            "treasureMenu" to textBlockJson(text.treasureMenu),
+            "treasureFull" to textBlockJson(text.treasureFull),
+            "treasureTaken" to textBlockJson(text.treasureTaken),
+            "moveNorth" to textBlockJson(text.moveNorth),
+            "moveSouth" to textBlockJson(text.moveSouth),
+            "moveEast" to textBlockJson(text.moveEast),
+            "moveWest" to textBlockJson(text.moveWest),
+            "stairsIntro" to textBlockJson(text.stairsIntro),
+            "stairsMageOffer" to textBlockJson(text.stairsMageOffer),
+            "stairsMenu" to textBlockJson(text.stairsMenu),
+            "stairsLeave" to textBlockJson(text.stairsLeave),
+            "teleportVortex" to textBlockJson(text.teleportVortex),
+            "teleportOutside" to textBlockJson(text.teleportOutside),
+            "giveMenu" to textBlockJson(text.giveMenu),
+            "mageGrateful" to textBlockJson(text.mageGrateful),
+            "confrontationAct1" to JsonArray(text.confrontationAct1.map(::textBlockJson)),
+            "confrontationAct2" to JsonArray(text.confrontationAct2.map(::textBlockJson)),
+            "confrontationAct3" to JsonArray(text.confrontationAct3.map(::textBlockJson)),
+            "confrontationAct4" to JsonArray(text.confrontationAct4.map(::textBlockJson)),
+        )
+
+    private fun textBlockJson(block: TextBlock): JsonValue =
+        when (block) {
+            is TextBlock.Ref -> jsonObject("kind" to JsonString("ref"), "id" to JsonString(block.id.id))
+            is TextBlock.Inline -> jsonObject("kind" to JsonString("inline"), "lines" to stringArray(block.lines))
+            is TextBlock.Structured -> jsonObject(
+                "kind" to JsonString("structured"),
+                "lines" to JsonArray(
+                    block.lines.map { line ->
+                        jsonObject("parts" to JsonArray(line.parts.map(::textPartJson)))
+                    },
+                ),
+            )
+        }
+
+    private fun textPartJson(part: TextPart): JsonValue =
+        when (part) {
+            is TextPart.Literal -> jsonObject("kind" to JsonString("literal"), "text" to JsonString(part.text))
+            is TextPart.IntValue -> jsonObject("kind" to JsonString("intExpr"), "expr" to intAstJson(part.value))
+            is TextPart.StringValue -> jsonObject("kind" to JsonString("stringExpr"), "expr" to strAstJson(part.value))
+            is TextPart.RoleName -> jsonObject("kind" to JsonString("roleName"), "role" to JsonString(part.role.slug))
+            is TextPart.RoleLocation -> jsonObject(
+                "kind" to JsonString("roleLocation"),
+                "role" to JsonString(part.role.slug),
+            )
+            is TextPart.TownName -> jsonObject("kind" to JsonString("townName"), "town" to JsonString(part.town.slug))
+            is TextPart.FuzzyTownLocation -> jsonObject(
+                "kind" to JsonString("fuzzyTownLocation"),
+                "town" to JsonString(part.town.slug),
+                "radius" to JsonNumber(part.radius.toString()),
+            )
+            is TextPart.LocationCoordinate -> jsonObject(
+                "kind" to JsonString("locationCoordinate"),
+                "location" to JsonString(part.location.slug),
+            )
+            TextPart.OfferedItemName -> textTokenJson("offeredItemName")
+            TextPart.OfferedItemPrice -> textTokenJson("offeredItemPrice")
+            TextPart.SelectedItemName -> textTokenJson("selectedItemName")
+            TextPart.ShopPrice -> textTokenJson("shopPrice")
+            TextPart.ShopCarryCap -> textTokenJson("shopCarryCap")
+            TextPart.HuntMemberName -> textTokenJson("huntMemberName")
+            TextPart.HuntMemberSubjectPronoun -> textTokenJson("huntMemberSubjectPronoun")
+            TextPart.HuntFoodGained -> textTokenJson("huntFoodGained")
+            TextPart.PartyMemberMax -> textTokenJson("partyMemberMax")
+            TextPart.WildernessDungeonName -> textTokenJson("wildernessDungeonName")
+            TextPart.WildernessDungeonLevels -> textTokenJson("wildernessDungeonLevels")
+            TextPart.DungeonDepth -> textTokenJson("dungeonDepth")
+            TextPart.ConversationNpcName -> textTokenJson("conversationNpcName")
+            TextPart.CurrentTownName -> textTokenJson("currentTownName")
+            TextPart.TownTaxPercent -> textTokenJson("townTaxPercent")
+            TextPart.TownTaxAmount -> textTokenJson("townTaxAmount")
+            TextPart.CreationMemberNumber -> textTokenJson("creationMemberNumber")
+            TextPart.CreationMemberName -> textTokenJson("creationMemberName")
+            TextPart.CreationWeaponSkill -> textTokenJson("creationWeaponSkill")
+            TextPart.CreationHealth -> textTokenJson("creationHealth")
+            TextPart.CreationWisdom -> textTokenJson("creationWisdom")
+            TextPart.CreationCharisma -> textTokenJson("creationCharisma")
+        }
+
+    private fun textTokenJson(kind: String): JsonValue =
+        jsonObject("kind" to JsonString(kind))
+
+    private fun intAstJson(ast: IntAst): JsonValue =
+        when (ast) {
+            is IntAst.Lit -> jsonObject("op" to JsonString("lit"), "value" to JsonNumber(ast.value.toString()))
+            is IntAst.Var -> jsonObject("op" to JsonString("var"), "name" to JsonString(ast.name))
+            is IntAst.Binary -> jsonObject(
+                "op" to JsonString("binary"),
+                "operator" to JsonString(ast.op),
+                "left" to intAstJson(ast.left),
+                "right" to intAstJson(ast.right),
+            )
+            is IntAst.If -> jsonObject(
+                "op" to JsonString("if"),
+                "condition" to boolAstJson(ast.cond),
+                "then" to intAstJson(ast.thenValue),
+                "else" to intAstJson(ast.elseValue),
+            )
+            is IntAst.Random -> jsonObject(
+                "op" to JsonString("random"),
+                "lo" to intAstJson(ast.lo),
+                "hi" to intAstJson(ast.hi),
+            )
+            is IntAst.MemberField -> jsonObject(
+                "op" to JsonString("memberField"),
+                "member" to intAstJson(ast.member),
+                "field" to JsonString(ast.field),
+            )
+            is IntAst.MonsterField -> jsonObject(
+                "op" to JsonString("monsterField"),
+                "monster" to intAstJson(ast.monster),
+                "field" to JsonString(ast.field),
+            )
+            is IntAst.BattleFlag -> jsonObject("op" to JsonString("battleFlag"), "name" to JsonString(ast.name))
+            is IntAst.BattleQuery -> jsonObject("op" to JsonString("battleQuery"), "name" to JsonString(ast.name))
+            is IntAst.RealmScalar -> jsonObject("op" to JsonString("realmScalar"), "name" to JsonString(ast.name))
+            is IntAst.PartyScalar -> jsonObject("op" to JsonString("partyScalar"), "name" to JsonString(ast.name))
+            is IntAst.InventoryPoolCount -> jsonObject(
+                "op" to JsonString("inventoryPoolCount"),
+                "pool" to JsonString(ast.pool.slug),
+            )
+            is IntAst.InventorySlotCost -> jsonObject(
+                "op" to JsonString("inventorySlotCost"),
+                "slot" to intAstJson(ast.slot),
+            )
+            is IntAst.NativeInt -> jsonObject(
+                "op" to JsonString("nativeInt"),
+                "path" to JsonString(ast.path),
+                "args" to stringArray(ast.args),
+            )
+        }
+
+    private fun boolAstJson(ast: BoolAst): JsonValue =
+        when (ast) {
+            is BoolAst.Cmp -> jsonObject(
+                "op" to JsonString("cmp"),
+                "operator" to JsonString(ast.op),
+                "left" to intAstJson(ast.left),
+                "right" to intAstJson(ast.right),
+            )
+            is BoolAst.Not -> jsonObject("op" to JsonString("not"), "expr" to boolAstJson(ast.expr))
+            is BoolAst.And -> jsonObject(
+                "op" to JsonString("and"),
+                "left" to boolAstJson(ast.left),
+                "right" to boolAstJson(ast.right),
+            )
+            is BoolAst.Or -> jsonObject(
+                "op" to JsonString("or"),
+                "left" to boolAstJson(ast.left),
+                "right" to boolAstJson(ast.right),
+            )
+            is BoolAst.FlagIs -> jsonObject(
+                "op" to JsonString("flagIs"),
+                "flag" to JsonString(ast.slug),
+                "native" to JsonString(ast.nativeValue),
+            )
+            is BoolAst.MilestoneAchieved -> jsonObject(
+                "op" to JsonString("milestoneAchieved"),
+                "milestone" to JsonString(ast.milestone.slug),
+            )
+            is BoolAst.MemberFlag -> jsonObject(
+                "op" to JsonString("memberFlag"),
+                "member" to intAstJson(ast.member),
+                "name" to JsonString(ast.name),
+            )
+            is BoolAst.MonsterFlag -> jsonObject(
+                "op" to JsonString("monsterFlag"),
+                "monster" to intAstJson(ast.monster),
+                "name" to JsonString(ast.name),
+            )
+            is BoolAst.BattleFlag -> jsonObject("op" to JsonString("battleFlag"), "name" to JsonString(ast.name))
+            is BoolAst.RuntimeFlag -> jsonObject("op" to JsonString("runtimeFlag"), "name" to JsonString(ast.name))
+        }
+
+    private fun strAstJson(ast: StrAst): JsonValue =
+        when (ast) {
+            is StrAst.NativeString -> jsonObject(
+                "op" to JsonString("nativeString"),
+                "path" to JsonString(ast.path),
+                "args" to JsonArray(ast.args.map(::nativeStringArgJson)),
+            )
+        }
+
+    private fun nativeStringArgJson(arg: NativeStringArg): JsonValue =
+        when (arg) {
+            is NativeStringArg.Literal -> jsonObject("kind" to JsonString("literal"), "value" to JsonString(arg.value))
+            is NativeStringArg.IntValue -> jsonObject("kind" to JsonString("intValue"), "value" to intAstJson(arg.value))
+        }
+
+    private fun promptGroupJson(group: String, vararg fields: JsonValue): JsonValue =
+        jsonObject("group" to JsonString(group), "fields" to JsonArray(fields.toList()))
+
+    private fun textField(name: String, text: TextBlock): JsonValue =
+        jsonObject("name" to JsonString(name), "kind" to JsonString("text"), "value" to textBlockJson(text))
+
+    private fun stringField(name: String, value: String): JsonValue =
+        jsonObject("name" to JsonString(name), "kind" to JsonString("string"), "value" to JsonString(value))
+
+    private fun commandListJson(vararg commands: Pair<String, InputBindingModel>): JsonValue =
+        JsonArray(
+            commands.map { (action, binding) ->
+                jsonObject("action" to JsonString(action), "binding" to bindingJson(binding))
+            },
+        )
+
+    private fun bindingJson(binding: InputBindingModel): JsonValue =
+        jsonObject(
+            "primary" to JsonString(binding.primary),
+            "aliases" to stringArray(binding.aliases),
+            "label" to JsonString(binding.label),
+        )
+
+    private fun nativeServicesJson(services: List<EngineServiceUse>): JsonValue =
+        JsonArray(
+            services.map { service ->
+                jsonObject(
+                    "service" to JsonString(service.service.name),
+                    "reason" to JsonString(service.reason),
+                )
+            },
+        )
+
+    private fun jobTextsJson(texts: List<JobTextModel>): JsonValue =
+        JsonArray(
+            texts.map { entry ->
+                jsonObject("job" to JsonString(entry.job.slug), "text" to textBlockJson(entry.text))
+            },
+        )
+
+    private fun flagStateJson(state: FlagState): JsonValue =
+        jsonObject(
+            "flag" to JsonString(state.flag.slug),
+            "scope" to JsonString(state.flag.scope.name),
+            "native" to JsonString(state.native),
+        )
+
+    private fun gridPointJson(point: GridPoint): JsonValue =
+        jsonObject("x" to JsonNumber(point.x.toString()), "y" to JsonNumber(point.y.toString()))
+
+    private fun intRangeJson(range: IntRange): JsonValue =
+        jsonObject("first" to JsonNumber(range.first.toString()), "last" to JsonNumber(range.last.toString()))
+
+    private fun temperatureIntMapJson(values: Map<TemperatureBand, Int>): JsonValue =
+        JsonArray(
+            values.entries.sortedBy { it.key.name }.map { (band, value) ->
+                jsonObject("band" to JsonString(band.name), "value" to JsonNumber(value.toString()))
+            },
+        )
+
+    private fun temperatureTextMapJson(values: Map<TemperatureBand, TextBlock>): JsonValue =
+        JsonArray(
+            values.entries.sortedBy { it.key.name }.map { (band, text) ->
+                jsonObject("band" to JsonString(band.name), "text" to textBlockJson(text))
+            },
+        )
+
+    private fun stringArray(values: Iterable<String>): JsonValue =
+        JsonArray(values.map(::JsonString).toList())
 }
 
 private class ExternalBundleArtifactReader(
@@ -260,6 +1117,43 @@ private class ExternalBundleArtifactReader(
                 )
             },
         )
+    }
+}
+
+private class ExternalRuntimeSystemsReader(
+    private val source: String,
+) {
+    fun read(): ExternalRuntimeSystemsSummary {
+        val systems = readExternalBundleEnvelope(source)
+            .sections
+            .requiredObject(ExternalBundleSectionId.RuntimeSystems.jsonName)
+        systems.rejectReflectiveTypeMarkers("runtimeSystems")
+        val commands = systems.requiredObject("commands")
+        val prompts = systems.requiredObject("prompts")
+        val castles = systems.requiredArray("castles")
+        return ExternalRuntimeSystemsSummary(
+            schemaVersion = systems.requiredInt("schemaVersion"),
+            commandGroups = commands.entries.map { it.first },
+            promptGroups = prompts.requiredArray("groups").values.map { group ->
+                group.asObject("prompt group").requiredString("group")
+            },
+            castles = castles.values.map { castle ->
+                castle.asObject("castle").requiredString("id")
+            },
+        )
+    }
+
+    private fun JsonValue.rejectReflectiveTypeMarkers(path: String) {
+        when (this) {
+            is JsonObject -> {
+                require(entries.none { (name, _) -> name == "_type" }) {
+                    "$path contains reflective _type marker"
+                }
+                entries.forEach { (name, value) -> value.rejectReflectiveTypeMarkers("$path.$name") }
+            }
+            is JsonArray -> values.forEachIndexed { index, value -> value.rejectReflectiveTypeMarkers("$path[$index]") }
+            else -> Unit
+        }
     }
 }
 
@@ -583,6 +1477,9 @@ private data class JsonObject(val entries: List<Pair<String, JsonValue>>) : Json
 
 private fun jsonObject(vararg entries: Pair<String, JsonValue>): JsonObject =
     JsonObject(entries.toList())
+
+private fun JsonValue?.orJsonNull(): JsonValue =
+    this ?: JsonNull
 
 private fun compiledJson(value: Any?): JsonValue =
     compiledJson(value, mutableIdentitySet())

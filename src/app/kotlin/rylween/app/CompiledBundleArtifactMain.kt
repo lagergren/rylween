@@ -8,6 +8,7 @@ import rylween.compiled.loadCompiledGame
 import rylween.compiled.readExternalCompiledGameBundle
 import rylween.compiled.readExternalBundleArtifact
 import rylween.compiled.readExternalRuntimeGame
+import rylween.compiled.readExternalRuntimeSystemsSummary
 import rylween.compiled.writeExternalBundleArtifact
 import rylween.compiled.toCompiledGameBundle
 import rylween.compiled.writeNativeSmokeArtifact
@@ -41,6 +42,7 @@ object RylweenExternalBundleCheckMain {
     fun main(args: Array<String>): Unit = runRylweenCli {
         val input = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.json")
         val summary = input.readExternalBundleArtifact()
+        val runtimeSystems = input.readExternalRuntimeSystemsSummary()
         val materialized = input.readExternalCompiledGameBundle()
         val runtimeGame = input.readExternalRuntimeGame()
         println(
@@ -48,7 +50,9 @@ object RylweenExternalBundleCheckMain {
                 "handles=${summary.section(ExternalBundleSectionId.Handles).rowCount} " +
                 "scripts=${materialized.content.scripts.roots.size} " +
                 "states=${materialized.states.size} " +
-                "runtimeStates=${runtimeGame.states.size}",
+                "runtimeStates=${runtimeGame.states.size} " +
+                "runtimeSystems=${runtimeSystems.schemaVersion} " +
+                "castles=${runtimeSystems.castles.size}",
         )
     }
 }

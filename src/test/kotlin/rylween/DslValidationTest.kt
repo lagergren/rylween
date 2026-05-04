@@ -1830,7 +1830,7 @@ class RylweenDslValidationTest {
         assertEquals(artifact.toList(), repeated.toList())
         assertTrue(artifact.decodeToString().startsWith("{\n  \"format\": \"rylween.compiled.bundle\""))
         assertEquals("rylween.compiled.bundle", summary.format)
-        assertEquals(2, summary.version)
+        assertEquals(3, summary.version)
         assertEquals("Rylween", summary.universeName)
         assertTrue(summary.bundleContentHash.startsWith("sha256:"))
         assertEquals(ExternalBundleSectionId.entries.size, summary.sections.size)
@@ -1841,6 +1841,18 @@ class RylweenDslValidationTest {
         assertTrue(summary.sections.all { section -> section.byteLength > 0 })
         assertTrue("bundleContentHash: ${summary.bundleContentHash}" in inspection)
         assertTrue("strings: rows=${bundle.content.strings.entries.size}" in inspection)
+        assertTrue("runtimeSystems: rows=1" in inspection)
+
+        val runtimeSystems = artifact.readExternalRuntimeSystemsSummary()
+        assertEquals(1, runtimeSystems.schemaVersion)
+        assertTrue("wilderness" in runtimeSystems.commandGroups)
+        assertTrue("dungeon" in runtimeSystems.commandGroups)
+        assertTrue("ydarg.navigation" in runtimeSystems.commandGroups)
+        assertTrue("wilderness" in runtimeSystems.promptGroups)
+        assertTrue("dungeon" in runtimeSystems.promptGroups)
+        assertTrue("ydarg" in runtimeSystems.castles)
+        val runtimeSystemsJson = artifact.decodeToString().substringAfter("\"runtimeSystems\": ").substringBefore("\n    \"runtimeFacade\"")
+        assertFalse("\"_type\"" in runtimeSystemsJson)
 
         val materialized = artifact.readExternalCompiledGameBundle()
         assertEquals(bundle, materialized)
@@ -1872,6 +1884,7 @@ class RylweenDslValidationTest {
         try {
             file.writeBytes(artifact)
             assertEquals(summary, file.readVerifiedExternalBundleArtifact(game))
+            assertEquals(runtimeSystems, file.readExternalRuntimeSystemsSummary())
             assertEquals(bundle, file.readExternalCompiledGameBundle())
             assertEquals(artifact.toList(), file.readExternalRuntimeGame().toExternalBundleArtifact().toList())
         } finally {

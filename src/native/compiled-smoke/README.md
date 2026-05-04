@@ -15,8 +15,9 @@ contains the Kotlin smoke reader used by tests, and the C reader is
 
 `check` depends on that task.
 
-The active J1 artifact is strict deterministic JSON across all compiled
-content/state table groups plus the Kotlin runtime facade. The producer is
+The active J1 artifact is strict deterministic JSON across compiled
+content/state table groups, stable runtime-system data, and the Kotlin runtime
+facade. The producer is
 `RylweenModel.writeExternalBundleArtifact(...)` in
 `src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt`. Gradle wires the
 Kotlin JSON reader and inspection check through:
@@ -25,14 +26,15 @@ Kotlin JSON reader and inspection check through:
 ./gradlew checkExternalCompiledBundle --console=plain
 ./gradlew inspectExternalCompiledBundle --console=plain
 ./gradlew checkKotlinAnsiBundleBoot --console=plain
+./gradlew checkNativeJsonBundle --console=plain
 ```
 
-`check` depends on all three tasks. `checkKotlinAnsiBundleBoot` emits the JSON
+`check` depends on these JSON checks. `checkKotlinAnsiBundleBoot` emits the JSON
 bundle, installs the ANSI launcher, and runs the title screen through
 `RylweenAnsiMain --bundle <file>` after the launcher has built its runtime model
-from that bundle. The J1 C/native reader is still open; when we add it, prefer
-reusing or moving the legacy C JSON5 parser from
-`legacy/c-json5/src/json5.*` over writing a second C JSON parser.
+from that bundle. `checkNativeJsonBundle` compiles a small C reader that reuses
+the legacy `json5.c` parser source with a compatibility shim, then validates the
+same JSON artifact structurally.
 
 ## Current Runtime Status
 
@@ -55,14 +57,19 @@ string ids, bad handle refs, malformed nested operands, and unsupported VM
 operand shapes.
 
 J1 is active, but not complete. Kotlin now emits, reads, hashes, inspects,
-materializes, and boots from the strict JSON artifact. The remaining J1 closeout
-is:
+materializes, and boots from the strict JSON artifact. Schema version 3 also
+contains `runtimeSystems`, a stable non-reflective section for the first
+runtime-facing systems a non-Kotlin loader should consume directly: realm
+balance, reusable prompts, terminal/layout/static presentation, command
+bindings, wilderness events, town/speak runtime boundaries, and Ydarg as a
+`castles[]` entry. The native C reader validates schema version, section order,
+hash field shape, core row counts, and the `runtimeSystems` command/prompt/castle
+contract. The remaining J1 closeout is:
 
-- stable typed row schemas for non-Kotlin loaders instead of relying on Kotlin
-  reflective field names as the only description; this includes promoting
-  castle/Ydarg content out of the Kotlin-only `runtimeFacade` when a non-JVM
-  runtime needs it directly
-- a C/native JSON reader for the same artifact
+- stable direct row schemas for any additional systems a real non-Kotlin runtime
+  needs beyond `runtimeSystems`
+- native canonical SHA-256 recomputation if the C reader becomes a standalone
+  trust boundary; today the Kotlin reader owns full hash recomputation
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
 tests should reuse the same kind of playthrough/scenario inputs as the Kotlin
@@ -83,7 +90,7 @@ The canonical external bundle is:
 ```json
 {
   "format": "rylween.compiled.bundle",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "bundleContentHash": "sha256:...",
   "sectionOrder": ["universe", "limits", "..."],
   "sections": {
@@ -129,9 +136,37 @@ itemUses
 dungeonEvents
 dungeonScenarios
 scripts
+runtimeSystems
 runtimeFacade
 states
 ```
+
+## Stable Runtime Systems Section
+
+`runtimeSystems` is the first stable non-Kotlin system section. It deliberately
+does not use Kotlin reflective `_type` markers; entries use explicit `kind`,
+`op`, `id`, `slug`, and enum-string fields instead. Its top-level shape is:
+
+```json
+{
+  "schemaVersion": 1,
+  "realm": {},
+  "prompts": {},
+  "presentation": {},
+  "commands": {},
+  "wilderness": {},
+  "dungeon": {},
+  "town": {},
+  "speak": {},
+  "castles": [
+    { "id": "ydarg", "kind": "gridCastle" }
+  ]
+}
+```
+
+`readExternalRuntimeSystemsSummary()` validates this section on the Kotlin side
+and rejects reflective markers. `src/native/bundle-json/rylween_bundle_json.c`
+validates the same section on the C side before any future gameplay execution.
 
 The remaining sections document the J0 binary smoke artifact.
 
