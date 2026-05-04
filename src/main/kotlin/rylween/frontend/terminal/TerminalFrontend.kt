@@ -408,8 +408,8 @@ fun TerminalPort.writeScriptEvents(
                 }
             is EngineTraceEvent.TeleportParty,
             is EngineTraceEvent.DiscoverCave -> Unit
-            is EngineTraceEvent.Stop -> write(listOf(event.reason ?: "Stop"))
-            is EngineTraceEvent.Break -> write(listOf(event.reason ?: "Break"))
+            is EngineTraceEvent.Stop,
+            is EngineTraceEvent.Break -> Unit
             is EngineTraceEvent.TownService ->
                 if (renderTownService) {
                     write(listOf("Service: ${event.service.building.slug}"))
