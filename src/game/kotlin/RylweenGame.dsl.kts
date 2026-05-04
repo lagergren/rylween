@@ -743,6 +743,8 @@ val nextRylween = rylween {
     }
 
     items {
+        // Equipment is unrestricted unless a weapon or armor declares allowed classes.
+        // Example: weapon(Items.holyBlade, "Holy Blade", cost = 5000, damage = 40) { equippableBy(PcClass.Priest) }
         empty(Items.none)
 
         weapon(Items.sword, "Sword", cost = 160, damage = 6)

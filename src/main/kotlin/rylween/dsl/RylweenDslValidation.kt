@@ -164,6 +164,9 @@ fun validateItemCatalog(records: List<ItemRecordModel>) {
     records.forEach { record ->
         check(record.displayName.isNotBlank()) { "item ${record.id.slug} requires a display name" }
         check(record.cost >= 0) { "item ${record.id.slug} has negative cost" }
+        check(record.equippableBy.isEmpty() || record.kind == ItemKind.Weapon || record.kind == ItemKind.Armor) {
+            "item ${record.id.slug} can restrict equipment classes only when it is a weapon or armor"
+        }
         when (record.kind) {
             ItemKind.Empty -> {
                 check(record.storage == ItemStorageKind.EmptySentinel) {
