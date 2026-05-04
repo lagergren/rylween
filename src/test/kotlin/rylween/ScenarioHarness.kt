@@ -2,6 +2,7 @@ package rylween
 
 import rylween.dsl.StateId
 import rylween.dsl.ViewCommand
+import rylween.engine.RuntimeConformanceSuite
 import rylween.frontend.terminal.TerminalAdapterResult
 import rylween.frontend.terminal.TerminalPort
 import rylween.frontend.terminal.TerminalTextContext
@@ -57,11 +58,12 @@ data class TerminalScenario<S>(
     val start: () -> S,
     val drive: (ScenarioTerminalPort, S) -> TerminalAdapterResult<S>,
     val checkpoints: List<TerminalScenarioCheckpoint<S>> = emptyList(),
+    val suites: Set<RuntimeConformanceSuite> = emptySet(),
 ) {
     fun run(): TerminalScenarioRun<S> {
         val terminal = ScenarioTerminalPort(*inputs.toTypedArray())
         val result = drive(terminal, start())
-        return TerminalScenarioRun(name, fixture, terminal, result).also { run ->
+        return TerminalScenarioRun(name, fixture, terminal, result, suites).also { run ->
             checkpoints.forEach { checkpoint ->
                 runCatching { checkpoint.verify(run) }
                     .getOrElse { error ->
@@ -77,6 +79,7 @@ data class TerminalScenarioRun<S>(
     val fixture: ScenarioFixture,
     val terminal: ScenarioTerminalPort,
     val result: TerminalAdapterResult<S>,
+    val suites: Set<RuntimeConformanceSuite> = emptySet(),
 )
 
 data class HeadlessScenarioStep<S>(
@@ -95,11 +98,12 @@ data class HeadlessScenario<S>(
     val start: () -> S,
     val steps: List<HeadlessScenarioStep<S>>,
     val checkpoints: List<HeadlessScenarioCheckpoint<S>> = emptyList(),
+    val suites: Set<RuntimeConformanceSuite> = emptySet(),
 ) {
     fun run(): HeadlessScenarioRun<S> {
         val history = steps.map { it.name }
         val result = steps.fold(start()) { session, step -> step.apply(session) }
-        return HeadlessScenarioRun(name, fixture, history, result).also { run ->
+        return HeadlessScenarioRun(name, fixture, history, result, suites).also { run ->
             checkpoints.forEach { checkpoint ->
                 runCatching { checkpoint.verify(run) }
                     .getOrElse { error ->
@@ -115,6 +119,7 @@ data class HeadlessScenarioRun<S>(
     val fixture: ScenarioFixture,
     val steps: List<String>,
     val result: S,
+    val suites: Set<RuntimeConformanceSuite> = emptySet(),
 )
 
 fun <S> checkpoint(name: String, verify: TerminalScenarioRun<S>.() -> Unit): TerminalScenarioCheckpoint<S> =
