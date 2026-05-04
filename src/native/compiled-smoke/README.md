@@ -1,8 +1,8 @@
-# Rylween Compiled Bundle Smoke Format
+# Rylween Compiled Bundle Boundary Formats
 
-This directory contains the first external compiled-bundle boundary check for
-the Kotlin-authored game. It is intentionally a smoke artifact, not the final
-all-content native game bundle.
+This file documents the current external compiled-bundle boundary checks for
+the Kotlin-authored game: the J0 VM smoke artifact in this directory and the
+active J1 sectioned artifact in `src/native/compiled-bundle`.
 
 The producer is `CompiledGameBundle.writeNativeSmokeArtifact(...)` in
 `src/main/kotlin/rylween/compiled/NativeSmokeArtifact.kt`. The same file also
@@ -14,6 +14,21 @@ contains the Kotlin smoke reader used by tests, and the C reader is
 ```
 
 `check` depends on that task.
+
+The active J1 artifact is sectioned across all compiled content/state table
+groups. The producer is
+`CompiledGameBundle.writeExternalBundleArtifact(...)` in
+`src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt`, and the C section
+reader is `src/native/compiled-bundle/rylween_bundle_manifest.c`. Gradle wires
+that check through:
+
+```sh
+./gradlew checkExternalCompiledBundle --console=plain
+```
+
+`check` depends on this task too. Both native C validation binaries are compiled
+by the shared `CompileNativeCExecutableTask` in `build.gradle.kts`; `CC` can
+override the compiler, and the C17/warning flags live in one place.
 
 ## Current Runtime Status
 
@@ -32,20 +47,69 @@ is to catch schema/API boundary outages: bad magic/version, bad enum ranges, bad
 string ids, bad handle refs, malformed nested operands, and unsupported VM
 operand shapes.
 
-When J1 becomes active, Kotlin and C/native should read the same external
-artifact schema. The expected J1 closeout is:
+J1 is active, but not complete. Kotlin and C/native now read the same sectioned
+external artifact frame. The remaining J1 closeout is:
 
-- deterministic artifact emission for all compiled content and state tables
-- a Kotlin external reader for that full artifact
-- a C/native external reader for the same artifact
-- round-trip validation that both readers agree with `loadCompiledGame()`
-- version/hash compatibility checks for saved state images
+- stable typed row schemas/materializers for every section payload
+- universe/content-hash compatibility checks in the external artifact header
+- round-trip validation that loaded rows agree with `loadCompiledGame()`
+- a Kotlin ANSI launcher/test path that boots from the external artifact
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
 tests should reuse the same kind of playthrough/scenario inputs as the Kotlin
 scenario harness so native behavior is compared against the Kotlin runtime, not
 only against structural loading. This J0 smoke format only proves that the
 current typed operation surface can be parsed.
+
+## J1 Sectioned Artifact
+
+The current all-table artifact layout is:
+
+```text
+magic                  8 bytes, ASCII "RYLBNDL1"
+version                u32, currently 1
+sectionCount           u32, currently 25
+sections[sectionCount]:
+    sectionId          u32 ExternalBundleSectionId code
+    rowCount           u32 number of logical rows in the payload
+    byteLength         u32 payload byte count
+    checksum           u32 FNV-1a over the payload bytes
+    payload            byteLength UTF-8 bytes
+```
+
+The J1.1 payloads are deterministic canonical UTF-8 rows so Kotlin and C can
+validate one complete artifact carrier before the final typed row materializer
+exists. They are not the final native ABI for table rows.
+
+The section ids are named in both readers/writers:
+
+```text
+0 Universe
+1 Limits
+2 Strings
+3 Handles
+4 Flags
+5 Items
+6 ItemPools
+7 Formulas
+8 Rewards
+9 Terrain
+10 WorldMaps
+11 Images
+12 StaticScreens
+13 ScreenRegions
+14 Towns
+15 BuildingServices
+16 Characters
+17 Monsters
+18 Missions
+19 Spells
+20 ItemUses
+21 DungeonEvents
+22 DungeonScenarios
+23 Scripts
+24 States
+```
 
 ## Scalar Encoding
 

@@ -1,7 +1,35 @@
 import org.gradle.jvm.application.tasks.CreateStartScripts
+import org.gradle.process.ExecOperations
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+}
+
+abstract class CompileNativeCExecutableTask @Inject constructor(
+    private val execOperations: ExecOperations,
+) : DefaultTask() {
+    @get:Input
+    abstract val compiler: Property<String>
+
+    @get:Input
+    abstract val flags: ListProperty<String>
+
+    @get:InputFile
+    abstract val sourceFile: RegularFileProperty
+
+    @get:OutputFile
+    abstract val executableFile: RegularFileProperty
+
+    @TaskAction
+    fun compile() {
+        val source = sourceFile.get().asFile
+        val executable = executableFile.get().asFile
+        executable.parentFile.mkdirs()
+        execOperations.exec {
+            commandLine(listOf(compiler.get()) + flags.get() + listOf("-o", executable.path, source.path))
+        }
+    }
 }
 
 abstract class GenerateCompiledGameHarnessTask : DefaultTask() {
@@ -1576,11 +1604,30 @@ val runKotlinGame: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) 
 val nativeSmokeBundle: Provider<RegularFile> = layout.buildDirectory.file("compiled/rylween-native-smoke.rsmoke")
 val nativeSmokeSource: RegularFile = layout.projectDirectory.file("src/native/compiled-smoke/rylween_bundle_smoke.c")
 val nativeSmokeExecutable: Provider<RegularFile> = layout.buildDirectory.file("native/compiled-smoke/rylween-bundle-smoke")
+val externalBundleArtifact: Provider<RegularFile> = layout.buildDirectory.file("compiled/rylween-bundle.rbin")
+val externalBundleSource: RegularFile = layout.projectDirectory.file("src/native/compiled-bundle/rylween_bundle_manifest.c")
+val externalBundleExecutable: Provider<RegularFile> = layout.buildDirectory.file("native/compiled-bundle/rylween-bundle")
+val nativeCCompiler: Provider<String> = providers.environmentVariable("CC").orElse("cc")
+val nativeCWarningFlags: List<String> = listOf("-std=c17", "-Wall", "-Wextra", "-Werror", "-pedantic")
 val nativeSmokeBundlePath: String = nativeSmokeBundle.get().asFile.path
-val nativeSmokeSourcePath: String = nativeSmokeSource.asFile.path
-val nativeSmokeExecutableFile: File = nativeSmokeExecutable.get().asFile
-val nativeSmokeExecutablePath: String = nativeSmokeExecutableFile.path
-nativeSmokeExecutableFile.parentFile.mkdirs()
+val nativeSmokeExecutablePath: String = nativeSmokeExecutable.get().asFile.path
+val externalBundleArtifactPath: String = externalBundleArtifact.get().asFile.path
+val externalBundleExecutablePath: String = externalBundleExecutable.get().asFile.path
+
+fun registerNativeCExecutable(
+    taskName: String,
+    taskDescription: String,
+    source: RegularFile,
+    executable: Provider<RegularFile>,
+): TaskProvider<CompileNativeCExecutableTask> =
+    tasks.register<CompileNativeCExecutableTask>(taskName) {
+        group = "verification"
+        description = taskDescription
+        compiler.set(nativeCCompiler)
+        flags.set(nativeCWarningFlags)
+        sourceFile.set(source)
+        executableFile.set(executable)
+    }
 
 val emitNativeSmokeBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
@@ -1594,24 +1641,13 @@ val emitNativeSmokeBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec:
     outputs.file(nativeSmokeBundle)
 }
 
-val compileNativeSmokeLoader: TaskProvider<Exec> by tasks.registering(Exec::class) {
-    group = "verification"
-    description = "Compiles the minimal C loader for the compiled VM smoke artifact."
-
-    inputs.file(nativeSmokeSource)
-    outputs.file(nativeSmokeExecutable)
-    commandLine(
-        "cc",
-        "-std=c17",
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-        "-pedantic",
-        "-o",
-        nativeSmokeExecutablePath,
-        nativeSmokeSourcePath,
+val compileNativeSmokeLoader: TaskProvider<CompileNativeCExecutableTask> =
+    registerNativeCExecutable(
+        taskName = "compileNativeSmokeLoader",
+        taskDescription = "Compiles the minimal C loader for the compiled VM smoke artifact.",
+        source = nativeSmokeSource,
+        executable = nativeSmokeExecutable,
     )
-}
 
 val checkNativeSmokeBundle: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "verification"
@@ -1624,6 +1660,40 @@ val checkNativeSmokeBundle: TaskProvider<Exec> by tasks.registering(Exec::class)
     commandLine(
         nativeSmokeExecutablePath,
         nativeSmokeBundlePath,
+    )
+}
+
+val emitExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Emits the deterministic sectioned compiled bundle artifact."
+
+    dependsOn(tasks.named(appSourceSet.classesTaskName))
+    classpath = appSourceSet.runtimeClasspath
+    mainClass.set("rylween.app.RylweenExternalBundleArtifactMain")
+    args(externalBundleArtifactPath)
+    inputs.files(appSourceSet.runtimeClasspath)
+    outputs.file(externalBundleArtifact)
+}
+
+val compileExternalBundleLoader: TaskProvider<CompileNativeCExecutableTask> =
+    registerNativeCExecutable(
+        taskName = "compileExternalBundleLoader",
+        taskDescription = "Compiles the minimal C section reader for the compiled bundle artifact.",
+        source = externalBundleSource,
+        executable = externalBundleExecutable,
+    )
+
+val checkExternalCompiledBundle: TaskProvider<Exec> by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs the C section reader over the emitted compiled bundle artifact."
+
+    dependsOn(emitExternalCompiledBundle)
+    dependsOn(compileExternalBundleLoader)
+    inputs.file(externalBundleArtifact)
+    inputs.file(externalBundleExecutable)
+    commandLine(
+        externalBundleExecutablePath,
+        externalBundleArtifactPath,
     )
 }
 
@@ -1711,4 +1781,5 @@ tasks.check {
     dependsOn(validateGameDsl)
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     dependsOn(checkNativeSmokeBundle)
+    dependsOn(checkExternalCompiledBundle)
 }
