@@ -3,6 +3,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * TODO(J1/J2/J3): This is only the native compiled-boundary smoke loader.
+ *
+ * It can parse the narrow .rsmoke artifact emitted from the current compiled
+ * bundle and validate schema/version, string ids, handle refs, opcode ranges,
+ * nested instruction bodies, typed operands, and state counts. It cannot read
+ * the canonical J1 JSON bundle, execute VM ops, run battle/town/wilderness/
+ * dungeon/Ydarg sessions, render the game, process input, save/load snapshots,
+ * or reproduce the legacy C game's graphical presentation. A real native
+ * runtime must implement the J1 JSON reader, J2 op executor, and J3 host/view
+ * service contract before it counts as playable.
+ */
+
 typedef struct {
     uint32_t kind;
     uint32_t id;

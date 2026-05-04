@@ -5,6 +5,12 @@ import java.lang.reflect.Array
 import java.lang.reflect.Modifier
 import java.security.MessageDigest
 import java.util.IdentityHashMap
+import kotlin.reflect.KClass
+import kotlin.reflect.KType
+import kotlin.reflect.full.createType
+import kotlin.reflect.full.primaryConstructor
+import kotlin.reflect.jvm.isAccessible
+import kotlin.reflect.typeOf
 
 private const val ExternalBundleFormat = "rylween.compiled.bundle"
 private const val ExternalBundleVersion = 1
@@ -23,6 +29,15 @@ fun ByteArray.readExternalBundleArtifact(): ExternalBundleArtifactSummary =
 fun File.readExternalBundleArtifact(): ExternalBundleArtifactSummary =
     readBytes().readExternalBundleArtifact()
 
+/**
+ * Artifact startup drift guard used by the current ANSI `--bundle` flag.
+ *
+ * This deliberately does not make the ANSI runtime artifact-backed by itself:
+ * the launcher reads the JSON bundle, checks its hash and section summaries
+ * against the generated JVM `CompiledGameBundle`, and then the existing runtime
+ * still boots from generated game objects. J1a is only closed when the launcher
+ * builds the runtime-facing content/session facade from the loaded artifact.
+ */
 fun File.readVerifiedExternalBundleArtifact(expected: CompiledGameBundle): ExternalBundleArtifactSummary {
     val actual = readExternalBundleArtifact()
     val expectedSummary = expected.toExternalBundleArtifact().readExternalBundleArtifact()
@@ -37,6 +52,20 @@ fun File.readVerifiedExternalBundleArtifact(expected: CompiledGameBundle): Exter
     }
     return actual
 }
+
+/**
+ * Reads the J1 strict JSON artifact back into the typed compiled bundle model.
+ *
+ * This is the next boundary after the summary/drift guard: the file is no
+ * longer only inspectable, it materializes the same `CompiledGameBundle` shape
+ * that `CompiledBundleLoader` validates. The current Kotlin ANSI runtime still
+ * needs a later facade step before it can replace generated `GameModel` content.
+ */
+fun ByteArray.readExternalCompiledGameBundle(): CompiledGameBundle =
+    ExternalBundleArtifactMaterializer(decodeToString()).read()
+
+fun File.readExternalCompiledGameBundle(): CompiledGameBundle =
+    readBytes().readExternalCompiledGameBundle()
 
 fun ByteArray.inspectExternalBundleArtifact(): String =
     readExternalBundleArtifact().renderExternalBundleInspection()
@@ -192,34 +221,17 @@ private class ExternalBundleArtifactReader(
     private val source: String,
 ) {
     fun read(): ExternalBundleArtifactSummary {
-        val root = JsonParser(source).parse().asObject("compiled bundle root")
-        val format = root.requiredString("format")
-        if (format != ExternalBundleFormat) fail("unsupported bundle format $format")
-        val version = root.requiredInt("schemaVersion")
-        if (version != ExternalBundleVersion) fail("unsupported bundle schema version $version")
-
-        val order = root.requiredArray("sectionOrder").values.map { it.asString("sectionOrder entry") }
-        val expectedOrder = ExternalBundleSectionId.entries.map { it.jsonName }
-        if (order != expectedOrder) fail("section order does not match schema")
-
-        val sectionsObject = root.requiredObject("sections")
-        val sectionNames = sectionsObject.entries.map { it.first }
-        if (sectionNames != expectedOrder) fail("sections object does not match schema order")
-
-        val contentHash = root.requiredString("bundleContentHash")
-        val actualHash = sectionsObject.compactBytes().sha256()
-        if (contentHash != actualHash) fail("bundle content hash does not match sections")
-
-        val universe = sectionsObject.requiredObject(ExternalBundleSectionId.Universe.jsonName)
+        val envelope = readExternalBundleEnvelope(source)
+        val universe = envelope.sections.requiredObject(ExternalBundleSectionId.Universe.jsonName)
         return ExternalBundleArtifactSummary(
-            format = format,
-            version = version,
-            bundleContentHash = contentHash,
+            format = envelope.format,
+            version = envelope.version,
+            bundleContentHash = envelope.contentHash,
             universeName = universe.requiredString("name"),
             universeVersion = universe.requiredString("version"),
             universeCompatibilityId = universe.requiredString("compatibilityId"),
             sections = ExternalBundleSectionId.entries.map { id ->
-                val value = sectionsObject.required(id.jsonName)
+                val value = envelope.sections.required(id.jsonName)
                 val bytes = value.compactBytes()
                 ExternalBundleSectionSummary(
                     id = id,
@@ -230,9 +242,210 @@ private class ExternalBundleArtifactReader(
             },
         )
     }
+}
 
-    private fun fail(message: String): Nothing =
-        error("compiled bundle artifact loader failed: $message")
+private data class ExternalBundleEnvelope(
+    val format: String,
+    val version: Int,
+    val contentHash: String,
+    val sections: JsonObject,
+)
+
+private fun readExternalBundleEnvelope(source: String): ExternalBundleEnvelope {
+    val root = JsonParser(source).parse().asObject("compiled bundle root")
+    val format = root.requiredString("format")
+    if (format != ExternalBundleFormat) externalBundleFail("unsupported bundle format $format")
+    val version = root.requiredInt("schemaVersion")
+    if (version != ExternalBundleVersion) externalBundleFail("unsupported bundle schema version $version")
+
+    val order = root.requiredArray("sectionOrder").values.map { it.asString("sectionOrder entry") }
+    val expectedOrder = ExternalBundleSectionId.entries.map { it.jsonName }
+    if (order != expectedOrder) externalBundleFail("section order does not match schema")
+
+    val sections = root.requiredObject("sections")
+    val sectionNames = sections.entries.map { it.first }
+    if (sectionNames != expectedOrder) externalBundleFail("sections object does not match schema order")
+
+    val contentHash = root.requiredString("bundleContentHash")
+    val actualHash = sections.compactBytes().sha256()
+    if (contentHash != actualHash) externalBundleFail("bundle content hash does not match sections")
+
+    return ExternalBundleEnvelope(
+        format = format,
+        version = version,
+        contentHash = contentHash,
+        sections = sections,
+    )
+}
+
+private fun externalBundleFail(message: String): Nothing =
+    error("compiled bundle artifact loader failed: $message")
+
+private class ExternalBundleArtifactMaterializer(
+    private val source: String,
+) {
+    private val decoder = ExternalBundleObjectDecoder()
+
+    fun read(): CompiledGameBundle {
+        val sections = readExternalBundleEnvelope(source).sections
+        val strings = readStrings(sections.requiredArray(ExternalBundleSectionId.Strings.jsonName))
+        val handles = readHandles(sections.requiredArray(ExternalBundleSectionId.Handles.jsonName))
+        val content = CompiledContentBundle(
+            universe = readUniverse(sections.requiredObject(ExternalBundleSectionId.Universe.jsonName)),
+            limits = sections.decodeSection(ExternalBundleSectionId.Limits),
+            strings = strings,
+            handles = handles,
+            flags = sections.decodeSectionList(ExternalBundleSectionId.Flags),
+            items = sections.decodeSectionList(ExternalBundleSectionId.Items),
+            itemPools = sections.decodeSectionList(ExternalBundleSectionId.ItemPools),
+            formulas = sections.decodeSectionList(ExternalBundleSectionId.Formulas),
+            rewards = sections.decodeSectionList(ExternalBundleSectionId.Rewards),
+            terrain = sections.decodeSectionList(ExternalBundleSectionId.Terrain),
+            worldMaps = sections.decodeSectionList(ExternalBundleSectionId.WorldMaps),
+            images = sections.decodeSectionList(ExternalBundleSectionId.Images),
+            staticScreens = sections.decodeSectionList(ExternalBundleSectionId.StaticScreens),
+            screenRegions = sections.decodeSectionList(ExternalBundleSectionId.ScreenRegions),
+            towns = sections.decodeSectionList(ExternalBundleSectionId.Towns),
+            buildingServices = sections.decodeSectionList(ExternalBundleSectionId.BuildingServices),
+            characters = sections.decodeSectionList(ExternalBundleSectionId.Characters),
+            monsters = sections.decodeSectionList(ExternalBundleSectionId.Monsters),
+            missions = sections.decodeSectionList(ExternalBundleSectionId.Missions),
+            spells = sections.decodeSectionList(ExternalBundleSectionId.Spells),
+            itemUses = sections.decodeSectionList(ExternalBundleSectionId.ItemUses),
+            dungeonEvents = sections.decodeSectionList(ExternalBundleSectionId.DungeonEvents),
+            dungeonScenarios = sections.decodeSectionList(ExternalBundleSectionId.DungeonScenarios),
+            scripts = CompiledScriptBundle(sections.decodeSectionList(ExternalBundleSectionId.Scripts)),
+        )
+        val bundle = CompiledGameBundle(
+            content = content,
+            states = sections.decodeSectionList(ExternalBundleSectionId.States),
+        )
+        bundle.loadCompiledGame()
+        return bundle
+    }
+
+    private fun readUniverse(value: JsonObject): CompiledUniverse =
+        CompiledUniverse(
+            nameString = value.requiredInt("nameString"),
+            versionString = value.requiredInt("versionString"),
+            compatibilityIdString = value.requiredInt("compatibilityIdString"),
+        )
+
+    private fun readStrings(value: JsonArray): CompiledStringTable {
+        val entries = value.values.mapIndexed { index, item ->
+            val row = item.asObject("strings row")
+            val id = row.requiredInt("id")
+            require(id == index + 1) { "string rows must be dense and one-based; found $id at row ${index + 1}" }
+            val text = row.requiredString("value")
+            val hash = row.requiredInt("hash")
+            require(hash == text.hashCode()) { "string row $id hash does not match value" }
+            text
+        }
+        return CompiledStringTable(entries)
+    }
+
+    private fun readHandles(value: JsonArray): CompiledHandleTable =
+        CompiledHandleTable(
+            value.values.map { item ->
+                val row = item.asObject("handles row")
+                val kind = row.requiredEnum<CompiledHandleKind>("kind")
+                val id = row.requiredInt("id")
+                val denseId = row.requiredInt("denseId")
+                val slugString = row.requiredInt("slugString")
+                CompiledHandle(
+                    ref = CompiledHandleRef(kind, id),
+                    denseId = denseId,
+                    slugString = slugString,
+                )
+            },
+        )
+
+    private inline fun <reified T : Any> JsonObject.decodeSection(id: ExternalBundleSectionId): T =
+        decoder.decode(required(id.jsonName))
+
+    private inline fun <reified T : Any> JsonObject.decodeSectionList(id: ExternalBundleSectionId): List<T> =
+        requiredArray(id.jsonName).values.map { item -> decoder.decode(item) }
+}
+
+private class ExternalBundleObjectDecoder {
+    inline fun <reified T : Any> decode(value: JsonValue): T =
+        decode(value, typeOf<T>()) as T
+
+    fun decode(value: JsonValue, type: KType): Any? {
+        if (value == JsonNull) {
+            require(type.isMarkedNullable) { "non-null ${type} cannot be loaded from null" }
+            return null
+        }
+        return when (val classifier = type.classifier) {
+            String::class -> value.asString("string")
+            Char::class -> value.asString("char").single()
+            Boolean::class -> value.asBoolean("boolean")
+            Int::class -> value.asNumber("int").toInt()
+            Long::class -> value.asNumber("long").toLong()
+            Float::class -> value.asNumber("float").toFloat()
+            Double::class -> value.asNumber("double").toDouble()
+            IntRange::class -> value.asIntRange()
+            List::class -> value.asArray("list").values.map { item -> decode(item, type.singleArgument("list")) }
+            Set::class -> value.asArray("set").values.map { item -> decode(item, type.singleArgument("set")) }.toSet()
+            Map::class -> decodeMap(value, type)
+            is KClass<*> -> decodeClass(value, classifier)
+            else -> error("unsupported compiled JSON target type $type")
+        }
+    }
+
+    private fun decodeMap(value: JsonValue, type: KType): Map<Any?, Any?> {
+        val keyType = type.argument(index = 0, owner = "map key")
+        val valueType = type.argument(index = 1, owner = "map value")
+        return value.asArray("map").values.associate { item ->
+            val row = item.asObject("map entry")
+            decode(row.required("key"), keyType) to decode(row.required("value"), valueType)
+        }
+    }
+
+    private fun decodeClass(value: JsonValue, klass: KClass<*>): Any {
+        if (klass.java.isEnum) return value.asEnum(klass)
+        if (klass.isSealed) return decodeSealed(value, klass)
+        klass.objectInstance?.let { instance ->
+            value.expectObjectType(klass)
+            return instance
+        }
+        return decodeDataClass(value, klass)
+    }
+
+    private fun decodeSealed(value: JsonValue, klass: KClass<*>): Any {
+        val encodedType = value.asObject("${klass.simpleName} value").requiredString("_type")
+        val subtype = klass.sealedSubclasses.firstOrNull { candidate -> candidate.simpleName == encodedType }
+            ?: error("unknown ${klass.simpleName} subtype $encodedType")
+        return decode(value, subtype.createType(nullable = false))
+            ?: error("sealed subtype $encodedType decoded to null")
+    }
+
+    private fun decodeDataClass(value: JsonValue, klass: KClass<*>): Any {
+        val obj = value.asObject("${klass.simpleName} value")
+        obj.optionalString("_type")?.let { encodedType ->
+            require(encodedType == klass.simpleName) { "expected ${klass.simpleName}, found $encodedType" }
+        }
+        val constructor = klass.primaryConstructor ?: error("missing primary constructor for ${klass.qualifiedName}")
+        constructor.isAccessible = true
+        val args = buildMap {
+            constructor.parameters.forEach { parameter ->
+                val field = parameter.name?.let(obj::optional)
+                when {
+                    field != null -> put(parameter, decode(field, parameter.type))
+                    parameter.isOptional -> Unit
+                    parameter.type.isMarkedNullable -> put(parameter, null)
+                    else -> error("missing ${klass.simpleName}.${parameter.name}")
+                }
+            }
+        }
+        return constructor.callBy(args)
+    }
+
+    private fun KType.singleArgument(owner: String): KType =
+        argument(index = 0, owner = owner)
+
+    private fun KType.argument(index: Int, owner: String): KType =
+        arguments.getOrNull(index)?.type ?: error("missing $owner type argument for $this")
 }
 
 private sealed interface JsonValue {
@@ -572,11 +785,43 @@ private class JsonParser(
 private fun JsonValue.asObject(label: String): JsonObject =
     this as? JsonObject ?: error("expected object for $label")
 
+private fun JsonValue.asArray(label: String): JsonArray =
+    this as? JsonArray ?: error("expected array for $label")
+
 private fun JsonValue.asString(label: String): String =
     (this as? JsonString)?.value ?: error("expected string for $label")
 
+private fun JsonValue.asNumber(label: String): String =
+    (this as? JsonNumber)?.value ?: error("expected number for $label")
+
+private fun JsonValue.asBoolean(label: String): Boolean =
+    (this as? JsonBoolean)?.value ?: error("expected boolean for $label")
+
+private fun JsonValue.asIntRange(): IntRange {
+    val obj = asObject("int range")
+    return obj.requiredInt("first")..obj.requiredInt("last")
+}
+
+private fun JsonValue.expectObjectType(klass: KClass<*>) {
+    val obj = asObject("${klass.simpleName} value")
+    obj.optionalString("_type")?.let { encodedType ->
+        require(encodedType == klass.simpleName) { "expected ${klass.simpleName}, found $encodedType" }
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun JsonValue.asEnum(klass: KClass<*>): Any {
+    val name = asString("${klass.simpleName} enum")
+    val enumClass = klass.java as Class<out Enum<*>>
+    return enumClass.enumConstants.firstOrNull { constant -> constant.name == name }
+        ?: error("unknown ${klass.simpleName} enum value $name")
+}
+
 private fun JsonObject.required(name: String): JsonValue =
     entries.firstOrNull { it.first == name }?.second ?: error("missing JSON field $name")
+
+private fun JsonObject.optional(name: String): JsonValue? =
+    entries.firstOrNull { it.first == name }?.second
 
 private fun JsonObject.requiredObject(name: String): JsonObject =
     required(name).asObject(name)
@@ -589,6 +834,12 @@ private fun JsonObject.requiredString(name: String): String =
 
 private fun JsonObject.requiredInt(name: String): Int =
     (required(name) as? JsonNumber)?.value?.toIntOrNull() ?: error("expected integer for $name")
+
+private fun JsonObject.optionalString(name: String): String? =
+    optional(name)?.asString(name)
+
+private inline fun <reified T : Enum<T>> JsonObject.requiredEnum(name: String): T =
+    enumValueOf(requiredString(name))
 
 internal fun ByteArray.fnv1a32(): Int {
     var hash = 0x811c9dc5.toInt()
