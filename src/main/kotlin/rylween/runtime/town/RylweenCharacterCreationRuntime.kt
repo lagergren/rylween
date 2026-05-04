@@ -1,4 +1,6 @@
-package rylween.runtime
+package rylween.runtime.town
+
+import rylween.runtime.*
 
 import rylween.dsl.*
 

@@ -2,6 +2,8 @@ package rylween.runtime.ydarg
 
 import rylween.dsl.*
 import rylween.runtime.*
+import rylween.runtime.battle.*
+import rylween.runtime.party.*
 
 enum class YdargSessionStatus {
     Entered,
@@ -405,12 +407,10 @@ data class YdargSession(
 
     fun replaceEquipmentSession(session: EquipmentPromptSession): YdargSession {
         require(step is YdargSessionStep.Equipment) { "Ydarg session is not running equipment prompts" }
-        val status = when ((session.step as? EquipmentPromptStep.Finished)?.result) {
-            is EquipmentActionResult.Equipped,
-            is EquipmentActionResult.Unequipped -> YdargSessionStatus.EquipmentUsed
-            null -> null
-            else -> YdargSessionStatus.EquipmentUnavailable
-        }
+        val status = (session.step as? EquipmentPromptStep.Finished)?.result?.toParentStatus(
+            used = YdargSessionStatus.EquipmentUsed,
+            unavailable = YdargSessionStatus.EquipmentUnavailable,
+        )
         return if (status != null) {
             copy(
                 runtime = runtime.withActiveParty(session.party),
@@ -425,11 +425,10 @@ data class YdargSession(
     fun replaceInventoryItemUseSession(session: InventoryItemUseSession): YdargSession {
         require(step is YdargSessionStep.InventoryItemUse) { "Ydarg session is not running inventory item use" }
         return if (session.step is InventoryItemUseStep.Finished) {
-            val status = when (session.lastResult?.status) {
-                InventoryItemUseStatus.Used,
-                InventoryItemUseStatus.Equipped -> YdargSessionStatus.InventoryUsed
-                else -> YdargSessionStatus.InventoryUnavailable
-            }
+            val status = session.lastResult?.status.toParentStatus(
+                used = YdargSessionStatus.InventoryUsed,
+                unavailable = YdargSessionStatus.InventoryUnavailable,
+            )
             copy(
                 runtime = session.runtime,
                 step = YdargSessionStep.Navigate,
@@ -443,10 +442,10 @@ data class YdargSession(
     fun replacePriestSpellSession(session: PriestSpellSession): YdargSession {
         require(step is YdargSessionStep.PriestSpell) { "Ydarg session is not running priest spell casting" }
         return if (session.step is PriestSpellStep.Finished) {
-            val status = when (session.lastResult?.status) {
-                PriestSpellStatus.Cast -> YdargSessionStatus.CastSpellUsed
-                else -> YdargSessionStatus.CastSpellUnavailable
-            }
+            val status = session.lastResult?.status.toParentStatus(
+                cast = YdargSessionStatus.CastSpellUsed,
+                unavailable = YdargSessionStatus.CastSpellUnavailable,
+            )
             copy(
                 runtime = session.runtime,
                 step = YdargSessionStep.Navigate,

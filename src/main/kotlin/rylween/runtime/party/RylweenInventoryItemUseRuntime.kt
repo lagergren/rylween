@@ -2,7 +2,9 @@
 // Routes weapon/armor selections into the equipment ready flow; routes
 // authored inventory item-use scripts into the shared script continuation.
 
-package rylween.runtime
+package rylween.runtime.party
+
+import rylween.runtime.*
 
 import rylween.dsl.*
 
@@ -14,6 +16,13 @@ enum class InventoryItemUseStatus {
     InvalidSlot,
     NotUsable,
 }
+
+fun <T> InventoryItemUseStatus?.toParentStatus(used: T, unavailable: T): T =
+    when (this) {
+        InventoryItemUseStatus.Used,
+        InventoryItemUseStatus.Equipped -> used
+        else -> unavailable
+    }
 
 data class InventoryItemUseResult(
     val status: InventoryItemUseStatus,

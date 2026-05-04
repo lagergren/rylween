@@ -1,4 +1,9 @@
-package rylween.runtime
+package rylween.runtime.dungeon
+
+import rylween.runtime.*
+import rylween.runtime.battle.*
+import rylween.runtime.party.*
+import rylween.runtime.wilderness.*
 
 import rylween.dsl.*
 
@@ -154,11 +159,10 @@ data class DungeonSession(
         require(step is DungeonSessionStep.Equipment) { "dungeon session is not running equipment prompts" }
         val nextRuntime = runtime.withActiveParty(session.party)
         return if (session.step is EquipmentPromptStep.Finished) {
-            val status = when (session.step.result) {
-                is EquipmentActionResult.Equipped,
-                is EquipmentActionResult.Unequipped -> DungeonSessionResultStatus.EquipmentUsed
-                else -> DungeonSessionResultStatus.EquipmentUnavailable
-            }
+            val status = session.step.result.toParentStatus(
+                used = DungeonSessionResultStatus.EquipmentUsed,
+                unavailable = DungeonSessionResultStatus.EquipmentUnavailable,
+            )
             copy(runtime = nextRuntime, step = DungeonSessionStep.Explore, lastResult = result(status))
         } else {
             copy(runtime = nextRuntime, step = DungeonSessionStep.Equipment(session))
@@ -168,11 +172,10 @@ data class DungeonSession(
     fun replaceInventoryItemUseSession(session: InventoryItemUseSession): DungeonSession {
         require(step is DungeonSessionStep.InventoryItemUse) { "dungeon session is not running inventory item use" }
         return if (session.step is InventoryItemUseStep.Finished) {
-            val status = when (session.lastResult?.status) {
-                InventoryItemUseStatus.Used,
-                InventoryItemUseStatus.Equipped -> DungeonSessionResultStatus.InventoryUsed
-                else -> DungeonSessionResultStatus.InventoryUnavailable
-            }
+            val status = session.lastResult?.status.toParentStatus(
+                used = DungeonSessionResultStatus.InventoryUsed,
+                unavailable = DungeonSessionResultStatus.InventoryUnavailable,
+            )
             copy(runtime = session.runtime, step = DungeonSessionStep.Explore, lastResult = result(status))
         } else {
             copy(runtime = session.runtime, step = DungeonSessionStep.InventoryItemUse(session))
@@ -214,10 +217,10 @@ data class DungeonSession(
     fun replacePriestSpellSession(session: PriestSpellSession): DungeonSession {
         require(step is DungeonSessionStep.PriestSpell) { "dungeon session is not running priest spell casting" }
         return if (session.step is PriestSpellStep.Finished) {
-            val status = when (session.lastResult?.status) {
-                PriestSpellStatus.Cast -> DungeonSessionResultStatus.CastSpellUsed
-                else -> DungeonSessionResultStatus.CastSpellUnavailable
-            }
+            val status = session.lastResult?.status.toParentStatus(
+                cast = DungeonSessionResultStatus.CastSpellUsed,
+                unavailable = DungeonSessionResultStatus.CastSpellUnavailable,
+            )
             copy(runtime = session.runtime, step = DungeonSessionStep.Explore, lastResult = result(status))
         } else {
             copy(runtime = session.runtime, step = DungeonSessionStep.PriestSpell(session))

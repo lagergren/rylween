@@ -1,7 +1,9 @@
 // Reusable wilderness hunt session. Backend-neutral: a frontend feeds the
 // selected member, then renders authored narration blocks until Finished.
 
-package rylween.runtime
+package rylween.runtime.wilderness
+
+import rylween.runtime.*
 
 import rylween.dsl.*
 

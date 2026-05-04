@@ -4,6 +4,11 @@
 package rylween.runtime
 
 import rylween.dsl.*
+import rylween.runtime.battle.BattleSession
+import rylween.runtime.reward.RandomItemOfferSession
+import rylween.runtime.reward.RewardGrantSession
+import rylween.runtime.town.SpeakRuntimeContent
+import rylween.runtime.town.SpeakSession
 
 enum class ScriptRootKind {
     Unspecified,

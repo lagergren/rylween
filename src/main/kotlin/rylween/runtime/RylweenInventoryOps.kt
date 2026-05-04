@@ -4,6 +4,7 @@
 package rylween.runtime
 
 import rylween.dsl.*
+import rylween.runtime.party.InventoryItemChoice
 
 sealed interface InventoryPlacementResult {
     data class Placed(val party: PartyState, val slot: Int) : InventoryPlacementResult
@@ -59,6 +60,13 @@ val EquipmentActionResult.party: PartyState
         is EquipmentActionResult.WrongClass -> party
         is EquipmentActionResult.NothingEquipped -> party
         is EquipmentActionResult.InventoryFull -> party
+    }
+
+fun <T> EquipmentActionResult.toParentStatus(used: T, unavailable: T): T =
+    when (this) {
+        is EquipmentActionResult.Equipped,
+        is EquipmentActionResult.Unequipped -> used
+        else -> unavailable
     }
 
 fun PartyState.placeInventoryItem(
@@ -298,6 +306,15 @@ fun PartyState.withMilestone(milestone: GameMilestoneId): PartyState =
 
 fun PartyState.withoutMilestone(milestone: GameMilestoneId): PartyState =
     if (milestone !in milestones) this else copy(milestones = milestones.filterNot { it == milestone })
+
+fun PartyState.withFlagState(flag: String, native: String): PartyState =
+    copy(
+        flags = (flags.filterNot { it.flag.slug == flag } + runtimeFlagState(flag, native))
+            .sortedWith(compareBy({ it.flag.slug }, { it.native })),
+    )
+
+fun PartyState.hasFlagState(state: FlagState): Boolean =
+    flags.any { it.flag == state.flag && it.native == state.native }
 
 fun PartyState.withJournalLines(lines: List<String>): PartyState =
     copy(journal = journal + lines.filter { it.isNotBlank() }.map(JournalEntryState::Line))

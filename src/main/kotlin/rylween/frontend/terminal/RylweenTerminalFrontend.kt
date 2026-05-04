@@ -6,6 +6,8 @@ package rylween.frontend.terminal
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.runtime.*
+import rylween.runtime.wilderness.WildernessDungeonHandoff
+import rylween.runtime.wilderness.WorldMapViewport
 
 interface TerminalPort {
     fun write(lines: List<String>)

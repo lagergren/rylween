@@ -4,7 +4,10 @@
 // game rule (food cost, healing, temperature bands and damage, ambush
 // probability, surprise-kill text) is authored data on RealmContentModel.camp.
 
-package rylween.runtime
+package rylween.runtime.wilderness
+
+import rylween.runtime.*
+import rylween.runtime.battle.*
 
 import rylween.dsl.*
 

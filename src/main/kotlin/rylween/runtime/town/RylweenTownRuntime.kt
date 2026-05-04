@@ -2,7 +2,9 @@
 // services, applies opening hours, routes shops/native services, and runs
 // the town-leave equipment prompts.
 
-package rylween.runtime
+package rylween.runtime.town
+
+import rylween.runtime.*
 
 import rylween.dsl.*
 

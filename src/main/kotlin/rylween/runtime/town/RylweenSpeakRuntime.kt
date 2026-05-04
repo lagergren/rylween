@@ -2,7 +2,9 @@
 // selection, visited bits, dialogue branches, the C/Q/R/B menu, the L/M/P/N
 // question submenu, chitchat/rumour selection, and rumour quiet-limit behavior.
 
-package rylween.runtime
+package rylween.runtime.town
+
+import rylween.runtime.*
 
 import rylween.dsl.*
 
@@ -257,15 +259,6 @@ fun PartyState.withNpcVisit(npc: NpcId, visited: Boolean): PartyState {
     val visits = visitedNpcs.associateBy { it.npc } + (npc to NpcVisitState(npc = npc, visited = visited))
     return copy(visitedNpcs = visits.values.sortedBy { it.npc.slug })
 }
-
-fun PartyState.withFlagState(flag: String, native: String): PartyState =
-    copy(
-        flags = (flags.filterNot { it.flag.slug == flag } + runtimeFlagState(flag, native))
-            .sortedWith(compareBy({ it.flag.slug }, { it.native })),
-    )
-
-fun PartyState.hasFlagState(state: FlagState): Boolean =
-    flags.any { it.flag == state.flag && it.native == state.native }
 
 private fun ChitchatPromptAudience.matches(gender: Gender?): Boolean =
     when (this) {

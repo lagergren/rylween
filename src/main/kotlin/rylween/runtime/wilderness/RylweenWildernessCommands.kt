@@ -1,14 +1,18 @@
-package rylween.runtime
+package rylween.runtime.wilderness
+
+import rylween.runtime.*
 
 import rylween.dsl.TextBlock
 import rylween.dsl.WildernessKeysModel
 
 fun WildernessKeysModel.exploreCommands(): List<InputCommand<WildernessSessionInput>> =
-    listOf(
-        InputCommand(WildernessSessionInput.Move(WildernessDirection.North), moveNorth, "Move North"),
-        InputCommand(WildernessSessionInput.Move(WildernessDirection.South), moveSouth, "Move South"),
-        InputCommand(WildernessSessionInput.Move(WildernessDirection.West), moveWest, "Move West"),
-        InputCommand(WildernessSessionInput.Move(WildernessDirection.East), moveEast, "Move East"),
+    cardinalDirectionCommands(
+        moveNorth = moveNorth,
+        moveSouth = moveSouth,
+        moveWest = moveWest,
+        moveEast = moveEast,
+        input = WildernessSessionInput::Move,
+    ) + listOf(
         InputCommand(WildernessSessionInput.Pass, pass, "Pass"),
         InputCommand(WildernessSessionInput.Save, save, "Save Game"),
         InputCommand(WildernessSessionInput.ReadyWeapon, readyWeapon, "Wield Weapon"),

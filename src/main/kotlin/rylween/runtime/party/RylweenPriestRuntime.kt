@@ -2,7 +2,10 @@
 // Resolves the caster, picks a spell, and hands a script continuation to the
 // outer service-script runner. Combat priest spells use the battle session.
 
-package rylween.runtime
+package rylween.runtime.party
+
+import rylween.runtime.*
+import rylween.runtime.wilderness.WildernessDungeonHandoff
 
 import rylween.dsl.*
 
@@ -21,6 +24,12 @@ enum class PriestSpellStatus {
     InvalidSpell,
     NoSpells,
 }
+
+fun <T> PriestSpellStatus?.toParentStatus(cast: T, unavailable: T): T =
+    when (this) {
+        PriestSpellStatus.Cast -> cast
+        else -> unavailable
+    }
 
 data class PriestSpellResult(
     val status: PriestSpellStatus,

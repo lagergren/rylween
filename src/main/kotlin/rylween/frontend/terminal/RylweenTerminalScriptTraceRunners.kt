@@ -5,6 +5,13 @@ package rylween.frontend.terminal
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.runtime.*
+import rylween.runtime.reward.RandomItemOfferSession
+import rylween.runtime.reward.RandomItemOfferStep
+import rylween.runtime.reward.RewardGrantSession
+import rylween.runtime.reward.RewardGrantStep
+import rylween.runtime.town.SpeakRuntimeContent
+import rylween.runtime.town.SpeakSession
+import rylween.runtime.town.SpeakStep
 
 internal class RandomItemOfferSessionTraceRunner(
     private val terminal: TerminalPort,

@@ -3,7 +3,7 @@ package rylween.frontend.terminal
 import rylween.dsl.GameModel
 import rylween.dsl.ImageId
 import rylween.dsl.StaticScreenId
-import rylween.runtime.effectiveHelpPages
+import rylween.runtime.wilderness.effectiveHelpPages
 
 data class TerminalStaticScreen(
     val id: StaticScreenId,
