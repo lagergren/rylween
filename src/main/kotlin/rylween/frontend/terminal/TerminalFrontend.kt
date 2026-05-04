@@ -129,8 +129,8 @@ fun GameModel.terminalTextRenderer(references: Map<String, List<String>> = empty
 
 class TerminalTextRenderer(
     private val references: Map<String, List<String>> = emptyMap(),
-    private val towns: List<TownModel> = emptyList(),
-    private val characters: List<CharacterModel> = emptyList(),
+    towns: List<TownModel> = emptyList(),
+    characters: List<CharacterModel> = emptyList(),
     private val dungeons: DungeonSystemModel = DungeonSystemModel(),
     private val prompts: GamePromptsModel = GamePromptsModel(),
 ) {
@@ -171,7 +171,7 @@ class TerminalTextRenderer(
             context = context,
         )
 
-    fun choicePromptLines(
+    private fun choicePromptLines(
         block: TextBlock,
         labels: List<String>,
         markerKeys: List<Char>,
