@@ -1027,6 +1027,49 @@ val nextRylween = rylween {
         }
     }
 
+    characterCreation {
+        statRoll(min = 15, max = 70)
+        start {
+            map = Maps.wilderness
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+            partyMemberMax = 4
+            level = 1
+            dailyTimeLeft = 175
+            resources {
+                gold = 1000
+                torches = 5
+                food = 100
+                timeLeft = 200
+                restedHours = 14
+            }
+        }
+
+        race(Race.Human, "Human")
+        race(Race.Dwarf, "Dwarf")
+        race(Race.Elf, "Elf")
+        race(Race.Halfling, "Halfling")
+
+        playerClass(PcClass.Fighter, "Fighter") {
+            requires(
+                CharacterCreationStat.WeaponSkill,
+                minimum = 50,
+                failureText = inlineText("Weap. skill must be > 50."),
+            )
+        }
+        playerClass(PcClass.Thief, "Thief")
+        playerClass(PcClass.Mage, "Mage") {
+            requires(CharacterCreationStat.Wisdom, minimum = 50, failureText = inlineText("Wisdom must be > 50."))
+        }
+        playerClass(PcClass.Priest, "Priest") {
+            requires(CharacterCreationStat.Wisdom, minimum = 50, failureText = inlineText("Wisdom must be > 50."))
+        }
+        playerClass(PcClass.Bard, "Bard") {
+            requires(CharacterCreationStat.Charisma, minimum = 50, failureText = inlineText("Charisma must be > 50."))
+        }
+        playerClass(PcClass.Ranger, "Ranger")
+    }
+
     formulas {
         formula(Formulas.encounterH1Scaled) {
             value = encounterHitPointMinBase + partyAverage * 2 + whenValue(firstLevel gt 2, firstLevel * 2)

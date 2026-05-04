@@ -933,6 +933,61 @@ data class ClassLevelUpModel(
     val charisma: Int,
 )
 
+enum class CharacterCreationStat { WeaponSkill, Health, Wisdom, Charisma }
+
+data class CharacterCreationStatRollModel(
+    val min: Int,
+    val max: Int,
+) {
+    init {
+        require(min >= 0) { "character creation stat roll minimum must be non-negative" }
+        require(max >= min) { "character creation stat roll range must be ascending: $min..$max" }
+    }
+}
+
+data class CharacterCreationStartModel(
+    val map: WorldMapId,
+    val position: WorldPosition,
+    val facing: Facing?,
+    val resources: PartyResources,
+    val partyMemberMax: Int,
+    val level: Int,
+    val dailyTimeLeft: Int,
+) {
+    init {
+        require(partyMemberMax > 0) { "character creation party member max must be positive" }
+        require(level > 0) { "character creation starting level must be positive" }
+        require(dailyTimeLeft >= 0) { "character creation daily time left must be non-negative" }
+    }
+}
+
+data class CharacterRaceOptionModel(
+    val race: Race,
+    val label: String,
+)
+
+data class CharacterClassOptionModel(
+    val klass: PcClass,
+    val label: String,
+    val requiredStat: CharacterCreationStat?,
+    val minimum: Int?,
+    val failureText: TextBlock?,
+) {
+    init {
+        require((requiredStat == null) == (minimum == null && failureText == null)) {
+            "character creation class ${klass.name} must declare requiredStat, minimum, and failureText together"
+        }
+        minimum?.let { require(it >= 0) { "character creation class ${klass.name} minimum must be non-negative" } }
+    }
+}
+
+data class CharacterCreationModel(
+    val statRoll: CharacterCreationStatRollModel,
+    val start: CharacterCreationStartModel,
+    val races: List<CharacterRaceOptionModel>,
+    val classes: List<CharacterClassOptionModel>,
+)
+
 enum class MandatoryRunRule { NoEscape }
 enum class CombatActionKind { Attack, Defend, UseMagicItem, BattleCry, CastMageSpell }
 enum class CombatActionRequirement { Always, Mage }
@@ -1546,6 +1601,7 @@ data class RuntimeContent(
     val realm: RealmContentModel = RealmContentModel(),
     val prompts: GamePromptsModel = GamePromptsModel(),
     val progress: GameProgressModel = GameProgressModel(emptyList(), null),
+    val characterCreation: CharacterCreationModel? = null,
     val dungeons: DungeonSystemModel = DungeonSystemModel(),
     val ydarg: YdargContentModel? = null,
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
@@ -1576,6 +1632,7 @@ data class GameModel(
     val flags: List<FlagRef>,
     val authoredFlags: List<FlagContentModel>,
     val progress: GameProgressModel,
+    val characterCreation: CharacterCreationModel?,
     val leveling: LevelingModel?,
     val formulas: List<FormulaModel>,
     val rewards: List<RewardBundleModel>,
@@ -1612,6 +1669,7 @@ fun GameModel.runtimeContent(): RuntimeContent =
         realm = realm,
         prompts = prompts,
         progress = progress,
+        characterCreation = characterCreation,
         dungeons = dungeons,
         ydarg = ydarg,
         wilderness = wilderness,
@@ -4292,6 +4350,7 @@ class GameBuilder {
     private val formulasModel = mutableListOf<FormulaModel>()
     private val rewardsModel = mutableListOf<RewardBundleModel>()
     private var combatModel = CombatSystemModel(null)
+    private var characterCreationModel: CharacterCreationModel? = null
     private var wildernessModel = WildernessSystemModel()
     private var dungeonsModel = DungeonSystemModel()
     private var ydargModel: YdargContentModel? = null
@@ -4371,6 +4430,10 @@ class GameBuilder {
 
     fun combat(body: CombatBuilder.() -> Unit) {
         combatModel = CombatBuilder().apply(body).build()
+    }
+
+    fun characterCreation(body: CharacterCreationBuilder.() -> Unit) {
+        characterCreationModel = CharacterCreationBuilder().apply(body).build()
     }
 
     fun wilderness(body: WildernessSystemBuilder.() -> Unit) {
@@ -4453,6 +4516,7 @@ class GameBuilder {
             formulas = formulasModel.toList(),
             rewards = rewardsModel.map { it.resolveItemPools(::resolveItemPool) },
             combat = combatModel,
+            characterCreation = characterCreationModel,
             wilderness = wildernessModel,
             dungeons = dungeonsModel.resolveItemPools(::resolveItemPool),
             ydarg = ydargModel,
@@ -5840,6 +5904,86 @@ class ClassLevelUpBuilder(private val klass: PcClass) {
 
     fun build(): ClassLevelUpModel =
         ClassLevelUpModel(klass, weaponSkill, health, wisdom, charisma)
+}
+
+@RylNextDsl
+class CharacterCreationBuilder {
+    private var statRollModel: CharacterCreationStatRollModel? = null
+    private var startModel: CharacterCreationStartModel? = null
+    private val raceOptions = mutableListOf<CharacterRaceOptionModel>()
+    private val classOptions = mutableListOf<CharacterClassOptionModel>()
+
+    fun statRoll(min: Int, max: Int) {
+        statRollModel = CharacterCreationStatRollModel(min, max)
+    }
+
+    fun start(body: CharacterCreationStartBuilder.() -> Unit) {
+        startModel = CharacterCreationStartBuilder().apply(body).build()
+    }
+
+    fun race(race: Race, label: String) {
+        raceOptions += CharacterRaceOptionModel(race, label)
+    }
+
+    fun playerClass(klass: PcClass, label: String, body: CharacterCreationClassBuilder.() -> Unit = {}) {
+        classOptions += CharacterCreationClassBuilder(klass, label).apply(body).build()
+    }
+
+    fun build(): CharacterCreationModel =
+        CharacterCreationModel(
+            statRoll = checkNotNull(statRollModel) { "characterCreation requires statRoll(min, max)" },
+            start = checkNotNull(startModel) { "characterCreation requires start { ... }" },
+            races = raceOptions.toList(),
+            classes = classOptions.toList(),
+        )
+}
+
+@RylNextDsl
+class CharacterCreationStartBuilder {
+    var map: WorldMapId = DslDefaultMaps.wilderness
+    var position: WorldPosition? = null
+    var facing: Facing? = null
+    var partyMemberMax: Int = 0
+    var level: Int = 0
+    var dailyTimeLeft: Int = 0
+    private var resourcesState: PartyResources? = null
+
+    fun resources(body: PartyResourcesBuilder.() -> Unit) {
+        resourcesState = PartyResourcesBuilder().apply(body).build()
+    }
+
+    fun build(): CharacterCreationStartModel =
+        CharacterCreationStartModel(
+            map = map,
+            position = checkNotNull(position) { "characterCreation start requires position" },
+            facing = facing,
+            resources = checkNotNull(resourcesState) { "characterCreation start requires resources { ... }" },
+            partyMemberMax = partyMemberMax,
+            level = level,
+            dailyTimeLeft = dailyTimeLeft,
+        )
+}
+
+@RylNextDsl
+class CharacterCreationClassBuilder(private val klass: PcClass, private val label: String) {
+    private var requiredStat: CharacterCreationStat? = null
+    private var minimum: Int? = null
+    private var failureText: TextBlock? = null
+
+    fun requires(stat: CharacterCreationStat, minimum: Int, failureText: TextBlock) {
+        requiredStat = stat
+        this.minimum = minimum
+        this.failureText = failureText
+    }
+
+    fun build(): CharacterClassOptionModel =
+        CharacterClassOptionModel(
+            klass = klass,
+            label = label,
+            requiredStat = requiredStat,
+            minimum = minimum,
+            failureText = failureText,
+        )
 }
 
 @RylNextDsl

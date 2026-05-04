@@ -12,6 +12,7 @@ class RylweenCompiledGameLedgerTest {
         val nextRylween = RylweenCompiledGame.nextRylween
         val nextDsl = RylweenCompiledGame.nextDsl
         val leveling = checkNotNull(nextDsl.leveling)
+        val characterCreation = checkNotNull(nextDsl.characterCreation)
         val standardBattle = checkNotNull(nextDsl.combat.standardBattle)
         val standardConversation = checkNotNull(nextDsl.speak.standardConversation)
         val townSystem = checkNotNull(nextDsl.townSystem)
@@ -26,6 +27,39 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.progress.win?.required?.size == 5)
         check(leveling.maxLevel == 28)
         check(leveling.classGrowth.size == 6)
+        check(characterCreation.statRoll == CharacterCreationStatRollModel(min = 15, max = 70))
+        check(characterCreation.start.map == Maps.wilderness)
+        check(characterCreation.start.position == Wilderness.xy(12, 9))
+        check(characterCreation.start.facing == Facing.North)
+        check(characterCreation.start.partyMemberMax == 4)
+        check(characterCreation.start.level == 1)
+        check(characterCreation.start.dailyTimeLeft == 175)
+        check(characterCreation.start.resources == PartyResources(
+            gold = 1000,
+            torches = 5,
+            food = 100,
+            timeLeft = 200,
+            restedHours = 14,
+        ))
+        check(characterCreation.races.map { it.race } == listOf(Race.Human, Race.Dwarf, Race.Elf, Race.Halfling))
+        check(characterCreation.races.map { it.label } == listOf("Human", "Dwarf", "Elf", "Halfling"))
+        check(characterCreation.classes.map { it.klass } == listOf(
+            PcClass.Fighter,
+            PcClass.Thief,
+            PcClass.Mage,
+            PcClass.Priest,
+            PcClass.Bard,
+            PcClass.Ranger,
+        ))
+        check(characterCreation.classes.single { it.klass == PcClass.Fighter }.let {
+            it.requiredStat == CharacterCreationStat.WeaponSkill && it.minimum == 50
+        })
+        check(characterCreation.classes.single { it.klass == PcClass.Mage }.let {
+            it.requiredStat == CharacterCreationStat.Wisdom && it.minimum == 50
+        })
+        check(characterCreation.classes.single { it.klass == PcClass.Bard }.let {
+            it.requiredStat == CharacterCreationStat.Charisma && it.minimum == 50
+        })
         check(nextDsl.formulas.size == 5)
         check(nextDsl.rewards.size == 1)
         check(nextDsl.rewards.single().application.overflow == RewardOverflowPolicy.SkipIfInventoryFull)
