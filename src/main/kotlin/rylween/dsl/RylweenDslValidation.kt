@@ -139,6 +139,15 @@ private val TownEntryTaxTextBindings: Set<TextPart> = setOf(
     TextPart.TownTaxPercent,
     TextPart.TownTaxAmount,
 )
+private val CharacterCreationStatsTextBindings: Set<TextPart> = setOf(
+    TextPart.CreationMemberNumber,
+    TextPart.CreationWeaponSkill,
+    TextPart.CreationHealth,
+    TextPart.CreationWisdom,
+    TextPart.CreationCharisma,
+)
+private val CharacterCreationMemberNumberTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberNumber)
+private val CharacterCreationMemberNameTextBindings: Set<TextPart> = setOf(TextPart.CreationMemberName)
 
 private fun FlagStateIndex.requireKnown(state: FlagState, label: String) {
     check(contains(state)) {
@@ -964,7 +973,13 @@ private fun validateTextBlock(
             TextPart.ConversationNpcName,
             TextPart.CurrentTownName,
             TextPart.TownTaxPercent,
-            TextPart.TownTaxAmount -> check(part in allowedRuntimeBindings) {
+            TextPart.TownTaxAmount,
+            TextPart.CreationMemberNumber,
+            TextPart.CreationMemberName,
+            TextPart.CreationWeaponSkill,
+            TextPart.CreationHealth,
+            TextPart.CreationWisdom,
+            TextPart.CreationCharisma -> check(part in allowedRuntimeBindings) {
                 "$label uses runtime text binding ${part.fallbackText()}, but this text is not rendered with that binding"
             }
         }
@@ -2381,6 +2396,37 @@ private fun validateGamePrompts(prompts: GamePromptsModel) {
     validateTextBlock(prompts.save.saving, "save saving prompt")
     validateTextBlock(prompts.save.done, "save done prompt")
     validateTextBlock(prompts.save.failed, "save failed prompt")
+    validateTextBlock(prompts.characterCreation.header, "character creation header prompt")
+    validateTextBlock(prompts.characterCreation.partyName, "character creation party-name prompt")
+    validateTextBlock(
+        prompts.characterCreation.statsPage,
+        "character creation stats-page prompt",
+        allowedRuntimeBindings = CharacterCreationStatsTextBindings,
+    )
+    validateTextBlock(prompts.characterCreation.reroll, "character creation reroll prompt")
+    validateTextBlock(
+        prompts.characterCreation.memberName,
+        "character creation member-name prompt",
+        allowedRuntimeBindings = CharacterCreationMemberNumberTextBindings,
+    )
+    validateTextBlock(
+        prompts.characterCreation.gender,
+        "character creation gender prompt",
+        allowedRuntimeBindings = CharacterCreationMemberNameTextBindings,
+    )
+    check(prompts.characterCreation.genderMaleLabel.isNotBlank()) {
+        "character creation male label must not be blank"
+    }
+    check(prompts.characterCreation.genderFemaleLabel.isNotBlank()) {
+        "character creation female label must not be blank"
+    }
+    validateTextBlock(
+        prompts.characterCreation.race,
+        "character creation race prompt",
+        allowedRuntimeBindings = CharacterCreationMemberNameTextBindings,
+    )
+    validateTextBlock(prompts.characterCreation.classMenu, "character creation class-menu prompt")
+    validateTextBlock(prompts.characterCreation.saving, "character creation saving prompt")
     validateTextBlock(prompts.town.entryWelcome, "town entry welcome prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTax, "town entry tax prompt", allowedRuntimeBindings = TownEntryTaxTextBindings)
     validateTextBlock(prompts.town.entryTaxThanks, "town entry tax thanks prompt")

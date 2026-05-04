@@ -44,6 +44,7 @@ private data class AnsiRuntimeConfig(
     val saveFile: File = File("build/rylween-save.kts"),
     val saveState: StateId = stateId("saved-game"),
     val staticScreen: StaticScreenId? = null,
+    val newGame: Boolean = false,
 )
 
 object RylweenAnsiMain {
@@ -99,16 +100,34 @@ object RylweenAnsiMain {
                 wilderness = WildernessNpcPlacementPolicy(allowedPoints = worldMap.passableNpcPoints()),
             ),
         )
-        val session = engine.wildernessSession(
-            snapshot = bootSnapshot,
-            worldMap = worldMap,
-            rngState = config.seed ?: bootSnapshot.state.realm.rngState,
-        )
         RylweenLog.open().use { log ->
             JLineAnsiTerminal.open(log).use { terminal ->
                 log.info(
                     "ansi",
-                    "boot state=${bootSnapshot.state.id.slug} seed=${config.seed ?: bootSnapshot.state.realm.rngState}",
+                    "boot state=${bootSnapshot.state.id.slug} seed=${config.seed ?: bootSnapshot.state.realm.rngState} " +
+                        "new=${config.newGame}",
+                )
+                val creationPort = if (config.newGame) {
+                    val creationScreen = ClassicAnsiScreen(
+                        terminal,
+                        content.visuals,
+                        content.terminal,
+                        content.layouts,
+                        content.towns,
+                    )
+                    creationScreen.bootFrame()
+                    AnsiTerminalPort(terminal, creationScreen)
+                } else {
+                    null
+                }
+                val session = bootWildernessSession(
+                    engine = engine,
+                    terminal = creationPort,
+                    renderer = renderer,
+                    snapshot = bootSnapshot,
+                    worldMap = worldMap,
+                    rngState = config.seed ?: bootSnapshot.state.realm.rngState,
+                    newGame = config.newGame,
                 )
                 RylweenAnsiGame(
                     terminal = terminal,
@@ -1177,6 +1196,10 @@ private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
                 config = config.copy(staticScreen = staticScreenArg(args.valueAfter(index, arg)))
                 index += 2
             }
+            "--new", "--new-game" -> {
+                config = config.copy(newGame = true)
+                index += 1
+            }
             "--help", "-h" -> {
                 printAnsiUsage()
                 kotlin.system.exitProcess(0)
@@ -1204,6 +1227,7 @@ private fun printAnsiUsage() {
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/rylween-save.kts
         |  --save-slot named runtime snapshot target under build/saves
+        |  --new    create a fresh party through the authored character-creation flow
         |  --screen title, help, manual, score, or vscore; displays the authored static screen and exits
         |
         |Logging:

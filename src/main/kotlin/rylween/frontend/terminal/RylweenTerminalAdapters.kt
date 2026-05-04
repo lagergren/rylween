@@ -105,6 +105,131 @@ class HuntSessionTerminalAdapter(
     }
 }
 
+class CharacterCreationTerminalAdapter(
+    private val terminal: TerminalPort,
+    private val renderer: TerminalTextRenderer = TerminalTextRenderer(),
+) {
+    fun run(initial: CharacterCreationSession): CharacterCreationSession =
+        runUntilBlocked(initial).session
+
+    fun runUntilBlocked(initial: CharacterCreationSession): TerminalAdapterResult<CharacterCreationSession> {
+        var session = initial
+        repeat(256) {
+            val prompts = session.content.prompts.characterCreation
+            session = when (val step = session.step) {
+                CharacterCreationStep.PartyName -> {
+                    terminal.write(renderer.lines(prompts.header) + renderer.lines(prompts.partyName))
+                    terminal.readTextLine()
+                        .toTerminalInput()
+                        .sessionOrWait(session, { return it }) { name ->
+                            session.apply(CharacterCreationInput.PartyName(name))
+                        }
+                }
+                is CharacterCreationStep.Stats -> {
+                    terminal.write(
+                        renderer.lines(
+                            prompts.renderStatsPage(
+                                memberNumber = step.memberNumber,
+                                weaponSkill = step.stats.weaponSkill,
+                                health = step.stats.health,
+                                wisdom = step.stats.wisdom,
+                                charisma = step.stats.charisma,
+                            ),
+                        ) + renderer.lines(prompts.reroll),
+                    )
+                    terminal.readReroll()
+                        .sessionOrWait(session, { return it }) { reroll ->
+                            session.apply(CharacterCreationInput.RerollStats(reroll))
+                        }
+                }
+                is CharacterCreationStep.MemberName -> {
+                    terminal.write(renderer.lines(prompts.renderMemberName(step.memberNumber)))
+                    terminal.readTextLine()
+                        .toTerminalInput()
+                        .sessionOrWait(session, { return it }) { name ->
+                            session.apply(CharacterCreationInput.MemberName(name))
+                        }
+                }
+                is CharacterCreationStep.GenderPrompt -> {
+                    val choices = genderChoices(prompts)
+                    terminal.writePromptWithChoices(prompts.renderGender(step.memberName), choices)
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { gender ->
+                            session.apply(CharacterCreationInput.GenderChoice(gender))
+                        }
+                }
+                is CharacterCreationStep.RacePrompt -> {
+                    val choices = raceChoices(step.options)
+                    terminal.writePromptWithChoices(prompts.renderRace(step.memberName), choices)
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { race ->
+                            session.apply(CharacterCreationInput.RaceChoice(race))
+                        }
+                }
+                is CharacterCreationStep.ClassPrompt -> {
+                    val choices = classChoices(step.options)
+                    terminal.writePromptWithChoices(prompts.classMenu, choices)
+                    terminal.readChoice(choices)
+                        .sessionOrWait(session, { return it }) { pcClass ->
+                            session.apply(CharacterCreationInput.ClassChoice(pcClass))
+                        }
+                }
+                is CharacterCreationStep.ClassRejected -> {
+                    terminal.write(renderer.lines(step.text))
+                    session.apply(CharacterCreationInput.Continue)
+                }
+                is CharacterCreationStep.Finished -> {
+                    terminal.write(renderer.lines(prompts.saving, TerminalTextContext(runtime = step.runtime)))
+                    return finished(session)
+                }
+                CharacterCreationStep.Aborted -> return finished(session)
+            }
+        }
+        return TerminalAdapterResult(session, TerminalRunStatus.StepLimitReached)
+    }
+
+    private fun TerminalPort.writePromptWithChoices(
+        prompt: TextBlock,
+        choices: List<TerminalChoice<*>>,
+    ) {
+        write(renderer.lines(prompt) + choices.map { choice -> choice.binding.label })
+    }
+
+    private fun String?.toTerminalInput(): TerminalInput<String> =
+        when (this) {
+            null -> TerminalInput.Unavailable
+            else -> TerminalInput.Value(this)
+        }
+
+    private fun TerminalPort.readReroll(): TerminalInput<Boolean> {
+        val raw = readLine() ?: return TerminalInput.Unavailable
+        return when (raw.trim().uppercase()) {
+            "", "N" -> TerminalInput.Value(false)
+            "Y" -> TerminalInput.Value(true)
+            else -> TerminalInput.Rejected(TerminalInputRejection(raw, listOf("Y", "N", "RETURN")))
+        }
+    }
+
+    private fun genderChoices(prompts: CharacterCreationPromptsModel): List<TerminalChoice<Gender>> =
+        listOf(
+            TerminalChoice(Gender.Male, numberedBinding(1, prompts.genderMaleLabel)),
+            TerminalChoice(Gender.Female, numberedBinding(2, prompts.genderFemaleLabel)),
+        )
+
+    private fun raceChoices(options: List<CharacterRaceOptionModel>): List<TerminalChoice<Race>> =
+        options.mapIndexed { index, option ->
+            TerminalChoice(option.race, numberedBinding(index + 1, option.label))
+        }
+
+    private fun classChoices(options: List<CharacterClassOptionModel>): List<TerminalChoice<PcClass>> =
+        options.mapIndexed { index, option ->
+            TerminalChoice(option.klass, numberedBinding(index + 1, option.label))
+        }
+
+    private fun numberedBinding(number: Int, label: String): InputBindingModel =
+        inputKey(number.digitToChar(), label = "$number. $label")
+}
+
 class EquipmentPromptTerminalAdapter(
     private val terminal: TerminalPort,
     private val renderer: TerminalTextRenderer = TerminalTextRenderer(),

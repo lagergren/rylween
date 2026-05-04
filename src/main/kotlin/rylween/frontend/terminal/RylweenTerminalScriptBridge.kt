@@ -726,7 +726,13 @@ class StatefulScriptServiceRunner(
                             TextPart.ConversationNpcName,
                             TextPart.CurrentTownName,
                             TextPart.TownTaxPercent,
-                            TextPart.TownTaxAmount -> part.fallbackText()
+                            TextPart.TownTaxAmount,
+                            TextPart.CreationMemberNumber,
+                            TextPart.CreationMemberName,
+                            TextPart.CreationWeaponSkill,
+                            TextPart.CreationHealth,
+                            TextPart.CreationWisdom,
+                            TextPart.CreationCharisma -> part.fallbackText()
                         }
                     }
                 },

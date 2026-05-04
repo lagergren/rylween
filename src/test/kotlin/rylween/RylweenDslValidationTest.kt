@@ -1105,6 +1105,45 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun characterCreationTerminalAdapterDrivesAuthoredNewPartyFlow() {
+        val inputs = buildList {
+            add("seekers")
+            repeat(4) { index ->
+                add("")
+                add("hero${index + 1}")
+                add("2")
+                add("3")
+                add("2")
+            }
+        }
+        val terminal = FakeTerminalPort(*inputs.toTypedArray())
+        val result = CharacterCreationTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            CharacterCreationSession.start(
+                partyId = Parties.replay,
+                playerName = "Player",
+                baseRealm = creationBaseRealm(rngState = null),
+                content = RylweenCompiledGame.nextDsl.runtimeContent(),
+            ),
+        )
+
+        val finished = result.session.step as CharacterCreationStep.Finished
+        val party = finished.runtime.activeParty
+        assertEquals(TerminalRunStatus.Finished, result.status)
+        assertEquals(RuntimeMode.Wilderness, finished.runtime.realm.currentMode)
+        assertEquals("Seekers", party.name)
+        assertEquals(listOf("Hero1", "Hero2", "Hero3", "Hero4"), party.members.map { it.name })
+        assertTrue(terminal.output.any { it == "Party Creation" })
+        assertTrue(terminal.output.any { it == "Stats for char: 1" })
+        assertTrue(terminal.output.any { it == "Weapon Skill : 15" })
+        assertTrue(terminal.output.any { it == "Give Character 1 a name!" })
+        assertTrue(terminal.output.any { it == "What gender is" })
+        assertTrue(terminal.output.any { it == "1. Male" })
+        assertTrue(terminal.output.any { it == "3. Elf" })
+        assertTrue(terminal.output.any { it == "2. Thief" })
+        assertTrue(terminal.output.any { it == "Saving..." })
+    }
+
+    @Test
     fun randomItemOfferSessionPromptsDropSlotOnInventoryOverflow() {
         val fullParty = testParty(
             gold = 2000,
