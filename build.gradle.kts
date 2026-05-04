@@ -1612,6 +1612,8 @@ val nativeSmokeBundlePath: String = nativeSmokeBundle.get().asFile.path
 val nativeSmokeExecutablePath: String = nativeSmokeExecutable.get().asFile.path
 val externalBundleArtifactPath: String = externalBundleArtifact.get().asFile.path
 val externalBundleInspectionPath: String = externalBundleInspection.get().asFile.path
+val kotlinAnsiExecutable: Provider<RegularFile> = layout.buildDirectory.file("install/rylween-kotlin/bin/rylween")
+val kotlinAnsiExecutablePath: String = kotlinAnsiExecutable.get().asFile.path
 
 fun registerNativeCExecutable(
     taskName: String,
@@ -1757,6 +1759,22 @@ val installKotlinAnsi: TaskProvider<Sync> by tasks.registering(Sync::class) {
     }
 }
 
+val checkKotlinAnsiBundleBoot: TaskProvider<Exec> by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Boots the ANSI launcher through --bundle to verify artifact-backed startup gating."
+
+    dependsOn(installKotlinAnsi)
+    dependsOn(emitExternalCompiledBundle)
+    inputs.file(externalBundleArtifact)
+    commandLine(
+        kotlinAnsiExecutablePath,
+        "--bundle",
+        externalBundleArtifactPath,
+        "--screen",
+        "title",
+    )
+}
+
 val validateGameDsl: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Compiles and executes the game Kotlin DSL source against the built DSL jar."
@@ -1783,4 +1801,5 @@ tasks.check {
     dependsOn(checkNativeSmokeBundle)
     dependsOn(checkExternalCompiledBundle)
     dependsOn(inspectExternalCompiledBundle)
+    dependsOn(checkKotlinAnsiBundleBoot)
 }

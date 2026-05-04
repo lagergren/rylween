@@ -6,6 +6,8 @@ import org.jline.terminal.Attributes
 import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
 import org.jline.utils.NonBlockingReader
+import rylween.compiled.readVerifiedExternalBundleArtifact
+import rylween.compiled.toCompiledGameBundle
 import rylween.dsl.*
 import rylween.engine.*
 import rylween.frontend.terminal.*
@@ -37,6 +39,7 @@ private data class AnsiRuntimeConfig(
     val state: StateId? = null,
     val seed: Long? = null,
     val hour: Int? = null,
+    val bundleFile: File? = null,
     val loadFile: File? = null,
     val saveFile: File = runtimeSaveSlotFile("main"),
     val saveState: StateId = runtimeSaveSlotStateId("main"),
@@ -50,6 +53,8 @@ object RylweenAnsiMain {
         val config = parseAnsiConfig(args.toList())
         val game = RylweenCompiledGame.nextRylween
         val content = RylweenCompiledGame.nextDsl
+        val bundleFile = config.bundleFile
+        val bundleSummary = bundleFile?.readVerifiedExternalBundleArtifact(game.toCompiledGameBundle())
         val renderer = content.terminalTextRenderer()
         val worldMap = content.worldMapGrid(Maps.wilderness)
             ?: error("missing authored wilderness map")
@@ -61,6 +66,9 @@ object RylweenAnsiMain {
         )
         config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
             RylweenLog.open().use { log ->
+                bundleSummary?.let { summary ->
+                    log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
+                }
                 JLineAnsiTerminal.open(log).use { terminal ->
                     ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
                         .showStaticScreen(content, screenId, renderer)
@@ -74,6 +82,9 @@ object RylweenAnsiMain {
                 loadConfiguredOrSavedSnapshot(game, content, config, RuntimeStartupTarget.StaticScreen),
             )
             RylweenLog.open().use { log ->
+                bundleSummary?.let { summary ->
+                    log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
+                }
                 JLineAnsiTerminal.open(log).use { terminal ->
                     ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
                         .showStaticScreen(
@@ -88,6 +99,9 @@ object RylweenAnsiMain {
         }
 
         RylweenLog.open().use { log ->
+            bundleSummary?.let { summary ->
+                log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
+            }
             JLineAnsiTerminal.open(log).use { terminal ->
                 if (config.newGame || config.loadFile != null || config.state != null) {
                     val snapshot = if (config.newGame && config.loadFile == null && config.state == null) {
@@ -1452,6 +1466,10 @@ private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
                 config = config.copy(hour = args.valueAfter(index, arg).toInt().mod(24))
                 index += 2
             }
+            "--bundle" -> {
+                config = config.copy(bundleFile = File(args.valueAfter(index, arg)))
+                index += 2
+            }
             "--load" -> {
                 config = config.copy(loadFile = File(args.valueAfter(index, arg)))
                 index += 2
@@ -1502,6 +1520,7 @@ private fun printAnsiUsage() {
         |  --state  state slug; skips the title menu and boots a fixture/runtime state
         |  --seed   runtime RNG state, defaults to the selected state seed
         |  --hour   0..23, overrides the selected state hour
+        |  --bundle compiled JSON bundle to verify before booting
         |  --load   runtime snapshot file to boot instead of --state
         |  --load-slot named runtime snapshot under build/saves
         |  --save   runtime snapshot target, defaults to build/saves/main.kts

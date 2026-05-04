@@ -24,18 +24,23 @@ Kotlin JSON reader and inspection check through:
 ```sh
 ./gradlew checkExternalCompiledBundle --console=plain
 ./gradlew inspectExternalCompiledBundle --console=plain
+./gradlew checkKotlinAnsiBundleBoot --console=plain
 ```
 
-`check` depends on both tasks. The J1 C/native reader is still open; when we add
-it, prefer reusing or moving the legacy C JSON5 parser from
+`check` depends on all three tasks. `checkKotlinAnsiBundleBoot` emits the JSON
+bundle, installs the ANSI launcher, and runs the title screen through
+`RylweenAnsiMain --bundle <file>`. The J1 C/native reader is still open; when we
+add it, prefer reusing or moving the legacy C JSON5 parser from
 `legacy/c-json5/src/json5.*` over writing a second C JSON parser.
 
 ## Current Runtime Status
 
-The Kotlin ANSI and line-terminal runtimes do not currently boot from the J1
-JSON file. They use the generated `RylweenCompiledGame.nextDsl` and
-`RylweenCompiledGame.nextRylween` objects, then run the backend-neutral Kotlin
-session state machines and authored `Op` interpreter.
+The Kotlin ANSI runtime accepts `--bundle <file>` and validates that the J1 JSON
+artifact matches the current compiled game before booting. After that gate it
+still uses the generated `RylweenCompiledGame.nextDsl` and
+`RylweenCompiledGame.nextRylween` objects, then runs the backend-neutral Kotlin
+session state machines and authored `Op` interpreter. That is a launcher
+integration/drift guard, not the final JSON-materialized runtime facade.
 
 `CompiledGameBundle.loadCompiledGame()` is a Kotlin in-memory loader/validator:
 it validates cross-table references and builds string, handle, and script lookup
@@ -51,9 +56,9 @@ J1 is active, but not complete. Kotlin now emits, reads, hashes, and inspects
 the same strict JSON external artifact. The remaining J1 closeout is:
 
 - stable typed row schemas/materializers for every section payload
+- runtime-facing content/session materialization from loaded JSON
 - round-trip validation that loaded rows agree with `loadCompiledGame()`
 - a C/native JSON reader for the same artifact
-- a Kotlin ANSI launcher/test path that boots from the external artifact
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
 tests should reuse the same kind of playthrough/scenario inputs as the Kotlin
