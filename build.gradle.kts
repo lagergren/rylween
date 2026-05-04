@@ -1604,15 +1604,14 @@ val runKotlinGame: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) 
 val nativeSmokeBundle: Provider<RegularFile> = layout.buildDirectory.file("compiled/rylween-native-smoke.rsmoke")
 val nativeSmokeSource: RegularFile = layout.projectDirectory.file("src/native/compiled-smoke/rylween_bundle_smoke.c")
 val nativeSmokeExecutable: Provider<RegularFile> = layout.buildDirectory.file("native/compiled-smoke/rylween-bundle-smoke")
-val externalBundleArtifact: Provider<RegularFile> = layout.buildDirectory.file("compiled/rylween-bundle.rbin")
-val externalBundleSource: RegularFile = layout.projectDirectory.file("src/native/compiled-bundle/rylween_bundle_manifest.c")
-val externalBundleExecutable: Provider<RegularFile> = layout.buildDirectory.file("native/compiled-bundle/rylween-bundle")
+val externalBundleArtifact: Provider<RegularFile> = layout.buildDirectory.file("compiled/rylween-bundle.json")
+val externalBundleInspection: Provider<RegularFile> = layout.buildDirectory.file("compiled/rylween-bundle.inspect.txt")
 val nativeCCompiler: Provider<String> = providers.environmentVariable("CC").orElse("cc")
 val nativeCWarningFlags: List<String> = listOf("-std=c17", "-Wall", "-Wextra", "-Werror", "-pedantic")
 val nativeSmokeBundlePath: String = nativeSmokeBundle.get().asFile.path
 val nativeSmokeExecutablePath: String = nativeSmokeExecutable.get().asFile.path
 val externalBundleArtifactPath: String = externalBundleArtifact.get().asFile.path
-val externalBundleExecutablePath: String = externalBundleExecutable.get().asFile.path
+val externalBundleInspectionPath: String = externalBundleInspection.get().asFile.path
 
 fun registerNativeCExecutable(
     taskName: String,
@@ -1665,7 +1664,7 @@ val checkNativeSmokeBundle: TaskProvider<Exec> by tasks.registering(Exec::class)
 
 val emitExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
-    description = "Emits the deterministic sectioned compiled bundle artifact."
+    description = "Emits the deterministic JSON compiled bundle artifact."
 
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     classpath = appSourceSet.runtimeClasspath
@@ -1675,26 +1674,27 @@ val emitExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(Java
     outputs.file(externalBundleArtifact)
 }
 
-val compileExternalBundleLoader: TaskProvider<CompileNativeCExecutableTask> =
-    registerNativeCExecutable(
-        taskName = "compileExternalBundleLoader",
-        taskDescription = "Compiles the minimal C section reader for the compiled bundle artifact.",
-        source = externalBundleSource,
-        executable = externalBundleExecutable,
-    )
-
-val checkExternalCompiledBundle: TaskProvider<Exec> by tasks.registering(Exec::class) {
+val checkExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
-    description = "Runs the C section reader over the emitted compiled bundle artifact."
+    description = "Validates the deterministic JSON compiled bundle artifact."
 
     dependsOn(emitExternalCompiledBundle)
-    dependsOn(compileExternalBundleLoader)
+    classpath = appSourceSet.runtimeClasspath
+    mainClass.set("rylween.app.RylweenExternalBundleCheckMain")
+    args(externalBundleArtifactPath)
     inputs.file(externalBundleArtifact)
-    inputs.file(externalBundleExecutable)
-    commandLine(
-        externalBundleExecutablePath,
-        externalBundleArtifactPath,
-    )
+}
+
+val inspectExternalCompiledBundle: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Writes a readable inspection summary for the deterministic JSON compiled bundle artifact."
+
+    dependsOn(emitExternalCompiledBundle)
+    classpath = appSourceSet.runtimeClasspath
+    mainClass.set("rylween.app.RylweenExternalBundleInspectMain")
+    args(externalBundleArtifactPath, externalBundleInspectionPath)
+    inputs.file(externalBundleArtifact)
+    outputs.file(externalBundleInspection)
 }
 
 val kotlinAnsiJar: TaskProvider<Jar> by tasks.registering(Jar::class) {
@@ -1782,4 +1782,5 @@ tasks.check {
     dependsOn(tasks.named(appSourceSet.classesTaskName))
     dependsOn(checkNativeSmokeBundle)
     dependsOn(checkExternalCompiledBundle)
+    dependsOn(inspectExternalCompiledBundle)
 }

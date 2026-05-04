@@ -1819,20 +1819,26 @@ class RylweenDslValidationTest {
     }
 
     @Test
-    fun externalCompiledBundleArtifactIsDeterministicAndSectioned() {
+    fun externalCompiledBundleArtifactIsDeterministicJsonAndInspectable() {
         val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
         val artifact = bundle.toExternalBundleArtifact()
         val repeated = bundle.toExternalBundleArtifact()
         val summary = artifact.readExternalBundleArtifact()
+        val inspection = artifact.inspectExternalBundleArtifact()
 
         assertEquals(artifact.toList(), repeated.toList())
-        assertEquals("RYLBNDL1", artifact.copyOfRange(0, 8).decodeToString())
+        assertTrue(artifact.decodeToString().startsWith("{\n  \"format\": \"rylween.compiled.bundle\""))
+        assertEquals("rylween.compiled.bundle", summary.format)
+        assertEquals("Rylween", summary.universeName)
+        assertTrue(summary.bundleContentHash.startsWith("sha256:"))
         assertEquals(ExternalBundleSectionId.entries.size, summary.sections.size)
         assertEquals(bundle.content.strings.entries.size, summary.section(ExternalBundleSectionId.Strings).rowCount)
         assertEquals(bundle.content.handles.handles.size, summary.section(ExternalBundleSectionId.Handles).rowCount)
         assertEquals(bundle.content.scripts.roots.size, summary.section(ExternalBundleSectionId.Scripts).rowCount)
         assertEquals(bundle.states.size, summary.section(ExternalBundleSectionId.States).rowCount)
         assertTrue(summary.sections.all { section -> section.byteLength > 0 })
+        assertTrue("bundleContentHash: ${summary.bundleContentHash}" in inspection)
+        assertTrue("strings: rows=${bundle.content.strings.entries.size}" in inspection)
     }
 
     @Test
