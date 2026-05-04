@@ -28,7 +28,7 @@ import rylween.game.*
 // Add new game content here; reusable DSL/runtime implementation belongs in the
 // packages named above, not in this game-authoring file.
 
-val nextRylween = rylween {
+val nextRylween: RylweenModel = rylween {
     content {
     metadata {
         universe("Rylween", version = "kotlin-dsl")

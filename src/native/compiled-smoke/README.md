@@ -5,8 +5,9 @@ the Kotlin-authored game. It is intentionally a smoke artifact, not the final
 all-content native game bundle.
 
 The producer is `CompiledGameBundle.writeNativeSmokeArtifact(...)` in
-`src/main/kotlin/rylween/compiled/NativeSmokeArtifact.kt`. The current C
-reader is `rylween_bundle_smoke.c`. Gradle wires both through:
+`src/main/kotlin/rylween/compiled/NativeSmokeArtifact.kt`. The same file also
+contains the Kotlin smoke reader used by tests, and the C reader is
+`rylween_bundle_smoke.c`. Gradle wires the C check through:
 
 ```sh
 ./gradlew checkNativeSmokeBundle --console=plain
@@ -23,18 +24,19 @@ session state machines and authored `Op` interpreter.
 
 `CompiledGameBundle.loadCompiledGame()` is a Kotlin in-memory loader/validator:
 it validates cross-table references and builds string, handle, and script lookup
-maps from an already-materialized `CompiledGameBundle`. It is not a binary
-parser for the `.rsmoke` artifact.
+maps from an already-materialized `CompiledGameBundle`.
 
-The C smoke loader parses the emitted `.rsmoke` bytes. Its job is to catch
-schema/API boundary outages: bad magic/version, bad enum ranges, bad string ids,
-bad handle refs, malformed nested operands, and unsupported VM operand shapes.
+`ByteArray.readNativeSmokeArtifact()` is the Kotlin binary parser for this
+`.rsmoke` artifact. The C smoke loader parses the same emitted bytes. Their job
+is to catch schema/API boundary outages: bad magic/version, bad enum ranges, bad
+string ids, bad handle refs, malformed nested operands, and unsupported VM
+operand shapes.
 
 When J1 becomes active, Kotlin and C/native should read the same external
 artifact schema. The expected J1 closeout is:
 
 - deterministic artifact emission for all compiled content and state tables
-- a Kotlin external reader for that artifact
+- a Kotlin external reader for that full artifact
 - a C/native external reader for the same artifact
 - round-trip validation that both readers agree with `loadCompiledGame()`
 - version/hash compatibility checks for saved state images
@@ -60,6 +62,9 @@ All integers are little-endian 32-bit values.
 - `tagged<T>`: `u32 tag`, followed by tag-specific payload
 
 String id `0` is invalid in places that require a real string reference.
+Schema tags are named in both readers/writers, not repeated as call-site magic
+numbers: see the `NativeSmoke*Tag` enums in `NativeSmokeArtifact.kt` and the
+matching `*Tag` enums in `rylween_bundle_smoke.c`.
 
 ## File Layout
 

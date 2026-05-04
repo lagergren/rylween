@@ -1803,12 +1803,19 @@ class RylweenDslValidationTest {
         val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
         val artifact = bundle.toNativeSmokeArtifact()
         val repeated = bundle.toNativeSmokeArtifact()
+        val summary = artifact.readNativeSmokeArtifact()
 
         assertEquals(artifact.toList(), repeated.toList())
         assertEquals("RYLSMOKE", artifact.copyOfRange(0, 8).decodeToString())
         assertTrue(artifact.size > 1024)
         assertTrue(bundle.content.scripts.roots.isNotEmpty())
         assertTrue(bundle.content.handles.handles.isNotEmpty())
+        assertEquals(bundle.content.strings.entries.size, summary.stringCount)
+        assertEquals(bundle.content.handles.handles.size, summary.handleCount)
+        assertEquals(bundle.content.scripts.roots.size, summary.scriptCount)
+        assertEquals(bundle.states.size, summary.stateCount)
+        assertTrue(summary.instructionCount > 0)
+        assertTrue(summary.operandCount > 0)
     }
 
     @Test
