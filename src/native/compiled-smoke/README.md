@@ -63,13 +63,11 @@ runtime-facing systems a non-Kotlin loader should consume directly: realm
 balance, reusable prompts, terminal/layout/static presentation, command
 bindings, wilderness events, town/speak runtime boundaries, and Ydarg as a
 `castles[]` entry. The native C reader validates schema version, section order,
-hash field shape, core row counts, and the `runtimeSystems` command/prompt/castle
-contract. The remaining J1 closeout is:
+canonical `sections` SHA-256, core row counts, and the `runtimeSystems`
+command/prompt/castle contract. The remaining J1 closeout is:
 
 - stable direct row schemas for any additional systems a real non-Kotlin runtime
   needs beyond `runtimeSystems`
-- native canonical SHA-256 recomputation if the C reader becomes a standalone
-  trust boundary; today the Kotlin reader owns full hash recomputation
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
 tests should reuse the same kind of playthrough/scenario inputs as the Kotlin
