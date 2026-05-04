@@ -907,10 +907,8 @@ class DungeonSessionTerminalAdapter(
     }
 
     private fun saveRuntime(session: DungeonSession): RuntimeSaveOutcome {
-        terminal.writeBlocks(
-            listOf(session.content.prompts.save.saving),
-            renderer,
-            TerminalTextContext(runtime = session.runtime),
+        terminal.write(
+            renderer.lines(session.content.prompts.save.saving, TerminalTextContext(runtime = session.runtime)),
         )
         val port = savePort ?: return RuntimeSaveOutcome(saved = false, error = "no save port configured")
         return runCatching {

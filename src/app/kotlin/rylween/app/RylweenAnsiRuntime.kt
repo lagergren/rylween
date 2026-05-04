@@ -163,7 +163,7 @@ private class RylweenAnsiGame(
                         session.runtime,
                         renderer,
                     )
-                    terminal.pause(400)
+                    waitForReturn()
                     session.completeSave(outcome.saved)
                 }
                 WildernessSessionStep.Explore -> explore(session)
@@ -431,7 +431,10 @@ private class RylweenAnsiGame(
     private fun waitForReturn() {
         while (true) {
             when (terminal.readKeyToken()) {
-                null, "" -> return
+                null, "" -> {
+                    screen.completeTerminalInput()
+                    return
+                }
             }
         }
     }
@@ -465,7 +468,7 @@ private class AnsiTerminalPort(
     private val screen: ClassicAnsiScreen,
 ) : TerminalPort {
     override fun write(lines: List<String>) {
-        screen.writeText(lines)
+        screen.writeTerminalLines(lines)
     }
 
     override fun writeBlocks(
@@ -473,17 +476,29 @@ private class AnsiTerminalPort(
         renderer: TerminalTextRenderer,
         context: TerminalTextContext,
     ) {
-        screen.writeBlocks(blocks, renderer, context, pauseAfterLast = true)
+        screen.writeTerminalBlocks(blocks, renderer, context, pauseAfterLast = true)
     }
 
     override fun readLine(): String? =
-        terminal.readKeyToken()
+        terminal.readKeyToken().also { token ->
+            if (token != null) {
+                screen.completeTerminalInput()
+            }
+        }
 
     override fun readTextLine(maxLength: Int?): String? =
-        terminal.readTextLine(maxLength)
+        terminal.readTextLine(maxLength).also { line ->
+            if (line != null) {
+                screen.completeTerminalInput()
+            }
+        }
 
     override fun readReturn(): Boolean? =
-        terminal.readReturn()
+        terminal.readReturn().also { accepted ->
+            if (accepted != null) {
+                screen.completeTerminalInput()
+            }
+        }
 
     override fun pause(ms: Int) {
         terminal.pause(ms)
@@ -518,12 +533,16 @@ private class ClassicAnsiScreen(
     private val statusTop = regions.getValue(ScreenRegions.statuslineTop)
     private val statusBottom = regions.getValue(ScreenRegions.statuslineBottom)
     private var lastWildernessSession: WildernessSession? = null
+    private var terminalModalActive: Boolean = false
+    private var terminalPendingLines: List<String> = emptyList()
 
     fun bootFrame() {
+        terminalModalActive = false
+        terminalPendingLines = emptyList()
         terminal.writeRaw("$CSI?25l")
         val frame = visuals.staticScreens.singleOrNull { it.id == StaticScreens.frame }?.image
         if (frame != null) {
-            showImage(frame)
+            renderImage(frame)
         } else {
             terminal.writeRaw("${CSI}2J${CSI}1;1H")
         }
@@ -533,22 +552,32 @@ private class ClassicAnsiScreen(
 
     fun renderHud(session: WildernessSession) {
         lastWildernessSession = session
+        terminalPendingLines = emptyList()
+        if (terminalModalActive) {
+            bootFrame()
+        }
         renderStatus(session.runtime)
         renderMap(session)
-        writeText(wildernessContextLines(session))
+        writeClassicText(wildernessContextLines(session))
     }
 
     fun clearText() {
+        terminalPendingLines = emptyList()
+        ensureClassicFrame()
         clearRegion(textWindow)
         terminal.flush()
     }
 
     fun clearMapWindow() {
+        terminalPendingLines = emptyList()
+        ensureClassicFrame()
         clearRegion(mapWindow)
         terminal.flush()
     }
 
     fun redrawMap() {
+        terminalPendingLines = emptyList()
+        ensureClassicFrame()
         lastWildernessSession?.let(::renderMap)
     }
 
@@ -557,6 +586,8 @@ private class ClassicAnsiScreen(
     }
 
     fun renderStatusFor(runtime: RuntimeSessionState?) {
+        terminalPendingLines = emptyList()
+        ensureClassicFrame()
         if (runtime != null) {
             renderStatus(runtime)
         } else {
@@ -565,20 +596,7 @@ private class ClassicAnsiScreen(
     }
 
     fun showImage(image: ImageId) {
-        when (val asset = AnsiImageAssets.resolve(visuals, image)) {
-            is AnsiImageAsset.FullScreen -> {
-                terminal.writeRaw("${CSI}2J${CSI}1;1H")
-                terminal.writeRaw(RylweenAppAssets.readText(asset.resource))
-            }
-            is AnsiImageAsset.MapWindow -> {
-                clearRegion(mapWindow)
-                renderAnsiAt(asset.resource, mapWindow.x, mapWindow.y)
-                goto(textWindow)
-            }
-            null -> return
-        }
-        terminal.writeRaw("$FG_WHITE$BG_BLACK")
-        terminal.flush()
+        renderImage(image)
     }
 
     fun writeHelp(session: WildernessSession, renderer: TerminalTextRenderer) {
@@ -617,20 +635,40 @@ private class ClassicAnsiScreen(
         writeBlocks(blocks, renderer, TerminalTextContext(runtime = runtime), pauseAfterLast = false)
     }
 
+    fun writeTerminalBlocks(
+        blocks: List<TextBlock>,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext,
+        pauseAfterLast: Boolean,
+    ) {
+        writeRenderedBlocks(blocks, renderer, context, pauseAfterLast, ::writeTerminalLines)
+    }
+
     fun writeBlocks(
         blocks: List<TextBlock>,
         renderer: TerminalTextRenderer,
         context: TerminalTextContext,
         pauseAfterLast: Boolean,
     ) {
+        writeRenderedBlocks(blocks, renderer, context, pauseAfterLast, ::writeText)
+    }
+
+    private fun writeRenderedBlocks(
+        blocks: List<TextBlock>,
+        renderer: TerminalTextRenderer,
+        context: TerminalTextContext,
+        pauseAfterLast: Boolean,
+        writeLines: (List<String>) -> Unit,
+    ) {
         if (blocks.isEmpty()) {
-            writeText(emptyList())
+            writeLines(emptyList())
             return
         }
         blocks.forEachIndexed { index, block ->
-            writeText(renderer.lines(block, context))
+            writeLines(renderer.lines(block, context))
             if (pauseAfterLast || index < blocks.lastIndex) {
                 terminal.readKeyToken()
+                completeTerminalInput()
             }
         }
     }
@@ -639,7 +677,27 @@ private class ClassicAnsiScreen(
         writeText(renderer.lines(block, TerminalTextContext(runtime = runtime)))
     }
 
+    fun writeTerminalLines(lines: List<String>) {
+        terminalPendingLines += lines
+        if (terminalModalActive || terminalPendingLines.needsFullScreenTerminal()) {
+            terminalModalActive = true
+            writeFullScreenText(terminalPendingLines)
+        } else {
+            writeClassicText(terminalPendingLines)
+        }
+    }
+
+    fun completeTerminalInput() {
+        terminalPendingLines = emptyList()
+    }
+
     fun writeText(lines: List<String>) {
+        terminalPendingLines = emptyList()
+        ensureClassicFrame()
+        writeClassicText(lines)
+    }
+
+    private fun writeClassicText(lines: List<String>) {
         clearRegion(textWindow)
         lines.take(textWindow.height ?: lines.size).forEachIndexed { index, line ->
             gotoTextRow(index)
@@ -650,10 +708,40 @@ private class ClassicAnsiScreen(
 
     private fun writeFullScreenText(lines: List<String>) {
         terminal.writeRaw("${CSI}2J${CSI}1;1H")
-        lines.take(24).forEachIndexed { index, line ->
+        lines.takeLast(24).forEachIndexed { index, line ->
             terminal.writeRaw("${CSI}${index + 1};1H")
             terminal.writeRaw(line.take(79))
         }
+        terminal.flush()
+    }
+
+    private fun List<String>.needsFullScreenTerminal(): Boolean =
+        size > (textWindow.height ?: Int.MAX_VALUE)
+
+    private fun ensureClassicFrame() {
+        if (terminalModalActive) {
+            bootFrame()
+        }
+    }
+
+    private fun renderImage(image: ImageId) {
+        terminalPendingLines = emptyList()
+        when (val asset = AnsiImageAssets.resolve(visuals, image)) {
+            is AnsiImageAsset.FullScreen -> {
+                terminalModalActive = false
+                terminalPendingLines = emptyList()
+                terminal.writeRaw("${CSI}2J${CSI}1;1H")
+                terminal.writeRaw(RylweenAppAssets.readText(asset.resource))
+            }
+            is AnsiImageAsset.MapWindow -> {
+                ensureClassicFrame()
+                clearRegion(mapWindow)
+                renderAnsiAt(asset.resource, mapWindow.x, mapWindow.y)
+                goto(textWindow)
+            }
+            null -> return
+        }
+        terminal.writeRaw("$FG_WHITE$BG_BLACK")
         terminal.flush()
     }
 
