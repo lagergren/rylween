@@ -2,7 +2,10 @@
 
 package rylween.app
 
+import rylween.compiled.ExternalBundleSectionId
+import rylween.compiled.inspectExternalBundleArtifact
 import rylween.compiled.loadCompiledGame
+import rylween.compiled.readExternalBundleArtifact
 import rylween.compiled.writeExternalBundleArtifact
 import rylween.compiled.toCompiledGameBundle
 import rylween.compiled.writeNativeSmokeArtifact
@@ -23,10 +26,40 @@ object RylweenCompiledBundleArtifactMain {
 object RylweenExternalBundleArtifactMain {
     @JvmStatic
     fun main(args: Array<String>): Unit = runRylweenCli {
-        val output = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.rbin")
+        val output = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.json")
         val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
         bundle.loadCompiledGame()
         bundle.writeExternalBundleArtifact(output)
         println("Wrote external compiled bundle: ${output.path}")
+    }
+}
+
+object RylweenExternalBundleCheckMain {
+    @JvmStatic
+    fun main(args: Array<String>): Unit = runRylweenCli {
+        val input = File(args.singleOrNull() ?: "build/compiled/rylween-bundle.json")
+        val summary = input.readExternalBundleArtifact()
+        println(
+            "compiled bundle ok: strings=${summary.section(ExternalBundleSectionId.Strings).rowCount} " +
+                "handles=${summary.section(ExternalBundleSectionId.Handles).rowCount} " +
+                "scripts=${summary.section(ExternalBundleSectionId.Scripts).rowCount} " +
+                "states=${summary.section(ExternalBundleSectionId.States).rowCount}",
+        )
+    }
+}
+
+object RylweenExternalBundleInspectMain {
+    @JvmStatic
+    fun main(args: Array<String>): Unit = runRylweenCli {
+        val input = File(args.getOrNull(0) ?: "build/compiled/rylween-bundle.json")
+        val output = args.getOrNull(1)?.let(::File)
+        val inspection = input.inspectExternalBundleArtifact()
+        if (output == null) {
+            print(inspection)
+        } else {
+            output.parentFile?.mkdirs()
+            output.writeText(inspection)
+            println("Wrote external compiled bundle inspection: ${output.path}")
+        }
     }
 }

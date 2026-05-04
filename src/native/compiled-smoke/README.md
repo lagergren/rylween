@@ -2,7 +2,7 @@
 
 This file documents the current external compiled-bundle boundary checks for
 the Kotlin-authored game: the J0 VM smoke artifact in this directory and the
-active J1 sectioned artifact in `src/native/compiled-bundle`.
+active J1 strict JSON artifact emitted under `build/compiled`.
 
 The producer is `CompiledGameBundle.writeNativeSmokeArtifact(...)` in
 `src/main/kotlin/rylween/compiled/NativeSmokeArtifact.kt`. The same file also
@@ -15,25 +15,25 @@ contains the Kotlin smoke reader used by tests, and the C reader is
 
 `check` depends on that task.
 
-The active J1 artifact is sectioned across all compiled content/state table
-groups. The producer is
+The active J1 artifact is strict deterministic JSON across all compiled
+content/state table groups. The producer is
 `CompiledGameBundle.writeExternalBundleArtifact(...)` in
-`src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt`, and the C section
-reader is `src/native/compiled-bundle/rylween_bundle_manifest.c`. Gradle wires
-that check through:
+`src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt`. Gradle wires the
+Kotlin JSON reader and inspection check through:
 
 ```sh
 ./gradlew checkExternalCompiledBundle --console=plain
+./gradlew inspectExternalCompiledBundle --console=plain
 ```
 
-`check` depends on this task too. Both native C validation binaries are compiled
-by the shared `CompileNativeCExecutableTask` in `build.gradle.kts`; `CC` can
-override the compiler, and the C17/warning flags live in one place.
+`check` depends on both tasks. The J1 C/native reader is still open; when we add
+it, prefer reusing or moving the legacy C JSON5 parser from
+`legacy/c-json5/src/json5.*` over writing a second C JSON parser.
 
 ## Current Runtime Status
 
-The Kotlin ANSI and line-terminal runtimes do not currently boot from this
-binary file. They use the generated `RylweenCompiledGame.nextDsl` and
+The Kotlin ANSI and line-terminal runtimes do not currently boot from the J1
+JSON file. They use the generated `RylweenCompiledGame.nextDsl` and
 `RylweenCompiledGame.nextRylween` objects, then run the backend-neutral Kotlin
 session state machines and authored `Op` interpreter.
 
@@ -47,12 +47,12 @@ is to catch schema/API boundary outages: bad magic/version, bad enum ranges, bad
 string ids, bad handle refs, malformed nested operands, and unsupported VM
 operand shapes.
 
-J1 is active, but not complete. Kotlin and C/native now read the same sectioned
-external artifact frame. The remaining J1 closeout is:
+J1 is active, but not complete. Kotlin now emits, reads, hashes, and inspects
+the same strict JSON external artifact. The remaining J1 closeout is:
 
 - stable typed row schemas/materializers for every section payload
-- universe/content-hash compatibility checks in the external artifact header
 - round-trip validation that loaded rows agree with `loadCompiledGame()`
+- a C/native JSON reader for the same artifact
 - a Kotlin ANSI launcher/test path that boots from the external artifact
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
@@ -61,55 +61,63 @@ scenario harness so native behavior is compared against the Kotlin runtime, not
 only against structural loading. This J0 smoke format only proves that the
 current typed operation surface can be parsed.
 
-## J1 Sectioned Artifact
+## J1 JSON Artifact
 
-The current all-table artifact layout is:
+The canonical external bundle is:
 
-```text
-magic                  8 bytes, ASCII "RYLBNDL1"
-version                u32, currently 1
-sectionCount           u32, currently 25
-sections[sectionCount]:
-    sectionId          u32 ExternalBundleSectionId code
-    rowCount           u32 number of logical rows in the payload
-    byteLength         u32 payload byte count
-    checksum           u32 FNV-1a over the payload bytes
-    payload            byteLength UTF-8 bytes
+```json
+{
+  "format": "rylween.compiled.bundle",
+  "schemaVersion": 1,
+  "bundleContentHash": "sha256:...",
+  "sectionOrder": ["universe", "limits", "..."],
+  "sections": {
+    "universe": {
+      "name": "Rylween",
+      "version": "kotlin-dsl",
+      "compatibilityId": "rylween"
+    }
+  }
+}
 ```
 
-The J1.1 payloads are deterministic canonical UTF-8 rows so Kotlin and C can
-validate one complete artifact carrier before the final typed row materializer
-exists. They are not the final native ABI for table rows.
+`bundleContentHash` is SHA-256 over the canonical compact JSON bytes for the
+`sections` object. The reader validates the format, schema version, fixed
+section order, section object order, and content hash. `inspectExternalCompiledBundle`
+writes `build/compiled/rylween-bundle.inspect.txt`, a readable summary with
+section row counts, byte counts, and FNV-1a checksums.
 
-The section ids are named in both readers/writers:
+The section names are:
 
 ```text
-0 Universe
-1 Limits
-2 Strings
-3 Handles
-4 Flags
-5 Items
-6 ItemPools
-7 Formulas
-8 Rewards
-9 Terrain
-10 WorldMaps
-11 Images
-12 StaticScreens
-13 ScreenRegions
-14 Towns
-15 BuildingServices
-16 Characters
-17 Monsters
-18 Missions
-19 Spells
-20 ItemUses
-21 DungeonEvents
-22 DungeonScenarios
-23 Scripts
-24 States
+universe
+limits
+strings
+handles
+flags
+items
+itemPools
+formulas
+rewards
+terrain
+worldMaps
+images
+staticScreens
+screenRegions
+towns
+buildingServices
+characters
+monsters
+missions
+spells
+itemUses
+dungeonEvents
+dungeonScenarios
+scripts
+states
 ```
+
+The remaining sections document the J0 binary smoke artifact.
 
 ## Scalar Encoding
 
