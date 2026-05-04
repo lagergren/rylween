@@ -115,9 +115,6 @@ fun RuntimeContent.scriptRootForDungeonEvent(id: DungeonEventId): ScriptRootRef 
 fun RuntimeContent.scriptRootForSpell(id: SpellId): ScriptRootRef =
     scriptRootCatalog().rootFor(ScriptRootRef.spell(id))
 
-fun RuntimeContent.scriptRootForItemUse(id: ItemId): ScriptRootRef =
-    scriptRootCatalog().rootFor(ScriptRootRef.itemUse(id))
-
 fun SpeakRuntimeContent.scriptRootForDialogueBranch(npc: NpcId, branch: DialogueBranchModel): ScriptRootRef =
     ScriptRootRef.dialogueBranch(npc, branch)
 

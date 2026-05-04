@@ -1446,20 +1446,7 @@ private class RuntimeStateSnapshotWriter {
     }
 
     private fun quote(value: String): String =
-        buildString {
-            append('"')
-            value.forEach { char ->
-                when (char) {
-                    '\\' -> append("\\\\")
-                    '"' -> append("\\\"")
-                    '\n' -> append("\\n")
-                    '\r' -> append("\\r")
-                    '\t' -> append("\\t")
-                    else -> append(char)
-                }
-            }
-            append('"')
-        }
+        dslQuotedString(value)
 
     private fun charLiteral(value: Char): String =
         when (value) {

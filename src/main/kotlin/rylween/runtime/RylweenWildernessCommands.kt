@@ -46,8 +46,5 @@ fun WildernessKeysModel.quitConfirmCommands(): List<InputCommand<WildernessSessi
         InputCommand(WildernessSessionInput.QuitAnswer(false), quitNo, "No"),
     )
 
-fun WildernessKeysModel.exploreInput(token: String): WildernessSessionInput? =
-    exploreCommands().inputForToken(token)
-
 fun WildernessKeysModel.effectiveHelpPages(maxLinesPerPage: Int = 7): List<TextBlock> =
     helpPages.ifEmpty { exploreCommands().generatedHelpPages(maxLinesPerPage) }

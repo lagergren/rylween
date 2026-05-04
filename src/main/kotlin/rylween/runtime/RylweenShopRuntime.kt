@@ -76,8 +76,6 @@ data class ShopServiceSession(
     val lastSellQuote: ShopSellQuoteResult? = null,
     val content: RuntimeContent = RuntimeContent(),
 ) {
-    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
-    val realmContent: RealmContentModel get() = content.realm
     private fun interpreter(): ShopServiceInterpreter = ShopServiceInterpreter(content)
     private fun mainMenu(): ShopServiceStep =
         ShopServiceStep.MainMenu(shop.menu, canBuy = shop.buy != null, canSell = shop.sell != null)

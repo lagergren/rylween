@@ -37,8 +37,8 @@ private fun mutableIdentitySet(): MutableSet<Any> =
 private fun StringBuilder.appendCanonical(value: Any?, visiting: MutableSet<Any>) {
     when (value) {
         null -> append("null")
-        is String -> appendQuoted(value)
-        is Char -> appendQuoted(value.toString())
+        is String -> appendDslQuotedString(value)
+        is Char -> appendDslQuotedString(value.toString())
         is Number,
         is Boolean -> append(value)
         is Enum<*> -> append(value.javaClass.name).append('.').append(value.name)
@@ -116,19 +116,4 @@ private fun StringBuilder.appendObject(value: Any, visiting: MutableSet<Any>) {
     } finally {
         visiting.remove(value)
     }
-}
-
-private fun StringBuilder.appendQuoted(value: String) {
-    append('"')
-    value.forEach { char ->
-        when (char) {
-            '\\' -> append("\\\\")
-            '"' -> append("\\\"")
-            '\n' -> append("\\n")
-            '\r' -> append("\\r")
-            '\t' -> append("\\t")
-            else -> append(char)
-        }
-    }
-    append('"')
 }

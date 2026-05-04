@@ -1,3 +1,5 @@
+@file:Suppress("ReplacePrintlnWithLogging", "UseOfSystemOutOrSystemErr")
+
 package rylween.app
 
 import rylween.dsl.*
@@ -25,6 +27,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
 import java.nio.charset.StandardCharsets
+import kotlin.system.exitProcess
 
 private const val ESC = "\u001B"
 private const val CSI = "$ESC["
@@ -1484,7 +1487,7 @@ private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
             }
             "--help", "-h" -> {
                 printAnsiUsage()
-                kotlin.system.exitProcess(0)
+                exitProcess(0)
             }
             else -> error("unknown argument $arg")
         }

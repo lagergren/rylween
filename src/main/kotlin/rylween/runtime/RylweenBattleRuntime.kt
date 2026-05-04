@@ -116,7 +116,7 @@ data class BattleSession(
     val step: BattleSessionStep,
     val lastResult: BattleSessionResult,
 ) {
-    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
+    private val itemRecords: List<ItemRecordModel> get() = content.itemRecords
     val formulas: List<FormulaModel> get() = content.formulas
     val rewards: List<RewardBundleModel> get() = content.rewards
     val leveling: LevelingModel? get() = content.leveling

@@ -4807,7 +4807,7 @@ val nextRylween = rylween {
                 caster.mp -= cost
                 screen {
                     line(partyName(caster), " utters")
-                    lines("three syllabels in an", "archaic tongue...", "")
+                    lines("three syllables in an", "archaic tongue...", "")
                 }
                 pause(2000)
                 screen("and the ground cracks", "open!")

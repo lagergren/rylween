@@ -160,11 +160,10 @@ data class TownSession(
     val step: TownSessionStep = TownSessionStep.Menu(town, availableTownActions(town, townSystem)),
     val lastResult: TownSessionResult? = null,
 ) {
-    val itemRecords: List<ItemRecordModel> get() = content.itemRecords
-    val realmContent: RealmContentModel get() = content.realm
+    private val itemRecords: List<ItemRecordModel> get() = content.itemRecords
     val realm: RealmState get() = runtime.realm
     val party: PartyState get() = runtime.activeParty
-    val currentHour: Int get() = runtime.realm.hour
+    private val currentHour: Int get() = runtime.realm.hour
 
     fun apply(input: TownSessionInput): TownSession =
         when (input) {
