@@ -1819,6 +1819,23 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun externalCompiledBundleArtifactIsDeterministicAndSectioned() {
+        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
+        val artifact = bundle.toExternalBundleArtifact()
+        val repeated = bundle.toExternalBundleArtifact()
+        val summary = artifact.readExternalBundleArtifact()
+
+        assertEquals(artifact.toList(), repeated.toList())
+        assertEquals("RYLBNDL1", artifact.copyOfRange(0, 8).decodeToString())
+        assertEquals(ExternalBundleSectionId.entries.size, summary.sections.size)
+        assertEquals(bundle.content.strings.entries.size, summary.section(ExternalBundleSectionId.Strings).rowCount)
+        assertEquals(bundle.content.handles.handles.size, summary.section(ExternalBundleSectionId.Handles).rowCount)
+        assertEquals(bundle.content.scripts.roots.size, summary.section(ExternalBundleSectionId.Scripts).rowCount)
+        assertEquals(bundle.states.size, summary.section(ExternalBundleSectionId.States).rowCount)
+        assertTrue(summary.sections.all { section -> section.byteLength > 0 })
+    }
+
+    @Test
     fun compiledRuntimeSnapshotRoundTripsThroughSaveReader() {
         val snapshot = renderRuntimeStateSnapshot(RylweenCompiledGame.nextRylween.states.single { it.id == States.winningReplay })
         val parsed = parseRuntimeStateSnapshot(snapshot)
