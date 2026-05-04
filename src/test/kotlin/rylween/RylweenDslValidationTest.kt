@@ -4783,6 +4783,110 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun wildernessPriestRestorationFullyHealsAndSpendsMana() {
+        val terminal = FakeTerminalPort("Z", "1", "2", "1")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    pcClass = PcClass.Priest,
+                    level = 1,
+                    health = 30,
+                    hitPoints = 3,
+                    wisdom = 50,
+                    mana = 50,
+                ),
+            ),
+        )
+
+        val member = result.session.party.members.single()
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.CastSpellUsed, result.session.lastResult?.status)
+        assertEquals(30, member.hitPoints.current)
+        assertEquals(30, member.mana.current)
+        assertTrue(terminal.output.any { "2. Restoration" in it })
+        assertTrue(terminal.output.any { "fully..." in it })
+    }
+
+    @Test
+    fun wildernessPriestRebirthRevivesDeadMemberAndRefreshesLivingCount() {
+        val party = testParty(
+            food = 100,
+            timeLeft = 200,
+            restedHours = 14,
+            members = listOf(
+                testMember("Priest", pcClass = PcClass.Priest, level = 1, wisdom = 100, mana = 100),
+                testMember("Fallen", health = 30, hitPoints = 0, dead = true),
+            ),
+        )
+        val terminal = FakeTerminalPort("Z", "1", "3", "2")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(party = party),
+        )
+
+        val members = result.session.party.members
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.CastSpellUsed, result.session.lastResult?.status)
+        assertFalse(members[1].dead)
+        assertEquals(1, members[1].hitPoints.current)
+        assertEquals(10, members[0].mana.current)
+        assertEquals(2, result.session.party.counters.memberCount)
+        assertTrue(terminal.output.any { "Fallen's eyelids" in it })
+    }
+
+    @Test
+    fun dungeonPriestBanishSetsRealmFlagAndSpendsMana() {
+        val terminal = FakeTerminalPort("Z", "1", "4", "")
+        val result = DungeonSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledDungeonSession(
+                dungeon = Dungeons.randomCave,
+                levels = 1,
+                dungeons = fixedCompiledDungeon(Dungeons.randomCave),
+                party = testParty(
+                    pcClass = PcClass.Priest,
+                    level = 1,
+                    wisdom = 100,
+                    mana = 100,
+                ),
+            ),
+        )
+
+        val member = result.session.party.members.single()
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(DungeonSessionResultStatus.CastSpellUsed, result.session.lastResult?.status)
+        assertTrue(result.session.runtime.realm.banished)
+        assertEquals(14, member.mana.current)
+        assertTrue(terminal.output.any { "There is a deafening clap" in it })
+    }
+
+    @Test
+    fun wildernessPriestEarthquakeLeavePathSpendsManaWithoutEnteringDungeon() {
+        val terminal = FakeTerminalPort("Z", "1", "7", "L")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+            compiledWildernessSession(
+                party = testParty(
+                    food = 100,
+                    timeLeft = 200,
+                    restedHours = 14,
+                    pcClass = PcClass.Priest,
+                    level = 1,
+                    wisdom = 100,
+                    mana = 100,
+                ),
+            ),
+        )
+
+        val member = result.session.party.members.single()
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.CastSpellUsed, result.session.lastResult?.status)
+        assertEquals(45, member.mana.current)
+        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertTrue(terminal.output.any { "You find a cave!" in it })
+    }
+
+    @Test
     fun wildernessMoveCanFindAndLeaveCave() {
         val terminal = FakeTerminalPort("2", "L")
         val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
@@ -6188,6 +6292,74 @@ class RylweenDslValidationTest {
                     assertEquals(168, party.resources.gold)
                     assertEquals(300, party.members.single().experience)
                     assertEquals(Items.redPotion, party.inventoryItem(1))
+                },
+            ),
+        )
+    }
+
+    @Test
+    fun battleSessionVictoryAppliesAuthoredLevelUps() {
+        val content = RylweenCompiledGame.nextDsl
+        runCompiledBattleScenario(
+            name = "battle-victory-level-up",
+            inputs = listOf("F", "A", "A"),
+            start = {
+                BattleSession.start(
+                    runtime = RuntimeSessionState.singleParty(
+                        party = testParty(
+                            food = 100,
+                            timeLeft = 200,
+                            restedHours = 14,
+                            members = listOf(
+                                testMember(
+                                    level = 1,
+                                    experience = 1999,
+                                    health = 30,
+                                    hitPoints = 5,
+                                    weaponSkill = 100,
+                                    equipment = EquipmentState(Items.deathBlade, Items.none),
+                                ),
+                            ),
+                        ),
+                        hour = 12,
+                        currentTown = null,
+                    ),
+                    combat = content.combat,
+                    monsters = listOf(
+                        MonsterModel(
+                            id = Monsters.bandit,
+                            name = "Bandit",
+                            count = 1..1,
+                            countMaxLevelDivisor = null,
+                            hitPoints = 1..1,
+                            weaponSkill = 0,
+                            spellPower = 1,
+                            tier = EncounterTiers.weak,
+                            immune = false,
+                        ),
+                    ),
+                    formulas = content.formulas,
+                    rewards = content.rewards,
+                    itemRecords = content.itemCatalog,
+                    leveling = content.leveling,
+                    spells = content.spells,
+                    itemUses = content.itemUses,
+                    tier = EncounterTiers.weak,
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("authored progression applies after victory reward") {
+                    val member = result.session.runtime.activeParty.members.single()
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(BattleSessionResultStatus.Victory, result.session.lastResult.status)
+                    assertEquals(2, member.level)
+                    assertEquals(2002, member.experience)
+                    assertEquals(38, member.health)
+                    assertEquals(25, member.hitPoints.current)
+                    assertEquals(38, member.hitPoints.max)
+                    assertEquals(103, member.weaponSkill)
+                    assertOutputContains("Tester gains >1<")
+                    assertOutputContains("experience levels.")
                 },
             ),
         )

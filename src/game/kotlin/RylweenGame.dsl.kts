@@ -4606,6 +4606,7 @@ val nextRylween = rylween {
             whenever(target.dead) {
                 caster.mp -= cost
                 target.dead set false
+                party.memberCount += 1
                 target.hp set 1
                 clearText()
                 screen {
@@ -4795,6 +4796,7 @@ val nextRylween = rylween {
             whenever(target.hp lte 0) {
                 target.hp set 0
                 target.dead set true
+                party.memberCount -= 1
             }
             pause(1000)
         }
