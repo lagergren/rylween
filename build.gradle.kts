@@ -1,4 +1,6 @@
 import org.gradle.jvm.application.tasks.CreateStartScripts
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.process.ExecOperations
 import org.gradle.api.model.ObjectFactory
 import javax.inject.Inject
@@ -42,6 +44,41 @@ abstract class CompileNativeCExecutableTask @Inject constructor(
                     includeArgs +
                     listOf("-o", executable.path, source.path) +
                     additionalSourceFiles.files.map { it.path },
+            )
+        }
+    }
+}
+
+abstract class RunInstalledLauncherWithJavaTask @Inject constructor(
+    private val execOperations: ExecOperations,
+) : DefaultTask() {
+    @get:InputFile
+    abstract val executableFile: RegularFileProperty
+
+    @get:InputFile
+    abstract val bundleFile: RegularFileProperty
+
+    @get:Input
+    abstract val javaHomePath: Property<String>
+
+    @get:Input
+    abstract val inheritedPath: Property<String>
+
+    @get:Input
+    abstract val screen: Property<String>
+
+    @TaskAction
+    fun run() {
+        val javaHome = File(javaHomePath.get())
+        execOperations.exec {
+            environment("JAVA_HOME", javaHome.absolutePath)
+            environment("PATH", javaHome.resolve("bin").path + File.pathSeparator + inheritedPath.get())
+            commandLine(
+                executableFile.get().asFile.path,
+                "--bundle",
+                bundleFile.get().asFile.path,
+                "--screen",
+                screen.get(),
             )
         }
     }
@@ -1509,6 +1546,11 @@ kotlin {
     jvmToolchain(25)
 }
 
+val javaToolchains: JavaToolchainService = extensions.getByType()
+val kotlinRuntimeJavaLauncher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(25))
+}
+
 val gameSourceSet: SourceSet = sourceSets.create("game") {
     java.srcDir("src/game/kotlin")
     java.srcDir(generatedGameHarnessDir)
@@ -1808,20 +1850,21 @@ val installKotlinAnsi: TaskProvider<Sync> by tasks.registering(Sync::class) {
     }
 }
 
-val checkKotlinAnsiBundleBoot: TaskProvider<Exec> by tasks.registering(Exec::class) {
+val checkKotlinAnsiBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> by tasks.registering(
+    RunInstalledLauncherWithJavaTask::class,
+) {
     group = "verification"
     description = "Boots the ANSI launcher through --bundle to verify artifact-backed startup gating."
 
     dependsOn(installKotlinAnsi)
     dependsOn(emitExternalCompiledBundle)
-    inputs.file(externalBundleArtifact)
-    commandLine(
-        kotlinAnsiExecutablePath,
-        "--bundle",
-        externalBundleArtifactPath,
-        "--screen",
-        "title",
-    )
+    executableFile.set(kotlinAnsiExecutable)
+    bundleFile.set(externalBundleArtifact)
+    javaHomePath.set(kotlinRuntimeJavaLauncher.map { launcher ->
+        launcher.metadata.installationPath.asFile.absolutePath
+    })
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    screen.set("title")
 }
 
 val validateGameDsl: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
