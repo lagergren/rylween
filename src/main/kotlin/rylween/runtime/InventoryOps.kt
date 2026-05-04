@@ -314,7 +314,7 @@ fun PartyState.withFlagState(flag: String, native: String): PartyState =
     )
 
 fun PartyState.hasFlagState(state: FlagState): Boolean =
-    flags.any { it.flag == state.flag && it.native == state.native }
+    flags.any { it.flag.slug == state.flag.slug && it.native == state.native }
 
 fun PartyState.withJournalLines(lines: List<String>): PartyState =
     copy(journal = journal + lines.filter { it.isNotBlank() }.map(JournalEntryState::Line))

@@ -1562,8 +1562,8 @@ private class CompiledBundleCompiler(
         CompiledShopSell(
             prompt = text(sell.prompt),
             acceptedKinds = sell.acceptedKinds,
-            acceptedItems = sell.acceptedItems.map(::itemRef),
-            rejectedItems = sell.rejectedItems.map(::itemRef),
+            acceptedItems = sell.acceptedItems.sortedBy { item -> item.slug }.map(::itemRef),
+            rejectedItems = sell.rejectedItems.sortedBy { item -> item.slug }.map(::itemRef),
             wrongKind = text(sell.wrongKind),
             offer = text(sell.offer),
             sold = sell.sold?.let(::text),

@@ -1820,15 +1820,17 @@ class RylweenDslValidationTest {
 
     @Test
     fun externalCompiledBundleArtifactIsDeterministicJsonAndInspectable() {
-        val bundle = RylweenCompiledGame.nextRylween.toCompiledGameBundle()
-        val artifact = bundle.toExternalBundleArtifact()
-        val repeated = bundle.toExternalBundleArtifact()
+        val game = RylweenCompiledGame.nextRylween
+        val bundle = game.toCompiledGameBundle()
+        val artifact = game.toExternalBundleArtifact()
+        val repeated = game.toExternalBundleArtifact()
         val summary = artifact.readExternalBundleArtifact()
         val inspection = artifact.inspectExternalBundleArtifact()
 
         assertEquals(artifact.toList(), repeated.toList())
         assertTrue(artifact.decodeToString().startsWith("{\n  \"format\": \"rylween.compiled.bundle\""))
         assertEquals("rylween.compiled.bundle", summary.format)
+        assertEquals(2, summary.version)
         assertEquals("Rylween", summary.universeName)
         assertTrue(summary.bundleContentHash.startsWith("sha256:"))
         assertEquals(ExternalBundleSectionId.entries.size, summary.sections.size)
@@ -1847,11 +1849,31 @@ class RylweenDslValidationTest {
             materialized.loadCompiledGame().content.resolveHandle(CompiledHandleKind.WorldMap, Maps.wilderness.slug),
         )
 
+        val runtimeGame = artifact.readExternalRuntimeGame()
+        assertEquals(bundle, runtimeGame.toCompiledGameBundle())
+        assertEquals(artifact.toList(), runtimeGame.toExternalBundleArtifact().toList())
+        assertEquals(RylweenCompiledGame.nextDsl.ydarg?.entry, runtimeGame.content.ydarg?.entry)
+        assertEquals(RylweenCompiledGame.nextDsl.ydarg?.mapSize, runtimeGame.content.ydarg?.mapSize)
+        assertEquals(RylweenCompiledGame.nextDsl.prompts, runtimeGame.content.prompts)
+        assertEquals(RylweenCompiledGame.nextDsl.terminal, runtimeGame.content.terminal)
+        assertEquals(RylweenCompiledGame.nextDsl.realm, runtimeGame.content.realm)
+        val runtimeWorldMap = checkNotNull(runtimeGame.content.worldMapGrid(Maps.wilderness))
+        val runtimeState = runtimeGame.states.single { state -> state.id == States.freshReplay }
+        val runtimeSession = RylweenKotlinEngine(runtimeGame.content).wildernessSession(
+            state = runtimeState,
+            worldMap = runtimeWorldMap,
+            rngState = null,
+            realizeNpcs = false,
+        )
+        assertEquals(RuntimeMode.Wilderness, runtimeSession.runtime.realm.currentMode)
+        assertEquals(runtimeGame.content.ydarg?.entry, runtimeSession.content.ydarg?.entry)
+
         val file = File.createTempFile("rylween-bundle-", ".json")
         try {
             file.writeBytes(artifact)
-            assertEquals(summary, file.readVerifiedExternalBundleArtifact(bundle))
+            assertEquals(summary, file.readVerifiedExternalBundleArtifact(game))
             assertEquals(bundle, file.readExternalCompiledGameBundle())
+            assertEquals(artifact.toList(), file.readExternalRuntimeGame().toExternalBundleArtifact().toList())
         } finally {
             file.delete()
         }

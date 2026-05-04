@@ -16,8 +16,8 @@ contains the Kotlin smoke reader used by tests, and the C reader is
 `check` depends on that task.
 
 The active J1 artifact is strict deterministic JSON across all compiled
-content/state table groups. The producer is
-`CompiledGameBundle.writeExternalBundleArtifact(...)` in
+content/state table groups plus the Kotlin runtime facade. The producer is
+`RylweenModel.writeExternalBundleArtifact(...)` in
 `src/main/kotlin/rylween/compiled/ExternalBundleArtifact.kt`. Gradle wires the
 Kotlin JSON reader and inspection check through:
 
@@ -29,21 +29,20 @@ Kotlin JSON reader and inspection check through:
 
 `check` depends on all three tasks. `checkKotlinAnsiBundleBoot` emits the JSON
 bundle, installs the ANSI launcher, and runs the title screen through
-`RylweenAnsiMain --bundle <file>`. The J1 C/native reader is still open; when we
-add it, prefer reusing or moving the legacy C JSON5 parser from
+`RylweenAnsiMain --bundle <file>` after the launcher has built its runtime model
+from that bundle. The J1 C/native reader is still open; when we add it, prefer
+reusing or moving the legacy C JSON5 parser from
 `legacy/c-json5/src/json5.*` over writing a second C JSON parser.
 
 ## Current Runtime Status
 
-The Kotlin ANSI runtime accepts `--bundle <file>` and validates that the J1 JSON
-artifact matches the current compiled game before booting. Kotlin can now also
-materialize that JSON back into a typed `CompiledGameBundle` and validate it
-through `CompiledBundleLoader`. After the ANSI `--bundle` gate, though, gameplay
-still uses the generated `RylweenCompiledGame.nextDsl` and
-`RylweenCompiledGame.nextRylween` objects, then runs the backend-neutral Kotlin
-session state machines and authored `Op` interpreter. That is a launcher
-integration/drift guard plus a compiled-bundle load proof, not the final
-JSON-materialized runtime facade and not a compiled-VM execution path.
+The Kotlin ANSI runtime accepts `--bundle <file>`, materializes the J1 JSON into
+the runtime-facing `RylweenModel`, validates that the embedded runtime facade
+recompiles to the same typed `CompiledGameBundle` sections, verifies the
+artifact hash/section summary, and then boots from the loaded model. Gameplay
+still runs through the backend-neutral Kotlin session state machines and
+authored `Op` interpreter. That closes the Kotlin artifact-backed boot path, but
+it is not a compiled-VM execution path.
 
 `CompiledGameBundle.loadCompiledGame()` is a Kotlin in-memory loader/validator:
 it validates cross-table references and builds string, handle, and script lookup
@@ -55,13 +54,14 @@ is to catch schema/API boundary outages: bad magic/version, bad enum ranges, bad
 string ids, bad handle refs, malformed nested operands, and unsupported VM
 operand shapes.
 
-J1 is active, but not complete. Kotlin now emits, reads, hashes, inspects, and
-materializes the same strict JSON external artifact as `CompiledGameBundle`.
-The remaining J1 closeout is:
+J1 is active, but not complete. Kotlin now emits, reads, hashes, inspects,
+materializes, and boots from the strict JSON artifact. The remaining J1 closeout
+is:
 
 - stable typed row schemas for non-Kotlin loaders instead of relying on Kotlin
-  reflective field names as the only description
-- runtime-facing content/session materialization from loaded JSON
+  reflective field names as the only description; this includes promoting
+  castle/Ydarg content out of the Kotlin-only `runtimeFacade` when a non-JVM
+  runtime needs it directly
 - a C/native JSON reader for the same artifact
 
 J2 is the separate task for executing compiled ops in a standalone VM. Its
@@ -83,7 +83,7 @@ The canonical external bundle is:
 ```json
 {
   "format": "rylween.compiled.bundle",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "bundleContentHash": "sha256:...",
   "sectionOrder": ["universe", "limits", "..."],
   "sections": {
@@ -129,6 +129,7 @@ itemUses
 dungeonEvents
 dungeonScenarios
 scripts
+runtimeFacade
 states
 ```
 
