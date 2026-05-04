@@ -1237,7 +1237,7 @@ private class CompiledBundleCompiler(
             )
             is Op.AskMonster -> instruction(
                 CompiledOpcode.AskMonster,
-                CompiledOperand.Handle(textRef(op.prompt.id)),
+                CompiledOperand.TextBlockValue(text(op.prompt)),
                 CompiledOperand.StringId(strings.id(op.varName)),
             )
             is Op.ForEachMember -> instruction(
@@ -1976,6 +1976,7 @@ private fun GameModel.locationsFromStatesAndScripts(): List<LocationId> =
                         collectOps(op.matchOps)
                         collectOps(op.missOps)
                     }
+                    is Op.AskMonster -> collectText(op.prompt)
                     is Op.ForEachMember -> collectOps(op.body)
                     is Op.ForEachMonster -> collectOps(op.body)
                     is Op.GrantReward -> {

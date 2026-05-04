@@ -739,7 +739,7 @@ sealed interface Op {
         val trim: Boolean = true,
         val maxLength: Int? = null,
     ) : Op
-    data class AskMonster(val prompt: TextId, val varName: String) : Op
+    data class AskMonster(val prompt: TextBlock, val varName: String) : Op
     data class ForEachMember(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
     data class ForEachMonster(val varName: String, val includeDead: Boolean, val body: List<Op>) : Op
     data class Speak(val building: BuildingId) : Op
@@ -3613,7 +3613,10 @@ class AskScope(private val script: ScriptScope) {
         return InventorySlotRef(v(name))
     }
 
-    fun monsterAlive(prompt: TextId): MonsterRef {
+    fun monsterAlive(prompt: TextId): MonsterRef =
+        monsterAlive(TextBlock.Ref(prompt))
+
+    fun monsterAlive(prompt: TextBlock): MonsterRef {
         val name = script.fresh("monster")
         script.record(Op.AskMonster(prompt, name))
         return MonsterRef(script, v(name))
@@ -6469,6 +6472,10 @@ class BattleTextBuilder(initial: BattleTextModel? = null) {
         targetPromptText = structuredText(body)
     }
 
+    fun targetPrompt(text: TextBlock) {
+        targetPromptText = text
+    }
+
     fun useWhat(body: StructuredTextBlockBuilder.() -> Unit) {
         useWhatText = structuredText(body)
     }
@@ -6523,6 +6530,10 @@ class BattleTextBuilder(initial: BattleTextModel? = null) {
 
     fun killed(body: StructuredTextBlockBuilder.() -> Unit) {
         killedText = structuredText(body)
+    }
+
+    fun killed(text: TextBlock) {
+        killedText = text
     }
 
     fun partyHeld(body: StructuredTextBlockBuilder.() -> Unit) {
@@ -7668,7 +7679,7 @@ fun nativePathsIn(model: GameModel): Set<String> {
                     ops(op.matchOps)
                     ops(op.missOps)
                 }
-                is Op.AskMonster -> Unit
+                is Op.AskMonster -> text(op.prompt)
                 is Op.ForEachMember -> ops(op.body)
                 is Op.ForEachMonster -> ops(op.body)
                 is Op.Speak -> Unit

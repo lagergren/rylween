@@ -1086,7 +1086,7 @@ private class CombatScriptRunner(
             encounter = encounter,
             round = round,
             texts = texts.toList(),
-            prompt = TextBlock.Ref(op.prompt),
+            prompt = renderText(op.prompt),
             continuation = script.copy(nextIndex = index + 1, pendingVar = op.varName, locals = locals),
         )
 

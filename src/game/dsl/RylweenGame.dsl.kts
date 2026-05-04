@@ -1169,7 +1169,7 @@ val nextRylween: RylweenModel = rylween {
                 run { line("(R)un") }
                 bloodFlow { line("Blood shall flow!") }
                 whatNow { lines("What now?", "") }
-                targetPrompt { lines("Who?", "") }
+                targetMonsterPrompt()
                 useWhat { lines("Use what?", "") }
                 spellAbort { line("7. Abort") }
                 runCoward { lines("Coward. You won't get", "any EXP for this battle.") }
@@ -1191,7 +1191,7 @@ val nextRylween: RylweenModel = rylween {
                         " them off guard.)",
                     )
                 }
-                killed { line("...KILLED!") }
+                monsterKilledLine()
                 partyHeld { line("PARTY IS HELD!") }
                 victoryBested { lines("Thou hast bested", "thy foes.", "") }
                 victoryEachSurvivor { line("Each survivor gets") }
@@ -3560,13 +3560,27 @@ val nextRylween: RylweenModel = rylween {
         loop {
             clearText()
             statusLine()
-            screen(T.Towne.Church.intro)
+            screen(
+                "You enter the church",
+                "of Dalina, a beautiful",
+                "goddess. This is one of",
+                "her two temples.",
+                "",
+            )
 
-            menu(T.Towne.Church.menu) {
+            val churchPartyMemberMax = realm.partyMemberMax
+            val churchWhoPrompt = structuredText { line("Who? (1-", churchPartyMemberMax, ")") }
+
+            menu(
+                "(H)eal person",
+                "(R)aise dead",
+                "(E)nergize",
+                "(L)eave",
+            ) {
                 option('H') {
                     clearText()
                     val m = choice.member(
-                        T.Towne.Church.who,
+                        churchWhoPrompt,
                         filter = MemberChoiceFilter.AliveOnly,
                         accepting = MemberChoiceFilter.Any,
                     )
@@ -3625,7 +3639,7 @@ val nextRylween: RylweenModel = rylween {
                 option('E') {
                     clearText()
                     val m = choice.member(
-                        T.Towne.Church.who,
+                        churchWhoPrompt,
                         filter = MemberChoiceFilter.SpellcasterOnly,
                         accepting = MemberChoiceFilter.Any,
                     )
@@ -3681,7 +3695,7 @@ val nextRylween: RylweenModel = rylween {
                 option('R') {
                     clearText()
                     val m = choice.member(
-                        T.Towne.Church.who,
+                        churchWhoPrompt,
                         filter = MemberChoiceFilter.DeadOnly,
                         accepting = MemberChoiceFilter.Any,
                     )
@@ -4438,7 +4452,7 @@ val nextRylween: RylweenModel = rylween {
     // declare this game's spell and combat-item effects.
     spell(Spells.Mage.frost, slot = 1, baseCost = 8, name = "Frost Finger") {
         val caster = currentCaster
-        val target = ask.monsterAlive(T.Battle.Prompt.monster)
+        val target = askAliveBattleMonster()
         val damage = localInt(caster.level * random(2..8))
 
         clearText()
@@ -4454,7 +4468,7 @@ val nextRylween: RylweenModel = rylween {
         whenever(target.hp lte 0) {
             target.hp set 0
             target.dead set true
-            emit(T.Battle.killed)
+            showBattleKilled()
             pause(600)
         }
     }
@@ -4477,7 +4491,7 @@ val nextRylween: RylweenModel = rylween {
 
                 whenever(foe.hp lte 0) {
                     foe.hp set 0
-                    emit(T.Battle.killed)
+                    showBattleKilled()
                     pause(600)
                     foe.dead set true
                 }
@@ -4503,7 +4517,7 @@ val nextRylween: RylweenModel = rylween {
     }
 
     spell(Spells.Mage.death, slot = 4, baseCost = 78, name = "Death Strike") {
-        val target = ask.monsterAlive(T.Battle.Prompt.monster)
+        val target = askAliveBattleMonster()
 
         clearText()
         whenever(random(0..199) lt target.hp) {
@@ -4953,7 +4967,7 @@ val nextRylween: RylweenModel = rylween {
 
             whenever(target.hp lte 0) {
                 target.hp set 0
-                emit(T.Battle.killed)
+                showBattleKilled()
                 pause(600)
                 target.dead set true
             }
@@ -4983,7 +4997,7 @@ val nextRylween: RylweenModel = rylween {
 
                     whenever(foe.hp lte 0) {
                         foe.hp set 0
-                        emit(T.Battle.killed)
+                        showBattleKilled()
                         pause(600)
                         foe.dead set true
                     }
@@ -5060,7 +5074,7 @@ val nextRylween: RylweenModel = rylween {
                 line("away...")
             }
             pause(2000)
-            emit(T.Battle.killed)
+            showBattleKilled()
             pause(600)
             target.dead set true
             target.hp set 0
@@ -5290,12 +5304,11 @@ val nextRylween: RylweenModel = rylween {
 
     scene(Scenes.Missions.bandits) {
         clearText()
-        screen(T.MissionsText.Bandits.spotted)
-        screen(T.MissionsText.Bandits.warned)
+        readBanditsApproach()
         encounter(Monsters.bandit, mandatory = true)
         renderMap()
         clearText()
-        screen(T.MissionsText.Bandits.recovered)
+        readBanditsCargoRecovered()
         mark(Story.garth.bandits.recovered)
     }
 
@@ -6631,7 +6644,7 @@ val nextRylween: RylweenModel = rylween {
             }
 
             visited(Npcs.garth, Npcs.bernak)
-            journal(T.MissionsText.Bandits.recovered)
+            journal { banditsCargoRecovered() }
         }
     }
 
@@ -6735,7 +6748,7 @@ val nextRylween: RylweenModel = rylween {
             }
 
             visited(Npcs.garth, Npcs.bernak)
-            journal(T.MissionsText.Bandits.recovered)
+            journal { banditsCargoRecovered() }
         }
     }
 
@@ -6877,7 +6890,7 @@ val nextRylween: RylweenModel = rylween {
             }
 
             journal {
-                entry(T.MissionsText.Bandits.recovered)
+                banditsCargoRecovered()
                 line("Castle Ydarg has fallen.")
             }
         }

@@ -968,10 +968,11 @@ class RylweenDslValidationTest {
     fun traceEngineRecordsReusableChoices() {
         val engine = TraceEnginePort()
         val runner = ScriptTraceRunner(engine)
+        val whoPrompt = inlineText("Who? (1-4)")
 
         runner.run(
             listOf(
-                Op.AskMember(TextBlock.Ref(T.Towne.Church.who), "who", MemberChoiceFilter.DeadOnly),
+                Op.AskMember(whoPrompt, "who", MemberChoiceFilter.DeadOnly),
                 Op.AskInventorySlot(
                     TextBlock.Inline(listOf("Which item?")),
                     "slot",
@@ -983,7 +984,7 @@ class RylweenDslValidationTest {
         )
 
         assertEquals(
-            EngineTraceEvent.AskMember(TextBlock.Ref(T.Towne.Church.who), MemberChoiceFilter.DeadOnly),
+            EngineTraceEvent.AskMember(whoPrompt, MemberChoiceFilter.DeadOnly),
             engine.events[0],
         )
         assertEquals(
@@ -3812,7 +3813,7 @@ class RylweenDslValidationTest {
         )
 
         assertTrue(session.status is TerminalRunStatus.Finished)
-        assertEquals(2, terminal.output.count { it == "Options: H/E/R/L" })
+        assertEquals(2, terminal.output.count { it == "(H)eal person" })
         assertEquals(100, session.session.party.resources.gold)
     }
 
@@ -6190,8 +6191,8 @@ class RylweenDslValidationTest {
 
     @Test
     fun wildernessMoveCanTriggerAuthoredBanditsMissionAndWaitInBattle() {
-        val terminal = FakeTerminalPort("2")
-        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+        val approachTerminal = FakeTerminalPort("2")
+        val approach = WildernessSessionTerminalAdapter(approachTerminal, compiledTextRenderer()).runUntilBlocked(
             compiledWildernessSession(
                 party = testParty(
                     food = 100,
@@ -6203,15 +6204,26 @@ class RylweenDslValidationTest {
             ),
         )
 
+        assertTrue(approach.status is TerminalRunStatus.Waiting)
+        assertEquals(WildernessSessionResultStatus.MissionHandoff, approach.session.lastResult?.status)
+        assertEquals(Missions.bandits, approach.session.lastResult?.mission)
+        assertTrue(approach.session.step is WildernessSessionStep.Mission)
+        assertTrue(approachTerminal.output.any { "bandits" in it.lowercase() })
+        assertFalse(approachTerminal.output.any { "ENCOUNTER!" in it })
+
+        val battleTerminal = FakeTerminalPort("")
+        val result = WildernessSessionTerminalAdapter(battleTerminal, compiledTextRenderer())
+            .runUntilBlocked(approach.session)
+
         assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertEquals(WildernessSessionResultStatus.MissionHandoff, result.session.lastResult?.status)
-        assertEquals(Missions.bandits, result.session.lastResult?.mission)
         assertTrue(result.session.step is WildernessSessionStep.Mission)
         val mission = result.session.step
-        assertTrue(mission.continuation?.battleSession?.encounter?.monster?.id == Monsters.bandit)
+        assertTrue(
+            mission.continuation?.battleSession?.encounter?.monster?.id == Monsters.bandit,
+            "expected bandit battle continuation, got ${mission.continuation}",
+        )
         assertFalse(result.session.party.hasFlagState(Story.garth.bandits.recovered))
-        assertTrue(terminal.output.any { "bandits" in it.lowercase() })
-        assertTrue(terminal.output.any { "ENCOUNTER!" in it })
+        assertTrue(battleTerminal.output.any { "ENCOUNTER!" in it })
     }
 
     @Test
@@ -6222,8 +6234,7 @@ class RylweenDslValidationTest {
             weaponSkill = 100,
             equipment = EquipmentState(Items.deathBlade, Items.none),
         )
-        val terminal = FakeTerminalPort("2", "F", "A", "A", "F", "A", "B")
-        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+        val approach = WildernessSessionTerminalAdapter(FakeTerminalPort("2"), compiledTextRenderer()).runUntilBlocked(
             compiledWildernessSession(
                 party = testParty(
                     food = 100,
@@ -6235,14 +6246,23 @@ class RylweenDslValidationTest {
                 rngState = 21L,
             ),
         )
+        val battle = WildernessSessionTerminalAdapter(FakeTerminalPort(""), compiledTextRenderer())
+            .runUntilBlocked(approach.session)
+        val cargoTerminal = FakeTerminalPort("F", "A", "A", "F", "A", "B")
+        val cargo = WildernessSessionTerminalAdapter(cargoTerminal, compiledTextRenderer()).runUntilBlocked(battle.session)
+        val terminal = FakeTerminalPort("")
+        val result = WildernessSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(cargo.session)
 
         assertTrue(result.status is TerminalRunStatus.Waiting)
-        assertTrue(result.session.step is WildernessSessionStep.Explore)
+        assertTrue(
+            result.session.step is WildernessSessionStep.Explore,
+            "expected explore step, got ${result.session.step}",
+        )
         assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
         assertEquals(Missions.bandits, result.session.lastResult?.mission)
         assertTrue(result.session.party.hasFlagState(Story.garth.bandits.recovered))
         assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
-        assertTrue(terminal.output.any { "recovered" in it.lowercase() })
+        assertTrue(cargoTerminal.output.any { "cargo" in it.lowercase() })
     }
 
     @Test
@@ -7977,13 +7997,26 @@ class RylweenDslValidationTest {
                 loop {
                     clearText()
                     statusLine()
-                    screen(T.Towne.Church.intro)
+                    screen(
+                        "You enter the church",
+                        "of Dalina, a beautiful",
+                        "goddess. This is one of",
+                        "her two temples.",
+                        "",
+                    )
 
-                    menu(T.Towne.Church.menu) {
+                    val whoPrompt = inlineText("Who? (1-4)")
+
+                    menu(
+                        "(H)eal person",
+                        "(R)aise dead",
+                        "(E)nergize",
+                        "(L)eave",
+                    ) {
                         option('H') {
                             clearText()
                             val member = choice.member(
-                                T.Towne.Church.who,
+                                whoPrompt,
                                 filter = MemberChoiceFilter.AliveOnly,
                                 accepting = MemberChoiceFilter.Any,
                             )
@@ -8030,7 +8063,7 @@ class RylweenDslValidationTest {
                         option('E') {
                             clearText()
                             val member = choice.member(
-                                T.Towne.Church.who,
+                                whoPrompt,
                                 filter = MemberChoiceFilter.SpellcasterOnly,
                                 accepting = MemberChoiceFilter.Any,
                             )
@@ -8075,7 +8108,7 @@ class RylweenDslValidationTest {
                         option('R') {
                             clearText()
                             val member = choice.member(
-                                T.Towne.Church.who,
+                                whoPrompt,
                                 filter = MemberChoiceFilter.DeadOnly,
                                 accepting = MemberChoiceFilter.Any,
                             )
