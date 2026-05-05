@@ -73,6 +73,16 @@ class LongPlaythroughTest {
         assertTrue(terminal.output.any { "church" in it })
         assertEquals(playthrough.allTownBuildings, playthrough.coveredBuildings)
     }
+
+    @Test
+    fun cheatedWildernessTriggersEveryMissionThroughNormalMovement() {
+        val playthrough = CheatedLongPlaythrough()
+
+        playthrough.runAllMissionLegsThroughWildernessTriggers()
+
+        assertEquals(playthrough.allMissions, playthrough.coveredMissions)
+        assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredDungeonHandoffs)
+    }
 }
 
 private class CheatedLongPlaythrough {
@@ -87,6 +97,12 @@ private class CheatedLongPlaythrough {
     private val baseLocations = RylweenCompiledGame.nextRylween.states
         .single { it.id == States.freshReplay }
         .locations
+    private val strongReplayState = RylweenCompiledGame.nextRylween.states
+        .single { it.id == States.strongReplay }
+    private val baseCheatedParty = strongReplayState
+        .parties
+        .single()
+        .cheatedForLongPlaythrough()
     private val playthroughLocations = (
         baseLocations + listOf(
             LocationPlacement(Locations.hermitDungeon, GridPoint(45, 13)),
@@ -100,16 +116,9 @@ private class CheatedLongPlaythrough {
 
     private val runtimeContent = game.runtimeContent().cheatedForLongPlaythrough()
 
-    var runtime: RuntimeSessionState = RylweenCompiledGame.nextRylween.states
-        .single { it.id == States.strongReplay }
+    var runtime: RuntimeSessionState = strongReplayState
         .toRuntimeSessionState()
-        .withActiveParty(
-            RylweenCompiledGame.nextRylween.states
-                .single { it.id == States.strongReplay }
-                .parties
-                .single()
-                .cheatedForLongPlaythrough(),
-        )
+        .withActiveParty(baseCheatedParty)
         .copy(locations = playthroughLocations)
         private set
 
@@ -197,6 +206,10 @@ private class CheatedLongPlaythrough {
         missionLegs().forEach(::runMission)
     }
 
+    fun runAllMissionLegsThroughWildernessTriggers() {
+        missionLegs().forEach(::runTriggeredMission)
+    }
+
     private fun runMission(leg: MissionLeg) {
         val mission = game.missions.single { it.id == leg.id }
         val scene = game.scenes.single { it.id == mission.action }
@@ -212,6 +225,41 @@ private class CheatedLongPlaythrough {
             ),
         )
 
+        verifyMissionRun(leg, result, terminal.output)
+    }
+
+    private fun runTriggeredMission(leg: MissionLeg) {
+        val mission = game.missions.single { it.id == leg.id }
+        val route = routeToTrigger(mission.trigger)
+        val party = baseCheatedParty
+            .copy(position = WorldPosition.Wilderness(route.start))
+            .withRequirement(mission.requires)
+        val startRuntime = RuntimeSessionState.singleParty(
+            party = party,
+            hour = 12,
+            currentTown = null,
+            rngState = route.rngState,
+            npcs = runtime.npcs,
+            locations = playthroughLocations,
+        )
+        val terminal = ScenarioTerminalPort(*(route.inputs + leg.inputs).toTypedArray())
+        val result = WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+            WildernessSession.start(
+                content = runtimeContent,
+                runtime = startRuntime.asWilderness(),
+                worldMap = worldMap,
+            ),
+        )
+
+        verifyMissionRun(leg, result, terminal.output, applyRuntime = false)
+    }
+
+    private fun verifyMissionRun(
+        leg: MissionLeg,
+        result: TerminalAdapterResult<WildernessSession>,
+        output: List<String>,
+        applyRuntime: Boolean = true,
+    ) {
         assertTrue(
             result.status is TerminalRunStatus.Waiting || result.status is TerminalRunStatus.Finished,
             "mission ${leg.id.slug} ended with ${result.status}",
@@ -219,16 +267,16 @@ private class CheatedLongPlaythrough {
         assertFalse(
             result.session.step is WildernessSessionStep.Mission,
             "mission ${leg.id.slug} is still waiting inside its script continuation; " +
-                "status=${result.status}; step=${result.session.step}; output=${terminal.output.takeLast(30)}",
+                "status=${result.status}; step=${result.session.step}; output=${output.takeLast(30)}",
         )
         assertEquals(leg.id, result.session.lastResult?.mission, "mission ${leg.id.slug} result did not keep id")
         leg.expectedText?.let { text ->
             assertTrue(
-                terminal.output.any { text in it },
-                "mission ${leg.id.slug} did not render '$text'; output=${terminal.output.takeLast(40)}",
+                output.any { text in it },
+                "mission ${leg.id.slug} did not render '$text'; output=${output.takeLast(40)}",
             )
         }
-        assertNoUnresolvedText("mission ${leg.id.slug}", terminal.output)
+        assertNoUnresolvedText("mission ${leg.id.slug}", output)
 
         when (leg.expectedEnd) {
             is MissionEnd.Completed ->
@@ -241,7 +289,9 @@ private class CheatedLongPlaythrough {
             }
         }
 
-        runtime = result.session.runtime.withActiveParty(result.session.party.cheatedForLongPlaythrough())
+        if (applyRuntime) {
+            runtime = result.session.runtime.withActiveParty(result.session.party.cheatedForLongPlaythrough())
+        }
         coveredMissions += leg.id
     }
 
@@ -394,10 +444,73 @@ private class CheatedLongPlaythrough {
     private fun battleInputs(prefixReturns: Int = 0, suffixReturns: Int = 0): List<String> =
         List(prefixReturns) { "" } + listOf("F", "A", "A") + List(suffixReturns) { "" }
 
+    private fun routeToTrigger(trigger: Trigger): TriggerRoute =
+        when (trigger) {
+            is Trigger.AtPosition -> routeToPoint(trigger.point)
+            is Trigger.AtLocation -> routeToPoint(
+                checkNotNull(playthroughLocations.firstOrNull { it.location == trigger.location }?.point) {
+                    "mission trigger location ${trigger.location.slug} is not placed in the playthrough state"
+                },
+            )
+            is Trigger.OnTerrain -> routeToTerrain(trigger.terrain)
+            is Trigger.RandomStep -> randomStepRoute(trigger.percent)
+        }
+
+    private fun routeToTerrain(terrain: TerrainId): TriggerRoute {
+        val route = worldMap.rows.indices.asSequence().flatMap { y ->
+            val row = worldMap.rows[y]
+            row.indices.asSequence().map { x -> GridPoint(x, y) }
+        }.firstNotNullOfOrNull { point ->
+            if (worldMap.isPassable(point) && point.terrainId() == terrain) {
+                routeToPointOrNull(point)
+            } else {
+                null
+            }
+        }
+        return checkNotNull(route) { "no reachable terrain tile for mission trigger ${terrain.slug}" }
+    }
+
+    private fun randomStepRoute(percent: Int): TriggerRoute {
+        val route = routeToPoint(GridPoint(12, 10))
+        return route.copy(rngState = firstRandomStepSeed(percent))
+    }
+
+    private fun routeToPoint(point: GridPoint): TriggerRoute =
+        checkNotNull(routeToPointOrNull(point)) { "no adjacent passable route to ${point.x}x${point.y}" }
+
+    private fun routeToPointOrNull(point: GridPoint): TriggerRoute? {
+        if (!worldMap.isPassable(point)) return null
+        return DirectionRoute.entries.firstNotNullOfOrNull { route ->
+            val delta = route.direction.delta()
+            val start = GridPoint(point.x - delta.x, point.y - delta.y)
+            TriggerRoute(start, listOf(route.input)).takeIf { worldMap.isPassable(start) }
+        }
+    }
+
+    private fun GridPoint.terrainId(): TerrainId? =
+        worldMap.tileAt(this)?.let { tile -> worldMap.terrain.byMapCode(tile)?.id }
+
+    private fun firstRandomStepSeed(percent: Int): Long =
+        generateSequence(1L) { it + 1L }
+            .first { seed -> ReferenceRylweenRandom.draw(seed, 0, 99).value < percent }
+
     private fun assertNoUnresolvedText(label: String, output: List<String>) {
         val unresolved = output.filter { "{" in it || "}" in it }
         assertTrue(unresolved.isEmpty(), "$label rendered unresolved text placeholders: $unresolved")
     }
+}
+
+private data class TriggerRoute(
+    val start: GridPoint,
+    val inputs: List<String>,
+    val rngState: Long = 1L,
+)
+
+private enum class DirectionRoute(val direction: WildernessDirection, val input: String) {
+    South(WildernessDirection.South, "2"),
+    North(WildernessDirection.North, "8"),
+    East(WildernessDirection.East, "6"),
+    West(WildernessDirection.West, "4"),
 }
 
 private data class MissionLeg(
@@ -477,6 +590,15 @@ private fun PartyState.cheatedForLongPlaythrough(): PartyState =
 
 private fun PartyState.withMilestones(vararg extra: GameMilestoneId): PartyState =
     copy(milestones = (milestones + extra).distinct())
+
+private fun PartyState.withRequirement(requirement: BoolAst?): PartyState =
+    when (requirement) {
+        null -> this
+        is BoolAst.And -> withRequirement(requirement.left).withRequirement(requirement.right)
+        is BoolAst.FlagIs -> withFlagState(requirement.slug, requirement.nativeValue)
+        is BoolAst.MilestoneAchieved -> withMilestones(requirement.milestone)
+        else -> error("mission trigger playthrough cannot synthesize requirement $requirement")
+    }
 
 private fun RuntimeSessionState.asTown(town: TownId): RuntimeSessionState =
     withRealm(
