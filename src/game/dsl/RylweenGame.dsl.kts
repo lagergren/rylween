@@ -370,7 +370,7 @@ val nextRylween: RylweenModel = rylween {
         }
     }
 
-    ydarg {
+    castle(Castles.ydarg) {
         entry = xy(14, 30)
         image = Images.Backdrop.ydargCastle
         requiredKey = Milestones.silverKey
@@ -6560,8 +6560,7 @@ val nextRylween: RylweenModel = rylween {
             hour = 9
             rngState = 1L
             activeParty = Parties.replay
-            currentMap = Maps.wilderness
-            currentMode = RuntimeMode.Wilderness
+            wilderness(Maps.wilderness)
         }
 
         locations {
@@ -6658,8 +6657,7 @@ val nextRylween: RylweenModel = rylween {
             hour = 9
             rngState = 1L
             activeParty = Parties.playtest
-            currentMap = Maps.wilderness
-            currentMode = RuntimeMode.Wilderness
+            wilderness(Maps.wilderness)
         }
 
         locations {
@@ -6798,8 +6796,7 @@ val nextRylween: RylweenModel = rylween {
             day = 14
             hour = 22
             activeParty = Parties.replay
-            currentMap = Maps.wilderness
-            currentMode = RuntimeMode.Wilderness
+            wilderness(Maps.wilderness)
         }
 
         locations {
@@ -6904,9 +6901,7 @@ val nextRylween: RylweenModel = rylween {
             minute = 0
             rngState = 12648430L
             activeParty = Parties.replay
-            currentMap = Maps.wilderness
-            currentMode = RuntimeMode.GameOver
-            currentTown = null
+            gameOver(Maps.wilderness)
             banished = false
             lastPlayedDay = 14
             partyMemberMax = 2

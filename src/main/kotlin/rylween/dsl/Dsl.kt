@@ -399,6 +399,7 @@ data class FormulaId(val slug: String)
 data class KeyActionId(val slug: String)
 data class DungeonId(val slug: String)
 data class DungeonEventId(val slug: String)
+data class CastleId(val slug: String)
 data class GameMilestoneId(val slug: String)
 data class LootTableId(val slug: String)
 data class RewardBundleId(val slug: String)
@@ -557,6 +558,7 @@ fun formula(slug: String): FormulaId = FormulaId(slug)
 fun keyAction(slug: String): KeyActionId = KeyActionId(slug)
 fun dungeon(slug: String): DungeonId = DungeonId(slug)
 fun dungeonEvent(slug: String): DungeonEventId = DungeonEventId(slug)
+fun castle(slug: String): CastleId = CastleId(slug)
 fun milestone(slug: String): GameMilestoneId = GameMilestoneId(slug)
 fun lootTable(slug: String): LootTableId = LootTableId(slug)
 fun rewardBundle(slug: String): RewardBundleId = RewardBundleId(slug)
@@ -1617,6 +1619,7 @@ data class RuntimeContent(
     val characterCreation: CharacterCreationModel? = null,
     val dungeons: DungeonSystemModel = DungeonSystemModel(),
     val ydarg: YdargContentModel? = null,
+    val castles: List<YdargContentModel> = listOfNotNull(ydarg),
     val wilderness: WildernessSystemModel = WildernessSystemModel(),
     val towns: List<TownModel> = emptyList(),
     val townSystem: TownSystemModel? = null,
@@ -1627,6 +1630,11 @@ data class RuntimeContent(
     val dialogue: List<DialogueModel> = emptyList(),
     val secrets: SecretSystemModel = SecretSystemModel(),
 ) {
+    init {
+        require(castles.map { it.id }.toSet().size == castles.size) { "duplicate castle content" }
+        require(ydarg == null || ydarg in castles) { "ydarg content alias must be present in castles" }
+    }
+
     val battleConfigured: Boolean get() = combat.standardBattle != null
 }
 
@@ -1653,6 +1661,7 @@ data class GameModel(
     val wilderness: WildernessSystemModel,
     val dungeons: DungeonSystemModel,
     val ydarg: YdargContentModel?,
+    val castles: List<YdargContentModel> = listOfNotNull(ydarg),
     val speak: SpeakSystemModel,
     val towns: List<TownModel>,
     val townSystem: TownSystemModel?,
@@ -1664,7 +1673,12 @@ data class GameModel(
     val itemUses: List<ItemUseModel>,
     val missions: List<MissionModel>,
     val secrets: SecretSystemModel = SecretSystemModel(),
-)
+) {
+    init {
+        require(castles.map { it.id }.toSet().size == castles.size) { "duplicate castle content" }
+        require(ydarg == null || ydarg in castles) { "ydarg content alias must be present in castles" }
+    }
+}
 
 fun GameModel.itemPool(pool: ItemPoolId): ItemPoolId =
     itemPools.firstOrNull { it == pool } ?: pool
@@ -1685,6 +1699,7 @@ fun GameModel.runtimeContent(): RuntimeContent =
         characterCreation = characterCreation,
         dungeons = dungeons,
         ydarg = ydarg,
+        castles = castles,
         wilderness = wilderness,
         towns = towns,
         townSystem = townSystem,
@@ -4422,7 +4437,7 @@ class GameBuilder {
     private var characterCreationModel: CharacterCreationModel? = null
     private var wildernessModel = WildernessSystemModel()
     private var dungeonsModel = DungeonSystemModel()
-    private var ydargModel: YdargContentModel? = null
+    private val castleModels = mutableListOf<YdargContentModel>()
     private var speakModel = SpeakSystemModel(null)
     private val towns = mutableListOf<TownModel>()
     private var townSystemModel: TownSystemModel? = null
@@ -4518,7 +4533,11 @@ class GameBuilder {
     }
 
     fun ydarg(body: YdargBuilder.() -> Unit) {
-        ydargModel = YdargBuilder().apply(body).build()
+        castle(DslDefaultCastles.ydarg, body)
+    }
+
+    fun castle(id: CastleId, body: YdargBuilder.() -> Unit) {
+        castleModels += YdargBuilder(id).apply(body).build()
     }
 
     fun speak(body: SpeakBuilder.() -> Unit) {
@@ -4566,6 +4585,10 @@ class GameBuilder {
         fun resolveItemPool(pool: ItemPoolId): ItemPoolId =
             itemPoolBySlug[pool.slug] ?: pool
 
+        val castles = castleModels.toList()
+        val ydarg = castles.singleOrNull { it.id == DslDefaultCastles.ydarg }
+            ?: castles.singleOrNull()
+
         return GameModel(
             metadata = metadataModel,
             limits = limitsModel,
@@ -4588,7 +4611,8 @@ class GameBuilder {
             characterCreation = characterCreationModel,
             wilderness = wildernessModel,
             dungeons = dungeonsModel.resolveItemPools(::resolveItemPool),
-            ydarg = ydargModel,
+            ydarg = ydarg,
+            castles = castles,
             speak = speakModel.resolveItemPools(::resolveItemPool),
             towns = towns.toList(),
             townSystem = townSystemModel,
@@ -7200,6 +7224,41 @@ class RealmStateBuilder {
     var partyMemberMax: Int = 4
     var lastTerrain: TerrainId? = null
 
+    fun titleMenu(map: WorldMapId = currentMap) {
+        enter(RuntimeMode.TitleMenu, map)
+    }
+
+    fun wilderness(map: WorldMapId = DslDefaultMaps.wilderness) {
+        enter(RuntimeMode.Wilderness, map)
+    }
+
+    fun town(town: TownId, map: WorldMapId = currentMap) {
+        enter(RuntimeMode.Town, map, town)
+    }
+
+    fun dungeon(map: WorldMapId = currentMap) {
+        enter(RuntimeMode.Dungeon, map)
+    }
+
+    fun battle(map: WorldMapId = currentMap) {
+        enter(RuntimeMode.Battle, map)
+    }
+
+    fun ydargCastle(map: WorldMapId = currentMap) {
+        castle(DslDefaultCastles.ydarg, map)
+    }
+
+    fun castle(castle: CastleId = DslDefaultCastles.ydarg, map: WorldMapId = currentMap) {
+        require(castle == DslDefaultCastles.ydarg) {
+            "runtime state currently supports only Castle Ydarg"
+        }
+        enter(RuntimeMode.YdargCastle, map)
+    }
+
+    fun gameOver(map: WorldMapId = currentMap) {
+        enter(RuntimeMode.GameOver, map)
+    }
+
     fun build(): RealmState =
         RealmState(
             day = day,
@@ -7215,6 +7274,12 @@ class RealmStateBuilder {
             partyMemberMax = partyMemberMax,
             lastTerrain = lastTerrain,
         )
+
+    private fun enter(mode: RuntimeMode, map: WorldMapId, town: TownId? = null) {
+        currentMode = mode
+        currentMap = map
+        currentTown = town
+    }
 }
 
 @RylNextDsl

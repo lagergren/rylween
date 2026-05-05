@@ -210,6 +210,25 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun realmStateModeHelpersKeepFixtureAuthoringDomainLevel() {
+        val wilderness = RealmStateBuilder().apply {
+            activeParty = Parties.replay
+            town(Towns.thord)
+            wilderness(Maps.wilderness)
+        }.build()
+        val gameOver = RealmStateBuilder().apply {
+            activeParty = Parties.replay
+            gameOver(Maps.wilderness)
+        }.build()
+
+        assertEquals(RuntimeMode.Wilderness, wilderness.currentMode)
+        assertEquals(Maps.wilderness, wilderness.currentMap)
+        assertEquals(null, wilderness.currentTown)
+        assertEquals(RuntimeMode.GameOver, gameOver.currentMode)
+        assertEquals(Maps.wilderness, gameOver.currentMap)
+    }
+
+    @Test
     fun runtimeSnapshotEmitterWritesExactDslShape() {
         val party = partyId("replay")
         val state = StateModel(

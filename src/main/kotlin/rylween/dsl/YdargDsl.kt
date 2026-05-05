@@ -89,6 +89,7 @@ data class YdargTextModel(
 )
 
 data class YdargContentModel(
+    val id: CastleId = DslDefaultCastles.ydarg,
     val entry: GridPoint,
     val image: ImageId?,
     val requiredKey: GameMilestoneId,
@@ -106,7 +107,7 @@ data class YdargContentModel(
 )
 
 @RylNextDsl
-class YdargBuilder {
+class YdargBuilder(private val id: CastleId = DslDefaultCastles.ydarg) {
     var entry: GridPoint = GridPoint(14, 30)
     var image: ImageId? = null
     var requiredKey: GameMilestoneId? = null
@@ -161,6 +162,7 @@ class YdargBuilder {
 
     fun build(): YdargContentModel =
         YdargContentModel(
+            id = id,
             entry = entry,
             image = image,
             requiredKey = checkNotNull(requiredKey) { "ydarg requires requiredKey" },

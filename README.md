@@ -57,4 +57,11 @@ Useful ANSI logging forms:
 RYL_LOG=stderr build/install/rylween-kotlin/bin/rylween --state fresh-replay
 RYL_LOG=file:build/rylween.log build/install/rylween-kotlin/bin/rylween --state fresh-replay
 RYL_LOG=tcp:9999,file:build/rylween.log build/install/rylween-kotlin/bin/rylween --state fresh-replay
+RYL_LOG_LEVEL=debug RYL_LOG=file:build/rylween.log ./run.sh --state fresh-replay
+./run.sh --serve 127.0.0.1:2323 --state fresh-replay
 ```
+
+`--serve [host:]port` waits for one socket/telnet client and renders the same
+ANSI UI to that socket instead of the local terminal. Logs still use `RYL_LOG`,
+so server diagnostics stay off the player render stream. `RYL_LOG_LEVEL=debug`
+adds formula-evaluation and authored-op execution traces.

@@ -67,6 +67,7 @@ sealed interface EngineTraceEvent {
 class TraceEnginePort(
     private val ints: Map<EngineRequest, Int> = emptyMap(),
     private val strings: Map<EngineRequest, String> = emptyMap(),
+    private val eventSink: RuntimeEventSink = RuntimeEventSink.Noop,
 ) : RylweenEnginePort {
     private val mutableEvents = mutableListOf<EngineTraceEvent>()
     val events: List<EngineTraceEvent> get() = mutableEvents.toList()
@@ -87,5 +88,106 @@ class TraceEnginePort(
 
     internal fun trace(event: EngineTraceEvent) {
         mutableEvents += event
+        event.toRuntimeEvent()?.let(eventSink::emit)
+    }
+
+    internal fun diagnostic(event: RuntimeEvent) {
+        eventSink.emit(event)
     }
 }
+
+fun EngineTraceEvent.toRuntimeEvent(): RuntimeEvent? =
+    when (this) {
+        is EngineTraceEvent.View -> runtimeEvent(RuntimeEventLevel.Debug, "view", "command", "kind" to command::class.simpleName)
+        is EngineTraceEvent.NativeEffect -> runtimeEvent(RuntimeEventLevel.Info, "native", "effect", "path" to request.path)
+        is EngineTraceEvent.NativeInt -> runtimeEvent(RuntimeEventLevel.Debug, "native", "readInt", "path" to request.path, "result" to result)
+        is EngineTraceEvent.NativeString -> runtimeEvent(
+            RuntimeEventLevel.Debug,
+            "native",
+            "readString",
+            "path" to request.path,
+            "result" to result,
+        )
+        is EngineTraceEvent.Screen -> runtimeEvent(RuntimeEventLevel.Debug, "script", "screen")
+        is EngineTraceEvent.Emit -> runtimeEvent(RuntimeEventLevel.Debug, "script", "emit", "text" to id.id)
+        is EngineTraceEvent.EmitIndexed ->
+            runtimeEvent(RuntimeEventLevel.Debug, "script", "emitIndexed", "pattern" to pattern.pattern, "value" to value)
+        is EngineTraceEvent.WaitInput ->
+            runtimeEvent(RuntimeEventLevel.Info, "script", "waitInput", "reason" to reason)
+        is EngineTraceEvent.Pause -> runtimeEvent(RuntimeEventLevel.Debug, "script", "pause", "ms" to ms)
+        is EngineTraceEvent.SetFlag ->
+            runtimeEvent(RuntimeEventLevel.Audit, "story", "setFlag", "flag" to flag, "state" to state)
+        is EngineTraceEvent.AppendJournal -> runtimeEvent(RuntimeEventLevel.Audit, "story", "appendJournal")
+        is EngineTraceEvent.Menu ->
+            runtimeEvent(RuntimeEventLevel.Debug, "script", "menu", "keys" to keys.joinToString(""))
+        is EngineTraceEvent.AskKey ->
+            runtimeEvent(RuntimeEventLevel.Debug, "script", "askKey", "keys" to bindings.joinToString("") { it.label })
+        is EngineTraceEvent.AskMember ->
+            runtimeEvent(RuntimeEventLevel.Debug, "script", "askMember", "filter" to filter)
+        is EngineTraceEvent.AskInventorySlot -> runtimeEvent(
+            RuntimeEventLevel.Debug,
+            "script",
+            "askInventorySlot",
+            "firstKey" to firstKey,
+            "slots" to "${slots.first}..${slots.last}",
+            "filter" to filter,
+        )
+        is EngineTraceEvent.AskText ->
+            runtimeEvent(RuntimeEventLevel.Debug, "script", "askText", "accepted" to accepted.size, "maxLength" to maxLength)
+        is EngineTraceEvent.GrantReward ->
+            runtimeEvent(RuntimeEventLevel.Audit, "reward", "grant", "gold" to reward.gold, "items" to reward.items.size)
+        is EngineTraceEvent.AchieveMilestone ->
+            runtimeEvent(RuntimeEventLevel.Audit, "story", "milestone", "id" to milestone.slug)
+        is EngineTraceEvent.Speak -> runtimeEvent(RuntimeEventLevel.Info, "speak", "start", "building" to building.slug)
+        is EngineTraceEvent.Rumour -> runtimeEvent(RuntimeEventLevel.Info, "speak", "rumour", "table" to table.slug)
+        is EngineTraceEvent.RunScene -> runtimeEvent(RuntimeEventLevel.Info, "script", "runScene", "scene" to scene.slug)
+        is EngineTraceEvent.Encounter -> runtimeEvent(
+            RuntimeEventLevel.Audit,
+            "battle",
+            "encounter",
+            "monster" to monster.slug,
+            "mandatory" to mandatory,
+            "tier" to tier?.slug,
+        )
+        is EngineTraceEvent.DungeonHandoff -> runtimeEvent(
+            RuntimeEventLevel.Audit,
+            "dungeon",
+            "handoff",
+            "dungeon" to handoff.dungeon.slug,
+            "levels" to handoff.levels,
+        )
+        is EngineTraceEvent.TeleportParty ->
+            runtimeEvent(RuntimeEventLevel.Audit, "wilderness", "teleport", "key" to directionKey, "distance" to distance)
+        is EngineTraceEvent.DiscoverCave -> runtimeEvent(
+            RuntimeEventLevel.Audit,
+            "wilderness",
+            "discoverCave",
+            "dungeon" to handoff.dungeon.slug,
+            "levels" to handoff.levels,
+            "moveCost" to moveCost,
+        )
+        is EngineTraceEvent.Stop ->
+            runtimeEvent(RuntimeEventLevel.Debug, "script", "stop", "reason" to reason, "signal" to signal)
+        is EngineTraceEvent.Break ->
+            runtimeEvent(RuntimeEventLevel.Debug, "script", "break", "reason" to reason, "signal" to signal)
+        is EngineTraceEvent.RandomItemOffer ->
+            runtimeEvent(RuntimeEventLevel.Info, "reward", "randomItemOffer", "pool" to offer.pool.slug)
+        is EngineTraceEvent.ShopService ->
+            runtimeEvent(RuntimeEventLevel.Info, "shop", "service", "building" to shop.building.slug)
+        is EngineTraceEvent.ShopSellQuote ->
+            runtimeEvent(RuntimeEventLevel.Debug, "shop", "sellQuote", "status" to quote.status)
+        is EngineTraceEvent.ShopTransaction ->
+            runtimeEvent(RuntimeEventLevel.Audit, "shop", "transaction", "status" to result.status)
+        is EngineTraceEvent.EquipmentAction ->
+            runtimeEvent(RuntimeEventLevel.Audit, "equipment", "action", "status" to result::class.simpleName)
+        is EngineTraceEvent.TownService -> runtimeEvent(
+            RuntimeEventLevel.Info,
+            "town",
+            "service",
+            "building" to service.building.slug,
+            "scene" to scene.id.slug,
+        )
+        EngineTraceEvent.ConsumeTorch -> runtimeEvent(RuntimeEventLevel.Audit, "inventory", "consumeTorch")
+        is EngineTraceEvent.ConsumeInventoryPool ->
+            runtimeEvent(RuntimeEventLevel.Audit, "inventory", "consumePool", "pool" to pool.slug, "quantity" to quantity)
+    }

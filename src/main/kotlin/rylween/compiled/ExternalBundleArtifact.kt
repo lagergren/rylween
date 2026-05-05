@@ -268,7 +268,7 @@ private class ExternalBundleArtifactWriter {
             "dungeon" to dungeonRuntimeJson(game.dungeons),
             "town" to townRuntimeJson(game.townSystem),
             "speak" to speakRuntimeJson(game.speak),
-            "castles" to JsonArray(listOfNotNull(game.ydarg?.let(::ydargCastleJson))),
+            "castles" to JsonArray(game.castles.map(::ydargCastleJson)),
         )
 
     private fun realmJson(realm: RealmContentModel): JsonValue =
@@ -770,7 +770,7 @@ private class ExternalBundleArtifactWriter {
 
     private fun ydargCastleJson(ydarg: YdargContentModel): JsonValue =
         jsonObject(
-            "id" to JsonString("ydarg"),
+            "id" to JsonString(ydarg.id.slug),
             "kind" to JsonString("gridCastle"),
             "entry" to gridPointJson(ydarg.entry),
             "image" to ydarg.image?.let { JsonString(it.slug) }.orJsonNull(),

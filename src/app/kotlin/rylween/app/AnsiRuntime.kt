@@ -16,9 +16,14 @@ import rylween.runtime.*
 import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.wilderness.*
 import rylween.save.*
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.io.Closeable
 import java.io.File
 import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
@@ -46,6 +51,7 @@ private data class AnsiRuntimeConfig(
     val staticScreen: StaticScreenId? = null,
     val newGame: Boolean = false,
     val playerSlot: String? = null,
+    val serve: String? = null,
 )
 
 object RylweenAnsiMain {
@@ -67,13 +73,15 @@ object RylweenAnsiMain {
             ),
         )
         config.staticScreen?.takeUnless { screenId -> content.staticScreenRequiresRuntimeState(screenId) }?.let { screenId ->
-            RylweenLog.open().use { log ->
-                bundleSummary?.let { summary ->
-                    log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
-                }
-                JLineAnsiTerminal.open(log).use { terminal ->
-                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
-                        .showStaticScreen(content, screenId, renderer)
+            RylweenLog.open(defaultSpec = config.defaultLogSpec()).use { log ->
+                RuntimeEventScope.withSink(log) {
+                    bundleSummary?.let { summary ->
+                        log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
+                    }
+                    openConfiguredAnsiTerminal(config, log).use { terminal ->
+                        ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
+                            .showStaticScreen(content, screenId, renderer)
+                    }
                 }
             }
             return@runRylweenCli
@@ -83,72 +91,84 @@ object RylweenAnsiMain {
                 config,
                 loadConfiguredOrSavedSnapshot(game, content, config, RuntimeStartupTarget.StaticScreen),
             )
-            RylweenLog.open().use { log ->
-                bundleSummary?.let { summary ->
-                    log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
-                }
-                JLineAnsiTerminal.open(log).use { terminal ->
-                    ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
-                        .showStaticScreen(
-                            content = content,
-                            screenId = screenId,
-                            renderer = renderer,
-                            context = TerminalTextContext(runtime = bootSnapshot.state.toRuntimeSessionState()),
-                        )
+            RylweenLog.open(defaultSpec = config.defaultLogSpec()).use { log ->
+                RuntimeEventScope.withSink(log) {
+                    bundleSummary?.let { summary ->
+                        log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
+                    }
+                    openConfiguredAnsiTerminal(config, log).use { terminal ->
+                        ClassicAnsiScreen(terminal, content.visuals, content.terminal, content.layouts, content.towns)
+                            .showStaticScreen(
+                                content = content,
+                                screenId = screenId,
+                                renderer = renderer,
+                                context = TerminalTextContext(runtime = bootSnapshot.state.toRuntimeSessionState()),
+                            )
+                    }
                 }
             }
             return@runRylweenCli
         }
 
-        RylweenLog.open().use { log ->
-            bundleSummary?.let { summary ->
-                log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
-            }
-            JLineAnsiTerminal.open(log).use { terminal ->
-                if (config.newGame || config.loadFile != null || config.state != null) {
-                    val snapshot = if (config.newGame && config.loadFile == null && config.state == null) {
-                        createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
+        RylweenLog.open(defaultSpec = config.defaultLogSpec()).use { log ->
+            RuntimeEventScope.withSink(log) {
+                bundleSummary?.let { summary ->
+                    log.audit("bundle", "verified ${bundleFile.path} ${summary.bundleContentHash}")
+                }
+                openConfiguredAnsiTerminal(config, log).use { terminal ->
+                    if (config.newGame || config.loadFile != null || config.state != null) {
+                        val snapshot = if (config.newGame && config.loadFile == null && config.state == null) {
+                            createInitialWorldSnapshot(game, content, States.freshReplay, config.seed)
+                        } else {
+                            loadConfiguredSnapshot(game, content, config)
+                        }
+                        val session = bootAnsiWildernessSession(
+                            config = config,
+                            content = content,
+                            renderer = renderer,
+                            engine = engine,
+                            terminal = terminal,
+                            log = log,
+                            snapshot = applyConfiguredHour(config, snapshot),
+                            worldMap = worldMap,
+                            newGame = config.newGame,
+                        )
+                        val savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content)
+                        if (config.newGame) saveInitialRuntime(savePort, session.runtime, log)
+                        runAnsiWilderness(
+                            terminal = terminal,
+                            content = content,
+                            renderer = renderer,
+                            engine = engine,
+                            savePort = savePort,
+                            log = log,
+                            session = session,
+                        )
                     } else {
-                        loadConfiguredSnapshot(game, content, config)
+                        runAnsiTitleMenu(
+                            config = config,
+                            game = game,
+                            content = content,
+                            renderer = renderer,
+                            engine = engine,
+                            terminal = terminal,
+                            log = log,
+                            worldMap = worldMap,
+                        )
                     }
-                    val session = bootAnsiWildernessSession(
-                        config = config,
-                        content = content,
-                        renderer = renderer,
-                        engine = engine,
-                        terminal = terminal,
-                        log = log,
-                        snapshot = applyConfiguredHour(config, snapshot),
-                        worldMap = worldMap,
-                        newGame = config.newGame,
-                    )
-                    val savePort = FileRuntimeSavePort(config.saveFile, config.saveState, content)
-                    if (config.newGame) saveInitialRuntime(savePort, session.runtime, log)
-                    runAnsiWilderness(
-                        terminal = terminal,
-                        content = content,
-                        renderer = renderer,
-                        engine = engine,
-                        savePort = savePort,
-                        log = log,
-                        session = session,
-                    )
-                } else {
-                    runAnsiTitleMenu(
-                        config = config,
-                        game = game,
-                        content = content,
-                        renderer = renderer,
-                        engine = engine,
-                        terminal = terminal,
-                        log = log,
-                        worldMap = worldMap,
-                    )
                 }
             }
         }
     }
 }
+
+private fun AnsiRuntimeConfig.defaultLogSpec(): String =
+    if (serve == null) "" else "stderr"
+
+private fun openConfiguredAnsiTerminal(config: AnsiRuntimeConfig, log: RylweenLog): AnsiTerminal =
+    config.serve
+        ?.let { spec -> SocketAnsiTerminal.accept(spec, log) }
+        ?: JLineAnsiTerminal.open(log)
 
 private enum class TitleMenuAction {
     NewParty,
@@ -166,7 +186,7 @@ private fun runAnsiTitleMenu(
     content: GameModel,
     renderer: TerminalTextRenderer,
     engine: RylweenKotlinEngine,
-    terminal: JLineAnsiTerminal,
+    terminal: AnsiTerminal,
     log: RylweenLog,
     worldMap: WorldMapGrid,
 ) {
@@ -280,7 +300,7 @@ private fun titleMenuLines(hasSavedGame: Boolean): List<String> =
     }
 
 private fun readTitleMenuAction(
-    terminal: JLineAnsiTerminal,
+    terminal: AnsiTerminal,
     screen: ClassicAnsiScreen,
     hasSavedGame: Boolean,
 ): TitleMenuAction? {
@@ -303,7 +323,7 @@ private fun readTitleMenuAction(
     }
 }
 
-private fun readYesNoKey(terminal: JLineAnsiTerminal, screen: ClassicAnsiScreen): Boolean? {
+private fun readYesNoKey(terminal: AnsiTerminal, screen: ClassicAnsiScreen): Boolean? {
     while (true) {
         when (terminal.readKeyToken()?.uppercase()) {
             null -> return null
@@ -322,7 +342,7 @@ private fun bootAnsiWildernessSession(
     content: GameModel,
     renderer: TerminalTextRenderer,
     engine: RylweenKotlinEngine,
-    terminal: JLineAnsiTerminal,
+    terminal: AnsiTerminal,
     log: RylweenLog,
     snapshot: RuntimeSnapshotModel,
     worldMap: WorldMapGrid,
@@ -357,7 +377,7 @@ private fun bootAnsiWildernessSession(
 }
 
 private fun runAnsiWilderness(
-    terminal: JLineAnsiTerminal,
+    terminal: AnsiTerminal,
     content: GameModel,
     renderer: TerminalTextRenderer,
     engine: RylweenKotlinEngine,
@@ -443,7 +463,7 @@ private fun applyConfiguredHour(config: AnsiRuntimeConfig, snapshot: RuntimeSnap
         ?: snapshot
 
 private class RylweenAnsiGame(
-    private val terminal: JLineAnsiTerminal,
+    private val terminal: AnsiTerminal,
     private val content: GameModel,
     private val renderer: TerminalTextRenderer,
     private val speakContent: SpeakRuntimeContent,
@@ -454,6 +474,7 @@ private class RylweenAnsiGame(
     private val port = AnsiTerminalPort(terminal, screen)
     private val serviceBridge = StatefulScriptBridge(
         port,
+        engine = TraceEnginePort(eventSink = log),
         speakContent = speakContent,
         battleContent = content.runtimeContent(),
         renderer = renderer,
@@ -465,37 +486,46 @@ private class RylweenAnsiGame(
         screen.bootFrame()
         while (true) {
             val step = session.step
+            log.emit(RuntimeEventLevel.Debug, "realm", "step", "kind" to step.runtimeStepName())
             val enteringTown = step is WildernessSessionStep.Town && !wasTownStep
             session = when (step) {
-                WildernessSessionStep.TurnStart -> session.beginTurn().also(screen::renderHud)
+                WildernessSessionStep.TurnStart -> session.beginTurn().logged("turnStart", session).also(screen::renderHud)
                 is WildernessSessionStep.Messages -> {
                     screen.writeBlocks(step.blocks, session.runtime, renderer)
                     waitForReturn()
-                    session.continueMessages()
+                    session.continueMessages().logged("messages", session)
                 }
                 is WildernessSessionStep.Save -> {
                     screen.writeBlock(content.prompts.save.saving, session.runtime, renderer)
                     val outcome = runCatching { savePort.save(session.runtime) }
                         .getOrElse { error -> RuntimeSaveOutcome(saved = false, error = error.message) }
+                    log.emit(
+                        if (outcome.saved) RuntimeEventLevel.Audit else RuntimeEventLevel.Warn,
+                        "save",
+                        if (outcome.saved) "saved" else "failed",
+                        "target" to outcome.target,
+                        "error" to outcome.error,
+                    )
                     screen.writeBlock(
                         if (outcome.saved) content.prompts.save.done else content.prompts.save.failed,
                         session.runtime,
                         renderer,
                     )
                     waitForReturn()
-                    session.completeSave(outcome.saved)
+                    session.completeSave(outcome.saved).logged("save", session)
                 }
                 WildernessSessionStep.Explore -> explore(session)
                 is WildernessSessionStep.Notice -> {
                     screen.writeBlock(step.text, session.runtime, renderer)
                     waitForReturn()
-                    session.continueNotice()
+                    session.continueNotice().logged("notice", session)
                 }
                 is WildernessSessionStep.CaveFound -> {
                     step.image?.let(screen::showImage)
                     screen.writeBlock(step.prompt, session.runtime, renderer)
                     when (val choice = readChoice(session.wilderness.keys.caveEnter, session.wilderness.keys.caveLeave)) {
                         is BooleanChoice.Answer -> session.apply(WildernessSessionInput.CaveAnswer(choice.value))
+                            .logged("caveAnswer", session)
                         BooleanChoice.Rejected -> session
                         BooleanChoice.Unavailable -> return
                     }
@@ -504,6 +534,7 @@ private class RylweenAnsiGame(
                     screen.writeBlock(step.prompt, session.runtime, renderer)
                     when (val choice = readChoice(session.wilderness.keys.outOfMovesSave, session.wilderness.keys.outOfMovesQuit)) {
                         is BooleanChoice.Answer -> session.apply(WildernessSessionInput.OutOfMovesAnswer(choice.value))
+                            .logged("outOfMoves", session)
                         BooleanChoice.Rejected -> session
                         BooleanChoice.Unavailable -> return
                     }
@@ -512,6 +543,7 @@ private class RylweenAnsiGame(
                     screen.writeBlock(step.prompt, session.runtime, renderer)
                     when (val choice = readChoice(session.wilderness.keys.quitYes, session.wilderness.keys.quitNo)) {
                         is BooleanChoice.Answer -> session.apply(WildernessSessionInput.QuitAnswer(choice.value))
+                            .logged("quitAnswer", session)
                         BooleanChoice.Rejected -> session
                         BooleanChoice.Unavailable -> return
                     }
@@ -526,7 +558,7 @@ private class RylweenAnsiGame(
                         renderer,
                     )
                     waitForReturn()
-                    session.startDungeonFromHandoff()
+                    session.startDungeonFromHandoff().logged("dungeonHandoff", session)
                 }
                 is WildernessSessionStep.Dungeon -> {
                     val result = DungeonSessionTerminalAdapter(
@@ -536,12 +568,12 @@ private class RylweenAnsiGame(
                         postDungeon = step.postDungeon,
                     ).runUntilBlocked(step.session)
                     val updated = session.replaceDungeonSession(result.session)
-                    completeChildStep(updated, result.status, "dungeon step limit reached") ?: return
+                    completeChildStep(updated, session, "dungeon", result.status, "dungeon step limit reached") ?: return
                 }
                 is WildernessSessionStep.Ydarg -> {
                     val result = YdargSessionTerminalAdapter(port, renderer, savePort).runUntilBlocked(step.session)
                     val updated = session.replaceYdargSession(result.session)
-                    completeChildStep(updated, result.status, "Ydarg step limit reached") ?: return
+                    completeChildStep(updated, session, "castle", result.status, "Ydarg step limit reached") ?: return
                 }
                 is WildernessSessionStep.Town -> {
                     if (enteringTown) {
@@ -549,20 +581,20 @@ private class RylweenAnsiGame(
                     }
                     val result = TownSessionTerminalAdapter(port, renderer, serviceBridge).runUntilBlocked(step.session)
                     val updated = session.replaceTownSession(result.session)
-                    completeChildStep(updated, result.status, "town step limit reached") ?: return
+                    completeChildStep(updated, session, "town", result.status, "town step limit reached") ?: return
                 }
                 is WildernessSessionStep.Hut -> {
                     val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
                     val result = serviceBridge.run(step.scene.hutService(), step.scene, continuation)
                     port.writeScriptEvents(result.events, renderer, result.runtime)
                     when (result.status) {
-                        ScriptBridgeStatus.Finished -> session.finishHut(result.runtime)
+                        ScriptBridgeStatus.Finished -> session.finishHut(result.runtime).logged("hut", session)
                         ScriptBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {
                                 "waiting hut bridge did not return continuation"
                             }
                             completeScriptWait(
-                                session.replaceHutContinuation(nextContinuation),
+                                session.replaceHutContinuation(nextContinuation).logged("hutWait", session),
                                 result.rejection,
                             ) ?: return
                         }
@@ -571,42 +603,42 @@ private class RylweenAnsiGame(
                 is WildernessSessionStep.Battle -> {
                     val result = BattleSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceBattleSession(result.session)
-                    completeChildStep(updated, result.status, "battle step limit reached") ?: return
+                    completeChildStep(updated, session, "battle", result.status, "battle step limit reached") ?: return
                 }
                 is WildernessSessionStep.Camp -> {
                     val result = CampSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceCampSession(result.session)
-                    completeChildStep(updated, result.status, "camp step limit reached") ?: return
+                    completeChildStep(updated, session, "camp", result.status, "camp step limit reached") ?: return
                 }
                 is WildernessSessionStep.Hunt -> {
                     val result = HuntSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceHuntSession(result.session)
-                    completeChildStep(updated, result.status, "hunt step limit reached") ?: return
+                    completeChildStep(updated, session, "hunt", result.status, "hunt step limit reached") ?: return
                 }
                 is WildernessSessionStep.InventoryItemUse -> {
                     val result = InventoryItemUseTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceInventoryItemUseSession(result.session)
-                    completeChildStep(updated, result.status, "inventory step limit reached") ?: return
+                    completeChildStep(updated, session, "inventoryUse", result.status, "inventory step limit reached") ?: return
                 }
                 is WildernessSessionStep.InventoryDrop -> {
                     val result = InventoryDropTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceInventoryDropSession(result.session)
-                    completeChildStep(updated, result.status, "inventory drop step limit reached") ?: return
+                    completeChildStep(updated, session, "inventoryDrop", result.status, "inventory drop step limit reached") ?: return
                 }
                 is WildernessSessionStep.PartyView -> {
                     val result = PartyViewTerminalAdapter(port, renderer).runUntilBlocked(step.session, session.runtime)
                     val updated = session.replacePartyViewSession(result.session)
-                    completeChildStep(updated, result.status, "party view step limit reached") ?: return
+                    completeChildStep(updated, session, "partyView", result.status, "party view step limit reached") ?: return
                 }
                 is WildernessSessionStep.PartyJournal -> {
                     val result = PartyJournalTerminalAdapter(port, renderer).runUntilBlocked(step.session, session.runtime)
                     val updated = session.replacePartyJournalSession(result.session)
-                    completeChildStep(updated, result.status, "party journal step limit reached") ?: return
+                    completeChildStep(updated, session, "partyJournal", result.status, "party journal step limit reached") ?: return
                 }
                 is WildernessSessionStep.Equipment -> {
                     val result = EquipmentPromptTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceEquipmentSession(result.session)
-                    completeChildStep(updated, result.status, "equipment step limit reached") ?: return
+                    completeChildStep(updated, session, "equipment", result.status, "equipment step limit reached") ?: return
                 }
                 is WildernessSessionStep.PriestSpell -> {
                     val result = PriestSpellTerminalAdapter(
@@ -617,12 +649,13 @@ private class RylweenAnsiGame(
                     )
                         .runUntilBlocked(step.session)
                     val updated = session.replacePriestSpellSession(result.session)
-                    completeChildStep(updated, result.status, "priest spell step limit reached") ?: return
+                    completeChildStep(updated, session, "priestSpell", result.status, "priest spell step limit reached") ?: return
                 }
                 is WildernessSessionStep.Mission -> {
                     val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
                     val missionBridge = StatefulScriptBridge(
                         port,
+                        engine = TraceEnginePort(eventSink = log),
                         speakContent = speakContent,
                         battleContent = session.content,
                         worldMap = session.worldMap,
@@ -638,9 +671,9 @@ private class RylweenAnsiGame(
                                     checkNotNull(result.continuation) {
                                         "mission dungeon handoff did not return post-dungeon continuation"
                                     },
-                                )
+                                ).logged("missionDungeon", session)
                             }
-                                ?: session.finishMission(result.runtime)
+                                ?: session.finishMission(result.runtime).logged("mission", session)
                         ScriptBridgeStatus.Waiting -> {
                             val nextContinuation = checkNotNull(result.continuation) {
                                 "waiting mission bridge did not return continuation"
@@ -648,7 +681,7 @@ private class RylweenAnsiGame(
                             val battle = nextContinuation.battleSession
                             if (battle == null) {
                                 completeScriptWait(
-                                    session.replaceMissionContinuation(nextContinuation),
+                                    session.replaceMissionContinuation(nextContinuation).logged("missionWait", session),
                                     result.rejection,
                                 ) ?: return
                             } else {
@@ -659,7 +692,13 @@ private class RylweenAnsiGame(
                                         battleSession = battleResult.session,
                                     ),
                                 )
-                                completeChildStep(updated, battleResult.status, "mission battle step limit reached") ?: return
+                                completeChildStep(
+                                    updated,
+                                    session,
+                                    "missionBattle",
+                                    battleResult.status,
+                                    "mission battle step limit reached",
+                                ) ?: return
                             }
                         }
                     }
@@ -677,21 +716,33 @@ private class RylweenAnsiGame(
     private fun explore(session: WildernessSession): WildernessSession {
         screen.renderHud(session)
         return when (val token = terminal.readKeyToken()) {
-            null -> session.copy(step = WildernessSessionStep.Finished(session.runtime))
+            null -> session.copy(step = WildernessSessionStep.Finished(session.runtime)).also {
+                log.emit(RuntimeEventLevel.Audit, "realm", "inputClosed")
+            }
             else -> {
                 val input = session.exploreCommands().inputForToken(token)
                 if (session.wilderness.keys.redraw.matches(token)) {
+                    log.emit(RuntimeEventLevel.Debug, "input", "wilderness", "token" to token, "action" to "redraw")
                     screen.bootFrame()
                     screen.renderHud(session)
-                    session.apply(WildernessSessionInput.Redraw)
+                    session.apply(WildernessSessionInput.Redraw).logged("redraw", session)
                 } else if (session.wilderness.keys.help.matches(token)) {
+                    log.emit(RuntimeEventLevel.Debug, "input", "wilderness", "token" to token, "action" to "help")
                     screen.writeHelp(session, renderer)
                     session
                 } else if (input == null) {
+                    log.emit(RuntimeEventLevel.Debug, "input", "unknown", "token" to token)
                     screen.writeText(listOf("Unknown command.", "Press ? for commands.", ""))
                     session
                 } else {
-                    session.apply(input)
+                    log.emit(
+                        RuntimeEventLevel.Info,
+                        "input",
+                        "wilderness",
+                        "token" to token,
+                        "action" to input.runtimeInputName(),
+                    )
+                    session.apply(input).logged("explore", session)
                 }
             }
         }
@@ -716,13 +767,15 @@ private class RylweenAnsiGame(
 
     private fun completeChildStep(
         updated: WildernessSession,
+        previous: WildernessSession,
+        action: String,
         status: TerminalRunStatus,
         stepLimitWarning: String,
     ): WildernessSession? =
         when (status) {
-            TerminalRunStatus.Finished -> updated
-            TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", stepLimitWarning) }
-            is TerminalRunStatus.Waiting -> completeScriptWait(updated, status.rejection)
+            TerminalRunStatus.Finished -> updated.logged(action, previous)
+            TerminalRunStatus.StepLimitReached -> updated.logged(action, previous).also { log.warn("ansi", stepLimitWarning) }
+            is TerminalRunStatus.Waiting -> completeScriptWait(updated.logged(action, previous), status.rejection)
         }
 
     private fun completeScriptWait(
@@ -743,7 +796,88 @@ private class RylweenAnsiGame(
                 }
             }
         }
+
+    private fun WildernessSession.logged(action: String, previous: WildernessSession): WildernessSession {
+        val result = lastResult ?: return this
+        if (result == previous.lastResult) return this
+        log.emit(
+            RuntimeEventLevel.Info,
+            "wilderness",
+            "result",
+            "action" to action,
+            "status" to result.status,
+            "from" to result.from,
+            "to" to result.to,
+            "terrain" to result.terrain,
+            "town" to result.town?.slug,
+            "dungeon" to result.dungeon?.slug,
+            "levels" to result.dungeonLevels,
+            "tier" to result.encounterTier?.slug,
+            "mission" to result.mission?.slug,
+        )
+        return this
+    }
 }
+
+private fun WildernessSessionStep.runtimeStepName(): String =
+    when (this) {
+        WildernessSessionStep.TurnStart -> "TurnStart"
+        WildernessSessionStep.Explore -> "Explore"
+        is WildernessSessionStep.Messages -> "Messages"
+        is WildernessSessionStep.Save -> "Save"
+        is WildernessSessionStep.Notice -> "Notice"
+        is WildernessSessionStep.CaveFound -> "CaveFound"
+        is WildernessSessionStep.OutOfMoves -> "OutOfMoves"
+        is WildernessSessionStep.QuitConfirm -> "QuitConfirm"
+        is WildernessSessionStep.DungeonHandoff -> "DungeonHandoff"
+        is WildernessSessionStep.Dungeon -> "Dungeon"
+        is WildernessSessionStep.Ydarg -> "Ydarg"
+        is WildernessSessionStep.Town -> "Town"
+        is WildernessSessionStep.Hut -> "Hut"
+        is WildernessSessionStep.Battle -> "Battle"
+        is WildernessSessionStep.Camp -> "Camp"
+        is WildernessSessionStep.Hunt -> "Hunt"
+        is WildernessSessionStep.InventoryItemUse -> "InventoryItemUse"
+        is WildernessSessionStep.InventoryDrop -> "InventoryDrop"
+        is WildernessSessionStep.PartyView -> "PartyView"
+        is WildernessSessionStep.PartyJournal -> "PartyJournal"
+        is WildernessSessionStep.Equipment -> "Equipment"
+        is WildernessSessionStep.PriestSpell -> "PriestSpell"
+        is WildernessSessionStep.Mission -> "Mission"
+        is WildernessSessionStep.Finished -> "Finished"
+    }
+
+private fun WildernessSessionInput.runtimeInputName(): String =
+    when (this) {
+        is WildernessSessionInput.Move -> "move.${direction.name.lowercase()}"
+        WildernessSessionInput.Pass -> "pass"
+        WildernessSessionInput.Save -> "save"
+        WildernessSessionInput.ReadyWeapon -> "readyWeapon"
+        WildernessSessionInput.ReadyArmor -> "readyArmor"
+        WildernessSessionInput.Redraw -> "redraw"
+        WildernessSessionInput.Journal -> "journal"
+        WildernessSessionInput.Help -> "help"
+        WildernessSessionInput.Hunt -> "hunt"
+        is WildernessSessionInput.HuntMember -> "hunt.member"
+        WildernessSessionInput.HuntContinue -> "hunt.continue"
+        WildernessSessionInput.ViewParty -> "viewParty"
+        WildernessSessionInput.RemoveArmor -> "removeArmor"
+        WildernessSessionInput.RemoveWeapon -> "removeWeapon"
+        WildernessSessionInput.Enter -> "enter"
+        WildernessSessionInput.Drop -> "drop"
+        WildernessSessionInput.Camp -> "camp"
+        is WildernessSessionInput.CampGuardAnswer -> "camp.guardAnswer"
+        is WildernessSessionInput.CampGuardMember -> "camp.guardMember"
+        WildernessSessionInput.CampContinue -> "camp.continue"
+        WildernessSessionInput.CastSpell -> "castSpell"
+        WildernessSessionInput.Quaff -> "quaff"
+        WildernessSessionInput.Continue -> "continue"
+        is WildernessSessionInput.CaveAnswer -> "cave.answer"
+        WildernessSessionInput.Quit -> "quit"
+        is WildernessSessionInput.QuitAnswer -> "quit.answer"
+        is WildernessSessionInput.OutOfMovesAnswer -> "outOfMoves.answer"
+        is WildernessSessionInput.SecretKey -> "secret.${action::class.simpleName.orEmpty()}"
+    }
 
 private fun MissionModel.service(): BuildingServiceModel =
     BuildingServiceModel(
@@ -756,7 +890,7 @@ private fun MissionModel.service(): BuildingServiceModel =
     )
 
 private class AnsiTerminalPort(
-    private val terminal: JLineAnsiTerminal,
+    private val terminal: AnsiTerminal,
     private val screen: ClassicAnsiScreen,
 ) : TerminalPort {
     override fun write(lines: List<String>) {
@@ -812,7 +946,7 @@ private class AnsiTerminalPort(
 }
 
 private class ClassicAnsiScreen(
-    private val terminal: JLineAnsiTerminal,
+    private val terminal: AnsiTerminal,
     private val visuals: VisualsModel,
     presentation: TerminalPresentationModel,
     layout: LayoutModel,
@@ -1209,67 +1343,12 @@ private fun PaletteColorId.ansiForeground(): Int =
         else -> 36
     }
 
-private class JLineAnsiTerminal private constructor(
-    private val terminal: Terminal,
-    private val savedAttributes: Attributes,
-    private val log: RylweenLog,
-) : Closeable {
-    private val reader: NonBlockingReader = terminal.reader()
-    private val writer = terminal.writer()
-
-    fun writeRaw(text: String) {
-        writer.print(text)
-    }
-
-    fun flush() {
-        writer.flush()
-    }
-
-    fun readKeyToken(): String? {
-        val ch = reader.read()
-        if (ch == -1) return null
-        if (ch == 27) {
-            val b1 = reader.read(50)
-            val b2 = if (b1 == '['.code) reader.read(50) else -1
-            return when (b2) {
-                'A'.code -> "8"
-                'B'.code -> "2"
-                'C'.code -> "6"
-                'D'.code -> "4"
-                else -> ESC
-            }
-        }
-        return when (ch) {
-            3 -> null
-            4 -> null
-            10, 13 -> ""
-            else -> ch.toChar().toString()
-        }
-    }
-
-    fun readTextLine(maxLength: Int?): String? {
-        val out = StringBuilder()
-        while (true) {
-            when (val ch = reader.read()) {
-                -1, 3, 4 -> return null
-                10, 13 -> return out.toString()
-                8, 127 -> if (out.isNotEmpty()) {
-                    out.deleteCharAt(out.lastIndex)
-                    writeRaw("\b \b")
-                    flush()
-                }
-                else -> {
-                    val cap = maxLength ?: Int.MAX_VALUE
-                    if (out.length < cap && ch >= 32) {
-                        val c = ch.toChar()
-                        out.append(c)
-                        writeRaw(c.toString())
-                        flush()
-                    }
-                }
-            }
-        }
-    }
+private interface AnsiTerminal : Closeable {
+    fun writeRaw(text: String)
+    fun flush()
+    fun readKeyToken(): String?
+    fun readTextLine(maxLength: Int?): String?
+    fun pause(ms: Int)
 
     fun readReturn(): Boolean? {
         while (true) {
@@ -1279,8 +1358,94 @@ private class JLineAnsiTerminal private constructor(
             }
         }
     }
+}
 
-    fun pause(ms: Int) {
+private fun decodeAnsiKeyToken(
+    readCode: (timeoutMs: Int?) -> Int,
+    consumeQueuedLf: () -> Unit = {},
+): String? {
+    val ch = readCode(null)
+    if (ch < 0) return null
+    if (ch == ESC.single().code) {
+        val b1 = readCode(50)
+        val b2 = if (b1 == '['.code) readCode(50) else -1
+        return when (b2) {
+            'A'.code -> "8"
+            'B'.code -> "2"
+            'C'.code -> "6"
+            'D'.code -> "4"
+            else -> ESC
+        }
+    }
+    return when (ch) {
+        '\u0003'.code, '\u0004'.code -> null
+        '\n'.code, '\r'.code -> {
+            consumeQueuedLf()
+            ""
+        }
+        else -> ch.toChar().toString()
+    }
+}
+
+private fun readAnsiTextLine(
+    maxLength: Int?,
+    readCode: (timeoutMs: Int?) -> Int,
+    consumeQueuedLf: () -> Unit,
+    writeRaw: (String) -> Unit,
+    flush: () -> Unit,
+): String? {
+    val out = StringBuilder()
+    while (true) {
+        when (val ch = readCode(null)) {
+            -1, '\u0003'.code, '\u0004'.code -> return null
+            '\n'.code, '\r'.code -> {
+                consumeQueuedLf()
+                return out.toString()
+            }
+            '\b'.code, '\u007F'.code -> if (out.isNotEmpty()) {
+                out.deleteCharAt(out.lastIndex)
+                writeRaw("\b \b")
+                flush()
+            }
+            else -> {
+                val cap = maxLength ?: Int.MAX_VALUE
+                if (out.length < cap && ch >= ' '.code) {
+                    val c = ch.toChar()
+                    out.append(c)
+                    writeRaw(c.toString())
+                    flush()
+                }
+            }
+        }
+    }
+}
+
+private class JLineAnsiTerminal private constructor(
+    private val terminal: Terminal,
+    private val savedAttributes: Attributes,
+    private val log: RylweenLog,
+) : AnsiTerminal {
+    private val reader: NonBlockingReader = terminal.reader()
+    private val writer = terminal.writer()
+
+    override fun writeRaw(text: String) {
+        writer.print(text)
+    }
+
+    override fun flush() {
+        writer.flush()
+    }
+
+    override fun readKeyToken(): String? =
+        decodeAnsiKeyToken(::readCode)
+
+    override fun readTextLine(maxLength: Int?): String? =
+        readAnsiTextLine(maxLength, ::readCode, {}, ::writeRaw, ::flush)
+
+    private fun readCode(timeoutMs: Int?): Int =
+        timeoutMs?.let { reader.read(it.toLong()) } ?: reader.read()
+
+    override fun pause(ms: Int) {
         if (ms > 0) {
             Thread.sleep(ms.toLong())
         }
@@ -1307,13 +1472,152 @@ private class JLineAnsiTerminal private constructor(
     }
 }
 
-private class RylweenLog private constructor(private val sinks: List<LogSink>) : Closeable {
-    fun info(module: String, message: String) = emit("INF", module, message)
-    fun warn(module: String, message: String) = emit("WRN", module, message)
-    fun audit(module: String, message: String) = emit("AUD", module, message)
+private class SocketAnsiTerminal private constructor(
+    private val socket: Socket,
+    private val log: RylweenLog,
+) : AnsiTerminal {
+    private val input = BufferedInputStream(socket.getInputStream())
+    private val output = BufferedOutputStream(socket.getOutputStream())
 
-    private fun emit(level: String, module: String, message: String) {
-        val line = "[$level][$module] $message\n"
+    override fun writeRaw(text: String) {
+        output.write(text.toByteArray(StandardCharsets.UTF_8))
+    }
+
+    override fun flush() {
+        output.flush()
+    }
+
+    override fun readKeyToken(): String? =
+        decodeAnsiKeyToken(::readInputByte, ::consumeQueuedLf)
+
+    override fun readTextLine(maxLength: Int?): String? =
+        readAnsiTextLine(maxLength, ::readInputByte, ::consumeQueuedLf, ::writeRaw, ::flush)
+
+    override fun pause(ms: Int) {
+        if (ms > 0) {
+            Thread.sleep(ms.toLong())
+        }
+    }
+
+    override fun close() {
+        runCatching {
+            writeRaw("$RESET${CSI}?25h")
+            flush()
+        }
+        socket.close()
+        log.info("server", "client disconnected")
+    }
+
+    private fun readInputByte(timeoutMs: Int? = null): Int {
+        val previousTimeout = socket.soTimeout
+        if (timeoutMs != null) {
+            socket.soTimeout = timeoutMs
+        }
+        return try {
+            readInputByteBlocking()
+        } catch (_: SocketTimeoutException) {
+            -2
+        } finally {
+            if (timeoutMs != null) {
+                socket.soTimeout = previousTimeout
+            }
+        }
+    }
+
+    private fun readInputByteBlocking(): Int {
+        while (true) {
+            val value = input.read()
+            if (value == -1) return -1
+            if (value == TelnetIac) {
+                skipTelnetCommand()
+            } else {
+                return value
+            }
+        }
+    }
+
+    private fun skipTelnetCommand() {
+        when (input.read()) {
+            -1 -> return
+            TelnetIac -> return
+            TelnetSb -> skipTelnetSubnegotiation()
+            TelnetWill,
+            TelnetWont,
+            TelnetDo,
+            TelnetDont -> input.read()
+        }
+    }
+
+    private fun skipTelnetSubnegotiation() {
+        var previous = 0
+        while (true) {
+            val value = input.read()
+            if (value == -1 || previous == TelnetIac && value == TelnetSe) {
+                return
+            }
+            previous = value
+        }
+    }
+
+    private fun consumeQueuedLf() {
+        if (input.available() > 0) {
+            input.mark(1)
+            if (input.read() != '\n'.code) {
+                input.reset()
+            }
+        }
+    }
+
+    companion object {
+        private const val TelnetSe = 240
+        private const val TelnetSb = 250
+        private const val TelnetWill = 251
+        private const val TelnetWont = 252
+        private const val TelnetDo = 253
+        private const val TelnetDont = 254
+        private const val TelnetIac = 255
+
+        fun accept(spec: String, log: RylweenLog): SocketAnsiTerminal {
+            val server = ServerSocket()
+            server.reuseAddress = true
+            server.bind(tcpAddress(spec))
+            log.audit("server", "listening ${server.localSocketAddress}")
+            val socket = server.accept()
+            server.close()
+            socket.tcpNoDelay = true
+            log.audit("server", "client connected ${socket.remoteSocketAddress}")
+            return SocketAnsiTerminal(socket, log)
+        }
+    }
+}
+
+private class RylweenLog private constructor(
+    private val sinks: List<LogSink>,
+    private val minLevel: RuntimeEventLevel,
+) : RuntimeEventSink, Closeable {
+    fun debug(module: String, message: String) = emit(RuntimeEventLevel.Debug, module, message)
+    fun info(module: String, message: String) = emit(RuntimeEventLevel.Info, module, message)
+    fun warn(module: String, message: String) = emit(RuntimeEventLevel.Warn, module, message)
+    fun error(module: String, message: String) = emit(RuntimeEventLevel.Error, module, message)
+    fun audit(module: String, message: String) = emit(RuntimeEventLevel.Audit, module, message)
+
+    override fun emit(event: RuntimeEvent) {
+        if (event.level != RuntimeEventLevel.Audit && event.level.priority < minLevel.priority) {
+            return
+        }
+        writeLine(event.line())
+    }
+
+    fun emit(level: RuntimeEventLevel, module: String, action: String, vararg fields: Pair<String, Any?>) {
+        emit(runtimeEvent(level, module, action, *fields))
+    }
+
+    private fun emit(level: RuntimeEventLevel, module: String, message: String) {
+        emit(RuntimeEvent(level, module, message))
+    }
+
+    private fun writeLine(message: String) {
+        val line = "$message\n"
         sinks.forEach { it.write(line) }
     }
 
@@ -1322,8 +1626,11 @@ private class RylweenLog private constructor(private val sinks: List<LogSink>) :
     }
 
     companion object {
-        fun open(): RylweenLog =
-            RylweenLog(parseLogSinks(System.getenv("RYL_LOG").orEmpty()))
+        fun open(defaultSpec: String = ""): RylweenLog =
+            RylweenLog(
+                sinks = parseLogSinks(System.getenv("RYL_LOG").orEmpty().ifBlank { defaultSpec }),
+                minLevel = parseRuntimeEventLevel(System.getenv("RYL_LOG_LEVEL").orEmpty()),
+            )
     }
 }
 
@@ -1345,6 +1652,15 @@ private fun parseLogSinks(spec: String): List<LogSink> {
     }
     return sinks.ifEmpty { listOf(NoopLogSink) }
 }
+
+private fun parseRuntimeEventLevel(value: String): RuntimeEventLevel =
+    when (value.lowercase()) {
+        "debug", "dbg" -> RuntimeEventLevel.Debug
+        "warn", "warning", "wrn" -> RuntimeEventLevel.Warn
+        "error", "err" -> RuntimeEventLevel.Error
+        "audit", "aud" -> RuntimeEventLevel.Audit
+        else -> RuntimeEventLevel.Info
+    }
 
 private object NoopLogSink : LogSink {
     override fun write(line: String) = Unit
@@ -1425,6 +1741,10 @@ private fun tcpAddress(spec: String): InetSocketAddress {
 }
 
 private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
+    if ("--help-verbose" in args || "--verbose-help" in args) {
+        printAnsiUsage(verbose = true)
+        exitProcess(0)
+    }
     var config = AnsiRuntimeConfig()
     var index = 0
     while (index < args.size) {
@@ -1469,12 +1789,16 @@ private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
                 config = config.copy(staticScreen = staticScreenArg(args.valueAfter(index, arg)))
                 index += 2
             }
+            "--serve", "--server" -> {
+                config = config.copy(serve = args.valueAfter(index, arg))
+                index += 2
+            }
             "--new", "--new-game" -> {
                 config = config.copy(newGame = true)
                 index += 1
             }
             "--help", "-h" -> {
-                printAnsiUsage()
+                printAnsiUsage(verbose = "--verbose" in args || "-v" in args)
                 exitProcess(0)
             }
             else -> {
@@ -1512,7 +1836,7 @@ private fun resolveAnsiPlayerSlot(config: AnsiRuntimeConfig, game: RylweenModel)
 private fun List<String>.valueAfter(index: Int, option: String): String =
     getOrNull(index + 1) ?: error("$option requires a value")
 
-private fun printAnsiUsage() {
+private fun printAnsiUsage(verbose: Boolean = false) {
     println(
         """
         |Usage: build/install/rylween-kotlin/bin/rylween
@@ -1528,6 +1852,7 @@ private fun printAnsiUsage() {
         |  --save-slot named runtime snapshot target under build/saves
         |  --new    create a fresh party through the authored character-creation flow
         |  --screen title, help, manual, score, vscore, or heroes; displays the authored static screen and exits
+        |  --serve  [host:]port; wait for one socket/telnet client and render ANSI there
         |
         |Shortcut:
         |  rylween <player-slot>
@@ -1538,6 +1863,42 @@ private fun printAnsiUsage() {
         |  RYL_LOG=stderr
         |  RYL_LOG=file:build/rylween.log
         |  RYL_LOG=tcp:9999,file:build/rylween.log
-        """.trimMargin(),
+        |  RYL_LOG_LEVEL=debug|info|warn|error|audit
+        """.trimMargin() +
+            if (verbose) {
+                """
+
+                |
+                |Verbose Help:
+                |  Startup:
+                |    With no state/load/new/screen argument the launcher shows the authored title menu,
+                |    then loads build/saves/main.kts if it exists or creates the initial world state.
+                |    --state <slug> is for authored fixtures such as fresh-replay or strong-replay.
+                |    --new runs the authored character-creation session and saves the new world before play.
+                |
+                |  Save slots:
+                |    --save-slot <name> writes build/saves/<name>.kts and sets the snapshot state id to
+                |    runtime.<name>. --load-slot <name> reads that same file. A bare player-slot argument
+                |    is shorthand for that slot and can also select an authored fixture by party player name.
+                |
+                |  Bundle boot:
+                |    --bundle <file> reads a J1 compiled JSON bundle, verifies its hash and runtime facade,
+                |    then boots the same Kotlin runtime/session stack from that artifact.
+                |
+                |  Socket mode:
+                |    --serve <port> listens on 127.0.0.1. --serve <host:port> binds the requested host.
+                |    The first client gets the ANSI render stream and drives the game with normal keys.
+                |    Server diagnostics stay on RYL_LOG, not on the player socket.
+                |
+                |  Logging:
+                |    RYL_LOG is a comma-separated sink list. stderr writes to standard error, file:<path>
+                |    appends to a file, tcp:[host:]port broadcasts log lines to connected TCP clients, and
+                |    null disables output. RYL_LOG_LEVEL defaults to info. debug includes formula evaluation,
+                |    authored script op execution, input dispatch, and step transitions. audit events bypass
+                |    lower thresholds for major state changes such as saves, story flags, and session finish.
+                """.trimMargin()
+            } else {
+                "\n\nUse --help --verbose or --help-verbose for runtime details."
+            },
     )
 }
