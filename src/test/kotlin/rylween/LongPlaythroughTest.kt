@@ -83,6 +83,17 @@ class LongPlaythroughTest {
         assertEquals(playthrough.allMissions, playthrough.coveredMissions)
         assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredDungeonHandoffs)
     }
+
+    @Test
+    fun cheatedMissionDungeonHandoffsResumeAfterLeavingDungeon() {
+        val playthrough = CheatedLongPlaythrough()
+
+        playthrough.runAllDungeonHandoffLegsThroughWildernessAndReturn()
+
+        assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredMissions)
+        assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredDungeonHandoffs)
+        assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
+    }
 }
 
 private class CheatedLongPlaythrough {
@@ -125,6 +136,7 @@ private class CheatedLongPlaythrough {
     val coveredBuildings = linkedSetOf<BuildingId>()
     val coveredMissions = linkedSetOf<MissionId>()
     val coveredDungeonHandoffs = linkedSetOf<DungeonId>()
+    val coveredPostDungeonContinuations = linkedSetOf<MissionId>()
     var ydargCompleted = false
         private set
 
@@ -145,6 +157,11 @@ private class CheatedLongPlaythrough {
             Dungeons.silverSanctum,
             Dungeons.hobgoblinStronghold,
         )
+
+    val dungeonHandoffMissions: Set<MissionId>
+        get() = missionLegs()
+            .filter { leg -> leg.expectedEnd is MissionEnd.DungeonHandoff }
+            .mapTo(linkedSetOf()) { leg -> leg.id }
 
     fun visitTownService(building: BuildingId, inputs: List<String>, expectedText: String) {
         val terminal = ScenarioTerminalPort(*(listOf("P") + inputs).toTypedArray())
@@ -210,6 +227,12 @@ private class CheatedLongPlaythrough {
         missionLegs().forEach(::runTriggeredMission)
     }
 
+    fun runAllDungeonHandoffLegsThroughWildernessAndReturn() {
+        missionLegs()
+            .filter { leg -> leg.expectedEnd is MissionEnd.DungeonHandoff }
+            .forEach(::runTriggeredMissionThroughDungeonReturn)
+    }
+
     private fun runMission(leg: MissionLeg) {
         val mission = game.missions.single { it.id == leg.id }
         val scene = game.scenes.single { it.id == mission.action }
@@ -231,6 +254,32 @@ private class CheatedLongPlaythrough {
     private fun runTriggeredMission(leg: MissionLeg) {
         val mission = game.missions.single { it.id == leg.id }
         val route = routeToTrigger(mission.trigger)
+        val terminalRun = runTriggeredMission(leg, mission, route)
+
+        verifyMissionRun(leg, terminalRun.result, terminalRun.output, applyRuntime = false)
+    }
+
+    private fun runTriggeredMissionThroughDungeonReturn(leg: MissionLeg) {
+        val expectedEnd = leg.expectedEnd as? MissionEnd.DungeonHandoff
+            ?: error("mission ${leg.id.slug} does not hand off to a dungeon")
+        val mission = game.missions.single { it.id == leg.id }
+        val route = routeToTrigger(mission.trigger).copy(rngState = firstStandardDungeonMessageSeed())
+        val terminalRun = runTriggeredMission(
+            leg = leg,
+            mission = mission,
+            route = route,
+            extraInputs = listOf("", "A"),
+        )
+
+        verifyPostDungeonContinuation(leg, expectedEnd, terminalRun.result, terminalRun.output)
+    }
+
+    private fun runTriggeredMission(
+        leg: MissionLeg,
+        mission: MissionModel,
+        route: TriggerRoute,
+        extraInputs: List<String> = emptyList(),
+    ): MissionTerminalRun {
         val party = baseCheatedParty
             .copy(position = WorldPosition.Wilderness(route.start))
             .withRequirement(mission.requires)
@@ -242,7 +291,7 @@ private class CheatedLongPlaythrough {
             npcs = runtime.npcs,
             locations = playthroughLocations,
         )
-        val terminal = ScenarioTerminalPort(*(route.inputs + leg.inputs).toTypedArray())
+        val terminal = ScenarioTerminalPort(*(route.inputs + leg.inputs + extraInputs).toTypedArray())
         val result = WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
             WildernessSession.start(
                 content = runtimeContent,
@@ -251,7 +300,7 @@ private class CheatedLongPlaythrough {
             ),
         )
 
-        verifyMissionRun(leg, result, terminal.output, applyRuntime = false)
+        return MissionTerminalRun(result, terminal.output)
     }
 
     private fun verifyMissionRun(
@@ -293,6 +342,36 @@ private class CheatedLongPlaythrough {
             runtime = result.session.runtime.withActiveParty(result.session.party.cheatedForLongPlaythrough())
         }
         coveredMissions += leg.id
+    }
+
+    private fun verifyPostDungeonContinuation(
+        leg: MissionLeg,
+        expectedEnd: MissionEnd.DungeonHandoff,
+        result: TerminalAdapterResult<WildernessSession>,
+        output: List<String>,
+    ) {
+        assertTrue(
+            result.status is TerminalRunStatus.Waiting,
+            "mission ${leg.id.slug} post-dungeon run did not stop at wilderness input; " +
+                "status=${result.status}; step=${result.session.step}; output=${output.takeLast(40)}",
+        )
+        assertTrue(
+            result.session.step is WildernessSessionStep.Explore,
+            "mission ${leg.id.slug} post-dungeon run did not return to wilderness explore; " +
+                "step=${result.session.step}; output=${output.takeLast(40)}",
+        )
+        assertEquals(RuntimeMode.Wilderness, result.session.runtime.realm.currentMode)
+        assertEquals(WildernessSessionResultStatus.MissionCompleted, result.session.lastResult?.status)
+        assertEquals(leg.id, result.session.lastResult?.mission)
+        assertTrue(
+            output.any { "You leave the" in it },
+            "mission ${leg.id.slug} did not visibly leave dungeon ${expectedEnd.dungeon.slug}",
+        )
+        assertNoUnresolvedText("mission ${leg.id.slug} post-dungeon continuation", output)
+
+        coveredDungeonHandoffs += expectedEnd.dungeon
+        coveredMissions += leg.id
+        coveredPostDungeonContinuations += leg.id
     }
 
     fun finishYdarg() {
@@ -494,6 +573,10 @@ private class CheatedLongPlaythrough {
         generateSequence(1L) { it + 1L }
             .first { seed -> ReferenceRylweenRandom.draw(seed, 0, 99).value < percent }
 
+    private fun firstStandardDungeonMessageSeed(): Long =
+        generateSequence(1L) { it + 1L }
+            .first { seed -> ReferenceRylweenRandom.draw(seed, 1, 9).value in 6..7 }
+
     private fun assertNoUnresolvedText(label: String, output: List<String>) {
         val unresolved = output.filter { "{" in it || "}" in it }
         assertTrue(unresolved.isEmpty(), "$label rendered unresolved text placeholders: $unresolved")
@@ -504,6 +587,11 @@ private data class TriggerRoute(
     val start: GridPoint,
     val inputs: List<String>,
     val rngState: Long = 1L,
+)
+
+private data class MissionTerminalRun(
+    val result: TerminalAdapterResult<WildernessSession>,
+    val output: List<String>,
 )
 
 private enum class DirectionRoute(val direction: WildernessDirection, val input: String) {
