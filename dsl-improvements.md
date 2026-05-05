@@ -546,6 +546,8 @@ server, or bitmap frontends may have language-specific implementations, but a
 runtime does not count as J-compliant unless it reads the shared J1 artifact and
 passes the J2 VM/playthrough conformance suite.
 
+Detailed J2 implementation plan: [plans/j2-compiled-vm-plan.md](plans/j2-compiled-vm-plan.md).
+
 Native executable bundles are allowed as deployable runtimes, but they are not
 the canonical content contract unless we deliberately add a generated-source or
 ABI-stable native artifact layer. The safer API boundary is content/state data
