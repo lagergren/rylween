@@ -76,6 +76,9 @@ interface TerminalPort {
 
     fun pause(ms: Int) {}
 
+    /** Ends an auto-continued output frame before the adapter writes the next prompt. */
+    fun finishOutputFrame() {}
+
     fun writeViewCommand(
         command: ViewCommand,
         renderer: TerminalTextRenderer,
