@@ -3,7 +3,18 @@
 
 package rylween.runtime
 
-import rylween.dsl.*
+import rylween.dsl.DialogueBranchModel
+import rylween.dsl.DungeonEventId
+import rylween.dsl.ItemId
+import rylween.dsl.NpcId
+import rylween.dsl.PartyState
+import rylween.dsl.QuestionActionScriptModel
+import rylween.dsl.RealmState
+import rylween.dsl.RuntimeContent
+import rylween.dsl.SceneId
+import rylween.dsl.SpellId
+import rylween.dsl.dungeonEvent
+import rylween.dsl.npc
 import rylween.runtime.battle.BattleSession
 import rylween.runtime.reward.RandomItemOfferSession
 import rylween.runtime.reward.RewardGrantSession
@@ -37,25 +48,36 @@ data class ScriptRootRef(
 
     val isSpecified: Boolean get() = kind != ScriptRootKind.Unspecified
 
-    fun sameRoot(other: ScriptRootRef): Boolean =
-        kind == other.kind && slug == other.slug
+    fun sameRoot(other: ScriptRootRef): Boolean = kind == other.kind && slug == other.slug
 
     companion object {
         val Unspecified: ScriptRootRef = ScriptRootRef(ScriptRootKind.Unspecified)
 
-        fun scene(id: SceneId, denseId: Int? = null): ScriptRootRef =
-            ScriptRootRef(ScriptRootKind.Scene, denseId, id.slug)
+        fun scene(
+            id: SceneId,
+            denseId: Int? = null,
+        ): ScriptRootRef = ScriptRootRef(ScriptRootKind.Scene, denseId, id.slug)
 
-        fun dungeonEvent(id: DungeonEventId, denseId: Int? = null): ScriptRootRef =
-            ScriptRootRef(ScriptRootKind.DungeonEvent, denseId, id.slug)
+        fun dungeonEvent(
+            id: DungeonEventId,
+            denseId: Int? = null,
+        ): ScriptRootRef = ScriptRootRef(ScriptRootKind.DungeonEvent, denseId, id.slug)
 
-        fun spell(id: SpellId, denseId: Int? = null): ScriptRootRef =
-            ScriptRootRef(ScriptRootKind.Spell, denseId, id.slug)
+        fun spell(
+            id: SpellId,
+            denseId: Int? = null,
+        ): ScriptRootRef = ScriptRootRef(ScriptRootKind.Spell, denseId, id.slug)
 
-        fun itemUse(id: ItemId, denseId: Int? = null): ScriptRootRef =
-            ScriptRootRef(ScriptRootKind.ItemUse, denseId, id.slug)
+        fun itemUse(
+            id: ItemId,
+            denseId: Int? = null,
+        ): ScriptRootRef = ScriptRootRef(ScriptRootKind.ItemUse, denseId, id.slug)
 
-        fun dialogueBranch(npc: NpcId, branch: DialogueBranchModel, denseId: Int? = null): ScriptRootRef =
+        fun dialogueBranch(
+            npc: NpcId,
+            branch: DialogueBranchModel,
+            denseId: Int? = null,
+        ): ScriptRootRef =
             ScriptRootRef(
                 ScriptRootKind.DialogueBranch,
                 denseId,
@@ -66,7 +88,10 @@ data class ScriptRootRef(
                 ).joinToString("."),
             )
 
-        fun questionAction(action: QuestionActionScriptModel, denseId: Int? = null): ScriptRootRef =
+        fun questionAction(
+            action: QuestionActionScriptModel,
+            denseId: Int? = null,
+        ): ScriptRootRef =
             ScriptRootRef(
                 ScriptRootKind.QuestionAction,
                 denseId,
@@ -87,8 +112,7 @@ data class ScriptRootCatalog(
         }
     }
 
-    fun rootFor(fallback: ScriptRootRef): ScriptRootRef =
-        roots.firstOrNull { root -> root.sameRoot(fallback) } ?: fallback
+    fun rootFor(fallback: ScriptRootRef): ScriptRootRef = roots.firstOrNull { root -> root.sameRoot(fallback) } ?: fallback
 }
 
 fun RuntimeContent.scriptRootCatalog(): ScriptRootCatalog =
@@ -111,20 +135,19 @@ fun RuntimeContent.scriptRootCatalog(): ScriptRootCatalog =
         },
     )
 
-fun RuntimeContent.scriptRootForScene(id: SceneId): ScriptRootRef =
-    scriptRootCatalog().rootFor(ScriptRootRef.scene(id))
+fun RuntimeContent.scriptRootForScene(id: SceneId): ScriptRootRef = scriptRootCatalog().rootFor(ScriptRootRef.scene(id))
 
 fun RuntimeContent.scriptRootForDungeonEvent(id: DungeonEventId): ScriptRootRef =
     scriptRootCatalog().rootFor(ScriptRootRef.dungeonEvent(id))
 
-fun RuntimeContent.scriptRootForSpell(id: SpellId): ScriptRootRef =
-    scriptRootCatalog().rootFor(ScriptRootRef.spell(id))
+fun RuntimeContent.scriptRootForSpell(id: SpellId): ScriptRootRef = scriptRootCatalog().rootFor(ScriptRootRef.spell(id))
 
-fun SpeakRuntimeContent.scriptRootForDialogueBranch(npc: NpcId, branch: DialogueBranchModel): ScriptRootRef =
-    ScriptRootRef.dialogueBranch(npc, branch)
+fun SpeakRuntimeContent.scriptRootForDialogueBranch(
+    npc: NpcId,
+    branch: DialogueBranchModel,
+): ScriptRootRef = ScriptRootRef.dialogueBranch(npc, branch)
 
-fun SpeakRuntimeContent.scriptRootForQuestionAction(action: QuestionActionScriptModel): ScriptRootRef =
-    ScriptRootRef.questionAction(action)
+fun SpeakRuntimeContent.scriptRootForQuestionAction(action: QuestionActionScriptModel): ScriptRootRef = ScriptRootRef.questionAction(action)
 
 enum class ScriptBranch {
     IfThen,
@@ -154,8 +177,7 @@ data class ScriptBlockRef(
         branch: ScriptBranch,
         caseIndex: Int? = null,
         key: Char? = null,
-    ): ScriptBlockRef =
-        copy(segments = segments + ScriptSegment(opIndex, branch, caseIndex, key))
+    ): ScriptBlockRef = copy(segments = segments + ScriptSegment(opIndex, branch, caseIndex, key))
 
     companion object {
         val Root: ScriptBlockRef = ScriptBlockRef()
@@ -213,8 +235,7 @@ data class ScriptContinuation(
         fun start(
             party: PartyState,
             root: ScriptRootRef = ScriptRootRef.Unspecified,
-        ): ScriptContinuation =
-            start(RuntimeSessionState.singleParty(party, hour = 0, currentTown = null), root)
+        ): ScriptContinuation = start(RuntimeSessionState.singleParty(party, hour = 0, currentTown = null), root)
     }
 }
 

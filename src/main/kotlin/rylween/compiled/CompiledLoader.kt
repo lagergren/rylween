@@ -16,27 +16,29 @@ data class LoadedCompiledContent(
 
     fun handle(ref: CompiledHandleRef): CompiledHandle = handles.handle(ref)
 
-    fun resolveHandle(kind: CompiledHandleKind, slug: String): CompiledHandleRef? =
-        strings.idOf(slug)?.let { slugString -> handles.refOrNull(kind, slugString) }
+    fun resolveHandle(
+        kind: CompiledHandleKind,
+        slug: String,
+    ): CompiledHandleRef? = strings.idOf(slug)?.let { slugString -> handles.refOrNull(kind, slugString) }
 
     fun script(root: CompiledHandleRef): CompiledScriptProgram? = scripts[root]
 }
 
-fun CompiledGameBundle.loadCompiledGame(): LoadedCompiledGame =
-    CompiledBundleLoader.load(this)
+fun CompiledGameBundle.loadCompiledGame(): LoadedCompiledGame = CompiledBundleLoader.load(this)
 
 object CompiledBundleLoader {
     fun load(bundle: CompiledGameBundle): LoadedCompiledGame {
         CompiledBundleValidator(bundle).validate()
         val content = bundle.content
         return LoadedCompiledGame(
-            content = LoadedCompiledContent(
-                strings = content.strings,
-                handles = content.handles,
-                stringHashBuckets = content.strings.hashEntries.groupBy({ it.hash }, { it.stringId }),
-                handleHashBuckets = content.handles.hashEntries.groupBy({ it.hash }, { it.ref }),
-                scripts = content.scripts.roots.associateBy { it.rootHandle },
-            ),
+            content =
+                LoadedCompiledContent(
+                    strings = content.strings,
+                    handles = content.handles,
+                    stringHashBuckets = content.strings.hashEntries.groupBy({ it.hash }, { it.stringId }),
+                    handleHashBuckets = content.handles.hashEntries.groupBy({ it.hash }, { it.ref }),
+                    scripts = content.scripts.roots.associateBy { it.rootHandle },
+                ),
             states = bundle.states.associateBy { it.state },
         )
     }
@@ -46,13 +48,26 @@ private class CompiledBundleValidator(
     private val bundle: CompiledGameBundle,
 ) {
     private val content = bundle.content
-    private val handleRefs = content.handles.handles.map { it.ref }.toSet()
+    private val handleRefs =
+        content.handles.handles
+            .map { it.ref }
+            .toSet()
 
     fun validate() {
-        require(content.handles.handles.map { it.denseId }.toSet().size == content.handles.handles.size) {
+        require(
+            content.handles.handles
+                .map { it.denseId }
+                .toSet()
+                .size == content.handles.handles.size,
+        ) {
             "compiled handle dense ids must be unique"
         }
-        require(content.handles.handles.map { it.ref }.toSet().size == content.handles.handles.size) {
+        require(
+            content.handles.handles
+                .map { it.ref }
+                .toSet()
+                .size == content.handles.handles.size,
+        ) {
             "compiled handle refs must be unique"
         }
         content.handles.handles.forEach { handle ->
@@ -165,7 +180,8 @@ private class CompiledBundleValidator(
         when (val placement = character.placement) {
             is CompiledCharacterPlacement.Fixed -> position(placement.position)
             CompiledCharacterPlacement.Randomized,
-            CompiledCharacterPlacement.RandomizedWilderness -> Unit
+            CompiledCharacterPlacement.RandomizedWilderness,
+            -> Unit
         }
     }
 
@@ -187,7 +203,8 @@ private class CompiledBundleValidator(
             is CompiledTrigger.AtLocation -> handle(trigger.location, "location trigger")
             is CompiledTrigger.OnTerrain -> handle(trigger.terrain, "terrain trigger")
             is CompiledTrigger.AtPosition,
-            is CompiledTrigger.RandomStep -> Unit
+            is CompiledTrigger.RandomStep,
+            -> Unit
         }
     }
 
@@ -246,10 +263,11 @@ private class CompiledBundleValidator(
             is CompiledOperand.ViewCommandValue -> view(operand.value)
             is CompiledOperand.Instructions -> instructions(operand.instructions)
             is CompiledOperand.SwitchCases -> operand.cases.forEach { instructions(it.body) }
-            is CompiledOperand.MenuOptions -> operand.options.forEach { option ->
-                binding(option.binding)
-                instructions(option.body)
-            }
+            is CompiledOperand.MenuOptions ->
+                operand.options.forEach { option ->
+                    binding(option.binding)
+                    instructions(option.body)
+                }
             is CompiledOperand.InputBindings -> operand.bindings.forEach(::binding)
             is CompiledOperand.TextAnswer -> textAnswer(operand.answer)
             is CompiledOperand.Reward -> scriptReward(operand.reward)
@@ -258,7 +276,8 @@ private class CompiledBundleValidator(
             is CompiledOperand.Integer,
             is CompiledOperand.BooleanValue,
             is CompiledOperand.Character,
-            is CompiledOperand.EnumName -> Unit
+            is CompiledOperand.EnumName,
+            -> Unit
         }
     }
 
@@ -278,9 +297,10 @@ private class CompiledBundleValidator(
         when (block) {
             is CompiledTextBlock.Ref -> handle(block.text, "text ref")
             is CompiledTextBlock.Inline -> block.lineStrings.forEach { string(it, "inline text") }
-            is CompiledTextBlock.Structured -> block.lines.forEach { line ->
-                line.parts.forEach(::textPart)
-            }
+            is CompiledTextBlock.Structured ->
+                block.lines.forEach { line ->
+                    line.parts.forEach(::textPart)
+                }
         }
     }
 
@@ -505,14 +525,16 @@ private class CompiledBundleValidator(
         when (val mode = state.mode) {
             is CompiledRuntimeModeImage.Dungeon -> {
                 handle(mode.session.dungeon, "dungeon mode dungeon")
-                mode.session.levelEvents.values.forEach { handle(it, "dungeon mode event") }
+                mode.session.levelEvents.values
+                    .forEach { handle(it, "dungeon mode event") }
                 mode.postDungeon?.let { post ->
                     handle(post.mission, "post dungeon mission")
                     handle(post.scene, "post dungeon scene")
                 }
             }
             is CompiledRuntimeModeImage.YdargCastle,
-            null -> Unit
+            null,
+            -> Unit
         }
     }
 
@@ -553,13 +575,19 @@ private class CompiledBundleValidator(
         }
     }
 
-    private fun string(id: Int, owner: String) {
+    private fun string(
+        id: Int,
+        owner: String,
+    ) {
         require(id in 1..content.strings.entries.size) {
             "$owner references unknown string id $id"
         }
     }
 
-    private fun handle(ref: CompiledHandleRef, owner: String) {
+    private fun handle(
+        ref: CompiledHandleRef,
+        owner: String,
+    ) {
         require(ref in handleRefs) {
             "$owner references unknown handle ${ref.kind}#${ref.id}"
         }

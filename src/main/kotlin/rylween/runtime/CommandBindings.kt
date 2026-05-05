@@ -11,11 +11,9 @@ data class InputCommand<out T>(
     val help: String,
 )
 
-fun <T> List<InputCommand<T>>.inputForToken(token: String): T? =
-    firstOrNull { command -> command.binding.matches(token) }?.input
+fun <T> List<InputCommand<T>>.inputForToken(token: String): T? = firstOrNull { command -> command.binding.matches(token) }?.input
 
-fun List<InputCommand<*>>.commandBindings(): List<InputBindingModel> =
-    map { command -> command.binding }
+fun List<InputCommand<*>>.commandBindings(): List<InputBindingModel> = map { command -> command.binding }
 
 fun <T> cardinalDirectionCommands(
     moveNorth: InputBindingModel,

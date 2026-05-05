@@ -1,6 +1,12 @@
 package rylween.runtime
 
-import rylween.dsl.*
+import rylween.dsl.BoolAst
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.IntAst
+import rylween.dsl.ItemPoolId
+import rylween.dsl.milestone
+import rylween.dsl.monster
+import rylween.dsl.random
 
 abstract class IntAstEvaluator {
     fun int(ast: IntAst): Int =
@@ -36,24 +42,63 @@ abstract class IntAstEvaluator {
         }
 
     protected open fun local(name: String): Int = unsupported("local $name")
-    protected open fun random(lo: Int, hi: Int): Int = unsupported("random")
-    protected open fun memberField(member: Int, field: String): Int = unsupported("member field $field")
-    protected open fun monsterField(monster: Int, field: String): Int = unsupported("monster field $field")
+
+    protected open fun random(
+        lo: Int,
+        hi: Int,
+    ): Int = unsupported("random")
+
+    protected open fun memberField(
+        member: Int,
+        field: String,
+    ): Int = unsupported("member field $field")
+
+    protected open fun monsterField(
+        monster: Int,
+        field: String,
+    ): Int = unsupported("monster field $field")
+
     protected open fun battleFlag(name: String): Int = unsupported("battle flag $name")
+
     protected open fun battleQuery(name: String): Int = unsupported("battle query $name")
+
     protected open fun realmScalar(name: String): Int = unsupported("realm scalar $name")
+
     protected open fun partyScalar(name: String): Int = unsupported("party scalar $name")
+
     protected open fun inventoryPoolCount(pool: ItemPoolId): Int = unsupported("inventory pool ${pool.slug}")
+
     protected open fun inventorySlotCost(slot: Int): Int = unsupported("inventory slot cost $slot")
-    protected open fun nativeInt(path: String, args: List<String>): Int = unsupported("native int $path")
-    protected open fun flagIs(slug: String, native: String): Boolean = unsupported("flag $slug")
-    protected open fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
-        unsupported("milestone ${milestone.slug}")
-    protected open fun memberFlag(member: Int, name: String): Boolean = unsupported("member flag $name")
-    protected open fun monsterFlag(monster: Int, name: String): Boolean = unsupported("monster flag $name")
+
+    protected open fun nativeInt(
+        path: String,
+        args: List<String>,
+    ): Int = unsupported("native int $path")
+
+    protected open fun flagIs(
+        slug: String,
+        native: String,
+    ): Boolean = unsupported("flag $slug")
+
+    protected open fun milestoneAchieved(milestone: GameMilestoneId): Boolean = unsupported("milestone ${milestone.slug}")
+
+    protected open fun memberFlag(
+        member: Int,
+        name: String,
+    ): Boolean = unsupported("member flag $name")
+
+    protected open fun monsterFlag(
+        monster: Int,
+        name: String,
+    ): Boolean = unsupported("monster flag $name")
+
     protected open fun runtimeFlag(name: String): Boolean = unsupported("runtime flag $name")
 
-    private fun evalBinary(left: Int, op: String, right: Int): Int =
+    private fun evalBinary(
+        left: Int,
+        op: String,
+        right: Int,
+    ): Int =
         when (op) {
             "add" -> left + right
             "sub" -> left - right
@@ -62,7 +107,11 @@ abstract class IntAstEvaluator {
             else -> unsupported("binary op $op")
         }
 
-    private fun compare(left: Int, op: String, right: Int): Boolean =
+    private fun compare(
+        left: Int,
+        op: String,
+        right: Int,
+    ): Boolean =
         when (op) {
             "eq" -> left == right
             "ne" -> left != right
@@ -73,6 +122,5 @@ abstract class IntAstEvaluator {
             else -> unsupported("comparison op $op")
         }
 
-    protected fun unsupported(what: String): Nothing =
-        error("expression cannot read $what in this runtime context")
+    protected fun unsupported(what: String): Nothing = error("expression cannot read $what in this runtime context")
 }

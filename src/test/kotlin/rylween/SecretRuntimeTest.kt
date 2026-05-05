@@ -1,14 +1,33 @@
 package rylween
 
+import rylween.dsl.RuntimeMode
+import rylween.dsl.SecretActionModel
+import rylween.dsl.SecretPlayerModel
+import rylween.dsl.Wilderness
+import rylween.dsl.WorldPosition
+import rylween.dsl.item
+import rylween.dsl.matches
+import rylween.dsl.monster
+import rylween.dsl.runtimeContent
+import rylween.dsl.worldMap
+import rylween.dsl.xy
+import rylween.game.*
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.WildernessDirection
+import rylween.runtime.inputForToken
+import rylween.runtime.inventoryItem
+import rylween.runtime.party
+import rylween.runtime.wilderness.WildernessSession
+import rylween.runtime.wilderness.WildernessSessionInput
+import rylween.runtime.wilderness.WildernessSessionResultStatus
+import rylween.runtime.wilderness.WildernessSessionStep
+import rylween.runtime.wilderness.WorldMapGrid
+import rylween.runtime.wilderness.exploreCommands
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import rylween.dsl.*
-import rylween.game.*
-import rylween.runtime.*
-import rylween.runtime.wilderness.*
 
 class RylweenSecretRuntimeTest {
     @Test
@@ -66,26 +85,30 @@ class RylweenSecretRuntimeTest {
         val content = RylweenCompiledGame.nextDsl.runtimeContent().copy(missions = emptyList())
         val baseState = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
         val sourceParty = baseState.parties.single()
-        val party = sourceParty.copy(
-            player = playerName,
-            position = WorldPosition.Wilderness(xy(2, 2)),
-            resources = sourceParty.resources.copy(
-                gold = gold,
-                timeLeft = timeLeft,
-            ),
-        )
-        val runtime = RuntimeSessionState(
-            realm = baseState.realm.copy(
-                currentMode = RuntimeMode.Wilderness,
-                currentTown = null,
-                currentMap = Maps.wilderness,
-                rngState = rngState,
-                activeParty = party.id,
-            ),
-            parties = listOf(party),
-            npcs = baseState.npcs,
-            locations = baseState.locations,
-        )
+        val party =
+            sourceParty.copy(
+                player = playerName,
+                position = WorldPosition.Wilderness(xy(2, 2)),
+                resources =
+                    sourceParty.resources.copy(
+                        gold = gold,
+                        timeLeft = timeLeft,
+                    ),
+            )
+        val runtime =
+            RuntimeSessionState(
+                realm =
+                    baseState.realm.copy(
+                        currentMode = RuntimeMode.Wilderness,
+                        currentTown = null,
+                        currentMap = Maps.wilderness,
+                        rngState = rngState,
+                        activeParty = party.id,
+                    ),
+                parties = listOf(party),
+                npcs = baseState.npcs,
+                locations = baseState.locations,
+            )
         return WildernessSession(
             runtime = runtime,
             worldMap = WorldMapGrid.fromSourceRows(List(4) { "ssss" }),

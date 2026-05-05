@@ -1,8 +1,36 @@
 package rylween.runtime.town
 
-import rylween.runtime.*
-
-import rylween.dsl.*
+import rylween.dsl.CharacterClassOptionModel
+import rylween.dsl.CharacterCreationModel
+import rylween.dsl.CharacterCreationStat
+import rylween.dsl.CharacterRaceOptionModel
+import rylween.dsl.DslDefaultItems
+import rylween.dsl.EquipmentState
+import rylween.dsl.Gender
+import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.InventorySlotState
+import rylween.dsl.Mana
+import rylween.dsl.PartyCounters
+import rylween.dsl.PartyId
+import rylween.dsl.PartyMemberState
+import rylween.dsl.PartyState
+import rylween.dsl.PcClass
+import rylween.dsl.Race
+import rylween.dsl.RealmState
+import rylween.dsl.RuntimeContent
+import rylween.dsl.RuntimeMode
+import rylween.dsl.TextBlock
+import rylween.dsl.Wilderness
+import rylween.dsl.of
+import rylween.dsl.partyId
+import rylween.dsl.partyName
+import rylween.dsl.random
+import rylween.runtime.CharacterCreationInput
+import rylween.runtime.ReferenceRylweenRandom
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.RylweenRandomPort
+import rylween.runtime.facing
+import rylween.runtime.party
 
 data class CharacterCreationStats(
     val weaponSkill: Int,
@@ -35,9 +63,23 @@ data class CharacterCreationResult(
 
 sealed interface CharacterCreationStep {
     object PartyName : CharacterCreationStep
-    data class Stats(val memberNumber: Int, val stats: CharacterCreationStats) : CharacterCreationStep
-    data class MemberName(val memberNumber: Int, val stats: CharacterCreationStats) : CharacterCreationStep
-    data class GenderPrompt(val memberNumber: Int, val stats: CharacterCreationStats, val memberName: String) : CharacterCreationStep
+
+    data class Stats(
+        val memberNumber: Int,
+        val stats: CharacterCreationStats,
+    ) : CharacterCreationStep
+
+    data class MemberName(
+        val memberNumber: Int,
+        val stats: CharacterCreationStats,
+    ) : CharacterCreationStep
+
+    data class GenderPrompt(
+        val memberNumber: Int,
+        val stats: CharacterCreationStats,
+        val memberName: String,
+    ) : CharacterCreationStep
+
     data class RacePrompt(
         val memberNumber: Int,
         val stats: CharacterCreationStats,
@@ -45,6 +87,7 @@ sealed interface CharacterCreationStep {
         val gender: Gender,
         val options: List<CharacterRaceOptionModel>,
     ) : CharacterCreationStep
+
     data class ClassPrompt(
         val memberNumber: Int,
         val stats: CharacterCreationStats,
@@ -53,8 +96,16 @@ sealed interface CharacterCreationStep {
         val race: Race,
         val options: List<CharacterClassOptionModel>,
     ) : CharacterCreationStep
-    data class ClassRejected(val text: TextBlock, val next: Stats) : CharacterCreationStep
-    data class Finished(val runtime: RuntimeSessionState) : CharacterCreationStep
+
+    data class ClassRejected(
+        val text: TextBlock,
+        val next: Stats,
+    ) : CharacterCreationStep
+
+    data class Finished(
+        val runtime: RuntimeSessionState,
+    ) : CharacterCreationStep
+
     object Aborted : CharacterCreationStep
 }
 
@@ -113,13 +164,14 @@ data class CharacterCreationSession(
     private fun chooseGender(gender: Gender): CharacterCreationSession {
         val current = step as? CharacterCreationStep.GenderPrompt ?: return this
         return copy(
-            step = CharacterCreationStep.RacePrompt(
-                memberNumber = current.memberNumber,
-                stats = current.stats,
-                memberName = current.memberName,
-                gender = gender,
-                options = rules.races,
-            ),
+            step =
+                CharacterCreationStep.RacePrompt(
+                    memberNumber = current.memberNumber,
+                    stats = current.stats,
+                    memberName = current.memberName,
+                    gender = gender,
+                    options = rules.races,
+                ),
             lastResult = null,
         )
     }
@@ -128,14 +180,15 @@ data class CharacterCreationSession(
         val current = step as? CharacterCreationStep.RacePrompt ?: return this
         if (rules.races.none { it.race == race }) return this
         return copy(
-            step = CharacterCreationStep.ClassPrompt(
-                memberNumber = current.memberNumber,
-                stats = current.stats,
-                memberName = current.memberName,
-                gender = current.gender,
-                race = race,
-                options = rules.classes,
-            ),
+            step =
+                CharacterCreationStep.ClassPrompt(
+                    memberNumber = current.memberNumber,
+                    stats = current.stats,
+                    memberName = current.memberName,
+                    gender = current.gender,
+                    race = race,
+                    options = rules.classes,
+                ),
             lastResult = null,
         )
     }
@@ -148,29 +201,31 @@ data class CharacterCreationSession(
             val next = nextStats(current.memberNumber)
             return next.copy(
                 step = CharacterCreationStep.ClassRejected(failure, next.step as CharacterCreationStep.Stats),
-                lastResult = CharacterCreationResult(
-                    status = CharacterCreationStatus.ClassRejected,
-                    memberNumber = current.memberNumber,
-                ),
+                lastResult =
+                    CharacterCreationResult(
+                        status = CharacterCreationStatus.ClassRejected,
+                        memberNumber = current.memberNumber,
+                    ),
             )
         }
 
-        val member = PartyMemberState(
-            name = current.memberName,
-            gender = current.gender,
-            race = current.race,
-            pcClass = pcClass,
-            level = rules.start.level,
-            health = current.stats.health,
-            hitPoints = current.stats.health of current.stats.health,
-            weaponSkill = current.stats.weaponSkill,
-            wisdom = current.stats.wisdom,
-            mana = initialMana(pcClass, current.stats.wisdom),
-            charisma = current.stats.charisma,
-            equipment = EquipmentState(DslDefaultItems.none, DslDefaultItems.none),
-            experience = 0,
-            dead = false,
-        )
+        val member =
+            PartyMemberState(
+                name = current.memberName,
+                gender = current.gender,
+                race = current.race,
+                pcClass = pcClass,
+                level = rules.start.level,
+                health = current.stats.health,
+                hitPoints = current.stats.health of current.stats.health,
+                weaponSkill = current.stats.weaponSkill,
+                wisdom = current.stats.wisdom,
+                mana = initialMana(pcClass, current.stats.wisdom),
+                charisma = current.stats.charisma,
+                equipment = EquipmentState(DslDefaultItems.none, DslDefaultItems.none),
+                experience = 0,
+                dead = false,
+            )
         val nextMembers = members + member
         if (nextMembers.size >= rules.start.partyMemberMax) {
             val runtime = allocateRuntime(nextMembers)
@@ -178,22 +233,24 @@ data class CharacterCreationSession(
                 members = nextMembers,
                 step = CharacterCreationStep.Finished(runtime),
                 rngState = runtime.realm.rngState,
-                lastResult = CharacterCreationResult(
-                    status = CharacterCreationStatus.Finished,
-                    memberNumber = current.memberNumber,
-                    member = member,
-                    runtime = runtime,
-                ),
+                lastResult =
+                    CharacterCreationResult(
+                        status = CharacterCreationStatus.Finished,
+                        memberNumber = current.memberNumber,
+                        member = member,
+                        runtime = runtime,
+                    ),
             )
         }
 
         return nextStats(current.memberNumber + 1).copy(
             members = nextMembers,
-            lastResult = CharacterCreationResult(
-                status = CharacterCreationStatus.MemberAccepted,
-                memberNumber = current.memberNumber,
-                member = member,
-            ),
+            lastResult =
+                CharacterCreationResult(
+                    status = CharacterCreationStatus.MemberAccepted,
+                    memberNumber = current.memberNumber,
+                    member = member,
+                ),
         )
     }
 
@@ -213,6 +270,7 @@ data class CharacterCreationSession(
 
     private fun drawStats(): CharacterCreationStatsDraw {
         var seed = rngState
+
         fun draw(): Int {
             val currentSeed = seed ?: return rules.statRoll.min
             val result = random.draw(currentSeed, rules.statRoll.min, rules.statRoll.max)
@@ -220,47 +278,51 @@ data class CharacterCreationSession(
             return result.value
         }
         return CharacterCreationStatsDraw(
-            stats = CharacterCreationStats(
-                weaponSkill = draw(),
-                wisdom = draw(),
-                health = draw(),
-                charisma = draw(),
-            ),
+            stats =
+                CharacterCreationStats(
+                    weaponSkill = draw(),
+                    wisdom = draw(),
+                    health = draw(),
+                    charisma = draw(),
+                ),
             rngState = seed,
         )
     }
 
     private fun allocateRuntime(createdMembers: List<PartyMemberState>): RuntimeSessionState {
-        val party = PartyState(
-            id = partyId,
-            player = playerName,
-            name = checkNotNull(partyName) { "character creation finished without a party name" },
-            position = rules.start.position,
-            facing = rules.start.facing,
-            resources = rules.start.resources,
-            counters = PartyCounters(
-                memberCount = createdMembers.size,
-                kills = 0,
-                waitingMail = false,
-                attacked = false,
-                attackedToday = emptyList(),
-            ),
-            flags = emptyList(),
-            milestones = emptyList(),
-            inventory = (0..InventorySaveSlotMax).map { slot -> InventorySlotState(slot, null) },
-            members = createdMembers,
-            visitedNpcs = emptyList(),
-            journal = emptyList(),
-        )
+        val party =
+            PartyState(
+                id = partyId,
+                player = playerName,
+                name = checkNotNull(partyName) { "character creation finished without a party name" },
+                position = rules.start.position,
+                facing = rules.start.facing,
+                resources = rules.start.resources,
+                counters =
+                    PartyCounters(
+                        memberCount = createdMembers.size,
+                        kills = 0,
+                        waitingMail = false,
+                        attacked = false,
+                        attackedToday = emptyList(),
+                    ),
+                flags = emptyList(),
+                milestones = emptyList(),
+                inventory = (0..InventorySaveSlotMax).map { slot -> InventorySlotState(slot, null) },
+                members = createdMembers,
+                visitedNpcs = emptyList(),
+                journal = emptyList(),
+            )
         return RuntimeSessionState(
-            realm = baseRealm.copy(
-                rngState = rngState,
-                activeParty = partyId,
-                currentMap = rules.start.map,
-                currentMode = RuntimeMode.Wilderness,
-                currentTown = null,
-                partyMemberMax = rules.start.partyMemberMax,
-            ),
+            realm =
+                baseRealm.copy(
+                    rngState = rngState,
+                    activeParty = partyId,
+                    currentMap = rules.start.map,
+                    currentMode = RuntimeMode.Wilderness,
+                    currentTown = null,
+                    partyMemberMax = rules.start.partyMemberMax,
+                ),
             parties = listOf(party),
         )
     }
@@ -301,14 +363,19 @@ private fun CharacterClassOptionModel.failureFor(stats: CharacterCreationStats):
     return failureText.takeIf { stats.value(stat) < minimum }
 }
 
-private fun initialMana(pcClass: PcClass, wisdom: Int): Mana =
+private fun initialMana(
+    pcClass: PcClass,
+    wisdom: Int,
+): Mana =
     when (pcClass) {
         PcClass.Mage,
-        PcClass.Priest -> wisdom of wisdom
+        PcClass.Priest,
+        -> wisdom of wisdom
         PcClass.Fighter,
         PcClass.Thief,
         PcClass.Bard,
-        PcClass.Ranger -> 0 of wisdom
+        PcClass.Ranger,
+        -> 0 of wisdom
     }
 
 private fun String.normalizedCreationName(): String {

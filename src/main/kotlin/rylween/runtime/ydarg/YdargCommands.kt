@@ -13,18 +13,19 @@ fun YdargKeysModel.navigationCommands(): List<InputCommand<YdargSessionInput>> =
         moveWest = moveWest,
         moveEast = moveEast,
         input = YdargSessionInput::Move,
-    ) + listOf(
-        InputCommand(YdargSessionInput.Command(YdargCommand.Save), save, "Save Game"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.Help), help, "View Help"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.ViewParty), viewParty, "View Party"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.RemoveArmor), removeArmor, "Take off Armor"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.RemoveWeapon), removeWeapon, "Put down Weapon"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.Drop), drop, "Leave Item"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.ReadyWeapon), readyWeapon, "Wield Weapon"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.ReadyArmor), readyArmor, "Ready Armor"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.Quaff), quaff, "Quaff Potion"),
-        InputCommand(YdargSessionInput.Command(YdargCommand.CastSpell), castSpell, "Cast Spell"),
-    )
+    ) +
+        listOf(
+            InputCommand(YdargSessionInput.Command(YdargCommand.Save), save, "Save Game"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.Help), help, "View Help"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.ViewParty), viewParty, "View Party"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.RemoveArmor), removeArmor, "Take off Armor"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.RemoveWeapon), removeWeapon, "Put down Weapon"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.Drop), drop, "Leave Item"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.ReadyWeapon), readyWeapon, "Wield Weapon"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.ReadyArmor), readyArmor, "Ready Armor"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.Quaff), quaff, "Quaff Potion"),
+            InputCommand(YdargSessionInput.Command(YdargCommand.CastSpell), castSpell, "Cast Spell"),
+        )
 
 fun YdargKeysModel.treasureCommands(): List<InputCommand<YdargSessionInput>> =
     listOf(
@@ -39,5 +40,4 @@ fun YdargKeysModel.stairsCommands(): List<InputCommand<YdargSessionInput>> =
         InputCommand(YdargSessionInput.LeaveStairs, stairsLeave, "Leave"),
     )
 
-fun YdargKeysModel.navigationHelpPages(maxLinesPerPage: Int = 7): List<TextBlock> =
-    navigationCommands().generatedHelpPages(maxLinesPerPage)
+fun YdargKeysModel.navigationHelpPages(maxLinesPerPage: Int = 7): List<TextBlock> = navigationCommands().generatedHelpPages(maxLinesPerPage)

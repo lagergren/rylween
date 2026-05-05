@@ -5,22 +5,115 @@
 
 package rylween.runtime.battle
 
+import rylween.dsl.BattleTextModel
+import rylween.dsl.CombatActionKind
+import rylween.dsl.CombatActionModel
+import rylween.dsl.CombatActionRequirement
+import rylween.dsl.CombatSystemModel
+import rylween.dsl.DslDefaultFormulas
+import rylween.dsl.DslDefaultSpells
+import rylween.dsl.EncounterTier
+import rylween.dsl.FormulaId
+import rylween.dsl.FormulaModel
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.Gender
+import rylween.dsl.ImageId
+import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.ItemConsumePolicy
+import rylween.dsl.ItemId
+import rylween.dsl.ItemKind
+import rylween.dsl.ItemPoolId
+import rylween.dsl.ItemRecordModel
+import rylween.dsl.ItemUseContext
+import rylween.dsl.ItemUseModel
+import rylween.dsl.LValueAst
+import rylween.dsl.LevelingModel
+import rylween.dsl.MemberChoiceFilter
+import rylween.dsl.MonsterId
+import rylween.dsl.MonsterModel
+import rylween.dsl.NativeAllowlist
+import rylween.dsl.NativeStringArg
+import rylween.dsl.Op
+import rylween.dsl.PartyMemberState
+import rylween.dsl.PartyState
+import rylween.dsl.PcClass
+import rylween.dsl.PronounCase
+import rylween.dsl.RewardBundleModel
+import rylween.dsl.RuntimeContent
+import rylween.dsl.RuntimeMode
+import rylween.dsl.SpellModel
+import rylween.dsl.StandardBattleModel
+import rylween.dsl.StrAst
+import rylween.dsl.TextBlock
+import rylween.dsl.TextPart
+import rylween.dsl.ViewCommand
+import rylween.dsl.Wilderness
+import rylween.dsl.chance
+import rylween.dsl.combineTextBlocks
+import rylween.dsl.fallbackText
+import rylween.dsl.formula
+import rylween.dsl.image
+import rylween.dsl.inlineText
+import rylween.dsl.item
+import rylween.dsl.line
+import rylween.dsl.lines
+import rylween.dsl.milestone
+import rylween.dsl.monster
+import rylween.dsl.monsterName
+import rylween.dsl.of
+import rylween.dsl.pronoun
+import rylween.dsl.text
 import rylween.engine.RuntimeEventLevel
 import rylween.engine.RuntimeEventScope
 import rylween.engine.runtimeEvent
-import rylween.runtime.*
-
-import rylween.dsl.*
+import rylween.runtime.IntAstEvaluator
+import rylween.runtime.RuntimeRandomDraw
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.consumeInventoryItems
+import rylween.runtime.countInventoryItems
+import rylween.runtime.drawRandom
+import rylween.runtime.firstFreeInventorySlot
+import rylween.runtime.inventoryItem
+import rylween.runtime.party
+import rylween.runtime.prompt
+import rylween.runtime.scriptMemberFieldOrNull
+import rylween.runtime.scriptMemberFlagKnown
+import rylween.runtime.scriptMemberFlagOrNull
+import rylween.runtime.scriptPartyScalarOrNull
+import rylween.runtime.scriptRealmScalarOrNull
+import rylween.runtime.scriptRuntimeFlag
+import rylween.runtime.withGold
+import rylween.runtime.withInventoryItem
+import rylween.runtime.withScriptMemberFieldOrNull
+import rylween.runtime.withScriptPartyScalarOrNull
 
 enum class BattleOpeningChoice { Fight, Run }
 
 sealed interface BattleSessionInput {
-    data class Opening(val choice: BattleOpeningChoice) : BattleSessionInput
-    data class PlayerAction(val kind: CombatActionKind) : BattleSessionInput
-    data class TargetMonster(val index: Int) : BattleSessionInput
-    data class TargetMember(val index: Int) : BattleSessionInput
-    data class InventorySlot(val slot: Int) : BattleSessionInput
-    data class SpellSlot(val slot: Int) : BattleSessionInput
+    data class Opening(
+        val choice: BattleOpeningChoice,
+    ) : BattleSessionInput
+
+    data class PlayerAction(
+        val kind: CombatActionKind,
+    ) : BattleSessionInput
+
+    data class TargetMonster(
+        val index: Int,
+    ) : BattleSessionInput
+
+    data class TargetMember(
+        val index: Int,
+    ) : BattleSessionInput
+
+    data class InventorySlot(
+        val slot: Int,
+    ) : BattleSessionInput
+
+    data class SpellSlot(
+        val slot: Int,
+    ) : BattleSessionInput
+
     object Continue : BattleSessionInput
 }
 
@@ -63,39 +156,68 @@ data class BattleSessionResult(
 sealed interface BattleSessionStep {
     val viewCommands: List<ViewCommand> get() = emptyList()
 
-    data class Opening(val prompt: TextBlock, val image: ImageId? = null) : BattleSessionStep {
+    data class Opening(
+        val prompt: TextBlock,
+        val image: ImageId? = null,
+    ) : BattleSessionStep {
         override val viewCommands: List<ViewCommand>
-            get() = image?.let { listOf(ViewCommand.ClearText, ViewCommand.ClearMapWindow, ViewCommand.ShowImage(it)) }
-                .orEmpty()
+            get() =
+                image
+                    ?.let { listOf(ViewCommand.ClearText, ViewCommand.ClearMapWindow, ViewCommand.ShowImage(it)) }
+                    .orEmpty()
     }
 
-    data class RoundOpening(val prompt: TextBlock) : BattleSessionStep
+    data class RoundOpening(
+        val prompt: TextBlock,
+    ) : BattleSessionStep
+
     data class Message(
         val texts: List<TextBlock>,
         val next: BattleSessionStep,
         override val viewCommands: List<ViewCommand> = emptyList(),
     ) : BattleSessionStep
 
-    data class PlayerAction(val memberIndex: Int, val prompt: TextBlock, val actions: List<CombatActionModel>) :
-        BattleSessionStep
-    data class MonsterTarget(val memberIndex: Int, val prompt: TextBlock, val targetKeys: List<Char>) :
-        BattleSessionStep
+    data class PlayerAction(
+        val memberIndex: Int,
+        val prompt: TextBlock,
+        val actions: List<CombatActionModel>,
+    ) : BattleSessionStep
+
+    data class MonsterTarget(
+        val memberIndex: Int,
+        val prompt: TextBlock,
+        val targetKeys: List<Char>,
+    ) : BattleSessionStep
+
     data class ScriptMonsterTarget(
         val prompt: TextBlock,
         val targetKeys: List<Char>,
         val script: CombatScriptContinuation,
     ) : BattleSessionStep
+
     data class MemberTarget(
         val prompt: TextBlock,
         val targetKeys: List<Char>,
         val script: CombatScriptContinuation,
     ) : BattleSessionStep
-    data class MagicItemSlot(val memberIndex: Int, val prompt: TextBlock, val slotKeys: List<Char>) :
-        BattleSessionStep
-    data class SpellChoice(val memberIndex: Int, val prompt: TextBlock, val spellKeys: List<Char>) :
-        BattleSessionStep
+
+    data class MagicItemSlot(
+        val memberIndex: Int,
+        val prompt: TextBlock,
+        val slotKeys: List<Char>,
+    ) : BattleSessionStep
+
+    data class SpellChoice(
+        val memberIndex: Int,
+        val prompt: TextBlock,
+        val spellKeys: List<Char>,
+    ) : BattleSessionStep
+
     object MonsterRound : BattleSessionStep
-    data class Finished(val runtime: RuntimeSessionState) : BattleSessionStep
+
+    data class Finished(
+        val runtime: RuntimeSessionState,
+    ) : BattleSessionStep
 }
 
 enum class CombatScriptSourceKind { Spell, MagicItem, MonsterSpell }
@@ -127,16 +249,19 @@ data class BattleSession(
     val leveling: LevelingModel? get() = content.leveling
     val spells: List<SpellModel> get() = content.spells
     val itemUses: List<ItemUseModel> get() = content.itemUses
+
     fun apply(input: BattleSessionInput): BattleSession =
         when (val current = step) {
             is BattleSessionStep.Opening -> {
-                val opening = (input as? BattleSessionInput.Opening)
-                    ?: error("battle session is waiting for fight/run input")
+                val opening =
+                    (input as? BattleSessionInput.Opening)
+                        ?: error("battle session is waiting for fight/run input")
                 answerOpening(opening.choice)
             }
             is BattleSessionStep.RoundOpening -> {
-                val opening = (input as? BattleSessionInput.Opening)
-                    ?: error("battle session is waiting for fight/run input")
+                val opening =
+                    (input as? BattleSessionInput.Opening)
+                        ?: error("battle session is waiting for fight/run input")
                 answerRoundOpening(opening.choice)
             }
             is BattleSessionStep.Message -> {
@@ -147,29 +272,33 @@ data class BattleSession(
                 )
             }
             is BattleSessionStep.PlayerAction -> {
-                val action = (input as? BattleSessionInput.PlayerAction)
-                    ?: error("battle session is waiting for a player action")
+                val action =
+                    (input as? BattleSessionInput.PlayerAction)
+                        ?: error("battle session is waiting for a player action")
                 answerPlayerAction(current.memberIndex, action.kind)
             }
             is BattleSessionStep.MonsterTarget -> {
-                val target = (input as? BattleSessionInput.TargetMonster)
-                    ?: error("battle session is waiting for a monster target")
+                val target =
+                    (input as? BattleSessionInput.TargetMonster)
+                        ?: error("battle session is waiting for a monster target")
                 require(target.index in encounter.hitPoints.indices && encounter.hitPoints[target.index] > 0) {
                     "battle target ${target.index} is not alive"
                 }
                 attackMonster(current.memberIndex, target.index)
             }
             is BattleSessionStep.ScriptMonsterTarget -> {
-                val target = (input as? BattleSessionInput.TargetMonster)
-                    ?: error("battle session is waiting for a script monster target")
+                val target =
+                    (input as? BattleSessionInput.TargetMonster)
+                        ?: error("battle session is waiting for a script monster target")
                 require(target.index in encounter.hitPoints.indices && encounter.hitPoints[target.index] > 0) {
                     "battle target ${target.index} is not alive"
                 }
                 resumeScript(current.script, current.script.locals + (current.script.pendingVar to target.index))
             }
             is BattleSessionStep.MemberTarget -> {
-                val target = (input as? BattleSessionInput.TargetMember)
-                    ?: error("battle session is waiting for a party member target")
+                val target =
+                    (input as? BattleSessionInput.TargetMember)
+                        ?: error("battle session is waiting for a party member target")
                 require(target.index in runtime.activeParty.members.indices) {
                     "party member target ${target.index} is outside the active party"
                 }
@@ -179,13 +308,15 @@ data class BattleSession(
                 resumeScript(current.script, current.script.locals + (current.script.pendingVar to target.index))
             }
             is BattleSessionStep.MagicItemSlot -> {
-                val slot = (input as? BattleSessionInput.InventorySlot)
-                    ?: error("battle session is waiting for an inventory slot")
+                val slot =
+                    (input as? BattleSessionInput.InventorySlot)
+                        ?: error("battle session is waiting for an inventory slot")
                 useMagicItem(current.memberIndex, slot.slot)
             }
             is BattleSessionStep.SpellChoice -> {
-                val slot = (input as? BattleSessionInput.SpellSlot)
-                    ?: error("battle session is waiting for a spell slot")
+                val slot =
+                    (input as? BattleSessionInput.SpellSlot)
+                        ?: error("battle session is waiting for a spell slot")
                 castMageSpell(current.memberIndex, slot.slot)
             }
             BattleSessionStep.MonsterRound -> {
@@ -197,19 +328,21 @@ data class BattleSession(
 
     private fun answerOpening(choice: BattleOpeningChoice): BattleSession =
         when (choice) {
-            BattleOpeningChoice.Fight -> continueToPlayerRound(
-                status = BattleSessionResultStatus.FightSelected,
-                text = battle.text.bloodFlow,
-            )
+            BattleOpeningChoice.Fight ->
+                continueToPlayerRound(
+                    status = BattleSessionResultStatus.FightSelected,
+                    text = battle.text.bloodFlow,
+                )
             BattleOpeningChoice.Run -> runFromEncounter()
         }
 
     private fun answerRoundOpening(choice: BattleOpeningChoice): BattleSession =
         when (choice) {
-            BattleOpeningChoice.Fight -> continueToPlayerRound(
-                status = BattleSessionResultStatus.FightSelected,
-                text = battle.text.bloodFlow,
-            )
+            BattleOpeningChoice.Fight ->
+                continueToPlayerRound(
+                    status = BattleSessionResultStatus.FightSelected,
+                    text = battle.text.bloodFlow,
+                )
             BattleOpeningChoice.Run -> runFromRound()
         }
 
@@ -225,10 +358,11 @@ data class BattleSession(
         return if (draw.value < battle.opening.fleeChancePercent) {
             copy(
                 runtime = draw.runtime,
-                step = messageStep(
-                    battle.text.runCoward,
-                    BattleSessionStep.Finished(draw.runtime.asWilderness()),
-                ),
+                step =
+                    messageStep(
+                        battle.text.runCoward,
+                        BattleSessionStep.Finished(draw.runtime.asWilderness()),
+                    ),
                 lastResult = result(BattleSessionResultStatus.RunEscaped),
             )
         } else {
@@ -244,10 +378,11 @@ data class BattleSession(
         return if (draw.value >= battle.opening.desperateFleeChancePercent && !encounter.mandatory) {
             copy(
                 runtime = draw.runtime,
-                step = messageStep(
-                    battle.text.runEscaped,
-                    BattleSessionStep.Finished(draw.runtime.asWilderness()),
-                ),
+                step =
+                    messageStep(
+                        battle.text.runEscaped,
+                        BattleSessionStep.Finished(draw.runtime.asWilderness()),
+                    ),
                 lastResult = result(BattleSessionResultStatus.RunEscaped),
             )
         } else {
@@ -258,84 +393,105 @@ data class BattleSession(
         }
     }
 
-    private fun continueToPlayerRound(status: BattleSessionResultStatus, text: TextBlock): BattleSession =
+    private fun continueToPlayerRound(
+        status: BattleSessionResultStatus,
+        text: TextBlock,
+    ): BattleSession =
         copy(
             step = messageStep(text, nextPlayerActionStep(fromIndex = 0)),
             lastResult = result(status),
         )
 
-    private fun answerPlayerAction(memberIndex: Int, kind: CombatActionKind): BattleSession =
+    private fun answerPlayerAction(
+        memberIndex: Int,
+        kind: CombatActionKind,
+    ): BattleSession =
         when (kind) {
-            CombatActionKind.Attack -> copy(
-                round = round.copy(currentMemberIndex = memberIndex),
-                step = BattleSessionStep.MonsterTarget(
-                    memberIndex = memberIndex,
-                    prompt = BattlePromptText.targetPrompt(battle.text, encounter),
-                    targetKeys = encounter.aliveTargetKeys(),
-                ),
-            )
+            CombatActionKind.Attack ->
+                copy(
+                    round = round.copy(currentMemberIndex = memberIndex),
+                    step =
+                        BattleSessionStep.MonsterTarget(
+                            memberIndex = memberIndex,
+                            prompt = BattlePromptText.targetPrompt(battle.text, encounter),
+                            targetKeys = encounter.aliveTargetKeys(),
+                        ),
+                )
             CombatActionKind.Defend -> defend(memberIndex)
             CombatActionKind.BattleCry -> battleCry(memberIndex)
-            CombatActionKind.UseMagicItem -> copy(
-                step = BattleSessionStep.MagicItemSlot(
-                    memberIndex = memberIndex,
-                    prompt = BattlePromptText.useWhat(battle.text, runtime.activeParty, itemRecords),
-                    slotKeys = inventorySlotKeys(),
-                ),
-            )
-            CombatActionKind.CastMageSpell -> copy(
-                step = BattleSessionStep.SpellChoice(
-                    memberIndex = memberIndex,
-                    prompt = BattlePromptText.spellChoice(
-                        text = battle.text,
-                        member = runtime.activeParty.members[memberIndex],
-                        spells = mageSpells(),
-                    ),
-                    spellKeys = mageSpells().map { '0' + it.slot } + '7',
-                ),
-            )
+            CombatActionKind.UseMagicItem ->
+                copy(
+                    step =
+                        BattleSessionStep.MagicItemSlot(
+                            memberIndex = memberIndex,
+                            prompt = BattlePromptText.useWhat(battle.text, runtime.activeParty, itemRecords),
+                            slotKeys = inventorySlotKeys(),
+                        ),
+                )
+            CombatActionKind.CastMageSpell ->
+                copy(
+                    step =
+                        BattleSessionStep.SpellChoice(
+                            memberIndex = memberIndex,
+                            prompt =
+                                BattlePromptText.spellChoice(
+                                    text = battle.text,
+                                    member = runtime.activeParty.members[memberIndex],
+                                    spells = mageSpells(),
+                                ),
+                            spellKeys = mageSpells().map { '0' + it.slot } + '7',
+                        ),
+                )
         }
 
     private fun defend(memberIndex: Int): BattleSession {
         val member = runtime.activeParty.members[memberIndex]
         val nextHitPoints = (member.hitPoints.current + member.level).coerceAtMost(member.hitPoints.max)
-        val nextRuntime = runtime.withActiveMember(
-            memberIndex,
-            member.copy(hitPoints = nextHitPoints of member.hitPoints.max),
-        )
+        val nextRuntime =
+            runtime.withActiveMember(
+                memberIndex,
+                member.copy(hitPoints = nextHitPoints of member.hitPoints.max),
+            )
         val defendRules = battle.playerRound.defend
-        val nextRound = round.copy(
-            defendCount = (round.defendCount + 1).coerceAtMost(defendRules.cap),
-            monsterWeaponSkill = round.monsterWeaponSkill.reducedBy(defendRules.weaponSkillPenalty),
-        )
+        val nextRound =
+            round.copy(
+                defendCount = (round.defendCount + 1).coerceAtMost(defendRules.cap),
+                monsterWeaponSkill = round.monsterWeaponSkill.reducedBy(defendRules.weaponSkillPenalty),
+            )
         return copy(runtime = nextRuntime, round = nextRound).copy(
-            step = messageStep(
-                if (round.defendCount < defendRules.restThreshold) {
-                    battle.text.restGainHits
-                } else {
-                    battle.text.defendStance
-                },
-                nextAfterMemberAction(memberIndex, encounter),
-            ),
+            step =
+                messageStep(
+                    if (round.defendCount < defendRules.restThreshold) {
+                        battle.text.restGainHits
+                    } else {
+                        battle.text.defendStance
+                    },
+                    nextAfterMemberAction(memberIndex, encounter),
+                ),
         )
     }
 
     private fun battleCry(memberIndex: Int): BattleSession {
-        val nextRound = round.copy(
-            monsterWeaponSkill = round.monsterWeaponSkill.reducedBy(battle.playerRound.battleCry.weaponSkillPenalty),
-        )
+        val nextRound =
+            round.copy(
+                monsterWeaponSkill = round.monsterWeaponSkill.reducedBy(battle.playerRound.battleCry.weaponSkillPenalty),
+            )
         return copy(round = nextRound).copy(
             step = messageStep(battle.text.battleCry, nextAfterMemberAction(memberIndex, encounter)),
         )
     }
 
-    private fun useMagicItem(memberIndex: Int, slot: Int): BattleSession {
+    private fun useMagicItem(
+        memberIndex: Int,
+        slot: Int,
+    ): BattleSession {
         val item = runtime.activeParty.inventoryItem(slot)
-        val model = item?.let { itemId ->
-            itemUses.firstOrNull { use ->
-                use.id == itemId && ItemUseContext.Combat in use.contexts
+        val model =
+            item?.let { itemId ->
+                itemUses.firstOrNull { use ->
+                    use.id == itemId && ItemUseContext.Combat in use.contexts
+                }
             }
-        }
         if (item == null || model == null || itemRecord(item).kind != ItemKind.MagicItem) {
             return copy(step = messageStep(battle.text.notPossible, playerActionStep(memberIndex)))
         }
@@ -347,11 +503,12 @@ data class BattleSession(
             )
         }
 
-        val consumedRuntime = if (model.consume == ItemConsumePolicy.BeforeUse) {
-            runtime.withActiveParty(runtime.activeParty.withInventoryItem(slot, null))
-        } else {
-            runtime
-        }
+        val consumedRuntime =
+            if (model.consume == ItemConsumePolicy.BeforeUse) {
+                runtime.withActiveParty(runtime.activeParty.withInventoryItem(slot, null))
+            } else {
+                runtime
+            }
         return copy(runtime = consumedRuntime).beginScript(
             memberIndex = memberIndex,
             sourceKind = CombatScriptSourceKind.MagicItem,
@@ -362,11 +519,15 @@ data class BattleSession(
         )
     }
 
-    private fun castMageSpell(memberIndex: Int, slot: Int): BattleSession {
+    private fun castMageSpell(
+        memberIndex: Int,
+        slot: Int,
+    ): BattleSession {
         if (slot == 7) return copy(step = playerActionStep(memberIndex))
 
-        val spell = mageSpells().firstOrNull { it.slot == slot }
-            ?: return copy(step = messageStep(battle.text.notPossible, playerActionStep(memberIndex)))
+        val spell =
+            mageSpells().firstOrNull { it.slot == slot }
+                ?: return copy(step = messageStep(battle.text.notPossible, playerActionStep(memberIndex)))
         if (encounter.monster.immune) {
             return copy(step = messageStep(battle.text.spellFizzle, nextAfterMemberAction(memberIndex, encounter)))
         }
@@ -375,10 +536,11 @@ data class BattleSession(
         val cost = spell.baseCost + caster.level
         if (caster.mana.current < cost) {
             return copy(
-                step = messageStep(
-                    battle.text.notEnoughMagic,
-                    nextAfterMemberAction(memberIndex, encounter),
-                ),
+                step =
+                    messageStep(
+                        battle.text.notEnoughMagic,
+                        nextAfterMemberAction(memberIndex, encounter),
+                    ),
             )
         }
 
@@ -393,44 +555,52 @@ data class BattleSession(
         )
     }
 
-    private fun attackMonster(memberIndex: Int, targetIndex: Int): BattleSession {
+    private fun attackMonster(
+        memberIndex: Int,
+        targetIndex: Int,
+    ): BattleSession {
         val member = runtime.activeParty.members[memberIndex]
         val hitDraw = runtime.drawRandom(0, 99)
-        val skill = if (round.partyConfused) {
-            member.weaponSkill / battle.playerRound.attack.confusionDivisor
-        } else {
-            member.weaponSkill
-        }
+        val skill =
+            if (round.partyConfused) {
+                member.weaponSkill / battle.playerRound.attack.confusionDivisor
+            } else {
+                member.weaponSkill
+            }
         val hitChance = (skill + battle.playerRound.attack.hitBonus).coerceIn(0, 100)
         return if (hitDraw.value < hitChance) {
             val damageDraw = hitDraw.runtime.drawRandom(0, battle.playerRound.attack.damageSpreadMax)
-            val damage = member.weaponDamage() +
-                damageDraw.value +
-                member.hitPoints.current / battle.playerRound.attack.hpDefenseDivisor
+            val damage =
+                member.weaponDamage() +
+                    damageDraw.value +
+                    member.hitPoints.current / battle.playerRound.attack.hpDefenseDivisor
             val nextEncounter = encounter.damage(targetIndex, damage)
             val killed = encounter.hitPoints[targetIndex] > 0 && nextEncounter.hitPoints[targetIndex] == 0
             copy(runtime = damageDraw.runtime, encounter = nextEncounter).copy(
-                step = messageStep(
-                    BattlePromptText.attackHit(
-                        text = battle.text,
-                        attackerName = member.name,
-                        damage = damage,
-                        killed = killed,
+                step =
+                    messageStep(
+                        BattlePromptText.attackHit(
+                            text = battle.text,
+                            attackerName = member.name,
+                            damage = damage,
+                            killed = killed,
+                        ),
+                        nextAfterMemberAction(memberIndex, nextEncounter),
                     ),
-                    nextAfterMemberAction(memberIndex, nextEncounter),
-                ),
-                lastResult = if (nextEncounter.aliveCount() == 0) {
-                    result(BattleSessionResultStatus.Victory)
-                } else {
-                    lastResult
-                },
+                lastResult =
+                    if (nextEncounter.aliveCount() == 0) {
+                        result(BattleSessionResultStatus.Victory)
+                    } else {
+                        lastResult
+                    },
             )
         } else {
             copy(runtime = hitDraw.runtime).copy(
-                step = messageStep(
-                    BattlePromptText.attackMiss(member.name),
-                    nextAfterMemberAction(memberIndex, encounter),
-                ),
+                step =
+                    messageStep(
+                        BattlePromptText.attackMiss(member.name),
+                        nextAfterMemberAction(memberIndex, encounter),
+                    ),
             )
         }
     }
@@ -456,62 +626,77 @@ data class BattleSession(
             ),
         )
 
-    private fun resumeScript(script: CombatScriptContinuation, locals: Map<String, Int>): BattleSession =
-        runScript(script.copy(locals = locals, pendingVar = ""))
+    private fun resumeScript(
+        script: CombatScriptContinuation,
+        locals: Map<String, Int>,
+    ): BattleSession = runScript(script.copy(locals = locals, pendingVar = ""))
 
     private fun runScript(script: CombatScriptContinuation): BattleSession {
-        val result = CombatScriptRunner(
-            initialRuntime = runtime,
-            initialEncounter = encounter,
-            initialRound = round,
-        ).run(script)
+        val result =
+            CombatScriptRunner(
+                initialRuntime = runtime,
+                initialEncounter = encounter,
+                initialRound = round,
+            ).run(script)
         val base = copy(runtime = result.runtime, encounter = result.encounter, round = result.round)
         return when (result) {
             is CombatScriptRunResult.Done -> base.finishScript(script, result.texts)
-            is CombatScriptRunResult.NeedMonster -> base.copy(
-                step = messageStep(
-                    result.texts,
-                    BattleSessionStep.ScriptMonsterTarget(
-                        prompt = result.prompt,
-                        targetKeys = result.encounter.aliveTargetKeys(),
-                        script = result.continuation,
-                    ),
-                ),
-            )
-            is CombatScriptRunResult.NeedMember -> base.copy(
-                step = messageStep(
-                    result.texts,
-                    BattleSessionStep.MemberTarget(
-                        prompt = result.prompt,
-                        targetKeys = result.targetKeys,
-                        script = result.continuation,
-                    ),
-                ),
-            )
+            is CombatScriptRunResult.NeedMonster ->
+                base.copy(
+                    step =
+                        messageStep(
+                            result.texts,
+                            BattleSessionStep.ScriptMonsterTarget(
+                                prompt = result.prompt,
+                                targetKeys = result.encounter.aliveTargetKeys(),
+                                script = result.continuation,
+                            ),
+                        ),
+                )
+            is CombatScriptRunResult.NeedMember ->
+                base.copy(
+                    step =
+                        messageStep(
+                            result.texts,
+                            BattleSessionStep.MemberTarget(
+                                prompt = result.prompt,
+                                targetKeys = result.targetKeys,
+                                script = result.continuation,
+                            ),
+                        ),
+                )
         }
     }
 
-    private fun finishScript(script: CombatScriptContinuation, texts: List<TextBlock>): BattleSession {
+    private fun finishScript(
+        script: CombatScriptContinuation,
+        texts: List<TextBlock>,
+    ): BattleSession {
         val memberIndex = script.memberIndex ?: return copy(step = messageStep(texts, BattleSessionStep.MonsterRound))
         val actionRetry = round.actionRetry
         val nextRound = if (actionRetry) round.copy(actionRetry = false) else round
-        val next = if (actionRetry) {
-            playerActionStep(memberIndex)
-        } else {
-            nextAfterMemberAction(memberIndex, encounter)
-        }
+        val next =
+            if (actionRetry) {
+                playerActionStep(memberIndex)
+            } else {
+                nextAfterMemberAction(memberIndex, encounter)
+            }
         return copy(
             round = nextRound,
             step = messageStep(texts, next),
-            lastResult = if (encounter.aliveCount() == 0) {
-                result(BattleSessionResultStatus.Victory)
-            } else {
-                lastResult
-            },
+            lastResult =
+                if (encounter.aliveCount() == 0) {
+                    result(BattleSessionResultStatus.Victory)
+                } else {
+                    lastResult
+                },
         )
     }
 
-    private fun nextAfterMemberAction(memberIndex: Int, nextEncounter: BattleMonsterState): BattleSessionStep =
+    private fun nextAfterMemberAction(
+        memberIndex: Int,
+        nextEncounter: BattleMonsterState,
+    ): BattleSessionStep =
         if (nextEncounter.aliveCount() == 0) {
             victoryStep(nextEncounter)
         } else {
@@ -530,11 +715,12 @@ data class BattleSession(
                 val actions = availableActions(member)
                 BattleSessionStep.PlayerAction(
                     memberIndex = index,
-                    prompt = BattlePromptText.playerActionPrompt(
-                        text = battle.text,
-                        member = member,
-                        actions = actions,
-                    ),
+                    prompt =
+                        BattlePromptText.playerActionPrompt(
+                            text = battle.text,
+                            member = member,
+                            actions = actions,
+                        ),
                     actions = actions,
                 )
             }
@@ -564,21 +750,24 @@ data class BattleSession(
 
     private fun victoryStep(nextEncounter: BattleMonsterState): BattleSessionStep =
         applyVictory(nextEncounter).let { victory ->
-            val lootName = victory.loot?.let { item ->
-                itemRecords.firstOrNull { it.id == item }?.displayName ?: item.slug
-            }
+            val lootName =
+                victory.loot?.let { item ->
+                    itemRecords.firstOrNull { it.id == item }?.displayName ?: item.slug
+                }
             BattleSessionStep.Message(
-                texts = BattlePromptText.victory(
-                    battle.text,
-                    victory.experience,
-                    victory.gold,
-                    lootName,
-                    victory.levelGains,
-                ),
+                texts =
+                    BattlePromptText.victory(
+                        battle.text,
+                        victory.experience,
+                        victory.gold,
+                        lootName,
+                        victory.levelGains,
+                    ),
                 next = BattleSessionStep.Finished(victory.runtime.asWilderness()),
-                viewCommands = battle.victoryImage
-                    ?.let { listOf(ViewCommand.ClearMapWindow, ViewCommand.ShowImage(it), ViewCommand.ClearText) }
-                    .orEmpty(),
+                viewCommands =
+                    battle.victoryImage
+                        ?.let { listOf(ViewCommand.ClearMapWindow, ViewCommand.ShowImage(it), ViewCommand.ClearText) }
+                        .orEmpty(),
             )
         }
 
@@ -591,12 +780,13 @@ data class BattleSession(
             if (hitPoints > 0 && nextRuntime.activeParty.aliveMembers().isNotEmpty()) {
                 if (!nextRound.monstersHeld && shouldMonsterCast(nextRuntime, nextRound).also { nextRuntime = it.runtime }.value) {
                     texts += BattlePromptText.monsterCasts(nextEncounter.monster.name)
-                    val cast = castMonsterSpell(
-                        runtime = nextRuntime,
-                        encounter = nextEncounter,
-                        round = nextRound,
-                        monsterIndex = monsterIndex,
-                    )
+                    val cast =
+                        castMonsterSpell(
+                            runtime = nextRuntime,
+                            encounter = nextEncounter,
+                            round = nextRound,
+                            monsterIndex = monsterIndex,
+                        )
                     nextRuntime = cast.runtime
                     nextEncounter = cast.encounter
                     nextRound = cast.round
@@ -612,13 +802,15 @@ data class BattleSession(
                         val damageDraw = nextRuntime.drawRandom(0, battle.monsterRound.melee.damageSpreadMax)
                         nextRuntime = damageDraw.runtime
                         val armor = itemRecords.firstOrNull { it.id == target.armor }?.armorClass ?: 0
-                        val damage = (hitPoints / battle.monsterRound.melee.damageDivisor + damageDraw.value - armor)
-                            .coerceAtLeast(battle.monsterRound.melee.damageMin)
+                        val damage =
+                            (hitPoints / battle.monsterRound.melee.damageDivisor + damageDraw.value - armor)
+                                .coerceAtLeast(battle.monsterRound.melee.damageMin)
                         val nextHp = (target.hitPoints.current - damage).coerceAtLeast(0)
-                        val nextTarget = target.copy(
-                            hitPoints = nextHp of target.hitPoints.max,
-                            dead = target.dead || nextHp == 0,
-                        )
+                        val nextTarget =
+                            target.copy(
+                                hitPoints = nextHp of target.hitPoints.max,
+                                dead = target.dead || nextHp == 0,
+                            )
                         nextRuntime = nextRuntime.withActiveMember(targetIndex, nextTarget)
                         texts += BattlePromptText.monsterHit(nextEncounter.monster.name, target.name, damage, nextHp == 0)
                     } else {
@@ -639,25 +831,30 @@ data class BattleSession(
         }
 
         nextRound = nextRound.afterMonsterRound()
-        val nextStep = if (nextRound.partyHeld) {
-            messageStep(texts + battle.text.partyHeld, BattleSessionStep.MonsterRound)
-        } else {
-            messageStep(
-                texts.ifEmpty { listOf(BattlePromptText.stillFace(battle.text, nextEncounter)) },
-                BattleSessionStep.RoundOpening(BattlePromptText.stillFace(battle.text, nextEncounter)),
-            )
-        }
+        val nextStep =
+            if (nextRound.partyHeld) {
+                messageStep(texts + battle.text.partyHeld, BattleSessionStep.MonsterRound)
+            } else {
+                messageStep(
+                    texts.ifEmpty { listOf(BattlePromptText.stillFace(battle.text, nextEncounter)) },
+                    BattleSessionStep.RoundOpening(BattlePromptText.stillFace(battle.text, nextEncounter)),
+                )
+            }
         return copy(runtime = nextRuntime, encounter = nextEncounter, round = nextRound).copy(
             step = nextStep,
         )
     }
 
-    private fun shouldMonsterCast(runtime: RuntimeSessionState, round: BattleRoundState): RuntimeBooleanDraw {
+    private fun shouldMonsterCast(
+        runtime: RuntimeSessionState,
+        round: BattleRoundState,
+    ): RuntimeBooleanDraw {
         if (round.antimagic || encounter.monster.spellPower <= 0 || monsterSpells().isEmpty()) {
             return RuntimeBooleanDraw(false, runtime)
         }
-        val chance = battle.monsterRound.spellChanceBasePercent +
-            encounter.monster.spellPower / battle.monsterRound.spellPowerDivisor
+        val chance =
+            battle.monsterRound.spellChanceBasePercent +
+                encounter.monster.spellPower / battle.monsterRound.spellPowerDivisor
         val draw = runtime.drawRandom(0, 99)
         return RuntimeBooleanDraw(draw.value < chance, draw.runtime)
     }
@@ -672,48 +869,54 @@ data class BattleSession(
         if (options.isEmpty()) return BattleScriptEffect(runtime, encounter, round, emptyList())
         val pick = runtime.drawRandom(0, options.lastIndex)
         val spell = options[pick.value]
-        val script = CombatScriptContinuation(
-            memberIndex = null,
-            sourceKind = CombatScriptSourceKind.MonsterSpell,
-            sourceSlug = spell.id.slug,
-            ops = spell.ops,
-            nextIndex = 0,
-            pendingVar = "",
-            locals = mapOf(
-                "caster_idx" to monsterIndex,
-                "attacker_idx" to monsterIndex,
-            ),
-        )
-        return when (val result = CombatScriptRunner(pick.runtime, encounter, round).run(script)) {
-            is CombatScriptRunResult.Done -> BattleScriptEffect(
-                runtime = result.runtime,
-                encounter = result.encounter,
-                round = result.round,
-                texts = result.texts,
+        val script =
+            CombatScriptContinuation(
+                memberIndex = null,
+                sourceKind = CombatScriptSourceKind.MonsterSpell,
+                sourceSlug = spell.id.slug,
+                ops = spell.ops,
+                nextIndex = 0,
+                pendingVar = "",
+                locals =
+                    mapOf(
+                        "caster_idx" to monsterIndex,
+                        "attacker_idx" to monsterIndex,
+                    ),
             )
+        return when (val result = CombatScriptRunner(pick.runtime, encounter, round).run(script)) {
+            is CombatScriptRunResult.Done ->
+                BattleScriptEffect(
+                    runtime = result.runtime,
+                    encounter = result.encounter,
+                    round = result.round,
+                    texts = result.texts,
+                )
             is CombatScriptRunResult.NeedMember,
-            is CombatScriptRunResult.NeedMonster -> error("monster combat spell ${spell.id.slug} cannot ask the player")
+            is CombatScriptRunResult.NeedMonster,
+            -> error("monster combat spell ${spell.id.slug} cannot ask the player")
         }
     }
 
     private fun applyVictory(nextEncounter: BattleMonsterState): BattleVictoryResult {
         val reward = rewards.firstOrNull { it.id == battle.rewards }
-        val bindings = mapOf(
-            "encounter_foe_count" to nextEncounter.count,
-            "encounter_hit_point_max" to nextEncounter.hitPointMax,
-            "monster_weapon_skill" to round.monsterWeaponSkill,
-            "monster_spell_power" to nextEncounter.monster.spellPower,
-        )
+        val bindings =
+            mapOf(
+                "encounter_foe_count" to nextEncounter.count,
+                "encounter_hit_point_max" to nextEncounter.hitPointMax,
+                "monster_weapon_skill" to round.monsterWeaponSkill,
+                "monster_spell_power" to nextEncounter.monster.spellPower,
+            )
         val experience = reward?.experience?.let { formulas.evalFormula(it, bindings) } ?: 0
         val gold = reward?.gold?.let { formulas.evalFormula(it, bindings) } ?: 0
         val lootSelection = reward?.let { selectBattleLoot(runtime, it) }
         val rewardRuntime = lootSelection?.runtime ?: runtime
         val loot = lootSelection?.item
-        val partyBeforeLevelUp = rewardRuntime.activeParty
-            .withKills(nextEncounter.count)
-            .withExperienceForSurvivors(experience)
-            .withGold(rewardRuntime.activeParty.resources.gold + gold)
-            .let { party -> loot?.let { party.placeBattleLoot(it) } ?: party }
+        val partyBeforeLevelUp =
+            rewardRuntime.activeParty
+                .withKills(nextEncounter.count)
+                .withExperienceForSurvivors(experience)
+                .withGold(rewardRuntime.activeParty.resources.gold + gold)
+                .let { party -> loot?.let { party.placeBattleLoot(it) } ?: party }
         val levelUps = partyBeforeLevelUp.applyLevelUps(leveling, formulas)
         return BattleVictoryResult(
             runtime = rewardRuntime.withActiveParty(levelUps.party),
@@ -724,8 +927,7 @@ data class BattleSession(
         )
     }
 
-    private fun result(status: BattleSessionResultStatus): BattleSessionResult =
-        BattleSessionResult(status, encounter.monster.id, tier)
+    private fun result(status: BattleSessionResultStatus): BattleSessionResult = BattleSessionResult(status, encounter.monster.id, tier)
 
     companion object {
         fun start(
@@ -744,16 +946,17 @@ data class BattleSession(
             start(
                 runtime = runtime,
                 tier = tier,
-                content = RuntimeContent(
-                    combat = combat,
-                    monsters = monsters,
-                    itemRecords = itemRecords,
-                    formulas = formulas,
-                    rewards = rewards,
-                    leveling = leveling,
-                    spells = spells,
-                    itemUses = itemUses,
-                ),
+                content =
+                    RuntimeContent(
+                        combat = combat,
+                        monsters = monsters,
+                        itemRecords = itemRecords,
+                        formulas = formulas,
+                        rewards = rewards,
+                        leveling = leveling,
+                        spells = spells,
+                        itemUses = itemUses,
+                    ),
                 mandatory = mandatory,
             )
 
@@ -786,28 +989,35 @@ data class BattleSession(
             mandatory: Boolean = false,
         ): BattleSession {
             val battle = requireNotNull(content.combat.standardBattle) { "standard battle is not configured" }
-            val firstLevel = runtime.activeParty.members.firstOrNull().levelOrZero()
+            val firstLevel =
+                runtime.activeParty.members
+                    .firstOrNull()
+                    .levelOrZero()
             val countMax = monster.count.last + (monster.countMaxLevelDivisor?.let { firstLevel / it } ?: 0)
-            val bannerDraw = battle.opening.banners.takeIf { it.isNotEmpty() }
-                ?.let { banners -> runtime.drawRandom(0, banners.lastIndex) }
+            val bannerDraw =
+                battle.opening.banners
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { banners -> runtime.drawRandom(0, banners.lastIndex) }
             val bannerImage = bannerDraw?.value?.let { battle.opening.banners[it] }
             val countDraw = (bannerDraw?.runtime ?: runtime).drawRandom(1, countMax)
             val count = countDraw.value.coerceAtLeast(monster.count.first).coerceAtMost(battle.encounterFoeCountMax)
             val hpRange = countDraw.runtime.scaledEncounterHpRange(monster, content.formulas)
             var hpRuntime = countDraw.runtime
-            val hitPoints = buildList {
-                repeat(count) {
-                    val hpDraw = hpRuntime.drawRandom(1, hpRange.last)
-                    hpRuntime = hpDraw.runtime
-                    add(hpDraw.value.coerceAtLeast(hpRange.first))
+            val hitPoints =
+                buildList {
+                    repeat(count) {
+                        val hpDraw = hpRuntime.drawRandom(1, hpRange.last)
+                        hpRuntime = hpDraw.runtime
+                        add(hpDraw.value.coerceAtLeast(hpRange.first))
+                    }
                 }
-            }
-            val nextRuntime = hpRuntime.withRealm(
-                hpRuntime.realm.copy(
-                    currentMode = RuntimeMode.Battle,
-                    currentTown = null,
-                ),
-            )
+            val nextRuntime =
+                hpRuntime.withRealm(
+                    hpRuntime.realm.copy(
+                        currentMode = RuntimeMode.Battle,
+                        currentTown = null,
+                    ),
+                )
             val encounter = BattleMonsterState(monster, count, hitPoints, hpRange.last, mandatory)
             return BattleSession(
                 runtime = nextRuntime,
@@ -815,37 +1025,43 @@ data class BattleSession(
                 content = content,
                 tier = tier,
                 encounter = encounter,
-                round = BattleRoundState(
-                    currentMemberIndex = 0,
-                    defendCount = 0,
-                    monsterWeaponSkill = monster.weaponSkill + nextRuntime.activeParty.members.firstOrNull().levelOrZero(),
-                ),
+                round =
+                    BattleRoundState(
+                        currentMemberIndex = 0,
+                        defendCount = 0,
+                        monsterWeaponSkill =
+                            monster.weaponSkill +
+                                nextRuntime.activeParty.members
+                                    .firstOrNull()
+                                    .levelOrZero(),
+                    ),
                 step = BattleSessionStep.Opening(BattlePromptText.opening(battle.text, encounter), bannerImage),
                 lastResult = BattleSessionResult(BattleSessionResultStatus.EncounterStarted, monster.id, tier),
             )
         }
     }
 
-    private fun messageStep(text: TextBlock, next: BattleSessionStep): BattleSessionStep.Message =
-        BattleSessionStep.Message(listOf(text), next)
+    private fun messageStep(
+        text: TextBlock,
+        next: BattleSessionStep,
+    ): BattleSessionStep.Message = BattleSessionStep.Message(listOf(text), next)
 
-    private fun messageStep(texts: List<TextBlock>, next: BattleSessionStep): BattleSessionStep.Message =
-        BattleSessionStep.Message(texts, next)
+    private fun messageStep(
+        texts: List<TextBlock>,
+        next: BattleSessionStep,
+    ): BattleSessionStep.Message = BattleSessionStep.Message(texts, next)
 
-    private fun mageSpells(): List<SpellModel> =
-        spells.filter { it.id.slug.startsWith("mage.") }.sortedBy { it.slot }
+    private fun mageSpells(): List<SpellModel> = spells.filter { it.id.slug.startsWith("mage.") }.sortedBy { it.slot }
 
     private fun monsterSpells(): List<SpellModel> =
         spells.filter { it.id.slug.startsWith("monster.") && it.id != DslDefaultSpells.Monster.melee }.sortedBy { it.slot }
 
-    private fun inventorySlotKeys(): List<Char> =
-        (1..InventorySaveSlotMax).map { slot -> 'A' + slot - 1 }
+    private fun inventorySlotKeys(): List<Char> = (1..InventorySaveSlotMax).map { slot -> 'A' + slot - 1 }
 
     private fun itemRecord(item: ItemId): ItemRecordModel =
         itemRecords.firstOrNull { it.id == item } ?: error("missing item record ${item.slug}")
 
-    private fun PartyMemberState.weaponDamage(): Int =
-        itemRecords.firstOrNull { it.id == weapon }?.weaponDamage ?: 1
+    private fun PartyMemberState.weaponDamage(): Int = itemRecords.firstOrNull { it.id == weapon }?.weaponDamage ?: 1
 }
 
 data class BattleVictoryResult(
@@ -910,87 +1126,124 @@ private class CombatScriptRunner(
     private var locals = emptyMap<String, Int>()
     private val texts = mutableListOf<TextBlock>()
 
-    private val monsterFieldReaders: Map<String, (Int) -> Int> = mapOf(
-        "hit_points" to { index -> encounter.hitPoints.getOrElse(index) { 0 } },
-        "dead" to { index -> if (encounter.hitPoints.getOrElse(index) { 0 } <= 0) 1 else 0 },
-    )
+    private val monsterFieldReaders: Map<String, (Int) -> Int> =
+        mapOf(
+            "hit_points" to { index -> encounter.hitPoints.getOrElse(index) { 0 } },
+            "dead" to { index -> if (encounter.hitPoints.getOrElse(index) { 0 } <= 0) 1 else 0 },
+        )
 
-    private val monsterFieldWriters: Map<String, (Int, Int) -> Unit> = mapOf(
-        "hit_points" to { index, value ->
-            encounter = encounter.copy(
-                hitPoints = encounter.hitPoints.mapIndexed { monster, hp ->
-                    if (monster == index) value.coerceAtLeast(0) else hp
-                },
-            )
-        },
-        "dead" to { index, value ->
-            if (value != 0) {
-                encounter = encounter.copy(
-                    hitPoints = encounter.hitPoints.mapIndexed { monster, hp ->
-                        if (monster == index) 0 else hp
-                    },
-                )
-            }
-        },
-    )
+    private val monsterFieldWriters: Map<String, (Int, Int) -> Unit> =
+        mapOf(
+            "hit_points" to { index, value ->
+                encounter =
+                    encounter.copy(
+                        hitPoints =
+                            encounter.hitPoints.mapIndexed { monster, hp ->
+                                if (monster == index) value.coerceAtLeast(0) else hp
+                            },
+                    )
+            },
+            "dead" to { index, value ->
+                if (value != 0) {
+                    encounter =
+                        encounter.copy(
+                            hitPoints =
+                                encounter.hitPoints.mapIndexed { monster, hp ->
+                                    if (monster == index) 0 else hp
+                                },
+                        )
+                }
+            },
+        )
 
-    private val battleFlagReaders: Map<String, () -> Int> = mapOf(
-        "monster_weapon_skill" to { round.monsterWeaponSkill },
-        "encounter_hit_point_max" to { encounter.hitPointMax },
-        "monster_confused" to { if (round.monsterConfused) 1 else 0 },
-        "monsters_held" to { if (round.monstersHeld) 1 else 0 },
-        "antimagic" to { if (round.antimagic) 1 else 0 },
-        "party_held" to { if (round.partyHeld) 1 else 0 },
-        "party_confused" to { if (round.partyConfused) 1 else 0 },
-        "action_retry" to { if (round.actionRetry) 1 else 0 },
-    )
+    private val battleFlagReaders: Map<String, () -> Int> =
+        mapOf(
+            "monster_weapon_skill" to { round.monsterWeaponSkill },
+            "encounter_hit_point_max" to { encounter.hitPointMax },
+            "monster_confused" to { if (round.monsterConfused) 1 else 0 },
+            "monsters_held" to { if (round.monstersHeld) 1 else 0 },
+            "antimagic" to { if (round.antimagic) 1 else 0 },
+            "party_held" to { if (round.partyHeld) 1 else 0 },
+            "party_confused" to { if (round.partyConfused) 1 else 0 },
+            "action_retry" to { if (round.actionRetry) 1 else 0 },
+        )
 
-    private val battleFlagWriters: Map<String, (Int) -> Unit> = mapOf(
-        "monster_weapon_skill" to { value -> round = round.copy(monsterWeaponSkill = value.coerceAtLeast(0)) },
-        "monster_confused" to { value -> round = round.copy(monsterConfused = value != 0) },
-        "monsters_held" to { value -> round = round.copy(monstersHeld = value != 0) },
-        "antimagic" to { value -> round = round.copy(antimagic = value != 0) },
-        "party_held" to { value -> round = round.copy(partyHeld = value != 0) },
-        "party_confused" to { value -> round = round.copy(partyConfused = value != 0) },
-        "action_retry" to { value -> round = round.copy(actionRetry = value != 0) },
-    )
+    private val battleFlagWriters: Map<String, (Int) -> Unit> =
+        mapOf(
+            "monster_weapon_skill" to { value -> round = round.copy(monsterWeaponSkill = value.coerceAtLeast(0)) },
+            "monster_confused" to { value -> round = round.copy(monsterConfused = value != 0) },
+            "monsters_held" to { value -> round = round.copy(monstersHeld = value != 0) },
+            "antimagic" to { value -> round = round.copy(antimagic = value != 0) },
+            "party_held" to { value -> round = round.copy(partyHeld = value != 0) },
+            "party_confused" to { value -> round = round.copy(partyConfused = value != 0) },
+            "action_retry" to { value -> round = round.copy(actionRetry = value != 0) },
+        )
 
-    private val battleQueryReaders: Map<String, () -> Int> = mapOf(
-        "first_alive_monster" to { encounter.hitPoints.indexOfFirst { it > 0 } },
-        "random_alive_member" to {
-            val draw = runtime.drawAliveMemberIndex()
-            runtime = draw.runtime
-            draw.value
-        },
-    )
+    private val battleQueryReaders: Map<String, () -> Int> =
+        mapOf(
+            "first_alive_monster" to { encounter.hitPoints.indexOfFirst { it > 0 } },
+            "random_alive_member" to {
+                val draw = runtime.drawAliveMemberIndex()
+                runtime = draw.runtime
+                draw.value
+            },
+        )
 
-    private val monsterFlagReaders: Map<String, (Int) -> Boolean> = mapOf(
-        "dead" to { index -> encounter.hitPoints.getOrElse(index) { 0 } <= 0 },
-    )
+    private val monsterFlagReaders: Map<String, (Int) -> Boolean> =
+        mapOf(
+            "dead" to { index -> encounter.hitPoints.getOrElse(index) { 0 } <= 0 },
+        )
 
     private val battlePartyScalars: Set<String> = setOf("gold")
     private val battleRealmScalars: Set<String> = setOf("party_member_max")
 
-    private val evaluator = object : IntAstEvaluator() {
-        override fun local(name: String): Int = locals[name] ?: 0
-        override fun random(lo: Int, hi: Int): Int {
-            val draw = runtime.drawRandom(lo, hi)
-            runtime = draw.runtime
-            return draw.value
+    private val evaluator =
+        object : IntAstEvaluator() {
+            override fun local(name: String): Int = locals[name] ?: 0
+
+            override fun random(
+                lo: Int,
+                hi: Int,
+            ): Int {
+                val draw = runtime.drawRandom(lo, hi)
+                runtime = draw.runtime
+                return draw.value
+            }
+
+            override fun memberField(
+                member: Int,
+                field: String,
+            ): Int = readMemberField(member, field)
+
+            override fun monsterField(
+                monster: Int,
+                field: String,
+            ): Int = readMonsterField(monster, field)
+
+            override fun battleFlag(name: String): Int = readBattleFlag(name)
+
+            override fun battleQuery(name: String): Int = readBattleQuery(name)
+
+            override fun realmScalar(name: String): Int = readRealmScalar(name)
+
+            override fun partyScalar(name: String): Int = readPartyScalar(name)
+
+            override fun inventoryPoolCount(pool: ItemPoolId): Int = runtime.activeParty.countInventoryItems(pool)
+
+            override fun milestoneAchieved(milestone: GameMilestoneId): Boolean = milestone in runtime.activeParty.milestones
+
+            override fun memberFlag(
+                member: Int,
+                name: String,
+            ): Boolean = readMemberFlag(member, name)
+
+            override fun monsterFlag(
+                monster: Int,
+                name: String,
+            ): Boolean = readMonsterFlag(monster, name)
+
+            override fun runtimeFlag(name: String): Boolean = runtime.scriptRuntimeFlag(name)
         }
-        override fun memberField(member: Int, field: String): Int = readMemberField(member, field)
-        override fun monsterField(monster: Int, field: String): Int = readMonsterField(monster, field)
-        override fun battleFlag(name: String): Int = readBattleFlag(name)
-        override fun battleQuery(name: String): Int = readBattleQuery(name)
-        override fun realmScalar(name: String): Int = readRealmScalar(name)
-        override fun partyScalar(name: String): Int = readPartyScalar(name)
-        override fun inventoryPoolCount(pool: ItemPoolId): Int = runtime.activeParty.countInventoryItems(pool)
-        override fun milestoneAchieved(milestone: GameMilestoneId): Boolean =
-            milestone in runtime.activeParty.milestones
-        override fun memberFlag(member: Int, name: String): Boolean = readMemberFlag(member, name)
-        override fun monsterFlag(monster: Int, name: String): Boolean = readMonsterFlag(monster, name)
-        override fun runtimeFlag(name: String): Boolean = runtime.scriptRuntimeFlag(name)
-    }
 
     fun run(start: CombatScriptContinuation): CombatScriptRunResult {
         locals = start.locals
@@ -1030,15 +1283,20 @@ private class CombatScriptRunner(
                 is Op.AskKey -> unsupportedCombatOp(op)
                 is Op.AskMonster -> return needMonster(start, index, op)
                 is Op.AskMember -> return needMember(start, index, op)
-                Op.ConsumeActiveItem -> start.activeInventorySlot?.let { slot ->
-                    runtime = runtime.withActiveParty(runtime.activeParty.withInventoryItem(slot, null))
-                }
-                is Op.ClearInventorySlot -> runtime = runtime.withActiveParty(
-                    runtime.activeParty.withInventoryItem(evaluator.int(op.slot), null),
-                )
-                is Op.ConsumeInventoryPool -> runtime = runtime.withActiveParty(
-                    runtime.activeParty.consumeInventoryItems(op.pool, evaluator.int(op.quantity)),
-                )
+                Op.ConsumeActiveItem ->
+                    start.activeInventorySlot?.let { slot ->
+                        runtime = runtime.withActiveParty(runtime.activeParty.withInventoryItem(slot, null))
+                    }
+                is Op.ClearInventorySlot ->
+                    runtime =
+                        runtime.withActiveParty(
+                            runtime.activeParty.withInventoryItem(evaluator.int(op.slot), null),
+                        )
+                is Op.ConsumeInventoryPool ->
+                    runtime =
+                        runtime.withActiveParty(
+                            runtime.activeParty.consumeInventoryItems(op.pool, evaluator.int(op.quantity)),
+                        )
                 is Op.NativeCall -> Unit
                 is Op.SetFlag,
                 is Op.AppendJournal,
@@ -1060,23 +1318,29 @@ private class CombatScriptRunner(
                 is Op.GrantReward,
                 is Op.RandomItemOffer,
                 is Op.ShopService,
-                is Op.AchieveMilestone -> unsupportedCombatOp(op)
+                is Op.AchieveMilestone,
+                -> unsupportedCombatOp(op)
             }
             index++
         }
         return CombatScriptRunResult.Done(runtime, encounter, round, texts.toList())
     }
 
-    private fun runNested(ops: List<Op>, parent: CombatScriptContinuation) {
+    private fun runNested(
+        ops: List<Op>,
+        parent: CombatScriptContinuation,
+    ) {
         val nested = run(parent.copy(ops = ops, nextIndex = 0, locals = locals))
         runtime = nested.runtime
         encounter = nested.encounter
         round = nested.round
-        locals = when (nested) {
-            is CombatScriptRunResult.Done -> locals
-            is CombatScriptRunResult.NeedMember,
-            is CombatScriptRunResult.NeedMonster -> error("nested combat target prompts are not supported yet")
-        }
+        locals =
+            when (nested) {
+                is CombatScriptRunResult.Done -> locals
+                is CombatScriptRunResult.NeedMember,
+                is CombatScriptRunResult.NeedMonster,
+                -> error("nested combat target prompts are not supported yet")
+            }
     }
 
     private fun needMonster(
@@ -1098,9 +1362,10 @@ private class CombatScriptRunner(
         index: Int,
         op: Op.AskMember,
     ): CombatScriptRunResult.NeedMember {
-        val keys = runtime.activeParty.members.mapIndexedNotNull { memberIndex, member ->
-            ('1' + memberIndex).takeIf { member.matchesCombatFilter(op.accepting) }
-        }
+        val keys =
+            runtime.activeParty.members.mapIndexedNotNull { memberIndex, member ->
+                ('1' + memberIndex).takeIf { member.matchesCombatFilter(op.accepting) }
+            }
         return CombatScriptRunResult.NeedMember(
             runtime = runtime,
             encounter = encounter,
@@ -1115,61 +1380,70 @@ private class CombatScriptRunner(
     private fun renderText(block: TextBlock): TextBlock =
         when (block) {
             is TextBlock.Ref,
-            is TextBlock.Inline -> block
-            is TextBlock.Structured -> TextBlock.Inline(
-                block.lines.map { line ->
-                    line.parts.joinToString(separator = "") { part ->
-                        when (part) {
-                            is TextPart.Literal -> part.text
-                            is TextPart.IntValue -> evaluator.int(part.value).toString()
-                            is TextPart.StringValue -> evalString(part.value)
-                            is TextPart.RoleName,
-                            is TextPart.RoleLocation,
-                            is TextPart.TownName,
-                            is TextPart.FuzzyTownLocation,
-                            is TextPart.LocationCoordinate,
-                            TextPart.OfferedItemName,
-                            TextPart.OfferedItemPrice,
-                            TextPart.SelectedItemName,
-                            TextPart.ShopPrice,
-                            TextPart.ShopCarryCap,
-                            TextPart.HuntMemberName,
-                            TextPart.HuntMemberSubjectPronoun,
-                            TextPart.HuntFoodGained,
-                            TextPart.PartyMemberMax,
-                            TextPart.WildernessDungeonName,
-                            TextPart.WildernessDungeonLevels,
-                            TextPart.DungeonDepth,
-                            TextPart.ConversationNpcName,
-                            TextPart.CurrentTownName,
-                            TextPart.TownTaxPercent,
-                            TextPart.TownTaxAmount,
-                            TextPart.CreationMemberNumber,
-                            TextPart.CreationMemberName,
-                            TextPart.CreationWeaponSkill,
-                            TextPart.CreationHealth,
-                            TextPart.CreationWisdom,
-                            TextPart.CreationCharisma -> part.fallbackText()
+            is TextBlock.Inline,
+            -> block
+            is TextBlock.Structured ->
+                TextBlock.Inline(
+                    block.lines.map { line ->
+                        line.parts.joinToString(separator = "") { part ->
+                            // CPD-OFF
+                            when (part) {
+                                is TextPart.Literal -> part.text
+                                is TextPart.IntValue -> evaluator.int(part.value).toString()
+                                is TextPart.StringValue -> evalString(part.value)
+                                is TextPart.RoleName,
+                                is TextPart.RoleLocation,
+                                is TextPart.TownName,
+                                is TextPart.FuzzyTownLocation,
+                                is TextPart.LocationCoordinate,
+                                TextPart.OfferedItemName,
+                                TextPart.OfferedItemPrice,
+                                TextPart.SelectedItemName,
+                                TextPart.ShopPrice,
+                                TextPart.ShopCarryCap,
+                                TextPart.HuntMemberName,
+                                TextPart.HuntMemberSubjectPronoun,
+                                TextPart.HuntFoodGained,
+                                TextPart.PartyMemberMax,
+                                TextPart.WildernessDungeonName,
+                                TextPart.WildernessDungeonLevels,
+                                TextPart.DungeonDepth,
+                                TextPart.ConversationNpcName,
+                                TextPart.CurrentTownName,
+                                TextPart.TownTaxPercent,
+                                TextPart.TownTaxAmount,
+                                TextPart.CreationMemberNumber,
+                                TextPart.CreationMemberName,
+                                TextPart.CreationWeaponSkill,
+                                TextPart.CreationHealth,
+                                TextPart.CreationWisdom,
+                                TextPart.CreationCharisma,
+                                -> part.fallbackText()
+                                // CPD-ON
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
         }
 
     private fun evalString(ast: StrAst): String =
         when (ast) {
-            is StrAst.NativeString -> when (ast.path) {
-                NativeAllowlist.partyMemberName.path ->
-                    runtime.activeParty.members.getOrNull(evalStringArg(ast.args.single()))?.name.orEmpty()
-                NativeAllowlist.combatMonsterName.path -> encounter.monster.name
-                NativeAllowlist.partyPronounSubject.path ->
-                    pronoun(evalStringArg(ast.args.single()), PronounCase.Subject)
-                NativeAllowlist.partyPronounObject.path ->
-                    pronoun(evalStringArg(ast.args.single()), PronounCase.Object)
-                NativeAllowlist.partyPronounPossessive.path ->
-                    pronoun(evalStringArg(ast.args.single()), PronounCase.Possessive)
-                else -> "{${ast.path}}"
-            }
+            is StrAst.NativeString ->
+                when (ast.path) {
+                    NativeAllowlist.partyMemberName.path ->
+                        runtime.activeParty.members
+                            .getOrNull(evalStringArg(ast.args.single()))
+                            ?.name
+                            .orEmpty()
+                    NativeAllowlist.combatMonsterName.path -> encounter.monster.name
+                    NativeAllowlist.partyPronounSubject.path ->
+                        pronoun(evalStringArg(ast.args.single()), PronounCase.Subject)
+                    NativeAllowlist.partyPronounObject.path ->
+                        pronoun(evalStringArg(ast.args.single()), PronounCase.Object)
+                    NativeAllowlist.partyPronounPossessive.path ->
+                        pronoun(evalStringArg(ast.args.single()), PronounCase.Possessive)
+                    else -> "{${ast.path}}"
+                }
         }
 
     private fun evalStringArg(arg: NativeStringArg): Int =
@@ -1178,8 +1452,14 @@ private class CombatScriptRunner(
             is NativeStringArg.Literal -> arg.value.toIntOrNull() ?: 0
         }
 
-    private fun pronoun(memberIndex: Int, case: PronounCase): String {
-        val gender = runtime.activeParty.members.getOrNull(memberIndex)?.gender ?: Gender.Male
+    private fun pronoun(
+        memberIndex: Int,
+        case: PronounCase,
+    ): String {
+        val gender =
+            runtime.activeParty.members
+                .getOrNull(memberIndex)
+                ?.gender ?: Gender.Male
         return gender.pronoun(case)
     }
 
@@ -1192,7 +1472,10 @@ private class CombatScriptRunner(
             is LValueAst.RealmScalar -> readRealmScalar(target.name)
         }
 
-    private fun write(target: LValueAst, value: Int) {
+    private fun write(
+        target: LValueAst,
+        value: Int,
+    ) {
         when (target) {
             is LValueAst.MemberField -> writeMemberField(evaluator.int(target.member), target.field, value)
             is LValueAst.MonsterField -> writeMonsterField(evaluator.int(target.monster), target.field, value)
@@ -1202,77 +1485,109 @@ private class CombatScriptRunner(
         }
     }
 
-    private fun readMemberField(index: Int, field: String): Int {
+    private fun readMemberField(
+        index: Int,
+        field: String,
+    ): Int {
         val member = runtime.activeParty.members.getOrNull(index) ?: return 0
         return member.scriptMemberFieldOrNull(field) ?: error("unknown battle member field $field")
     }
 
-    private fun writeMemberField(index: Int, field: String, value: Int) {
+    private fun writeMemberField(
+        index: Int,
+        field: String,
+        value: Int,
+    ) {
         val member = runtime.activeParty.members.getOrNull(index) ?: return
-        val next = member.withScriptMemberFieldOrNull(field, value)
-            ?: error("unknown battle member field $field")
+        val next =
+            member.withScriptMemberFieldOrNull(field, value)
+                ?: error("unknown battle member field $field")
         val updated = runtime.withActiveMember(index, next)
-        runtime = if (field == "dead") {
-            updated.withActiveParty(updated.activeParty.withLivingCount())
-        } else {
-            updated
-        }
+        runtime =
+            if (field == "dead") {
+                updated.withActiveParty(updated.activeParty.withLivingCount())
+            } else {
+                updated
+            }
     }
 
-    private fun readMonsterField(index: Int, field: String): Int =
-        monsterFieldReaders[field]?.invoke(index) ?: error("unknown battle monster field $field")
+    private fun readMonsterField(
+        index: Int,
+        field: String,
+    ): Int = monsterFieldReaders[field]?.invoke(index) ?: error("unknown battle monster field $field")
 
-    private fun writeMonsterField(index: Int, field: String, value: Int) {
+    private fun writeMonsterField(
+        index: Int,
+        field: String,
+        value: Int,
+    ) {
         val writer = monsterFieldWriters[field] ?: error("unknown battle monster field $field")
         writer(index, value)
     }
 
-    private fun readBattleFlag(name: String): Int =
-        battleFlagReaders[name]?.invoke() ?: error("unknown battle flag $name")
+    private fun readBattleFlag(name: String): Int = battleFlagReaders[name]?.invoke() ?: error("unknown battle flag $name")
 
-    private fun writeBattleFlag(name: String, value: Int) {
-        val writer = battleFlagWriters[name] ?: when {
-            name in battleFlagReaders -> error("battle flag $name is read-only")
-            else -> error("unknown battle flag $name")
-        }
+    private fun writeBattleFlag(
+        name: String,
+        value: Int,
+    ) {
+        val writer =
+            battleFlagWriters[name] ?: when {
+                name in battleFlagReaders -> error("battle flag $name is read-only")
+                else -> error("unknown battle flag $name")
+            }
         writer(value)
     }
 
-    private fun readBattleQuery(name: String): Int =
-        battleQueryReaders[name]?.invoke() ?: error("unknown battle query $name")
+    private fun readBattleQuery(name: String): Int = battleQueryReaders[name]?.invoke() ?: error("unknown battle query $name")
 
-    private fun readMemberFlag(index: Int, name: String): Boolean {
+    private fun readMemberFlag(
+        index: Int,
+        name: String,
+    ): Boolean {
         if (!scriptMemberFlagKnown(name)) {
             error("unknown battle member flag $name")
         }
-        return runtime.activeParty.members.getOrNull(index)?.scriptMemberFlagOrNull(name)
+        return runtime.activeParty.members
+            .getOrNull(index)
+            ?.scriptMemberFlagOrNull(name)
             ?: (name == "dead")
     }
 
-    private fun readMonsterFlag(index: Int, name: String): Boolean =
-        monsterFlagReaders[name]?.invoke(index) ?: error("unknown battle monster flag $name")
+    private fun readMonsterFlag(
+        index: Int,
+        name: String,
+    ): Boolean = monsterFlagReaders[name]?.invoke(index) ?: error("unknown battle monster flag $name")
 
     private fun readPartyScalar(name: String): Int =
-        runtime.activeParty.scriptPartyScalarOrNull(name)
+        runtime.activeParty
+            .scriptPartyScalarOrNull(name)
             ?.takeIf { name in battlePartyScalars }
             ?: error("combat scripts cannot read party scalar $name yet")
 
-    private fun writePartyScalar(name: String, value: Int) {
+    private fun writePartyScalar(
+        name: String,
+        value: Int,
+    ) {
         if (name !in battlePartyScalars) {
             error("combat scripts cannot write party scalar $name yet")
         }
-        val party = runtime.activeParty.withScriptPartyScalarOrNull(name, value)
-            ?: error("combat scripts cannot write party scalar $name yet")
+        val party =
+            runtime.activeParty.withScriptPartyScalarOrNull(name, value)
+                ?: error("combat scripts cannot write party scalar $name yet")
         runtime = runtime.withActiveParty(party)
     }
 
     private fun readRealmScalar(name: String): Int =
-        runtime.scriptRealmScalarOrNull(name)
+        runtime
+            .scriptRealmScalarOrNull(name)
             ?.takeIf { name in battleRealmScalars }
             ?: error("combat scripts cannot read realm scalar $name yet")
 
-    private fun writeRealmScalar(name: String, value: Int): Unit =
-        error("combat scripts cannot write realm scalar $name to $value yet")
+    private fun writeRealmScalar(
+        name: String,
+        value: Int,
+    ): Unit = error("combat scripts cannot write realm scalar $name to $value yet")
 
     private fun unsupportedCombatOp(op: Op): Nothing =
         error("combat script op ${op::class.simpleName} is not supported by BattleSession yet")
@@ -1295,12 +1610,15 @@ private data class BattleScriptEffect(
     val texts: List<TextBlock>,
 )
 
-fun List<FormulaModel>.evalFormula(id: FormulaId, bindings: Map<String, Int>): Int {
+fun List<FormulaModel>.evalFormula(
+    id: FormulaId,
+    bindings: Map<String, Int>,
+): Int {
     val formula = firstOrNull { it.id == id } ?: error("missing formula ${id.slug}")
-    val evaluator = object : IntAstEvaluator() {
-        override fun local(name: String): Int =
-            bindings[name] ?: error("formula ${id.slug} requires binding $name")
-    }
+    val evaluator =
+        object : IntAstEvaluator() {
+            override fun local(name: String): Int = bindings[name] ?: error("formula ${id.slug} requires binding $name")
+        }
     val value = evaluator.int(formula.value)
     RuntimeEventScope.current().emit(
         runtimeEvent(
@@ -1315,7 +1633,10 @@ fun List<FormulaModel>.evalFormula(id: FormulaId, bindings: Map<String, Int>): I
     return value
 }
 
-private fun selectBattleLoot(runtime: RuntimeSessionState, reward: RewardBundleModel): BattleLootSelection {
+private fun selectBattleLoot(
+    runtime: RuntimeSessionState,
+    reward: RewardBundleModel,
+): BattleLootSelection {
     if (runtime.activeParty.firstFreeInventorySlot() == null) {
         return BattleLootSelection(runtime, null)
     }
@@ -1326,11 +1647,12 @@ private fun selectBattleLoot(runtime: RuntimeSessionState, reward: RewardBundleM
     }
 
     val treasureDraw = dropDraw.runtime.drawRandom(0, 99)
-    val pool = if (treasureDraw.value < reward.loot.treasureChancePercent) {
-        reward.loot.treasure
-    } else {
-        reward.loot.magic
-    }
+    val pool =
+        if (treasureDraw.value < reward.loot.treasureChancePercent) {
+            reward.loot.treasure
+        } else {
+            reward.loot.magic
+        }
     if (pool.items.isEmpty()) {
         return BattleLootSelection(treasureDraw.runtime, null)
     }
@@ -1339,18 +1661,17 @@ private fun selectBattleLoot(runtime: RuntimeSessionState, reward: RewardBundleM
     return BattleLootSelection(itemDraw.runtime, pool.items[itemDraw.value])
 }
 
-private fun PartyState.withKills(count: Int): PartyState =
-    copy(counters = counters.copy(kills = counters.kills + count))
+private fun PartyState.withKills(count: Int): PartyState = copy(counters = counters.copy(kills = counters.kills + count))
 
 private fun PartyState.withExperienceForSurvivors(amount: Int): PartyState =
     copy(
-        members = members.map { member ->
-            if (member.dead) member else member.copy(experience = member.experience + amount)
-        },
+        members =
+            members.map { member ->
+                if (member.dead) member else member.copy(experience = member.experience + amount)
+            },
     )
 
-private fun PartyState.withLivingCount(): PartyState =
-    copy(counters = counters.copy(memberCount = members.count { !it.dead }))
+private fun PartyState.withLivingCount(): PartyState = copy(counters = counters.copy(memberCount = members.count { !it.dead }))
 
 private fun PartyMemberState.matchesCombatFilter(filter: MemberChoiceFilter): Boolean =
     when (filter) {
@@ -1360,44 +1681,50 @@ private fun PartyMemberState.matchesCombatFilter(filter: MemberChoiceFilter): Bo
         MemberChoiceFilter.SpellcasterOnly -> !dead && pcClass in setOf(PcClass.Mage, PcClass.Priest)
     }
 
-private fun PartyState.applyLevelUps(leveling: LevelingModel?, formulas: List<FormulaModel>): PartyLevelUpResult {
+private fun PartyState.applyLevelUps(
+    leveling: LevelingModel?,
+    formulas: List<FormulaModel>,
+): PartyLevelUpResult {
     leveling ?: return PartyLevelUpResult(this, emptyList())
     val growthByClass = leveling.classGrowth.associateBy { it.klass }
     val gains = mutableListOf<BattleLevelGain>()
-    val nextParty = copy(
-        members = members.map { member ->
-            val gained = ((member.level + 1)..leveling.maxLevel).count { targetLevel ->
-                member.experience >= leveling.xpThresholds.getOrElse(targetLevel) { Int.MAX_VALUE }
-            }
-            if (gained == 0) return@map member
-            gains += BattleLevelGain(member.name, gained)
-            val growth = growthByClass[member.pcClass]
-            val nextHealth = member.health + (growth?.health ?: 0) * gained
-            val hpFloor = formulas.evalFormula(leveling.hitPointFloor, mapOf("health" to nextHealth))
-            member.copy(
-                level = (member.level + gained).coerceAtMost(leveling.maxLevel),
-                weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
-                health = nextHealth,
-                wisdom = member.wisdom + (growth?.wisdom ?: 0) * gained,
-                charisma = member.charisma + (growth?.charisma ?: 0) * gained,
-                hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,
-            )
-        },
-    )
+    val nextParty =
+        copy(
+            members =
+                members.map { member ->
+                    val gained =
+                        ((member.level + 1)..leveling.maxLevel).count { targetLevel ->
+                            member.experience >= leveling.xpThresholds.getOrElse(targetLevel) { Int.MAX_VALUE }
+                        }
+                    if (gained == 0) return@map member
+                    gains += BattleLevelGain(member.name, gained)
+                    val growth = growthByClass[member.pcClass]
+                    val nextHealth = member.health + (growth?.health ?: 0) * gained
+                    val hpFloor = formulas.evalFormula(leveling.hitPointFloor, mapOf("health" to nextHealth))
+                    member.copy(
+                        level = (member.level + gained).coerceAtMost(leveling.maxLevel),
+                        weaponSkill = member.weaponSkill + (growth?.weaponSkill ?: 0) * gained,
+                        health = nextHealth,
+                        wisdom = member.wisdom + (growth?.wisdom ?: 0) * gained,
+                        charisma = member.charisma + (growth?.charisma ?: 0) * gained,
+                        hitPoints = member.hitPoints.current.coerceAtLeast(hpFloor) of nextHealth,
+                    )
+                },
+        )
     return PartyLevelUpResult(nextParty, gains.toList())
 }
 
-private fun PartyState.placeBattleLoot(item: ItemId): PartyState =
-    firstFreeInventorySlot()?.let { withInventoryItem(it, item) } ?: this
+private fun PartyState.placeBattleLoot(item: ItemId): PartyState = firstFreeInventorySlot()?.let { withInventoryItem(it, item) } ?: this
 
-private fun PartyState.aliveMembers(): List<PartyMemberState> =
-    members.filter { !it.dead }
+private fun PartyState.aliveMembers(): List<PartyMemberState> = members.filter { !it.dead }
 
-private fun PartyState.aliveMemberIndexes(): List<Int> =
-    members.mapIndexedNotNull { index, member -> index.takeUnless { member.dead } }
+private fun PartyState.aliveMemberIndexes(): List<Int> = members.mapIndexedNotNull { index, member -> index.takeUnless { member.dead } }
 
 object BattlePromptText {
-    fun opening(text: BattleTextModel, encounter: BattleMonsterState): TextBlock =
+    fun opening(
+        text: BattleTextModel,
+        encounter: BattleMonsterState,
+    ): TextBlock =
         combineTextBlocks(
             text.encounterBanner,
             text.youFace,
@@ -1415,7 +1742,10 @@ object BattlePromptText {
             listOf(inlineText(member.name), text.whatNow) + actions.map { action -> action.prompt },
         )
 
-    fun targetPrompt(text: BattleTextModel, encounter: BattleMonsterState): TextBlock =
+    fun targetPrompt(
+        text: BattleTextModel,
+        encounter: BattleMonsterState,
+    ): TextBlock =
         combineTextBlocks(
             text.targetPrompt,
             TextBlock.Inline(
@@ -1425,20 +1755,29 @@ object BattlePromptText {
             ),
         )
 
-    fun useWhat(text: BattleTextModel, party: PartyState, itemRecords: List<ItemRecordModel>): TextBlock =
+    fun useWhat(
+        text: BattleTextModel,
+        party: PartyState,
+        itemRecords: List<ItemRecordModel>,
+    ): TextBlock =
         combineTextBlocks(
             text.useWhat,
             TextBlock.Inline(
                 (1..InventorySaveSlotMax).map { slot ->
-                    val item = party.inventoryItem(slot)?.let { item ->
-                        itemRecords.firstOrNull { it.id == item }?.displayName ?: item.slug
-                    } ?: "empty"
+                    val item =
+                        party.inventoryItem(slot)?.let { item ->
+                            itemRecords.firstOrNull { it.id == item }?.displayName ?: item.slug
+                        } ?: "empty"
                     "${'A' + slot - 1}. $item"
                 },
             ),
         )
 
-    fun spellChoice(text: BattleTextModel, member: PartyMemberState, spells: List<SpellModel>): TextBlock =
+    fun spellChoice(
+        text: BattleTextModel,
+        member: PartyMemberState,
+        spells: List<SpellModel>,
+    ): TextBlock =
         combineTextBlocks(
             TextBlock.Inline(
                 spells.map { spell ->
@@ -1448,7 +1787,10 @@ object BattlePromptText {
             text.spellAbort,
         )
 
-    fun stillFace(text: BattleTextModel, encounter: BattleMonsterState): TextBlock =
+    fun stillFace(
+        text: BattleTextModel,
+        encounter: BattleMonsterState,
+    ): TextBlock =
         combineTextBlocks(
             text.stillFace,
             inlineText(encounter.foeDisplayName(), ""),
@@ -1461,18 +1803,21 @@ object BattlePromptText {
         attackerName: String,
         damage: Int,
         killed: Boolean,
-    ): List<TextBlock> {
-        return buildList {
+    ): List<TextBlock> =
+        buildList {
             add(inlineText("$attackerName hits for"))
             add(inlineText("$damage damage pts!"))
             if (killed) add(text.killed)
         }
-    }
 
-    fun attackMiss(attackerName: String): TextBlock =
-        inlineText("$attackerName misses!")
+    fun attackMiss(attackerName: String): TextBlock = inlineText("$attackerName misses!")
 
-    fun monsterHit(monsterName: String, targetName: String, damage: Int, killed: Boolean): TextBlock =
+    fun monsterHit(
+        monsterName: String,
+        targetName: String,
+        damage: Int,
+        killed: Boolean,
+    ): TextBlock =
         inlineText(
             "$monsterName attacks",
             "$targetName!",
@@ -1481,11 +1826,12 @@ object BattlePromptText {
             if (killed) "\u001B[31m$targetName DIES!!!\u001B[37m" else "",
         )
 
-    fun monsterMiss(monsterName: String, targetName: String): TextBlock =
-        inlineText("$monsterName attacks", "$targetName!", "Blow misses!")
+    fun monsterMiss(
+        monsterName: String,
+        targetName: String,
+    ): TextBlock = inlineText("$monsterName attacks", "$targetName!", "Blow misses!")
 
-    fun monsterCasts(monsterName: String): TextBlock =
-        inlineText("$monsterName casts")
+    fun monsterCasts(monsterName: String): TextBlock = inlineText("$monsterName casts")
 
     fun victory(
         text: BattleTextModel,
@@ -1519,28 +1865,37 @@ private fun RuntimeSessionState.asWilderness(): RuntimeSessionState =
         ),
     )
 
-private fun RuntimeSessionState.withActiveMember(index: Int, member: PartyMemberState): RuntimeSessionState {
+private fun RuntimeSessionState.withActiveMember(
+    index: Int,
+    member: PartyMemberState,
+): RuntimeSessionState {
     val party = activeParty
-    val nextMembers = party.members.mapIndexed { memberIndex, existing ->
-        if (memberIndex == index) member else existing
-    }
+    val nextMembers =
+        party.members.mapIndexed { memberIndex, existing ->
+            if (memberIndex == index) member else existing
+        }
     return withActiveParty(party.copy(members = nextMembers))
 }
 
-private fun RuntimeSessionState.scaledEncounterHpRange(monster: MonsterModel, formulas: List<FormulaModel>): IntRange {
+private fun RuntimeSessionState.scaledEncounterHpRange(
+    monster: MonsterModel,
+    formulas: List<FormulaModel>,
+): IntRange {
     val firstLevel = activeParty.members.firstOrNull()?.level ?: 0
-    val partyAverage = activeParty.members
-        .takeIf { it.isNotEmpty() }
-        ?.map { it.level }
-        ?.average()
-        ?.toInt()
-        ?: 0
-    val bindings = mapOf(
-        "encounter_hit_point_min_base" to monster.hitPoints.first,
-        "encounter_hit_point_max_base" to monster.hitPoints.last,
-        "party_avg" to partyAverage,
-        "first_level" to firstLevel,
-    )
+    val partyAverage =
+        activeParty.members
+            .takeIf { it.isNotEmpty() }
+            ?.map { it.level }
+            ?.average()
+            ?.toInt()
+            ?: 0
+    val bindings =
+        mapOf(
+            "encounter_hit_point_min_base" to monster.hitPoints.first,
+            "encounter_hit_point_max_base" to monster.hitPoints.last,
+            "party_avg" to partyAverage,
+            "first_level" to firstLevel,
+        )
     val min = formulas.evalFormula(DslDefaultFormulas.encounterH1Scaled, bindings)
     val max = formulas.evalFormula(DslDefaultFormulas.encounterH2Scaled, bindings)
     return min.coerceAtMost(max)..max
@@ -1554,21 +1909,23 @@ private fun BattleMonsterState.foeDisplayName(): String =
         if (count > 1) append('s')
     }
 
-private fun BattleMonsterState.aliveCount(): Int =
-    hitPoints.count { it > 0 }
+private fun BattleMonsterState.aliveCount(): Int = hitPoints.count { it > 0 }
 
 private fun BattleMonsterState.aliveTargetKeys(): List<Char> =
     hitPoints.mapIndexedNotNull { index, hitPoints -> ('A' + index).takeIf { hitPoints > 0 } }
 
-private fun BattleMonsterState.damage(index: Int, amount: Int): BattleMonsterState =
+private fun BattleMonsterState.damage(
+    index: Int,
+    amount: Int,
+): BattleMonsterState =
     copy(
-        hitPoints = hitPoints.mapIndexed { monsterIndex, hitPoints ->
-            if (monsterIndex == index) (hitPoints - amount).coerceAtLeast(0) else hitPoints
-        },
+        hitPoints =
+            hitPoints.mapIndexed { monsterIndex, hitPoints ->
+                if (monsterIndex == index) (hitPoints - amount).coerceAtLeast(0) else hitPoints
+            },
     )
 
-private fun PartyMemberState?.levelOrZero(): Int =
-    this?.level ?: 0
+private fun PartyMemberState?.levelOrZero(): Int = this?.level ?: 0
 
 private fun BattleRoundState.afterMonsterRound(): BattleRoundState =
     copy(
@@ -1580,5 +1937,4 @@ private fun BattleRoundState.afterMonsterRound(): BattleRoundState =
         actionRetry = false,
     )
 
-private fun Int.reducedBy(amount: Int): Int =
-    if (this > amount) this - amount else this
+private fun Int.reducedBy(amount: Int): Int = if (this > amount) this - amount else this

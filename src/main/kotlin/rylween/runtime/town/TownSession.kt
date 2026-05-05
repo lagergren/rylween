@@ -4,9 +4,40 @@
 
 package rylween.runtime.town
 
-import rylween.runtime.*
-
-import rylween.dsl.*
+import rylween.dsl.BuildingId
+import rylween.dsl.BuildingServiceModel
+import rylween.dsl.EquipmentCommand
+import rylween.dsl.EquipmentPromptsModel
+import rylween.dsl.InputBindingModel
+import rylween.dsl.ItemRecordModel
+import rylween.dsl.NpcPlacement
+import rylween.dsl.PartyState
+import rylween.dsl.RealmContentModel
+import rylween.dsl.RealmState
+import rylween.dsl.RuntimeContent
+import rylween.dsl.SceneId
+import rylween.dsl.SceneModel
+import rylween.dsl.ShopServiceModel
+import rylween.dsl.TextBlock
+import rylween.dsl.TownMenuActionModel
+import rylween.dsl.TownModel
+import rylween.dsl.TownSystemModel
+import rylween.dsl.building
+import rylween.dsl.text
+import rylween.dsl.town
+import rylween.runtime.EquipmentActionResult
+import rylween.runtime.EquipmentPromptSession
+import rylween.runtime.EquipmentPromptStep
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.ScriptContinuation
+import rylween.runtime.ShopServiceInput
+import rylween.runtime.TownLeaveEquipmentInput
+import rylween.runtime.TownSessionInput
+import rylween.runtime.needsTownLeaveReadyPrompt
+import rylween.runtime.party
+import rylween.runtime.prompt
+import rylween.runtime.townLeavePrompt
+import rylween.runtime.withGold
 
 enum class TownSessionResultStatus {
     EntryTaxPaid,
@@ -26,9 +57,18 @@ data class TownSessionResult(
 )
 
 sealed interface TownLeaveEquipmentStep {
-    data class ReadyQuestion(val command: EquipmentCommand, val prompt: TextBlock) : TownLeaveEquipmentStep
-    data class Equipment(val session: EquipmentPromptSession) : TownLeaveEquipmentStep
-    data class Finished(val party: PartyState) : TownLeaveEquipmentStep
+    data class ReadyQuestion(
+        val command: EquipmentCommand,
+        val prompt: TextBlock,
+    ) : TownLeaveEquipmentStep
+
+    data class Equipment(
+        val session: EquipmentPromptSession,
+    ) : TownLeaveEquipmentStep
+
+    data class Finished(
+        val party: PartyState,
+    ) : TownLeaveEquipmentStep
 }
 
 data class TownLeaveEquipmentSession(
@@ -43,21 +83,24 @@ data class TownLeaveEquipmentSession(
     fun apply(input: TownLeaveEquipmentInput): TownLeaveEquipmentSession =
         when (val current = step) {
             is TownLeaveEquipmentStep.ReadyQuestion -> {
-                val answer = (input as? TownLeaveEquipmentInput.ReadyAnswer)
-                    ?: error("town-leave equipment session is asking a ready question")
+                val answer =
+                    (input as? TownLeaveEquipmentInput.ReadyAnswer)
+                        ?: error("town-leave equipment session is asking a ready question")
                 if (answer.yes) {
                     copy(
-                        step = TownLeaveEquipmentStep.Equipment(
-                            EquipmentPromptSession.start(current.command, party, itemRecords, prompts),
-                        ),
+                        step =
+                            TownLeaveEquipmentStep.Equipment(
+                                EquipmentPromptSession.start(current.command, party, itemRecords, prompts),
+                            ),
                     )
                 } else {
                     advance(party, lastResult = null)
                 }
             }
             is TownLeaveEquipmentStep.Equipment -> {
-                val equipment = (input as? TownLeaveEquipmentInput.Equipment)
-                    ?: error("town-leave equipment session is running equipment prompts")
+                val equipment =
+                    (input as? TownLeaveEquipmentInput.Equipment)
+                        ?: error("town-leave equipment session is running equipment prompts")
                 val updated = current.session.apply(equipment.input)
                 when (val finished = updated.step) {
                     is EquipmentPromptStep.Finished ->
@@ -69,7 +112,10 @@ data class TownLeaveEquipmentSession(
                 error("town-leave equipment session is already finished: $current")
         }
 
-    private fun advance(nextParty: PartyState, lastResult: EquipmentActionResult?): TownLeaveEquipmentSession {
+    private fun advance(
+        nextParty: PartyState,
+        lastResult: EquipmentActionResult?,
+    ): TownLeaveEquipmentSession {
         val next = nextStep(nextParty, phase + 1)
         return copy(
             party = nextParty,
@@ -79,7 +125,10 @@ data class TownLeaveEquipmentSession(
         )
     }
 
-    private fun nextStep(nextParty: PartyState, nextPhase: Int): NextTownLeaveStep =
+    private fun nextStep(
+        nextParty: PartyState,
+        nextPhase: Int,
+    ): NextTownLeaveStep =
         readyCommands
             .withIndex()
             .drop(nextPhase)
@@ -89,7 +138,10 @@ data class TownLeaveEquipmentSession(
             }
             ?: NextTownLeaveStep(readyCommands.size, TownLeaveEquipmentStep.Finished(nextParty))
 
-    private data class NextTownLeaveStep(val phase: Int, val step: TownLeaveEquipmentStep)
+    private data class NextTownLeaveStep(
+        val phase: Int,
+        val step: TownLeaveEquipmentStep,
+    )
 
     companion object {
         fun start(
@@ -98,17 +150,19 @@ data class TownLeaveEquipmentSession(
             prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
             readyCommands: List<EquipmentCommand> = emptyList(),
         ): TownLeaveEquipmentSession {
-            val first = readyCommands
-                .withIndex()
-                .firstOrNull { (_, command) -> party.needsTownLeaveReadyPrompt(command, itemRecords) }
+            val first =
+                readyCommands
+                    .withIndex()
+                    .firstOrNull { (_, command) -> party.needsTownLeaveReadyPrompt(command, itemRecords) }
             return TownLeaveEquipmentSession(
                 party = party,
                 phase = first?.index ?: readyCommands.size,
                 itemRecords = itemRecords,
                 prompts = prompts,
                 readyCommands = readyCommands,
-                step = first?.value?.let { TownLeaveEquipmentStep.ReadyQuestion(it, it.townLeavePrompt(prompts)) }
-                    ?: TownLeaveEquipmentStep.Finished(party),
+                step =
+                    first?.value?.let { TownLeaveEquipmentStep.ReadyQuestion(it, it.townLeavePrompt(prompts)) }
+                        ?: TownLeaveEquipmentStep.Finished(party),
             )
         }
     }
@@ -121,30 +175,37 @@ sealed interface TownSessionStep {
         val pay: InputBindingModel,
         val leave: InputBindingModel,
     ) : TownSessionStep
+
     data class EntryTaxThanks(
         val text: TextBlock,
         val next: Menu,
     ) : TownSessionStep
+
     data class Menu(
         val town: TownModel,
         val actions: List<TownMenuActionModel>,
     ) : TownSessionStep
+
     data class Notice(
         val text: TextBlock,
         val next: Menu,
     ) : TownSessionStep
+
     data class Shop(
         val service: BuildingServiceModel,
         val session: ShopServiceSession,
     ) : TownSessionStep
+
     data class NativeService(
         val service: BuildingServiceModel,
         val scene: SceneModel,
         val continuation: ScriptContinuation? = null,
     ) : TownSessionStep
+
     data class LeaveEquipment(
         val session: TownLeaveEquipmentSession,
     ) : TownSessionStep
+
     data class Finished(
         val runtime: RuntimeSessionState,
     ) : TownSessionStep {
@@ -177,20 +238,23 @@ data class TownSession(
         }
 
     fun continueEntryTaxThanks(): TownSession {
-        val current = step as? TownSessionStep.EntryTaxThanks
-            ?: error("town session is not showing the entry-tax thanks prompt")
+        val current =
+            step as? TownSessionStep.EntryTaxThanks
+                ?: error("town session is not showing the entry-tax thanks prompt")
         return copy(step = current.next)
     }
 
     fun continueNotice(): TownSession {
-        val current = step as? TownSessionStep.Notice
-            ?: error("town session is not showing a notice")
+        val current =
+            step as? TownSessionStep.Notice
+                ?: error("town session is not showing a notice")
         return copy(step = current.next)
     }
 
     fun replaceShopSession(session: ShopServiceSession): TownSession {
-        val current = step as? TownSessionStep.Shop
-            ?: error("town session is not running a shop")
+        val current =
+            step as? TownSessionStep.Shop
+                ?: error("town session is not running a shop")
         return if (session.step is ShopServiceStep.Finished) {
             finishShop(session, current.service.building)
         } else {
@@ -209,8 +273,9 @@ data class TownSession(
     }
 
     fun replaceNativeServiceContinuation(continuation: ScriptContinuation): TownSession {
-        val current = step as? TownSessionStep.NativeService
-            ?: error("town session is not running a native service")
+        val current =
+            step as? TownSessionStep.NativeService
+                ?: error("town session is not running a native service")
         return copy(
             runtime = continuation.runtime,
             step = current.copy(continuation = continuation),
@@ -218,8 +283,9 @@ data class TownSession(
     }
 
     private fun applyEntryTax(pay: Boolean): TownSession {
-        val current = step as? TownSessionStep.EntryTax
-            ?: error("town session is not asking for entry tax")
+        val current =
+            step as? TownSessionStep.EntryTax
+                ?: error("town session is not asking for entry tax")
         if (!pay) {
             return copy(
                 step = TownSessionStep.Finished(runtime),
@@ -236,15 +302,17 @@ data class TownSession(
     }
 
     private fun chooseMenu(key: Char): TownSession {
-        val action = townSystem.menu.firstOrNull { it.key == key.uppercaseChar() }
-            ?: return copy(lastResult = null)
+        val action =
+            townSystem.menu.firstOrNull { it.key == key.uppercaseChar() }
+                ?: return copy(lastResult = null)
         if (action.endsMenu) {
-            val equipment = TownLeaveEquipmentSession.start(
-                party = party,
-                itemRecords = itemRecords,
-                prompts = content.prompts.equipment,
-                readyCommands = townSystem.leavePrompts,
-            )
+            val equipment =
+                TownLeaveEquipmentSession.start(
+                    party = party,
+                    itemRecords = itemRecords,
+                    prompts = content.prompts.equipment,
+                    readyCommands = townSystem.leavePrompts,
+                )
             return if (equipment.step is TownLeaveEquipmentStep.Finished) {
                 copy(step = TownSessionStep.Finished(runtime))
             } else {
@@ -260,12 +328,14 @@ data class TownSession(
             )
         }
 
-        val service = requireNotNull(townSystem.buildingServices.firstOrNull { it.building == building }) {
-            "town ${town.id.slug} offers ${building.slug} but no building service is declared"
-        }
-        val scene = requireNotNull(serviceScenes[service.scene]) {
-            "town service ${building.slug} references missing scene ${service.scene.slug}"
-        }
+        val service =
+            requireNotNull(townSystem.buildingServices.firstOrNull { it.building == building }) {
+                "town ${town.id.slug} offers ${building.slug} but no building service is declared"
+            }
+        val scene =
+            requireNotNull(serviceScenes[service.scene]) {
+                "town service ${building.slug} references missing scene ${service.scene.slug}"
+            }
         val shop = shopServices[building]
         if (!service.isOpenAt(currentHour)) {
             return notice(
@@ -288,20 +358,23 @@ data class TownSession(
     }
 
     private fun applyShop(input: ShopServiceInput): TownSession {
-        val current = step as? TownSessionStep.Shop
-            ?: error("town session is not running a shop")
+        val current =
+            step as? TownSessionStep.Shop
+                ?: error("town session is not running a shop")
         return replaceShopSession(applyShopInput(current.session, input))
     }
 
     private fun applyEquipment(input: TownLeaveEquipmentInput): TownSession {
-        val current = step as? TownSessionStep.LeaveEquipment
-            ?: error("town session is not running leave equipment prompts")
+        val current =
+            step as? TownSessionStep.LeaveEquipment
+                ?: error("town session is not running leave equipment prompts")
         return replaceLeaveEquipmentSession(current.session.apply(input))
     }
 
     private fun finishNative(nextRuntime: RuntimeSessionState): TownSession {
-        val current = step as? TownSessionStep.NativeService
-            ?: error("town session is not running a native service")
+        val current =
+            step as? TownSessionStep.NativeService
+                ?: error("town session is not running a native service")
         val nextParty = nextRuntime.activeParty
         return copy(
             runtime = nextRuntime,
@@ -310,18 +383,22 @@ data class TownSession(
         )
     }
 
-    private fun finishShop(session: ShopServiceSession, building: BuildingId): TownSession =
+    private fun finishShop(
+        session: ShopServiceSession,
+        building: BuildingId,
+    ): TownSession =
         copy(
             runtime = runtime.withActiveParty(session.party),
             step = menuStep(),
             lastResult = TownSessionResult(TownSessionResultStatus.ShopFinished, session.party, building),
         )
 
-    private fun notice(text: TextBlock, result: TownSessionResult): TownSession =
-        copy(step = TownSessionStep.Notice(text, menuStep()), lastResult = result)
+    private fun notice(
+        text: TextBlock,
+        result: TownSessionResult,
+    ): TownSession = copy(step = TownSessionStep.Notice(text, menuStep()), lastResult = result)
 
-    private fun menuStep(): TownSessionStep.Menu =
-        TownSessionStep.Menu(town, availableTownActions(town, townSystem))
+    private fun menuStep(): TownSessionStep.Menu = TownSessionStep.Menu(town, availableTownActions(town, townSystem))
 
     private fun withEntryTaxPromptIfNeeded(): TownSession {
         val tax = townSystem.entryTax
@@ -330,12 +407,13 @@ data class TownSession(
 
         val amount = (party.resources.gold * town.taxPercent) / 100
         return copy(
-            step = TownSessionStep.EntryTax(
-                prompt = content.prompts.town.renderEntryTaxPrompt(town.name, town.taxPercent, amount),
-                amount = amount,
-                pay = tax.pay,
-                leave = tax.leave,
-            ),
+            step =
+                TownSessionStep.EntryTax(
+                    prompt = content.prompts.town.renderEntryTaxPrompt(town.name, town.taxPercent, amount),
+                    amount = amount,
+                    pay = tax.pay,
+                    leave = tax.leave,
+                ),
         )
     }
 
@@ -364,13 +442,14 @@ data class TownSession(
         ): TownSession =
             start(
                 town = town,
-                runtime = RuntimeSessionState.singleParty(
-                    party = party,
-                    hour = currentHour,
-                    currentTown = town.id,
-                    rngState = rngState,
-                    npcs = npcs,
-                ),
+                runtime =
+                    RuntimeSessionState.singleParty(
+                        party = party,
+                        hour = currentHour,
+                        currentTown = town.id,
+                        rngState = rngState,
+                        npcs = npcs,
+                    ),
                 content = content,
             )
 
@@ -391,12 +470,13 @@ data class TownSession(
                 currentHour = currentHour,
                 rngState = rngState,
                 npcs = npcs,
-                content = RuntimeContent(
-                    townSystem = townSystem,
-                    scenes = scenes,
-                    itemRecords = itemRecords,
-                    realm = realmContent,
-                ),
+                content =
+                    RuntimeContent(
+                        townSystem = townSystem,
+                        scenes = scenes,
+                        itemRecords = itemRecords,
+                        realm = realmContent,
+                    ),
             )
     }
 }
@@ -404,8 +484,6 @@ data class TownSession(
 private fun availableTownActions(
     town: TownModel,
     townSystem: TownSystemModel,
-): List<TownMenuActionModel> =
-    townSystem.menu.filter { action -> action.endsMenu || action.building?.let(town::offers) == true }
+): List<TownMenuActionModel> = townSystem.menu.filter { action -> action.endsMenu || action.building?.let(town::offers) == true }
 
-private fun TownModel.offers(building: BuildingId): Boolean =
-    services.any { it.building == building }
+private fun TownModel.offers(building: BuildingId): Boolean = services.any { it.building == building }

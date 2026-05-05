@@ -18,7 +18,8 @@ internal inline fun runRylweenCli(block: () -> Unit) {
             }
             is IllegalArgumentException,
             is IllegalStateException,
-            is IOException -> printStartupFailure(error)
+            is IOException,
+            -> printStartupFailure(error)
             else -> throw error
         }
     }
@@ -28,3 +29,8 @@ private fun printStartupFailure(error: Throwable): Nothing {
     System.err.println("Rylween startup failed: ${error.message ?: error::class.simpleName}")
     exitProcess(1)
 }
+
+internal fun List<String>.valueAfter(
+    index: Int,
+    option: String,
+): String = getOrNull(index + 1) ?: error("$option requires a value")

@@ -22,36 +22,41 @@ internal fun bootWildernessSession(
     playerName: String = "Player",
 ): WildernessSession =
     if (newGame) {
-        val creationTerminal = checkNotNull(terminal) {
-            "character creation requires a terminal frontend"
-        }
-        val creation = engine.characterCreationSession(
-            state = snapshot.state,
-            playerName = playerName,
-            rngState = rngState ?: snapshot.state.realm.rngState,
-        )
+        val creationTerminal =
+            checkNotNull(terminal) {
+                "character creation requires a terminal frontend"
+            }
+        val creation =
+            engine.characterCreationSession(
+                state = snapshot.state,
+                playerName = playerName,
+                rngState = rngState ?: snapshot.state.realm.rngState,
+            )
         val result = CharacterCreationTerminalAdapter(creationTerminal, renderer).runUntilBlocked(creation)
         when (val status = result.status) {
             TerminalRunStatus.Finished -> Unit
             TerminalRunStatus.StepLimitReached -> error("character creation step limit reached")
-            is TerminalRunStatus.Waiting -> error(
-                status.rejection?.let { rejection ->
-                    "character creation input '${rejection.input}' did not match " +
-                        rejection.expected.joinToString("/")
-                } ?: "character creation input unavailable",
-            )
+            is TerminalRunStatus.Waiting ->
+                error(
+                    status.rejection?.let { rejection ->
+                        "character creation input '${rejection.input}' did not match " +
+                            rejection.expected.joinToString("/")
+                    } ?: "character creation input unavailable",
+                )
         }
-        val created = when (val step = result.session.step) {
-            is CharacterCreationStep.Finished -> step.runtime
-            CharacterCreationStep.Aborted -> error("character creation aborted")
-            else -> error("character creation stopped before a wilderness runtime was created")
-        }
+        val created =
+            when (val step = result.session.step) {
+                is CharacterCreationStep.Finished -> step.runtime
+                CharacterCreationStep.Aborted -> error("character creation aborted")
+                else -> error("character creation stopped before a wilderness runtime was created")
+            }
         val baseRuntime = snapshot.state.toRuntimeSessionState(rngState ?: snapshot.state.realm.rngState)
         engine.wildernessSession(
-            runtime = created.copy(
-                locations = baseRuntime.locations,
-                npcs = baseRuntime.npcs,
-            ),
+            runtime =
+                created.copy(
+                    locations = baseRuntime.locations,
+                    npcs = baseRuntime.npcs,
+                ),
             worldMap = worldMap,
             realizeNpcs = true,
         )

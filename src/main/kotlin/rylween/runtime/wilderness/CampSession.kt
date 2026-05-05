@@ -6,10 +6,17 @@
 
 package rylween.runtime.wilderness
 
-import rylween.runtime.*
-import rylween.runtime.battle.*
-
-import rylween.dsl.*
+import rylween.dsl.ImageId
+import rylween.dsl.PartyState
+import rylween.dsl.RuntimeContent
+import rylween.dsl.TextBlock
+import rylween.runtime.RuntimeSessionState
+import rylween.runtime.battle.BattleSession
+import rylween.runtime.battle.BattleSessionStep
+import rylween.runtime.campGearEffect
+import rylween.runtime.drawRandom
+import rylween.runtime.floorMod
+import rylween.runtime.party
 
 enum class CampSessionStatus {
     Rested,
@@ -25,17 +32,38 @@ data class CampSessionResult(
 )
 
 sealed interface CampSessionInput {
-    data class GuardAnswer(val yes: Boolean) : CampSessionInput
-    data class GuardMember(val memberNumber: Int) : CampSessionInput
+    data class GuardAnswer(
+        val yes: Boolean,
+    ) : CampSessionInput
+
+    data class GuardMember(
+        val memberNumber: Int,
+    ) : CampSessionInput
+
     object Continue : CampSessionInput
 }
 
 sealed interface CampSessionStep {
-    data class GuardChoice(val prompt: TextBlock) : CampSessionStep
-    data class GuardMember(val prompt: TextBlock) : CampSessionStep
-    data class Messages(val blocks: List<TextBlock>, val next: CampSessionStep) : CampSessionStep
-    data class Ambush(val session: BattleSession) : CampSessionStep
-    data class Finished(val result: CampSessionResult) : CampSessionStep
+    data class GuardChoice(
+        val prompt: TextBlock,
+    ) : CampSessionStep
+
+    data class GuardMember(
+        val prompt: TextBlock,
+    ) : CampSessionStep
+
+    data class Messages(
+        val blocks: List<TextBlock>,
+        val next: CampSessionStep,
+    ) : CampSessionStep
+
+    data class Ambush(
+        val session: BattleSession,
+    ) : CampSessionStep
+
+    data class Finished(
+        val result: CampSessionResult,
+    ) : CampSessionStep
 }
 
 private data class RestApplication(
@@ -55,8 +83,9 @@ data class CampSession(
     fun apply(input: CampSessionInput): CampSession =
         when (val current = step) {
             is CampSessionStep.GuardChoice -> {
-                val answer = (input as? CampSessionInput.GuardAnswer)
-                    ?: error("camp session is asking the guard Y/N prompt")
+                val answer =
+                    (input as? CampSessionInput.GuardAnswer)
+                        ?: error("camp session is asking the guard Y/N prompt")
                 if (answer.yes) {
                     copy(step = CampSessionStep.GuardMember(content.realm.camp.guardMemberPrompt))
                 } else {
@@ -64,18 +93,21 @@ data class CampSession(
                 }
             }
             is CampSessionStep.GuardMember -> {
-                val pick = (input as? CampSessionInput.GuardMember)
-                    ?: error("camp session is choosing a guard member")
+                val pick =
+                    (input as? CampSessionInput.GuardMember)
+                        ?: error("camp session is choosing a guard member")
                 val idx = pick.memberNumber - 1
                 val member = party.members.getOrNull(idx)
                 when {
                     member == null -> this
-                    member.dead -> copy(
-                        step = CampSessionStep.Messages(
-                            blocks = listOf(content.realm.camp.guardMemberDead),
-                            next = CampSessionStep.GuardMember(content.realm.camp.guardMemberPrompt),
-                        ),
-                    )
+                    member.dead ->
+                        copy(
+                            step =
+                                CampSessionStep.Messages(
+                                    blocks = listOf(content.realm.camp.guardMemberDead),
+                                    next = CampSessionStep.GuardMember(content.realm.camp.guardMemberPrompt),
+                                ),
+                        )
                     else -> advanceFromGuard(guardIndex = idx)
                 }
             }
@@ -109,10 +141,11 @@ data class CampSession(
         if (party.resources.food < foodCost) {
             val result = CampSessionResult(runtime, CampSessionStatus.NotEnoughFood)
             return copy(
-                step = CampSessionStep.Messages(
-                    blocks = listOf(rules.notEnoughFood),
-                    next = CampSessionStep.Finished(result),
-                ),
+                step =
+                    CampSessionStep.Messages(
+                        blocks = listOf(rules.notEnoughFood),
+                        next = CampSessionStep.Finished(result),
+                    ),
                 lastResult = result,
                 guardMemberIndex = guardIndex,
             )
@@ -120,15 +153,17 @@ data class CampSession(
 
         val rest = applyRest(runtime, content, guardIndex)
         val (afterAmbush, ambushMessages, ambushStep) = applyAmbush(rest.runtime, content, guardIndex)
-        val tail = ambushStep ?: CampSessionStep.Finished(
-            CampSessionResult(afterAmbush, CampSessionStatus.Rested),
-        )
-        val messages = buildList {
-            if (guardIndex != null) add(rules.standsGuard)
-            addAll(rest.messages)
-            addAll(ambushMessages)
-            if (ambushStep == null) add(rules.rested)
-        }
+        val tail =
+            ambushStep ?: CampSessionStep.Finished(
+                CampSessionResult(afterAmbush, CampSessionStatus.Rested),
+            )
+        val messages =
+            buildList {
+                if (guardIndex != null) add(rules.standsGuard)
+                addAll(rest.messages)
+                addAll(ambushMessages)
+                if (ambushStep == null) add(rules.rested)
+            }
         return copy(
             runtime = afterAmbush,
             guardMemberIndex = guardIndex,
@@ -138,7 +173,10 @@ data class CampSession(
     }
 
     companion object {
-        fun start(runtime: RuntimeSessionState, content: RuntimeContent): CampSession {
+        fun start(
+            runtime: RuntimeSessionState,
+            content: RuntimeContent,
+        ): CampSession {
             val rules = content.realm.camp
             val party = runtime.activeParty
             return when {
@@ -151,18 +189,20 @@ data class CampSession(
                     CampSession(
                         runtime = runtime,
                         content = content,
-                        step = CampSessionStep.Messages(
-                            blocks = listOf(rules.notTired),
-                            next = CampSessionStep.Finished(result),
-                        ),
+                        step =
+                            CampSessionStep.Messages(
+                                blocks = listOf(rules.notTired),
+                                next = CampSessionStep.Finished(result),
+                            ),
                         lastResult = result,
                     )
                 }
-                else -> CampSession(
-                    runtime = runtime,
-                    content = content,
-                    step = CampSessionStep.GuardChoice(rules.guardPrompt),
-                )
+                else ->
+                    CampSession(
+                        runtime = runtime,
+                        content = content,
+                        step = CampSessionStep.GuardChoice(rules.guardPrompt),
+                    )
             }
         }
     }
@@ -183,34 +223,44 @@ private fun applyRest(
     val livingCount = party.members.count { !it.dead }
     val foodCost = rules.foodCostPerMember * livingCount
 
-    val healed = party.copy(
-        resources = party.resources.copy(
-            food = (party.resources.food - foodCost).coerceAtLeast(0),
-            restedHours = rules.hoursRestedReset,
-        ),
-        members = party.members.mapIndexed { idx, member ->
-            when {
-                member.dead -> member
-                idx == guardIndex -> member
-                else -> member.copy(
-                    hitPoints = member.hitPoints.copy(
-                        current = (member.hitPoints.current + rules.healthGain)
-                            .coerceAtMost(member.hitPoints.max),
-                    ),
-                )
-            }
-        },
-    )
-    val advancedHour = runtime.realm.copy(
-        hour = (runtime.realm.hour + rules.hoursAdvanced).floorMod(24),
-    )
+    val healed =
+        party.copy(
+            resources =
+                party.resources.copy(
+                    food = (party.resources.food - foodCost).coerceAtLeast(0),
+                    restedHours = rules.hoursRestedReset,
+                ),
+            members =
+                party.members.mapIndexed { idx, member ->
+                    when {
+                        member.dead -> member
+                        idx == guardIndex -> member
+                        else ->
+                            member.copy(
+                                hitPoints =
+                                    member.hitPoints.copy(
+                                        current =
+                                            (member.hitPoints.current + rules.healthGain)
+                                                .coerceAtMost(member.hitPoints.max),
+                                    ),
+                            )
+                    }
+                },
+        )
+    val advancedHour =
+        runtime.realm.copy(
+            hour = (runtime.realm.hour + rules.hoursAdvanced).floorMod(24),
+        )
     val afterHeal = runtime.withActiveParty(healed).withRealm(advancedHour)
 
     val (afterTemperature, tempMessages) = applyTemperature(afterHeal, content)
-    return RestApplication(afterTemperature, buildList {
-        add(rules.sleeping)
-        addAll(tempMessages)
-    })
+    return RestApplication(
+        afterTemperature,
+        buildList {
+            add(rules.sleeping)
+            addAll(tempMessages)
+        },
+    )
 }
 
 private fun applyTemperature(
@@ -228,23 +278,26 @@ private fun applyTemperature(
     val activeBands = rules.temperatureBands.filter { temperature in it.range }
     if (activeBands.isEmpty()) return draw.runtime to emptyList()
 
-    val damaged = activeBands
-        .filter { !effect.protects(it.band) }
-        .sumOf { rules.temperatureDamage[it.band] ?: 0 }
-    val nextRuntime = if (damaged > 0) {
-        draw.runtime.withActiveParty(draw.runtime.activeParty.applyTemperatureDamage(damaged))
-    } else {
-        draw.runtime
-    }
+    val damaged =
+        activeBands
+            .filter { !effect.protects(it.band) }
+            .sumOf { rules.temperatureDamage[it.band] ?: 0 }
+    val nextRuntime =
+        if (damaged > 0) {
+            draw.runtime.withActiveParty(draw.runtime.activeParty.applyTemperatureDamage(damaged))
+        } else {
+            draw.runtime
+        }
 
-    val messages = buildList {
-        activeBands.forEach { band ->
-            rules.temperatureMessage[band.band]?.let(::add)
-            if (!effect.protects(band.band)) {
-                rules.noShelterMessage[band.band]?.let(::add)
+    val messages =
+        buildList {
+            activeBands.forEach { band ->
+                rules.temperatureMessage[band.band]?.let(::add)
+                if (!effect.protects(band.band)) {
+                    rules.noShelterMessage[band.band]?.let(::add)
+                }
             }
         }
-    }
     return nextRuntime to messages
 }
 
@@ -273,30 +326,37 @@ private fun applyAmbush(
     val unguarded = guardIndex == null
     val multipleAlive = party.members.count { !it.dead } > 1
 
-    val (afterKill, killMessages) = if (unguarded && multipleAlive) {
-        applySurpriseKill(chanceDraw.runtime, content)
-    } else {
-        chanceDraw.runtime to emptyList()
-    }
+    val (afterKill, killMessages) =
+        if (unguarded && multipleAlive) {
+            applySurpriseKill(chanceDraw.runtime, content)
+        } else {
+            chanceDraw.runtime to emptyList()
+        }
 
     val survivorsAlive = afterKill.activeParty.members.any { !it.dead }
     if (!survivorsAlive) {
         val finished = CampSessionStep.Finished(CampSessionResult(afterKill, CampSessionStatus.SurpriseKill))
-        return Triple(afterKill, buildList {
-            add(rules.ambush)
-            addAll(killMessages)
-        }, finished)
+        return Triple(
+            afterKill,
+            buildList {
+                add(rules.ambush)
+                addAll(killMessages)
+            },
+            finished,
+        )
     }
 
-    val battle = BattleSession.start(
-        runtime = afterKill,
-        tier = tier,
-        content = content,
-    )
-    val messages = buildList {
-        add(rules.ambush)
-        addAll(killMessages)
-    }
+    val battle =
+        BattleSession.start(
+            runtime = afterKill,
+            tier = tier,
+            content = content,
+        )
+    val messages =
+        buildList {
+            add(rules.ambush)
+            addAll(killMessages)
+        }
     return Triple(battle.runtime, messages, CampSessionStep.Ambush(battle))
 }
 
@@ -305,35 +365,43 @@ private fun applySurpriseKill(
     content: RuntimeContent,
 ): Pair<RuntimeSessionState, List<TextBlock>> {
     val rules = content.realm.camp
-    val aliveIndexes = runtime.activeParty.members
-        .mapIndexedNotNull { idx, member -> idx.takeUnless { member.dead } }
+    val aliveIndexes =
+        runtime.activeParty.members
+            .mapIndexedNotNull { idx, member -> idx.takeUnless { member.dead } }
     if (aliveIndexes.isEmpty()) return runtime to emptyList()
 
     val draw = runtime.drawRandom(0, aliveIndexes.lastIndex)
     val victimIdx = aliveIndexes[draw.value]
-    val nextParty = draw.runtime.activeParty.copy(
-        members = draw.runtime.activeParty.members.mapIndexed { idx, member ->
-            if (idx == victimIdx) {
-                member.copy(
-                    hitPoints = member.hitPoints.copy(current = 0),
-                    dead = true,
-                )
-            } else {
-                member
-            }
-        },
-    )
+    val nextParty =
+        draw.runtime.activeParty.copy(
+            members =
+                draw.runtime.activeParty.members.mapIndexed { idx, member ->
+                    if (idx == victimIdx) {
+                        member.copy(
+                            hitPoints = member.hitPoints.copy(current = 0),
+                            dead = true,
+                        )
+                    } else {
+                        member
+                    }
+                },
+        )
     return draw.runtime.withActiveParty(nextParty) to listOf(rules.surpriseKill)
 }
 
 private fun PartyState.applyTemperatureDamage(damage: Int): PartyState =
     copy(
-        members = members.map { member ->
-            if (member.dead) member
-            else member.copy(
-                hitPoints = member.hitPoints.copy(
-                    current = (member.hitPoints.current - damage).coerceAtLeast(1),
-                ),
-            )
-        },
+        members =
+            members.map { member ->
+                if (member.dead) {
+                    member
+                } else {
+                    member.copy(
+                        hitPoints =
+                            member.hitPoints.copy(
+                                current = (member.hitPoints.current - damage).coerceAtLeast(1),
+                            ),
+                    )
+                }
+            },
     )

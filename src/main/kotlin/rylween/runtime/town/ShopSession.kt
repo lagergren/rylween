@@ -3,9 +3,40 @@
 
 package rylween.runtime.town
 
-import rylween.runtime.*
-
-import rylween.dsl.*
+import rylween.dsl.BuildingId
+import rylween.dsl.BuildingServiceModel
+import rylween.dsl.ItemId
+import rylween.dsl.ItemRecordModel
+import rylween.dsl.Op
+import rylween.dsl.PartyState
+import rylween.dsl.RealmContentModel
+import rylween.dsl.Resource
+import rylween.dsl.RuntimeContent
+import rylween.dsl.SceneModel
+import rylween.dsl.ShopBuyModel
+import rylween.dsl.ShopCatalogModel
+import rylween.dsl.ShopItemOfferModel
+import rylween.dsl.ShopPriceModel
+import rylween.dsl.ShopPurchaseModel
+import rylween.dsl.ShopQuantityCap
+import rylween.dsl.ShopSellModel
+import rylween.dsl.ShopServiceModel
+import rylween.dsl.ShopZeroQuantityDealPolicy
+import rylween.dsl.TextBlock
+import rylween.dsl.building
+import rylween.dsl.item
+import rylween.dsl.matches
+import rylween.runtime.InventoryPlacementResult
+import rylween.runtime.ShopMainChoice
+import rylween.runtime.ShopServiceInput
+import rylween.runtime.floorMod
+import rylween.runtime.inventoryItem
+import rylween.runtime.party
+import rylween.runtime.placeInventoryItem
+import rylween.runtime.prompt
+import rylween.runtime.resourceCapacity
+import rylween.runtime.withGold
+import rylween.runtime.withInventoryItem
 
 enum class ShopTransactionStatus {
     Bought,
@@ -47,11 +78,31 @@ data class ShopSellQuoteResult(
 )
 
 sealed interface ShopServiceStep {
-    data class Intro(val text: TextBlock) : ShopServiceStep
-    data class MainMenu(val text: TextBlock, val canBuy: Boolean, val canSell: Boolean) : ShopServiceStep
-    data class SelectCatalog(val prompt: TextBlock, val catalogs: List<ShopCatalogModel>) : ShopServiceStep
-    data class BuyItem(val prompt: TextBlock, val catalogs: List<ShopCatalogModel>) : ShopServiceStep
-    data class Quantity(val offer: ShopItemOfferModel, val prompt: TextBlock) : ShopServiceStep
+    data class Intro(
+        val text: TextBlock,
+    ) : ShopServiceStep
+
+    data class MainMenu(
+        val text: TextBlock,
+        val canBuy: Boolean,
+        val canSell: Boolean,
+    ) : ShopServiceStep
+
+    data class SelectCatalog(
+        val prompt: TextBlock,
+        val catalogs: List<ShopCatalogModel>,
+    ) : ShopServiceStep
+
+    data class BuyItem(
+        val prompt: TextBlock,
+        val catalogs: List<ShopCatalogModel>,
+    ) : ShopServiceStep
+
+    data class Quantity(
+        val offer: ShopItemOfferModel,
+        val prompt: TextBlock,
+    ) : ShopServiceStep
+
     data class ConfirmPurchase(
         val offer: ShopItemOfferModel,
         val quantity: Int,
@@ -59,15 +110,26 @@ sealed interface ShopServiceStep {
         val totalPrice: Int,
         val prompt: TextBlock,
     ) : ShopServiceStep
+
     data class DropSlot(
         val offer: ShopItemOfferModel,
         val quantity: Int,
         val prompt: TextBlock,
         val result: ShopTransactionResult,
     ) : ShopServiceStep
-    data class SellSlot(val prompt: TextBlock) : ShopServiceStep
-    data class ConfirmSale(val quote: ShopSellQuoteResult, val prompt: TextBlock) : ShopServiceStep
-    data class Finished(val text: TextBlock) : ShopServiceStep
+
+    data class SellSlot(
+        val prompt: TextBlock,
+    ) : ShopServiceStep
+
+    data class ConfirmSale(
+        val quote: ShopSellQuoteResult,
+        val prompt: TextBlock,
+    ) : ShopServiceStep
+
+    data class Finished(
+        val text: TextBlock,
+    ) : ShopServiceStep
 }
 
 data class ShopServiceSession(
@@ -79,8 +141,8 @@ data class ShopServiceSession(
     val content: RuntimeContent = RuntimeContent(),
 ) {
     private fun interpreter(): ShopServiceInterpreter = ShopServiceInterpreter(content)
-    private fun mainMenu(): ShopServiceStep =
-        ShopServiceStep.MainMenu(shop.menu, canBuy = shop.buy != null, canSell = shop.sell != null)
+
+    private fun mainMenu(): ShopServiceStep = ShopServiceStep.MainMenu(shop.menu, canBuy = shop.buy != null, canSell = shop.sell != null)
 
     fun continueIntro(): ShopServiceSession {
         require(step is ShopServiceStep.Intro) { "shop session is not showing intro" }
@@ -92,11 +154,12 @@ data class ShopServiceSession(
         return when (choice) {
             ShopMainChoice.Buy -> {
                 val buy = checkNotNull(shop.buy) { "shop ${shop.building.slug} has no buy section" }
-                val nextStep = if (buy.catalogs.size > 1) {
-                    ShopServiceStep.SelectCatalog(buy.prompt, buy.catalogs)
-                } else {
-                    ShopServiceStep.BuyItem(buy.prompt, buy.catalogs)
-                }
+                val nextStep =
+                    if (buy.catalogs.size > 1) {
+                        ShopServiceStep.SelectCatalog(buy.prompt, buy.catalogs)
+                    } else {
+                        ShopServiceStep.BuyItem(buy.prompt, buy.catalogs)
+                    }
                 copy(step = nextStep, lastTransaction = null, lastSellQuote = null)
             }
             ShopMainChoice.Sell -> {
@@ -108,8 +171,9 @@ data class ShopServiceSession(
     }
 
     fun chooseCatalog(catalog: ShopCatalogModel): ShopServiceSession {
-        val current = step as? ShopServiceStep.SelectCatalog
-            ?: error("shop session is not choosing a catalog")
+        val current =
+            step as? ShopServiceStep.SelectCatalog
+                ?: error("shop session is not choosing a catalog")
         require(catalog in current.catalogs) {
             "shop ${shop.building.slug} catalog ${catalog.title} is not offered by this prompt"
         }
@@ -127,19 +191,22 @@ data class ShopServiceSession(
         if (buy.paymentKeys.decline.matches(catalogKey.toString())) {
             return copy(step = mainMenu(), lastTransaction = null, lastSellQuote = null)
         }
-        val catalog = step.catalogs.firstOrNull { it.key == catalogKey.uppercaseChar() }
-            ?: return copy(step = mainMenu(), lastTransaction = null, lastSellQuote = null)
+        val catalog =
+            step.catalogs.firstOrNull { it.key == catalogKey.uppercaseChar() }
+                ?: return copy(step = mainMenu(), lastTransaction = null, lastSellQuote = null)
         return chooseCatalog(catalog)
     }
 
     fun chooseBuyItem(item: ItemId): ShopServiceSession {
-        val current = step as? ShopServiceStep.BuyItem
-            ?: error("shop session is not choosing a buy item")
-        val offer = current.catalogs.offers().firstOrNull { it.item == item }
-            ?: return copy(
-                step = mainMenu(),
-                lastTransaction = ShopTransactionResult(ShopTransactionStatus.ItemNotSoldHere, party, item),
-            )
+        val current =
+            step as? ShopServiceStep.BuyItem
+                ?: error("shop session is not choosing a buy item")
+        val offer =
+            current.catalogs.offers().firstOrNull { it.item == item }
+                ?: return copy(
+                    step = mainMenu(),
+                    lastTransaction = ShopTransactionResult(ShopTransactionStatus.ItemNotSoldHere, party, item),
+                )
         val purchase = offer.purchase
         return if (purchase is ShopPurchaseModel.Bulk) {
             copy(step = ShopServiceStep.Quantity(offer, purchase.quantityPrompt), lastTransaction = null, lastSellQuote = null)
@@ -149,24 +216,27 @@ data class ShopServiceSession(
     }
 
     fun enterQuantity(quantity: Int): ShopServiceSession {
-        val current = step as? ShopServiceStep.Quantity
-            ?: error("shop session is not asking for a quantity")
+        val current =
+            step as? ShopServiceStep.Quantity
+                ?: error("shop session is not asking for a quantity")
         return purchaseStep(current.offer, quantity)
     }
 
     fun confirmPurchase(accept: Boolean): ShopServiceSession {
-        val current = step as? ShopServiceStep.ConfirmPurchase
-            ?: error("shop session is not confirming a purchase")
+        val current =
+            step as? ShopServiceStep.ConfirmPurchase
+                ?: error("shop session is not confirming a purchase")
         val buy = checkNotNull(shop.buy) { "shop ${shop.building.slug} has no buy section" }
         if (!accept) {
             return copy(
                 step = mainMenu(),
-                lastTransaction = ShopTransactionResult(
-                    status = ShopTransactionStatus.Declined,
-                    party = party,
-                    item = current.offer.item,
-                    quantity = current.quantity,
-                ),
+                lastTransaction =
+                    ShopTransactionResult(
+                        status = ShopTransactionStatus.Declined,
+                        party = party,
+                        item = current.offer.item,
+                        quantity = current.quantity,
+                    ),
             )
         }
 
@@ -179,8 +249,9 @@ data class ShopServiceSession(
     }
 
     fun chooseDropSlot(slot: Int): ShopServiceSession {
-        val current = step as? ShopServiceStep.DropSlot
-            ?: error("shop session is not asking for a drop slot")
+        val current =
+            step as? ShopServiceStep.DropSlot
+                ?: error("shop session is not asking for a drop slot")
         val result = interpreter().buy(shop, party, current.offer.item, current.quantity, dropSlot = slot)
         return if (result.status == ShopTransactionStatus.Bought) {
             copy(step = mainMenu(), party = result.party, lastTransaction = result)
@@ -189,7 +260,10 @@ data class ShopServiceSession(
         }
     }
 
-    fun chooseSellSlot(slot: Int, bargainRolls: List<Int> = emptyList()): ShopServiceSession {
+    fun chooseSellSlot(
+        slot: Int,
+        bargainRolls: List<Int> = emptyList(),
+    ): ShopServiceSession {
         require(step is ShopServiceStep.SellSlot) { "shop session is not choosing a sell slot" }
         val sell = checkNotNull(shop.sell) { "shop ${shop.building.slug} has no sell section" }
         val quote = interpreter().sellQuote(shop, party, slot, bargainRolls)
@@ -201,32 +275,38 @@ data class ShopServiceSession(
     }
 
     fun confirmSale(accept: Boolean): ShopServiceSession {
-        val current = step as? ShopServiceStep.ConfirmSale
-            ?: error("shop session is not confirming a sale")
-        val result = if (accept) {
-            interpreter().sell(shop, party, checkNotNull(current.quote.slot), bargainRolls = current.quote.bargainRolls)
-        } else {
-            ShopTransactionResult(
-                status = ShopTransactionStatus.Declined,
-                party = party,
-                item = current.quote.item,
-                slot = current.quote.slot,
-            )
-        }
+        val current =
+            step as? ShopServiceStep.ConfirmSale
+                ?: error("shop session is not confirming a sale")
+        val result =
+            if (accept) {
+                interpreter().sell(shop, party, checkNotNull(current.quote.slot), bargainRolls = current.quote.bargainRolls)
+            } else {
+                ShopTransactionResult(
+                    status = ShopTransactionStatus.Declined,
+                    party = party,
+                    item = current.quote.item,
+                    slot = current.quote.slot,
+                )
+            }
         return copy(step = mainMenu(), party = result.party, lastTransaction = result)
     }
 
-    private fun purchaseStep(offer: ShopItemOfferModel, quantity: Int): ShopServiceSession {
+    private fun purchaseStep(
+        offer: ShopItemOfferModel,
+        quantity: Int,
+    ): ShopServiceSession {
         val buy = checkNotNull(shop.buy) { "shop ${shop.building.slug} has no buy section" }
         val unitPrice = interpreter().unitPrice(offer, party)
         return copy(
-            step = ShopServiceStep.ConfirmPurchase(
-                offer = offer,
-                quantity = quantity,
-                unitPrice = unitPrice,
-                totalPrice = unitPrice * quantity,
-                prompt = buy.payPrompt,
-            ),
+            step =
+                ShopServiceStep.ConfirmPurchase(
+                    offer = offer,
+                    quantity = quantity,
+                    unitPrice = unitPrice,
+                    totalPrice = unitPrice * quantity,
+                    prompt = buy.payPrompt,
+                ),
             lastTransaction = null,
             lastSellQuote = null,
         )
@@ -259,7 +339,10 @@ data class ShopServiceSession(
     }
 }
 
-fun applyShopInput(session: ShopServiceSession, input: ShopServiceInput): ShopServiceSession =
+fun applyShopInput(
+    session: ShopServiceSession,
+    input: ShopServiceInput,
+): ShopServiceSession =
     when (input) {
         ShopServiceInput.ContinueIntro -> session.continueIntro()
         is ShopServiceInput.Main -> session.chooseMain(input.choice)
@@ -287,14 +370,12 @@ fun BuildingServiceModel.isOpenAt(hour: Int): Boolean {
     }
 }
 
-fun ShopBuyModel.offers(): List<ShopItemOfferModel> =
-    catalogs.offers()
+fun ShopBuyModel.offers(): List<ShopItemOfferModel> = catalogs.offers()
 
 private fun List<ShopCatalogModel>.offers(): List<ShopItemOfferModel> =
     flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
 
-fun ShopBuyModel.offerFor(item: ItemId): ShopItemOfferModel? =
-    offers().firstOrNull { it.item == item }
+fun ShopBuyModel.offerFor(item: ItemId): ShopItemOfferModel? = offers().firstOrNull { it.item == item }
 
 class ShopServiceInterpreter(
     private val content: RuntimeContent = RuntimeContent(),
@@ -316,8 +397,9 @@ class ShopServiceInterpreter(
         dropSlot: Int? = null,
     ): ShopTransactionResult {
         val buy = shop.buy ?: return ShopTransactionResult(ShopTransactionStatus.ItemNotSoldHere, party, item)
-        val offer = buy.offerFor(item)
-            ?: return ShopTransactionResult(ShopTransactionStatus.ItemNotSoldHere, party, item)
+        val offer =
+            buy.offerFor(item)
+                ?: return ShopTransactionResult(ShopTransactionStatus.ItemNotSoldHere, party, item)
         val unitPrice = unitPrice(offer, party)
 
         return when (val purchase = offer.purchase) {
@@ -349,9 +431,10 @@ class ShopServiceInterpreter(
             return ShopTransactionResult(ShopTransactionStatus.Declined, party, item, slot = slot)
         }
 
-        val updated = party
-            .withInventoryItem(slot, null)
-            .withGold(party.resources.gold + offerPrice)
+        val updated =
+            party
+                .withInventoryItem(slot, null)
+                .withGold(party.resources.gold + offerPrice)
         return ShopTransactionResult(
             status = ShopTransactionStatus.Sold,
             party = updated,
@@ -368,14 +451,16 @@ class ShopServiceInterpreter(
         bargainRolls: List<Int> = emptyList(),
     ): ShopSellQuoteResult {
         val sell = shop.sell ?: return ShopSellQuoteResult(ShopSellQuoteStatus.ItemNotAcceptedHere, party, slot = slot)
-        val item = party.inventoryItem(slot)
-            ?: return ShopSellQuoteResult(ShopSellQuoteStatus.EmptySlot, party, slot = slot)
+        val item =
+            party.inventoryItem(slot)
+                ?: return ShopSellQuoteResult(ShopSellQuoteStatus.EmptySlot, party, slot = slot)
         if (!sell.accepts(item)) {
             return ShopSellQuoteResult(ShopSellQuoteStatus.ItemNotAcceptedHere, party, item, slot)
         }
 
-        val offerPrice = bargainPrice(sell, item, party, bargainRolls)
-            ?: return ShopSellQuoteResult(ShopSellQuoteStatus.Declined, party, item, slot, bargainRolls = bargainRolls)
+        val offerPrice =
+            bargainPrice(sell, item, party, bargainRolls)
+                ?: return ShopSellQuoteResult(ShopSellQuoteStatus.Declined, party, item, slot, bargainRolls = bargainRolls)
         return ShopSellQuoteResult(
             status = ShopSellQuoteStatus.Quoted,
             party = party,
@@ -386,8 +471,10 @@ class ShopServiceInterpreter(
         )
     }
 
-    fun unitPrice(offer: ShopItemOfferModel, party: PartyState): Int =
-        price(offer.price, offer.item, party)
+    fun unitPrice(
+        offer: ShopItemOfferModel,
+        party: PartyState,
+    ): Int = price(offer.price, offer.item, party)
 
     private fun buyInventoryItem(
         buy: ShopBuyModel,
@@ -399,36 +486,43 @@ class ShopServiceInterpreter(
         if (party.resources.gold < unitPrice) {
             return ShopTransactionResult(ShopTransactionStatus.NotEnoughGold, party, item, goldDelta = -unitPrice)
         }
-        return when (val placed = party.placeInventoryItem(
-            item,
-            buy.inventoryApplication.overflow,
-            dropSlot,
-            itemRecords = content.itemRecords,
-            realmContent = content.realm,
-        )) {
-            is InventoryPlacementResult.Placed -> ShopTransactionResult(
-                status = ShopTransactionStatus.Bought,
-                party = placed.party.withGold(placed.party.resources.gold - unitPrice),
-                item = item,
-                goldDelta = -unitPrice,
-                slot = placed.slot,
-            )
-            is InventoryPlacementResult.NeedsDropSlot -> ShopTransactionResult(
-                status = ShopTransactionStatus.NeedsDropSlot,
-                party = placed.party,
-                item = item,
-            )
-            is InventoryPlacementResult.Full -> ShopTransactionResult(
-                status = ShopTransactionStatus.InventoryFull,
-                party = placed.party,
-                item = item,
-            )
-            is InventoryPlacementResult.InvalidDropSlot -> ShopTransactionResult(
-                status = ShopTransactionStatus.InvalidDropSlot,
-                party = placed.party,
-                item = item,
-                slot = placed.slot,
-            )
+        return when (
+            val placed =
+                party.placeInventoryItem(
+                    item,
+                    buy.inventoryApplication.overflow,
+                    dropSlot,
+                    itemRecords = content.itemRecords,
+                    realmContent = content.realm,
+                )
+        ) {
+            is InventoryPlacementResult.Placed ->
+                ShopTransactionResult(
+                    status = ShopTransactionStatus.Bought,
+                    party = placed.party.withGold(placed.party.resources.gold - unitPrice),
+                    item = item,
+                    goldDelta = -unitPrice,
+                    slot = placed.slot,
+                )
+            is InventoryPlacementResult.NeedsDropSlot ->
+                ShopTransactionResult(
+                    status = ShopTransactionStatus.NeedsDropSlot,
+                    party = placed.party,
+                    item = item,
+                )
+            is InventoryPlacementResult.Full ->
+                ShopTransactionResult(
+                    status = ShopTransactionStatus.InventoryFull,
+                    party = placed.party,
+                    item = item,
+                )
+            is InventoryPlacementResult.InvalidDropSlot ->
+                ShopTransactionResult(
+                    status = ShopTransactionStatus.InvalidDropSlot,
+                    party = placed.party,
+                    item = item,
+                    slot = placed.slot,
+                )
         }
     }
 
@@ -453,9 +547,10 @@ class ShopServiceInterpreter(
             return ShopTransactionResult(ShopTransactionStatus.NotEnoughGold, party, item, goldDelta = -total)
         }
 
-        val updated = party
-            .withGold(party.resources.gold - total)
-            .withResource(purchase.resource, quantity)
+        val updated =
+            party
+                .withGold(party.resources.gold - total)
+                .withResource(purchase.resource, quantity)
         return ShopTransactionResult(
             status = ShopTransactionStatus.Bought,
             party = updated,
@@ -493,7 +588,11 @@ class ShopServiceInterpreter(
         return itemRecordById[item]?.kind in acceptedKinds
     }
 
-    private fun price(model: ShopPriceModel, item: ItemId, party: PartyState): Int =
+    private fun price(
+        model: ShopPriceModel,
+        item: ItemId,
+        party: PartyState,
+    ): Int =
         when (model) {
             ShopPriceModel.ItemCost -> itemRecord(item).cost
             ShopPriceModel.HalfItemCost -> itemRecord(item).cost / 2
@@ -502,17 +601,17 @@ class ShopServiceInterpreter(
             is ShopPriceModel.ItemCostPlusLeaderLevelTimes -> itemRecord(item).cost + party.leaderLevel * model.multiplier
         }
 
-    private fun itemRecord(item: ItemId): ItemRecordModel =
-        checkNotNull(itemRecordById[item]) { "unknown item ${item.slug}" }
+    private fun itemRecord(item: ItemId): ItemRecordModel = checkNotNull(itemRecordById[item]) { "unknown item ${item.slug}" }
 
     private fun PartyState.remainingCapacity(cap: ShopQuantityCap): Int {
-        val limit = when (cap) {
-            is ShopQuantityCap.FixedAmount -> cap.amount
-            is ShopQuantityCap.CarryCapacity -> {
-                val base = realmContent.baseResourceCapacity[cap.resource] ?: 0
-                resourceCapacity(itemRecords, cap.resource, base)
+        val limit =
+            when (cap) {
+                is ShopQuantityCap.FixedAmount -> cap.amount
+                is ShopQuantityCap.CarryCapacity -> {
+                    val base = realmContent.baseResourceCapacity[cap.resource] ?: 0
+                    resourceCapacity(itemRecords, cap.resource, base)
+                }
             }
-        }
         return (limit - resourceAmount(cap.resource)).coerceAtLeast(0)
     }
 }
@@ -523,7 +622,10 @@ internal fun PartyState.resourceAmount(resource: Resource): Int =
         Resource.Torches -> resources.torches
     }
 
-private fun PartyState.withResource(resource: Resource, quantity: Int): PartyState =
+private fun PartyState.withResource(
+    resource: Resource,
+    quantity: Int,
+): PartyState =
     when (resource) {
         Resource.Torches -> copy(resources = resources.copy(torches = resources.torches + quantity))
         Resource.Food -> copy(resources = resources.copy(food = resources.food + quantity))

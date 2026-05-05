@@ -3,23 +3,92 @@
 
 package rylween.runtime
 
-import rylween.dsl.*
+import rylween.dsl.DslDefaultItems
+import rylween.dsl.EquipmentCommand
+import rylween.dsl.EquipmentPromptsModel
+import rylween.dsl.EquipmentState
+import rylween.dsl.FlagState
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.ImageId
+import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.InventorySlotChoiceFilter
+import rylween.dsl.InventorySlotState
+import rylween.dsl.ItemId
+import rylween.dsl.ItemKind
+import rylween.dsl.ItemPoolId
+import rylween.dsl.ItemRecordModel
+import rylween.dsl.JournalEntryState
+import rylween.dsl.MemberChoiceFilter
+import rylween.dsl.PartyMemberState
+import rylween.dsl.PartyState
+import rylween.dsl.PcClass
+import rylween.dsl.RealmContentModel
+import rylween.dsl.Resource
+import rylween.dsl.RewardOverflowPolicy
+import rylween.dsl.TemperatureBand
+import rylween.dsl.TextBlock
+import rylween.dsl.image
+import rylween.dsl.item
+import rylween.dsl.lines
+import rylween.dsl.matches
+import rylween.dsl.milestone
+import rylween.dsl.runtimeFlagState
 import rylween.runtime.party.InventoryItemChoice
 
 sealed interface InventoryPlacementResult {
-    data class Placed(val party: PartyState, val slot: Int) : InventoryPlacementResult
-    data class NeedsDropSlot(val party: PartyState) : InventoryPlacementResult
-    data class Full(val party: PartyState) : InventoryPlacementResult
-    data class InvalidDropSlot(val party: PartyState, val slot: Int) : InventoryPlacementResult
+    data class Placed(
+        val party: PartyState,
+        val slot: Int,
+    ) : InventoryPlacementResult
+
+    data class NeedsDropSlot(
+        val party: PartyState,
+    ) : InventoryPlacementResult
+
+    data class Full(
+        val party: PartyState,
+    ) : InventoryPlacementResult
+
+    data class InvalidDropSlot(
+        val party: PartyState,
+        val slot: Int,
+    ) : InventoryPlacementResult
 }
 
 sealed interface EquipmentActionResult {
-    data class Equipped(val party: PartyState, val memberNumber: Int, val inventorySlot: Int) : EquipmentActionResult
-    data class Unequipped(val party: PartyState, val memberNumber: Int, val inventorySlot: Int) : EquipmentActionResult
-    data class InvalidMember(val party: PartyState, val memberNumber: Int) : EquipmentActionResult
-    data class DeadMember(val party: PartyState, val memberNumber: Int) : EquipmentActionResult
-    data class InvalidInventorySlot(val party: PartyState, val slot: Int) : EquipmentActionResult
-    data class WrongItemKind(val party: PartyState, val slot: Int, val item: ItemId?) : EquipmentActionResult
+    data class Equipped(
+        val party: PartyState,
+        val memberNumber: Int,
+        val inventorySlot: Int,
+    ) : EquipmentActionResult
+
+    data class Unequipped(
+        val party: PartyState,
+        val memberNumber: Int,
+        val inventorySlot: Int,
+    ) : EquipmentActionResult
+
+    data class InvalidMember(
+        val party: PartyState,
+        val memberNumber: Int,
+    ) : EquipmentActionResult
+
+    data class DeadMember(
+        val party: PartyState,
+        val memberNumber: Int,
+    ) : EquipmentActionResult
+
+    data class InvalidInventorySlot(
+        val party: PartyState,
+        val slot: Int,
+    ) : EquipmentActionResult
+
+    data class WrongItemKind(
+        val party: PartyState,
+        val slot: Int,
+        val item: ItemId?,
+    ) : EquipmentActionResult
+
     data class WrongClass(
         val party: PartyState,
         val memberNumber: Int,
@@ -27,19 +96,40 @@ sealed interface EquipmentActionResult {
         val item: ItemId,
         val pcClass: PcClass,
     ) : EquipmentActionResult
-    data class NothingEquipped(val party: PartyState, val memberNumber: Int, val kind: EquipmentKind) : EquipmentActionResult
-    data class InventoryFull(val party: PartyState) : EquipmentActionResult
+
+    data class NothingEquipped(
+        val party: PartyState,
+        val memberNumber: Int,
+        val kind: EquipmentKind,
+    ) : EquipmentActionResult
+
+    data class InventoryFull(
+        val party: PartyState,
+    ) : EquipmentActionResult
 }
 
 sealed interface TorchActionResult {
-    data class Consumed(val party: PartyState) : TorchActionResult
-    data class NoTorches(val party: PartyState) : TorchActionResult
+    data class Consumed(
+        val party: PartyState,
+    ) : TorchActionResult
+
+    data class NoTorches(
+        val party: PartyState,
+    ) : TorchActionResult
 }
 
 sealed interface DungeonDescentResult {
-    data class Descended(val party: PartyState) : DungeonDescentResult
-    data class NoTorches(val party: PartyState) : DungeonDescentResult
-    data class AtMaxDepth(val party: PartyState) : DungeonDescentResult
+    data class Descended(
+        val party: PartyState,
+    ) : DungeonDescentResult
+
+    data class NoTorches(
+        val party: PartyState,
+    ) : DungeonDescentResult
+
+    data class AtMaxDepth(
+        val party: PartyState,
+    ) : DungeonDescentResult
 }
 
 data class CampGearEffect(
@@ -50,22 +140,27 @@ data class CampGearEffect(
 }
 
 val EquipmentActionResult.party: PartyState
-    get() = when (this) {
-        is EquipmentActionResult.Equipped -> party
-        is EquipmentActionResult.Unequipped -> party
-        is EquipmentActionResult.InvalidMember -> party
-        is EquipmentActionResult.DeadMember -> party
-        is EquipmentActionResult.InvalidInventorySlot -> party
-        is EquipmentActionResult.WrongItemKind -> party
-        is EquipmentActionResult.WrongClass -> party
-        is EquipmentActionResult.NothingEquipped -> party
-        is EquipmentActionResult.InventoryFull -> party
-    }
+    get() =
+        when (this) {
+            is EquipmentActionResult.Equipped -> party
+            is EquipmentActionResult.Unequipped -> party
+            is EquipmentActionResult.InvalidMember -> party
+            is EquipmentActionResult.DeadMember -> party
+            is EquipmentActionResult.InvalidInventorySlot -> party
+            is EquipmentActionResult.WrongItemKind -> party
+            is EquipmentActionResult.WrongClass -> party
+            is EquipmentActionResult.NothingEquipped -> party
+            is EquipmentActionResult.InventoryFull -> party
+        }
 
-fun <T> EquipmentActionResult.toParentStatus(used: T, unavailable: T): T =
+fun <T> EquipmentActionResult.toParentStatus(
+    used: T,
+    unavailable: T,
+): T =
     when (this) {
         is EquipmentActionResult.Equipped,
-        is EquipmentActionResult.Unequipped -> used
+        is EquipmentActionResult.Unequipped,
+        -> used
         else -> unavailable
     }
 
@@ -102,15 +197,18 @@ fun PartyState.equipFromInventory(
     itemRecords: List<ItemRecordModel> = emptyList(),
 ): EquipmentActionResult {
     val memberIndex = memberNumber - 1
-    val member = members.getOrNull(memberIndex)
-        ?: return EquipmentActionResult.InvalidMember(this, memberNumber)
+    val member =
+        members.getOrNull(memberIndex)
+            ?: return EquipmentActionResult.InvalidMember(this, memberNumber)
     if (member.dead) return EquipmentActionResult.DeadMember(this, memberNumber)
     if (slot !in 1..InventorySaveSlotMax) return EquipmentActionResult.InvalidInventorySlot(this, slot)
 
-    val item = inventoryItem(slot)
-        ?: return EquipmentActionResult.WrongItemKind(this, slot, null)
-    val record = itemRecords.associateBy { it.id }[item]
-        ?: return EquipmentActionResult.WrongItemKind(this, slot, item)
+    val item =
+        inventoryItem(slot)
+            ?: return EquipmentActionResult.WrongItemKind(this, slot, null)
+    val record =
+        itemRecords.associateBy { it.id }[item]
+            ?: return EquipmentActionResult.WrongItemKind(this, slot, item)
     if (!record.matches(kind)) {
         return EquipmentActionResult.WrongItemKind(this, slot, item)
     }
@@ -133,17 +231,20 @@ fun PartyState.unequipToInventory(
     kind: EquipmentKind,
 ): EquipmentActionResult {
     val memberIndex = memberNumber - 1
-    val member = members.getOrNull(memberIndex)
-        ?: return EquipmentActionResult.InvalidMember(this, memberNumber)
+    val member =
+        members.getOrNull(memberIndex)
+            ?: return EquipmentActionResult.InvalidMember(this, memberNumber)
     val equipped = member.equipment.item(kind)
     if (equipped == DslDefaultItems.none) {
         return EquipmentActionResult.NothingEquipped(this, memberNumber, kind)
     }
 
-    val slot = firstFreeInventorySlot()
-        ?: return EquipmentActionResult.InventoryFull(this)
-    val updated = withMember(memberIndex, member.withEquipmentItem(kind, DslDefaultItems.none))
-        .withInventoryItem(slot, equipped)
+    val slot =
+        firstFreeInventorySlot()
+            ?: return EquipmentActionResult.InventoryFull(this)
+    val updated =
+        withMember(memberIndex, member.withEquipmentItem(kind, DslDefaultItems.none))
+            .withInventoryItem(slot, equipped)
     return EquipmentActionResult.Unequipped(updated, memberNumber, slot)
 }
 
@@ -170,7 +271,8 @@ fun PartyState.needsTownLeaveReadyPrompt(
         EquipmentCommand.ReadyArmor ->
             hasReadyableInventoryEquipment(EquipmentKind.Armor, itemRecords)
         EquipmentCommand.RemoveWeapon,
-        EquipmentCommand.RemoveArmor -> false
+        EquipmentCommand.RemoveArmor,
+        -> false
     }
 
 fun PartyState.consumeTorch(): TorchActionResult =
@@ -180,7 +282,10 @@ fun PartyState.consumeTorch(): TorchActionResult =
         TorchActionResult.Consumed(copy(resources = resources.copy(torches = resources.torches - 1)))
     }
 
-fun PartyState.tryDungeonDescent(currentDepth: Int, maxDepth: Int): DungeonDescentResult {
+fun PartyState.tryDungeonDescent(
+    currentDepth: Int,
+    maxDepth: Int,
+): DungeonDescentResult {
     require(currentDepth >= 0) { "current dungeon depth must be non-negative" }
     require(maxDepth >= 0) { "max dungeon depth must be non-negative" }
     if (resources.torches <= 0) return DungeonDescentResult.NoTorches(this)
@@ -191,8 +296,7 @@ fun PartyState.tryDungeonDescent(currentDepth: Int, maxDepth: Int): DungeonDesce
     }
 }
 
-fun PartyState.inventoryItem(slot: Int): ItemId? =
-    inventory.firstOrNull { it.slot == slot }?.item
+fun PartyState.inventoryItem(slot: Int): ItemId? = inventory.firstOrNull { it.slot == slot }?.item
 
 fun PartyState.inventoryItemChoices(itemRecords: List<ItemRecordModel> = emptyList()): List<InventoryItemChoice> {
     val records = itemRecords.associateBy { it.id }
@@ -210,10 +314,12 @@ fun PartyState.inventoryItemChoices(itemRecords: List<ItemRecordModel> = emptyLi
     }
 }
 
-fun PartyState.firstFreeInventorySlot(): Int? =
-    (1..InventorySaveSlotMax).firstOrNull { inventoryItem(it) == null }
+fun PartyState.firstFreeInventorySlot(): Int? = (1..InventorySaveSlotMax).firstOrNull { inventoryItem(it) == null }
 
-fun PartyState.withInventoryItem(slot: Int, item: ItemId?): PartyState {
+fun PartyState.withInventoryItem(
+    slot: Int,
+    item: ItemId?,
+): PartyState {
     require(slot in 0..InventorySaveSlotMax) { "inventory slot $slot outside 0..$InventorySaveSlotMax" }
     val slots = inventory.associateBy { it.slot }.toMutableMap()
     slots[slot] = InventorySlotState(slot, item)
@@ -226,13 +332,14 @@ fun PartyState.resourceCapacity(
     baseCapacity: Int,
 ): Int {
     val byId = itemRecords.associateBy { it.id }
-    val bonus = inventory
-        .asSequence()
-        .filter { it.slot in 1..InventorySaveSlotMax }
-        .sumOf { slot ->
-            val item = slot.item ?: return@sumOf 0
-            byId[item]?.resourceCapacityBonus?.get(resource) ?: 0
-        }
+    val bonus =
+        inventory
+            .asSequence()
+            .filter { it.slot in 1..InventorySaveSlotMax }
+            .sumOf { slot ->
+                val item = slot.item ?: return@sumOf 0
+                byId[item]?.resourceCapacityBonus?.get(resource) ?: 0
+            }
     return baseCapacity + bonus
 }
 
@@ -249,19 +356,21 @@ private fun PartyState.hasReadyableInventoryEquipment(
     kind: EquipmentKind,
     itemRecords: List<ItemRecordModel>,
 ): Boolean {
-    val candidateClasses = members
-        .asSequence()
-        .filter { member -> !member.dead && member.equipment.item(kind) == DslDefaultItems.none }
-        .map { it.pcClass }
-        .toSet()
+    val candidateClasses =
+        members
+            .asSequence()
+            .filter { member -> !member.dead && member.equipment.item(kind) == DslDefaultItems.none }
+            .map { it.pcClass }
+            .toSet()
     if (candidateClasses.isEmpty()) return false
 
     val records = itemRecords.associateBy { it.id }
     return inventory.any { slot ->
-        slot.slot in 1..InventorySaveSlotMax && slot.item?.let { item ->
-            val record = records[item]
-            record?.matches(kind) == true && candidateClasses.any(record::canEquip)
-        } == true
+        slot.slot in 1..InventorySaveSlotMax &&
+            slot.item?.let { item ->
+                val record = records[item]
+                record?.matches(kind) == true && candidateClasses.any(record::canEquip)
+            } == true
     }
 }
 
@@ -270,32 +379,36 @@ fun PartyState.campGearEffect(
     fallbackImage: ImageId,
 ): CampGearEffect {
     val byId = itemRecords.associateBy { it.id }
-    val carriedRecords = inventory
-        .asSequence()
-        .filter { it.slot in 1..InventorySaveSlotMax }
-        .mapNotNull { slot -> slot.item?.let(byId::get) }
-        .toList()
+    val carriedRecords =
+        inventory
+            .asSequence()
+            .filter { it.slot in 1..InventorySaveSlotMax }
+            .mapNotNull { slot -> slot.item?.let(byId::get) }
+            .toList()
     val protections = carriedRecords.flatMapTo(mutableSetOf()) { it.campProtection }
     val image = carriedRecords.firstNotNullOfOrNull { it.campImage } ?: fallbackImage
     return CampGearEffect(image = image, protectedBands = protections)
 }
 
-fun PartyState.withGold(gold: Int): PartyState =
-    copy(resources = resources.copy(gold = gold.coerceAtLeast(0)))
+fun PartyState.withGold(gold: Int): PartyState = copy(resources = resources.copy(gold = gold.coerceAtLeast(0)))
 
 fun PartyState.countInventoryItems(pool: ItemPoolId): Int {
     val pooledItems = pool.items.toSet()
     return inventory.count { it.slot in 1..InventorySaveSlotMax && it.item in pooledItems }
 }
 
-fun PartyState.consumeInventoryItems(pool: ItemPoolId, quantity: Int): PartyState {
+fun PartyState.consumeInventoryItems(
+    pool: ItemPoolId,
+    quantity: Int,
+): PartyState {
     val pooledItems = pool.items.toSet()
-    val consumedSlots = inventory
-        .asSequence()
-        .filter { it.slot in 1..InventorySaveSlotMax && it.item in pooledItems }
-        .take(quantity.coerceAtLeast(0))
-        .map { it.slot }
-        .toSet()
+    val consumedSlots =
+        inventory
+            .asSequence()
+            .filter { it.slot in 1..InventorySaveSlotMax && it.item in pooledItems }
+            .take(quantity.coerceAtLeast(0))
+            .map { it.slot }
+            .toSet()
     return copy(
         inventory = inventory.map { slot -> slot.copy(item = slot.item.takeUnless { slot.slot in consumedSlots }) },
     )
@@ -307,20 +420,25 @@ fun PartyState.withMilestone(milestone: GameMilestoneId): PartyState =
 fun PartyState.withoutMilestone(milestone: GameMilestoneId): PartyState =
     if (milestone !in milestones) this else copy(milestones = milestones.filterNot { it == milestone })
 
-fun PartyState.withFlagState(flag: String, native: String): PartyState =
+fun PartyState.withFlagState(
+    flag: String,
+    native: String,
+): PartyState =
     copy(
-        flags = (flags.filterNot { it.flag.slug == flag } + runtimeFlagState(flag, native))
-            .sortedWith(compareBy({ it.flag.slug }, { it.native })),
+        flags =
+            (flags.filterNot { it.flag.slug == flag } + runtimeFlagState(flag, native))
+                .sortedWith(compareBy({ it.flag.slug }, { it.native })),
     )
 
-fun PartyState.hasFlagState(state: FlagState): Boolean =
-    flags.any { it.flag.slug == state.flag.slug && it.native == state.native }
+fun PartyState.hasFlagState(state: FlagState): Boolean = flags.any { it.flag.slug == state.flag.slug && it.native == state.native }
 
 fun PartyState.withJournalLines(lines: List<String>): PartyState =
     copy(journal = journal + lines.filter { it.isNotBlank() }.map(JournalEntryState::Line))
 
-private fun PartyState.withMember(index: Int, member: PartyMemberState): PartyState =
-    copy(members = members.mapIndexed { i, existing -> if (i == index) member else existing })
+private fun PartyState.withMember(
+    index: Int,
+    member: PartyMemberState,
+): PartyState = copy(members = members.mapIndexed { i, existing -> if (i == index) member else existing })
 
 private fun ItemRecordModel.matches(kind: EquipmentKind): Boolean =
     when (kind) {
@@ -328,8 +446,7 @@ private fun ItemRecordModel.matches(kind: EquipmentKind): Boolean =
         EquipmentKind.Armor -> this.kind == ItemKind.Armor
     }
 
-private fun ItemRecordModel.canEquip(pcClass: PcClass): Boolean =
-    equippableBy.isEmpty() || pcClass in equippableBy
+private fun ItemRecordModel.canEquip(pcClass: PcClass): Boolean = equippableBy.isEmpty() || pcClass in equippableBy
 
 private fun EquipmentState.item(kind: EquipmentKind): ItemId =
     when (kind) {
@@ -337,12 +454,16 @@ private fun EquipmentState.item(kind: EquipmentKind): ItemId =
         EquipmentKind.Armor -> armor
     }
 
-private fun PartyMemberState.withEquipmentItem(kind: EquipmentKind, item: ItemId): PartyMemberState =
+private fun PartyMemberState.withEquipmentItem(
+    kind: EquipmentKind,
+    item: ItemId,
+): PartyMemberState =
     copy(
-        equipment = when (kind) {
-            EquipmentKind.Weapon -> equipment.copy(weapon = item)
-            EquipmentKind.Armor -> equipment.copy(armor = item)
-        },
+        equipment =
+            when (kind) {
+                EquipmentKind.Weapon -> equipment.copy(weapon = item)
+                EquipmentKind.Armor -> equipment.copy(armor = item)
+            },
     )
 
 data class EquipmentPromptModel(
@@ -357,11 +478,15 @@ sealed interface EquipmentPromptStep {
         val prompt: TextBlock,
         val filter: InventorySlotChoiceFilter,
     ) : EquipmentPromptStep
+
     data class ChooseMember(
         val prompt: TextBlock,
         val filter: MemberChoiceFilter,
     ) : EquipmentPromptStep
-    data class Finished(val result: EquipmentActionResult) : EquipmentPromptStep
+
+    data class Finished(
+        val result: EquipmentActionResult,
+    ) : EquipmentPromptStep
 }
 
 data class EquipmentPromptSession(
@@ -375,19 +500,22 @@ data class EquipmentPromptSession(
     fun apply(input: EquipmentPromptInput): EquipmentPromptSession =
         when (val current = step) {
             is EquipmentPromptStep.ChooseInventorySlot -> {
-                val slot = (input as? EquipmentPromptInput.InventorySlot)
-                    ?: error("equipment session is choosing an inventory slot")
+                val slot =
+                    (input as? EquipmentPromptInput.InventorySlot)
+                        ?: error("equipment session is choosing an inventory slot")
                 copy(
-                    step = EquipmentPromptStep.ChooseMember(
-                        prompts.who,
-                        command.prompt().memberFilter,
-                    ),
+                    step =
+                        EquipmentPromptStep.ChooseMember(
+                            prompts.who,
+                            command.prompt().memberFilter,
+                        ),
                     inventorySlot = slot.slot,
                 )
             }
             is EquipmentPromptStep.ChooseMember -> {
-                val member = (input as? EquipmentPromptInput.Member)
-                    ?: error("equipment session is choosing a member")
+                val member =
+                    (input as? EquipmentPromptInput.Member)
+                        ?: error("equipment session is choosing a member")
                 val result = party.applyEquipmentCommand(command, member.memberNumber, inventorySlot, itemRecords)
                 copy(party = result.party, step = EquipmentPromptStep.Finished(result))
             }
@@ -402,9 +530,10 @@ data class EquipmentPromptSession(
             prompts: EquipmentPromptsModel = EquipmentPromptsModel(),
         ): EquipmentPromptSession {
             val prompt = command.prompt()
-            val step = prompt.inventoryFilter?.let {
-                EquipmentPromptStep.ChooseInventorySlot(prompts.inventory, it)
-            } ?: EquipmentPromptStep.ChooseMember(prompts.who, prompt.memberFilter)
+            val step =
+                prompt.inventoryFilter?.let {
+                    EquipmentPromptStep.ChooseInventorySlot(prompts.inventory, it)
+                } ?: EquipmentPromptStep.ChooseMember(prompts.who, prompt.memberFilter)
             return EquipmentPromptSession(command, party, step, itemRecords, prompts = prompts)
         }
 
@@ -431,30 +560,34 @@ data class EquipmentPromptSession(
 
 fun EquipmentCommand.prompt(): EquipmentPromptModel =
     when (this) {
-        EquipmentCommand.ReadyWeapon -> EquipmentPromptModel(
-            command = this,
-            kind = EquipmentKind.Weapon,
-            memberFilter = MemberChoiceFilter.AliveOnly,
-            inventoryFilter = InventorySlotChoiceFilter.NonEmpty,
-        )
-        EquipmentCommand.ReadyArmor -> EquipmentPromptModel(
-            command = this,
-            kind = EquipmentKind.Armor,
-            memberFilter = MemberChoiceFilter.AliveOnly,
-            inventoryFilter = InventorySlotChoiceFilter.NonEmpty,
-        )
-        EquipmentCommand.RemoveWeapon -> EquipmentPromptModel(
-            command = this,
-            kind = EquipmentKind.Weapon,
-            memberFilter = MemberChoiceFilter.Any,
-            inventoryFilter = null,
-        )
-        EquipmentCommand.RemoveArmor -> EquipmentPromptModel(
-            command = this,
-            kind = EquipmentKind.Armor,
-            memberFilter = MemberChoiceFilter.Any,
-            inventoryFilter = null,
-        )
+        EquipmentCommand.ReadyWeapon ->
+            EquipmentPromptModel(
+                command = this,
+                kind = EquipmentKind.Weapon,
+                memberFilter = MemberChoiceFilter.AliveOnly,
+                inventoryFilter = InventorySlotChoiceFilter.NonEmpty,
+            )
+        EquipmentCommand.ReadyArmor ->
+            EquipmentPromptModel(
+                command = this,
+                kind = EquipmentKind.Armor,
+                memberFilter = MemberChoiceFilter.AliveOnly,
+                inventoryFilter = InventorySlotChoiceFilter.NonEmpty,
+            )
+        EquipmentCommand.RemoveWeapon ->
+            EquipmentPromptModel(
+                command = this,
+                kind = EquipmentKind.Weapon,
+                memberFilter = MemberChoiceFilter.Any,
+                inventoryFilter = null,
+            )
+        EquipmentCommand.RemoveArmor ->
+            EquipmentPromptModel(
+                command = this,
+                kind = EquipmentKind.Armor,
+                memberFilter = MemberChoiceFilter.Any,
+                inventoryFilter = null,
+            )
     }
 
 fun EquipmentCommand.townLeavePrompt(prompts: EquipmentPromptsModel = EquipmentPromptsModel()): TextBlock =
@@ -462,5 +595,6 @@ fun EquipmentCommand.townLeavePrompt(prompts: EquipmentPromptsModel = EquipmentP
         EquipmentCommand.ReadyWeapon -> prompts.readyWeapons
         EquipmentCommand.ReadyArmor -> prompts.readyArmors
         EquipmentCommand.RemoveWeapon,
-        EquipmentCommand.RemoveArmor -> error("$this is not a town-leave ready command")
+        EquipmentCommand.RemoveArmor,
+        -> error("$this is not a town-leave ready command")
     }

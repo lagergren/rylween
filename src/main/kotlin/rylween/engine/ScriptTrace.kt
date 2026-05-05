@@ -2,11 +2,34 @@
 
 package rylween.engine
 
-import rylween.dsl.*
-import rylween.runtime.*
+import rylween.dsl.BoolAst
+import rylween.dsl.GameMilestoneId
+import rylween.dsl.IntAst
+import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.InventorySlotChoiceFilter
+import rylween.dsl.ItemPoolId
+import rylween.dsl.NativeStringArg
+import rylween.dsl.Op
+import rylween.dsl.ScriptControlSignal
+import rylween.dsl.StandardYesNoKeys
+import rylween.dsl.StrAst
+import rylween.dsl.TextBlock
+import rylween.dsl.YesNoKeysModel
+import rylween.dsl.building
+import rylween.dsl.dungeon
+import rylween.dsl.item
+import rylween.dsl.milestone
+import rylween.dsl.render
+import rylween.dsl.text
+import rylween.runtime.EquipmentPromptInput
+import rylween.runtime.EquipmentPromptSession
+import rylween.runtime.EquipmentPromptStep
+import rylween.runtime.IntAstEvaluator
+import rylween.runtime.ShopServiceInput
+import rylween.runtime.TownLeaveEquipmentInput
+import rylween.runtime.prompt
 import rylween.runtime.town.ShopServiceSession
 import rylween.runtime.town.ShopServiceStep
-import rylween.runtime.town.SpeakRuntimeContent
 import rylween.runtime.town.TownLeaveEquipmentSession
 import rylween.runtime.town.TownLeaveEquipmentStep
 import rylween.runtime.wilderness.WildernessDungeonHandoff
@@ -26,9 +49,10 @@ class ScriptTraceRunner(
         when (op) {
             is Op.Screen -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.Screen(op.text)) }
             is Op.Emit -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.Emit(op.text)) }
-            is Op.EmitIndexed -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.EmitIndexed(op.pattern, eval(op.value)))
-            }
+            is Op.EmitIndexed ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.EmitIndexed(op.pattern, eval(op.value)))
+                }
             is Op.WaitInput -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.WaitInput(op.reason)) }
             is Op.Pause -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.Pause(op.millis)) }
             is Op.View -> ScriptControlSignal.Continue.also { trace(EngineTraceEvent.View(op.command)) }
@@ -38,89 +62,113 @@ class ScriptTraceRunner(
             is Op.Add -> ScriptControlSignal.Continue
             is Op.Sub -> ScriptControlSignal.Continue
             is Op.AddClamped -> ScriptControlSignal.Continue
-            is Op.SetFlag -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
-            }
-            is Op.AppendJournal -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.AppendJournal(op.text))
-            }
+            is Op.SetFlag ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.SetFlag(op.slug, op.nativeValue))
+                }
+            is Op.AppendJournal ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.AppendJournal(op.text))
+                }
             is Op.If -> runAll(if (eval(op.cond)) op.thenOps else op.elseOps)
-            is Op.Loop -> ScriptControlSignal.StopScript.also {
-                trace(EngineTraceEvent.Stop("trace runner does not execute loops", ScriptControlSignal.StopScript))
-            }
+            is Op.Loop ->
+                ScriptControlSignal.StopScript.also {
+                    trace(EngineTraceEvent.Stop("trace runner does not execute loops", ScriptControlSignal.StopScript))
+                }
             is Op.Break -> op.signal.also { trace(EngineTraceEvent.Break(op.reason, op.signal)) }
             is Op.Stop -> op.signal.also { trace(EngineTraceEvent.Stop(op.reason, op.signal)) }
             is Op.Switch ->
                 op.cases.firstOrNull { it.match == eval(op.expr) || it.match == null }?.let { runAll(it.body) }
                     ?: ScriptControlSignal.Continue
-            is Op.Menu -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.Menu(op.prompt, op.options.map { option -> option.key }))
-            }
-            is Op.AskKey -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.AskKey(op.prompt, op.bindings))
-            }
-            is Op.AskMember -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.AskMember(op.prompt, op.filter))
-            }
-            is Op.AskInventorySlot -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.AskInventorySlot(op.prompt, op.firstKey, op.slots, op.filter))
-            }
-            is Op.AskText -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.AskText(op.prompt, op.accepted, op.maxLength))
-            }
+            is Op.Menu ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.Menu(op.prompt, op.options.map { option -> option.key }))
+                }
+            is Op.AskKey ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.AskKey(op.prompt, op.bindings))
+                }
+            is Op.AskMember ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.AskMember(op.prompt, op.filter))
+                }
+            is Op.AskInventorySlot ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.AskInventorySlot(op.prompt, op.firstKey, op.slots, op.filter))
+                }
+            is Op.AskText ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.AskText(op.prompt, op.accepted, op.maxLength))
+                }
             is Op.AskMonster -> ScriptControlSignal.Continue
-            is Op.ForEachMember -> ScriptControlSignal.StopScript.also {
-                trace(EngineTraceEvent.Stop("trace runner does not iterate party members", ScriptControlSignal.StopScript))
-            }
-            is Op.ForEachMonster -> ScriptControlSignal.StopScript.also {
-                trace(EngineTraceEvent.Stop("trace runner does not iterate monsters", ScriptControlSignal.StopScript))
-            }
-            is Op.Speak -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.Speak(op.building))
-            }
-            is Op.TellRumour -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.Rumour(op.table))
-            }
-            is Op.RunScene -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
-            }
-            is Op.Encounter -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
-            }
-            is Op.EnterDungeon -> ScriptControlSignal.StopScript.also {
-                trace(EngineTraceEvent.DungeonHandoff(WildernessDungeonHandoff(op.dungeon, op.levels)))
-            }
+            is Op.ForEachMember ->
+                ScriptControlSignal.StopScript.also {
+                    trace(EngineTraceEvent.Stop("trace runner does not iterate party members", ScriptControlSignal.StopScript))
+                }
+            is Op.ForEachMonster ->
+                ScriptControlSignal.StopScript.also {
+                    trace(EngineTraceEvent.Stop("trace runner does not iterate monsters", ScriptControlSignal.StopScript))
+                }
+            is Op.Speak ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.Speak(op.building))
+                }
+            is Op.TellRumour ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.Rumour(op.table))
+                }
+            is Op.RunScene ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.RunScene(op.scene, op.bindings))
+                }
+            is Op.Encounter ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.Encounter(op.foe, op.mandatory, op.tier))
+                }
+            is Op.EnterDungeon ->
+                ScriptControlSignal.StopScript.also {
+                    trace(EngineTraceEvent.DungeonHandoff(WildernessDungeonHandoff(op.dungeon, op.levels)))
+                }
             Op.ConsumeActiveItem -> ScriptControlSignal.Continue
             is Op.ClearInventorySlot -> ScriptControlSignal.Continue
-            is Op.ConsumeInventoryPool -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.ConsumeInventoryPool(op.pool, eval(op.quantity)))
-            }
-            Op.ConsumeTorch -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.ConsumeTorch)
-            }
-            is Op.TeleportParty -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.TeleportParty(eval(op.directionKey), eval(op.distance)))
-            }
-            is Op.DiscoverCave -> ScriptControlSignal.StopScript.also {
-                val handoff = WildernessDungeonHandoff(op.dungeon, eval(op.levels))
-                trace(EngineTraceEvent.DiscoverCave(handoff, eval(op.moveCost)))
-                trace(EngineTraceEvent.DungeonHandoff(handoff))
-            }
-            is Op.GrantReward -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.GrantReward(op.reward))
-            }
-            is Op.RandomItemOffer -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.RandomItemOffer(op.offer))
-            }
-            is Op.ShopService -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.ShopService(op.shop))
-            }
-            is Op.AchieveMilestone -> ScriptControlSignal.Continue.also {
-                trace(EngineTraceEvent.AchieveMilestone(op.milestone))
-            }
-            is Op.NativeCall -> ScriptControlSignal.Continue.also {
-                engine.effect(EngineRequest(op.path, op.args))
-            }
+            is Op.ConsumeInventoryPool ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.ConsumeInventoryPool(op.pool, eval(op.quantity)))
+                }
+            Op.ConsumeTorch ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.ConsumeTorch)
+                }
+            is Op.TeleportParty ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.TeleportParty(eval(op.directionKey), eval(op.distance)))
+                }
+            is Op.DiscoverCave ->
+                ScriptControlSignal.StopScript.also {
+                    val handoff = WildernessDungeonHandoff(op.dungeon, eval(op.levels))
+                    trace(EngineTraceEvent.DiscoverCave(handoff, eval(op.moveCost)))
+                    trace(EngineTraceEvent.DungeonHandoff(handoff))
+                }
+            is Op.GrantReward ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.GrantReward(op.reward))
+                }
+            is Op.RandomItemOffer ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.RandomItemOffer(op.offer))
+                }
+            is Op.ShopService ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.ShopService(op.shop))
+                }
+            is Op.AchieveMilestone ->
+                ScriptControlSignal.Continue.also {
+                    trace(EngineTraceEvent.AchieveMilestone(op.milestone))
+                }
+            is Op.NativeCall ->
+                ScriptControlSignal.Continue.also {
+                    engine.effect(EngineRequest(op.path, op.args))
+                }
         }
 
     private fun runAll(ops: List<Op>): ScriptControlSignal {
@@ -131,23 +179,57 @@ class ScriptTraceRunner(
         return ScriptControlSignal.Continue
     }
 
-    private val evaluator = object : IntAstEvaluator() {
-        override fun local(name: String): Int = intVars[name] ?: 0
-        override fun random(lo: Int, hi: Int): Int = lo
-        override fun memberField(member: Int, field: String): Int = 0
-        override fun monsterField(monster: Int, field: String): Int = 0
-        override fun realmScalar(name: String): Int = 0
-        override fun partyScalar(name: String): Int = 0
-        override fun inventoryPoolCount(pool: ItemPoolId): Int = 0
-        override fun inventorySlotCost(slot: Int): Int = 0
-        override fun nativeInt(path: String, args: List<String>): Int =
-            engine.readInt(EngineRequest(path, args))
-        override fun flagIs(slug: String, native: String): Boolean = false
-        override fun milestoneAchieved(milestone: GameMilestoneId): Boolean = false
-        override fun memberFlag(member: Int, name: String): Boolean = false
-        override fun monsterFlag(monster: Int, name: String): Boolean = false
-        override fun runtimeFlag(name: String): Boolean = false
-    }
+    private val evaluator =
+        object : IntAstEvaluator() {
+            override fun local(name: String): Int = intVars[name] ?: 0
+
+            override fun random(
+                lo: Int,
+                hi: Int,
+            ): Int = lo
+
+            override fun memberField(
+                member: Int,
+                field: String,
+            ): Int = 0
+
+            override fun monsterField(
+                monster: Int,
+                field: String,
+            ): Int = 0
+
+            override fun realmScalar(name: String): Int = 0
+
+            override fun partyScalar(name: String): Int = 0
+
+            override fun inventoryPoolCount(pool: ItemPoolId): Int = 0
+
+            override fun inventorySlotCost(slot: Int): Int = 0
+
+            override fun nativeInt(
+                path: String,
+                args: List<String>,
+            ): Int = engine.readInt(EngineRequest(path, args))
+
+            override fun flagIs(
+                slug: String,
+                native: String,
+            ): Boolean = false
+
+            override fun milestoneAchieved(milestone: GameMilestoneId): Boolean = false
+
+            override fun memberFlag(
+                member: Int,
+                name: String,
+            ): Boolean = false
+
+            override fun monsterFlag(
+                monster: Int,
+                name: String,
+            ): Boolean = false
+
+            override fun runtimeFlag(name: String): Boolean = false
+        }
 
     private fun eval(ast: IntAst): Int = evaluator.int(ast)
 
@@ -200,7 +282,10 @@ class ShopServiceTraceRunner(
             is ShopServiceInput.ConfirmSale -> confirmSale(input.accept)
         }
 
-    private fun traceResult(previous: ShopServiceSession, session: ShopServiceSession) {
+    private fun traceResult(
+        previous: ShopServiceSession,
+        session: ShopServiceSession,
+    ) {
         session.lastSellQuote
             ?.takeUnless { it == previous.lastSellQuote }
             ?.let { engine.trace(EngineTraceEvent.ShopSellQuote(it)) }
@@ -212,41 +297,47 @@ class ShopServiceTraceRunner(
     private fun render(session: ShopServiceSession) {
         when (val step = session.step) {
             is ShopServiceStep.Intro -> screen(step.text)
-            is ShopServiceStep.MainMenu -> menu(
-                step.text,
-                buildList {
-                    if (step.canBuy) add(session.shop.keys.buy.primaryChar)
-                    if (step.canSell) add(session.shop.keys.sell.primaryChar)
-                    add(session.shop.keys.leave.primaryChar)
-                },
-            )
-            is ShopServiceStep.SelectCatalog -> menu(
-                step.prompt,
-                step.catalogs.map { catalog -> catalog.key } +
-                    checkNotNull(session.shop.buy).paymentKeys.decline.primaryChar,
-            )
-            is ShopServiceStep.BuyItem -> menu(
-                step.prompt,
-                step.catalogs.flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
-                    .map { entry -> entry.key },
-            )
+            is ShopServiceStep.MainMenu ->
+                menu(
+                    step.text,
+                    buildList {
+                        if (step.canBuy) add(session.shop.keys.buy.primaryChar)
+                        if (step.canSell) add(session.shop.keys.sell.primaryChar)
+                        add(session.shop.keys.leave.primaryChar)
+                    },
+                )
+            is ShopServiceStep.SelectCatalog ->
+                menu(
+                    step.prompt,
+                    step.catalogs.map { catalog -> catalog.key } +
+                        checkNotNull(session.shop.buy).paymentKeys.decline.primaryChar,
+                )
+            is ShopServiceStep.BuyItem ->
+                menu(
+                    step.prompt,
+                    step.catalogs
+                        .flatMap { catalog -> catalog.pages.flatMap { page -> page.entries } }
+                        .map { entry -> entry.key },
+                )
             is ShopServiceStep.Quantity -> screen(step.prompt)
-            is ShopServiceStep.ConfirmPurchase -> menu(
-                step.prompt,
-                listOf(
-                    checkNotNull(session.shop.buy).paymentKeys.pay.primaryChar,
-                    checkNotNull(session.shop.buy).paymentKeys.decline.primaryChar,
-                ),
-            )
+            is ShopServiceStep.ConfirmPurchase ->
+                menu(
+                    step.prompt,
+                    listOf(
+                        checkNotNull(session.shop.buy).paymentKeys.pay.primaryChar,
+                        checkNotNull(session.shop.buy).paymentKeys.decline.primaryChar,
+                    ),
+                )
             is ShopServiceStep.DropSlot -> inventorySlot(step.prompt)
             is ShopServiceStep.SellSlot -> inventorySlot(step.prompt)
-            is ShopServiceStep.ConfirmSale -> menu(
-                step.prompt,
-                listOf(
-                    checkNotNull(session.shop.sell).saleKeys.accept.primaryChar,
-                    checkNotNull(session.shop.sell).saleKeys.decline.primaryChar,
-                ),
-            )
+            is ShopServiceStep.ConfirmSale ->
+                menu(
+                    step.prompt,
+                    listOf(
+                        checkNotNull(session.shop.sell).saleKeys.accept.primaryChar,
+                        checkNotNull(session.shop.sell).saleKeys.decline.primaryChar,
+                    ),
+                )
             is ShopServiceStep.Finished -> screen(step.text)
         }
     }
@@ -255,7 +346,10 @@ class ShopServiceTraceRunner(
         engine.trace(EngineTraceEvent.Screen(text))
     }
 
-    private fun menu(prompt: TextBlock, keys: List<Char>) {
+    private fun menu(
+        prompt: TextBlock,
+        keys: List<Char>,
+    ) {
         engine.trace(EngineTraceEvent.Menu(prompt, keys))
     }
 
@@ -320,20 +414,23 @@ class TownLeaveEquipmentTraceRunner(
     }
 }
 
-private fun renderEquipmentStep(engine: TraceEnginePort, step: EquipmentPromptStep) {
+private fun renderEquipmentStep(
+    engine: TraceEnginePort,
+    step: EquipmentPromptStep,
+) {
     when (step) {
-        is EquipmentPromptStep.ChooseInventorySlot -> engine.trace(
-            EngineTraceEvent.AskInventorySlot(
-                prompt = step.prompt,
-                firstKey = 'A',
-                slots = 1..InventorySaveSlotMax,
-                filter = step.filter,
-            ),
-        )
+        is EquipmentPromptStep.ChooseInventorySlot ->
+            engine.trace(
+                EngineTraceEvent.AskInventorySlot(
+                    prompt = step.prompt,
+                    firstKey = 'A',
+                    slots = 1..InventorySaveSlotMax,
+                    filter = step.filter,
+                ),
+            )
         is EquipmentPromptStep.ChooseMember -> engine.trace(EngineTraceEvent.AskMember(step.prompt, step.filter))
         is EquipmentPromptStep.Finished -> Unit
     }
 }
 
-private fun yesNoKeys(keys: YesNoKeysModel = StandardYesNoKeys): List<Char> =
-    listOf(keys.yes.primaryChar, keys.no.primaryChar)
+private fun yesNoKeys(keys: YesNoKeysModel = StandardYesNoKeys): List<Char> = listOf(keys.yes.primaryChar, keys.no.primaryChar)

@@ -51,7 +51,6 @@ enum class RuntimeScriptExecutionStrategy {
 }
 
 enum class RuntimeHostArtifactSource {
-    None,
     J1JsonBundle,
 }
 
@@ -154,10 +153,11 @@ object RylweenRuntimeHostContract {
             status = RuntimeHostStatus.BoundaryProbe,
             artifactSource = RuntimeHostArtifactSource.J1JsonBundle,
             scriptExecution = RuntimeScriptExecutionStrategy.None,
-            requirements = setOf(
-                RuntimeHostRequirement.ReadJ1Bundle,
-                RuntimeHostRequirement.VerifyJ1BundleHash,
-            ),
+            requirements =
+                setOf(
+                    RuntimeHostRequirement.ReadJ1Bundle,
+                    RuntimeHostRequirement.VerifyJ1BundleHash,
+                ),
         )
 
     private fun playableKotlinHost(id: String): RuntimeHostSurface =
@@ -175,5 +175,4 @@ object RylweenRuntimeHostContract {
 private fun RuntimeHostSurface.diagnostic(
     kind: RuntimeHostDiagnosticKind,
     detail: String,
-): RuntimeHostDiagnostic =
-    RuntimeHostDiagnostic(id, kind, detail)
+): RuntimeHostDiagnostic = RuntimeHostDiagnostic(id, kind, detail)
