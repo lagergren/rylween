@@ -138,11 +138,20 @@ abstract class CheckAnsiServerLauncherTask : DefaultTask() {
                 require("Wilderness" in firstScreen) {
                     "ANSI server did not render the wilderness screen"
                 }
-                output.write('X'.code)
+                output.write("22ESBW1PLLXY".toByteArray(Charsets.UTF_8))
                 output.flush()
-                readUntil(input, "(Y)", maxBytes = 64 * 1024)
-                output.write('Y'.code)
-                output.flush()
+                val playthrough = readUntil(input, "Fare thee well.", maxBytes = 512 * 1024)
+                listOf(
+                    "Village of Thord",
+                    "Armor or Weapon?",
+                    "(1) Sword",
+                    "Deal!",
+                    "Fare thee well.",
+                ).forEach { fragment ->
+                    require(fragment in playthrough) {
+                        "ANSI server playthrough did not render '$fragment'"
+                    }
+                }
             }
             require(process.waitFor(15, TimeUnit.SECONDS)) {
                 "ANSI server did not exit after quit input"
@@ -152,6 +161,9 @@ abstract class CheckAnsiServerLauncherTask : DefaultTask() {
             }
             require(log.readText().contains("[AUD][server] client connected")) {
                 "ANSI server log did not record a client connection"
+            }
+            require("status=EnteredTown" in log.readText() && "town=thord" in log.readText()) {
+                "ANSI server log did not record the Thord handoff"
             }
         } finally {
             if (process.isAlive) process.destroyForcibly()
@@ -1984,7 +1996,7 @@ val checkKotlinAnsiServerBoot: TaskProvider<CheckAnsiServerLauncherTask> by task
     CheckAnsiServerLauncherTask::class,
 ) {
     group = "verification"
-    description = "Boots the ANSI launcher in --serve socket mode and verifies a client can drive it."
+    description = "Boots the ANSI launcher in --serve socket mode and verifies a client can drive a town/shop route."
 
     dependsOn(installKotlinAnsi)
     executableFile.set(kotlinAnsiExecutable)
@@ -1992,7 +2004,7 @@ val checkKotlinAnsiServerBoot: TaskProvider<CheckAnsiServerLauncherTask> by task
         launcher.metadata.installationPath.asFile.absolutePath
     })
     inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
-    stateSlug.set("fresh-replay")
+    stateSlug.set("strong-replay")
     workingDirectoryPath.set(layout.projectDirectory.asFile.absolutePath)
     logFile.set(layout.buildDirectory.file("logs/check-kotlin-ansi-server.log"))
 }

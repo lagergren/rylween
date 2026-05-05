@@ -5023,6 +5023,39 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun compiledGameWildernessRouteEntersThordAndRunsSmithWeaponPurchase() {
+        runCompiledWildernessScenario(
+            name = "wilderness-thord-smith-weapon-purchase",
+            inputs = listOf("2", "2", "E", "S", "B", "W", "1", "P", "L", "L", "X", "Y"),
+            start = {
+                compiledWildernessSession(
+                    stateId = States.strongReplay,
+                    worldMap = checkNotNull(RylweenCompiledGame.nextDsl.worldMapGrid(Maps.wilderness)),
+                )
+            },
+            checkpoints = listOf(
+                checkpoint("route uses authored world-map town coordinate") {
+                    assertTrue(result.status is TerminalRunStatus.Finished)
+                    assertEquals(Wilderness.xy(12, 11), result.session.party.position)
+                    assertOutputContains("At: Thord")
+                    assertOutputContains("Village of Thord")
+                },
+                checkpoint("smith selects only the weapon catalog before purchase") {
+                    assertOutputContains("Armor or Weapon?")
+                    assertOutputContains("(W)eapon")
+                    assertOutputContains("(1) Sword")
+                    assertOutputDoesNotContain("(1) Leather")
+                },
+                checkpoint("smith purchase mutates the live party once") {
+                    assertEquals(9840, result.session.party.resources.gold)
+                    assertEquals(Items.sword, result.session.party.inventoryItem(13))
+                    assertEquals(1, terminal.output.count { it == "Deal!" })
+                },
+            ),
+        )
+    }
+
+    @Test
     fun wildernessTurnStartAppliesTimeFoodAndManaUpkeepOnce() {
         val session = compiledWildernessSession(
             party = testParty(
@@ -7450,6 +7483,7 @@ class RylweenDslValidationTest {
         ).run()
 
     private fun compiledWildernessSession(
+        stateId: StateId = States.freshReplay,
         party: PartyState? = null,
         hour: Int? = null,
         rngState: Long? = null,
@@ -7458,7 +7492,7 @@ class RylweenDslValidationTest {
         worldMap: WorldMapGrid = WorldMapGrid.fromSourceRows((1..12).map { mapRow() }),
     ): WildernessSession {
         val content = RylweenCompiledGame.nextDsl
-        val baseState = RylweenCompiledGame.nextRylween.states.single { it.id == States.freshReplay }
+        val baseState = RylweenCompiledGame.nextRylween.states.single { it.id == stateId }
         val state = baseState.copy(
             realm = hour?.let { baseState.realm.copy(hour = it) } ?: baseState.realm,
             locations = locations ?: baseState.locations,
