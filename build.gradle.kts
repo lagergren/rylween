@@ -4,6 +4,10 @@ import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.process.ExecOperations
 import org.gradle.api.model.ObjectFactory
 import javax.inject.Inject
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -81,6 +85,108 @@ abstract class RunInstalledLauncherWithJavaTask @Inject constructor(
                 screen.get(),
             )
         }
+    }
+}
+
+abstract class CheckAnsiServerLauncherTask : DefaultTask() {
+    @get:InputFile
+    abstract val executableFile: RegularFileProperty
+
+    @get:Input
+    abstract val javaHomePath: Property<String>
+
+    @get:Input
+    abstract val inheritedPath: Property<String>
+
+    @get:Input
+    abstract val stateSlug: Property<String>
+
+    @get:Input
+    abstract val workingDirectoryPath: Property<String>
+
+    @get:OutputFile
+    abstract val logFile: RegularFileProperty
+
+    @TaskAction
+    fun run() {
+        val port = freeTcpPort()
+        val javaHome = File(javaHomePath.get())
+        val log = logFile.get().asFile.apply { parentFile.mkdirs() }
+        val process = ProcessBuilder(
+            executableFile.get().asFile.path,
+            "--serve",
+            "127.0.0.1:$port",
+            "--state",
+            stateSlug.get(),
+        )
+            .directory(File(workingDirectoryPath.get()))
+            .redirectErrorStream(true)
+            .apply {
+                environment()["JAVA_HOME"] = javaHome.absolutePath
+                environment()["PATH"] = javaHome.resolve("bin").path + File.pathSeparator + inheritedPath.get()
+                environment()["RYL_LOG"] = "file:${log.path}"
+                environment()["RYL_LOG_LEVEL"] = "debug"
+            }
+            .start()
+        try {
+            val socket = connectWithRetry(port)
+            socket.use { client ->
+                client.soTimeout = 10_000
+                val input = client.getInputStream()
+                val output = client.getOutputStream()
+                val firstScreen = readUntil(input, "Wilderness", maxBytes = 64 * 1024)
+                require("Wilderness" in firstScreen) {
+                    "ANSI server did not render the wilderness screen"
+                }
+                output.write('X'.code)
+                output.flush()
+                readUntil(input, "(Y)", maxBytes = 64 * 1024)
+                output.write('Y'.code)
+                output.flush()
+            }
+            require(process.waitFor(15, TimeUnit.SECONDS)) {
+                "ANSI server did not exit after quit input"
+            }
+            require(process.exitValue() == 0) {
+                "ANSI server exited with ${process.exitValue()}"
+            }
+            require(log.readText().contains("[AUD][server] client connected")) {
+                "ANSI server log did not record a client connection"
+            }
+        } finally {
+            if (process.isAlive) process.destroyForcibly()
+        }
+    }
+
+    private fun freeTcpPort(): Int =
+        ServerSocket(0).use { server -> server.localPort }
+
+    private fun connectWithRetry(port: Int): Socket {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15)
+        var lastError: Exception? = null
+        while (System.nanoTime() < deadline) {
+            try {
+                return Socket("127.0.0.1", port)
+            } catch (error: Exception) {
+                lastError = error
+                Thread.sleep(100)
+            }
+        }
+        throw IllegalStateException("could not connect to ANSI server on port $port", lastError)
+    }
+
+    private fun readUntil(input: java.io.InputStream, needle: String, maxBytes: Int): String {
+        val buffer = StringBuilder()
+        while (buffer.length < maxBytes && needle !in buffer) {
+            val value = try {
+                input.read()
+            } catch (_: SocketTimeoutException) {
+                -1
+            }
+            if (value < 0) break
+            buffer.append(value.toChar())
+        }
+        return buffer.toString()
     }
 }
 
@@ -346,6 +452,13 @@ abstract class GenerateGameCatalogHandlesTask : DefaultTask() {
                 typeName = "DungeonEventId",
                 factoryName = "dungeonEvent",
                 names = dungeonEventNames,
+            ),
+            generateRefsClass(
+                className = "CastleRefs",
+                objectName = "Castles",
+                typeName = "CastleId",
+                factoryName = "castle",
+                names = handleNames(source, "Castles", "castle"),
             ),
             generateRefsClass(
                 className = "StateRefs",
@@ -1867,6 +1980,23 @@ val checkKotlinAnsiBundleBoot: TaskProvider<RunInstalledLauncherWithJavaTask> by
     screen.set("title")
 }
 
+val checkKotlinAnsiServerBoot: TaskProvider<CheckAnsiServerLauncherTask> by tasks.registering(
+    CheckAnsiServerLauncherTask::class,
+) {
+    group = "verification"
+    description = "Boots the ANSI launcher in --serve socket mode and verifies a client can drive it."
+
+    dependsOn(installKotlinAnsi)
+    executableFile.set(kotlinAnsiExecutable)
+    javaHomePath.set(kotlinRuntimeJavaLauncher.map { launcher ->
+        launcher.metadata.installationPath.asFile.absolutePath
+    })
+    inheritedPath.set(providers.environmentVariable("PATH").orElse(""))
+    stateSlug.set("fresh-replay")
+    workingDirectoryPath.set(layout.projectDirectory.asFile.absolutePath)
+    logFile.set(layout.buildDirectory.file("logs/check-kotlin-ansi-server.log"))
+}
+
 val validateGameDsl: TaskProvider<JavaExec> by tasks.registering(JavaExec::class) {
     group = "verification"
     description = "Compiles and executes the game Kotlin DSL source against the built DSL jar."
@@ -1895,4 +2025,5 @@ tasks.check {
     dependsOn(checkExternalCompiledBundle)
     dependsOn(inspectExternalCompiledBundle)
     dependsOn(checkKotlinAnsiBundleBoot)
+    dependsOn(checkKotlinAnsiServerBoot)
 }

@@ -16,7 +16,8 @@ class RylweenCompiledGameLedgerTest {
         val standardBattle = checkNotNull(nextDsl.combat.standardBattle)
         val standardConversation = checkNotNull(nextDsl.speak.standardConversation)
         val townSystem = checkNotNull(nextDsl.townSystem)
-        val ydarg = checkNotNull(nextDsl.ydarg)
+        val ydarg = nextDsl.castles.single { it.id == Castles.ydarg }
+        check(nextDsl.ydarg == ydarg)
 
         check(nextDsl.flags.size == 13)
         check(nextDsl.authoredFlags.size == 13)
@@ -229,6 +230,7 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.monsters.single { it.id == Monsters.jazzy }.immune)
         check(nextDsl.monsters.single { it.id == Monsters.baronYdarg }.immune)
         check(nextDsl.monsters.single { it.id == Monsters.skagerbergKiller }.immune)
+        check(nextDsl.castles.size == 1)
         check(ydarg.entry == xy(14, 30))
         check(ydarg.requiredKey == Milestones.silverKey)
         check(ydarg.confrontation.sequence == listOf(Monsters.cryptHorror, Monsters.nightGaunt, Monsters.thyraga, Monsters.liche))

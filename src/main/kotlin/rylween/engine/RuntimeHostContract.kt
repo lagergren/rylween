@@ -23,6 +23,7 @@ enum class RuntimeHostRequirement {
     RngAndTime,
     Persistence,
     SaveLoad,
+    DiagnosticsLogging,
     CharacterCreationSession,
     WildernessSession,
     TownSession,

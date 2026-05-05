@@ -158,6 +158,20 @@ class StatefulScriptServiceRunner(
 
     private fun run(op: Op, frame: ScriptFrame) {
         val opIndex = frame.nextIndex
+        engine.diagnostic(
+            runtimeEvent(
+                RuntimeEventLevel.Debug,
+                "vm",
+                "op",
+                "rootKind" to scriptRoot.kind,
+                "root" to scriptRoot.slug.ifBlank { null },
+                "denseId" to scriptRoot.denseId,
+                "block" to frame.block.diagnosticPath(),
+                "index" to opIndex,
+                "opcode" to op.vmOpcode(),
+                "args" to op.vmArgs().takeIf { it.isNotBlank() },
+            ),
+        )
         when (op) {
             is Op.Screen -> {
                 advanceTop()
@@ -885,6 +899,125 @@ private fun Op.AskText.accepts(raw: String): Boolean {
     val input = raw.normalizedTextAnswer(trim, caseSensitive, maxLength)
     return accepted.any { it.normalizedTextAnswer(trim, caseSensitive, maxLength = null) == input }
 }
+
+private fun ScriptBlockRef.diagnosticPath(): String =
+    if (segments.isEmpty()) {
+        "root"
+    } else {
+        segments.joinToString("/") { segment ->
+            buildString {
+                append(segment.opIndex).append(':').append(segment.branch.name)
+                segment.caseIndex?.let { append(':').append(it) }
+                segment.key?.let { append(':').append(it) }
+            }
+        }
+    }
+
+private fun Op.vmOpcode(): String =
+    when (this) {
+        is Op.Screen -> "Screen"
+        is Op.Emit -> "Emit"
+        is Op.EmitIndexed -> "EmitIndexed"
+        is Op.WaitInput -> "WaitInput"
+        is Op.Pause -> "Pause"
+        is Op.View -> "View"
+        is Op.LetInt -> "LetInt"
+        is Op.BindText -> "BindText"
+        is Op.Set -> "Set"
+        is Op.Add -> "Add"
+        is Op.Sub -> "Sub"
+        is Op.AddClamped -> "AddClamped"
+        is Op.SetFlag -> "SetFlag"
+        is Op.AppendJournal -> "AppendJournal"
+        is Op.If -> "If"
+        is Op.Loop -> "Loop"
+        is Op.Break -> "Break"
+        is Op.Stop -> "Stop"
+        is Op.Switch -> "Switch"
+        is Op.Menu -> "Menu"
+        is Op.AskKey -> "AskKey"
+        is Op.AskMember -> "AskMember"
+        is Op.AskInventorySlot -> "AskInventorySlot"
+        is Op.AskText -> "AskText"
+        is Op.AskMonster -> "AskMonster"
+        is Op.ForEachMember -> "ForEachMember"
+        is Op.ForEachMonster -> "ForEachMonster"
+        is Op.Speak -> "Speak"
+        is Op.TellRumour -> "TellRumour"
+        is Op.RunScene -> "RunScene"
+        is Op.Encounter -> "Encounter"
+        is Op.EnterDungeon -> "EnterDungeon"
+        Op.ConsumeActiveItem -> "ConsumeActiveItem"
+        is Op.ClearInventorySlot -> "ClearInventorySlot"
+        is Op.ConsumeInventoryPool -> "ConsumeInventoryPool"
+        Op.ConsumeTorch -> "ConsumeTorch"
+        is Op.TeleportParty -> "TeleportParty"
+        is Op.DiscoverCave -> "DiscoverCave"
+        is Op.GrantReward -> "GrantReward"
+        is Op.RandomItemOffer -> "RandomItemOffer"
+        is Op.ShopService -> "ShopService"
+        is Op.AchieveMilestone -> "AchieveMilestone"
+        is Op.NativeCall -> "NativeCall"
+    }
+
+private fun Op.vmArgs(): String =
+    when (this) {
+        is Op.Emit -> "text=${text.id}"
+        is Op.EmitIndexed -> "pattern=${pattern.pattern} value=${value.diagnosticExpr()}"
+        is Op.WaitInput -> listOfNotNull(reason?.let { "reason=$it" }).joinToString(" ")
+        is Op.Pause -> "millis=$millis"
+        is Op.View -> "command=${command::class.simpleName}"
+        is Op.LetInt -> "name=$name value=${value.diagnosticExpr()}"
+        is Op.BindText -> "name=$name value=$value"
+        is Op.Set -> "target=${target.diagnosticTarget()} value=${value.diagnosticExpr()}"
+        is Op.Add -> "target=${target.diagnosticTarget()} value=${value.diagnosticExpr()}"
+        is Op.Sub -> "target=${target.diagnosticTarget()} value=${value.diagnosticExpr()}"
+        is Op.AddClamped -> "target=${target.diagnosticTarget()} value=${value.diagnosticExpr()} max=${max.diagnosticExpr()}"
+        is Op.SetFlag -> "flag=$slug state=$nativeValue"
+        is Op.Break -> "signal=$signal"
+        is Op.Stop -> "signal=$signal"
+        is Op.Switch -> "expr=${expr.diagnosticExpr()} cases=${cases.size}"
+        is Op.Menu -> "options=${options.joinToString("") { it.key.toString() }}"
+        is Op.AskKey -> "var=$varName keys=${bindings.joinToString("") { it.label }}"
+        is Op.AskMember -> "var=$varName filter=$filter accepting=$accepting"
+        is Op.AskInventorySlot -> "var=$varName firstKey=$firstKey slots=${slots.first}..${slots.last} filter=$filter"
+        is Op.AskText -> "accepted=${accepted.size} maxLength=$maxLength"
+        is Op.AskMonster -> "var=$varName"
+        is Op.ForEachMember -> "var=$varName includeDead=$includeDead"
+        is Op.ForEachMonster -> "var=$varName includeDead=$includeDead"
+        is Op.Speak -> "building=${building.slug}"
+        is Op.TellRumour -> "table=${table.slug}"
+        is Op.RunScene -> "scene=${scene.slug} bindings=${bindings.size}"
+        is Op.Encounter -> "monster=${foe.slug} mandatory=$mandatory tier=${tier?.slug.orEmpty()}"
+        is Op.EnterDungeon -> "dungeon=${dungeon.slug} levels=$levels"
+        is Op.ClearInventorySlot -> "slot=${slot.diagnosticExpr()}"
+        is Op.ConsumeInventoryPool -> "pool=${pool.slug} quantity=${quantity.diagnosticExpr()}"
+        is Op.TeleportParty -> "directionKey=${directionKey.diagnosticExpr()} distance=${distance.diagnosticExpr()}"
+        is Op.DiscoverCave -> "dungeon=${dungeon.slug} levels=${levels.diagnosticExpr()} moveCost=${moveCost.diagnosticExpr()}"
+        is Op.GrantReward -> "gold=${reward.gold?.diagnosticExpr().orEmpty()} items=${reward.items.size}"
+        is Op.RandomItemOffer -> "pool=${offer.pool.slug}"
+        is Op.ShopService -> "building=${shop.building.slug}"
+        is Op.AchieveMilestone -> "milestone=${milestone.slug}"
+        is Op.NativeCall -> "path=$path args=${args.joinToString(",")}"
+        is Op.Screen,
+        is Op.AppendJournal,
+        is Op.If,
+        is Op.Loop,
+        Op.ConsumeActiveItem,
+        Op.ConsumeTorch -> ""
+    }
+
+private fun IntAst.diagnosticExpr(): String =
+    toString().replace(Regex("\\s+"), "")
+
+private fun LValueAst.diagnosticTarget(): String =
+    when (this) {
+        is LValueAst.PartyScalar -> "party.$name"
+        is LValueAst.MemberField -> "member.${member.diagnosticExpr()}.$field"
+        is LValueAst.RealmScalar -> "realm.$name"
+        is LValueAst.MonsterField -> "monster.${monster.diagnosticExpr()}.$field"
+        is LValueAst.BattleFlag -> "battle.$name"
+    }
 
 private fun String.normalizedTextAnswer(trim: Boolean, caseSensitive: Boolean, maxLength: Int?): String {
     val limited = maxLength?.let { take(it) } ?: this

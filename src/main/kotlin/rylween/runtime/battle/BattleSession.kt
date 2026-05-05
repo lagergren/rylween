@@ -5,6 +5,9 @@
 
 package rylween.runtime.battle
 
+import rylween.engine.RuntimeEventLevel
+import rylween.engine.RuntimeEventScope
+import rylween.engine.runtimeEvent
 import rylween.runtime.*
 
 import rylween.dsl.*
@@ -1298,7 +1301,18 @@ fun List<FormulaModel>.evalFormula(id: FormulaId, bindings: Map<String, Int>): I
         override fun local(name: String): Int =
             bindings[name] ?: error("formula ${id.slug} requires binding $name")
     }
-    return evaluator.int(formula.value)
+    val value = evaluator.int(formula.value)
+    RuntimeEventScope.current().emit(
+        runtimeEvent(
+            RuntimeEventLevel.Debug,
+            "formula",
+            "eval",
+            "id" to id.slug,
+            "value" to value,
+            "bindings" to bindings.entries.joinToString(",") { (key, binding) -> "$key:$binding" },
+        ),
+    )
+    return value
 }
 
 private fun selectBattleLoot(runtime: RuntimeSessionState, reward: RewardBundleModel): BattleLootSelection {
