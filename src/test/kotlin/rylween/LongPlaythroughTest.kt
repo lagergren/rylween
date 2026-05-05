@@ -94,6 +94,16 @@ class LongPlaythroughTest {
         assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredDungeonHandoffs)
         assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
     }
+
+    @Test
+    fun cheatedMissionDungeonsReachFixedRewardsAndResumeAfterExit() {
+        val playthrough = CheatedLongPlaythrough()
+
+        playthrough.runAllFixedDungeonCompletionsThroughWilderness()
+
+        assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredFixedDungeonCompletions)
+        assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
+    }
 }
 
 private class CheatedLongPlaythrough {
@@ -137,6 +147,7 @@ private class CheatedLongPlaythrough {
     val coveredMissions = linkedSetOf<MissionId>()
     val coveredDungeonHandoffs = linkedSetOf<DungeonId>()
     val coveredPostDungeonContinuations = linkedSetOf<MissionId>()
+    val coveredFixedDungeonCompletions = linkedSetOf<DungeonId>()
     var ydargCompleted = false
         private set
 
@@ -233,6 +244,10 @@ private class CheatedLongPlaythrough {
             .forEach(::runTriggeredMissionThroughDungeonReturn)
     }
 
+    fun runAllFixedDungeonCompletionsThroughWilderness() {
+        fixedDungeonCompletionLegs().forEach(::runFixedDungeonCompletion)
+    }
+
     private fun runMission(leg: MissionLeg) {
         val mission = game.missions.single { it.id == leg.id }
         val scene = game.scenes.single { it.id == mission.action }
@@ -274,11 +289,46 @@ private class CheatedLongPlaythrough {
         verifyPostDungeonContinuation(leg, expectedEnd, terminalRun.result, terminalRun.output)
     }
 
+    private fun runFixedDungeonCompletion(completion: DungeonCompletionLeg) {
+        val leg = missionLegs().single { it.id == completion.mission }
+        val mission = game.missions.single { it.id == leg.id }
+        val route = routeToTrigger(mission.trigger)
+        val terminalRun = runTriggeredMission(
+            leg = leg,
+            mission = mission,
+            route = route,
+            extraInputs = completion.inputs,
+            content = runtimeContent.withFixedDungeonEventsOnly(),
+        )
+
+        verifyPostDungeonContinuation(leg, completion.expectedEnd, terminalRun.result, terminalRun.output)
+        completion.expectedFlags.forEach { flag ->
+            assertTrue(
+                terminalRun.result.session.party.hasFlagState(flag),
+                "mission ${leg.id.slug} did not set ${flag.flag.slug}=${flag.native}",
+            )
+        }
+        completion.expectedMilestones.forEach { milestone ->
+            assertTrue(
+                milestone in terminalRun.result.session.party.milestones,
+                "mission ${leg.id.slug} did not achieve ${milestone.slug}",
+            )
+        }
+        completion.expectedText?.let { text ->
+            assertTrue(
+                terminalRun.output.any { text in it },
+                "mission ${leg.id.slug} did not render fixed dungeon text '$text'",
+            )
+        }
+        coveredFixedDungeonCompletions += completion.expectedEnd.dungeon
+    }
+
     private fun runTriggeredMission(
         leg: MissionLeg,
         mission: MissionModel,
         route: TriggerRoute,
         extraInputs: List<String> = emptyList(),
+        content: RuntimeContent = runtimeContent,
     ): MissionTerminalRun {
         val party = baseCheatedParty
             .copy(position = WorldPosition.Wilderness(route.start))
@@ -294,7 +344,7 @@ private class CheatedLongPlaythrough {
         val terminal = ScenarioTerminalPort(*(route.inputs + leg.inputs + extraInputs).toTypedArray())
         val result = WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
             WildernessSession.start(
-                content = runtimeContent,
+                content = content,
                 runtime = startRuntime.asWilderness(),
                 worldMap = worldMap,
             ),
@@ -520,8 +570,202 @@ private class CheatedLongPlaythrough {
             ),
         )
 
+    private fun fixedDungeonCompletionLegs(): List<DungeonCompletionLeg> =
+        listOf(
+            DungeonCompletionLeg(
+                mission = Missions.erethorEntry,
+                expectedEnd = MissionEnd.DungeonHandoff(Dungeons.erethorTemple, levels = 12),
+                inputs = completeDungeon(
+                    levels = 12,
+                    descendEvents = mapOf(
+                        3 to erethorPriestsInputs(),
+                        7 to erethorPriestsInputs(),
+                        12 to luteChamberInputs(),
+                    ),
+                    ascendRecurringEvents = mapOf(
+                        7 to erethorPriestsInputs(),
+                        3 to erethorPriestsInputs(),
+                    ),
+                ),
+                expectedFlags = listOf(Story.erethor.lute.luteTaken),
+                expectedText = "Lute",
+            ),
+            DungeonCompletionLeg(
+                mission = Missions.husbandCave,
+                expectedEnd = MissionEnd.DungeonHandoff(Dungeons.ogreCave, levels = 7),
+                inputs = completeDungeon(
+                    levels = 7,
+                    descendEvents = mapOf(
+                        6 to orcNestInputs(),
+                        7 to listOf(""),
+                    ),
+                ),
+                expectedFlags = listOf(Story.peasant.wife.rescued),
+                expectedText = "wife is in",
+            ),
+            DungeonCompletionLeg(
+                mission = Missions.hermitDungeon,
+                expectedEnd = MissionEnd.DungeonHandoff(Dungeons.fireShieldCave, levels = 20),
+                inputs = completeDungeon(
+                    levels = 20,
+                    descendEvents = mapOf(
+                        19 to (listOf("") + battleInputs()),
+                        20 to listOf(""),
+                    ),
+                ),
+                expectedFlags = listOf(Story.hermit.trollTooth.fireShieldAcquired),
+                expectedMilestones = listOf(Milestones.fireShield),
+                expectedText = "FIRE SHIELD",
+            ),
+            DungeonCompletionLeg(
+                mission = Missions.thunTemple,
+                expectedEnd = MissionEnd.DungeonHandoff(Dungeons.thunTemple, levels = 18),
+                inputs = completeDungeon(
+                    levels = 18,
+                    descendEvents = mapOf(
+                        4 to thunRiddleInputs("water"),
+                        8 to thunRiddleInputs("night"),
+                        12 to thunRiddleInputs("a well"),
+                        18 to listOf(""),
+                    ),
+                ),
+                expectedFlags = listOf(Story.bracelets.thun.braceletsTaken),
+                expectedMilestones = listOf(Milestones.braceletsOfThun),
+                expectedText = "Bracelets of Thun",
+            ),
+            DungeonCompletionLeg(
+                mission = Missions.nolrimCrypt,
+                expectedEnd = MissionEnd.DungeonHandoff(Dungeons.reebarTomb, levels = 20),
+                inputs = completeDungeon(
+                    levels = 20,
+                    descendEvents = mapOf(
+                        12 to listOf(""),
+                        13 to colourRiddleInputs(13),
+                        14 to colourRiddleInputs(14),
+                        15 to colourRiddleInputs(15),
+                        16 to colourRiddleInputs(16),
+                        17 to colourRiddleInputs(17),
+                        18 to colourRiddleInputs(18),
+                        19 to colourRiddleInputs(19),
+                        20 to listOf(""),
+                    ),
+                    ascendRecurringEvents = mapOf(
+                        19 to colourRiddleInputs(19),
+                        18 to colourRiddleInputs(18),
+                        17 to colourRiddleInputs(17),
+                        16 to colourRiddleInputs(16),
+                        15 to colourRiddleInputs(15),
+                        14 to colourRiddleInputs(14),
+                        13 to colourRiddleInputs(13),
+                        12 to listOf(""),
+                    ),
+                ),
+                expectedFlags = listOf(Story.masterCrown.daggerTaken),
+                expectedText = "dagger you seek",
+            ),
+            DungeonCompletionLeg(
+                mission = Missions.masterCrown,
+                expectedEnd = MissionEnd.DungeonHandoff(Dungeons.masterCrownDungeon, levels = 10),
+                inputs = completeDungeon(
+                    levels = 10,
+                    descendEvents = mapOf(
+                        10 to (listOf("", "") + battleInputs()),
+                    ),
+                ),
+                expectedFlags = listOf(Story.masterCrown.crownTaken),
+                expectedMilestones = listOf(Milestones.masterCrown),
+                expectedText = "Master Crown",
+            ),
+            DungeonCompletionLeg(
+                mission = Missions.silverKey,
+                expectedEnd = MissionEnd.DungeonHandoff(Dungeons.silverSanctum, levels = 20),
+                inputs = completeDungeon(
+                    levels = 20,
+                    descendEvents = mapOf(
+                        20 to List(4) { "" },
+                    ),
+                ),
+                expectedFlags = listOf(Story.silverKey.noteFound),
+                expectedText = "Master Thief",
+            ),
+            DungeonCompletionLeg(
+                mission = Missions.hobgoblinCave,
+                expectedEnd = MissionEnd.DungeonHandoff(Dungeons.hobgoblinStronghold, levels = 22),
+                inputs = completeDungeon(
+                    levels = 22,
+                    descendEvents = mapOf(
+                        3 to hobgoblinPatrolInputs(note = true),
+                        6 to hobgoblinPatrolInputs(note = true),
+                        9 to hobgoblinPatrolInputs(note = true),
+                        14 to hobgoblinPatrolInputs(),
+                        17 to hobgoblinPatrolInputs(),
+                        19 to hobgoblinPatrolInputs(),
+                        20 to (listOf("") + battleInputs()),
+                        21 to (listOf("") + battleInputs()),
+                        22 to hobgoblinChiefInputs(),
+                    ),
+                    ascendRecurringEvents = mapOf(
+                        19 to hobgoblinPatrolInputs(),
+                        17 to hobgoblinPatrolInputs(),
+                        14 to hobgoblinPatrolInputs(note = true),
+                        9 to hobgoblinPatrolInputs(),
+                        6 to hobgoblinPatrolInputs(),
+                        3 to hobgoblinPatrolInputs(),
+                    ),
+                ),
+                expectedFlags = listOf(Story.silverKey.keyTaken),
+                expectedMilestones = listOf(Milestones.silverKey),
+                expectedText = "precious Silver Key",
+            ),
+        )
+
     private fun battleInputs(prefixReturns: Int = 0, suffixReturns: Int = 0): List<String> =
         List(prefixReturns) { "" } + listOf("F", "A", "A") + List(suffixReturns) { "" }
+
+    private fun completeDungeon(
+        levels: Int,
+        descendEvents: Map<Int, List<String>>,
+        ascendRecurringEvents: Map<Int, List<String>> = emptyMap(),
+    ): List<String> =
+        buildList {
+            (2..levels).forEach { level ->
+                add("D")
+                addAll(descendEvents[level].orEmpty())
+            }
+            (levels - 1 downTo 1).forEach { level ->
+                add("A")
+                addAll(ascendRecurringEvents[level].orEmpty())
+            }
+            add("A")
+        }
+
+    private fun erethorPriestsInputs(): List<String> =
+        listOf("") + battleInputs()
+
+    private fun luteChamberInputs(): List<String> =
+        List(5) { "" } +
+            battleInputs() +
+            battleInputs() +
+            listOf("") +
+            battleInputs() +
+            List(3) { "" } +
+            battleInputs() +
+            List(2) { "" }
+
+    private fun orcNestInputs(): List<String> =
+        listOf("") + battleInputs() + listOf("") + battleInputs() + battleInputs() + listOf("")
+
+    private fun thunRiddleInputs(answer: String): List<String> =
+        listOf("", answer, "")
+
+    private fun colourRiddleInputs(level: Int): List<String> =
+        listOf("", "", (20 - level).toString(), "")
+
+    private fun hobgoblinPatrolInputs(note: Boolean = false): List<String> =
+        listOf("") + battleInputs() + if (note) listOf("") else emptyList()
+
+    private fun hobgoblinChiefInputs(): List<String> =
+        listOf("", "RISH EKKIN", "") + battleInputs() + listOf("")
 
     private fun routeToTrigger(trigger: Trigger): TriggerRoute =
         when (trigger) {
@@ -594,6 +838,15 @@ private data class MissionTerminalRun(
     val output: List<String>,
 )
 
+private data class DungeonCompletionLeg(
+    val mission: MissionId,
+    val expectedEnd: MissionEnd.DungeonHandoff,
+    val inputs: List<String>,
+    val expectedFlags: List<FlagState> = emptyList(),
+    val expectedMilestones: List<GameMilestoneId> = emptyList(),
+    val expectedText: String? = null,
+)
+
 private enum class DirectionRoute(val direction: WildernessDirection, val input: String) {
     South(WildernessDirection.South, "2"),
     North(WildernessDirection.North, "8"),
@@ -634,6 +887,15 @@ private fun RuntimeContent.cheatedForLongPlaythrough(): RuntimeContent =
         rewards = rewards.map { reward ->
             reward.copy(loot = reward.loot.copy(dropChancePercent = 0))
         },
+    )
+
+private fun RuntimeContent.withFixedDungeonEventsOnly(): RuntimeContent =
+    copy(
+        dungeons = dungeons.copy(
+            scenarios = dungeons.scenarios.map { scenario ->
+                scenario.copy(randomEvents = emptyList())
+            },
+        ),
     )
 
 private fun PartyState.cheatedForLongPlaythrough(): PartyState =
