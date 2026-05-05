@@ -381,6 +381,7 @@ Decisions from the first `RylweenGame.dsl.kts` pass:
 - Equipment is modeled separately from slotted inventory in member `equipped { weapon; armor }` blocks. This mirrors current save coverage, where equipment is per member, while preserving the rule that milestone-projected special items are not slotted inventory.
 - Reference special-field import mapping: `fireshield = 1`, `bracelets = 1`, `mastercrown = 1`, `jazzyfoot = 1`, and `silverkey = 1` map to their matching ownership milestones. Reference `silverkey = 2` maps to `Milestones.ydargVictory`, not to an upgraded Silver Key item state.
 - Runtime save emission now has a first deterministic writer for strict `runtimeState(...)` snapshots. It emits pasteable Kotlin DSL with literal handle constructors such as `stateId("...")`, `partyId("...")`, and `item("...")`; saved flag values use `runtimeFlagState("flag.slug", "native_value")` so exact runtime data does not require generated authoring handles.
+- Member stat pools use one authoring/readback phrase: `hitPoints = 68 of 68` and `mana = 0 of 27`. `parseRuntimeStateSnapshot(...)` still accepts older `manaOf` saves as a compatibility token, but the current DSL surface exposes only `of`.
 - First-pass combat-system shape is `combat { standardBattle { ... } }`. It names the reusable battle framework from the game author's point of view: opening flee rules, encounter banners, player actions, monster-round policy, and the reward bundle to apply. The actual XP/gold/loot declaration now lives in `rewards { reward(Rewards.standardBattle) { ... } }`, so the reusable battle loop can point at a shared reward bundle instead of embedding one-off reward rules.
 - Loot tables use semantic item pools such as `ItemPools.battleSpoils` and `ItemPools.magicItems`. Numeric item-id ranges from the C/JSON5 reference are porting audit material only; they should not live in authoring or runtime formats. The implementation model also records the narrow native services the standard battle framework needs: keyboard input, rendering, RNG, combat context storage, inventory storage, party-state mutation, and text formatting.
 - Current battle loot pool membership is carried forward as semantic item lists, not as persisted/generated numeric ranges. Authors should see pools such as `ItemPools.battleSpoils` and `ItemPools.magicItems`; migration audits can compare against old C/JSON5 outside the runtime model if needed.
@@ -928,7 +929,7 @@ state("recovered-bandit-cargo") {
                 hitPoints = 68 of 68
                 weaponSkill = 27
                 wisdom = 27
-                mana = 0 manaOf 27
+                mana = 0 of 27
                 charisma = 49
                 armor = Items.none
                 weapon = Items.none

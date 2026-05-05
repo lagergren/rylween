@@ -304,11 +304,11 @@ private fun CharacterClassOptionModel.failureFor(stats: CharacterCreationStats):
 private fun initialMana(pcClass: PcClass, wisdom: Int): Mana =
     when (pcClass) {
         PcClass.Mage,
-        PcClass.Priest -> wisdom manaOf wisdom
+        PcClass.Priest -> wisdom of wisdom
         PcClass.Fighter,
         PcClass.Thief,
         PcClass.Bard,
-        PcClass.Ranger -> 0 manaOf wisdom
+        PcClass.Ranger -> 0 of wisdom
     }
 
 private fun String.normalizedCreationName(): String {

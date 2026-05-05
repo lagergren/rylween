@@ -539,9 +539,10 @@ class RylweenCompiledGameLedgerTest {
         check(nextDsl.missions.single { it.id == Missions.jazzyFoot }.trigger == Trigger.OnTerrain(Terrain.foothills))
         check(nextDsl.missions.single { it.id == Missions.silverKey }.trigger == Trigger.AtLocation(Locations.silverKeyPit))
         check(nextDsl.missions.single { it.id == Missions.hobgoblinCaravan }.trigger == Trigger.RandomStep(9))
-        check(nextRylween.states.size == 3)
+        check(nextRylween.states.size == 4)
 
         val freshParty = nextRylween.states.single { it.id == States.freshReplay }.parties.single()
+        val strongParty = nextRylween.states.single { it.id == States.strongReplay }.parties.single()
         val nearWinningParty = nextRylween.states.single { it.id == States.nearWinningReplay }.parties.single()
         val winningParty = nextRylween.states.single { it.id == States.winningReplay }.parties.single()
         val winningSnapshotDsl = renderRuntimeStateSnapshot(nextRylween.states.single { it.id == States.winningReplay })
@@ -549,6 +550,51 @@ class RylweenCompiledGameLedgerTest {
         check(freshParty.members.size == 2)
         check(specialInventoryItems(nextDsl, freshParty).isEmpty())
         check(!isWinningConfiguration(nextDsl, freshParty))
+        check(strongParty.player == "playtest")
+        check(strongParty.name == "Playtest")
+        check(strongParty.position == Wilderness.xy(12, 9))
+        check(strongParty.resources == PartyResources(
+            gold = 10000,
+            torches = 40,
+            food = 150,
+            timeLeft = 200,
+            restedHours = 14,
+        ))
+        check(strongParty.members.map { it.pcClass } == listOf(PcClass.Fighter, PcClass.Ranger, PcClass.Mage, PcClass.Priest))
+        check(strongParty.members.all { member ->
+            listOf(member.health, member.weaponSkill, member.wisdom, member.charisma).all { it >= 70 }
+        })
+        check(strongParty.members.first().weaponSkill == 95)
+        check(strongParty.members[1].weaponSkill >= 70 && strongParty.members[1].charisma >= 70)
+        check(strongParty.members[2].wisdom >= 70 && strongParty.members[3].wisdom >= 70)
+        check(strongParty.members.map { it.level }.all { it == 1 })
+        check(strongParty.members.map { it.equipment.weapon } == listOf(
+            Items.magicSword,
+            Items.crossbow,
+            Items.magicDagger,
+            Items.magicAxe,
+        ))
+        check(strongParty.members.map { it.equipment.armor } == listOf(
+            Items.mithrilMail,
+            Items.elvinCloak,
+            Items.leather,
+            Items.chainMail,
+        ))
+        check(setOf(
+            Items.redPotion,
+            Items.bluePotion,
+            Items.blanket,
+            Items.tent,
+            Items.rope,
+            Items.fireWand,
+            Items.staffOfHealing,
+            Items.magicSword,
+            Items.mithrilMail,
+            Items.crossbow,
+            Items.torch,
+            Items.ration,
+        ).all { item -> strongParty.inventory.any { slot -> slot.item == item } })
+        check(!isWinningConfiguration(nextDsl, strongParty))
         check(specialInventoryItems(nextDsl, nearWinningParty).size == 5)
         check(!isWinningConfiguration(nextDsl, nearWinningParty))
         check(specialInventoryItems(nextDsl, winningParty).size == 5)

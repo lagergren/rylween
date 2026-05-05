@@ -45,14 +45,16 @@ private data class AnsiRuntimeConfig(
     val saveState: StateId = runtimeSaveSlotStateId("main"),
     val staticScreen: StaticScreenId? = null,
     val newGame: Boolean = false,
+    val playerSlot: String? = null,
 )
 
 object RylweenAnsiMain {
     @JvmStatic
     fun main(args: Array<String>): Unit = runRylweenCli {
-        val config = parseAnsiConfig(args.toList())
-        val bundleFile = config.bundleFile
+        val parsedConfig = parseAnsiConfig(args.toList())
+        val bundleFile = parsedConfig.bundleFile
         val game = bundleFile?.readExternalRuntimeGame() ?: RylweenCompiledGame.nextRylween
+        val config = resolveAnsiPlayerSlot(parsedConfig, game)
         val content = game.content
         val bundleSummary = bundleFile?.readVerifiedExternalBundleArtifact(game)
         val renderer = content.terminalTextRenderer()
@@ -1475,10 +1477,36 @@ private fun parseAnsiConfig(args: List<String>): AnsiRuntimeConfig {
                 printAnsiUsage()
                 exitProcess(0)
             }
-            else -> error("unknown argument $arg")
+            else -> {
+                require(!arg.startsWith("-")) { "unknown argument $arg" }
+                require(config.playerSlot == null) { "only one player/save-slot argument is supported" }
+                config = config.withPlayerSlot(arg)
+                index += 1
+            }
         }
     }
     return config
+}
+
+private fun AnsiRuntimeConfig.withPlayerSlot(slot: String): AnsiRuntimeConfig =
+    copy(
+        playerSlot = slot,
+        saveFile = runtimeSaveSlotFile(slot),
+        saveState = runtimeSaveSlotStateId(slot),
+    )
+
+private fun resolveAnsiPlayerSlot(config: AnsiRuntimeConfig, game: RylweenModel): AnsiRuntimeConfig {
+    val player = config.playerSlot ?: return config
+    if (config.newGame || config.loadFile != null || config.state != null || config.staticScreen != null) {
+        return config
+    }
+    if (config.saveFile.exists()) {
+        return config.copy(loadFile = config.saveFile)
+    }
+    val fixture = game.states.firstOrNull { state ->
+        state.parties.any { party -> party.player.equals(player, ignoreCase = true) }
+    }
+    return fixture?.let { config.copy(state = it.id) } ?: config
 }
 
 private fun List<String>.valueAfter(index: Int, option: String): String =
@@ -1500,6 +1528,11 @@ private fun printAnsiUsage() {
         |  --save-slot named runtime snapshot target under build/saves
         |  --new    create a fresh party through the authored character-creation flow
         |  --screen title, help, manual, score, vscore, or heroes; displays the authored static screen and exits
+        |
+        |Shortcut:
+        |  rylween <player-slot>
+        |    Loads build/saves/<player-slot>.kts if present. Otherwise, boots an authored
+        |    fixture whose active party player equals <player-slot>, if one exists.
         |
         |Logging:
         |  RYL_LOG=stderr
