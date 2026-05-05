@@ -57,6 +57,22 @@ class LongPlaythroughTest {
         assertTrue(playthrough.ydargCompleted)
         assertTrue(Milestones.ydargVictory in playthrough.runtime.activeParty.milestones)
     }
+
+    @Test
+    fun cheatedWildernessRouteEntersThordAndVisitsEveryTownService() {
+        val playthrough = CheatedLongPlaythrough()
+
+        val terminal = playthrough.visitEveryThordServiceThroughWilderness()
+
+        assertTrue(terminal.output.any { "At: Thord" in it })
+        assertTrue(terminal.output.any { "Village of Thord" in it })
+        assertTrue(terminal.output.any { "Deal!" in it })
+        assertTrue(terminal.output.any { "Armor or Weapon?" in it })
+        assertTrue(terminal.output.any { "Innkeeper" in it })
+        assertTrue(terminal.output.any { "Who wants to tell" in it })
+        assertTrue(terminal.output.any { "church" in it })
+        assertEquals(playthrough.allTownBuildings, playthrough.coveredBuildings)
+    }
 }
 
 private class CheatedLongPlaythrough {
@@ -143,6 +159,38 @@ private class CheatedLongPlaythrough {
         assertNoUnresolvedText("town service ${building.slug}", terminal.output)
         runtime = result.session.runtime.withActiveParty(result.session.party.cheatedForLongPlaythrough())
         coveredBuildings += building
+    }
+
+    fun visitEveryThordServiceThroughWilderness(): ScenarioTerminalPort {
+        val routeAndTownInputs = listOf(
+            "2", "2", "E", "P",
+            "M", "B", "A", "1", "P", "L",
+            "S", "B", "W", "1", "P", "L",
+            "I", "N", "N", "N", "L",
+            "T", "N", "T", "1", "T", "", "L",
+            "C", "L",
+            "L",
+            "X", "Y",
+        )
+        val terminal = ScenarioTerminalPort(*routeAndTownInputs.toTypedArray())
+        val result = WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
+            WildernessSession.start(
+                content = runtimeContent,
+                runtime = runtime.withHour(12).asWilderness(),
+                worldMap = worldMap,
+            ),
+        )
+
+        assertTrue(
+            result.status is TerminalRunStatus.Finished,
+            "wilderness Thord service circuit did not finish; status=${result.status}; " +
+                "step=${result.session.step}; output=${terminal.output.takeLast(40)}",
+        )
+        assertEquals(Wilderness.xy(12, 11), result.session.party.position)
+        assertNoUnresolvedText("wilderness Thord service circuit", terminal.output)
+        runtime = result.session.runtime.withActiveParty(result.session.party.cheatedForLongPlaythrough())
+        coveredBuildings += allTownBuildings
+        return terminal
     }
 
     fun runAllMissionLegs() {
