@@ -6614,7 +6614,7 @@ val nextRylween: RylweenModel = rylween {
                     hitPoints = 68 of 68
                     weaponSkill = 27
                     wisdom = 27
-                    mana = 0 manaOf 27
+                    mana = 0 of 27
                     charisma = 49
                     equipped {
                         weapon = Items.none
@@ -6633,11 +6633,153 @@ val nextRylween: RylweenModel = rylween {
                     hitPoints = 46 of 46
                     weaponSkill = 42
                     wisdom = 48
-                    mana = 0 manaOf 48
+                    mana = 0 of 48
                     charisma = 64
                     equipped {
                         weapon = Items.none
                         armor = Items.none
+                    }
+                    experience = 0
+                    alive()
+                }
+            }
+
+            visited(Npcs.garth, Npcs.bernak)
+            journal { banditsCargoRecovered() }
+        }
+    }
+
+    // Playtest fixture for real-runtime exploration. It starts at the normal
+    // new-game wilderness position outside Thord, but with a complete strong
+    // level-1 party and enough resources to exercise deeper systems quickly.
+    stateFixture(States.strongReplay) {
+        realm {
+            day = 14
+            hour = 9
+            rngState = 1L
+            activeParty = Parties.playtest
+            currentMap = Maps.wilderness
+            currentMode = RuntimeMode.Wilderness
+        }
+
+        locations {
+            Locations.silverKeyPit at xy(45, 13)
+            Locations.hobgoblinCave at xy(46, 13)
+            Locations.beastCave at xy(11, 23)
+        }
+
+        npcs {
+            Npcs.garth at Towns.thord.inn
+            Npcs.bernak at Towns.wilor.inn
+            Npcs.azaaza at Towns.ollk.inn
+        }
+
+        party(Parties.playtest) {
+            player = "playtest"
+            name = "Playtest"
+            position = Wilderness.xy(12, 9)
+            facing = Facing.North
+
+            resources {
+                gold = 10000
+                torches = 40
+                food = 150
+                timeLeft = 200
+                restedHours = 14
+            }
+
+            flags {
+                mark(Story.garth.bandits.recovered)
+                mark(Story.silverKey.noteFound)
+            }
+
+            inventory {
+                slot(1).item(Items.redPotion)
+                slot(2).item(Items.bluePotion)
+                slot(3).item(Items.blanket)
+                slot(4).item(Items.tent)
+                slot(5).item(Items.rope)
+                slot(6).item(Items.fireWand)
+                slot(7).item(Items.staffOfHealing)
+                slot(8).item(Items.magicSword)
+                slot(9).item(Items.mithrilMail)
+                slot(10).item(Items.crossbow)
+                slot(11).item(Items.torch)
+                slot(12).item(Items.ration)
+            }
+
+            members {
+                member("Fighter") {
+                    gender = Gender.Male
+                    race = Race.Human
+                    klass = PcClass.Fighter
+                    level = 1
+                    health = 88
+                    hitPoints = 88 of 88
+                    weaponSkill = 95
+                    wisdom = 72
+                    mana = 0 of 72
+                    charisma = 78
+                    equipped {
+                        weapon = Items.magicSword
+                        armor = Items.mithrilMail
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("Ranger") {
+                    gender = Gender.Female
+                    race = Race.Elf
+                    klass = PcClass.Ranger
+                    level = 1
+                    health = 84
+                    hitPoints = 84 of 84
+                    weaponSkill = 88
+                    wisdom = 74
+                    mana = 0 of 74
+                    charisma = 86
+                    equipped {
+                        weapon = Items.crossbow
+                        armor = Items.elvinCloak
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("Mage") {
+                    gender = Gender.Male
+                    race = Race.Elf
+                    klass = PcClass.Mage
+                    level = 1
+                    health = 76
+                    hitPoints = 76 of 76
+                    weaponSkill = 72
+                    wisdom = 92
+                    mana = 92 of 92
+                    charisma = 74
+                    equipped {
+                        weapon = Items.magicDagger
+                        armor = Items.leather
+                    }
+                    experience = 0
+                    alive()
+                }
+
+                member("Priest") {
+                    gender = Gender.Female
+                    race = Race.Human
+                    klass = PcClass.Priest
+                    level = 1
+                    health = 82
+                    hitPoints = 82 of 82
+                    weaponSkill = 74
+                    wisdom = 90
+                    mana = 90 of 90
+                    charisma = 80
+                    equipped {
+                        weapon = Items.magicAxe
+                        armor = Items.chainMail
                     }
                     experience = 0
                     alive()
@@ -6718,7 +6860,7 @@ val nextRylween: RylweenModel = rylween {
                     hitPoints = 68 of 68
                     weaponSkill = 27
                     wisdom = 27
-                    mana = 0 manaOf 27
+                    mana = 0 of 27
                     charisma = 49
                     equipped {
                         weapon = Items.none
@@ -6737,7 +6879,7 @@ val nextRylween: RylweenModel = rylween {
                     hitPoints = 46 of 46
                     weaponSkill = 42
                     wisdom = 48
-                    mana = 0 manaOf 48
+                    mana = 0 of 48
                     charisma = 64
                     equipped {
                         weapon = Items.none
@@ -6854,7 +6996,7 @@ val nextRylween: RylweenModel = rylween {
                     hitPoints = 68 of 68
                     weaponSkill = 27
                     wisdom = 27
-                    mana = 0 manaOf 27
+                    mana = 0 of 27
                     charisma = 49
                     equipped {
                         weapon = Items.none
@@ -6873,7 +7015,7 @@ val nextRylween: RylweenModel = rylween {
                     hitPoints = 46 of 46
                     weaponSkill = 42
                     wisdom = 48
-                    mana = 0 manaOf 48
+                    mana = 0 of 48
                     charisma = 64
                     equipped {
                         weapon = Items.none

@@ -261,7 +261,7 @@ class RylweenDslValidationTest {
                             hitPoints = 68 of 68,
                             weaponSkill = 27,
                             wisdom = 27,
-                            mana = 0 manaOf 27,
+                            mana = 0 of 27,
                             charisma = 49,
                             equipment = EquipmentState(Items.none, Items.none),
                             experience = 0,
@@ -280,10 +280,13 @@ class RylweenDslValidationTest {
         assertTrue("""rngState = 1234L""" in snapshot)
         assertTrue("""mark(runtimeFlagState("garth.bandits", "recovered"))""" in snapshot)
         assertTrue("""slot(16).empty()""" in snapshot)
+        assertTrue("""mana = 0 of 27""" in snapshot)
         assertTrue("""line("Castle Ydarg has fallen.")""" in snapshot)
 
         val parsed = parseRuntimeStateSnapshot(snapshot)
+        val parsedLegacyMana = parseRuntimeStateSnapshot(snapshot.replace("mana = 0 of 27", "mana = 0 manaOf 27"))
         assertEquals(snapshot, renderRuntimeStateSnapshot(parsed))
+        assertEquals(snapshot, renderRuntimeStateSnapshot(parsedLegacyMana))
         assertEquals(state.id, parsed.id)
         assertEquals(Towns.thord.inn, parsed.npcs.single().position)
         assertEquals(Items.redPotion, parsed.parties.single().inventory.single { it.slot == 0 }.item)
@@ -1200,7 +1203,7 @@ class RylweenDslValidationTest {
                 member.health == 15 &&
                 member.hitPoints == (15 of 15) &&
                 member.wisdom == 15 &&
-                member.mana == (0 manaOf 15) &&
+                member.mana == (0 of 15) &&
                 member.charisma == 15 &&
                 member.level == 1 &&
                 member.experience == 0 &&
@@ -8544,7 +8547,7 @@ class RylweenDslValidationTest {
             hitPoints = hitPoints of health,
             weaponSkill = weaponSkill,
             wisdom = wisdom,
-            mana = mana manaOf wisdom,
+            mana = mana of wisdom,
             charisma = charisma,
             equipment = equipment,
             experience = experience,

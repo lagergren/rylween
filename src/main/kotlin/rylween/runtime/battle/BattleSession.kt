@@ -379,7 +379,7 @@ data class BattleSession(
             )
         }
 
-        val nextCaster = caster.copy(mana = (caster.mana.current - cost) manaOf caster.mana.max)
+        val nextCaster = caster.copy(mana = (caster.mana.current - cost) of caster.mana.max)
         val nextRuntime = runtime.withActiveMember(memberIndex, nextCaster)
         return copy(runtime = nextRuntime).beginScript(
             memberIndex = memberIndex,

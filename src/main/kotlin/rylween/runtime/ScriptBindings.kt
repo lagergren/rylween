@@ -81,7 +81,7 @@ private val memberFieldWriters: Map<String, PartyMemberState.(Int) -> PartyMembe
     "magic" to { value -> copy(mana = mana.copy(current = value.coerceAtLeast(0))) },
     "magic_max" to { value ->
         val maxValue = value.coerceAtLeast(0)
-        copy(mana = mana.current.coerceAtMost(maxValue) manaOf maxValue)
+        copy(mana = mana.current.coerceAtMost(maxValue) of maxValue)
     },
     "wisdom" to { value -> copy(wisdom = value.coerceAtLeast(0)) },
     "charisma" to { value -> copy(charisma = value.coerceAtLeast(0)) },

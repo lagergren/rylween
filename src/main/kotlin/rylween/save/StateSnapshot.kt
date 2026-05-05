@@ -684,7 +684,7 @@ private class RuntimeStateSnapshotParser(source: String) {
         var hitPoints = 1 of 1
         var weaponSkill = 0
         var wisdom = 0
-        var mana = 0 manaOf 0
+        var mana = 0 of 0
         var charisma = 0
         var equipment = EquipmentState(DslDefaultItems.none, DslDefaultItems.none)
         var experience = 0
@@ -716,8 +716,10 @@ private class RuntimeStateSnapshotParser(source: String) {
                 "mana" -> {
                     expectSymbol('=')
                     val current = parseInt()
-                    expectIdent("manaOf")
-                    mana = current manaOf parseInt()
+                    when (val separator = expectIdentifier()) {
+                        "of", "manaOf" -> mana = current of parseInt()
+                        else -> unexpected("mana separator '$separator'")
+                    }
                 }
                 "charisma" -> charisma = parseAssignedInt()
                 "equipped" -> equipment = parseEquipmentBody()
@@ -1365,7 +1367,7 @@ private class RuntimeStateSnapshotWriter {
             line("hitPoints = ${member.hitPoints.current} of ${member.hitPoints.max}")
             assignment("weaponSkill", member.weaponSkill)
             assignment("wisdom", member.wisdom)
-            line("mana = ${member.mana.current} manaOf ${member.mana.max}")
+            line("mana = ${member.mana.current} of ${member.mana.max}")
             assignment("charisma", member.charisma)
             equipment(member.equipment)
             assignment("experience", member.experience)

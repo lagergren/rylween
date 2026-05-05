@@ -498,10 +498,10 @@ enum class Gender { Male, Female }
 enum class Race { Human, HalfElf, HalfOrc }
 enum class PcClass { Thief, Fighter, Wizard, Priest, Ranger, Bard }
 
-data class HitPoints(val current: Int, val max: Int)
-infix fun Int.of(max: Int): HitPoints = HitPoints(this, max)
-data class Mana(val current: Int, val max: Int)
-infix fun Int.manaOf(max: Int): Mana = Mana(this, max)
+data class StatPool(val current: Int, val max: Int)
+typealias HitPoints = StatPool
+typealias Mana = StatPool
+infix fun Int.of(max: Int): StatPool = StatPool(this, max)
 
 data class GridPoint(val x: Int, val y: Int)
 fun xy(x: Int, y: Int): GridPoint = GridPoint(x, y)
@@ -1228,7 +1228,7 @@ class PartyMemberBuilder(private val name: String) {
     var hitPoints: HitPoints = 1 of 1
     var weaponSkill: Int = 0
     var wisdom: Int = 0
-    var mana: Mana = 0 manaOf 0
+    var mana: Mana = 0 of 0
     var charisma: Int = 0
     var armor: ItemId = Items.none
     var weapon: ItemId = Items.none
@@ -1616,7 +1616,7 @@ val nextRylween = rylween {
                     hitPoints = 68 of 68
                     weaponSkill = 27
                     wisdom = 27
-                    mana = 0 manaOf 27
+                    mana = 0 of 27
                     charisma = 49
                     armor = Items.none
                     weapon = Items.none
@@ -1633,7 +1633,7 @@ val nextRylween = rylween {
                     hitPoints = 46 of 46
                     weaponSkill = 42
                     wisdom = 48
-                    mana = 0 manaOf 48
+                    mana = 0 of 48
                     charisma = 64
                     armor = Items.none
                     weapon = Items.none
