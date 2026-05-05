@@ -5,6 +5,8 @@ import rylween.dsl.StateKind
 import rylween.dsl.StateModel
 import rylween.dsl.RuntimeMode
 import rylween.dsl.GameModel
+import rylween.dsl.InventorySaveSlotMax
+import rylween.dsl.InventorySlotState
 import rylween.dsl.NpcVisitState
 import rylween.dsl.PartyAttackRecord
 import rylween.dsl.PartyState
@@ -50,12 +52,17 @@ private fun PartyState.toRuntimeSnapshotParty(runtime: RuntimeSessionState): Par
     val attackedTodayByParty = counters.attackedToday.associateBy { it.party }
     val npcIds = runtime.npcs.map { it.npc }
     val visitedByNpc = visitedNpcs.associateBy { it.npc }
+    val inventoryBySlot = inventory.associateBy { it.slot }
     return copy(
         counters = counters.copy(
+            memberCount = members.count { !it.dead },
             attackedToday = partyIds.map { partyId ->
                 attackedTodayByParty[partyId] ?: PartyAttackRecord(partyId, attacked = false)
             },
         ),
+        inventory = (0..InventorySaveSlotMax).map { slot ->
+            inventoryBySlot[slot] ?: InventorySlotState(slot, null)
+        },
         visitedNpcs = npcIds.map { npc ->
             visitedByNpc[npc] ?: NpcVisitState(npc = npc, visited = false)
         },

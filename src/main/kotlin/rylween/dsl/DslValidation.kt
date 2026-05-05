@@ -2601,8 +2601,9 @@ fun validateStates(states: List<StateModel>, content: GameModel? = null) {
             }
             check(slots.toSet().size == slots.size) { "party ${party.id.slug}: duplicate inventory slot" }
             party.counters.memberCount?.let { count ->
-                check(count == party.members.size) {
-                    "party ${party.id.slug}: memberCount $count does not match ${party.members.size} member records"
+                val livingMembers = party.members.count { !it.dead }
+                check(count == livingMembers) {
+                    "party ${party.id.slug}: memberCount $count does not match $livingMembers living member records"
                 }
             }
             check(party.milestones.toSet().size == party.milestones.size) {

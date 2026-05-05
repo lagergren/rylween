@@ -303,15 +303,11 @@ class RylweenDslValidationTest {
                 restedHours = 14,
             ),
             counters = sourceParty.counters.copy(
-                memberCount = sourceParty.members.count { !it.dead },
-                attackedToday = listOf(PartyAttackRecord(freshReplay.realm.activeParty, false)),
+                memberCount = null,
+                attackedToday = emptyList(),
             ),
-            visitedNpcs = freshReplay.npcs
-                .distinctBy { it.npc }
-                .map { NpcVisitState(it.npc, false) },
-            inventory = (0..InventorySaveSlotMax).map { slot ->
-                sourceParty.inventory.firstOrNull { it.slot == slot } ?: InventorySlotState(slot, null)
-            },
+            visitedNpcs = emptyList(),
+            inventory = sourceParty.inventory.filter { it.item != null },
         )
         try {
             runCompiledWildernessScenario(
@@ -356,7 +352,14 @@ class RylweenDslValidationTest {
                         assertEquals(content.runtimeSnapshotMetadata(), loadedSnapshot.metadata)
                         assertEquals(99L, loaded.realm.rngState)
                         assertEquals(result.session.party.id, loaded.realm.activeParty)
-                        assertEquals(saveParty.resources.food - 2, loaded.parties.single().resources.food)
+                        val loadedParty = loaded.parties.single()
+                        assertEquals(saveParty.resources.food - 2, loadedParty.resources.food)
+                        assertEquals(saveParty.members.count { !it.dead }, loadedParty.counters.memberCount)
+                        assertEquals((0..InventorySaveSlotMax).toList(), loadedParty.inventory.map { it.slot })
+                        assertEquals(
+                            freshReplay.npcs.map { it.npc }.toSet(),
+                            loadedParty.visitedNpcs.map { it.npc }.toSet(),
+                        )
                         assertEquals(xy(45, 13), loaded.locations.single().point)
                         assertEquals(RuntimeMode.Wilderness, session.runtime.realm.currentMode)
                         assertOutputContains("Saving position...")

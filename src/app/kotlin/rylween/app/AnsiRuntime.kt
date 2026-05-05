@@ -492,26 +492,26 @@ private class RylweenAnsiGame(
                 is WildernessSessionStep.CaveFound -> {
                     step.image?.let(screen::showImage)
                     screen.writeBlock(step.prompt, session.runtime, renderer)
-                    when (readChoice(session.wilderness.keys.caveEnter, session.wilderness.keys.caveLeave)) {
-                        true -> session.apply(WildernessSessionInput.CaveAnswer(true))
-                        false -> session.apply(WildernessSessionInput.CaveAnswer(false))
-                        null -> session
+                    when (val choice = readChoice(session.wilderness.keys.caveEnter, session.wilderness.keys.caveLeave)) {
+                        is BooleanChoice.Answer -> session.apply(WildernessSessionInput.CaveAnswer(choice.value))
+                        BooleanChoice.Rejected -> session
+                        BooleanChoice.Unavailable -> return
                     }
                 }
                 is WildernessSessionStep.OutOfMoves -> {
                     screen.writeBlock(step.prompt, session.runtime, renderer)
-                    when (readChoice(session.wilderness.keys.outOfMovesSave, session.wilderness.keys.outOfMovesQuit)) {
-                        true -> session.apply(WildernessSessionInput.OutOfMovesAnswer(true))
-                        false -> session.apply(WildernessSessionInput.OutOfMovesAnswer(false))
-                        null -> session
+                    when (val choice = readChoice(session.wilderness.keys.outOfMovesSave, session.wilderness.keys.outOfMovesQuit)) {
+                        is BooleanChoice.Answer -> session.apply(WildernessSessionInput.OutOfMovesAnswer(choice.value))
+                        BooleanChoice.Rejected -> session
+                        BooleanChoice.Unavailable -> return
                     }
                 }
                 is WildernessSessionStep.QuitConfirm -> {
                     screen.writeBlock(step.prompt, session.runtime, renderer)
-                    when (readChoice(session.wilderness.keys.quitYes, session.wilderness.keys.quitNo)) {
-                        true -> session.apply(WildernessSessionInput.QuitAnswer(true))
-                        false -> session.apply(WildernessSessionInput.QuitAnswer(false))
-                        null -> session
+                    when (val choice = readChoice(session.wilderness.keys.quitYes, session.wilderness.keys.quitNo)) {
+                        is BooleanChoice.Answer -> session.apply(WildernessSessionInput.QuitAnswer(choice.value))
+                        BooleanChoice.Rejected -> session
+                        BooleanChoice.Unavailable -> return
                     }
                 }
                 is WildernessSessionStep.DungeonHandoff -> {
@@ -534,20 +534,12 @@ private class RylweenAnsiGame(
                         postDungeon = step.postDungeon,
                     ).runUntilBlocked(step.session)
                     val updated = session.replaceDungeonSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "dungeon step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "dungeon step limit reached") ?: return
                 }
                 is WildernessSessionStep.Ydarg -> {
                     val result = YdargSessionTerminalAdapter(port, renderer, savePort).runUntilBlocked(step.session)
                     val updated = session.replaceYdargSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "Ydarg step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "Ydarg step limit reached") ?: return
                 }
                 is WildernessSessionStep.Town -> {
                     if (enteringTown) {
@@ -555,14 +547,7 @@ private class RylweenAnsiGame(
                     }
                     val result = TownSessionTerminalAdapter(port, renderer, serviceBridge).runUntilBlocked(step.session)
                     val updated = session.replaceTownSession(result.session)
-                    when (val status = result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "town step limit reached") }
-                        is TerminalRunStatus.Waiting -> {
-                            if (status.rejection == null) return
-                            updated
-                        }
-                    }
+                    completeChildStep(updated, result.status, "town step limit reached") ?: return
                 }
                 is WildernessSessionStep.Hut -> {
                     val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
@@ -574,87 +559,52 @@ private class RylweenAnsiGame(
                             val nextContinuation = checkNotNull(result.continuation) {
                                 "waiting hut bridge did not return continuation"
                             }
-                            session.replaceHutContinuation(nextContinuation)
+                            completeScriptWait(
+                                session.replaceHutContinuation(nextContinuation),
+                                result.rejection,
+                            ) ?: return
                         }
                     }
                 }
                 is WildernessSessionStep.Battle -> {
                     val result = BattleSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceBattleSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "battle step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "battle step limit reached") ?: return
                 }
                 is WildernessSessionStep.Camp -> {
                     val result = CampSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceCampSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "camp step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "camp step limit reached") ?: return
                 }
                 is WildernessSessionStep.Hunt -> {
                     val result = HuntSessionTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceHuntSession(result.session)
-                    when (val status = result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "hunt step limit reached") }
-                        is TerminalRunStatus.Waiting -> {
-                            if (status.rejection == null) return
-                            updated
-                        }
-                    }
+                    completeChildStep(updated, result.status, "hunt step limit reached") ?: return
                 }
                 is WildernessSessionStep.InventoryItemUse -> {
                     val result = InventoryItemUseTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceInventoryItemUseSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "inventory step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "inventory step limit reached") ?: return
                 }
                 is WildernessSessionStep.InventoryDrop -> {
                     val result = InventoryDropTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceInventoryDropSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "inventory drop step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "inventory drop step limit reached") ?: return
                 }
                 is WildernessSessionStep.PartyView -> {
                     val result = PartyViewTerminalAdapter(port, renderer).runUntilBlocked(step.session, session.runtime)
                     val updated = session.replacePartyViewSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "party view step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "party view step limit reached") ?: return
                 }
                 is WildernessSessionStep.PartyJournal -> {
                     val result = PartyJournalTerminalAdapter(port, renderer).runUntilBlocked(step.session, session.runtime)
                     val updated = session.replacePartyJournalSession(result.session)
-                    when (val status = result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "party journal step limit reached") }
-                        is TerminalRunStatus.Waiting -> {
-                            if (status.rejection == null) return
-                            updated
-                        }
-                    }
+                    completeChildStep(updated, result.status, "party journal step limit reached") ?: return
                 }
                 is WildernessSessionStep.Equipment -> {
                     val result = EquipmentPromptTerminalAdapter(port, renderer).runUntilBlocked(step.session)
                     val updated = session.replaceEquipmentSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "equipment step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "equipment step limit reached") ?: return
                 }
                 is WildernessSessionStep.PriestSpell -> {
                     val result = PriestSpellTerminalAdapter(
@@ -665,11 +615,7 @@ private class RylweenAnsiGame(
                     )
                         .runUntilBlocked(step.session)
                     val updated = session.replacePriestSpellSession(result.session)
-                    when (result.status) {
-                        TerminalRunStatus.Finished -> updated
-                        TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", "priest spell step limit reached") }
-                        is TerminalRunStatus.Waiting -> updated
-                    }
+                    completeChildStep(updated, result.status, "priest spell step limit reached") ?: return
                 }
                 is WildernessSessionStep.Mission -> {
                     val continuation = step.continuation ?: ScriptContinuation.start(session.runtime)
@@ -699,15 +645,19 @@ private class RylweenAnsiGame(
                             }
                             val battle = nextContinuation.battleSession
                             if (battle == null) {
-                                session.replaceMissionContinuation(nextContinuation)
+                                completeScriptWait(
+                                    session.replaceMissionContinuation(nextContinuation),
+                                    result.rejection,
+                                ) ?: return
                             } else {
                                 val battleResult = BattleSessionTerminalAdapter(port, renderer).runUntilBlocked(battle)
-                                session.replaceMissionContinuation(
+                                val updated = session.replaceMissionContinuation(
                                     nextContinuation.copy(
                                         runtime = battleResult.session.runtime,
                                         battleSession = battleResult.session,
                                     ),
                                 )
+                                completeChildStep(updated, battleResult.status, "mission battle step limit reached") ?: return
                             }
                         }
                     }
@@ -756,15 +706,38 @@ private class RylweenAnsiGame(
         }
     }
 
-    private fun readChoice(yes: InputBindingModel, no: InputBindingModel): Boolean? =
+    private sealed interface BooleanChoice {
+        data class Answer(val value: Boolean) : BooleanChoice
+        object Rejected : BooleanChoice
+        object Unavailable : BooleanChoice
+    }
+
+    private fun completeChildStep(
+        updated: WildernessSession,
+        status: TerminalRunStatus,
+        stepLimitWarning: String,
+    ): WildernessSession? =
+        when (status) {
+            TerminalRunStatus.Finished -> updated
+            TerminalRunStatus.StepLimitReached -> updated.also { log.warn("ansi", stepLimitWarning) }
+            is TerminalRunStatus.Waiting -> completeScriptWait(updated, status.rejection)
+        }
+
+    private fun completeScriptWait(
+        updated: WildernessSession,
+        rejection: TerminalInputRejection?,
+    ): WildernessSession? =
+        if (rejection == null) null else updated
+
+    private fun readChoice(yes: InputBindingModel, no: InputBindingModel): BooleanChoice =
         when (val token = terminal.readKeyToken()) {
-            null -> null
+            null -> BooleanChoice.Unavailable
             else -> when {
-                yes.matches(token) -> true
-                no.matches(token) -> false
+                yes.matches(token) -> BooleanChoice.Answer(true)
+                no.matches(token) -> BooleanChoice.Answer(false)
                 else -> {
                     screen.writeText(listOf("Invalid input.", "Expected: ${yes.label}/${no.label}", ""))
-                    null
+                    BooleanChoice.Rejected
                 }
             }
         }
