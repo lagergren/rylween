@@ -7800,6 +7800,55 @@ class RylweenDslValidationTest {
     }
 
     @Test
+    fun battleTerminalAdapterSeparatesAutoContinuedMessagesFromNextPromptFrame() {
+        class ClassicPaneTerminalPort(
+            vararg inputs: String,
+        ) : TerminalPort {
+            private val queue = ArrayDeque(inputs.toList())
+            private var pendingLines = 0
+            var overflowFrames = 0
+
+            override fun write(lines: List<String>) {
+                pendingLines += lines.size
+                if (pendingLines > 11) {
+                    overflowFrames += 1
+                }
+            }
+
+            override fun readLine(): String? =
+                queue.removeFirstOrNull()
+                    ?.also { pendingLines = 0 }
+
+            override fun finishOutputFrame() {
+                pendingLines = 0
+            }
+        }
+
+        val terminal = ClassicPaneTerminalPort("F", "B")
+        val result =
+            BattleSessionTerminalAdapter(terminal, compiledTextRenderer()).runUntilBlocked(
+                compiledBattleSession(
+                    tier = EncounterTiers.weak,
+                    party =
+                        testParty(
+                            food = 100,
+                            timeLeft = 200,
+                            restedHours = 14,
+                            members =
+                                listOf(
+                                    testMember(name = "Lead", pcClass = PcClass.Ranger),
+                                    testMember(name = "Second", pcClass = PcClass.Ranger),
+                                ),
+                        ),
+                ),
+            )
+
+        assertTrue(result.status is TerminalRunStatus.Waiting)
+        assertTrue(result.session.step is BattleSessionStep.PlayerAction)
+        assertEquals(0, terminal.overflowFrames)
+    }
+
+    @Test
     fun battleSessionAttackUsesReadiedWeaponDamage() {
         fun runAttackWith(weapon: ItemId): TerminalAdapterResult<BattleSession> {
             val terminal = FakeTerminalPort("F", "A", "A")

@@ -1599,9 +1599,11 @@ class BattleSessionTerminalAdapter(
                     }
                     is BattleSessionStep.Message -> {
                         writeStepViewCommands(step, session.runtime)
+                        val context = TerminalTextContext(runtime = session.runtime)
                         step.texts.forEach { text ->
-                            terminal.write(renderer.lines(text, TerminalTextContext(runtime = session.runtime)))
+                            terminal.write(renderer.lines(text, context))
                         }
+                        terminal.finishOutputFrame()
                         session.apply(BattleSessionInput.Continue)
                     }
                     is BattleSessionStep.PlayerAction -> {

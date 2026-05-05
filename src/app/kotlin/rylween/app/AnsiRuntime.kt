@@ -1077,6 +1077,10 @@ private class AnsiTerminalPort(
         terminal.pause(ms)
     }
 
+    override fun finishOutputFrame() {
+        screen.completeTerminalInput()
+    }
+
     override fun writeViewCommand(
         command: ViewCommand,
         renderer: TerminalTextRenderer,
