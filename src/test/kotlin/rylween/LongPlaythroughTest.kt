@@ -104,6 +104,23 @@ class LongPlaythroughTest {
         assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredFixedDungeonCompletions)
         assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
     }
+
+    @Test
+    fun cheatedAcceptancePlaythroughReachesYdargVictoryAndHeroesReport() {
+        val playthrough = CheatedLongPlaythrough()
+
+        val reports = playthrough.runAcceptancePlaythrough()
+
+        assertEquals(playthrough.allTownBuildings, playthrough.coveredBuildings)
+        assertEquals(playthrough.allMissions, playthrough.coveredMissions)
+        assertEquals(playthrough.expectedDungeonHandoffs, playthrough.coveredFixedDungeonCompletions)
+        assertEquals(playthrough.dungeonHandoffMissions, playthrough.coveredPostDungeonContinuations)
+        assertTrue(playthrough.ydargCompleted)
+        assertTrue(Milestones.ydargVictory in playthrough.runtime.activeParty.milestones)
+        assertTrue(reports.scoreLines.any { line -> "Playtest" in line })
+        assertTrue(reports.verboseScoreLines.any { line -> line == "  Leader             : Fighter" })
+        assertTrue(reports.heroesLines.any { line -> line == "  Playtest defeated Baron Ydarg" })
+    }
 }
 
 private class CheatedLongPlaythrough {
@@ -248,6 +265,28 @@ private class CheatedLongPlaythrough {
         fixedDungeonCompletionLegs().forEach(::runFixedDungeonCompletion)
     }
 
+    fun runAcceptancePlaythrough(): AcceptanceReports {
+        visitEveryThordServiceThroughWilderness()
+
+        val fixedDungeonCompletions = fixedDungeonCompletionLegs().associateBy(DungeonCompletionLeg::mission)
+        missionLegs().forEach { leg ->
+            val completion = fixedDungeonCompletions[leg.id]
+            if (completion == null) {
+                runAcceptanceTriggeredMission(leg)
+            } else {
+                runFixedDungeonCompletion(completion, startParty = runtime.activeParty, applyRuntime = true)
+            }
+        }
+
+        assertTrue(
+            requiredYdargMilestones.all { milestone -> milestone in runtime.activeParty.milestones },
+            "acceptance playthrough reached Ydarg without all power milestones; " +
+                "milestones=${runtime.activeParty.milestones.map(GameMilestoneId::slug)}",
+        )
+        finishYdarg(grantPowerMilestones = false)
+        return renderRuntimeReports()
+    }
+
     private fun runMission(leg: MissionLeg) {
         val mission = game.missions.single { it.id == leg.id }
         val scene = game.scenes.single { it.id == mission.action }
@@ -274,6 +313,19 @@ private class CheatedLongPlaythrough {
         verifyMissionRun(leg, terminalRun.result, terminalRun.output, applyRuntime = false)
     }
 
+    private fun runAcceptanceTriggeredMission(leg: MissionLeg) {
+        val mission = game.missions.single { it.id == leg.id }
+        val route = routeToTrigger(mission.trigger)
+        val terminalRun = runTriggeredMission(
+            leg = leg,
+            mission = mission,
+            route = route,
+            startParty = runtime.activeParty,
+        )
+
+        verifyMissionRun(leg, terminalRun.result, terminalRun.output)
+    }
+
     private fun runTriggeredMissionThroughDungeonReturn(leg: MissionLeg) {
         val expectedEnd = leg.expectedEnd as? MissionEnd.DungeonHandoff
             ?: error("mission ${leg.id.slug} does not hand off to a dungeon")
@@ -289,7 +341,11 @@ private class CheatedLongPlaythrough {
         verifyPostDungeonContinuation(leg, expectedEnd, terminalRun.result, terminalRun.output)
     }
 
-    private fun runFixedDungeonCompletion(completion: DungeonCompletionLeg) {
+    private fun runFixedDungeonCompletion(
+        completion: DungeonCompletionLeg,
+        startParty: PartyState = baseCheatedParty,
+        applyRuntime: Boolean = false,
+    ) {
         val leg = missionLegs().single { it.id == completion.mission }
         val mission = game.missions.single { it.id == leg.id }
         val route = routeToTrigger(mission.trigger)
@@ -299,6 +355,7 @@ private class CheatedLongPlaythrough {
             route = route,
             extraInputs = completion.inputs,
             content = runtimeContent.withFixedDungeonEventsOnly(),
+            startParty = startParty,
         )
 
         verifyPostDungeonContinuation(leg, completion.expectedEnd, terminalRun.result, terminalRun.output)
@@ -321,6 +378,10 @@ private class CheatedLongPlaythrough {
             )
         }
         coveredFixedDungeonCompletions += completion.expectedEnd.dungeon
+        if (applyRuntime) {
+            runtime = terminalRun.result.session.runtime
+                .withActiveParty(terminalRun.result.session.party.cheatedForLongPlaythrough())
+        }
     }
 
     private fun runTriggeredMission(
@@ -329,18 +390,24 @@ private class CheatedLongPlaythrough {
         route: TriggerRoute,
         extraInputs: List<String> = emptyList(),
         content: RuntimeContent = runtimeContent,
+        startParty: PartyState = baseCheatedParty,
     ): MissionTerminalRun {
-        val party = baseCheatedParty
+        val party = startParty
+            .cheatedForLongPlaythrough()
             .copy(position = WorldPosition.Wilderness(route.start))
             .withRequirement(mission.requires)
-        val startRuntime = RuntimeSessionState.singleParty(
-            party = party,
-            hour = 12,
-            currentTown = null,
-            rngState = route.rngState,
-            npcs = runtime.npcs,
-            locations = playthroughLocations,
-        )
+        val startRuntime = runtime
+            .withActiveParty(party)
+            .withRealm(
+                runtime.realm.copy(
+                    hour = 12,
+                    rngState = route.rngState,
+                    currentMap = Maps.wilderness,
+                    currentMode = RuntimeMode.Wilderness,
+                    currentTown = null,
+                ),
+            )
+            .copy(locations = playthroughLocations)
         val terminal = ScenarioTerminalPort(*(route.inputs + leg.inputs + extraInputs).toTypedArray())
         val result = WildernessSessionTerminalAdapter(terminal, renderer).runUntilBlocked(
             WildernessSession.start(
@@ -424,16 +491,16 @@ private class CheatedLongPlaythrough {
         coveredPostDungeonContinuations += leg.id
     }
 
-    fun finishYdarg() {
+    fun finishYdarg(grantPowerMilestones: Boolean = true) {
         val party = runtime.activeParty
             .cheatedForLongPlaythrough()
-            .withMilestones(
-                Milestones.silverKey,
-                Milestones.fireShield,
-                Milestones.masterCrown,
-                Milestones.footOfJazzy,
-                Milestones.braceletsOfThun,
-            )
+            .let { party ->
+                if (grantPowerMilestones) {
+                    party.withMilestones(*requiredYdargMilestones.toTypedArray())
+                } else {
+                    party
+                }
+            }
         val startRuntime = RuntimeSessionState.singleParty(
             party = party,
             hour = 12,
@@ -462,6 +529,29 @@ private class CheatedLongPlaythrough {
         assertNoUnresolvedText("Ydarg finale", terminal.output)
         runtime = result.session.runtime
         ydargCompleted = true
+    }
+
+    private fun renderRuntimeReports(): AcceptanceReports {
+        val context = TerminalTextContext(runtime = runtime)
+        fun render(screen: StaticScreenId, label: String): List<String> {
+            val rendered = checkNotNull(
+                game.renderTerminalStaticScreen(
+                    id = screen,
+                    renderer = renderer,
+                    resourceText = { error("$label should render from runtime state") },
+                    context = context,
+                ),
+            )
+            val lines = rendered.pages.flatten()
+            assertNoUnresolvedText(label, lines)
+            return lines
+        }
+
+        return AcceptanceReports(
+            scoreLines = render(StaticScreens.score, "acceptance score report"),
+            verboseScoreLines = render(StaticScreens.verboseScore, "acceptance verbose score report"),
+            heroesLines = render(StaticScreens.heroes, "acceptance heroes report"),
+        )
     }
 
     private fun missionLegs(): List<MissionLeg> =
@@ -821,6 +911,15 @@ private class CheatedLongPlaythrough {
         generateSequence(1L) { it + 1L }
             .first { seed -> ReferenceRylweenRandom.draw(seed, 1, 9).value in 6..7 }
 
+    private val requiredYdargMilestones: Set<GameMilestoneId> =
+        linkedSetOf(
+            Milestones.silverKey,
+            Milestones.fireShield,
+            Milestones.masterCrown,
+            Milestones.footOfJazzy,
+            Milestones.braceletsOfThun,
+        )
+
     private fun assertNoUnresolvedText(label: String, output: List<String>) {
         val unresolved = output.filter { "{" in it || "}" in it }
         assertTrue(unresolved.isEmpty(), "$label rendered unresolved text placeholders: $unresolved")
@@ -836,6 +935,12 @@ private data class TriggerRoute(
 private data class MissionTerminalRun(
     val result: TerminalAdapterResult<WildernessSession>,
     val output: List<String>,
+)
+
+private data class AcceptanceReports(
+    val scoreLines: List<String>,
+    val verboseScoreLines: List<String>,
+    val heroesLines: List<String>,
 )
 
 private data class DungeonCompletionLeg(
